@@ -54,6 +54,9 @@ function profileV2Defaults() {
     personalEmail: null as string | null,
     emailProvisionedAt: null as Date | null,
     assetsAllocatedAt: null as Date | null,
+    // Performance criteria (migration 0061) and KRA (migration 0065).
+    performanceCriteria: null as string | null,
+    kra: null as string | null,
   };
 }
 

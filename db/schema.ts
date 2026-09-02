@@ -124,6 +124,11 @@ export const employees = pgTable("employees", {
   departmentId: uuid("department_id").references(() => departments.id, {
     onDelete: "set null",
   }),
+  // Performance criteria — "how we measure it" (mig 0061) — and KRA — "what we
+  // measure" (mig 0065). Admin-editable free text, read by Profile >
+  // Performance and the Weekly Goals board; both feed Star of the Month.
+  performanceCriteria: text("performance_criteria"),
+  kra: text("kra"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
