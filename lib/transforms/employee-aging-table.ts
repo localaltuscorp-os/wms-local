@@ -35,6 +35,7 @@ export function computeEmployeeAgingTable(
       rows.set(t.doerId, {
         employeeId: t.doerId,
         employeeName: emp.name,
+        department: emp.department ?? null,
         buckets: emptyBuckets(),
         total: 0,
       });

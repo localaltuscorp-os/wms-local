@@ -8,11 +8,14 @@ export { decideCheckoutNotification };
 /**
  * Attendance Phase A, Task A8 — best-effort attendance notifications.
  *
- * Three kinds are emailed (+ inbox): a late check-in, a late/left-early day
- * that a full day later WAIVED, and a half-day. We force the channel set to
- * `["email"]` so dispatch creates the in-app row AND sends the email, but
- * never fires Slack/WhatsApp/push (there's no WhatsApp template for these and
- * the org doesn't want attendance noise on the chat channels).
+ * Kinds emailed (+ inbox): a late check-in, a late/left-early day a full day
+ * later WAIVED, a half-day, and the 3-lates deduction alert. We force the
+ * channel set to `["email", "whatsapp"]` (WMS overhaul Phase 6 / D13) so
+ * dispatch creates the in-app row, sends the email, AND fires the WhatsApp
+ * late-alert — but ONLY for employees who opted into WhatsApp (the dispatcher's
+ * `whatsapp` arm self-skips when `whatsappOptedIn` is false or no phone is on
+ * file, and when the Meta Cloud API env / approved `vp_attendance_*` template
+ * isn't configured). Slack + push stay off (no attendance noise on chat/push).
  */
 
 export type AttendanceNotifyKind =
@@ -81,7 +84,8 @@ export async function notifyAttendance(
       kind: kind as NotificationKind,
       title: TITLES[kind],
       body: attendanceMetaBody(info),
-      forceChannels: ["email"], // email + in-app row; no slack/whatsapp/push
+      // D13 — email + in-app row + WhatsApp late-alert (opted-in only); no slack/push.
+      forceChannels: ["email", "whatsapp"],
     });
   } catch (err) {
     console.warn("[attendance] notifyAttendance failed (non-fatal)", err);

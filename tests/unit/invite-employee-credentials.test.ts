@@ -76,15 +76,19 @@ describe("inviteEmployee (credentials flow)", () => {
       isAdmin: false,
     });
     expect(res.ok).toBe(true);
+    // A fresh, strong, per-invite password is minted (no shared default).
+    const createdPw = createUser.mock.calls[0]![0].password as string;
+    expect(createdPw).toHaveLength(14);
+    expect(createdPw).toMatch(/[A-Z]/);
+    expect(createdPw).toMatch(/[a-z]/);
+    expect(createdPw).toMatch(/[0-9]/);
+    expect(createdPw).toMatch(/[^A-Za-z0-9]/);
     expect(createUser).toHaveBeenCalledWith(
-      expect.objectContaining({
-        email: "dev@altus.test",
-        password: "Wms@123",
-        emailVerified: true,
-      }),
+      expect.objectContaining({ email: "dev@altus.test", emailVerified: true }),
     );
+    // The emailed password must be the SAME one set on the Firebase user.
     expect(sendCredentialsEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ email: "dev@altus.test", password: "Wms@123" }),
+      expect.objectContaining({ email: "dev@altus.test", password: createdPw }),
     );
     expect(generatePasswordResetLink).not.toHaveBeenCalled();
   });

@@ -1,5 +1,6 @@
 import { format, formatDistanceToNow } from "date-fns";
 import { Calendar, Sparkles, ArrowRight } from "lucide-react";
+import { formatDate } from "@/lib/format";
 import { Avatar } from "@/components/ui/avatar";
 import type { TaskDetail as TaskDetailModel } from "@/lib/queries/tasks";
 import type { TaskPriority } from "@/db/enums";
@@ -46,8 +47,11 @@ export function TaskDetail({ task }: { task: TaskDetailModel }) {
   const headline =
     description || task.subject?.trim() || clientName || "Untitled task";
   const subjectChip = task.subject?.trim() || null;
+  // Overdue is keyed off the EFFECTIVE due (revised ?? original), not the
+  // immutable original due_at.
+  const effectiveDue = task.revisedTargetDate ?? task.dueAt;
   const overdue =
-    task.dueAt.getTime() < Date.now() &&
+    effectiveDue.getTime() < Date.now() &&
     !["approved", "cancelled", "transferred"].includes(task.status);
 
   return (
@@ -84,25 +88,37 @@ export function TaskDetail({ task }: { task: TaskDetailModel }) {
         </span>
       </div>
 
-      {/* HEADLINE — the task itself (its description). The biggest element on
-          the page; serif, sized to stay legible whether it's a phrase or a
-          paragraph. */}
+      {/* HEADLINE — the task itself (its description). The biggest element
+          on the page. Short phrase-length headlines get the full display
+          treatment (brand titles are font-display 900); long/multi-line
+          descriptions fall back to a comfortable serif reading size so a
+          paragraph never shouts. */}
       <h1
         className="text-ink-strong"
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontWeight: 500,
-          fontSize: "clamp(21px, 1.9vw, 28px)",
-          lineHeight: 1.3,
-          letterSpacing: "-0.01em",
-          // Preserve the line breaks the author typed (multi-line descriptions
-          // like an imported list of clients/notes) instead of collapsing them
-          // into one run-on paragraph — matches the list hover preview. A
-          // single-line title renders identically. `balance` only helps short
-          // headings, so it's only applied when there are no newlines.
-          whiteSpace: "pre-wrap",
-          textWrap: headline.includes("\n") ? "wrap" : "balance",
-        }}
+        style={
+          headline.length <= 96 && !headline.includes("\n")
+            ? {
+                fontFamily: "var(--font-display), system-ui, sans-serif",
+                fontWeight: 900,
+                fontSize: "clamp(25px, 2.4vw, 36px)",
+                lineHeight: 1.12,
+                letterSpacing: "-0.022em",
+                whiteSpace: "pre-wrap",
+                textWrap: "balance",
+              }
+            : {
+                fontFamily: "var(--font-serif)",
+                fontWeight: 500,
+                fontSize: "clamp(20px, 1.8vw, 26px)",
+                lineHeight: 1.35,
+                letterSpacing: "-0.01em",
+                // Preserve the line breaks the author typed (multi-line
+                // descriptions like an imported list of clients/notes)
+                // instead of collapsing them into one run-on paragraph.
+                whiteSpace: "pre-wrap",
+                maxWidth: "72ch",
+              }
+        }
       >
         {headline}
       </h1>
@@ -122,8 +138,9 @@ export function TaskDetail({ task }: { task: TaskDetailModel }) {
         </div>
       )}
 
-      {/* Attribution strip — created-by / initiator → doer avatars */}
-      <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-4">
+      {/* Attribution strip — created-by / initiator → doer avatars.
+          Hairline-separated meta band at the foot of the hero document. */}
+      <div className="mt-7 pt-5 border-t border-hairline flex flex-wrap items-center gap-x-8 gap-y-4">
         {task.creatorName && (
           <PersonChip
             label="Created by"
@@ -147,10 +164,12 @@ export function TaskDetail({ task }: { task: TaskDetailModel }) {
           header inside the main task card. */}
       {task.notes && (
         <div
-          className="mt-9 rounded-chip px-6 py-5"
+          className="mt-8 rounded-chip px-6 py-5"
           style={{
             background: "var(--color-surface-soft)",
             border: "1px solid var(--color-hairline)",
+            borderLeft:
+              "3px solid color-mix(in srgb, var(--color-altus-red) 45%, transparent)",
             maxWidth: "68ch",
           }}
         >
@@ -187,11 +206,11 @@ function DuePill({ dueAt, overdue }: { dueAt: Date; overdue: boolean }) {
         border: `1px solid rgba(${rgb}, ${overdue ? 0.30 : 0.16})`,
         fontWeight: 700,
       }}
-      title={format(dueAt, "EEE, MMM d, yyyy")}
+      title={`${format(dueAt, "EEE")}, ${formatDate(dueAt)}`}
     >
       <Calendar size={14} strokeWidth={2.4} />
       {overdue ? "Overdue · " : "Due "}
-      {format(dueAt, "MMM d")}
+      {formatDate(dueAt)}
     </span>
   );
 }

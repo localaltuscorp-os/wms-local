@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { formatInr, formatCount } from "@/lib/format";
 import { buildDrillHref } from "@/lib/outstanding/drill-href";
+import { CardGrid } from "@/components/layout/card-grid";
 
 interface Totals {
   totalOutstanding: number;
@@ -76,7 +77,7 @@ export function OutstandingStatCards({
   sp: Record<string, string | string[] | undefined>;
 }) {
   return (
-    <div className="grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
+    <CardGrid min={250} gap="0.75rem">
       {SPECS.map((spec) => (
         <StatCard
           key={spec.key}
@@ -89,7 +90,7 @@ export function OutstandingStatCards({
           }
         />
       ))}
-    </div>
+    </CardGrid>
   );
 }
 

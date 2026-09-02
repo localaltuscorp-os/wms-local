@@ -1,16 +1,32 @@
 "use server";
 
+import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
+import { z } from "zod";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath, updateTag } from "next/cache";
 import { afterResponse } from "@/lib/after";
+import { emit, emitMany } from "@/lib/events/emit";
+import {
+  taskArchived,
+  taskRestored,
+  taskReassigned,
+  taskFieldUpdated,
+  taskApprovalDecided,
+  taskDeleted,
+  taskStatusChanged,
+} from "@/lib/events/task-events";
+import { nudgeRelay } from "@/lib/relay/nudge";
 import { db, tasks } from "@/lib/db";
 import { reconcileTaskEvent, removeTaskEvent } from "@/lib/google/sync";
+import { syncTaskToGoal } from "@/lib/weekly-goals/task-sync";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import {
   TASK_STATUSES,
   TASK_PRIORITIES,
+  APPROVAL_STATUSES,
   type TaskStatus,
   type TaskPriority,
+  type ApprovalStatus,
 } from "@/db/enums";
 import {
   CreateTaskSchema,
@@ -30,9 +46,24 @@ import {
   type SetRevisedTargetDateInput,
 } from "@/lib/validators/task";
 import { taskEvents, clients, subjects, employees } from "@/db/schema";
+import { canAddTaskRoster } from "@/lib/auth/roster-permission";
 import { CreateClientSchema } from "@/lib/validators/client";
 import { CreateSubjectSchema } from "@/lib/validators/subject";
-import { requireUser } from "@/lib/auth/current";
+import { requireUser, requireWeeklyGoalsFilled } from "@/lib/auth/current";
+import { canChangeDoerFor } from "@/lib/auth/doer-permission";
+
+/** One wording for all three doer paths, so the refusal reads the same wherever it is hit. */
+const DOER_DENIED = "Only managers, Manan and Om can change a task's doer.";
+import { listEmployees } from "@/lib/queries/employees";
+import { listActiveClientNames } from "@/lib/queries/clients";
+import { listActiveSubjectNames } from "@/lib/queries/subjects";
+import { listProjectNodeOptions } from "@/lib/queries/projects";
+import {
+  canManagerApprove,
+  canAdminApprove,
+  canManagerSendBack,
+  canAdminSendBack,
+} from "@/lib/tasks/approval-permissions";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import {
   canEditTaskFields,
@@ -60,6 +91,7 @@ import {
 } from "@/lib/tasks/set-status";
 import { addTaskComment } from "@/lib/tasks/add-comment";
 import { createTasksCore } from "@/lib/tasks/create-task";
+import { nudgeTaskCore } from "@/lib/tasks/nudge";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -89,7 +121,9 @@ function isUuid(v: string): boolean {
 function revalidateTaskRoutes(): void {
   revalidatePath("/tasks");
   revalidatePath("/archived");
-  revalidatePath("/"); // dashboard counts change too
+  // NOTE: `revalidatePath("/")` removed (Operation Butter P0). It force-busted
+  // the dashboard route on every task write; the exec dashboard now serves from
+  // its own `dashboard` tag (60s TTL) and doesn't need per-write invalidation.
   // Drop cached task aggregates (nav-count totals, distinct-subject list).
   // Subject cache is touched too because creating a task with a new free-text
   // subject expands the dropdown's distinct list. `updateTag` is the Next 16
@@ -115,7 +149,7 @@ export async function archiveTask(
         .update(tasks)
         .set({ archived: true })
         .where(eq(tasks.id, taskId))
-        .returning({ id: tasks.id });
+        .returning({ id: tasks.id, doerId: tasks.doerId });
       if (updated.length === 0) return false;
       await tx.insert(taskEvents).values({
         taskId,
@@ -124,12 +158,17 @@ export async function archiveTask(
         fromValue: null,
         toValue: null,
       });
+      await emit(tx, taskArchived(taskId, { doerId: updated[0]!.doerId }, { actorId: me.id }));
       return true;
     });
     if (!found) return { ok: false, error: "Task not found — it may already be gone." };
   } catch (err) {
     return { ok: false, error: `Could not archive: ${(err as Error).message}` };
   }
+  nudgeRelay();
+  // Deferred (persist-then-return): calendar teardown runs after the response.
+  // reconcileTaskEvent never throws + records retry state + the daily cron is a
+  // backstop, so deferring is safe and the archive returns instantly.
   afterResponse(() => reconcileTaskEvent(taskId)); // remove from the doer's calendar
   revalidateTaskRoutes();
   return { ok: true };
@@ -153,31 +192,39 @@ export async function deleteTask(
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
-  // Grab the calendar pointers before the row (and its columns) are gone.
+  // Grab the calendar pointers + doer before the row (and its columns) are gone.
   const doomed = await db.query.tasks.findFirst({
     where: eq(tasks.id, taskId),
-    columns: { googleEventId: true, googleSyncedDoerId: true },
+    columns: { googleEventId: true, googleSyncedDoerId: true, doerId: true },
   });
 
   try {
-    const deleted = await db
-      .delete(tasks)
-      .where(eq(tasks.id, taskId))
-      .returning({ id: tasks.id });
+    // Delete + emit in one txn (Law 2): the TaskDeleted event survives the row
+    // (the log has no FK on aggregate_id — events outlive aggregates, Law 3).
+    const deleted = await db.transaction(async (tx) => {
+      const d = await tx
+        .delete(tasks)
+        .where(eq(tasks.id, taskId))
+        .returning({ id: tasks.id });
+      if (d.length === 0) return d;
+      await emit(tx, taskDeleted(taskId, { doerId: doomed?.doerId ?? "" }, { actorId: me.id }));
+      return d;
+    });
     if (deleted.length === 0) {
       return { ok: false, error: "Task not found — it may already be deleted." };
     }
   } catch (err) {
     return { ok: false, error: `Could not delete: ${(err as Error).message}` };
   }
+  nudgeRelay();
 
   if (doomed?.googleEventId) {
-    afterResponse(() =>
-      removeTaskEvent({
-        googleEventId: doomed.googleEventId,
-        googleSyncedDoerId: doomed.googleSyncedDoerId,
-      }),
-    );
+    // Inline: the row is gone after this, so the daily cron can't catch a missed
+    // teardown — do it reliably in the request context. removeTaskEvent never throws.
+    await removeTaskEvent({
+      googleEventId: doomed.googleEventId,
+      googleSyncedDoerId: doomed.googleSyncedDoerId,
+    });
   }
   revalidateTaskRoutes();
   return { ok: true };
@@ -199,7 +246,7 @@ export async function unarchiveTask(
         .update(tasks)
         .set({ archived: false })
         .where(eq(tasks.id, taskId))
-        .returning({ id: tasks.id });
+        .returning({ id: tasks.id, doerId: tasks.doerId });
       if (updated.length === 0) return false;
       await tx.insert(taskEvents).values({
         taskId,
@@ -208,12 +255,15 @@ export async function unarchiveTask(
         fromValue: null,
         toValue: null,
       });
+      await emit(tx, taskRestored(taskId, { doerId: updated[0]!.doerId }, { actorId: me.id }));
       return true;
     });
     if (!found) return { ok: false, error: "Task not found — it may already be gone." };
   } catch (err) {
     return { ok: false, error: `Could not restore: ${(err as Error).message}` };
   }
+  nudgeRelay();
+  // Deferred (persist-then-return) — see archiveTask. Safe via retry state + cron.
   afterResponse(() => reconcileTaskEvent(taskId)); // re-add to the doer's calendar
   revalidateTaskRoutes();
   return { ok: true };
@@ -232,7 +282,7 @@ export async function setTaskStatus(
   expectedUpdatedAt: string,
   note?: string,
 ): Promise<
-  | { ok: true }
+  | { ok: true; updatedAt: string }
   | {
       ok: false;
       error: "invalid" | "not-found" | "forbidden" | "stale";
@@ -256,7 +306,10 @@ export async function setTaskStatus(
 
   revalidateTaskRoutes();
   revalidatePath(`/tasks/${taskId}`);
-  return { ok: true };
+  // Surface the fresh optimistic-lock token so the client can make a follow-up
+  // change WITHOUT a round-trip refresh first (Operation Butter P1) — otherwise
+  // a rapid second flip ships the stale `updatedAt` and bounces with "stale".
+  return { ok: true, updatedAt: result.updatedAt };
 }
 
 export async function setTaskPriority(
@@ -277,12 +330,33 @@ export async function setTaskPriority(
       // writer silently wins. The row lock blocks the second txn until the
       // first commits.
       const locked = await tx
-        .select({ priority: tasks.priority })
+        .select({
+          priority: tasks.priority,
+          createdById: tasks.createdById,
+          initiatorId: tasks.initiatorId,
+          doerId: tasks.doerId,
+          status: tasks.status,
+        })
         .from(tasks)
         .where(eq(tasks.id, taskId))
         .for("update");
       const current = locked[0];
       if (!current) return "not-found" as const;
+      // AUTHZ (was MISSING): no participant/admin gate — any employee could set
+      // the priority on any task. Require the same edit permission as other fields.
+      if (
+        !canEditTaskFields({
+          employee: { id: me.id, isAdmin: me.isAdmin },
+          task: {
+            createdById: current.createdById,
+            initiatorId: current.initiatorId,
+            doerId: current.doerId,
+            status: current.status,
+          },
+        })
+      ) {
+        return "forbidden" as const;
+      }
       if (current.priority === priority) return "noop" as const; // idempotent
       const updated = await tx
         .update(tasks)
@@ -300,6 +374,8 @@ export async function setTaskPriority(
       return "ok" as const;
     });
     if (outcome === "not-found") return { ok: false, error: "Task not found." };
+    if (outcome === "forbidden")
+      return { ok: false, error: "You don't have permission to change this task's priority." };
   } catch (err) {
     return { ok: false, error: `Could not change priority: ${(err as Error).message}` };
   }
@@ -309,8 +385,10 @@ export async function setTaskPriority(
 
 /**
  * #7 — My Day kanban: drag a task onto a day column to reschedule it.
- * Sets due_at to noon IST of the target calendar day. Returns a typed
- * result so the board can toast on failure instead of crashing.
+ * Writes revised_target_date (noon IST of the target day), NOT due_at — the
+ * first committed due date stays permanent; a reschedule is a REVISION (overdue
+ * + the board's day bucket both read the effective due = revised ?? due_at).
+ * Returns a typed result so the board can toast on failure instead of crashing.
  */
 export async function rescheduleTask(
   taskId: string,
@@ -326,13 +404,13 @@ export async function rescheduleTask(
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
-  const dueAt = new Date(`${dueYmd}T12:00:00+05:30`);
-  if (isNaN(dueAt.getTime())) return { ok: false, error: "Invalid date." };
+  const revisedTargetDate = new Date(`${dueYmd}T12:00:00+05:30`);
+  if (isNaN(revisedTargetDate.getTime())) return { ok: false, error: "Invalid date." };
 
   try {
     const updated = await db
       .update(tasks)
-      .set({ dueAt })
+      .set({ revisedTargetDate })
       .where(eq(tasks.id, taskId))
       .returning({ id: tasks.id });
     if (updated.length === 0) return { ok: false, error: "Task not found." };
@@ -351,6 +429,13 @@ export async function reassignDoer(
   if (!isUuid(taskId)) return { ok: false, error: "Invalid task id." };
   if (!isUuid(doerId)) return { ok: false, error: "Invalid employee id." };
   const me = await requireUser();
+  // WHO MAY REASSIGN (Sir): managers, Manan and Om — see canChangeDoerFor.
+  // else, but hiding a control is presentation — this is the boundary. Every
+  // path that writes tasks.doerId carries the same check: here, bulkReassignDoer
+  // and reassignTask.
+  if (!(await canChangeDoerFor(me))) {
+    return { ok: false, error: DOER_DENIED };
+  }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
   try {
@@ -358,12 +443,33 @@ export async function reassignDoer(
       // FOR UPDATE so two concurrent reassigns serialise — see
       // setTaskPriority for the rationale.
       const locked = await tx
-        .select({ doerId: tasks.doerId })
+        .select({
+          doerId: tasks.doerId,
+          createdById: tasks.createdById,
+          initiatorId: tasks.initiatorId,
+          status: tasks.status,
+        })
         .from(tasks)
         .where(eq(tasks.id, taskId))
         .for("update");
       const current = locked[0];
       if (!current) return "not-found" as const;
+      // AUTHZ (was MISSING): this trusted a client taskId with no permission
+      // check — any employee could reassign anyone's task, bypassing the
+      // approval hierarchy. Gate exactly like reassignTask.
+      if (
+        !canReassign({
+          employee: { id: me.id, isAdmin: me.isAdmin },
+          task: {
+            createdById: current.createdById,
+            initiatorId: current.initiatorId,
+            doerId: current.doerId,
+            status: current.status,
+          },
+        })
+      ) {
+        return "forbidden" as const;
+      }
       if (current.doerId === doerId) return "noop" as const; // idempotent
       const updated = await tx
         .update(tasks)
@@ -378,13 +484,25 @@ export async function reassignDoer(
         fromValue: { doerId: current.doerId },
         toValue: { doerId },
       });
+      await emit(
+        tx,
+        taskReassigned(
+          taskId,
+          { fromDoerId: current.doerId, toDoerId: doerId, resetStatus: false },
+          { actorId: me.id },
+        ),
+      );
       return "ok" as const;
     });
     if (outcome === "not-found") return { ok: false, error: "Task not found." };
+    if (outcome === "forbidden")
+      return { ok: false, error: "You don't have permission to reassign this task." };
   } catch (err) {
     return { ok: false, error: `Could not reassign: ${(err as Error).message}` };
   }
+  nudgeRelay();
   // Move the event off the old doer's calendar and onto the new doer's.
+  // Deferred (persist-then-return) — safe via retry state + daily cron.
   afterResponse(() => reconcileTaskEvent(taskId));
   revalidateTaskRoutes();
   return { ok: true };
@@ -445,6 +563,7 @@ export async function bulkSetStatus(
   // Honour the transition matrix per task; silently skip rows this actor's
   // role can't move (reported back as `skipped`).
   const prevStatus = new Map(rows.map((r) => [r.id, r.status]));
+  const doerById = new Map(rows.map((r) => [r.id, r.doerId]));
   const allowed = rows
     .filter((r) => {
       const role: ActorRole = me.isAdmin
@@ -478,11 +597,91 @@ export async function bulkSetStatus(
           toValue: { status },
         })),
       );
+      await emitMany(
+        tx,
+        allowed.map((id) =>
+          taskStatusChanged(
+            id,
+            {
+              doerId: doerById.get(id) ?? "",
+              fromStatus: prevStatus.get(id) ?? "",
+              toStatus: status,
+            },
+            { actorId: me.id },
+          ),
+        ),
+      );
     });
   } catch (err) {
     return { ok: false, error: `Could not update: ${(err as Error).message}` };
   }
+  nudgeRelay();
   for (const id of allowed) afterResponse(() => reconcileTaskEvent(id));
+  // Phase 2 — mirror status back onto any goal these tasks were spun off from.
+  for (const id of allowed) afterResponse(() => syncTaskToGoal(id, status));
+  revalidateTaskRoutes();
+  return { ok: true, updated: allowed.length, skipped: ids.length - allowed.length };
+}
+
+/**
+ * Batch version of `setTaskApprovalStatus` — admin-only, same as the
+ * single-task action it mirrors.
+ *
+ * WHY THIS AND NOT `bulkSetStatus`: approved / not_approved / cancelled are
+ * verdicts, and verdicts live in `approval_status`, not `status` (see the
+ * Tier-3 note further down — the doer's lifecycle stays independent of the
+ * admin's ruling). `cancelled` in particular is a DEPRECATED value of `status`
+ * and is filtered out of every picker, so routing "Mark Cancelled" through
+ * bulkSetStatus would write a retired value nothing renders.
+ *
+ * Rows already carrying the verdict are counted as `skipped` rather than
+ * rewritten, so the audit trail doesn't fill with no-op entries.
+ */
+export async function bulkSetApprovalStatus(
+  taskIds: string[],
+  approvalStatus: ApprovalStatus,
+): Promise<BulkResult> {
+  const ids = parseBulkIds(taskIds);
+  if (!ids) return { ok: false, error: "Invalid selection." };
+  if (!APPROVAL_STATUSES.includes(approvalStatus))
+    return { ok: false, error: "Unknown approval status." };
+  const me = await requireUser();
+  if (!me.isAdmin) return { ok: false, error: "Admins only." };
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const rows = await db
+    .select({ id: tasks.id, approvalStatus: tasks.approvalStatus })
+    .from(tasks)
+    .where(inArray(tasks.id, ids));
+
+  const prev = new Map(rows.map((r) => [r.id, r.approvalStatus]));
+  const allowed = rows
+    .filter((r) => r.approvalStatus !== approvalStatus)
+    .map((r) => r.id);
+
+  if (allowed.length === 0) return { ok: true, updated: 0, skipped: ids.length };
+
+  const now = new Date();
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(tasks)
+        .set({ approvalStatus, updatedAt: now })
+        .where(inArray(tasks.id, allowed));
+      await tx.insert(taskEvents).values(
+        allowed.map((id) => ({
+          taskId: id,
+          actorId: me.id,
+          eventType: "field_updated" as const,
+          fromValue: { field: "approvalStatus", value: prev.get(id) ?? null },
+          toValue: { field: "approvalStatus", value: approvalStatus },
+        })),
+      );
+    });
+  } catch (err) {
+    return { ok: false, error: `Could not update: ${(err as Error).message}` };
+  }
   revalidateTaskRoutes();
   return { ok: true, updated: allowed.length, skipped: ids.length - allowed.length };
 }
@@ -535,6 +734,13 @@ export async function bulkReassignDoer(
   if (!ids) return { ok: false, error: "Invalid selection." };
   if (!isUuid(doerId)) return { ok: false, error: "Invalid doer." };
   const me = await requireUser();
+  // Same rule as reassignDoer — and note this action previously had NO
+  // permission check at all beyond being signed in, so it was the widest of
+  // the three doer paths. Reassigning fifty tasks at once is no less an
+  // allocation decision than reassigning one.
+  if (!(await canChangeDoerFor(me))) {
+    return { ok: false, error: DOER_DENIED };
+  }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -588,11 +794,29 @@ export async function bulkSetSubject(
   if (limited) return limited;
 
   const rows = await db
-    .select({ id: tasks.id, subject: tasks.subject })
+    .select({
+      id: tasks.id,
+      subject: tasks.subject,
+      createdById: tasks.createdById,
+      initiatorId: tasks.initiatorId,
+      doerId: tasks.doerId,
+      status: tasks.status,
+    })
     .from(tasks)
     .where(inArray(tasks.id, ids));
   const prev = new Map(rows.map((r) => [r.id, r.subject]));
-  const changed = rows.filter((r) => r.subject !== value).map((r) => r.id);
+  // AUTHZ (was MISSING): only overwrite tasks the caller may edit — the single-
+  // task path gates via canEditTaskFields; the bulk path let anyone rewrite any
+  // task's subject. Non-editable tasks are silently skipped.
+  const changed = rows
+    .filter((r) => r.subject !== value)
+    .filter((r) =>
+      canEditTaskFields({
+        employee: { id: me.id, isAdmin: me.isAdmin },
+        task: { createdById: r.createdById, initiatorId: r.initiatorId, doerId: r.doerId, status: r.status },
+      }),
+    )
+    .map((r) => r.id);
   if (changed.length === 0) return { ok: true, updated: 0, skipped: ids.length };
 
   try {
@@ -632,11 +856,27 @@ export async function bulkSetClient(
   if (limited) return limited;
 
   const rows = await db
-    .select({ id: tasks.id, client: tasks.client })
+    .select({
+      id: tasks.id,
+      client: tasks.client,
+      createdById: tasks.createdById,
+      initiatorId: tasks.initiatorId,
+      doerId: tasks.doerId,
+      status: tasks.status,
+    })
     .from(tasks)
     .where(inArray(tasks.id, ids));
   const prev = new Map(rows.map((r) => [r.id, r.client]));
-  const changed = rows.filter((r) => r.client !== value).map((r) => r.id);
+  // AUTHZ (was MISSING): restrict to tasks the caller may edit (see bulkSetSubject).
+  const changed = rows
+    .filter((r) => r.client !== value)
+    .filter((r) =>
+      canEditTaskFields({
+        employee: { id: me.id, isAdmin: me.isAdmin },
+        task: { createdById: r.createdById, initiatorId: r.initiatorId, doerId: r.doerId, status: r.status },
+      }),
+    )
+    .map((r) => r.id);
   if (changed.length === 0) return { ok: true, updated: 0, skipped: ids.length };
 
   try {
@@ -741,6 +981,10 @@ export async function createTask(input: CreateTaskInput): Promise<
   | { ok: false; error: string }
 > {
   const me = await requireUser();
+  // Defense-in-depth weekly-goals fill gate (design §11): a user with un-filled
+  // current-week goals can't create new work by POSTing past the layout
+  // redirect. Applies to everyone incl. super-admins. Throws when gated.
+  await requireWeeklyGoalsFilled(me);
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -752,17 +996,105 @@ export async function createTask(input: CreateTaskInput): Promise<
   return result;
 }
 
+/* ------------------------------------------------------------------ */
+/* Bulk create — the in-app Excel grid / paste importer (mirrors the   */
+/* Goals bulkCreateGoals). Each row may name several doers → one task  */
+/* per doer (fan-out via createTasksCore). All rows are already parsed  */
+/* + reviewed on the client; here we re-validate and insert.           */
+/* ------------------------------------------------------------------ */
+
+const uuidStr = z.string().uuid("Must be a UUID");
+
+const BulkTaskRowSchema = z.object({
+  title: z.string().trim().min(1, "Client name is required").max(240),
+  subject: z.string().trim().max(120).nullish(),
+  description: z.string().trim().max(8000).nullish(),
+  priority: z.enum(TASK_PRIORITIES),
+  /** ISO-8601 datetime (the grid sends the picked date at noon UTC). */
+  dueAt: z.string().datetime("Due date is required"),
+  doerIds: z.array(uuidStr).min(1, "Pick at least one Doer").max(50),
+  initiatorId: uuidStr,
+});
+
+const BulkCreateTasksSchema = z.object({
+  rows: z.array(BulkTaskRowSchema).min(1, "Add at least one task").max(200),
+});
+
+export type BulkTaskRowInput = z.input<typeof BulkTaskRowSchema>;
+
+/**
+ * Create many tasks at once from the in-app bulk grid / pasted rows. Applies the
+ * same gate + rate limit as the single create, then fans each row out through
+ * the shared `createTasksCore` (so short-id, audit, notifications and calendar
+ * sync all stay identical). Partial success is reported: `created` = total tasks
+ * inserted (a row with N doers counts N), `failed` carries per-row messages.
+ */
+export async function bulkCreateTasks(
+  input: z.input<typeof BulkCreateTasksSchema>,
+): Promise<
+  | { ok: true; created: number; rows: number; failed: string[] }
+  | { ok: false; error: string }
+> {
+  const me = await requireUser();
+  // Same defense-in-depth weekly-goals gate as the single create.
+  await requireWeeklyGoalsFilled(me);
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = BulkCreateTasksSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  let created = 0;
+  const failed: string[] = [];
+  for (const [i, r] of parsed.data.rows.entries()) {
+    const res = await createTasksCore(
+      { id: me.id, name: me.name },
+      {
+        title: r.title,
+        subject: r.subject ?? null,
+        description: r.description ?? null,
+        doerIds: r.doerIds,
+        initiatorId: r.initiatorId,
+        priority: r.priority,
+        dueAt: r.dueAt,
+      },
+    );
+    if (res.ok) created += res.ids.length;
+    else failed.push(`Row ${i + 1}: ${res.error}`);
+  }
+
+  revalidateTaskRoutes();
+  if (created === 0) {
+    return { ok: false, error: failed[0] ?? "No tasks were created." };
+  }
+  return { ok: true, created, rows: parsed.data.rows.length, failed };
+}
+
 /**
  * Appends a new client to the shared roster, used by the "+ Add new
- * client…" affordance on the task forms. Any authenticated user may add
- * one (see migration 0022 RLS). Case-insensitive dedupe: if the name
- * already exists we return the canonical stored spelling instead of
- * erroring, so the picker can just select it.
+ * client…" affordance on the task forms.
+ *
+ * ADMINS AND SUPER-ADMINS ONLY (Sir). This used to accept any authenticated
+ * user, so the roster every task form picks from could be grown by anyone — and
+ * a misspelling added here becomes a permanent second client that quietly
+ * splits a client's task history in two. The picker hides the affordance for
+ * everyone else; this is the check that actually holds. Membership is decided by
+ * `canAddTaskRoster` — is_admin OR the super-admin allow-list, which are not the
+ * same set.
+ *
+ * Case-insensitive dedupe: if the name already exists we return the
+ * canonical stored spelling instead of erroring, so the picker can just
+ * select it.
  */
 export async function quickAddClient(
   rawName: string,
 ): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
-  await requireUser();
+  const me = await requireUser();
+  if (!canAddTaskRoster(me)) {
+    return { ok: false, error: "Only an admin can add a new client." };
+  }
 
   const parsed = CreateClientSchema.safeParse({ name: rawName });
   if (!parsed.success) {
@@ -807,12 +1139,16 @@ export async function quickAddClient(
 
 /**
  * Appends a new subject to the shared roster, used by the "+ Add new
- * subject…" affordance on the task forms. Mirrors quickAddClient.
+ * subject…" affordance on the task forms. ADMINS AND SUPER-ADMINS ONLY,
+ * mirroring quickAddClient — same reasoning, same enforcement point.
  */
 export async function quickAddSubject(
   rawName: string,
 ): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
-  await requireUser();
+  const me = await requireUser();
+  if (!canAddTaskRoster(me)) {
+    return { ok: false, error: "Only an admin can add a new subject." };
+  }
 
   const parsed = CreateSubjectSchema.safeParse({ name: rawName });
   if (!parsed.success) {
@@ -913,8 +1249,16 @@ export async function editTaskFields(
   // Compute diff against current row.  Only changed fields go into the
   // update + audit rows.  zod has already trimmed strings and parsed
   // dueAt into a Date.
+  //
+  // `dueAt` is special-cased OUT of the generic loop: the first committed
+  // due date is permanent (immutable for audit), so a "due date" edit must
+  // never touch `tasks.due_at` — it writes `revised_target_date` instead.
+  // We compare the submitted date against the CURRENT effective due
+  // (revised ?? original) and, if it differs, fold a `revisedTargetDate`
+  // change into the same update + one audit row.
   const diff: Partial<Record<EditableTaskField, unknown>> = {};
   for (const field of EDITABLE_TASK_FIELDS) {
+    if (field === "dueAt") continue; // handled separately below
     if (!(field in parsed)) continue;
     const next = (parsed as Record<string, unknown>)[field];
     const prev = (current as Record<string, unknown>)[field];
@@ -924,7 +1268,21 @@ export async function editTaskFields(
     if (a !== b) diff[field] = next;
   }
 
-  if (Object.keys(diff).length === 0) {
+  // Due-date edit → revised target date. The user edits the *effective* due
+  // (the form pre-fills with revised ?? due_at), so compare against that.
+  const currentRevised = current.revisedTargetDate ?? null;
+  const currentEffectiveDue = currentRevised ?? current.dueAt ?? null;
+  let revisedChange: { value: Date } | null = null;
+  if (parsed.dueAt instanceof Date) {
+    const submittedIso = parsed.dueAt.toISOString();
+    const effectiveIso =
+      currentEffectiveDue instanceof Date ? currentEffectiveDue.toISOString() : null;
+    if (submittedIso !== effectiveIso) {
+      revisedChange = { value: parsed.dueAt };
+    }
+  }
+
+  if (Object.keys(diff).length === 0 && !revisedChange) {
     // No-op: nothing to update.  Treat as success.
     return { ok: true };
   }
@@ -938,6 +1296,8 @@ export async function editTaskFields(
     .set({
       ...(diff as Partial<typeof tasks.$inferInsert>),
       ...("title" in diff ? { client: parsed.title } : {}),
+      // A due-date edit revises the target date; due_at stays immutable.
+      ...(revisedChange ? { revisedTargetDate: revisedChange.value } : {}),
       updatedAt: now,
     })
     .where(and(eq(tasks.id, taskId), optimisticLockMatches(expectedDate)))
@@ -965,7 +1325,51 @@ export async function editTaskFields(
     });
   }
 
-  afterResponse(() => reconcileTaskEvent(taskId)); // push edits to the calendar event
+  // Audit the revised-target-date change as a single field_updated event.
+  if (revisedChange) {
+    await db.insert(taskEvents).values({
+      taskId,
+      actorId: me.id,
+      eventType: "field_updated",
+      fromValue: {
+        field: "revisedTargetDate",
+        value: currentRevised ? currentRevised.toISOString() : null,
+      },
+      toValue: {
+        field: "revisedTargetDate",
+        value: revisedChange.value.toISOString(),
+      },
+    });
+  }
+
+  // Phase B: mirror the field edits into the event log (best-effort — these
+  // FieldUpdated events aren't projection-critical, and updateTask isn't itself
+  // transactional, so they ride the same non-txn path as the audit rows above).
+  try {
+    const fieldEvents = Object.entries(diff).map(([field, value]) =>
+      taskFieldUpdated(
+        taskId,
+        { doerId: current.doerId, field, value: value instanceof Date ? value.toISOString() : value },
+        { actorId: me.id },
+      ),
+    );
+    if (revisedChange) {
+      fieldEvents.push(
+        taskFieldUpdated(
+          taskId,
+          { doerId: current.doerId, field: "revisedTargetDate", value: revisedChange.value.toISOString() },
+          { actorId: me.id },
+        ),
+      );
+    }
+    await emitMany(db, fieldEvents);
+  } catch (err) {
+    console.warn("[updateTask] event emit failed (non-fatal):", (err as Error)?.message ?? err);
+  }
+  nudgeRelay();
+  // Deferred (persist-then-return): push edits to the calendar event after the
+  // response. Safe via retry state + the daily cron backstop.
+  afterResponse(() => reconcileTaskEvent(taskId));
   revalidateTaskRoutes();
   revalidatePath(`/tasks/${taskId}`);
   return { ok: true };
@@ -983,6 +1387,191 @@ export async function editTaskFields(
  * initiator changes their mind, they decline the existing decision and
  * the doer reworks, producing a second `status_changed` row.
  */
+/* ------------------------------------------------------------------------- */
+/* TWO-STAGE APPROVAL (mig 0185)                                             */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * The ONE choke point for both approval stages (Sir, 2026-08).
+ *
+ * The client sends only an INTENT - which level it is acting at and whether it
+ * is approving or sending back - plus the optimistic-lock token. Everything that
+ * decides whether that is allowed is re-derived HERE from the session actor and
+ * the row as it exists in the database. A level, an id or a flag arriving from
+ * the browser is never trusted.
+ *
+ * Both stages write status='approved' (or 'not_approved'), keeping the ~40
+ * existing consumers of approved-ness correct; the STAGE is carried by
+ * approval_level, and each stage stamps its own audit columns so a manager
+ * sign-off is never overwritten by the admin one.
+ */
+export async function decideTaskApproval(
+  taskId: string,
+  input: { level: "manager" | "admin"; decision: "approved" | "send_back"; note?: string },
+  expectedUpdatedAt: string,
+): Promise<
+  | { ok: true }
+  | { ok: false; error: "invalid" | "not-found" | "forbidden" | "stale"; message?: string }
+> {
+  if (!isUuid(taskId)) return { ok: false, error: "invalid", message: "Bad task id" };
+  if (input.level !== "manager" && input.level !== "admin") {
+    return { ok: false, error: "invalid", message: "Bad level" };
+  }
+  if (input.decision !== "approved" && input.decision !== "send_back") {
+    return { ok: false, error: "invalid", message: "Bad decision" };
+  }
+
+  const me = await requireUser();
+
+  const current = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
+  if (!current) return { ok: false, error: "not-found" };
+
+  // Context the predicates need, all read server-side.
+  const doerRow = await db.query.employees.findFirst({
+    where: eq(employees.id, current.doerId),
+    columns: { managerId: true },
+  });
+  const assignerId = current.initiatorId ?? current.createdById ?? null;
+  const assignerRow = assignerId
+    ? await db.query.employees.findFirst({
+        where: eq(employees.id, assignerId),
+        columns: { id: true, isAdmin: true },
+      })
+    : undefined;
+  // Does the assigner manage anyone? That is what makes them "a manager".
+  const assignerIsManager = assignerRow
+    ? (await db.query.employees.findFirst({
+        where: eq(employees.managerId, assignerRow.id),
+        columns: { id: true },
+      })) != null
+    : false;
+
+  const actor = { id: me.id, email: me.email ?? null, isAdmin: me.isAdmin };
+  const permTask = {
+    status: current.status,
+    approvalLevel: (current.approvalLevel ?? "none") as "none" | "manager" | "admin",
+    doerId: current.doerId,
+    assignerId,
+  };
+  // Downline, not just direct reports (Sir, 2026-08-21). Only computed when the
+  // cheap direct check already failed, so the common case still costs nothing;
+  // and only for a real doer, so a task with no doer cannot walk the tree.
+  const isDirectManager = !!doerRow?.managerId && doerRow.managerId === me.id;
+  const isDoersUpline =
+    isDirectManager || !current.doerId
+      ? false
+      : (await getDownlineIds(me.id)).includes(current.doerId);
+
+  const ctx = {
+    isDoersManager: isDirectManager,
+    isDoersUpline,
+    assignerIsAdmin: !!assignerRow?.isAdmin,
+    assignerIsManager,
+  };
+
+  const permitted =
+    input.decision === "approved"
+      ? input.level === "admin"
+        ? canAdminApprove(actor, permTask)
+        : canManagerApprove(actor, permTask, ctx)
+      : input.level === "admin"
+        ? canAdminSendBack(actor, permTask)
+        : canManagerSendBack(actor, permTask, ctx);
+  if (!permitted) return { ok: false, error: "forbidden" };
+
+  const expectedDate = new Date(expectedUpdatedAt);
+  if (Number.isNaN(expectedDate.getTime())) {
+    return { ok: false, error: "invalid", message: "Bad expectedUpdatedAt" };
+  }
+
+  const now = new Date();
+  const note = input.note?.trim() || null;
+  const approving = input.decision === "approved";
+  const nextLevel = approving ? input.level : "none";
+
+  const stale = await db.transaction(async (tx) => {
+    const u = await tx
+      .update(tasks)
+      .set({
+        status: approving ? "approved" : "not_approved",
+        // Written in LOCKSTEP with status - these two columns used to be able to
+        // disagree because different code paths wrote one or the other.
+        approvalStatus: approving ? "approved" : "not_approved",
+        approvalLevel: nextLevel,
+        ...(approving && input.level === "manager"
+          ? { managerApprovedById: me.id, managerApprovedAt: now, managerApprovalNote: note }
+          : {}),
+        ...(approving && input.level === "admin"
+          ? { adminApprovedById: me.id, adminApprovedAt: now, adminApprovalNote: note }
+          : {}),
+        // Sending back clears BOTH stamps: the task is unapproved again, and a
+        // stale stamp would read as a sign-off that no longer stands.
+        ...(approving
+          ? {}
+          : {
+              managerApprovedById: null,
+              managerApprovedAt: null,
+              managerApprovalNote: null,
+              adminApprovedById: null,
+              adminApprovedAt: null,
+              adminApprovalNote: null,
+            }),
+        approvedById: me.id,
+        approvedAt: now,
+        approvalNote: note,
+        updatedAt: now,
+      })
+      // The level predicate in the WHERE closes the double-promotion race: two
+      // approvers acting at once, the second finds the level already moved.
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          optimisticLockMatches(expectedDate),
+          eq(tasks.approvalLevel, permTask.approvalLevel),
+        ),
+      )
+      .returning({ id: tasks.id });
+    if (u.length === 0) return true;
+
+    await tx.insert(taskEvents).values({
+      taskId,
+      actorId: me.id,
+      eventType: "status_changed",
+      fromValue: { status: current.status, approvalLevel: permTask.approvalLevel },
+      toValue: { status: approving ? "approved" : "not_approved", approvalLevel: nextLevel },
+      note,
+    });
+    await emit(
+      tx,
+      taskApprovalDecided(
+        taskId,
+        { doerId: current.doerId, decision: approving ? "approved" : "not_approved" },
+        { actorId: me.id },
+      ),
+    );
+    return false;
+  });
+  if (stale) return { ok: false, error: "stale" };
+  nudgeRelay();
+
+  const label = taskLabel({ subject: current.subject, title: current.title });
+  if (current.doerId !== me.id) {
+    afterResponse(async () => {
+      await notify({
+        userId: current.doerId,
+        kind: approving ? "approved" : "declined",
+        title: approving
+          ? me.name + (input.level === "admin" ? " gave final approval on " : " approved ") + label
+          : me.name + " sent " + label + " back",
+        body: note,
+        taskId,
+        actorId: me.id,
+      });
+    });
+  }
+  return { ok: true };
+}
+
 export async function approveTask(
   taskId: string,
   input: ApproveInput,
@@ -1058,34 +1647,50 @@ export async function approveTask(
       toValue: { status: parsed.decision },
       note: parsed.note?.trim() || null,
     });
+    // Phase B (Law 2): the approval verdict is a domain fact the projection
+    // counts. Emit ApprovalDecided in the same txn as the row + audit.
+    await emit(
+      tx,
+      taskApprovalDecided(
+        taskId,
+        { doerId: current.doerId, decision: parsed.decision },
+        { actorId: me.id },
+      ),
+    );
     return false;
   });
   if (stale) return { ok: false, error: "stale" };
+  nudgeRelay();
 
   // Fan-out: tell the doer the verdict.  Approve → "approved" kind,
   // decline → "declined" kind so the recipient's UI can colour each
   // distinctly and the email subject can differ.  Body is the note.
+  // DEFERRED (persist-then-return): the verdict is committed; the doer's
+  // notification fans out after the response so the approver isn't blocked on
+  // up to 4 external channels. Notifications carry their own retry table + cron.
   const label = taskLabel({ subject: current.subject, title: current.title });
   if (current.doerId !== me.id) {
-    if (parsed.decision === "approved") {
-      await notify({
-        userId: current.doerId,
-        kind: "approved",
-        title: `${me.name} approved '${label}'`,
-        body: parsed.note?.trim() || null,
-        taskId,
-        actorId: me.id,
-      });
-    } else {
-      await notify({
-        userId: current.doerId,
-        kind: "declined",
-        title: `${me.name} declined '${label}'`,
-        body: parsed.note?.trim() || null,
-        taskId,
-        actorId: me.id,
-      });
-    }
+    afterResponse(async () => {
+      if (parsed.decision === "approved") {
+        await notify({
+          userId: current.doerId,
+          kind: "approved",
+          title: `${me.name} approved '${label}'`,
+          body: parsed.note?.trim() || null,
+          taskId,
+          actorId: me.id,
+        });
+      } else {
+        await notify({
+          userId: current.doerId,
+          kind: "declined",
+          title: `${me.name} declined '${label}'`,
+          body: parsed.note?.trim() || null,
+          taskId,
+          actorId: me.id,
+        });
+      }
+    });
   }
 
   revalidateTaskRoutes();
@@ -1119,6 +1724,11 @@ export async function reassignTask(
   if (!isUuid(taskId)) return { ok: false, error: "invalid", message: "Bad task id" };
 
   const me = await requireUser();
+  // The third doer path (the Reassign dialog). Same rule — otherwise the inline
+  // cell is locked while a dialog two clicks away does the same write.
+  if (!(await canChangeDoerFor(me))) {
+    return { ok: false, error: "forbidden", message: DOER_DENIED };
+  }
 
   let parsed;
   try {
@@ -1185,6 +1795,14 @@ export async function reassignTask(
       fromValue: { doerId: current.doerId },
       toValue: { doerId: parsed.newDoerId, resetStatus: shouldReset },
     });
+    await emit(
+      tx,
+      taskReassigned(
+        taskId,
+        { fromDoerId: current.doerId, toDoerId: parsed.newDoerId, resetStatus: shouldReset },
+        { actorId: me.id },
+      ),
+    );
     if (shouldReset) {
       await tx.insert(taskEvents).values({
         taskId,
@@ -1193,49 +1811,62 @@ export async function reassignTask(
         fromValue: { status: current.status },
         toValue: { status: "dont_know" },
       });
+      await emit(
+        tx,
+        taskStatusChanged(
+          taskId,
+          { doerId: parsed.newDoerId, fromStatus: current.status, toStatus: "dont_know" },
+          { actorId: me.id },
+        ),
+      );
     }
     return false;
   });
   if (stale) return { ok: false, error: "stale" };
+  nudgeRelay();
 
   // Fan-out: new doer gets "to you"; old doer gets "away from you";
   // initiator (if distinct from both) gets a generic reassigned note.
+  // DEFERRED (persist-then-return): the reassign is committed; notifications +
+  // calendar move run after the response so the actor isn't blocked on external
+  // channels + a Google API call. All carry retry state + the daily cron.
   const label = taskLabel({ subject: current.subject, title: current.title });
-  if (parsed.newDoerId !== me.id) {
-    await notify({
-      userId: parsed.newDoerId,
-      kind: "reassigned",
-      title: `${me.name} reassigned '${label}' to you`,
-      taskId,
-      actorId: me.id,
-    });
-  }
-  if (current.doerId !== me.id && current.doerId !== parsed.newDoerId) {
-    await notify({
-      userId: current.doerId,
-      kind: "reassigned",
-      title: `${me.name} reassigned '${label}' away from you`,
-      taskId,
-      actorId: me.id,
-    });
-  }
-  // Loop in the initiator so they know who owns the task now.
-  const initiatorRecipients = dedupeRecipients(
-    [current.initiatorId],
-    me.id,
-  ).filter((id) => id !== parsed.newDoerId && id !== current.doerId);
-  for (const userId of initiatorRecipients) {
-    await notify({
-      userId,
-      kind: "reassigned",
-      title: `${me.name} reassigned '${label}'`,
-      taskId,
-      actorId: me.id,
-    });
-  }
-
-  // Move the calendar event to the new doer's calendar.
-  afterResponse(() => reconcileTaskEvent(taskId));
+  afterResponse(async () => {
+    if (parsed.newDoerId !== me.id) {
+      await notify({
+        userId: parsed.newDoerId,
+        kind: "reassigned",
+        title: `${me.name} reassigned '${label}' to you`,
+        taskId,
+        actorId: me.id,
+      });
+    }
+    if (current.doerId !== me.id && current.doerId !== parsed.newDoerId) {
+      await notify({
+        userId: current.doerId,
+        kind: "reassigned",
+        title: `${me.name} reassigned '${label}' away from you`,
+        taskId,
+        actorId: me.id,
+      });
+    }
+    // Loop in the initiator so they know who owns the task now.
+    const initiatorRecipients = dedupeRecipients(
+      [current.initiatorId],
+      me.id,
+    ).filter((id) => id !== parsed.newDoerId && id !== current.doerId);
+    for (const userId of initiatorRecipients) {
+      await notify({
+        userId,
+        kind: "reassigned",
+        title: `${me.name} reassigned '${label}'`,
+        taskId,
+        actorId: me.id,
+      });
+    }
+    // Move the calendar event to the new doer's calendar.
+    await reconcileTaskEvent(taskId);
+  });
   revalidateTaskRoutes();
   revalidatePath(`/tasks/${taskId}`);
   return { ok: true };
@@ -1274,6 +1905,31 @@ export async function addComment(
 
   revalidatePath(`/tasks/${taskId}`);
   return { ok: true };
+}
+
+/**
+ * nudgeTask — on-demand "⚡ ping" to a task's doer.
+ *
+ * Gate (in nudgeTaskCore): admin OR the task's initiator OR the doer's
+ * direct manager. Soft rate-limited via the shared per-actor write
+ * limiter. On success a `"nudged"` in-app notification (+ web-push if the
+ * doer is subscribed) is dispatched through the existing notify() path.
+ *
+ * LOAD-NEUTRAL: read-only on the task + one recipient dispatch; no task
+ * mutation and nothing on the dashboard load path.
+ */
+export async function nudgeTask(
+  taskId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isUuid(taskId)) return { ok: false, error: "Bad task id." };
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  return nudgeTaskCore(
+    { id: me.id, name: me.name, isAdmin: me.isAdmin },
+    taskId,
+  );
 }
 
 // ───────────────────────────── Tier-3 admin-only ─────────────────────────
@@ -1552,4 +2208,38 @@ export async function deleteComment(
 
   revalidatePath(`/tasks/${event.taskId}`);
   return { ok: true };
+}
+
+/**
+ * Options for the header "New Task" modal — employees + client/subject/project
+ * rosters. Loaded LAZILY (once, on first dialog open) instead of eagerly in the
+ * header Server Component on every render. This decouples the modal's data from
+ * the global `router.refresh()` cycle (the realtime LiveIndicator fires it on
+ * every org-wide task change), which was re-running these 4 queries constantly
+ * and handing the open modal fresh array identities that re-synced its
+ * dropdowns mid-edit — the root cause of the "New Task modal" instability.
+ */
+export async function loadNewTaskOptions(): Promise<{
+  employees: { id: string; name: string }[];
+  clients: string[];
+  subjects: string[];
+  projectNodes: { id: string; label: string }[];
+  /** May this user create a new client/subject from the pickers?
+   *  Admins and super-admins only — see `canAddTaskRoster`. */
+  canAddRoster: boolean;
+}> {
+  const me = await requireUser();
+  const [all, clientNames, subjectNames, projectNodes] = await Promise.all([
+    listEmployees(),
+    listActiveClientNames(),
+    listActiveSubjectNames(),
+    listProjectNodeOptions(),
+  ]);
+  return {
+    employees: all.map((e) => ({ id: e.id, name: e.name })),
+    clients: clientNames,
+    subjects: subjectNames,
+    projectNodes,
+    canAddRoster: canAddTaskRoster(me),
+  };
 }

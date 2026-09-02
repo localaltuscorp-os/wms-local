@@ -9,7 +9,7 @@ import { visibleFields, type FormFieldDef } from "@/lib/forms/field-types";
 import { Field, FieldInput } from "./form-fields";
 
 /**
- * Generic "request" dialog for a module (Reimbursement / Leave / Reference /
+ * Generic "request" dialog for a module (Reimbursement / Reference /
  * Breakthrough). Renders from the resolved (admin-editable) field list and the
  * live Product Name options.
  */
@@ -78,7 +78,7 @@ export function DynamicFormDialog({
             )}
             <div className="flex justify-end gap-2 pt-2">
               <Dialog.Close asChild>
-                <button type="button" className="px-4 py-2.5 text-[14px] font-medium text-[#64748B]" disabled={pending}>Cancel</button>
+                <button type="button" className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]" disabled={pending}>Cancel</button>
               </Dialog.Close>
               <button type="submit" disabled={pending}
                 className="rounded-md py-2.5 px-5 text-[14px] font-bold text-white disabled:opacity-50"

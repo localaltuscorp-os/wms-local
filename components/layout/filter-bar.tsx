@@ -1,4 +1,7 @@
 "use client";
+import { FINE_BUCKET_BY_SLUG } from "@/lib/transforms/aging-buckets-fine";
+import { TeamFilter } from "./filters/team-filter";
+import { teamLabel } from "@/lib/teams/roster";
 import * as React from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
@@ -7,32 +10,24 @@ import { DayPicker, type DateRange } from "react-day-picker";
 import { format, parseISO } from "date-fns";
 import {
   Calendar,
-  Users,
-  RotateCcw,
-  SlidersHorizontal,
-  Loader2,
   User,
-  FileText,
-  FileSpreadsheet,
-  Upload,
-  MoreHorizontal,
-  CopyMinus,
+  Users,
+  ListFilter,
+  Search,
+  X,
+  Loader2,
 } from "lucide-react";
-import Link from "next/link";
+import { setSectionSearch } from "@/lib/client/section-search";
 import type { Route } from "next";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
 import { motion } from "motion/react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { PRIORITY_LABELS, type TaskPriority } from "@/db/enums";
 import { DepartmentFilter } from "./filters/department-filter";
 import { PriorityFilter } from "./filters/priority-filter";
 import { StatusFilter } from "./filters/status-filter";
 import { SubjectFilter } from "./filters/subject-filter";
 import { ClientFilter } from "./filters/client-filter";
+import { FilterPill, summarizeSelection } from "./filters/filter-pill";
 
 type AssigneeMode = "default" | "all" | "specific";
 
@@ -48,22 +43,37 @@ interface Props {
     subj: string[];
     status?: string[];
     client?: string[];
+    /** `?overdue=true` — narrows to open work already past its due date. */
+    overdue?: boolean;
+    /** `?age_range=<slug>` — one of the nine fine aging buckets. */
+    ageRange?: string | null;
+    /** `?team=mine,Sales` — org-chart scope + department groups. */
+    team?: string[];
   };
-  subjects?: string[]; // pool of distinct task subjects for autocomplete
-  /** Status options (value + admin-overridable label). When provided, the
-   *  Status filter chip is shown. Omitted on views without status filtering. */
+  subjects?: string[];
   statusOptions?: { value: string; label: string }[];
-  /** Distinct task clients. When provided, the Clients filter chip is shown. */
   clients?: string[];
-  /** Pass the signed-in user to enable the "My tasks / All tasks" scope chip.
-   *  Only shown for non-admins on task list views. */
   me?: { id: string; isAdmin: boolean };
-  /** How the assignee filter was resolved on the server. Controls the initial
-   *  state of the scope chip. */
   assigneeMode?: AssigneeMode;
+  /** Number of tasks matching the current filters (shown in the summary row). */
+  taskCount?: number;
 }
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
+
+/** Accent dot/badge colors per filter family (Altus palette). */
+const TINT = {
+  status: "#16a34a",
+  priority: "#f59e0b",
+  assignee: "var(--color-altus-red)",
+  client: "#3b82f6",
+  department: "#8b5cf6",
+  subject: "#0ea5e9",
+  view: "#64748b",
+  overdue: "#dc2626",
+  ageRange: "#b45309",
+  team: "#0d9488",
+} as const;
 
 export function FilterBar({
   employees,
@@ -76,30 +86,31 @@ export function FilterBar({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
-  // The "scope chip" is only meaningful for non-admins, who have a default
-  // (assigned-to-me) view. Admins use the full employee MultiSelect.
   const showScopeChip = Boolean(me && !me.isAdmin);
+  // Overdue has no picker of its own — it arrives from a drill-through link
+  // (e.g. the Task Report's sent-back-by-person rows) and is cleared from its
+  // chip. A dropdown for a single boolean would be a worse control than the
+  // chip already is.
+  const [overdue, setOverdue] = React.useState<boolean>(Boolean(initial.overdue));
+  // Same shape as `overdue`: arrives from a drill-through, leaves by its chip.
+  const [ageRange, setAgeRange] = React.useState<string | null>(initial.ageRange ?? null);
+  const [team, setTeam] = React.useState<string[]>(initial.team ?? []);
 
   const [start, setStart] = React.useState(initial.start);
   const [end, setEnd] = React.useState(initial.end);
-  // For non-admins in "default" mode, the chip carries the "me" scope —
-  // keep the MultiSelect empty so they can optionally add additional
-  // teammates without first clearing themselves.
   const [emp, setEmp] = React.useState<string[]>(
     showScopeChip && initialAssigneeMode === "default" ? [] : initial.emp,
   );
-  const [assigneeMode, setAssigneeMode] =
-    React.useState<AssigneeMode>(initialAssigneeMode);
+  const [assigneeMode, setAssigneeMode] = React.useState<AssigneeMode>(initialAssigneeMode);
   const [view, setView] = React.useState<"doer" | "initiator">(initial.view);
   const [dept, setDept] = React.useState<string[]>(initial.dept);
   const [prio, setPrio] = React.useState<string[]>(initial.prio);
   const [subj, setSubj] = React.useState<string[]>(initial.subj);
   const [status, setStatus] = React.useState<string[]>(initial.status ?? []);
   const [client, setClient] = React.useState<string[]>(initial.client ?? []);
-  const [sheetOpen, setSheetOpen] = React.useState(false);
-  const pathname = usePathname();
 
   const range: DateRange | undefined = React.useMemo(() => {
     try {
@@ -111,9 +122,6 @@ export function FilterBar({
 
   function handleRange(r: DateRange | undefined) {
     if (!r?.from) return;
-    // Keep a valid (non-empty) range at every step so the auto-apply effect
-    // never fires a half-selected range: while the user is mid-pick (only
-    // `from` chosen), treat it as a single day until they click the end date.
     setStart(format(r.from, "yyyy-MM-dd"));
     setEnd(format(r.to ?? r.from, "yyyy-MM-dd"));
   }
@@ -123,12 +131,6 @@ export function FilterBar({
     sp.set("start", start);
     sp.set("end", end);
     sp.set("view", view);
-    // emp resolution:
-    //  - specific IDs picked → write `emp=<ids>` (regardless of scope chip)
-    //  - non-admin "all" scope → write sentinel `emp=all` so the server
-    //    skips the default-to-me behavior
-    //  - everything else (non-admin "default" → "My tasks", or admin with
-    //    nothing picked) → drop the param so the server applies its default
     if (emp.length > 0) {
       sp.set("emp", emp.join(","));
     } else if (showScopeChip && assigneeMode === "all") {
@@ -141,14 +143,12 @@ export function FilterBar({
     if (subj.length > 0) sp.set("subj", subj.join(",")); else sp.delete("subj");
     if (status.length > 0) sp.set("status", status.join(",")); else sp.delete("status");
     if (client.length > 0) sp.set("client", client.join(",")); else sp.delete("client");
-    startTransition(() => router.replace(`${pathname}?${sp.toString()}` as any));
+    if (overdue) sp.set("overdue", "true"); else sp.delete("overdue");
+    if (ageRange) sp.set("age_range", ageRange); else sp.delete("age_range");
+    if (team.length > 0) sp.set("team", team.join(",")); else sp.delete("team");
+    startTransition(() => router.replace(`${pathname}?${sp.toString()}` as Route));
   }
 
-  // Auto-apply: whenever any filter changes, push the new query string. A short
-  // debounce coalesces rapid changes (toggling several multi-select options, a
-  // two-click date range) into a single navigation so it feels instant without
-  // firing one request per click. The first render is skipped — the page is
-  // already rendered for the initial params, so re-applying them is wasted work.
   const didMount = React.useRef(false);
   React.useEffect(() => {
     if (!didMount.current) {
@@ -158,14 +158,13 @@ export function FilterBar({
     const t = setTimeout(apply, 200);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [start, end, view, emp, assigneeMode, dept, prio, subj, status, client]);
+  }, [start, end, view, emp, assigneeMode, dept, prio, subj, status, client, overdue, ageRange, team]);
 
   function reset() {
     const today = new Date();
     setStart(format(new Date(today.getTime() - 30 * ONE_DAY), "yyyy-MM-dd"));
     setEnd(format(today, "yyyy-MM-dd"));
     setEmp([]);
-    // Non-admins reset back to "My tasks"; admins/dashboard get "all".
     setAssigneeMode(showScopeChip ? "default" : "all");
     setView("doer");
     setDept([]);
@@ -173,6 +172,9 @@ export function FilterBar({
     setSubj([]);
     setStatus([]);
     setClient([]);
+    setOverdue(false);
+    setAgeRange(null);
+    setTeam([]);
   }
 
   const fmt = (s: string) => {
@@ -182,92 +184,100 @@ export function FilterBar({
       return s;
     }
   };
-  const formattedRange = `${fmt(start)} → ${fmt(end)}`;
+  const formattedRange = `${fmt(start)} – ${fmt(end)}`;
 
-  /** Picking specific employees in the MultiSelect implies "specific" mode;
-   *  clearing them returns the chip to "default" (My tasks) for non-admins. */
   function handleEmpChange(next: string[]) {
     setEmp(next);
-    if (showScopeChip) {
-      setAssigneeMode(next.length > 0 ? "specific" : "default");
-    }
+    if (showScopeChip) setAssigneeMode(next.length > 0 ? "specific" : "default");
   }
 
-  const activeCount =
-    (emp.length > 0 ? 1 : 0) +
-    // The "All tasks" choice is a deviation from the non-admin default and
-    // counts as an active filter; "My tasks" (default) does not.
-    (showScopeChip && assigneeMode === "all" && emp.length === 0 ? 1 : 0) +
-    (view !== "doer" ? 1 : 0) +
-    (dept.length > 0 ? 1 : 0) +
-    (prio.length > 0 ? 1 : 0) +
-    (subj.length > 0 ? 1 : 0) +
-    (status.length > 0 ? 1 : 0) +
-    (client.length > 0 ? 1 : 0); // start/end have defaults so don't count
+  const empLabel = (id: string) => employees.find((e) => e.value === id)?.label ?? id;
+  const statusLabel = (v: string) =>
+    statusOptions?.find((o) => o.value === v)?.label ?? v;
+
+  const assigneeValue =
+    emp.length > 0
+      ? summarizeSelection(emp.map(empLabel), "All Employees")
+      : showScopeChip && assigneeMode === "default"
+        ? "My Tasks"
+        : "All Employees";
+  const assigneeActive = emp.length > 0 || (showScopeChip && assigneeMode === "all");
+
+  // ── Active-filter chips (the summary row) ──────────────────────────────
+  type ActivePill = { key: string; label: string; color: string; remove: () => void };
+  const activePills: ActivePill[] = [];
+  for (const s of status)
+    activePills.push({ key: `s-${s}`, label: statusLabel(s), color: TINT.status, remove: () => setStatus(status.filter((x) => x !== s)) });
+  for (const p of prio)
+    activePills.push({ key: `p-${p}`, label: PRIORITY_LABELS[p as TaskPriority] ?? p, color: TINT.priority, remove: () => setPrio(prio.filter((x) => x !== p)) });
+  for (const id of emp)
+    activePills.push({ key: `e-${id}`, label: empLabel(id), color: TINT.assignee, remove: () => handleEmpChange(emp.filter((x) => x !== id)) });
+  if (showScopeChip && assigneeMode === "all" && emp.length === 0)
+    activePills.push({ key: "scope-all", label: "All Tasks", color: TINT.assignee, remove: () => setAssigneeMode("default") });
+  for (const c of client)
+    activePills.push({ key: `c-${c}`, label: c, color: TINT.client, remove: () => setClient(client.filter((x) => x !== c)) });
+  for (const d of dept)
+    activePills.push({ key: `d-${d}`, label: d, color: TINT.department, remove: () => setDept(dept.filter((x) => x !== d)) });
+  for (const s of subj)
+    activePills.push({ key: `subj-${s}`, label: s, color: TINT.subject, remove: () => setSubj(subj.filter((x) => x !== s)) });
+  if (view !== "doer")
+    activePills.push({ key: "view", label: "Initiator View", color: TINT.view, remove: () => setView("doer") });
+  if (overdue)
+    activePills.push({ key: "overdue", label: "Overdue", color: TINT.overdue, remove: () => setOverdue(false) });
+  for (const t of team)
+    activePills.push({
+      key: `t-${t}`,
+      label: teamLabel(t),
+      color: TINT.team,
+      remove: () => setTeam(team.filter((x) => x !== t)),
+    });
+  if (ageRange)
+    activePills.push({
+      key: "age",
+      // The human bucket label, not the slug — "22 or more days overdue"
+      // rather than "22_plus". Falls back to the slug if an unknown one is
+      // ever pasted in, so the chip is still clearable.
+      label: FINE_BUCKET_BY_SLUG[ageRange] ?? ageRange,
+      color: TINT.ageRange,
+      remove: () => setAgeRange(null),
+    });
 
   return (
     <div
-      // Tight against the bottom of the sticky light header (96px desktop,
-      // 72px mobile). No gap → no clipped content peeking through.
-      className="sticky top-[96px] max-md:top-[72px] z-40 border-b border-hairline"
+      className="sticky sticky-below-topbar max-md:top-14 z-40 border-b border-hairline"
       style={{
-        backgroundColor: "rgba(250, 251, 252, 0.82)",
+        // Frosted glass band with a whisper of the module's brand red washed
+        // in from the left — reads as part of the module chrome, not a page.
+        background:
+          "radial-gradient(560px 90px at 6% 0%, color-mix(in srgb, var(--color-altus-red) 4%, transparent), transparent 70%), linear-gradient(180deg, rgba(255,255,255,0.86), rgba(250,251,252,0.80))",
         backdropFilter: "blur(20px) saturate(150%)",
         WebkitBackdropFilter: "blur(20px) saturate(150%)",
+        boxShadow: "0 10px 26px -22px rgba(15, 23, 42, 0.20)",
       }}
     >
-      <div className="mx-auto max-w-[1600px] px-12 py-2.5 max-md:px-4">
-        {/* Mobile-only header (Filters label + show/hide). On desktop the label
-            is dropped entirely so all the chips fit on a single line. */}
-        <div className="hidden max-sm:flex max-sm:w-full max-sm:items-center max-sm:gap-2">
-          <span
-            className="inline-flex items-center gap-1.5 text-table-head mr-1"
-            style={{ color: "var(--color-ink-subtle)" }}
-          >
-            <SlidersHorizontal size={14} strokeWidth={2.4} />
-            Filters
-            {activeCount > 0 && (
-              <span
-                className="ml-1 inline-flex items-center justify-center rounded-full text-white"
-                style={{
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  letterSpacing: 0,
-                  minWidth: 18,
-                  height: 18,
-                  padding: "0 6px",
-                  background: "var(--color-altus-red)",
-                }}
-              >
-                {activeCount}
-              </span>
-            )}
-          </span>
-          <button
-            type="button"
-            onClick={() => setSheetOpen((v) => !v)}
-            className="hidden max-sm:inline-flex items-center gap-1.5 filter-chip ml-auto"
-            aria-expanded={sheetOpen}
-          >
-            {sheetOpen ? "Hide" : "Show"} filters
-          </button>
-        </div>
-
-        <div className={`flex items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch max-sm:gap-3 max-sm:mt-3 ${sheetOpen ? "" : "max-sm:hidden"}`}>
-          {/* Filter chips — one horizontally-scrollable line on desktop; stack
-              vertically on mobile. The dropdowns portal out, so the scroll
-              container never clips them. */}
-          <div className="flex-1 min-w-0 overflow-x-auto nav-scroll max-sm:flex-none max-sm:overflow-visible">
-            <div className="flex items-center gap-2 w-max max-sm:w-full max-sm:flex-col max-sm:items-stretch max-sm:gap-3">
+      <div className="mx-auto max-w-[1600px] px-6 py-2.5 max-md:px-4 flex flex-col gap-2">
+        {/* Row 1 — filter pill-cards. WRAPS to a second line when they don't fit
+            (instead of cutting off the last filter). Wrapping is popover-safe:
+            the filter popovers portal to <body>, so — unlike a scroll/overflow
+            ancestor — a wrapped trigger row never mis-anchors them. */}
+        {/* Row 1 — ONE line, never wrapping: date range · filters · view toggle,
+            then the view switcher + search pinned right. `flex-nowrap` keeps the
+            View (Doer/Initiator) toggle on the same line as the filters; the
+            pills are compressed (see `filter-pill` in globals.css) so the whole
+            set fits. `overflow-x-auto` is only a safety valve for very narrow
+            viewports — the filter popovers portal to <body> and Radix tracks the
+            trigger on scroll, so a scrolled trigger still anchors correctly. */}
+        <div className="flex items-center gap-x-1 flex-nowrap overflow-x-auto no-scrollbar min-w-0">
           {/* Date range */}
           <Popover.Root>
             <Popover.Trigger asChild>
-              <button type="button" className="filter-chip max-sm:w-full max-sm:justify-between">
-                <Calendar size={16} className="text-ink-subtle" strokeWidth={2} />
-                <span className="text-[14px] font-medium text-ink-strong tabular-nums">
-                  {formattedRange}
-                </span>
-              </button>
+              <FilterPill
+                icon={<Calendar size={16} strokeWidth={2} />}
+                name="Date Range"
+                value={formattedRange}
+                tint="var(--color-altus-red)"
+                active
+              />
             </Popover.Trigger>
             <Popover.Portal>
               <Popover.Content
@@ -290,186 +300,220 @@ export function FilterBar({
             </Popover.Portal>
           </Popover.Root>
 
-          {/* Scope chip: My tasks / All tasks (non-admins only) */}
-          {showScopeChip && (
-            <div
-              className="inline-flex items-center bg-surface-card border border-hairline rounded-chip relative"
-              style={{
-                padding: 4,
-                boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
-              }}
-              aria-label="Task scope"
-            >
-              <SegButton
-                layoutId="scope-seg-active"
-                active={assigneeMode === "default" && emp.length === 0}
-                onClick={() => {
-                  setAssigneeMode("default");
-                  setEmp([]);
-                }}
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <User size={13} strokeWidth={2.2} />
-                  My tasks
-                </span>
-              </SegButton>
-              <SegButton
-                layoutId="scope-seg-active"
-                active={assigneeMode === "all" && emp.length === 0}
-                onClick={() => {
-                  setAssigneeMode("all");
-                  setEmp([]);
-                }}
-              >
-                All tasks
-              </SegButton>
-            </div>
-          )}
+          {/* Assignee */}
+          <MultiSelect
+            options={employees}
+            selected={emp}
+            onChange={handleEmpChange}
+            renderTrigger={() => (
+              <FilterPill
+                icon={<User size={16} strokeWidth={2} />}
+                name="Assignee"
+                value={assigneeValue}
+                tint={TINT.assignee}
+                active={assigneeActive}
+              />
+            )}
+          />
 
-          {/* Employees */}
-          <div className="filter-chip max-sm:w-full">
-            <Users size={16} className="text-ink-subtle" strokeWidth={2} />
-            <MultiSelect
-              options={employees}
-              selected={emp}
-              onChange={handleEmpChange}
-              placeholder={
-                showScopeChip && assigneeMode === "default"
-                  ? "+ Add Teammate"
-                  : "All Employees"
-              }
-              className="min-w-[6.5rem] !text-[14px]"
-            />
-          </div>
-
-          {clients && clients.length > 0 && (
-            <ClientFilter
-              options={clients.map((c) => ({ value: c, label: c }))}
-              selected={client}
-              onChange={setClient}
-            />
-          )}
-          <DepartmentFilter selected={dept} onChange={setDept} />
-          <PriorityFilter selected={prio} onChange={setPrio} />
           {statusOptions && statusOptions.length > 0 && (
             <StatusFilter options={statusOptions} selected={status} onChange={setStatus} />
           )}
+          <PriorityFilter selected={prio} onChange={setPrio} />
+          {clients && clients.length > 0 && (
+            <ClientFilter options={clients.map((c) => ({ value: c, label: c }))} selected={client} onChange={setClient} />
+          )}
+          {/* Team sits directly after Department: they are adjacent questions
+              (who owns this work) and reading them side by side is what makes
+              the difference between them legible. */}
+          <DepartmentFilter selected={dept} onChange={setDept} />
+          <TeamFilter selected={team} onChange={setTeam} />
+
+          {/* Subject — always shown */}
           {subjects && subjects.length > 0 && (
             <SubjectFilter options={subjects} selected={subj} onChange={setSubj} />
           )}
 
-          {/* View segmented toggle */}
-          <div
-            className="inline-flex items-center bg-surface-card border border-hairline rounded-chip relative"
-            style={{
-              padding: 4,
-              boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
-            }}
-          >
-            <SegButton active={view === "doer"} onClick={() => setView("doer")}>
-              Doer
-            </SegButton>
-            <SegButton
-              active={view === "initiator"}
-              onClick={() => setView("initiator")}
-            >
-              Initiator
-            </SegButton>
-          </div>
+          {/* Scope (non-admins) + View — always shown */}
+          {showScopeChip && (
+            <SegGroup label="Scope">
+              <SegButton active={assigneeMode === "default" && emp.length === 0} onClick={() => { setAssigneeMode("default"); setEmp([]); }}>My Tasks</SegButton>
+              <SegButton active={assigneeMode === "all" && emp.length === 0} onClick={() => { setAssigneeMode("all"); setEmp([]); }}>All Tasks</SegButton>
+            </SegGroup>
+          )}
+          <SegGroup label="View">
+            <SegButton layoutId="view-seg-active" active={view === "doer"} onClick={() => setView("doer")}>Doer</SegButton>
+            <SegButton layoutId="view-seg-active" active={view === "initiator"} onClick={() => setView("initiator")}>Initiator</SegButton>
+          </SegGroup>
 
-            </div>
-          </div>
-          {/* Pinned actions — stay put on the right while the filters scroll. */}
-          <div className="flex items-center gap-2 shrink-0 max-sm:w-full max-sm:flex-wrap max-sm:mt-1">
-            {/* Import / export — admin-only, on the task list views. Tucked
-                into a ⋯ menu (these are occasional actions) so the filter row
-                stays a single line and the table gets the screen space. The
-                CSV export route still exists at /tasks/export but isn't
-                surfaced — XLS + PDF cover every reporting need. */}
-            {(pathname === "/tasks" || pathname === "/archived") &&
-              me?.isAdmin &&
-              (() => {
-                const buildExportHref = (path: string) => {
-                  const exportSp = new URLSearchParams(searchParams.toString());
-                  if (pathname === "/archived") exportSp.set("archived", "1");
-                  return `${path}?${exportSp.toString()}`;
-                };
-                return (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label="Import and export"
-                        title="Import / export"
-                        className="inline-flex items-center justify-center h-9 w-9 rounded-chip border border-hairline bg-surface-card text-ink-soft hover:text-ink-strong hover:border-altus-red transition-colors"
-                        style={{ boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)" }}
-                      >
-                        <MoreHorizontal size={16} strokeWidth={2.4} />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <Link href={"/tasks/import" as Route}>
-                          <Upload size={14} strokeWidth={2} style={{ color: "var(--color-altus-red)" }} />
-                          Import tasks
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={"/tasks/duplicates" as Route}>
-                          <CopyMinus size={14} strokeWidth={2} style={{ color: "var(--color-amber-deep, #b45309)" }} />
-                          Find duplicates
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <a href={buildExportHref("/tasks/export.xlsx")} download>
-                          <FileSpreadsheet size={14} strokeWidth={2} style={{ color: "var(--color-success, #16a34a)" }} />
-                          Export XLS
-                        </a>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <a href={buildExportHref("/tasks/export.pdf")} download>
-                          <FileText size={14} strokeWidth={2} style={{ color: "var(--color-altus-red, #dc2626)" }} />
-                          Export PDF
-                        </a>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                );
-              })()}
-            <button
-              type="button"
-              onClick={(e) => {
-                const icon = e.currentTarget.querySelector("svg");
-                if (icon) {
-                  icon.style.transition = "transform 450ms cubic-bezier(.4, 1.4, .5, 1)";
-                  icon.style.transform = "rotate(-360deg)";
-                  setTimeout(() => {
-                    if (icon) {
-                      icon.style.transition = "none";
-                      icon.style.transform = "rotate(0deg)";
-                    }
-                  }, 480);
-                }
-                reset();
-              }}
-              className="inline-flex items-center gap-1.5 text-chip text-ink-subtle hover:text-ink-strong transition-colors px-3 py-2 rounded-chip"
-              aria-label="Reset filters"
-            >
-              <RotateCcw size={14} strokeWidth={2.2} />
-              Reset
-            </button>
-            {/* Filters auto-apply as you change them — no Apply button. This
-                tiny indicator just confirms a refresh is in flight. */}
+          {/* The ⋯ import/export menu used to sit here. It moved to the Tasks
+              page header so it pairs with the "Kanban View" button, and so this
+              ribbon stays filters + search on one line. See task-tools-menu.tsx. */}
+
+          {/* Right-pinned cluster: updating indicator · section search.
+              The Board/List segmented toggle used to sit here too; it was a
+              third way to do the same thing (the left rail has Tasks + Kanban
+              items, and the Tasks header has a "Kanban View" button), so it was
+              removed to keep the ribbon to the primary controls. */}
+          <div className="flex items-center gap-1.5 ml-auto shrink-0 pl-1.5">
             <span
               aria-live="polite"
-              className="inline-flex items-center gap-1.5 text-chip text-ink-subtle transition-opacity"
-              style={{ opacity: isPending ? 1 : 0 }}
+              aria-hidden={!isPending}
+              className="inline-flex items-center gap-1 text-[12px] text-ink-subtle transition-opacity"
+              style={{ opacity: isPending ? 1 : 0, width: isPending ? undefined : 0, overflow: "hidden" }}
             >
-              <Loader2 size={14} strokeWidth={2.2} className="animate-spin" />
+              <Loader2 size={12} strokeWidth={2.2} className="animate-spin" />
               Updating…
             </span>
+
+            <SectionSearchBox
+              placeholder={`Search ${SECTION_LABELS[pathname] ?? "this view"}…`}
+            />
           </div>
         </div>
+
+        {/* Active filters — rendered ONLY when something is selected, so the
+            bar stays a single line otherwise. (Result count lives in Row 1.)
+            Chips scroll horizontally if many; no popovers here, so the scroll
+            container is safe. */}
+        {activePills.length > 0 && (
+          <div className="flex items-center gap-2.5 flex-nowrap min-w-0 overflow-x-auto no-scrollbar">
+            <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold shrink-0" style={{ color: "var(--color-ink-subtle)" }}>
+              <ListFilter size={15} strokeWidth={2.2} />
+              {activePills.length} active
+            </span>
+            {activePills.map((p) => (
+              <span
+                key={p.key}
+                className="inline-flex items-center gap-1.5 rounded-full pl-2.5 pr-1.5 py-1 text-[13px] font-semibold shrink-0"
+                style={{
+                  background: `color-mix(in srgb, ${p.color} 11%, transparent)`,
+                  border: `1px solid color-mix(in srgb, ${p.color} 24%, transparent)`,
+                  color: "var(--color-ink-strong)",
+                }}
+              >
+                <span className="size-2 rounded-full" style={{ background: p.color }} />
+                {p.label}
+                <button
+                  type="button"
+                  onClick={p.remove}
+                  aria-label={`Remove ${p.label}`}
+                  className="inline-flex items-center justify-center rounded-full size-4 text-ink-subtle hover:text-ink-strong hover:bg-black/5 transition-colors"
+                >
+                  <X size={12} strokeWidth={2.4} />
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              onClick={reset}
+              className="text-[13px] font-semibold transition-colors hover:underline shrink-0"
+              style={{ color: "var(--color-altus-red)" }}
+            >
+              Clear All
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Human name of the view the bar is sitting on, for the search placeholder.
+ * Falls back to a neutral phrase so a new route that mounts the bar still
+ * reads sensibly instead of showing "Search undefined…".
+ */
+const SECTION_LABELS: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/tasks": "Tasks",
+  "/my-day": "Daily Goals",
+  // Daily Goals → Dashboard. Named in full so the bar never reads as the WMS
+  // Dashboard at /dashboard, which is a different page entirely.
+  "/my-day/dashboard": "Daily Goals Dashboard",
+  "/tasks/kanban": "Kanban",
+  "/archived": "Archived",
+};
+
+/**
+ * Section-scoped search. Writes to the section-search store, which the view
+ * rendered below the bar reads via `useSectionSearch()` and applies to the rows
+ * it has ALREADY loaded — so this filters live, per keystroke, with no server
+ * round trip (unlike the other controls here, which re-query via the URL).
+ *
+ * Chrome intentionally mirrors `filter-pill`: same surface, hairline border,
+ * 12px radius and shadow, so it reads as one of the bar's controls.
+ */
+function SectionSearchBox({ placeholder }: { placeholder: string }) {
+  const pathname = usePathname();
+  const [text, setText] = React.useState("");
+
+  // Clear when moving between sections — a query typed on Tasks must not carry
+  // over and silently hide rows on Kanban. Also runs on mount, so the store
+  // always starts empty for the new view.
+  React.useEffect(() => {
+    setText("");
+    setSectionSearch("");
+  }, [pathname]);
+
+  // And clear on unmount, so a view WITHOUT the bar can never inherit a stale
+  // query from the last one that had it.
+  React.useEffect(() => () => setSectionSearch(""), []);
+
+  function update(next: string) {
+    setText(next);
+    setSectionSearch(next);
+  }
+
+  return (
+    <div className="relative shrink-0">
+      <Search
+        size={14}
+        strokeWidth={2.2}
+        aria-hidden
+        className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-ink-subtle"
+      />
+      <input
+        type="search"
+        value={text}
+        onChange={(e) => update(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") update("");
+        }}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        // Narrow by default so the ribbon fits on one line, widening on focus
+        // (and on wide screens) once you're actually typing into it.
+        className="h-[30px] w-[150px] 2xl:w-[200px] focus:w-[220px] rounded-xl border border-hairline bg-surface-card pl-7 pr-6 text-[12px] font-semibold text-ink-strong placeholder:font-normal placeholder:text-ink-subtle outline-none transition-all hover:border-hairline-strong focus:border-altus-red focus:ring-2 focus:ring-altus-red/20"
+        style={{ boxShadow: "0 1px 2px rgba(15, 23, 42, 0.05)" }}
+      />
+      {text && (
+        <button
+          type="button"
+          onClick={() => update("")}
+          aria-label="Clear search"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-subtle transition-colors hover:text-ink-strong"
+        >
+          <X size={14} strokeWidth={2.4} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SegGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    // shrink-0 + nowrap: this is the control that used to get bumped onto a
+    // second line, so it must never be squeezed or allowed to break.
+    <div className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap">
+      <span className="text-[9.5px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-ink-subtle)" }}>
+        {label}
+      </span>
+      <div
+        className="inline-flex items-center bg-surface-card border border-hairline rounded-chip relative"
+        style={{ padding: 2, boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)" }}
+      >
+        {children}
       </div>
     </div>
   );
@@ -479,19 +523,18 @@ function SegButton({
   active,
   onClick,
   children,
-  layoutId = "view-seg-active",
+  layoutId = "scope-seg-active",
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
-  /** Unique layoutId so multiple SegButton groups animate independently. */
   layoutId?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="relative text-[14px] px-2.5 py-1.5 rounded-pill transition-colors"
+      className="relative text-[11.5px] px-1.5 py-0.5 rounded-pill transition-colors whitespace-nowrap"
       style={{
         color: active ? "var(--color-ink-strong)" : "var(--color-ink-subtle)",
         fontWeight: active ? 600 : 500,
@@ -504,8 +547,7 @@ function SegButton({
           className="absolute inset-0 rounded-pill"
           style={{
             background: "var(--color-surface-card)",
-            boxShadow:
-              "0 1px 3px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04)",
+            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04)",
           }}
           transition={{ type: "spring", stiffness: 380, damping: 32 }}
         />

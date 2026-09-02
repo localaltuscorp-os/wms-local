@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { requireUser } from "@/lib/auth/current";
+import { isFinanceViewer } from "@/lib/auth/finance-access";
 import { listRunsForMonth } from "@/lib/queries/salary";
 
 /**
@@ -41,7 +42,7 @@ export async function GET(request: Request): Promise<Response> {
   } catch {
     return new Response("Forbidden", { status: 403 });
   }
-  if (!me.isAdmin) return new Response("Forbidden", { status: 403 });
+  if (!(await isFinanceViewer(me))) return new Response("Forbidden", { status: 403 });
 
   const url = new URL(request.url);
   const raw = url.searchParams.get("month");
@@ -94,7 +95,7 @@ export async function GET(request: Request): Promise<Response> {
     headers: {
       "content-type":
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "content-disposition": `attachment; filename="salary-${month}.xlsx"`,
+      "content-disposition": `attachment; filename="Salary-${month}.xlsx"`,
       "cache-control": "no-store",
     },
   });

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Splash mark: the Day Ring bed with the Altus 'A' — stroke-only, 2dp-grammar
+     scaled up. Colours come from the token-mirroring colour resources. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- ring -->
+    <path
+        android:pathData="M54 22a32 32 0 1 0 0 64a32 32 0 1 0 0-64"
+        android:strokeColor="@color/altus_on_deep"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+    <!-- A -->
+    <path
+        android:pathData="M42 68L54 38L66 68"
+        android:strokeColor="@color/altus_on_deep"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M46.8 58L61.2 58"
+        android:strokeColor="@color/altus_on_deep"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+</vector>

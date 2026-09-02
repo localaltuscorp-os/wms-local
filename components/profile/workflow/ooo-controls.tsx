@@ -79,7 +79,7 @@ export function OooControls({ initial, colleagues }: Props) {
       }}
     >
       <SectionHeader
-        title="Out of office"
+        title="Out of Office"
         description="Set a window when you're away. New tasks assigned to you can be copied to a delegate; the dashboard shows a banner so teammates see your status."
         savedAt={showSaved ? savedAt : null}
       />

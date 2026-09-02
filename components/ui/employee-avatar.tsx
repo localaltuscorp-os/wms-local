@@ -1,8 +1,11 @@
 import * as React from "react";
 
-type Size = "sm" | "md" | "lg";
+type Size = "xs" | "sm" | "md" | "lg";
 
 const SIZE_MAP: Record<Size, { px: number; fontSize: number }> = {
+  // 16px — fits inside a 24px (h-6) selected chip without clipping its
+  // top/bottom borders, which 32px `sm` did.
+  xs: { px: 16, fontSize: 10 },
   sm: { px: 32, fontSize: 12 },
   md: { px: 40, fontSize: 14 },
   lg: { px: 56, fontSize: 18 },

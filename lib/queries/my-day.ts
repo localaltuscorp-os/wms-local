@@ -1,9 +1,11 @@
 import "server-only";
 import { and, asc, eq, inArray, lt, gte } from "drizzle-orm";
+import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { tasks } from "@/db/schema";
 import { PENDING_STATUSES, TASK_PRIORITIES } from "@/db/enums";
 import type { TaskStatus, TaskPriority } from "@/db/enums";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 export interface MyDayCounts {
   dueToday: number;
@@ -30,7 +32,7 @@ function istBoundaries(now: Date = new Date()): { start: Date; end: Date } {
  * Cheap — three `count(*)` queries that all hit the existing
  * (doer_id, archived, status) index family. No join.
  */
-export async function getMyDayCounts(userId: string): Promise<MyDayCounts> {
+async function getMyDayCountsUncached(userId: string): Promise<MyDayCounts> {
   const { start, end } = istBoundaries();
   const pendingList = [...PENDING_STATUSES];
 
@@ -80,6 +82,24 @@ export async function getMyDayCounts(userId: string): Promise<MyDayCounts> {
     overdue: overdueRow.length,
     doneToday: doneTodayRow.length,
   };
+}
+
+/**
+ * Cached per-user wrapper for the "Your day" counters. The result is three
+ * plain numbers (no Date fields), so it is safe to serialise through
+ * `unstable_cache` — unlike {@link getMyTodayTasks}, which returns Date fields
+ * and is deliberately NOT cached (unstable_cache turns Date→string on a hit,
+ * a known crash footgun). The cache key includes `userId` so users never see
+ * each other's counts; a short 15s TTL keeps it near-live, and the `tasks` tag
+ * busts it the instant the user mutates a task (read-your-writes). This removes
+ * one uncached DB fan-out from the warm dashboard load path.
+ */
+export async function getMyDayCounts(userId: string): Promise<MyDayCounts> {
+  return unstable_cache(
+    () => getMyDayCountsUncached(userId),
+    ["my-day-counts", userId],
+    { revalidate: 15, tags: [CACHE_TAGS.tasks] },
+  )();
 }
 
 export interface MyTodayTask {

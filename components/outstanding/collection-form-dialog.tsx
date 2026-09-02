@@ -108,7 +108,7 @@ export function CollectionFormDialog({
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-lg rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
-            Record a collection
+            Record a Collection
           </Dialog.Title>
           <Dialog.Description
             className="text-[15px] text-[#64748B] mb-4"
@@ -144,7 +144,7 @@ export function CollectionFormDialog({
                   className={INPUT_CLASS}
                 />
               </Field>
-              <Field label="Payment mode" required>
+              <Field label="Payment Mode" required>
                 <Select
                   options={modes.map((m) => ({ value: m.id, label: m.name }))}
                   value={modeId}
@@ -156,7 +156,7 @@ export function CollectionFormDialog({
             </Section>
 
             <Section title="Responsible Person">
-              <Field label="Responsible person" required>
+              <Field label="Responsible Person" required>
                 <Select
                   options={responsibles.map((r) => ({ value: r.id, label: r.name }))}
                   value={responsibleId}
@@ -179,7 +179,7 @@ export function CollectionFormDialog({
                   className={INPUT_CLASS}
                 />
               </Field>
-              <AttachmentField file={file} onChange={setFile} required label="Receipt / proof" />
+              <AttachmentField file={file} onChange={setFile} required label="Receipt / Proof" />
             </Section>
 
             {error && (
@@ -194,7 +194,7 @@ export function CollectionFormDialog({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
+                  className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
                   disabled={pending}
                 >
                   Cancel
@@ -206,7 +206,7 @@ export function CollectionFormDialog({
                 className="rounded-md py-2.5 px-5 text-[14px] font-medium text-white disabled:opacity-50"
                 style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
               >
-                {pending ? "Saving…" : "Record collection"}
+                {pending ? "Saving…" : "Record Collection"}
               </button>
             </div>
           </form>

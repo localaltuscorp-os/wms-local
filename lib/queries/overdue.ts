@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { db, employees, tasks } from "@/lib/db";
 import { PENDING_STATUSES, type TaskStatus } from "@/db/enums";
+import { effectiveDueAtSql } from "@/lib/tasks/effective-due";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -43,7 +44,8 @@ export async function listOverdueByEmployee(
       shortId: tasks.shortId,
       title: tasks.title,
       subject: tasks.subject,
-      dueAt: tasks.dueAt,
+      // Overdue is keyed off the EFFECTIVE due (revised ?? original).
+      dueAt: effectiveDueAtSql(),
       doerId: tasks.doerId,
       doerName: employees.name,
     })
@@ -56,12 +58,12 @@ export async function listOverdueByEmployee(
           PENDING_STATUSES as unknown as readonly TaskStatus[],
         ),
         isNotNull(tasks.dueAt),
-        lt(tasks.dueAt, now),
+        lt(effectiveDueAtSql(), now),
         eq(tasks.archived, false),
         eq(employees.isActive, true),
       ),
     )
-    .orderBy(sql`${tasks.dueAt} ASC`);
+    .orderBy(sql`${effectiveDueAtSql()} ASC`);
 
   const map = new Map<string, OverdueTask[]>();
   for (const r of rows) {
@@ -166,7 +168,8 @@ export async function listPendingByEmployee(
       shortId: tasks.shortId,
       title: tasks.title,
       subject: tasks.subject,
-      dueAt: tasks.dueAt,
+      // Effective due so shapePendingRows flags overdue from the revision.
+      dueAt: effectiveDueAtSql(),
       doerId: tasks.doerId,
       doerName: employees.name,
     })

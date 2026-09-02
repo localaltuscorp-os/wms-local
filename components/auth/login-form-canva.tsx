@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -59,9 +59,17 @@ async function exchangeIdTokenForSession(idToken: string): Promise<void> {
 }
 
 export function LoginFormCanva() {
-  const router = useRouter();
   const params = useSearchParams();
-  const requestedNext = params.get("next") || "/";
+  // Always land on the Hub by default. Treat a bare "/" next — what the
+  // middleware appends when you open the root domain — as "no preference" so it
+  // resolves to /hub too; real deep links (?next=/tasks) are still honored.
+  const rawNext = params.get("next");
+  // SECURITY: only honour SAME-ORIGIN relative paths. Without this, `?next=`
+  // could be `https://evil.com` or `//evil.com` (protocol-relative) → a
+  // post-login OPEN REDIRECT to a phishing site after the user typed real
+  // credentials. Mirrors sanitizeNext() in app/(auth)/welcome/page.tsx.
+  const isSafeNext = !!rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//");
+  const requestedNext = !rawNext || rawNext === "/" || !isSafeNext ? "/hub" : rawNext;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -72,12 +80,20 @@ export function LoginFormCanva() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // Long-password DoS guard: reject before any auth/hashing work touches it.
+    if (password.length > 128) {
+      setError("That password is too long (max 128 characters).");
+      return;
+    }
     startTransition(async () => {
       try {
         const cred = await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
         const idToken = await cred.user.getIdToken();
         await exchangeIdTokenForSession(idToken);
-        router.replace(requestedNext as Route);
+        // HARD navigation (not router.replace): wipes Next's client Router
+        // Cache so this freshly-signed-in user never sees a PREVIOUS user's
+        // cached pages (e.g. the admin panel) lingering in this browser tab.
+        window.location.replace(requestedNext);
       } catch (err: unknown) {
         const code = (err as { code?: string })?.code;
         if ((err as Error)?.message === "not-enrolled") {
@@ -127,7 +143,7 @@ export function LoginFormCanva() {
       </p>
 
       <div className="mt-7 space-y-4">
-        <Field label="Work email" type="email" autoComplete="email" required value={email} onChange={setEmail} placeholder="you@altuscorp.com" />
+        <Field label="Work Email" type="email" autoComplete="email" required value={email} onChange={setEmail} placeholder="you@altuscorp.com" />
         <Field
           label="Password"
           type={showPw ? "text" : "password"}
@@ -173,7 +189,7 @@ export function LoginFormCanva() {
             boxShadow: "0 12px 30px -12px rgba(225,6,0,0.7), 0 1px 0 rgba(255,255,255,0.22) inset",
           }}
         >
-          <span className="relative z-10">{isPending ? "Signing you in…" : "Sign in"}</span>
+          <span className="relative z-10">{isPending ? "Signing you in…" : "Sign In"}</span>
           {!isPending && <ArrowRight size={17} className="relative z-10 transition-transform group-hover:translate-x-0.5" />}
           <span
             aria-hidden
@@ -188,7 +204,7 @@ export function LoginFormCanva() {
             className="transition-colors hover:text-white"
             style={{ fontSize: 13.5, color: "rgba(255,255,255,0.6)", textDecoration: "underline", textUnderlineOffset: 3 }}
           >
-            Forgot password?
+            Forgot Password?
           </Link>
         </div>
       </div>
@@ -258,6 +274,9 @@ function Field({
           required={required}
           value={value}
           placeholder={placeholder}
+          // Hard cap so a pasted megabyte-long password can't even enter state
+          // (long-password DoS). The submit handler enforces the real ≤128 rule.
+          maxLength={255}
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}

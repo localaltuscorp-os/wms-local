@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth/current";
 import { globalSearch, type GlobalSearchResult } from "@/lib/queries/global-search";
 
 const EMPTY: GlobalSearchResult = {
-  tasks: [], clients: [], projects: [], people: [], outstanding: [], documents: [],
+  tasks: [], clients: [], projects: [], people: [], outstanding: [], documents: [], ambassadors: [],
 };
 
 /**

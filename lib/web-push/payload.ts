@@ -24,6 +24,7 @@ const TITLES: Record<NotificationKind, (actor: string) => string> = {
   transferred: (a) => `${a} transferred a task`,
   cancelled: (a) => `${a} cancelled a task`,
   commented: (a) => `${a} commented on your task`,
+  nudged: (a) => `⚡ ${a} nudged you`,
   overdue_digest: () => `You have overdue tasks`,
   // Weekly Goals — delivered by their own cron (email + in-app), not via push.
   weekly_goals_assigned: () => `Your priorities for the week`,
@@ -35,6 +36,33 @@ const TITLES: Record<NotificationKind, (actor: string) => string> = {
   attendance_half_day: () => `Half day recorded`,
   attendance_device: () => `New device used for attendance`,
   attendance_late_deduction: () => `Late deduction applied`,
+  training_test_failed: () => `Training test not passed`,
+  dcc_fill_reminder: () => `Fill today's DCC KPIs`,
+  ambassador_reminder: () => `You have an ambassador to follow up`,
+  // Goals Cascade — delivered by their own cron (email + in-app); placeholder
+  // titles to satisfy the exhaustive map.
+  goals_commit_reminder: () => `Commit your week's goals`,
+  goals_approval_reminder: () => `Approve your team's goals`,
+  goals_committed: () => `Weekly goals committed`,
+  goals_approved: () => `Your weekly goals were approved`,
+  hr_confirmation_due: () => `Issue a confirmation letter`,
+  // HR Support (mig 0145) — generic copy by design (confidential grievances
+  // must never leak a subject line into a push banner).
+  hr_ticket_created: () => `A new HR ticket was raised`,
+  hr_ticket_assigned: () => `An HR ticket was assigned to you`,
+  hr_ticket_replied: () => `New reply on your HR ticket`,
+  hr_ticket_status_changed: () => `Your HR ticket was updated`,
+  hr_ticket_sla_breach: () => `An HR ticket breached its SLA`,
+  hr_ticket_csat_request: () => `How did we do? Rate your HR ticket`,
+  // Appraisal (mig 0146) — in-app inbox first; push copy stays generic.
+  appraisal_cycle_opened: () => `Your appraisal is open`,
+  appraisal_self_reminder: () => `Complete your self scores`,
+  appraisal_manager_pending: () => `Appraisal scores await your review`,
+  appraisal_management_pending: () => `Appraisal scores await management review`,
+  appraisal_finalized: () => `Your appraisal is finalized`,
+  // Enterprise Communications (mig 0179) — ECOS owns its own delivery; generic
+  // push copy placeholder to satisfy the exhaustive map.
+  broadcast: () => `New company communication`,
 };
 
 export interface PushCtx {

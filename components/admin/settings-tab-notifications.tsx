@@ -20,7 +20,9 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   transferred:    "Transferred",
   cancelled:      "Cancelled",
   commented:      "Comment posted",
+  nudged:         "Nudge",
   overdue_digest: "Daily overdue digest",
+  // Weekly Goals reminder cron — sent directly, not via the matrix.
   weekly_goals_assigned:      "Weekly goals — Monday briefing",
   weekly_goals_fill_reminder: "Weekly goals — fill % done",
   weekly_goals_incomplete:    "Weekly goals — unmarked nudge",
@@ -30,6 +32,30 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   attendance_half_day:    "Attendance: half day",
   attendance_device:      "Attendance: new device",
   attendance_late_deduction: "Attendance: late deduction",
+  training_test_failed: "Training: test failed",
+  dcc_fill_reminder: "DCC — fill today's KPIs",
+  ambassador_reminder: "Ambassadors — follow-up reminder",
+  // Goals Cascade — sent directly / in-app, not via the matrix.
+  goals_commit_reminder:   "Goals — Saturday commit reminder",
+  goals_approval_reminder: "Goals — Monday approval reminder",
+  goals_committed:         "Goals — week committed",
+  goals_approved:          "Goals — week approved",
+  hr_confirmation_due:     "HR — issue confirmation letter",
+  // HR Support / Ticketing (mig 0145).
+  hr_ticket_created:        "HR ticket — raised",
+  hr_ticket_assigned:       "HR ticket — assigned to you",
+  hr_ticket_replied:        "HR ticket — new reply",
+  hr_ticket_status_changed: "HR ticket — status updated",
+  hr_ticket_sla_breach:     "HR ticket — SLA breached",
+  hr_ticket_csat_request:   "HR ticket — rate your experience",
+  // Appraisal (mig 0146) — in-app only by design.
+  appraisal_cycle_opened:       "Appraisal — cycle opened",
+  appraisal_self_reminder:      "Appraisal — self-score reminder",
+  appraisal_manager_pending:    "Appraisal — manager review pending",
+  appraisal_management_pending: "Appraisal — management review pending",
+  appraisal_finalized:          "Appraisal — finalized",
+  // Enterprise Communications (mig 0179) — delivered by the ECOS publish flow.
+  broadcast:                    "Communications — broadcast",
 };
 
 const CHANNEL_LABEL: Record<NotificationChannel, string> = {
@@ -131,7 +157,7 @@ export function SettingsTabNotifications({
           className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-altus-red)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-          {pending ? "Saving…" : "Save changes"}
+          {pending ? "Saving…" : "Save Changes"}
         </button>
         {saved && (
           <span className="inline-flex items-center gap-1 text-sm text-emerald-700">

@@ -6,6 +6,9 @@ import { reconcileTaskEvent } from "@/lib/google/sync";
 import { deriveShortId, nextShortIdCandidate } from "@/lib/import/short-id";
 import { CreateTaskSchema, type CreateTaskInput } from "@/lib/validators/task";
 import { taskLabel } from "@/lib/tasks/set-status";
+import { emit } from "@/lib/events/emit";
+import { taskCreated } from "@/lib/events/task-events";
+import { nudgeRelay } from "@/lib/relay/nudge";
 
 /**
  * Transport-agnostic core for creating one or more tasks (multi-doer fan-out).
@@ -87,18 +90,41 @@ export async function createTasksCore(
     }
 
     try {
-      await db.insert(taskEvents).values({
-        taskId: row.id,
-        actorId: actor.id,
-        eventType: "created",
-        toValue: {
-          title: parsed.title,
-          doerId,
-          initiatorId: parsed.initiatorId,
-          priority: parsed.priority,
-          dueAt: parsed.dueAt.toISOString(),
-          tags: parsed.tags ?? null,
-        },
+      // Phase B: the audit row AND the domain event commit together (Law 2).
+      // The task row itself is already committed above; this pairs the audit +
+      // event atomically. A task lacking a Created event is detectable by a
+      // projection rebuild, so the tiny window here is recoverable.
+      await db.transaction(async (tx) => {
+        await tx.insert(taskEvents).values({
+          taskId: row!.id,
+          actorId: actor.id,
+          eventType: "created",
+          toValue: {
+            title: parsed.title,
+            doerId,
+            initiatorId: parsed.initiatorId,
+            priority: parsed.priority,
+            dueAt: parsed.dueAt.toISOString(),
+            tags: parsed.tags ?? null,
+          },
+        });
+        await emit(
+          tx,
+          taskCreated(
+            row!.id,
+            {
+              doerId,
+              initiatorId: parsed.initiatorId,
+              createdById: actor.id,
+              title: parsed.title,
+              subject: parsed.subject ?? null,
+              priority: parsed.priority,
+              status: "dont_know",
+              dueAt: parsed.dueAt.toISOString(),
+            },
+            { actorId: actor.id },
+          ),
+        );
       });
     } catch (err) {
       console.warn("[createTask] created-event insert failed (non-fatal):", (err as Error)?.message ?? err);
@@ -126,12 +152,26 @@ export async function createTasksCore(
     createdIds.push(row.id);
   }
 
+  nudgeRelay(); // low-latency projection update; cron is the durable backstop
   if (notifyIntents.length > 0) {
     afterResponse(async () => {
       for (const intent of notifyIntents) await notify(intent);
     });
   }
-  for (const id of createdIds) afterResponse(() => reconcileTaskEvent(id));
+
+  // Calendar sync runs INLINE (in the reliable request context), not in
+  // after(): the post-response after() context was silently failing to create
+  // events in production (verified — same code works from the cron route
+  // handler). reconcileTaskEvent never throws and records its own retry state,
+  // so a slow/failed Google call simply leaves the task for the hourly cron to
+  // retry. Parallel + an 8s ceiling keeps multi-doer fan-out snappy.
+  // DEFERRED (Operation Butter: "persist, then return"). Previously this raced
+  // the Google Calendar fan-out inline with an 8s ceiling — task creation could
+  // block up to 8s. The silent-failure that once forced inline was the
+  // scheme-less source.url bug (fixed via siteUrl()); reconcileTaskEvent records
+  // its own retry state and is backstopped by the daily calendar-sync cron, so
+  // after() is now both safe and instant (mirrors the deferred notifications).
+  afterResponse(() => Promise.allSettled(createdIds.map((id) => reconcileTaskEvent(id))));
 
   return { ok: true, id: createdIds[0]!, ids: createdIds };
 }

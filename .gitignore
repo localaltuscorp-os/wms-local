@@ -61,11 +61,18 @@ WhatsApp*
 !lib/whatsapp/
 !lib/whatsapp/**
 !lib/validators/whatsapp.ts
+# …and any other lowercased `whatsapp*` SOURCE file anywhere under lib/ (e.g.
+# lib/goals/whatsapp-dispatch.ts) — else ship.sh's `git add -A` silently skips
+# it and prod fails to resolve the module at build time.
+!lib/**/whatsapp*
 !app/api/whatsapp/
 !app/api/whatsapp/**
 !tests/unit/whatsapp-*.test.ts
 ddd.py
 *.jpeg
+# …but letter signature assets under public/signatures/ MUST ship (else ship.sh's
+# `git add -A` skips them and the PDF/letter render 404s the signature image).
+!public/signatures/*.jpeg
 vpinnacle.html
 vpinnacle_dashboard*.html
 credentials.md
@@ -90,3 +97,38 @@ docs/2026-05-13-timeline-and-training-plan.md
 
 # Reference repos kept locally for prompt/design lookups — never committed
 ai-refs/
+
+# Local-only MIS data dumps (PII — incentive amounts + employee names)
+.mis-sheet*.json
+Altus Eco System MIS.xlsx
+
+# Stray local data/docs/archives (never source — keep out of the repo)
+*.zip
+*.xlsx
+*.docx
+~$*
+# …but NOT App-Router route handlers whose dir is literally named e.g.
+# `export.xlsx/` — the *.xlsx rule (for real spreadsheets) must never eat them,
+# or ship.sh's `git add -A` silently drops the route and prod loses it.
+!app/**/*.xlsx/
+!app/**/*.xlsx/**
+# …nor the hand-crafted Goals bulk-import template served by /goals/template.xlsx
+# (bundled into the route via next.config outputFileTracingIncludes — it MUST be
+# tracked or ship.sh drops it and the download 500s in prod).
+!public/templates/*.xlsx
+ALTUS_APP_KNOWLEDGE_BASE.md
+Doc1.docx
+
+# local salary reconcile exports (never ship)
+_reconcile/
+
+# local screenshot/PDF verification artifacts
+.shots/
+__claude-*.mjs
+
+# Local PGlite dev database — a 67 MB Postgres data dir, never source. Must stay
+# ignored or ship.sh's `git add -A` sweeps the whole thing into a commit.
+.pglite/
+
+# legacy mobile drop - removed 2026-09-02
+mobile_LEGACY_DROP_*/

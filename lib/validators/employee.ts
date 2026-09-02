@@ -1,4 +1,9 @@
 import { z } from "zod";
+import { WORKER_TYPES } from "@/db/enums";
+
+/** HH:mm, matching lib/validators/attendance.ts — the schedule columns are
+ *  written by both this bulk patch and the single-employee schedule action. */
+const TIME_HHMM = z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:mm");
 
 /**
  * Normalize a name string before validation/storage:
@@ -78,7 +83,16 @@ export const EditEmployeeSchema = z
     departmentIds:        z.array(z.string().uuid()).optional(),
     primaryDepartmentId:  z.string().uuid().nullable().optional(),
     managerId:  z.string().uuid().nullable().optional(),
+    dailyTaskQuota: z.coerce.number().int().min(0).max(50).optional(),
     isAdmin:    z.boolean().optional(),
+    // The number you CALL (0204). Deliberately LOOSER than `whatsappPhone`:
+    // that one is fed to the WhatsApp API and must be E.164, whereas this is
+    // only ever read by a human or handed to a `tel:` link. Rejecting a locally
+    // formatted number here would stop HR recording the number they actually
+    // have, which is worse than storing it unnormalised.
+    phone: z
+      .union([z.string().trim().max(32), z.literal(""), z.null()])
+      .optional(),
     // M4 — multi-channel admin controls.  `whatsappPhone` must be valid
     // E.164 (or empty/null to clear); the other three are simple booleans.
     whatsappPhone: z
@@ -108,3 +122,45 @@ export const EditEmployeeSchema = z
   );
 
 export type EditEmployeeInput = z.infer<typeof EditEmployeeSchema>;
+
+/**
+ * Patch shape for `bulkEditEmployees` — the "Edit All" flow.
+ *
+ * SPARSE BY CONSTRUCTION, and that is the whole safety property. Every key is
+ * optional, and the server writes ONLY the keys that are present: an admin who
+ * changes just Worker Type must not have the other five schedule fields
+ * silently overwritten with blanks on every selected employee. The bulk editor
+ * therefore starts every control in a "No Change" state and omits the key
+ * entirely until it is touched — absent means "leave it alone", which is a
+ * different thing from null ("clear the override back to the company default").
+ *
+ * DELIBERATELY NOT BULK-EDITABLE:
+ *   · `name` and `whatsappPhone` — per-person identity; one value across many
+ *     people is never the intent.
+ *   · `isAdmin` — super-admin gated, and granting admin to a whole selection by
+ *     mistake is not a recoverable click.
+ * Those stay in single-employee edit only.
+ */
+export const BulkEditEmployeesSchema = z
+  .object({
+    role: z.enum(["doer", "initiator", "both"]).optional(),
+    departmentIds: z.array(z.string().uuid()).optional(),
+    primaryDepartmentId: z.string().uuid().nullable().optional(),
+    managerId: z.string().uuid().nullable().optional(),
+    dailyTaskQuota: z.coerce.number().int().min(0).max(50).optional(),
+    whatsappOptedIn: z.boolean().optional(),
+    // Schedule. `weeklyOff` 0..6 (0=Sun); the four times accept "" / null to
+    // CLEAR the override back to the company default.
+    workerType: z.enum(WORKER_TYPES).optional(),
+    weeklyOff: z.number().int().min(0).max(6).optional(),
+    attOfficialStart: z.union([TIME_HHMM, z.literal(""), z.null()]).optional(),
+    attLateAfter: z.union([TIME_HHMM, z.literal(""), z.null()]).optional(),
+    attOfficialEnd: z.union([TIME_HHMM, z.literal(""), z.null()]).optional(),
+    attEarlyBefore: z.union([TIME_HHMM, z.literal(""), z.null()]).optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, {
+    message: "Nothing to apply — no field was changed.",
+  });
+
+export type BulkEditEmployeesInput = z.infer<typeof BulkEditEmployeesSchema>;

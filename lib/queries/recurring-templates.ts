@@ -68,12 +68,15 @@ export async function listRecurringTemplates(): Promise<RecurringTemplateRow[]> 
   const nameById = new Map(people.map((p) => [p.id, p.name]));
 
   // Child counts + earliest future due per template in one query.
-  const now = new Date();
+  // Bind the cutoff as an ISO string + ::timestamptz cast — postgres-js can
+  // choke on a raw Date object inside an ad-hoc sql fragment (the same gotcha
+  // documented in lib/queries/activity.ts); a throw here crashes /admin/settings.
+  const nowIso = new Date().toISOString();
   const counts = (await db
     .select({
       parentId: tasks.recurrenceParentId,
       n: sql<number>`count(*)::int`,
-      nextDue: sql<Date | null>`min(case when ${tasks.dueAt} > ${now} then ${tasks.dueAt} else null end)`,
+      nextDue: sql<Date | null>`min(case when ${tasks.dueAt} > ${nowIso}::timestamptz then ${tasks.dueAt} else null end)`,
     })
     .from(tasks)
     .where(

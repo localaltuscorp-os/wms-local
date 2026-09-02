@@ -1,5 +1,7 @@
+import { BadgeCheck } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/current";
 import { listDesignationsWithCounts } from "@/lib/queries/outstanding-rosters";
+import { AdminSection } from "@/components/admin/ui/section-shell";
 import { OutstandingRosterList } from "@/components/admin/outstanding-roster-list";
 import { createDesignation, updateDesignation } from "./actions";
 
@@ -11,29 +13,16 @@ export default async function DesignationsPage() {
   const activeCount = rows.filter((r) => r.isActive).length;
 
   return (
-    <div>
-      <header className="mb-8">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-ink-subtle font-bold">
-          Admin · Salary
-        </div>
-        <h1
-          className="mt-1 text-ink-strong"
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontStyle: "italic",
-            fontWeight: 500,
-            fontSize: 44,
-            lineHeight: 1.05,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          Designations
-        </h1>
-        <p className="text-body-lg text-ink-subtle mt-2 max-w-2xl tabular-nums">
-          {rows.length} total · {activeCount} active · Job titles assigned to
-          employees
-        </p>
-      </header>
+    <AdminSection
+      eyebrow="Admin · Salary"
+      title="Designations"
+      subtitle={`${rows.length} total · ${activeCount} active · Job titles assigned to employees`}
+      icon={BadgeCheck}
+      stats={[
+        { label: "Total", value: rows.length },
+        { label: "Active", value: activeCount, tone: "green" },
+      ]}
+    >
       <OutstandingRosterList
         title="Designations"
         items={rows}
@@ -41,6 +30,6 @@ export default async function DesignationsPage() {
         updateAction={updateDesignation}
         usageLabel="employees"
       />
-    </div>
+    </AdminSection>
   );
 }

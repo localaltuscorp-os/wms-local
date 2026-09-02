@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { SectionHeader } from "@/components/profile/identity/avatar-and-name";
+import { formatDate } from "@/lib/format";
 
 export interface ActivityRowProp {
   id: string;
@@ -21,7 +22,7 @@ function relTime(iso: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.round(hrs / 24);
   if (days < 30) return `${days}d ago`;
-  return d.toLocaleDateString();
+  return formatDate(d);
 }
 
 const KIND_COLOR: Record<ActivityRowProp["kind"], string> = {
@@ -47,7 +48,7 @@ export function ActivityFeed({ rows }: { rows: ActivityRowProp[] }) {
       }}
     >
       <SectionHeader
-        title="Recent activity"
+        title="Recent Activity"
         description="Everything you did in the last 30 days. Updates as you work."
         savedAt={null}
       />

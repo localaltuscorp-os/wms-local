@@ -9,6 +9,7 @@ import {
   fetchCompOff,
   convertToCompOff,
   redeemCompOff,
+  deleteCompOff,
 } from "@/app/(app)/attendance/dashboard/actions";
 import {
   adminEditDayTimes,
@@ -17,6 +18,7 @@ import {
 } from "@/app/(app)/attendance/actions";
 import { adminMarkLeave } from "@/app/(app)/attendance/leave/actions";
 import { fireToast } from "@/lib/toast";
+import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import {
   ATTENDANCE_CODE_LABELS,
   LEAVE_KINDS,
@@ -26,6 +28,10 @@ import {
   type LeaveKind,
   type PunchReason,
 } from "@/db/enums";
+
+/** Shared visible focus ring for keyboard users (brand-red on neutral surfaces). */
+const FOCUS_RING =
+  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-surface-card)]";
 import type { CompOffRow } from "@/lib/queries/comp-off";
 import type {
   DayRow,
@@ -193,22 +199,58 @@ export function EmployeeDetailDialog({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
+        <Dialog.Overlay className="fixed inset-0 bg-black/45 z-[90] backdrop-blur-[3px]" />
+        <Dialog.Content
+          className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-[95vw] max-w-6xl rounded-section bg-surface-card border border-hairline p-6 max-md:p-4 max-h-[calc(100dvh-32px)] overflow-y-auto"
+          style={{
+            boxShadow:
+              "0 1px 3px rgba(15,23,42,0.08), 0 32px 80px -24px rgba(15,23,42,0.45), 0 12px 28px -16px rgba(225,6,0,0.12)",
+          }}
+        >
+          {/* Brand seam across the dialog's top edge. */}
+          <span
+            aria-hidden
+            className="absolute top-0 left-0 right-0 h-[2px] rounded-t-section"
+            style={{
+              background:
+                "linear-gradient(90deg, var(--color-altus-red) 0%, var(--color-altus-red-deep) 30%, color-mix(in srgb, var(--color-altus-red) 18%, transparent) 70%, transparent 100%)",
+            }}
+          />
           <div className="flex items-start justify-between gap-4 mb-4">
-            <div>
-              <Dialog.Title className="font-serif text-xl text-[#0F172A]">
-                {employeeName}
-              </Dialog.Title>
-              <Dialog.Description className="text-[14px] text-[#64748B] mt-0.5">
-                Daily attendance · {monthLabel} · admin can edit / backfill any day
-              </Dialog.Description>
+            <div className="flex items-center gap-3.5 min-w-0">
+              <EmployeeAvatar name={employeeName} size="lg" className="shrink-0 max-md:hidden" />
+              <div className="min-w-0">
+                <div
+                  className="uppercase font-bold text-ink-subtle"
+                  style={{
+                    fontFamily: "var(--font-mono-display), ui-monospace, monospace",
+                    fontSize: 10.5,
+                    letterSpacing: "0.16em",
+                  }}
+                >
+                  Daily log · {monthLabel}
+                </div>
+                <Dialog.Title
+                  className="text-ink-strong mt-0.5 truncate"
+                  style={{
+                    fontFamily: "var(--font-display), system-ui, sans-serif",
+                    fontWeight: 800,
+                    fontSize: 22,
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  {employeeName}
+                </Dialog.Title>
+                <Dialog.Description className="text-[13px] font-medium text-ink-subtle mt-0.5">
+                  Admin can edit / backfill any day, mark leave, and manage comp-off.
+                </Dialog.Description>
+              </div>
             </div>
             <Dialog.Close asChild>
               <button
                 type="button"
                 aria-label="Close"
-                className="size-9 inline-flex items-center justify-center rounded-full hover:bg-[#F1F5F9] text-[#64748B] hover:text-[#0F172A] transition-colors"
+                className={`size-9 inline-flex items-center justify-center rounded-full hover:bg-surface-track text-ink-subtle hover:text-ink-strong transition-colors shrink-0 ${FOCUS_RING}`}
               >
                 <X size={18} strokeWidth={2.2} />
               </button>
@@ -220,7 +262,14 @@ export function EmployeeDetailDialog({
               Loading daily log…
             </p>
           ) : error ? (
-            <div className="rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-3 text-[14px] text-[#A80400]">
+            <div
+              className="rounded-lg border p-3 text-[14px] font-semibold"
+              style={{
+                borderColor: "color-mix(in srgb, var(--color-red) 30%, transparent)",
+                background: "var(--color-red-bg)",
+                color: "var(--color-red-deep)",
+              }}
+            >
               {error}
             </div>
           ) : data ? (
@@ -287,10 +336,10 @@ export function EmployeeDetailDialog({
                               <FlagPill label="Late" tone="red" />
                             )}
                             {d.lateWaived && (
-                              <FlagPill label="Late · waived" tone="amber" />
+                              <FlagPill label="Late · Waived" tone="amber" />
                             )}
                             {d.leftEarly && (
-                              <FlagPill label="Left early" tone="blue" />
+                              <FlagPill label="Left Early" tone="blue" />
                             )}
                           </span>
                         </td>
@@ -307,7 +356,7 @@ export function EmployeeDetailDialog({
                               <button
                                 type="button"
                                 onClick={() => setEditingDate(d.logDate)}
-                                className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface-card py-1.5 px-2.5 text-[12px] font-semibold text-ink-soft hover:text-ink-strong hover:border-hairline-strong transition-colors"
+                                className={`inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface-card py-1.5 px-2.5 text-[12px] font-semibold text-ink-soft hover:text-ink-strong hover:border-hairline-strong transition-colors ${FOCUS_RING}`}
                               >
                                 {d.inAt || d.outAt ? (
                                   <>
@@ -506,7 +555,7 @@ function EditRow({
             type="button"
             disabled={busy}
             onClick={save}
-            className="inline-flex items-center gap-1.5 rounded-md bg-altus-red py-1.5 px-3 text-[12px] font-bold text-white disabled:opacity-60 transition-opacity"
+            className={`inline-flex items-center gap-1.5 rounded-md bg-altus-red py-1.5 px-3 text-[12px] font-bold text-white disabled:opacity-60 transition-opacity ${FOCUS_RING}`}
           >
             <Check size={13} strokeWidth={2.6} /> Save
           </button>
@@ -514,7 +563,7 @@ function EditRow({
             type="button"
             disabled={busy}
             onClick={onCancel}
-            className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface-card py-1.5 px-3 text-[12px] font-semibold text-ink-soft hover:text-ink-strong transition-colors disabled:opacity-60"
+            className={`inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface-card py-1.5 px-3 text-[12px] font-semibold text-ink-soft hover:text-ink-strong transition-colors disabled:opacity-60 ${FOCUS_RING}`}
           >
             Cancel
           </button>
@@ -557,7 +606,7 @@ function ConvertButton({
       disabled={busy}
       onClick={run}
       title="Convert this worked holiday / weekly-off to a redeemable comp-off"
-      className="inline-flex items-center gap-1.5 rounded-md border py-1.5 px-2.5 text-[12px] font-semibold transition-colors disabled:opacity-60"
+      className={`inline-flex items-center gap-1.5 rounded-md border py-1.5 px-2.5 text-[12px] font-semibold transition-colors disabled:opacity-60 ${FOCUS_RING}`}
       style={{
         borderColor: "var(--color-teal)",
         color: "var(--color-teal-deep)",
@@ -672,6 +721,25 @@ function LeaveCompOffPanel({
     }
   }
 
+  async function removeCredit(id: string) {
+    if (!window.confirm("Remove this comp-off credit? If it was redeemed, that day off is undone.")) return;
+    setBusy(true);
+    try {
+      const res = await deleteCompOff({ creditId: id });
+      if (res.ok) {
+        fireToast({ message: "Comp-off removed." });
+        await loadCredits();
+        await onDone();
+      } else {
+        fireToast({ message: res.error ?? "Could not remove.", type: "error" });
+      }
+    } catch (e) {
+      fireToast({ message: (e as Error).message ?? "Could not remove.", type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const fieldCls =
     "rounded-md border border-hairline bg-surface-card px-2 py-1.5 text-[13px] font-semibold text-ink-strong disabled:opacity-60";
   const labelCls =
@@ -685,7 +753,7 @@ function LeaveCompOffPanel({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Mark leave */}
         <div>
-          <p className="text-[13px] font-bold text-ink-strong mb-2">Mark leave</p>
+          <p className="text-[13px] font-bold text-ink-strong mb-2">Mark Leave</p>
           <div className="flex flex-wrap items-end gap-2">
             <label className="block">
               <span className={labelCls}>Type</span>
@@ -739,15 +807,15 @@ function LeaveCompOffPanel({
             type="button"
             disabled={busy}
             onClick={markLeave}
-            className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-altus-red py-1.5 px-3 text-[12px] font-bold text-white disabled:opacity-60 transition-opacity"
+            className={`mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-altus-red py-1.5 px-3 text-[12px] font-bold text-white disabled:opacity-60 transition-opacity ${FOCUS_RING}`}
           >
-            <Check size={13} strokeWidth={2.6} /> Mark leave
+            <Check size={13} strokeWidth={2.6} /> Mark Leave
           </button>
         </div>
 
         {/* Redeem comp-off */}
         <div>
-          <p className="text-[13px] font-bold text-ink-strong mb-2">Redeem comp-off</p>
+          <p className="text-[13px] font-bold text-ink-strong mb-2">Redeem Comp-Off</p>
           {openCredits.length === 0 ? (
             <p className="text-[13px] text-ink-subtle font-semibold">
               No open comp-off credits. Convert a worked holiday / weekly-off above to earn one.
@@ -785,7 +853,7 @@ function LeaveCompOffPanel({
                 type="button"
                 disabled={busy}
                 onClick={redeem}
-                className="mt-2.5 inline-flex items-center gap-1.5 rounded-md py-1.5 px-3 text-[12px] font-bold text-white disabled:opacity-60 transition-opacity"
+                className={`mt-2.5 inline-flex items-center gap-1.5 rounded-md py-1.5 px-3 text-[12px] font-bold text-white disabled:opacity-60 transition-opacity ${FOCUS_RING}`}
                 style={{ background: "var(--color-teal-deep)" }}
               >
                 <Gift size={13} strokeWidth={2.4} /> Redeem
@@ -793,6 +861,36 @@ function LeaveCompOffPanel({
             </>
           )}
         </div>
+
+        {/* Manage / remove comp-off credits */}
+        {credits.length > 0 && (
+          <div>
+            <p className="text-[13px] font-bold text-ink-strong mb-2">Comp-Off Credits</p>
+            <div className="flex flex-col gap-1.5">
+              {credits.map((c) => (
+                <div key={c.id} className="flex items-center gap-2 rounded-md border border-hairline px-2.5 py-1.5">
+                  <span className="text-[12.5px] font-bold text-ink-strong tabular-nums">Earned {c.earnedDate}</span>
+                  <span
+                    className="rounded-full px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide"
+                    style={c.status === "redeemed"
+                      ? { background: "var(--color-surface-soft)", color: "var(--color-ink-muted)" }
+                      : { background: "var(--color-teal-bg)", color: "var(--color-teal-deep)" }}
+                  >
+                    {c.status === "redeemed" ? `Redeemed ${c.redeemedDate ?? ""}` : "Open"}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => removeCredit(c.id)}
+                    className={`bg-surface-card ml-auto inline-flex items-center gap-1 rounded-md py-1 px-2 text-[11.5px] font-bold text-[color:var(--color-altus-red)] hover:bg-[color:color-mix(in_srgb,var(--color-altus-red)_8%,transparent)] disabled:opacity-50 transition-colors ${FOCUS_RING}`}
+                  >
+                    <Trash2 size={12} strokeWidth={2.4} /> Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -827,7 +925,7 @@ function DeleteLink({ onClick, disabled }: { onClick: () => void; disabled: bool
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-red-deep hover:underline disabled:opacity-60"
+      className="bg-surface-card mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-red-deep hover:underline disabled:opacity-60"
       style={{ color: "var(--color-red-deep)" }}
     >
       <Trash2 size={12} strokeWidth={2.2} /> Delete

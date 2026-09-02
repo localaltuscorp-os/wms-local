@@ -1,7 +1,15 @@
 import { db, employees } from "@/lib/db";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { CACHE_TAGS } from "@/lib/cache-tags";
+
+/**
+ * The canonical "real staff account" filter — excludes candidate guest-accounts
+ * (mig 0183) from every roster/list. Candidates are also `is_active=false`, so
+ * active-only queries already drop them; this closes the `includeInactive` /
+ * unfiltered listers where they'd otherwise leak in.
+ */
+export const isStaffAccount = eq(employees.accountType, "employee");
 
 /**
  * Returns the employee roster ordered by name.
@@ -19,8 +27,8 @@ export async function listEmployees(
 ) {
   const q = db.select().from(employees);
   return opts.includeInactive
-    ? q.orderBy(asc(employees.name))
-    : q.where(eq(employees.isActive, true)).orderBy(asc(employees.name));
+    ? q.where(isStaffAccount).orderBy(asc(employees.name))
+    : q.where(and(eq(employees.isActive, true), isStaffAccount)).orderBy(asc(employees.name));
 }
 
 export interface EmployeeOption {

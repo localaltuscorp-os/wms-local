@@ -138,7 +138,7 @@ export function RowsEditor({
       <button
         type="button"
         onClick={addRow}
-        className="rounded-md border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-3 py-2 text-[14px] font-medium text-[#0F172A] hover:border-[#94A3B8]"
+        className="brand-btn rounded-md border border-solid border-[#CBD5E1] bg-[#F8FAFC] px-3 py-2 text-[14px] font-medium text-[#0F172A] hover:border-[#94A3B8]"
       >
         + Add Row
       </button>

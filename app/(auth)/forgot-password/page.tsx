@@ -6,10 +6,16 @@ import { BrandStack } from "@/components/auth/brand-stack";
 import { AuthCard } from "@/components/auth/auth-card";
 import { getCurrentEmployee } from "@/lib/auth/current";
 
+// Never static: this page resolves the current employee (to bounce anyone
+// already signed in), which reads the session cookie. Next bails it out to
+// dynamic rendering regardless; declaring it skips the pointless static probe
+// at build time — and the DYNAMIC_SERVER_USAGE stack trace that probe logs.
+export const dynamic = "force-dynamic";
+
 export default async function ForgotPasswordPage() {
   const me = await getCurrentEmployee();
   if (me && me.isActive) {
-    redirect("/" as Route);
+    redirect("/hub" as Route);
   }
 
   return (

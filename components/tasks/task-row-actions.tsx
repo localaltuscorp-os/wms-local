@@ -3,33 +3,19 @@ import * as React from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal, Archive, ArchiveRestore, Trash2 } from "lucide-react";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-  DropdownMenuLabel,
-} from "@/components/ui/dropdown-menu";
+  Archive,
+  ArchiveRestore,
+  Trash2,
+  CheckCircle2,
+  UserCog,
+} from "lucide-react";
 import {
   archiveTask,
   unarchiveTask,
-  setTaskStatus,
-  setTaskPriority,
-  reassignDoer,
   deleteTask,
 } from "@/app/(app)/tasks/actions";
 import { fireToast } from "@/lib/toast";
-import {
-  PRIORITY_LABELS,
-  TASK_PRIORITIES,
-  type TaskPriority,
-  type TaskStatus,
-} from "@/db/enums";
 import type { TaskListRow } from "@/lib/types";
 import {
   canApprove,
@@ -38,61 +24,19 @@ import {
 
 interface Props {
   row: TaskListRow;
-  employees: { id: string; name: string }[];
+  /** Retained so existing call sites keep type-checking; the roster was only
+   *  ever needed by the removed ⋯ menu's "Reassign Doer" submenu. Reassignment
+   *  now happens in the row's own inline Doer dropdown. */
+  employees?: { id: string; name: string }[];
   me: { id: string; isAdmin: boolean };
 }
 
-const STATUS_ACTIONS: { value: TaskStatus; label: string }[] = [
-  { value: "done",         label: "Mark Done" },
-  { value: "approved",     label: "Mark Approved" },
-  { value: "not_approved", label: "Mark Not Approved" },
-  { value: "cancelled",    label: "Mark Cancelled" },
-];
-
-export function TaskRowActions({ row, employees, me }: Props) {
+export function TaskRowActions({ row, me }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = React.useTransition();
 
-  // Result shape every mutating action now returns. `void` is tolerated for
-  // any legacy callsite. On failure we toast the reason and skip the success
-  // toast — the user keeps their place instead of hitting an error screen.
-  type ActionResult =
-    | { ok: true }
-    | { ok: false; error?: string; message?: string }
-    | void;
-
-  function friendlyError(res: { error?: string; message?: string }): string {
-    if (res.message) return res.message;
-    switch (res.error) {
-      case "forbidden":
-        return "You're not allowed to make that change.";
-      case "stale":
-        return "This task changed elsewhere — refreshing.";
-      case "not-found":
-        return "That task no longer exists.";
-      default:
-        return res.error ?? "Something went wrong — please try again.";
-    }
-  }
-
-  function withTransition(label: string, fn: () => Promise<ActionResult>) {
-    startTransition(async () => {
-      let res: ActionResult;
-      try {
-        res = await fn();
-      } catch {
-        fireToast({ message: "Something went wrong — please try again." });
-        return;
-      }
-      if (res && res.ok === false) {
-        fireToast({ message: friendlyError(res) });
-        if (res.error === "stale") router.refresh();
-        return;
-      }
-      router.refresh();
-      fireToast({ message: label });
-    });
-  }
+  // `withTransition` / `friendlyError` went with the ⋯ menu — archive, delete
+  // and unarchive below each own their own result handling.
 
   function handleArchive() {
     startTransition(async () => {
@@ -148,136 +92,110 @@ export function TaskRowActions({ row, employees, me }: Props) {
     });
   }
 
+  // Row actions are a MANAGEMENT surface. Admins get the full power menu; a
+  // task's initiator/reviewer keeps their permission-checked Approve/Reassign
+  // links. A plain DOER (no admin, no rights over this task) gets NOTHING — the
+  // ⋯ trigger is hidden entirely.
+  const permInput = {
+    employee: { id: me.id, isAdmin: me.isAdmin },
+    task: {
+      createdById: row.createdById,
+      initiatorId: row.initiatorId,
+      doerId: row.doerId,
+      status: row.status,
+    },
+  };
+  const showApproveLink = canApprove({ ...permInput, isDoersManager: false });
+  const showReassignLink = canReassign(permInput);
+  if (!me.isAdmin && !showApproveLink && !showReassignLink) return null;
+
+  // Quick actions sit OUTSIDE the ⋯ menu as one-click icon buttons, so the two
+  // things people reach for constantly (archive, delete) don't cost a menu
+  // open. Same admin-only rule as before, and they're removed from the menu
+  // below so each action has exactly one home.
+  const quickBtn =
+    "inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-ink-subtle transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    // `task-quick-actions` is the hook globals.css uses to hold this cluster at
+    // 60% until the pointer is on the row, then bring it to full opacity and a
+    // slight scale. Styling it from the row's CSS rather than with `group-hover`
+    // keeps it working inside the frozen Manage cell, which paints its own
+    // background and sits in a separate stacking context.
+    <div className="task-quick-actions inline-flex items-center gap-0.5">
+      {/* ORDER: Delete first, then Archive (reversed 2026-08). */}
+      {me.isAdmin && (
         <button
           type="button"
-          aria-label={`Actions for ${row.title}`}
-          className="size-9 inline-flex items-center justify-center rounded-full hover:bg-surface-soft text-ink-subtle hover:text-ink-strong transition-colors disabled:opacity-50"
+          onClick={handleDelete}
           disabled={isPending}
+          title={`Delete "${row.title}" permanently`}
+          aria-label={`Delete ${row.title}`}
+          className={`${quickBtn} text-red-500 hover:bg-red-50 hover:text-red-700`}
         >
-          <MoreHorizontal size={18} strokeWidth={2.2} />
+          <Trash2 size={15} strokeWidth={2.2} />
         </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        {/* Archive / Unarchive — admin-only (doers change status instead; a
-            doer archiving a task effectively hid it from the board). */}
-        {me.isAdmin && (
-          <>
-            {row.archived ? (
-              <DropdownMenuItem onClick={handleUnarchive}>
-                <ArchiveRestore size={14} />
-                Unarchive
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem onClick={handleArchive}>
-                <Archive size={14} />
-                Archive
-              </DropdownMenuItem>
-            )}
+      )}
 
-            <DropdownMenuSeparator />
-          </>
-        )}
-
-        {STATUS_ACTIONS.map((s) => (
-          <DropdownMenuItem
-            key={s.value}
-            disabled={row.status === s.value}
-            onClick={() =>
-              withTransition(`Status set to ${s.label.replace("Mark ", "")}.`, () =>
-                setTaskStatus(row.id, s.value, row.updatedAt.toISOString()),
-              )
-            }
+      {me.isAdmin &&
+        (row.archived ? (
+          <button
+            type="button"
+            onClick={handleUnarchive}
+            disabled={isPending}
+            title={`Restore "${row.title}" from the archive`}
+            aria-label={`Unarchive ${row.title}`}
+            className={`${quickBtn} text-gray-500 hover:bg-gray-100 hover:text-gray-700`}
           >
-            {s.label}
-          </DropdownMenuItem>
+            <ArchiveRestore size={15} strokeWidth={2.2} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleArchive}
+            disabled={isPending}
+            title={`Archive "${row.title}"`}
+            aria-label={`Archive ${row.title}`}
+            className={`${quickBtn} text-gray-500 hover:bg-gray-100 hover:text-gray-700`}
+          >
+            <Archive size={15} strokeWidth={2.2} />
+          </button>
         ))}
 
-        <DropdownMenuSeparator />
+      {/* The ⋯ overflow menu was removed on request. Nothing was lost for
+          admins: everything it held — set status, change priority, reassign
+          doer — is now a one-click inline dropdown in the row's own Doer /
+          Priority / Status columns, so the menu was a second, slower path to
+          controls already sitting a few pixels away.
 
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>Change Priority</DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuLabel>Eisenhower priority</DropdownMenuLabel>
-            {TASK_PRIORITIES.map((p) => (
-              <DropdownMenuItem
-                key={p}
-                disabled={row.priority === p}
-                danger={p === "imp_urgent"}
-                onClick={() =>
-                  withTransition(`Priority set to ${PRIORITY_LABELS[p]}.`, () =>
-                    setTaskPriority(row.id, p as TaskPriority),
-                  )
-                }
-              >
-                {PRIORITY_LABELS[p]}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>Reassign Doer</DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
-            <DropdownMenuLabel>Employees</DropdownMenuLabel>
-            {employees.map((e) => (
-              <DropdownMenuItem
-                key={e.id}
-                disabled={e.id === row.doerId}
-                onClick={() =>
-                  withTransition(`Doer reassigned to ${e.name}.`, () =>
-                    reassignDoer(row.id, e.id),
-                  )
-                }
-              >
-                {e.name}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-
-        {(() => {
-          const permInput = {
-            employee: { id: me.id, isAdmin: me.isAdmin },
-            task: {
-              createdById: row.createdById,
-              initiatorId: row.initiatorId,
-              doerId: row.doerId,
-              status: row.status,
-            },
-          };
-          const items: Array<{ label: string; href: string }> = [];
-          if (canApprove({ ...permInput, isDoersManager: false }))
-            items.push({ label: "Approve / Decline…", href: `/tasks/${row.id}#approve` });
-          if (canReassign(permInput))
-            items.push({ label: "Reassign…", href: `/tasks/${row.id}#reassign` });
-          if (items.length === 0) return null;
-          return (
-            <>
-              <DropdownMenuSeparator />
-              {items.map((it) => (
-                <DropdownMenuItem key={it.label} asChild>
-                  <Link href={it.href as Route}>{it.label}</Link>
-                </DropdownMenuItem>
-              ))}
-            </>
-          );
-        })()}
-
-        {/* Permanent delete — destructive, so admin-only + confirmed. Lives
-            at the very bottom, highlighted red. */}
-        {me.isAdmin && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem danger onClick={handleDelete}>
-              <Trash2 size={14} />
-              Delete task…
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          For a non-admin initiator/reviewer it also carried Approve/Decline
+          and Reassign deep-links. Those still exist on the record itself: the
+          detail view opens the matching dialog off the `#approve` / `#reassign`
+          hash, reachable by clicking the task. */}
+      {(showApproveLink || showReassignLink) && !me.isAdmin && (
+        <>
+          {showApproveLink && (
+            <Link
+              href={`/tasks/${row.id}#approve` as Route}
+              title={`Approve or decline "${row.title}"`}
+              aria-label={`Approve or decline ${row.title}`}
+              className={`${quickBtn} hover:bg-surface-soft hover:text-ink-strong`}
+            >
+              <CheckCircle2 size={15} strokeWidth={2.2} />
+            </Link>
+          )}
+          {showReassignLink && (
+            <Link
+              href={`/tasks/${row.id}#reassign` as Route}
+              title={`Reassign "${row.title}"`}
+              aria-label={`Reassign ${row.title}`}
+              className={`${quickBtn} hover:bg-surface-soft hover:text-ink-strong`}
+            >
+              <UserCog size={15} strokeWidth={2.2} />
+            </Link>
+          )}
+        </>
+      )}
+    </div>
   );
 }

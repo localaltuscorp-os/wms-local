@@ -26,6 +26,7 @@ export interface ProjectHit { id: string; rootId: string; name: string; kind: st
 export interface PersonHit { id: string; name: string; email: string; department: string | null; isActive: boolean }
 export interface OutstandingHit { id: string; clientName: string; status: string }
 export interface DocumentHit { id: string; title: string; taskId: string | null }
+export interface AmbassadorHit { id: string; name: string; company: string | null; archived: boolean }
 
 export interface GlobalSearchResult {
   tasks: TaskHit[];
@@ -34,10 +35,11 @@ export interface GlobalSearchResult {
   people: PersonHit[];
   outstanding: OutstandingHit[];
   documents: DocumentHit[];
+  ambassadors: AmbassadorHit[];
 }
 
 const EMPTY: GlobalSearchResult = {
-  tasks: [], clients: [], projects: [], people: [], outstanding: [], documents: [],
+  tasks: [], clients: [], projects: [], people: [], outstanding: [], documents: [], ambassadors: [],
 };
 
 type WithSignals<T> = T & { signals: RankSignals };
@@ -54,16 +56,17 @@ export async function globalSearch(rawQuery: string): Promise<GlobalSearchResult
   // tsquery) must not blank the entire palette — that group just returns [].
   const safe = <T>(p: Promise<T[]>): Promise<T[]> => p.catch(() => []);
 
-  const [tasks, clients, projects, people, outstanding, documents] = await Promise.all([
+  const [tasks, clients, projects, people, outstanding, documents, ambassadors] = await Promise.all([
     safe(searchTasks(q, like, asNumber)),
     safe(searchClients(q, like)),
     safe(searchProjects(q, like)),
     safe(searchPeople(q, like)),
     safe(searchOutstanding(q, like)),
     safe(searchDocuments(q, like)),
+    safe(searchAmbassadors(q, like)),
   ]);
 
-  return { tasks, clients, projects, people, outstanding, documents };
+  return { tasks, clients, projects, people, outstanding, documents, ambassadors };
 }
 
 async function searchTasks(q: string, like: string, asNumber: number | null): Promise<TaskHit[]> {
@@ -181,8 +184,9 @@ async function searchPeople(q: string, like: string): Promise<PersonHit[]> {
            (name ILIKE ${like} OR email ILIKE ${like} OR coalesce(department,'') ILIKE ${like}) AS ilike_hit,
            extract(epoch FROM created_at) * 1000 AS recency_ms
     FROM employees
-    WHERE name ILIKE ${like} OR email ILIKE ${like} OR coalesce(department,'') ILIKE ${like}
-       OR word_similarity(${q}, name) > ${FUZZY_MIN}
+    WHERE account_type = 'employee'
+      AND (name ILIKE ${like} OR email ILIKE ${like} OR coalesce(department,'') ILIKE ${like}
+       OR word_similarity(${q}, name) > ${FUZZY_MIN})
     ORDER BY sim DESC
     LIMIT ${CANDIDATE_CAP}
   `)) as unknown as Array<{
@@ -218,6 +222,28 @@ async function searchOutstanding(q: string, like: string): Promise<OutstandingHi
     rows.map((r) => ({
       id: r.id, clientName: r.client_name, status: r.status,
       signals: { similarity: Number(r.sim) || 0, ilikeHit: r.ilike_hit, exactId: false, recencyMs: Number(r.recency_ms) || 0 },
+    })),
+  );
+}
+
+async function searchAmbassadors(q: string, like: string): Promise<AmbassadorHit[]> {
+  const rows = (await db.execute(sql`
+    SELECT id, name, company, archived,
+           GREATEST(word_similarity(${q}, name), word_similarity(${q}, coalesce(company,''))) AS sim,
+           (name ILIKE ${like} OR coalesce(company,'') ILIKE ${like}) AS ilike_hit,
+           extract(epoch FROM created_at) * 1000 AS recency_ms
+    FROM amb_ambassadors
+    WHERE name ILIKE ${like} OR coalesce(company,'') ILIKE ${like}
+       OR word_similarity(${q}, name) > ${FUZZY_MIN}
+       OR word_similarity(${q}, coalesce(company,'')) > ${FUZZY_MIN}
+    ORDER BY sim DESC
+    LIMIT ${CANDIDATE_CAP}
+  `)) as unknown as Array<{ id: string; name: string; company: string | null; archived: boolean; sim: number; ilike_hit: boolean; recency_ms: number }>;
+
+  return take(
+    rows.map((r) => ({
+      id: r.id, name: r.name, company: r.company, archived: r.archived,
+      signals: { similarity: Number(r.sim) || 0, ilikeHit: r.ilike_hit, exactId: false, archived: r.archived, recencyMs: Number(r.recency_ms) || 0 },
     })),
   );
 }

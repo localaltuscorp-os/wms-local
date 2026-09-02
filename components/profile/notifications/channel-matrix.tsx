@@ -147,7 +147,7 @@ export function ChannelMatrix({
       }}
     >
       <SectionHeader
-        title="Notification matrix"
+        title="Notification Matrix"
         description="Tick which kinds of events reach you on which channels. Off cells stay quiet — except when you're @-mentioned (see Mention escalation below)."
         savedAt={showSaved ? savedAt : null}
       />

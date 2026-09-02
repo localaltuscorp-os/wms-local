@@ -13,8 +13,10 @@ export function DashboardLoadError() {
     <section
       className="mx-auto max-w-[720px] px-8 max-md:px-4 mt-16 mb-24 text-center"
       style={{
-        background:
-          "radial-gradient(ellipse 70% 50% at 50% 0%, rgba(225, 6, 0, 0.08), transparent 70%), linear-gradient(180deg, var(--color-surface-card) 0%, var(--color-surface-soft) 100%)",
+        // Flat white, matching the rest of the dashboard — the red radial wash
+        // that used to sit behind this card is gone. The red warning icon below
+        // still carries the signal.
+        background: "#ffffff",
         border: "1px solid var(--color-hairline)",
         borderRadius: 20,
         padding: 48,

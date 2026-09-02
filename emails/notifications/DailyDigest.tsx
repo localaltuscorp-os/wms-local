@@ -7,6 +7,7 @@ import {
   taskUrl,
 } from "./_notification-layout";
 import type { PendingDigestTask } from "./types";
+import { formatDate } from "@/lib/format";
 
 export interface DailyDigestProps {
   recipientName: string;
@@ -21,9 +22,8 @@ export const previewText = (p: Pick<DailyDigestProps, "pendingTasks">) => {
   return `You have ${n} pending tasks`;
 };
 
-const DATE_FMT = new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short" });
 function formatDue(d: Date | null): string {
-  return d ? DATE_FMT.format(d) : "—";
+  return d ? formatDate(d) : "—";
 }
 
 export function DailyDigestEmail(props: DailyDigestProps) {

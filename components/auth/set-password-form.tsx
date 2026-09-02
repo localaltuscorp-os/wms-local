@@ -70,7 +70,7 @@ export function SetPasswordForm() {
         // time the user clicks submit, the dashboard's RSC payload is already
         // warm in the Next client cache, so step 5 (router.replace) is
         // an instant transition instead of a fresh round-trip.
-        router.prefetch("/" as Route);
+        router.prefetch("/hub" as Route);
       })
       .catch((err) => {
         setStatus("error");
@@ -85,6 +85,10 @@ export function SetPasswordForm() {
 
     if (pw.length < 8) {
       setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (pw.length > 128) {
+      setError("Password is too long (max 128 characters).");
       return;
     }
     if (pw !== confirm) {
@@ -119,7 +123,7 @@ export function SetPasswordForm() {
           });
           if (!res.ok) throw new Error("session-exchange-failed");
           setStatus("done");
-          router.replace("/" as Route);
+          router.replace("/hub" as Route);
         } catch (signInErr) {
           // Password was set, but auto-sign-in failed — fall back to
           // sending the user to /login with their password ready.
@@ -168,14 +172,14 @@ export function SetPasswordForm() {
             href={"/forgot-password" as Route}
             className="auth-link font-semibold"
           >
-            Request a new reset link →
+            Request a New Reset Link →
           </Link>
           <Link
             href={"/login" as Route}
             className="auth-link"
             style={{ fontSize: 13 }}
           >
-            Back to sign in
+            Back to Sign In
           </Link>
         </div>
       </div>
@@ -212,7 +216,7 @@ export function SetPasswordForm() {
         transition={{ duration: 0.42, delay: 0.25 }}
       >
         <AuthField
-          label="New password"
+          label="New Password"
           type={showPw ? "text" : "password"}
           autoComplete="new-password"
           required
@@ -243,7 +247,7 @@ export function SetPasswordForm() {
         transition={{ duration: 0.42, delay: 0.32 }}
       >
         <AuthField
-          label="Confirm password"
+          label="Confirm Password"
           type={showConfirm ? "text" : "password"}
           autoComplete="new-password"
           required

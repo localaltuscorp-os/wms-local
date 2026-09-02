@@ -17,7 +17,13 @@ export function dotColorFor(e: TaskEventType): string {
       return "var(--color-amber)";
     case "archived":
     case "restored":
-      return "var(--color-rose)";
+      /* SLATE, not the pink `--color-rose` this used to return — and not red
+         either. Archiving is a neutral lifecycle step and "restored" is the
+         undo of it; neither is an error, so a red dot would misreport both.
+         Slate is what Archived already reads as on the Kanban board and what
+         `cancelled` carries in STATUS_TONES_FALLBACK, so the timeline now
+         agrees with the rest of the app. */
+      return "var(--color-slate)";
     case "commented":
       return "var(--color-green)";
   }

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { attendanceLogs } from "@/db/schema";
 import { localDateString } from "@/lib/format";
 import { distanceMeters, evaluateGeofence } from "@/lib/geo";
+import { withTimeout, DbTimeoutError } from "@/lib/db/with-timeout";
 import type { getOrgSettings } from "@/lib/queries/org-settings";
 
 type OrgSettings = Awaited<ReturnType<typeof getOrgSettings>>;
@@ -52,6 +53,10 @@ export interface PunchVerification {
   credentialId?: string | null;
   mobileDeviceId?: string | null;
   source?: "self" | "admin";
+  // Anti-proxy Phase 2 — device-health attestation captured at the punch.
+  integrityVerdict?: string | null; // strong | device | basic | failed | unverified
+  mockLocation?: boolean | null;
+  anomalyFlags?: string[] | null;
 }
 
 /**
@@ -75,30 +80,57 @@ export async function insertPunchRow(
   const today = localDateString(tz);
   const { kind, note, location, distanceM } = fields;
 
-  try {
-    await db.insert(attendanceLogs).values({
-      employeeId: actor.id,
-      logDate: today,
-      kind,
-      note: note ? note : null,
-      lat: location?.lat ?? null,
-      lng: location?.lng ?? null,
-      accuracyM: location?.accuracyM ?? null,
-      distanceM,
-      verifyMethod: verification.verifyMethod,
-      credentialId: verification.credentialId ?? null,
-      mobileDeviceId: verification.mobileDeviceId ?? null,
-      source: verification.source ?? "self",
-    });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("attendance_logs_employee_day_kind_uq")) {
-      return {
-        ok: false,
-        error: kind === "in" ? "You already checked in today." : "You already checked out today.",
-      };
+  const values = {
+    employeeId: actor.id,
+    logDate: today,
+    kind,
+    note: note ? note : null,
+    lat: location?.lat ?? null,
+    lng: location?.lng ?? null,
+    accuracyM: location?.accuracyM ?? null,
+    distanceM,
+    verifyMethod: verification.verifyMethod,
+    credentialId: verification.credentialId ?? null,
+    mobileDeviceId: verification.mobileDeviceId ?? null,
+    source: verification.source ?? "self",
+    integrityVerdict: verification.integrityVerdict ?? null,
+    mockLocation: verification.mockLocation ?? null,
+    anomalyFlags: verification.anomalyFlags && verification.anomalyFlags.length > 0 ? verification.anomalyFlags : null,
+  };
+  const dupError =
+    kind === "in" ? "You already checked in today." : "You already checked out today.";
+
+  // The punch write is the single most daily-critical mutation in the app, so it
+  // gets the same stale-connection self-heal the read paths have. Against the
+  // Supabase txn pooler a warm instance can be handed a bounced connection: the
+  // INSERT then neither resolves nor throws — it HANGS on the dead socket (a
+  // plain try/catch can't save it). `withTimeout` turns that hang into a fast
+  // rejection; we then retry on a FRESH insert promise (→ a different, healthy
+  // pooled connection). Genuine errors surface immediately (no spin).
+  const budgetsMs = [6000, 10000, 14000];
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < budgetsMs.length; attempt++) {
+    try {
+      await withTimeout(
+        db.insert(attendanceLogs).values(values),
+        budgetsMs[attempt]!,
+        "punch-insert",
+      );
+      return { ok: true, date: today };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("attendance_logs_employee_day_kind_uq")) {
+        // First attempt → a genuine second punch for this kind today. A LATER
+        // attempt → our own earlier (timed-out/hung) insert actually committed,
+        // so the punch DID succeed even though its response never came back.
+        return attempt === 0 ? { ok: false, error: dupError } : { ok: true, date: today };
+      }
+      lastErr = err;
+      // Only a stale-connection HANG is worth retrying; a real error (constraint,
+      // bug) won't heal on a fresh connection, so surface it now.
+      if (!(err instanceof DbTimeoutError)) break;
     }
-    return { ok: false, error: `DB: ${msg}` };
   }
-  return { ok: true, date: today };
+  const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  return { ok: false, error: `Couldn't record your punch — please try again. (${msg})` };
 }

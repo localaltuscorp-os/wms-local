@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { authenticateMobileRequest, MOBILE_CORS } from "@/lib/auth/mobile";
 import { getOrgSettings } from "@/lib/queries/org-settings";
 import { listMyAttendance } from "@/lib/queries/attendance";
-import { countMobileDevices } from "@/lib/attendance/mobile-devices";
+import { countMobileDevices, getDeviceStatusFor } from "@/lib/attendance/mobile-devices";
 import { localDateString, formatTimeInTz } from "@/lib/format";
 
 export const runtime = "nodejs";
@@ -32,11 +32,20 @@ export async function GET(req: Request) {
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 60 * 60 * 1000);
   const sinceDate = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(since);
 
-  const [days, settings, deviceCount] = await Promise.all([
+  // The app passes ?deviceId=<keystore id> so we can tell it whether THIS phone
+  // is already registered — the "Register this device" button hides once it is.
+  const deviceId = new URL(req.url).searchParams.get("deviceId");
+
+  const [days, settings, deviceCount, deviceStatus] = await Promise.all([
     listMyAttendance(me.id, sinceDate),
     getOrgSettings(),
     countMobileDevices(me.id),
+    deviceId ? getDeviceStatusFor(me.id, deviceId) : Promise.resolve(null),
   ]);
+
+  // Registered = already submitted (approved OR pending) → no need to register
+  // again. Null (no deviceId sent) → "unknown", app keeps its safe default.
+  const deviceRegistered = deviceStatus === "approved" || deviceStatus === "pending";
 
   const todayRow = days.find((d) => d.date === today);
 
@@ -59,6 +68,8 @@ export async function GET(req: Request) {
         radiusM: settings.attendanceRadiusM,
       },
       devicesEnrolled: deviceCount,
+      deviceStatus: deviceStatus ?? "unknown",
+      deviceRegistered,
       biometricExempt: me.attendanceBiometricExempt,
     },
     { headers: MOBILE_CORS },

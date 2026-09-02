@@ -92,6 +92,7 @@ vi.mock("@/db/schema", () => ({
     "transferred",
     "cancelled",
     "commented",
+    "nudged",
     "overdue_digest",
   ],
 }));

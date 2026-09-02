@@ -1,15 +1,18 @@
 import type { FormFieldDef } from "./field-types";
 
 /**
- * The four Ecosystem "subject" modules rebuilt natively. Each has a request
+ * The Ecosystem "subject" modules rebuilt natively. Each has a request
  * form (filled by any employee) and an admin response form (manual fields the
  * admin fills while processing). Both field lists are admin-editable — these
  * are just the defaults used until an override is saved.
+ *
+ * Note: the upstream "leave" module is intentionally excluded here — this app
+ * has its own native attendance/leave system.
  */
 
-export type ModuleKey = "reimbursement" | "leave" | "reference" | "breakthrough";
+export type ModuleKey = "reimbursement" | "reference" | "breakthrough";
 
-export const MODULE_KEYS: ModuleKey[] = ["reimbursement", "leave", "reference", "breakthrough"];
+export const MODULE_KEYS: ModuleKey[] = ["reimbursement", "reference", "breakthrough"];
 
 export interface ModuleDef {
   key: ModuleKey;
@@ -125,25 +128,6 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
       { key: "expense_head", label: "Expense Head", type: "select", options: EXPENSE_HEAD },
       { key: "tally_passed_date", label: "Tally Expense Entry Passed Date", type: "date" },
       { key: "tally_entity", label: "Tally Entity", type: "select", options: TALLY_ENTITY },
-    ],
-  },
-  leave: {
-    key: "leave",
-    path: "/leave-approval",
-    title: "Leave Approval",
-    subtitle: "Request leave and see whether it's granted.",
-    buttonLabel: "Request Leave",
-    icon: "CalendarOff",
-    requestFields: [
-      { key: "leave_type", label: "Leave Type", type: "select", required: true, options: ["Casual Leave", "Sick Leave", "Earned Leave", "Half Day", "Other"] },
-      { key: "from_date", label: "From Date", type: "date", required: true },
-      { key: "to_date", label: "To Date", type: "date", required: true },
-      { key: "reason", label: "Reason", type: "textarea", required: true },
-    ],
-    adminFields: [
-      // `granted` is driven by the Grant / Reject buttons, not a dropdown.
-      { key: "paid_leave", label: "Paid Leave", type: "select", options: ["Without Pay", "With Pay"] },
-      { key: "leave_notes", label: "Leave Notes", type: "text" },
     ],
   },
   reference: {

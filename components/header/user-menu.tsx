@@ -1,9 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import * as React from "react";
+import { Avatar } from "@/components/ui/avatar";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { signOut } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase/client";
+import { ShortcutsSheet } from "@/components/header/shortcuts-sheet";
 import Link from "next/link";
 import type { Route } from "next";
 import {
@@ -13,9 +15,10 @@ import {
   LogOut,
   UserCog,
   Inbox,
+  Keyboard,
   FileText,
   Archive,
-  LayoutGrid,
+  ChevronUp,
 } from "lucide-react";
 
 type Props = {
@@ -25,6 +28,9 @@ type Props = {
   avatarUrl: string | null;
   inboxUnread: number;
   archivedTasks: number;
+  /** "rail" = the sidebar footer: a full-width bar (avatar + name + ▲) that opens
+   *  the menu UPWARD. Default = the compact avatar trigger in the top header. */
+  variant?: "rail";
 };
 
 export function UserMenu({
@@ -34,9 +40,8 @@ export function UserMenu({
   avatarUrl,
   inboxUnread,
   archivedTasks,
+  variant,
 }: Props) {
-  const router = useRouter();
-
   async function handleSignOut() {
     try {
       await signOut(getFirebaseAuth());
@@ -44,15 +49,13 @@ export function UserMenu({
       // Continue regardless — the server-side revoke below is what matters
     }
     await fetch("/api/auth/signout", { method: "POST" });
-    router.replace("/login" as Route);
+    // HARD navigation (not router.replace): a soft nav keeps Next's client
+    // Router Cache, so the NEXT user signing in on this browser could be served
+    // THIS user's cached pages (e.g. the admin panel). A full load wipes it.
+    window.location.replace("/login");
   }
 
-  const initials = name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const [shortcutsOpen, setShortcutsOpen] = React.useState(false);
 
   // Outer container provides the gradient ring (for admins) and pulse-on-mount.
   // Inner avatar sits on a dark spacer so the gradient reads as a 2px halo.
@@ -68,56 +71,58 @@ export function UserMenu({
         padding: 1.5,
       };
 
+  // Shared <Avatar>, not a local img/initials pair: this one had no onError, so
+  // a dead URL rendered the browser's broken-image glyph in the header on every
+  // page. The shared component layers the img over the initials and drops it on
+  // error, and it is the same badge the tables use.
+  const avatarNode = (
+    <Avatar name={name} avatarUrl={avatarUrl} size={32} title={name} />
+  );
+
+  const ringedAvatar = (
+    <span className="relative inline-flex rounded-full" style={ringStyle}>
+      {avatarNode}
+      {inboxUnread > 0 && (
+        <span
+          aria-hidden
+          className="absolute -top-0.5 -right-0.5 z-10 h-2.5 w-2.5 rounded-full ring-2 ring-white"
+          style={{ background: "var(--color-altus-red)" }}
+        />
+      )}
+    </span>
+  );
+
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <button
-          aria-label={
-            inboxUnread > 0 ? `User menu — ${inboxUnread} unread` : "User menu"
-          }
-          className="group relative flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-white/40 transition-transform"
-          style={{ transition: "transform 200ms ease" }}
-        >
-          {/* Unread-inbox dot — the badge that used to sit on the nav's Inbox
-              pill, now that Inbox lives inside this menu. */}
-          {inboxUnread > 0 && (
-            <span
-              aria-hidden
-              className="absolute -top-0.5 -right-0.5 z-10 h-2.5 w-2.5 rounded-full ring-2 ring-white"
-              style={{ background: "var(--color-altus-red)" }}
-            />
-          )}
-          <span
-            className="inline-flex rounded-full"
-            style={{
-              ...ringStyle,
-              transition: "filter 200ms ease, transform 200ms ease",
-            }}
+        {variant === "rail" ? (
+          <button
+            aria-label={inboxUnread > 0 ? `User menu — ${inboxUnread} unread` : "User menu"}
+            className="group flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-altus-red)]"
           >
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={avatarUrl}
-                alt={name}
-                className="h-8 w-8 rounded-full object-cover block"
-              />
-            ) : (
-              <span
-                className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold text-white"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #475569, #1f2937)",
-                }}
-              >
-                {initials}
+            {ringedAvatar}
+            <span className="sidebar-collapsible-hide min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-semibold text-ink-strong">{name}</span>
+              <span className="block truncate text-[11px] text-ink-soft">
+                {isAdmin ? "Administrator" : "Team Member"}
               </span>
-            )}
-          </span>
-        </button>
+            </span>
+            <ChevronUp className="sidebar-collapsible-hide shrink-0 text-ink-soft" size={16} strokeWidth={2.4} />
+          </button>
+        ) : (
+          <button
+            aria-label={inboxUnread > 0 ? `User menu — ${inboxUnread} unread` : "User menu"}
+            className="group relative flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-white/40 transition-transform"
+            style={{ transition: "transform 200ms ease" }}
+          >
+            {ringedAvatar}
+          </button>
+        )}
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          align="end"
+          side={variant === "rail" ? "top" : "bottom"}
+          align={variant === "rail" ? "start" : "end"}
           sideOffset={10}
           collisionPadding={12}
           className="z-[100] min-w-[240px] rounded-xl border border-[#E2E8F0] bg-white shadow-2xl p-1.5 text-sm max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto"
@@ -143,24 +148,7 @@ export function UserMenu({
                     : { background: "rgba(15, 23, 42, 0.08)", padding: 1.5 }
                 }
               >
-                {avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={avatarUrl}
-                    alt={name}
-                    className="h-9 w-9 rounded-full object-cover block"
-                  />
-                ) : (
-                  <span
-                    className="h-9 w-9 rounded-full flex items-center justify-center text-[13px] font-semibold text-white"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, #475569, #1f2937)",
-                    }}
-                  >
-                    {initials}
-                  </span>
-                )}
+                <Avatar name={name} avatarUrl={avatarUrl} size={36} title={name} />
               </span>
               <div className="min-w-0">
                 <div className="font-semibold text-[#0F172A] truncate">
@@ -191,7 +179,7 @@ export function UserMenu({
                   }}
                 >
                   <UserIcon size={11} strokeWidth={2.4} />
-                  Team member
+                  Team Member
                 </span>
               )}
             </div>
@@ -215,7 +203,7 @@ export function UserMenu({
                     strokeWidth={2.2}
                     style={{ color: "var(--color-altus-red)" }}
                   />
-                  <span className="font-medium">Admin panel</span>
+                  <span className="font-medium">Admin Panel</span>
                 </span>
                 <ChevronRight
                   size={14}
@@ -238,7 +226,7 @@ export function UserMenu({
             >
               <span className="inline-flex items-center gap-2">
                 <UserCog size={14} strokeWidth={2.2} style={{ color: "#475569" }} />
-                <span className="font-medium">Profile &amp; preferences</span>
+                <span className="font-medium">Profile &amp; Preferences</span>
               </span>
               <ChevronRight
                 size={14}
@@ -253,20 +241,6 @@ export function UserMenu({
           <DropdownMenu.Label className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wide text-[#94A3B8] font-bold">
             Workspace
           </DropdownMenu.Label>
-
-          {/* Index — the Ecosystem Index of every sheet / folder / tool. */}
-          <DropdownMenu.Item asChild>
-            <Link
-              href={"/index" as Route}
-              className="flex items-center justify-between gap-2.5 px-3.5 py-2.5 text-[15px] rounded-lg cursor-pointer outline-none text-[#0F172A] data-[highlighted]:bg-[#F1F5F9]"
-            >
-              <span className="inline-flex items-center gap-2">
-                <LayoutGrid size={14} strokeWidth={2.2} style={{ color: "#475569" }} />
-                <span className="font-medium">Index</span>
-              </span>
-              <ChevronRight size={14} strokeWidth={2.2} style={{ color: "#94A3B8" }} />
-            </Link>
-          </DropdownMenu.Item>
 
           <DropdownMenu.Item asChild>
             <Link
@@ -318,15 +292,37 @@ export function UserMenu({
 
           <DropdownMenu.Separator className="my-1 h-px bg-[#E2E8F0]" />
 
+          {/* Sir: the shortcut list lives under the profile. Opened via a
+              CONTROLLED dialog — the menu closes on select, which would unmount
+              an uncontrolled one before it ever painted. */}
+          <DropdownMenu.Item
+            onSelect={(e) => {
+              e.preventDefault();
+              setShortcutsOpen(true);
+            }}
+            className="flex items-center justify-between gap-2.5 px-3.5 py-2.5 text-[15px] rounded-lg cursor-pointer outline-none text-[#0F172A] data-[highlighted]:bg-[#F1F5F9]"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Keyboard size={14} strokeWidth={2.2} style={{ color: "#475569" }} />
+              <span className="font-medium">Keyboard shortcuts</span>
+            </span>
+            <kbd className="rounded border border-[#E2E8F0] bg-[#F8FAFC] px-1.5 py-0.5 text-[11px] font-bold text-[#475569]">
+              ?
+            </kbd>
+          </DropdownMenu.Item>
+
+          <DropdownMenu.Separator className="my-1 h-px bg-[#E2E8F0]" />
+
           <DropdownMenu.Item
             onSelect={handleSignOut}
             className="flex items-center gap-2.5 px-3.5 py-2.5 text-[15px] rounded-lg cursor-pointer outline-none text-[#A80400] data-[highlighted]:bg-[#FEF2F2]"
           >
             <LogOut size={14} strokeWidth={2.2} style={{ color: "#A80400" }} />
-            <span className="font-medium">Sign out</span>
+            <span className="font-medium">Sign Out</span>
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
+      <ShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </DropdownMenu.Root>
   );
 }

@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { LegalShell } from "@/components/legal/legal-shell";
 
+// Never static, despite the content being fully static: the root layout
+// resolves the signed-in employee, which reads the session cookie, so Next
+// bails this route out to dynamic rendering regardless. Declaring it skips the
+// pointless static probe — and the DYNAMIC_SERVER_USAGE stack trace it logs.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Terms of Service · Altus Corp Dashboard",
   description:

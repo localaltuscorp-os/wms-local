@@ -1,5 +1,7 @@
 "use client";
 
+import { PageCommandBar } from "@/components/layout/page-command-bar";
+
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -42,11 +44,7 @@ import {
   reorderProjectNodes,
 } from "@/app/(app)/projects/actions";
 import { fireToast } from "@/lib/toast";
-import {
-  saveProjectIncentives,
-  getProjectIncentives,
-  type ProjectIncentiveRow,
-} from "@/app/(app)/incentive/actions";
+import { formatDate } from "@/lib/format";
 import type { ProjectTreeNode } from "@/lib/queries/projects";
 import type { EmployeeOption } from "@/lib/queries/employees";
 
@@ -57,6 +55,15 @@ type NodeKind = "project" | "milestone" | "result" | "action" | "sub_action";
 const EmployeesContext = React.createContext<EmployeeOption[]>([]);
 function useEmployees() {
   return React.useContext(EmployeesContext);
+}
+
+/** Whether the signed-in user (admin or manager) may manage project structure.
+ *  A plain doer (false) may ONLY add results/actions; every other editing
+ *  control is hidden and the server actions reject the write too. Shared via
+ *  context so it doesn't have to thread through the recursive tree. */
+const CanManageContext = React.createContext<boolean>(false);
+function useCanManage() {
+  return React.useContext(CanManageContext);
 }
 
 const CHILD_KIND: Record<NodeKind, NodeKind | null> = {
@@ -97,16 +104,10 @@ function pluralize(n: number, one: string, many: string = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** "12 Jun 2026" — compact, locale-stable, IST. */
+/** "12 Jun 2026" — canonical Altus date. */
 function fmtDate(d: Date | string | null): string {
   if (!d) return "";
-  const date = typeof d === "string" ? new Date(d) : d;
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "Asia/Kolkata",
-  });
+  return formatDate(d);
 }
 
 /** Date → "YYYY-MM-DD" in IST, for prefilling a <input type=date>. */
@@ -126,6 +127,7 @@ interface Props {
   projects: ProjectTreeNode[];
   activeId: string | null;
   employees: EmployeeOption[];
+  canManage: boolean;
 }
 
 /**
@@ -137,7 +139,7 @@ interface Props {
  * refresh and is deep-linkable. The page itself stays a server component;
  * everything here is client because of inline add/rename/archive state.
  */
-export function ProjectsWorkspace({ projects, activeId, employees }: Props) {
+export function ProjectsWorkspace({ projects, activeId, employees, canManage }: Props) {
   const active = projects.find((p) => p.id === activeId) ?? null;
 
   // Org-wide rollups for the hero stat-strip. Cheap — these structures are
@@ -158,6 +160,7 @@ export function ProjectsWorkspace({ projects, activeId, employees }: Props) {
 
   return (
     <EmployeesContext.Provider value={employees}>
+    <CanManageContext.Provider value={canManage}>
       <HeroHeader
         totals={{
           projects: totalProjects,
@@ -178,6 +181,7 @@ export function ProjectsWorkspace({ projects, activeId, employees }: Props) {
           {active && <ProjectDetail key={active.id} project={active} />}
         </div>
       )}
+    </CanManageContext.Provider>
     </EmployeesContext.Provider>
   );
 }
@@ -190,173 +194,22 @@ function HeroHeader({
   totals: { projects: number; milestones: number; results: number; tasks: number };
 }) {
   return (
-    <section
-      className="relative overflow-hidden rounded-section px-10 py-10 max-md:px-6 max-md:py-8"
-      style={{
-        opacity: 0,
-        animation: "fadeUp 700ms ease-out 50ms forwards",
-        background:
-          "radial-gradient(ellipse 90% 70% at 85% 100%, rgba(225, 6, 0, 0.55), transparent 55%), radial-gradient(ellipse 60% 60% at 15% 0%, rgba(168, 4, 0, 0.20), transparent 60%), linear-gradient(135deg, #0E0B0A 0%, #1A0F0C 50%, #0B0708 100%)",
-        boxShadow:
-          "0 24px 60px -20px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.06)",
-      }}
-    >
-      {/* Decorative dot grid (echo of the login page) */}
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-[0.10] pointer-events-none"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
-        }}
-      />
-      {/* Film grain overlay */}
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-[0.05] mix-blend-overlay pointer-events-none"
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><filter id='n'><feTurbulence baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
-        }}
-      />
-
-      <div className="relative flex items-end justify-between gap-8 max-md:flex-col max-md:items-start">
-        <div className="min-w-0 flex-1">
-          <div
-            className="inline-flex items-center gap-2.5 mb-4"
-            style={{
-              fontSize: 11.5,
-              letterSpacing: "0.24em",
-              color: "rgba(255,255,255,0.78)",
-              fontFamily: "var(--font-mono)",
-              fontWeight: 700,
-              textTransform: "uppercase",
-            }}
-          >
-            <span
-              aria-hidden
-              style={{
-                display: "inline-block",
-                width: 0,
-                height: 0,
-                borderLeft: "6px solid transparent",
-                borderRight: "6px solid transparent",
-                borderBottom: "10px solid #E10600",
-                filter: "drop-shadow(0 0 10px rgba(225, 6, 0, 0.8))",
-              }}
-            />
-            Projects
-          </div>
-          <h1
-            className="text-white"
-            style={{
-              fontFamily: "var(--font-serif)",
-              fontStyle: "italic",
-              fontWeight: 500,
-              fontSize: 58,
-              lineHeight: 1.02,
-              letterSpacing: "-0.025em",
-              textShadow: "0 2px 12px rgba(0,0,0,0.45)",
-            }}
-          >
-            Break work down.
-          </h1>
-          <p
-            className="mt-4 max-w-2xl"
-            style={{
-              color: "rgba(255,255,255,0.85)",
-              fontSize: 16.5,
-              lineHeight: 1.55,
-              fontWeight: 400,
-            }}
-          >
-            Project → Milestone → Result → Action → Sub-Action. Hierarchy
-            for ambitious work — link any task to the node it serves.
-          </p>
-
-          {/* Org-wide stat strip — only meaningful when there's data */}
-          {totals.projects > 0 && (
-            <div className="mt-7 flex flex-wrap items-center gap-x-7 gap-y-3">
-              <HeroStat
-                icon={<FolderKanban size={13} strokeWidth={2.2} />}
-                label="Projects"
-                value={totals.projects}
-              />
-              <HeroStat
-                icon={<Layers size={13} strokeWidth={2.2} />}
-                label="Milestones"
-                value={totals.milestones}
-              />
-              <HeroStat
-                icon={<Target size={13} strokeWidth={2.2} />}
-                label="Results"
-                value={totals.results}
-              />
-              <HeroStat
-                icon={<ListChecks size={13} strokeWidth={2.2} />}
-                label="Linked tasks"
-                value={totals.tasks}
-              />
-            </div>
-          )}
-        </div>
-
-        <NewProjectButton hero />
-      </div>
-    </section>
-  );
-}
-
-function HeroStat({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <span
-        className="inline-flex items-center justify-center size-8 rounded-full"
-        style={{
-          background: "rgba(255,255,255,0.08)",
-          border: "1px solid rgba(255,255,255,0.16)",
-          color: "rgba(255,255,255,0.95)",
-        }}
-      >
-        {icon}
-      </span>
-      <span className="flex flex-col">
-        <span
-          className="tabular-nums"
-          style={{
-            color: "#fff",
-            fontSize: 22,
-            fontWeight: 700,
-            letterSpacing: "-0.01em",
-            lineHeight: 1,
-            fontFamily: "var(--font-serif)",
-          }}
-        >
-          {value}
-        </span>
-        <span
-          style={{
-            color: "rgba(255,255,255,0.72)",
-            fontSize: 11,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            fontWeight: 700,
-            marginTop: 5,
-          }}
-        >
-          {label}
-        </span>
-      </span>
-    </div>
+    /* MINIMAL HEADER (Sir) — the shared PageCommandBar, i.e. the Yearly Goals
+       band. What stood here was a full-bleed near-black poster: layered radial
+       gradients, a decorative dot grid, an SVG film-grain overlay and a 58px
+       italic serif headline ("Break work down."), roughly 300px tall before a
+       single project appeared. The counts it carried are kept — as a compact
+       inline hint rather than a stat strip — and New Project moves into the
+       band's actions slot. */
+    <PageCommandBar
+      title="Projects"
+      hint={
+        totals.projects > 0
+          ? `${totals.projects} projects · ${totals.milestones} milestones · ${totals.results} results · ${totals.tasks} linked tasks`
+          : "Project → Milestone → Result → Action. Link any task to the node it serves."
+      }
+      actions={<NewProjectButton />}
+    />
   );
 }
 
@@ -582,10 +435,6 @@ function ProjectDetail({ project }: { project: ProjectTreeNode }) {
           />
         </div>
 
-        {/* Incentive — Manan 2026-06. Toggle + per-employee amounts that flow
-            into the Incentive ledger (source=project) for admin approval. */}
-        <ProjectIncentivePanel projectId={project.id} projectName={project.name} />
-
         {/* Section eyebrow */}
         <div
           className="text-ink-subtle mb-5 flex items-center gap-2 pb-3 border-b border-hairline"
@@ -633,7 +482,7 @@ function ProjectDetail({ project }: { project: ProjectTreeNode }) {
                 <AddChildButton
                   kind="milestone"
                   parentId={project.id}
-                  label="Add milestone"
+                  label="Add Milestone"
                 />
               </div>
             </div>
@@ -645,7 +494,7 @@ function ProjectDetail({ project }: { project: ProjectTreeNode }) {
                 <AddChildButton
                   kind="milestone"
                   parentId={project.id}
-                  label="Add milestone"
+                  label="Add Milestone"
                 />
               }
             />
@@ -884,6 +733,7 @@ function TreeNode({
   ordinal: number;
   dnd: Dnd;
 }) {
+  const canManage = useCanManage();
   const childKind = CHILD_KIND[node.kind];
   const hasChildren = node.children.length > 0;
   const linked = node.actionCount;
@@ -905,30 +755,47 @@ function TreeNode({
 
   return (
     <li
-      draggable
-      onDragStart={(e) => {
-        e.stopPropagation();
-        e.dataTransfer.effectAllowed = "move";
-        // A drag image of the whole subtree looks messy — drag the row only.
-        dnd.onDragStart();
-      }}
-      onDragEnd={(e) => {
-        e.stopPropagation();
-        dnd.onDragEnd();
-      }}
-      onDragOver={(e) => {
-        // Scope to the nearest list so a child drag doesn't paint a drop line
-        // on its ancestor rows too.
-        e.preventDefault();
-        e.stopPropagation();
-        e.dataTransfer.dropEffect = "move";
-        dnd.onDragOver();
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dnd.onDrop();
-      }}
+      // Drag-to-reorder is manager-only; a plain doer can't reorder the tree.
+      draggable={canManage}
+      onDragStart={
+        canManage
+          ? (e) => {
+              e.stopPropagation();
+              e.dataTransfer.effectAllowed = "move";
+              // A drag image of the whole subtree looks messy — drag the row only.
+              dnd.onDragStart();
+            }
+          : undefined
+      }
+      onDragEnd={
+        canManage
+          ? (e) => {
+              e.stopPropagation();
+              dnd.onDragEnd();
+            }
+          : undefined
+      }
+      onDragOver={
+        canManage
+          ? (e) => {
+              // Scope to the nearest list so a child drag doesn't paint a drop
+              // line on its ancestor rows too.
+              e.preventDefault();
+              e.stopPropagation();
+              e.dataTransfer.dropEffect = "move";
+              dnd.onDragOver();
+            }
+          : undefined
+      }
+      onDrop={
+        canManage
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              dnd.onDrop();
+            }
+          : undefined
+      }
       style={{
         opacity: dnd.isDragging ? 0.45 : 1,
         borderTop: dnd.isOver
@@ -993,17 +860,21 @@ function NodeRow({
   detailsOpen: boolean;
   onToggleDetails: () => void;
 }) {
+  const canManage = useCanManage();
   return (
     <div className="group flex items-center gap-2.5 py-2 px-2.5 -mx-2.5 rounded-md transition-colors hover:bg-surface-soft">
-      {/* Drag handle — appears on hover, cursor signals grab. */}
-      <span
-        aria-hidden
-        className="shrink-0 cursor-grab opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
-        title="Drag to reorder"
-        style={{ color: "var(--color-ink-muted)" }}
-      >
-        <GripVertical size={14} strokeWidth={2} />
-      </span>
+      {/* Drag handle — appears on hover, cursor signals grab. Manager-only;
+          hidden for plain doers since they can't reorder. */}
+      {canManage && (
+        <span
+          aria-hidden
+          className="shrink-0 cursor-grab opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
+          title="Drag to reorder"
+          style={{ color: "var(--color-ink-muted)" }}
+        >
+          <GripVertical size={14} strokeWidth={2} />
+        </span>
+      )}
 
       {/* Ordinal — the hierarchy number the brief asked for. */}
       <span
@@ -1128,6 +999,7 @@ function EditableName({
   depth: number;
   asHeading?: boolean;
 }) {
+  const canManage = useCanManage();
   const router = useRouter();
   const [editing, setEditing] = React.useState(false);
   const [name, setName] = React.useState(node.name);
@@ -1162,6 +1034,15 @@ function EditableName({
     letterSpacing: asHeading ? "-0.025em" : "-0.005em",
     lineHeight: asHeading ? 1.05 : 1.35,
   };
+
+  // Plain doer: non-editable plain text (no double-click-to-rename).
+  if (!canManage) {
+    return (
+      <span className="flex-1 min-w-0 break-words" style={sharedStyle}>
+        {node.name}
+      </span>
+    );
+  }
 
   if (editing) {
     return (
@@ -1208,6 +1089,7 @@ function NodeMenu({
   node: ProjectTreeNode;
   compact?: boolean;
 }) {
+  const canManage = useCanManage();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -1248,6 +1130,9 @@ function NodeMenu({
       router.refresh();
     });
   }
+
+  // Plain doer: no rename/archive/delete menu at all.
+  if (!canManage) return null;
 
   return (
     <>
@@ -1420,7 +1305,7 @@ function DeleteNodeDialog({
                 <button
                   type="button"
                   onClick={() => onOpenChange(false)}
-                  className="px-4 py-2.5 text-[14px] font-semibold text-ink-soft hover:text-ink-strong transition-colors"
+                  className="bg-surface-card px-4 py-2.5 text-[14px] font-semibold text-ink-soft hover:text-ink-strong transition-colors"
                 >
                   Cancel
                 </button>
@@ -1460,7 +1345,7 @@ function DeleteNodeDialog({
                   type="button"
                   onClick={() => setStep(1)}
                   disabled={pending}
-                  className="px-4 py-2.5 text-[14px] font-semibold text-ink-soft hover:text-ink-strong transition-colors disabled:opacity-50"
+                  className="bg-surface-card px-4 py-2.5 text-[14px] font-semibold text-ink-soft hover:text-ink-strong transition-colors disabled:opacity-50"
                 >
                   ← Back
                 </button>
@@ -1474,7 +1359,7 @@ function DeleteNodeDialog({
                       "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
                   }}
                 >
-                  {pending ? "Deleting…" : `Permanently delete`}
+                  {pending ? "Deleting…" : `Permanently Delete`}
                 </button>
               </div>
             </>
@@ -1583,11 +1468,58 @@ function OwnerPicker({
   node: ProjectTreeNode;
   compact?: boolean;
 }) {
+  const canManage = useCanManage();
   const employees = useEmployees();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [pending, start] = React.useTransition();
+
+  // Plain doer: static, read-only owner display — no people dropdown.
+  if (!canManage) {
+    return (
+      <div className="flex items-center gap-2">
+        {!compact && (
+          <FieldLabel icon={<UserCircle2 size={12} strokeWidth={2.2} />}>
+            Owner
+          </FieldLabel>
+        )}
+        <span
+          className="inline-flex items-center gap-1.5 rounded-pill border px-3.5 py-2 text-[15px] font-semibold"
+          title={node.ownerName ? `Owner: ${node.ownerName}` : "No owner"}
+          style={{
+            borderColor: node.ownerName
+              ? "color-mix(in srgb, var(--color-altus-red) 35%, transparent)"
+              : "var(--color-hairline-strong)",
+            background: node.ownerName
+              ? "color-mix(in srgb, var(--color-altus-red) 8%, transparent)"
+              : "var(--color-surface-card)",
+            color: node.ownerName
+              ? "var(--color-ink-strong)"
+              : "var(--color-ink-muted)",
+          }}
+        >
+          <UserCircle2
+            size={15}
+            strokeWidth={2.2}
+            className="shrink-0"
+            style={{
+              color: node.ownerName
+                ? "var(--color-altus-red)"
+                : "var(--color-ink-subtle)",
+            }}
+          />
+          {node.ownerName
+            ? compact
+              ? node.ownerName.split(" ")[0]
+              : node.ownerName
+            : compact
+              ? "—"
+              : "No owner"}
+        </span>
+      </div>
+    );
+  }
 
   function choose(ownerId: string | null) {
     setOpen(false);
@@ -1694,12 +1626,41 @@ function OwnerPicker({
 }
 
 function MembersPicker({ node }: { node: ProjectTreeNode }) {
+  const canManage = useCanManage();
   const employees = useEmployees();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [pending, start] = React.useTransition();
   const memberIds = new Set(node.members.map((m) => m.id));
+
+  // Plain doer: static member chips — no remove "x", no Add picker.
+  if (!canManage) {
+    return (
+      <div className="flex items-center gap-2 min-w-0">
+        <FieldLabel icon={<Users size={12} strokeWidth={2.2} />}>Team</FieldLabel>
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+          {node.members.length === 0 ? (
+            <span className="text-[13.5px] text-ink-muted">—</span>
+          ) : (
+            node.members.map((m) => (
+              <span
+                key={m.id}
+                className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[13.5px] font-semibold"
+                style={{
+                  background: "color-mix(in srgb, var(--color-blue) 12%, transparent)",
+                  color: "var(--color-blue-deep)",
+                  border: "1px solid color-mix(in srgb, var(--color-blue) 28%, transparent)",
+                }}
+              >
+                {m.name ?? "—"}
+              </span>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  }
 
   function toggle(employeeId: string) {
     start(async () => {
@@ -1748,7 +1709,7 @@ function MembersPicker({ node }: { node: ProjectTreeNode }) {
             <button
               type="button"
               disabled={pending}
-              className="inline-flex items-center gap-1 rounded-pill border border-dashed px-2.5 py-1 text-[13.5px] font-semibold text-ink-muted hover:text-altus-red hover:border-altus-red transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-pill border border-solid px-2.5 py-1 text-[13.5px] font-semibold text-ink-muted hover:text-altus-red hover:border-altus-red transition-colors disabled:opacity-50"
               style={{ borderColor: "var(--color-hairline-strong)" }}
             >
               <Plus size={13} strokeWidth={2.6} />
@@ -1837,8 +1798,30 @@ function PickerRow({
 }
 
 function TargetDateEditor({ node }: { node: ProjectTreeNode }) {
+  const canManage = useCanManage();
   const router = useRouter();
   const [pending, start] = React.useTransition();
+
+  // Plain doer: static target-date text — no input, no clear button.
+  if (!canManage) {
+    return (
+      <div className="flex items-center gap-2">
+        <FieldLabel icon={<CalendarDays size={12} strokeWidth={2.2} />}>
+          Target
+        </FieldLabel>
+        <span
+          className="text-[14.5px] tabular-nums"
+          style={{
+            color: node.targetDate
+              ? "var(--color-ink-strong)"
+              : "var(--color-ink-muted)",
+          }}
+        >
+          {node.targetDate ? fmtDate(node.targetDate) : "—"}
+        </span>
+      </div>
+    );
+  }
 
   function save(ymd: string | null) {
     start(async () => {
@@ -1883,12 +1866,36 @@ function TargetDateEditor({ node }: { node: ProjectTreeNode }) {
 }
 
 function NotesEditor({ node, big }: { node: ProjectTreeNode; big: boolean }) {
+  const canManage = useCanManage();
   const router = useRouter();
   const [value, setValue] = React.useState(node.notes ?? "");
   const [pending, start] = React.useTransition();
   const dirty = value.trim() !== (node.notes ?? "").trim();
 
   React.useEffect(() => setValue(node.notes ?? ""), [node.notes]);
+
+  // Plain doer: read-only notes — no textarea, no Save.
+  if (!canManage) {
+    return (
+      <div className="mt-3">
+        <FieldLabel icon={<StickyNote size={12} strokeWidth={2.2} />}>
+          Notes
+        </FieldLabel>
+        <p
+          className="mt-1.5 whitespace-pre-wrap"
+          style={{
+            fontSize: big ? 17 : 15.5,
+            lineHeight: 1.6,
+            color: node.notes
+              ? "var(--color-ink-strong)"
+              : "var(--color-ink-muted)",
+          }}
+        >
+          {node.notes ? node.notes : "No notes."}
+        </p>
+      </div>
+    );
+  }
 
   function save() {
     if (!dirty) return;
@@ -1919,7 +1926,7 @@ function NotesEditor({ node, big }: { node: ProjectTreeNode; big: boolean }) {
             }}
           >
             <Check size={13} strokeWidth={3} />
-            Save notes
+            Save Notes
           </button>
         )}
       </div>
@@ -1953,10 +1960,15 @@ function AddChildButton({
   parentId: string | null;
   label: string;
 }) {
+  const canManage = useCanManage();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [pending, start] = React.useTransition();
+
+  // A plain doer may only ADD a result or an action; the milestone/sub-action/
+  // project add-buttons are hidden for them (the server rejects them too).
+  if (!canManage && kind !== "result" && kind !== "action") return null;
 
   function add() {
     const v = name.trim();
@@ -2034,6 +2046,8 @@ function AddChildButton({
 }
 
 function NewProjectButton({ hero = false }: { hero?: boolean }) {
+  const canManage = useCanManage();
+  if (!canManage) return null;
   return (
     <NewProjectControl
       hero={hero}
@@ -2080,6 +2094,8 @@ function NewProjectButton({ hero = false }: { hero?: boolean }) {
 }
 
 function NewProjectInlineLink() {
+  const canManage = useCanManage();
+  if (!canManage) return null;
   return (
     <NewProjectControl
       trigger={(openFn) => (
@@ -2241,111 +2257,6 @@ function EmptyState() {
       </p>
       <div className="mt-7 flex justify-center">
         <NewProjectButton hero />
-      </div>
-    </div>
-  );
-}
-
-/* ───────────────────────────────────────── Project incentive panel ─ */
-
-/**
- * "Incentive?" toggle + a team list (employee + ₹ amount each) on a project.
- * Saving writes one ledger entry per person (source=project) into the
- * Incentive tab as pending; admins approve / override amounts there.
- */
-function ProjectIncentivePanel({ projectId, projectName }: { projectId: string; projectName: string }) {
-  const employees = useEmployees();
-  const [enabled, setEnabled] = React.useState(false);
-  const [rows, setRows] = React.useState<ProjectIncentiveRow[]>([]);
-  const [loaded, setLoaded] = React.useState(false);
-  const [pending, start] = React.useTransition();
-
-  React.useEffect(() => {
-    let alive = true;
-    getProjectIncentives(projectId)
-      .then((existing) => {
-        if (!alive) return;
-        if (existing.length > 0) { setEnabled(true); setRows(existing); }
-        setLoaded(true);
-      })
-      .catch(() => { if (alive) setLoaded(true); });
-    return () => { alive = false; };
-  }, [projectId]);
-
-  function addRow() {
-    setRows((r) => [...r, { employeeId: "", amount: 0 }]);
-  }
-  function update(i: number, patch: Partial<ProjectIncentiveRow>) {
-    setRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
-  }
-  function remove(i: number) {
-    setRows((r) => r.filter((_, idx) => idx !== i));
-  }
-  function save() {
-    const clean = enabled ? rows.filter((r) => r.employeeId && r.amount > 0) : [];
-    start(async () => {
-      const res = await saveProjectIncentives({ projectId, projectName, rows: clean });
-      fireToast(res.ok
-        ? { message: "Project incentives saved to the Incentive tab." }
-        : { message: res.error });
-    });
-  }
-
-  if (!loaded) return null;
-
-  return (
-    <div className="mb-6 rounded-section border border-hairline bg-surface-card p-4">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[11.5px] font-bold uppercase tracking-[0.16em] text-ink-subtle">Incentive</span>
-        <label className="inline-flex items-center gap-2 text-[13.5px] font-semibold text-ink-strong cursor-pointer">
-          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-          Incentive on this project?
-        </label>
-      </div>
-
-      {enabled && (
-        <div className="mt-3 space-y-2">
-          {rows.map((row, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <select
-                value={row.employeeId}
-                onChange={(e) => update(i, { employeeId: e.target.value })}
-                className="flex-1 rounded-md border border-hairline bg-white px-2.5 py-1.5 text-[13.5px] outline-none focus:border-altus-red/50"
-              >
-                <option value="">Select team member…</option>
-                {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-              </select>
-              <div className="inline-flex items-center gap-1">
-                <span className="text-[13px] text-ink-muted">₹</span>
-                <input
-                  type="number" min={0} value={row.amount || ""}
-                  onChange={(e) => update(i, { amount: Number(e.target.value) || 0 })}
-                  placeholder="0"
-                  className="w-28 rounded-md border border-hairline bg-white px-2 py-1.5 text-[13.5px] text-right tabular-nums outline-none focus:border-altus-red/50"
-                />
-              </div>
-              <button type="button" onClick={() => remove(i)} aria-label="Remove"
-                className="rounded-md p-1.5 text-ink-muted hover:bg-red-50 hover:text-altus-red">
-                <X size={15} />
-              </button>
-            </div>
-          ))}
-          <button type="button" onClick={addRow}
-            className="inline-flex items-center gap-1.5 rounded-pill border border-hairline px-3 py-1.5 text-[13px] font-semibold text-ink-soft hover:border-altus-red transition-colors">
-            <Plus size={14} strokeWidth={2.4} /> Add team member
-          </button>
-        </div>
-      )}
-
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <p className="text-[12px] text-ink-muted font-semibold">
-          Each person becomes a pending entry in the Incentive tab; admins approve & pay there.
-        </p>
-        <button type="button" onClick={save} disabled={pending}
-          className="rounded-pill px-4 py-2 text-[13px] font-bold text-white disabled:opacity-50"
-          style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}>
-          {pending ? "Saving…" : "Save incentives"}
-        </button>
       </div>
     </div>
   );

@@ -1,24 +1,54 @@
 import { desc } from "drizzle-orm";
-import { Download } from "lucide-react";
+import { Download, Users } from "lucide-react";
 import { db } from "@/lib/db";
-import { employees } from "@/db/schema";
+import { employees, salaryProfiles } from "@/db/schema";
+import { isStaffAccount } from "@/lib/queries/employees";
+import type { SalaryProfileRates } from "@/components/admin/employee-list";
 import { requireAdmin } from "@/lib/auth/current";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
 import {
   listActiveDepartments,
   getEmployeeDepartmentMap,
 } from "@/lib/queries/departments";
+import { AdminSection } from "@/components/admin/ui/section-shell";
 import { EmployeeList } from "@/components/admin/employee-list";
+import { LeaveRequestsCallout } from "@/components/attendance/leave/leave-requests-callout";
+import {
+  countPendingLeaveForReview,
+  leaveReviewScopeFor,
+} from "@/lib/queries/leave";
 import { InviteEmployeeDialog } from "@/components/admin/invite-employee-dialog";
-import type { EmployeeDepartmentMembership } from "@/components/admin/edit-employee-dialog";
+import type { EmployeeDepartmentMembership } from "@/components/admin/employee-editor";
 
 export default async function EmployeesPage() {
   const me = await requireAdmin();
-  const [all, activeDepartments, departmentMap] = await Promise.all([
-    db.select().from(employees).orderBy(desc(employees.createdAt)),
+  // Leave lives in Attendance; the Employees page only ANNOUNCES that some is
+  // waiting (spec §3). One count, no queue — see LeaveRequestsCallout.
+  const leaveScope = await leaveReviewScopeFor(me);
+  const [all, activeDepartments, departmentMap, profileRows, pendingLeave] = await Promise.all([
+    db.select().from(employees).where(isStaffAccount).orderBy(desc(employees.createdAt)),
     listActiveDepartments(),
     getEmployeeDepartmentMap(),
+    db
+      .select({
+        employeeId: salaryProfiles.employeeId,
+        monthlyPayAtTarget: salaryProfiles.monthlyPayAtTarget,
+        weeklyTargetHours: salaryProfiles.weeklyTargetHours,
+        monthlyFee: salaryProfiles.monthlyFee,
+      })
+      .from(salaryProfiles),
+    countPendingLeaveForReview(leaveScope).catch(() => ({ requests: 0, employees: 0 })),
   ]);
+  const salaryProfileByEmployee: Record<string, SalaryProfileRates> =
+    Object.fromEntries(
+      profileRows.map((p) => [
+        p.employeeId,
+        {
+          monthlyPayAtTarget: p.monthlyPayAtTarget,
+          weeklyTargetHours: p.weeklyTargetHours,
+          monthlyFee: p.monthlyFee,
+        },
+      ]),
+    );
   const departmentOptions = activeDepartments.map((d) => ({
     id: d.id,
     name: d.name,
@@ -28,40 +58,29 @@ export default async function EmployeesPage() {
     Object.fromEntries(departmentMap);
   const activeCount = all.filter((e) => e.isActive).length;
   const invitedCount = all.filter((e) => e.isActive && !e.joinedAt).length;
-  // Only super-admins may change an employee's admin status; non-super-admins
-  // get the admin toggle hidden in the create + edit dialogs. The server
-  // guards in actions.ts are the real boundary — this is UX, not security.
-  const canManageAdmins = isSuperAdmin(me.email);
+  // Any admin may now grant or revoke another employee's admin access (Sir,
+  // 2026-08), so the toggle shows for every admin. The server guards in
+  // actions.ts are the real boundary — this is UX, not security — and they still
+  // stop a non-super-admin from touching a super-admin's row.
+  const canManageAdmins = me.isAdmin;
 
   return (
-    <div>
-      <header className="mb-8 flex items-start justify-between gap-6 flex-wrap">
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-ink-subtle font-bold">
-            Admin · Employees
-          </div>
-          <h1
-            className="mt-1 text-ink-strong"
-            style={{
-              fontFamily: "var(--font-serif)",
-              fontStyle: "italic",
-              fontWeight: 500,
-              fontSize: 44,
-              lineHeight: 1.05,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            The team
-          </h1>
-          <p className="text-body-lg text-ink-subtle mt-2 max-w-2xl tabular-nums">
-            {all.length} total · {activeCount} active · {invitedCount} pending invite
-          </p>
-        </div>
-        <div className="flex items-center gap-2.5 mt-1">
+    <AdminSection
+      eyebrow="Admin · Employees"
+      title="The team"
+      subtitle={`${all.length} total · ${activeCount} active · ${invitedCount} pending invite`}
+      icon={Users}
+      stats={[
+        { label: "Total", value: all.length },
+        { label: "Active", value: activeCount, tone: "green" },
+        { label: "Pending invite", value: invitedCount, tone: "amber" },
+      ]}
+      actions={
+        <>
           <a
             href="/admin/employees/export"
             download
-            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-soft hover:text-ink-strong transition-colors px-3.5 py-2 rounded-chip border border-hairline bg-surface-card"
+            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-soft hover:text-ink-strong transition-colors px-3.5 py-2 rounded-pill border border-hairline bg-surface-card wg-btn"
             style={{ boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)" }}
             title="Download current view as CSV"
             aria-label="Export CSV"
@@ -73,16 +92,22 @@ export default async function EmployeesPage() {
             departmentOptions={departmentOptions}
             canManageAdmins={canManageAdmins}
           />
-        </div>
-      </header>
+        </>
+      }
+    >
+      <LeaveRequestsCallout
+        requests={pendingLeave.requests}
+        employees={pendingLeave.employees}
+      />
       <EmployeeList
         employees={all}
         membershipsByEmployee={membershipsByEmployee}
+        salaryProfileByEmployee={salaryProfileByEmployee}
         currentEmployeeId={me.id}
         canManageAdmins={canManageAdmins}
         departmentOptions={departmentOptions}
         managerOptions={managerOptions}
       />
-    </div>
+    </AdminSection>
   );
 }

@@ -3,50 +3,113 @@
 
 @theme inline {
   /* canvas + surfaces */
-  --color-canvas-base:     #fafbfc;
-  --color-canvas-base-2:   #f5f5f7;
+  /* Warm paper rather than cool grey — the ground the pastel families sit on. */
+  --color-canvas-base:     #faf8f7;
+  --color-canvas-base-2:   #f4f1ef;
   --color-surface-card:    #ffffff;
-  --color-surface-soft:    #f8fafc;
-  --color-surface-track:   #f1f5f9;
+  --color-surface-soft:    #f8f6f4;
+  --color-surface-track:   #efecea;
 
   /* ink ramp */
   --color-ink-strong:      #0f172a;
   --color-ink:             #1f2937;
   --color-ink-soft:        #334155;
   --color-ink-muted:       #475569;
-  --color-ink-subtle:      #64748b;
+  --color-ink-subtle:      #5b6675;
 
-  /* hairlines */
-  --color-hairline:        rgba(15, 23, 42, 0.06);
-  --color-hairline-strong: rgba(15, 23, 42, 0.10);
+  /* hairlines — warmed to match the paper ground */
+  --color-hairline:        rgba(60, 44, 40, 0.07);
+  --color-hairline-strong: rgba(60, 44, 40, 0.12);
 
-  /* Altus accent red — token name kept (--color-altus-red) for back-compat
-     with ~50 component refs; value now matches the Altus Corp logo. */
-  --color-altus-red:       #E10600;
-  --color-altus-red-deep:  #A80400;
+  /* CARD SHELL — the dashboard's container border (2026-08).
+     An almost-black RED at very low opacity: on a white surface it reads as a
+     neutral hairline, but it carries a trace of the Altus brand rather than the
+     cool grey-200 the white-surface refactor left behind everywhere.
+     `-hover` is the same hue lifted, used by `.wms-card` below. */
+  --color-card-hairline:       rgba(40, 0, 0, 0.08);
+  --color-card-hairline-hover: rgba(127, 29, 29, 0.20);
 
-  /* status palette */
-  --color-blue:    #3b82f6;  --color-blue-deep:   #1d4ed8;  --color-blue-bg:   #eff6ff;
-  --color-green:   #22c55e;  --color-green-deep:  #15803d;  --color-green-bg:  #ecfdf5;
-  --color-amber:   #f59e0b;  --color-amber-deep:  #b45309;  --color-amber-bg:  #fffbeb;
-  --color-red:     #E10600;  --color-red-deep:    #A80400;  --color-red-bg:    #fef2f2;
-  --color-rose:    #f43f5e;  --color-rose-deep:   #be123c;  --color-rose-bg:   #fff1f2;
-  --color-purple:  #a855f7;  --color-purple-deep: #7c3aed;  --color-purple-bg: #faf5ff;
+  /* ── GOOGLE-PASTEL TONAL PALETTE (2026-08) ───────────────────────────────
+     Sir: "google pastel shades … no solid colours visible anywhere".
+
+     Every hue is now a FOUR-STOP TONAL FAMILY rather than one saturated value:
+
+       --color-<hue>-bg     wash      — page-level tint behind a section
+       --color-<hue>         CONTAINER — the pastel that FILLS areas (chips,
+                                         buttons, bars, banners, badges)
+       --color-<hue>-edge    outline   — ≥3:1 on white, for borders/dots/strokes
+       --color-<hue>-deep    ON-CONTAINER INK — text + icons ONLY
+
+     The rule that keeps this readable: colour is not removed, it is REDISTRIBUTED
+     from the fill to the glyph. Anything that FILLS moves down to the container
+     stop; anything that is TEXT moves up to the ink stop. So white-on-red becomes
+     deep-red-on-pastel-red, which reads as pastel while staying ≥5.2:1.
+
+     The brand seed #E10600 is UNCHANGED (see --color-altus-red-seed and
+     lib/appearance.ts) — the container is derived from it, so per-user accent
+     rows in the database need no migration. Ink greys and surface whites are NOT
+     "solid colours" and are deliberately left alone.
+
+     Container luminances are deliberately re-spaced per hue (red .690 → yellow
+     .827) because once saturation is flattened, LIGHTNESS is what keeps green /
+     amber / red distinguishable — including under red-green colour blindness. */
+  /* ── ACTIONS STAY BRAND RED (Sir, 2026-08) ────────────────────────────────
+     The pastel container was applied to --color-altus-red itself, which is what
+     ~174 CTA gradients and every primary button paint with — and those carry
+     WHITE text, so they came out white-on-pink and the brand gradient ran
+     pale → dark. Buttons are ACTIONS: they need a confident, readable fill.
+
+     The line now drawn: pastel for SURFACES and STATUS (soft tints carrying dark
+     text — the KPI tiles, chips and washes below), brand red for ACTIONS. The
+     pastel brand tone is still available as --color-altus-red-soft for anything
+     that genuinely wants a tint. */
+  --color-altus-red-seed:  #E10600;
+  --color-altus-red:       #E10600;  /* actions: buttons, CTA gradients */
+  --color-altus-red-deep:  #A80400;  /* the gradient's second stop + ink */
+  --color-altus-red-soft:  #F8C8C7;  /* pastel tint for soft fills */
+  --color-altus-red-edge:  #D4706D;  /* outline */
+  --color-altus-red-wash:  #FDF0F0;
+
+  /* status palette — container / ink / wash / edge per family */
+  --color-blue:    #d3e3fd;  --color-blue-deep:   #174ea6;  --color-blue-bg:   #eef3fd;  --color-blue-edge:   #4a7fd4;
+  --color-green:   #c3ebcd;  --color-green-deep:  #0f5b2e;  --color-green-bg:  #eef7f0;  --color-green-edge:  #3e8f5a;
+  --color-amber:   #fbe0a6;  --color-amber-deep:  #8a3d06;  --color-amber-bg:  #fdf6e8;  --color-amber-edge:  #a8761f;
+  --color-red:     #f8c8c7;  --color-red-deep:    #A80400;  --color-red-bg:    #fdf0f0;  --color-red-edge:    #d4706d;
+  --color-rose:    #f9ceda;  --color-rose-deep:   #9f0f33;  --color-rose-bg:   #fdeef1;  --color-rose-edge:   #c0567f;
+  --color-purple:  #e9ddff;  --color-purple-deep: #5b21b6;  --color-purple-bg: #f4eefe;  --color-purple-edge: #8a6bd0;
   /* extended tones (Manan status palette): yellow, orange, slate=dark grey, brown */
-  --color-yellow:  #eab308;  --color-yellow-deep: #a16207;  --color-yellow-bg: #fefce8;
-  --color-orange:  #f97316;  --color-orange-deep: #c2410c;  --color-orange-bg: #fff7ed;
-  --color-slate:   #64748b;  --color-slate-deep:  #334155;  --color-slate-bg:  #f1f5f9;
-  --color-brown:   #92724e;  --color-brown-deep:  #6b4a2b;  --color-brown-bg:  #f6f1ea;
-  --color-stone:   #9ca3af;  --color-stone-deep:  #6b7280;  --color-stone-bg:  #f9fafb;
+  --color-yellow:  #f5eda4;  --color-yellow-deep: #7a5c00;  --color-yellow-bg: #fbf8e6;  --color-yellow-edge: #a88a2e;
+  --color-orange:  #ffd9c2;  --color-orange-deep: #973108;  --color-orange-bg: #fdf1e9;  --color-orange-edge: #b25a22;
+  --color-slate:   #dce2ea;  --color-slate-deep:  #334155;  --color-slate-bg:  #f0f3f6;  --color-slate-edge:  #7c8595;
+  --color-brown:   #e4d6c3;  --color-brown-deep:  #6b4a2b;  --color-brown-bg:  #f6f1e9;  --color-brown-edge:  #a08556;
+  --color-stone:   #e4e7eb;  --color-stone-deep:  #545a63;  --color-stone-bg:  #f3f4f6;  --color-stone-edge:  #8b929c;
   /* attendance Phase B tones: teal=comp-off, indigo=holiday */
-  --color-teal:    #14b8a6;  --color-teal-deep:   #0f766e;  --color-teal-bg:   #f0fdfa;
-  --color-indigo:  #6366f1;  --color-indigo-deep: #4338ca;  --color-indigo-bg: #eef2ff;
+  --color-teal:    #b8e7e1;  --color-teal-deep:   #0b5a54;  --color-teal-bg:   #eaf7f5;  --color-teal-edge:   #3f9a90;
+  --color-indigo:  #d6d9fb;  --color-indigo-deep: #3a32a6;  --color-indigo-bg: #eef0fd;  --color-indigo-edge: #6f79dc;
+
+  /* Chart series — referenced by components/charts/h-bars-impl.tsx but never
+     defined before this pass, so those bars rendered UNFILLED. Now real. */
+  --color-chart-1: #d3e3fd;  --color-chart-2: #c3ebcd;  --color-chart-3: #f8c8c7;  --color-chart-4: #fbe0a6;
+  --color-chart-5: #e9ddff;  --color-chart-6: #b8e7e1;  --color-chart-7: #ffd9c2;  --color-chart-8: #e4d6c3;
+
+  /* Goals module identity accent — Altus brand red (in-module chrome is red
+     everywhere; only the Hub cards keep per-module colours). Components
+     reference var(--goals-accent[-deep], <fallback>). */
+  --goals-accent:      #E10600;  /* action fill */
+  --goals-accent-deep: #A80400;
 
   /* main-nav pills */
   --color-nav-pill-bg:        rgba(255, 255, 255, 0.06);
   --color-nav-pill-bg-hover:  rgba(255, 255, 255, 0.10);
 
-  /* fonts */
+  /* fonts
+     The REAL display/serif pairing is loaded at the font loader
+     (app/layout.tsx): --font-display = Bricolage Grotesque and
+     --font-editorial = Fraunces. --font-serif deliberately stays Roboto
+     GLOBALLY (the text-display-* utilities below inline it across production
+     dashboards); module shells that want the editorial serif re-point
+     --font-serif at var(--font-editorial) on their own subtree — see the
+     Goals canvas shell (components/goals/canvas/goals-canvas.tsx). */
   --font-serif: var(--font-roboto), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-sans:  var(--font-roboto), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono:  ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -63,6 +126,19 @@
 
   /* container */
   --max-content: 1280px;
+
+  /* ── Adaptive page container (PageShell) ──────────────────────────────
+     Named content widths replace the ~10 ad-hoc max-w-[…px] values that
+     were scattered across 27 pages. The fluid gutter shrinks under browser
+     zoom / Windows display scaling / snapped windows so content keeps its
+     room instead of being eaten by a fixed px-8. Portal-SAFE: this is a
+     max-width + padding system with NO zoom/transform on any ancestor
+     (which is what broke Radix portals before — see the density note below). */
+  --content-narrow:   1120px;
+  --content-standard: 1280px;
+  --content-wide:     1400px;
+  --content-full:     1760px;
+  --page-gutter: clamp(1rem, 4vw, 2rem);
 
   /* Profile v2 — filled-input and subtle-stripe surfaces. Used heavily
      in /profile cards. Override in dark theme for legible inputs. */
@@ -82,29 +158,54 @@
    runtime, system-wide. Values mirror the @theme block exactly.
    ──────────────────────────────────────────────────────────────────── */
 :root {
-  --color-blue:    #3b82f6;  --color-blue-deep:   #1d4ed8;  --color-blue-bg:   #eff6ff;
-  --color-green:   #22c55e;  --color-green-deep:  #15803d;  --color-green-bg:  #ecfdf5;
-  --color-amber:   #f59e0b;  --color-amber-deep:  #b45309;  --color-amber-bg:  #fffbeb;
-  --color-red:     #E10600;  --color-red-deep:    #A80400;  --color-red-bg:    #fef2f2;
-  --color-rose:    #f43f5e;  --color-rose-deep:   #be123c;  --color-rose-bg:   #fff1f2;
-  --color-purple:  #a855f7;  --color-purple-deep: #7c3aed;  --color-purple-bg: #faf5ff;
-  --color-yellow:  #eab308;  --color-yellow-deep: #a16207;  --color-yellow-bg: #fefce8;
-  --color-orange:  #f97316;  --color-orange-deep: #c2410c;  --color-orange-bg: #fff7ed;
-  --color-slate:   #64748b;  --color-slate-deep:  #334155;  --color-slate-bg:  #f1f5f9;
-  --color-brown:   #92724e;  --color-brown-deep:  #6b4a2b;  --color-brown-bg:  #f6f1ea;
-  --color-stone:   #9ca3af;  --color-stone-deep:  #6b7280;  --color-stone-bg:  #f9fafb;
-  --color-teal:    #14b8a6;  --color-teal-deep:   #0f766e;  --color-teal-bg:   #f0fdfa;
-  --color-indigo:  #6366f1;  --color-indigo-deep: #4338ca;  --color-indigo-bg: #eef2ff;
+  /* MIRROR of the @theme tonal families above. This block exists because these
+     tokens are consumed as raw `var(--color-…)` in style props (dots, pills,
+     distribution bars), which @theme alone does not emit. It MUST stay in sync —
+     it is declared later, so anything left saturated here would silently win. */
+  --color-blue:    #d3e3fd;  --color-blue-deep:   #174ea6;  --color-blue-bg:   #eef3fd;  --color-blue-edge:   #4a7fd4;
+  --color-green:   #c3ebcd;  --color-green-deep:  #0f5b2e;  --color-green-bg:  #eef7f0;  --color-green-edge:  #3e8f5a;
+  --color-amber:   #fbe0a6;  --color-amber-deep:  #8a3d06;  --color-amber-bg:  #fdf6e8;  --color-amber-edge:  #a8761f;
+  --color-red:     #f8c8c7;  --color-red-deep:    #A80400;  --color-red-bg:    #fdf0f0;  --color-red-edge:    #d4706d;
+  --color-rose:    #f9ceda;  --color-rose-deep:   #9f0f33;  --color-rose-bg:   #fdeef1;  --color-rose-edge:   #c0567f;
+  --color-purple:  #e9ddff;  --color-purple-deep: #5b21b6;  --color-purple-bg: #f4eefe;  --color-purple-edge: #8a6bd0;
+  --color-yellow:  #f5eda4;  --color-yellow-deep: #7a5c00;  --color-yellow-bg: #fbf8e6;  --color-yellow-edge: #a88a2e;
+  --color-orange:  #ffd9c2;  --color-orange-deep: #973108;  --color-orange-bg: #fdf1e9;  --color-orange-edge: #b25a22;
+  --color-slate:   #dce2ea;  --color-slate-deep:  #334155;  --color-slate-bg:  #f0f3f6;  --color-slate-edge:  #7c8595;
+  --color-brown:   #e4d6c3;  --color-brown-deep:  #6b4a2b;  --color-brown-bg:  #f6f1e9;  --color-brown-edge:  #a08556;
+  --color-stone:   #e4e7eb;  --color-stone-deep:  #545a63;  --color-stone-bg:  #f3f4f6;  --color-stone-edge:  #8b929c;
+  --color-teal:    #b8e7e1;  --color-teal-deep:   #0b5a54;  --color-teal-bg:   #eaf7f5;  --color-teal-edge:   #3f9a90;
+  --color-indigo:  #d6d9fb;  --color-indigo-deep: #3a32a6;  --color-indigo-bg: #eef0fd;  --color-indigo-edge: #6f79dc;
+  --color-chart-1: #d3e3fd;  --color-chart-2: #c3ebcd;  --color-chart-3: #f8c8c7;  --color-chart-4: #fbe0a6;
+  --color-chart-5: #e9ddff;  --color-chart-6: #b8e7e1;  --color-chart-7: #ffd9c2;  --color-chart-8: #e4d6c3;
+  --color-altus-red-edge: #D4706D;  --color-altus-red-wash: #FDF0F0;  --color-altus-red-seed: #E10600;
+  --color-altus-red-soft: #F8C8C7;
 }
 
 /* Heatmap step backgrounds (used as `background:` not `color:`, so they live
    outside @theme as raw CSS custom properties.) */
+/* App top bar (components/layout/app-top-bar.tsx) — height published so every
+   page-level `sticky` header can pin BENEATH it instead of underneath it.
+   0 by default: the bar is desktop-only (`max-md:hidden`) and absent on the hub,
+   so on phones and the hub the old `top: 0` behaviour is exactly right. */
 :root {
-  --heat-0: #f1f5f9;
-  --heat-1: linear-gradient(135deg, #86efac, #4ade80);
-  --heat-2: linear-gradient(135deg, #fcd34d, #f59e0b);
-  --heat-3: linear-gradient(135deg, #fb923c, #ea580c);
-  --heat-4: linear-gradient(135deg, #fca5a5, #E10600);
+  --app-topbar-h: 0px;
+}
+@media (min-width: 768px) {
+  body:has(.app-topbar) {
+    --app-topbar-h: 56px;
+  }
+}
+/* Opt-in class for page headers that were `sticky top-0`. */
+.sticky-below-topbar {
+  top: var(--app-topbar-h);
+}
+
+:root {
+  --heat-0: #f0f3f6;
+  --heat-1: linear-gradient(135deg, #dff2e3, #c3ebcd);
+  --heat-2: linear-gradient(135deg, #f7e7b4, #fbe0a6);
+  --heat-3: linear-gradient(135deg, #ffd9c2, #f9c5a6);
+  --heat-4: linear-gradient(135deg, #f8c8c7, #efb2ae);
 
   /* Profile v2 — accent. Defaults to the Altus red; the root layout
      overrides via inline style="--user-accent: <hex>" once the user
@@ -113,10 +214,25 @@
 }
 
 /* ────────────────────────────────────────────────────────────────────
-   Profile v2 — density swap
-   Light-only theme; the root layout writes data-density on <html>.
-   Components that want to participate read --density-pad-y or
-   --density-line-height; everything else stays cozy.
+   Density scale — Comfortable · Compact · Dense (Slice 2)
+   The root layout writes data-density on <html> from the user's pref
+   (default "cozy" = Comfortable = unchanged, so opt-in only → zero
+   regression for anyone who doesn't pick a tighter mode).
+
+   HOW it fits more on screen: Compact/Dense set a root `font-size`
+   PERCENTAGE. Because Tailwind spacing (p-*, gap-*, m-*, space-*) and all
+   rem units scale with the root font-size, every gutter/pad/gap tightens
+   app-wide — while the app's TEXT is overwhelmingly px-based (~3.8k px vs
+   ~50 rem utilities), so type stays legible ("readability non-negotiable").
+   The % (not px) keeps a user's own larger browser default font honoured
+   for accessibility.
+
+   PORTAL-SAFE: this is font-size + line-height only. It deliberately does
+   NOT use `zoom`/`transform` on any ancestor — that double-applies to
+   Radix/floating-ui portals so dropdowns/popovers mis-position and the
+   opening click reads as an "outside" click, closing them instantly (the
+   old system-wide "dropdowns close in a sec / not scrollable" bug). Keep
+   every rule here zoom-free.
    ──────────────────────────────────────────────────────────────────── */
 
 html[data-density="cozy"] {
@@ -124,15 +240,17 @@ html[data-density="cozy"] {
   --density-line-height: 1.55;
 }
 html[data-density="compact"] {
-  --density-pad-y: 0.78;
-  --density-line-height: 1.45;
+  font-size: 93.75%; /* 15/16 — tighten rem spacing app-wide */
+  --density-pad-y: 0.82;
+  --density-line-height: 1.5;
 }
-/* Compact density: uniformly scale the whole UI down so it visibly "fits
-   more on screen" (the control's promise). `zoom` reflows correctly (unlike
-   transform) and scales the app's many fixed-px sizes that a font-size
-   change alone wouldn't touch. */
-html[data-density="compact"] body {
-  zoom: 0.92;
+html[data-density="dense"] {
+  font-size: 87.5%; /* 14/16 */
+  --density-pad-y: 0.7;
+  --density-line-height: 1.42;
+}
+html[data-density="compact"] body,
+html[data-density="dense"] body {
   line-height: var(--density-line-height);
 }
 
@@ -324,6 +442,33 @@ html[data-density="compact"] body {
 @keyframes pillShimmer {
   0%, 100% { box-shadow: 0 0 0 0 rgba(225, 6, 0, 0.0); }
   50%      { box-shadow: 0 0 0 6px rgba(225, 6, 0, 0.18); }
+}
+
+/* Smooth scrolling for anchor jumps anywhere in the app.
+ *
+ * SAFE HERE, AND THE CHECK MATTERS. `scroll-behavior: smooth` on <html>
+ * animates EVERY document scroll, including a bare `el.scrollIntoView()` and
+ * any direct `documentElement.scrollTop = n`. That is what makes it a hazard:
+ * code that writes a scroll position expecting it to land immediately gets an
+ * animation instead, which is the bug the `.kanban-scroll` block further down
+ * this file already records for its own wheel handler. The dashboard section
+ * nav is the only place in the app that scrolls the document programmatically
+ * (components/dashboard/section-nav.tsx), and it passes `behavior: "smooth"`
+ * explicitly — an explicit behavior overrides this rule, so nothing changes
+ * for it. Add a direct scrollTop write anywhere and revisit this.
+ *
+ * Scoped to <html> only. Inner scrollers keep their own behaviour, which is
+ * why the kanban board's is untouched. */
+html {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* An animated jump is motion like any other. Opting out returns the instant
+     jump, which is also what makes the page usable with a screen reader
+     driving the anchor. */
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 /* Streaming page skeletons — used by TaskDetailSkeleton et al. */
@@ -534,6 +679,34 @@ html[data-density="compact"] body {
 @keyframes timelineDotPulse {
   0%, 100% { transform: scale(1);    opacity: 1; }
   50%      { transform: scale(1.25); opacity: 0.8; }
+}
+
+/* ── WMS CARD SHELL ───────────────────────────────────────────────────────
+   The single border treatment for every primary dashboard container, card and
+   modal block. Applied as ONE utility rather than repeating an arbitrary
+   `border-[rgba(...)]` at each call site — the colour then lives in a token
+   and a future change is a one-line edit instead of a grep across a dozen
+   components.
+
+   Resting is deliberately near-invisible: these containers sit on a near-white
+   page, and anything stronger turns a dashboard of ten cards into a grid of
+   boxes. The hover lift is what tells you a container is interactive.
+
+   Use with a background + radius of the caller's choosing:
+     <div className="wms-card rounded-2xl bg-white p-6 shadow-xs">
+   Do NOT also pass `border border-gray-200` — the utility owns the border, and
+   a Tailwind border class alongside it wins on specificity.
+   ───────────────────────────────────────────────────────────────────────── */
+@utility wms-card {
+  border: 1px solid var(--color-card-hairline);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+@utility wms-card {
+  &:hover {
+    border-color: var(--color-card-hairline-hover);
+  }
 }
 
 /* Action-rail card hover lift.  Defined as a utility so each card can opt-in. */
@@ -939,6 +1112,36 @@ html[data-density="compact"] body {
   }
 }
 
+/* Pill-card filter trigger — icon badge + value/sublabel + chevron. */
+/* Compressed so the whole ribbon (date · filters · view toggle · switcher ·
+   search) holds ONE non-wrapping line — see the flex-nowrap row in
+   filter-bar.tsx. `shrink-0` keeps a pill from being squashed into its
+   neighbours; the row scrolls instead. */
+@utility filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  flex-shrink: 0;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-hairline);
+  border-radius: 11px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+@utility filter-pill {
+  &:hover {
+    border-color: var(--color-hairline-strong);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  }
+  &[data-active="true"] {
+    border-color: color-mix(in srgb, var(--color-altus-red) 30%, transparent);
+  }
+}
+
 @utility nav-pill {
   display: inline-flex;
   align-items: center;
@@ -1021,6 +1224,34 @@ html[data-density="compact"] body {
     0 10px 24px rgba(225, 6, 0, 0.38),
     0 0 0 4px rgba(225, 6, 0, 0.16);
 }
+
+/* ── NON-WMS MODULES (.nav-themed) — a deliberately DIFFERENT nav so a module
+   never reads as WMS (meeting 2026-06-29: every module its own style). Flat,
+   squared, OUTLINE tabs in the module colour (vs WMS's glossy filled pills);
+   active = solid module fill. The module colour comes from the per-module
+   --vp-cyan* override the header sets. */
+.header-light.nav-themed .nav-pill {
+  background: transparent;
+  border: 1.5px solid color-mix(in srgb, rgb(var(--vp-cyan)) 32%, transparent);
+  color: rgb(var(--vp-cyan-deep));
+  border-radius: 11px;
+  font-weight: 700;
+}
+.header-light.nav-themed .nav-pill:hover {
+  background: var(--vp-cyan-tint);
+  border-color: rgb(var(--vp-cyan));
+  color: rgb(var(--vp-cyan-deep));
+  transform: none;
+  box-shadow: none;
+}
+.header-light.nav-themed .nav-pill-active,
+.header-light.nav-themed .nav-pill-active:hover {
+  background: rgb(var(--vp-cyan));
+  color: #ffffff;
+  border-color: transparent;
+  border-radius: 11px;
+  box-shadow: 0 6px 16px -6px rgb(var(--vp-cyan));
+}
 .header-light .nav-pill-count {
   background: rgba(225, 6, 0, 0.18);
   color: rgb(var(--vp-cyan-deep));
@@ -1029,6 +1260,29 @@ html[data-density="compact"] body {
 .header-light .nav-pill-active .nav-pill-count {
   background: rgba(255, 255, 255, 0.26);
   color: #ffffff;
+}
+
+/* Hairline divider between the daily-driver pills and the grouped dropdowns
+   in the desktop header — gives the nav a clear "primary | more" hierarchy. */
+.nav-group-divider {
+  flex: none;
+  align-self: center;
+  width: 1px;
+  height: 22px;
+  margin: 0 6px;
+  border-radius: 1px;
+  background: rgba(225, 6, 0, 0.18);
+}
+
+/* Section label above each group's pills inside the mobile drawer. */
+.nav-drawer-section {
+  padding: 4px 12px 2px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted, #94a3b8);
 }
 
 /* Mobile drawer — render the primary nav as a full labelled vertical list.
@@ -1047,6 +1301,39 @@ html[data-density="compact"] body {
 .mobile-menu-body nav[aria-label="Primary"] .nav-pill > span:not(.nav-pill-badge) {
   display: inline-flex !important;
 }
+/* The drawer is a LIGHT panel but lives outside the `.header-light` scope, so
+   the base `nav-pill` (white text, made for the dark header) renders invisible
+   on white — and its small padding shrinks the tap targets, causing mis-taps
+   onto the wrong link. Re-apply the light-panel pill treatment, scoped to the
+   drawer, so labels are legible and every row is a full 44px+ touch target. */
+.mobile-menu-body .nav-pill {
+  background: var(--vp-cyan-tint);
+  border: 1.5px solid rgba(225, 6, 0, 0.28);
+  color: rgb(var(--vp-cyan-deep));
+  padding: 13px 16px;
+  font-weight: 700;
+}
+.mobile-menu-body .nav-pill:hover {
+  background: rgba(225, 6, 0, 0.14);
+  color: rgb(var(--vp-cyan-deep));
+  transform: none;
+}
+.mobile-menu-body .nav-pill-active,
+.mobile-menu-body .nav-pill-active:hover {
+  background: linear-gradient(135deg, rgb(var(--vp-cyan)), rgb(var(--vp-cyan-deep)));
+  color: #ffffff;
+  border-color: transparent;
+  transform: none;
+}
+.mobile-menu-body .nav-pill-count {
+  background: rgba(225, 6, 0, 0.18);
+  color: rgb(var(--vp-cyan-deep));
+  font-weight: 800;
+}
+.mobile-menu-body .nav-pill-active .nav-pill-count {
+  background: rgba(255, 255, 255, 0.26);
+  color: #ffffff;
+}
 
 /* react-day-picker theme overrides — match Light Vibrant palette */
 .rdp-root {
@@ -1064,11 +1351,14 @@ html[data-density="compact"] body {
   font-family: var(--font-sans);
   color: var(--color-ink);
 }
+/* Month caption reads as a plain UI label — the serif ITALIC it used to carry
+   looked like a typo in date pickers (Sir). Same weight/size, upright sans. */
 .rdp-root .rdp-caption_label,
 .rdp-root .rdp-month_caption {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 18px;
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-weight: 700;
+  font-size: 16px;
   color: var(--color-ink-strong);
   letter-spacing: -0.01em;
 }
@@ -1159,32 +1449,58 @@ html[data-density="compact"] body {
 /* Per-status neon palette. RGB triplets so we can use them in
    rgba()/color-mix() consumers without breaking. */
 :root {
-  --kpi-neon-total:        225 6 0;   /* #E10600 — Altus red */
-  --kpi-neon-need-help:    248 113 113; /* red-400   */
-  --kpi-neon-not-approved: 244 114 182; /* pink-400  */
-  --kpi-neon-done:         163 230 53;  /* lime-400  */
-  --kpi-neon-pending:      251 191 36;  /* amber-400 */
-  --kpi-neon-not-started:  167 139 250; /* violet-400 */
+  /* SEMANTIC KPI PALETTE (2026-08). Each status owns a Tailwind-exact pair:
+     the base is the BORDER / top-accent colour, the `-deep` companion is the
+     on-white INK used for the label and the badge pill's text. The pill's fill
+     is derived from the base via color-mix in kpi-strip.tsx, which lands on the
+     matching `-50` tint — so one token pair drives border, text and background
+     together and they cannot drift apart.
 
-  /* Deep companions — used for label text on a white tile so each
-     channel stays colour-coded but high-contrast (the bright neon
-     above is reserved for the dot, sparkline, and shadow accents). */
-  --kpi-neon-total-deep:        168 4 0;   /* #A80400 — Altus red deep */
-  --kpi-neon-need-help-deep:    153 27 27;   /* red-800    */
-  --kpi-neon-not-approved-deep: 157 23 77;   /* pink-800   */
-  --kpi-neon-done-deep:         63 98 18;    /* lime-800   */
-  --kpi-neon-pending-deep:      146 64 14;   /* amber-800  */
-  --kpi-neon-not-started-deep:  91 33 182;   /* violet-800 */
+     Replaces the earlier pastel-container scheme, which coloured by decoration
+     rather than meaning (Pending amber, Not Started purple) and so read as six
+     unrelated hues instead of a severity ramp. The ramp now runs
+     green → black → grey → dark red → bright red → red. */
+  --kpi-neon-done:         16 185 129;  /* emerald-500  #10B981 — border */
+  --kpi-neon-total:        0 0 0;       /* black        #000000 — border */
+  --kpi-neon-not-started:  156 163 175; /* gray-400     #9CA3AF — border */
+  --kpi-neon-not-approved: 159 18 57;   /* rose-800     #9F1239 — border */
+  --kpi-neon-need-help:    239 68 68;   /* red-500      #EF4444 — border */
+  --kpi-neon-pending:      220 38 38;   /* red-600      #DC2626 — border */
+
+  /* Deep companions — the label/badge INK on a white tile. */
+  --kpi-neon-done-deep:         5 150 105;  /* emerald-600  #059669 */
+  --kpi-neon-total-deep:        0 0 0;      /* black        #000000 */
+  --kpi-neon-not-started-deep:  75 85 99;   /* gray-600     #4B5563 */
+  --kpi-neon-not-approved-deep: 136 19 55;  /* rose-900     #881337 */
+  --kpi-neon-need-help-deep:    220 38 38;  /* red-600      #DC2626 */
+  --kpi-neon-pending-deep:      185 28 28;  /* red-700      #B91C1C */
+
+  /* Soft fills — the badge pill's background. Declared EXPLICITLY rather than
+     mixed from the base: a percentage tint works for the chromatic statuses but
+     collapses on Total, where any mix of pure black is a grey far darker than
+     the gray-100 the palette calls for. Full colours (not RGB triplets) because
+     nothing composes these further. */
+  --kpi-soft-done:         #ECFDF5;             /* emerald-50 */
+  --kpi-soft-total:        #F3F4F6;             /* gray-100   */
+  --kpi-soft-not-started:  #F9FAFB;             /* gray-50    */
+  --kpi-soft-not-approved: rgb(255 228 230 / 0.5); /* rose-100/50 */
+  --kpi-soft-need-help:    #FEF2F2;             /* red-50     */
+  --kpi-soft-pending:      #FEF2F2;             /* red-50     */
 
   /* Altus Corp brand indigo — primary accent across the dashboard
      surface. RGB triplets compose with rgba()/color-mix() the same way
      the neon palette does. Token names kept (--vp-cyan*) for back-compat
      with ~50 component refs; values now match the Altus Corp logo. */
+  /* Nav pills, hover rails and focus glows sit BEHIND text, so they keep the
+     brand red rather than a pastel that would wash the label out. */
   --vp-cyan:        225 6 0;   /* #E10600 */
   --vp-cyan-bright: 244 85 77; /* #F4554D */
   --vp-cyan-deep:   168 4 0;   /* #A80400 */
   --vp-cyan-glow:   rgba(225, 6, 0, 0.25);
   --vp-cyan-tint:   rgba(225, 6, 0, 0.08);
+  /* Neutral row-hover wash. Deliberately NOT --vp-cyan-tint: that one is red,
+     and red on this surface already means overdue / not-approved / critical. */
+  --task-row-hover-tint: rgba(15, 23, 42, 0.045);
 }
 
 /* The strip's substrate band. Light warm-white gradient with a soft
@@ -1454,27 +1770,24 @@ html[data-density="compact"] body {
   color: rgb(var(--vp-cyan-deep));
 }
 
-/* Aging Heatmap — click-anywhere lanes. Each lane lifts on hover with
-   a heat-tinted shadow + the chevron slides forward. */
+/* Aging Heatmap — click-anywhere lanes.
+   The lanes used to be cards: hover LIFTED each one 2px on a heat-tinted
+   drop-shadow. Once they became 46px table rows separated by a hairline, a lift
+   made the whole list shuffle under the cursor and the glow reintroduced exactly
+   the visual weight the compaction removed. Hover is now a row tint — the
+   convention for a dense table — and the chevron still slides forward. */
 .aging-lane {
   transition:
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 220ms ease-out;
+    background-color 140ms ease-out,
+    box-shadow 140ms ease-out;
 }
 .aging-lane:hover {
-  transform: translateY(-2px);
-  border-color: rgba(168, 4, 0, 0.35);
-  box-shadow:
-    0 16px 36px -16px rgba(168, 4, 0, 0.32),
-    0 4px 14px -4px rgba(15, 23, 42, 0.08);
+  background-color: var(--color-surface-soft);
 }
 .aging-lane:focus-visible {
   outline: none;
-  border-color: rgb(var(--vp-cyan));
-  box-shadow:
-    0 0 0 3px rgb(var(--vp-cyan) / 0.32),
-    0 16px 36px -16px rgba(168, 4, 0, 0.28);
+  background-color: var(--color-surface-soft);
+  box-shadow: inset 0 0 0 2px rgb(var(--vp-cyan) / 0.55);
 }
 .aging-lane-chevron > svg {
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -1513,20 +1826,26 @@ html[data-density="compact"] body {
    its value is shown inline next to the bar's number. */
 @media (max-width: 768px) {
   .aging-lane-mobile {
-    grid-template-columns: 1fr 56px 20px !important;
+    grid-template-columns: 1fr auto 40px 18px !important;
     grid-template-rows: auto auto;
     grid-template-areas:
-      "name total chev"
-      "bar  bar   bar";
-    row-gap: 8px;
+      "name risk total chev"
+      "bar  bar  bar   bar";
+    row-gap: 6px;
   }
+  /* Child order is: 1 employee · 2 risk · 3 bar · 4 total · 5 chevron.
+     These rules previously mapped 2→total and 4→"Avg days", a column the lane
+     no longer has — so the RISK badge was landing in the total slot and the
+     TOTAL was being lifted onto the bar with a `margin-top: -22px` tuned to the
+     old 52px bar height. At 18px that offset floats it clear off the lane.
+     Risk and total now get their own slots on the top row, which the smaller
+     badges leave room for. */
   .aging-lane-mobile > :nth-child(1) {
     grid-area: name;
     min-width: 0;
   }
   .aging-lane-mobile > :nth-child(2) {
-    /* Total badge — fits in the 56px slot */
-    grid-area: total;
+    grid-area: risk;
     justify-self: end;
   }
   .aging-lane-mobile > :nth-child(3) {
@@ -1534,12 +1853,9 @@ html[data-density="compact"] body {
     grid-area: bar;
     min-width: 0;
   }
-  /* The original 4th column ("Avg days") gets folded into the bar row. */
   .aging-lane-mobile > :nth-child(4) {
-    grid-area: bar;
-    align-self: end;
+    grid-area: total;
     justify-self: end;
-    margin-top: -22px;
   }
   .aging-lane-mobile > :nth-child(5) {
     grid-area: chev;
@@ -1555,9 +1871,191 @@ html[data-density="compact"] body {
 }
 
 /* Tasks table row — cyan hover rail (matches Status by Doer). */
+/* Row hover. The tint is NEUTRAL now: `--vp-cyan-tint` is a misnamed legacy
+   token whose value is Altus red at 8% (see the --vp-cyan block), so every
+   hovered row used to wash red — which competed with the red that actually
+   means something here (overdue accents, Not Approved pills, the Critical
+   badge). Slate at 4.5% reads as "you are on this row" without claiming
+   urgency; the red is spent on the left accent instead, where it anchors the
+   eye without tinting the content.
+
+   The left accent itself is a `border-l-4` on the row (see task-table.tsx), NOT
+   a box-shadow: the row already carries an INLINE box-shadow for overdue/today
+   urgency and keyboard focus, and inline styles beat this rule — so a hover
+   shadow here would simply not paint on exactly the rows that matter most. A
+   border is a different property, so the two compose instead of fighting. */
+.task-row {
+  cursor: default;
+  transition:
+    background-color 150ms ease-in-out,
+    border-color 150ms ease-in-out,
+    box-shadow 150ms ease-in-out;
+}
+/* Only when the row actually opens something — set by task-table.tsx when the
+   list is in drawer mode. A pointer on a row that does nothing is a lie. */
+.task-row.is-clickable {
+  cursor: pointer;
+}
 .task-row:hover {
-  background: var(--vp-cyan-tint);
-  box-shadow: inset 3px 0 0 rgb(var(--vp-cyan));
+  background: var(--task-row-hover-tint);
+  /* Lightweight lift. Overridden by the inline shadow on overdue / today /
+     focused rows, which already carry a stronger marker of their own. */
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.07);
+}
+
+/* Quick actions sit back until you are on the row, so a long list is not a wall
+   of icons — then come forward together. */
+.task-row .task-quick-actions {
+  opacity: 0.6;
+  transition:
+    opacity 150ms ease-in-out,
+    transform 150ms ease-in-out;
+}
+.task-row:hover .task-quick-actions {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Frozen "Manage" column (components/tasks/task-table.tsx).
+
+   The cell is `position: sticky; right: 0`, so the other columns slide UNDER it
+   during horizontal scroll. That only looks right if the cell paints an opaque
+   background of its own — but an opaque background would also mask the row's
+   hover / focus tints, leaving a mismatched pale block at the right edge. So the
+   background lives here and repeats each row state, rather than being a fixed
+   `bg-surface-card` utility on the cell.
+   ────────────────────────────────────────────────────────────────────────── */
+/* ALL THREE frozen columns, not just Manage. The checkbox and the timer are
+   `sticky left-0` / `left-12` as a pair, and Manage is `sticky right-0`
+   for the same reason Manage is `sticky right-0`, and it has the same
+   requirement: the other columns slide UNDERNEATH it, so it has to paint an
+   opaque background of its own or they show straight through. Sharing the
+   selectors keeps one source of truth for the three row states below — a
+   separate copy would drift the first time a tint changed. */
+/* LEFT-FROZEN COLUMNS (Client · Subject · Task · Action) — the sticky position
+   lives here, not inline, and only from `md` up.
+
+   The header <th> is already `sticky top-0` at every width for the vertical
+   freeze, so an inline `left` would take effect on phones too — where the body
+   cells are deliberately NOT frozen. The headers would then slide sideways
+   while their own columns stayed put. Gating both on one media query keeps the
+   two halves in step, and below `md` the whole block falls back to normal flow
+   (a ~790px frozen group leaves a phone nothing to scroll into).
+
+   `--frozen-left` is set per cell by the table (see frozenCell). */
+@media (min-width: 768px) {
+  .task-frozen-cell {
+    position: sticky;
+    left: var(--frozen-left, 0px);
+  }
+}
+
+.task-row > .task-actions-cell,
+.task-row > .task-timer-cell,
+.task-row > .task-frozen-cell,
+.task-row > .task-select-cell {
+  background: var(--color-surface-card);
+}
+
+/* The row tints are deliberately TRANSLUCENT (`--vp-cyan-tint` is 8% alpha),
+   which is fine for a normal row but NOT for this one: anything translucent
+   here lets the scrolled-under columns show straight through the frozen cell.
+   So the tint is painted as a gradient layer ON TOP of the opaque card surface
+   — visually identical to the row, but with no transparency. */
+.task-row:hover > .task-actions-cell,
+.task-row:hover > .task-timer-cell,
+.task-row:hover > .task-frozen-cell,
+.task-row:hover > .task-select-cell {
+  background:
+    linear-gradient(var(--task-row-hover-tint), var(--task-row-hover-tint)),
+    var(--color-surface-card);
+}
+
+/* Keyboard/deep-link focus tint — matches the row's `bg-altus-red/[0.06]`,
+   composited over the card surface so the cell stays fully opaque. */
+.task-row.is-focused > .task-actions-cell,
+.task-row.is-focused > .task-timer-cell,
+.task-row.is-focused > .task-frozen-cell,
+.task-row.is-focused > .task-select-cell {
+  background: color-mix(
+    in srgb,
+    var(--color-altus-red) 6%,
+    var(--color-surface-card)
+  );
+}
+
+/* Hover wins over the focus tint, matching the row's own precedence. */
+.task-row.is-focused:hover > .task-actions-cell {
+  background:
+    linear-gradient(var(--vp-cyan-tint), var(--vp-cyan-tint)),
+    var(--color-surface-card);
+}
+
+/* Aging drill-down drawer — the frozen actions column must repaint the row's
+   own background as an OPAQUE colour. Tailwind's hover:bg-gray-50/80 is
+   translucent, which would let the scrolled-under columns read through it. */
+.aging-drawer-row > .aging-drawer-actions {
+  background: #ffffff;
+}
+.aging-drawer-row:hover > .aging-drawer-actions {
+  background: color-mix(in srgb, rgb(249 250 251) 80%, #ffffff);
+}
+
+/* Task detail drawer — slides in from the right edge on row click. */
+@keyframes drawerIn {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Inbox rows — same frozen-column problem as the table above, different row
+   states. The inbox pane scrolls SIDEWAYS (eleven columns don't fit in a
+   38%-wide master pane), and the actions cell is `sticky right-0` against
+   that scrollport. Tailwind's `bg-surface-soft/40` and `bg-altus-red/[0.06]`
+   are translucent, so the cell must repaint each state as an OPAQUE colour or
+   the scrolled-under columns read straight through it.
+   ────────────────────────────────────────────────────────────────────────── */
+.inbox-row > .inbox-actions-cell {
+  background: var(--color-surface-card);
+}
+
+/* Read rows sit on `bg-surface-soft/40` — 40% soft over the card. */
+.inbox-row[data-state="read"] > .inbox-actions-cell {
+  background: color-mix(
+    in srgb,
+    var(--color-surface-soft) 40%,
+    var(--color-surface-card)
+  );
+}
+
+/* Selected row: matches `bg-altus-red/[0.06]`, composited over the card. */
+.inbox-row[data-state="selected"] > .inbox-actions-cell {
+  background: color-mix(
+    in srgb,
+    var(--color-altus-red) 6%,
+    var(--color-surface-card)
+  );
+}
+
+/* Hover is fully opaque on unread/read rows … */
+.inbox-row:hover > .inbox-actions-cell {
+  background: var(--color-surface-soft);
+}
+
+/* … but the selected tint outranks hover, matching the row's own precedence. */
+.inbox-row[data-state="selected"]:hover > .inbox-actions-cell {
+  background: color-mix(
+    in srgb,
+    var(--color-altus-red) 6%,
+    var(--color-surface-card)
+  );
 }
 
 /* New Task dialog — shared input chrome. Cyan focus ring + smooth
@@ -1567,9 +2065,14 @@ html[data-density="compact"] body {
    control rather than a flat box. */
 .nt-input {
   width: 100%;
-  padding: 15px 18px;
+  /* 38px total: 6px+6px padding + 14px text at 1.4 line-height + 1.5px borders.
+     Was 15px/18px at 17px type, which rested at ~56px and made the New Task
+     modal taller than most laptop viewports. Every consumer sizes off this one
+     rule, so the multi-select boxes must track it — see MultiDoer's minHeight. */
+  min-height: 38px;
+  padding: 6px 12px;
   font-family: var(--font-sans, system-ui, sans-serif);
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
   color: var(--color-ink-strong);
@@ -1610,13 +2113,16 @@ select.nt-input {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
-  padding-right: 46px;
+  /* Chevron gutter tracks the 12px horizontal padding above (was 46px/16px,
+     sized for the old 56px field) so a native <select> has the same text inset
+     as every sibling input at the compact 38px height. */
+  padding-right: 32px;
   cursor: pointer;
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"),
     linear-gradient(180deg, #ffffff 0%, #f5f7fa 100%);
   background-repeat: no-repeat, no-repeat;
-  background-position: right 16px center, center;
+  background-position: right 11px center, center;
   background-size: 14px, auto;
 }
 
@@ -2001,6 +2507,101 @@ select.nt-input {
 /* Hide scrollbars while keeping scrollability — used by the header nav so it
    can scroll within its slot under heavy zoom instead of overlapping the
    logo / action cluster (sir's changes #13). */
+/* SCROLL PADDING for the sticky band.
+   
+   Belt to the section-nav's braces: the pill click handler computes an exact
+   offset from the band's measured height, but a BROWSER-driven landing — a
+   `#section` URL, the back button, a find-in-page hit — runs no handler of
+   ours. `scroll-padding-top` is what the browser itself honours in those
+   cases.
+   
+   The sections also carry `scroll-mt-32`, which does the same job per element.
+   This is the page-level default so anything added later without that class
+   still clears the band. 140px covers the filter row plus the pill row at
+   their common heights; both mechanisms are approximations, and the click
+   path — the one people actually use — is the measured one. */
+html {
+  scroll-padding-top: 140px;
+}
+
+/* ELEVATION ON SCROLL for the dashboard's sticky band.
+   
+   `animation-timeline: scroll()` rather than a scroll listener: this is a
+   purely visual state change, and running it off a JS handler means a state
+   update on every scroll frame of the busiest page in the app. Where the
+   timeline is unsupported the shadow simply never appears — the band still has
+   its bottom hairline, so nothing is lost but the depth cue. */
+@supports (animation-timeline: scroll()) {
+  [data-dashboard-stickybar] {
+    animation: sticky-elevate linear both;
+    animation-timeline: scroll();
+    /* Fades in over the first 80px, so the shadow arrives as the band starts
+       overlapping content rather than sitting under it at rest. */
+    animation-range: 0 80px;
+  }
+}
+
+@keyframes sticky-elevate {
+  from {
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+  }
+  to {
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+  }
+}
+
+/* ── The dashboard card's edge ────────────────────────────────────────────
+   The border colour and ambient glow shared by every dashboard section
+   container (see DASHBOARD_CARD in components/dashboard/section-chrome.tsx).
+
+   WHY CSS AND NOT TAILWIND ARBITRARY VALUES. The border alone would be fine as
+   `border-[color:color-mix(...)]` — that pattern is already used elsewhere in
+   this app. The SHADOW is the problem: a colour function nested inside a
+   `shadow-[...]` arbitrary value is the kind of thing that either compiles or
+   silently does not, and a glow that quietly fails to render is invisible in
+   review precisely because it is meant to be barely visible. Here it is plain
+   CSS that can be read and confirmed.
+
+   Both values derive from --color-altus-red rather than Tailwind's red-500
+   (#EF4444). At 20% and 6% opacity the two are indistinguishable, so this
+   costs nothing visually and keeps one red in the system — the app's own.
+
+   The glow is deliberately weaker than the specified 5% of red-500 would
+   suggest at first glance: it sits on a pure-white dashboard, where a warm
+   shadow reads considerably stronger than it does on a tinted page. */
+.dashboard-card-edge {
+  border-color: color-mix(in srgb, var(--color-altus-red) 20%, transparent);
+  box-shadow: 0 2px 10px -3px color-mix(in srgb, var(--color-altus-red) 6%, transparent);
+}
+
+/* A SLIM scrollbar, for lists that are long enough to need one but light
+   enough that the native bar dominates them. `no-scrollbar` hides the bar
+   outright, which is wrong here: these lists scroll, and a reader has to be
+   able to see that they do. 6px with a pill thumb that only darkens on hover
+   says "there is more" without becoming the loudest thing on the card.
+
+   Firefox gets `scrollbar-width: thin` — it has no ::-webkit pseudo-elements,
+   and leaving it out is how a "custom scrollbar" ends up custom in Chrome and
+   chunky grey everywhere else. */
+.slim-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-slate-200, #e2e8f0) transparent;
+}
+.slim-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.slim-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.slim-scroll::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 9999px;
+}
+.slim-scroll::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -2011,12 +2612,150 @@ select.nt-input {
 
 /* Premium, slim scrollbar for the kanban board — smooth horizontal scroll
    with a subtle pill thumb instead of the chunky native bar (sir's #1). */
+/* ── Trackpad / touch panning, applied to every scroll container ────────────
+ * Tailwind's overflow utilities set only `overflow`. These four declarations
+ * are what make a two-finger swipe behave natively inside one, and they were
+ * missing everywhere: ~50 table and grid wrappers across the app each carry a
+ * bare `overflow-x-auto`, so setting this per-component would mean 50 diffs
+ * that the next new table would immediately forget.
+ *
+ *   touch-action           — without an explicit value a container inside a
+ *                            drag surface can have panning taken away from it;
+ *                            naming both axes keeps two-finger pan working.
+ *                            An element that needs to opt out (a dnd-kit
+ *                            draggable sets `none`) still wins: the effective
+ *                            value is the INTERSECTION down the ancestor
+ *                            chain, so this grants, never overrides.
+ *   overscroll-behavior    — stops the gesture chaining to the page/modal
+ *                            behind once the container hits its end.
+ *   -webkit-overflow-…     — legacy iOS Safari momentum. Inert elsewhere.
+ *
+ * `:where()` keeps specificity at 0, so any component can still override any
+ * of it with a plain class. */
+:where(.overflow-x-auto, .overflow-y-auto, .overflow-auto, .overflow-x-scroll, .overflow-y-scroll) {
+  touch-action: pan-x pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .kanban-scroll {
-  scroll-behavior: smooth;
-  overscroll-behavior-x: contain;
+  /* NO `scroll-behavior: smooth` here. The wheel handler writes scrollLeft on
+     every tick, and smooth turns each of those writes into its own animation —
+     a trackpad emitting 60 deltas/sec then spends its time interrupting and
+     restarting the previous animation, which is what made two-finger panning
+     feel laggy and rubbery. Programmatic jumps that DO want easing should call
+     scrollTo({ behavior: "smooth" }) themselves. */
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--color-ink-subtle) 35%, transparent) transparent;
 }
+/* The board surface is a canvas you can grab and throw sideways. The cursor
+   says so everywhere EXCEPT on things that do their own thing when clicked
+   (buttons, links, inputs) - cards keep their own `cursor-grab` utility. While
+   a pan is in flight the grabbing cursor wins over every child, so the hand
+   doesn't flicker back to a pointer as it sweeps across the columns. */
+.kanban-board-container {
+  cursor: grab;
+  /* The board's own ground. Without this the page canvas (--color-canvas-base,
+     #faf8f7 warm paper) showed through the 16px gaps between columns, so the
+     board still read peach even once the columns themselves went slate. White
+     here puts the slate-50 columns on a clean sheet. */
+  background: #ffffff;
+}
+.kanban-board-container :is(button, a, input, textarea, select) {
+  cursor: pointer;
+}
+.kanban-board-container :is(input, textarea) {
+  cursor: text;
+}
+.kanban-board-container.is-panning,
+.kanban-board-container.is-panning * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+/* ── THE KANBAN PALETTE ─────────────────────────────────────────────────────
+   One scope, carrying two changes the board asked for: the ten status colours,
+   and the removal of the warm cast.
+
+   WHY A SCOPE AND NOT A GLOBAL EDIT. Both halves of this are token overrides,
+   and the tokens are shared. `--color-surface-soft` and `--color-hairline` are
+   the app's warm paper ground and its brown-tinted hairline — deliberate, and
+   read by the dashboard cards, the tables and every drawer. `--color-rose` and
+   friends are read by the status badges, the pickers and the distribution
+   chart. Editing either at :root to fix the board would repaint half the app
+   in the same commit. Applied here, the board goes neutral and nothing outside
+   it moves.
+
+   THE PALETTE IS EXPRESSED IN THE TOKENS THE BOARD ALREADY RESOLVES. The
+   status→hue assignment is DB data (`status_settings.color_token`, seeded by
+   migration 0034 and editable in Admin → Settings), which the board reads as
+   `var(--color-<token>)`. Re-pointing the token here changes what the board
+   paints without touching that data and without overriding the admin's picker
+   anywhere else in the app.
+
+   Each status gets the three values it needs, mapped straight off the spec's
+   Tailwind classes: the BORDER colour becomes the accent (the header dot, the
+   top strip, the drop-target edge, the base of the count pill), the TEXT colour
+   becomes `-deep` (header label, pill figure, strip gradient end), and the
+   BG colour becomes `-bg` (the column fill while a card is held over it).
+
+   ── ADDING A DARK THEME ──────────────────────────────────────────────────
+   This block is the whole light palette; a dark theme is ONE SIBLING BLOCK
+   below it, redefining the same custom properties under whatever selector the
+   theme lands on. No component needs editing, because no component holds a
+   colour — they all read these names. That is the reason the values live here
+   as tokens rather than as `dark:` utility classes on the elements: this app
+   registers no dark variant (there is no `.dark`, no `[data-theme]` and no
+   `prefers-color-scheme` rule anywhere in this file), so a `dark:` class would
+   compile to a bare OS-preference media query with nothing behind it and paint
+   a near-black pill onto a white column for any reader whose system is dark.
+   ───────────────────────────────────────────────────────────────────────── */
+.kanban-palette {
+  /* ── NEUTRAL SURFACES (the "peach" that had to go) ──
+     surface-soft was #f8f6f4 (warm cream) and the hairline was a brown at 7%.
+     Together they are what gave every column and card a peach cast. */
+  --color-surface-soft:    #f8fafc;                 /* slate-50  — column ground */
+  --color-hairline:        rgba(15, 23, 42, 0.08);  /* neutral slate hairline */
+  --color-hairline-strong: rgba(15, 23, 42, 0.14);
+  /* The card hover edge. Was `altus-red/40` — brand red at 40% on white is a
+     salmon-pink glow, which is the "card hover glow" half of the complaint. */
+  --kanban-hover-edge:     #cbd5e1;                 /* slate-300 */
+
+  /* ── THE TEN STATUS COLUMNS ──
+     `not_started` (the `blue` family) is deliberately absent: the brief says
+     retain its existing neutral default, so it is left reading the global
+     token like every other surface in the app. */
+
+  /* Not Read — grey */
+  --color-stone:   #cbd5e1;  --color-stone-deep:  #334155;  --color-stone-bg:  #f1f5f9;
+  /* Initiated — vibrant yellow (amber) */
+  --color-yellow:  #fcd34d;  --color-yellow-deep: #92400e;  --color-yellow-bg: #fef3c7;
+  /* Follow Up — warm orange */
+  --color-orange:  #fdba74;  --color-orange-deep: #9a3412;  --color-orange-bg: #ffedd5;
+  /* Need Info — bright red */
+  --color-red:     #fca5a5;  --color-red-deep:    #991b1b;  --color-red-bg:    #fee2e2;
+  /* Done — emerald green */
+  --color-green:   #6ee7b7;  --color-green-deep:  #065f46;  --color-green-bg:  #d1fae5;
+  /* Not Approved — dark red / crimson. This token was #f9ceda: a literal light
+     pink, and the single loudest source of the "pinky pinky" on the board. The
+     accent is deliberately DARK here where the other families take a -300,
+     because the whole point of the change is that a declined task reads as a
+     crimson event rather than a pastel one — and because it has to stay
+     distinguishable from Need Info's bright red two columns away. */
+  --color-rose:    #9f1239;  --color-rose-deep:   #881337;  --color-rose-bg:   #eddce1;
+  /* Approved — deep purple */
+  --color-purple:  #d8b4fe;  --color-purple-deep: #6b21a8;  --color-purple-bg: #f3e8ff;
+  /* On Hold — solid brown (Tailwind's warm grey). `slate` is On Hold's token
+     in status_settings, and inside this scope On Hold is the ONLY column that
+     carries it — `cancelled`, the other slate status, is deprecated and not a
+     board column — so re-pointing it here needs no migration and moves nothing
+     else. Outside this scope `slate` is still the app's dark grey. */
+  --color-slate:   #a8a29e;  --color-slate-deep:  #292524;  --color-slate-bg:  #e7e5e4;
+}
+
 .kanban-scroll::-webkit-scrollbar {
   height: 10px;
   width: 10px;
@@ -2061,8 +2800,221 @@ select.nt-input {
   background: color-mix(in srgb, var(--color-ink-subtle) 32%, transparent);
   border-radius: 9999px;
 }
+
+/* ============================================================
+   Premium dropdown language — one cohesive look shared by the
+   Goals `Select` (components/ui/select.tsx) + `GoalLookupSelect`
+   (components/goals/board/goal-lookup-select.tsx). GPU/opacity-
+   only motion, reduced-motion safe. `!important` is deliberate:
+   it lets these win over the shared PopoverContent's inline
+   box-shadow + Tailwind border/bg utilities without forking the
+   primitive, so every Goals dropdown reads identically.
+   ============================================================ */
+@keyframes gddPanelIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* The floating panel (applied to the PopoverContent). */
+.gdd-panel {
+  border-radius: 1rem !important;                 /* rounded-2xl */
+  border: 1px solid var(--color-hairline-strong) !important;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-card) 94%, var(--color-altus-red) 3%),
+      color-mix(in srgb, var(--color-surface-card) 90%, transparent)
+    ) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  backdrop-filter: blur(14px) saturate(1.15);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 24px 60px -24px rgba(15, 23, 42, 0.42),
+    0 10px 26px -18px color-mix(in srgb, var(--color-altus-red) 30%, transparent) !important;
+  transform-origin: top center;
+  animation: gddPanelIn 0.18s cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gdd-panel { animation: none !important; }
+}
+
+/* Tasteful, brand-tinted slim scrollbar for the option lists. */
+.gdd-scroll {
+  /* Contain the gesture: without this, flicking past the end of an open
+     dropdown chains the scroll into the modal (or the page) behind it and the
+     list slides out from under the pointer. */
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-altus-red) 34%, transparent) transparent;
+}
+.gdd-scroll::-webkit-scrollbar { width: 8px; }
+.gdd-scroll::-webkit-scrollbar-track { background: transparent; }
+.gdd-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-altus-red) 28%, transparent);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.gdd-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-altus-red) 52%, transparent);
+  background-clip: padding-box;
+}
+
+/* The trigger — rounded-xl, top-lit surface, red-tinted 1.5px border
+   that intensifies to full altus-red on hover / focus / open, an inset
+   highlight + soft drop shadow, and a visible red focus ring. */
+.gdd-trigger {
+  border: 1.5px solid color-mix(in srgb, var(--color-altus-red) 22%, var(--color-hairline)) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 46%),
+    var(--color-surface-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 10px 22px -18px color-mix(in srgb, var(--color-altus-red) 42%, transparent);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+.gdd-trigger:hover {
+  border-color: color-mix(in srgb, var(--color-altus-red) 46%, transparent) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 2px 5px rgba(15, 23, 42, 0.07),
+    0 14px 28px -18px color-mix(in srgb, var(--color-altus-red) 56%, transparent);
+}
+.gdd-trigger:focus-visible,
+.gdd-trigger[data-state="open"] {
+  border-color: var(--color-altus-red) !important;
+  outline: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 3px color-mix(in srgb, var(--color-altus-red) 22%, transparent),
+    0 14px 30px -18px color-mix(in srgb, var(--color-altus-red) 62%, transparent);
+}
+
+/* ── Collapsible module LEFT-RAIL (components/layout/dashboard-sidebar.tsx) ──
+   The rail stays vertical; when SidebarRail sets data-collapsed="true" it shrinks
+   to a 74px icon strip. Everything marked .sidebar-collapsible-hide disappears,
+   the nav pills + brand blocks reduce to centered icons, and content reclaims the
+   freed width. Toggle state persists in the `sidebar_collapsed` cookie. */
+.sidebar-rail {
+  transition: width 180ms ease;
+}
+.sidebar-rail[data-collapsed="true"] .sidebar-collapsible-hide {
+  display: none !important;
+}
+/* Safety: an expanded rail pill's label WRAPS rather than clipping if a label
+   ever runs long (e.g. HR's "Queries & Notifications"). The HR rail is widened
+   so this shouldn't trigger, but a clean two-line pill always beats overflow. */
+.sidebar-rail[data-collapsed="false"] .sidebar-nav .nav-pill {
+  align-items: center;
+}
+.sidebar-rail[data-collapsed="false"] .sidebar-nav .nav-pill > span:not(.nav-pill-badge):not(.nav-pill-count) {
+  white-space: normal;
+  text-align: left;
+  line-height: 1.15;
+}
+
+/* Nav pills → icon only, centered. */
+.sidebar-rail[data-collapsed="true"] .nav-pill {
+  justify-content: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+.sidebar-rail[data-collapsed="true"] .nav-pill > span:not(.nav-pill-badge) {
+  display: none;
+}
+/* Module wordmark → icon tile only. */
+.sidebar-rail[data-collapsed="true"] .module-wordmark {
+  justify-content: center;
+  gap: 0;
+}
+.sidebar-rail[data-collapsed="true"] .module-wordmark-text {
+  display: none;
+}
+/* Brand / hub / nav / foot → centered + compact padding. */
+.sidebar-rail[data-collapsed="true"] .sidebar-brand {
+  align-items: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+.sidebar-rail[data-collapsed="true"] .sidebar-logo {
+  justify-content: center;
+}
+/* Collapsed rail is 74px wide with 0.5rem side padding (58px of room), so the
+   mark steps down here. Bumped in step with the expanded 68px so the two
+   states stay proportional. */
+.sidebar-rail[data-collapsed="true"] .sidebar-logo img {
+  height: 3rem;
+}
+/* (The collapsed rules for `.sidebar-hub` / `.sidebar-hub-btn` lived here.
+   Dropped with the "Back to Hub" pill itself — the brand block links to /hub
+   now, and nothing else in the app used those two classes.) */
+.sidebar-rail[data-collapsed="true"] .sidebar-nav {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+.sidebar-rail[data-collapsed="true"] .sidebar-foot {
+  justify-content: center;
+}
+/* Collapsed: the top control row keeps only the toggle → centre it; the footer
+   profile bar keeps only the avatar → centre it too. */
+.sidebar-rail[data-collapsed="true"] .sidebar-toprow {
+  justify-content: center;
+}
+.sidebar-rail[data-collapsed="true"] .sidebar-foot button {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-rail {
+    transition: none;
+  }
+}
 .nav-scroll::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--color-altus-red) 55%, transparent);
+}
+
+/* ── Clean borderless left-rail nav (2026-07-29) ───────────────────────────
+   Module sidebar nav items: NO outlined box — just icon + label on quiet slate
+   text (like a plain list). Soft neutral wash on hover; a subtle brand-tint
+   fill (borderless, no ring, no lift) marks the selected item. Applies to every
+   module that uses the left rail. Scoped to `.sidebar-rail` so the header, hub
+   cards and mobile drawer keep their own styling. Icons inherit `currentColor`. */
+.sidebar-rail .sidebar-nav .nav-pill {
+  border-radius: 12px;
+  padding: 9px 12px;
+  background: transparent;
+  border: none;
+  color: var(--color-ink-soft);
+  box-shadow: none;
+}
+.sidebar-rail .sidebar-nav .nav-pill:hover {
+  background: color-mix(in srgb, var(--color-ink-strong) 5%, transparent);
+  border-color: transparent;
+  color: var(--color-ink-strong);
+  transform: none;
+  box-shadow: none;
+}
+.sidebar-rail .sidebar-nav .nav-pill-active,
+.sidebar-rail .sidebar-nav .nav-pill-active:hover {
+  /* Selected: subtle brand-tint fill + red label — NO box outline. */
+  background: color-mix(in srgb, var(--color-altus-red) 10%, transparent);
+  border: none;
+  border-color: transparent;
+  color: var(--color-altus-red-deep);
+  box-shadow: none;
+  transform: none;
+}
+.sidebar-rail .sidebar-nav .nav-pill-count {
+  background: rgba(0, 0, 0, 0.06);
+  color: #1a1a1a;
+}
+.sidebar-rail .sidebar-nav .nav-pill-active .nav-pill-count {
+  background: color-mix(in srgb, var(--color-altus-red) 22%, #ffffff);
+  color: var(--color-altus-red-deep);
 }
 
 /* Outstanding dashboard print — when this page is printed, hide the global
@@ -2086,4 +3038,448 @@ select.nt-input {
     box-shadow: none !important;
     border-color: #d4d4d8 !important;
   }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Weekly Goals — premium redesign toolkit (jaw-dropping pass).
+   Reusable, GPU-friendly (transform/opacity only), reduced-motion safe.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Staggered entrance for cards/sections. Pair with inline animation-delay. */
+.wg-rise { animation: fadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* While a Goals card is being dragged, dnd-kit re-renders the board ~every
+   frame; that was restarting the `.wg-rise` entrance animation on the SIBLING
+   cards, flashing them to opacity:0 (blank white) mid-drag. Pin every
+   entrance-animated card to its final state during the drag — `!important`
+   author declarations win over a running animation in the cascade, so this
+   overrides the flicker without touching `animation` (no replay on drop). */
+[data-goals-dragging="true"] .wg-rise {
+  opacity: 1 !important;
+  transform: none !important;
+}
+/* The empty slot the dragged card leaves behind reads as an intentional,
+   pulsing red drop-zone instead of a dead white box. */
+@keyframes goalsDropPulse {
+  0%, 100% { border-color: color-mix(in srgb, var(--color-altus-red) 42%, transparent); }
+  50% { border-color: color-mix(in srgb, var(--color-altus-red) 70%, transparent); }
+}
+.goals-drag-source {
+  animation: goalsDropPulse 1.3s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .goals-drag-source { animation: none; }
+}
+
+/* Weekly Goals drawer (Edit / Review) — slide from the right, fade the backdrop.
+   On phones the panel becomes a bottom sheet, so it rises instead. */
+@keyframes wgFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wgModalIn { from { transform: scale(0.965) translateY(8px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+@keyframes wgDrawerInUp { from { transform: translateY(32px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.wg-fade-in { animation: wgFadeIn 0.2s ease both; }
+.wg-modal-in { animation: wgModalIn 0.24s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (max-width: 767px) {
+  .wg-modal-in { animation: wgDrawerInUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wg-fade-in, .wg-modal-in { animation: none !important; }
+}
+
+/* Polished button: lift on hover, settle on press. */
+.wg-btn {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s ease, filter 0.2s ease, background-color 0.2s ease,
+    border-color 0.2s ease, color 0.2s ease;
+}
+.wg-btn:hover { transform: translateY(-2px); }
+.wg-btn:active { transform: translateY(0) scale(0.985); }
+
+/* ── Brand-red labeled buttons (per Sir 2026-07-17) ──────────────────────────
+   Canonical fill for EVERY text-labeled button — primary, secondary, cancel,
+   ghost, submit. Icon-only buttons, filter pills and tab/segment toggles do NOT
+   use this. `.brand-btn` = full-strength solid Altus red; `.brand-btn--soft` =
+   the same red at slightly lower emphasis. The `!important` fill is author-
+   important, so it overrides BOTH Tailwind `bg-*` utility classes AND normal
+   inline `style={{background}}` backgrounds (author !important beats inline
+   normal in the cascade) — i.e. adding `.brand-btn` reddens a button whatever
+   its previous colour. Stateful controls (the punch dial, paid/unpaid toggles)
+   are deliberately NOT given this class so they keep their state colours. */
+/* MODULE ACCENT (goals-redesign design §6): `.brand-btn` (and any pill/focus
+   ring that opts in) reads `--module-accent[-deep]` with the Altus red as the
+   fallback. NO module sets these globally — a module SHELL (e.g. the Goals
+   canvas root) sets them inline on its subtree, so WMS stays exactly the red
+   it is today while Goals renders the same primitives amber. One Button kit
+   serves every module identity (lib/module-theme.ts). */
+/* 2026-07-28 — Softened to a PASTEL fill (light red-tint + red text + hairline
+   red border) so the whole app reads light. Was a solid red gradient. */
+.brand-btn {
+  background: color-mix(in srgb, var(--module-accent, var(--color-altus-red)) 12%, #fff) !important;
+  color: var(--module-accent-deep, var(--color-altus-red-deep)) !important;
+  border: 1.5px solid color-mix(in srgb, var(--module-accent, var(--color-altus-red)) 30%, transparent) !important;
+  box-shadow: none;
+}
+.brand-btn:hover {
+  background: color-mix(in srgb, var(--module-accent, var(--color-altus-red)) 20%, #fff) !important;
+  border-color: color-mix(in srgb, var(--module-accent, var(--color-altus-red)) 45%, transparent) !important;
+  filter: none;
+}
+.brand-btn:disabled { opacity: 0.55; }
+
+/* Pastel primary CTA — the soft version of the bold red gradient buttons that
+   were set inline (New goal, Add Goal, Save…). Light red-tint fill, red text,
+   hairline red border. Apply `.pastel-cta` and drop the inline red background +
+   `text-white`. Reads `--module-accent` so per-module identity still applies. */
+.pastel-cta {
+  background: color-mix(in srgb, var(--module-accent, var(--color-altus-red)) 12%, #fff) !important;
+  color: var(--module-accent-deep, var(--color-altus-red-deep)) !important;
+  border: 1.5px solid color-mix(in srgb, var(--module-accent, var(--color-altus-red)) 30%, transparent) !important;
+  box-shadow: none !important;
+}
+.pastel-cta:hover {
+  background: color-mix(in srgb, var(--module-accent, var(--color-altus-red)) 20%, #fff) !important;
+  border-color: color-mix(in srgb, var(--module-accent, var(--color-altus-red)) 45%, transparent) !important;
+}
+.brand-btn--soft {
+  background: color-mix(in srgb, var(--module-accent, var(--color-altus-red)) 14%, var(--color-surface-card)) !important;
+  color: var(--module-accent-deep, var(--color-altus-red-deep)) !important;
+  border: 1.5px solid color-mix(in srgb, var(--module-accent, var(--color-altus-red)) 40%, transparent) !important;
+  box-shadow: none;
+}
+.brand-btn--soft:hover {
+  background: color-mix(in srgb, var(--module-accent, var(--color-altus-red)) 22%, var(--color-surface-card)) !important;
+  filter: none;
+}
+
+/* Primary CTA gets a slow light sheen sweeping across on hover. */
+.wg-sheen { position: relative; overflow: hidden; }
+.wg-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 80%
+  );
+  transform: translateX(-130%);
+  pointer-events: none;
+}
+.wg-sheen:hover::after { animation: wgSheen 0.9s ease; }
+@keyframes wgSheen {
+  to { transform: translateX(130%); }
+}
+
+/* Score-ring "championship" glow — applied when score clears the target. */
+.wg-ring-glow { animation: wgRingGlow 3.2s ease-in-out infinite; }
+@keyframes wgRingGlow {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.35)); }
+  50%      { filter: drop-shadow(0 0 16px rgba(245, 158, 11, 0.7)); }
+}
+
+/* Mandatory 5-goal meter — a pip that just filled gives a soft pop. */
+.wg-pip-pop { animation: wgPipPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes wgPipPop {
+  0% { transform: scale(0.6); opacity: 0.4; }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* The "add N more" nudge breathes until the minimum is met. */
+.wg-nudge { animation: wgNudge 2.4s ease-in-out infinite; }
+@keyframes wgNudge {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(225, 6, 0, 0); }
+  50%      { box-shadow: 0 0 0 5px rgba(225, 6, 0, 0.12); }
+}
+
+/* MODULE WORDMARK — the BIG animated module name in the header. Gradient-filled
+   text (per-module colours via --mw-a / --mw-b) with a sweeping light sheen, plus
+   an entrance pop on the icon tile. Replaces the old flat module pill. */
+.module-wordmark { animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.module-wordmark-icon { animation: mwPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.module-wordmark-text {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  background-image: linear-gradient(
+    100deg,
+    var(--mw-a) 0%, var(--mw-b) 30%, #ffffff 48%, var(--mw-b) 66%, var(--mw-a) 100%
+  );
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: mwSheen 5s linear infinite;
+}
+@keyframes mwSheen {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -40% 0; }
+}
+@keyframes mwPop {
+  0%   { transform: scale(0.6) rotate(-8deg); opacity: 0; }
+  60%  { transform: scale(1.1); }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wg-rise { animation: none !important; }
+  .wg-btn { transition: none !important; }
+  .wg-btn:hover, .wg-btn:active { transform: none !important; }
+  .wg-sheen:hover::after { animation: none !important; }
+  .wg-ring-glow, .wg-pip-pop, .wg-nudge { animation: none !important; }
+  .module-wordmark, .module-wordmark-icon { animation: none !important; }
+  .module-wordmark-text { animation: none !important; background-position: 0 0 !important; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   ADMIN premium kit — shared glass surfaces for the 16 admin section pages.
+   Owned by the admin-ui-kit slice. Brand-red identity, frosted glass, layered
+   depth, hairline borders. GPU/opacity-only motion, reduced-motion safe.
+   Consumed by: components/admin/ui/{section-shell,data-table,stat-pill}.tsx
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Glassy gradient header band that crowns every admin section page. A frosted
+   translucent surface with a soft brand-red wash top-left, a cool lavender
+   bias top-right (echoing the app body gradient), a hairline bottom border,
+   and a big ambient drop shadow so it floats above the page canvas. */
+@utility admin-section-band {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: var(--radius-section);
+  background:
+    radial-gradient(ellipse 70% 130% at 0% 0%, rgba(225, 6, 0, 0.10), transparent 62%),
+    radial-gradient(ellipse 60% 130% at 100% 0%, rgba(168, 139, 250, 0.08), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, rgba(255, 255, 255, 0.70) 100%);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid var(--color-hairline);
+  border-bottom: 1px solid var(--color-hairline-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 1px 3px rgba(15, 23, 42, 0.05),
+    0 20px 48px -26px rgba(15, 23, 42, 0.20),
+    0 6px 18px -10px rgba(225, 6, 0, 0.10);
+}
+/* A hairline accent seam sitting on the band's very top edge, brand-red
+   fading out — the "this section is Altus admin" tell. */
+@utility admin-section-band {
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      var(--color-altus-red) 0%,
+      var(--color-altus-red-deep) 22%,
+      color-mix(in srgb, var(--color-altus-red) 20%, transparent) 55%,
+      transparent 85%
+    );
+    pointer-events: none;
+    z-index: 3;
+  }
+}
+
+/* The square icon tile shown beside the section title — brand-red gradient
+   chip with a glossy top highlight + tone-tinted shadow. */
+@utility admin-section-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #F4554D 0%, var(--color-altus-red) 48%, var(--color-altus-red-deep) 100%);
+  border: 1px solid rgba(168, 4, 0, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    0 8px 20px -8px rgba(225, 6, 0, 0.55),
+    0 2px 4px rgba(168, 4, 0, 0.25);
+}
+
+/* Stat pill — a compact frosted metric chip used in the band's stat row.
+   Neutral by default; the tone modifiers repaint value + dot. */
+@utility admin-stat-pill {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.60);
+  border: 1px solid var(--color-hairline);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: transform 200ms cubic-bezier(0.2, 0.7, 0.3, 1), box-shadow 200ms ease, border-color 200ms ease;
+}
+@utility admin-stat-pill {
+  &:hover {
+    transform: translateY(-1px);
+    border-color: var(--color-hairline-strong);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 8px 18px -10px rgba(15, 23, 42, 0.20);
+  }
+}
+
+/* Frosted card that wraps the DataTable (toolbar + table live inside). */
+@utility admin-panel {
+  border-radius: var(--radius-section);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--color-hairline);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 1px 3px rgba(15, 23, 42, 0.05),
+    0 18px 44px -28px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+}
+
+/* The DataTable's frosted, sticky toolbar (search + filters + count). */
+@utility admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.5));
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+/* Search input inside the toolbar. */
+@utility admin-search {
+  width: 100%;
+  padding: 11px 12px 11px 40px;
+  border-radius: var(--radius-chip);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-hairline);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
+  font-size: 15px;
+  color: var(--color-ink-strong);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+@utility admin-search {
+  &::placeholder { color: var(--color-ink-subtle); }
+  &:hover { border-color: var(--color-hairline-strong); }
+  &:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--color-altus-red) 55%, transparent);
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03), 0 0 0 4px rgba(225, 6, 0, 0.08);
+  }
+}
+
+/* Filter <select> in the toolbar. */
+@utility admin-filter-select {
+  appearance: none;
+  padding: 9px 34px 9px 12px;
+  border-radius: var(--radius-chip);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-hairline);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+@utility admin-filter-select {
+  &:hover { border-color: var(--color-hairline-strong); }
+  &:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--color-altus-red) 55%, transparent);
+    box-shadow: 0 0 0 4px rgba(225, 6, 0, 0.08);
+  }
+}
+
+/* Sortable column-header button inside the DataTable head. */
+@utility admin-th-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 160ms ease;
+}
+@utility admin-th-btn {
+  &:hover { color: var(--color-ink-strong); }
+}
+
+/* Table row hover — a soft brand-tinted wash, no zebra. */
+@utility admin-row {
+  transition: background 140ms ease;
+}
+@utility admin-row {
+  &:hover { background: color-mix(in srgb, var(--color-altus-red) 4%, transparent); }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Day-Ledger paper — the shared brand canvas across the accountability suite
+   (gate, board, fill, dashboard). Warm-paper gradient + faint ruled lines, both
+   as BACKGROUNDS so they always sit behind content (never overlap text).
+   ────────────────────────────────────────────────────────────────────────── */
+.ledger-paper {
+  background-color: #FBF7F0;
+  background-image:
+    repeating-linear-gradient(rgba(27, 20, 14, 0.05) 0 1px, transparent 1px 40px),
+    linear-gradient(160deg, #F4EEE3 0%, #FBF7F0 62%);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Full-height content column — the page fills the viewport to the bottom edge.
+
+   Chain: ChromeShell gives a `min-h-dvh` flex column → `.app-shell-column`
+   (app/(app)/template.tsx) stretches into it with `flex-1` → the page's own
+   <main> grows to eat the leftover height, so a short page still reaches the
+   bottom of the screen instead of stopping mid-way.
+
+   The global dark footer that used to terminate this column was removed; the
+   body's fixed gradient (see `body` in @layer base) now paints everything below
+   the content, so there is no bare white band and no extra element to pin.
+
+   `flex: 1 0 auto` — basis `auto` so a tall page still measures by its own
+   content, grow 1 to absorb slack on short pages, shrink 0 so long content is
+   never squeezed. Scoped to a DIRECT <main> child; pages that render their
+   sections as bare siblings (no <main>) simply inherit the column's height.
+   ────────────────────────────────────────────────────────────────────────── */
+.app-shell-column > main {
+  flex: 1 0 auto;
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────────
+   FOCUS MODE (Ctrl+Q) — collapse everything that is not the work surface, so
+   the current page fills the screen. Driven by `data-focus-mode` on <html>
+   (components/layout/focus-mode.tsx), which means no layout component has to
+   know the mode exists and any page gets it for free.
+
+   Exit is Esc (or Ctrl+Shift+Q). Ctrl+W is deliberately NOT bound: it is the
+   browser's close-tab shortcut and cannot be intercepted.
+   ────────────────────────────────────────────────────────────────────────── */
+:root[data-focus-mode="on"] .sidebar-rail,      /* the desktop left rail      */
+:root[data-focus-mode="on"] aside.hr-rail,      /* the HR room's own rail     */
+:root[data-focus-mode="on"] header.header-light,/* the sticky top bar         */
+:root[data-focus-mode="on"] .module-footer,     /* the module footer          */
+:root[data-focus-mode="on"] .no-focus-mode {    /* opt-out hook for any page  */
+  display: none !important;
+}
+
+/* The mobile top bar is a fixed div, not a header — hide it too, and drop the
+   padding the layout reserves for it so the surface starts at the very top. */
+:root[data-focus-mode="on"] .app-shell-column {
+  padding-top: 0 !important;
+}
+:root[data-focus-mode="on"] .max-md\:pt-14 {
+  padding-top: 0 !important;
 }

@@ -14,7 +14,7 @@ export function ShortcutsCheatsheet() {
       }}
     >
       <SectionHeader
-        title="Keyboard shortcuts"
+        title="Keyboard Shortcuts"
         description="Speed-ups for power users. Press ? from anywhere to see this overlay."
         savedAt={null}
       />

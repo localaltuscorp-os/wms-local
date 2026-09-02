@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import type { IntegrationStatus } from "@/lib/queries/integration-health";
 import { sendIntegrationTestAction } from "@/app/(admin)/admin/settings/actions";
+import { formatDate, localDateString } from "@/lib/format";
 
 const TITLES: Record<IntegrationStatus["channel"], string> = {
   email: "Email (Resend)",
@@ -48,7 +49,7 @@ export function IntegrationCard({ status }: { status: IntegrationStatus }) {
               status.connected ? "bg-emerald-500" : "bg-zinc-400"
             }`}
           />
-          {status.connected ? "Connected" : "Not configured"}
+          {status.connected ? "Connected" : "Not Configured"}
         </span>
       </div>
 
@@ -58,25 +59,25 @@ export function IntegrationCard({ status }: { status: IntegrationStatus }) {
           <dd className="font-mono">{status.maskedKey ?? "—"}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-ink-subtle">Last 24h success</dt>
+          <dt className="text-ink-subtle">Last 24h Success</dt>
           <dd className="font-mono">{status.successLast24h}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-ink-subtle">Last sent</dt>
+          <dt className="text-ink-subtle">Last Sent</dt>
           <dd className="font-mono">
             {/* Deterministic format — bare toLocaleString() differs between
                 server and browser locales and hydration-crashed the whole
                 settings page (regenerating, and wiping, the General form). */}
             {status.lastSuccessAt
-              ? new Intl.DateTimeFormat("en-IN", {
-                  timeZone: "Asia/Kolkata",
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: true,
-                }).format(new Date(status.lastSuccessAt))
+              ? `${formatDate(localDateString("Asia/Kolkata", new Date(status.lastSuccessAt)))}, ${new Intl.DateTimeFormat(
+                  "en-IN",
+                  {
+                    timeZone: "Asia/Kolkata",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  },
+                ).format(new Date(status.lastSuccessAt))}`
               : "—"}
           </dd>
         </div>
@@ -90,7 +91,7 @@ export function IntegrationCard({ status }: { status: IntegrationStatus }) {
           className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(15,23,42,0.10)] bg-white px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
         >
           {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          {pending ? "Sending…" : "Send test to me"}
+          {pending ? "Sending…" : "Send Test to Me"}
         </button>
         {result === "ok" && (
           <span className="inline-flex items-center gap-1 text-sm text-emerald-700">

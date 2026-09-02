@@ -29,11 +29,12 @@ describe("isSuperAdmin", () => {
     expect(isSuperAdmin("")).toBe(false);
   });
 
-  it("exposes exactly the two configured emails", () => {
-    expect(SUPER_ADMIN_EMAILS).toHaveLength(2);
+  it("exposes exactly the configured emails", () => {
+    expect(SUPER_ADMIN_EMAILS).toHaveLength(3);
     expect([...SUPER_ADMIN_EMAILS]).toEqual([
       "heteshvichare.altuscorp@gmail.com",
       "manan@unleashed.in",
+      "system.service.altus@gmail.com",
     ]);
   });
 });

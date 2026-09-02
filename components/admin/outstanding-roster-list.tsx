@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { MoreHorizontal, Pencil, Power } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, Power } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import { DataTable } from "@/components/admin/ui/data-table";
 import type {
   ActionResult,
   CreateRosterInput,
@@ -43,12 +44,15 @@ interface Props {
 }
 
 /**
- * Shared admin roster manager for the three Outstanding lookup lists
- * (products / entities / payment modes). Mirrors the Clients admin list UX:
- * a create dialog, a table with inline rename + activate/deactivate, and a
- * usage-count column. There's no delete — the roster actions intentionally
- * only support create + update (rows are referenced by contracts via
- * ON DELETE SET NULL, so deactivation is the safe "remove from picker" path).
+ * Shared admin roster manager for the four Outstanding lookup lists
+ * (products / entities / payment modes / responsibles). Now built on the
+ * premium admin kit: the create CTA renders standalone (mounted in the page's
+ * <AdminSection actions> slot via <RosterCreateButton>) and the table is the
+ * kit <DataTable> with client search, an Active/Inactive filter, and sortable
+ * Name/Sort/Usage columns. Inline rename + activate/deactivate live in the
+ * per-row menu. There's no delete — the roster actions intentionally only
+ * support create + update (rows are referenced by contracts via ON DELETE SET
+ * NULL, so deactivation is the safe "remove from picker" path).
  */
 export function OutstandingRosterList({
   title,
@@ -62,35 +66,6 @@ export function OutstandingRosterList({
 
   const noun = title.replace(/s$/, "").toLowerCase();
 
-  if (items.length === 0) {
-    return (
-      <>
-        <div className="mb-6">
-          <CreateRosterDialog
-            title={title}
-            createAction={createAction}
-            onDone={() => router.refresh()}
-          />
-        </div>
-        <div
-          className="rounded-section border border-dashed border-hairline-strong bg-surface-card px-6 py-14 text-center"
-          style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
-        >
-          <p
-            className="font-serif text-ink-strong"
-            style={{ fontStyle: "italic", fontSize: 22, letterSpacing: "-0.015em" }}
-          >
-            No {title.toLowerCase()} yet
-          </p>
-          <p className="text-[14px] text-ink-subtle mt-2 max-w-sm mx-auto" style={{ lineHeight: 1.5 }}>
-            Create your first one with the button above. It then shows up in the
-            contract form picker.
-          </p>
-        </div>
-      </>
-    );
-  }
-
   return (
     <>
       <div className="mb-6 flex justify-end">
@@ -100,40 +75,91 @@ export function OutstandingRosterList({
           onDone={() => router.refresh()}
         />
       </div>
-      <div
-        className="overflow-hidden rounded-section border border-hairline bg-surface-card"
-        style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
-      >
-        <table className="w-full text-[15px]">
-          <thead>
-            <tr
-              className="text-left text-[12px] uppercase tracking-[0.08em] text-ink-subtle font-bold border-b border-hairline"
-              style={{ background: "var(--color-surface-soft)" }}
+
+      <DataTable<RosterItem>
+        rows={items}
+        getRowKey={(r) => r.id}
+        searchText={(r) => r.name}
+        searchPlaceholder={`Search ${title.toLowerCase()}`}
+        initialSort={{ key: "sortOrder", dir: "asc" }}
+        filters={[
+          {
+            label: "Status",
+            options: [
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ],
+            match: (r, v) => (v === "active" ? r.isActive : !r.isActive),
+          },
+        ]}
+        columns={[
+          {
+            key: "name",
+            label: "Name",
+            sortValue: (r) => r.name,
+            render: (r) => (
+              <span className="font-medium text-ink-strong">{r.name}</span>
+            ),
+          },
+          {
+            key: "sortOrder",
+            label: "Sort",
+            align: "right",
+            className: "w-24",
+            sortValue: (r) => r.sortOrder,
+            render: (r) => (
+              <span className="tabular-nums text-ink-soft">{r.sortOrder}</span>
+            ),
+          },
+          {
+            key: "usageCount",
+            label: "Usage",
+            align: "right",
+            className: "w-40",
+            sortValue: (r) => r.usageCount,
+            render: (r) => (
+              <span className="tabular-nums text-ink-soft">
+                {r.usageCount} {usageLabel}
+              </span>
+            ),
+          },
+          {
+            key: "status",
+            label: "Status",
+            className: "w-32",
+            sortValue: (r) => (r.isActive ? 0 : 1),
+            render: (r) => <StatusBadge active={r.isActive} />,
+          },
+        ]}
+        rowActions={(r) => (
+          <RosterRowActions
+            item={r}
+            updateAction={updateAction}
+            onEdit={() => setEditing(r)}
+            onDone={() => router.refresh()}
+          />
+        )}
+        emptyState={
+          <>
+            <p
+              className="text-ink-strong"
+              style={{
+                fontFamily: "var(--font-serif), system-ui, sans-serif",
+                fontStyle: "italic",
+                fontSize: 22,
+                letterSpacing: "-0.015em",
+              }}
             >
-              <th className="px-5 py-4">Name</th>
-              <th className="px-5 py-4 tabular-nums">Sort</th>
-              <th className="px-5 py-4 tabular-nums">Usage</th>
-              <th className="px-5 py-4">Status</th>
-              <th className="px-5 py-4 text-right">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, i) => (
-              <RosterRow
-                key={item.id}
-                item={item}
-                rowIndex={i}
-                usageLabel={usageLabel}
-                updateAction={updateAction}
-                onEdit={() => setEditing(item)}
-                onDone={() => router.refresh()}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+              No {title.toLowerCase()} yet
+            </p>
+            <p className="mt-2 max-w-sm mx-auto text-[14px] text-ink-subtle" style={{ lineHeight: 1.5 }}>
+              Create your first one with the button above. It then shows up in
+              the contract form picker.
+            </p>
+          </>
+        }
+      />
+
       <EditRosterDialog
         noun={noun}
         item={editing}
@@ -145,17 +171,36 @@ export function OutstandingRosterList({
   );
 }
 
-function RosterRow({
+function StatusBadge({ active }: { active: boolean }) {
+  if (active) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+        style={{ background: "var(--color-green-bg)", color: "var(--color-green-deep)" }}
+      >
+        <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-green)" }} />
+        Active
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+      style={{ background: "rgba(15, 23, 42, 0.05)", color: "var(--color-ink-subtle)" }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-ink-subtle)" }} />
+      Inactive
+    </span>
+  );
+}
+
+function RosterRowActions({
   item,
-  rowIndex,
-  usageLabel,
   updateAction,
   onEdit,
   onDone,
 }: {
   item: RosterItem;
-  rowIndex: number;
-  usageLabel: string;
   updateAction: UpdateAction;
   onEdit: () => void;
   onDone: () => void;
@@ -179,64 +224,33 @@ function RosterRow({
   }
 
   return (
-    <tr
-      className="border-b border-hairline last:border-b-0 transition-colors hover:bg-surface-soft"
-      style={{ background: rowIndex % 2 === 1 ? "rgba(15, 23, 42, 0.012)" : undefined }}
-    >
-      <td className="px-5 py-4 text-ink-strong font-medium">{item.name}</td>
-      <td className="px-5 py-4 tabular-nums text-ink-soft">{item.sortOrder}</td>
-      <td className="px-5 py-4 tabular-nums text-ink-soft">
-        {item.usageCount} {usageLabel}
-      </td>
-      <td className="px-5 py-4">
-        {item.isActive ? (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
-            style={{ background: "var(--color-green-bg)", color: "var(--color-green-deep)" }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-green)" }} />
-            Active
-          </span>
-        ) : (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
-            style={{ background: "rgba(15, 23, 42, 0.05)", color: "var(--color-ink-subtle)" }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-ink-subtle)" }} />
-            Inactive
-          </span>
-        )}
-      </td>
-      <td className="px-5 py-4 text-right">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="Actions"
-              disabled={pending}
-              className="inline-flex items-center justify-center size-9 rounded-lg border border-hairline text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-colors disabled:opacity-50 data-[state=open]:border-altus-red data-[state=open]:text-altus-red"
-            >
-              <MoreHorizontal size={18} strokeWidth={2.2} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onSelect={onEdit}>
-              <Pencil size={15} strokeWidth={2.2} />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
-                toggleActive();
-              }}
-            >
-              <Power size={15} strokeWidth={2.2} />
-              {item.isActive ? "Deactivate" : "Reactivate"}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </td>
-    </tr>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Actions"
+          disabled={pending}
+          className="inline-flex items-center justify-center size-9 rounded-lg border border-hairline text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-colors disabled:opacity-50 data-[state=open]:border-altus-red data-[state=open]:text-altus-red"
+        >
+          <MoreHorizontal size={18} strokeWidth={2.2} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem onSelect={onEdit}>
+          <Pencil size={15} strokeWidth={2.2} />
+          Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
+            toggleActive();
+          }}
+        >
+          <Power size={15} strokeWidth={2.2} />
+          {item.isActive ? "Deactivate" : "Reactivate"}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -288,10 +302,12 @@ function CreateRosterDialog({
     >
       <Dialog.Trigger asChild>
         <button
-          className="rounded-md py-2.5 px-5 text-[14px] font-medium text-white"
-          style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
+          type="button"
+          className="wg-btn inline-flex items-center gap-1.5 rounded-pill py-2.5 px-5 text-[14px] font-semibold text-white"
+          style={{ background: "linear-gradient(135deg, #E10600, #A80400)", boxShadow: "0 6px 18px -6px rgba(225,6,0,0.55)" }}
         >
-          + New {noun}
+          <Plus size={16} strokeWidth={2.6} />
+          New {noun}
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -316,7 +332,7 @@ function CreateRosterDialog({
               />
             </RosterField>
             <RosterField
-              label="Sort order"
+              label="Sort Order"
               hint="Lower numbers appear first in the picker when names tie. Default 100."
             >
               <input
@@ -340,7 +356,7 @@ function CreateRosterDialog({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
+                  className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
                   disabled={pending}
                 >
                   Cancel
@@ -434,7 +450,7 @@ function EditRosterDialog({
                 className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
               />
             </RosterField>
-            <RosterField label="Sort order">
+            <RosterField label="Sort Order">
               <input
                 type="number"
                 min={0}
@@ -456,7 +472,7 @@ function EditRosterDialog({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
+                  className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
                   disabled={pending}
                 >
                   Cancel

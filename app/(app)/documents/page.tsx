@@ -1,5 +1,4 @@
 import { DashboardHeader } from "@/components/layout/header";
-import { DashboardFooter } from "@/components/layout/footer";
 import { DocumentLibrary } from "@/components/documents/document-library";
 import { RecentDocumentEvents } from "@/components/documents/recent-document-events";
 import { listDocuments } from "@/lib/queries/documents";
@@ -31,7 +30,6 @@ export default async function DocumentsPage() {
         <DocumentLibrary documents={documents} />
         {me.isAdmin && <RecentDocumentEvents rows={events} />}
       </main>
-      <DashboardFooter />
     </>
   );
 }

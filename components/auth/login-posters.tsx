@@ -66,6 +66,9 @@ function Triangle({ size = 40, glow = true }: { size?: number; glow?: boolean })
       aria-hidden
       width={w}
       height={size}
+      // Same rationale as the poster tiles — nothing on this wall should finish
+      // loading after it has already drifted into view.
+      loading="eager"
       style={{
         objectFit: "contain",
         filter: glow ? "drop-shadow(0 4px 14px rgba(225,6,0,0.45))" : undefined,
@@ -403,8 +406,53 @@ function BrandImage({ n, h }: { n: number; h: number }) {
         alt=""
         aria-hidden
         fill
+        // Eager for the same reason as the slides: the wall never stops moving,
+        // so a lazy tile finishes loading only once it has already drifted into
+        // view — which reads as a blank card sliding past.
+        loading="eager"
         sizes="(max-width: 768px) 45vw, 18vw"
         style={{ objectFit: "cover", objectPosition: "top center" }}
+      />
+    </div>
+  );
+}
+
+/**
+ * A page lifted from the Productivity-Shastra slide decks (rendered out of the
+ * source PDFs into `public/login/s{deck}-{page}.webp`, 900px on the long edge,
+ * WebP q82 — the whole set is ~350KB).
+ *
+ * `contain`, not `cover`: these are text posters, so cropping would slice words
+ * off. The letterbox is filled with the slide's own edge colour, so a black
+ * poster reads as one solid black tile rather than a framed thumbnail.
+ *
+ * Loaded EAGERLY and deliberately not through next/image. The wall drifts
+ * continuously, so a lazily-loaded tile pops in blank exactly as it scrolls
+ * into view — the "empty white card" problem. The assets are already sized and
+ * compressed for this one use, so fetching all of them up front costs less than
+ * a single hero photo and guarantees every tile is painted before it appears.
+ */
+function SlideImage({ src, h, bg }: { src: string; h: number; bg: string }) {
+  return (
+    <div
+      style={{
+        height: h,
+        borderRadius: 14,
+        overflow: "hidden",
+        background: bg,
+        boxShadow: "0 10px 30px -14px rgba(0,0,0,0.5)",
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        aria-hidden
+        loading="eager"
+        decoding="async"
+        draggable={false}
+        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
       />
     </div>
   );
@@ -415,8 +463,61 @@ export interface PosterTile {
   el: ReactNode;
 }
 
-/** The full deck, deliberately ordered so neighbours differ in tone + type. */
-export const POSTER_TILES: PosterTile[] = [
+const BLACK = "#000000";
+const WHITE = "#FFFFFF";
+
+/**
+ * The slide decks. `bg` matches each poster's own background so the `contain`
+ * letterbox is invisible; heights vary so the columns keep their masonry rhythm
+ * instead of turning into a uniform grid.
+ */
+const SLIDE_TILES: PosterTile[] = [
+  { id: "s1-01", el: <SlideImage src="/login/s1-01.webp" h={300} bg="#D5D5DD" /> },
+  { id: "s1-02", el: <SlideImage src="/login/s1-02.webp" h={240} bg={BLACK} /> },
+  { id: "s1-03", el: <SlideImage src="/login/s1-03.webp" h={320} bg={WHITE} /> },
+  { id: "s1-04", el: <SlideImage src="/login/s1-04.webp" h={310} bg={BLACK} /> },
+  { id: "s1-05", el: <SlideImage src="/login/s1-05.webp" h={280} bg={BLACK} /> },
+  { id: "s1-06", el: <SlideImage src="/login/s1-06.webp" h={300} bg={BLACK} /> },
+  { id: "s1-07", el: <SlideImage src="/login/s1-07.webp" h={220} bg={WHITE} /> },
+  { id: "s1-08", el: <SlideImage src="/login/s1-08.webp" h={330} bg={BLACK} /> },
+  { id: "s2-01", el: <SlideImage src="/login/s2-01.webp" h={260} bg={BLACK} /> },
+  { id: "s2-02", el: <SlideImage src="/login/s2-02.webp" h={300} bg="#111111" /> },
+  { id: "s2-03", el: <SlideImage src="/login/s2-03.webp" h={270} bg={BLACK} /> },
+  { id: "s2-04", el: <SlideImage src="/login/s2-04.webp" h={330} bg={BLACK} /> },
+  { id: "s2-05", el: <SlideImage src="/login/s2-05.webp" h={310} bg={BLACK} /> },
+  { id: "s3-01", el: <SlideImage src="/login/s3-01.webp" h={250} bg={WHITE} /> },
+  { id: "s3-02", el: <SlideImage src="/login/s3-02.webp" h={280} bg={BLACK} /> },
+  { id: "s3-03", el: <SlideImage src="/login/s3-03.webp" h={300} bg={WHITE} /> },
+  { id: "s3-04", el: <SlideImage src="/login/s3-04.webp" h={260} bg={BLACK} /> },
+  { id: "s3-05", el: <SlideImage src="/login/s3-05.webp" h={320} bg={BLACK} /> },
+  { id: "s3-06", el: <SlideImage src="/login/s3-06.webp" h={230} bg={WHITE} /> },
+  { id: "s3-07", el: <SlideImage src="/login/s3-07.webp" h={340} bg={WHITE} /> },
+];
+
+/**
+ * Round-robin weave of two decks.
+ *
+ * The mosaic hands column `c` every tile where `index % COLUMN_COUNT === c`, so
+ * the ORDER of this array is what decides both a column's contents and its
+ * neighbours. Appending the slides would stack them all at the bottom of every
+ * column; interleaving spreads them evenly down each one, next to the built
+ * tiles rather than after them.
+ */
+function weave(a: PosterTile[], b: PosterTile[]): PosterTile[] {
+  const out: PosterTile[] = [];
+  const step = a.length / b.length; // >1 when there are more crafted tiles
+  let ai = 0;
+  for (let bi = 0; bi < b.length; bi++) {
+    const upto = Math.round((bi + 1) * step);
+    while (ai < upto && ai < a.length) out.push(a[ai++]!);
+    out.push(b[bi]!);
+  }
+  while (ai < a.length) out.push(a[ai++]!);
+  return out;
+}
+
+/** The hand-built tiles, ordered so neighbours differ in tone + type. */
+const CRAFTED_TILES: PosterTile[] = [
   { id: "shastra", el: <SloganShastra /> },
   { id: "kanban", el: <KanbanMock /> },
   { id: "img2", el: <BrandImage n={2} h={330} /> },
@@ -442,3 +543,6 @@ export const POSTER_TILES: PosterTile[] = [
   { id: "img5", el: <BrandImage n={5} h={320} /> },
   { id: "wordmark", el: <WordmarkTile /> },
 ];
+
+/** The full deck the mosaic renders: crafted tiles with the slides woven in. */
+export const POSTER_TILES: PosterTile[] = weave(CRAFTED_TILES, SLIDE_TILES);

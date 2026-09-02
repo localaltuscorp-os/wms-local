@@ -3,13 +3,23 @@ import { and, between, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { attendanceLogs, employees, type OrgSettings } from "@/db/schema";
 import { getOrgSettings } from "@/lib/queries/org-settings";
-import {
-  resolveSchedule,
-  type AttendanceSchedule,
-} from "@/lib/attendance/schedule";
+import { type AttendanceSchedule } from "@/lib/attendance/schedule";
 import { computeDayCode, type DayCodeResult } from "@/lib/attendance/status";
+import { payableDaysByHours, weekKeyOf } from "@/lib/attendance/hours-rule";
+import {
+  reconcileMonth,
+  payableHoursForMonth,
+  monthKeyOf,
+  type PayableHoursResult,
+} from "@/lib/attendance/hour-balance";
+import {
+  resolveEffectiveConfig,
+  toAttendanceSchedule,
+  type EffectiveAttendanceConfig,
+} from "@/lib/attendance/effective-config";
 import { listHolidayDateSet } from "@/lib/queries/holidays";
 import { listEmployeeLeaveForRange, type LeaveRow } from "@/lib/queries/leave";
+import { isHalfLeaveDay } from "@/lib/attendance/leave-cycle";
 import {
   getCompOffMapForRange,
   type CompOffRangeMaps,
@@ -73,6 +83,9 @@ export interface MonthSummary {
   paidLeave: number; // code "PL"
   unpaidLeave: number; // code "LWP"
   compOff: number; // code "CO" (redeemed comp-off)
+  /** Total minutes worked across the month (Σ per-day workedMinutes) — powers
+   *  the Workforce Intelligence dashboard's hours analytics org-wide. Additive. */
+  totalWorkedMinutes: number;
 }
 
 export interface EmployeeMonthStatus {
@@ -144,16 +157,60 @@ export function companyDefaults(org: OrgSettings): AttendanceSchedule {
   };
 }
 
-/** Resolve an employee's effective schedule. Phase A only exposes the two
- *  time overrides on `employees` (lateAfter / earlyBefore); hour overrides are
- *  org-wide, so we never pass fullDayHours/halfDayHours here. */
+/** The employee columns the effective-config resolver needs. */
+export interface ScheduleEmpColumns {
+  workerType?: string | null;
+  weeklyOff?: number | null;
+  attOfficialStart?: string | null;
+  attOfficialEnd?: string | null;
+  attLateAfter: string | null;
+  attEarlyBefore: string | null;
+  attFullDayMinutes?: number | null;
+  attHalfDayMinutes?: number | null;
+  weeklyTargetMinutes?: number | null;
+}
+
+/**
+ * Resolve an employee's FULL effective attendance configuration — schedule,
+ * daily/weekly targets and the waiver threshold — from their own row.
+ *
+ * This delegates to `lib/attendance/effective-config.ts`, which is the single
+ * source of truth. Crucially it reads `att_official_start` / `att_official_end`
+ * (what the Admin Panel actually shows) and derives late-after / early-before
+ * from them. The previous implementation read ONLY late-after / early-before,
+ * so an admin-configured 19:00 finish silently fell back to the org-wide 19:20
+ * and a 19:00 checkout was graded as an early exit.
+ */
+export function employeeEffectiveConfig(
+  emp: ScheduleEmpColumns,
+  org: OrgSettings | null,
+): EffectiveAttendanceConfig {
+  return resolveEffectiveConfig(emp, {
+    attLateAfter: org?.attLateAfter ?? null,
+    attEarlyBefore: org?.attEarlyBefore ?? null,
+    attFullDayHours: org?.attFullDayHours ?? null,
+    attHalfDayHours: org?.attHalfDayHours ?? null,
+  });
+}
+
+/**
+ * The grading-only slice of the effective config. Kept as a named export
+ * because the grader and the notifier both take this narrower shape.
+ *
+ * `defaults` is accepted for call-site compatibility but is no longer the
+ * source of the per-employee values — the resolver owns that precedence now.
+ */
 export function employeeSchedule(
-  emp: { attLateAfter: string | null; attEarlyBefore: string | null },
+  emp: ScheduleEmpColumns,
   defaults: AttendanceSchedule,
 ): AttendanceSchedule {
-  return resolveSchedule(
-    { lateAfter: emp.attLateAfter, earlyBefore: emp.attEarlyBefore },
-    defaults,
+  return toAttendanceSchedule(
+    resolveEffectiveConfig(emp, {
+      attLateAfter: defaults.lateAfter,
+      attEarlyBefore: defaults.earlyBefore,
+      attFullDayHours: defaults.fullDayMinutes / 60,
+      attHalfDayHours: defaults.halfDayMinutes / 60,
+    }),
   );
 }
 
@@ -162,26 +219,59 @@ export function employeeSchedule(
 interface FoldedDay {
   inAt: string | null;
   outAt: string | null;
+  /**
+   * The out-punch was written by the compulsory-punch-out cron, not the person.
+   *
+   * The cron stamps its out at the CLOCK-IN time, so the pair reads as zero
+   * minutes worked. Without this the ordinary three-tier rule grades the day
+   * ABSENT — the opposite of the half-day the policy promises. See
+   * DayContext.autoClosed in lib/attendance/status.ts.
+   */
+  autoClosed: boolean;
+}
+
+/** A punch row, as much of it as the grader needs. */
+type PunchRow = {
+  kind: "in" | "out";
+  loggedAt: Date;
+  source?: string | null;
+  reason?: string | null;
+  recordedById?: string | null;
+};
+
+/**
+ * Is this the system's auto punch-out?
+ *
+ * All THREE conditions matter. `source='admin'` alone is any admin correction,
+ * and `reason='forgot'` is what a human admin picks too when fixing exactly this
+ * situation — but a human correction carries `recordedById`. Only the cron
+ * leaves it null (see app/api/cron/attendance-autoout/route.ts), so this is what
+ * separates "the system closed your day" from "someone fixed your day", which
+ * should NOT be floored at half.
+ */
+function isAutoPunchOut(r: PunchRow): boolean {
+  return r.source === "admin" && r.reason === "forgot" && !r.recordedById;
 }
 
 /** Fold an employee's raw punch rows into per-day in/out "HH:mm" times (in the
  *  employee's timezone). The day key is recomputed from `loggedAt` in `tz` so
  *  it stays consistent with the per-day calendar walk. */
-function foldPunches(
-  rows: { kind: "in" | "out"; loggedAt: Date }[],
-  tz: string,
-): Map<string, FoldedDay> {
+function foldPunches(rows: PunchRow[], tz: string): Map<string, FoldedDay> {
   const byDay = new Map<string, FoldedDay>();
   for (const r of rows) {
     const day = dateInTz(r.loggedAt, tz);
     let slot = byDay.get(day);
     if (!slot) {
-      slot = { inAt: null, outAt: null };
+      slot = { inAt: null, outAt: null, autoClosed: false };
       byDay.set(day, slot);
     }
     const t = timeInTz(r.loggedAt, tz);
-    if (r.kind === "in") slot.inAt = t;
-    else slot.outAt = t;
+    if (r.kind === "in") {
+      slot.inAt = t;
+    } else {
+      slot.outAt = t;
+      slot.autoClosed = isAutoPunchOut(r);
+    }
   }
   return byDay;
 }
@@ -204,11 +294,13 @@ function emptySummary(): MonthSummary {
     paidLeave: 0,
     unpaidLeave: 0,
     compOff: 0,
+    totalWorkedMinutes: 0,
   };
 }
 
 function tally(summary: MonthSummary, r: DayCodeResult): void {
   summary.payableDays += r.dayValue;
+  summary.totalWorkedMinutes += r.workedMinutes;
   switch (r.code) {
     case "P":
       summary.present += 1;
@@ -269,15 +361,27 @@ interface DayContextInputs {
   redeemed: Set<string>;
 }
 
-/** Which leave kind ("paid"|"unpaid") covers `ymd`, or null. A date is covered
- *  when it falls within an approved leave's inclusive [startDate,endDate].
- *  Paid wins if (unusually) both overlap. */
-function leaveKindOn(ymd: string, leaves: LeaveRow[]): "paid" | "unpaid" | null {
-  let unpaid: "unpaid" | null = null;
+/** What an approved leave says about one date: the kind, and whether it covers
+ *  only HALF the day (0208). */
+interface LeaveOnDay {
+  kind: "paid" | "unpaid";
+  half: boolean;
+}
+
+/** Which leave covers `ymd`, or null. A date is covered when it falls within an
+ *  approved leave's inclusive [startDate,endDate]. Paid wins if (unusually) both
+ *  overlap.
+ *
+ *  `half` is carried through because a half-day boundary must NOT grade as a
+ *  full PL — that would credit a whole day while charging the balance half of
+ *  one. See lib/attendance/status.halfLeaveDay. */
+function leaveOn(ymd: string, leaves: LeaveRow[]): LeaveOnDay | null {
+  let unpaid: LeaveOnDay | null = null;
   for (const lv of leaves) {
     if (ymd >= lv.startDate && ymd <= lv.endDate) {
-      if (lv.kind === "paid") return "paid";
-      unpaid = "unpaid";
+      const half = isHalfLeaveDay(lv, ymd);
+      if (lv.kind === "paid") return { kind: "paid", half };
+      unpaid = { kind: "unpaid", half };
     }
   }
   return unpaid;
@@ -291,8 +395,17 @@ interface EmpSlice {
   timezone: string;
   joinedAt: Date | null;
   createdAt: Date;
+  // Worker type + the official schedule the Admin Panel writes. These are what
+  // make grading employee-specific; without them every row fell back to the
+  // org-wide defaults regardless of how it was configured.
+  workerType: string | null;
+  attOfficialStart: string | null;
+  attOfficialEnd: string | null;
   attLateAfter: string | null;
   attEarlyBefore: string | null;
+  attFullDayMinutes: number | null;
+  attHalfDayMinutes: number | null;
+  weeklyTargetMinutes: number | null;
 }
 
 /**
@@ -325,7 +438,7 @@ function gradeMonth(
 
   for (const ymd of eachDay(first, last)) {
     const wd = weekdayOfDate(ymd);
-    const folded = byDay.get(ymd) ?? { inAt: null, outAt: null };
+    const folded = byDay.get(ymd) ?? { inAt: null, outAt: null, autoClosed: false };
 
     // Before the employee joined — not a gradeable day.
     if (ymd < joinDay) {
@@ -357,7 +470,9 @@ function gradeMonth(
     // NOT consume the leave (you don't burn a paid leave on a day off). So if
     // it's a holiday, we pass leave:null and let the holiday/W-O credit stand.
     // Otherwise the engine's PL/LWP precedence applies.
-    const leave = isHoliday ? null : leaveKindOn(ymd, dayCtx.leaves);
+    const onLeave = isHoliday ? null : leaveOn(ymd, dayCtx.leaves);
+    const leave = onLeave?.kind ?? null;
+    const leaveHalf = onLeave?.half ?? false;
 
     let graded: DayCodeResult;
     if (isConverted) {
@@ -369,14 +484,21 @@ function gradeMonth(
       graded = computeDayCode(
         { inAt: null, outAt: null },
         sched,
-        { isWeeklyOff, isHoliday, leave, compOffRedeemed: isRedeemed },
+        { isWeeklyOff, isHoliday, leave, leaveHalf, compOffRedeemed: isRedeemed },
         refNow,
       );
     } else {
       graded = computeDayCode(
         { inAt: folded.inAt, outAt: folded.outAt },
         sched,
-        { isWeeklyOff, isHoliday, leave, compOffRedeemed: isRedeemed },
+        {
+          isWeeklyOff,
+          isHoliday,
+          leave,
+          leaveHalf,
+          compOffRedeemed: isRedeemed,
+          autoClosed: folded.autoClosed,
+        },
         refNow,
       );
     }
@@ -395,6 +517,31 @@ function gradeMonth(
       workedMinutes: graded.workedMinutes,
     });
   }
+
+  // ── Sir's HOURS RULE (2026-08) ────────────────────────────────────────────
+  // `tally` summed each day's own dayValue. Payable days are now derived from
+  // WORKED HOURS instead: 9h = 1 day, so 54h earns a full 6-day week and 45h
+  // earns 5 days. Credited days (PL / CO / holiday / W-O / holiday-working) keep
+  // their own value — see lib/attendance/hours-rule.ts. Days before joining are
+  // excluded (NOT_JOINED_CODE is not an ordinary attendance day and carries 0).
+  //
+  // The "9h = 1 day" divisor is THIS employee's own day length, not a constant:
+  // a part-timer's day is 4.5h, so their complete 27h week earns 6 days rather
+  // than the 3 it would score against a full-timer's 9h. `resolveEffectiveConfig`
+  // needs no org settings for this — the daily target comes from the employee's
+  // own scheduled span or their worker-type default.
+  const dayMinutes = resolveEffectiveConfig(emp).dailyTargetMinutes;
+  summary.payableDays = payableDaysByHours(
+    days
+      .filter((d) => d.code !== NOT_JOINED_CODE)
+      .map((d) => ({
+        weekKey: weekKeyOf(d.logDate),
+        code: d.code,
+        dayValue: d.dayValue,
+        workedMinutes: d.workedMinutes,
+      })),
+    dayMinutes,
+  );
 
   return { employeeId: emp.id, days, summary };
 }
@@ -421,8 +568,14 @@ export async function getEmployeeMonthStatus(
         timezone: employees.timezone,
         joinedAt: employees.joinedAt,
         createdAt: employees.createdAt,
+        workerType: employees.workerType,
+        attOfficialStart: employees.attOfficialStart,
+        attOfficialEnd: employees.attOfficialEnd,
         attLateAfter: employees.attLateAfter,
         attEarlyBefore: employees.attEarlyBefore,
+        attFullDayMinutes: employees.attFullDayMinutes,
+        attHalfDayMinutes: employees.attHalfDayMinutes,
+        weeklyTargetMinutes: employees.weeklyTargetMinutes,
       })
       .from(employees)
       .where(eq(employees.id, employeeId))
@@ -440,6 +593,9 @@ export async function getEmployeeMonthStatus(
     .select({
       kind: attendanceLogs.kind,
       loggedAt: attendanceLogs.loggedAt,
+      source: attendanceLogs.source,
+      reason: attendanceLogs.reason,
+      recordedById: attendanceLogs.recordedById,
     })
     .from(attendanceLogs)
     .where(
@@ -472,7 +628,39 @@ export interface DashboardRow {
   employeeId: string;
   name: string;
   designation: string | null;
+  /** Department name for the Workforce Intelligence dashboard's group-by. */
+  department: string | null;
+  managerId: string | null;
   summary: MonthSummary;
+  /**
+   * Which record this row's summary came from — "sheet" (frozen HR-sheet month,
+   * counts locked) or "app" (graded from real punches). Drives which drill-down
+   * dialog opens. Undefined on pure app-native months → treated as "app".
+   */
+  source?: "sheet" | "app";
+  /**
+   * Schedule-derived PAYROLL view of the month (spec §13): target hours with
+   * weekly offs and declared holidays already removed, hours payable after the
+   * weekly rebalancing, and the half-days that survived the monthly grace.
+   *
+   * Present only on app-graded months. The salary engine reads this instead of
+   * multiplying a per-day rate by absent days.
+   */
+  payroll?: EmployeePayrollMonth;
+}
+
+/** The payroll-facing slice of a graded month, per employee. */
+export interface EmployeePayrollMonth extends PayableHoursResult {
+  /** One scheduled day in minutes (9h full-time, 5h part-time). */
+  dailyTargetMinutes: number;
+  /** Hours REQUIRED so far = elapsed working days × daily target (holidays/offs
+   *  excluded) — the self-view's requiredElapsedHours. Overtime is worked beyond
+   *  this, so My Salary and the Attendance page report one overtime figure. */
+  requiredElapsedMinutes: number;
+  /** Half-days charged at 50% — the 4th onward; the first three are waived. */
+  chargeableHalfDays: number;
+  /** Surplus/deficit carried inside this calendar month only. */
+  monthlyHourBalanceMinutes: number;
 }
 
 export interface MonthDashboardFilters {
@@ -507,8 +695,16 @@ export async function getMonthDashboard(
         timezone: employees.timezone,
         joinedAt: employees.joinedAt,
         createdAt: employees.createdAt,
+        workerType: employees.workerType,
+        attOfficialStart: employees.attOfficialStart,
+        attOfficialEnd: employees.attOfficialEnd,
         attLateAfter: employees.attLateAfter,
         attEarlyBefore: employees.attEarlyBefore,
+        attFullDayMinutes: employees.attFullDayMinutes,
+        attHalfDayMinutes: employees.attHalfDayMinutes,
+        weeklyTargetMinutes: employees.weeklyTargetMinutes,
+        department: employees.department,
+        managerId: employees.managerId,
       })
       .from(employees)
       .where(eq(employees.isActive, true))
@@ -518,6 +714,9 @@ export async function getMonthDashboard(
         employeeId: attendanceLogs.employeeId,
         kind: attendanceLogs.kind,
         loggedAt: attendanceLogs.loggedAt,
+        source: attendanceLogs.source,
+        reason: attendanceLogs.reason,
+        recordedById: attendanceLogs.recordedById,
       })
       .from(attendanceLogs)
       .where(between(attendanceLogs.logDate, first, last)),
@@ -547,14 +746,20 @@ export async function getMonthDashboard(
   const defaults = companyDefaults(org);
 
   // Group raw punches by employee once.
-  const rowsByEmp = new Map<string, { kind: "in" | "out"; loggedAt: Date }[]>();
+  const rowsByEmp = new Map<string, PunchRow[]>();
   for (const r of allRows) {
     let arr = rowsByEmp.get(r.employeeId);
     if (!arr) {
       arr = [];
       rowsByEmp.set(r.employeeId, arr);
     }
-    arr.push({ kind: r.kind, loggedAt: r.loggedAt });
+    arr.push({
+      kind: r.kind,
+      loggedAt: r.loggedAt,
+      source: r.source,
+      reason: r.reason,
+      recordedById: r.recordedById,
+    });
   }
 
   const out: DashboardRow[] = [];
@@ -565,17 +770,71 @@ export async function getMonthDashboard(
     const tz = p.timezone || "Asia/Kolkata";
     const sched = employeeSchedule(p, defaults);
     const byDay = foldPunches(rowsByEmp.get(p.id) ?? [], tz);
-    const { summary } = gradeMonth(p, sched, byDay, year, month, refTodayISO, {
+    const { summary, days } = gradeMonth(p, sched, byDay, year, month, refTodayISO, {
       holidaySet,
       leaves: leavesByEmp.get(p.id) ?? [],
       converted: compOff.convertedByEmp.get(p.id) ?? new Set<string>(),
       redeemed: compOff.redeemedByEmp.get(p.id) ?? new Set<string>(),
     });
+
+    // ── PAYROLL VIEW (spec §13) ──────────────────────────────────────────
+    // A second, read-only pass over the SAME graded days — it never alters
+    // them. Declared holidays and weekly offs are already excluded because
+    // neither grades as an ordinary attendance day, so the target falls
+    // automatically in a month that contains one.
+    const cfg = employeeEffectiveConfig(p, org);
+    const monthKey = monthKeyOf(`${year}-${String(month).padStart(2, "0")}-01`);
+    const gradedForPayroll = days
+      .filter((d) => d.code !== NOT_JOINED_CODE)
+      .map((d) => ({
+        date: d.logDate,
+        weekKey: weekKeyOf(d.logDate),
+        code: d.code,
+        dayValue: d.dayValue,
+        workedMinutes: d.workedMinutes,
+        late: d.late,
+        leftEarly: d.leftEarly,
+      }));
+    const recon = reconcileMonth(gradedForPayroll, {
+      month: monthKey,
+      weeklyTargetMinutes: cfg.weeklyTargetMinutes,
+      waiverThresholdMinutes: cfg.waiverThresholdMinutes,
+      workingDaysPerWeek: cfg.workingDaysPerWeek,
+    });
+    const hours = payableHoursForMonth(gradedForPayroll, recon, cfg.dailyTargetMinutes);
+
+    // Hours the employee was REQUIRED to work so far — elapsed working days ×
+    // daily target — computed with the SAME predicate the self-view uses
+    // (attendance-summary.isRequiredDay): not a weekly-off, not an off-code
+    // (W/O / H / PL / CO / LWP), joined, and on or before today. Overtime pay is
+    // measured against this, so My Salary and the Attendance page agree.
+    const requiredElapsedMinutes =
+      days.filter(
+        (d) =>
+          !d.isWeeklyOff &&
+          d.code !== NOT_JOINED_CODE &&
+          d.code !== "W/O" &&
+          d.code !== "H" &&
+          d.code !== "PL" &&
+          d.code !== "CO" &&
+          d.code !== "LWP" &&
+          d.logDate <= refTodayISO,
+      ).length * cfg.dailyTargetMinutes;
+
     out.push({
       employeeId: p.id,
       name: p.name,
       designation: null, // Phase B
+      department: p.department ?? null,
+      managerId: p.managerId ?? null,
       summary,
+      payroll: {
+        ...hours,
+        dailyTargetMinutes: cfg.dailyTargetMinutes,
+        requiredElapsedMinutes,
+        chargeableHalfDays: recon.chargeableHalfDays,
+        monthlyHourBalanceMinutes: recon.monthlyHourBalanceMinutes,
+      },
     });
   }
   return out;

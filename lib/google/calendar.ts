@@ -1,4 +1,5 @@
 import "server-only";
+import { siteUrl } from "@/lib/site-url";
 
 /**
  * Google Calendar per-user sync — OAuth + Calendar REST, plain fetch (no SDK).
@@ -148,7 +149,12 @@ function toGoogleRecurrence(rule: string, allDay: boolean): string[] {
   return [`RRULE:${fixed}`];
 }
 
-const APP_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://wms.mananvasa.com").replace(/\/+$/, "");
+// MUST go through siteUrl() — it guarantees an https:// SCHEME. Prod's
+// NEXT_PUBLIC_SITE_URL is scheme-less ("wms.mananvasa.com"), and Google
+// Calendar REJECTS a scheme-less event `source.url` with 400 "Invalid source
+// url" — the real reason newly-assigned tasks stopped appearing (the error was
+// swallowed). Never build this URL by hand again.
+const APP_URL = siteUrl();
 
 /** Build the Calendar API event body from a task. */
 export function taskToEvent(task: CalendarTask): Record<string, unknown> {

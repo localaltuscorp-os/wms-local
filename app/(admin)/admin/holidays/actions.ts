@@ -70,12 +70,18 @@ export async function addHoliday(input: {
   }
   if (!inserted) return { ok: false, error: "DB: insert returned no row" };
 
-  await db.insert(employeeEvents).values({
-    employeeId: me.id,
-    actorId: me.id,
-    eventType: "holiday_added",
-    toValue: { holidayDate: parsed.data.holidayDate, label: parsed.data.label },
-  });
+  try {
+    await db.insert(employeeEvents).values({
+      employeeId: me.id,
+      actorId: me.id,
+      eventType: "holiday_added",
+      toValue: { holidayDate: parsed.data.holidayDate, label: parsed.data.label },
+    });
+  } catch (err) {
+    // Non-fatal: the holiday is already saved; a failed audit write must not
+    // surface as "We hit a snag." after a successful mutation.
+    console.error("[addHoliday] audit write failed", err);
+  }
 
   revalidatePath(PATH);
   return { ok: true, id: inserted.id };
@@ -125,12 +131,16 @@ export async function updateHoliday(input: {
     return { ok: false, error: `DB: ${msg}` };
   }
 
-  await db.insert(employeeEvents).values({
-    employeeId: me.id,
-    actorId: me.id,
-    eventType: "holiday_updated",
-    toValue: { id: parsed.data.id, ...patch },
-  });
+  try {
+    await db.insert(employeeEvents).values({
+      employeeId: me.id,
+      actorId: me.id,
+      eventType: "holiday_updated",
+      toValue: { id: parsed.data.id, ...patch },
+    });
+  } catch (err) {
+    console.error("[updateHoliday] audit write failed", err);
+  }
 
   revalidatePath(PATH);
   return { ok: true };
@@ -166,12 +176,16 @@ export async function removeHoliday(input: {
     return { ok: false, error: `DB: ${msg}` };
   }
 
-  await db.insert(employeeEvents).values({
-    employeeId: me.id,
-    actorId: me.id,
-    eventType: "holiday_removed",
-    fromValue: { holidayDate: existing[0].holidayDate, label: existing[0].label },
-  });
+  try {
+    await db.insert(employeeEvents).values({
+      employeeId: me.id,
+      actorId: me.id,
+      eventType: "holiday_removed",
+      fromValue: { holidayDate: existing[0].holidayDate, label: existing[0].label },
+    });
+  } catch (err) {
+    console.error("[removeHoliday] audit write failed", err);
+  }
 
   revalidatePath(PATH);
   return { ok: true };

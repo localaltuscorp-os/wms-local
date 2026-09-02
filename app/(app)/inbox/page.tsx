@@ -1,13 +1,20 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { Inbox as InboxIcon } from "lucide-react";
-import { DashboardHeader } from "@/components/layout/header";
-import { DashboardFooter } from "@/components/layout/footer";
+import { UserMenuServer } from "@/components/header/user-menu-server";
 import { requireUser } from "@/lib/auth/current";
-import { listInboxNotifications } from "@/lib/queries/notifications";
+import { countInboxByKind, listInboxNotifications } from "@/lib/queries/notifications";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
+import {
+  NOTIFICATION_CATEGORIES,
+  categoryOfKind,
+  kindsInCategory,
+  parseCategory,
+} from "@/lib/notifications/categories";
+import type { NotificationKind } from "@/db/schema";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
-import { NotificationRow } from "./notification-row";
+import { CategoryBar } from "./category-bar";
+import { InboxList } from "./inbox-list";
 import { MarkAllButton } from "./mark-all-button";
 
 // SSR-only for now — realtime push will land with the websocket pass.
@@ -33,11 +40,31 @@ export default async function InboxPage({ searchParams }: PageProps) {
     return Number.isNaN(d.getTime()) ? undefined : d;
   })();
 
-  const [{ notifications, nextCursor, hasMore }, statusDisplay] =
+  // Which category the bar is filtering on. An unknown ?cat= is ignored rather
+  // than erroring — a stale bookmark should show the whole inbox, not a 500.
+  const category = parseCategory(firstString(sp["cat"]));
+
+  const [{ notifications, nextCursor, hasMore }, statusDisplay, kindCounts] =
     await Promise.all([
-      listInboxNotifications({ userId: me.id, isAdmin: me.isAdmin, before }),
+      listInboxNotifications({
+        userId: me.id,
+        isAdmin: me.isAdmin,
+        before,
+        kinds: category ? kindsInCategory(category) : undefined,
+      }),
       getStatusDisplayMap(),
+      countInboxByKind(me.id),
     ]);
+
+  // Per-kind counts roll up into the seven category buttons.
+  const categoryCounts: Record<string, { total: number; unread: number }> =
+    Object.fromEntries(NOTIFICATION_CATEGORIES.map((c) => [c, { total: 0, unread: 0 }]));
+  for (const [kind, c] of Object.entries(kindCounts)) {
+    const bucket = categoryCounts[categoryOfKind(kind as NotificationKind)];
+    if (!bucket) continue;
+    bucket.total += c.total;
+    bucket.unread += c.unread;
+  }
 
   const statusLabels = Object.fromEntries(
     Object.entries(statusDisplay).map(([k, v]) => [k, v.label]),
@@ -51,70 +78,70 @@ export default async function InboxPage({ searchParams }: PageProps) {
 
   return (
     <>
-      <DashboardHeader generatedAt={new Date()} />
-      <main className="mx-auto max-w-[1500px] px-12 max-md:px-4 pt-10 pb-16">
-        <header className="mb-8 flex items-end justify-between gap-4 flex-wrap">
-          <div>
-            <h1
-              className="font-serif text-ink-strong"
-              style={{
-                fontSize: 56,
-                fontStyle: "italic",
-                lineHeight: 0.95,
-                letterSpacing: "-0.03em",
-                fontWeight: 400,
-              }}
-            >
+      {/* Category filter bar. This slot used to hold the ten-module shortcut
+          row (`ModuleBar`), which was navigation sitting where a toolbar
+          belongs — every button took you OFF the Inbox. It now filters the list
+          in place. The logo still links to the Hub, so nothing is lost. */}
+      <div
+        className="sticky sticky-below-topbar z-30 flex items-center gap-3 border-b border-hairline bg-white px-4 py-2"
+      >
+        <a href="/hub" aria-label="Back to Hub" className="shrink-0">
+          <img src="/logo.png" alt="Altus Corp" className="h-8 w-auto" />
+        </a>
+        <CategoryBar active={category} counts={categoryCounts} />
+        <div className="shrink-0">
+          <UserMenuServer />
+        </div>
+      </div>
+
+      {/* FULL-BLEED. Was `mx-auto max-w-[1500px] px-12`, which left a wide empty
+          gutter each side of a list that is mostly one line per row. Gmail runs
+          edge to edge and so does this. */}
+      <main className="w-full">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-4 py-2.5">
+          <div className="flex min-w-0 items-baseline gap-2.5">
+            {/* 56px italic serif → a 20px label. A list you scan does not need
+                a poster-sized title; the row content is the content. */}
+            <h1 className="text-[20px] font-black tracking-tight text-ink-strong">
               Inbox
             </h1>
-            <p className="mt-3 text-body-lg text-ink-subtle">
-              Everything happening on tasks you're part of.
+            <p className="truncate text-[12.5px] font-medium text-ink-muted max-md:hidden">
+              Everything happening on tasks you&apos;re part of.
             </p>
           </div>
           {!isEmpty && <MarkAllButton hasUnread={hasUnread} />}
         </header>
 
         {isEmpty ? (
-          <EmptyState isPaginated={Boolean(before)} />
+          <div className="px-4">
+            <EmptyState isPaginated={Boolean(before)} isFiltered={Boolean(category)} />
+          </div>
         ) : (
-          <section
-            className="bg-surface-card rounded-section border border-hairline"
-            style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
-          >
-            <ol>
-              {notifications.map((n) => (
-                <NotificationRow
-                  key={n.id}
-                  row={n}
-                  statusLabels={statusLabels}
-                  statusTones={statusTones}
-                />
-              ))}
-            </ol>
-          </section>
+          // No card, no radius, no border — the rows ARE the surface, divided
+          // by hairlines, exactly as a mail client does it.
+          <InboxList
+            rows={notifications}
+            statusLabels={statusLabels}
+            statusTones={statusTones}
+          />
         )}
 
         {hasMore && nextCursor && (
-          <div className="mt-10 flex justify-center">
+          <div className="flex justify-center border-t border-hairline py-4">
             <Link
-              href={`/inbox?before=${encodeURIComponent(nextCursor)}` as Route}
-              className="nav-pill"
-              style={{
-                background: "rgba(15, 23, 42, 0.06)",
-                color: "var(--color-ink-strong)",
-              }}
+              href={`/inbox?before=${encodeURIComponent(nextCursor)}${category ? `&cat=${category}` : ""}` as Route}
+              className="rounded-lg border border-hairline-strong bg-surface-card px-4 py-2 text-[13px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
             >
               Load older
             </Link>
           </div>
         )}
       </main>
-      <DashboardFooter />
     </>
   );
 }
 
-function EmptyState({ isPaginated }: { isPaginated: boolean }) {
+function EmptyState({ isPaginated, isFiltered }: { isPaginated: boolean; isFiltered: boolean }) {
   return (
     <div
       className="bg-surface-card rounded-section border border-hairline p-10 text-center"
@@ -141,19 +168,25 @@ function EmptyState({ isPaginated }: { isPaginated: boolean }) {
           fontWeight: 400,
         }}
       >
-        {isPaginated ? "Nothing older to show" : "All caught up."}
+        {isPaginated
+          ? "Nothing older to show"
+          : isFiltered
+            ? "Nothing in this category"
+            : "All caught up."}
       </h2>
       <p className="mt-2 text-body text-ink-subtle max-w-[420px] mx-auto">
         {isPaginated
           ? "You've reached the bottom of the timeline."
-          : "New activity on your tasks will appear here."}
+          : isFiltered
+            ? "Pick another category, or view everything."
+            : "New activity on your tasks will appear here."}
       </p>
-      {isPaginated && (
+      {(isPaginated || isFiltered) && (
         <Link
           href={"/inbox" as Route}
           className="mt-6 inline-block text-body text-altus-red hover:underline underline-offset-4"
         >
-          ← Back to latest
+          {isPaginated ? "← Back to latest" : "← Show all notifications"}
         </Link>
       )}
     </div>

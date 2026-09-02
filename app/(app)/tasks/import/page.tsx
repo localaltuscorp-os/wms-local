@@ -1,14 +1,13 @@
-import { redirect } from "next/navigation";
 import { DashboardHeader } from "@/components/layout/header";
-import { DashboardFooter } from "@/components/layout/footer";
 import { TaskImport } from "@/components/tasks/task-import";
 import { requireUser } from "@/lib/auth/current";
 
 export const dynamic = "force-dynamic";
 
 export default async function ImportTasksPage() {
-  const me = await requireUser();
-  if (!me.isAdmin) redirect("/tasks");
+  // Bulk import is open to EVERY signed-in user (not admin-only) — same as
+  // creating a single task, just many at once.
+  await requireUser();
 
   return (
     <>
@@ -16,7 +15,6 @@ export default async function ImportTasksPage() {
       <main className="w-full">
         <TaskImport />
       </main>
-      <DashboardFooter />
     </>
   );
 }

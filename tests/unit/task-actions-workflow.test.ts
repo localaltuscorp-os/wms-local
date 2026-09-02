@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// `unstable_cache` arrives via lib/queries/employees (listEmployeeOptions);
+// pass the work function straight through so the cached query behaves as a
+// plain async call under test.
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   updateTag: vi.fn(),
+  unstable_cache: <T>(fn: T) => fn,
 }));
 
 // Tier-3 — actions.ts now imports getStatusDisplayMap (server-only).
@@ -58,17 +62,23 @@ vi.mock("@/lib/db", () => {
     },
     tasks: { id: "tasks.id", updatedAt: "tasks.updatedAt" },
     taskEvents: { id: "task_events.id" },
+    // `lib/events/emit` writes the append-only event log inside the same tx,
+    // so the table handle has to exist on the mock for reassign/status flows.
+    eventLog: { id: "event_log.id" },
     employees: {},
   };
 });
 
+// NOTE the email: changing a task's DOER is restricted to Manan (canChangeDoer),
+// so the acting user in these reassign tests must be him or every reassign
+// path returns "Only Manan can change a task's doer." before touching the db.
 vi.mock("@/lib/auth/current", () => ({
   requireUser: vi.fn(async () => ({
     id: "me-id",
     isAdmin: false,
     isActive: true,
     name: "Me",
-    email: "me@vp.com",
+    email: "manan@unleashed.in",
   })),
 }));
 
@@ -113,6 +123,20 @@ beforeEach(() => {
   updateCall.mockImplementation(() => ({ set }));
 });
 
+/**
+ * Count the task_events rows a workflow writes. Phase B (`lib/events/emit`)
+ * appends a parallel `event_log` row inside the same transaction for every
+ * domain event, so a blanket `insertCall` count double-counts. `eventLog` is
+ * the stub from the `@/lib/db` mock above (`{ id: "event_log.id" }`) while
+ * `taskEvents` is the real Drizzle table from `@/db/schema`, so filtering on
+ * that marker separates the two.
+ */
+function taskEventInserts(): number {
+  return insertCall.mock.calls.filter(
+    (call) => (call[0] as { id?: unknown } | undefined)?.id !== "event_log.id",
+  ).length;
+}
+
 function taskRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: VALID_UUID,
@@ -144,7 +168,7 @@ describe("setTaskStatus (rewritten)", () => {
     queryCall.mockResolvedValueOnce(taskRow({ doerId: "me-id" }));
     const result = await setTaskStatus(VALID_UUID, "done", baseDate.toISOString());
     expect(result.ok).toBe(true);
-    expect(insertCall).toHaveBeenCalledTimes(1); // task_events row
+    expect(taskEventInserts()).toBe(1); // task_events row
     expect(updateCall).toHaveBeenCalledTimes(1);
   });
 
@@ -195,7 +219,7 @@ describe("approveTask", () => {
       baseDate.toISOString(),
     );
     expect(result.ok).toBe(true);
-    expect(insertCall).toHaveBeenCalledTimes(1);
+    expect(taskEventInserts()).toBe(1);
     expect(updateCall).toHaveBeenCalledTimes(1);
   });
 });
@@ -226,7 +250,7 @@ describe("reassignTask", () => {
       baseDate.toISOString(),
     );
     expect(result.ok).toBe(true);
-    expect(insertCall).toHaveBeenCalledTimes(2); // reassigned + status_changed
+    expect(taskEventInserts()).toBe(2); // reassigned + status_changed
   });
 
   it("writes only a reassigned event when resetStatus is omitted", async () => {
@@ -239,7 +263,7 @@ describe("reassignTask", () => {
       baseDate.toISOString(),
     );
     expect(result.ok).toBe(true);
-    expect(insertCall).toHaveBeenCalledTimes(1);
+    expect(taskEventInserts()).toBe(1);
   });
 });
 

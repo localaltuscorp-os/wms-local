@@ -105,6 +105,21 @@ export async function employeeIdsInDepartments(
 }
 
 /**
+ * All structured department NAMES an employee belongs to (full membership, not
+ * just the primary). This is the source of truth for workspace access on
+ * department-gated rooms (e.g. Sales) — the legacy free-text `employees.
+ * department` column only holds one value and misses multi-department people.
+ */
+export async function employeeDepartmentNames(employeeId: string): Promise<string[]> {
+  const rows = await db
+    .select({ name: departments.name })
+    .from(employeeDepartments)
+    .innerJoin(departments, eq(departments.id, employeeDepartments.departmentId))
+    .where(eq(employeeDepartments.employeeId, employeeId));
+  return rows.map((r) => r.name);
+}
+
+/**
  * Just active departments, used by employee pickers (invite + edit).
  */
 export async function listActiveDepartments(): Promise<Department[]> {

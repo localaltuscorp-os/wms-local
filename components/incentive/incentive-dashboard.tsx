@@ -1,142 +1,573 @@
-"use client";
-
 import * as React from "react";
-import Link from "next/link";
-import type { Route } from "next";
-import { ArrowLeft, Trophy, Medal, Wallet, Clock, IndianRupee } from "lucide-react";
-import { INCENTIVE_TYPE_LABELS } from "@/db/enums";
-import type { IncentiveDashboardData } from "@/lib/queries/incentive";
+import {
+  BadgeIndianRupee,
+  FolderKanban,
+  Trophy,
+  Users,
+  BarChart3,
+  PieChart,
+  Tags,
+} from "lucide-react";
+import { formatInr } from "@/lib/format";
+import type { IncentiveDashboard as DashboardData } from "@/lib/queries/incentives";
+import { EmployeeAvatar } from "@/components/ui/employee-avatar";
+import { IncentiveMonthlyChart } from "./incentive-monthly-chart";
+import { IncentiveNameChart } from "./incentive-name-chart";
+import { IncentiveDashboardDrilldown } from "./incentive-dashboard-drilldown";
+import { IncEmployeeTable } from "./inc-employee-table";
 
-const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+const GREEN = "#16a34a";
+const GREEN_DEEP = "#15803d";
+const RED = "#E10600";
+const RED_DEEP = "#A80400";
 
-export function IncentiveDashboard({ data, myId }: { data: IncentiveDashboardData; myId: string }) {
-  const { totals, leaderboard, byType, byMonth } = data;
-  const maxMonth = Math.max(1, ...byMonth.map((m) => m.approved));
+/* ─────────────────────────── small UI atoms ─────────────────────────── */
 
+function Panel({
+  title,
+  description,
+  icon,
+  accent = RED,
+  delay = 0,
+  actions,
+  children,
+}: {
+  title: string;
+  description?: string;
+  icon: React.ReactNode;
+  accent?: string;
+  delay?: number;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <main className="mx-auto max-w-[1300px] px-12 max-md:px-4 pt-8 pb-24">
-      <header className="mb-7 flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(34px,3.6vw,48px)", letterSpacing: "-0.025em", lineHeight: 1 }}>
-            Incentive — Dashboard
-          </h1>
-          <p className="mt-2 text-ink-muted font-semibold" style={{ fontSize: 17 }}>
-            Approved, paid, and pending — who's earning and what's owed.
-          </p>
+    <section
+      className="wg-rise rounded-[22px] bg-surface-card p-6 max-md:p-4"
+      style={{
+        boxShadow:
+          "inset 0 0 0 1px var(--color-hairline), 0 6px 24px -18px rgba(15,23,42,0.25)",
+        animationDelay: `${delay}ms`,
+      }}
+    >
+      <header className="mb-5 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span
+            aria-hidden
+            className="inline-grid size-9 shrink-0 place-items-center rounded-xl"
+            style={{
+              background: `color-mix(in srgb, ${accent} 10%, transparent)`,
+              color: accent,
+            }}
+          >
+            {icon}
+          </span>
+          <div className="min-w-0">
+            <h2
+              className="text-ink-strong"
+              style={{
+                fontFamily: "var(--font-display), system-ui, sans-serif",
+                fontWeight: 900,
+                fontSize: 21,
+                letterSpacing: "-0.02em",
+                lineHeight: 1.1,
+              }}
+            >
+              {title}
+            </h2>
+            {description && (
+              <p className="text-[13px] font-medium text-ink-subtle">{description}</p>
+            )}
+          </div>
         </div>
-        <Link href={"/incentive" as Route}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[14.5px] font-bold border border-hairline bg-surface-card text-ink-strong hover:brightness-95 transition-all">
-          <ArrowLeft size={16} strokeWidth={2.4} /> Back to Incentive
-        </Link>
+        {actions}
       </header>
-
-      {/* Totals */}
-      <div className="mb-8 grid grid-cols-4 gap-4 max-lg:grid-cols-2">
-        <StatCard label="Approved" value={inr(totals.approved)} icon={Trophy} tone="green" />
-        <StatCard label="Paid" value={inr(totals.paid)} icon={Wallet} tone="blue" />
-        <StatCard label="Unpaid" value={inr(totals.unpaid)} icon={Clock} tone="amber" />
-        <StatCard label="Entries" value={String(totals.count)} icon={IndianRupee} tone="purple" />
-      </div>
-
-      <div className="grid grid-cols-3 gap-6 max-lg:grid-cols-1">
-        {/* Leaderboard */}
-        <section className="col-span-2 max-lg:col-span-1">
-          <h2 className="mb-3 font-black text-ink-strong text-[20px]">Leaderboard</h2>
-          {leaderboard.length === 0 ? (
-            <Empty />
-          ) : (
-            <div className="overflow-hidden rounded-section border border-hairline bg-surface-card">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b border-hairline bg-black/[0.015]">
-                    <Th w={60}>#</Th><Th>Team member</Th>
-                    <Th right>Approved</Th><Th right>Paid</Th><Th right>Unpaid</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leaderboard.map((r, i) => (
-                    <tr key={r.employeeId} className="border-b border-hairline last:border-0"
-                      style={{ background: r.employeeId === myId ? "color-mix(in srgb, var(--color-altus-red) 5%, transparent)" : undefined }}>
-                      <td className="px-4 py-3"><Rank n={i + 1} /></td>
-                      <td className="px-4 py-3 font-bold text-ink-strong text-[15px]">
-                        {r.employeeName}
-                        {r.employeeId === myId && <span className="ml-2 text-[11px] font-black text-altus-red">YOU</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums font-black text-ink-strong">{inr(r.approved)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-bold text-green-700">{inr(r.paid)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-bold text-amber-700">{inr(r.unpaid)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {/* By scheme */}
-        <section>
-          <h2 className="mb-3 font-black text-ink-strong text-[20px]">By scheme</h2>
-          <div className="rounded-section border border-hairline bg-surface-card p-4 space-y-2.5">
-            {byType.length === 0 ? <Empty /> : byType.map((t) => (
-              <div key={t.type} className="flex items-center justify-between gap-3">
-                <span className="text-[14px] font-bold text-ink-strong">{t.type === "project" ? "Project" : t.type === "sheet" ? "Leads & Referrals" : t.type === "weekly_goal" ? "Weekly Goals" : INCENTIVE_TYPE_LABELS[t.type]}</span>
-                <span className="text-[13px] font-bold tabular-nums text-ink-soft">{inr(t.approved)} · {t.count}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      {/* Month trend */}
-      {byMonth.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-3 font-black text-ink-strong text-[20px]">Approved by month</h2>
-          <div className="rounded-section border border-hairline bg-surface-card p-6">
-            <div className="flex items-end gap-3 h-44">
-              {byMonth.map((m) => (
-                <div key={m.month} className="flex-1 flex flex-col items-center gap-2 min-w-0">
-                  <span className="text-[11px] font-black tabular-nums text-ink-soft">{inr(m.approved)}</span>
-                  <div className="w-full flex-1 flex items-end">
-                    <div className="w-full rounded-t-md" style={{ height: `${(m.approved / maxMonth) * 100}%`, minHeight: 2, background: "linear-gradient(180deg, var(--color-altus-red), var(--color-altus-red-deep))" }} />
-                  </div>
-                  <span className="text-[11px] font-bold text-ink-muted whitespace-nowrap">{m.month}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-    </main>
+      {children}
+    </section>
   );
 }
 
-function StatCard({ label, value, icon: Icon, tone }: { label: string; value: string; icon: typeof Trophy; tone: string }) {
+function Th({
+  children,
+  align = "left",
+}: {
+  children: React.ReactNode;
+  align?: "left" | "right";
+}) {
   return (
-    <div className="relative bg-surface-card rounded-section overflow-hidden p-5" style={{ border: "1px solid var(--color-hairline)" }}>
-      <span aria-hidden className="absolute inset-x-0 top-0" style={{ height: 4, background: `linear-gradient(90deg, var(--color-${tone}), var(--color-${tone}-deep))` }} />
-      <span className="inline-flex size-9 items-center justify-center rounded-xl mb-2" style={{ background: `color-mix(in srgb, var(--color-${tone}) 14%, transparent)`, color: `var(--color-${tone}-deep)` }}>
-        <Icon size={18} strokeWidth={2.3} />
-      </span>
-      <div className="text-[13px] font-black uppercase tracking-[0.05em] text-ink-muted">{label}</div>
-      <div className="mt-0.5 font-black text-ink-strong tabular-nums" style={{ fontSize: 26 }}>{value}</div>
+    <th
+      className="pb-2 uppercase font-bold tracking-[0.06em] text-ink-subtle whitespace-nowrap"
+      style={{ fontSize: 11, textAlign: align }}
+    >
+      {children}
+    </th>
+  );
+}
+
+function Td({
+  children,
+  align = "left",
+  bold = false,
+  style,
+}: {
+  children: React.ReactNode;
+  align?: "left" | "right";
+  bold?: boolean;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <td
+      className={`py-2.5 tabular-nums whitespace-nowrap ${
+        bold ? "font-black text-ink-strong" : "font-semibold text-ink-soft"
+      }`}
+      style={{ fontSize: 14, textAlign: align, ...style }}
+    >
+      {children}
+    </td>
+  );
+}
+
+/* ─────────────────────── ledger split cards ─────────────────────── */
+
+function SplitCard({
+  label,
+  caption,
+  approved,
+  paid,
+  unpaid,
+  accent,
+  icon: Icon,
+  delay,
+}: {
+  label: string;
+  caption: string;
+  approved: number;
+  paid: number;
+  unpaid: number;
+  accent: string;
+  icon: typeof BadgeIndianRupee;
+  delay: number;
+}) {
+  const paidPct = approved > 0 ? (paid / approved) * 100 : 0;
+  return (
+    <div
+      className="wg-rise wg-btn relative overflow-hidden rounded-[22px] bg-surface-card px-5 py-4.5 max-md:px-4"
+      style={{
+        boxShadow:
+          "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.7), 0 10px 28px -20px rgba(15,23,42,0.35)",
+        animationDelay: `${delay}ms`,
+      }}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: `radial-gradient(110% 170% at 100% 0%, color-mix(in srgb, ${accent} 7%, transparent), transparent 55%)`,
+        }}
+      />
+      <div className="relative flex items-center gap-2">
+        <span
+          className="inline-grid size-8 shrink-0 place-items-center rounded-[10px]"
+          style={{ background: `color-mix(in srgb, ${accent} 10%, transparent)`, color: accent }}
+        >
+          <Icon size={16} strokeWidth={2.4} />
+        </span>
+        <div>
+          <span className="block text-[11px] font-bold uppercase tracking-[0.12em] text-ink-subtle">
+            {label}
+          </span>
+          <span className="block text-[11.5px] font-medium text-ink-subtle">{caption}</span>
+        </div>
+      </div>
+      <div
+        className="relative mt-2.5 tabular-nums text-ink-strong"
+        style={{
+          fontFamily: "var(--font-display), system-ui, sans-serif",
+          fontWeight: 900,
+          fontSize: "clamp(24px, 1.9vw, 32px)",
+          letterSpacing: "-0.025em",
+          lineHeight: 1,
+        }}
+      >
+        {formatInr(approved)}
+      </div>
+      <div
+        className="relative mt-3 h-1.5 w-full overflow-hidden rounded-full"
+        style={{ background: "var(--color-hairline)" }}
+        aria-hidden
+      >
+        <span
+          className="block h-full rounded-full"
+          style={{
+            width: `${Math.max(approved > 0 ? 2 : 0, Math.min(100, paidPct))}%`,
+            background: `linear-gradient(90deg, #22c55e, ${GREEN_DEEP})`,
+          }}
+        />
+      </div>
+      <div className="relative mt-2 flex items-center justify-between gap-3 text-[12px] font-bold">
+        <span style={{ color: GREEN_DEEP }}>{formatInr(paid)} paid</span>
+        <span style={{ color: unpaid > 0 ? "var(--color-red-deep)" : "var(--color-ink-subtle)" }}>
+          {formatInr(unpaid)} unpaid
+        </span>
+      </div>
     </div>
   );
 }
 
-function Th({ children, right, w }: { children?: React.ReactNode; right?: boolean; w?: number }) {
-  return <th className={`px-4 py-3 ${right ? "text-right" : "text-left"} text-[12px] font-black uppercase tracking-[0.05em] text-ink-muted`} style={w ? { width: w } : undefined}>{children}</th>;
-}
+/* ─────────────────────────── main view ─────────────────────────── */
 
-function Rank({ n }: { n: number }) {
-  const tone = n === 1 ? "amber" : n === 2 ? "slate" : n === 3 ? "orange" : "slate";
+export function IncentiveDashboard({ data, year }: { data: DashboardData; year: number }) {
+  const { permanent, project, perEmployee, perIncentiveName, monthly, leaderboard } = data;
+
+  // NOTE: per-employee × per-month figures are not exposed by getIncentiveDashboard
+  // (it returns a company-wide `monthly` series + per-employee YTD totals). We render
+  // the exact per-employee Permanent / Project / YTD / Paid / Unpaid columns and keep
+  // the month breakdown in the company-wide Monthly chart above, rather than inventing
+  // per-person monthly splits the summary can't support.
+
+  const empTotal = perEmployee.reduce((s, r) => s + r.total, 0);
+  const empPaid = perEmployee.reduce((s, r) => s + r.paid, 0);
+  const empUnpaid = perEmployee.reduce((s, r) => s + r.unpaid, 0);
+
+  const nameApproved = perIncentiveName.reduce((s, r) => s + r.approved, 0);
+  const namePaid = perIncentiveName.reduce((s, r) => s + r.paid, 0);
+  const nameUnpaid = perIncentiveName.reduce((s, r) => s + r.unpaid, 0);
+  // Project roll-up row (project ledger isn't split by name in the summary).
+  const projectRow = project.approved > 0 || project.paid > 0;
+
+  const leaderTotal = leaderboard.reduce((s, r) => s + r.total, 0);
+  const podium = leaderboard.slice(0, 3);
+
   return (
-    <span className="inline-flex size-8 items-center justify-center rounded-full font-black tabular-nums text-[14px]"
-      style={{ background: n <= 3 ? `color-mix(in srgb, var(--color-${tone}) 22%, transparent)` : "transparent", color: n <= 3 ? `var(--color-${tone}-deep)` : "var(--color-ink-muted)" }}>
-      {n <= 3 ? <Medal size={16} /> : n}
-    </span>
+    <IncentiveDashboardDrilldown year={year}>
+    <div className="space-y-5">
+      {/* Ledger split: permanent vs project */}
+      <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
+        <SplitCard
+          label="Permanent"
+          caption="ledger incentives · YTD"
+          approved={permanent.approved}
+          paid={permanent.paid}
+          unpaid={permanent.unpaid}
+          accent={GREEN}
+          icon={BadgeIndianRupee}
+          delay={0}
+        />
+        <SplitCard
+          label="Project"
+          caption="project-based incentives · YTD"
+          approved={project.approved}
+          paid={project.paid}
+          unpaid={project.unpaid}
+          accent="var(--color-blue)"
+          icon={FolderKanban}
+          delay={60}
+        />
+      </div>
+
+      {/* Charts row */}
+      <div className="grid grid-cols-2 gap-3.5 max-lg:grid-cols-1">
+        <Panel
+          title="Monthly Incentive"
+          description="Permanent vs project per month"
+          icon={<BarChart3 size={18} strokeWidth={2.3} />}
+          delay={80}
+        >
+          <IncentiveMonthlyChart rows={monthly} />
+        </Panel>
+        <Panel
+          title="Incentive Mix"
+          description="Permanent incentives by name"
+          icon={<PieChart size={18} strokeWidth={2.3} />}
+          accent="var(--color-blue)"
+          delay={120}
+        >
+          <IncentiveNameChart rows={perIncentiveName} />
+        </Panel>
+      </div>
+
+      {/* Leaderboard */}
+      <Panel
+        title="Leaderboard"
+        description="Top earners by YTD incentive"
+        icon={<Trophy size={18} strokeWidth={2.3} />}
+        accent="#D4AF37"
+        delay={160}
+      >
+        {leaderboard.length === 0 ? (
+          <p className="font-semibold" style={{ fontSize: 14, color: "var(--color-ink-subtle)" }}>
+            No earners this year yet.
+          </p>
+        ) : (
+          <>
+            {podium.length >= 2 && (
+              <div className="mb-6 grid grid-cols-3 gap-3 items-end max-sm:grid-cols-1">
+                {orderPodium(podium).map(({ row, rank }) => (
+                  <PodiumCard
+                    key={row.name}
+                    rank={rank}
+                    name={row.name}
+                    total={row.total}
+                  />
+                ))}
+              </div>
+            )}
+            <ol className="space-y-2.5">
+              {leaderboard.map((row, i) => {
+                const share = leaderTotal > 0 ? (row.total / leaderTotal) * 100 : 0;
+                return (
+                  <li key={row.name} className="flex items-center gap-3">
+                    <span
+                      className="tabular-nums font-black text-ink-subtle w-6 text-right shrink-0"
+                      style={{ fontSize: 15 }}
+                    >
+                      {i + 1}
+                    </span>
+                    <button
+                      type="button"
+                      data-incentive-person={row.name}
+                      aria-label={`Open ${row.name}'s incentive detail`}
+                      className="shrink-0 cursor-pointer"
+                    >
+                      <EmployeeAvatar name={row.name} size="sm" />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <button
+                          type="button"
+                          data-incentive-person={row.name}
+                          className="truncate cursor-pointer font-bold text-ink-strong text-left transition-colors hover:text-[#A80400]"
+                          style={{ fontSize: 15 }}
+                        >
+                          {row.name}
+                        </button>
+                        <span
+                          className="tabular-nums font-bold text-ink-strong shrink-0"
+                          style={{ fontSize: 15 }}
+                        >
+                          {formatInr(row.total)}
+                        </span>
+                      </div>
+                      <div
+                        className="mt-1.5 h-2 w-full overflow-hidden rounded-full"
+                        style={{ background: "var(--color-hairline)" }}
+                      >
+                        <span
+                          className="block h-full rounded-full"
+                          style={{
+                            width: `${Math.max(2, share)}%`,
+                            background: `linear-gradient(90deg, #E10600, ${RED_DEEP})`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <span
+                      className="tabular-nums font-semibold text-ink-subtle w-12 text-right shrink-0"
+                      style={{ fontSize: 13 }}
+                    >
+                      {share.toFixed(1)}%
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </>
+        )}
+      </Panel>
+
+      {/* Employee-wise YTD table — searchable + sortable */}
+      <Panel
+        title="Employee-wise YTD"
+        description="Permanent + project totals per employee — click a person to drill down"
+        icon={<Users size={18} strokeWidth={2.3} />}
+        delay={200}
+      >
+        {perEmployee.length === 0 ? (
+          <p className="font-semibold" style={{ fontSize: 14, color: "var(--color-ink-subtle)" }}>
+            No employee incentives this year.
+          </p>
+        ) : (
+          <IncEmployeeTable
+            rows={perEmployee}
+            totals={{
+              permanent: permanent.approved,
+              project: project.approved,
+              total: empTotal,
+              paid: empPaid,
+              unpaid: empUnpaid,
+            }}
+          />
+        )}
+      </Panel>
+
+      {/* Incentive-name YTD table */}
+      <Panel
+        title="Incentive-name YTD"
+        description="Permanent ledger by incentive, with the project roll-up"
+        icon={<Tags size={18} strokeWidth={2.3} />}
+        accent="var(--color-blue)"
+        delay={240}
+      >
+        {perIncentiveName.length === 0 && !projectRow ? (
+          <p className="font-semibold" style={{ fontSize: 14, color: "var(--color-ink-subtle)" }}>
+            No incentives this year.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <Th>Incentive</Th>
+                  <Th align="right">Count</Th>
+                  <Th align="right">YTD</Th>
+                  <Th align="right">Paid</Th>
+                  <Th align="right">Unpaid</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {perIncentiveName.map((r) => (
+                  <tr
+                    key={r.name}
+                    className="border-t transition-colors hover:bg-[color-mix(in_srgb,#E10600_3%,transparent)]"
+                    style={{ borderColor: "var(--color-hairline)" }}
+                  >
+                    <td className="py-2.5 font-semibold text-ink-soft" style={{ fontSize: 14 }}>
+                      {r.name}
+                    </td>
+                    <Td align="right">{r.count}</Td>
+                    <Td align="right" bold>{formatInr(r.approved)}</Td>
+                    <Td align="right" style={{ color: GREEN_DEEP }}>
+                      {formatInr(r.paid)}
+                    </Td>
+                    <Td align="right" style={{ color: r.unpaid > 0 ? "var(--color-red-deep)" : "var(--color-ink-subtle)" }}>
+                      {formatInr(r.unpaid)}
+                    </Td>
+                  </tr>
+                ))}
+                {projectRow && (
+                  <tr
+                    className="border-t transition-colors hover:bg-[color-mix(in_srgb,#E10600_3%,transparent)]"
+                    style={{ borderColor: "var(--color-hairline)" }}
+                  >
+                    <td className="py-2.5 font-semibold text-ink-soft" style={{ fontSize: 14 }}>
+                      Project Based Incentive
+                    </td>
+                    <Td align="right">—</Td>
+                    <Td align="right" bold>{formatInr(project.approved)}</Td>
+                    <Td align="right" style={{ color: GREEN_DEEP }}>
+                      {formatInr(project.paid)}
+                    </Td>
+                    <Td align="right" style={{ color: project.unpaid > 0 ? "var(--color-red-deep)" : "var(--color-ink-subtle)" }}>
+                      {formatInr(project.unpaid)}
+                    </Td>
+                  </tr>
+                )}
+                <tr className="border-t-2" style={{ borderColor: "var(--color-hairline-strong)" }}>
+                  <td
+                    className="py-2.5 font-black uppercase tracking-[0.04em] text-ink-strong"
+                    style={{ fontSize: 13 }}
+                  >
+                    Total
+                  </td>
+                  <Td align="right">—</Td>
+                  <Td align="right" bold>{formatInr(nameApproved + project.approved)}</Td>
+                  <Td align="right" bold style={{ color: GREEN_DEEP }}>
+                    {formatInr(namePaid + project.paid)}
+                  </Td>
+                  <Td align="right" bold style={{ color: nameUnpaid + project.unpaid > 0 ? "var(--color-red-deep)" : "var(--color-ink-subtle)" }}>
+                    {formatInr(nameUnpaid + project.unpaid)}
+                  </Td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+    </div>
+    </IncentiveDashboardDrilldown>
   );
 }
 
-function Empty() {
-  return <div className="rounded-section border border-hairline bg-surface-card p-8 text-center text-ink-muted font-semibold">No incentive data yet.</div>;
+/* ─────────────────────────── podium ─────────────────────────── */
+
+function orderPodium(
+  podium: DashboardData["leaderboard"],
+): { row: DashboardData["leaderboard"][number]; rank: number }[] {
+  // Visual order: 2nd, 1st, 3rd (so #1 sits centre + tallest).
+  const out: { row: DashboardData["leaderboard"][number]; rank: number }[] = [];
+  if (podium[1]) out.push({ row: podium[1], rank: 2 });
+  if (podium[0]) out.push({ row: podium[0], rank: 1 });
+  if (podium[2]) out.push({ row: podium[2], rank: 3 });
+  return out;
+}
+
+const PODIUM_TONE: Record<number, { medal: string; avatar: string }> = {
+  1: { medal: "#D4AF37", avatar: "linear-gradient(135deg, #D4AF37, #92700c)" },
+  2: { medal: "#9CA3AF", avatar: "linear-gradient(135deg, #9CA3AF, #4b5563)" },
+  3: { medal: "#B45309", avatar: "linear-gradient(135deg, #d97706, #92400e)" },
+};
+
+function PodiumCard({ rank, name, total }: { rank: number; name: string; total: number }) {
+  const tone = PODIUM_TONE[rank]!;
+  const isFirst = rank === 1;
+  return (
+    <button
+      type="button"
+      data-incentive-person={name}
+      className="wg-btn wg-sheen relative flex cursor-pointer flex-col items-center overflow-hidden rounded-[20px] bg-surface-card text-center"
+      style={{
+        boxShadow: isFirst
+          ? `inset 0 0 0 2px ${RED}, inset 0 1px 0 rgba(255,255,255,0.7), 0 14px 34px -22px color-mix(in srgb, ${RED_DEEP} 60%, transparent)`
+          : "inset 0 0 0 1px var(--color-hairline-strong), inset 0 1px 0 rgba(255,255,255,0.7), 0 10px 28px -22px rgba(15,23,42,0.35)",
+        padding: isFirst ? "22px 16px" : "16px 14px",
+        border: "none",
+      }}
+    >
+      {isFirst && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: `radial-gradient(120% 130% at 50% 0%, color-mix(in srgb, ${RED} 8%, transparent), transparent 60%)`,
+          }}
+        />
+      )}
+      <span className="relative">
+        <EmployeeAvatar name={name} size={isFirst ? "lg" : "md"} background={tone.avatar} />
+        <span
+          className="absolute -bottom-1.5 -right-1.5 inline-flex items-center justify-center rounded-full font-black text-white"
+          style={{
+            background: tone.medal,
+            width: isFirst ? 22 : 19,
+            height: isFirst ? 22 : 19,
+            fontSize: isFirst ? 12 : 10.5,
+            boxShadow: "0 0 0 2px var(--color-surface-card)",
+          }}
+        >
+          {rank}
+        </span>
+      </span>
+      <span
+        className="relative mt-2.5 font-bold text-ink-strong truncate max-w-full"
+        style={{ fontSize: isFirst ? 17 : 15 }}
+      >
+        {name}
+      </span>
+      <span
+        className="relative mt-1 tabular-nums font-black text-ink-strong"
+        style={{
+          fontFamily: "var(--font-display), system-ui, sans-serif",
+          fontSize: isFirst ? 22 : 18,
+        }}
+      >
+        {formatInr(total)}
+      </span>
+      <Trophy
+        size={isFirst ? 18 : 15}
+        strokeWidth={2.2}
+        className="relative mt-1.5"
+        style={{ color: tone.medal }}
+        aria-hidden
+      />
+    </button>
+  );
 }

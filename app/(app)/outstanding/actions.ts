@@ -22,7 +22,7 @@ import {
 import { pickOutstanding, pickCollection } from "@/lib/outstanding/import-shape";
 import { sheetCsvUrl } from "@/lib/outstanding/import-fetch";
 import { OUTSTANDING_CYCLES, SUBSCRIPTION_FREQUENCIES } from "@/db/enums";
-import { requireAdmin, requireUser } from "@/lib/auth/current";
+import { requireWorkspace, requireWorkspaceAdmin } from "@/lib/auth/workspace-access";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { generateSchedule } from "@/lib/outstanding/schedule";
@@ -137,7 +137,7 @@ export async function createOutstandingContract(input: {
   pdcReceived: boolean;
   comments?: string;
 }): Promise<ActionResult<{ id: string }>> {
-  const me = await requireUser();
+  const me = await requireWorkspace("sales");
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -208,7 +208,7 @@ export async function updateOutstandingContract(
   id: string,
   fields: UpdateContractInput,
 ): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const me = await requireWorkspaceAdmin("sales");
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -296,7 +296,7 @@ async function setContractStatus(
   id: string,
   status: "written_off" | "closed",
 ): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const me = await requireWorkspaceAdmin("sales");
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -333,7 +333,7 @@ export async function editInstallment(
   id: string,
   fields: { dueDate?: string; amount?: number },
 ): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const me = await requireWorkspaceAdmin("sales");
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -368,7 +368,7 @@ export async function addAdhocInstallment(
   contractId: string,
   fields: { dueDate: string; amount: number },
 ): Promise<ActionResult<{ id: string }>> {
-  const me = await requireAdmin();
+  const me = await requireWorkspaceAdmin("sales");
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -410,7 +410,7 @@ export async function addAdhocInstallment(
 export async function fetchInstallmentsForContract(
   contractId: string,
 ): Promise<ActionResult<{ rows: AdminInstallmentRow[] }>> {
-  const me = await requireAdmin();
+  const me = await requireWorkspaceAdmin("sales");
   const limited = rateLimitOrError(me.id, "read");
   if (limited) return limited;
 
@@ -429,7 +429,7 @@ export async function fetchInstallmentsForContract(
 
 /** Delete a single installment (admin). */
 export async function deleteInstallment(id: string): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const me = await requireWorkspaceAdmin("sales");
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -458,7 +458,7 @@ export async function createCollection(input: {
   collectedAt?: string;
   comments?: string;
 }): Promise<ActionResult<{ id: string }>> {
-  const me = await requireUser();
+  const me = await requireWorkspace("sales");
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -524,13 +524,13 @@ function safeAttachmentName(name: string): string {
 // in the documents server action — replicated here to keep the two upload
 // guards consistent. If documents.ts ever exports it, switch to an import.
 const DISALLOWED_ATTACHMENT_EXTENSIONS =
-  /\.(exe|com|cmd|bat|msi|scr|pif|vbs|js|mjs|cjs|jar|sh|bash|app|dmg|ps1|psm1|reg|hta|cpl|gadget)$/i;
+  /\.(exe|com|cmd|bat|msi|scr|pif|vbs|js|mjs|cjs|jar|sh|bash|app|dmg|ps1|psm1|reg|hta|cpl|gadget|html?|xhtml|svgz?)$/i;
 
 /** Upload a contract/collection attachment (any signed-in employee). */
 export async function uploadOutstandingAttachment(
   form: FormData,
 ): Promise<ActionResult<{ id: string }>> {
-  const me = await requireUser();
+  const me = await requireWorkspace("sales");
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -609,7 +609,7 @@ export async function listOutstandingAttachments(
   ownerType: "contract" | "collection",
   ownerId: string,
 ): Promise<OutstandingAttachmentView[]> {
-  const me = await requireUser();
+  const me = await requireWorkspace("sales");
   const limited = rateLimitOrError(me.id, "read");
   if (limited) return [];
 
@@ -778,7 +778,7 @@ function buildSpecs(outstandingCsv: string, collectionCsv: string) {
 export async function previewImport(
   input: ImportPayload,
 ): Promise<ActionResult<{ preview: ImportPreview }>> {
-  const me = await requireAdmin();
+  const me = await requireWorkspaceAdmin("sales");
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -929,7 +929,7 @@ async function resolveOrCreateRoster(
 export async function confirmImport(
   input: ImportPayload,
 ): Promise<ActionResult<{ batchId: string; contracts: number; installments: number; collections: number }>> {
-  const me = await requireAdmin();
+  const me = await requireWorkspaceAdmin("sales");
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -1042,7 +1042,7 @@ export async function confirmImport(
 export async function undoImport(
   batchId: string,
 ): Promise<ActionResult<{ contracts: number; collections: number }>> {
-  const me = await requireAdmin();
+  const me = await requireWorkspaceAdmin("sales");
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 

@@ -1,6 +1,9 @@
 import PDFDocument from "pdfkit";
 import { format } from "date-fns";
+import { formatDate } from "@/lib/format";
 import { requireUser } from "@/lib/auth/current";
+import { accessFor } from "@/lib/auth/workspace-access";
+import { canAccessWorkspace } from "@/lib/workspaces";
 import { parseOutstandingFilters } from "@/lib/outstanding/filters";
 import { loadOutstandingDashboard } from "@/lib/queries/outstanding";
 import { todayISO, rollingHorizon } from "@/lib/outstanding/horizon";
@@ -30,6 +33,10 @@ export async function GET(request: Request): Promise<Response> {
   try {
     me = await requireUser();
   } catch {
+    return new Response("Forbidden", { status: 403 });
+  }
+  // Sales room — enforce access at the route (the layout gate never runs here).
+  if (!canAccessWorkspace("sales", await accessFor(me))) {
     return new Response("Forbidden", { status: 403 });
   }
 
@@ -208,7 +215,7 @@ function drawMasthead(
       lineBreak: false,
     });
 
-  const generated = format(new Date(), "EEE, MMM d, yyyy · HH:mm");
+  const generated = `${formatDate(new Date())} · ${format(new Date(), "HH:mm")}`;
   doc
     .font("Helvetica")
     .fontSize(8)

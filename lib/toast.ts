@@ -28,17 +28,24 @@ export function fireToast(opts: {
   actionLabel?: string;
   action?: () => void | Promise<void>;
   type?: "success" | "error" | "info";
+  /** Override the host's default lifetime (ms) — e.g. a longer-lived Undo. */
+  duration?: number;
 }): void {
   const kind = opts.type ?? (ERROR_RE.test(opts.message) ? "error" : "success");
   const options =
-    opts.action !== undefined
+    opts.action !== undefined || opts.duration !== undefined
       ? {
-          action: {
-            label: opts.actionLabel ?? "Undo",
-            onClick: () => {
-              void opts.action?.();
-            },
-          },
+          ...(opts.duration !== undefined ? { duration: opts.duration } : null),
+          ...(opts.action !== undefined
+            ? {
+                action: {
+                  label: opts.actionLabel ?? "Undo",
+                  onClick: () => {
+                    void opts.action?.();
+                  },
+                },
+              }
+            : null),
         }
       : undefined;
   if (kind === "error") sonnerToast.error(opts.message, options);

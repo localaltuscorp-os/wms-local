@@ -7,6 +7,16 @@
 export const CACHE_TAGS = {
   /** Anything that reads the `tasks` table (board counts, nav badges, etc.). */
   tasks: "tasks",
+  /**
+   * The EXECUTIVE DASHBOARD aggregate (org-wide rollups). Deliberately SEPARATE
+   * from `tasks` and busted by NOTHING on the per-task write path — it serves
+   * from its 60s TTL instead. Rationale (Operation Butter P0 / ARCHITECTURE.md
+   * Law 10): an org KPI rollup doesn't need read-your-own-writes; coupling it to
+   * `tasks` meant every status tick org-wide recomputed ~17 queries × every
+   * connected client (the "20 users crash the dashboard" storm). TTL-only caps
+   * that at one recompute per 60s regardless of write volume or concurrency.
+   */
+  dashboard: "dashboard",
   /** The active employee roster (slim picker payload). */
   employees: "employees",
   /** Distinct subjects pulled from tasks + the subjects admin table. */
@@ -17,9 +27,9 @@ export const CACHE_TAGS = {
   clients: "clients",
   /** Project tree nodes (Project / Milestone / Result / Action / Sub-Action). */
   projectNodes: "project-nodes",
-  /** Weekly Goals planner rows (per-week priorities + % done). */
+  /** Weekly Goals planner rows (board + dashboard reads). */
   weeklyGoals: "weekly-goals",
-  /** Index hub sections + hyperlink buttons (the editable Ecosystem Index). */
+  /** Index hub — admin-editable link sections + their hyperlink buttons. */
   indexHub: "index-hub",
 } as const;
 

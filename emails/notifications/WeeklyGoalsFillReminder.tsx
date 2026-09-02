@@ -20,7 +20,7 @@ export const previewText = () => `Update your % done before the week closes`;
  * this week so they record progress before the week is scored.
  */
 export function WeeklyGoalsFillReminderEmail(props: WeeklyGoalsFillReminderProps) {
-  const goalsUrl = `${stripTrailingSlash(props.siteUrl)}/weekly-goals`;
+  const goalsUrl = `${stripTrailingSlash(props.siteUrl)}/goals/weekly`;
   return (
     <NotificationEmailLayout preview={previewText()} siteUrl={props.siteUrl}>
       <NotificationParagraph muted>Hi {props.recipientName},</NotificationParagraph>

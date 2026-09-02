@@ -5,6 +5,12 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { documents, documentEvents, type Document, type Employee } from "@/db/schema";
+
+/** The columns document mutations actually need (see authorizeDocumentMutation). */
+type DocCore = Pick<
+  Document,
+  "id" | "title" | "description" | "storagePath" | "mimeType" | "sizeBytes" | "uploadedById"
+>;
 import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
@@ -60,11 +66,26 @@ async function logDocEvent(input: {
 async function authorizeDocumentMutation(
   id: string,
   me: Employee,
-): Promise<{ ok: true; doc: Document } | { ok: false; error: string }> {
+): Promise<{ ok: true; doc: DocCore } | { ok: false; error: string }> {
   if (!z.string().uuid().safeParse(id).success) {
     return { ok: false, error: "Invalid id" };
   }
-  const doc = await db.query.documents.findFirst({ where: eq(documents.id, id) });
+  // EXPLICIT column list — never a bare findFirst/select on `documents`: the
+  // schema carries migration-0142 columns (goal_id / weekly_goal_id) that may
+  // be unapplied in prod, and enumerating them would 500 every mutation here.
+  const [doc] = await db
+    .select({
+      id: documents.id,
+      title: documents.title,
+      description: documents.description,
+      storagePath: documents.storagePath,
+      mimeType: documents.mimeType,
+      sizeBytes: documents.sizeBytes,
+      uploadedById: documents.uploadedById,
+    })
+    .from(documents)
+    .where(eq(documents.id, id))
+    .limit(1);
   if (!doc) return { ok: false, error: "Document not found" };
   if (!me.isAdmin && doc.uploadedById !== me.id) {
     return { ok: false, error: "Forbidden" };
@@ -83,7 +104,7 @@ async function authorizeDocumentMutation(
  * matters more, layer a `file-type` check on top of this.
  */
 const DISALLOWED_EXTENSIONS =
-  /\.(exe|com|cmd|bat|msi|scr|pif|vbs|js|mjs|cjs|jar|sh|bash|app|dmg|ps1|psm1|reg|hta|cpl|gadget)$/i;
+  /\.(exe|com|cmd|bat|msi|scr|pif|vbs|js|mjs|cjs|jar|sh|bash|app|dmg|ps1|psm1|reg|hta|cpl|gadget|html?|xhtml|svgz?)$/i;
 const DISALLOWED_MIME_TYPES = new Set<string>([
   "application/x-msdownload",
   "application/x-msdos-program",
@@ -93,6 +114,11 @@ const DISALLOWED_MIME_TYPES = new Set<string>([
   "application/x-sh",
   "application/x-shellscript",
   "text/x-shellscript",
+  // Inline-renderable types — served from the signed-URL storage domain they
+  // would execute script (stored XSS). Block at upload so they never land.
+  "text/html",
+  "application/xhtml+xml",
+  "image/svg+xml",
 ]);
 
 function validateUploadShape(file: File): { ok: true } | { ok: false; error: string } {

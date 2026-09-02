@@ -32,7 +32,7 @@ export const previewText = (p: Pick<WeeklyGoalsMondayProps, "goals">) =>
  * employee hasn't been assigned anything yet, it nudges them to add some.
  */
 export function WeeklyGoalsMondayEmail(props: WeeklyGoalsMondayProps) {
-  const goalsUrl = `${stripTrailingSlash(props.siteUrl)}/weekly-goals`;
+  const goalsUrl = `${stripTrailingSlash(props.siteUrl)}/goals/weekly`;
   return (
     <NotificationEmailLayout
       preview={previewText({ goals: props.goals })}

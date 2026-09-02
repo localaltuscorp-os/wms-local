@@ -3,11 +3,13 @@ import type { ReactElement } from "react";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { db } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { employees, notifications, tasks } from "@/db/schema";
 import type { NotificationKind } from "@/db/schema";
 import { InviteEmail } from "@/emails/invite";
 import { ResetPasswordEmail } from "@/emails/reset-password";
 import { CredentialsInviteEmail } from "@/emails/credentials-invite";
+import { WelcomeOfficialEmail } from "@/emails/welcome-official";
 import { AdminResetPasswordEmail } from "@/emails/admin-reset-password";
 import { TaskAssignedEmail } from "@/emails/notifications/TaskAssigned";
 import { TaskInitiatedEmail } from "@/emails/notifications/TaskInitiated";
@@ -20,6 +22,10 @@ import { CancelledEmail } from "@/emails/notifications/Cancelled";
 import { CommentedEmail } from "@/emails/notifications/Commented";
 import { DailyDigestEmail } from "@/emails/notifications/DailyDigest";
 import {
+  TaskReminderDigestEmail,
+  type TaskReminderGroup,
+} from "@/emails/notifications/TaskReminderDigest";
+import {
   WeeklyGoalsMondayEmail,
   type WeeklyGoalLine,
 } from "@/emails/notifications/WeeklyGoalsMonday";
@@ -29,6 +35,15 @@ import { AttendanceLateEmail } from "@/emails/notifications/attendance-late";
 import { AttendanceLateWaivedEmail } from "@/emails/notifications/attendance-late-waived";
 import { AttendanceHalfDayEmail } from "@/emails/notifications/attendance-half-day";
 import { AttendanceLateDeductionEmail } from "@/emails/notifications/attendance-late-deduction";
+import { IncentiveDecisionEmail } from "@/emails/notifications/IncentiveDecision";
+import {
+  HrTicketNoticeEmail,
+  ticketThreadUrl,
+} from "@/emails/notifications/hr-ticket-notice";
+import {
+  IncentiveMonthlyDigestEmail,
+  type IncentiveDigestEntry,
+} from "@/emails/notifications/IncentiveMonthlyDigest";
 import type {
   NotificationMeta,
   OverdueDigestTask,
@@ -66,7 +81,7 @@ let cached: Resend | null = null;
  * the `void` return for `sendNotificationEmail`) to know whether an
  * email actually went out.
  */
-function getResend(): Resend | null {
+export function getResend(): Resend | null {
   if (cached) return cached;
   const key = process.env.RESEND_API_KEY;
   if (!key) return null;
@@ -74,11 +89,27 @@ function getResend(): Resend | null {
   return cached;
 }
 
-const FROM = process.env.RESEND_FROM_EMAIL || "Altus Corp Dashboard <onboarding@resend.dev>";
+export const FROM = process.env.RESEND_FROM_EMAIL || "Altus Corp Dashboard <onboarding@resend.dev>";
+
+/**
+ * D12 (WMS overhaul Phase 6) — company-record BCC. When `EMAIL_BCC_ADDRESS` is
+ * set (comma-separated allowed), every piece of OUTGOING CORRESPONDENCE
+ * (notifications, digests, weekly-goals planner mails) is blind-copied to the
+ * company archive inbox so management has a durable record. Returns a spreadable
+ * `{ bcc }` fragment, or `{}` when unconfigured (no-op). Deliberately NOT applied
+ * to auth credential mails (invite / reset / password) — those carry secrets we
+ * don't want archived.
+ */
+export function companyBcc(): { bcc?: string[] } {
+  const raw = process.env.EMAIL_BCC_ADDRESS?.trim();
+  if (!raw) return {};
+  const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return list.length > 0 ? { bcc: list } : {};
+}
 
 const SUBJECT_MAX = 80;
 
-function clampSubject(s: string): string {
+export function clampSubject(s: string): string {
   const trimmed = s.trim();
   if (trimmed.length <= SUBJECT_MAX) return trimmed;
   return `${trimmed.slice(0, SUBJECT_MAX - 1)}…`;
@@ -92,7 +123,7 @@ export function digestSubject(pendingCount: number): string {
   return `You have ${pendingCount} pending ${noun} — Altus Corp Dashboard`;
 }
 
-function errorMessage(err: unknown): string {
+export function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
   try {
@@ -195,6 +226,47 @@ export async function sendCredentialsEmail(args: {
         email: args.email,
         password: args.password,
         loginUrl: args.loginUrl,
+      }),
+    });
+    if (error) return { id: null, error: error.message };
+    return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}
+
+/**
+ * Post-joining WELCOME email — sent to the employee's PERSONAL inbox when HR
+ * provisions their official company email. Carries the official address, their
+ * dashboard login credentials (password only when a fresh one was minted), and
+ * a short induction guide. Fail-soft + no-ops silently when Resend is unset, so
+ * it can never block the provisioning action. Sensitive: the caller must pass
+ * the employee's OWN personal/account email only.
+ */
+export async function sendWelcomeEmail(args: {
+  /** The employee's personal (or account) email — the ONLY recipient. */
+  email: string;
+  employeeName: string;
+  officialEmail: string;
+  loginEmail: string;
+  password?: string | null;
+  loginUrl: string;
+  hrEmail: string;
+}): Promise<{ id: string | null; error: string | null }> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: null };
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: args.email,
+      subject: `Welcome to Altus Corp — your official email is ready`,
+      react: WelcomeOfficialEmail({
+        employeeName: args.employeeName,
+        officialEmail: args.officialEmail,
+        loginEmail: args.loginEmail,
+        password: args.password ?? null,
+        loginUrl: args.loginUrl,
+        hrEmail: args.hrEmail,
       }),
     });
     if (error) return { id: null, error: error.message };
@@ -310,6 +382,7 @@ export async function sendNotificationEmail(
     to: recipient.email,
     subject: clampSubject(n.title),
     react: template,
+    ...companyBcc(),
   });
 }
 
@@ -339,6 +412,7 @@ export async function sendDigestEmail(
         pendingTasks:  args.pendingTasks,
         siteUrl:       args.siteUrl ?? "",
       }),
+      ...companyBcc(),
     });
     if (error) return { id: null, error: error.message };
     return { id: data?.id ?? null, error: null };
@@ -348,7 +422,53 @@ export async function sendDigestEmail(
 }
 
 /* ------------------------------------------------------------------ */
-/* Weekly Goals — planner cron emails (Manan 2026-06)                   */
+/* Task Reminder Settings — admin-authored daily reminders              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * ONE consolidated reminder to ONE recipient, grouped by employee.
+ *
+ * Called once per recipient per rule by app/api/cron/task-reminders — never
+ * once per task. See the template for why.
+ */
+export async function sendTaskReminderEmail(args: {
+  recipient: { email: string; name: string };
+  ruleName: string;
+  groups: TaskReminderGroup[];
+  totalTasks: number;
+  siteUrl: string | undefined;
+}): Promise<{ id: string | null; error: string | null }> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: null };
+
+    const people = args.groups.length;
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: args.recipient.email,
+      subject: clampSubject(
+        `${args.ruleName}: ${args.totalTasks} open task${
+          args.totalTasks === 1 ? "" : "s"
+        } across ${people} ${people === 1 ? "person" : "people"}`,
+      ),
+      react: TaskReminderDigestEmail({
+        recipientName: args.recipient.name,
+        ruleName: args.ruleName,
+        groups: args.groups,
+        totalTasks: args.totalTasks,
+        siteUrl: args.siteUrl ?? "",
+      }),
+      ...companyBcc(),
+    });
+    if (error) return { id: null, error: error.message };
+    return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Weekly Goals — planner cron emails                                   */
 /* ------------------------------------------------------------------ */
 
 type EmailSendResult = { id: string | null; error: string | null };
@@ -377,6 +497,7 @@ export async function sendWeeklyGoalsMondayEmail(args: {
         goals: args.goals,
         siteUrl: args.siteUrl ?? "",
       }),
+      ...companyBcc(),
     });
     if (error) return { id: null, error: error.message };
     return { id: data?.id ?? null, error: null };
@@ -405,6 +526,7 @@ export async function sendWeeklyGoalsFillReminderEmail(args: {
         pendingCount: args.pendingCount,
         siteUrl: args.siteUrl ?? "",
       }),
+      ...companyBcc(),
     });
     if (error) return { id: null, error: error.message };
     return { id: data?.id ?? null, error: null };
@@ -435,6 +557,195 @@ export async function sendWeeklyGoalsIncompleteEmail(args: {
         unmarkedCount: args.unmarkedCount,
         siteUrl: args.siteUrl ?? "",
       }),
+      ...companyBcc(),
+    });
+    if (error) return { id: null, error: error.message };
+    return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Incentive — decision event + monthly digest                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Event email — sent when an admin approves/rejects an incentive REQUEST.
+ * Best-effort: never throws; returns `{ error }` so the caller can log.
+ * Silently no-ops (returns `{ id: null, error: null }`) when Resend is
+ * unconfigured, so dev environments don't fail the decide action.
+ */
+export async function sendIncentiveDecisionEmail(args: {
+  recipient: { email: string; name: string };
+  typeLabel: string;
+  verdict: "approved" | "rejected";
+  detailPairs: Array<[string, string]>;
+  note?: string | null;
+  siteUrl: string | undefined;
+}): Promise<EmailSendResult> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: null };
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: args.recipient.email,
+      subject: clampSubject(
+        `Your ${args.typeLabel} incentive request was ${args.verdict} — Altus Corp`,
+      ),
+      react: IncentiveDecisionEmail({
+        recipientName: args.recipient.name,
+        typeLabel: args.typeLabel,
+        verdict: args.verdict,
+        detailPairs: args.detailPairs,
+        note: args.note ?? null,
+        siteUrl: args.siteUrl ?? "",
+      }),
+      ...companyBcc(),
+    });
+    if (error) return { id: null, error: error.message };
+    return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}
+
+/** Monthly digest — a recipient's incentive summary for the trailing period. */
+export async function sendIncentiveMonthlyDigestEmail(args: {
+  recipient: { email: string; name: string };
+  periodLabel: string;
+  approvedTotal: number;
+  paidTotal: number;
+  unpaidTotal: number;
+  recent: IncentiveDigestEntry[];
+  siteUrl: string | undefined;
+}): Promise<EmailSendResult> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: null };
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: args.recipient.email,
+      subject: clampSubject(`Your incentive summary for ${args.periodLabel} — Altus Corp`),
+      react: IncentiveMonthlyDigestEmail({
+        recipientName: args.recipient.name,
+        periodLabel: args.periodLabel,
+        approvedTotal: args.approvedTotal,
+        paidTotal: args.paidTotal,
+        unpaidTotal: args.unpaidTotal,
+        recent: args.recent,
+        siteUrl: args.siteUrl ?? "",
+      }),
+      ...companyBcc(),
+    });
+    if (error) return { id: null, error: error.message };
+    return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Enterprise Communications (ECOS, mig 0179) — broadcast email         */
+/* ------------------------------------------------------------------ */
+
+/** Escape a raw string for safe interpolation into our HTML shell. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+const BROADCAST_PRIORITY_BANNER: Record<
+  string,
+  { label: string; bg: string; fg: string } | undefined
+> = {
+  high: { label: "High priority", bg: "#FEF3C7", fg: "#92400E" },
+  critical: { label: "Critical — action required", bg: "#FEE2E2", fg: "#991B1B" },
+  emergency: { label: "Emergency", bg: "#7F1D1D", fg: "#FFFFFF" },
+};
+
+/**
+ * Sends ONE official broadcast email. Unlike `sendNotificationEmail` (which
+ * renders a per-task template and returns null for the `broadcast` kind), this
+ * ships the broadcast's OWN authored HTML wrapped in a minimal branded shell.
+ *
+ * Best-effort: never throws; returns `{ error }` so the ECOS publish flow can
+ * log per-recipient failures without aborting the fan-out. No-ops (returns
+ * `{ id: null, error: null }`) when Resend is unconfigured (dev without a key).
+ *
+ * The email goes to the recipient's WORK inbox (the caller resolves and passes
+ * `to`) — broadcasts are official company communications, so we do NOT fall
+ * back to a personal address the way the onboarding welcome mail does.
+ */
+export async function sendBroadcastEmail(args: {
+  /** The recipient's work email address (already resolved by the caller). */
+  to: string;
+  /** The broadcast title — becomes the subject line. */
+  subject: string;
+  /** The author-composed HTML body (sanitised upstream at compose time). */
+  bodyHtml: string;
+  /** Fallback plain text used when bodyHtml is empty. */
+  bodyText?: string | null;
+  /** Display name for the sender identity ("Altus HR", a CEO/Founder name). */
+  senderLabel: string;
+  /** One of BROADCAST_PRIORITIES — drives the optional priority banner. */
+  priority?: string;
+  /** Whether recipients must explicitly acknowledge (adds a CTA nudge). */
+  requireAck?: boolean;
+  broadcastId: string;
+  siteUrl?: string | undefined;
+}): Promise<{ id: string | null; error: string | null }> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: null };
+
+    const site = (args.siteUrl ?? process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+    const viewUrl = site ? `${site}/communications/${args.broadcastId}` : "";
+    const banner = args.priority ? BROADCAST_PRIORITY_BANNER[args.priority] : undefined;
+    const inner =
+      args.bodyHtml && args.bodyHtml.trim().length > 0
+        ? args.bodyHtml
+        : `<p>${escapeHtml(args.bodyText ?? "").replace(/\n/g, "<br/>")}</p>`;
+
+    const html = `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#F3F4F6;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F4F6;padding:24px 0;">
+      <tr><td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#FFFFFF;border-radius:12px;overflow:hidden;border:1px solid #E5E7EB;">
+          <tr><td style="background:#0B1220;padding:18px 28px;">
+            <div style="font-family:Georgia,'Times New Roman',serif;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:.2px;">Altus Corp</div>
+            <div style="font-family:Arial,Helvetica,sans-serif;color:#9CA3AF;font-size:12px;margin-top:2px;">Official communication from ${escapeHtml(args.senderLabel)}</div>
+          </td></tr>
+          ${banner ? `<tr><td style="background:${banner.bg};color:${banner.fg};padding:10px 28px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;">${escapeHtml(banner.label)}</td></tr>` : ""}
+          <tr><td style="padding:28px;">
+            <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#111827;margin:0 0 16px;">${escapeHtml(args.subject)}</h1>
+            <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#374151;">${inner}</div>
+            ${
+              viewUrl
+                ? `<div style="margin-top:28px;"><a href="${viewUrl}" style="display:inline-block;background:#E10600;color:#FFFFFF;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;padding:11px 22px;border-radius:8px;">${args.requireAck ? "Read &amp; acknowledge" : "View in dashboard"}</a></div>`
+                : ""
+            }
+          </td></tr>
+          <tr><td style="padding:16px 28px;border-top:1px solid #E5E7EB;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#9CA3AF;">
+            You are receiving this because it was sent to your team at Altus Corp.${args.requireAck ? " This message requires your acknowledgement." : ""}
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>`;
+
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: args.to,
+      subject: clampSubject(args.subject),
+      html,
+      ...companyBcc(),
     });
     if (error) return { id: null, error: error.message };
     return { id: data?.id ?? null, error: null };
@@ -462,13 +773,8 @@ function attendanceDateLabel(ymd: string | undefined): string {
   if (!ymd) return "—";
   const d = new Date(`${ymd}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return ymd;
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    weekday: "short",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(d);
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short" }).format(d);
+  return `${weekday}, ${formatDate(ymd)}`;
 }
 
 function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
@@ -516,6 +822,45 @@ function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
       });
     default:
       break;
+  }
+
+  // HR Support tickets (mig 0145) — these kinds carry no taskId; the ticket id +
+  // number ride in the JSON `body` meta the HR actions write. Confidential
+  // (grievance) copy stays generic (the title the dispatcher built already is).
+  if (ctx.notification.kind.startsWith("hr_ticket_")) {
+    let ticketId = "";
+    let ticketNo = 0;
+    let confidential = false;
+    if (ctx.notification.body) {
+      try {
+        const m = JSON.parse(ctx.notification.body);
+        if (m && typeof m === "object") {
+          if (typeof m.ticketId === "string") ticketId = m.ticketId;
+          if (typeof m.ticketNo === "number") ticketNo = m.ticketNo;
+          confidential = m.confidential === true;
+        }
+      } catch {
+        // free-text body — fall through with defaults (still renders a CTA).
+      }
+    }
+    if (!ticketId) return null;
+    const leadByKind: Record<string, string> = {
+      hr_ticket_created: "A new request has landed in the HR help desk and is waiting for you.",
+      hr_ticket_assigned: "This HR ticket has been assigned to you.",
+      hr_ticket_replied: "There's a new reply on your HR ticket.",
+      hr_ticket_status_changed: "The status of your HR ticket has changed.",
+      hr_ticket_sla_breach: "This HR ticket has breached its response target.",
+      hr_ticket_csat_request: "Your HR ticket was resolved — let us know how it went.",
+    };
+    return HrTicketNoticeEmail({
+      recipientName: ctx.recipient.name,
+      heading: ctx.notification.title,
+      lead: leadByKind[ctx.notification.kind] ?? "There's an update on your HR ticket.",
+      ticketNo,
+      confidential,
+      ctaHref: ticketThreadUrl(ctx.siteUrl, ticketId),
+      ctaLabel: "Open the ticket",
+    });
   }
 
   // Without a task to link to, none of the remaining per-task templates make
@@ -633,6 +978,9 @@ function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
     // The four other attendance kinds (late / late-waived / half-day /
     // late-deduction) are routed above the task guard and never reach here.
     case "attendance_device":
+    // Nudge — an on-demand ⚡ ping. Deliberately in-app + push only; we don't
+    // want a nudge to also spawn an email.
+    case "nudged":
       // overdue_digest belongs in `sendDigestEmail`; attendance_device is kept
       // in-app only. Skip the per-row email.
       return null;
@@ -642,6 +990,10 @@ function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
     case "weekly_goals_incomplete":
       // Weekly Goals emails are sent by the weekly-goals cron via their own
       // dedicated senders, never through the per-task dispatcher.
+      return null;
+    default:
+      // Kinds without a dedicated email template (e.g. training_test_failed)
+      // are inbox-only — the in-app row still surfaces them.
       return null;
   }
 }

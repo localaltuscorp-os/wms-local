@@ -7,14 +7,19 @@ import { db } from "@/lib/db";
 import {
   authSessions,
   departments,
+  documentEvents,
   employeeDepartments,
   employeeEvents,
   employees,
   notifications,
+  outstandingFollowups,
+  salaryProfiles,
   settingsEvents,
   taskEvents,
   tasks,
 } from "@/db/schema";
+import { payBasisFor } from "@/lib/attendance/worker-type";
+import { mergeScheduleForBulk } from "@/lib/employees/bulk-schedule-merge";
 import { requireAdmin } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import {
@@ -22,8 +27,10 @@ import {
   EditEmployeeSchema,
   EmployeeIdSchema,
   ResetPasswordSchema,
+  BulkEditEmployeesSchema,
   type InviteEmployeeInput,
   type EditEmployeeInput,
+  type BulkEditEmployeesInput,
 } from "@/lib/validators/employee";
 import {
   UpdateEmployeeSchedule,
@@ -36,7 +43,25 @@ import {
   sendCredentialsEmail,
 } from "@/lib/email/resend";
 import { siteUrl } from "@/lib/site-url";
-import { DEFAULT_INVITE_PASSWORD } from "@/lib/auth/default-password";
+import { generateInvitePassword } from "@/lib/auth/default-password";
+
+/**
+ * Priv-esc guard: super-admins are ordinary `employees` rows identified by email.
+ * A merely-`isAdmin` user must NEVER be able to run a credential/destructive op
+ * (reset password, mint invite/reset link, deactivate, delete) against a
+ * SUPER-ADMIN — otherwise they could reset the super-admin's password, sign in as
+ * them, and seize full control. Returns an error result to short-circuit, or null
+ * when the action may proceed.
+ */
+function guardSuperAdminTarget(
+  me: { email: string },
+  emp: { email: string },
+): { ok: false; error: string } | null {
+  if (isSuperAdmin(emp.email) && !isSuperAdmin(me.email)) {
+    return { ok: false, error: "Only a super-admin can do this to another super-admin." };
+  }
+  return null;
+}
 
 /** Run an async function up to `tries` times with linear backoff. Throws
  *  the last error if all attempts fail. */
@@ -147,13 +172,17 @@ export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
 }> {
   const me = await requireAdmin();
 
-  const parsed = InviteEmployeeSchema.parse(input);
-
-  // Only super-admins may create an admin. Reject BEFORE the Firebase user is
-  // created / the row is inserted so no orphan account is left behind.
-  if (parsed.isAdmin === true && !isSuperAdmin(me.email)) {
-    return { ok: false, error: "Only Hetesh or Manan can create an admin." };
+  // safeParse (not parse) — a ZodError thrown here would bubble to the admin
+  // error boundary as "We hit a snag." instead of a friendly field message.
+  const parsedResult = InviteEmployeeSchema.safeParse(input);
+  if (!parsedResult.success) {
+    return { ok: false, error: parsedResult.error.issues[0]?.message ?? "Invalid input" };
   }
+  const parsed = parsedResult.data;
+
+  // Any admin may create an admin account now (Sir, 2026-08). `requireAdmin`
+  // above already guarantees the caller is an admin, and a brand-new row can
+  // never be an existing super-admin, so no guardSuperAdminTarget is needed here.
 
   // Case-insensitive dup check — historical imports may have mixed-case
   // emails even though new ones are normalized by Zod.
@@ -164,13 +193,15 @@ export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
     return { ok: false, error: "An employee with this email already exists." };
   }
 
-  // 1. Create Firebase user
+  // 1. Create Firebase user with a fresh per-invite password (same value is
+  //    emailed below — no shared default credential).
   const auth = getFirebaseAdminAuth();
+  const invitePassword = generateInvitePassword();
   let fbUid: string;
   try {
     const fbUser = await auth.createUser({
       email: parsed.email,
-      password: DEFAULT_INVITE_PASSWORD,
+      password: invitePassword,
       emailVerified: true,
       disabled: false,
     });
@@ -200,11 +231,21 @@ export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
   }
 
   // Resolve the chosen departments + primary so the legacy single-department
-  // columns stay in lock-step with the membership join table.
-  const selection = await resolveDepartmentSelection(
-    parsed.departmentIds,
-    parsed.primaryDepartmentId,
-  );
+  // columns stay in lock-step with the membership join table. Guarded: this
+  // runs a DB query AFTER the Firebase user is created, so a throw here (e.g.
+  // pool exhaustion) would both surface "We hit a snag." AND orphan the new
+  // Firebase account. Roll the account back on failure.
+  let selection;
+  try {
+    selection = await resolveDepartmentSelection(
+      parsed.departmentIds,
+      parsed.primaryDepartmentId,
+    );
+  } catch (err) {
+    await auth.deleteUser(fbUid).catch(() => {});
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: `DB: ${msg}` };
+  }
 
   // 3. Insert employees row.
   //
@@ -267,7 +308,7 @@ export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
       email:       parsed.email,
       inviteeName: parsed.name,
       inviterName: me.name,
-      password:    DEFAULT_INVITE_PASSWORD,
+      password:    invitePassword,
       loginUrl:    `${siteUrl()}/login`,
     });
     if (sendError) {
@@ -331,17 +372,13 @@ export async function editEmployee(
   });
   if (!emp) return { ok: false, error: "Employee not found" };
 
-  // Only super-admins may CHANGE an employee's admin status. A no-op re-save
-  // with the same value is still allowed; only an actual flip is gated.
-  if (
-    parsed.data.isAdmin !== undefined &&
-    parsed.data.isAdmin !== emp.isAdmin &&
-    !isSuperAdmin(me.email)
-  ) {
-    return {
-      ok: false,
-      error: "Only Hetesh or Manan can change an employee's admin access.",
-    };
+  // Any admin may now grant or revoke another employee's admin access (Sir,
+  // 2026-08). The one protection kept is the priv-esc guard: a non-super-admin
+  // still cannot modify a SUPER-ADMIN's row, so a regular admin can't demote an
+  // owner and seize control. A no-op re-save with the same value is unaffected.
+  if (parsed.data.isAdmin !== undefined && parsed.data.isAdmin !== emp.isAdmin) {
+    const g = guardSuperAdminTarget(me, emp);
+    if (g) return g;
   }
 
   // Build the patch — only include keys that were actually supplied.
@@ -371,6 +408,18 @@ export async function editEmployee(
       return { ok: false, error: "An employee can't be their own manager." };
     }
     patch.managerId = parsed.data.managerId;
+  }
+
+  // #11 — per-employee daily task quota (how many tasks their manager must give).
+  if (parsed.data.dailyTaskQuota !== undefined) {
+    patch.dailyTaskQuota = parsed.data.dailyTaskQuota;
+  }
+
+  // Both numbers normalise an empty string to NULL so "cleared" and "never set"
+  // are one state in the database rather than two that render differently.
+  if (parsed.data.phone !== undefined) {
+    const v = parsed.data.phone;
+    patch.phone = v === null || v === "" ? null : v;
   }
 
   // M4 — multi-channel fields.  WhatsApp phone is normalised to null
@@ -473,7 +522,7 @@ export async function updateEmployeeAttendanceSchedule(
   const norm = (v: string | null | undefined): string | null =>
     v == null || v === "" ? null : v;
 
-  const patch = {
+  const patch: Record<string, unknown> = {
     weeklyOff: parsed.data.weeklyOff,
     attOfficialStart: norm(parsed.data.attOfficialStart),
     attLateAfter: norm(parsed.data.attLateAfter),
@@ -481,10 +530,58 @@ export async function updateEmployeeAttendanceSchedule(
     attEarlyBefore: norm(parsed.data.attEarlyBefore),
   };
 
+  // Worker classification + minute overrides (only when the client sent them).
+  if (parsed.data.workerType !== undefined) patch.workerType = parsed.data.workerType;
+  if (parsed.data.attFullDayMinutes !== undefined) {
+    patch.attFullDayMinutes = parsed.data.attFullDayMinutes;
+  }
+  if (parsed.data.attHalfDayMinutes !== undefined) {
+    patch.attHalfDayMinutes = parsed.data.attHalfDayMinutes;
+  }
+  if (parsed.data.weeklyTargetMinutes !== undefined) {
+    patch.weeklyTargetMinutes = parsed.data.weeklyTargetMinutes;
+  }
+
   try {
     await db.update(employees).set(patch).where(eq(employees.id, emp.id));
   } catch (err: any) {
     return { ok: false, error: `DB: ${err?.message ?? err}` };
+  }
+
+  // Upsert the pay profile when a worker type was chosen. `pay_type` is derived
+  // from the worker type (never hand-set); the rate columns are numeric, so we
+  // stringify. salary_profiles has a UNIQUE(employee_id), so onConflict updates
+  // in place and leaves annual_ctc / tds / pt_exempt untouched.
+  if (parsed.data.workerType !== undefined) {
+    const payType = payBasisFor(parsed.data.workerType);
+    const numStr = (v: number | null | undefined): string | null =>
+      v == null ? null : String(v);
+    const monthlyPayAtTarget = numStr(parsed.data.monthlyPayAtTarget);
+    const weeklyTargetHours = numStr(parsed.data.weeklyTargetHours);
+    const monthlyFee = numStr(parsed.data.monthlyFee);
+    try {
+      await db
+        .insert(salaryProfiles)
+        .values({
+          employeeId: emp.id,
+          payType,
+          monthlyPayAtTarget,
+          weeklyTargetHours,
+          monthlyFee,
+        })
+        .onConflictDoUpdate({
+          target: salaryProfiles.employeeId,
+          set: {
+            payType,
+            monthlyPayAtTarget,
+            weeklyTargetHours,
+            monthlyFee,
+            updatedAt: new Date(),
+          },
+        });
+    } catch (err: any) {
+      return { ok: false, error: `DB: ${err?.message ?? err}` };
+    }
   }
 
   try {
@@ -531,7 +628,7 @@ export async function updateEmployeeAttendanceSchedule(
 export async function getInviteLink(
   employeeId: string,
 ): Promise<{ ok: boolean; link?: string; error?: string }> {
-  await requireAdmin();
+  const me = await requireAdmin();
   const parsedId = EmployeeIdSchema.safeParse(employeeId);
   if (!parsedId.success) {
     return {
@@ -543,6 +640,8 @@ export async function getInviteLink(
     where: eq(employees.id, parsedId.data),
   });
   if (!emp) return { ok: false, error: "Employee not found." };
+  const saGuard = guardSuperAdminTarget(me, emp);
+  if (saGuard) return saGuard;
   if (!emp.isActive) {
     return { ok: false, error: "Employee is deactivated — reactivate first." };
   }
@@ -577,12 +676,18 @@ export async function resendInvite(employeeId: string): Promise<{ ok: boolean; e
   const emp = await db.query.employees.findFirst({ where: eq(employees.id, parsedId.data) });
   if (!emp) return { ok: false, error: "Employee not found" };
   if (emp.joinedAt !== null) return { ok: false, error: "Employee has already joined." };
+  if (!emp.firebaseUid) return { ok: false, error: "This employee has no Firebase account yet." };
   try {
+    // Per-invite passwords aren't stored, so to resend we mint a FRESH one and
+    // reset it on the Firebase user. Safe because this is gated on not-yet-
+    // joined (the invitee never signed in / set their own password).
+    const newPassword = generateInvitePassword();
+    await getFirebaseAdminAuth().updateUser(emp.firebaseUid, { password: newPassword });
     const { error } = await sendCredentialsEmail({
       email:       emp.email,
       inviteeName: emp.name,
       inviterName: me.name,
-      password:    DEFAULT_INVITE_PASSWORD,
+      password:    newPassword,
       loginUrl:    `${siteUrl()}/login`,
     });
     if (error) return { ok: false, error };
@@ -634,6 +739,8 @@ export async function resetEmployeePassword(
     where: eq(employees.id, parsedId.data),
   });
   if (!emp) return { ok: false, error: "Employee not found." };
+  const saGuard = guardSuperAdminTarget(me, emp);
+  if (saGuard) return saGuard;
   if (!emp.isActive) return { ok: false, error: "Employee is deactivated — reactivate first." };
   if (!emp.firebaseUid) {
     return { ok: false, error: "This employee has no Firebase account yet — contact support." };
@@ -707,6 +814,8 @@ export async function deactivateEmployee(
   }
   const emp = await db.query.employees.findFirst({ where: eq(employees.id, parsedId.data) });
   if (!emp) return { ok: false, error: "Employee not found" };
+  const saGuard = guardSuperAdminTarget(me, emp);
+  if (saGuard) return saGuard;
   if (!emp.isActive) return { ok: false, error: "Employee is already deactivated." };
 
   try {
@@ -932,6 +1041,8 @@ export async function deleteEmployee(
 
   const emp = await db.query.employees.findFirst({ where: eq(employees.id, id) });
   if (!emp) return { ok: false, error: "Employee not found." };
+  const saGuard = guardSuperAdminTarget(me, emp);
+  if (saGuard) return saGuard;
 
   if (
     typeof confirmationEmail !== "string" ||
@@ -993,6 +1104,15 @@ export async function deleteEmployee(
         )
         .returning({ id: tasks.id });
 
+      // 4b. document_events + outstanding_followups authored by them — both
+      //     RESTRICT (schema.ts:764, 1152). Without these the whole delete
+      //     fails with a raw FK error for anyone who ever touched a document
+      //     or a collection follow-up, so the button was permanently broken.
+      await tx.delete(documentEvents).where(eq(documentEvents.actorId, id));
+      await tx
+        .delete(outstandingFollowups)
+        .where(eq(outstandingFollowups.actorId, id));
+
       // 5. The employees row itself. Cascades:
       //    - notifications WHERE user_id = id  (their inbox)
       //    - push_subscriptions WHERE user_id = id
@@ -1042,4 +1162,169 @@ export async function deleteEmployee(
   revalidatePath("/admin/employees");
   updateTag(CACHE_TAGS.employees);
   return { ok: true, deleted: counts };
+}
+
+/** One employee that could not be updated, so the admin can see WHO failed. */
+export interface BulkEditFailure {
+  id: string;
+  name: string;
+  error: string;
+}
+
+/**
+ * "Edit All" — apply a SPARSE patch to many employees at once.
+ *
+ * ── THE ONE RULE: ONLY WHAT CHANGED ────────────────────────────────────────
+ * Absent key = leave that field exactly as it is, per employee. This matters
+ * more than it looks, because `updateEmployeeAttendanceSchedule` is NOT sparse:
+ * it always writes weeklyOff and all four time columns, and it re-derives the
+ * salary_profiles rates from whatever it was handed. Calling it with only a
+ * worker type would therefore blank every other schedule field and wipe the pay
+ * rates for every selected person.
+ *
+ * So the merge happens HERE: for each employee we read their CURRENT row (and
+ * pay profile), overlay only the keys the admin actually touched, and hand the
+ * existing action a COMPLETE input. Same code path, same validation, same audit
+ * events, same cache invalidation as editing one person — this action adds a
+ * loop and a merge, and changes no business logic.
+ *
+ * ── PER-EMPLOYEE ISOLATION ─────────────────────────────────────────────────
+ * Each employee is attempted independently and failures are collected, not
+ * thrown. One person who trips a guard (the self-demote rule, a stale id) must
+ * not silently abort the other 24 — the caller gets counts plus the failed rows
+ * by name so a partial apply is visible rather than mysterious.
+ *
+ * Admin-only: the underlying actions each call `requireAdmin` themselves; the
+ * check here fails fast before any work starts.
+ */
+export async function bulkEditEmployees(
+  employeeIds: string[],
+  patch: BulkEditEmployeesInput,
+): Promise<{
+  ok: boolean;
+  updated: number;
+  failed: BulkEditFailure[];
+  error?: string;
+}> {
+  await requireAdmin();
+
+  const ids = Array.from(new Set(employeeIds.filter(Boolean)));
+  if (ids.length === 0) {
+    return { ok: false, updated: 0, failed: [], error: "No employees selected." };
+  }
+  for (const id of ids) {
+    if (!EmployeeIdSchema.safeParse(id).success) {
+      return { ok: false, updated: 0, failed: [], error: "Invalid employee id." };
+    }
+  }
+
+  const parsed = BulkEditEmployeesSchema.safeParse(patch);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      updated: 0,
+      failed: [],
+      error: parsed.error.issues[0]?.message ?? "Invalid input",
+    };
+  }
+  const p = parsed.data;
+
+  // Which halves of the patch were touched at all. An untouched half means that
+  // action is never called, so it cannot write anything.
+  const identityKeys = [
+    "role",
+    "departmentIds",
+    "primaryDepartmentId",
+    "managerId",
+    "dailyTaskQuota",
+    "whatsappOptedIn",
+  ] as const;
+  const scheduleKeys = [
+    "workerType",
+    "weeklyOff",
+    "attOfficialStart",
+    "attLateAfter",
+    "attOfficialEnd",
+    "attEarlyBefore",
+  ] as const;
+  const touchesIdentity = identityKeys.some((k) => p[k] !== undefined);
+  const touchesSchedule = scheduleKeys.some((k) => p[k] !== undefined);
+
+  const rows = await db.select().from(employees).where(inArray(employees.id, ids));
+  const byId = new Map(rows.map((r) => [r.id, r]));
+
+  // Pay rates are read once and handed straight back, so a worker-type change
+  // cannot null out someone's rupee figures as a side effect.
+  const profileRows = touchesSchedule
+    ? await db
+        .select({
+          employeeId: salaryProfiles.employeeId,
+          monthlyPayAtTarget: salaryProfiles.monthlyPayAtTarget,
+          weeklyTargetHours: salaryProfiles.weeklyTargetHours,
+          monthlyFee: salaryProfiles.monthlyFee,
+        })
+        .from(salaryProfiles)
+        .where(inArray(salaryProfiles.employeeId, ids))
+    : [];
+  const profileById = new Map(profileRows.map((r) => [r.employeeId, r]));
+
+  const failed: BulkEditFailure[] = [];
+  let updated = 0;
+
+  for (const id of ids) {
+    const emp = byId.get(id);
+    if (!emp) {
+      failed.push({ id, name: id, error: "Employee not found." });
+      continue;
+    }
+    let touched = false;
+
+    if (touchesIdentity) {
+      const fields: EditEmployeeInput = {};
+      if (p.role !== undefined) fields.role = p.role;
+      if (p.managerId !== undefined) {
+        // Never make someone their own manager just because they were in the
+        // selection: skip the key for that one person, keep the rest of the patch.
+        if (p.managerId !== id) fields.managerId = p.managerId;
+      }
+      if (p.dailyTaskQuota !== undefined) fields.dailyTaskQuota = p.dailyTaskQuota;
+      if (p.whatsappOptedIn !== undefined) fields.whatsappOptedIn = p.whatsappOptedIn;
+      if (p.departmentIds !== undefined) {
+        fields.departmentIds = p.departmentIds;
+        fields.primaryDepartmentId = p.primaryDepartmentId ?? null;
+      }
+      if (Object.keys(fields).length > 0) {
+        const res = await editEmployee(id, fields);
+        if (!res.ok) {
+          failed.push({ id, name: emp.name, error: res.error ?? "Update failed." });
+          continue;
+        }
+        touched = true;
+      }
+    }
+
+    if (touchesSchedule) {
+      // The merge that keeps untouched fields untouched lives in
+      // lib/employees/bulk-schedule-merge.ts — pure, and unit-tested there.
+      const input: UpdateEmployeeScheduleInput = mergeScheduleForBulk(
+        id,
+        emp,
+        profileById.get(id),
+        p,
+      );
+      const res = await updateEmployeeAttendanceSchedule(input);
+      if (!res.ok) {
+        failed.push({ id, name: emp.name, error: res.error ?? "Schedule update failed." });
+        continue;
+      }
+      touched = true;
+    }
+
+    if (touched) updated++;
+  }
+
+  revalidatePath("/admin/employees");
+  revalidatePath("/attendance/dashboard");
+  updateTag(CACHE_TAGS.employees);
+  return { ok: failed.length === 0, updated, failed };
 }

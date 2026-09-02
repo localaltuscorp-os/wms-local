@@ -3,7 +3,6 @@ import Link from "next/link";
 import type { Route } from "next";
 import { ArrowLeft } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
-import { DashboardFooter } from "@/components/layout/footer";
 import { getNodeContext, listNodeActions } from "@/lib/queries/projects";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
 import { requireUser } from "@/lib/auth/current";
@@ -41,7 +40,7 @@ export default async function ProjectNodePage({ params }: PageProps) {
           className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-ink-soft hover:text-ink-strong mb-5"
         >
           <ArrowLeft size={16} strokeWidth={2.2} />
-          All projects
+          All Projects
         </Link>
         <div className="text-[12px] font-bold uppercase tracking-wider text-ink-subtle">
           {ctx.path.length > 0 ? ctx.path.join(" / ") + " · " : ""}
@@ -91,7 +90,6 @@ export default async function ProjectNodePage({ params }: PageProps) {
           )}
         </div>
       </main>
-      <DashboardFooter />
     </>
   );
 }

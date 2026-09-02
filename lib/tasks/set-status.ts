@@ -1,10 +1,16 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
+import { withRetry } from "@/lib/db/with-timeout";
 import { taskEvents } from "@/db/schema";
 import { TASK_STATUSES, type TaskStatus } from "@/db/enums";
 import { canTransitionTo, type ActorRole } from "@/lib/auth/status-transitions";
 import { notifyManyForTask } from "@/lib/notifications/dispatch";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
+import { syncTaskToGoal } from "@/lib/weekly-goals/task-sync";
+import { afterResponse } from "@/lib/after";
+import { emit } from "@/lib/events/emit";
+import { taskStatusChanged } from "@/lib/events/task-events";
+import { nudgeRelay } from "@/lib/relay/nudge";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -66,7 +72,13 @@ export async function applyTaskStatusChange(
   if (!TASK_STATUSES.includes(status))
     return { ok: false, error: "invalid", message: "Unknown status" };
 
-  const current = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
+  // Retry the read on a fresh connection — the first query of an action is the
+  // one most likely to grab a stale/dead pooled connection (the recurring
+  // "That didn't go through" signature). Reads are idempotent, so this is safe.
+  const current = await withRetry(
+    () => db.query.tasks.findFirst({ where: eq(tasks.id, taskId) }),
+    { attempts: 2, timeoutMs: [4000, 6000], label: "set-status:read" },
+  );
   if (!current) return { ok: false, error: "not-found" };
 
   const role: ActorRole = actor.isAdmin
@@ -113,24 +125,50 @@ export async function applyTaskStatusChange(
       toValue: { status },
       note: note?.trim() || null,
     });
+    // Phase B (Law 2): append the domain event IN THE SAME TRANSACTION as the
+    // row + audit, so the operational change and the event commit atomically.
+    await emit(
+      tx,
+      taskStatusChanged(
+        taskId,
+        { doerId: current.doerId, fromStatus: current.status, toStatus: status },
+        { actorId: actor.id },
+      ),
+    );
     return false;
   });
   if (stale) return { ok: false, error: "stale" };
 
-  const trimmedNote = note?.trim() || undefined;
-  const statusDisplay = await getStatusDisplayMap();
-  const newStatusLabel = statusDisplay[status]?.label ?? status;
-  const label = taskLabel({ subject: current.subject, title: current.title });
-  await notifyManyForTask(taskId, {
-    actorId: actor.id,
-    kind: "status_changed",
-    title: `${actor.name} changed status on '${label}' to ${newStatusLabel}`,
-    body: JSON.stringify({
-      toStatus: status,
-      fromStatus: current.status,
-      ...(trimmedNote ? { note: trimmedNote } : {}),
-    }),
-    recipients: [current.createdById, current.initiatorId, current.doerId],
+  // The status change is now COMMITTED. Everything below is best-effort
+  // side-effects (notifications + goal mirror) — DEFERRED to after the response
+  // (Operation Butter: "persist, then return"). The clicker no longer waits on
+  // up to 3 recipients × 4 external channels (email/WhatsApp/Slack/push) before
+  // the tick registers. Notifications carry their own retry table + cron, so a
+  // dropped after() is recoverable. try/catch keeps a blip from surfacing.
+  nudgeRelay(); // low-latency projection update; cron is the durable backstop
+  afterResponse(async () => {
+    try {
+      const trimmedNote = note?.trim() || undefined;
+      const statusDisplay = await getStatusDisplayMap();
+      const newStatusLabel = statusDisplay[status]?.label ?? status;
+      const label = taskLabel({ subject: current.subject, title: current.title });
+      await notifyManyForTask(taskId, {
+        actorId: actor.id,
+        kind: "status_changed",
+        title: `${actor.name} changed status on '${label}' to ${newStatusLabel}`,
+        body: JSON.stringify({
+          toStatus: status,
+          fromStatus: current.status,
+          ...(trimmedNote ? { note: trimmedNote } : {}),
+        }),
+        recipients: [current.createdById, current.initiatorId, current.doerId],
+      });
+      // Phase 2 — if this task was spun off a Weekly Goal, mirror the new status
+      // back onto that goal (% done + status).
+      if (current.originGoalId) await syncTaskToGoal(taskId, status);
+    } catch (err) {
+      console.warn("[set-status] post-commit side-effects failed (status already saved):", err);
+    }
   });
 
   return { ok: true, updatedAt: now.toISOString() };

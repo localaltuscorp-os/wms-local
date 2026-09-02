@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// `unstable_cache` arrives via lib/queries/employees (listEmployeeOptions);
+// pass the work function straight through so the cached query behaves as a
+// plain async call under test.
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   updateTag: vi.fn(),
+  unstable_cache: <T>(fn: T) => fn,
 }));
 
 // Tier-3 — actions.ts now imports getStatusDisplayMap (server-only).
@@ -70,6 +74,9 @@ vi.mock("@/lib/auth/current", () => ({
     name: "Me",
     email: "me@vp.com",
   })),
+  // The createTask action enforces the weekly-goals fill gate before inserting;
+  // the test exercises task creation in isolation, so the gate is a no-op pass.
+  requireWeeklyGoalsFilled: vi.fn(async () => {}),
 }));
 
 // M2.3 — actions now fan out via the notifications dispatcher (server-only).

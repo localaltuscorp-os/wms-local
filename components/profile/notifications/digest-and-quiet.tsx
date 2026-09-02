@@ -59,7 +59,7 @@ export function DigestAndQuiet({ initial }: Props) {
     <>
       <section style={cardStyle}>
         <SectionHeader
-          title="Daily / weekly digest"
+          title="Daily / Weekly Digest"
           description="When on, a single summary email replaces per-event notifications for low-priority kinds."
           savedAt={showSaved ? savedAt : null}
         />
@@ -141,7 +141,7 @@ export function DigestAndQuiet({ initial }: Props) {
 
       <section style={cardStyle}>
         <SectionHeader
-          title="Quiet hours"
+          title="Quiet Hours"
           description="During this window we buffer non-urgent notifications into your next digest. @-mentions still arrive immediately if escalation is on."
           savedAt={showSaved ? savedAt : null}
         />
@@ -230,14 +230,14 @@ export function DigestAndQuiet({ initial }: Props) {
               cursor: "pointer",
             }}
           >
-            Clear quiet hours
+            Clear Quiet Hours
           </button>
         )}
       </section>
 
       <section style={cardStyle}>
         <SectionHeader
-          title="Mention escalation"
+          title="Mention Escalation"
           description="When someone @-mentions you, every channel you've enabled at the channel level fires — even if you've muted that event kind in the matrix above."
           savedAt={showSaved ? savedAt : null}
         />

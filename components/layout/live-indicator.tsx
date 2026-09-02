@@ -37,11 +37,19 @@ export function LiveIndicator() {
         "postgres_changes",
         { event: "*", schema: "public", table: "tasks" },
         () => {
+          // Leading-edge RATE LIMIT: at most one refresh per window per client.
+          // The first event in a quiet period schedules a refresh; further
+          // events within the window are folded into it (the `if (!timer)`
+          // guard) — so it can't starve under sustained load (unlike a
+          // trailing-edge reset). Widened 1.5s → 4s for Operation Butter P0 to
+          // cut refresh frequency under concurrency. Deeper fix (scoped per-row
+          // deltas vs a full router.refresh) is Phase B; with the dashboard now
+          // served from its own 60s-TTL tag, each refresh is already far cheaper.
           if (!debounceTimer) {
             debounceTimer = setTimeout(() => {
               startTransition(() => router.refresh());
               debounceTimer = null;
-            }, 1500);
+            }, 4000);
           }
         },
       )

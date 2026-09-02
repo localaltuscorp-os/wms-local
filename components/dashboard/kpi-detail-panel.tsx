@@ -12,47 +12,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { KpiWithDelta, WmsSummary } from "@/lib/types";
-
-/** A crisp area-sparkline (line + soft gradient fill + leading dot). */
-function Sparkline({ data, neon, neonDeep }: { data: number[]; neon: string; neonDeep: string }) {
-  const id = React.useId();
-  const W = 560;
-  const H = 132;
-  const PAD = 10;
-  const series = data.length ? data : [0, 0];
-  const max = Math.max(1, ...series);
-  const min = Math.min(0, ...series);
-  const range = max - min || 1;
-  const pts = series.map((v, i) => {
-    const x = PAD + (i / (series.length - 1 || 1)) * (W - 2 * PAD);
-    const y = H - PAD - ((v - min) / range) * (H - 2 * PAD);
-    return [x, y] as const;
-  });
-  const line = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const last = pts[pts.length - 1]!;
-  const area = `${line} L${last[0].toFixed(1)},${H - PAD} L${pts[0]![0].toFixed(1)},${H - PAD} Z`;
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full" style={{ height: 132 }}>
-      <defs>
-        <linearGradient id={`grad-${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={`rgb(${neon})`} stopOpacity={0.3} />
-          <stop offset="100%" stopColor={`rgb(${neon})`} stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <path d={area} fill={`url(#grad-${id})`} />
-      <path
-        d={line}
-        fill="none"
-        stroke={`rgb(${neonDeep})`}
-        strokeWidth={2.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-      />
-      <circle cx={last[0]} cy={last[1]} r={4.5} fill={`rgb(${neonDeep})`} />
-    </svg>
-  );
-}
+import { KpiTrendSparkline } from "./kpi-trend-sparkline";
+import { formatTrendPct } from "./kpi-trend-badge";
 
 interface ChipSpec {
   key: keyof WmsSummary;
@@ -79,19 +40,31 @@ export function KpiDetailPanel({
   summary,
   neon,
   neonDeep,
+  vsLabel = "vs last week",
 }: {
   label: string;
   sublabel: string;
+  /** The card's headline count. Rendered by the strip above, not here — this
+   *  panel reports the WINDOW comparison, which is a different measure. */
   value: number;
   kpi: KpiWithDelta;
   summary: WmsSummary;
   neon: string;
   neonDeep: string;
+  /** Same "vs last …" wording the card above shows, so the two agree. */
+  vsLabel?: string;
 }) {
-  const delta = value - kpi.previous;
-  const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "→";
-  const up = delta > 0;
-  const deltaTone = delta === 0 ? "var(--color-ink-subtle)" : up ? "var(--color-green-deep)" : "var(--color-red-deep)";
+  // The badge compares the LAST 7 DAYS with the 7 before it, and both numbers
+  // come off the same series the chart draws. It used to be
+  // `value - kpi.previous`, subtracting a 7-day count from a whole-range count
+  // — two different windows, so the figure meant nothing.
+  const trend = formatTrendPct(kpi);
+  const deltaTone =
+    trend.direction === "flat"
+      ? "var(--color-ink-subtle)"
+      : trend.direction === "up"
+        ? "var(--color-green-deep)"
+        : "var(--color-red-deep)";
 
   return (
     <div
@@ -119,16 +92,15 @@ export function KpiDetailPanel({
           <span
             className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 tabular-nums shrink-0"
             style={{ fontSize: 12.5, fontWeight: 800, color: deltaTone, background: "color-mix(in srgb, currentColor 12%, transparent)" }}
+            title={trend.title}
           >
-            {arrow} {Math.abs(delta)} <span className="font-semibold opacity-70">vs last</span>
+            {trend.arrow} {trend.text} <span className="font-semibold opacity-70">{vsLabel}</span>
           </span>
         </div>
-        <Sparkline data={kpi.sparkline} neon={neon} neonDeep={neonDeep} />
-        <div className="mt-1.5 flex justify-between text-[11.5px] font-bold tracking-wide text-ink-subtle tabular-nums">
-          <span>14d</span>
-          <span>7d</span>
-          <span>today</span>
-        </div>
+        {/* `?? []` for the same stale-Data-Cache reason as formatTrendPct — the
+            chart draws its own "no activity" state rather than throwing on a
+            payload that predates the `trend` field. */}
+        <KpiTrendSparkline points={kpi.trend ?? []} neon={neon} neonDeep={neonDeep} label={label} />
       </div>
 
       {/* Operational summary */}

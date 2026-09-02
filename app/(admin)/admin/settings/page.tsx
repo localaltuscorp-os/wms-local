@@ -10,6 +10,8 @@ import { SettingsTabGeneral } from "@/components/admin/settings-tab-general";
 import { SettingsTabStatuses } from "@/components/admin/settings-tab-statuses";
 import { SettingsTabIntegrations } from "@/components/admin/settings-tab-integrations";
 import { SettingsTabNotifications } from "@/components/admin/settings-tab-notifications";
+import { AdminSection } from "@/components/admin/ui/section-shell";
+import { SlidersHorizontal } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -33,31 +35,25 @@ export default async function SettingsPage() {
     listRecurringTemplates(),
   ]);
 
-  return (
-    <div>
-      <header className="mb-8">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-ink-subtle font-bold">
-          Admin · Settings
-        </div>
-        <h1
-          className="mt-1 text-ink-strong max-md:!text-[32px]"
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontStyle: "italic",
-            fontWeight: 500,
-            fontSize: 44,
-            lineHeight: 1.05,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          Organisation settings
-        </h1>
-        <p className="text-body-lg text-ink-subtle mt-2 max-w-2xl">
-          Identity, locale, statuses, integrations, and notification routing.
-          Changes take effect immediately.
-        </p>
-      </header>
+  const dispatchFailedTotal = dispatchTotals.failed + dispatchTotals.failedTerminal;
 
+  return (
+    <AdminSection
+      eyebrow="Admin · Settings"
+      title="Organisation settings"
+      subtitle="Identity, locale, statuses, integrations, and notification routing. Changes take effect immediately."
+      icon={SlidersHorizontal}
+      stats={[
+        { label: "Integrations", value: integrations.length },
+        { label: "Recurring templates", value: recurringTemplates.length },
+        { label: "Dispatched", value: dispatchTotals.sent, tone: "green" },
+        {
+          label: "Failed",
+          value: dispatchFailedTotal,
+          tone: dispatchFailedTotal > 0 ? "red" : "neutral",
+        },
+      ]}
+    >
       <SettingsTabs
         general={<SettingsTabGeneral current={settings} />}
         statuses={<SettingsTabStatuses display={statusDisplay} />}
@@ -71,6 +67,6 @@ export default async function SettingsPage() {
         }
         notifications={<SettingsTabNotifications initial={matrix} />}
       />
-    </div>
+    </AdminSection>
   );
 }

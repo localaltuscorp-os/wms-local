@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
+import { formatDate } from "@/lib/format";
 import type {
   Channel,
   ChannelStatus,
@@ -106,7 +107,7 @@ export function NotificationList({ rows, hasMore, loadOlderHref }: Props) {
                   <span>{n.kind.replace(/_/g, " ")}</span>
                   <span className="mx-1.5">·</span>
                   <span className="tabular-nums">
-                    {format(n.createdAt, "MMM d, HH:mm")}
+                    {formatDate(n.createdAt)}, {format(n.createdAt, "HH:mm")}
                   </span>
                 </div>
               </div>
@@ -137,7 +138,7 @@ export function NotificationList({ rows, hasMore, loadOlderHref }: Props) {
                   </p>
                 )}
                 <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 mt-3 text-[12.5px]">
-                  <dt className="text-ink-subtle">Recipient email</dt>
+                  <dt className="text-ink-subtle">Recipient Email</dt>
                   <dd className="font-mono text-ink-strong">
                     {n.recipientEmail || "—"}
                   </dd>
@@ -172,7 +173,7 @@ export function NotificationList({ rows, hasMore, loadOlderHref }: Props) {
             href={loadOlderHref}
             className="inline-flex items-center gap-1.5 text-altus-red text-chip font-semibold hover:underline"
           >
-            Load older
+            Load Older
             <span aria-hidden>→</span>
           </a>
         </li>

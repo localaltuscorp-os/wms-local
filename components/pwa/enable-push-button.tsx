@@ -135,7 +135,7 @@ export function EnablePushButton() {
         type="button"
         onClick={disable}
         disabled={pending}
-        className="rounded-md border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] hover:bg-[#F5F5F7] disabled:opacity-50"
+        className="brand-btn rounded-md border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] hover:bg-[#F5F5F7] disabled:opacity-50"
       >
         ✓ Push enabled — turn off
       </button>
@@ -149,7 +149,7 @@ export function EnablePushButton() {
       className="rounded-md py-2 px-4 text-sm font-medium text-white disabled:opacity-70"
       style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
     >
-      {pending ? "Enabling…" : "Enable push notifications"}
+      {pending ? "Enabling…" : "Enable Push Notifications"}
     </button>
   );
 }

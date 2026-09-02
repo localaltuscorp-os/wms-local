@@ -12,7 +12,7 @@ import {
   Pencil,
   ChevronRight,
 } from "lucide-react";
-import { approveTask } from "@/app/(app)/tasks/actions";
+import { approveTask, decideTaskApproval } from "@/app/(app)/tasks/actions";
 import { fireToast } from "@/lib/toast";
 import { ReassignDialog } from "./reassign-dialog";
 
@@ -23,6 +23,10 @@ interface Props {
   employees: { id: string; name: string }[];
   canEdit: boolean;
   canApproveTask: boolean;
+  /** Two-stage approval (mig 0185). Computed SERVER-side and passed in purely to
+   *  decide which buttons to render — decideTaskApproval re-checks both. */
+  canManagerApproveTask?: boolean;
+  canAdminApproveTask?: boolean;
   canReassignTask: boolean;
   /** When the user clicks Edit (left column). */
   onStartEdit: () => void;
@@ -54,6 +58,8 @@ export function ActionRail({
   employees,
   canEdit,
   canApproveTask,
+  canManagerApproveTask = false,
+  canAdminApproveTask = false,
   canReassignTask,
   onStartEdit,
   approveOpen,
@@ -67,6 +73,45 @@ export function ActionRail({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [declineNote, setDeclineNote] = useState("");
+
+  /**
+   * Two-stage approval. The button only says WHICH stage it is acting at; the
+   * server re-derives whether that is allowed from the session actor, so a
+   * crafted call cannot promote a task the user may not promote.
+   */
+  function decide(level: "manager" | "admin", decision: "approved" | "send_back") {
+    setError(null);
+    startTransition(async () => {
+      const result = await decideTaskApproval(
+        taskId,
+        { level, decision, note: decision === "send_back" ? declineNote || undefined : undefined },
+        expectedUpdatedAt,
+      );
+      if (!result.ok) {
+        setError(
+          result.error === "stale"
+            ? "Task changed by someone else. Reload to see the latest."
+            : result.error === "forbidden"
+              ? "You don't have permission to do that."
+              : (result.message ?? "Action failed."),
+        );
+        return;
+      }
+      fireToast({
+        message:
+          decision === "send_back"
+            ? "Sent back."
+            : level === "admin"
+              ? "Admin approved."
+              : "Manager approved.",
+      });
+      if (decision === "send_back") {
+        setApproveOpen(false);
+        setDeclineNote("");
+      }
+      router.refresh();
+    });
+  }
 
   function approve() {
     setError(null);
@@ -122,8 +167,44 @@ export function ActionRail({
     node: React.ReactNode;
   }> = [
     {
+      // MANAGER APPROVAL — accepting a report's work. Shown to the doer's
+      // manager (and to admins, who sit above them).
+      key: "manager-approve",
+      visible: canManagerApproveTask,
+      node: (
+        <ActionCard
+          icon={<Check size={16} strokeWidth={2.6} />}
+          label="Manager Approve"
+          subtext="Accept the work. It then waits for final sign-off."
+          tone="green"
+          onClick={() => decide("manager", "approved")}
+          disabled={pending}
+          primary
+        />
+      ),
+    },
+    {
+      // ADMIN APPROVAL — final sign-off. Only ever visible to the founder; the
+      // server enforces the same rule regardless of what is rendered.
+      key: "admin-approve",
+      visible: canAdminApproveTask,
+      node: (
+        <ActionCard
+          icon={<Check size={16} strokeWidth={2.6} />}
+          label="Admin Approve"
+          subtext="Final sign-off. This closes the task for good."
+          tone="green"
+          onClick={() => decide("admin", "approved")}
+          disabled={pending}
+          primary
+        />
+      ),
+    },
+    {
+      // The legacy single-stage Approve stays for any surface not yet migrated,
+      // but is hidden the moment either staged button is available.
       key: "approve",
-      visible: canApproveTask,
+      visible: canApproveTask && !canManagerApproveTask && !canAdminApproveTask,
       node: (
         <ActionCard
           icon={<Check size={16} strokeWidth={2.6} />}
@@ -138,7 +219,7 @@ export function ActionRail({
     },
     {
       key: "decline",
-      visible: canApproveTask,
+      visible: canApproveTask || canManagerApproveTask || canAdminApproveTask,
       node: (
         <ActionCard
           icon={<X size={16} strokeWidth={2.6} />}
@@ -192,9 +273,15 @@ export function ActionRail({
 
   return (
     <div className="px-4 py-4">
-      <h2
-        className="px-1 mb-3 text-[12px] uppercase tracking-[0.12em] text-ink-subtle font-bold"
-      >
+      <h2 className="px-1 mb-3 flex items-center gap-2 text-[11.5px] uppercase tracking-[0.14em] text-ink-subtle font-bold">
+        <span
+          aria-hidden
+          className="inline-block h-[3px] w-4 rounded-full"
+          style={{
+            background:
+              "linear-gradient(90deg, var(--color-altus-red), var(--color-altus-red-deep))",
+          }}
+        />
         Admin & Process Actions
       </h2>
       <RoleBanner role={myRole} adminOverride={adminOverride} />
@@ -240,7 +327,7 @@ export function ActionRail({
             className="fixed left-1/2 top-1/2 z-[70] w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-section border border-hairline bg-surface-card p-6 shadow-xl"
           >
             <Dialog.Title className="text-display-md text-ink-strong">
-              Decline task
+              Decline Task
             </Dialog.Title>
             <Dialog.Description className="text-[15px] text-ink-subtle mt-1">
               Add an optional note for the doer.
@@ -427,7 +514,13 @@ function ActionCard({
     tone === "green"
       ? "var(--color-green)"
       : tone === "rose"
-        ? "var(--color-rose)"
+        /* RED, not the pink `--color-rose`. No ActionCard passes this tone
+           today, which is exactly why it is worth fixing now rather than
+           leaving a pink default armed for whoever reaches for it first. The
+           name stays `rose` because it is the shared status-token vocabulary
+           (db/enums STATUS_COLOR_TOKENS); only the colour it resolves to
+           changes. */
+        ? "var(--color-red)"
         : tone === "purple"
           ? "var(--color-purple)"
           : "var(--color-ink-strong)";

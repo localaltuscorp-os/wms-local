@@ -22,7 +22,7 @@ export const previewText = (p: Pick<WeeklyGoalsIncompleteProps, "unmarkedCount">
  * have goals sitting at 0% / unmarked, so it's quiet for those already done.
  */
 export function WeeklyGoalsIncompleteEmail(props: WeeklyGoalsIncompleteProps) {
-  const goalsUrl = `${stripTrailingSlash(props.siteUrl)}/weekly-goals`;
+  const goalsUrl = `${stripTrailingSlash(props.siteUrl)}/goals/weekly`;
   return (
     <NotificationEmailLayout
       preview={previewText({ unmarkedCount: props.unmarkedCount })}

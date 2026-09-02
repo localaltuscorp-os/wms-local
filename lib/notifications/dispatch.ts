@@ -19,6 +19,7 @@ import {
 import { sendSlackDM } from "@/lib/slack/dispatch";
 import { sendWhatsApp } from "@/lib/whatsapp/dispatch";
 import { sendWebPushToUser } from "@/lib/web-push/client";
+import { sendFcmToEmployee } from "@/lib/push/fcm";
 import { getNotificationMatrix } from "@/lib/queries/notification-matrix";
 import { resolveChannels } from "@/lib/notifications/resolve-channels";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
@@ -299,6 +300,13 @@ async function notifyImpl(opts: NotifyOpts): Promise<void> {
       async () => {
         if (!allowed("push")) return "skip";
         if (!personalEnabled("push")) return "skip";
+        // Native-mobile push (FCM) — fire-and-forget alongside web push so it
+        // never affects the web_push channel outcome or the dispatch latency.
+        void sendFcmToEmployee(row.userId, {
+          title: opts.title,
+          body: opts.body ?? outboundCtx.body ?? "",
+          route: row.taskId ? `task/${row.taskId}` : "dashboard",
+        }).catch(() => {});
         return sendWebPushToUser(row.userId, row.kind as NotificationKind, {
           actorName: outboundCtx.actorName,
           taskSubject: outboundCtx.taskSubject,

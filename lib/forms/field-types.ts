@@ -1,5 +1,5 @@
 /**
- * Shared form-field model for the dynamic modules (Reimbursements, Leave,
+ * Shared form-field model for the dynamic modules (Reimbursements,
  * Record Reference, Participant Breakthrough) and — going forward — the
  * incentive request forms. Client-safe: no server-only imports, so both the
  * render dialog and the server validator can share it.
@@ -32,8 +32,45 @@ export interface FormFieldDef {
   required?: boolean;
   options?: string[];
   placeholder?: string;
-  /** Only shown + validated when another field currently holds this value. */
-  showIf?: { key: string; value: string };
+  /**
+   * Only shown + validated when another field currently holds this value.
+   * `value` may be a single string (equality) OR a list (show when the current
+   * value is any one of them) — e.g. "Number of Children" shows for every
+   * marital status except "Single".
+   */
+  showIf?: { key: string; value: string | string[] };
+  /** Read-only display (e.g. an auto-computed value the user can't type). */
+  readOnly?: boolean;
+  /**
+   * Value is derived, not typed:
+   *   ageFromDob     — whole years from the section's DOB field
+   *   expFromRange   — "X yrs Y mo" from the entry's from→to dates
+   *   monthlyFromCtc — round((fixedSalary + bonus) / 12)
+   */
+  compute?: "ageFromDob" | "expFromRange" | "monthlyFromCtc";
+  /** Options come from a live app master (Candidate Intake wizard only). */
+  optionsFrom?: "departments" | "positions";
+  /** Text field that seeds an Aadhaar-based lookup (auto-fills mobile/location). */
+  aadhaarLookup?: boolean;
+  /**
+   * Explicit grid width out of 12 columns (Candidate Intake layout). Lets fields
+   * pack tightly onto one line — e.g. three span-4 fields fill a row. Omitted →
+   * a sensible default (4 for most, 12 for textareas/Aadhaar, 8 for big chip sets).
+   */
+  span?: 3 | 4 | 5 | 6 | 7 | 8 | 12;
+  /** Force this field's chip options onto ONE line (never wrap). */
+  nowrap?: boolean;
+  /**
+   * Explicitly OPTIONAL — exempt from the Candidate Intake "everything is
+   * mandatory" gate (see isRequiredField). Used for supplementary address lines,
+   * the recruiter email, etc.
+   */
+  optional?: boolean;
+  /**
+   * Renders a full-width sub-heading immediately before this field when it is the
+   * first in a contiguous run sharing the same label (e.g. "Health & Habits").
+   */
+  groupLabel?: string;
 }
 
 export const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
@@ -67,9 +104,12 @@ export function visibleFields(
   fields: FormFieldDef[],
   values: Record<string, string>,
 ): FormFieldDef[] {
-  return fields.filter(
-    (f) => !f.showIf || (values[f.showIf.key] ?? "") === f.showIf.value,
-  );
+  return fields.filter((f) => {
+    if (!f.showIf) return true;
+    const cur = values[f.showIf.key] ?? "";
+    const want = f.showIf.value;
+    return Array.isArray(want) ? want.includes(cur) : cur === want;
+  });
 }
 
 /**

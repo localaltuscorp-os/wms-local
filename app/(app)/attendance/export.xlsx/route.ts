@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
-import { requireAdmin } from "@/lib/auth/current";
+import { requireUser } from "@/lib/auth/current";
+import { isFinanceViewer } from "@/lib/auth/finance-access";
 import { localDateString } from "@/lib/format";
 import {
   getMonthDashboard,
@@ -39,11 +40,13 @@ function resolveYM(url: URL): { year: number; month: number } {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  let me;
   try {
-    await requireAdmin();
+    me = await requireUser();
   } catch {
     return new Response("Forbidden", { status: 403 });
   }
+  if (!(await isFinanceViewer(me))) return new Response("Forbidden", { status: 403 });
 
   const url = new URL(request.url);
   const { year, month } = resolveYM(url);
@@ -63,15 +66,18 @@ export async function GET(request: Request): Promise<Response> {
     ...Array(SUMMARY_HEADERS.length - 1).fill({ wch: 12 }),
   ];
 
-  // Daily matrix sheet — one getEmployeeMonthStatus per employee. N queries,
-  // fine for an admin-triggered export.
-  const details = await Promise.all(
-    rows.map((r) =>
-      getEmployeeMonthStatus(r.employeeId, year, month, todayISO).then(
-        (detail) => ({ name: r.name, detail }),
-      ),
-    ),
-  );
+  // Daily matrix sheet — one getEmployeeMonthStatus per employee. Loaded
+  // SEQUENTIALLY on purpose: each call itself fans out several queries via
+  // Promise.all, so a `Promise.all` over the whole roster (~21 people) would
+  // burst ~60+ concurrent queries against a pool of 10 and could starve the
+  // protected dashboard path during business hours. An admin export is not
+  // latency-critical, so we trade a little wall-clock for pool safety.
+  const details: { name: string; detail: Awaited<ReturnType<typeof getEmployeeMonthStatus>> }[] =
+    [];
+  for (const r of rows) {
+    const detail = await getEmployeeMonthStatus(r.employeeId, year, month, todayISO);
+    details.push({ name: r.name, detail });
+  }
   const matrixAoa: string[][] = [
     matrixHeaders(year, month),
     ...details.map(({ name, detail }) =>

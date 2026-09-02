@@ -45,11 +45,14 @@ async function checkDb(): Promise<Check> {
     await withTimeout(db.execute(sql`select 1`), DB_TIMEOUT_MS, "db");
     return { name: "db", ok: true, ms: Math.round(performance.now() - started) };
   } catch (err) {
+    // Public endpoint — log the real error server-side, return a neutral string
+    // so raw Postgres/driver messages don't leak to unauthenticated callers.
+    console.error("[health] db check failed:", err);
     return {
       name: "db",
       ok: false,
       ms: Math.round(performance.now() - started),
-      error: err instanceof Error ? err.message : String(err),
+      error: "check failed",
     };
   }
 }
@@ -71,11 +74,12 @@ async function checkStorage(): Promise<Check> {
     if (res.error) throw new Error(res.error.message);
     return { name: "storage", ok: true, ms: Math.round(performance.now() - started) };
   } catch (err) {
+    console.error("[health] storage check failed:", err);
     return {
       name: "storage",
       ok: false,
       ms: Math.round(performance.now() - started),
-      error: err instanceof Error ? err.message : String(err),
+      error: "check failed",
     };
   }
 }

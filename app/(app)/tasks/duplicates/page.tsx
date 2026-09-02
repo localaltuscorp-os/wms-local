@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { DashboardHeader } from "@/components/layout/header";
-import { DashboardFooter } from "@/components/layout/footer";
 import { DuplicateFinder } from "@/components/tasks/duplicate-finder";
 import { findDuplicateGroups } from "@/lib/queries/duplicates";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
@@ -35,7 +34,6 @@ export default async function DuplicateTasksPage() {
           statusTones={statusTones}
         />
       </main>
-      <DashboardFooter />
     </>
   );
 }

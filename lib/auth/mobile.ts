@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, type Employee } from "@/db/schema";
 import { getFirebaseAdminAuth } from "@/lib/firebase/admin";
+import { isLoginLive, isCandidateAccount } from "@/lib/auth/current";
 
 /**
  * Auth for the native app's `/api/mobile/*` endpoints. The app signs in with
@@ -33,7 +34,9 @@ export async function authenticateMobileRequest(req: Request): Promise<MobileAut
     where: eq(employees.firebaseUid, uid),
   });
   if (!employee) return { ok: false, status: 403, error: "not-enrolled" };
-  if (!employee.isActive) return { ok: false, status: 403, error: "deactivated" };
+  if (!isLoginLive(employee)) return { ok: false, status: 403, error: "deactivated" };
+  // A candidate guest-account has NO mobile surface — the app is web-form only.
+  if (isCandidateAccount(employee)) return { ok: false, status: 403, error: "candidate" };
   return { ok: true, employee };
 }
 

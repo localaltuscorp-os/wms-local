@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { MoreHorizontal, Pencil, Power, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, Power, Trash2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import { DataTable } from "@/components/admin/ui/data-table";
 import { addHoliday, updateHoliday, removeHoliday } from "@/app/(admin)/admin/holidays/actions";
 
 export interface HolidayItem {
@@ -39,59 +40,78 @@ export function HolidayList({
 
   return (
     <>
-      <div className="mb-6 flex justify-end">
+      <div className="mb-4 flex justify-end">
         <CreateHolidayDialog year={year} onDone={() => router.refresh()} />
       </div>
 
-      {items.length === 0 ? (
-        <div
-          className="rounded-section border border-dashed border-hairline-strong bg-surface-card px-6 py-14 text-center"
-          style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
-        >
-          <p
-            className="font-serif text-ink-strong"
-            style={{ fontStyle: "italic", fontSize: 22, letterSpacing: "-0.015em" }}
-          >
-            No holidays for {year}
-          </p>
-          <p className="text-[14px] text-ink-subtle mt-2 max-w-sm mx-auto" style={{ lineHeight: 1.5 }}>
-            Add the first one with the button above. Active holidays are marked
-            off on the attendance calendar.
-          </p>
-        </div>
-      ) : (
-        <div
-          className="overflow-hidden rounded-section border border-hairline bg-surface-card"
-          style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
-        >
-          <table className="w-full text-[15px]">
-            <thead>
-              <tr
-                className="text-left text-[12px] uppercase tracking-[0.08em] text-ink-subtle font-bold border-b border-hairline"
-                style={{ background: "var(--color-surface-soft)" }}
-              >
-                <th className="px-5 py-4">Date</th>
-                <th className="px-5 py-4">Label</th>
-                <th className="px-5 py-4">Status</th>
-                <th className="px-5 py-4 text-right">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, i) => (
-                <HolidayRow
-                  key={item.id}
-                  item={item}
-                  rowIndex={i}
-                  onEdit={() => setEditing(item)}
-                  onDone={() => router.refresh()}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable<HolidayItem>
+        rows={items}
+        getRowKey={(h) => h.id}
+        searchText={(h) => `${h.label} ${prettyDate(h.holidayDate)}`}
+        searchPlaceholder="Search holidays"
+        initialSort={{ key: "date", dir: "asc" }}
+        filters={[
+          {
+            label: "Status",
+            options: [
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ],
+            match: (h, v) => (v === "active" ? h.isActive : !h.isActive),
+          },
+        ]}
+        columns={[
+          {
+            key: "date",
+            label: "Date",
+            sortValue: (h) => h.holidayDate,
+            render: (h) => (
+              <span className="text-ink-strong font-medium tabular-nums whitespace-nowrap">
+                {prettyDate(h.holidayDate)}
+              </span>
+            ),
+          },
+          {
+            key: "label",
+            label: "Label",
+            sortValue: (h) => h.label,
+            render: (h) => <span className="text-ink-soft">{h.label}</span>,
+          },
+          {
+            key: "status",
+            label: "Status",
+            className: "w-32",
+            sortValue: (h) => (h.isActive ? 0 : 1),
+            render: (h) => <HolidayStatusBadge active={h.isActive} />,
+          },
+        ]}
+        rowActions={(h) => (
+          <HolidayRowActions
+            item={h}
+            onEdit={() => setEditing(h)}
+            onDone={() => router.refresh()}
+          />
+        )}
+        emptyState={
+          <>
+            <p
+              className="text-ink-strong"
+              style={{
+                fontFamily: "var(--font-serif), system-ui, sans-serif",
+                fontStyle: "italic",
+                fontSize: 22,
+                letterSpacing: "-0.015em",
+              }}
+            >
+              No holidays for {year}
+            </p>
+            <p className="mt-2 max-w-sm mx-auto text-[14px] text-ink-subtle" style={{ lineHeight: 1.5 }}>
+              Add the first one with the button above. Active holidays are marked
+              off on the attendance calendar.
+            </p>
+          </>
+        }
+      />
 
       {editing && (
         <EditHolidayDialog
@@ -104,14 +124,35 @@ export function HolidayList({
   );
 }
 
-function HolidayRow({
+function HolidayStatusBadge({ active }: { active: boolean }) {
+  if (active) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+        style={{ background: "var(--color-green-bg)", color: "var(--color-green-deep)" }}
+      >
+        <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-green)" }} />
+        Active
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+      style={{ background: "rgba(15, 23, 42, 0.05)", color: "var(--color-ink-subtle)" }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-ink-subtle)" }} />
+      Inactive
+    </span>
+  );
+}
+
+function HolidayRowActions({
   item,
-  rowIndex,
   onEdit,
   onDone,
 }: {
   item: HolidayItem;
-  rowIndex: number;
   onEdit: () => void;
   onDone: () => void;
 }) {
@@ -146,72 +187,42 @@ function HolidayRow({
   }
 
   return (
-    <tr
-      className="border-b border-hairline last:border-b-0 transition-colors hover:bg-surface-soft"
-      style={{ background: rowIndex % 2 === 1 ? "rgba(15, 23, 42, 0.012)" : undefined }}
-    >
-      <td className="px-5 py-4 text-ink-strong font-medium tabular-nums whitespace-nowrap">
-        {prettyDate(item.holidayDate)}
-      </td>
-      <td className="px-5 py-4 text-ink-soft">{item.label}</td>
-      <td className="px-5 py-4">
-        {item.isActive ? (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
-            style={{ background: "var(--color-green-bg)", color: "var(--color-green-deep)" }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-green)" }} />
-            Active
-          </span>
-        ) : (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
-            style={{ background: "rgba(15, 23, 42, 0.05)", color: "var(--color-ink-subtle)" }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-ink-subtle)" }} />
-            Inactive
-          </span>
-        )}
-      </td>
-      <td className="px-5 py-4 text-right">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="Actions"
-              disabled={pending}
-              className="inline-flex items-center justify-center size-9 rounded-lg border border-hairline text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-colors disabled:opacity-50 data-[state=open]:border-altus-red data-[state=open]:text-altus-red"
-            >
-              <MoreHorizontal size={18} strokeWidth={2.2} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onSelect={onEdit}>
-              <Pencil size={15} strokeWidth={2.2} />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
-                toggleActive();
-              }}
-            >
-              <Power size={15} strokeWidth={2.2} />
-              {item.isActive ? "Deactivate" : "Reactivate"}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
-                remove();
-              }}
-            >
-              <Trash2 size={15} strokeWidth={2.2} />
-              Remove
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </td>
-    </tr>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Actions"
+          disabled={pending}
+          className="inline-flex items-center justify-center size-9 rounded-lg border border-hairline text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-colors disabled:opacity-50 data-[state=open]:border-altus-red data-[state=open]:text-altus-red"
+        >
+          <MoreHorizontal size={18} strokeWidth={2.2} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem onSelect={onEdit}>
+          <Pencil size={15} strokeWidth={2.2} />
+          Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
+            toggleActive();
+          }}
+        >
+          <Power size={15} strokeWidth={2.2} />
+          {item.isActive ? "Deactivate" : "Reactivate"}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
+            remove();
+          }}
+        >
+          <Trash2 size={15} strokeWidth={2.2} />
+          Remove
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -260,17 +271,18 @@ function CreateHolidayDialog({
     >
       <Dialog.Trigger asChild>
         <button
-          className="rounded-md py-2.5 px-5 text-[14px] font-medium text-white"
-          style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
+          className="wg-btn inline-flex items-center gap-1.5 rounded-pill py-2.5 px-5 text-[14px] font-semibold text-white"
+          style={{ background: "linear-gradient(135deg, #E10600, #A80400)", boxShadow: "0 6px 18px -6px rgba(225,6,0,0.55)" }}
         >
-          + New holiday
+          <Plus size={16} strokeWidth={2.6} />
+          New Holiday
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
-            New holiday
+            New Holiday
           </Dialog.Title>
           <Dialog.Description className="text-[15px] text-[#64748B] mb-4" style={{ lineHeight: 1.5 }}>
             Active holidays are marked off on the attendance calendar.
@@ -308,7 +320,7 @@ function CreateHolidayDialog({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
+                  className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
                   disabled={pending}
                 >
                   Cancel
@@ -369,7 +381,7 @@ function EditHolidayDialog({
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
-            Edit holiday
+            Edit Holiday
           </Dialog.Title>
           <Dialog.Description className="text-[15px] text-[#64748B] mb-4">
             {prettyDate(item.holidayDate)}
@@ -396,7 +408,7 @@ function EditHolidayDialog({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
+                  className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
                   disabled={pending}
                 >
                   Cancel

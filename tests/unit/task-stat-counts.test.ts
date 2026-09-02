@@ -39,7 +39,10 @@ describe("computeStatCounts", () => {
     expect(c.urgent).toBe(2);
   });
 
-  it("notApproved = declined via column, declined via legacy status, or done-awaiting", () => {
+  // The card means EXACTLY "Not Approved" — declined via the approvalStatus
+  // column or via the legacy status value. A done task still awaiting sign-off
+  // (approvalStatus null) is NOT counted; see the note on computeStatCounts.
+  it("notApproved = declined via column or via legacy status, never done-awaiting", () => {
     const rows = [
       row({ approvalStatus: "not_approved" }),
       row({ status: "not_approved" }),
@@ -47,7 +50,7 @@ describe("computeStatCounts", () => {
       row({ status: "done", approvalStatus: "approved" }),
       row({ status: "not_started" }),
     ];
-    expect(computeStatCounts(rows).notApproved).toBe(3);
+    expect(computeStatCounts(rows).notApproved).toBe(2);
   });
 
   it("notRead = pending status AND firstReadAt null only", () => {

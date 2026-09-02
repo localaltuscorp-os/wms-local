@@ -1,6 +1,7 @@
 "use client";
 import { Building2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { FilterPill, summarizeSelection } from "./filter-pill";
 
 // Distinct task clients, passed in from the server (free-text values on
 // tasks.client). Mirrors SubjectFilter.
@@ -14,15 +15,19 @@ export function ClientFilter({
   onChange: (v: string[]) => void;
 }) {
   return (
-    <div className="filter-chip">
-      <Building2 size={16} className="text-ink-subtle" strokeWidth={2} />
-      <MultiSelect
-        options={options}
-        selected={selected}
-        onChange={onChange}
-        placeholder="All Clients"
-        className="min-w-[6.5rem] !text-[14px]"
-      />
-    </div>
+    <MultiSelect
+      options={options}
+      selected={selected}
+      onChange={onChange}
+      renderTrigger={({ selectedLabels }) => (
+        <FilterPill
+          icon={<Building2 size={16} strokeWidth={2} />}
+          name="Client"
+          value={summarizeSelection(selectedLabels, "All Clients")}
+          tint="#3b82f6"
+          active={selected.length > 0}
+        />
+      )}
+    />
   );
 }

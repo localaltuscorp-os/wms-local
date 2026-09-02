@@ -1,66 +1,100 @@
+import Link from "next/link";
+import type { Route } from "next";
+import { ArrowRight } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
-import { DashboardFooter } from "@/components/layout/footer";
+import { PageShell } from "@/components/layout/page-shell";
+import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { requireUser } from "@/lib/auth/current";
 import {
   getLeaveBalance,
   listMyLeave,
-  listPendingLeave,
+  leaveReviewScopeFor,
+  countPendingLeaveForReview,
 } from "@/lib/queries/leave";
 import { localDateString } from "@/lib/format";
-import { LeaveBalanceCard } from "@/components/attendance/leave/leave-balance-card";
-import { RequestLeaveForm } from "@/components/attendance/leave/request-leave-form";
-import { LeaveList } from "@/components/attendance/leave/leave-list";
+import { asWorkerType } from "@/lib/attendance/worker-type";
+import { allowedLeaveKinds } from "@/lib/attendance/leave-eligibility";
+import { listLeaveCategories } from "@/lib/attendance/leave-categories";
+import { LeaveSummaryCards } from "@/components/attendance/leave/leave-summary-cards";
+import { ApplyLeaveDialog } from "@/components/attendance/leave/apply-leave-dialog";
+import { MyLeaveTable } from "@/components/attendance/leave/my-leave-table";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * The EMPLOYEE's leave surface (spec §2). Deliberately three things and nothing
+ * more: the summary numbers, the apply button, and the list of what you asked
+ * for. The reviewing side of the feature lives at ./requests — a queue is a
+ * different job from a personal record, and putting the two on one page is what
+ * made the old version of this page a dashboard.
+ */
 export default async function LeavePage() {
   const me = await requireUser();
-  const today = localDateString("Asia/Kolkata");
+  const today = localDateString(me.timezone || "Asia/Kolkata");
+  const workerType = asWorkerType(me.workerType);
 
-  const [balance, mine, pending] = await Promise.all([
+  const [balance, mine, scope, categories] = await Promise.all([
     getLeaveBalance(me.id, today),
     listMyLeave(me.id),
-    me.isAdmin ? listPendingLeave() : Promise.resolve([]),
+    leaveReviewScopeFor(me),
+    listLeaveCategories(),
   ]);
+
+  // A reviewer landing on their own leave page still needs the door to the
+  // queue — but only when there is something in it.
+  const pending = scope.canReview
+    ? await countPendingLeaveForReview(scope)
+    : { requests: 0, employees: 0 };
 
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <main className="mx-auto max-w-[860px] px-8 max-md:px-4 pt-8 pb-16">
-        <header className="mb-6">
-          <h1 className="text-display-lg text-ink-strong">Leave</h1>
-          <p className="text-body-lg text-ink-subtle mt-1">
-            Request paid or unpaid leave and track approvals.
-          </p>
-        </header>
+      <PageShell width="narrow">
+        <PageCommandBar
+          title="Leave"
+          hint={
+            balance.paidEligible
+              ? `Paid and unpaid leave · ${balance.cycleLabel}`
+              : "Unpaid leave"
+          }
+          actions={
+            <div className="flex items-center gap-2">
+              {pending.requests > 0 && (
+                <Link
+                  href={"/attendance/leave/requests" as Route}
+                  className="wg-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink-strong"
+                  style={{ border: "1px solid var(--color-hairline)" }}
+                >
+                  Review {pending.requests}
+                  <ArrowRight size={13} strokeWidth={2.6} />
+                </Link>
+              )}
+              <ApplyLeaveDialog
+                today={today}
+                allowedKinds={allowedLeaveKinds(workerType)}
+                paidRemaining={balance.remaining}
+                paidEligible={balance.paidEligible}
+                allowance={balance.allowance}
+                cycleLabel={balance.cycleLabel}
+                beforeProbation={balance.beforeProbation}
+                categories={categories}
+              />
+            </div>
+          }
+        />
 
-        <div className="space-y-6">
-          <LeaveBalanceCard balance={balance} />
-          <RequestLeaveForm today={today} />
+        <LeaveSummaryCards balance={balance} />
 
-          {me.isAdmin && (
-            <section>
-              <h2 className="text-[18px] font-semibold text-ink-strong mb-3">
-                Pending approvals
-                {pending.length > 0 && (
-                  <span className="ml-2 text-[14px] font-normal text-ink-subtle tabular-nums">
-                    {pending.length}
-                  </span>
-                )}
-              </h2>
-              <LeaveList rows={pending} mode="pending" />
-            </section>
-          )}
-
-          <section>
-            <h2 className="text-[18px] font-semibold text-ink-strong mb-3">
-              My requests
-            </h2>
-            <LeaveList rows={mine} mode="mine" />
-          </section>
-        </div>
-      </main>
-      <DashboardFooter />
+        <section className="mt-6" aria-labelledby="my-leave-heading">
+          <h2
+            id="my-leave-heading"
+            className="mb-2.5 text-[15px] font-bold text-ink-strong"
+          >
+            My Leave Requests
+          </h2>
+          <MyLeaveTable rows={mine} />
+        </section>
+      </PageShell>
     </>
   );
 }

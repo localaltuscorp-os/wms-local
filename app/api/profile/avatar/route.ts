@@ -5,10 +5,9 @@ import { employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import {
   AVATARS_BUCKET,
-  AVATAR_SIGNED_URL_TTL_SECONDS,
   getSupabaseAdmin,
 } from "@/lib/supabase/admin";
-import { updateTag } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { CACHE_TAGS, PROFILE_CACHE_TAGS } from "@/lib/cache-tags";
 
 export const runtime = "nodejs";
@@ -88,20 +87,13 @@ export async function POST(req: Request) {
     );
   }
 
-  const { data: signed, error: signErr } = await admin.storage
-    .from(AVATARS_BUCKET)
-    .createSignedUrl(path, AVATAR_SIGNED_URL_TTL_SECONDS);
-  if (signErr || !signed?.signedUrl) {
-    return NextResponse.json(
-      { ok: false, error: `Sign URL: ${signErr?.message ?? "unknown"}` },
-      { status: 500 },
-    );
-  }
-
+  // Store the PATH and point the avatar at our own route, which signs on
+  // demand. Persisting the signed URL itself — as this did — meant every
+  // avatar broke permanently once its 7-day TTL ran out.
   try {
     await db
       .update(employees)
-      .set({ avatarUrl: signed.signedUrl })
+      .set({ avatarPath: path, avatarUrl: `/api/avatar/${me.id}` })
       .where(eq(employees.id, me.id));
   } catch (err) {
     return NextResponse.json(
@@ -110,10 +102,10 @@ export async function POST(req: Request) {
     );
   }
 
-  updateTag(PROFILE_CACHE_TAGS.profile(me.id));
-  updateTag(CACHE_TAGS.employees);
+  revalidateTag(PROFILE_CACHE_TAGS.profile(me.id), "default");
+  revalidateTag(CACHE_TAGS.employees, "default");
 
-  return NextResponse.json({ ok: true, url: signed.signedUrl });
+  return NextResponse.json({ ok: true, url: `/api/avatar/${me.id}` });
 }
 
 /**
@@ -126,7 +118,7 @@ export async function DELETE() {
   try {
     await db
       .update(employees)
-      .set({ avatarUrl: null })
+      .set({ avatarUrl: null, avatarPath: null })
       .where(eq(employees.id, me.id));
   } catch (err) {
     return NextResponse.json(
@@ -150,8 +142,8 @@ export async function DELETE() {
     // ignore
   }
 
-  updateTag(PROFILE_CACHE_TAGS.profile(me.id));
-  updateTag(CACHE_TAGS.employees);
+  revalidateTag(PROFILE_CACHE_TAGS.profile(me.id), "default");
+  revalidateTag(CACHE_TAGS.employees, "default");
 
   return NextResponse.json({ ok: true });
 }

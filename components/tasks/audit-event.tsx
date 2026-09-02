@@ -356,7 +356,7 @@ function CommentBody({
               type="button"
               onClick={() => { setEditing(false); setDraft(body); }}
               disabled={pending}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-ink-muted font-semibold hover:bg-surface-soft"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-card text-ink-muted font-semibold hover:bg-surface-soft"
             >
               <X size={12} strokeWidth={2.6} />
               Cancel

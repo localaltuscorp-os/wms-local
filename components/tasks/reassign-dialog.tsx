@@ -104,7 +104,7 @@ export function ReassignDialog({
           <div className="flex items-start justify-between mb-4">
             <div>
               <Dialog.Title className="text-display-md text-ink-strong">
-                Reassign task
+                Reassign Task
               </Dialog.Title>
               <Dialog.Description className="text-[15px] text-ink-subtle mt-1.5" style={{ lineHeight: 1.5 }}>
                 Pick the new doer. You can optionally reset the status to "Not Read".
@@ -124,7 +124,7 @@ export function ReassignDialog({
           <form onSubmit={submit} className="grid grid-cols-1 gap-4">
             <div>
               <label htmlFor="rd-doer" className="block text-[14px] font-semibold text-ink-strong mb-1.5">
-                New doer <span className="text-rose">*</span>
+                New Doer <span className="text-rose">*</span>
               </label>
               <Select
                 id="rd-doer"

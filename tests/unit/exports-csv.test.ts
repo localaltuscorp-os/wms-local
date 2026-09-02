@@ -71,14 +71,17 @@ describe("csvResponse", () => {
 });
 
 describe("exportFilename", () => {
-  it("formats as altus-corp-<resource>-YYYY-MM-DD.csv", () => {
+  // Title-cased "Altus-Corp-" is the shared convention across the export layer
+  // (lib/exports/tasks-rich.ts and lib/exports/outstanding-rich.ts build their
+  // filenames the same way), so downloads read as branded, not slugged.
+  it("formats as Altus-Corp-<resource>-YYYY-MM-DD.csv", () => {
     expect(exportFilename("tasks", new Date("2026-05-17T10:30:00Z"))).toBe(
-      "altus-corp-tasks-2026-05-17.csv",
+      "Altus-Corp-tasks-2026-05-17.csv",
     );
   });
 
   it("uses today by default", () => {
     const today = new Date().toISOString().slice(0, 10);
-    expect(exportFilename("employees")).toBe(`altus-corp-employees-${today}.csv`);
+    expect(exportFilename("employees")).toBe(`Altus-Corp-employees-${today}.csv`);
   });
 });

@@ -9,10 +9,9 @@ interface Props {
 }
 
 /**
- * Compact per-user "Your day" card on the dashboard top. Mirrors the
- * full agenda banner at /tasks/agenda but condensed to a single row of
- * three stats — due today / overdue / done today — with a CTA to the
- * full agenda. Hidden via the dashboard's empty-state branch.
+ * Compact per-user "Your day" card on the dashboard top: a single row of
+ * three stats — due today / overdue / done today — linking through to the
+ * My Day planner. Hidden via the dashboard's empty-state branch.
  *
  * Renders as a quiet card; not the dashboard's centerpiece.
  */
@@ -27,7 +26,9 @@ export function MyDayCard({ firstName, counts }: Props) {
   return (
     <section className="mx-auto max-w-[1600px] px-12 max-md:px-4 mt-6">
       <Link
-        href={"/tasks/agenda" as Route}
+        // Repointed from the retired `/tasks/agenda` to the My Day planner that
+        // replaced it — that route no longer exists.
+        href={"/my-day" as Route}
         className="group block rounded-section border border-hairline bg-surface-card px-6 py-4 transition-shadow hover:shadow-md"
         style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
       >

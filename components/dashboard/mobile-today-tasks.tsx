@@ -12,8 +12,7 @@ import { CriticalBadge } from "@/components/ui/critical-badge";
 import { PRIORITY_LABELS } from "@/db/enums";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 import type { MyTodayTask } from "@/lib/queries/my-day";
-
-const TZ = "Asia/Kolkata";
+import { formatDate } from "@/lib/format";
 
 /** How many task cards show before the list collapses behind "View all". Kept
  *  small so Attendance + the first couple of tasks fit above the fold and the
@@ -159,7 +158,7 @@ function TodayCard({
   const tone = statusTones[task.status] ?? "slate";
   const dueLabel = task.overdue
     ? task.dueAt
-      ? `Due ${new Intl.DateTimeFormat("en-IN", { timeZone: TZ, day: "numeric", month: "short" }).format(task.dueAt)}`
+      ? `Due ${formatDate(task.dueAt)}`
       : "Overdue"
     : "Due today";
 

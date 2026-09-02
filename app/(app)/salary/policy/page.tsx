@@ -1,9 +1,10 @@
 import { CheckCircle2, FileText } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
-import { DashboardFooter } from "@/components/layout/footer";
 import { PolicyUploadForm } from "@/components/salary/policy-upload-form";
 import { SignaturePad } from "@/components/salary/signature-pad";
+import { PolicyConsentTable } from "@/components/salary/policy-consent-table";
 import { requireUser } from "@/lib/auth/current";
+import { formatDate, formatTimeInTz, localDateString } from "@/lib/format";
 import {
   getCurrentPolicy,
   getMyConsent,
@@ -13,11 +14,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const fmtDate = (d: Date) =>
-  d.toLocaleString("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Kolkata",
-  });
+  `${formatDate(localDateString("Asia/Kolkata", d))} · ${formatTimeInTz(d, "Asia/Kolkata")}`;
 
 export default async function SalaryPolicyPage() {
   const me = await requireUser();
@@ -57,7 +54,7 @@ export default async function SalaryPolicyPage() {
             <PolicyUploadForm />
           ) : (
             <div
-              className="rounded-section border border-dashed border-hairline-strong bg-surface-card px-6 py-14 text-center"
+              className="rounded-section border border-solid border-hairline-strong bg-surface-card px-6 py-14 text-center"
               style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
             >
               <p
@@ -108,7 +105,7 @@ export default async function SalaryPolicyPage() {
             {/* Consent status / sign */}
             {myConsent ? (
               <div className="rounded-section border border-hairline bg-surface-card p-6 flex items-center gap-3">
-                <CheckCircle2 size={22} strokeWidth={2.2} style={{ color: "var(--color-green)" }} />
+                <CheckCircle2 size={22} strokeWidth={2.2} style={{ color: "var(--color-altus-red)" }} />
                 <div>
                   <p className="text-[15px] font-bold text-ink-strong">
                     You have acknowledged this policy
@@ -129,58 +126,19 @@ export default async function SalaryPolicyPage() {
 
                 <section className="rounded-section border border-hairline bg-surface-card overflow-hidden">
                   <div className="px-6 py-4 border-b border-hairline">
-                    <h2 className="text-[16px] font-bold text-ink-strong">Consent overview</h2>
+                    <h2 className="text-[16px] font-bold text-ink-strong">Consent Overview</h2>
                     <p className="text-[13px] text-ink-subtle mt-0.5">
                       {consentStatus.filter((r) => r.consented).length} of {consentStatus.length}{" "}
                       active employees have acknowledged {policy.version}.
                     </p>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-[14px]">
-                      <thead>
-                        <tr
-                          className="text-left text-[12px] uppercase tracking-[0.08em] text-ink-subtle font-bold border-b border-hairline"
-                          style={{ background: "var(--color-surface-soft)" }}
-                        >
-                          <th className="px-6 py-3.5">Employee</th>
-                          <th className="px-6 py-3.5 text-center">Consented</th>
-                          <th className="px-6 py-3.5 text-right">Signed at</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {consentStatus.map((r, i) => (
-                          <tr
-                            key={r.employeeId}
-                            className="border-b border-hairline last:border-b-0"
-                            style={{
-                              background: i % 2 === 1 ? "rgba(15, 23, 42, 0.012)" : undefined,
-                            }}
-                          >
-                            <td className="px-6 py-3 text-ink-strong font-medium">{r.name}</td>
-                            <td className="px-6 py-3 text-center">
-                              {r.consented ? (
-                                <span className="font-bold" style={{ color: "var(--color-green)" }}>
-                                  ✓
-                                </span>
-                              ) : (
-                                <span className="text-ink-subtle">—</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-3 text-right tabular-nums text-ink-soft">
-                              {r.signedAt ? fmtDate(r.signedAt) : "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <PolicyConsentTable rows={consentStatus} />
                 </section>
               </>
             ) : null}
           </div>
         )}
       </main>
-      <DashboardFooter />
     </>
   );
 }

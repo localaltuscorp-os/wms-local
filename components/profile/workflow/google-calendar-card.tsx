@@ -107,7 +107,7 @@ export function GoogleCalendarCard({
                 type="button"
                 onClick={syncNow}
                 disabled={syncing || pending}
-                className="inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong px-3.5 py-1.5 text-[13px] font-bold text-ink-soft hover:border-altus-red hover:text-altus-red transition-colors disabled:opacity-50"
+                className="bg-surface-card inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong px-3.5 py-1.5 text-[13px] font-bold text-ink-soft hover:border-altus-red hover:text-altus-red transition-colors disabled:opacity-50"
               >
                 {syncing ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -120,7 +120,7 @@ export function GoogleCalendarCard({
                 type="button"
                 onClick={disconnect}
                 disabled={pending || syncing}
-                className="inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong px-3.5 py-1.5 text-[13px] font-bold text-ink-soft hover:border-altus-red hover:text-altus-red transition-colors disabled:opacity-50"
+                className="bg-surface-card inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong px-3.5 py-1.5 text-[13px] font-bold text-ink-soft hover:border-altus-red hover:text-altus-red transition-colors disabled:opacity-50"
               >
                 {pending ? <Loader2 size={14} className="animate-spin" /> : <Unlink size={14} strokeWidth={2.4} />}
                 Disconnect

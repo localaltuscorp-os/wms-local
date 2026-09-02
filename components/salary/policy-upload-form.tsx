@@ -43,13 +43,13 @@ export function PolicyUploadForm({ compact = false }: { compact?: boolean }) {
       <div className="flex items-center gap-2 mb-3">
         <UploadCloud size={16} strokeWidth={2.2} className="text-ink-soft" />
         <h3 className="text-[15px] font-bold text-ink-strong">
-          {compact ? "Publish a new version" : "Publish the salary policy"}
+          {compact ? "Publish a New Version" : "Publish the Salary Policy"}
         </h3>
       </div>
 
       <div className="flex flex-col gap-3 max-w-md">
         <label className="block">
-          <span className="text-[13px] font-medium text-ink-soft">Version label</span>
+          <span className="text-[13px] font-medium text-ink-soft">Version Label</span>
           <input
             name="version"
             type="text"
@@ -79,7 +79,7 @@ export function PolicyUploadForm({ compact = false }: { compact?: boolean }) {
         style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
       >
         <UploadCloud size={15} strokeWidth={2.2} />
-        {submitting ? "Publishing…" : "Publish policy"}
+        {submitting ? "Publishing…" : "Publish Policy"}
       </button>
       {compact ? (
         <p className="mt-2 text-[12px] text-ink-subtle">

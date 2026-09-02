@@ -8,6 +8,7 @@ import {
 } from "@/app/(app)/profile/actions";
 import { fireToast } from "@/lib/toast";
 import { SectionHeader } from "./avatar-and-name";
+import { formatDate } from "@/lib/format";
 
 export interface SessionRow {
   id: string;
@@ -40,7 +41,7 @@ export function SessionsCard({ sessions }: Props) {
     if (hrs < 24) return `${hrs}h ago`;
     const days = Math.round(hrs / 24);
     if (days < 30) return `${days}d ago`;
-    return d.toLocaleDateString();
+    return formatDate(d);
   }
 
   function fmtDevice(ua: string | null): string {
@@ -109,7 +110,7 @@ export function SessionsCard({ sessions }: Props) {
       }}
     >
       <SectionHeader
-        title="Active sessions"
+        title="Active Sessions"
         description="Each device you've signed in from. Revoke any session you don't recognise."
         savedAt={null}
       />
@@ -242,7 +243,7 @@ export function SessionsCard({ sessions }: Props) {
             cursor: busy ? "not-allowed" : "pointer",
           }}
         >
-          Sign out everywhere
+          Sign Out Everywhere
         </button>
         <p
           style={{

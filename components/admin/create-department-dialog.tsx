@@ -49,14 +49,14 @@ export function CreateDepartmentDialog() {
           className="rounded-md py-2.5 px-5 text-[14px] font-medium text-white"
           style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
         >
-          + New department
+          + New Department
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
-            New department
+            New Department
           </Dialog.Title>
           <Dialog.Description className="text-[15px] text-[#64748B] mb-4" style={{ lineHeight: 1.5 }}>
             Pickers across the app will show this when employees are
@@ -75,7 +75,7 @@ export function CreateDepartmentDialog() {
               />
             </Field>
             <Field
-              label="Sort order"
+              label="Sort Order"
               hint="Lower numbers appear first in pickers. Default 100."
             >
               <input
@@ -99,7 +99,7 @@ export function CreateDepartmentDialog() {
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
+                  className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
                   disabled={pending}
                 >
                   Cancel

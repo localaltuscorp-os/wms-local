@@ -113,7 +113,7 @@ export function ChangePasswordCard({ email }: Props) {
       }}
     >
       <SectionHeader
-        title="Change password"
+        title="Change Password"
         description="Update the password you use to sign in. You'll stay signed in here, but other devices will need the new password next time."
         savedAt={null}
       />
@@ -222,7 +222,7 @@ export function ChangePasswordCard({ email }: Props) {
                   : "pointer",
             }}
           >
-            {pending ? "Updating…" : "Update password"}
+            {pending ? "Updating…" : "Update Password"}
           </button>
         </div>
       </form>

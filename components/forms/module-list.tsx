@@ -172,7 +172,7 @@ function AdminPanel({ row, adminFields, productOptions }: { row: ModuleSubmissio
   }
 
   return (
-    <div className="mt-4 rounded-xl border border-dashed border-hairline p-4 bg-black/[0.015]">
+    <div className="mt-4 rounded-xl border border-solid border-hairline p-4 bg-black/[0.015]">
       <p className="text-[12px] font-black uppercase tracking-[0.05em] text-altus-red mb-3">Admin · Response</p>
       <div className="grid grid-cols-2 max-md:grid-cols-1 gap-3">
         {visible.map((f) => (
@@ -185,7 +185,7 @@ function AdminPanel({ row, adminFields, productOptions }: { row: ModuleSubmissio
       <button type="button" onClick={save} disabled={pending}
         className="mt-3 inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-[13px] font-bold text-white disabled:opacity-50"
         style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}>
-        <Check size={14} /> {pending ? "Saving…" : "Save response"}
+        <Check size={14} /> {pending ? "Saving…" : "Save Response"}
       </button>
     </div>
   );

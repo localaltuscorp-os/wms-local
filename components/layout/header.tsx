@@ -1,12 +1,15 @@
+import { headers } from "next/headers";
+import { LayoutGrid } from "lucide-react";
 import { LiveIndicator } from "./live-indicator";
 import { MainNavServer } from "./main-nav-server";
 import { NavHistoryButtons } from "./nav-history-buttons";
 import { MobileMenuServer } from "./mobile-menu-server";
 import { UserMenuServer } from "@/components/header/user-menu-server";
-import { NewTaskTrigger } from "@/components/header/new-task-trigger";
-import { AdminPill } from "@/components/header/admin-pill";
+import { NewTaskQuickAction } from "@/components/header/new-task-quick-action";
 import { GlobalSearch } from "@/components/header/global-search";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { getCurrentEmployee } from "@/lib/auth/current";
+import { workspaceForPath, WORKSPACE_LANDING } from "@/lib/workspaces";
 
 /**
  * Light glassy application header — single row, ~72px tall.
@@ -26,6 +29,17 @@ export async function DashboardHeader({
   const me = await getCurrentEmployee();
   const isAdmin = me?.isAdmin ?? false;
 
+  const pathname = (await headers()).get("x-pathname") ?? "/";
+  const ws = workspaceForPath(pathname);
+
+  // Sir's "left → right" layout: EVERY module — WMS included (2026-07) — now uses
+  // the vertical LEFT-RAIL (DashboardSidebar) rendered by the (app) layout. This
+  // per-page horizontal header is therefore retired for all workspaces; it stays
+  // as a no-op only because WMS pages still import & place it. Renders nothing.
+  if (ws) {
+    return null;
+  }
+
   return (
     <header className="sticky top-0 z-50 header-light">
       <div
@@ -43,9 +57,10 @@ export async function DashboardHeader({
           <NavHistoryButtons />
           <MobileMenuServer isAdmin={isAdmin} />
 
-          {/* LEFT: Altus Corp logo. The image is the brand mark — no
-              accompanying text wordmark, the logo already includes the name. */}
-          <a href="/" className="flex items-center shrink-0" aria-label="Altus Corp home">
+          {/* LEFT: Altus Corp logo — clicking it ANYWHERE in the system returns
+              to the Hub (the workspace switchboard). ONLY on the Hub itself does
+              the logo go out to altuscorp.in (see app/(app)/hub/page.tsx). */}
+          <a href="/hub" className="flex items-center shrink-0" aria-label="Back to Hub">
             <img
               src="/logo.png"
               alt="Altus Corp"
@@ -54,32 +69,39 @@ export async function DashboardHeader({
             />
           </a>
 
-          {/* CENTER: primary pill nav — visible on every desktop width (and
-              under zoom). It stays centred while it fits; when space gets tight
-              it scrolls horizontally FROM THE LEFT (w-max + mx-auto) so pills
-              are never clipped, never overlap, and never disappear. Collapses
-              to the hamburger drawer only on real phones (max-md). */}
+          {/* Explicit "Back to Hub" — black, always visible, on every module so
+              there's a clear, consistent way back to the workspace switchboard. */}
+          <a
+            href="/hub"
+            aria-label="Back to Hub"
+            className="inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-[14px] font-bold text-white transition-transform active:scale-[0.98] hover:brightness-125 max-md:px-3 max-md:py-2"
+            style={{ background: "#000", color: "#fff", boxShadow: "0 6px 16px -8px rgba(0,0,0,0.45)" }}
+          >
+            <LayoutGrid size={17} strokeWidth={2.4} />
+            <span>Back to Hub</span>
+          </a>
+
+          {/* Primary pill nav (unreachable — see the early return above). */}
           <div className="flex-1 min-w-0 overflow-x-auto nav-scroll max-md:hidden">
-            <div className="flex w-max mx-auto">
+            <div className="flex w-max">
               <MainNavServer />
             </div>
           </div>
 
-          {/* RIGHT: search + live indicator + actions + avatar. Every item is
-              shrink-0; secondary chrome (Live / Admin pill) hides below 2xl and
-              the search collapses to an icon there too, so the nav always has
-              room and nothing ever overlaps. */}
+          {/* RIGHT: search + live indicator + actions + avatar. */}
           <div className="flex items-center gap-2.5 2xl:gap-3 shrink-0 max-xl:ml-auto max-md:gap-1.5">
-            <GlobalSearch />
+            <GlobalSearch workspace={ws} />
             <span className="max-2xl:hidden">
               <LiveIndicator />
             </span>
-            <NewTaskTrigger />
-            {isAdmin && (
-              <span className="max-2xl:hidden">
-                <AdminPill />
-              </span>
-            )}
+            {/* This header only ever renders on the HUB (the early return above
+                bails for every workspace), and ChromeShell deliberately passes
+                no topBar there — so without this the hub would be the one
+                surface with no + at all. Sits between search and the avatar,
+                the same slot it occupies in AppTopBar. */}
+            <NewTaskQuickAction />
+            {/* Notifications — far right, on EVERY screen in EVERY module. */}
+            <NotificationBell />
             <UserMenuServer />
           </div>
         </div>

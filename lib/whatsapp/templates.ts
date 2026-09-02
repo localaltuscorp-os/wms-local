@@ -15,9 +15,10 @@ const NAMES: Record<NotificationKind, string> = {
   transferred: "vp_transferred",
   cancelled: "vp_cancelled",
   commented: "vp_commented",
+  nudged: "vp_nudged",
   overdue_digest: "vp_overdue_digest",
-  // Weekly Goals — delivered by their own cron (email + in-app), never via the
-  // WhatsApp dispatcher. Names are placeholders to satisfy the exhaustive map.
+  // Weekly Goals — delivered by their own cron, never via the WhatsApp
+  // dispatcher. Names are placeholders to satisfy the exhaustive map.
   weekly_goals_assigned: "vp_weekly_goals_assigned",
   weekly_goals_fill_reminder: "vp_weekly_goals_fill",
   weekly_goals_incomplete: "vp_weekly_goals_incomplete",
@@ -27,6 +28,35 @@ const NAMES: Record<NotificationKind, string> = {
   attendance_half_day: "vp_attendance_half_day",
   attendance_device: "vp_attendance_device",
   attendance_late_deduction: "vp_attendance_late_deduction",
+  training_test_failed: "vp_training_test_failed",
+  dcc_fill_reminder: "vp_dcc_fill_reminder",
+  ambassador_reminder: "vp_ambassador_reminder",
+  // Goals Cascade — the weekly report media send uses its OWN document template
+  // (WA_GOALS_TEMPLATE, see lib/whatsapp/media.ts); these matrix names are
+  // placeholders to satisfy the exhaustive map (not sent via the text dispatcher).
+  goals_commit_reminder: "vp_goals_commit_reminder",
+  goals_approval_reminder: "vp_goals_approval_reminder",
+  goals_committed: "vp_goals_committed",
+  goals_approved: "vp_goals_approved",
+  hr_confirmation_due: "vp_hr_confirmation",
+  // HR Support (mig 0145) — no registered WhatsApp templates; names are
+  // placeholders to satisfy the exhaustive map (routed away from WhatsApp in
+  // the notification matrix).
+  hr_ticket_created: "vp_hr_ticket_created",
+  hr_ticket_assigned: "vp_hr_ticket_assigned",
+  hr_ticket_replied: "vp_hr_ticket_replied",
+  hr_ticket_status_changed: "vp_hr_ticket_status",
+  hr_ticket_sla_breach: "vp_hr_ticket_sla",
+  hr_ticket_csat_request: "vp_hr_ticket_csat",
+  // Appraisal (mig 0146) — IN-APP ONLY; placeholders for the exhaustive map.
+  appraisal_cycle_opened: "vp_appraisal_opened",
+  appraisal_self_reminder: "vp_appraisal_self",
+  appraisal_manager_pending: "vp_appraisal_manager",
+  appraisal_management_pending: "vp_appraisal_management",
+  appraisal_finalized: "vp_appraisal_finalized",
+  // Enterprise Communications (mig 0179) — no registered WhatsApp template;
+  // placeholder to satisfy the exhaustive map (routed away from WhatsApp).
+  broadcast: "vp_broadcast",
 };
 
 export function templateNameForKind(kind: NotificationKind): string {
@@ -106,10 +136,13 @@ const VARS: Record<NotificationKind, (ctx: TemplateCtx) => Param[]> = {
     t(c.body ?? ""),
     t(c.shortId),
   ],
+  nudged: (c) => [t(c.actorName), t(c.taskSubject), t(c.shortId)],
   overdue_digest: (c) => [
     t(String(c.digestCount ?? 0)),
     t(c.digestPreview ?? ""),
   ],
+  // Weekly Goals — delivered by their own cron; placeholder single-body
+  // builders to satisfy the exhaustive map.
   weekly_goals_assigned: (c) => [t(String(c.digestCount ?? 0))],
   weekly_goals_fill_reminder: (c) => [t(String(c.digestCount ?? 0))],
   weekly_goals_incomplete: (c) => [t(String(c.digestCount ?? 0))],
@@ -119,6 +152,30 @@ const VARS: Record<NotificationKind, (ctx: TemplateCtx) => Param[]> = {
   attendance_half_day: (c) => [t(c.body ?? "")],
   attendance_device: (c) => [t(c.body ?? "")],
   attendance_late_deduction: (c) => [t(c.body ?? "")],
+  training_test_failed: (c) => [t(c.body ?? "")],
+  dcc_fill_reminder: (c) => [t(c.body ?? "")],
+  ambassador_reminder: (c) => [t(c.body ?? "")],
+  // Goals Cascade — placeholder single-body builders to satisfy the exhaustive map.
+  goals_commit_reminder: (c) => [t(c.body ?? "")],
+  goals_approval_reminder: (c) => [t(c.body ?? "")],
+  goals_committed: (c) => [t(c.body ?? "")],
+  goals_approved: (c) => [t(c.body ?? "")],
+  hr_confirmation_due: (c) => [t(c.body ?? "")],
+  // HR Support — placeholder single-body builders (not sent via WhatsApp).
+  hr_ticket_created: (c) => [t(c.body ?? "")],
+  hr_ticket_assigned: (c) => [t(c.body ?? "")],
+  hr_ticket_replied: (c) => [t(c.body ?? "")],
+  hr_ticket_status_changed: (c) => [t(c.body ?? "")],
+  hr_ticket_sla_breach: (c) => [t(c.body ?? "")],
+  hr_ticket_csat_request: (c) => [t(c.body ?? "")],
+  // Appraisal — placeholder single-body builders (in-app only).
+  appraisal_cycle_opened: (c) => [t(c.body ?? "")],
+  appraisal_self_reminder: (c) => [t(c.body ?? "")],
+  appraisal_manager_pending: (c) => [t(c.body ?? "")],
+  appraisal_management_pending: (c) => [t(c.body ?? "")],
+  appraisal_finalized: (c) => [t(c.body ?? "")],
+  // Enterprise Communications (mig 0179) — placeholder single-body builder.
+  broadcast: (c) => [t(c.body ?? "")],
 };
 
 /**

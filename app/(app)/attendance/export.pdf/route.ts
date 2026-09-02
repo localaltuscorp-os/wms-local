@@ -1,7 +1,8 @@
 import PDFDocument from "pdfkit";
 import { format } from "date-fns";
-import { requireAdmin } from "@/lib/auth/current";
-import { localDateString } from "@/lib/format";
+import { requireUser } from "@/lib/auth/current";
+import { isFinanceViewer } from "@/lib/auth/finance-access";
+import { localDateString, formatDate } from "@/lib/format";
 import {
   getMonthDashboard,
   type DashboardRow,
@@ -38,10 +39,11 @@ function resolveYM(url: URL): { year: number; month: number } {
 export async function GET(request: Request): Promise<Response> {
   let me;
   try {
-    me = await requireAdmin();
+    me = await requireUser();
   } catch {
     return new Response("Forbidden", { status: 403 });
   }
+  if (!(await isFinanceViewer(me))) return new Response("Forbidden", { status: 403 });
 
   const url = new URL(request.url);
   const { year, month } = resolveYM(url);
@@ -205,7 +207,7 @@ function drawMasthead(
       lineBreak: false,
     });
 
-  const generated = format(new Date(), "EEE, MMM d, yyyy · HH:mm");
+  const generated = `${formatDate(new Date())} · ${format(new Date(), "HH:mm")}`;
   doc
     .font("Helvetica")
     .fontSize(8)

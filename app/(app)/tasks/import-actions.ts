@@ -9,6 +9,7 @@ import { afterResponse } from "@/lib/after";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { deriveShortId, nextShortIdCandidate } from "@/lib/import/short-id";
 import { notify } from "@/lib/notifications/dispatch";
+import { reconcileTaskEvent } from "@/lib/google/sync";
 import {
   buildImportPreview,
   type ImportPreview,
@@ -25,13 +26,13 @@ async function activeRoster(): Promise<RosterEntry[]> {
 /** Dry-run: parse + validate the uploaded file, resolve people, return a
  *  per-row preview. No DB writes. Admin-only. */
 export async function previewTaskImport(formData: FormData): Promise<ImportPreview> {
-  await requireAdmin();
+  const me = await requireAdmin();
   const file = formData.get("file");
   if (!(file instanceof File)) {
     return { rows: [], totalRows: 0, validCount: 0, errorCount: 0, fatal: "No file uploaded." };
   }
   const roster = await activeRoster();
-  return buildImportPreview(file, roster);
+  return buildImportPreview(file, roster, me.id);
 }
 
 export interface CommitImportResult {
@@ -52,7 +53,7 @@ export async function commitTaskImport(formData: FormData): Promise<CommitImport
   }
 
   const roster = await activeRoster();
-  const preview = await buildImportPreview(file, roster);
+  const preview = await buildImportPreview(file, roster, me.id);
   if (preview.fatal) {
     return { ok: false, created: 0, skipped: 0, error: preview.fatal };
   }
@@ -64,6 +65,7 @@ export async function commitTaskImport(formData: FormData): Promise<CommitImport
   }
 
   const notifyIntents: Array<Parameters<typeof notify>[0]> = [];
+  const createdIds: string[] = [];
   let created = 0;
 
   try {
@@ -86,13 +88,18 @@ export async function commitTaskImport(formData: FormData): Promise<CommitImport
               subject: row.subject,
               notes: row.notes,
               doerId: row.doerId!,
-              initiatorId: row.initiatorId!,
+              initiatorId: row.initiatorId ?? me.id,
               priority: row.priority,
+              status: row.status, // manifest Status column (blank → dont_know)
               dueAt: new Date(row.dueAt!),
+              revisedTargetDate: row.revisedTargetDate ? new Date(row.revisedTargetDate) : null,
+              startsAt: row.startsAt ? new Date(row.startsAt) : null,
+              endsAt: row.endsAt ? new Date(row.endsAt) : null,
+              allDay: row.allDay,
+              recurrence: row.recurrence,
               tags: row.tags.length > 0 ? row.tags : null,
               createdById: me.id,
               shortId,
-              status: "dont_know", // lands in "Not Read" like the form
             })
             .returning({ id: tasks.id });
           break;
@@ -147,6 +154,7 @@ export async function commitTaskImport(formData: FormData): Promise<CommitImport
         });
       }
       created += 1;
+      createdIds.push(inserted.id);
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -161,9 +169,15 @@ export async function commitTaskImport(formData: FormData): Promise<CommitImport
     });
   }
 
+  // G1 fix: push each imported task onto the doer's Google Calendar, same as the
+  // form-create path. Imports previously skipped this, so imported tasks never
+  // appeared on calendars. Deferred so the import stays snappy; never throws.
+  for (const id of createdIds) afterResponse(() => reconcileTaskEvent(id));
+
   revalidatePath("/tasks");
   revalidatePath("/archived");
-  revalidatePath("/");
+  // `revalidatePath("/")` removed (Operation Butter P0) — exec dashboard serves
+  // from its own `dashboard` tag (60s TTL), no per-write route bust needed.
   updateTag(CACHE_TAGS.tasks);
   updateTag(CACHE_TAGS.subjects);
 

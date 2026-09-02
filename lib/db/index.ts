@@ -16,17 +16,37 @@ const client =
     // Required for Supabase's pgbouncer (transaction-mode pooler):
     // prepared statements are per-session and break under txn pooling.
     prepare: false,
-    // Higher ceiling so the dashboard's query burst (header counts +
-    // loadDashboardData's ~5 selects + My Day + status map ≈ 15-20
-    // concurrent reads) runs in parallel instead of queuing 10-at-a-time
-    // and piling up to 25s+ on a cold remote DB. Supabase pooled allows
-    // ~200, so 18 is safe headroom.
-    max: 18,
-    // Keep connections warm for a minute so back-to-back navigations
-    // reuse the TLS handshake. The previous 20s window meant any quiet
-    // user paid a fresh handshake (~50-150ms remote) on their next click.
-    idle_timeout: 60,
-    max_lifetime: 60 * 30,
+    // We connect to the Supabase TRANSACTION pooler (Supavisor, port 6543), not
+    // Postgres directly. The pooler accepts up to ~200 client connections and
+    // multiplexes them onto its own server pool (≈40) against the DB's 60-conn
+    // ceiling. So this `max` is connections to the POOLER, not to Postgres —
+    // the pooler, not us, guards the 60 ceiling. An over-tight pool is actually
+    // harmful: a page like the dashboard fires 6–15 queries in one Promise.all,
+    // and with only 4 slots a single STALE connection blocks a quarter of them.
+    //
+    // INCIDENT 2026-06-17: after a Supabase restart-storm (network restrictions
+    // toggle + pooler bounce), warm Vercel instances kept handing out dead
+    // connections from before the bounce. With no query timeout, a query on a
+    // dead socket hung FOREVER → authed pages intermittently stuck on "Loading…"
+    // (≈1 in 5 requests). Root cause was NOT the 60-conn ceiling (queries are
+    // <200ms on ~800 rows) — it was stale connections + no timeout. Hardening:
+    //   • max 4→10  — headroom for parallel page queries; safe vs the pooler's
+    //                 200-client limit even across ~15 warm instances.
+    //   • max_lifetime 30m→10m and idle_timeout 20s→10s — recycle aggressively
+    //                 so a connection orphaned by a pooler restart is dropped
+    //                 (idle >10s → closed) instead of lingering up to 30m and
+    //                 being handed out dead. This is the primary anti-hang fix.
+    //
+    // NOTE on query timeouts: Supabase already enforces a server-side
+    // statement_timeout of 2min by default, so a query that REACHES the server
+    // can't hang forever. We deliberately do NOT pass `connection: {
+    // statement_timeout }` — Supavisor (the txn pooler) silently ignores
+    // startup GUCs (verified: it still reports 2min), so it'd be a misleading
+    // no-op. The aggressive recycling above + postgres-js's default TCP
+    // keep_alive (60s) are what actually bound the dead-socket case.
+    max: 10,
+    idle_timeout: 10,
+    max_lifetime: 60 * 10,
     connect_timeout: 10,
   });
 

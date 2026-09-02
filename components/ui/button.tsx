@@ -10,13 +10,14 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   asChild?: boolean;
 }
 
+// Brand-red across the board (per Sir 2026-07-17): every labeled button reads
+// as the Altus red. `primary` is the full solid gradient; `outline`/`ghost` are
+// still solid red but a touch softer so a Cancel next to a Save isn't a
+// carbon-copy. Icon-only / pill / tab controls do NOT use this component.
 const variantClass: Record<Variant, string> = {
-  primary:
-    "bg-ink-strong text-white hover:opacity-90 transition-opacity duration-150",
-  ghost:
-    "bg-transparent text-ink-strong hover:bg-surface-soft transition-colors duration-150",
-  outline:
-    "border border-hairline-strong bg-surface-card text-ink-strong hover:bg-surface-soft transition-colors duration-150",
+  primary: "brand-btn text-white",
+  ghost: "brand-btn text-white",
+  outline: "brand-btn text-white",
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -30,7 +31,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           variantClass[variant],
           className,
         )}
-        style={{ outlineColor: "var(--color-altus-red)" }}
+        // Focus ring follows the module accent (amber inside the Goals shell,
+        // Altus red everywhere else — goals-redesign design §6).
+        style={{ outlineColor: "var(--module-accent, var(--color-altus-red))" }}
         {...props}
       >
         {children}

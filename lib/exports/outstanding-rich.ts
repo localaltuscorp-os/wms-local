@@ -136,9 +136,9 @@ export function outstandingExportFilename(
   const iso = date.toISOString().slice(0, 10);
   const slug =
     scope === "outstanding-template"
-      ? "outstanding-import-template"
+      ? "Outstanding-Import-Template"
       : scope === "collection-template"
-        ? "collection-import-template"
-        : "outstanding";
-  return `altus-corp-${slug}-${iso}.${ext}`;
+        ? "Collection-Import-Template"
+        : "Outstanding";
+  return `Altus-Corp-${slug}-${iso}.${ext}`;
 }

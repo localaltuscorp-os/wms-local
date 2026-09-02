@@ -1,269 +1,139 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { Avatar } from "@/components/ui/avatar";
 import Link from "next/link";
 import type { Route } from "next";
+import { usePathname } from "next/navigation";
 import { signOut } from "firebase/auth";
-import {
-  LayoutGrid,
-  Activity as ActivityIcon,
-  Bell,
-  Users,
-  Building2,
-  Briefcase,
-  Tag,
-  Package,
-  Landmark,
-  CreditCard,
-  UserCog,
-  CalendarDays,
-  BadgeIndianRupee,
-  IdCard,
-  Settings as SettingsIcon,
-  ArrowLeft,
-  LogOut,
-  type LucideIcon,
-} from "lucide-react";
+import { LogOut, ShieldCheck, type LucideIcon } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/firebase/client";
+import { ADMIN_TOP_LEVEL, ADMIN_GROUPS, isAdminNavActive } from "./admin-nav-config";
 
-interface Props {
+/**
+ * Admin panel LEFT SIDEBAR, matching the vertical rail every other module
+ * uses: a centred brand block (logo + Admin badge), grouped vertical nav
+ * pills, and a user footer. The logo doubles as the link back to the Hub,
+ * which is why there is no separate back button up here.
+ *
+ * Desktop only; `AdminMobileBar` still owns the phone layout. Nav items come
+ * from `admin-nav-config` so the sidebar and the (legacy) top nav can never
+ * drift apart.
+ */
+export function AdminSidebar({
+  adminName,
+  adminEmail,
+  avatarUrl,
+  backHref,
+}: {
   adminName: string;
   adminEmail: string;
   avatarUrl: string | null;
-}
-
-interface NavItem {
-  href: Route;
-  label: string;
-  icon: LucideIcon;
-  /** Exact match required (used for /admin itself, so it doesn't stay active
-   *  on every nested page). */
-  exact?: boolean;
-}
-
-const NAV: ReadonlyArray<NavItem> = [
-  { href: "/admin" as Route,             label: "Overview",    icon: LayoutGrid,    exact: true },
-  { href: "/admin/activity" as Route,    label: "Activity",    icon: ActivityIcon },
-  { href: "/admin/notifications" as Route, label: "Notifications", icon: Bell },
-  { href: "/admin/employees" as Route,   label: "Employees",   icon: Users },
-  { href: "/admin/departments" as Route, label: "Departments", icon: Building2 },
-  { href: "/admin/clients" as Route,     label: "Clients",     icon: Briefcase },
-  { href: "/admin/subjects" as Route,    label: "Subjects",    icon: Tag },
-  { href: "/admin/outstanding-products" as Route,      label: "Outstanding Products", icon: Package },
-  { href: "/admin/outstanding-entities" as Route,      label: "Outstanding Entities", icon: Landmark },
-  { href: "/admin/outstanding-payment-modes" as Route, label: "Outstanding Modes",    icon: CreditCard },
-  { href: "/admin/outstanding-responsibles" as Route,  label: "Outstanding Responsibles", icon: UserCog },
-  { href: "/admin/holidays" as Route,    label: "Holidays",    icon: CalendarDays },
-  { href: "/admin/salary-profiles" as Route, label: "Salary Profiles", icon: BadgeIndianRupee },
-  { href: "/admin/designations" as Route,    label: "Designations",    icon: IdCard },
-  { href: "/admin/paying-entities" as Route, label: "Paying Entities", icon: Building2 },
-  { href: "/admin/settings" as Route,    label: "Settings",    icon: SettingsIcon },
-];
-
-export function AdminSidebar({ adminName, adminEmail, avatarUrl }: Props) {
+  backHref: string;
+}) {
   const pathname = usePathname();
-  const router = useRouter();
-
-  function isActive(item: NavItem): boolean {
-    if (item.exact) return pathname === item.href;
-    return pathname === item.href || pathname.startsWith(`${item.href}/`);
-  }
 
   async function handleSignOut() {
     try {
       await signOut(getFirebaseAuth());
     } catch {
-      // Continue regardless — the server-side revoke is what matters.
+      /* server-side revoke below is what matters */
     }
     await fetch("/api/auth/signout", { method: "POST" });
-    router.replace("/login" as Route);
+    window.location.replace("/login");
   }
 
-  const initials = adminName
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const Pill = ({ href, label, Icon, active }: { href: Route; label: string; Icon: LucideIcon; active: boolean }) => (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13.5px] font-bold transition-colors ${
+        active ? "text-white" : "text-ink-muted hover:bg-surface-soft hover:text-ink-strong"
+      }`}
+      style={active ? { background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))", boxShadow: "0 6px 16px -10px rgba(225,6,0,0.6)" } : undefined}
+    >
+      <Icon size={16} strokeWidth={2.3} className="shrink-0" />
+      <span className="truncate">{label}</span>
+    </Link>
+  );
 
   return (
     <aside
-      // sticky + h-screen pins the entire sidebar to the viewport so the
-      // Back / Sign out footer is always one click away on long pages
-      // (employees, activity, notifications). Without this the aside grew
-      // with the page and the footer ended up below the fold.
-      className="header-dark sticky top-0 self-start h-screen max-h-screen relative w-[284px] shrink-0 flex flex-col max-md:hidden"
-      style={{
-        backgroundColor: "rgba(15, 23, 42, 0.96)",
-        borderRight: "1px solid rgba(255, 255, 255, 0.08)",
-      }}
+      className="sticky top-0 z-30 flex h-screen w-[248px] shrink-0 flex-col bg-surface-card max-md:hidden"
+      style={{ borderRight: "1px solid var(--color-hairline)" }}
     >
-      {/* Brighter radial accent washes — mirror the public-app header treatment */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 50% at 0% 0%, rgba(225, 6, 0, 0.22), transparent 70%), radial-gradient(ellipse 70% 60% at 100% 100%, rgba(168, 85, 247, 0.16), transparent 70%)",
-        }}
-      />
+      {/* Brand block: centred logo + Admin identity. The logo IS the Hub
+          link now, so the standalone black "Back to Hub" pill that used to sit
+          directly below it is gone -- the rail was carrying the same
+          navigation twice. Same move the module rail already made; see the
+          note in layout/dashboard-sidebar.tsx. */}
+      <div className="flex flex-col items-center justify-center gap-1.5 py-4">
+        <a
+          href={backHref}
+          aria-label="Return to Hub"
+          // `title` as well as `aria-label`: aria-label names the link for a
+          // screen reader but browsers never surface it on hover, so this is
+          // what actually shows the tooltip to a mouse user.
+          title="Return to Hub"
+          // Space does not activate an <a> natively -- it scrolls the page --
+          // so it is wired up explicitly. Tab focus and Enter are already
+          // native to the anchor and need nothing.
+          onKeyDown={(e) => {
+            if (e.key === " ") {
+              e.preventDefault();
+              window.location.assign(backHref);
+            }
+          }}
+          className="flex cursor-pointer items-center justify-center rounded-lg outline-none transition-all hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Altus Corp" className="h-11 w-auto" style={{ display: "block" }} />
+        </a>
+        <span className="inline-flex items-center gap-1.5 text-[16px] font-black" style={{ color: "var(--color-altus-red)", fontFamily: "var(--font-display), system-ui, sans-serif", letterSpacing: "-0.02em" }}>
+          <ShieldCheck size={17} strokeWidth={2.6} /> Admin
+        </span>
+      </div>
 
-      {/* Inner column uses h-full (from the sticky parent's h-screen) so the
-          footer is pinned via flex; the nav area scrolls if it ever grows
-          beyond the available height. */}
-      <div className="relative flex flex-col h-full overflow-hidden">
-        {/* Brand block — logo on a white panel so the indigo block in the
-            logo stays visible against the dark sidebar surface. */}
-        <div className="px-6 pt-8 pb-6 shrink-0">
-          <div
-            className="inline-flex items-center gap-2.5 rounded-xl bg-white px-3 py-2"
-            style={{
-              boxShadow:
-                "0 4px 14px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6)",
-            }}
-          >
-            <img
-              src="/logo.png"
-              alt="Altus Corp"
-              style={{ height: 48, width: "auto", display: "block" }}
-            />
-            <span
-              className="inline-flex items-center text-[10px] font-bold uppercase text-white px-2 py-0.5 rounded-full"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
-                boxShadow: "0 2px 8px rgba(225, 6, 0, 0.35)",
-                letterSpacing: "0.08em",
-              }}
-            >
-              Admin
-            </span>
-          </div>
-          <p className="text-[12.5px] mt-3 text-white/60">altuscorp.com</p>
-        </div>
+      <div className="mx-4 mb-1 border-t" style={{ borderColor: "var(--color-hairline)" }} />
 
-        {/* Avatar + identity chip */}
-        <div className="px-6 pb-5 shrink-0">
-          <div
-            className="flex items-center gap-3 rounded-xl p-3"
-            style={{
-              background: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid rgba(255, 255, 255, 0.07)",
-            }}
-          >
-            <span
-              className="inline-flex rounded-full shrink-0"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--color-altus-red), var(--color-rose))",
-                padding: 1.5,
-              }}
-            >
-              {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={avatarUrl}
-                  alt={adminName}
-                  className="h-10 w-10 rounded-full object-cover block"
-                />
-              ) : (
-                <span
-                  className="h-10 w-10 rounded-full flex items-center justify-center text-[13px] font-semibold text-white"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, #475569, #1f2937)",
-                  }}
-                >
-                  {initials}
-                </span>
-              )}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[14.5px] font-semibold text-white truncate">
-                {adminName}
-              </div>
-              <div className="text-[12.5px] text-white/60 truncate">
-                {adminEmail}
-              </div>
+      {/* ── Grouped vertical nav ── */}
+      <nav aria-label="Admin" className="nav-scroll flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
+        {ADMIN_TOP_LEVEL.map((it) => (
+          <Pill key={it.href} href={it.href} label={it.label} Icon={it.Icon} active={isAdminNavActive(pathname, it)} />
+        ))}
+        {ADMIN_GROUPS.map((g) => (
+          <div key={g.label} className="mt-2.5">
+            <div className="mb-1 flex items-center gap-1.5 px-3 text-[10px] font-black uppercase tracking-[0.09em] text-ink-subtle">
+              <g.Icon size={12} strokeWidth={2.6} /> {g.label}
+            </div>
+            <div className="flex flex-col gap-0.5">
+              {g.items.map((it) => (
+                <Pill key={it.href} href={it.href} label={it.label} Icon={it.Icon} active={isAdminNavActive(pathname, it)} />
+              ))}
             </div>
           </div>
-        </div>
+        ))}
+      </nav>
 
-        {/* Nav items — scrollable if they ever exceed the available height */}
-        <nav className="px-3 flex flex-col gap-1 flex-1 overflow-y-auto min-h-0">
-          {NAV.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className="group relative flex items-center gap-3 px-3.5 py-3 rounded-lg text-[15px] font-medium transition-all"
-                style={
-                  active
-                    ? {
-                        background:
-                          "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
-                        color: "#ffffff",
-                        boxShadow:
-                          "0 8px 22px -10px rgba(225, 6, 0, 0.55), inset 0 1px 0 rgba(255,255,255,0.14)",
-                      }
-                    : {
-                        color: "rgba(255, 255, 255, 0.80)",
-                      }
-                }
-              >
-                {!active && (
-                  <span
-                    aria-hidden
-                    className="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{
-                      background: "rgba(255, 255, 255, 0.06)",
-                    }}
-                  />
-                )}
-                <Icon
-                  size={18}
-                  strokeWidth={2.2}
-                  className="relative shrink-0"
-                  style={{
-                    color: active
-                      ? "rgba(255, 255, 255, 0.95)"
-                      : "rgba(255, 255, 255, 0.65)",
-                  }}
-                />
-                <span className="relative">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Footer — pinned to the bottom of the sticky h-screen aside */}
-        <div
-          className="px-3 pb-6 pt-3 shrink-0"
-          style={{ borderTop: "1px solid rgba(255, 255, 255, 0.10)" }}
+      {/* ── Footer: identity + sign out ── */}
+      <div className="mt-auto flex items-center gap-2.5 border-t px-3 py-3" style={{ borderColor: "var(--color-hairline)" }}>
+        <span className="inline-flex shrink-0 rounded-full" style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-rose))", padding: 1.5 }}>
+          {/* Shared <Avatar> — the local img had no onError, so a dead URL
+              showed the broken-image glyph in the rail on every admin page. */}
+          <Avatar name={adminName} avatarUrl={avatarUrl} size={32} />
+        </span>
+        <span className="min-w-0 flex-1 leading-tight">
+          <span className="block truncate text-[13px] font-bold text-ink-strong">{adminName}</span>
+          <span className="block truncate text-[11px] text-ink-subtle">{adminEmail}</span>
+        </span>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          aria-label="Sign out"
+          title="Sign out"
+          className="inline-flex size-9 items-center justify-center rounded-full border border-hairline bg-white/70 text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red"
         >
-          <Link
-            href={"/" as Route}
-            className="group flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-[14px] text-white/75 hover:text-white hover:bg-white/[0.06] transition-colors"
-          >
-            <ArrowLeft
-              size={16}
-              strokeWidth={2.2}
-              className="transition-transform group-hover:-translate-x-0.5"
-            />
-            Back to app
-          </Link>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-[14px] text-white/75 hover:text-white hover:bg-white/[0.06] transition-colors text-left"
-          >
-            <LogOut size={16} strokeWidth={2.2} />
-            Sign out
-          </button>
-        </div>
+          <LogOut size={16} strokeWidth={2.2} />
+        </button>
       </div>
     </aside>
   );

@@ -4,6 +4,7 @@ import type { Task, Employee } from "@/db/schema";
 // their defaults here means a future column drop or add is a one-line edit.
 function profileV2Defaults() {
   return {
+    dailyTaskQuota: 3,
     bio: null as string | null,
     tags: [] as string[],
     availability: "available" as const,
@@ -29,8 +30,6 @@ function profileV2Defaults() {
     googleRefreshToken: null as string | null,
     googleEmail: null as string | null,
     googleConnectedAt: null as Date | null,
-    performanceCriteria: null as string | null,
-    kra: null as string | null,
     // Attendance Phase A (migration 0058).
     weeklyOff: 0,
     attOfficialStart: null as string | null,
@@ -39,9 +38,22 @@ function profileV2Defaults() {
     attEarlyBefore: null as string | null,
     // Attendance Phase B (migration 0060).
     probationEnd: null as string | null,
+    // Worker types (migration 0177).
+    // Mirrors WORKER_TYPES in db/enums.ts (see migration 0204).
+    workerType: "full_time" as "full_time" | "first_half" | "second_half" | "hybrid" | "project_remote",
+    attFullDayMinutes: null as number | null,
+    attHalfDayMinutes: null as number | null,
+    weeklyTargetMinutes: null as number | null,
     // Salary module (migration 0062).
     designationId: null as string | null,
     payingEntityId: null as string | null,
+    // Monthly Events Master (migration 0130).
+    religion: null as "hindu" | "christian" | "muslim" | "other" | "unspecified" | null,
+    // Post-joining workflow (migration 0174).
+    officialEmail: null as string | null,
+    personalEmail: null as string | null,
+    emailProvisionedAt: null as Date | null,
+    assetsAllocatedAt: null as Date | null,
   };
 }
 
@@ -52,18 +64,24 @@ export const fixtureEmployees: Employee[] = [
     email: "ankit@altus.test",
     role: "both",
     avatarUrl: null,
+    avatarPath: null,
     department: "Operations",
     createdAt: new Date("2025-01-01"),
     firebaseUid: null,
     isAdmin: false,
     isActive: true,
     invitedAt: null,
+    accountType: "employee",
+    candidateIntakeId: null,
+    candidateActive: false,
+    deactivatedAt: null,
     joinedAt: null,
     lastInboxVisitAt: new Date("2025-01-01"),
     departmentId: null,
     slackUserId: null,
     emailOptIn: true,
     slackOptIn: true,
+    phone: null,
     whatsappPhone: null,
     whatsappOptedIn: false,
     whatsappTemplateLocale: "en",
@@ -75,18 +93,24 @@ export const fixtureEmployees: Employee[] = [
     email: "priya@altus.test",
     role: "doer",
     avatarUrl: null,
+    avatarPath: null,
     department: "Underwriting",
     createdAt: new Date("2025-01-01"),
     firebaseUid: null,
     isAdmin: false,
     isActive: true,
     invitedAt: null,
+    accountType: "employee",
+    candidateIntakeId: null,
+    candidateActive: false,
+    deactivatedAt: null,
     joinedAt: null,
     lastInboxVisitAt: new Date("2025-01-01"),
     departmentId: null,
     slackUserId: null,
     emailOptIn: true,
     slackOptIn: true,
+    phone: null,
     whatsappPhone: null,
     whatsappOptedIn: false,
     whatsappTemplateLocale: "en",
@@ -98,18 +122,24 @@ export const fixtureEmployees: Employee[] = [
     email: "ravi@altus.test",
     role: "initiator",
     avatarUrl: null,
+    avatarPath: null,
     department: "Sales",
     createdAt: new Date("2025-01-01"),
     firebaseUid: null,
     isAdmin: false,
     isActive: true,
     invitedAt: null,
+    accountType: "employee",
+    candidateIntakeId: null,
+    candidateActive: false,
+    deactivatedAt: null,
     joinedAt: null,
     lastInboxVisitAt: new Date("2025-01-01"),
     departmentId: null,
     slackUserId: null,
     emailOptIn: true,
     slackOptIn: true,
+    phone: null,
     whatsappPhone: null,
     whatsappOptedIn: false,
     whatsappTemplateLocale: "en",
@@ -127,12 +157,13 @@ function id() {
   return `00000000-0000-0000-0000-${counter.toString().padStart(12, "0")}`;
 }
 
-function task(partial: Partial<Task>): Task {
+export function task(partial: Partial<Task>): Task {
   const createdAt = partial.createdAt ?? new Date("2026-04-01");
   return {
     id: id(),
     title: partial.title ?? "Test task",
     description: null,
+    estimatedMinutes: null,
     doerId: partial.doerId ?? ANKIT,
     initiatorId: partial.initiatorId ?? RAVI,
     priority: partial.priority ?? "not_imp_urgent",
@@ -148,6 +179,10 @@ function task(partial: Partial<Task>): Task {
     client: partial.client ?? null,
     googleEventId: partial.googleEventId ?? null,
     googleSyncedDoerId: partial.googleSyncedDoerId ?? null,
+    calendarAttempts: partial.calendarAttempts ?? 0,
+    calendarNextAttemptAt: partial.calendarNextAttemptAt ?? null,
+    calendarLastSyncAt: partial.calendarLastSyncAt ?? null,
+    calendarLastError: partial.calendarLastError ?? null,
     archived: partial.archived ?? false,
     createdById: partial.createdById ?? null,
     approvedById: partial.approvedById ?? null,
@@ -162,6 +197,15 @@ function task(partial: Partial<Task>): Task {
     // fixtures keep working without per-task overrides.
     tags: partial.tags ?? null,
     approvalStatus: partial.approvalStatus ?? null,
+    // Two-stage approval (mig 0185) — defaults keep every existing fixture on
+    // the un-approved path, so no test changes meaning.
+    approvalLevel: partial.approvalLevel ?? "none",
+    managerApprovedById: partial.managerApprovedById ?? null,
+    managerApprovedAt: partial.managerApprovedAt ?? null,
+    managerApprovalNote: partial.managerApprovalNote ?? null,
+    adminApprovedById: partial.adminApprovedById ?? null,
+    adminApprovedAt: partial.adminApprovedAt ?? null,
+    adminApprovalNote: partial.adminApprovalNote ?? null,
     revisedTargetDate: partial.revisedTargetDate ?? null,
     // Tier-4 (2026-05-20) GCal-style scheduling fields.
     startsAt: partial.startsAt ?? null,
@@ -172,9 +216,15 @@ function task(partial: Partial<Task>): Task {
     recurrenceParentId: partial.recurrenceParentId ?? null,
     recurrenceOccurrenceDate: partial.recurrenceOccurrenceDate ?? null,
     projectNodeId: partial.projectNodeId ?? null,
+    // Phase 2 (migration 0070) — Goal↔Task link provenance.
+    originGoalId: partial.originGoalId ?? null,
+    ambReferralId: partial.ambReferralId ?? null,
     // Search infra (migration 0061) — DB-generated STORED column. Test
     // fixtures never exercise it; default null keeps the select shape valid.
     searchText: partial.searchText ?? null,
+    // Recycle Bin (migration 0135) — abandoned tasks leave the daily loop.
+    abandonedAt: partial.abandonedAt ?? null,
+    abandonedById: partial.abandonedById ?? null,
   };
 }
 

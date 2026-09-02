@@ -49,7 +49,7 @@ export function PinnedShelf({ initial }: Props) {
       }}
     >
       <SectionHeader
-        title="Pinned items"
+        title="Pinned Items"
         description="Quick links to tasks, projects, or documents you come back to often. Pin from any task/project/document page (coming soon)."
         savedAt={null}
       />

@@ -18,19 +18,17 @@ import {
 } from "lucide-react";
 import { previewTaskImport, commitTaskImport } from "@/app/(app)/tasks/import-actions";
 import type { ImportPreview } from "@/lib/import/task-import";
+import { TASK_TEMPLATE_COLUMNS } from "@/lib/tasks/template-columns";
 import { fireToast } from "@/lib/toast";
 
-const COLUMNS: { name: string; required: boolean }[] = [
-  { name: "Client", required: true },
-  { name: "Subject", required: true },
-  { name: "Doer", required: true },
-  { name: "Initiator", required: true },
-  { name: "Priority", required: false },
-  { name: "Due Date", required: true },
-  { name: "Description", required: true },
-  { name: "Notes", required: false },
-  { name: "Tags", required: false },
-];
+/** Columns REQUIRED for a valid row (mirrors the parser's validation). */
+const REQUIRED_FIELDS = new Set(["client", "subject", "description", "doer", "dueDate"]);
+
+/** Every writable column, straight from the ONE manifest — the template + the
+ *  importer cover each of these, so the "Expected columns" helper never drifts. */
+const COLUMNS: { name: string; required: boolean }[] = TASK_TEMPLATE_COLUMNS.filter(
+  (c) => c.writable,
+).map((c) => ({ name: c.header, required: REQUIRED_FIELDS.has(c.field) }));
 
 /**
  * Admin CSV/XLSX task importer — premium two-step flow. Upload → the server
@@ -99,9 +97,11 @@ export function TaskImport({
   }
 
   function downloadTemplate() {
+    // The enterprise exceljs workbook (branded, validated dropdowns, no frozen
+    // panes, Examples + How-to sheets) — every task column, generated server-side.
     const a = document.createElement("a");
-    a.href = "/task-import-template.xlsx";
-    a.download = "task-import-template.xlsx";
+    a.href = "/tasks/template.xlsx";
+    a.download = "Altus-Tasks-Template.xlsx";
     a.click();
   }
 
@@ -142,7 +142,7 @@ export function TaskImport({
                 className="text-ink-strong"
                 style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontWeight: 500, fontSize: 32, letterSpacing: "-0.02em", lineHeight: 1.1 }}
               >
-                Import tasks
+                Import Tasks
               </h1>
               <p className="mt-1.5 text-ink-soft" style={{ fontSize: 15, maxWidth: "60ch" }}>
                 Upload a CSV or Excel file — each row becomes one task. Doer &amp;
@@ -157,7 +157,7 @@ export function TaskImport({
           className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-surface-card px-4 h-11 text-[14px] font-semibold text-ink-strong hover:bg-surface-soft hover:border-hairline-strong transition-colors shrink-0"
         >
           <Download size={16} strokeWidth={2.2} />
-          Download template
+          Download Template
         </button>
       </div>
 
@@ -173,7 +173,7 @@ export function TaskImport({
           setDragging(false);
           onPick(e.dataTransfer.files?.[0] ?? null);
         }}
-        className="group flex flex-col items-center justify-center gap-3 rounded-section border-2 border-dashed px-6 py-12 cursor-pointer transition-all"
+        className="group flex flex-col items-center justify-center gap-3 rounded-section border-2 border-solid px-6 py-12 cursor-pointer transition-all"
         style={{
           borderColor: dragging ? "var(--color-altus-red)" : "var(--color-hairline-strong)",
           background: dragging ? "var(--color-red-bg, #fef2f2)" : "var(--color-surface-soft)",
@@ -256,19 +256,19 @@ export function TaskImport({
               icon={<Check size={16} strokeWidth={2.6} />}
               tone="green"
               value={preview.validCount}
-              label="Ready to import"
+              label="Ready to Import"
             />
             <SummaryCard
               icon={<AlertTriangle size={16} strokeWidth={2.4} />}
               tone="red"
               value={preview.errorCount}
-              label="With errors (skipped)"
+              label="With Errors (Skipped)"
             />
             <SummaryCard
               icon={<ListChecks size={16} strokeWidth={2.4} />}
               tone="slate"
               value={preview.totalRows}
-              label="Rows in file"
+              label="Rows in File"
             />
           </div>
 
@@ -278,7 +278,7 @@ export function TaskImport({
               <table className="min-w-full text-[13.5px]">
                 <thead className="sticky top-0 z-10" style={{ background: "var(--color-surface-soft)" }}>
                   <tr className="text-left text-ink-subtle">
-                    {["#", "Client", "Subject", "Doer", "Initiator", "Priority", "Due", "Status"].map((h) => (
+                    {["#", "Client", "Subject", "Description", "Notes", "Doer", "Initiator", "Priority", "Due", "Status"].map((h) => (
                       <th key={h} className="px-3.5 py-3 font-bold whitespace-nowrap border-b border-hairline">
                         {h}
                       </th>
@@ -301,6 +301,12 @@ export function TaskImport({
                       <td className="px-3.5 py-2.5 tabular-nums text-ink-subtle">{r.rowNumber}</td>
                       <td className="px-3.5 py-2.5 text-ink-strong font-semibold whitespace-nowrap">{r.client || "—"}</td>
                       <td className="px-3.5 py-2.5 text-ink-muted whitespace-nowrap">{r.subject || "—"}</td>
+                      <td className="px-3.5 py-2.5 text-ink-strong max-w-[260px] truncate" title={r.description || ""}>
+                        {r.description || "—"}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-ink-muted max-w-[180px] truncate" title={r.notes || ""}>
+                        {r.notes || "—"}
+                      </td>
                       <td className="px-3.5 py-2.5 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1.5">
                           <Users size={13} className="text-ink-subtle shrink-0" />
@@ -347,7 +353,7 @@ export function TaskImport({
                 onClick={reset}
                 className="px-5 py-2.5 rounded-chip text-[14px] font-semibold border border-hairline bg-surface-card text-ink-strong hover:bg-surface-soft transition-colors"
               >
-                Choose another file
+                Choose Another File
               </button>
               <button
                 type="button"

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { ImagePlus, Link2, Plus, X, FileImage, Check } from "lucide-react";
@@ -19,6 +19,7 @@ import { ScheduleSection, type ScheduleValue } from "./schedule-section";
 import { ClientSelect } from "./client-select";
 import { SubjectSelect } from "./subject-select";
 import { Select } from "@/components/ui/select";
+import { VoiceNoteButton } from "@/components/ui/voice-note-button";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 
 type EmployeeOption = { id: string; name: string };
@@ -31,6 +32,12 @@ interface Props {
   subjects: string[];
   /** Project tree nodes (path-labelled) for the optional Project link. */
   projectNodes?: { id: string; label: string }[];
+  /**
+   * May this user add a NEW client / subject from the pickers? Admin only
+   * (Sir). Defaults to false, so a caller that forgets it hides the affordance
+   * rather than offering an action quickAddClient/quickAddSubject will refuse.
+   */
+  canAddRoster?: boolean;
   /** Called after a successful create. Default: navigate to /tasks/[id]. */
   onSuccess?: (taskId: string) => void;
   /** Optional defaults for the form (used by the canonical route + the
@@ -75,7 +82,7 @@ interface PreviewFile {
   url: string;
 }
 
-export function NewTaskForm({ employees, clients, subjects, projectNodes = [], onSuccess, defaults }: Props) {
+export function NewTaskForm({ employees, clients, subjects, projectNodes = [], canAddRoster = false, onSuccess, defaults }: Props) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
 
@@ -88,7 +95,11 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], o
     register,
     control,
     handleSubmit,
-    watch,
+    // `watch` is deliberately NOT destructured: calling it in this component
+    // re-subscribes the whole form to every keystroke. Use `useWatch` in a leaf
+    // (see DoerCountLabel) if another field's value is needed for display.
+    setValue,
+    getValues,
     formState: { errors },
   } = useForm<NewTaskFormValues>({
     resolver: zodResolver(NewTaskSchema),
@@ -121,7 +132,16 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], o
   // Server-side error from createTask (field validation is handled by RHF/zod).
   const [error, setError] = React.useState<string | null>(null);
 
-  const doerCount = watch("doerIds").length;
+  // `watch("doerIds")` USED TO LIVE HERE, and it was the typing lag.
+  //
+  // RHF's `watch()` subscribes the component it is called in to EVERY field
+  // change, not just the named one. Description and Notes are `register()`ed
+  // (uncontrolled, no re-render of their own), but this single call meant every
+  // keystroke re-rendered the whole 1,300-line form — twenty-odd Controllers,
+  // the employee multi-select, the schedule block and the media grid included.
+  //
+  // The count is now read by <DoerCountLabel>, a leaf that subscribes via
+  // `useWatch`; only that label re-renders when the doer list changes.
   const tagsCount = tags.length;
 
   // Release object-URLs the moment the dialog tears down so we don't
@@ -238,6 +258,19 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], o
     setTags((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  // Keyboard-first: land the cursor on the first field (Client Name) the
+  // moment the form mounts. The New Task dialog already does this via
+  // Radix's onOpenAutoFocus; this covers the /tasks/new page route. Skipped
+  // if the user has already focused something (never steal focus).
+  React.useEffect(() => {
+    const t = window.setTimeout(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body) return;
+      document.getElementById("nt-title")?.focus();
+    }, 60);
+    return () => window.clearTimeout(t);
+  }, []);
+
   return (
     <form
       onSubmit={submit}
@@ -248,32 +281,77 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], o
           void submit();
         }
       }}
-      className="flex flex-col gap-6"
+      // gap-3 (12px) between every top-level block. At gap-4 the five numbered
+      // strata plus their fields ran past the modal's scroll height on a laptop;
+      // the 38px fields need less air around them than the old 56px ones did.
+      className="ntx-form flex flex-col gap-3"
       noValidate
     >
-      {/* Client Name — full width hero field (was: Title) */}
-      <Field id="nt-title" label="Client Name" required>
-        <Controller
-          control={control}
-          name="title"
-          render={({ field }) => (
-            <ClientSelect
-              id="nt-title"
-              value={field.value}
-              onChange={field.onChange}
-              clients={clients}
-              className="nt-input"
-            />
-          )}
-        />
-      </Field>
+      {/* Scoped brand override — WMS is Altus RED: re-tint the shared
+          .nt-input focus ring (cyan in globals.css, which other modules
+          still use) to brand red within this form only. Style-only. */}
+      <style>{`
+        .ntx-form .nt-input:focus,
+        .ntx-form .nt-input:focus-visible,
+        .ntx-form .nt-input:focus-within {
+          border-color: color-mix(in srgb, var(--color-altus-red) 55%, #ffffff);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.95),
+            0 0 0 3px color-mix(in srgb, var(--color-altus-red) 13%, transparent),
+            0 4px 10px -4px rgba(15, 23, 42, 0.12);
+        }
+      `}</style>
 
+      <SectionHeading step="01" title="Basics" hint="Who this is for" />
+      {/* Client + Subject — paired top row (was two stretched full-width fields).
+          items-start so each field keeps its own resting height (the comboboxes
+          don't stretch to match a taller row-mate). */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 items-start max-md:grid-cols-1 max-md:gap-3">
+        <Field id="nt-title" label="Client Name" required>
+          <Controller
+            control={control}
+            name="title"
+            render={({ field }) => (
+              <ClientSelect
+                id="nt-title"
+                value={field.value}
+                onChange={field.onChange}
+                clients={clients}
+                canAdd={canAddRoster}
+                className="nt-input"
+              />
+            )}
+          />
+        </Field>
+        <Field id="nt-subject" label="Subject" required>
+          <Controller
+            control={control}
+            name="subject"
+            render={({ field }) => (
+              <SubjectSelect
+                id="nt-subject"
+                value={field.value}
+                onChange={field.onChange}
+                subjects={subjects}
+                canAdd={canAddRoster}
+                className="nt-input"
+                placeholder="Select a subject…"
+              />
+            )}
+          />
+        </Field>
+      </div>
+
+      <SectionHeading step="02" title="Assignment" hint="Owners, priority & deadline" />
       {/* Metadata — two balanced rows (Initiator · Doer / Priority · Due
           Date). The old 4-across row squeezed each field to ~170px: the
           multi-doer chips grew an inner scrollbox and the date input
           clipped its own value. Two columns give every field real room;
-          1-col under md. */}
-      <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1 max-md:gap-3">
+          1-col under md. items-start so the Doer field growing downward with
+          chips doesn't stretch its fixed-height row-mate (Initiator/Priority).
+          Column gap stays 16px (the fields need side-by-side separation); only
+          the ROW gap tightens to 12px, matching the form's own gap-3. */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 items-start max-md:grid-cols-1 max-md:gap-3">
         <Field id="nt-initiator" label="Initiator" required>
           <Controller
             control={control}
@@ -286,6 +364,10 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], o
                 placeholder="Select an employee…"
                 searchPlaceholder="Search employees…"
                 searchable
+                // Match the .nt-input look (gradient + shadow border) so the
+                // Initiator/Priority fields are visually identical to Client/Subject.
+                unstyled
+                className="nt-input"
                 options={employees.map((emp) => ({ value: emp.id, label: emp.name }))}
               />
             )}
@@ -293,7 +375,7 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], o
         </Field>
         <Field
           id="nt-doer"
-          label={`Doer${doerCount > 1 ? ` · ${doerCount} selected` : ""}`}
+          label={<DoerCountLabel control={control} />}
           required
         >
           <Controller
@@ -323,6 +405,8 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], o
                 id="nt-priority"
                 value={field.value}
                 onValueChange={field.onChange}
+                unstyled
+                className="nt-input"
                 options={TASK_PRIORITIES.map((p) => ({ value: p, label: PRIORITY_LABELS[p] }))}
               />
             )}
@@ -333,47 +417,57 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], o
         </Field>
       </div>
 
-      {/* Subject · Task Description · Initiator Notes — each full-width
-          single column, stacked top-to-bottom per spec. */}
-      <Field id="nt-subject" label="Subject" required>
-        <Controller
-          control={control}
-          name="subject"
-          render={({ field }) => (
-            <SubjectSelect
-              id="nt-subject"
-              value={field.value}
-              onChange={field.onChange}
-              subjects={subjects}
-              className="nt-input"
-              placeholder="Select a subject…"
-            />
-          )}
-        />
-      </Field>
-
-      <Field id="nt-desc" label="Task Description" required>
+      <SectionHeading step="03" title="Details" hint="The work itself" />
+      {/* Task Description · Initiator Notes — full-width textareas, each with a
+          mic that records a voice note → Gemini transcript appended to the field. */}
+      <Field
+        id="nt-desc"
+        label="Task Description"
+        required
+        action={
+          <VoiceNoteButton
+            label="Dictate"
+            onText={(t) => {
+              const cur = getValues("description");
+              setValue("description", (cur ? cur.trimEnd() + " " : "") + t, { shouldValidate: true, shouldDirty: true });
+            }}
+          />
+        }
+      >
         <textarea
           id="nt-desc"
-          rows={4}
-          className="nt-input resize-y"
+          rows={3}
+          className="nt-input min-h-[80px] resize-y"
           style={{ fontWeight: 400 }}
           placeholder="What needs to happen, in detail…"
           {...register("description")}
         />
       </Field>
 
-      <Field id="nt-notes" label="Initiator Notes">
+      <Field
+        id="nt-notes"
+        label="Initiator Notes"
+        action={
+          <VoiceNoteButton
+            label="Dictate"
+            onText={(t) => {
+              const cur = getValues("notes");
+              setValue("notes", (cur ? cur.trimEnd() + " " : "") + t, { shouldDirty: true });
+            }}
+          />
+        }
+      >
         <textarea
           id="nt-notes"
           rows={3}
-          className="nt-input resize-y"
+          className="nt-input min-h-[80px] resize-y"
           style={{ fontWeight: 400 }}
           placeholder="Notes only the team sees…"
           {...register("notes")}
         />
       </Field>
 
+      <SectionHeading step="04" title="Organize" hint="Optional — tags, project & schedule" />
       {/* Tags — free-form chips. Type a tag, hit Enter or comma to commit.
           Stored as text[] on the task; each chip is searchable later. */}
       <Field id="nt-tags" label={`Tags${tagsCount > 0 ? ` · ${tagsCount}` : ""}`}>
@@ -398,6 +492,8 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], o
                 id="nt-project"
                 value={field.value ?? ""}
                 onValueChange={field.onChange}
+                unstyled
+                className="nt-input"
                 options={[
                   { value: "", label: "Not linked to a project" },
                   ...projectNodes.map((n) => ({ value: n.id, label: n.label })),
@@ -412,6 +508,7 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], o
           only; not synced to any actual calendar API. */}
       <ScheduleSection value={schedule} onChange={setSchedule} />
 
+      <SectionHeading step="05" title="Attachments" hint="Optional — media & reference links" />
       {/* Media + Links — side by side on desktop */}
       <div className="grid grid-cols-2 gap-5 max-md:grid-cols-1">
         <MediaSection
@@ -438,37 +535,102 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], o
       )}
 
       <div
-        className="flex items-center justify-end gap-3 pt-2"
+        className="flex items-center justify-between gap-4 pt-5 max-md:flex-col max-md:items-stretch"
         style={{ borderTop: "1px solid var(--color-hairline)" }}
       >
+        <span className="text-[13.5px] text-ink-subtle max-md:text-center">
+          <kbd
+            className="mx-0.5 inline-flex items-center rounded-md px-1.5 py-0.5 font-mono text-[11.5px] font-bold"
+            style={{
+              background: "rgba(15, 23, 42, 0.06)",
+              color: "var(--color-ink-soft)",
+              boxShadow: "inset 0 -1px 0 rgba(15, 23, 42, 0.12)",
+            }}
+          >
+            Ctrl
+          </kbd>
+          +
+          <kbd
+            className="mx-0.5 inline-flex items-center rounded-md px-1.5 py-0.5 font-mono text-[11.5px] font-bold"
+            style={{
+              background: "rgba(15, 23, 42, 0.06)",
+              color: "var(--color-ink-soft)",
+              boxShadow: "inset 0 -1px 0 rgba(15, 23, 42, 0.12)",
+            }}
+          >
+            ↵
+          </kbd>{" "}
+          creates from anywhere in the form
+        </span>
         <button
           type="submit"
           disabled={pending}
-          className="text-cta text-white px-8 py-4 rounded-chip transition-transform disabled:opacity-50"
+          className="wg-btn wg-sheen text-cta text-white px-9 py-4 rounded-chip disabled:opacity-50 max-md:w-full"
           style={{
             background:
-              "linear-gradient(135deg, rgb(225, 6, 0), rgb(168, 4, 0))",
-            boxShadow: "0 6px 16px rgba(225, 6, 0, 0.34)",
+              "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
+            boxShadow:
+              "0 8px 20px -6px rgba(225, 6, 0, 0.45), inset 0 1px 0 rgba(255,255,255,0.2)",
             fontWeight: 800,
             fontSize: 18,
             letterSpacing: "0.005em",
-          }}
-          onMouseEnter={(e) => {
-            if (pending) return;
-            e.currentTarget.style.transform = "translateY(-1px)";
-            e.currentTarget.style.boxShadow =
-              "0 10px 24px rgba(225, 6, 0, 0.45)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0)";
-            e.currentTarget.style.boxShadow =
-              "0 6px 16px rgba(225, 6, 0, 0.34)";
           }}
         >
           {pending ? "Creating…" : "Create Task"}
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Numbered section heading — pure presentation. Mono step chip in brand
+ * red, display-weight title, right-aligned hint. Groups the long form into
+ * scannable strata without nesting card-in-card chrome.
+ */
+function SectionHeading({
+  step,
+  title,
+  hint,
+}: {
+  step: string;
+  title: string;
+  hint?: string;
+}) {
+  return (
+    // pt-1.5/pb-2 ≈ py-3 across the divider — the numbered rule reads as a
+    // separator with air on both sides without the 24px band it used to sit in.
+    <div className="flex items-center gap-3 border-b border-hairline pt-1.5 pb-2">
+      <span
+        aria-hidden
+        className="inline-flex size-6 items-center justify-center rounded-md font-mono text-[11px] font-bold tabular-nums"
+        style={{
+          background:
+            "color-mix(in srgb, var(--color-altus-red) 8%, #ffffff)",
+          color: "var(--color-altus-red-deep)",
+          border:
+            "1px solid color-mix(in srgb, var(--color-altus-red) 20%, transparent)",
+        }}
+      >
+        {step}
+      </span>
+      <span
+        className="text-ink-strong uppercase"
+        style={{
+          fontFamily: "var(--font-display), system-ui, sans-serif",
+          fontWeight: 900,
+          fontSize: 15,
+          letterSpacing: "0.08em",
+        }}
+      >
+        {title}
+      </span>
+      {hint && (
+        <span className="ml-auto text-[13px] text-ink-subtle max-md:hidden">
+          {hint}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -567,10 +729,20 @@ function DoerMultiSelect({
       <PopoverAnchor asChild>
         <div
           ref={ref}
-          // Grows with its chips — a capped, scrolling field reads as broken
-          // (stray scrollbars) and hides who's already selected.
-          className="nt-input flex items-center flex-wrap gap-1.5 cursor-text"
-          style={{ minHeight: 46, height: "auto" }}
+          // CAPPED at two rows of chips, then scrolls. It used to grow without
+          // limit, which pushed the rest of the modal down the page as doers
+          // were added — the thing this refactor is meant to stop.
+          //
+          // The cap is 88px, not the 40px (`max-h-10`) originally specified:
+          // .nt-input rests at 56px to line up with Initiator / Priority / Due
+          // Date beside it, so a 40px cap would make this field SHORTER than
+          // its siblings and clip even one row of chips. 88px ≈ two rows, which
+          // covers the common case with no scrollbar at all.
+          className="nt-input flex flex-wrap items-center gap-1.5 overflow-y-auto cursor-text"
+          // Tracks .nt-input's 38px so this field lines up with Initiator /
+          // Priority / Due Date beside it. 62px ≈ two rows of h-6 chips,
+          // then it scrolls rather than pushing the modal down the page.
+          style={{ minHeight: 38, maxHeight: 62 }}
           onMouseDown={(e) => {
           const t = e.target as HTMLElement;
           if (t.closest("[data-chip-remove]") || t === inputRef.current) return;
@@ -584,15 +756,14 @@ function DoerMultiSelect({
           return (
             <span
               key={id}
-              className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1"
+              className="inline-flex h-6 items-center gap-1 rounded-pill px-2 py-0.5 text-xs"
               style={{
-                background: "var(--vp-cyan-tint)",
-                color: "rgb(var(--vp-cyan-deep))",
-                fontSize: 14,
+                background: "color-mix(in srgb, var(--color-altus-red) 7%, #ffffff)",
+                color: "var(--color-altus-red-deep)",
                 fontWeight: 700,
               }}
             >
-              <EmployeeAvatar name={name} size="sm" />
+              <EmployeeAvatar name={name} size="xs" />
               {name}
               <button
                 type="button"
@@ -601,7 +772,7 @@ function DoerMultiSelect({
                 aria-label={`Remove ${name}`}
                 onClick={() => onToggle(id)}
                 className="inline-flex items-center justify-center"
-                style={{ width: 18, height: 18, borderRadius: 999 }}
+                style={{ width: 14, height: 14, borderRadius: 999 }}
               >
                 <X size={12} strokeWidth={2.6} />
               </button>
@@ -616,6 +787,7 @@ function DoerMultiSelect({
           aria-expanded={open}
           aria-autocomplete="list"
           onFocus={() => setOpen(true)}
+          onClick={() => setOpen(true)}
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);
@@ -624,7 +796,9 @@ function DoerMultiSelect({
           onKeyDown={onKeyDown}
           placeholder={selected.length === 0 ? "Type a name…" : ""}
           className="flex-1 min-w-[90px] bg-transparent outline-none"
-          style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink-strong)", padding: "2px 0" }}
+          // 14px matches .nt-input's own type; at 15px this inner input set the
+          // line box taller than the 38px shell and pushed the chips off-centre.
+          style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink-strong)", padding: 0 }}
         />
         <span
           aria-hidden
@@ -643,6 +817,12 @@ function DoerMultiSelect({
         align="start"
         sideOffset={6}
         onOpenAutoFocus={(e) => e.preventDefault()}
+        // THE fix for the "Doer dropdown won't close / Tab won't advance" bug:
+        // Radix restores focus to the anchored input on close, which re-fires
+        // its onFocus → setOpen(true) (reopen loop) and blocks Tab. The Tab
+        // handler already commits + setOpen(false); preventing the focus
+        // restore lets the menu stay closed and focus move on to Priority.
+        onCloseAutoFocus={(e) => e.preventDefault()}
         onInteractOutside={(e) => {
           if (ref.current?.contains(e.target as Node)) e.preventDefault();
         }}
@@ -652,18 +832,18 @@ function DoerMultiSelect({
             ref={listRef}
             role="listbox"
             aria-multiselectable
-            className="max-h-[240px] overflow-y-auto py-1"
+            className="max-h-[240px] overflow-y-auto overscroll-contain py-1"
           >
           {employees.length === 0 ? (
             <li
-              className="px-4 py-3 font-semibold"
+              className="px-3 py-2.5 font-semibold"
               style={{ fontSize: 14, color: "var(--color-ink-muted)" }}
             >
               No employees available.
             </li>
           ) : filtered.length === 0 ? (
             <li
-              className="px-4 py-3 font-semibold"
+              className="px-3 py-2.5 font-semibold"
               style={{ fontSize: 14, color: "var(--color-ink-muted)" }}
             >
               No match for “{query}”.
@@ -681,21 +861,24 @@ function DoerMultiSelect({
                   // click doesn't blur-close the menu before the toggle lands.
                   onMouseDown={(e) => e.preventDefault()}
                   onMouseEnter={() => setHi(i)}
-                  onClick={() => commit(emp.id)}
-                  className="flex items-center gap-3 px-3.5 py-2.5 cursor-pointer transition-colors"
+                  // A mouse pick selects the doer and CLOSES the menu (click the
+                  // field again to add another). Keyboard Enter still keeps it
+                  // open for rapid multi-add.
+                  onClick={() => { commit(emp.id, false); setOpen(false); }}
+                  className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer transition-colors"
                   style={{
                     background: isSel
-                      ? "var(--vp-cyan-tint)"
+                      ? "color-mix(in srgb, var(--color-altus-red) 7%, #ffffff)"
                       : isHi
                         ? "var(--color-surface-soft)"
                         : "transparent",
                   }}
                 >
-                  <EmployeeAvatar name={emp.name} size="sm" />
+                  <EmployeeAvatar name={emp.name} size="xs" />
                   <span
                     className="flex-1 font-semibold"
                     style={{
-                      fontSize: 15,
+                      fontSize: 14,
                       color: "var(--color-ink-strong)",
                     }}
                   >
@@ -703,9 +886,9 @@ function DoerMultiSelect({
                   </span>
                   {isSel && (
                     <Check
-                      size={18}
+                      size={16}
                       strokeWidth={2.6}
-                      style={{ color: "rgb(var(--vp-cyan-deep))" }}
+                      style={{ color: "var(--color-altus-red-deep)" }}
                     />
                   )}
                 </li>
@@ -741,17 +924,22 @@ function TagsInput({
   return (
     <div
       className="nt-input flex flex-wrap items-center gap-1.5"
-      style={{ padding: "10px 12px", minHeight: 56 }}
+      // Tracks .nt-input (38px). It used to override the padding back to
+      // 10px and pin minHeight at 56, which is what made this box taller
+      // than the fields beside it.
+      style={{ minHeight: 38 }}
       onClick={() => document.getElementById(id)?.focus()}
     >
       {tags.map((t, i) => (
+        // Same chip box as the Doer field's: h-6 / px-2 / py-0.5 / 12px. A tag
+        // and a doer sit in identically-sized shells so neither field's height
+        // drifts from the other's.
         <span
           key={`${t}-${i}`}
-          className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1"
+          className="inline-flex h-6 items-center gap-1 rounded-pill px-2 py-0.5 text-xs"
           style={{
-            background: "var(--vp-cyan-tint)",
-            color: "rgb(var(--vp-cyan-deep))",
-            fontSize: 14,
+            background: "color-mix(in srgb, var(--color-altus-red) 7%, #ffffff)",
+            color: "var(--color-altus-red-deep)",
             fontWeight: 700,
           }}
         >
@@ -764,7 +952,7 @@ function TagsInput({
               onRemove(i);
             }}
             className="inline-flex items-center justify-center"
-            style={{ width: 18, height: 18, borderRadius: 999 }}
+            style={{ width: 14, height: 14, borderRadius: 999 }}
           >
             <X size={12} strokeWidth={2.6} />
           </span>
@@ -790,7 +978,7 @@ function TagsInput({
         }
         className="flex-1 min-w-[180px] bg-transparent outline-none"
         style={{
-          fontSize: 15,
+          fontSize: 14,
           fontWeight: 600,
           color: "var(--color-ink-strong)",
           border: "none",
@@ -801,34 +989,53 @@ function TagsInput({
   );
 }
 
+/**
+ * The Doer field's label, isolated so its `useWatch` subscription re-renders
+ * ONLY this span. Keeping the subscription out of the form body is what makes
+ * typing in Description cost one text-node update instead of a full form pass.
+ */
+function DoerCountLabel({ control }: { control: Control<NewTaskFormValues> }) {
+  const doerIds = useWatch({ control, name: "doerIds" }) ?? [];
+  const n = doerIds.length;
+  return <>{`Doer${n > 1 ? ` · ${n} selected` : ""}`}</>;
+}
+
 function Field({
   id,
   label,
   required,
   children,
+  action,
 }: {
   id: string;
-  label: string;
+  label: React.ReactNode;
   required?: boolean;
   children: React.ReactNode;
+  /** Optional control rendered on the right of the label row (e.g. a mic). */
+  action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2.5">
-      <label
-        htmlFor={id}
-        className="font-bold"
-        style={{
-          fontFamily: "var(--font-sans), system-ui, sans-serif",
-          fontSize: 15,
-          letterSpacing: "-0.005em",
-          color: "var(--color-ink-strong)",
-        }}
-      >
-        {label}
-        {required && (
-          <span style={{ color: "rgb(168, 4, 0)" }}> *</span>
-        )}
-      </label>
+    // gap-1 (4px) label→input, the mb-1 the density pass calls for.
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-3">
+        <label
+          htmlFor={id}
+          className="font-bold"
+          style={{
+            fontFamily: "var(--font-sans), system-ui, sans-serif",
+            // 14px = text-sm, matching the .nt-input type it labels.
+            fontSize: 14,
+            letterSpacing: "-0.005em",
+            color: "var(--color-ink-strong)",
+          }}
+        >
+          {label}
+          {required && (
+            <span style={{ color: "rgb(168, 4, 0)" }}> *</span>
+          )}
+        </label>
+        {action}
+      </div>
       {children}
     </div>
   );
@@ -860,7 +1067,7 @@ function MediaSection({
           style={{
             fontFamily: "var(--font-display), system-ui, sans-serif",
             fontSize: 17,
-            color: "rgb(var(--vp-cyan-deep))",
+            color: "var(--color-altus-red-deep)",
           }}
         >
           <ImagePlus size={22} strokeWidth={2.2} />
@@ -905,7 +1112,7 @@ function MediaSection({
         style={{
           padding: 4,
           borderRadius: 12,
-          background: dragOver ? "var(--vp-cyan-tint)" : "transparent",
+          background: dragOver ? "color-mix(in srgb, var(--color-altus-red) 7%, #ffffff)" : "transparent",
           transition: "background 180ms ease",
         }}
       >
@@ -957,9 +1164,10 @@ function EmptySlot({ onClick }: { onClick: () => void }) {
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.background =
-          "linear-gradient(135deg, var(--vp-cyan-tint) 0%, #e0f2fe 100%)";
-        e.currentTarget.style.borderColor = "rgb(var(--vp-cyan))";
-        e.currentTarget.style.color = "rgb(var(--vp-cyan-deep))";
+          "linear-gradient(135deg, color-mix(in srgb, var(--color-altus-red) 7%, #ffffff) 0%, #fff1f0 100%)";
+        e.currentTarget.style.borderColor =
+          "color-mix(in srgb, var(--color-altus-red) 55%, #ffffff)";
+        e.currentTarget.style.color = "var(--color-altus-red-deep)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background =
@@ -992,7 +1200,8 @@ function FilledSlot({
     <div
       className="relative aspect-square rounded-chip overflow-hidden group"
       style={{
-        border: "1.5px solid rgb(var(--vp-cyan))",
+        border:
+          "1.5px solid color-mix(in srgb, var(--color-altus-red) 55%, #ffffff)",
         background: "#ffffff",
       }}
     >
@@ -1048,7 +1257,7 @@ function LinksSection({
           style={{
             fontFamily: "var(--font-display), system-ui, sans-serif",
             fontSize: 17,
-            color: "rgb(var(--vp-cyan-deep))",
+            color: "var(--color-altus-red-deep)",
           }}
         >
           <Link2 size={22} strokeWidth={2.2} />
@@ -1085,7 +1294,9 @@ function LinksSection({
           aria-label="Add link"
           className="inline-flex items-center justify-center rounded-chip transition-all"
           style={{
-            width: 52,
+            // Square against the 38px input beside it (items-stretch sets the
+            // height); at 52px it read as a slab next to the compact field.
+            width: 38,
             background:
               "linear-gradient(135deg, rgb(225, 6, 0), rgb(168, 4, 0))",
             color: "#ffffff",
@@ -1093,7 +1304,7 @@ function LinksSection({
             boxShadow: "0 4px 12px rgba(225, 6, 0, 0.32)",
           }}
         >
-          <Plus size={22} strokeWidth={2.4} />
+          <Plus size={18} strokeWidth={2.4} />
         </button>
       </div>
 
@@ -1130,7 +1341,7 @@ function LinksSection({
               <Link2
                 size={16}
                 strokeWidth={2.2}
-                style={{ color: "rgb(var(--vp-cyan-deep))" }}
+                style={{ color: "var(--color-altus-red-deep)" }}
               />
               <a
                 href={url}

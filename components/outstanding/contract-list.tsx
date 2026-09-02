@@ -72,7 +72,7 @@ export function ContractList({
   if (contracts.length === 0) {
     return (
       <div
-        className="rounded-section border border-dashed border-hairline-strong bg-surface-card px-6 py-14 text-center"
+        className="rounded-section border border-solid border-hairline-strong bg-surface-card px-6 py-14 text-center"
         style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
       >
         <p
@@ -252,7 +252,7 @@ function ContractRow({
                   }}
                 >
                   <Ban size={15} strokeWidth={2.2} />
-                  Write off
+                  Write Off
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -291,7 +291,7 @@ function ConfirmStatusDialog({
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
-            {isWriteOff ? "Write off contract" : "Close contract"}
+            {isWriteOff ? "Write Off Contract" : "Close Contract"}
           </Dialog.Title>
           <Dialog.Description className="text-[15px] text-[#64748B] mb-4">
             {isWriteOff ? (
@@ -311,7 +311,7 @@ function ConfirmStatusDialog({
             <Dialog.Close asChild>
               <button
                 type="button"
-                className="px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
+                className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
                 disabled={pending}
               >
                 Cancel
@@ -324,7 +324,7 @@ function ConfirmStatusDialog({
               className="inline-flex items-center gap-2 rounded-md py-2.5 px-5 text-[14px] font-semibold text-white disabled:opacity-50"
               style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
             >
-              {pending ? "Working…" : isWriteOff ? "Write off" : "Close contract"}
+              {pending ? "Working…" : isWriteOff ? "Write Off" : "Close Contract"}
             </button>
           </div>
         </Dialog.Content>
@@ -431,7 +431,7 @@ function EditContractDialog({
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-lg rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
-            Edit contract
+            Edit Contract
           </Dialog.Title>
           <Dialog.Description className="text-[15px] text-[#64748B] mb-4" style={{ lineHeight: 1.5 }}>
             Saving re-materializes the schedule from these fields. Override
@@ -465,7 +465,7 @@ function EditContractDialog({
                 ariaLabel="Entity"
               />
             </Field>
-            <Field label="Responsible person">
+            <Field label="Responsible Person">
               <Select
                 options={lookups.employees.map((em) => ({ value: em.id, label: em.name }))}
                 value={responsibleId}
@@ -475,7 +475,7 @@ function EditContractDialog({
                 ariaLabel="Responsible person"
               />
             </Field>
-            <Field label="Payment mode">
+            <Field label="Payment Mode">
               <Select
                 options={lookups.modes.map((m) => ({ value: m.id, label: m.name }))}
                 value={modeId}
@@ -485,7 +485,7 @@ function EditContractDialog({
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Base amount (₹)" required>
+              <Field label="Base Amount (₹)" required>
                 <input
                   type="number"
                   min={0}
@@ -515,7 +515,7 @@ function EditContractDialog({
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label={isFullPayment ? "Date" : "Start date"} required>
+              <Field label={isFullPayment ? "Date" : "Start Date"} required>
                 <input
                   type="date"
                   value={startDate}
@@ -524,7 +524,7 @@ function EditContractDialog({
                 />
               </Field>
               {!isFullPayment && (
-                <Field label="# of months (periods)">
+                <Field label="# of Months (Periods)">
                   <input
                     type="number"
                     min={1}
@@ -537,7 +537,7 @@ function EditContractDialog({
                 </Field>
               )}
             </div>
-            <Field label="PDC received" required>
+            <Field label="PDC Received" required>
               <Select
                 options={YES_NO_OPTIONS}
                 value={pdc}
@@ -559,7 +559,7 @@ function EditContractDialog({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
+                  className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
                   disabled={pending}
                 >
                   Cancel
@@ -571,7 +571,7 @@ function EditContractDialog({
                 className="rounded-md py-2.5 px-5 text-[14px] font-medium text-white disabled:opacity-50"
                 style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
               >
-                {pending ? "Saving…" : "Save changes"}
+                {pending ? "Saving…" : "Save Changes"}
               </button>
             </div>
           </form>

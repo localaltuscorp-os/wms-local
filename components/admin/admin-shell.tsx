@@ -7,33 +7,40 @@ type Props = {
   adminName: string;
   adminEmail: string;
   avatarUrl: string | null;
+  /** Super-admins also get the "Accounts" section pill in the admin header. */
+  canSeeAccounts: boolean;
 };
 
 /**
- * Editorial two-column shell for the admin panel.  Dark sidebar (`.header-dark`
- * scope) on the left, soft canvas on the right.  The body-level radial
- * gradients defined in `globals.css :root body` show through the main column.
- *
- * On mobile (max-md) the sidebar hides and `AdminMobileBar` renders a sticky
- * top bar with a hamburger that opens the same nav in a slide-in drawer.
+ * Admin panel shell. The nav lives in a LEFT SIDEBAR (`AdminSidebar`, desktop) —
+ * matching the vertical rail every other module uses — with the phone layout
+ * handled by the sticky `AdminMobileBar` + drawer. The soft body gradients from
+ * globals.css show through the main column.
  */
-export function AdminShell({
+export async function AdminShell({
   children,
   adminName,
   adminEmail,
   avatarUrl,
+  canSeeAccounts,
 }: Props) {
+  // Consistent with every other module: the Hub (the workspace switchboard)
+  // is where the brand mark leads. On desktop the sidebar LOGO is that link;
+  // on phones AdminMobileBar still renders it as its own labelled button.
+  const backHref = "/hub";
+
   return (
-    <div className="min-h-screen flex max-md:block">
-      <AdminSidebar
-        adminName={adminName}
-        adminEmail={adminEmail}
-        avatarUrl={avatarUrl}
-      />
-      <div className="flex-1 min-w-0 max-md:flex max-md:flex-col">
-        <AdminMobileBar adminName={adminName} adminEmail={adminEmail} />
-        <main className="flex-1 min-w-0 px-10 py-10 max-md:px-4 max-md:py-6">
-          <div className="mx-auto max-w-[1280px]">{children}</div>
+    <div className="min-h-screen">
+      {/* Phone-only top bar + drawer (unchanged) */}
+      <AdminMobileBar adminName={adminName} adminEmail={adminEmail} backHref={backHref} canSeeAccounts={canSeeAccounts} />
+      {/* Desktop: left rail + main column */}
+      <div className="flex min-h-screen">
+        <AdminSidebar adminName={adminName} adminEmail={adminEmail} avatarUrl={avatarUrl} backHref={backHref} />
+        {/* Matches COMMAND_PAGE_CLASS's rhythm (pt-6 pb-8) so the admin room
+            sits at the same vertical scale as every other module now that it
+            shares their header. */}
+        <main className="min-w-0 flex-1 px-8 pt-6 pb-8 max-md:px-4 max-md:pt-5 max-md:pb-6">
+          <div className="mx-auto max-w-[1400px]">{children}</div>
         </main>
       </div>
     </div>

@@ -41,6 +41,9 @@
   ],
   "exclude": [
     "node_modules",
-    "functions"
+    "functions",
+    "mobile",
+    "mobile_LEGACY_DROP_2026-07-02",
+    "android-app"
   ]
 }

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Geofenced anti-proxy punch: FINE for the 100m check; COARSE is the
+         mandatory API 31+ companion of FINE. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Haptic vocabulary (EFFECT_TICK / CLOCK_TICK / punch waveform). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application
+        android:name=".AltusApplication"
+        android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Altus.Starting"
+        tools:targetApi="tiramisu">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.Altus.Starting"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- altus:// deep links — every FCM payload carries exactly one:
+                 altus://task/{id} · altus://punch · altus://dcc?date=YYYY-MM-DD ·
+                 altus://goals-fill · altus://inbox -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="altus" android:host="task" />
+                <data android:scheme="altus" android:host="punch" />
+                <data android:scheme="altus" android:host="dcc" />
+                <data android:scheme="altus" android:host="goals-fill" />
+                <data android:scheme="altus" android:host="inbox" />
+            </intent-filter>
+        </activity>
+
+        <!-- FCM: onNewToken → POST /api/mobile/register-push;
+             onMessageReceived → notification carrying an altus:// deep link. -->
+        <service
+            android:name=".core.firebase.AltusMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/altus_evergreen" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="altus_default" />
+
+        <!-- On-demand WorkManager init: AltusApplication implements
+             Configuration.Provider with the Hilt worker factory, so the default
+             initializer must be removed. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+    </application>
+</manifest>

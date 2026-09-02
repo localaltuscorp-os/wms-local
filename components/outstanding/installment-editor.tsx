@@ -122,7 +122,7 @@ export function InstallmentEditor({
             <Dialog.Close asChild>
               <button
                 type="button"
-                className="rounded-md py-2.5 px-5 text-[14px] font-medium text-[#64748B]"
+                className="brand-btn rounded-md py-2.5 px-5 text-[14px] font-medium text-[#64748B]"
               >
                 Done
               </button>
@@ -317,14 +317,14 @@ function AddAdhocRow({
   }
 
   return (
-    <div className="rounded-lg border border-dashed border-[#CBD5E1] p-3.5">
+    <div className="rounded-lg border border-solid border-[#CBD5E1] p-3.5">
       <p className="text-[13px] font-semibold uppercase tracking-wide text-[#64748B] mb-2.5">
         Add ad-hoc installment
       </p>
       <div className="flex items-end gap-2.5 flex-wrap">
         <div>
           <label className="block text-[12px] font-semibold text-[#0F172A] mb-1">
-            Due date
+            Due Date
           </label>
           <input
             type="date"

@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { updateTag } from "next/cache";
 import { db, tasks } from "@/lib/db";
 import { requireUser } from "@/lib/auth/current";
@@ -17,11 +17,20 @@ import { CACHE_TAGS } from "@/lib/cache-tags";
  */
 export async function markTaskRead(taskId: string): Promise<void> {
   try {
-    await requireUser();
+    const me = await requireUser();
+    // Scope the receipt to someone who can actually SEE this task (participant or
+    // admin) — otherwise any user could spoof firstReadAt on an arbitrary task id.
+    const mine = me.isAdmin
+      ? undefined
+      : or(
+          eq(tasks.doerId, me.id),
+          eq(tasks.initiatorId, me.id),
+          eq(tasks.createdById, me.id),
+        );
     await db
       .update(tasks)
       .set({ firstReadAt: new Date() })
-      .where(and(eq(tasks.id, taskId), isNull(tasks.firstReadAt)));
+      .where(and(eq(tasks.id, taskId), isNull(tasks.firstReadAt), mine));
     updateTag(CACHE_TAGS.tasks);
   } catch (err) {
     console.warn("[markTaskRead] non-fatal:", (err as Error)?.message ?? err);

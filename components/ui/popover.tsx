@@ -18,11 +18,16 @@ export const PopoverContent = React.forwardRef<
       sideOffset={sideOffset}
       collisionPadding={collisionPadding}
       className={cn(
-        // z-[100] so popovers always sit above the sticky z-50 app header
-        // and any z-50 Dialog content. available-height + overflow-y-auto
-        // keeps tall popovers (DayPicker, MultiSelect with long lists)
-        // inside the viewport instead of clipping off the edge.
-        "z-[100] rounded-chip border border-hairline-strong bg-surface-card p-2",
+        // z-[200] so popovers always sit above the sticky z-50 app header, any
+        // Dialog content AND the app's drawers/modals (WeeklyGoalDrawer z-120,
+        // event editor z-150, goal-edit dialog z-200 — at equal z the popover's
+        // later-mounted portal paints on top). A popover is transient (closes on
+        // any outside pointer-down), so it can never permanently cover chrome —
+        // but it MUST never be buried under the surface that owns its trigger
+        // (that was the "Select opens behind the drawer" bug on the Goals board).
+        // available-height + overflow-y-auto keeps tall popovers (DayPicker,
+        // MultiSelect with long lists) inside the viewport instead of clipping.
+        "z-[200] rounded-chip border border-hairline-strong bg-surface-card p-2",
         "max-h-[var(--radix-popover-content-available-height)] overflow-y-auto overflow-x-hidden",
         "data-[state=open]:animate-in data-[state=open]:fade-in-0",
         className,

@@ -20,7 +20,23 @@ import type { AttendanceSchedule } from "@/lib/attendance/schedule";
  * functions are best-effort: a notify failure never blocks the punch.
  */
 
-type ScheduleEmp = { attLateAfter: string | null; attEarlyBefore: string | null };
+/**
+ * The columns the schedule resolver needs. This USED to be just late-after /
+ * early-before, which meant the notifier fell back to the org-wide defaults and
+ * could announce an "early checkout" for someone leaving exactly at their own
+ * configured finish time — the same bug the grader had. Everything is optional
+ * so existing callers keep compiling; the resolver fills the gaps.
+ */
+type ScheduleEmp = {
+  attLateAfter: string | null;
+  attEarlyBefore: string | null;
+  workerType?: string | null;
+  attOfficialStart?: string | null;
+  attOfficialEnd?: string | null;
+  attFullDayMinutes?: number | null;
+  attHalfDayMinutes?: number | null;
+  weeklyTargetMinutes?: number | null;
+};
 type NotifyEmp = ScheduleEmp & { id: string };
 type DayEmp = NotifyEmp & { timezone: string };
 

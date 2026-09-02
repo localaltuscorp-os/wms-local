@@ -1,66 +1,38 @@
 import type { Task } from "@/db/schema";
-import type { KpiTotals, StatusDistribution } from "@/lib/types";
-import { TASK_STATUSES, type TaskStatus } from "@/db/enums";
+import type { KpiTotals } from "@/lib/types";
+import { kpiBucketOf, isCountableTask } from "@/lib/dashboard/kpi-buckets";
 
+/**
+ * The six Task Summary numbers, over whatever task set is handed in.
+ *
+ * The classification itself lives in lib/dashboard/kpi-buckets.ts — this
+ * function is only the tally. That split is deliberate: the sparklines, the
+ * week-over-week deltas and the operational summary all need the SAME
+ * question answered ("which card is this task on?"), and when each of them
+ * answered it locally they answered it differently. See that module's header
+ * for the three definitions that had drifted apart.
+ *
+ * INVARIANT: total === pending + notStarted + needHelp + done + notApproved.
+ * `pending` is the residual bucket and archived / cancelled / transferred rows
+ * are excluded from `total` too, so the five cards always reconcile with the
+ * Total card. They previously did not.
+ */
 export function computeKpiTotals(tasks: Task[]): KpiTotals {
-  let pending = 0;
-  let notStarted = 0;
-  let needHelp = 0;
-  let done = 0;
-  let notApproved = 0;
-
-  for (const t of tasks) {
-    // Done bucket: legacy `done`/`approved` lifecycle values OR new
-    // approval_status="approved" verdict (any status).
-    if (
-      t.status === "done" ||
-      t.status === "approved" ||
-      t.approvalStatus === "approved"
-    ) {
-      done++;
-      continue;
-    }
-    // Not-approved bucket: legacy status value OR new approval_status.
-    if (t.status === "not_approved" || t.approvalStatus === "not_approved") {
-      notApproved++;
-      continue;
-    }
-    if (t.status === "not_started") notStarted++;
-    else if (t.status === "need_info") needHelp++; // need_help retired → need_info
-    else if (
-      t.status === "initiated" ||
-      t.status === "follow_up" ||
-      t.status === "follow_up_1" ||
-      t.status === "follow_up_2" ||
-      t.status === "follow_up_3"
-    ) {
-      pending++;
-    }
-  }
-
-  return {
-    total: tasks.length,
-    pending,
-    notStarted,
-    needHelp,
-    done,
-    notApproved,
+  const totals: KpiTotals = {
+    total: 0,
+    pending: 0,
+    notStarted: 0,
+    needHelp: 0,
+    done: 0,
+    notApproved: 0,
   };
-}
-
-export function computeStatusDistribution(
-  tasks: Task[],
-): StatusDistribution[] {
-  const counts = new Map<TaskStatus, number>(
-    TASK_STATUSES.map((s) => [s, 0]),
-  );
 
   for (const t of tasks) {
-    counts.set(t.status, (counts.get(t.status) ?? 0) + 1);
+    if (!isCountableTask(t)) continue;
+    totals.total += 1;
+    const bucket = kpiBucketOf(t);
+    if (bucket) totals[bucket] += 1;
   }
 
-  return TASK_STATUSES.map((status) => ({
-    status,
-    count: counts.get(status) ?? 0,
-  })).filter((d) => d.count > 0);
+  return totals;
 }

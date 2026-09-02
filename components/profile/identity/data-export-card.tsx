@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { requestDataExport } from "@/app/(app)/profile/actions";
 import { fireToast } from "@/lib/toast";
 import { SectionHeader } from "./avatar-and-name";
+import { formatDate } from "@/lib/format";
 
 export interface DataExportRow {
   id: string;
@@ -107,7 +108,8 @@ export function DataExportCard({ recent }: Props) {
 
   function fmt(iso: string | null) {
     if (!iso) return "—";
-    return new Date(iso).toLocaleString();
+    const d = new Date(iso);
+    return `${formatDate(d)} · ${d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`;
   }
 
   return (
@@ -120,7 +122,7 @@ export function DataExportCard({ recent }: Props) {
       }}
     >
       <SectionHeader
-        title="Download your data"
+        title="Download Your Data"
         description="Get a copy of everything we have on you: tasks, comments, audit events, and preferences. Required by DPDP."
         savedAt={null}
       />
@@ -142,7 +144,7 @@ export function DataExportCard({ recent }: Props) {
           cursor: busy ? "not-allowed" : "pointer",
         }}
       >
-        {busy ? "Requesting…" : "Request my data"}
+        {busy ? "Requesting…" : "Request My Data"}
       </button>
 
       {merged.length > 0 && (

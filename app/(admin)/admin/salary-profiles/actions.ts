@@ -9,6 +9,7 @@ import { rateLimitOrError } from "@/lib/rate-limit";
 import { fyForMonth } from "@/lib/salary/period";
 import { listAdvances, type SalaryAdvanceRow } from "@/lib/queries/salary";
 import { SalaryProfileSchema, SalaryAdvanceSchema } from "@/lib/validators/salary";
+import { payBasisFor } from "@/lib/attendance/worker-type";
 
 export type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -49,6 +50,22 @@ export async function upsertSalaryProfile(input: unknown): Promise<ActionResult>
   if (data.designationId !== undefined) empPatch.designationId = data.designationId;
   if (data.payingEntityId !== undefined) empPatch.payingEntityId = data.payingEntityId;
   if (data.probationEnd !== undefined) empPatch.probationEnd = data.probationEnd;
+  if (data.workerType !== undefined) empPatch.workerType = data.workerType;
+
+  // Worker-type pay basis. `pay_type` is DERIVED from workerType (never hand-set);
+  // the rate columns are numeric so they're stringified. Only assembled when a
+  // worker type is supplied, so a CTC-only save leaves the pay basis untouched.
+  const num = (v: number | null | undefined): string | null =>
+    v == null ? null : v.toFixed(2);
+  const payFields: Partial<typeof salaryProfiles.$inferInsert> =
+    data.workerType !== undefined
+      ? {
+          payType: payBasisFor(data.workerType),
+          monthlyPayAtTarget: num(data.monthlyPayAtTarget),
+          weeklyTargetHours: num(data.weeklyTargetHours),
+          monthlyFee: num(data.monthlyFee),
+        }
+      : {};
 
   try {
     await db.transaction(async (tx) => {
@@ -59,10 +76,11 @@ export async function upsertSalaryProfile(input: unknown): Promise<ActionResult>
           annualCtc,
           tdsMonthly,
           ptExempt: data.ptExempt,
+          ...payFields,
         })
         .onConflictDoUpdate({
           target: salaryProfiles.employeeId,
-          set: { annualCtc, tdsMonthly, ptExempt: data.ptExempt, updatedAt: new Date() },
+          set: { annualCtc, tdsMonthly, ptExempt: data.ptExempt, ...payFields, updatedAt: new Date() },
         });
 
       if (Object.keys(empPatch).length > 0) {
@@ -87,6 +105,15 @@ export async function upsertSalaryProfile(input: unknown): Promise<ActionResult>
         designationId: data.designationId ?? null,
         payingEntityId: data.payingEntityId ?? null,
         probationEnd: data.probationEnd ?? null,
+        ...(data.workerType !== undefined
+          ? {
+              workerType: data.workerType,
+              payType: payBasisFor(data.workerType),
+              monthlyPayAtTarget: data.monthlyPayAtTarget ?? null,
+              weeklyTargetHours: data.weeklyTargetHours ?? null,
+              monthlyFee: data.monthlyFee ?? null,
+            }
+          : {}),
       },
     });
   } catch (err) {

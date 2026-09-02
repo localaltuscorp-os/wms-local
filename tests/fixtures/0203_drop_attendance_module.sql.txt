@@ -1,0 +1,71 @@
+-- 0203 — DROP the attendance module.
+--
+-- Removes every table and column that existed only to serve attendance:
+-- punches, biometric/device anti-proxy, leave & comp-off, the imported HR
+-- attendance-sheet mirror, the month freeze, discipline notes, the Monday
+-- week acknowledgement, and the per-employee / org-wide schedule + geofence
+-- settings.
+--
+-- DESTRUCTIVE AND IRREVERSIBLE: all historic punch, leave and attendance-sheet
+-- rows are deleted. Take a backup before applying.
+--
+-- Written defensively (IF EXISTS) so it is safe to re-run.
+
+BEGIN;
+
+-- ── Tables ────────────────────────────────────────────────────────────────
+DROP TABLE IF EXISTS attendance_week_ack         CASCADE;
+DROP TABLE IF EXISTS attendance_sheet_day        CASCADE;
+DROP TABLE IF EXISTS attendance_sheet_month      CASCADE;
+DROP TABLE IF EXISTS attendance_discipline_notes CASCADE;
+DROP TABLE IF EXISTS attendance_month_freeze     CASCADE;
+DROP TABLE IF EXISTS paid_leave_cycle            CASCADE;
+DROP TABLE IF EXISTS comp_off_credits            CASCADE;
+DROP TABLE IF EXISTS leave_requests              CASCADE;
+DROP TABLE IF EXISTS punch_nonces                CASCADE;
+DROP TABLE IF EXISTS attendance_logs             CASCADE;
+DROP TABLE IF EXISTS mobile_devices              CASCADE;
+DROP TABLE IF EXISTS webauthn_credentials        CASCADE;
+
+-- ── employees: per-person schedule + anti-proxy columns ───────────────────
+ALTER TABLE employees
+  DROP COLUMN IF EXISTS attendance_biometric_exempt,
+  DROP COLUMN IF EXISTS weekly_off,
+  DROP COLUMN IF EXISTS att_official_start,
+  DROP COLUMN IF EXISTS att_late_after,
+  DROP COLUMN IF EXISTS att_official_end,
+  DROP COLUMN IF EXISTS att_early_before,
+  DROP COLUMN IF EXISTS att_full_day_minutes,
+  DROP COLUMN IF EXISTS att_half_day_minutes,
+  DROP COLUMN IF EXISTS weekly_target_minutes;
+
+-- ── org_settings: geofence, office-IP gate, org schedule defaults ─────────
+ALTER TABLE org_settings
+  DROP COLUMN IF EXISTS office_lat,
+  DROP COLUMN IF EXISTS office_lng,
+  DROP COLUMN IF EXISTS attendance_radius_m,
+  DROP COLUMN IF EXISTS office_ip_allowlist,
+  DROP COLUMN IF EXISTS att_late_after,
+  DROP COLUMN IF EXISTS att_early_before,
+  DROP COLUMN IF EXISTS att_full_day_hours,
+  DROP COLUMN IF EXISTS att_half_day_hours;
+
+-- ── Row data that referenced attendance ───────────────────────────────────
+-- Notification kinds retired with the module (text column, no enum to alter).
+DELETE FROM notifications
+ WHERE kind IN (
+   'attendance_late',
+   'attendance_late_waived',
+   'attendance_half_day',
+   'attendance_device',
+   'attendance_late_deduction'
+ );
+
+-- Single-use approval tokens for the Monday attendance confirmation.
+DELETE FROM approval_tokens WHERE kind = 'attendance_confirm';
+
+-- Sync-run audit rows for the retired attendance importers.
+DELETE FROM sync_runs
+ WHERE job IN ('attendance_backfill', 'attendance_sheet', 'paid_leave');
+
+COMMIT;

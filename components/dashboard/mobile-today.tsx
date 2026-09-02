@@ -99,7 +99,7 @@ export function MobileToday({
         style={{ fontSize: 16 }}
       >
         <Fingerprint size={19} strokeWidth={2.2} aria-hidden />
-        Mark attendance
+        Mark Attendance
       </Link>
 
       {tasks.length === 0 ? (

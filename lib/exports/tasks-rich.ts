@@ -90,5 +90,5 @@ export function richExportFilename(
   date: Date = new Date(),
 ): string {
   const iso = date.toISOString().slice(0, 10);
-  return `altus-corp-tasks-${iso}.${ext}`;
+  return `Altus-Corp-Tasks-${iso}.${ext}`;
 }

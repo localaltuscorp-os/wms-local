@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -60,9 +60,10 @@ async function exchangeIdTokenForSession(idToken: string): Promise<void> {
 }
 
 export function LoginFormGlass() {
-  const router = useRouter();
   const params = useSearchParams();
-  const requestedNext = params.get("next") || "/";
+  // Always land on the Hub by default; a bare "/" next resolves to /hub too.
+  const rawNext = params.get("next");
+  const requestedNext = !rawNext || rawNext === "/" ? "/hub" : rawNext;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -73,6 +74,11 @@ export function LoginFormGlass() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // Long-password DoS guard: reject before any auth work touches it.
+    if (password.length > 128) {
+      setError("That password is too long (max 128 characters).");
+      return;
+    }
     startTransition(async () => {
       try {
         const cred = await signInWithEmailAndPassword(
@@ -82,7 +88,10 @@ export function LoginFormGlass() {
         );
         const idToken = await cred.user.getIdToken();
         await exchangeIdTokenForSession(idToken);
-        router.replace(requestedNext as Route);
+        // HARD navigation (not router.replace): wipes Next's client Router
+        // Cache so this freshly-signed-in user never sees a PREVIOUS user's
+        // cached pages lingering in this browser tab.
+        window.location.replace(requestedNext);
       } catch (err: unknown) {
         const code = (err as { code?: string })?.code;
         if ((err as Error)?.message === "not-enrolled") {
@@ -188,7 +197,7 @@ export function LoginFormGlass() {
         className="mt-10 space-y-6"
       >
         <GlassField
-          label="Work email"
+          label="Work Email"
           type="email"
           autoComplete="email"
           required
@@ -245,7 +254,7 @@ export function LoginFormGlass() {
             }}
             className="hover:text-white transition-colors"
           >
-            Forgot password?
+            Forgot Password?
           </Link>
         </div>
 
@@ -267,7 +276,7 @@ export function LoginFormGlass() {
           }}
         >
           <span className="relative z-10">
-            {isPending ? "Signing you in…" : "Sign in"}
+            {isPending ? "Signing you in…" : "Sign In"}
           </span>
           {!isPending && (
             <ArrowRight
@@ -379,6 +388,8 @@ function GlassField({
         autoComplete={autoComplete}
         required={required}
         value={value}
+        // Cap input so a megabyte-long paste can't enter state (LPDoS).
+        maxLength={255}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}

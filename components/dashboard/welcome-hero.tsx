@@ -13,8 +13,9 @@ export function WelcomeHero() {
       <div
         className="rounded-section p-16 max-md:p-8 text-center"
         style={{
-          background:
-            "radial-gradient(ellipse 70% 50% at 50% 0%, rgba(225, 6, 0, 0.10), transparent 70%), linear-gradient(180deg, var(--color-surface-card) 0%, var(--color-surface-soft) 100%)",
+          // Flat white, matching the rest of the dashboard — the red radial
+          // wash behind this empty state is gone; the red icon badge stays.
+          background: "#ffffff",
           border: "1px solid var(--color-hairline)",
           boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
         }}

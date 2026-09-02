@@ -5,6 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { fireToast } from "@/lib/toast";
 import { updateSubject } from "@/app/(admin)/admin/subjects/actions";
 import type { SubjectWithCount } from "@/lib/queries/subjects";
+import { DataTable } from "@/components/admin/ui/data-table";
 
 interface Props {
   subjects: SubjectWithCount[];
@@ -13,71 +14,93 @@ interface Props {
 export function SubjectList({ subjects }: Props) {
   const [editing, setEditing] = useState<SubjectWithCount | null>(null);
 
-  if (subjects.length === 0) {
-    return (
-      <div
-        className="rounded-section border border-dashed border-hairline-strong bg-surface-card px-6 py-14 text-center"
-        style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
-      >
-        <p
-          className="font-serif text-ink-strong"
-          style={{ fontStyle: "italic", fontSize: 22, letterSpacing: "-0.015em" }}
-        >
-          No subjects yet
-        </p>
-        <p className="text-[14px] text-ink-subtle mt-2 max-w-sm mx-auto" style={{ lineHeight: 1.5 }}>
-          Create your first one with the button above. It then shows up in the
-          Subject picker on every task.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <>
-      <div
-        className="overflow-hidden rounded-section border border-hairline bg-surface-card"
-        style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
-      >
-        <table className="w-full text-[15px]">
-          <thead>
-            <tr
-              className="text-left text-[12px] uppercase tracking-[0.08em] text-ink-subtle font-bold border-b border-hairline"
-              style={{ background: "var(--color-surface-soft)" }}
+      <DataTable<SubjectWithCount>
+        rows={subjects}
+        getRowKey={(s) => s.id}
+        searchText={(s) => s.name}
+        searchPlaceholder="Search subjects by name"
+        initialSort={{ key: "name", dir: "asc" }}
+        filters={[
+          {
+            label: "Status",
+            options: [
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ],
+            match: (s, v) => (v === "active" ? s.isActive : !s.isActive),
+          },
+        ]}
+        columns={[
+          {
+            key: "name",
+            label: "Name",
+            sortValue: (s) => s.name,
+            render: (s) => (
+              <span className="font-medium text-ink-strong">{s.name}</span>
+            ),
+          },
+          {
+            key: "sortOrder",
+            label: "Sort",
+            align: "right",
+            className: "tabular-nums",
+            sortValue: (s) => s.sortOrder,
+            render: (s) => (
+              <span className="tabular-nums text-ink-soft">{s.sortOrder}</span>
+            ),
+          },
+          {
+            key: "taskCount",
+            label: "Tasks",
+            align: "right",
+            className: "tabular-nums",
+            sortValue: (s) => s.taskCount,
+            render: (s) => (
+              <span className="tabular-nums text-ink-soft">{s.taskCount}</span>
+            ),
+          },
+          {
+            key: "status",
+            label: "Status",
+            sortValue: (s) => (s.isActive ? 0 : 1),
+            render: (s) => <StatusChip active={s.isActive} />,
+          },
+        ]}
+        rowActions={(s) => (
+          <SubjectRowActions subject={s} onEdit={() => setEditing(s)} />
+        )}
+        emptyState={
+          <>
+            <p
+              className="text-ink-strong"
+              style={{
+                fontFamily: "var(--font-serif), system-ui, sans-serif",
+                fontStyle: "italic",
+                fontSize: 22,
+                letterSpacing: "-0.015em",
+              }}
             >
-              <th className="px-5 py-4">Name</th>
-              <th className="px-5 py-4 tabular-nums">Sort</th>
-              <th className="px-5 py-4 tabular-nums">Tasks</th>
-              <th className="px-5 py-4">Status</th>
-              <th className="px-5 py-4 text-right">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {subjects.map((s, i) => (
-              <SubjectRow
-                key={s.id}
-                subject={s}
-                rowIndex={i}
-                onEdit={() => setEditing(s)}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+              No subjects yet
+            </p>
+            <p className="mt-2 max-w-sm mx-auto text-[14px] text-ink-subtle" style={{ lineHeight: 1.5 }}>
+              Create your first one with the button above. It then shows up in the
+              Subject picker on every task.
+            </p>
+          </>
+        }
+      />
       <EditSubjectDialog subject={editing} onClose={() => setEditing(null)} />
     </>
   );
 }
 
-function SubjectRow({
+function SubjectRowActions({
   subject,
-  rowIndex,
   onEdit,
 }: {
   subject: SubjectWithCount;
-  rowIndex: number;
   onEdit: () => void;
 }) {
   const [pending, startTransition] = useTransition();
@@ -98,52 +121,43 @@ function SubjectRow({
   }
 
   return (
-    <tr
-      className="border-b border-hairline last:border-b-0 transition-colors hover:bg-surface-soft"
-      style={{ background: rowIndex % 2 === 1 ? "rgba(15, 23, 42, 0.012)" : undefined }}
+    <div className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={onEdit}
+        className="rounded-md px-3 py-1.5 text-[13px] font-semibold text-ink-soft hover:bg-surface-soft hover:text-ink-strong transition-colors"
+      >
+        Edit
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={toggleActive}
+        className="rounded-md px-3 py-1.5 text-[13px] font-semibold text-ink-soft hover:bg-surface-soft hover:text-ink-strong transition-colors disabled:opacity-50"
+      >
+        {subject.isActive ? "Deactivate" : "Reactivate"}
+      </button>
+    </div>
+  );
+}
+
+function StatusChip({ active }: { active: boolean }) {
+  return active ? (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+      style={{ background: "var(--color-green-bg)", color: "var(--color-green-deep)" }}
     >
-      <td className="px-5 py-4 text-ink-strong font-medium">{subject.name}</td>
-      <td className="px-5 py-4 tabular-nums text-ink-soft">{subject.sortOrder}</td>
-      <td className="px-5 py-4 tabular-nums text-ink-soft">{subject.taskCount}</td>
-      <td className="px-5 py-4">
-        {subject.isActive ? (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
-            style={{ background: "var(--color-green-bg)", color: "var(--color-green-deep)" }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-green)" }} />
-            Active
-          </span>
-        ) : (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
-            style={{ background: "rgba(15, 23, 42, 0.05)", color: "var(--color-ink-subtle)" }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-ink-subtle)" }} />
-            Inactive
-          </span>
-        )}
-      </td>
-      <td className="px-5 py-4 text-right">
-        <div className="inline-flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="rounded-md px-3 py-1.5 text-[13px] font-semibold text-ink-soft hover:bg-surface-soft hover:text-ink-strong transition-colors"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={toggleActive}
-            className="rounded-md px-3 py-1.5 text-[13px] font-semibold text-ink-soft hover:bg-surface-soft hover:text-ink-strong transition-colors disabled:opacity-50"
-          >
-            {subject.isActive ? "Deactivate" : "Reactivate"}
-          </button>
-        </div>
-      </td>
-    </tr>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-green)" }} />
+      Active
+    </span>
+  ) : (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+      style={{ background: "rgba(15, 23, 42, 0.05)", color: "var(--color-ink-subtle)" }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-ink-subtle)" }} />
+      Inactive
+    </span>
   );
 }
 
@@ -197,7 +211,7 @@ function EditSubjectDialog({
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
-            Edit subject
+            Edit Subject
           </Dialog.Title>
           <Dialog.Description className="text-[15px] text-[#64748B] mb-4">
             Renaming updates the Subject on every task filed under the old name.

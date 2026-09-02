@@ -1,5 +1,4 @@
 import { DashboardHeader } from "@/components/layout/header";
-import { DashboardFooter } from "@/components/layout/footer";
 import { requireUser } from "@/lib/auth/current";
 import { ProfileHero } from "@/components/profile/profile-hero";
 import { ProfileShell } from "@/components/profile/profile-shell";
@@ -17,12 +16,13 @@ import { WorkingHours } from "@/components/profile/workflow/working-hours";
 import { PinnedShelf } from "@/components/profile/workflow/pinned-shelf";
 import { GoogleCalendarCard } from "@/components/profile/workflow/google-calendar-card";
 import { PerfCard } from "@/components/profile/performance/perf-card";
-import { CriteriaCard } from "@/components/criteria/criteria-card";
-import { CriteriaAchievements } from "@/components/profile/performance/criteria-achievements";
+import { ActivityFeed } from "@/components/profile/performance/activity-feed";
+import { AchievementsGrid } from "@/components/profile/performance/achievements-grid";
 import { AppearanceControls } from "@/components/profile/appearance/appearance-controls";
 import { ShortcutsCheatsheet } from "@/components/profile/appearance/shortcuts-cheatsheet";
 import { getPerfStats } from "@/lib/profile/performance";
-import { getCriteriaMetrics } from "@/lib/profile/criteria-metrics";
+import { getRecentActivity } from "@/lib/profile/activity-feed";
+import { evaluateAchievements } from "@/lib/achievements/evaluate";
 import {
   getActiveSessions,
   getQuickStats,
@@ -49,7 +49,8 @@ export default async function ProfilePage() {
     pins,
     colleagues,
     perf,
-    criteriaMetrics,
+    activity,
+    achievements,
   ] = await Promise.all([
     getQuickStats(me.id),
     getActiveSessions(me.id),
@@ -71,7 +72,8 @@ export default async function ProfilePage() {
       .where(and(eq(employees.isActive, true), ne(employees.id, me.id)))
       .orderBy(asc(employees.name)),
     getPerfStats(me.id),
-    getCriteriaMetrics(me.id),
+    getRecentActivity(me.id),
+    evaluateAchievements(me.id),
   ]);
   const hasPushSubscription = (pushCount[0]?.c ?? 0) > 0;
 
@@ -282,14 +284,38 @@ export default async function ProfilePage() {
               ),
               performance: (
                 <div style={{ display: "grid", gap: 24 }}>
-                  <CriteriaCard
-                    employeeId={me.id}
-                    criteria={me.performanceCriteria ?? null}
-                    kra={me.kra ?? null}
-                    isAdmin={me.isAdmin}
-                  />
                   <PerfCard stats={perf} />
-                  <CriteriaAchievements criteria={me.performanceCriteria ?? null} metrics={criteriaMetrics} />
+                  <ActivityFeed
+                    rows={activity.map((a) => ({
+                      id: a.id,
+                      at: a.at,
+                      kind: a.kind,
+                      summary: a.summary,
+                      href: a.href,
+                    }))}
+                  />
+                  <AchievementsGrid
+                    rows={achievements.map((a) => ({
+                      // Pass ONLY the serializable fields — `a.def` also carries
+                      // an `evaluate` function, which can't cross the RSC→client
+                      // boundary (throws "Functions cannot be passed…").
+                      def: {
+                        key: a.def.key,
+                        name: a.def.name,
+                        description: a.def.description,
+                        icon: a.def.icon,
+                        category: a.def.category,
+                      },
+                      earned: a.earned,
+                      earnedAt:
+                        a.earnedAt instanceof Date
+                          ? a.earnedAt.toISOString()
+                          : a.earnedAt
+                            ? String(a.earnedAt)
+                            : null,
+                      progress: a.progress,
+                    }))}
+                  />
                 </div>
               ),
               appearance: (
@@ -307,7 +333,6 @@ export default async function ProfilePage() {
           />
         </div>
       </main>
-      <DashboardFooter />
       <style>{`
         @media (max-width: 1024px) {
           .profile-identity-grid {

@@ -5,7 +5,7 @@ import {
   getAuth,
   connectAuthEmulator,
   setPersistence,
-  browserSessionPersistence,
+  browserLocalPersistence,
   type Auth,
 } from "firebase/auth";
 
@@ -33,12 +33,11 @@ export function getFirebaseAuth(): Auth {
       disableWarnings: true,
     });
   }
-  // IMPORTANT: keep this in sync with the cookie config in middleware.ts.
-  // Both must be session-scoped so closing the browser ends the session.
-  // If you want to extend session lifetime, change BOTH places at once.
-  setPersistence(cachedAuth, browserSessionPersistence).catch((err) => {
-    // Non-fatal — fall back to default (local) persistence rather than
-    // bricking the app if IndexedDB is unavailable (private windows, etc.).
+  // Default "stay signed in" persistence: closing the browser no longer logs you
+  // out (this is Firebase's normal behaviour). Paired with a persistent session
+  // cookie (maxAge in middleware.ts + the session-mint route). Users stay signed
+  // in until they explicitly sign out or the cookie expires.
+  setPersistence(cachedAuth, browserLocalPersistence).catch((err) => {
     console.warn("[firebase] setPersistence failed", err);
   });
   return cachedAuth;

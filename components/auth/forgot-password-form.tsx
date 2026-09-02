@@ -30,8 +30,17 @@ export function ForgotPasswordForm() {
     }
     setError(null);
     startTransition(async () => {
-      await requestPasswordReset(trimmed);
-      setSent(true);
+      // Honour the result. The old code called this, ignored what it returned,
+      // and showed "Check your inbox" no matter what — so a genuinely broken
+      // send (provider down, mis-config) looked identical to success and the
+      // person waited for a mail that was never sent. An unregistered address
+      // still returns ok:true by design, so that case stays neutral.
+      const res = await requestPasswordReset(trimmed);
+      if (res.ok) {
+        setSent(true);
+      } else {
+        setError(res.error);
+      }
     });
   }
 
@@ -131,7 +140,7 @@ export function ForgotPasswordForm() {
             transition={{ duration: 0.42, delay: 0.22 }}
           >
             <AuthField
-              label="Work email"
+              label="Work Email"
               type="email"
               autoComplete="email"
               required
@@ -161,7 +170,7 @@ export function ForgotPasswordForm() {
             className="pt-1"
           >
             <AuthSubmit pending={isPending} pendingLabel="Sending link">
-              Send reset link
+              Send Reset Link
             </AuthSubmit>
           </motion.div>
 

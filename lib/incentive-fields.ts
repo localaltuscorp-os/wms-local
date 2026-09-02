@@ -10,7 +10,6 @@ import type { IncentiveType } from "@/db/enums";
 export type IncentiveFieldType =
   | "text"
   | "select"
-  | "product" // Product Name → MCQ buttons from the global product list
   | "date"
   | "number"
   | "textarea"
@@ -72,7 +71,7 @@ export const INCENTIVE_FIELDS: Record<IncentiveType, readonly IncentiveField[]> 
     { key: "organisation", label: "Organisation Name", type: "text", required: true },
     { key: "cell", label: "Cell No", type: "tel", required: true, placeholder: "+91 XXXXX XXXXX" },
     { key: "email", label: "Email", type: "email", required: true },
-    { key: "products", label: "Product Name", type: "product", required: true },
+    { key: "products", label: "Product Name(s)", type: "text", required: true },
     {
       key: "opportunity_type",
       label: "Opportunity Type",
@@ -128,7 +127,7 @@ export const INCENTIVE_FIELDS: Record<IncentiveType, readonly IncentiveField[]> 
     { key: "institution", label: "Institution / Group Name", type: "text", required: true },
     { key: "cell", label: "Cell No", type: "tel", required: true, placeholder: "+91 XXXXX XXXXX" },
     { key: "email", label: "Email", type: "email", required: true },
-    { key: "products", label: "Product Name", type: "product" },
+    { key: "products", label: "Product Name(s)", type: "text" },
     { key: "tentative_date", label: "Tentative Date", type: "date", required: true },
     { key: "approx_people", label: "Approx People", type: "number", required: true, placeholder: "e.g. 50" },
     { key: "notes", label: "Notes", type: "textarea" },
@@ -173,12 +172,20 @@ export function validateIncentiveDetails(
   return { ok: true, details: clean };
 }
 
-/** Stored details → ordered [label, value] pairs for display. */
+/** Stored details → ordered [label, value] pairs for display.
+ *
+ * Defensive: an UNKNOWN `type` (legacy / imported request whose type isn't one of
+ * the 4 current forms) or a null/non-object `details` must NOT throw — otherwise a
+ * single bad row crashes the whole requests list for ADMINS (who see everyone's
+ * requests, so they hit the bad row; a normal user seeing only their own valid
+ * requests never does). Unknown type → no field config → empty pairs. */
 export function incentiveDetailPairs(
   type: IncentiveType,
-  details: Record<string, string>,
+  details: Record<string, string> | null | undefined,
 ): [string, string][] {
-  return INCENTIVE_FIELDS[type]
-    .filter((f) => (details[f.key] ?? "") !== "")
-    .map((f) => [f.label, details[f.key] as string]);
+  const fields = INCENTIVE_FIELDS[type] ?? [];
+  const d = details && typeof details === "object" ? details : {};
+  return fields
+    .filter((f) => (d[f.key] ?? "") !== "")
+    .map((f) => [f.label, String(d[f.key])]);
 }

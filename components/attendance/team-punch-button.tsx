@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, X } from "lucide-react";
+import { Check, X, LogIn, LogOut } from "lucide-react";
 import { superAdminQuickPunch } from "@/app/(app)/attendance/actions";
 import { fireToast } from "@/lib/toast";
 
@@ -31,7 +31,9 @@ export function TeamPunchButton({
   const [time, setTime] = React.useState("");
   const [pending, startTransition] = React.useTransition();
 
-  const label = kind === "in" ? "Check in" : "Check out";
+  const label = kind === "in" ? "Check In" : "Check Out";
+  const Icon = kind === "in" ? LogIn : LogOut;
+  const accent = kind === "in" ? "#16a34a" : "var(--color-altus-red)";
 
   function begin() {
     setTime(nowInTz(tz));
@@ -62,16 +64,27 @@ export function TeamPunchButton({
       <button
         type="button"
         onClick={begin}
-        className="rounded-pill border px-2.5 py-1 text-[12.5px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong"
-        style={{ borderColor: "var(--color-hairline-strong)" }}
+        className="brand-btn wg-btn inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12.5px] font-bold transition-colors"
+        style={{
+          color: accent,
+          boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${accent} 35%, transparent)`,
+          background: `color-mix(in srgb, ${accent} 5%, transparent)`,
+        }}
       >
+        <Icon size={12} strokeWidth={2.6} aria-hidden />
         {label}
       </button>
     );
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span
+      className="inline-flex items-center gap-1.5 rounded-xl p-1"
+      style={{
+        background: "var(--color-surface-soft)",
+        boxShadow: "inset 0 0 0 1px var(--color-hairline)",
+      }}
+    >
       <input
         type="time"
         autoFocus
@@ -83,16 +96,19 @@ export function TeamPunchButton({
           if (e.key === "Escape") setOpen(false);
         }}
         aria-label={`${label} time for ${name}`}
-        className="rounded-md border px-2 py-1 text-[13px] tabular-nums bg-white"
-        style={{ borderColor: "var(--color-hairline-strong)" }}
+        className="rounded-lg border-0 bg-white px-2 py-1 text-[13px] font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-altus-red)]"
+        style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
       />
       <button
         type="button"
         onClick={submit}
         disabled={pending}
         aria-label={`Confirm ${label.toLowerCase()}`}
-        className="inline-flex size-7 items-center justify-center rounded-md text-white transition-transform active:scale-95 disabled:opacity-60"
-        style={{ background: "var(--color-altus-red)" }}
+        className="inline-flex size-7 items-center justify-center rounded-lg text-white transition-transform active:scale-95 disabled:opacity-60"
+        style={{
+          background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
+          boxShadow: "0 4px 10px -4px rgba(225,6,0,0.5)",
+        }}
       >
         <Check size={15} strokeWidth={2.6} />
       </button>
@@ -101,7 +117,7 @@ export function TeamPunchButton({
         onClick={() => setOpen(false)}
         disabled={pending}
         aria-label="Cancel"
-        className="inline-flex size-7 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-soft disabled:opacity-60"
+        className="inline-flex size-7 items-center justify-center rounded-lg text-ink-soft transition-colors hover:bg-white hover:text-ink-strong disabled:opacity-60"
       >
         <X size={15} strokeWidth={2.4} />
       </button>

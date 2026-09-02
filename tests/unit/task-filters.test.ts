@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { parseTaskFilters, taskFiltersToSearchString } from "@/lib/task-filters";
+import {
+  FINE_AGING_BUCKETS,
+  FINE_BUCKET_SLUGS,
+} from "@/lib/transforms/aging-buckets-fine";
 
 const ME = "33333333-3333-3333-3333-333333333333";
 
@@ -74,12 +78,19 @@ describe("parseTaskFilters", () => {
       clients: [],
       taskId: null,
       archived: false,
+      activityType: null,
+    overdue: false,
+    unread: false,
+    ageRange: null,
       assigneeMode: "all" as const,
+      teams: ["mine"],
+      viewerId: null,
     };
     const qs = taskFiltersToSearchString(orig);
     const round = parseTaskFilters(Object.fromEntries(new URLSearchParams(qs)), false);
     expect(round.statuses).toEqual(orig.statuses);
     expect(round.departments).toEqual(orig.departments);
+    expect(round.teams).toEqual(orig.teams);
     expect(round.priorities).toEqual(orig.priorities);
     expect(round.assigneeMode).toBe("all");
   });
@@ -154,5 +165,100 @@ describe("default date range", () => {
     const f = parseTaskFilters({ start: "2026-03-05", end: "2026-03-10" }, false);
     expect(f.startDate?.toISOString().slice(0, 10)).toBe("2026-03-05");
     expect(f.endDate?.toISOString().slice(0, 10)).toBe("2026-03-10");
+  });
+});
+
+describe("overdue param", () => {
+  it("parses ?overdue=true and its forgiving spellings", () => {
+    for (const v of ["true", "TRUE", "1", "yes"]) {
+      expect(parseTaskFilters({ overdue: v }, false).overdue).toBe(true);
+    }
+  });
+
+  it("is false when absent or not a truthy spelling", () => {
+    expect(parseTaskFilters({}, false).overdue).toBe(false);
+    expect(parseTaskFilters({ overdue: "false" }, false).overdue).toBe(false);
+    expect(parseTaskFilters({ overdue: "" }, false).overdue).toBe(false);
+  });
+
+  it("round-trips through taskFiltersToSearchString", () => {
+    const parsed = parseTaskFilters(
+      { emp: "e1", status: "not_approved", overdue: "true" },
+      false,
+    );
+    const qs = taskFiltersToSearchString(parsed);
+    const back = parseTaskFilters(Object.fromEntries(new URLSearchParams(qs)), false);
+    expect(back.overdue).toBe(true);
+    expect(back.statuses).toEqual(["not_approved"]);
+    expect(back.doerIds).toEqual(["e1"]);
+  });
+
+  it("drops the param entirely when false, so clean URLs stay clean", () => {
+    const qs = taskFiltersToSearchString(parseTaskFilters({}, false));
+    expect(qs).not.toContain("overdue");
+  });
+});
+
+describe("age_range param", () => {
+  it("parses every bucket slug back to its bucket key", () => {
+    for (const key of FINE_AGING_BUCKETS) {
+      const slug = FINE_BUCKET_SLUGS[key];
+      expect(parseTaskFilters({ age_range: slug }, false).ageRange).toBe(key);
+    }
+  });
+
+  it("resolves an unknown or absent slug to null rather than throwing", () => {
+    expect(parseTaskFilters({}, false).ageRange).toBeNull();
+    expect(parseTaskFilters({ age_range: "not_a_bucket" }, false).ageRange).toBeNull();
+    expect(parseTaskFilters({ age_range: "" }, false).ageRange).toBeNull();
+  });
+
+  it("round-trips the drill-through URL the chart emits", () => {
+    const parsed = parseTaskFilters(
+      { age_range: "22_plus", status: "not_approved" },
+      false,
+    );
+    expect(parsed.ageRange).toBe("22 or more days overdue");
+    expect(parsed.statuses).toEqual(["not_approved"]);
+
+    const qs = taskFiltersToSearchString(parsed);
+    expect(qs).toContain("age_range=22_plus");
+    const back = parseTaskFilters(Object.fromEntries(new URLSearchParams(qs)), false);
+    expect(back.ageRange).toBe(parsed.ageRange);
+    expect(back.statuses).toEqual(parsed.statuses);
+  });
+
+  it("omits the param when unset, so clean URLs stay clean", () => {
+    expect(taskFiltersToSearchString(parseTaskFilters({}, false))).not.toContain("age_range");
+  });
+});
+
+describe("team param", () => {
+  it("parses a single team and a comma-separated list", () => {
+    expect(parseTaskFilters({ team: "mine" }, false).teams).toEqual(["mine"]);
+    expect(parseTaskFilters({ team: "Sales,mine" }, false).teams).toEqual(["Sales", "mine"]);
+  });
+
+  it("accepts my_team as an alias for the canonical mine", () => {
+    expect(parseTaskFilters({ team: "my_team" }, false).teams).toEqual(["mine"]);
+    expect(parseTaskFilters({ team: "my_team,Sales" }, false).teams).toEqual(["mine", "Sales"]);
+  });
+
+  it("is empty when absent", () => {
+    expect(parseTaskFilters({}, false).teams).toEqual([]);
+  });
+
+  it("round-trips through taskFiltersToSearchString", () => {
+    const parsed = parseTaskFilters({ team: "mine,Sales" }, false);
+    const qs = taskFiltersToSearchString(parsed);
+    expect(qs).toContain("team=mine%2CSales");
+    expect(parseTaskFilters(Object.fromEntries(new URLSearchParams(qs)), false).teams).toEqual([
+      "mine",
+      "Sales",
+    ]);
+  });
+
+  it("omits the param when nothing is selected", () => {
+    expect(taskFiltersToSearchString(parseTaskFilters({}, false))).not.toContain("team=");
   });
 });

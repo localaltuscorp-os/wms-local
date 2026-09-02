@@ -1,6 +1,8 @@
+import { Package } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/current";
 import { listOutstandingProductsWithCounts } from "@/lib/queries/outstanding-rosters";
 import { OutstandingRosterList } from "@/components/admin/outstanding-roster-list";
+import { AdminSection } from "@/components/admin/ui/section-shell";
 import { createProduct, updateProduct } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -9,31 +11,20 @@ export default async function OutstandingProductsPage() {
   await requireAdmin();
   const rows = await listOutstandingProductsWithCounts();
   const activeCount = rows.filter((r) => r.isActive).length;
+  const inactiveCount = rows.length - activeCount;
 
   return (
-    <div>
-      <header className="mb-8">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-ink-subtle font-bold">
-          Admin · Outstanding
-        </div>
-        <h1
-          className="mt-1 text-ink-strong"
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontStyle: "italic",
-            fontWeight: 500,
-            fontSize: 44,
-            lineHeight: 1.05,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          Products
-        </h1>
-        <p className="text-body-lg text-ink-subtle mt-2 max-w-2xl tabular-nums">
-          {rows.length} total · {activeCount} active · Products offered on
-          outstanding contracts
-        </p>
-      </header>
+    <AdminSection
+      eyebrow="Admin · Outstanding"
+      title="Products"
+      subtitle="Products offered on outstanding contracts"
+      icon={Package}
+      stats={[
+        { label: "Total", value: rows.length },
+        { label: "Active", value: activeCount, tone: "green" },
+        { label: "Inactive", value: inactiveCount, tone: "amber" },
+      ]}
+    >
       <OutstandingRosterList
         title="Products"
         items={rows}
@@ -41,6 +32,6 @@ export default async function OutstandingProductsPage() {
         updateAction={updateProduct}
         usageLabel="contracts"
       />
-    </div>
+    </AdminSection>
   );
 }

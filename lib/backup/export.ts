@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 
 /**
@@ -39,6 +39,46 @@ function cell(value: unknown): string {
   return String(value);
 }
 
+/**
+ * SYSTEM-ACCOUNT EXCLUSION (Sir, 2026-08) — the nightly backup mirrors every
+ * table into a Google Sheet other people can open, so a row hidden inside the
+ * app would still show up there, once per night, for years.
+ *
+ * `employees` is filtered on account_type directly; every other table is
+ * filtered on whichever actor/subject columns it actually has, discovered from
+ * information_schema rather than hardcoded, so a new table inherits this.
+ * Compared as ::text so a column of an unexpected type can never throw.
+ *
+ * MUST be applied identically in dumpTable AND countRows — the shard maths
+ * divides the count into pages, so a mismatch would silently drop real rows.
+ */
+const SYSTEM_REF_COLUMNS = [
+  "actor_id",
+  "employee_id",
+  "doer_id",
+  "initiator_id",
+  "created_by_id",
+  "target_employee_id",
+] as const;
+
+const SYSTEM_IDS = sql`SELECT id::text FROM employees WHERE account_type = 'system'`;
+
+async function systemExclusion(table: string): Promise<SQL> {
+  if (table === "employees") {
+    return sql` WHERE account_type IS DISTINCT FROM 'system'`;
+  }
+  const cols = await columnNames(table);
+  const refs = SYSTEM_REF_COLUMNS.filter((c) => cols.includes(c));
+  if (refs.length === 0) return sql``;
+  let clause: SQL = sql``;
+  refs.forEach((c, i) => {
+    const col = sql.raw(`"${c}"`);
+    const arm = sql`(${col} IS NULL OR ${col}::text NOT IN (${SYSTEM_IDS}))`;
+    clause = i === 0 ? sql` WHERE ${arm}` : sql`${clause} AND ${arm}`;
+  });
+  return clause;
+}
+
 /** Dump one table to headers + stringified rows. `limit`/`offset` page large
  *  tables for sharding; omit for a full dump. */
 export async function dumpTable(
@@ -53,8 +93,9 @@ export async function dumpTable(
       ? sql` LIMIT ${opts.limit} OFFSET ${opts.offset ?? 0}`
       : sql``;
 
+  const notSystem = await systemExclusion(table);
   const rows = (await db.execute(
-    sql`SELECT * FROM ${ident} ORDER BY 1${pageArm}`,
+    sql`SELECT * FROM ${ident}${notSystem} ORDER BY 1${pageArm}`,
   )) as unknown as Array<Record<string, unknown>>;
 
   const headers = rows.length > 0 ? Object.keys(rows[0]!) : await columnNames(table);
@@ -75,8 +116,9 @@ async function columnNames(table: string): Promise<string[]> {
 /** Row count for a table (cheap; used to decide sharding before dumping). */
 export async function countRows(table: string): Promise<number> {
   const ident = sql.raw(`"${table.replace(/"/g, '""')}"`);
+  const notSystem = await systemExclusion(table);
   const [row] = (await db.execute(
-    sql`SELECT count(*)::int AS n FROM ${ident}`,
+    sql`SELECT count(*)::int AS n FROM ${ident}${notSystem}`,
   )) as unknown as Array<{ n: number }>;
   return row?.n ?? 0;
 }

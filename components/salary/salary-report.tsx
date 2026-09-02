@@ -4,9 +4,9 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
-import { Download, FileText, Sparkles } from "lucide-react";
+import { Download, FileText, Sparkles, Users } from "lucide-react";
 import { fireToast } from "@/lib/toast";
-import { generateSalary, setDisbursed } from "@/app/(app)/salary/actions";
+import { generateSalary, generateSalaryAll, setDisbursed } from "@/app/(app)/salary/actions";
 import type { SalaryRunRow } from "@/lib/queries/salary";
 
 interface Props {
@@ -24,6 +24,8 @@ const days = (n: number) =>
 export function SalaryReport({ month, monthLabel, rows }: Props) {
   const router = useRouter();
   const [generating, startGenerate] = useTransition();
+  const [generatingAll, startGenerateAll] = useTransition();
+  const busy = generating || generatingAll;
 
   function onMonthChange(next: string) {
     if (!next) return;
@@ -40,6 +42,27 @@ export function SalaryReport({ month, monthLabel, rows }: Props) {
       fireToast({
         message: `Generated ${res.generated} salary ${res.generated === 1 ? "run" : "runs"} for ${monthLabel}.`,
       });
+      router.refresh();
+    });
+  }
+
+  function onGenerateAll() {
+    if (
+      !window.confirm(
+        `Generate salary runs for ALL salaried employees for ${monthLabel}?\n\nEmployees who already have a run for this month are skipped (existing runs are never overwritten).`,
+      )
+    ) {
+      return;
+    }
+    startGenerateAll(async () => {
+      const res = await generateSalaryAll({ month });
+      if (!res.ok) {
+        fireToast({ message: res.error });
+        return;
+      }
+      const bits = [`${res.created} created`, `${res.skipped} skipped`];
+      if (res.failed > 0) bits.push(`${res.failed} failed`);
+      fireToast({ message: `${monthLabel}: ${bits.join(" · ")}.` });
       router.refresh();
     });
   }
@@ -90,8 +113,19 @@ export function SalaryReport({ month, monthLabel, rows }: Props) {
           </Link>
           <button
             type="button"
+            onClick={onGenerateAll}
+            disabled={busy}
+            title="Create runs for every salaried employee; skips anyone already run this month"
+            className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface-card py-2.5 px-4 text-[14px] font-medium text-ink-strong hover:border-hairline-strong transition-colors disabled:opacity-50"
+          >
+            <Users size={15} strokeWidth={2.2} />
+            {generatingAll ? "Generating all…" : "Generate for All"}
+          </button>
+          <button
+            type="button"
             onClick={onGenerate}
-            disabled={generating}
+            disabled={busy}
+            title="Recompute & overwrite every run for this month (preserves disbursed flags)"
             className="inline-flex items-center gap-1.5 rounded-md py-2.5 px-5 text-[14px] font-medium text-white disabled:opacity-50"
             style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
           >
@@ -103,7 +137,7 @@ export function SalaryReport({ month, monthLabel, rows }: Props) {
 
       {rows.length === 0 ? (
         <div
-          className="rounded-section border border-dashed border-hairline-strong bg-surface-card px-6 py-14 text-center"
+          className="rounded-section border border-solid border-hairline-strong bg-surface-card px-6 py-14 text-center"
           style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
         >
           <p
@@ -245,7 +279,7 @@ function SalaryRow({ row, rowIndex }: { row: SalaryRunRow; rowIndex: number }) {
           aria-label={row.disbursed ? "Mark not disbursed" : "Mark disbursed"}
           className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50"
           style={{
-            background: row.disbursed ? "var(--color-green)" : "rgba(15, 23, 42, 0.15)",
+            background: row.disbursed ? "var(--color-altus-red)" : "rgba(15, 23, 42, 0.15)",
           }}
         >
           <span
@@ -258,7 +292,7 @@ function SalaryRow({ row, rowIndex }: { row: SalaryRunRow; rowIndex: number }) {
         <Link
           href={`/salary/payslip/${row.id}` as Route}
           prefetch={false}
-          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-[13px] font-medium text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-colors whitespace-nowrap"
+          className="bg-surface-card inline-flex items-center justify-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-[13px] font-medium text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-colors whitespace-nowrap"
         >
           <FileText size={14} strokeWidth={2.2} />
           Payslip

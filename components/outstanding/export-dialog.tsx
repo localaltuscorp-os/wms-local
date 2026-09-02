@@ -207,10 +207,10 @@ export function OutstandingExportDialog({
           <button
             type="button"
             onClick={onCsvCollections}
-            className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#64748B] hover:text-altus-red transition-colors"
+            className="bg-surface-card mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#64748B] hover:text-altus-red transition-colors"
           >
             <ClipboardCopy size={14} strokeWidth={2.2} />
-            Also export Collections as CSV
+            Also Export Collections as CSV
           </button>
 
           <div className="mt-6 border-t border-[#E2E8F0] pt-5">
@@ -248,7 +248,7 @@ export function OutstandingExportDialog({
             <Dialog.Close asChild>
               <button
                 type="button"
-                className="px-4 py-2 text-[14px] font-medium text-[#64748B]"
+                className="bg-surface-card px-4 py-2 text-[14px] font-medium text-[#64748B]"
               >
                 Close
               </button>

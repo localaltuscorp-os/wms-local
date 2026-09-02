@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { patchIdentity } from "@/app/(app)/profile/actions";
 import { fireToast } from "@/lib/toast";
 
@@ -47,6 +47,64 @@ export function AvailabilityPill({ initial, size = "md" }: Props) {
   const [value, setValue] = useState<Availability>(initial);
   const [open, setOpen] = useState(false);
   const [, startTransition] = useTransition();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listboxRef = useRef<HTMLDivElement>(null);
+
+  // On open, move focus to the selected option. On close, restore to trigger.
+  useEffect(() => {
+    if (open) {
+      const optionEls = listboxRef.current?.querySelectorAll<HTMLButtonElement>(
+        '[role="option"]',
+      );
+      const selectedIdx = ORDER.indexOf(value);
+      optionEls?.[selectedIdx >= 0 ? selectedIdx : 0]?.focus();
+    } else {
+      triggerRef.current?.focus();
+    }
+    // Only react to open/close; value is the selection at open time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  function onListKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      return;
+    }
+    if (
+      e.key !== "ArrowDown" &&
+      e.key !== "ArrowUp" &&
+      e.key !== "Home" &&
+      e.key !== "End"
+    ) {
+      return;
+    }
+    e.preventDefault();
+    const optionEls = listboxRef.current?.querySelectorAll<HTMLButtonElement>(
+      '[role="option"]',
+    );
+    if (!optionEls || optionEls.length === 0) return;
+    const count = optionEls.length;
+    const current = document.activeElement;
+    let idx = -1;
+    for (let i = 0; i < count; i++) {
+      if (optionEls[i] === current) {
+        idx = i;
+        break;
+      }
+    }
+    let nextIdx: number;
+    if (e.key === "Home") {
+      nextIdx = 0;
+    } else if (e.key === "End") {
+      nextIdx = count - 1;
+    } else if (e.key === "ArrowDown") {
+      nextIdx = idx < 0 ? 0 : (idx + 1) % count;
+    } else {
+      nextIdx = idx < 0 ? count - 1 : (idx - 1 + count) % count;
+    }
+    optionEls[nextIdx]?.focus();
+  }
 
   const pres = PRESENTATION[value];
   const pad = size === "sm" ? "6px 10px" : "8px 14px";
@@ -72,6 +130,7 @@ export function AvailabilityPill({ initial, size = "md" }: Props) {
   return (
     <div style={{ position: "relative", display: "inline-block" }}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
@@ -130,7 +189,9 @@ export function AvailabilityPill({ initial, size = "md" }: Props) {
             }}
           />
           <div
+            ref={listboxRef}
             role="listbox"
+            onKeyDown={onListKeyDown}
             style={{
               position: "absolute",
               top: "calc(100% + 6px)",

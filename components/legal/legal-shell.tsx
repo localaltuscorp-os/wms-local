@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { ArrowLeft } from "lucide-react";
+import { formatDate } from "@/lib/format";
 
 interface Props {
   eyebrow: string;
@@ -19,11 +20,7 @@ interface Props {
  * directly from the login form footer or share the URL with peers.
  */
 export function LegalShell({ eyebrow, title, lastUpdated, intro, children }: Props) {
-  const formatted = new Date(lastUpdated).toLocaleDateString("en-IN", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const formatted = formatDate(lastUpdated);
 
   return (
     <div className="min-h-screen bg-[var(--color-canvas-base)]">
@@ -68,7 +65,7 @@ export function LegalShell({ eyebrow, title, lastUpdated, intro, children }: Pro
             className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-ink-soft hover:text-ink-strong transition-colors"
           >
             <ArrowLeft size={15} strokeWidth={2.2} />
-            Back to sign in
+            Back to Sign In
           </Link>
         </div>
       </header>

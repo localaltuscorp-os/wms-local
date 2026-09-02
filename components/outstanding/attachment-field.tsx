@@ -65,7 +65,7 @@ export function AttachmentField({
             setDragging(false);
             pick(e.dataTransfer.files);
           }}
-          className={`flex w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed px-3.5 py-6 text-center transition-colors ${
+          className={`flex w-full flex-col items-center justify-center gap-1 rounded-md border border-solid px-3.5 py-6 text-center transition-colors ${
             dragging
               ? "border-[#E10600] bg-[#FEF2F2]"
               : "border-[#CBD5E1] bg-[#F8FAFC] hover:border-[#94A3B8]"

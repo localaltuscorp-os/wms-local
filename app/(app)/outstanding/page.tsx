@@ -1,5 +1,4 @@
 import { DashboardHeader } from "@/components/layout/header";
-import { DashboardFooter } from "@/components/layout/footer";
 import { OutstandingFormDialog } from "@/components/outstanding/outstanding-form-dialog";
 import { CollectionFormDialog } from "@/components/outstanding/collection-form-dialog";
 import { OutstandingFilterBar } from "@/components/outstanding/dashboard/filter-bar";
@@ -17,7 +16,7 @@ import { OutstandingImportDialog } from "@/components/outstanding/import-dialog"
 import Link from "next/link";
 import type { Route } from "next";
 import { Settings2 } from "lucide-react";
-import { requireUser, getCurrentEmployee } from "@/lib/auth/current";
+import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { todayISO, rollingHorizon } from "@/lib/outstanding/horizon";
 import { parseOutstandingFilters } from "@/lib/outstanding/filters";
 import { loadOutstandingDashboard } from "@/lib/queries/outstanding";
@@ -30,6 +29,7 @@ import {
 import { listActiveClientNames } from "@/lib/queries/clients";
 import { listEmployeeOptions } from "@/lib/queries/employees";
 import { OUTSTANDING_CYCLES, OUTSTANDING_CYCLE_LABELS } from "@/db/enums";
+import { PageShell } from "@/components/layout/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -44,9 +44,10 @@ const CYCLE_OPTIONS = OUTSTANDING_CYCLES.map((c) => ({
 
 export default async function OutstandingPage({ searchParams }: PageProps) {
   const sp = await searchParams;
-  await requireUser();
-  const me = await getCurrentEmployee();
-  const isAdmin = me?.isAdmin ?? false;
+  // Sales room — gate the data here too, not just in the (app) layout (which a
+  // route handler / direct hit can bypass). Bounces non-Sales users to /hub.
+  const me = await requireWorkspace("sales");
+  const isAdmin = me.isAdmin;
 
   const today = todayISO();
   const horizon = rollingHorizon(today);
@@ -88,7 +89,7 @@ export default async function OutstandingPage({ searchParams }: PageProps) {
     return (
       <>
         <DashboardHeader generatedAt={new Date()} />
-        <main className="mx-auto max-w-[1600px] px-12 max-md:px-4 pt-8 pb-16">
+        <PageShell width="full">
           <div
             className="bg-surface-card rounded-section border border-hairline p-10 text-center"
             style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
@@ -106,8 +107,7 @@ export default async function OutstandingPage({ searchParams }: PageProps) {
               Please refresh in a moment. If it keeps failing, contact support.
             </p>
           </div>
-        </main>
-        <DashboardFooter />
+        </PageShell>
       </>
     );
   }
@@ -121,7 +121,7 @@ export default async function OutstandingPage({ searchParams }: PageProps) {
         modes={modes}
         cycles={CYCLE_OPTIONS}
       />
-      <main className="outstanding-print-root mx-auto max-w-[1600px] px-12 max-md:px-4 pt-8 pb-16">
+      <PageShell width="full" className="outstanding-print-root">
         <header className="mb-7 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1
@@ -150,7 +150,7 @@ export default async function OutstandingPage({ searchParams }: PageProps) {
                 className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface-card py-2.5 px-4 text-[14px] font-medium text-ink-strong hover:border-hairline-strong transition-colors"
               >
                 <Settings2 size={15} strokeWidth={2.2} />
-                Manage contracts
+                Manage Contracts
               </Link>
             )}
             {isAdmin && <OutstandingImportDialog />}
@@ -203,8 +203,7 @@ export default async function OutstandingPage({ searchParams }: PageProps) {
         <CollectionOverview collections={dashboard.collections} />
 
         <CollectionEntriesTable rows={collectionEntries} />
-      </main>
-      <DashboardFooter />
+      </PageShell>
     </>
   );
 }

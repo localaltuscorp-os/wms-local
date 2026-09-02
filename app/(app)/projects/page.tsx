@@ -1,9 +1,9 @@
 import { DashboardHeader } from "@/components/layout/header";
-import { DashboardFooter } from "@/components/layout/footer";
 import { ProjectsWorkspace } from "@/components/projects/projects-workspace";
 import { listProjectTree } from "@/lib/queries/projects";
 import { listEmployeeOptions } from "@/lib/queries/employees";
 import { requireUser } from "@/lib/auth/current";
+import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +16,18 @@ function firstString(v: string | string[] | undefined): string | undefined {
 }
 
 export default async function ProjectsPage({ searchParams }: PageProps) {
-  await requireUser();
+  const me = await requireUser();
   const sp = await searchParams;
   const requested = firstString(sp.p);
-  const [tree, employees] = await Promise.all([
+  const [tree, employees, downline] = await Promise.all([
     listProjectTree(),
     listEmployeeOptions(),
+    getDownlineIds(me.id),
   ]);
+
+  // Only an admin OR a manager (≥1 direct/indirect report) may manage project
+  // structure; everyone else is a "plain doer" who can only add results/actions.
+  const canManage = me.isAdmin || downline.length > 0;
 
   // Pick the active project: ?p= wins if it resolves; otherwise first project.
   // The workspace's rail uses <Link> with ?p=<id>, so selection survives
@@ -40,9 +45,9 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
           projects={tree}
           activeId={activeId}
           employees={employees}
+          canManage={canManage}
         />
       </main>
-      <DashboardFooter />
     </>
   );
 }

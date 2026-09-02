@@ -75,20 +75,20 @@ export function InviteEmployeeDialog({
             boxShadow: "0 4px 14px rgba(225, 6, 0, 0.32)",
           }}
         >
-          + Invite employee
+          + Invite Employee
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
-            Invite employee
+            Invite Employee
           </Dialog.Title>
           <Dialog.Description className="text-[15px] text-[#64748B] mb-4">
             They'll receive an email to set their password.
           </Dialog.Description>
           <form onSubmit={onSubmit} className="space-y-4">
-            <Field label="Full name">
+            <Field label="Full Name">
               <input
                 required
                 value={name}
@@ -96,7 +96,7 @@ export function InviteEmployeeDialog({
                 className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
               />
             </Field>
-            <Field label="Work email">
+            <Field label="Work Email">
               <input
                 required
                 type="email"
@@ -105,7 +105,7 @@ export function InviteEmployeeDialog({
                 className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
               />
             </Field>
-            <Field label="Task role">
+            <Field label="Task Role">
               <Select
                 value={role}
                 onValueChange={(v) => setRole(v as "doer" | "initiator" | "both")}
@@ -141,7 +141,7 @@ export function InviteEmployeeDialog({
             {error && <div className="text-[14px] text-[#A80400]">{error}</div>}
             <div className="flex justify-end gap-2 pt-2">
               <Dialog.Close asChild>
-                <button type="button" className="px-4 py-2.5 text-[14px] font-medium text-[#64748B]">
+                <button type="button" className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]">
                   Cancel
                 </button>
               </Dialog.Close>
@@ -155,7 +155,7 @@ export function InviteEmployeeDialog({
                   boxShadow: "0 4px 14px rgba(225, 6, 0, 0.32)",
                 }}
               >
-                {pending ? "Sending…" : "Send invite"}
+                {pending ? "Sending…" : "Send Invite"}
               </button>
             </div>
           </form>

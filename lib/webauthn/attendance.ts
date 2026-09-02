@@ -36,7 +36,10 @@ async function setChallenge(challenge: string): Promise<void> {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 300,
+    // 15 min (was 5): the punch flow does a slow GPS + biometric handoff on
+    // phones, and the 5-min challenge was expiring mid-punch ("authentication
+    // stuck" / only works in the foreground). G4 fix.
+    maxAge: 900,
   });
 }
 
@@ -139,10 +142,11 @@ export async function mintPunchOptions(employeeId: string) {
   const options = await generateAuthenticationOptions({
     rpID,
     userVerification: "required",
-    allowCredentials: creds.map((c) => ({
-      id: c.credentialId,
-      transports: parseTransports(c.transports),
-    })),
+    // Intentionally omit `transports` — they're only hints, and stale/incomplete
+    // values (older enrollments stored "internal" only) make Android refuse to
+    // offer a now-synced passkey, surfacing as NotAllowedError. Letting the
+    // browser reach the credential by ID over any transport is more reliable.
+    allowCredentials: creds.map((c) => ({ id: c.credentialId })),
   });
   await setChallenge(options.challenge);
   return options;
@@ -173,7 +177,13 @@ export async function verifyPunchAssertion(
       credential: {
         id: cred.credentialId,
         publicKey: new Uint8Array(Buffer.from(cred.publicKey, "base64url")),
-        counter: cred.counter,
+        // Pass counter 0 so the signature-counter regression check is always
+        // skipped. Synced passkeys (esp. Google Password Manager on Android)
+        // are multi-device and report signCount = 0 / non-monotonic values, so
+        // enforcing a monotonic counter rejects legitimate punches with
+        // "counter value lower than expected". Counters are obsolete for
+        // passkeys — UV + the per-device binding are what gate anti-proxy.
+        counter: 0,
         transports: parseTransports(cred.transports),
       },
     });
@@ -183,12 +193,10 @@ export async function verifyPunchAssertion(
   if (!verification.verified) {
     return { ok: false, error: "Biometric verification failed." };
   }
+  // Don't persist newCounter (kept at 0) — see the counter:0 note above.
   await db
     .update(webauthnCredentials)
-    .set({
-      counter: verification.authenticationInfo.newCounter,
-      lastUsedAt: sql`now()`,
-    })
+    .set({ lastUsedAt: sql`now()` })
     .where(eq(webauthnCredentials.id, cred.id));
   return { ok: true, credentialId: cred.credentialId };
 }

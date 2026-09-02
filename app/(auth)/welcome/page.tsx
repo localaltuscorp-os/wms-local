@@ -2,6 +2,12 @@ import { redirect } from "next/navigation";
 import type { Route } from "next";
 import { readSession } from "@/lib/auth/session";
 
+// Never static: this page reads the session cookie directly (and the root
+// layout does too), so Next bails it out to dynamic rendering regardless.
+// Declaring it skips the pointless static probe at build time — and the
+// DYNAMIC_SERVER_USAGE stack trace that probe logs.
+export const dynamic = "force-dynamic";
+
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }

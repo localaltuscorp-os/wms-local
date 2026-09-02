@@ -18,7 +18,7 @@ export function scorePassword(pw: string): Tier {
   if (/\d/.test(pw) && /[^A-Za-z0-9]/.test(pw)) s += 1;
 
   const tiers: ReadonlyArray<Tier> = [
-    { score: 0, label: "Too short", color: "var(--color-altus-red)", hint: "At least 8 characters." },
+    { score: 0, label: "Too Short", color: "var(--color-altus-red)", hint: "At least 8 characters." },
     { score: 1, label: "Weak", color: "var(--color-altus-red)", hint: "Add length or a mix of cases." },
     { score: 2, label: "OK", color: "var(--color-amber)", hint: "Sprinkle in a number or symbol." },
     { score: 3, label: "Good", color: "var(--color-green)", hint: "Nice and sturdy." },

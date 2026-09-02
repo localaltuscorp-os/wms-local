@@ -26,7 +26,7 @@ describe("outstanding enums", () => {
     // outstanding-enums-iter2.test.ts for the updated rosters).
     expect(SEED_ENTITIES).toContain("Altus Corp");
     expect(SEED_PRODUCTS).toContain("BSS");
-    expect(SEED_PAYMENT_MODES).toContain("Cash");
+    expect(SEED_PAYMENT_MODES).toContain("IGV");
   });
   it("installment states", () => {
     // iter-2 added due_soon.

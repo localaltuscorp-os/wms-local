@@ -1,6 +1,7 @@
 "use client";
 import { CircleDot } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { FilterPill, summarizeSelection } from "./filter-pill";
 
 // Status options carry the admin-overridable human labels (resolved on the
 // server), so unlike Priority/Department this filter takes its options as a
@@ -15,15 +16,19 @@ export function StatusFilter({
   onChange: (v: string[]) => void;
 }) {
   return (
-    <div className="filter-chip">
-      <CircleDot size={16} className="text-ink-subtle" strokeWidth={2} />
-      <MultiSelect
-        options={options}
-        selected={selected}
-        onChange={onChange}
-        placeholder="All Status"
-        className="min-w-[6.5rem] !text-[14px]"
-      />
-    </div>
+    <MultiSelect
+      options={options}
+      selected={selected}
+      onChange={onChange}
+      renderTrigger={({ selectedLabels }) => (
+        <FilterPill
+          icon={<CircleDot size={16} strokeWidth={2} />}
+          name="Doer Status"
+          value={summarizeSelection(selectedLabels, "All Statuses")}
+          tint="#16a34a"
+          active={selected.length > 0}
+        />
+      )}
+    />
   );
 }

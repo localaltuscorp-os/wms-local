@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive-icon foreground: the Altus red triangle mark (logo-mark.png),
+     centred at 62dp so it stays inside the 66dp safe zone of the 108dp canvas. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="62dp"
+        android:height="62dp"
+        android:gravity="center"
+        android:drawable="@drawable/ic_launcher_logo" />
+</layer-list>

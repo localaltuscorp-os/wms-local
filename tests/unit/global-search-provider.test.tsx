@@ -27,9 +27,14 @@ describe("GlobalSearch (header, always rendered)", () => {
     ).not.toThrow();
   });
 
-  it("regression guard: throws 'No QueryClient' when no provider is in scope", () => {
+  // GlobalSearch used to call `useQuery`, so rendering it outside a
+  // QueryClientProvider threw in prod — the old guard here asserted that throw.
+  // It now drives `globalSearchAction` directly with local state and holds no
+  // React Query dependency, so the invariant worth pinning is the inverse: the
+  // header search must render standalone, with no provider in scope.
+  it("renders with no QueryClient provider in scope (no React Query dependency)", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() => render(<GlobalSearch />)).toThrow(/QueryClient/);
+    expect(() => render(<GlobalSearch />)).not.toThrow();
     spy.mockRestore();
   });
 });

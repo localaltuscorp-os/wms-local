@@ -71,6 +71,59 @@ export async function listMyAttendance(
   return foldByDay(rows);
 }
 
+/**
+ * Has this employee already clocked IN on `ymd`?
+ *
+ * Used by the Attendance page lock as proof the day was legitimately started.
+ * A check-in row can only exist if the clock-in gate passed (Start My Day +
+ * MIN_ATTENDANCE_ITEMS), so it is a durable record of that — unlike
+ * `daily_plan_day.started_at`, which `reopenPlan` sets back to NULL.
+ *
+ * That distinction is the whole point: re-opening your plan to change tasks
+ * mid-day must NOT take the attendance page away from someone already clocked
+ * in, or they cannot reach the button to clock out. Clocking OUT still requires
+ * "Finish Day" — this only governs whether the page opens.
+ */
+export async function hasCheckedInOn(employeeId: string, ymd: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: attendanceLogs.id })
+    .from(attendanceLogs)
+    .where(
+      and(
+        eq(attendanceLogs.employeeId, employeeId),
+        eq(attendanceLogs.logDate, ymd),
+        eq(attendanceLogs.kind, "in"),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
+/**
+ * Sibling of {@link hasCheckedInOn} for the check-OUT row: has this employee
+ * already clocked out on `ymd`?
+ *
+ * Used by the close-out gate in `punchAttendance` to answer "is there anything
+ * left to gate?". Someone who is already checked out has nothing to finish and
+ * must NOT be bounced to the planner again — the duplicate punch is refused
+ * downstream with a plain "You already checked out today.", which is the honest
+ * message for that state. Read-only; callers fail-open.
+ */
+export async function hasCheckedOutOn(employeeId: string, ymd: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: attendanceLogs.id })
+    .from(attendanceLogs)
+    .where(
+      and(
+        eq(attendanceLogs.employeeId, employeeId),
+        eq(attendanceLogs.logDate, ymd),
+        eq(attendanceLogs.kind, "out"),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
 export interface TeamAttendanceRow {
   employeeId: string;
   name: string;

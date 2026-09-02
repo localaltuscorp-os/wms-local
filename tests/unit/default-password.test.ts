@@ -1,17 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_INVITE_PASSWORD } from "@/lib/auth/default-password";
+import { generateInvitePassword } from "@/lib/auth/default-password";
 
-describe("DEFAULT_INVITE_PASSWORD", () => {
+describe("generateInvitePassword", () => {
   it("satisfies Firebase's minimum length (>= 6)", () => {
-    expect(DEFAULT_INVITE_PASSWORD.length).toBeGreaterThanOrEqual(6);
+    expect(generateInvitePassword().length).toBeGreaterThanOrEqual(6);
   });
 
-  it("contains at least one letter and one digit", () => {
-    expect(DEFAULT_INVITE_PASSWORD).toMatch(/[A-Za-z]/);
-    expect(DEFAULT_INVITE_PASSWORD).toMatch(/[0-9]/);
+  it("contains an upper, lower, digit and symbol (strength)", () => {
+    const pw = generateInvitePassword();
+    expect(pw).toMatch(/[A-Z]/);
+    expect(pw).toMatch(/[a-z]/);
+    expect(pw).toMatch(/[0-9]/);
+    expect(pw).toMatch(/[^A-Za-z0-9]/);
   });
 
-  it("is exactly the agreed default", () => {
-    expect(DEFAULT_INVITE_PASSWORD).toBe("Wms@123");
+  it("avoids ambiguous characters (0/O/1/l/I)", () => {
+    expect(generateInvitePassword()).not.toMatch(/[0O1lI]/);
+  });
+
+  it("is random — two calls don't collide", () => {
+    expect(generateInvitePassword()).not.toBe(generateInvitePassword());
   });
 });

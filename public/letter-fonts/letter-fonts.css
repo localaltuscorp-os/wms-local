@@ -1,0 +1,105 @@
+@font-face{font-family:"Merriweather";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/merriweather-400.woff2") format("woff2");}
+@font-face{font-family:"Merriweather";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/merriweather-700.woff2") format("woff2");}
+@font-face{font-family:"Lora";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/lora-400.woff2") format("woff2");}
+@font-face{font-family:"Lora";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/lora-700.woff2") format("woff2");}
+@font-face{font-family:"PT Serif";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/pt-serif-400.woff2") format("woff2");}
+@font-face{font-family:"PT Serif";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/pt-serif-700.woff2") format("woff2");}
+@font-face{font-family:"Source Serif 4";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/source-serif-400.woff2") format("woff2");}
+@font-face{font-family:"Source Serif 4";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/source-serif-700.woff2") format("woff2");}
+@font-face{font-family:"Playfair Display";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/playfair-display-400.woff2") format("woff2");}
+@font-face{font-family:"Playfair Display";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/playfair-display-700.woff2") format("woff2");}
+@font-face{font-family:"EB Garamond";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/eb-garamond-400.woff2") format("woff2");}
+@font-face{font-family:"EB Garamond";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/eb-garamond-700.woff2") format("woff2");}
+@font-face{font-family:"Cormorant Garamond";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/cormorant-400.woff2") format("woff2");}
+@font-face{font-family:"Cormorant Garamond";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/cormorant-700.woff2") format("woff2");}
+@font-face{font-family:"Libre Baskerville";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/libre-baskerville-400.woff2") format("woff2");}
+@font-face{font-family:"Libre Baskerville";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/libre-baskerville-700.woff2") format("woff2");}
+@font-face{font-family:"Crimson Text";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/crimson-text-400.woff2") format("woff2");}
+@font-face{font-family:"Crimson Text";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/crimson-text-700.woff2") format("woff2");}
+@font-face{font-family:"Noto Serif";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/noto-serif-400.woff2") format("woff2");}
+@font-face{font-family:"Noto Serif";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/noto-serif-700.woff2") format("woff2");}
+@font-face{font-family:"Bitter";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/bitter-400.woff2") format("woff2");}
+@font-face{font-family:"Bitter";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/bitter-700.woff2") format("woff2");}
+@font-face{font-family:"Spectral";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/spectral-400.woff2") format("woff2");}
+@font-face{font-family:"Spectral";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/spectral-700.woff2") format("woff2");}
+@font-face{font-family:"Roboto Slab";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/roboto-slab-400.woff2") format("woff2");}
+@font-face{font-family:"Roboto Slab";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/roboto-slab-700.woff2") format("woff2");}
+@font-face{font-family:"Domine";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/domine-400.woff2") format("woff2");}
+@font-face{font-family:"Domine";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/domine-700.woff2") format("woff2");}
+@font-face{font-family:"Cardo";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/cardo-400.woff2") format("woff2");}
+@font-face{font-family:"Cardo";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/cardo-700.woff2") format("woff2");}
+@font-face{font-family:"Alegreya";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/alegreya-400.woff2") format("woff2");}
+@font-face{font-family:"Alegreya";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/alegreya-700.woff2") format("woff2");}
+@font-face{font-family:"Vollkorn";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/vollkorn-400.woff2") format("woff2");}
+@font-face{font-family:"Vollkorn";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/vollkorn-700.woff2") format("woff2");}
+@font-face{font-family:"Frank Ruhl Libre";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/frank-ruhl-400.woff2") format("woff2");}
+@font-face{font-family:"Frank Ruhl Libre";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/frank-ruhl-700.woff2") format("woff2");}
+@font-face{font-family:"Roboto";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/roboto-400.woff2") format("woff2");}
+@font-face{font-family:"Roboto";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/roboto-700.woff2") format("woff2");}
+@font-face{font-family:"Open Sans";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/open-sans-400.woff2") format("woff2");}
+@font-face{font-family:"Open Sans";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/open-sans-700.woff2") format("woff2");}
+@font-face{font-family:"Lato";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/lato-400.woff2") format("woff2");}
+@font-face{font-family:"Lato";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/lato-700.woff2") format("woff2");}
+@font-face{font-family:"Montserrat";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/montserrat-400.woff2") format("woff2");}
+@font-face{font-family:"Montserrat";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/montserrat-700.woff2") format("woff2");}
+@font-face{font-family:"Poppins";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/poppins-400.woff2") format("woff2");}
+@font-face{font-family:"Poppins";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/poppins-700.woff2") format("woff2");}
+@font-face{font-family:"Inter";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/inter-400.woff2") format("woff2");}
+@font-face{font-family:"Inter";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/inter-700.woff2") format("woff2");}
+@font-face{font-family:"Nunito";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/nunito-400.woff2") format("woff2");}
+@font-face{font-family:"Nunito";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/nunito-700.woff2") format("woff2");}
+@font-face{font-family:"Nunito Sans";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/nunito-sans-400.woff2") format("woff2");}
+@font-face{font-family:"Nunito Sans";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/nunito-sans-700.woff2") format("woff2");}
+@font-face{font-family:"Work Sans";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/work-sans-400.woff2") format("woff2");}
+@font-face{font-family:"Work Sans";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/work-sans-700.woff2") format("woff2");}
+@font-face{font-family:"Raleway";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/raleway-400.woff2") format("woff2");}
+@font-face{font-family:"Raleway";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/raleway-700.woff2") format("woff2");}
+@font-face{font-family:"Source Sans 3";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/source-sans-400.woff2") format("woff2");}
+@font-face{font-family:"Source Sans 3";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/source-sans-700.woff2") format("woff2");}
+@font-face{font-family:"Mulish";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/mulish-400.woff2") format("woff2");}
+@font-face{font-family:"Mulish";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/mulish-700.woff2") format("woff2");}
+@font-face{font-family:"Rubik";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/rubik-400.woff2") format("woff2");}
+@font-face{font-family:"Rubik";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/rubik-700.woff2") format("woff2");}
+@font-face{font-family:"Karla";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/karla-400.woff2") format("woff2");}
+@font-face{font-family:"Karla";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/karla-700.woff2") format("woff2");}
+@font-face{font-family:"DM Sans";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/dm-sans-400.woff2") format("woff2");}
+@font-face{font-family:"DM Sans";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/dm-sans-700.woff2") format("woff2");}
+@font-face{font-family:"Manrope";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/manrope-400.woff2") format("woff2");}
+@font-face{font-family:"Manrope";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/manrope-700.woff2") format("woff2");}
+@font-face{font-family:"Josefin Sans";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/josefin-sans-400.woff2") format("woff2");}
+@font-face{font-family:"Josefin Sans";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/josefin-sans-700.woff2") format("woff2");}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/barlow-400.woff2") format("woff2");}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/barlow-700.woff2") format("woff2");}
+@font-face{font-family:"Fira Sans";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/fira-sans-400.woff2") format("woff2");}
+@font-face{font-family:"Fira Sans";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/fira-sans-700.woff2") format("woff2");}
+@font-face{font-family:"PT Sans";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/pt-sans-400.woff2") format("woff2");}
+@font-face{font-family:"PT Sans";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/pt-sans-700.woff2") format("woff2");}
+@font-face{font-family:"Cabin";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/cabin-400.woff2") format("woff2");}
+@font-face{font-family:"Cabin";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/cabin-700.woff2") format("woff2");}
+@font-face{font-family:"Oswald";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/oswald-400.woff2") format("woff2");}
+@font-face{font-family:"Oswald";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/oswald-700.woff2") format("woff2");}
+@font-face{font-family:"Titillium Web";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/titillium-400.woff2") format("woff2");}
+@font-face{font-family:"Titillium Web";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/titillium-700.woff2") format("woff2");}
+@font-face{font-family:"Quicksand";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/quicksand-400.woff2") format("woff2");}
+@font-face{font-family:"Quicksand";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/quicksand-700.woff2") format("woff2");}
+@font-face{font-family:"Roboto Mono";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/roboto-mono-400.woff2") format("woff2");}
+@font-face{font-family:"Roboto Mono";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/roboto-mono-700.woff2") format("woff2");}
+@font-face{font-family:"JetBrains Mono";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/jetbrains-mono-400.woff2") format("woff2");}
+@font-face{font-family:"JetBrains Mono";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/jetbrains-mono-700.woff2") format("woff2");}
+@font-face{font-family:"Source Code Pro";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/source-code-400.woff2") format("woff2");}
+@font-face{font-family:"Source Code Pro";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/source-code-700.woff2") format("woff2");}
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/ibm-plex-mono-400.woff2") format("woff2");}
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/ibm-plex-mono-700.woff2") format("woff2");}
+@font-face{font-family:"Space Mono";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/space-mono-400.woff2") format("woff2");}
+@font-face{font-family:"Space Mono";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/space-mono-700.woff2") format("woff2");}
+@font-face{font-family:"Inconsolata";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/inconsolata-400.woff2") format("woff2");}
+@font-face{font-family:"Inconsolata";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/inconsolata-700.woff2") format("woff2");}
+@font-face{font-family:"Dancing Script";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/dancing-script-400.woff2") format("woff2");}
+@font-face{font-family:"Dancing Script";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/dancing-script-700.woff2") format("woff2");}
+@font-face{font-family:"Caveat";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/caveat-400.woff2") format("woff2");}
+@font-face{font-family:"Caveat";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/caveat-700.woff2") format("woff2");}
+@font-face{font-family:"Pacifico";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/pacifico-400.woff2") format("woff2");}
+@font-face{font-family:"Lobster";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/lobster-400.woff2") format("woff2");}
+@font-face{font-family:"Comfortaa";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/comfortaa-400.woff2") format("woff2");}
+@font-face{font-family:"Comfortaa";font-style:normal;font-weight:700;font-display:swap;src:url("/letter-fonts/comfortaa-700.woff2") format("woff2");}
+@font-face{font-family:"Abril Fatface";font-style:normal;font-weight:400;font-display:swap;src:url("/letter-fonts/abril-fatface-400.woff2") format("woff2");}

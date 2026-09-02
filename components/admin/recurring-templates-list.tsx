@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { Repeat, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
+import { formatDate } from "@/lib/format";
 import type { RecurringTemplateRow } from "@/lib/queries/recurring-templates";
 
 interface Props {
@@ -18,7 +19,7 @@ export function RecurringTemplatesList({ rows }: Props) {
   return (
     <section className="mt-10 max-w-5xl">
       <header className="mb-4">
-        <h3 className="text-display-xs">Recurring task templates</h3>
+        <h3 className="text-display-xs">Recurring Task Templates</h3>
         <p className="text-body text-ink-subtle mt-1">
           Templates whose schedule rule spawns child instances daily at 02:00 UTC.
           Disable a template by clearing its recurrence in the task editor.
@@ -26,7 +27,7 @@ export function RecurringTemplatesList({ rows }: Props) {
       </header>
       {rows.length === 0 ? (
         <div
-          className="rounded-section border border-dashed border-hairline-strong bg-surface-card px-5 py-8 text-center text-[14px] text-ink-subtle"
+          className="rounded-section border border-solid border-hairline-strong bg-surface-card px-5 py-8 text-center text-[14px] text-ink-subtle"
         >
           No active recurring templates.
         </div>
@@ -73,7 +74,7 @@ export function RecurringTemplatesList({ rows }: Props) {
                     {r.childCount}
                   </td>
                   <td className="px-4 py-3 text-ink-subtle tabular-nums">
-                    {r.nextChildDueAt ? format(r.nextChildDueAt, "d MMM, EEE") : "—"}
+                    {r.nextChildDueAt ? `${formatDate(r.nextChildDueAt)}, ${format(r.nextChildDueAt, "EEE")}` : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link

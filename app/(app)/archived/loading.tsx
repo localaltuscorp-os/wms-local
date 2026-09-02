@@ -1,6 +1,12 @@
-import TasksLoading from "../tasks/loading";
+import { BufferingState } from "@/components/ui/spinner";
 
-// /archived shares the same chrome as /tasks (filter bar + KPI strip +
-// table), so we re-export the same skeleton instead of duplicating the
-// markup. Keeps the two routes visually consistent during navigation.
-export default TasksLoading;
+/** Lightweight centered spinner — replaced the old skeleton placeholders, which
+ *  rendered heavy animated DOM on every navigation. A plain spinner is cheap and
+ *  gives instant loading feedback without the lag. */
+export default function Loading() {
+  return (
+    <div className="flex min-h-[70vh] w-full items-center justify-center">
+      <BufferingState label="Loading…" />
+    </div>
+  );
+}

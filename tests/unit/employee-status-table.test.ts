@@ -54,7 +54,54 @@ describe("computeEmployeeStatusTable (by doer)", () => {
     );
     const ankit = rows.find((r) => r.employeeName === "Ankit Sharma");
     const priya = rows.find((r) => r.employeeName === "Priya Iyer");
-    expect(ankit?.department).toBe("Operations");
-    expect(priya?.department).toBe("Underwriting");
+    expect(ankit?.departments).toEqual(["Operations"]);
+    expect(priya?.departments).toEqual(["Underwriting"]);
+  });
+
+  // Regression: a multi-department person used to get one row PER department,
+  // each counting ALL their tasks — so they appeared N times and every metric
+  // column was inflated N×. The suite missed it because every other test here
+  // omits `departmentMap`, which takes the single-department fallback path.
+  describe("multi-department employees", () => {
+    const ankitId = fixtureEmployees.find((e) => e.name === "Ankit Sharma")!.id;
+    const departmentMap = new Map([
+      [
+        ankitId,
+        [{ name: "Operations" }, { name: "Apps" }, { name: "Founder Office" }],
+      ],
+    ]);
+
+    it("emits exactly ONE row per person regardless of department count", () => {
+      const rows = computeEmployeeStatusTable(
+        fixtureTasks,
+        fixtureEmployees,
+        "doer",
+        departmentMap,
+      );
+      const ankitRows = rows.filter((r) => r.employeeId === ankitId);
+      expect(ankitRows).toHaveLength(1);
+      expect(ankitRows[0]!.departments).toEqual([
+        "Operations",
+        "Apps",
+        "Founder Office",
+      ]);
+    });
+
+    it("counts each task once — totals are not multiplied by department count", () => {
+      const rows = computeEmployeeStatusTable(
+        fixtureTasks,
+        fixtureEmployees,
+        "doer",
+        departmentMap,
+      );
+      // Same figures as the no-map case: 3 departments must not treble them.
+      expect(rows.find((r) => r.employeeId === ankitId)).toMatchObject({
+        done: 5,
+        approved: 2,
+        total: 8,
+      });
+      // And the table as a whole still accounts for every fixture task exactly once.
+      expect(rows.reduce((s, r) => s + r.total, 0)).toBe(fixtureTasks.length);
+    });
   });
 });

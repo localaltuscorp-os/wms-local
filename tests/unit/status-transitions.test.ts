@@ -63,10 +63,18 @@ describe("nextStatusesFor — pending → done", () => {
 });
 
 describe("nextStatusesFor — done → approved | not_approved", () => {
-  it("initiator can approve OR decline a done task", () => {
+  // Two-stage approval (mig 0185): approval verdicts are NO LONGER reachable
+  // through the generic status matrix. They are decided only by
+  // decideTaskApproval, which enforces "a manager accepts their report's work,
+  // and only the founder gives final sign-off". A plain initiator who is neither
+  // a manager nor an admin can no longer approve at all.
+  it("initiator can no longer approve/decline from the status matrix", () => {
     const next = nextStatusesFor("done", "initiator");
-    expect(next).toContain("approved");
-    expect(next).toContain("not_approved");
+    expect(next).not.toContain("approved");
+    expect(next).not.toContain("not_approved");
+    // They can still abandon the work.
+    expect(next).toContain("cancelled");
+    expect(next).toContain("transferred");
   });
 
   it("doer cannot approve their own work", () => {
@@ -75,10 +83,13 @@ describe("nextStatusesFor — done → approved | not_approved", () => {
     expect(next).not.toContain("not_approved");
   });
 
-  it("admin can approve OR decline", () => {
+  it("admin cannot approve/decline via the status matrix either", () => {
+    // The admin override still allows every OTHER status, but dragging a card
+    // straight to Approved would skip the two-stage rule entirely.
     const next = nextStatusesFor("done", "admin");
-    expect(next).toContain("approved");
-    expect(next).toContain("not_approved");
+    expect(next).not.toContain("approved");
+    expect(next).not.toContain("not_approved");
+    expect(next).toContain("on_hold");
   });
 
   it("not_approved → any pending status is allowed for doer (rework)", () => {

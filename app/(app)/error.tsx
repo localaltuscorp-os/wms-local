@@ -1,6 +1,8 @@
 "use client";
 
+import * as React from "react";
 import { RefreshCw } from "lucide-react";
+import { isForbiddenError } from "@/lib/auth/forbidden";
 
 /**
  * Scoped error boundary for the whole authenticated app shell.
@@ -22,9 +24,22 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  // Admin-only guards throw "Forbidden" — let the root boundary render its
-  // dedicated 403 screen for that instead of a generic retry card.
-  if (error.message === "Forbidden") throw error;
+  // Permission refusals are NOT faults — re-throw so the root boundary renders
+  // its dedicated 403 screen instead of the retry card below, which blames the
+  // database. Matched on DIGEST, not message: Next redacts server error messages
+  // in production, so the old `message === "Forbidden"` test passed in dev and
+  // quietly failed in prod, sending people to hunt a database problem that was
+  // really a locked door. See lib/auth/forbidden.ts.
+  if (isForbiddenError(error)) throw error;
+
+  // Surface the real error somewhere a human can reach it. This card shows only
+  // a digest, and in production Next REDACTS server error messages before they
+  // reach the client — so without this the only copy of the message is the
+  // server log, and nothing on screen tells you to go looking. In dev the
+  // message comes through intact and this prints it straight to the console.
+  React.useEffect(() => {
+    console.error("[app error boundary]", error.digest ?? "(no digest)", error);
+  }, [error]);
 
   return (
     <main className="mx-auto max-w-[720px] px-8 max-md:px-4 mt-16 mb-24">

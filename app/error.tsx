@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { isForbiddenError } from "@/lib/auth/forbidden";
 import { Button } from "@/components/ui/button";
 
 export default function ErrorBoundary({
@@ -10,7 +11,8 @@ export default function ErrorBoundary({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const isForbidden = error.message === "Forbidden";
+  // Digest, not message — production redacts the message. See lib/auth/forbidden.ts.
+  const isForbidden = isForbiddenError(error);
 
   const eyebrow = isForbidden ? "403" : "Something went wrong";
   const headline = isForbidden ? "Admin only." : "We hit a snag.";
@@ -67,7 +69,7 @@ export default function ErrorBoundary({
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
           <Link
-            href="/"
+            href="/dashboard"
             className="text-cta text-white px-6 py-3 rounded-chip inline-flex items-center gap-2"
             style={{
               background:

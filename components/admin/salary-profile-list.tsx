@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { IndianRupee, Pencil, Trash2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
+import { EmployeeAvatar } from "@/components/ui/employee-avatar";
+import { DataTable } from "@/components/admin/ui/data-table";
 import {
   addAdvance,
   deleteAdvance,
@@ -12,6 +14,7 @@ import {
 } from "@/app/(admin)/admin/salary-profiles/actions";
 import type { SalaryAdvanceRow, SalaryProfileRow } from "@/lib/queries/salary";
 import { monthLabel } from "@/lib/salary/period";
+import { payBasisFor, WORKER_TYPE_LABELS } from "@/lib/attendance/worker-type";
 import {
   SalaryProfileDialog,
   type RosterOption,
@@ -39,97 +42,177 @@ export function SalaryProfileList({
   const [editing, setEditing] = useState<SalaryProfileRow | null>(null);
   const [advancesFor, setAdvancesFor] = useState<SalaryProfileRow | null>(null);
 
-  if (rows.length === 0) {
-    return (
-      <div
-        className="rounded-section border border-dashed border-hairline-strong bg-surface-card px-6 py-14 text-center"
-        style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
-      >
-        <p
-          className="font-serif text-ink-strong"
-          style={{ fontStyle: "italic", fontSize: 22, letterSpacing: "-0.015em" }}
-        >
-          No active employees
-        </p>
-      </div>
-    );
-  }
-
   return (
     <>
-      <div
-        className="overflow-x-auto rounded-section border border-hairline bg-surface-card"
-        style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
-      >
-        <table className="w-full text-[15px]">
-          <thead>
-            <tr
-              className="text-left text-[12px] uppercase tracking-[0.08em] text-ink-subtle font-bold border-b border-hairline"
-              style={{ background: "var(--color-surface-soft)" }}
-            >
-              <th className="px-5 py-4">Employee</th>
-              <th className="px-5 py-4">Designation</th>
-              <th className="px-5 py-4">Entity</th>
-              <th className="px-5 py-4 text-right tabular-nums">Annual CTC</th>
-              <th className="px-5 py-4 text-right tabular-nums">Monthly TDS</th>
-              <th className="px-5 py-4 text-center">PT-exempt</th>
-              <th className="px-5 py-4">Probation end</th>
-              <th className="px-5 py-4 text-right">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr
-                key={r.employeeId}
-                className="border-b border-hairline last:border-b-0 transition-colors hover:bg-surface-soft"
-                style={{ background: i % 2 === 1 ? "rgba(15, 23, 42, 0.012)" : undefined }}
-              >
-                <td className="px-5 py-4">
-                  <div className="text-ink-strong font-medium">{r.name}</div>
-                  <div className="text-[12px] text-ink-subtle">{r.email}</div>
-                </td>
-                <td className="px-5 py-4 text-ink-soft">{r.designationName ?? "—"}</td>
-                <td className="px-5 py-4 text-ink-soft">{r.payingEntityName ?? "—"}</td>
-                <td className="px-5 py-4 text-right tabular-nums text-ink-strong">
-                  {r.annualCtc > 0 ? `₹${inr(r.annualCtc)}` : "—"}
-                </td>
-                <td className="px-5 py-4 text-right tabular-nums text-ink-soft">
-                  {r.tdsMonthly > 0 ? `₹${inr(r.tdsMonthly)}` : "—"}
-                </td>
-                <td className="px-5 py-4 text-center text-ink-soft">
-                  {r.ptExempt ? "✓" : "—"}
-                </td>
-                <td className="px-5 py-4 text-ink-soft tabular-nums">
-                  {r.probationEnd ?? "—"}
-                </td>
-                <td className="px-5 py-4">
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setAdvancesFor(r)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-2 text-[13px] font-medium text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-colors"
-                    >
-                      <IndianRupee size={14} strokeWidth={2.2} />
-                      Advances
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Edit ${r.name}`}
-                      onClick={() => setEditing(r)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-2 text-[13px] font-medium text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-colors"
-                    >
-                      <Pencil size={14} strokeWidth={2.2} />
-                      Edit
-                    </button>
+      <DataTable<SalaryProfileRow>
+        rows={rows}
+        getRowKey={(r) => r.employeeId}
+        searchText={(r) =>
+          `${r.name} ${r.email} ${r.designationName ?? ""} ${r.payingEntityName ?? ""}`
+        }
+        searchPlaceholder="Search by name, email, designation, or entity"
+        initialSort={{ key: "employee", dir: "asc" }}
+        filters={[
+          {
+            label: "Designation",
+            options: designations.map((d) => ({ value: d.name, label: d.name })),
+            match: (r, v) => r.designationName === v,
+          },
+          {
+            label: "Entity",
+            options: entities.map((e) => ({ value: e.name, label: e.name })),
+            match: (r, v) => r.payingEntityName === v,
+          },
+          {
+            label: "CTC",
+            options: [
+              { value: "set", label: "CTC set" },
+              { value: "unset", label: "No CTC" },
+            ],
+            match: (r, v) => (v === "set" ? r.annualCtc > 0 : r.annualCtc <= 0),
+          },
+        ]}
+        columns={[
+          {
+            key: "employee",
+            label: "Employee",
+            sortValue: (r) => r.name,
+            render: (r) => (
+              <div className="flex items-center gap-3 min-w-0">
+                <EmployeeAvatar name={r.name} size="md" />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-ink-strong font-semibold truncate">{r.name}</span>
+                    {r.workerType !== "full_time" && (
+                      <span className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium tabular-nums"
+                        style={{
+                          borderColor: "color-mix(in srgb, var(--color-altus-red) 22%, transparent)",
+                          background: "color-mix(in srgb, var(--color-altus-red) 8%, transparent)",
+                          color: "var(--color-altus-red-deep)",
+                        }}>
+                        {WORKER_TYPE_LABELS[r.workerType]}
+                      </span>
+                    )}
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  <div className="text-[12px] text-ink-subtle truncate">{r.email}</div>
+                </div>
+              </div>
+            ),
+          },
+          {
+            key: "designation",
+            label: "Designation",
+            sortValue: (r) => r.designationName ?? "",
+            render: (r) => (
+              <span className="text-ink-soft">{r.designationName ?? "—"}</span>
+            ),
+          },
+          {
+            key: "entity",
+            label: "Entity",
+            sortValue: (r) => r.payingEntityName ?? "",
+            render: (r) => (
+              <span className="text-ink-soft">{r.payingEntityName ?? "—"}</span>
+            ),
+          },
+          {
+            key: "ctc",
+            label: "Pay",
+            align: "right",
+            sortValue: (r) => {
+              const b = payBasisFor(r.workerType);
+              return b === "hourly" ? r.monthlyPayAtTarget * 12 : b === "fixed_fee" ? r.monthlyFee * 12 : r.annualCtc;
+            },
+            render: (r) => {
+              const b = payBasisFor(r.workerType);
+              if (b === "hourly") {
+                return (
+                  <span className="tabular-nums text-ink-strong font-medium">
+                    ₹{inr(r.monthlyPayAtTarget)}
+                    <span className="text-[11px] text-ink-subtle font-normal"> /mo cap</span>
+                  </span>
+                );
+              }
+              if (b === "fixed_fee") {
+                return (
+                  <span className="tabular-nums text-ink-strong font-medium">
+                    {r.monthlyFee > 0 ? <>₹{inr(r.monthlyFee)}<span className="text-[11px] text-ink-subtle font-normal"> /mo fee</span></> : "—"}
+                  </span>
+                );
+              }
+              return (
+                <span className="tabular-nums text-ink-strong font-medium">
+                  {r.annualCtc > 0 ? `₹${inr(r.annualCtc)}` : "—"}
+                </span>
+              );
+            },
+          },
+          {
+            key: "tds",
+            label: "Monthly TDS",
+            align: "right",
+            sortValue: (r) => r.tdsMonthly,
+            render: (r) => (
+              <span className="tabular-nums text-ink-soft">
+                {r.tdsMonthly > 0 ? `₹${inr(r.tdsMonthly)}` : "—"}
+              </span>
+            ),
+          },
+          {
+            key: "ptExempt",
+            label: "PT-exempt",
+            align: "right",
+            sortValue: (r) => (r.ptExempt ? 0 : 1),
+            render: (r) => (
+              <span className="text-ink-soft">{r.ptExempt ? "✓" : "—"}</span>
+            ),
+          },
+          {
+            key: "probation",
+            label: "Probation End",
+            sortValue: (r) => r.probationEnd ?? "",
+            render: (r) => (
+              <span className="text-ink-soft tabular-nums">
+                {r.probationEnd ?? "—"}
+              </span>
+            ),
+          },
+        ]}
+        rowActions={(r) => (
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setAdvancesFor(r)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-2 text-[13px] font-medium text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-colors"
+            >
+              <IndianRupee size={14} strokeWidth={2.2} />
+              Advances
+            </button>
+            <button
+              type="button"
+              aria-label={`Edit ${r.name}`}
+              onClick={() => setEditing(r)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-2 text-[13px] font-medium text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-colors"
+            >
+              <Pencil size={14} strokeWidth={2.2} />
+              Edit
+            </button>
+          </div>
+        )}
+        emptyState={
+          <p
+            className="text-ink-strong"
+            style={{
+              fontFamily: "var(--font-serif), system-ui, sans-serif",
+              fontStyle: "italic",
+              fontSize: 22,
+              letterSpacing: "-0.015em",
+            }}
+          >
+            No active employees
+          </p>
+        }
+      />
 
       <SalaryProfileDialog
         row={editing}
@@ -342,7 +425,7 @@ function AdvancesDialog({
                   className="rounded-md py-2.5 px-5 text-[14px] font-medium text-white disabled:opacity-50"
                   style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
                 >
-                  {pending ? "Saving…" : "Add advance"}
+                  {pending ? "Saving…" : "Add Advance"}
                 </button>
               </div>
             </form>

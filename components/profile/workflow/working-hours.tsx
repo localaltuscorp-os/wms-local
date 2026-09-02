@@ -84,7 +84,7 @@ export function WorkingHours({ initial }: Props) {
       }}
     >
       <SectionHeader
-        title="Working hours"
+        title="Working Hours"
         description="Used for due-time defaults, quiet-hours math, and digest delivery. Notifications outside these hours respect your quiet-hours setting."
         savedAt={showSaved ? savedAt : null}
       />

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
-import { getCurrentEmployee } from "@/lib/auth/current";
+import { getCurrentEmployee, isCandidateAccount } from "@/lib/auth/current";
 import { exchangeCode, fetchGoogleEmail } from "@/lib/google/calendar";
 import { backfillDoerCalendar } from "@/lib/google/sync";
 
@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
 
   const me = await getCurrentEmployee();
   if (!me) return NextResponse.redirect(`${origin}/login`);
+  if (isCandidateAccount(me)) return NextResponse.redirect(`${origin}/candidate/form`);
 
   const jar = await cookies();
   const expected = jar.get("g_oauth_state")?.value;

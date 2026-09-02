@@ -1,9 +1,44 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Upload, Loader2, FileSpreadsheet, X } from "lucide-react";
+import { Upload, Loader2, FileSpreadsheet, X, Download } from "lucide-react";
 import { importWeeklyGoals } from "@/app/(app)/weekly-goals/actions";
+
+// Columns the importer recognises (order is just for the sample file). Plain
+// "Target" maps to the goal text; the redesign fields (Target Date/Notes)
+// are recognised too. An Employee column lets admins fan rows across people.
+const TEMPLATE_HEADERS = [
+  "Client", "Subject", "Priority", "Target Date", "Incentive", "KPI",
+  "Target", "% Done", "Explanation", "Notes", "Link", "Employee",
+];
+const TEMPLATE_EXAMPLE = [
+  "Acme Corp", "Onboarding", "Important", "2026-06-20", "Yes", "Yes",
+  "Ship v2 portal & train the client team", "0", "", "Kickoff is Monday",
+  "https://docs.example.com/plan", "ananya@altuscorp.com",
+];
+
+function csvCell(v: string): string {
+  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+/** Build + download a ready-to-fill CSV template (opens cleanly in Excel /
+ *  Google Sheets). Client-side only — no server round-trip. */
+function downloadTemplate(): void {
+  const rows = [TEMPLATE_HEADERS, TEMPLATE_EXAMPLE];
+  const csv = rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
+  // Leading BOM so Excel reads UTF-8 correctly.
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "Weekly-Goals-Template.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 interface Props {
   /** The team member rows import into; "" / "all" means "use the file's Employee column". */
@@ -60,15 +95,15 @@ export function WeeklyGoalsImport(props: Props) {
           setError(null);
           setResult(null);
         }}
-        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[14.5px] font-bold border border-hairline bg-surface-card text-ink-strong transition-all hover:brightness-95 active:scale-[0.98]"
+        className="inline-flex h-7 shrink-0 items-center gap-1 px-2 rounded-pill text-[11px] font-bold border border-hairline bg-surface-card text-ink-soft transition-all hover:border-hairline-strong hover:text-ink-strong active:scale-[0.98]"
       >
-        <Upload size={16} strokeWidth={2.4} />
-        Import file
+        <Upload size={11} strokeWidth={2.4} />
+        Bulk Upload
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
           onClick={() => !pending && setOpen(false)}
         >
           <div
@@ -101,9 +136,18 @@ export function WeeklyGoalsImport(props: Props) {
                 Recognised headers
               </p>
               <p className="mt-1 text-[13px] font-semibold text-ink-soft">
-                Client · Subject · Priority · Incentive · KPI · Target · % Done · Explanation · Link
+                Client · Subject · Priority · Target Date · Incentive · KPI · Target ·
+                % Done · Explanation · Notes · Link
                 {props.isAdmin && " · Employee (name or email)"}
               </p>
+              <button
+                type="button"
+                onClick={downloadTemplate}
+                className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-hairline bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-all hover:brightness-95 active:scale-[0.98]"
+              >
+                <Download size={14} strokeWidth={2.4} />
+                Download template (.csv)
+              </button>
             </div>
 
             {needsEmployeeColumn && (
@@ -164,7 +208,8 @@ export function WeeklyGoalsImport(props: Props) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

@@ -5,6 +5,7 @@ import { Info, Clock, Globe, Lock, ShieldCheck, MapPin, LocateFixed } from "luci
 import { fireToast } from "@/lib/toast";
 import { updateOrgSettings } from "@/app/(admin)/admin/settings/actions";
 import type { OrgSettings } from "@/db/schema";
+import { formatDate, localDateString } from "@/lib/format";
 
 const DAYS = [
   { value: 1, label: "Mon" },
@@ -162,15 +163,12 @@ export function SettingsForm({ current }: Props) {
   // a hydration mismatch that re-rendered (and could wipe) the whole form.
   const updatedAtLabel =
     current.updatedAt instanceof Date && current.updatedAt.getTime() > 0
-      ? new Intl.DateTimeFormat("en-IN", {
+      ? `${formatDate(localDateString("Asia/Kolkata", current.updatedAt))}, ${new Intl.DateTimeFormat("en-IN", {
           timeZone: "Asia/Kolkata",
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
           hour: "2-digit",
           minute: "2-digit",
           hour12: true,
-        }).format(current.updatedAt)
+        }).format(current.updatedAt)}`
       : "never";
 
   return (
@@ -184,7 +182,7 @@ export function SettingsForm({ current }: Props) {
           title="Identity"
           icon={<ShieldCheck size={14} strokeWidth={2.2} />}
         >
-          <Field label="Company name">
+          <Field label="Company Name">
             <Input
               required
               value={companyName}
@@ -211,7 +209,7 @@ export function SettingsForm({ current }: Props) {
           icon={<Clock size={14} strokeWidth={2.2} />}
         >
           <Field
-            label="Digest hour (IST)"
+            label="Digest Hour (IST)"
             hint="Hour of day (0–23 IST) when the overdue digest is intended to fire. The Vercel cron schedule lives in vercel.json — change this value here AND there if you want a different time."
           >
             <Input
@@ -224,7 +222,7 @@ export function SettingsForm({ current }: Props) {
             />
           </Field>
           <Field
-            label="Auto sign-out after (minutes idle)"
+            label="Auto Sign-Out After (minutes idle)"
             hint="Users get a 30-second warning before sign-out. 5–60 minutes."
           >
             <Input
@@ -238,7 +236,7 @@ export function SettingsForm({ current }: Props) {
             />
           </Field>
           <Field
-            label="Working days"
+            label="Working Days"
             hint="Days when the digest fires. Weekend days unchecked = no digest on those days."
           >
             <div className="flex flex-wrap gap-2">
@@ -294,7 +292,7 @@ export function SettingsForm({ current }: Props) {
           icon={<MapPin size={14} strokeWidth={2.2} />}
         >
           <Field
-            label="Office location"
+            label="Office Location"
             hint="Punches only register within the radius of this point. Leave both blank to accept punches from anywhere. Tip: stand at the office entrance and tap the locate button."
           >
             <div className="flex items-center gap-2 flex-wrap">
@@ -330,7 +328,7 @@ export function SettingsForm({ current }: Props) {
             </div>
           </Field>
           <Field
-            label="Allowed radius (metres)"
+            label="Allowed Radius (metres)"
             hint="How far from the office point a punch is accepted. 100m recommended — GPS itself wobbles 10–30m."
           >
             <Input
@@ -415,7 +413,7 @@ export function SettingsForm({ current }: Props) {
                 letterSpacing: "-0.015em",
               }}
             >
-              Org-wide knobs
+              Org-Wide Knobs
             </h3>
             <p className="mt-2 text-[14px] text-ink-soft" style={{ lineHeight: 1.6 }}>
               Identity values show up in transactional emails and the
@@ -441,7 +439,7 @@ export function SettingsForm({ current }: Props) {
               onClick={resetDefaults}
               className="mt-3 text-[13px] font-semibold text-altus-red hover:underline underline-offset-2"
             >
-              Reset to current values
+              Reset to Current Values
             </button>
           </section>
         </div>

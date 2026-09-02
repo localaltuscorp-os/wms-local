@@ -172,7 +172,7 @@ const IdentityPatchSchema = z
       .optional(),
     availabilityAutoRevertAt: z.coerce.date().nullable().optional(),
     // theme intentionally omitted — Altus dashboard is light-only.
-    density: z.enum(["cozy", "compact"]).optional(),
+    density: z.enum(["cozy", "compact", "dense"]).optional(),
     accent: z
       .string()
       .trim()

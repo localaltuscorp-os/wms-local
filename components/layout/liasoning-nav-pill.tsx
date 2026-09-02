@@ -203,7 +203,7 @@ function LiasoningCard({
       <span className="liasoning-card-label">{link.label}</span>
       <span className="liasoning-card-desc">{link.description}</span>
       <span className="liasoning-card-footer">
-        <span className="liasoning-card-cta">Open in new tab</span>
+        <span className="liasoning-card-cta">Open in New Tab</span>
         <ExternalLink
           size={16}
           className="liasoning-card-arrow"

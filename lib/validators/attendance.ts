@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PUNCH_REASONS } from "@/db/enums";
+import { PUNCH_REASONS, WORKER_TYPES } from "@/db/enums";
 
 // Pure (DB-free) zod schemas for the admin punch-management actions
 // (Attendance Phase A, Task A4). Kept out of the "use server" action file so
@@ -58,6 +58,17 @@ const scheduleOverrideField = z
   .union([timeField, z.literal(""), z.null()])
   .optional();
 
+// Worker-type + pay fields ride along on the schedule save. Minutes are ints
+// (nullable → clears the override); money/hours are non-negative numbers stored
+// on salary_profiles (nullable). All optional so an older caller that only sends
+// the schedule keeps working.
+const minutesField = z
+  .union([z.number().int().nonnegative(), z.null()])
+  .optional();
+const moneyField = z
+  .union([z.number().nonnegative(), z.null()])
+  .optional();
+
 export const UpdateEmployeeSchedule = z
   .object({
     employeeId: z.string().uuid(),
@@ -66,6 +77,16 @@ export const UpdateEmployeeSchedule = z
     attLateAfter: scheduleOverrideField,
     attOfficialEnd: scheduleOverrideField,
     attEarlyBefore: scheduleOverrideField,
+    // Worker classification (drives pay basis + attendance grading downstream).
+    workerType: z.enum(WORKER_TYPES).optional(),
+    // employees.* minute overrides.
+    attFullDayMinutes: minutesField,
+    attHalfDayMinutes: minutesField,
+    weeklyTargetMinutes: minutesField,
+    // salary_profiles.* pay rates.
+    monthlyPayAtTarget: moneyField,
+    weeklyTargetHours: moneyField,
+    monthlyFee: moneyField,
   })
   .strict();
 export type UpdateEmployeeScheduleInput = z.infer<typeof UpdateEmployeeSchedule>;

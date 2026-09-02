@@ -1,15 +1,17 @@
 import { describe, it, expect } from "vitest";
 import {
   computeKpiTotals,
-  computeStatusDistribution,
 } from "@/lib/transforms/status-counts";
-import { fixtureTasks } from "../fixtures/tasks";
+import { fixtureTasks, task } from "../fixtures/tasks";
 
 describe("computeKpiTotals", () => {
   it("breaks Pending umbrella into pending (initiated+follow_up), notStarted, needHelp", () => {
     const totals = computeKpiTotals(fixtureTasks);
     expect(totals).toEqual({
-      total: 16,
+      // 16 fixture rows MINUS the cancelled one and the transferred one.
+      // Those used to count toward Total while appearing on no card, which is
+      // why the five status cards summed short of the Total card.
+      total: 14,
       pending: 2,       // 1 initiated + 1 follow_up
       notStarted: 0,    // fixture has none currently
       needHelp: 1,
@@ -17,19 +19,43 @@ describe("computeKpiTotals", () => {
       notApproved: 1,
     });
   });
-});
 
-describe("computeStatusDistribution", () => {
-  it("counts sum to total tasks", () => {
-    const dist = computeStatusDistribution(fixtureTasks);
-    const total = dist.reduce((s, d) => s + d.count, 0);
-    expect(total).toBe(fixtureTasks.length);
+  // The bug the whole kpi-buckets module exists to stop coming back.
+  it("keeps Total equal to the sum of the five status cards", () => {
+    const t = computeKpiTotals(fixtureTasks);
+    expect(t.pending + t.notStarted + t.needHelp + t.done + t.notApproved).toBe(
+      t.total,
+    );
   });
 
-  it("includes done=8, approved=2, cancelled=1", () => {
-    const dist = computeStatusDistribution(fixtureTasks);
-    expect(dist).toContainEqual({ status: "done", count: 8 });
-    expect(dist).toContainEqual({ status: "approved", count: 2 });
-    expect(dist).toContainEqual({ status: "cancelled", count: 1 });
+  it("lets the approval verdict override the doer's status", () => {
+    const rows = [
+      // Doer says done, admin sent it back — this is NOT APPROVED.
+      task({ status: "done", approvalStatus: "not_approved" }),
+      // Doer still working, admin approved anyway — this is DONE.
+      task({ status: "initiated", approvalStatus: "approved" }),
+    ];
+    const t = computeKpiTotals(rows);
+    expect(t).toMatchObject({ total: 2, done: 1, notApproved: 1, pending: 0 });
+  });
+
+  it("drops archived tasks from every bucket, Total included", () => {
+    const t = computeKpiTotals([
+      task({ status: "done" }),
+      task({ status: "done", archived: true }),
+    ]);
+    expect(t).toMatchObject({ total: 1, done: 1 });
+  });
+
+  it("counts statuses with no card of their own as Pending", () => {
+    // dont_know / on_hold / follow_up_1 previously fell through every branch
+    // and were counted in Total but shown nowhere.
+    const t = computeKpiTotals([
+      task({ status: "dont_know" }),
+      task({ status: "on_hold" }),
+      task({ status: "follow_up_1" }),
+    ]);
+    expect(t).toMatchObject({ total: 3, pending: 3 });
   });
 });
+

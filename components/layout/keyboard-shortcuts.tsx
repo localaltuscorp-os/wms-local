@@ -10,9 +10,13 @@ import { SHORTCUT_GROUPS } from "@/lib/shortcuts";
 const GO_TO: Record<string, string> = {
   d: "/",
   t: "/tasks",
-  m: "/tasks/agenda",
+  m: "/my-day",
   p: "/projects",
   i: "/inbox",
+  w: "/goals/weekly",
+  c: "/my-day",
+  k: "/tasks/kanban",
+  a: "/attendance",
 };
 
 const SEQUENCE_WINDOW_MS = 1500;
@@ -32,7 +36,8 @@ function isTypingTarget(el: EventTarget | null): boolean {
 /**
  * App-wide keyboard shortcuts. Mounted once in the (app) layout.
  *   ?            → toggle this help overlay
- *   G then D/T/M/P/I → navigate (Dashboard / Tasks / My Day / Projects / Inbox)
+ *   G then D/T/M/P/I/W/C/K/A → navigate (Dashboard / Tasks / My Day /
+ *     Projects / Inbox / Weekly Goals / Daily Checklist / Kanban / Attendance)
  * Coexists with the other context-owned shortcuts (⌘K palette, N new task,
  * J/K/Enter/F task-list nav) — those live with their components.
  */
@@ -96,7 +101,7 @@ export function KeyboardShortcuts() {
         >
           <div className="flex items-center justify-between gap-3 px-6 py-5 border-b border-hairline">
             <Dialog.Title className="text-display-2xs text-ink-strong">
-              Keyboard shortcuts
+              Keyboard Shortcuts
             </Dialog.Title>
             <Dialog.Close asChild>
               <button

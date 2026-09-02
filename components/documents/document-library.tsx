@@ -93,7 +93,7 @@ export function DocumentLibrary({ documents }: { documents: DocumentRow[] }) {
 
       {/* Library */}
       {documents.length === 0 ? (
-        <div className="rounded-section border border-dashed border-hairline-strong bg-surface-card px-6 py-12 text-center">
+        <div className="rounded-section border border-solid border-hairline-strong bg-surface-card px-6 py-12 text-center">
           <FileText size={28} className="mx-auto text-ink-subtle mb-2" />
           <p className="font-serif text-ink-strong" style={{ fontStyle: "italic", fontSize: 20 }}>
             No documents yet

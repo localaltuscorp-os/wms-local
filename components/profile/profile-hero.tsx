@@ -1,5 +1,6 @@
 "use client";
 
+import { Avatar } from "@/components/ui/avatar";
 import { AvailabilityPill } from "./availability-pill";
 
 interface Props {
@@ -27,13 +28,6 @@ export function ProfileHero({
   isAdmin,
   stats,
 }: Props) {
-  const initials = name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-
   const subtitleParts = [
     isAdmin ? "Admin" : null,
     role === "both" ? "Doer · Initiator" : role === "doer" ? "Doer" : "Initiator",
@@ -57,46 +51,17 @@ export function ProfileHero({
       }}
     >
       <div style={{ position: "relative", flexShrink: 0 }}>
-        {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={avatarUrl}
-            alt={name}
-            width={112}
-            height={112}
-            style={{
-              width: 112,
-              height: 112,
-              borderRadius: 999,
-              objectFit: "cover",
-              border: "3px solid white",
-              boxShadow: "0 12px 28px -12px rgba(15, 23, 42, 0.35)",
-              background: "var(--color-surface-stripe)",
-            }}
-          />
-        ) : (
-          <div
-            aria-hidden
-            style={{
-              width: 112,
-              height: 112,
-              borderRadius: 999,
-              display: "grid",
-              placeItems: "center",
-              background:
-                "linear-gradient(135deg, #FCA5A5 0%, #E10600 60%, #A80400 100%)",
-              color: "white",
-              fontFamily: "var(--font-mono-display, ui-monospace, monospace)",
-              fontWeight: 700,
-              fontSize: 40,
-              letterSpacing: "0.05em",
-              border: "3px solid white",
-              boxShadow: "0 12px 28px -12px rgba(15, 23, 42, 0.35)",
-            }}
-          >
-            {initials}
-          </div>
-        )}
+        {/* Shared <Avatar>. The pair this replaces branched on whether a URL
+            EXISTED, not on whether it loaded — so a 404 showed the browser's
+            broken-image frame at 112px instead of the red initials disc right
+            beside it in the code. The white ring and drop shadow move onto the
+            wrapper so the framing is identical either way. */}
+        <Avatar
+          name={name}
+          avatarUrl={avatarUrl}
+          size={112}
+          className="text-[40px]"
+        />
       </div>
 
       <div style={{ minWidth: 0 }}>

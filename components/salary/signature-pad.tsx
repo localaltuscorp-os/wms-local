@@ -144,7 +144,7 @@ export function SignaturePad() {
     <div className="rounded-section border border-hairline bg-surface-card p-6">
       <div className="flex items-center gap-2 mb-3">
         <PenLine size={16} strokeWidth={2.2} className="text-ink-soft" />
-        <h3 className="text-[15px] font-bold text-ink-strong">Sign to acknowledge</h3>
+        <h3 className="text-[15px] font-bold text-ink-strong">Sign to Acknowledge</h3>
       </div>
       <p className="text-[13px] text-ink-subtle mb-4" style={{ lineHeight: 1.5 }}>
         Draw your signature below, or upload a signature image (PNG or JPEG).
@@ -180,7 +180,7 @@ export function SignaturePad() {
 
         <label className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface-card py-2 px-3.5 text-[13px] font-medium text-ink-strong hover:border-hairline-strong transition-colors cursor-pointer">
           <Upload size={14} strokeWidth={2.2} />
-          {uploadFile ? "Change image" : "Upload image"}
+          {uploadFile ? "Change Image" : "Upload Image"}
           <input
             type="file"
             accept="image/png,image/jpeg"

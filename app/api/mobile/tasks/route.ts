@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
+import { effectiveDueAtSql } from "@/lib/tasks/effective-due";
 import { PENDING_STATUSES, TASK_PRIORITIES, type TaskStatus } from "@/db/enums";
 import { authenticateMobileRequest, MOBILE_CORS } from "@/lib/auth/mobile";
 import { nextStatusesFor, type ActorRole } from "@/lib/auth/status-transitions";
@@ -95,11 +96,13 @@ export async function GET(req: Request) {
       id: tasks.id,
       taskNo: tasks.taskNo,
       title: tasks.title,
+      description: tasks.description,
       subject: tasks.subject,
       client: tasks.client,
       status: tasks.status,
       priority: tasks.priority,
-      dueAt: tasks.dueAt,
+      // Effective due (revised ?? original) so the app sorts + flags by it.
+      dueAt: effectiveDueAtSql(),
       updatedAt: tasks.updatedAt,
       completedAt: tasks.completedAt,
     })
@@ -112,8 +115,8 @@ export async function GET(req: Request) {
     const ap = PENDING.has(a.status);
     const bp = PENDING.has(b.status);
     if (ap !== bp) return ap ? -1 : 1;
-    if (ap) return a.dueAt.getTime() - b.dueAt.getTime();
-    return (b.completedAt ?? b.updatedAt).getTime() - (a.completedAt ?? a.updatedAt).getTime();
+    if (ap) return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+    return new Date(b.completedAt ?? b.updatedAt).getTime() - new Date(a.completedAt ?? a.updatedAt).getTime();
   });
 
   const statusDisplay = await getStatusDisplayMap();
@@ -124,14 +127,17 @@ export async function GET(req: Request) {
       tasks: rows.map((t) => ({
         id: t.id,
         taskNo: t.taskNo,
-        title: t.title,
+        // The display name = description-or-title, exactly like the web task
+        // list (task-table.tsx getDisplayTitle). `title` in the DB is often just
+        // the client; the full task text lives in `description`.
+        title: (t.description?.trim() || t.title),
         subject: t.subject,
         client: t.client,
         status: t.status,
         priority: t.priority,
-        dueAt: t.dueAt.toISOString(),
-        updatedAt: t.updatedAt.toISOString(),
-        completedAt: t.completedAt ? t.completedAt.toISOString() : null,
+        dueAt: new Date(t.dueAt).toISOString(),
+        updatedAt: new Date(t.updatedAt).toISOString(),
+        completedAt: t.completedAt ? new Date(t.completedAt).toISOString() : null,
         allowedTransitions: nextStatusesFor(t.status, role),
       })),
     },

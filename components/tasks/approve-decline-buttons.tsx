@@ -95,7 +95,7 @@ export function ApproveDeclineButtons({
             className="fixed left-1/2 top-1/2 z-[70] w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-section border border-hairline bg-surface-card p-6 shadow-xl"
           >
             <Dialog.Title className="text-display-md text-ink-strong">
-              Decline task
+              Decline Task
             </Dialog.Title>
             <Dialog.Description className="text-[15px] text-ink-subtle mt-1.5" style={{ lineHeight: 1.5 }}>
               Add an optional note for the doer.

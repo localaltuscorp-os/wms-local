@@ -1,6 +1,7 @@
 "use client";
-import { Building2 } from "lucide-react";
+import { Users2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { FilterPill, summarizeSelection } from "./filter-pill";
 import { DEPARTMENTS } from "@/db/enums";
 
 const OPTIONS = DEPARTMENTS.map((d) => ({ value: d, label: d }));
@@ -13,15 +14,19 @@ export function DepartmentFilter({
   onChange: (v: string[]) => void;
 }) {
   return (
-    <div className="filter-chip">
-      <Building2 size={16} className="text-ink-subtle" strokeWidth={2} />
-      <MultiSelect
-        options={OPTIONS}
-        selected={selected}
-        onChange={onChange}
-        placeholder="All Departments"
-        className="min-w-[6.5rem] !text-[14px]"
-      />
-    </div>
+    <MultiSelect
+      options={OPTIONS}
+      selected={selected}
+      onChange={onChange}
+      renderTrigger={({ selectedLabels }) => (
+        <FilterPill
+          icon={<Users2 size={16} strokeWidth={2} />}
+          name="Department"
+          value={summarizeSelection(selectedLabels, "All Departments")}
+          tint="#8b5cf6"
+          active={selected.length > 0}
+        />
+      )}
+    />
   );
 }

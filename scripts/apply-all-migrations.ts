@@ -22,8 +22,62 @@
 //   pnpm tsx --env-file=.env.local scripts/apply-all-migrations.ts --apply
 import { readFileSync, readdirSync } from "node:fs";
 import postgres from "postgres";
+import { destructiveStatements } from "../lib/db/destructive-sql";
 
 const APPLY = process.argv.includes("--apply");
+
+/**
+ * DESTRUCTIVE MIGRATIONS NEED A HUMAN TO NAME THEM.
+ *
+ * ── WHY THIS EXISTS ────────────────────────────────────────────────────────
+ * This script applies every un-ledgered `db/migrations/*.sql` in filename order,
+ * unattended. That is exactly what you want for additive DDL and exactly what
+ * you do not want for a `DROP TABLE`: `pnpm db:migrate` is run casually, often
+ * to pick up somebody else's column, and it will just as happily execute a
+ * migration that deletes years of history.
+ *
+ * This is not hypothetical. On 2026-08-27 a `0203_drop_attendance_module.sql`
+ * reached the tree carrying `DROP`s for the whole attendance stack — its own
+ * header said "DESTRUCTIVE: all historic punch, leave and attendance-sheet data
+ * is lost — back up before applying". Nothing here would have paused for that.
+ * The file was reverted before any migrate run happened to pick it up, which was
+ * luck, not design.
+ *
+ * ── WHAT COUNTS ────────────────────────────────────────────────────────────
+ * Only DDL that destroys ROWS: dropping tables, columns, schemas or databases,
+ * truncating, deleting. Deliberately NOT `DROP INDEX / POLICY / TRIGGER /
+ * CONSTRAINT` — 27 migrations here use those routinely and none of them lose
+ * data. A guard that cried wolf on ordinary migrations would be switched off
+ * within a week, which is worse than no guard.
+ *
+ * At the time of writing this matches exactly 1 of ~210 migrations, so the
+ * signal is real rather than background noise.
+ *
+ * ── HOW TO PROCEED WHEN IT FIRES ───────────────────────────────────────────
+ * Read the migration, take a backup, then name the file explicitly:
+ *
+ *   pnpm db:migrate -- --allow-destructive=0203_drop_attendance_module.sql
+ *
+ * Naming the FILE is the point. A bare `--force` would be typed reflexively and
+ * would wave through whatever else happened to be pending; naming it means you
+ * looked at that specific migration. `--allow-destructive=all` exists for
+ * rebuilding a database from empty, where every migration is pending and the
+ * historical destructive ones have nothing to destroy.
+ */
+/** Detection lives in lib/db/destructive-sql.ts so it can be unit-tested without
+ *  this script's top-level database connection running on import. */
+const ALLOW_DESTRUCTIVE = new Set(
+  process.argv
+    .filter((a) => a.startsWith("--allow-destructive="))
+    .flatMap((a) =>
+      a
+        .slice("--allow-destructive=".length)
+        .split(",")
+        .map((s) => s.trim()),
+    )
+    .filter(Boolean),
+);
+const ALLOW_ALL_DESTRUCTIVE = ALLOW_DESTRUCTIVE.has("all");
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL not set");
@@ -153,6 +207,48 @@ async function backfillLedger(migrations: Migration[]): Promise<void> {
   }
 }
 
+/**
+ * Abort BEFORE anything is applied if a pending migration destroys rows and
+ * nobody named it.
+ *
+ * The check runs up front, over the whole pending set, rather than inline in the
+ * apply loop. Refusing half-way would leave the database in a state that is
+ * neither the old schema nor the new one, and the operator would have to work
+ * out which migrations had already landed before they could safely retry. All or
+ * nothing is the only outcome worth offering here.
+ *
+ * Only PENDING migrations are scanned. Everything in the ledger has already run;
+ * re-flagging it would mean a database that is perfectly healthy could never be
+ * migrated again without a flag.
+ */
+async function refuseUnapprovedDestructive(migrations: Migration[]): Promise<void> {
+  if (ALLOW_ALL_DESTRUCTIVE) return;
+
+  const blocked: { filename: string; statements: string[] }[] = [];
+  for (const m of migrations) {
+    if (await alreadyApplied(m.filename)) continue;
+    if (ALLOW_DESTRUCTIVE.has(m.filename)) continue;
+    const statements = destructiveStatements(m.contents);
+    if (statements.length > 0) blocked.push({ filename: m.filename, statements });
+  }
+  if (blocked.length === 0) return;
+
+  console.error(`\n${"─".repeat(72)}`);
+  console.error(`REFUSING TO MIGRATE — ${blocked.length} pending migration(s) destroy data.\n`);
+  for (const b of blocked) {
+    console.error(`  ${b.filename}`);
+    for (const s of b.statements.slice(0, 6)) console.error(`      ${s}`);
+    if (b.statements.length > 6) console.error(`      … and ${b.statements.length - 6} more`);
+    console.error("");
+  }
+  console.error(`Nothing has been applied. Read each migration, take a backup, then`);
+  console.error(`re-run naming the file(s) you have actually reviewed:\n`);
+  console.error(`  pnpm db:migrate -- --allow-destructive=${blocked.map((b) => b.filename).join(",")}\n`);
+  console.error(`Rebuilding an empty database? --allow-destructive=all`);
+  console.error(`${"─".repeat(72)}\n`);
+  process.exit(1);
+}
+
 async function main() {
   const migrations = loadMigrations();
   console.log(
@@ -162,6 +258,7 @@ async function main() {
   if (APPLY) {
     await ensureLedger();
     await backfillLedger(migrations);
+    await refuseUnapprovedDestructive(migrations);
   }
 
   let applied = 0;

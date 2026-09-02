@@ -31,32 +31,24 @@ import {
   type EmployeeDeletionImpact,
 } from "@/app/(admin)/admin/employees/actions";
 import {
-  EditEmployeeDialog,
+  EmployeeEditor,
+  type EditableEmployee,
   type EmployeeDepartmentMembership,
-} from "@/components/admin/edit-employee-dialog";
+} from "@/components/admin/employee-editor";
 import { ResetPasswordDialog } from "@/components/admin/reset-password-dialog";
 import type { DepartmentOption } from "@/components/admin/department-multi-select";
 
 type Role = "doer" | "initiator" | "both";
 
-type RowEmployee = {
-  id: string;
-  name: string;
-  email: string;
-  role: Role;
-  departments: EmployeeDepartmentMembership[];
-  isAdmin: boolean;
+/**
+ * Exactly what the editor reads, plus the two lifecycle fields only the row
+ * menu needs. Derived rather than re-listed so a field added to the editor can
+ * never go missing here — that drift is what let the old dialog and the row
+ * menu disagree about which columns existed.
+ */
+type RowEmployee = EditableEmployee & {
   isActive: boolean;
   joinedAt: Date | null;
-  whatsappPhone: string | null;
-  whatsappOptedIn: boolean;
-  managerId: string | null;
-  attendanceBiometricExempt: boolean;
-  weeklyOff: number;
-  attOfficialStart: string | null;
-  attLateAfter: string | null;
-  attOfficialEnd: string | null;
-  attEarlyBefore: string | null;
 };
 
 interface Props {
@@ -215,7 +207,7 @@ export function EmployeeRowActions({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => setEditOpen(true)}>
             <Pencil size={14} />
-            Edit employee
+            Edit Employee
           </DropdownMenuItem>
           {showSeparator && <DropdownMenuSeparator />}
           {isInvited && (
@@ -233,7 +225,7 @@ export function EmployeeRowActions({
           {canResetPassword && (
             <DropdownMenuItem onClick={() => setResetOpen(true)}>
               <KeyRound size={14} />
-              Reset password
+              Reset Password
             </DropdownMenuItem>
           )}
           {canDeactivate && (
@@ -252,37 +244,27 @@ export function EmployeeRowActions({
           {canDelete && (
             <DropdownMenuItem danger onClick={() => setDeleteOpen(true)}>
               <Trash2 size={14} />
-              Delete permanently…
+              Delete Permanently…
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <EditEmployeeDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        employee={{
-          id: employee.id,
-          name: employee.name,
-          email: employee.email,
-          role: employee.role,
-          departments: employee.departments,
-          isAdmin: employee.isAdmin,
-          whatsappPhone: employee.whatsappPhone,
-          whatsappOptedIn: employee.whatsappOptedIn,
-          managerId: employee.managerId,
-          attendanceBiometricExempt: employee.attendanceBiometricExempt,
-          weeklyOff: employee.weeklyOff,
-          attOfficialStart: employee.attOfficialStart,
-          attLateAfter: employee.attLateAfter,
-          attOfficialEnd: employee.attOfficialEnd,
-          attEarlyBefore: employee.attEarlyBefore,
-        }}
-        isSelf={isSelf}
-        canManageAdmins={canManageAdmins}
-        departmentOptions={departmentOptions}
-        managerOptions={managerOptions}
-      />
+      {/* Mounted only while open, and keyed by employee: every open is a fresh
+          mount, so one row's draft can never bleed into the next row opened. */}
+      {editOpen ? (
+        <EmployeeEditor
+          key={employee.id}
+          mode="single"
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          employee={employee}
+          isSelf={isSelf}
+          canManageAdmins={canManageAdmins}
+          departmentOptions={departmentOptions}
+          managerOptions={managerOptions}
+        />
+      ) : null}
 
       <ResetPasswordDialog
         open={resetOpen}
@@ -362,7 +344,7 @@ export function EmployeeRowActions({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
+                  className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
                   disabled={deletePending}
                 >
                   Cancel
@@ -415,7 +397,7 @@ export function EmployeeRowActions({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
+                  className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]"
                   disabled={pending}
                 >
                   Cancel

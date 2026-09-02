@@ -11,12 +11,14 @@ import {
   Activity as ActivityIcon,
   Settings as SettingsIcon,
   ArrowUpRight,
+  LayoutDashboard,
   type LucideIcon,
 } from "lucide-react";
 import { getAdminOverview } from "@/lib/queries/admin";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
 import { AdminKpiTile, type AdminKpiTone } from "@/components/admin/admin-kpi-tile";
 import { AdminActivityPreview } from "@/components/admin/admin-activity-preview";
+import { AdminSection } from "@/components/admin/ui/section-shell";
 import type { TaskStatus } from "@/db/enums";
 
 export const dynamic = "force-dynamic";
@@ -85,7 +87,7 @@ export default async function AdminOverviewPage() {
       label: "Active employees",
       value: d.activeEmployees,
       hint: "Joined + still on the roster",
-      tone: "blue",
+      tone: "rose",
       icon: <Users size={16} strokeWidth={2.2} />,
       href: "/admin/employees" as Route,
     },
@@ -116,31 +118,18 @@ export default async function AdminOverviewPage() {
   ];
 
   return (
-    <div>
-      {/* Page header */}
-      <header className="mb-8">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-ink-subtle font-bold">
-          Admin · Overview
-        </div>
-        <h1
-          className="mt-1 text-ink-strong"
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontStyle: "italic",
-            fontWeight: 500,
-            fontSize: 44,
-            lineHeight: 1.05,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          The shape of the team today.
-        </h1>
-        <p className="text-body-lg text-ink-subtle mt-2 max-w-2xl">
-          A snapshot of headcount, pending work, and the most recent
-          activity across Altus Corp.
-        </p>
-      </header>
-
+    <AdminSection
+      eyebrow="Admin · Overview"
+      title="The shape of the team today"
+      subtitle="A snapshot of headcount, pending work, and the most recent activity across Altus Corp."
+      icon={LayoutDashboard}
+      stats={[
+        { label: "Active", value: d.activeEmployees, tone: "green" },
+        { label: "Pending invites", value: d.pendingInvites, tone: "amber" },
+        { label: "Open tasks", value: d.openTasks },
+        { label: "Overdue", value: d.overdueTasks, tone: "red" },
+      ]}
+    >
       {/* KPI tier */}
       <section className="grid grid-cols-4 max-lg:grid-cols-2 max-sm:grid-cols-1 gap-4">
         {tiles.map((t, i) => (
@@ -218,6 +207,6 @@ export default async function AdminOverviewPage() {
       <section className="mt-10">
         <AdminActivityPreview events={d.recentActivity} statusLabels={statusLabels} />
       </section>
-    </div>
+    </AdminSection>
   );
 }

@@ -33,7 +33,6 @@ test.describe("dashboard", () => {
       ).toBeAttached();
     } else {
       await expect(kpiLabel).toBeAttached();
-      await expect(page.locator("text=Task Velocity").first()).toBeAttached();
       await expect(
         page.locator("text=Status Distribution").first(),
       ).toBeAttached();

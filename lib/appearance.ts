@@ -43,10 +43,31 @@ export function accentVars(hex: string): Record<string, string> {
   const dg = clampByte(g * DEEP_FACTOR);
   const db = clampByte(b * DEEP_FACTOR);
   const normalized = rgbToHex(r, g, b);
+  // ── TONAL STOPS (2026-08) ─────────────────────────────────────────────────
+  // This runs on EVERY request and lands inline on <html>, so it beats
+  // globals.css and MUST mirror it exactly. --color-altus-red stays the user's
+  // real accent because it paints ACTIONS (buttons, CTA gradients) that carry
+  // white text; the pastel tint is exposed separately as --color-altus-red-soft
+  // for soft fills. Derived from the stored seed, so no DB migration.
+  const mixWhite = (c: number, pct: number) => clampByte(c * pct + 255 * (1 - pct));
+  const container = rgbToHex(mixWhite(r, 0.22), mixWhite(g, 0.22), mixWhite(b, 0.22));
+  const deep = rgbToHex(dr, dg, db);
+  // Edge sits between the ink and the container — ≥3:1 on white for borders/dots.
+  const mix2 = (a: number, bb: number, pct: number) => clampByte(a * pct + bb * (1 - pct));
+  const er = mix2(dr, mixWhite(r, 0.22), 0.45);
+  const eg = mix2(dg, mixWhite(g, 0.22), 0.45);
+  const eb = mix2(db, mixWhite(b, 0.22), 0.45);
+  const edge = rgbToHex(er, eg, eb);
   return {
     "--user-accent": normalized,
+    // The raw seed stays reachable for anything that genuinely needs full chroma.
+    "--color-altus-red-seed": normalized,
     "--color-altus-red": normalized,
-    "--color-altus-red-deep": rgbToHex(dr, dg, db),
+    "--color-altus-red-soft": container,
+    "--color-altus-red-deep": deep,
+    "--color-altus-red-edge": edge,
+    "--color-altus-red-wash": rgbToHex(mixWhite(r, 0.06), mixWhite(g, 0.06), mixWhite(b, 0.06)),
+    // The --vp-* family paints nav pills / hover rails / focus glows.
     "--vp-cyan": `${r} ${g} ${b}`,
     "--vp-cyan-deep": `${dr} ${dg} ${db}`,
     "--vp-cyan-glow": `rgba(${r}, ${g}, ${b}, 0.25)`,

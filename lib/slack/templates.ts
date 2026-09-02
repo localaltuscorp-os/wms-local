@@ -25,10 +25,10 @@ const EMOJI: Record<NotificationKind, string> = {
   transferred: ":outbox_tray:",
   cancelled: ":wastebasket:",
   commented: ":speech_balloon:",
+  nudged: ":zap:",
   overdue_digest: ":warning:",
-  // Weekly Goals kinds are delivered by their own cron (email + in-app only),
-  // never through the Slack dispatcher — these entries satisfy the exhaustive
-  // map but aren't sent.
+  // Weekly Goals — delivered by their own cron; present to satisfy the
+  // exhaustive map but not sent via Slack.
   weekly_goals_assigned: ":dart:",
   weekly_goals_fill_reminder: ":bar_chart:",
   weekly_goals_incomplete: ":warning:",
@@ -38,6 +38,34 @@ const EMOJI: Record<NotificationKind, string> = {
   attendance_half_day: ":clock5:",
   attendance_device: ":iphone:",
   attendance_late_deduction: ":heavy_minus_sign:",
+  training_test_failed: ":x:",
+  dcc_fill_reminder: ":alarm_clock:",
+  ambassador_reminder: ":gem:",
+  // Goals Cascade — delivered by their own cron / in-app inbox; present to
+  // satisfy the exhaustive map but not sent via Slack.
+  goals_commit_reminder: ":dart:",
+  goals_approval_reminder: ":memo:",
+  goals_committed: ":lock:",
+  goals_approved: ":white_check_mark:",
+  hr_confirmation_due: ":memo:",
+  // HR Support (mig 0145) — generic copy by design (confidential grievances
+  // must never leak a subject line into a channel).
+  hr_ticket_created: ":ticket:",
+  hr_ticket_assigned: ":inbox_tray:",
+  hr_ticket_replied: ":speech_balloon:",
+  hr_ticket_status_changed: ":arrows_counterclockwise:",
+  hr_ticket_sla_breach: ":rotating_light:",
+  hr_ticket_csat_request: ":star:",
+  // Appraisal (mig 0146) — IN-APP ONLY by design; present to satisfy the
+  // exhaustive map but not sent via Slack.
+  appraisal_cycle_opened: ":clipboard:",
+  appraisal_self_reminder: ":pencil2:",
+  appraisal_manager_pending: ":memo:",
+  appraisal_management_pending: ":memo:",
+  appraisal_finalized: ":trophy:",
+  // Enterprise Communications (mig 0179) — delivered in-app + email by the
+  // ECOS publish flow, never via Slack; placeholder to satisfy the exhaustive map.
+  broadcast: ":mega:",
 };
 
 const VERB: Record<NotificationKind, (actor: string, statusLabel?: string) => string> = {
@@ -53,7 +81,9 @@ const VERB: Record<NotificationKind, (actor: string, statusLabel?: string) => st
   transferred: (a) => `${a} transferred a task`,
   cancelled: (a) => `${a} cancelled a task`,
   commented: (a) => `${a} commented on your task`,
+  nudged: (a) => `${a} nudged you on a task`,
   overdue_digest: () => `You have overdue tasks`,
+  // Weekly Goals — delivered by their own cron; not sent via Slack.
   weekly_goals_assigned: () => `Your priorities for the week`,
   weekly_goals_fill_reminder: () => `Update your % done`,
   weekly_goals_incomplete: () => `You have unmarked weekly goals`,
@@ -63,6 +93,30 @@ const VERB: Record<NotificationKind, (actor: string, statusLabel?: string) => st
   attendance_half_day: () => `Half day recorded`,
   attendance_device: () => `New device used for attendance`,
   attendance_late_deduction: () => `Late deduction applied`,
+  training_test_failed: () => `Training test not passed`,
+  dcc_fill_reminder: () => `Fill today's DCC KPIs`,
+  ambassador_reminder: () => `You have an ambassador to follow up`,
+  // Goals Cascade — delivered by their own cron / in-app inbox; not sent via Slack.
+  goals_commit_reminder: () => `Commit your week's goals`,
+  goals_approval_reminder: () => `Approve your team's goals`,
+  goals_committed: () => `Weekly goals committed`,
+  goals_approved: () => `Your weekly goals were approved`,
+  hr_confirmation_due: () => `Issue a confirmation letter`,
+  // HR Support (mig 0145) — generic copy (no subject leak for grievances).
+  hr_ticket_created: () => `A new HR ticket was raised`,
+  hr_ticket_assigned: () => `An HR ticket was assigned to you`,
+  hr_ticket_replied: () => `New reply on your HR ticket`,
+  hr_ticket_status_changed: () => `Your HR ticket was updated`,
+  hr_ticket_sla_breach: () => `An HR ticket breached its SLA`,
+  hr_ticket_csat_request: () => `How did we do? Rate your HR ticket`,
+  // Appraisal (mig 0146) — in-app only; placeholders for the exhaustive map.
+  appraisal_cycle_opened: () => `Your appraisal is open`,
+  appraisal_self_reminder: () => `Complete your self scores`,
+  appraisal_manager_pending: () => `Appraisal scores await your review`,
+  appraisal_management_pending: () => `Appraisal scores await management review`,
+  appraisal_finalized: () => `Your appraisal is finalized`,
+  // Enterprise Communications (mig 0179) — not sent via Slack; placeholder.
+  broadcast: () => `New company communication`,
 };
 
 export interface SlackCtx {

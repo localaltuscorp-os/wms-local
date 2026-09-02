@@ -12,6 +12,7 @@ import {
   type ProjectNode,
 } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
+import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { notify } from "@/lib/notifications/dispatch";
@@ -37,6 +38,16 @@ function revalidateProjectSurfaces() {
  *
  * Returns a Result-shaped error so the caller can `return` it directly.
  */
+/**
+ * Project-structure management is restricted to admins OR managers (anyone with
+ * ≥1 direct/indirect report via `employees.manager_id`). A "plain doer" who is
+ * neither may only create result/action nodes (see `createProjectNode`); every
+ * other mutation is gated through this helper.
+ */
+async function canManageProjects(me: Employee): Promise<boolean> {
+  return me.isAdmin || (await getDownlineIds(me.id)).length > 0;
+}
+
 async function authorizeProjectNodeMutation(
   id: string,
   me: Employee,
@@ -84,6 +95,16 @@ export async function createProjectNode(
   }
   const { name, kind, parentId } = parsed.data;
 
+  // A plain doer (not admin, not a manager) may ONLY add a result or an action;
+  // creating projects/milestones/sub-actions is reserved for admin-or-manager.
+  if (
+    kind !== "result" &&
+    kind !== "action" &&
+    !(await canManageProjects(me))
+  ) {
+    return { ok: false, error: "Forbidden" };
+  }
+
   // Validate parent kind matches the hierarchy.
   const needsParent = CHILD_OF[kind];
   if (needsParent && !parentId) {
@@ -127,6 +148,7 @@ export async function renameProjectNode(
   if (!parsedName.success) {
     return { ok: false, error: parsedName.error.issues[0]?.message ?? "Invalid name" };
   }
+  if (!(await canManageProjects(me))) return { ok: false, error: "Forbidden" };
   const auth = await authorizeProjectNodeMutation(id, me);
   if (!auth.ok) return auth;
   // Belt-and-braces: scope the WHERE to the creator-or-admin so a
@@ -160,6 +182,7 @@ export async function deleteProjectNode(id: string): Promise<Result> {
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
+  if (!(await canManageProjects(me))) return { ok: false, error: "Forbidden" };
   const auth = await authorizeProjectNodeMutation(id, me);
   if (!auth.ok) return auth;
 
@@ -196,6 +219,7 @@ export async function setProjectNodeArchived(
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
+  if (!(await canManageProjects(me))) return { ok: false, error: "Forbidden" };
   const auth = await authorizeProjectNodeMutation(id, me);
   if (!auth.ok) return auth;
   const updated = await db
@@ -236,6 +260,7 @@ export async function setProjectNodeDetails(
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
+  if (!(await canManageProjects(me))) return { ok: false, error: "Forbidden" };
   const auth = await authorizeProjectNodeMutation(id, me);
   if (!auth.ok) return auth;
   const parsed = DetailsSchema.safeParse(input);
@@ -272,6 +297,7 @@ export async function setProjectNodeOwner(
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
+  if (!(await canManageProjects(me))) return { ok: false, error: "Forbidden" };
   const auth = await authorizeProjectNodeMutation(id, me);
   if (!auth.ok) return auth;
   if (ownerId !== null && !z.string().uuid().safeParse(ownerId).success) {
@@ -312,6 +338,7 @@ export async function addProjectMember(
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
+  if (!(await canManageProjects(me))) return { ok: false, error: "Forbidden" };
   const auth = await authorizeProjectNodeMutation(id, me);
   if (!auth.ok) return auth;
   if (!z.string().uuid().safeParse(employeeId).success) {
@@ -344,6 +371,7 @@ export async function removeProjectMember(
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
+  if (!(await canManageProjects(me))) return { ok: false, error: "Forbidden" };
   const auth = await authorizeProjectNodeMutation(id, me);
   if (!auth.ok) return auth;
   await db
@@ -367,6 +395,7 @@ export async function reorderProjectNodes(orderedIds: string[]): Promise<Result>
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
+  if (!(await canManageProjects(me))) return { ok: false, error: "Forbidden" };
   const parsed = z.array(z.string().uuid()).min(1).max(500).safeParse(orderedIds);
   if (!parsed.success) return { ok: false, error: "Invalid order list" };
   try {

@@ -22,7 +22,10 @@ export const CommandInput = React.forwardRef<
   <CommandPrimitive.Input
     ref={ref}
     className={cn(
-      "h-11 w-full bg-transparent text-[15px] border-b border-hairline focus:outline-none placeholder:text-ink-subtle px-2.5",
+      // h-9.5 (38px) / text-sm — the dropdown's search box matches the field
+      // height it drops out of, so the panel doesn't open taller than its own
+      // trigger. (Was h-11 text-[15px].)
+      "h-9.5 w-full bg-transparent text-sm border-b border-hairline focus:outline-none placeholder:text-ink-subtle px-2.5",
       className,
     )}
     {...props}
@@ -55,7 +58,11 @@ export const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      "px-2.5 py-2 text-[15px] cursor-pointer rounded-pill aria-selected:bg-surface-soft",
+      // Active (keyboard/hover) highlight: a clearly-visible brand-red wash +
+      // red-deep, semibold text — was `bg-surface-soft` (#f8fafc, near-invisible),
+      // which made it impossible to tell which option was focused. Applies to
+      // every cmdk dropdown (Select, MultiSelect, ⌘K search).
+      "px-2.5 py-1.5 text-sm cursor-pointer rounded-pill transition-colors aria-selected:bg-[color-mix(in_srgb,var(--color-altus-red)_14%,transparent)] aria-selected:text-altus-red-deep aria-selected:font-semibold",
       className,
     )}
     {...props}

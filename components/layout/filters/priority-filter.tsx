@@ -1,6 +1,7 @@
 "use client";
 import { Flag } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { FilterPill, summarizeSelection } from "./filter-pill";
 import { TASK_PRIORITIES, PRIORITY_LABELS } from "@/db/enums";
 
 const OPTIONS = TASK_PRIORITIES.map((p) => ({
@@ -16,15 +17,19 @@ export function PriorityFilter({
   onChange: (v: string[]) => void;
 }) {
   return (
-    <div className="filter-chip">
-      <Flag size={16} className="text-ink-subtle" strokeWidth={2} />
-      <MultiSelect
-        options={OPTIONS}
-        selected={selected}
-        onChange={onChange}
-        placeholder="All Priorities"
-        className="min-w-[6.5rem] !text-[14px]"
-      />
-    </div>
+    <MultiSelect
+      options={OPTIONS}
+      selected={selected}
+      onChange={onChange}
+      renderTrigger={({ selectedLabels }) => (
+        <FilterPill
+          icon={<Flag size={16} strokeWidth={2} />}
+          name="Priority"
+          value={summarizeSelection(selectedLabels, "All Priorities")}
+          tint="#f59e0b"
+          active={selected.length > 0}
+        />
+      )}
+    />
   );
 }

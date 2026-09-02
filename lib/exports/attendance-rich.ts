@@ -26,7 +26,7 @@ export function attendanceExportFilename(
   ext: "xlsx" | "pdf",
 ): string {
   const mm = String(month).padStart(2, "0");
-  return `attendance-${year}-${mm}.${ext}`;
+  return `Attendance-${year}-${mm}.${ext}`;
 }
 
 // ── Summary sheet ────────────────────────────────────────────────────────────

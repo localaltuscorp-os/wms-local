@@ -20,6 +20,14 @@ interface Props {
   placeholder?: string;
   onFocus?: () => void;
   onBlur?: () => void;
+  /**
+   * May this user create a new client? ADMIN ONLY (Sir).
+   *
+   * Defaults to FALSE so a caller that forgets to pass it hides the
+   * affordance rather than offering an action the server will refuse.
+   * The real check lives in quickAddClient — this only removes the row.
+   */
+  canAdd?: boolean;
 }
 
 /**
@@ -39,6 +47,7 @@ export function ClientSelect({
   placeholder = "Select a client…",
   onFocus,
   onBlur,
+  canAdd = false,
 }: Props) {
   const [options, setOptions] = React.useState<string[]>(clients);
   const [adding, setAdding] = React.useState(false);
@@ -54,6 +63,7 @@ export function ClientSelect({
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const searchRef = React.useRef<HTMLInputElement>(null);
   const listRef = React.useRef<HTMLUListElement>(null);
+  const listId = React.useId();
 
   React.useEffect(() => setOptions(clients), [clients]);
   React.useEffect(() => {
@@ -71,9 +81,16 @@ export function ClientSelect({
   }, [options, value]);
 
   const filtered = React.useMemo(() => {
+
     const q = query.trim().toLowerCase();
     return q ? sorted.filter((c) => c.toLowerCase().includes(q)) : sorted;
   }, [sorted, query]);
+
+  // The highlightable range. The "Add new" row is the one past the last
+  // option — but only for an admin, so for everyone else the keyboard must
+  // stop at the final real option instead of landing on a row that is not
+  // rendered.
+  const lastIndex = canAdd ? filtered.length : Math.max(0, filtered.length - 1);
 
   // Reset the highlight + query each time the menu opens (Radix focuses the
   // search box for us).
@@ -85,8 +102,11 @@ export function ClientSelect({
   }, [open]);
 
   React.useEffect(() => {
-    setHi((h) => Math.min(h, filtered.length)); // filtered.length = the "Add new" row
-  }, [filtered.length]);
+    // Clamp the highlight whenever the highlightable RANGE changes — which is
+    // `lastIndex`, not the raw option count: for a non-admin the range stops one
+    // short because the "Add new" row is not rendered.
+    setHi((h) => Math.min(h, lastIndex));
+  }, [lastIndex]);
   React.useEffect(() => {
     if (!open) return;
     (listRef.current?.children[hi] as HTMLElement | undefined)?.scrollIntoView({ block: "nearest" });
@@ -99,6 +119,7 @@ export function ClientSelect({
   }
 
   function startAdd() {
+    if (!canAdd) return;
     setOpen(false);
     setError(null);
     setDraft(query.trim());
@@ -134,20 +155,32 @@ export function ClientSelect({
   function searchKeyDown(e: React.KeyboardEvent) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setHi((h) => Math.min(h + 1, filtered.length)); // include the Add-new row
+      setHi((h) => Math.min(h + 1, lastIndex)); // include the Add-new row
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHi((h) => Math.max(h - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (hi === filtered.length) startAdd();
+      if (canAdd && hi === filtered.length) startAdd();
       else if (filtered[hi]) choose(filtered[hi]);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setHi(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setHi(lastIndex);
     } else if (e.key === "Tab") {
-      // Commit the highlighted client on Tab, then advance to the next field.
-      if (hi < filtered.length && filtered[hi]) {
+      // Forward Tab commits the highlighted client, then advances to the next
+      // field. Backward Tab (Shift+Tab) must NEVER silent-select — just close
+      // and let focus move back naturally.
+      if (!e.shiftKey && hi < filtered.length && filtered[hi]) {
         e.preventDefault();
         choose(filtered[hi]);
-        requestAnimationFrame(() => focusNextFrom(triggerRef.current, e.shiftKey ? -1 : 1));
+        requestAnimationFrame(() => focusNextFrom(triggerRef.current, 1));
       } else {
         setOpen(false);
       }
@@ -185,10 +218,12 @@ export function ClientSelect({
             onClick={() => void saveAdd()}
             disabled={saving}
             aria-label="Save new client"
+            // 38px square = the height of the input it sits beside. At 46px the
+            // row was taller than the field and the input floated inside it.
             className="inline-flex shrink-0 items-center justify-center rounded-lg border border-hairline bg-white text-ink-strong transition-colors hover:bg-surface-muted disabled:opacity-50"
-            style={{ width: 46, height: 46 }}
+            style={{ width: 38, height: 38 }}
           >
-            <Check size={18} strokeWidth={2.4} />
+            <Check size={16} strokeWidth={2.4} />
           </button>
           <button
             type="button"
@@ -196,9 +231,9 @@ export function ClientSelect({
             disabled={saving}
             aria-label="Cancel"
             className="inline-flex shrink-0 items-center justify-center rounded-lg border border-hairline bg-white text-ink-muted transition-colors hover:bg-surface-muted disabled:opacity-50"
-            style={{ width: 46, height: 46 }}
+            style={{ width: 38, height: 38 }}
           >
-            <X size={18} strokeWidth={2.4} />
+            <X size={16} strokeWidth={2.4} />
           </button>
         </div>
         {error && (
@@ -218,9 +253,25 @@ export function ClientSelect({
           ref={triggerRef}
           type="button"
           id={id}
+          // Typing IS the primary action here: Tab onto the trigger should land
+          // the user ready to type. Open on focus so Radix moves focus into the
+          // search input; closing no longer restores focus to the trigger
+          // (onCloseAutoFocus prevented below), so this can't reopen-loop.
+          // Open via the native click (Radix toggles the Popover) or keyboard
+          // (Down / Enter / Space). Do NOT open on focus — focus-open fights the
+          // click's toggle (mousedown focuses → opens, then click toggles closed),
+          // which made a mouse click open-and-instantly-collapse the menu.
           onFocus={onFocus}
+          onKeyDown={(e) => {
+            if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !open) {
+              e.preventDefault();
+              setOpen(true);
+            }
+          }}
           onBlur={onBlur}
           aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={listId}
           className={(className ? className + " " : "") + "flex items-center justify-between gap-2 text-left cursor-pointer"}
         >
           <span
@@ -258,6 +309,10 @@ export function ClientSelect({
       <PopoverContent
         align="start"
         sideOffset={6}
+        // Closing must not bounce focus back to the trigger: with open-on-focus
+        // that would reopen the menu in a loop, and it also blocks Tab from
+        // advancing after a pick. Radix autofocuses the search input on open.
+        onCloseAutoFocus={(e) => e.preventDefault()}
         className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[14rem] overflow-hidden"
       >
         <div className="p-2.5" style={{ borderBottom: "1px solid var(--color-hairline)" }}>
@@ -274,13 +329,18 @@ export function ClientSelect({
                 setHi(0);
               }}
               onKeyDown={searchKeyDown}
-              placeholder="Search clients…"
-              className="w-full bg-transparent outline-none py-2.5"
-              style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink-strong)" }}
+              placeholder="Local search — clients" title="Local search — filters only the list on this page" aria-label="Local search — clients — this page only"
+              role="combobox"
+              aria-expanded={open}
+              aria-controls={listId}
+              aria-autocomplete="list"
+              aria-activedescendant={open ? `${listId}-opt-${hi}` : undefined}
+              className="w-full bg-transparent outline-none py-1.5"
+              style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink-strong)" }}
             />
           </div>
         </div>
-        <ul ref={listRef} role="listbox" className="max-h-[300px] overflow-y-auto py-1.5">
+        <ul ref={listRef} id={listId} role="listbox" className="max-h-[300px] overflow-y-auto overscroll-contain py-1.5">
           {filtered.length === 0 && (
             <li className="px-4 py-3 text-[14px] font-semibold" style={{ color: "var(--color-ink-muted)" }}>
               No match for “{query}”.
@@ -292,36 +352,62 @@ export function ClientSelect({
             return (
               <li
                 key={name}
+                id={`${listId}-opt-${i}`}
                 role="option"
                 aria-selected={isSel}
                 onMouseEnter={() => setHi(i)}
                 onClick={() => choose(name)}
-                className="flex items-center justify-between gap-3 mx-1.5 px-3 py-2.5 rounded-lg cursor-pointer transition-colors"
-                style={{ background: isHi ? "var(--color-surface-soft)" : "transparent" }}
+                className="flex items-center justify-between gap-3 mx-1.5 px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
+                style={{
+                  // Active (keyboard/hover) = strong red wash + left accent bar so
+                  // it's unmistakable; selected = a persistent lighter red tint so
+                  // you can always see the current choice. (Was surface-soft #f8fafc
+                  // — near-invisible.)
+                  background: isHi
+                    ? "color-mix(in srgb, var(--color-altus-red) 14%, transparent)"
+                    : isSel
+                      ? "color-mix(in srgb, var(--color-altus-red) 7%, transparent)"
+                      : "transparent",
+                  boxShadow: isHi ? "inset 3px 0 0 0 var(--color-altus-red)" : "none",
+                }}
               >
-                <span className="font-semibold truncate" style={{ fontSize: 15, color: "var(--color-ink-strong)" }}>
+                <span
+                  className="truncate"
+                  style={{
+                    fontSize: 14,
+                    fontWeight: isHi || isSel ? 700 : 600,
+                    color: isHi || isSel ? "var(--color-altus-red-deep)" : "var(--color-ink-strong)",
+                  }}
+                >
                   {name}
                 </span>
-                {isSel && <Check size={17} strokeWidth={2.6} style={{ color: "rgb(var(--vp-cyan-deep))" }} />}
+                {isSel && <Check size={17} strokeWidth={2.6} style={{ color: "var(--color-altus-red-deep)" }} />}
               </li>
             );
           })}
-          <li
-            role="option"
-            aria-selected={hi === filtered.length}
-            onMouseEnter={() => setHi(filtered.length)}
-            onClick={() => startAdd()}
-            className="flex items-center gap-2 mx-1.5 mt-1 px-3 py-2.5 rounded-lg cursor-pointer font-bold transition-colors"
-            style={{
-              background: hi === filtered.length ? "color-mix(in srgb, var(--color-altus-red) 8%, transparent)" : "transparent",
-              color: "var(--color-altus-red-deep)",
-              borderTop: "1px solid var(--color-hairline)",
-              fontSize: 15,
-            }}
-          >
-            <Plus size={16} strokeWidth={2.6} />
-            Add new client…
-          </li>
+          {/* ADMIN ONLY (Sir): creating a client grows a roster every task
+              form picks from, so it is not an ordinary employee's action.
+              Removed rather than disabled — a greyed row that always
+              refuses is worse than no row. quickAddClient enforces it. */}
+          {canAdd && (
+            <li
+              id={`${listId}-opt-${filtered.length}`}
+              role="option"
+              aria-selected={hi === filtered.length}
+              onMouseEnter={() => setHi(filtered.length)}
+              onClick={() => startAdd()}
+              className="flex items-center gap-2 mx-1.5 mt-1 px-3 py-2 rounded-lg cursor-pointer font-bold transition-colors"
+              style={{
+                background: hi === filtered.length ? "color-mix(in srgb, var(--color-altus-red) 8%, transparent)" : "transparent",
+                color: "var(--color-altus-red-deep)",
+                borderTop: "1px solid var(--color-hairline)",
+                fontSize: 14,
+              }}
+            >
+              <Plus size={15} strokeWidth={2.6} />
+              Add New Client…
+            </li>
+          )}
         </ul>
       </PopoverContent>
     </Popover>

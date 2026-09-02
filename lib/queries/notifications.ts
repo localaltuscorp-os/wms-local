@@ -47,6 +47,10 @@ export type InboxNotificationRow = {
   taskTitle: string | null;
   taskSubject: string | null;
   taskStatus: string | null;
+  /** The related task's own window, for the inbox's derived Period column.
+   *  Null on every notification that is not task-backed. */
+  taskCreatedAt: Date | null;
+  taskDueAt: Date | null;
   readAt: Date | null;
   emailSentAt: Date | null;
   createdAt: Date;
@@ -61,6 +65,10 @@ export interface ListInboxNotificationsArgs {
   limit?: number | undefined;
   /** Filter by a single kind. */
   kind?: NotificationKind | undefined;
+  /** Filter by a SET of kinds — how the inbox category bar filters. An empty
+   *  array means "a category that owns no kinds", which honestly matches
+   *  nothing rather than silently falling back to everything. */
+  kinds?: readonly NotificationKind[] | undefined;
 }
 
 export interface ListInboxNotificationsResult {
@@ -89,6 +97,11 @@ export async function listInboxNotifications(
     eq(notifications.userId, args.userId),
     args.before ? lt(notifications.createdAt, args.before) : undefined,
     args.kind ? eq(notifications.kind, args.kind) : undefined,
+    args.kinds
+      ? args.kinds.length > 0
+        ? inArray(notifications.kind, args.kinds)
+        : sql`false`
+      : undefined,
   ].filter((c): c is NonNullable<typeof c> => c !== undefined);
 
   const rows = await db
@@ -105,6 +118,10 @@ export async function listInboxNotifications(
       taskTitle: tasks.title,
       taskSubject: tasks.subject,
       taskStatus: tasks.status,
+      taskCreatedAt: tasks.createdAt,
+      // Same COALESCE the task lists use — a revised target date IS the due
+      // date once one is set, so the derived Period agrees with the task page.
+      taskDueAt: sql<string | null>`coalesce(${tasks.revisedTargetDate}, ${tasks.dueAt})`,
       readAt: notifications.readAt,
       emailSentAt: notifications.emailSentAt,
       createdAt: notifications.createdAt,
@@ -132,6 +149,8 @@ export async function listInboxNotifications(
     taskTitle: r.taskTitle ?? null,
     taskSubject: r.taskSubject ?? null,
     taskStatus: r.taskStatus ?? null,
+    taskCreatedAt: r.taskCreatedAt ?? null,
+    taskDueAt: r.taskDueAt ? new Date(r.taskDueAt) : null,
     readAt: r.readAt,
     emailSentAt: r.emailSentAt,
     createdAt: r.createdAt,
@@ -193,6 +212,97 @@ export async function markAllRead(userId: string): Promise<void> {
     .where(
       and(eq(notifications.userId, userId), isNull(notifications.readAt)),
     );
+}
+
+/**
+ * Unread-and-read counts per kind for one user, so the inbox category bar can
+ * show a live number on each button. One grouped scan of the same
+ * (user_id, kind, created_at) index the feed uses — cheaper than seven COUNTs.
+ *
+ * Deliberately NOT paginated and NOT filtered by `before`: the bar reports the
+ * whole inbox, so the counts do not shrink as you page backwards.
+ */
+export async function countInboxByKind(
+  userId: string,
+): Promise<Record<string, { total: number; unread: number }>> {
+  const rows = await db
+    .select({
+      kind: notifications.kind,
+      total: sql<number>`count(*)::int`,
+      unread: sql<number>`count(*) filter (where ${notifications.readAt} is null)::int`,
+    })
+    .from(notifications)
+    .where(eq(notifications.userId, userId))
+    .groupBy(notifications.kind);
+
+  const out: Record<string, { total: number; unread: number }> = {};
+  for (const r of rows) {
+    out[r.kind] = { total: Number(r.total ?? 0), unread: Number(r.unread ?? 0) };
+  }
+  return out;
+}
+
+/**
+ * Fetch specific notifications BY ID, scoped to their recipient.
+ *
+ * Used by the HR "Raise a Ticket" hand-off: the inbox passes only the ids in
+ * the URL, and the composer re-reads them here so the ticket context comes from
+ * the database rather than from whatever the query string claimed. Scoping by
+ * `userId` means a hand-typed id can never pull someone else's notification
+ * into a ticket.
+ */
+export async function getInboxNotificationsByIds(
+  ids: string[],
+  userId: string,
+): Promise<InboxNotificationRow[]> {
+  if (ids.length === 0) return [];
+  const actor = alias(employees, "notif_actor");
+  const rows = await db
+    .select({
+      id: notifications.id,
+      userId: notifications.userId,
+      taskId: notifications.taskId,
+      eventId: notifications.eventId,
+      kind: notifications.kind,
+      title: notifications.title,
+      body: notifications.body,
+      actorId: notifications.actorId,
+      actorName: actor.name,
+      taskTitle: tasks.title,
+      taskSubject: tasks.subject,
+      taskStatus: tasks.status,
+      taskCreatedAt: tasks.createdAt,
+      taskDueAt: sql<string | null>`coalesce(${tasks.revisedTargetDate}, ${tasks.dueAt})`,
+      readAt: notifications.readAt,
+      emailSentAt: notifications.emailSentAt,
+      createdAt: notifications.createdAt,
+    })
+    .from(notifications)
+    .leftJoin(tasks, eq(notifications.taskId, tasks.id))
+    .leftJoin(actor, eq(notifications.actorId, actor.id))
+    .where(and(inArray(notifications.id, ids), eq(notifications.userId, userId)))
+    .orderBy(desc(notifications.createdAt))
+    .limit(20);
+
+  return rows.map((r) => ({
+    id: r.id,
+    userId: r.userId,
+    taskId: r.taskId,
+    eventId: r.eventId,
+    kind: r.kind as NotificationKind,
+    title: r.title,
+    body: r.body,
+    actorId: r.actorId,
+    actorName: r.actorName ?? null,
+    taskTitle: r.taskTitle ?? null,
+    taskSubject: r.taskSubject ?? null,
+    taskStatus: r.taskStatus ?? null,
+    taskCreatedAt: r.taskCreatedAt ?? null,
+    taskDueAt: r.taskDueAt ? new Date(r.taskDueAt) : null,
+    readAt: r.readAt,
+    emailSentAt: r.emailSentAt,
+    createdAt: r.createdAt,
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -312,9 +422,12 @@ export async function listNotifications(
 
   const enriched: NotificationRow[] = sliced.map((r) => {
     const attempted = ((matrix[r.kind] ?? []) as string[]).filter(isChannel);
-    const delivered = ((r.deliveredChannels ?? []) as string[]).filter(
-      isChannel,
-    );
+    // The dispatcher records the web-push arm as "web_push"; the canonical
+    // channel name is "push". Alias on read so a delivered push isn't shown
+    // as failed.
+    const delivered = ((r.deliveredChannels ?? []) as string[])
+      .map((c) => (c === "web_push" ? "push" : c))
+      .filter(isChannel);
     const status: Record<Channel, ChannelStatus> = {
       email: "not_attempted",
       slack: "not_attempted",
@@ -384,7 +497,7 @@ export async function getNotificationDeliveryStats(
         'email',    COUNT(*) FILTER (WHERE 'email'    = ANY(delivered_channels)),
         'slack',    COUNT(*) FILTER (WHERE 'slack'    = ANY(delivered_channels)),
         'whatsapp', COUNT(*) FILTER (WHERE 'whatsapp' = ANY(delivered_channels)),
-        'push',     COUNT(*) FILTER (WHERE 'push'     = ANY(delivered_channels))
+        'push',     COUNT(*) FILTER (WHERE 'push' = ANY(delivered_channels) OR 'web_push' = ANY(delivered_channels))
       ) AS by_channel
     FROM last_24h
   `)) as unknown as Array<{

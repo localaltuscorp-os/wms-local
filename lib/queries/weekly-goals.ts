@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, weeklyGoals, tasks, attendanceLogs, incentiveRequests } from "@/db/schema";
 import type { TaskPriority } from "@/db/enums";
@@ -8,6 +8,22 @@ import {
   recentWeekStarts,
   type PerformerPeriod,
 } from "@/lib/weekly-goals/week";
+import {
+  effectiveCompletedSql,
+  effectivePctSql,
+  weeklyScoreSql,
+} from "@/lib/weekly-goals/effective";
+
+// Re-export the fill-gate helpers from the queries module so the
+// `requireWeeklyGoalsFilled` guard (lib/auth/current.ts) — which lazily imports
+// `hasUnfilledWeekGoals` from `@/lib/queries/weekly-goals` — wires up. The
+// implementation lives in lib/weekly-goals/gate.ts (single source of truth).
+export {
+  hasUnfilledWeekGoals,
+  countUnfilledWeekGoals,
+  listUnfilledWeekGoals,
+  type UnfilledWeekGoal,
+} from "@/lib/weekly-goals/gate";
 
 export interface WeeklyGoalRow {
   id: string;
@@ -85,6 +101,30 @@ export async function listGoalsForWeek(weekStart: string): Promise<WeeklyGoalRow
     .orderBy(asc(employees.name), asc(weeklyGoals.position));
 }
 
+/**
+ * Goals across a set of employees for one week — the manager's team overview.
+ * Same shape/joins as `listGoalsForWeek`, but scoped to `employeeIds` (their
+ * downline + self). Returns [] for an empty id list. Sorted by employee then
+ * Sr. No.
+ */
+export async function listGoalsForEmployees(
+  employeeIds: string[],
+  weekStart: string,
+): Promise<WeeklyGoalRow[]> {
+  if (employeeIds.length === 0) return [];
+  return db
+    .select(ROW_SELECT)
+    .from(weeklyGoals)
+    .innerJoin(employees, eq(weeklyGoals.employeeId, employees.id))
+    .where(
+      and(
+        inArray(weeklyGoals.employeeId, employeeIds),
+        eq(weeklyGoals.weekStart, weekStart),
+      ),
+    )
+    .orderBy(asc(employees.name), asc(weeklyGoals.position));
+}
+
 export interface EmployeeRanking {
   employeeId: string;
   employeeName: string;
@@ -94,13 +134,15 @@ export interface EmployeeRanking {
 }
 
 /**
- * Leaderboard for a period (this week / this month / YTD). Averages % done over
- * every goal whose week falls in the window, ranked best-first. Only employees
- * with ≥1 goal in the window appear.
+ * Leaderboard for a period (this week / this month / YTD). Ranks by the
+ * effective, weight-aware weekly score (Accept% if reviewed else %Done,
+ * Σ(eff×weight)/Σ(weight)) over every non-archived goal whose week falls in the
+ * window, best-first. Only employees with ≥1 (non-archived) goal appear.
  */
 export async function employeeRankings(
   period: PerformerPeriod,
   now: Date = new Date(),
+  employeeId?: string,
 ): Promise<EmployeeRanking[]> {
   const start = periodStart(period, now);
   const rows = await db
@@ -108,16 +150,23 @@ export async function employeeRankings(
       employeeId: weeklyGoals.employeeId,
       employeeName: employees.name,
       goals: sql<number>`count(*)::int`,
-      completed: sql<number>`count(*) filter (where ${weeklyGoals.pctDone} >= 100)::int`,
-      avgPct: sql<number>`coalesce(round(avg(${weeklyGoals.pctDone}))::int, 0)`,
+      completed: effectiveCompletedSql,
+      // Weight-aware effective % across the window (the official metric, §4).
+      avgPct: weeklyScoreSql,
     })
     .from(weeklyGoals)
     .innerJoin(employees, eq(weeklyGoals.employeeId, employees.id))
-    .where(gte(weeklyGoals.weekStart, start))
+    .where(
+      and(
+        gte(weeklyGoals.weekStart, start),
+        eq(weeklyGoals.archived, false),
+        ...(employeeId ? [eq(weeklyGoals.employeeId, employeeId)] : []),
+      ),
+    )
     .groupBy(weeklyGoals.employeeId, employees.name)
     .orderBy(
-      desc(sql`avg(${weeklyGoals.pctDone})`),
-      desc(sql`count(*) filter (where ${weeklyGoals.pctDone} >= 100)`),
+      desc(weeklyScoreSql),
+      desc(effectiveCompletedSql),
     );
   return rows;
 }
@@ -189,11 +238,12 @@ export async function globalRankings(
     db
       .select({
         employeeId: weeklyGoals.employeeId,
-        completed: sql<number>`count(*) filter (where ${weeklyGoals.pctDone} >= 100)::int`,
-        avgPct: sql<number>`coalesce(round(avg(${weeklyGoals.pctDone}))::int, 0)`,
+        completed: effectiveCompletedSql,
+        // Effective, weight-aware % over the window (§4).
+        avgPct: weeklyScoreSql,
       })
       .from(weeklyGoals)
-      .where(gte(weeklyGoals.weekStart, goalStart))
+      .where(and(gte(weeklyGoals.weekStart, goalStart), eq(weeklyGoals.archived, false)))
       .groupBy(weeklyGoals.employeeId),
     db
       .select({
@@ -209,10 +259,12 @@ export async function globalRankings(
         won: sql<number>`count(*)::int`,
       })
       .from(incentiveRequests)
+      // NOTE (port adaptation): the intern schema had an `archived` column on
+      // incentive_requests; ours doesn't. Dropped that predicate so the query
+      // compiles + means the same thing here (approved-in-period wins).
       .where(
         and(
           eq(incentiveRequests.status, "approved"),
-          eq(incentiveRequests.archived, false),
           sql`${incentiveRequests.createdAt} >= ${tsStart}`,
         ),
       )
@@ -298,13 +350,18 @@ export async function weekWiseTrend(opts: {
   const earliest = span[0]!;
 
   const where = opts.employeeId
-    ? and(gte(weeklyGoals.weekStart, earliest), eq(weeklyGoals.employeeId, opts.employeeId))
-    : gte(weeklyGoals.weekStart, earliest);
+    ? and(
+        gte(weeklyGoals.weekStart, earliest),
+        eq(weeklyGoals.archived, false),
+        eq(weeklyGoals.employeeId, opts.employeeId),
+      )
+    : and(gte(weeklyGoals.weekStart, earliest), eq(weeklyGoals.archived, false));
 
   const rows = await db
     .select({
       weekStart: weeklyGoals.weekStart,
-      avgPct: sql<number>`coalesce(round(avg(${weeklyGoals.pctDone}))::int, 0)`,
+      // Rebased onto the effective, weight-aware % (§4).
+      avgPct: weeklyScoreSql,
       goals: sql<number>`count(*)::int`,
     })
     .from(weeklyGoals)
@@ -322,6 +379,188 @@ export async function weekWiseTrend(opts: {
   });
 }
 
+/* ------------------------------------------------------------------ */
+/* Weekly-goals leaderboard (analytics dashboard §12)                  */
+/* ------------------------------------------------------------------ */
+
+export interface WeeklyGoalLeaderboardRow {
+  empId: string;
+  name: string;
+  avatar: string | null;
+  /** Spec 1 — avg effective % (weight-aware) over the window, 0..100. */
+  weightedScore: number;
+  /** Spec 3 — goals at effective % ≥ 100 + the completion rate. */
+  completion: {
+    /** Count of non-archived goals at effective % ≥ 100. */
+    done: number;
+    /** done / total goals, 0..100. */
+    rate: number;
+  };
+  /** Spec 2 — consistency composite + streak. */
+  consistency: {
+    /** % of weeks (with goals) where ALL goals were filled in-time, 0..100. */
+    fillOnTimeRate: number;
+    /** Avg effective % across the window, 0..100. */
+    avgEffective: number;
+    /** 0.5×fillOnTimeRate + 0.5×avgEffective, 0..100. */
+    composite: number;
+    /** Consecutive most-recent fully-filled weeks (ending at the window end). */
+    streak: number;
+  };
+  /** Spec 4 — KPI goals achieved (kpi flag + effective % ≥ 100). */
+  kpiHits: number;
+  /** Spec 4 — total ₹ incentive earned on completed incentive goals. */
+  incentiveEarned: number;
+}
+
+/** Small grace (days) after the week ends within which a fill still counts
+ *  as "on time" — matches the design's "+ small grace". */
+const FILL_GRACE_DAYS = 1;
+
+/**
+ * One leaderboard pass that returns ALL FOUR leaderboard specs (§12) per
+ * employee, so the UI just re-sorts: weighted weekly score, consistency +
+ * streak, goals completed, and KPI + incentive. Computed over a per-employee ×
+ * per-week aggregation across the window (for the fill-on-time rate + streak).
+ *
+ * Only non-archived goals contribute. Employees with no goals in the window are
+ * dropped. Effective % is Accept% (if reviewed) else %Done, weight-aware (§4).
+ */
+export async function weeklyGoalLeaderboard(
+  window: PerformerPeriod,
+  now: Date = new Date(),
+  employeeId?: string,
+): Promise<WeeklyGoalLeaderboardRow[]> {
+  const start = periodStart(window, now);
+
+  // Per-employee × per-week aggregation. `onTime` = the week's goals were all
+  // filled within (week end + grace); `filled`/`total` let us tell a fully
+  // filled week from a partial one for the streak. week end = Monday + 6 days.
+  const perWeek = await db
+    .select({
+      employeeId: weeklyGoals.employeeId,
+      weekStart: weeklyGoals.weekStart,
+      total: sql<number>`count(*)::int`,
+      filled: sql<number>`count(*) filter (where ${weeklyGoals.pctUpdatedAt} is not null)::int`,
+      // On-time = every goal in the week was filled on/before week-end + grace.
+      onTimeFilled: sql<number>`count(*) filter (
+        where ${weeklyGoals.pctUpdatedAt} is not null
+          and ${weeklyGoals.pctUpdatedAt} <= ((${weeklyGoals.weekStart}::date + ${6 + FILL_GRACE_DAYS}::int) + time '23:59:59')
+      )::int`,
+      done: effectiveCompletedSql,
+      // Weighted numerator / denominator so we can re-aggregate across weeks
+      // without double-rounding.
+      weightedSum: sql<number>`coalesce(sum(${effectivePctSql} * ${weeklyGoals.weight}), 0)`,
+      weightTotal: sql<number>`coalesce(sum(${weeklyGoals.weight}), 0)`,
+      kpiHits: sql<number>`count(*) filter (where ${weeklyGoals.kpi} = true and ${effectivePctSql} >= 100)::int`,
+      incentiveEarned: sql<number>`coalesce(sum(${weeklyGoals.incentiveAmount}) filter (where ${weeklyGoals.incentive} = true and ${effectivePctSql} >= 100), 0)::int`,
+    })
+    .from(weeklyGoals)
+    .where(
+      and(
+        gte(weeklyGoals.weekStart, start),
+        eq(weeklyGoals.archived, false),
+        ...(employeeId ? [eq(weeklyGoals.employeeId, employeeId)] : []),
+      ),
+    )
+    .groupBy(weeklyGoals.employeeId, weeklyGoals.weekStart);
+
+  const emps = await db
+    .select({ id: employees.id, name: employees.name, avatar: employees.avatarUrl })
+    .from(employees)
+    .where(eq(employees.isActive, true));
+  const empBy = new Map(emps.map((e) => [e.id, e]));
+
+  // Fold per-week rows into per-employee aggregates.
+  interface Acc {
+    weeks: { weekStart: string; total: number; filled: number; onTime: boolean }[];
+    weightedSum: number;
+    weightTotal: number;
+    goalsTotal: number;
+    done: number;
+    kpiHits: number;
+    incentiveEarned: number;
+  }
+  const accBy = new Map<string, Acc>();
+  for (const r of perWeek) {
+    let acc = accBy.get(r.employeeId);
+    if (!acc) {
+      acc = {
+        weeks: [],
+        weightedSum: 0,
+        weightTotal: 0,
+        goalsTotal: 0,
+        done: 0,
+        kpiHits: 0,
+        incentiveEarned: 0,
+      };
+      accBy.set(r.employeeId, acc);
+    }
+    acc.weeks.push({
+      weekStart: r.weekStart,
+      total: r.total,
+      filled: r.filled,
+      onTime: r.total > 0 && r.onTimeFilled >= r.total,
+    });
+    acc.weightedSum += Number(r.weightedSum);
+    acc.weightTotal += Number(r.weightTotal);
+    acc.goalsTotal += r.total;
+    acc.done += r.done;
+    acc.kpiHits += r.kpiHits;
+    acc.incentiveEarned += r.incentiveEarned;
+  }
+
+  const rows: WeeklyGoalLeaderboardRow[] = [];
+  for (const [empId, acc] of accBy) {
+    const meta = empBy.get(empId);
+    if (!meta) continue; // inactive / removed employee — skip
+
+    const weeksWithGoals = acc.weeks.length;
+    const onTimeWeeks = acc.weeks.filter((w) => w.onTime).length;
+    const fillOnTimeRate =
+      weeksWithGoals > 0 ? Math.round((onTimeWeeks / weeksWithGoals) * 100) : 0;
+
+    const avgEffective =
+      acc.weightTotal > 0 ? Math.round(acc.weightedSum / acc.weightTotal) : 0;
+    const weightedScore = avgEffective;
+
+    const composite = Math.round(0.5 * fillOnTimeRate + 0.5 * avgEffective);
+
+    // Streak: consecutive fully-filled weeks counting back from the most-recent
+    // week the employee had goals in.
+    const sortedDesc = [...acc.weeks].sort((a, b) =>
+      a.weekStart < b.weekStart ? 1 : a.weekStart > b.weekStart ? -1 : 0,
+    );
+    let streak = 0;
+    for (const w of sortedDesc) {
+      if (w.total > 0 && w.filled >= w.total) streak += 1;
+      else break;
+    }
+
+    const completionRate =
+      acc.goalsTotal > 0 ? Math.round((acc.done / acc.goalsTotal) * 100) : 0;
+
+    rows.push({
+      empId,
+      name: meta.name,
+      avatar: meta.avatar,
+      weightedScore,
+      completion: { done: acc.done, rate: completionRate },
+      consistency: { fillOnTimeRate, avgEffective, composite, streak },
+      kpiHits: acc.kpiHits,
+      incentiveEarned: acc.incentiveEarned,
+    });
+  }
+
+  // Default order: weighted score, then composite consistency.
+  return rows.sort(
+    (a, b) =>
+      b.weightedScore - a.weightedScore ||
+      b.consistency.composite - a.consistency.composite ||
+      a.name.localeCompare(b.name),
+  );
+}
+
 /** Active employees (incl. interns) for the person selector. */
 export async function listGoalEmployees(): Promise<{ id: string; name: string }[]> {
   return db
@@ -331,15 +570,21 @@ export async function listGoalEmployees(): Promise<{ id: string; name: string }[
     .orderBy(asc(employees.name));
 }
 
-/** An employee's name + KRA + criteria (for the Weekly Goals header). */
-export async function getEmployeeCriteria(
-  employeeId: string,
-): Promise<{ name: string; criteria: string | null; kra: string | null } | null> {
-  if (!/^[0-9a-f-]{36}$/i.test(employeeId)) return null;
-  const [row] = await db
-    .select({ name: employees.name, criteria: employees.performanceCriteria, kra: employees.kra })
+/**
+ * Active employees for the person selector, scoped to a goal-management scope:
+ *  - admin (`scope.all`) → every active employee (same as `listGoalEmployees`)
+ *  - manager → only the active employees in `scope.ids` (their downline + self)
+ * Always ordered by name. Returns [] for a non-admin scope with no ids.
+ */
+export async function listGoalEmployeesScoped(scope: {
+  all: boolean;
+  ids: string[];
+}): Promise<{ id: string; name: string }[]> {
+  if (scope.all) return listGoalEmployees();
+  if (scope.ids.length === 0) return [];
+  return db
+    .select({ id: employees.id, name: employees.name })
     .from(employees)
-    .where(eq(employees.id, employeeId))
-    .limit(1);
-  return row ?? null;
+    .where(and(eq(employees.isActive, true), inArray(employees.id, scope.ids)))
+    .orderBy(asc(employees.name));
 }

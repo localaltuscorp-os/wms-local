@@ -120,7 +120,7 @@ export function OutstandingFilterBar({ employees, entities, modes, cycles }: Pro
 
   return (
     <div
-      className="sticky top-[96px] max-md:top-[72px] z-40 border-b border-hairline print:hidden"
+      className="sticky top-0 max-md:top-14 z-40 border-b border-hairline print:hidden"
       style={{
         backgroundColor: "rgba(250, 251, 252, 0.82)",
         backdropFilter: "blur(20px) saturate(150%)",
@@ -158,7 +158,7 @@ export function OutstandingFilterBar({ employees, entities, modes, cycles }: Pro
             className="hidden max-sm:inline-flex items-center gap-1.5 filter-chip ml-auto"
             aria-expanded={sheetOpen}
           >
-            {sheetOpen ? "Hide" : "Show"} filters
+            {sheetOpen ? "Hide" : "Show"} Filters
           </button>
         </div>
 
@@ -274,7 +274,7 @@ export function OutstandingFilterBar({ employees, entities, modes, cycles }: Pro
                 }
                 reset();
               }}
-              className="inline-flex items-center gap-1.5 text-chip text-ink-subtle hover:text-ink-strong transition-colors px-3 py-2 rounded-chip"
+              className="bg-surface-card inline-flex items-center gap-1.5 text-chip text-ink-subtle hover:text-ink-strong transition-colors px-3 py-2 rounded-chip"
               aria-label="Reset filters"
             >
               <RotateCcw size={14} strokeWidth={2.2} />

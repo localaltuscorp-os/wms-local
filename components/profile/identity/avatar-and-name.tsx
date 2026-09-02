@@ -97,7 +97,7 @@ export function AvatarAndName({ initialName, initialAvatarUrl }: Props) {
       }}
     >
       <SectionHeader
-        title="Photo & name"
+        title="Photo & Name"
         description="Upload a picture, pick a character, or stick with your initials. Your display name is set by your administrator and can't be changed here."
         savedAt={showSaved ? savedAt : null}
       />
@@ -231,7 +231,7 @@ export function AvatarAndName({ initialName, initialAvatarUrl }: Props) {
               disabled={uploading}
               style={btnStyle("primary")}
             >
-              {uploading ? "Uploading…" : "Upload photo"}
+              {uploading ? "Uploading…" : "Upload Photo"}
             </button>
             {avatarUrl && (
               <button

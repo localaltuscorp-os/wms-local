@@ -11,6 +11,8 @@ import {
 } from "@/components/admin/activity-filter-bar";
 import { ActivityList } from "@/components/admin/activity-list";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
+import { AdminSection } from "@/components/admin/ui/section-shell";
+import { Activity as ActivityIcon } from "lucide-react";
 import type { TaskStatus } from "@/db/enums";
 
 export const dynamic = "force-dynamic";
@@ -63,30 +65,18 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
   })();
 
   return (
-    <div>
-      <header className="mb-8">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-ink-subtle font-bold">
-          Admin · Activity
-        </div>
-        <h1
-          className="mt-1 text-ink-strong"
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontStyle: "italic",
-            fontWeight: 500,
-            fontSize: 44,
-            lineHeight: 1.05,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          Everything happening across the team.
-        </h1>
-        <p className="text-body-lg text-ink-subtle mt-2 max-w-2xl">
-          A live, filterable audit timeline of every action — comments,
-          status changes, transfers, and approvals.
-        </p>
-      </header>
-
+    <AdminSection
+      eyebrow="Admin · Activity"
+      title="Everything happening across the team"
+      subtitle="A live, filterable audit timeline of every action — comments, status changes, transfers, and approvals."
+      icon={ActivityIcon}
+      stats={[
+        { label: "Today", value: stats.today },
+        { label: "This week", value: stats.thisWeek },
+        { label: "Comments today", value: stats.commentsToday },
+        { label: "Status changes", value: stats.statusChangesToday, tone: "amber" },
+      ]}
+    >
       <ActivityStatsCards stats={stats} />
 
       <ActivityFilterBar
@@ -115,6 +105,6 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
         loadOlderHref={loadOlderHref}
         statusLabels={statusLabels}
       />
-    </div>
+    </AdminSection>
   );
 }

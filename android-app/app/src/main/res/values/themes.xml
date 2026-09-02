@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Post-splash theme. Compose draws everything; this only sets the window
+         bed so the first frame never flashes white (canvas = warm paper, or the
+         dark ladder base via values-night). -->
+    <style name="Theme.Altus" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/altus_canvas</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <!-- S1 splash: deep full-bleed + the Altus mark, held by
+         setKeepOnScreenCondition until cached /me or 800ms. -->
+    <style name="Theme.Altus.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/altus_deep</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_mark</item>
+        <item name="postSplashScreenTheme">@style/Theme.Altus</item>
+    </style>
+</resources>

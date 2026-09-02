@@ -1,11 +1,11 @@
 import { DashboardHeader } from "@/components/layout/header";
-import { DashboardFooter } from "@/components/layout/footer";
 import { FilterBar } from "@/components/layout/filter-bar";
 import { TaskListPage } from "@/components/tasks/task-list-page";
 import { listEmployees } from "@/lib/queries/employees";
 import { listTasks, listDistinctSubjects } from "@/lib/queries/tasks";
 import { parseTaskFilters } from "@/lib/task-filters";
 import { requireUser } from "@/lib/auth/current";
+import { canChangeDoerFor } from "@/lib/auth/doer-permission";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 import { redirect } from "next/navigation";
@@ -20,6 +20,10 @@ interface PageProps {
 export default async function ArchivedPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const me = await requireUser();
+  // Who may reassign a doer: managers, Manan, Om. Resolved on the SERVER and
+  // passed down as a boolean — the table is a client component and has no
+  // business knowing emails or the org chart. The server actions re-check it.
+  const mayChangeDoer = await canChangeDoerFor(me);
   // Archiving is admin-only, so the archive view is too — a doer who types the
   // URL is sent back to their task list.
   if (!me.isAdmin) redirect("/tasks" as Route);
@@ -74,12 +78,11 @@ export default async function ArchivedPage({ searchParams }: PageProps) {
         filters={filters}
         basePath="/archived"
         employees={allEmployees.map((e) => ({ id: e.id, name: e.name }))}
-        me={{ id: me.id, isAdmin: me.isAdmin }}
+        me={{ id: me.id, isAdmin: me.isAdmin, canChangeDoer: mayChangeDoer }}
         statusLabels={statusLabels}
         statusTones={statusTones}
         subjects={subjects}
       />
-      <DashboardFooter />
     </>
   );
 }

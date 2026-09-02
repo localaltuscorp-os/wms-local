@@ -26,7 +26,7 @@ const TILES: ReadonlyArray<{
     key: "today",
     label: "Today",
     hint: "All events since midnight",
-    tone: "blue",
+    tone: "rose",
     icon: <CalendarDays size={16} strokeWidth={2.2} />,
   },
   {

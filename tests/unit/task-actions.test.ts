@@ -3,9 +3,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mock revalidatePath + updateTag before importing the actions (top-level
 // mocks run before imports). `updateTag` is the Next 16 server-action-
 // scoped tag invalidator used by `revalidateTaskRoutes`.
+// `unstable_cache` arrives via lib/queries/employees (listEmployeeOptions);
+// pass the work function straight through so the cached query behaves as a
+// plain async call under test.
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   updateTag: vi.fn(),
+  unstable_cache: <T>(fn: T) => fn,
 }));
 
 // Tier-3 — actions.ts now imports getStatusDisplayMap (server-only).
@@ -23,7 +27,7 @@ vi.mock("@/lib/auth/current", () => ({
     isAdmin: false,
     isActive: true,
     name: "Me",
-    email: "me@vp.com",
+    email: "manan@unleashed.in",
   })),
   getCurrentEmployee: vi.fn(async () => null),
   requireAdmin: vi.fn(),
@@ -136,7 +140,7 @@ const ADMIN_USER = {
   isAdmin: true,
   isActive: true,
   name: "Me",
-  email: "me@vp.com",
+  email: "manan@unleashed.in",
 } as Awaited<ReturnType<typeof requireUser>>;
 
 beforeEach(() => {

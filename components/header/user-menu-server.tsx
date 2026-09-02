@@ -2,7 +2,7 @@ import { getCurrentEmployee } from "@/lib/auth/current";
 import { getNavCounts } from "@/lib/queries/nav-counts";
 import { UserMenu } from "./user-menu";
 
-export async function UserMenuServer() {
+export async function UserMenuServer({ variant }: { variant?: "rail" } = {}) {
   const me = await getCurrentEmployee();
   if (!me) return null;
   // Inbox + Archived now live inside this menu, so it carries their counts —
@@ -22,6 +22,7 @@ export async function UserMenuServer() {
       avatarUrl={me.avatarUrl}
       inboxUnread={inboxUnread}
       archivedTasks={archivedTasks}
+      variant={variant}
     />
   );
 }

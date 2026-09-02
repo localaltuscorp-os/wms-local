@@ -19,7 +19,7 @@ export function RecentDocumentEvents({ rows }: Props) {
   return (
     <section className="mt-10">
       <header className="mb-4">
-        <h3 className="text-display-xs">Recent document activity</h3>
+        <h3 className="text-display-xs">Recent Document Activity</h3>
         <p className="text-body text-ink-subtle mt-1">
           Append-only audit trail. Who renamed / replaced / deleted what.
         </p>

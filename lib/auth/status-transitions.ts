@@ -29,9 +29,14 @@ export function nextStatusesFor(
   current: TaskStatus,
   role: ActorRole,
 ): TaskStatus[] {
-  // Admin override: can do anything except self-transition.
+  // Admin override: can do anything except self-transition — EXCEPT the approval
+  // verdicts. Those are decided by decideTaskApproval (two-stage: a manager
+  // accepts, only the founder gives final sign-off), so leaving them reachable
+  // here would let any admin drag a card to Approved and skip the whole rule.
   if (role === "admin") {
-    return TASK_STATUSES.filter((s) => s !== current);
+    return TASK_STATUSES.filter(
+      (s) => s !== current && s !== "approved" && s !== "not_approved",
+    );
   }
   // Stranger / creator-only: never anything.
   if (role === "stranger") return [];
@@ -65,8 +70,11 @@ export function nextStatusesFor(
     case "done": {
       // Doer cannot self-approve.  Initiator approves/declines; can also
       // cancel/transfer (still "non-terminal" from spec POV).
+      // The initiator no longer approves from here (Sir: approval is
+      // hierarchical — a manager accepts their report's work, the founder gives
+      // final sign-off). They can still cancel or transfer.
       if (role === "initiator") {
-        return ["approved", "not_approved", "cancelled", "transferred"];
+        return ["cancelled", "transferred"];
       }
       return [];
     }

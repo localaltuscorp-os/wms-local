@@ -1,6 +1,7 @@
 "use client";
 import { Tag } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { FilterPill, summarizeSelection } from "./filter-pill";
 
 export function SubjectFilter({
   options,
@@ -13,15 +14,19 @@ export function SubjectFilter({
 }) {
   const opts = options.map((s) => ({ value: s, label: s }));
   return (
-    <div className="filter-chip">
-      <Tag size={16} className="text-ink-subtle" strokeWidth={2} />
-      <MultiSelect
-        options={opts}
-        selected={selected}
-        onChange={onChange}
-        placeholder="All Subjects"
-        className="min-w-[6.5rem] !text-[14px]"
-      />
-    </div>
+    <MultiSelect
+      options={opts}
+      selected={selected}
+      onChange={onChange}
+      renderTrigger={({ selectedLabels }) => (
+        <FilterPill
+          icon={<Tag size={16} strokeWidth={2} />}
+          name="Subject"
+          value={summarizeSelection(selectedLabels, "All Subjects")}
+          tint="#0ea5e9"
+          active={selected.length > 0}
+        />
+      )}
+    />
   );
 }

@@ -109,7 +109,7 @@ export function BioAndTags({ initialBio, initialTags }: Props) {
       }}
     >
       <SectionHeader
-        title="Bio & expertise"
+        title="Bio & Expertise"
         description="A short note about you and what you're known for. Tags help teammates find the right person for the job."
         savedAt={showSaved ? savedAt : null}
       />

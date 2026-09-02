@@ -34,7 +34,7 @@ export function LockedFieldsCard({ email, role, department, isAdmin }: Props) {
       }}
     >
       <SectionHeader
-        title="Account details"
+        title="Account Details"
         description="Managed by your admin. Ask if you need any of these changed."
         savedAt={null}
       />

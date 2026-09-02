@@ -74,7 +74,7 @@ export function AdminActivityPreview({ events, statusLabels }: Props) {
           href={"/admin/activity" as Route}
           className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-ink-soft hover:text-altus-red transition-colors"
         >
-          View all
+          View All
           <ArrowRight size={14} strokeWidth={2.4} />
         </Link>
       </header>

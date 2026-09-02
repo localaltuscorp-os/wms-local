@@ -8,12 +8,48 @@ import {
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type SortingState,
 } from "@tanstack/react-table";
-import { Search, X, Users, ChevronRight } from "lucide-react";
-import type { EmployeeStatusRow, ViewMode } from "@/lib/types";
+import * as Tooltip from "@radix-ui/react-tooltip";
+import {
+  Search,
+  X,
+  Users,
+  ChevronRight,
+  ChevronDown,
+  ChevronsUpDown,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeftRight,
+} from "lucide-react";
+import type { EmployeeStatusRow, StatusCellBucket, ViewMode } from "@/lib/types";
+import { SectionDispatch } from "@/components/dashboard/section-dispatch";
+import type { SectionReport } from "@/lib/reports/section-report";
+import { StatusCellPopover } from "./status-cell-popover";
+import { useSectionSearch, matchesSearch } from "@/lib/client/section-search";
+import { useKpiFocus, setKpiFocus } from "@/lib/client/kpi-focus";
+import type { KpiBucketKey } from "@/lib/dashboard/kpi-buckets";
+import {
+  CollapseToggle,
+  CollapsibleBody,
+  SectionSearchBox,
+  DASHBOARD_CARD,
+  DASHBOARD_TABLE_HEAD,
+} from "./section-chrome";
+import { DashboardSectionHeader } from "./section-header";
 import { CriticalBadge } from "@/components/ui/critical-badge";
-import { EmployeeAvatar } from "@/components/ui/employee-avatar";
+import { Avatar } from "@/components/ui/avatar";
+import { SectionIcon } from "@/components/dashboard/section-icon";
+import { PageShell } from "@/components/layout/page-shell";
+import {
+  DEPT_BUCKETS,
+  inDeptBucket,
+  type DeptBucket,
+} from "@/lib/teams/department-buckets";
 
+/* The two non-department tab keys. Sentinels rather than "" / null so the tab
+   list, the active-tab check and the filter all speak one type — and prefixed
+   with __ so they cannot collide with a real department someone names "All". */
 type Tone = "green" | "amber" | "red" | "rose";
 
 function Pill({ value, tone }: { value: number; tone: Tone }) {
@@ -33,16 +69,144 @@ function Pill({ value, tone }: { value: number; tone: Tone }) {
   );
 }
 
-function buildColumns(): ColumnDef<EmployeeStatusRow>[] {
+/** A count with no tone. `Pill` resolves --color-<tone>-deep, and the slate
+ *  family has no such token, so the neutral statuses render as plain figures. */
+function PlainCount({ value }: { value: number }) {
+  if (value === 0) return <span className="text-ink-subtle text-mono">0</span>;
+  return <span className="text-[15px] font-bold tabular-nums text-ink-soft">{value}</span>;
+}
+
+/** Wraps a count cell in its hover preview. Every count column goes through
+ *  this, so the header, the mini-list and the "View all" link are defined once
+ *  instead of six times. */
+function withPreview(
+  row: EmployeeStatusRow,
+  bucket: StatusCellBucket,
+  count: number,
+  view: ViewMode,
+  children: React.ReactNode,
+) {
+  return (
+    <StatusCellPopover
+      employeeName={row.employeeName}
+      employeeId={row.employeeId}
+      bucket={bucket}
+      count={count}
+      tasks={row.previews?.[bucket]}
+      view={view}
+    >
+      {children}
+    </StatusCellPopover>
+  );
+}
+
+/** One numeric status column. Declared as DATA, not JSX, because the table
+ *  renders it in two orientations — statuses across the top, or statuses down
+ *  the side when transposed — and a second copy of the schema is how the two
+ *  views drift apart.
+ *
+ *  ON HOLD is included even though it was not in the requested ten: these
+ *  eleven columns PARTITION Total, and dropping it would leave paused work
+ *  counted in Total and shown in no column — the "columns sum short of the
+ *  total" bug the transform's exhaustiveness guard exists to prevent. Critical
+ *  and Pending are gone for the mirror-image reason: a priority and a
+ *  seven-status rollup both cut ACROSS the lifecycle, so neither can sit in a
+ *  per-status schema without double-counting. */
+type StatusCol = {
+  key: keyof EmployeeStatusRow;
+  label: string;
+  tone?: Tone;
+  /** The preview bucket that counts EXACTLY this column. Every status column
+   *  now has one, so every non-zero cell in the grid hovers. It stays optional
+   *  only so a future non-status column can opt out rather than borrow a
+   *  bucket that counts something else. */
+  preview?: StatusCellBucket;
+};
+
+/* Column-header type for this table's three header rows.
+   NOT the shared `text-table-head` utility: that one is 14px/700 in
+   ink-subtle and is also worn by the mobile menu, the auth brand stack, the
+   admin filter bars and the goals board, so raising its weight and contrast
+   here would have restyled all of them. */
+/** Was a local copy of the identical string; now the shared recipe. */
+const HEAD_TYPE = DASHBOARD_TABLE_HEAD;
+
+const STATUS_COLUMNS: StatusCol[] = [
+  { key: "approved", label: "Approved", tone: "green", preview: "approved" },
+  { key: "notApproved", label: "Not Approved", tone: "red", preview: "notApproved" },
+  { key: "done", label: "Done", tone: "green", preview: "done" },
+  { key: "followUp", label: "Follow Up", tone: "amber", preview: "followUp" },
+  { key: "needHelp", label: "Need Info", tone: "amber", preview: "needHelp" },
+  { key: "initiated", label: "Initiated", tone: "amber", preview: "initiated" },
+  { key: "notStarted", label: "Not Started", preview: "notStarted" },
+  { key: "dontKnow", label: "Not Read", preview: "dontKnow" },
+  { key: "onHold", label: "On Hold", tone: "amber", preview: "onHold" },
+  { key: "transferred", label: "Transferred", preview: "transferred" },
+  { key: "cancelled", label: "Cancelled", tone: "rose", preview: "cancelled" },
+];
+
+/**
+ * Which of the columns above each Task Summary card covers — the table's half
+ * of the [ VIEW ] toggle. Expanding NOT APPROVED up in the strip narrows this
+ * grid to the Not Approved column and to the people who actually have some.
+ *
+ * The keys are this table's own column keys, not task statuses, because the
+ * two vocabularies are not the same shape: the strip's Done card covers both
+ * the `done` and `approved` columns, and its Pending card is the residual over
+ * four of them (see lib/dashboard/kpi-buckets.ts).
+ *
+ * Transferred / Cancelled belong to NO card. They are excluded from the Task
+ * Summary entirely, so no focus can select them — which is the intended
+ * reading, not an omission.
+ */
+const KPI_FOCUS_COLUMNS: Record<
+  Exclude<KpiBucketKey, "total">,
+  readonly (keyof EmployeeStatusRow)[]
+> = {
+  needHelp: ["needHelp"],
+  notApproved: ["notApproved"],
+  done: ["approved", "done"],
+  pending: ["initiated", "followUp", "onHold", "dontKnow"],
+  notStarted: ["notStarted"],
+};
+
+/** Human name of the focused card, for the "Focused on …" chip. */
+const KPI_FOCUS_LABELS: Record<Exclude<KpiBucketKey, "total">, string> = {
+  needHelp: "Need Info",
+  notApproved: "Not Approved",
+  done: "Done",
+  pending: "Pending",
+  notStarted: "Not Started",
+};
+
+function buildColumns(
+  avatarById: Record<string, string | null>,
+  view: ViewMode,
+  /** The status columns to render — all of them, or just the focused card's. */
+  statusColumns: StatusCol[],
+  /** True while a KPI card is focused: Total then no longer partitions the
+   *  visible columns, so it is relabelled rather than left to look wrong. */
+  focused: boolean,
+): ColumnDef<EmployeeStatusRow>[] {
   return [
     {
       accessorKey: "employeeName",
       header: "Employee",
+      // Sortable A–Z / Z–A. `text` is TanStack's case-insensitive string
+      // compare, so "aisha" does not sort below "Zane" the way a raw
+      // codepoint comparison would.
+      enableSorting: true,
+      sortingFn: "text",
+      // Overrides the numeric default: a name column opens A→Z. Without this
+      // the shared `sortDescFirst: true` would make the first click on Employee
+      // sort Z→A, which nobody expects from a name.
+      sortDescFirst: false,
       cell: (info) => (
         <span className="inline-flex items-center gap-3">
-          <EmployeeAvatar
+          <Avatar
             name={info.row.original.employeeName}
-            size="sm"
+            avatarUrl={avatarById[info.row.original.employeeId] ?? null}
+            size={32}
           />
           <span
             className="text-ink-strong font-bold"
@@ -53,78 +217,206 @@ function buildColumns(): ColumnDef<EmployeeStatusRow>[] {
         </span>
       ),
     },
-    { accessorKey: "department", header: "Department" },
-    {
-      accessorKey: "criticalCount",
-      header: "Critical",
+    ...statusColumns.map<ColumnDef<EmployeeStatusRow>>((c) => ({
+      accessorKey: c.key,
+      header: c.label,
       cell: (info) => {
         const n = info.getValue<number>();
-        return n > 0 ? (
-          <span className="inline-flex items-center gap-1.5">
-            <CriticalBadge />
-            <span className="text-display-3xs tabular-nums">{n}</span>
-          </span>
-        ) : (
-          <span className="text-ink-subtle text-mono">0</span>
-        );
+        const node = c.tone ? <Pill value={n} tone={c.tone} /> : <PlainCount value={n} />;
+        // A preview is attached ONLY where a bucket counts exactly this
+        // column. That used to leave eight columns dead on hover, because only
+        // done / notApproved / cancelled had a bucket of their own; each status
+        // now has one, so the rule holds AND every column is live.
+        // `pendingTotal` is still not usable here — it holds every pending
+        // task, so hanging it off Follow Up or Initiated would preview a
+        // superset of the number being pointed at.
+        return c.preview && n > 0 ? withPreview(info.row.original, c.preview, n, view, node) : node;
       },
-    },
-    {
-      accessorKey: "done",
-      header: "Done",
-      cell: (info) => <Pill value={info.getValue<number>()} tone="green" />,
-    },
-    {
-      accessorKey: "pendingTotal",
-      header: "Pending",
-      cell: (info) => <Pill value={info.getValue<number>()} tone="amber" />,
-    },
-    {
-      accessorKey: "notApproved",
-      header: "Not Approved",
-      cell: (info) => <Pill value={info.getValue<number>()} tone="red" />,
-    },
-    {
-      accessorKey: "cancelled",
-      header: "Cancelled",
-      cell: (info) => <Pill value={info.getValue<number>()} tone="rose" />,
-    },
+    })),
+    // TOTAL = every task in the filter for this person, and the eleven status
+    // columns above partition it exactly — UNLESS a KPI card is focused, in
+    // which case only that card's columns are on screen and the header says
+    // "All" so nobody reads the visible columns as summing to it.
     {
       accessorKey: "total",
-      header: "Total",
-      cell: (info) => (
-        <span className="text-display-3xs text-ink-strong">
-          {info.getValue<number>()}
-        </span>
-      ),
+      header: focused ? "All" : "Total",
+      cell: (info) =>
+        withPreview(info.row.original, "total", info.getValue<number>(), view,
+          <span className="text-display-3xs text-ink-strong">
+            {info.getValue<number>()}
+          </span>),
     },
   ];
 }
 
-const DEPT_TONES = [
-  "blue",
-  "green",
-  "amber",
-  "purple",
-  "rose",
-] as const;
+/**
+ * The transposed view: statuses become rows, people become columns.
+ *
+ * It is a hand-rolled table rather than a second TanStack instance because
+ * TanStack's model is column-oriented — transposing it would mean generating a
+ * column def per EMPLOYEE on every filter change and re-deriving the row model
+ * from a matrix, which is more machinery than the twelve-by-N grid needs.
+ *
+ * Sorting still works, and means what it should in this orientation: clicking a
+ * person's header ranks the STATUSES by that person's counts. Clicking Status
+ * sorts the rows back into lifecycle order.
+ */
+function TransposedTable({
+  rows,
+  view,
+  avatarById,
+  statusColumns,
+  sortBy,
+  onSort,
+}: {
+  rows: EmployeeStatusRow[];
+  view: ViewMode;
+  avatarById: Record<string, string | null>;
+  /** The status rows to render — all of them, or just the focused card's. */
+  statusColumns: StatusCol[];
+  /** Employee id whose column is ranking the status rows, or null for schema order. */
+  sortBy: { employeeId: string; desc: boolean } | null;
+  onSort: (employeeId: string) => void;
+}) {
+  const statusRows = React.useMemo(() => {
+    const base = statusColumns.map((c) => ({
+      col: c,
+      counts: rows.map((r) => Number(r[c.key] ?? 0)),
+      total: rows.reduce((sum, r) => sum + Number(r[c.key] ?? 0), 0),
+    }));
+    if (!sortBy) return base;
+    const idx = rows.findIndex((r) => r.employeeId === sortBy.employeeId);
+    if (idx < 0) return base;
+    const at = (c: number[]) => c[idx] ?? 0;
+    return [...base].sort((a, b) =>
+      sortBy.desc ? at(b.counts) - at(a.counts) : at(a.counts) - at(b.counts),
+    );
+  }, [rows, sortBy, statusColumns]);
 
-function deptTone(name: string): (typeof DEPT_TONES)[number] {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  return DEPT_TONES[Math.abs(hash) % DEPT_TONES.length]!;
+  const grand = rows.reduce((sum, r) => sum + r.total, 0);
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full" style={{ minWidth: Math.max(640, 200 + rows.length * 120) }}>
+        <thead>
+          <tr className="border-b border-hairline">
+            <th
+              className={`sticky left-0 z-10 whitespace-nowrap bg-surface-card px-5 py-3 text-left ${HEAD_TYPE}`}
+              style={{ boxShadow: "inset 0 -1px 0 var(--color-hairline)" }}
+            >
+              Status
+            </th>
+            {rows.map((r) => {
+              const active = sortBy?.employeeId === r.employeeId;
+              return (
+                <th
+                  key={r.employeeId}
+                  aria-sort={active ? (sortBy!.desc ? "descending" : "ascending") : "none"}
+                  className={`whitespace-nowrap bg-surface-card px-3 py-3 text-right ${HEAD_TYPE}`}
+                  style={{ boxShadow: "inset 0 -1px 0 var(--color-hairline)" }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onSort(r.employeeId)}
+                    title={`Sort statuses by ${r.employeeName}`}
+                    className={`group/sort inline-flex cursor-pointer items-center gap-1.5 select-none transition-colors hover:text-ink-strong ${
+                      active ? "text-ink-strong" : ""
+                    }`}
+                  >
+                    <span className="max-w-[110px] truncate">{r.employeeName}</span>
+                    {active ? (
+                      sortBy!.desc ? (
+                        <ArrowDown size={13} strokeWidth={2.6} />
+                      ) : (
+                        <ArrowUp size={13} strokeWidth={2.6} />
+                      )
+                    ) : (
+                      <ChevronsUpDown
+                        size={13}
+                        strokeWidth={2.4}
+                        className="text-ink-subtle opacity-45 transition-opacity group-hover/sort:opacity-100"
+                      />
+                    )}
+                  </button>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {statusRows.map(({ col, counts }) => (
+            <tr key={String(col.key)} className="border-b border-hairline last:border-b-0">
+              <td className="sticky left-0 z-10 bg-surface-card px-5 py-3 text-left text-body-lg font-bold text-ink-strong whitespace-nowrap">
+                {col.label}
+              </td>
+              {rows.map((r, i) => {
+                const n = counts[i] ?? 0;
+                const node = col.tone ? <Pill value={n} tone={col.tone} /> : <PlainCount value={n} />;
+                return (
+                  <td key={r.employeeId} className="px-3 py-3 text-right whitespace-nowrap">
+                    {/* Previews survive the transpose — same bucket, same row,
+                        just read from the other axis. */}
+                    {col.preview && n > 0
+                      ? withPreview(r, col.preview, n, view, node)
+                      : node}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+          <tr className="border-t-2 border-hairline-strong">
+            <td className="sticky left-0 z-10 bg-surface-card px-5 py-3 text-left text-body-lg font-black text-ink-strong">
+              Total
+            </td>
+            {rows.map((r) => (
+              <td key={r.employeeId} className="px-3 py-3 text-right">
+                {withPreview(r, "total", r.total, view,
+                  <span className="text-display-3xs text-ink-strong">{r.total}</span>)}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+      <p className="px-5 py-2 text-[11.5px] font-semibold text-ink-subtle">
+        {rows.length} {rows.length === 1 ? "person" : "people"} · {grand} tasks
+      </p>
+    </div>
+  );
 }
 
 export function StatusTable({
   rows,
   view,
+  avatarById = {},
 }: {
   rows: EmployeeStatusRow[];
   view: ViewMode;
+  avatarById?: Record<string, string | null>;
 }) {
   const router = useRouter();
+  const [open, setOpen] = React.useState(true);
+  // Orientation. Kept OUTSIDE the TanStack instance and outside the transposed
+  // table's own sort, so flipping back and forth never discards the other
+  // view's sort — and popovers are per-cell, so they are unaffected either way.
+  const [isTransposed, setIsTransposed] = React.useState(false);
+  const [transposedSort, setTransposedSort] = React.useState<
+    { employeeId: string; desc: boolean } | null
+  >(null);
+  const toggleTransposedSort = React.useCallback((employeeId: string) => {
+    setTransposedSort((cur) =>
+      cur?.employeeId === employeeId
+        ? cur.desc
+          ? null // third click clears, back to lifecycle order
+          : { employeeId, desc: true }
+        : { employeeId, desc: false },
+    );
+  }, []);
   const [query, setQuery] = React.useState("");
-  const [selectedDept, setSelectedDept] = React.useState<string | null>(null);
+  /* ONE bucket at a time, because the control is a segmented tab bar rather
+     than a multi-select. See DepartmentTabs for what that trades. */
+  const [selectedDept, setSelectedDept] = React.useState<DeptBucket>("all");
+  /* The opening batch on the All tab, and the step each "Load More" adds. */
+  const BATCH = 10;
 
   // Whole-row navigation — anyone can click anywhere on the row (or
   // Tab to it and hit Enter/Space) to drill into that person's tasks.
@@ -136,134 +428,465 @@ export function StatusTable({
     [view],
   );
 
-  const departments = React.useMemo(() => {
-    const set = new Set<string>();
-    rows.forEach((r) => {
-      if (r.department) set.add(r.department);
-    });
-    return Array.from(set).sort();
-  }, [rows]);
+  // Two searches narrow this table and they AND together: this widget's own
+  // box (below the header) and the FilterBar's section search at the top of
+  // the page. Both match on the person's name.
+  const sectionQuery = useSectionSearch();
 
-  const filtered = React.useMemo(() => {
+  // [ VIEW ] on a Task Summary card focuses this table on that status subset:
+  // its columns narrow to the ones that card counts, and people carrying none
+  // of it drop out. [ HIDE ] restores the full grid. Read through a module
+  // store, so this widget opts in with one hook and the page stays untouched
+  // (lib/client/kpi-focus.ts).
+  const kpiFocus = useKpiFocus();
+  const focusColumns = kpiFocus && kpiFocus !== "total" ? KPI_FOCUS_COLUMNS[kpiFocus] : null;
+  const statusColumns = React.useMemo(
+    () =>
+      focusColumns
+        ? STATUS_COLUMNS.filter((c) => focusColumns.includes(c.key))
+        : STATUS_COLUMNS,
+    [focusColumns],
+  );
+
+  /* EVERYTHING EXCEPT THE DEPARTMENT — the set the tabs are built from.
+     Split out so the tab counts are what each tab will actually render: a bar
+     reading "Sales 4" that shows 1 row once you click it, because the search
+     box was already narrowing the list, is a bar nobody can trust. Same order
+     the other sections partition in (privacy/search first, team split last). */
+  const preDeptFiltered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
-      if (selectedDept && r.department !== selectedDept) return false;
       if (q && !r.employeeName.toLowerCase().includes(q)) return false;
+      if (!matchesSearch(sectionQuery, r.employeeName)) return false;
+      // Under a KPI focus, a person with none of that status is noise — the
+      // question being asked is "who is carrying the sent-back work", and a
+      // screen of zeroes does not answer it.
+      if (focusColumns && !focusColumns.some((k) => Number(r[k] ?? 0) > 0)) return false;
       return true;
     });
-  }, [rows, query, selectedDept]);
+  }, [rows, query, sectionQuery, focusColumns]);
 
-  const columns = React.useMemo(() => buildColumns(), []);
+  /* SIX FIXED TABS, counted from the data.
+     
+     This replaced a bar derived from the departments actually present, and the
+     reason is what that produced on the real roster: eleven-plus tabs — HR,
+     Accounts, Founder, Social Media, Admin, Graduate Programs, Lead
+     Generation, Videos, Business Development, Consulting, Unassigned — most of
+     them one or two people, and the big-team comparison the bar existed for
+     unreadable inside them. The bucket definitions live in
+     lib/teams/department-buckets.ts, with the trade written out there.
+
+     THE LABELS ARE FIXED; THE COUNTS ARE NOT. Every tab is always rendered,
+     including one that currently counts zero — a bar whose tabs appear and
+     disappear as you type is a bar you cannot aim at. That also means the
+     empty tab is legible as a fact about the org ("nobody in Ops is carrying
+     this") rather than as a missing control.
+
+     The counts do NOT sum to the roster, and should not: a person holding two
+     departments in different buckets is counted under both, matching the
+     any-of rule inDeptBucket applies. Others is the exception — it is defined
+     as matching none of the four, so nobody appears in it AND a named tab. */
+  const deptTabs = React.useMemo(
+    () =>
+      DEPT_BUCKETS.map((b) => ({
+        ...b,
+        count: preDeptFiltered.filter((r) =>
+          inDeptBucket(departmentNames(r), b.key),
+        ).length,
+      })),
+    [preDeptFiltered],
+  );
+
+  /* No fallback needed any more: the six tabs are always all present, so the
+     selected one cannot vanish under the reader the way a derived tab could. */
+  const activeDept = selectedDept;
+
+  const filtered = React.useMemo(
+    () => preDeptFiltered.filter((r) => inDeptBucket(departmentNames(r), activeDept)),
+    [preDeptFiltered, activeDept],
+  );
+
+  const columns = React.useMemo(
+    () => buildColumns(avatarById, view, statusColumns, focusColumns !== null),
+    [avatarById, view, statusColumns, focusColumns],
+  );
+
+  // EVERY column sorts now. `defaultColumn` used to close sorting so only
+  // Employee and Critical opted in; that left six count columns carrying no
+  // affordance, which reads as "these are not sortable" rather than "these were
+  // not enabled yet" — and a status breakdown is exactly the table you want to
+  // re-rank by whichever count you are chasing.
+  //
+  // sortingFn "basic" is the numeric comparator and the right default here:
+  // seven of the eight columns are counts. Employee overrides it with "text"
+  // in buildColumns, so alphabetical stays alphabetical.
+  //
+  // sortDescFirst matches the intent per type — a count column opens
+  // biggest-first (who has the most Not Approved), a name column opens A→Z.
+  // TanStack infers this per column, and the explicit default keeps the count
+  // columns predictable regardless of what the first row happens to hold.
+  const [sorting, setSorting] = React.useState<SortingState>([]);
 
   const table = useReactTable({
     data: filtered,
     columns,
+    defaultColumn: { enableSorting: true, sortingFn: "basic", sortDescFirst: true },
+    state: { sorting },
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const hasActiveFilter = query.trim().length > 0 || selectedDept !== null;
+  const hasActiveFilter =
+    query.trim().length > 0 ||
+    activeDept !== "all" ||
+    sectionQuery.length > 0 ||
+    focusColumns !== null;
+
+  // Page the already-sorted TanStack rows. Keyed off the row model (not
+  /* `filtered` — the rows the table is actually showing after its search, its
+     department picker and any KPI focus. Exporting the raw roster instead would
+     hand back a document that contradicts the screen it came from. */
+  const buildReport = React.useCallback((): SectionReport => {
+    return {
+      title: "Status by Doer",
+      subtitle: "Open work per person, by status",
+      meta: [
+        { label: "View", value: view === "doer" ? "By doer" : "By initiator" },
+        ...(query.trim() ? [{ label: "Search", value: query.trim() }] : []),
+        {
+          label: "Department",
+          /* The tab's own label, so the export says "Ops Team" rather than the
+             bucket key it is keyed on. */
+          value: DEPT_BUCKETS.find((b) => b.key === activeDept)?.label ?? "All",
+        },
+        ...(kpiFocus ? [{ label: "Focused on", value: kpiFocus }] : []),
+      ],
+      summary: `${filtered.length} ${filtered.length === 1 ? "person" : "people"}`,
+      columns: [
+        { label: "Person", weight: 2.6, align: "left" },
+        ...STATUS_COLUMNS.map((c) => ({ label: c.label, weight: 1, align: "right" as const })),
+      ],
+      rows: filtered.map((r) => [
+        r.employeeName,
+        ...STATUS_COLUMNS.map((c) => String(r[c.key] ?? 0)),
+      ]),
+    };
+  }, [filtered, query, activeDept, kpiFocus, view]);
+
+  /* ── ONE GROWING SLICE, NOT PAGES ────────────────────────────────────────
+     Replaces usePagedRows and the header's prev/next pager. Two controls that
+     can each decide which rows are on screen is two controls that can disagree,
+     and a reader has no way to tell which one the table is obeying; a batch
+     that only ever grows has no second state to fall out of sync with.
+
+     THE SLICE APPLIES TO THE "All" TAB ONLY. A team tab is already the reader
+     saying "just this side of the roster" — answering that with a second,
+     hidden limit makes "how many people in Sales are carrying this?" a number
+     you have to click to finish reading. All is the only view long enough to
+     need the cut. Same rule Overdue Tasks by Person follows.
+
+     Sliced off the SORTED row model, not `filtered`, so the batch follows the
+     column the reader sorted by rather than the underlying order. */
+  const sortedRows = table.getRowModel().rows;
+  const [visibleCount, setVisibleCount] = React.useState(BATCH);
+
+  /* BACK TO THE FIRST BATCH whenever the list underneath changes identity.
+     Re-sorting reshuffles who is in the top 10, so an expanded slice would
+     carry "I have already seen these" over to rows the reader has not seen.
+     Typing shrinks the list; switching tabs replaces it outright.
+
+     Adjusted DURING RENDER rather than in an effect — React's documented
+     pattern for resetting state when an input changes. The effect version
+     renders the stale slice and corrects it on the next pass, which is the
+     cascading render `react-hooks/set-state-in-effect` flags and, on a tab
+     switch, a visible flash of the previous team's rows. */
+  const listKey = `${activeDept}|${query.trim()}|${sectionQuery}|${kpiFocus ?? ""}|${sorting
+    .map((sc) => `${sc.id}:${sc.desc}`)
+    .join(",")}`;
+  const [seenListKey, setSeenListKey] = React.useState(listKey);
+  if (listKey !== seenListKey) {
+    setSeenListKey(listKey);
+    setVisibleCount(BATCH);
+  }
+
+  const isAllTab = activeDept === "all";
+  const visibleRows = isAllTab ? sortedRows.slice(0, visibleCount) : sortedRows;
+  /* `visibleRows.length`, not `visibleCount`: the count is a ceiling that can
+     sit above a list the search just shortened, and "Showing 20 of 14" is
+     worse than no footer at all. */
+  const hasMore = isAllTab && visibleRows.length < sortedRows.length;
 
   return (
-    <section
-      className="mx-auto max-w-[1600px] px-12 max-md:px-4 mt-12"
+    <PageShell
+      as="section"
+      width="full"
+      py={false}
+      /* No top margin. This sat under the Status Distribution card and needed
+         the separation; it now leads the Overview tab, whose `flex flex-col
+         gap-6` already spaces the sections. Keeping mt-12 would push the first
+         widget down by a gap that has nothing above it. */
       style={{
         opacity: 0,
-        animation: "fadeUp 500ms ease-out 700ms forwards",
+        // Was a 700ms delay, staggered against its position in one long scroll.
+        // Inside a dashboard tab this mounts the moment the tab is clicked.
+        animation: "fadeUp 400ms ease-out 100ms forwards",
       }}
     >
-      <header className="mb-5 flex items-end justify-between gap-4 flex-wrap">
-        <div className="flex items-start gap-3">
-          <span
-            aria-hidden
-            className="mt-1 inline-flex size-10 shrink-0 items-center justify-center rounded-xl"
-            style={{ background: "rgba(15, 23, 42, 0.05)", color: "var(--color-ink-strong)" }}
-          >
-            <Users size={20} strokeWidth={2.2} />
-          </span>
-          <div>
-          <h2 className="text-display-lg text-ink-strong">
-            Status by {view === "doer" ? "Doer" : "Initiator"}
-          </h2>
-          <p className="text-body-lg text-ink-subtle mt-1">
-            {hasActiveFilter ? (
-              <>
-                Showing{" "}
-                <span className="text-ink-strong font-bold tabular-nums">
-                  {filtered.length}
-                </span>{" "}
-                of {rows.length} {rows.length === 1 ? "person" : "people"}
-              </>
-            ) : (
-              <>Tasks broken down per person</>
+      <DashboardSectionHeader
+        icon={<SectionIcon icon={Users} tone="slate" />}
+        title={`Status by ${view === "doer" ? "Doer" : "Initiator"}`}
+        subtitle={
+          hasActiveFilter ? (
+            <>
+              Showing{" "}
+              <span className="font-semibold tabular-nums text-gray-900">
+                {filtered.length}
+              </span>{" "}
+              of {rows.length} {rows.length === 1 ? "person" : "people"}
+              {/* Says WHY the grid narrowed. Without it, clicking [ VIEW ] two
+                  sections up silently drops most of this table's columns and
+                  rows, which reads as a bug rather than as a focus. */}
+              {kpiFocus && kpiFocus !== "total" && (
+                <>
+                  {" · focused on "}
+                  <span className="font-semibold text-gray-900">
+                    {KPI_FOCUS_LABELS[kpiFocus]}
+                  </span>
+                </>
+              )}
+            </>
+          ) : (
+            "Tasks broken down per person"
+          )
+        }
+        /* Search and Department moved UP here from a strip beneath the header.
+           They are filters on this table, and sitting them in the same row as
+           the pager means the whole control surface is one line instead of two
+           bands with a table sandwiched between them. `items-center gap-3` and
+           a shared h-9 keep the input, the dropdown and the pager on one
+           baseline. */
+        actions={
+          /* gap-1.5: seven controls in one row, so the spacing between them has
+             to be a hairline rather than a gutter. */
+          <div className="flex items-center gap-1.5 max-md:flex-wrap">
+            {/* `filtered`, so the dispatch list follows the table's own search,
+                department picker and KPI focus rather than the raw roster. */}
+            <SectionDispatch report={buildReport} />
+            <SectionSearchBox query={query} onQuery={setQuery} />
+            {hasActiveFilter && (
+              <button
+                type="button"
+                // Also releases the Task Summary focus. "Clear" that left the
+                // grid narrowed to one status would be the most confusing
+                // button on the page.
+                onClick={() => {
+                  setQuery("");
+                  setSelectedDept("all");
+                  setKpiFocus(null);
+                }}
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[13px] font-bold text-ink-muted transition-colors hover:text-altus-red"
+              >
+                <X className="size-3.5" />
+                Clear
+              </button>
             )}
-          </p>
+            {/* ⇄ Transpose. Sits with the collapse control because both change
+                how the section is SHAPED rather than what it contains. */}
+            <button
+              type="button"
+              onClick={() => setIsTransposed((v) => !v)}
+              aria-pressed={isTransposed}
+              title={isTransposed ? "Back to people as rows" : "Transpose: statuses as rows"}
+              className={`inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[13px] font-bold transition-colors ${
+                isTransposed ? "text-altus-red" : "text-ink-muted hover:text-ink-strong"
+              }`}
+            >
+              <ArrowLeftRight className="size-3.5" strokeWidth={2.6} />
+              Transpose
+            </button>
+            <CollapseToggle
+              expanded={open}
+              onToggle={() => setOpen((v) => !v)}
+              label="Status by doer"
+            />
           </div>
-        </div>
-      </header>
-
-      <FilterBar
-        query={query}
-        onQuery={setQuery}
-        departments={departments}
-        selectedDept={selectedDept}
-        onDept={setSelectedDept}
-        hasActiveFilter={hasActiveFilter}
-        onClear={() => {
-          setQuery("");
-          setSelectedDept(null);
-        }}
+        }
       />
 
-      {filtered.length === 0 ? (
+      {/* Header (with its controls) stays visible; the table folds. */}
+      <CollapsibleBody expanded={open}>
+
+      {preDeptFiltered.length === 0 ? (
         <div
-          className="bg-surface-card rounded-section border border-hairline p-10 text-center"
+          className={`${DASHBOARD_CARD} p-10 text-center`}
           style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
         >
           <p className="text-body-lg text-ink-subtle">
             {rows.length === 0
               ? "No data for the current filter."
-              : "No employees match your search."}
+              : kpiFocus && kpiFocus !== "total"
+                ? `Nobody is carrying any ${KPI_FOCUS_LABELS[kpiFocus]} work.`
+                : "No employees match your search."}
           </p>
           {hasActiveFilter && rows.length > 0 && (
             <button
               type="button"
               onClick={() => {
                 setQuery("");
-                setSelectedDept(null);
+                setSelectedDept("all");
+                setKpiFocus(null);
               }}
-              className="mt-3 text-cta text-altus-red hover:underline"
+              className="bg-surface-card mt-3 text-cta text-altus-red hover:underline"
             >
-              Clear filters
+              Clear Filters
             </button>
           )}
         </div>
       ) : (
         <div
-          className="bg-surface-card rounded-section border border-hairline overflow-x-auto"
-          style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
+          /* p-6 sits INSIDE the card and OUTSIDE the scroll box, so the
+             horizontal scrollbar appears at the padded boundary rather than
+             hard against the card edge. */
+          className={`${DASHBOARD_CARD} p-6`}
         >
-          <table className="w-full min-w-[720px]">
+          {/* THE DEPARTMENT TABS — inside the card, above the column headers.
+              Unconditional now. The old gate ("render only if more than two
+              tabs exist") guarded against a derived bar collapsing to
+              "All 9 / Sales 9" on a single-department roster; a fixed six can
+              never do that. */}
+          <DepartmentTabs
+            tabs={deptTabs}
+            active={activeDept}
+            onChange={setSelectedDept}
+          />
+
+          {filtered.length === 0 ? (
+            /* A tab with nothing under it, rather than a roster with nothing in
+               it — the outer empty state above cannot say this, because it only
+               renders when the department filter has not run yet. */
+            <p className="py-10 text-center text-body-lg text-ink-subtle">
+              Nobody in {DEPT_BUCKETS.find((b) => b.key === activeDept)?.label} matches the
+              current filters.
+            </p>
+          ) : isTransposed ? (
+            /* Transposed reads the SAME filtered set, but not the paged one:
+               people are columns here, and paging columns would hide a person
+               mid-comparison rather than shortening a list. */
+            <TransposedTable
+              rows={filtered}
+              view={view}
+              avatarById={avatarById}
+              statusColumns={statusColumns}
+              sortBy={transposedSort}
+              onSort={toggleTransposedSort}
+            />
+          ) : (
+          <>
+          {/* `overflow-x-auto` IS here now. It was originally left off because an
+              overflow ancestor changes what a sticky <thead> sticks to — but
+              the <thead> stopped being sticky (see below), so that objection is
+              spent, and twelve columns genuinely do not fit a laptop viewport.
+              The Employee cell stays frozen with `sticky left-0`, so names
+              remain readable while the status columns scroll under them. */}
+          {/* The scroll box carries its own hairline + radius, so the table
+              reads as a framed object inside the card's p-6 rather than as
+              loose rows that happen to slide sideways. */}
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+          {/* min-w carries the twelve columns: one name column plus eleven
+              statuses and Total. Below this the numeric columns collapse into
+              each other, so the floor is what forces the scrollbar instead of
+              a squeeze. */}
+          <table className="w-full min-w-[1180px]">
+            {/* NOT vertically sticky — deliberately (Sir, 2026-08-20).
+                The header used to be `sticky top-[64px]`, which is what put a
+                tall blank band between the card's top edge and the column
+                labels: once the table scrolled under the filter bar the <thead>
+                detached, pinned itself 64px down the viewport, and left its own
+                row-space in the table empty. The band's height was however far
+                the table had scrolled past the pin — so it grew as you scrolled,
+                and it was always completely blank.
+
+                The offset was also simply wrong: the filter bar above pins at
+                `--app-topbar-h` (56px on desktop, see globals.css), not 64px,
+                so the labels never lined up with it either. A previous pass
+                already moved this number once for the same symptom ("floated
+                the header mid-table") — the number was never the problem, the
+                sticky was.
+
+                Dropping it costs almost nothing here: PAGE = 10, so the table
+                is ten rows tall and the header is on screen for essentially all
+                of it. The first cell keeps its own `left-0` freeze for
+                horizontal scroll, which is unaffected. */}
             <thead>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id} className="border-b border-hairline">
-                  {hg.headers.map((h, i) => (
-                    <th
-                      key={h.id}
-                      className={`px-5 py-4 text-table-head whitespace-nowrap ${
-                        i <= 1 ? "text-left" : "text-right"
-                      } ${i === 0 ? "sticky left-0 z-10 bg-surface-card" : ""}`}
-                    >
-                      {flexRender(h.column.columnDef.header, h.getContext())}
-                    </th>
-                  ))}
+                  {hg.headers.map((h, i) => {
+                    const canSort = h.column.getCanSort();
+                    const sorted = h.column.getIsSorted(); // false | "asc" | "desc"
+                    const headerNode = flexRender(
+                      h.column.columnDef.header,
+                      h.getContext(),
+                    );
+                    return (
+                      <th
+                        key={h.id}
+                        aria-sort={
+                          sorted === "asc"
+                            ? "ascending"
+                            : sorted === "desc"
+                              ? "descending"
+                              : canSort
+                                ? "none"
+                                : undefined
+                        }
+                        className={`whitespace-nowrap bg-surface-card px-5 py-3 ${HEAD_TYPE} ${
+                          i === 0 ? "text-left" : "text-right"
+                        } ${i === 0 ? "sticky left-0 z-10" : ""}`}
+                        style={{
+                          boxShadow: "inset 0 -1px 0 var(--color-hairline)",
+                        }}
+                      >
+                        {canSort ? (
+                          <button
+                            type="button"
+                            onClick={h.column.getToggleSortingHandler()}
+                            title={`Sort by ${
+                              typeof headerNode === "string" ? headerNode : h.column.id
+                            }`}
+                            className={`group/sort inline-flex cursor-pointer items-center gap-1.5 select-none transition-colors hover:text-ink-strong ${
+                              sorted ? "text-ink-strong" : ""
+                            }`}
+                          >
+                            {headerNode}
+                            {sorted === "asc" ? (
+                              <ArrowUp size={13} strokeWidth={2.6} />
+                            ) : sorted === "desc" ? (
+                              <ArrowDown size={13} strokeWidth={2.6} />
+                            ) : (
+                              // Dim ⇅ in the neutral state: the affordance has
+                              // to be visible before the hover, or nobody
+                              // discovers the column is clickable at all.
+                              <ChevronsUpDown
+                                size={13}
+                                strokeWidth={2.4}
+                                className="text-ink-subtle opacity-45 transition-opacity group-hover/sort:opacity-100"
+                              />
+                            )}
+                          </button>
+                        ) : (
+                          headerNode
+                        )}
+                      </th>
+                    );
+                  })}
                   {/* Chevron column header — silent, just claims width */}
-                  <th aria-hidden style={{ width: 36 }} />
+                  <th aria-hidden className="bg-surface-card" style={{ width: 36 }} />
                 </tr>
               ))}
             </thead>
             <tbody>
-              {table.getRowModel().rows.map((row) => {
+              {visibleRows.map((row) => {
                 const empId = row.original.employeeId;
                 const empName = row.original.employeeName;
                 const target = hrefFor(empId);
@@ -289,9 +912,7 @@ export function StatusTable({
                         className={`px-5 py-4 text-body-lg whitespace-nowrap ${
                           i === 0
                             ? "text-ink-strong sticky left-0 z-10 bg-surface-card"
-                            : i === 1
-                              ? "text-ink-muted"
-                              : "text-right"
+                            : "text-right"
                         }`}
                       >
                         {flexRender(
@@ -313,144 +934,145 @@ export function StatusTable({
               })}
             </tbody>
           </table>
+          </div>
+
+          {/* ── The footer: counter + Load More ──
+              Outside the horizontal scroll box, so it stays centred under the
+              card rather than sliding away when the twelve columns scroll
+              sideways. Rendered only while there is more to show, so it
+              disappears on the last batch instead of sitting there inert — and
+              never appears on a team tab, which shows everyone it matched the
+              moment it is clicked. */}
+          {hasMore && (
+            <div className="mt-5 flex items-center justify-center gap-3 border-t border-slate-100 pt-4">
+              <span className="text-xs font-bold tabular-nums text-slate-500">
+                Showing {visibleRows.length} of {sortedRows.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setVisibleCount((c) => c + BATCH)}
+                aria-label={`Load ${Math.min(BATCH, sortedRows.length - visibleRows.length)} more of ${sortedRows.length} people`}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-800 shadow-sm transition-all hover:bg-slate-200"
+              >
+                Load More
+                <ChevronDown className="size-3.5" strokeWidth={2.6} aria-hidden />
+              </button>
+            </div>
+          )}
+          </>
+          )}
+
         </div>
       )}
-    </section>
+      </CollapsibleBody>
+    </PageShell>
   );
 }
 
-function FilterBar({
-  query,
-  onQuery,
-  departments,
-  selectedDept,
-  onDept,
-  hasActiveFilter,
-  onClear,
-}: {
-  query: string;
-  onQuery: (v: string) => void;
-  departments: string[];
-  selectedDept: string | null;
-  onDept: (d: string | null) => void;
-  hasActiveFilter: boolean;
-  onClear: () => void;
-}) {
-  return (
-    <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
-      {/* Search */}
-      <div
-        className="relative flex items-center bg-surface-card border border-hairline rounded-chip pl-3 pr-2 h-10 min-w-[260px] max-md:min-w-full max-md:w-full transition-shadow focus-within:border-hairline-strong"
-        style={{
-          boxShadow: query
-            ? "0 0 0 3px color-mix(in srgb, var(--color-altus-red) 12%, transparent), 0 1px 2px rgba(15,23,42,0.04)"
-            : "0 1px 2px rgba(15,23,42,0.04)",
-        }}
-      >
-        <Search className="size-4 text-ink-subtle shrink-0" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => onQuery(e.target.value)}
-          placeholder="Search employees…"
-          className="flex-1 bg-transparent border-0 outline-none px-2.5 text-body-lg text-ink placeholder:text-ink-subtle"
-          aria-label="Search employees"
-        />
-        {query && (
-          <button
-            type="button"
-            onClick={() => onQuery("")}
-            className="size-6 inline-flex items-center justify-center rounded-full hover:bg-surface-soft transition-colors text-ink-subtle hover:text-ink"
-            aria-label="Clear search"
-          >
-            <X className="size-3.5" />
-          </button>
-        )}
-      </div>
-
-      {/* Department chips */}
-      {departments.length > 0 && (
-        <div className="inline-flex items-center gap-1.5 flex-wrap">
-          <DeptChip
-            label="All"
-            tone="ink"
-            active={selectedDept === null}
-            onClick={() => onDept(null)}
-            icon={<Users className="size-3.5" />}
-          />
-          {departments.map((d) => (
-            <DeptChip
-              key={d}
-              label={d}
-              tone={deptTone(d)}
-              active={selectedDept === d}
-              onClick={() => onDept(selectedDept === d ? null : d)}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Clear all */}
-      {hasActiveFilter && (
-        <button
-          type="button"
-          onClick={onClear}
-          className="ml-auto inline-flex items-center gap-1.5 text-[14px] font-bold text-ink-muted hover:text-altus-red transition-colors"
-        >
-          <X className="size-3.5" />
-          Clear filters
-        </button>
-      )}
-    </div>
-  );
+/**
+ * Read a row's departments, tolerating a STALE cached payload.
+ *
+ * `loadDashboardData` persists its result through `unstable_cache`
+ * (revalidate 60, and it survives in .next/cache), so for a window after this
+ * field changed from `department: string` to `departments: string[]` the cache
+ * can still hand us the old shape. Reading `.departments` blind would throw on
+ * `.length` and take the whole dashboard down; this degrades to the legacy
+ * single value instead. Same guard the status-distribution card already uses
+ * for its `summary` field.
+ */
+function departmentNames(row: EmployeeStatusRow): string[] {
+  if (Array.isArray(row.departments)) return row.departments;
+  const legacy = (row as unknown as { department?: string | null }).department;
+  return legacy ? [legacy] : [];
 }
 
-function DeptChip({
-  label,
-  tone,
+/**
+ * Department as a segmented tab bar of SIX FIXED BUCKETS.
+ *
+ * WHY TABS BEAT THE DROPDOWN THIS REPLACED. The old control was fixed-width
+ * and closed, which is what you want from a filter you rarely touch and wrong
+ * for the one number a reader of this table wants first: how the teams
+ * compare. "Sales 4, Apps 5, Ops 3" is that comparison, and a closed dropdown
+ * reading "Department (All)" hides all three counts behind a click.
+ *
+ * WHY SIX, AND NOT ONE PER DEPARTMENT. The first version of this bar built
+ * itself from the departments actually present, which is the more robust shape
+ * in the abstract and produced eleven-plus tabs on the real roster — most of
+ * them one or two people, and the comparison unreadable inside them. The
+ * buckets and the trade they carry are in lib/teams/department-buckets.ts.
+ *
+ * WHAT IT COSTS: the dropdown could select two departments at once; a tab bar
+ * picks one. That was a real capability and it is gone. It goes because two
+ * controls that can each filter the same column is two controls that can
+ * disagree, with no way for a reader to tell which one the table is obeying —
+ * and because the any-of rule the multi-select existed to express survives
+ * inside a single tab anyway (inDeptBucket: a person in Sales and HR is under
+ * Sales, not Others).
+ *
+ * ── NO `dark:` VARIANTS ──────────────────────────────────────────────────
+ * The rule section-chrome.tsx states for DASHBOARD_CARD, which is the card
+ * this bar sits inside: no dark theme is registered anywhere in the app, so
+ * Tailwind compiles `dark:` to a bare @media (prefers-color-scheme: dark)
+ * keyed on the reader's OS while the card underneath stays unconditionally
+ * white. `dark:bg-slate-800/80` would paint a near-black bar onto a white card
+ * for anyone browsing in dark mode, and `dark:hover:text-white` would erase
+ * the inactive tabs on hover at 1.00:1.
+ */
+function DepartmentTabs({
+  tabs,
   active,
-  onClick,
-  icon,
+  onChange,
 }: {
-  label: string;
-  tone: (typeof DEPT_TONES)[number] | "ink";
-  active: boolean;
-  onClick: () => void;
-  icon?: React.ReactNode;
+  tabs: { key: DeptBucket; label: string; count: number }[];
+  active: DeptBucket;
+  onChange: (key: DeptBucket) => void;
 }) {
-  const base =
-    tone === "ink"
-      ? {
-          bg: "color-mix(in srgb, #0f172a 6%, transparent)",
-          activeBg:
-            "linear-gradient(135deg, #1f2937, #0f172a)",
-          fg: "var(--color-ink-strong)",
-          activeFg: "#ffffff",
-        }
-      : {
-          bg: `color-mix(in srgb, var(--color-${tone}) 10%, transparent)`,
-          activeBg: `linear-gradient(135deg, var(--color-${tone}), var(--color-${tone}-deep))`,
-          fg: `var(--color-${tone}-deep)`,
-          activeFg: "#ffffff",
-        };
-
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-pill text-[13px] font-bold transition-all duration-200"
-      style={{
-        background: active ? base.activeBg : base.bg,
-        color: active ? base.activeFg : base.fg,
-        boxShadow: active
-          ? "0 4px 12px rgba(15, 23, 42, 0.12)"
-          : "none",
-        transform: active ? "translateY(-1px)" : "translateY(0)",
-      }}
+    <div
+      role="tablist"
+      aria-label="Filter by team"
+      /* `flex-wrap`, and no scroller. Six short labels fit one line on any
+         normal card width, so the `overflow-x-auto` the eleven-tab version
+         needed is gone — that is the horizontal scrolling this was asked to
+         eliminate. Wrap rather than nothing at all is the honest floor: on a
+         narrow phone six pills still do not fit, and wrapping to a second line
+         beats either clipping them or reintroducing a sideways scroll. */
+      /* `inline-flex`, NOT `flex`. A flex container is block-level, so the
+         grey pill stretched the full width of the card and read as a toolbar
+         band rather than a segmented control. inline-flex shrinks to fit its
+         buttons, matching the bar on Overdue Tasks by Person.
+
+         `flex-wrap` and `max-w-full` stay as the floor: inline-flex still
+         cannot exceed its container, and without wrapping the six pills would
+         be clipped on a narrow phone instead of dropping to a second line. */
+      className="mb-4 inline-flex w-auto max-w-full flex-wrap items-center gap-1 rounded-xl bg-slate-100 p-1 text-xs font-bold"
     >
-      {icon}
-      {label}
-    </button>
+      {tabs.map((t) => {
+        const isActive = active === t.key;
+        return (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(t.key)}
+            className={`flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 ${
+              isActive
+                ? "bg-white text-slate-900 shadow-sm transition-all"
+                : "text-slate-500 transition-colors hover:text-slate-900"
+            }`}
+          >
+            {t.label}
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold tabular-nums ${
+                isActive ? "bg-slate-100 text-slate-700" : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              {t.count}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

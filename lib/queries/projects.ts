@@ -12,6 +12,20 @@ export interface ProjectMemberRef {
   name: string | null;
 }
 
+/**
+ * Just the top-level PROJECTS as `{id,name}` — what the goal forms' "Part of
+ * Project?" picker offers (migration 0184). Deliberately NOT `listProjectTree`:
+ * the picker needs a dozen names, not the whole milestone/result/action tree, and
+ * this runs on every goal board load.
+ */
+export async function listProjectOptions(): Promise<{ id: string; name: string }[]> {
+  return db
+    .select({ id: projectNodes.id, name: projectNodes.name })
+    .from(projectNodes)
+    .where(and(eq(projectNodes.kind, "project"), eq(projectNodes.isArchived, false)))
+    .orderBy(asc(projectNodes.sortOrder), asc(projectNodes.name));
+}
+
 export interface ProjectTreeNode {
   id: string;
   name: string;

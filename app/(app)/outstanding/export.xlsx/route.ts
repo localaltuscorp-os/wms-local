@@ -1,5 +1,7 @@
 import * as XLSX from "xlsx";
 import { requireUser } from "@/lib/auth/current";
+import { accessFor } from "@/lib/auth/workspace-access";
+import { canAccessWorkspace } from "@/lib/workspaces";
 import { parseOutstandingFilters } from "@/lib/outstanding/filters";
 import { loadOutstandingDashboard } from "@/lib/queries/outstanding";
 import { todayISO, rollingHorizon } from "@/lib/outstanding/horizon";
@@ -43,9 +45,15 @@ function xlsxResponse(wb: XLSX.WorkBook, filename: string): Response {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  // Sales room — the whole receivables dataset lives behind this route, so it
+  // must enforce Sales access itself (the layout gate never runs for routes).
+  let me;
   try {
-    await requireUser();
+    me = await requireUser();
   } catch {
+    return new Response("Forbidden", { status: 403 });
+  }
+  if (!canAccessWorkspace("sales", await accessFor(me))) {
     return new Response("Forbidden", { status: 403 });
   }
 

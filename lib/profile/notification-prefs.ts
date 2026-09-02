@@ -20,6 +20,11 @@ export const NOTIFICATION_KINDS = [
   "transferred",
   "cancelled",
   "commented",
+  // Enterprise Communications (ECOS, migration 0179) — official broadcasts.
+  // Present here so the per-(kind,channel) preference matrix recognises it;
+  // note that critical/emergency broadcast delivery bypasses the matrix (the
+  // ECOS publish flow drives the in-app row + email directly).
+  "broadcast",
 ] as const;
 export type NotificationKindKey = (typeof NOTIFICATION_KINDS)[number];
 

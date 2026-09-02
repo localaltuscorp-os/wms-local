@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WORKER_TYPES } from "@/db/enums";
 
 const money = z.number().min(0).max(99_999_999);
 
@@ -15,6 +16,14 @@ export const SalaryProfileSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .nullable()
       .optional(),
+    // Worker type + pay-basis rate fields (0177). `payType` is DERIVED from
+    // workerType server-side (never hand-set). The rate fields matter only for
+    // their basis: hourly → monthlyPayAtTarget over weeklyTargetHours;
+    // fixed_fee → monthlyFee. Optional so callers that only touch CTC still pass.
+    workerType: z.enum(WORKER_TYPES).optional(),
+    monthlyPayAtTarget: money.optional(),
+    weeklyTargetHours: z.number().min(0).max(168).optional(),
+    monthlyFee: money.optional(),
   })
   .strict();
 

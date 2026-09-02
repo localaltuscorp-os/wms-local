@@ -2,6 +2,8 @@ import { listNotifications, getNotificationDeliveryStats } from "@/lib/queries/n
 import { listEmployees } from "@/lib/queries/employees";
 import { NotificationList } from "@/components/admin/notification-list";
 import { NotificationFilterBar } from "@/components/admin/notification-filter-bar";
+import { AdminSection } from "@/components/admin/ui/section-shell";
+import { Bell } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -60,39 +62,24 @@ export default async function AdminNotificationsPage({ searchParams }: PageProps
   };
 
   return (
-    <div>
-      <header className="mb-8">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-ink-subtle font-bold">
-          Admin · Notifications
-        </div>
-        <h1
-          className="mt-1 text-ink-strong"
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontStyle: "italic",
-            fontWeight: 500,
-            fontSize: 44,
-            lineHeight: 1.05,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          Every message we sent.
-        </h1>
-        <p className="text-body-lg text-ink-subtle mt-2 max-w-2xl">
-          Per-notification delivery log across email, Slack, WhatsApp, and Web Push.
-        </p>
-      </header>
-
-      <div className="grid grid-cols-4 gap-3 mb-6 max-md:grid-cols-2">
-        <StatCard label="Last 24h" value={stats.total24h} />
-        <StatCard label="Failures" value={stats.failures24h} tone="red" />
-        <StatCard label="Email" value={stats.byChannel24h.email} />
-        <StatCard
-          label="Slack + WA + Push"
-          value={stats.byChannel24h.slack + stats.byChannel24h.whatsapp + stats.byChannel24h.push}
-        />
-      </div>
-
+    <AdminSection
+      eyebrow="Admin · Notifications"
+      title="Every message we sent"
+      subtitle="Per-notification delivery log across email, Slack, WhatsApp, and Web Push."
+      icon={Bell}
+      stats={[
+        { label: "Last 24h", value: stats.total24h },
+        { label: "Failures", value: stats.failures24h, tone: "red" },
+        { label: "Email", value: stats.byChannel24h.email },
+        {
+          label: "Slack + WA + Push",
+          value:
+            stats.byChannel24h.slack +
+            stats.byChannel24h.whatsapp +
+            stats.byChannel24h.push,
+        },
+      ]}
+    >
       <NotificationFilterBar
         employees={allEmployees.map((e) => ({ value: e.id, label: e.name }))}
         initial={{
@@ -109,19 +96,6 @@ export default async function AdminNotificationsPage({ searchParams }: PageProps
         hasMore={page.hasMore}
         loadOlderHref={buildLoadOlder()}
       />
-    </div>
-  );
-}
-
-function StatCard({ label, value, tone = "default" }: { label: string; value: number; tone?: "default" | "red" }) {
-  return (
-    <div className="rounded-section border border-hairline bg-surface-card p-4">
-      <div className="text-[10px] uppercase tracking-[0.10em] font-bold text-ink-subtle">{label}</div>
-      <div
-        className={`mt-1 text-display-md font-serif italic ${tone === "red" ? "text-altus-red" : "text-ink-strong"}`}
-      >
-        {value}
-      </div>
-    </div>
+    </AdminSection>
   );
 }

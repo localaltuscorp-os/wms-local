@@ -197,7 +197,7 @@ export function ProductButtons({
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold border border-dashed border-hairline text-ink-soft hover:text-ink-strong"
+            className="bg-surface-card inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold border border-solid border-hairline text-ink-soft hover:text-ink-strong"
           >
             <Plus size={13} /> Add
           </button>
