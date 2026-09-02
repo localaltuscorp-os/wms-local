@@ -129,3 +129,6 @@ __claude-*.mjs
 # Local PGlite dev database — a 67 MB Postgres data dir, never source. Must stay
 # ignored or ship.sh's `git add -A` sweeps the whole thing into a commit.
 .pglite/
+
+# legacy mobile drop - removed 2026-09-02
+mobile_LEGACY_DROP_*/
