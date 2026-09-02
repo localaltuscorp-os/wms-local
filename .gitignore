@@ -1,0 +1,92 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/install-state.gz
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# production
+build/
+dist/
+
+# environment
+.env
+.env*.local
+.env.development
+.env.production
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# testing
+coverage/
+playwright-report/
+test-results/
+.playwright/
+
+# claude session-local state
+.claude/
+.superpowers/
+
+# vercel
+.vercel/
+
+# misc
+*.tsbuildinfo
+.turbo/
+
+# local-only assets that shouldn't be committed
+_reference/
+demo website video.mp4
+WhatsApp*
+# Override: M4 source dir `lib/whatsapp/` is lowercased but still matches
+# `WhatsApp*` on case-insensitive filesystems (Windows / macOS default).
+!lib/whatsapp/
+!lib/whatsapp/**
+!lib/validators/whatsapp.ts
+!app/api/whatsapp/
+!app/api/whatsapp/**
+!tests/unit/whatsapp-*.test.ts
+ddd.py
+*.jpeg
+vpinnacle.html
+vpinnacle_dashboard*.html
+credentials.md
+
+# Firebase
+firebase-service-account.json
+*-firebase-adminsdk-*.json
+*-serviceaccount*.json
+.firebase/
+functions/lib/
+functions/node_modules/
+
+# Bootstrap (one-time, contains service-role keys)
+.env.bootstrap
+
+# Internal Claude/workflow artifacts — kept on disk, not committed
+CLAUDE.md
+.env.local.example
+docs/superpowers/
+docs/2026-05-13-timeline-and-training-plan.md
+.vercel
+
+# Reference repos kept locally for prompt/design lookups — never committed
+ai-refs/

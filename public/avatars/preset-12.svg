@@ -1,0 +1,16 @@
+<svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="a12-body" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#5fc54f"/>
+      <stop offset="100%" stop-color="#2f8523"/>
+    </linearGradient>
+    <linearGradient id="a12-face" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd9b3"/>
+      <stop offset="100%" stop-color="#f0bf91"/>
+    </linearGradient>
+  </defs>
+  <path d="M10 110 Q10 70 22 60 Q50 56 78 60 Q90 70 90 110 Z" fill="url(#a12-body)"/>
+  <path d="M22 60 Q24 32 50 26 Q76 32 78 60 Q70 50 50 50 Q30 50 22 60 Z" fill="url(#a12-body)"/>
+  <ellipse cx="50" cy="50" rx="20" ry="24" fill="url(#a12-face)"/>
+  <ellipse cx="42" cy="44" rx="3" ry="6" fill="rgba(255,255,255,0.22)"/>
+</svg>

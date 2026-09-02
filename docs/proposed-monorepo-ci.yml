@@ -1,0 +1,66 @@
+# Proposed CI workflow for the Manan-Vasa monorepo.
+#
+# DESTINATION: Manan-Vasa/.github/workflows/task-management-ci.yml
+# (NOT task-management/.github/workflows/ — GitHub only reads workflows
+# from the repo's root .github/workflows/ directory. The current file
+# under task-management/.github/workflows/ci.yml is therefore inert.)
+#
+# Triggers only when task-management/** changes — other apps in the
+# monorepo (attendance, pso, social, etc.) don't run pnpm.
+
+name: task-management ci
+
+on:
+  pull_request:
+    paths:
+      - "task-management/**"
+      - ".github/workflows/task-management-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "task-management/**"
+      - ".github/workflows/task-management-ci.yml"
+
+defaults:
+  run:
+    working-directory: task-management
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Set these as repository or environment secrets.
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # pnpm version comes from task-management/package.json's packageManager field.
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: task-management/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      # Visual e2e tests — kept in CI but allowed to skip with the
+      # SKIP_VISUAL_TESTS=true repo variable when chasing a release.
+      - if: ${{ vars.SKIP_VISUAL_TESTS != 'true' }}
+        run: pnpm exec playwright install --with-deps chromium
+      - if: ${{ vars.SKIP_VISUAL_TESTS != 'true' }}
+        run: pnpm test:visual
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: task-management/playwright-report/

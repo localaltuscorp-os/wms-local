@@ -1,0 +1,4 @@
+name,email,role,department,is_admin
+Pravinkumar Joshi,pravin@vpinnacle.com,both,Operations,true
+Apeksha Joshi,apeksha@vpinnacle.com,initiator,Operations,true
+Rohit Sharma,rohit@vpinnacle.com,doer,Underwriting,false

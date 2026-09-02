@@ -1,0 +1,22 @@
+<svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="a5-body" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3a8fd6"/>
+      <stop offset="100%" stop-color="#1f5fa3"/>
+    </linearGradient>
+    <linearGradient id="a5-face" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd9b3"/>
+      <stop offset="100%" stop-color="#f0bf91"/>
+    </linearGradient>
+    <linearGradient id="a5-hair" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f5d570"/>
+      <stop offset="100%" stop-color="#c79d2f"/>
+    </linearGradient>
+  </defs>
+  <path d="M10 110 Q10 75 30 70 Q50 66 70 70 Q90 75 90 110 Z" fill="url(#a5-body)"/>
+  <path d="M42 70 Q50 76 58 70 L62 76 L38 76 Z" fill="#fcd05a"/>
+  <ellipse cx="50" cy="46" rx="22" ry="26" fill="url(#a5-face)"/>
+  <path d="M26 32 Q26 14 50 12 Q74 14 74 32 L78 90 Q76 88 72 90 Q70 60 66 50 Q62 40 50 38 Q38 40 34 50 Q30 60 28 90 Q24 88 22 90 Z" fill="url(#a5-hair)"/>
+  <path d="M28 38 Q40 32 50 34 Q60 32 72 38 Q70 24 50 22 Q30 24 28 38 Z" fill="#ffe195"/>
+  <ellipse cx="42" cy="40" rx="3" ry="6" fill="rgba(255,255,255,0.22)"/>
+</svg>
