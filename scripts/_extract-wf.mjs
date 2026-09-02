@@ -1,0 +1,17 @@
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+const [OUT, SC] = process.argv.slice(2);
+mkdirSync(`${SC}/mobile-design`, { recursive: true });
+const data = JSON.parse(readFileSync(OUT, "utf8")).result;
+const w = (n, c) => writeFileSync(`${SC}/mobile-design/${n}`, typeof c === "string" ? c : JSON.stringify(c, null, 2));
+w("domain.md", data.domain ?? ""); w("backend-decision.md", data.backend ?? "");
+w("canonical-design.md", data.canonical ?? ""); w("architecture.json", data.architecture ?? {});
+w("foundation.json", data.foundation ?? {}); w("critique.md", data.critique ?? "");
+const arch = data.architecture ?? {}, found = data.foundation ?? {};
+console.log("SIZES:", ["domain","backend","canonical","critique"].map(k=>`${k}=${(data[k]??"").length}`).join(" "), `arch=${JSON.stringify(arch).length} foundationFiles=${(found.files??[]).length}`);
+console.log(`\n=== STACK (${(arch.stack??[]).length}) ===`);
+for (const s of (arch.stack??[])) console.log(`  ${s.name}${s.version?" @"+s.version:""} — ${s.purpose??""}`);
+console.log(`\n=== FILE MANIFEST (${(arch.fileManifest??[]).length}) ===`);
+for (const f of (arch.fileManifest??[])) console.log(`  ${f.path}  · ${f.purpose??""}`);
+console.log(`\n=== FOUNDATION FILES (${(found.files??[]).length}) ===`);
+for (const f of (found.files??[])) console.log(`  ${f.path} (${(f.content??"").length}ch)`);
+console.log(`\n=== RISKS ===`); for (const r of (arch.risks??[])) console.log(`  - ${r}`);

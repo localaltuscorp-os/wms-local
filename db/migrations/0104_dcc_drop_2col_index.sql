@@ -1,0 +1,11 @@
+-- DCC v2 — final cut-over for the roster axis.
+--
+-- Batch A (0103) added dcc_entries_subject_uq — the COALESCE-sentinel expression
+-- index (item_id, entry_date, COALESCE(subject_id, ZERO)) — but KEPT the old
+-- 2-column dcc_entries_uq (item_id, entry_date) alongside it so the deploy window
+-- had no gap. Now, before the re-import writes participant rows (many rows share
+-- the same item_id + entry_date but differ by subject_id), the old 2-column
+-- unique MUST go — those rows would violate it. Writes already target the new
+-- expression index (setDccEntry raw upsert, shipped in Batch A), so dropping the
+-- old index is safe.
+DROP INDEX IF EXISTS dcc_entries_uq;

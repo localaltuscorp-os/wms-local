@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark-scheme mirrors (§1.1 DARK) for the pre-Compose window/splash layer. -->
+<resources>
+    <color name="altus_deep">#0A2E1D</color>
+    <color name="altus_evergreen">#57C79C</color>
+    <color name="altus_on_deep">#E6ECE8</color>
+    <color name="altus_canvas">#0D1310</color>
+</resources>

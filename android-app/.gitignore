@@ -1,0 +1,21 @@
+# Gradle / build outputs
+.gradle/
+build/
+app/build/
+baselineprofile/build/
+
+# Local machine config
+local.properties
+
+# IDE
+.idea/
+*.iml
+captures/
+
+# Native intermediates
+.externalNativeBuild/
+.cxx/
+
+# Signing — never commit keystores
+*.keystore
+*.jks

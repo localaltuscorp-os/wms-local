@@ -1,0 +1,22 @@
+<svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="a4-body" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3066be"/>
+      <stop offset="100%" stop-color="#1a3d80"/>
+    </linearGradient>
+    <linearGradient id="a4-face" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd9b3"/>
+      <stop offset="100%" stop-color="#f0bf91"/>
+    </linearGradient>
+    <linearGradient id="a4-hair" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2d2018"/>
+      <stop offset="100%" stop-color="#15100b"/>
+    </linearGradient>
+  </defs>
+  <path d="M10 110 Q10 75 30 70 Q50 68 70 70 Q90 75 90 110 Z" fill="url(#a4-body)"/>
+  <path d="M40 68 L50 80 L60 68 L62 88 L38 88 Z" fill="#f5e7d3"/>
+  <path d="M48 80 L52 80 L54 100 L46 100 Z" fill="#1a2d4f"/>
+  <ellipse cx="50" cy="46" rx="22" ry="26" fill="url(#a4-face)"/>
+  <path d="M30 38 Q30 18 50 16 Q70 18 70 38 L72 32 Q66 26 50 26 Q34 26 28 32 Z" fill="url(#a4-hair)"/>
+  <ellipse cx="42" cy="40" rx="3" ry="6" fill="rgba(255,255,255,0.2)"/>
+</svg>

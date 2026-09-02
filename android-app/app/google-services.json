@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "96159197030",
+    "project_id": "altuscorp-e7140",
+    "storage_bucket": "altuscorp-e7140.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:96159197030:android:5da0cc6ec88775f12f4aa7",
+        "android_client_info": {
+          "package_name": "com.altuscorp.altus"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "96159197030-4929dd5rc94c0421utbgdko91sentuch.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBhLGhQBmUFXmRh8NMU43EVorxdBI0r04Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "96159197030-4929dd5rc94c0421utbgdko91sentuch.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

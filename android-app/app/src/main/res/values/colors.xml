@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Resource-layer mirrors of the ui/theme/Color.kt tokens (§1.1 of the design
+     contract), needed only where Compose cannot reach: the splash window,
+     launcher icon and notification tint. Composables must read colours through
+     MaterialTheme / LocalAltusTokens — never these resources. -->
+<resources>
+    <!-- deep ★ — the hero surface / splash bed -->
+    <color name="altus_deep">#0C3B24</color>
+    <!-- primary (evergreen-600) -->
+    <color name="altus_evergreen">#0A5C4C</color>
+    <!-- text on deep -->
+    <color name="altus_on_deep">#F2F7F3</color>
+    <!-- background (warm paper canvas) -->
+    <color name="altus_canvas">#F7F8F5</color>
+</resources>
