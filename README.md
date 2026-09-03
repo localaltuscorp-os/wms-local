@@ -4,7 +4,7 @@ Internal work-management dashboard for the Altus Corp team. Tracks tasks, status
 
 ## Quickstart 
 
-```bash
+```bash 
 pnpm install
 cp .env.local.example .env.local   # fill in Supabase / Firebase / Resend values
 pnpm db:generate                    # generate first migration
