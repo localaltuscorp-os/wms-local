@@ -1,5 +1,18 @@
 # Reactivation audit — handoff item 4
 
+> **STATUS: actioned 2026-09-04 evening.** 9 accounts reactivated in both Postgres
+> (`is_active=true`, `deactivated_at=null`) and Firebase (`disabled=false`):
+> Jeevan Bharambe, Dattaram Kap, Krish Maheshwari, Mitul Mehta, Namrata Nevgi,
+> Rutvisha Mehta, Shreya Randhe — plus **Manan Vasa and Om Jadhav**, added at the
+> account holder's explicit instruction (note that §B below argued against Manan;
+> that call was overridden deliberately, not by oversight).
+>
+> **Still deactivated from §A, awaiting a decision:** Danyal Sayyed, Ruchita Ambre,
+> Suresh Yadav, Parvez Khan, Nandini Maurya.
+>
+> All reactivated accounts have **no password** and must use Forgot Password.
+> 19 of 28 employees are now active.
+
 **Source:** offline analysis of `Altus Backup/supabase-full-backup/` —
 `public.employees.json` (28 rows) and `public.employee_events.json` (782 rows),
 snapshot `2026-09-04T04:27:33Z`. No production credentials were used.

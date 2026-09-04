@@ -26,7 +26,7 @@ table before doing anything else.**
 | **Repo** | `Altus-corp/Altus-OS`, app at repo root, branch `main` |
 | **Hosting** | Vercel, team `altus-corp1`, project `altus-os`, region `bom1` |
 | **Database** | Supabase Postgres `mwaijzxuyicysvimzspx`, `ap-south-1` (Mumbai) |
-| **Auth** | Firebase `altuscorp-e7140` — **1 user as of 2026-09-04, 23 deleted mid-incident, see below** |
+| **Auth** | Firebase `altuscorp-e7140` — **28 users**, rebuilt 2026-09-04 evening from `employees.firebase_uid`. 19 active / 9 deactivated. Everyone except Rohan has **no password set** and must use Forgot Password. |
 | **Email** | Resend, `mananvasa.com` verified |
 | **Scale** | 216 pages · 143 API routes · 238 tables · 211 migrations · 34 crons |
 
@@ -36,9 +36,77 @@ table before doing anything else.**
 isn't the linked GitHub account, and that link still points at a departed
 developer's account. Deploy from a git-less copy — see `SETUP.md` §7.
 
+**Confirmed working 2026-09-04:** copy the tree excluding `.git` (keep `.vercel/`),
+then `vercel deploy --prod --yes` from the copy. `vercel redeploy <url>` also works
+and is faster when only env vars changed — but it re-runs EXISTING source, so it
+will **not** pick up code edits. Note `vercel ls --prod` lists blocked deployments
+too; a `Blocked`/`UNKNOWN` one cannot be redeployed (400). Pick a `● Ready` row.
+
+**Git push was hanging** because `credential.helper` was Git Credential Manager,
+which opens a GUI dialog no script can answer. Fixed by scoping github.com to `gh`:
+`git config --global credential."https://github.com".helper '!gh auth git-credential'`
+
 ---
 
-## 🔴 ACTIVE INCIDENT — resume here (2026-09-04, ~04:00 UTC / ~09:30 IST)
+### ▶ START HERE — resuming after 2026-09-04 evening
+
+Production is live and healthy, all 28 Firebase accounts exist, 19 employees are
+active, and both actively-abused credentials are dead. Nothing is mid-flight.
+
+**Two secrets you will need are deliberately NOT in this repo.** On a fresh
+machine, get them before running any admin script:
+
+1. **Firebase service-account key** for `altus-os-service-key@altuscorp-e7140`.
+   Generate a fresh JSON: Google Cloud Console → IAM & Admin → Service Accounts →
+   `altus-os-service-key` → Keys → Add key → JSON. **Do not use
+   `firebase-adminsdk-fbsvc`** — that account is dead at Google's end and returns
+   `invalid_grant: account not found` for every key it ever had.
+2. **The database password.** `vercel env pull` returns the literal string
+   `[SENSITIVE]` for Secret-type vars, so **`DATABASE_URL` cannot be read back out
+   of Vercel**. If it is not in a password manager, the only way to obtain a usable
+   one is to reset it again (Supabase → Settings → Database), re-push `DATABASE_URL`
+   to production *and* preview, and redeploy — about 10 minutes of downtime.
+   **Save it somewhere durable before you need it.**
+
+Sanity-check a new key before trusting it — this is the test that caught a dead
+credential after two wasted deploy cycles:
+
+```js
+// signs a JWT with the key and asks Google for a token; then proves it can
+// actually administer Firebase Auth in this project
+POST https://oauth2.googleapis.com/token       // grant_type=jwt-bearer
+POST https://identitytoolkit.googleapis.com/v1/projects/<pid>/accounts:query
+```
+
+`200` on both = good. `invalid_grant` = the service account is gone.
+`INSUFFICIENT_PERMISSION` on the second = the key is fine but the account is
+missing a role (it needs **Firebase Authentication Admin** *and* **Service Account
+Token Creator** — without the latter, password resets work but sign-in fails with
+`INVALID_CUSTOM_TOKEN`).
+
+**Next tasks, highest value first:**
+
+1. **Rotate `SUPABASE_SERVICE_ROLE_KEY`** (item 3 below) — the largest remaining
+   exposure. Bypasses every RLS policy. Rotating the JWT secret also rotates
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY`; push both, then one redeploy.
+2. **Decide on Rashmi Tripathi** — active employee whose entire `employees` row was
+   deleted during the incident. Recoverable from
+   `Altus Backup/AltusOS WMS Backup/database/tables/employees.json`
+   (id `b60094c4-513f-48ff-84e6-8fb5de54d615`). Restoring her also unblocks the last
+   `employee_departments` row. **Decide active vs inactive first.**
+3. **Rotate the remaining secrets** (item 5 below).
+4. **Diff `salary_runs` / `salary_profiles`** against the 1-Sep backup field-by-field
+   (item 7). Row counts cannot detect these — they were *modified*, not deleted.
+5. **Known Issue #1** (`0212_mobile_devices_lifecycle.sql`) — still the
+   disaster-recovery gap; the migration chain still cannot rebuild from empty.
+
+---
+
+## 🟠 INCIDENT — original resume list (written 2026-09-04 ~04:00 UTC, now partly done)
+
+> Items 1, 2, 4 and 6 are done — see **▶ START HERE** above for what is actually
+> next. This section is kept verbatim for the record; the text below it describes
+> the situation as it stood at 04:00 UTC, when the credentials were still live.
 
 **Someone has direct access to `DATABASE_URL` and `FIREBASE_PRIVATE_KEY` and is
 using them right now, bypassing the app entirely.** Not a session/cookie issue —
@@ -83,19 +151,26 @@ timestamp.
    every RLS policy. Rotating the JWT secret in Supabase rotates this
    *and* `NEXT_PUBLIC_SUPABASE_ANON_KEY` together — coordinate the env-var
    push so the site isn't broken mid-rotation.
-4. **Reactivate the wrongly-locked employees** — but only after steps 1-2
-   above are confirmed done, not before. As of this writing **17 of 28
-   employees have `is_active=false`**, most from an unauthorized actor, some
-   legitimately unrelated. Full current list in the changelog entry. Cross-
-   check each against `employee_events.note` before flipping back.
+4. ~~**Reactivate the wrongly-locked employees.**~~ **PARTLY DONE 2026-09-04
+   evening.** Full offline audit in
+   [`docs/INCIDENT_2026-09-04_REACTIVATION_AUDIT.md`](./docs/INCIDENT_2026-09-04_REACTIVATION_AUDIT.md)
+   — the discriminator is that every unauthorized deactivation has `note = NULL`,
+   while legitimate ones carry a note. **9 reactivated**: Jeevan Bharambe, Dattaram
+   Kap, Krish Maheshwari, Mitul Mehta, Namrata Nevgi, Rutvisha Mehta, Shreya Randhe,
+   plus Manan Vasa and Om Jadhav at the account holder's explicit instruction.
+   **Still deactivated, incident-related, awaiting a decision**: Danyal Sayyed,
+   Ruchita Ambre, Suresh Yadav, Parvez Khan, Nandini Maurya. **Correctly deactivated,
+   leave alone**: both Hetesh Vichare accounts, Siddhi Lakade, Pratham Medhekar.
 5. **Rotate every other secret in `.env.production`**: `CRON_SECRET`,
    `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`, `VAPID_PRIVATE_KEY`,
    `WHISPER_API_KEY`, `OPENROUTER_API_KEY`. Same file, same exposure — no
    reason to assume these are clean just because they haven't been abused yet.
-6. **Delete `.env.production` and `.env.production.bak`** from
-   `Downloads/ALTUS OS/` once every value in them has been rotated. Keep
-   secrets only in Vercel's env store; use `vercel env pull` when a local copy
-   is needed for a one-off script, then delete it.
+6. ~~**Delete `.env.production` and `.env.production.bak`**~~ — **DONE / not
+   present.** Searched `Downloads`, `Desktop` and `Documents` four levels deep on
+   2026-09-04: neither file exists on this machine; only the repo's tracked
+   `.env.example`. Their *contents* were still exposed, which is why items 3 and 5
+   remain. Caveat for future work: `vercel env pull` returns `[SENSITIVE]` for
+   Secret-type vars, so it is **not** a way to recover a value you have lost.
 7. **Manually review today's salary changes.** `salary_runs` (2 rows) and
    `salary_profiles` (1 row) were modified during the incident window; neither
    table logs who touched them. Have someone who knows the numbers check them
@@ -168,6 +243,32 @@ runs** until verified in the Vercel dashboard.
 ### 6. 37 stale branches on the remote
 
 Left from the previous history. Delete when convenient.
+
+### 7. `account_type = 'system'` cannot be deactivated
+
+`isLoginLive()` in `lib/auth/current.ts` returns `true` for a system account
+**regardless of `is_active`** — deliberate, so the ~120 roster queries filtering on
+`is_active = true` hide it automatically. The side effect is that setting
+`is_active = false` on such an account does **nothing**: it still logs in.
+
+No system account exists today — the only one, `System Service
+<system.service.altus@gmail.com>`, was deleted during the incident (it was also a
+hardcoded super-admin until 2026-09-04). Verified 2026-09-04: the only
+`account_type`s present are `employee` and `candidate`, and **no inactive account
+can log in**.
+
+**If you ever create a system account again**, know that deactivating it is not a
+containment option. Delete it or disable it in Firebase instead.
+
+### 8. Firebase Dynamic Links shutdown — does NOT affect this app
+
+The console warns that email-link auth for mobile and Cordova OAuth break when
+Dynamic Links shuts down. Checked 2026-09-04 across `.ts`/`.tsx`/`.kt`/`.gradle`
+including `android-app`: no `signInWithEmailLink`, `sendSignInLinkToEmail` or any
+Dynamic Links usage. Sign-in is email+password and resets use
+`generatePasswordResetLink`, which returns a plain `https://wms.mananvasa.com/...`
+URL. **Safe to ignore** — unless someone later adds magic-link sign-in to the
+Android app.
 
 ---
 
@@ -250,10 +351,24 @@ node -e "..."                      # JWT-grant test against Google; see the sess
 - Anyone previously relying on Om or Mohit having super-admin will find they no
   longer do.
 
+**Addendum, same evening**
+
+- Deployed `altus-pvsyzc4k5` (git-less copy → `vercel deploy --prod --yes`), verified
+  serving on `wms.mananvasa.com` with no `invalid_grant` / `INVALID_CUSTOM_TOKEN` /
+  `28P01` in the logs.
+- Fixed `.env.example`: it documented the database port as `5432`; the app uses the
+  **transaction pooler on 6543** (`lib/db/index.ts`). Added a note about
+  percent-encoding — a `@` in a password silently breaks the URL and produces a
+  misleading auth error, which cost time today.
+- Fixed `git push` hanging: `credential.helper` was Git Credential Manager, whose GUI
+  prompt no script can answer. Scoped github.com to `gh auth git-credential`.
+- Added Known Issues #7 (`account_type='system'` cannot be deactivated) and #8 (the
+  Firebase Dynamic Links warning does not affect this app).
+
 **Author:** Claude Code, working with the `Altus-corp` account holder
 
 
-### 2026-09-03/04 — Unauthorized access incident (ONGOING — see 🔴 above)
+### 2026-09-03/04 — Unauthorized access incident (CONTAINED 2026-09-04 evening — see the entry above)
 
 **What happened, in order**
 
