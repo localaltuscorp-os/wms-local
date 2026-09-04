@@ -14,8 +14,11 @@ broken, what changed and why.
 
 ## Current state — 2026-09-04
 
-**🔴 Active security incident in progress — read the section below the table
-before doing anything else.**
+**🟠 Incident contained 2026-09-04 evening — the two leaked credentials that were
+actively in use (`DATABASE_URL`, Firebase service account) are dead, Firebase Auth
+is rebuilt and no rows have been deleted since 04:27. NOT fully resolved: several
+secrets from the same exposed file are still unrotated. Read the section below the
+table before doing anything else.**
 
 | | |
 |---|---|
@@ -45,6 +48,15 @@ below. **Do not consider this resolved until both of the two steps just below
 are done and confirmed.**
 
 ### Do these two first, before anything else on this list
+
+> **✅ BOTH DONE 2026-09-04 evening.** Kept below for the record — see the top
+> changelog entry. Step 1's password was reset (and the `DATABASE_URL` rebuilt and
+> verified). Step 2 went further than planned: the old service account
+> `firebase-adminsdk-fbsvc` is now **dead at Google's end** (`account not found`),
+> all four leaked keys are deleted, and a replacement account
+> `altus-os-service-key@altuscorp-e7140` carries the Firebase Admin role.
+> **Items 3-10 below remain OPEN.** The `SUPABASE_SERVICE_ROLE_KEY` (item 3) and
+> the other secrets (item 5) are still the originals from the exposed file.
 
 1. **Reset the Supabase database password** for project `mwaijzxuyicysvimzspx`:
    `https://supabase.com/dashboard/project/mwaijzxuyicysvimzspx/settings/database`
@@ -160,6 +172,86 @@ Left from the previous history. Delete when convenient.
 ---
 
 ## Changelog
+
+### 2026-09-04 (evening) — Credentials rotated, Firebase Auth rebuilt, data recovered
+
+**What changed**
+
+- **Firebase service account replaced.** The old `firebase-adminsdk-fbsvc@altuscorp-e7140`
+  is **dead** — Google returns `invalid_grant: "Invalid grant: account not found"`
+  for it, so no key of its can ever work again. Replaced with a new account,
+  `altus-os-service-key@altuscorp-e7140.iam.gserviceaccount.com`, granted
+  **Firebase Authentication Admin** + **Service Account Token Creator**. Both roles
+  are required: without the second, login fails with `INVALID_CUSTOM_TOKEN` while
+  password resets appear to work.
+- **All 4 leaked service-account keys deleted** (`390de0aa`, `f80f66f3`, `f9cd36bf`,
+  `ae7a2d0d`). A 5th (`cf684bc94c`) was generated mid-incident and is also dead with
+  the parent account. `FIREBASE_PRIVATE_KEY`/`CLIENT_EMAIL`/`PROJECT_ID` all repushed.
+- **Supabase database password reset** and `DATABASE_URL` rebuilt against the
+  transaction pooler. Verified by direct connection before deploying.
+- **26 Firebase Auth accounts recreated** with their **original UIDs**, taken from
+  `employees.firebase_uid` — every one of the 28 employee rows still had it, so the
+  missing Firebase Auth export was never needed. All FK references stayed valid;
+  nothing in Postgres had to be rewritten. Accounts were created with **no password**
+  (the old hashes are unrecoverable) and `disabled` mirroring `is_active`.
+- **9 employees reactivated** at the account holder's instruction: Jeevan Bharambe,
+  Dattaram Kap, Krish Maheshwari, Mitul Mehta, Namrata Nevgi, Rutvisha Mehta,
+  Shreya Randhe, **Manan Vasa** and **Om Jadhav**. 19 of 28 now active.
+- **Super-admins reduced to two** (`lib/auth/super-admin.ts`): Rohan Choudhary and
+  Manan Vasa. Removed Om, Mohit, and `system.service.altus@gmail.com`. Also removed
+  the `SYSTEM_SERVICE_EMAIL` env escape hatch — it let anyone who could set a Vercel
+  env var grant themselves super-admin with no code review. It was unset in prod, so
+  removing it changed no behaviour. Rohan also given `is_admin = true`.
+- **Data restored from the 1-Sep backup** (additive `ON CONFLICT DO NOTHING`, so
+  nothing newer was overwritten): `tasks` 952→1026, `accounts_monthly_checks` 0→467,
+  `accounts_weekly_checks` 0→328, `accounts_bank_balances` 0→143,
+  `accounts_loan_cells` 0→34, `project_nodes` 60→87, `candidate_intake` 1→13,
+  `employee_departments` 59→74.
+- `.gitignore`: added `/Altus Backup/` — 112 MB of DB rows including `salary_runs`
+  and `salary_breakup` was untracked and **not ignored**; one `git add -A` would have
+  pushed employee salary data to GitHub.
+
+**Findings worth keeping**
+
+- **`.env.example` is wrong about the database port.** It documents `5432`
+  (session pooler); `lib/db/index.ts` says the app connects to the **transaction
+  pooler on 6543**, and its `max: 10` is tuned against that pooler's limits. Trust
+  the code. *(Not yet fixed — see Known Issues.)*
+- **`account_type = 'system'` bypasses `is_active` entirely.** `isLoginLive()` in
+  `lib/auth/current.ts` returns `true` for system accounts regardless of
+  deactivation. No such account exists now — the only one, `System Service`, was
+  deleted during the incident — but any future one is un-deactivatable by design.
+- **An employee row was deleted outright, not deactivated:** `Rashmi Tripathi
+  <rashmitripathi.altuscorp@gmail.com>`, active on 1 Sep, gone by 4 Sep 04:27. Her
+  row is recoverable from the 1-Sep backup and **has not been restored yet**. This is
+  why one `employee_departments` row (→ Operations) still cannot be re-inserted.
+- **Nothing has been deleted since 2026-09-04 04:27.** A three-way diff of the 1-Sep
+  backup, the 4-Sep 04:27 snapshot and live production shows every loss falling in
+  that window and none after it.
+- The GCP project `altuscorp-e7140` has **no parent organisation**, so the old
+  `unleashed.in` workspace holds no inherited access. Project IAM is the whole
+  picture, and it lists only the service account and `manan@altuscorp.in` (Owner).
+- Supabase project `mwaijzxuyicysvimzspx` is owned by the **personal Gmail account**
+  `manan.vasa@gmail.com` ("manan's Org"), not a company org. 2FA has been enabled on
+  it. Moving it to a company-owned organisation is still outstanding.
+
+**How to verify**
+
+```bash
+vercel env ls                      # DATABASE_URL + 3 FIREBASE_* all rotated today
+node -e "..."                      # JWT-grant test against Google; see the session log
+# in the app: Forgot Password -> reset link -> sign in
+```
+
+**Breaking / migration notes**
+
+- Every employee except Rohan Choudhary must use **Forgot Password** before signing
+  in. Their accounts exist with no password set.
+- Anyone previously relying on Om or Mohit having super-admin will find they no
+  longer do.
+
+**Author:** Claude Code, working with the `Altus-corp` account holder
+
 
 ### 2026-09-03/04 — Unauthorized access incident (ONGOING — see 🔴 above)
 
