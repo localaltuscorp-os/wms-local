@@ -3,7 +3,7 @@
 Internal work-management dashboard for the Altus Corp team. Tracks tasks, status, performance, and accountability across the team in one editorial, status-coded surface. 
  
 ## Quickstart 
-
+ 
 ```bash 
 pnpm install
 cp .env.local.example .env.local   # fill in Supabase / Firebase / Resend values
