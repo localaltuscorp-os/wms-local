@@ -12,7 +12,10 @@ broken, what changed and why.
 
 ---
 
-## Current state — 2026-09-03
+## Current state — 2026-09-04
+
+**🔴 Active security incident in progress — read the section below the table
+before doing anything else.**
 
 | | |
 |---|---|
@@ -20,7 +23,7 @@ broken, what changed and why.
 | **Repo** | `Altus-corp/Altus-OS`, app at repo root, branch `main` |
 | **Hosting** | Vercel, team `altus-corp1`, project `altus-os`, region `bom1` |
 | **Database** | Supabase Postgres `mwaijzxuyicysvimzspx`, `ap-south-1` (Mumbai) |
-| **Auth** | Firebase `altuscorp-e7140` — 23 users, invite-only |
+| **Auth** | Firebase `altuscorp-e7140` — **1 user as of 2026-09-04, 23 deleted mid-incident, see below** |
 | **Email** | Resend, `mananvasa.com` verified |
 | **Scale** | 216 pages · 143 API routes · 238 tables · 211 migrations · 34 crons |
 
@@ -32,22 +35,74 @@ developer's account. Deploy from a git-less copy — see `SETUP.md` §7.
 
 ---
 
-## 🔴 Outstanding security actions
+## 🔴 ACTIVE INCIDENT — resume here (2026-09-04, ~04:00 UTC / ~09:30 IST)
 
-Not yet done. Ordered by severity.
+**Someone has direct access to `DATABASE_URL` and `FIREBASE_PRIVATE_KEY` and is
+using them right now, bypassing the app entirely.** Not a session/cookie issue —
+confirmed by writing straight to Postgres and calling the Firebase Admin API
+with no app login at all. Full detail in the 2026-09-03/04 changelog entry
+below. **Do not consider this resolved until both of the two steps just below
+are done and confirmed.**
 
-1. **Rotate `SUPABASE_SERVICE_ROLE_KEY`.** Still the original key on project
-   `mwaijzxuyicysvimzspx`. It bypasses every RLS policy. A developer who left
-   without handover may still hold it. **Nothing else on this list matters as
-   much.**
-2. **Revoke `MananVasa-support` GitHub access.** Then audit **Deploy keys**,
-   **Webhooks** and **installed GitHub Apps** — those survive removing a person
-   and are the usual back door.
-3. **Protect `main`.** Currently unprotected and force-pushable.
-4. **Rotate every other credential** the departed developer saw: Firebase
-   service account, Resend, Slack, WhatsApp, DigiLocker, OpenRouter, Whisper.
-5. **Reconnect Vercel's GitHub** to `Altus-corp` so deploys stop depending on
-   the old account.
+### Do these two first, before anything else on this list
+
+1. **Reset the Supabase database password** for project `mwaijzxuyicysvimzspx`:
+   `https://supabase.com/dashboard/project/mwaijzxuyicysvimzspx/settings/database`
+   → *Reset Database Password*. Kills the leaked `DATABASE_URL` immediately.
+   **The app will go down until the new password is pushed to Vercel
+   (`DATABASE_URL` env var, prod + preview) and redeployed — that's expected,
+   accept the downtime.**
+2. **Revoke the leaked Firebase service-account key** (not just rotate — the
+   old key must be *deleted*, a new one alongside it is not enough):
+   `https://console.firebase.google.com/project/altuscorp-e7140/settings/serviceaccounts/adminsdk`
+   → generate a new private key → then in Google Cloud Console, IAM & Admin →
+   Service Accounts → find the key ID currently in `.env.production` → delete
+   it. Push the new `FIREBASE_PRIVATE_KEY` / `FIREBASE_CLIENT_EMAIL` to Vercel
+   and redeploy.
+
+Once both are done: verify by re-running the Firebase Auth export
+(`lib/firebase/admin.ts` pattern, see changelog) and confirming no new
+`employee_events` rows appear with an unexplained actor after the rotation
+timestamp.
+
+### Then, still outstanding
+
+3. **Rotate `SUPABASE_SERVICE_ROLE_KEY`.** Still the original key. Bypasses
+   every RLS policy. Rotating the JWT secret in Supabase rotates this
+   *and* `NEXT_PUBLIC_SUPABASE_ANON_KEY` together — coordinate the env-var
+   push so the site isn't broken mid-rotation.
+4. **Reactivate the wrongly-locked employees** — but only after steps 1-2
+   above are confirmed done, not before. As of this writing **17 of 28
+   employees have `is_active=false`**, most from an unauthorized actor, some
+   legitimately unrelated. Full current list in the changelog entry. Cross-
+   check each against `employee_events.note` before flipping back.
+5. **Rotate every other secret in `.env.production`**: `CRON_SECRET`,
+   `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`, `VAPID_PRIVATE_KEY`,
+   `WHISPER_API_KEY`, `OPENROUTER_API_KEY`. Same file, same exposure — no
+   reason to assume these are clean just because they haven't been abused yet.
+6. **Delete `.env.production` and `.env.production.bak`** from
+   `Downloads/ALTUS OS/` once every value in them has been rotated. Keep
+   secrets only in Vercel's env store; use `vercel env pull` when a local copy
+   is needed for a one-off script, then delete it.
+7. **Manually review today's salary changes.** `salary_runs` (2 rows) and
+   `salary_profiles` (1 row) were modified during the incident window; neither
+   table logs who touched them. Have someone who knows the numbers check them
+   by eye before trusting payroll output from this period.
+8. **Protect `main`.** Attempted 2026-09-03 — **blocked by GitHub**: private
+   repo + personal (non-org) account + Free plan = no branch protection
+   available at any price point except upgrading. **Needs GitHub Pro
+   ($4/mo)** on the `Altus-corp` account before this can be configured at all.
+   Collaborator list was checked and confirmed clean (`Altus-corp` is the only
+   collaborator) — this item is about surviving *that one* account being
+   compromised, which is exactly what just happened.
+9. **Revoke `MananVasa-support` GitHub access** (if not already gone — the old
+   backup mirror shows this account with 174+ commits historically; current
+   `Altus-corp/Altus-OS` collaborator list no longer shows it, but Deploy
+   keys, Webhooks and installed GitHub Apps were not re-checked and can
+   survive a person's removal).
+10. **Reconnect Vercel's GitHub** to `Altus-corp` so deploys stop depending on
+    a commit-author identity that isn't a Vercel collaborator (currently
+    requires the git-less-copy workaround in `SETUP.md` §7 every time).
 
 ---
 
@@ -105,6 +160,70 @@ Left from the previous history. Delete when convenient.
 ---
 
 ## Changelog
+
+### 2026-09-03/04 — Unauthorized access incident (ONGOING — see 🔴 above)
+
+**What happened, in order**
+
+All timestamps UTC. `employee_events.actor_id` for every row below resolves to
+Manan Vasa's employee row (`1fbc08ff-fa3f-47c3-bcee-3539a9c0c299`).
+
+- **~03:52–04:21** — 5 attendance punches deleted for Jeevan Bharambe (Aug
+  1/3/4/5), 3 accounts deactivated (Om Jadhav, Rohan Choudhary, Jeevan),
+  a password reset forced on Proveeka Makwana, Om's manager/schedule edited.
+- **~13:42–13:46** — 7 more deactivations (Rutvisha, Rohan again, Danyal,
+  Jeevan again, Namrata, Mitul, Om again).
+- Manan told the account holder directly he did not do this.
+- Traced the session mechanism: `lib/auth/session.ts` verifies the login
+  cookie against `COOKIE_SECRET_CURRENT`/`PREVIOUS` — a shared HS256 secret,
+  not a Firebase credential. That secret sits in plaintext in
+  `.env.production` in `Downloads/ALTUS OS/` on this machine — already
+  flagged as exposed in an earlier session. Anyone with that string can forge
+  a valid login as any employee without a password.
+- **Contained (round 1):** generated new `COOKIE_SECRET_CURRENT`/`PREVIOUS`,
+  pushed to Vercel prod, redeployed via the git-less-copy workaround (`main`'s
+  commit author isn't a Vercel collaborator — see `SETUP.md` §7). Confirmed
+  live: `wms.mananvasa.com` serving the new build.
+- **It didn't stop.** Firebase Auth went from 24 users to **1** (23 *deleted*,
+  not disabled). `employees.is_active=false` count went from 12 to 17,
+  including people who were untouched an hour earlier. A new
+  `attendance_punch_delete` event landed at **2026-09-04T01:38:31Z** — well
+  after the redeploy was confirmed live — actor still Manan's identity.
+  Tried to disable Manan's Firebase account as an emergency stop:
+  `auth.getUserByEmail("manan@unleashed.in")` → **no such user** — his account
+  had already been *deleted*, yet new DB rows kept appearing under his
+  employee ID. Set `employees.is_active=false` on his row directly (DB-only;
+  the Firebase account no longer exists to disable).
+- **Conclusion:** this is not a session/cookie problem. Whoever is doing this
+  has the raw `DATABASE_URL` and `FIREBASE_PRIVATE_KEY`/`FIREBASE_CLIENT_EMAIL`
+  themselves and is writing directly to Postgres and calling the Firebase
+  Admin API, with no app login involved at all — both credentials from the
+  same exposed `.env.production`. Checked for a way to rotate these directly:
+  Supabase CLI on this machine is authenticated to a *different* project
+  (`AltusTribe`, `qetdwvqohfrtvrywvnnp`) with no access to the real production
+  project (`mwaijzxuyicysvimzspx`) — account fragmentation, see
+  [[altus-account-fragmentation]]. `gcloud` isn't installed. **Neither can be
+  rotated from this machine/session — needs dashboard login as the account
+  that actually owns each project.** Handed off to the account holder as the
+  top item in 🔴 above; they were about to leave the office when this was
+  found.
+
+**Firebase Auth backup exists from before the deletions** —
+`C:\Users\Welcome\Altus-Backups\2026-09-03\firebase-auth-users-altuscorp-e7140.json`,
+24 users, taken ~13:53 UTC, before the mass deletion. Use it to restore
+accounts once the leaked credentials are dead; do not restore into a database
+that's still reachable by the old `DATABASE_URL`.
+
+**Current locked-out list** (`is_active=false`, as of 2026-09-04T04:04 UTC —
+will be stale by the time you read this, re-query `employees` directly):
+Danyal Sayyed, Dattaram Kap, both Hetesh Vichare accounts, Jeevan Bharambe
+(admin), Krish Maheshwari, Mitul Mehta, Namrata Nevgi, Nandini Maurya (admin),
+Om Jadhav (super-admin), Parvez Khan, Pratham Medhekar, Ruchita Ambre (admin),
+Rutvisha Mehta, Shreya Randhe, Siddhi Lakade, Suresh Yadav, and Manan Vasa
+himself (deliberately, see above). Rohan Choudhary was reactivated and
+confirmed working before the incident escalated further.
+
+**Author:** Claude Code, working with the `Altus-corp` account holder
 
 ### 2026-09-02 — Repo restructure, deployment repair, performance
 
