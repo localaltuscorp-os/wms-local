@@ -10,6 +10,7 @@ import {
 import { PreviousEmployees } from "@/components/admin/previous-employees";
 import type { SalaryProfileRates } from "@/components/admin/employee-list";
 import { requireAdmin } from "@/lib/auth/current";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
 import {
   listActiveDepartments,
   getEmployeeDepartmentMap,
@@ -71,6 +72,12 @@ export default async function EmployeesPage() {
   // stop a non-super-admin from touching a super-admin's row.
   const canManageAdmins = me.isAdmin;
 
+  // Resolved HERE, not in the client component, so `SUPER_ADMIN_EMAILS` is
+  // never bundled into client JS. The list names the two accounts with the
+  // highest privilege in the app; shipping it to the browser would hand any
+  // visitor a precise target list. Ids are opaque and already on the page.
+  const superAdminIds = all.filter((e) => isSuperAdmin(e.email)).map((e) => e.id);
+
   return (
     <AdminSection
       eyebrow="Admin · Employees"
@@ -112,6 +119,7 @@ export default async function EmployeesPage() {
         salaryProfileByEmployee={salaryProfileByEmployee}
         currentEmployeeId={me.id}
         canManageAdmins={canManageAdmins}
+        superAdminIds={superAdminIds}
         departmentOptions={departmentOptions}
         managerOptions={managerOptions}
       />
