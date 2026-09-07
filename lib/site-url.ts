@@ -3,7 +3,7 @@
  * invite/password-reset continue URLs, Slack/WhatsApp callbacks, etc.
  *
  * Hardened against the most common misconfiguration: `NEXT_PUBLIC_SITE_URL`
- * set WITHOUT a scheme (e.g. `wms.mananvasa.com`). Firebase's
+ * set WITHOUT a scheme (e.g. `os.altuscorp.in`). Firebase's
  * `generatePasswordResetLink` rejects a scheme-less continue URL with
  * "The continue URL must be a valid URL string" (auth/invalid-continue-uri),
  * which silently breaks employee invites. We auto-prepend `https://` and

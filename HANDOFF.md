@@ -40,7 +40,7 @@ section below the table before doing anything else.
 
 | | |
 |---|---|
-| **Production** | https://wms.mananvasa.com — live, serving authenticated traffic |
+| **Production** | https://os.altuscorp.in — live, serving authenticated traffic. **Domain changed 2026-09-07**; `wms.mananvasa.com` is dead (404 `DEPLOYMENT_NOT_FOUND`). Historical references to the old host below are kept as written. |
 | **Repo** | `Altus-corp/Altus-OS`, app at repo root, branch `main` |
 | **Hosting** | Vercel, team `altus-corp1`, project `altus-os`, region `bom1` |
 | **Database** | Supabase Postgres `mwaijzxuyicysvimzspx`, `ap-south-1` (Mumbai) |
@@ -384,6 +384,60 @@ it.
 ---
 
 ## Changelog
+
+### 2026-09-07 — Domain moved to os.altuscorp.in
+
+**What changed**
+
+- `NEXT_PUBLIC_SITE_URL` → `https://os.altuscorp.in` (production + preview).
+  **This was the bug:** password-reset emails are built from this value, so every
+  reset link pointed at `wms.mananvasa.com`, which no longer resolves to a
+  deployment. Users clicking a valid, unexpired link got Vercel's
+  `404 DEPLOYMENT_NOT_FOUND` — the token was fine, the host was gone.
+- Replaced the hardcoded old host in 15 files. The ones that actually mattered:
+  - `lib/email/onboarding-email.ts` — `ONBOARDING_URL`, sent to new joiners.
+  - `lib/hr/letters/templates/selection.ts` — onboarding URL printed on
+    selection letters.
+  - `android-app/app/build.gradle.kts` — the Android app's `altus.apiBaseUrl`
+    default. **The mobile app was pointing at a dead host**; it needs a rebuild
+    and redistribution, which a web deploy does not do.
+  - `scripts/shoot-*.ts`, `scripts/verify-salary.ts` — screenshot/verify tooling.
+  - Four cron route doc-comments, plus comments in `lib/site-url.ts`,
+    `lib/google/calendar.ts` and the Android `Color.kt`.
+- Historical text in this file and in `docs/` was **not** rewritten — those
+  entries describe what was true at the time (rule 3).
+
+**Verified before the change**
+
+- `os.altuscorp.in/login` → 200; `wms.mananvasa.com/login` → 404.
+- `os.altuscorp.in` was already in Firebase → Authentication → authorized
+  domains (along with `altuscorp.in`), so link generation itself was never the
+  failure — only the host the link pointed to.
+
+**Still on the old domain, deliberately — needs a decision**
+
+- `RESEND_FROM_EMAIL` is `Altus Corp Dashboard <noreply@mananvasa.com>`. Changing
+  it requires verifying a new sending domain in Resend (DKIM + SPF DNS records,
+  ~40 min to propagate last time). Until that is done, **do not change it** — a
+  from-address that does not match a verified domain silently stops all mail.
+- `lib/hr/entities.ts` letterhead footer, printed on offer/selection letters:
+  `DEFAULT_EMAIL = "manan@unleashed.in"`, `DEFAULT_WEBSITE = "www.mananvasa.com"`.
+  Both are stale, but they are branding on legal documents, not app config.
+
+**How to verify**
+
+Request a password reset and confirm the emailed link starts with
+`https://os.altuscorp.in/set-password?mode=resetPassword&oobCode=...`, then that
+it loads the set-password page rather than a Vercel 404.
+
+**Breaking / migration notes**
+
+- Reset links issued before this deploy still point at the dead host and cannot
+  work. Anyone holding one must request a fresh link.
+- The Android app needs a rebuild to pick up the new API base URL.
+
+**Author:** Claude Code, working with the `Altus-corp` account holder
+
 
 ### 2026-09-05 — Offboarding replaces hard-delete; Supabase egress fixes
 

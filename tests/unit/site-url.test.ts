@@ -11,18 +11,18 @@ afterEach(() => {
 
 describe("siteUrl", () => {
   it("returns a well-formed https URL unchanged", () => {
-    process.env.NEXT_PUBLIC_SITE_URL = "https://wms.mananvasa.com";
-    expect(siteUrl()).toBe("https://wms.mananvasa.com");
+    process.env.NEXT_PUBLIC_SITE_URL = "https://os.altuscorp.in";
+    expect(siteUrl()).toBe("https://os.altuscorp.in");
   });
 
   it("prepends https:// when the scheme is missing (the prod bug)", () => {
-    process.env.NEXT_PUBLIC_SITE_URL = "wms.mananvasa.com";
-    expect(siteUrl()).toBe("https://wms.mananvasa.com");
+    process.env.NEXT_PUBLIC_SITE_URL = "os.altuscorp.in";
+    expect(siteUrl()).toBe("https://os.altuscorp.in");
   });
 
   it("strips trailing slashes", () => {
-    process.env.NEXT_PUBLIC_SITE_URL = "https://wms.mananvasa.com///";
-    expect(siteUrl()).toBe("https://wms.mananvasa.com");
+    process.env.NEXT_PUBLIC_SITE_URL = "https://os.altuscorp.in///";
+    expect(siteUrl()).toBe("https://os.altuscorp.in");
   });
 
   it("preserves an http localhost URL with a port", () => {
@@ -46,7 +46,7 @@ describe("siteUrl", () => {
   });
 
   it("always returns a value Firebase accepts as a continue URL", () => {
-    for (const v of ["wms.mananvasa.com", "https://x.com/", "  ", "garbage url"]) {
+    for (const v of ["os.altuscorp.in", "https://x.com/", "  ", "garbage url"]) {
       process.env.NEXT_PUBLIC_SITE_URL = v;
       const url = `${siteUrl()}/welcome?intent=invite`;
       // Mirror firebase-admin's accept criteria: parseable, http(s) scheme.

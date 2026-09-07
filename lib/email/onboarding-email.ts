@@ -17,7 +17,7 @@ const BRAND = "#E10600";
 const BRAND_DEEP = "#A80400";
 
 /** The canonical public onboarding form URL — hardcoded, never localhost. */
-export const ONBOARDING_URL = "https://wms.mananvasa.com/dossier/onboarding";
+export const ONBOARDING_URL = "https://os.altuscorp.in/dossier/onboarding";
 
 /** The documents the form collects — surfaced in the email so people arrive ready. */
 const DOC_CHECKLIST = [
