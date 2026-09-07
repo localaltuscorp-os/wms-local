@@ -253,8 +253,19 @@ not failed.
 
 ```bash
 tar --exclude=.git --exclude=node_modules --exclude=.next -cf - . | (cd /tmp/deploy && tar -xf -)
+rm -f /tmp/deploy/.env*.local          # see the warning below — do not skip this
 cd /tmp/deploy && vercel deploy --prod --yes
 ```
+
+> ⚠️ **Strip `.env*.local` from the copy.** The tar line excludes `.git`,
+> `node_modules` and `.next` — but NOT `.env.local`, which sets
+> `FIREBASE_AUTH_EMULATOR_HOST`, `NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST` and
+> `ALLOW_INSECURE_COOKIES` for local development. `NEXT_PUBLIC_*` values are
+> inlined into the client bundle at build time, so any key Vercel does not
+> itself define ships to production — pointing live auth at a `127.0.0.1`
+> emulator. Production environment comes from Vercel; the file is never needed
+> in the deploy copy. *(Found 2026-09-05, after two deploys that had to remove
+> it by hand.)*
 
 **Real fix** — Vercel → Settings → Login Connections → reconnect GitHub as the
 account that authors commits. Then `git push` auto-deploys normally.

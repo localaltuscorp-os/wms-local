@@ -196,6 +196,76 @@ export type EmployeeRole = (typeof EMPLOYEE_ROLES)[number];
 export const ACCOUNT_TYPES = ["employee", "candidate", "system"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
+/**
+ * OFFBOARDING (migration 0212).
+ *
+ * Employment status is a SECOND axis, orthogonal to `is_active`:
+ *  · is_active         — can they sign in right now
+ *  · employment_status — do they still work here
+ *
+ * Both are needed. A suspended employee is inactive but current; a former
+ * employee must remain former even if their login is re-enabled by mistake.
+ *
+ *  · active     — current staff, whatever their login state.
+ *  · former     — offboarded. Identity destroyed (Firebase + avatar), record
+ *                 retained in full. This is the terminal state for the person;
+ *                 nothing about them is deleted on reaching it.
+ *  · anonymised — retention has expired and the PII has been replaced with
+ *                 placeholders. The row and every FK survive so history,
+ *                 headcount and audit chains do not develop holes.
+ */
+export const EMPLOYMENT_STATUSES = ["active", "former", "anonymised"] as const;
+export type EmploymentStatus = (typeof EMPLOYMENT_STATUSES)[number];
+
+/**
+ * Why someone left. A CLOSED list, because free text cannot be filtered,
+ * grouped or reported on — and attrition analysis is the reason to capture a
+ * reason at all.
+ *
+ * `other` is the deliberate escape hatch. Without it, an admin facing a case
+ * the list does not cover picks the nearest wrong bucket and quietly poisons
+ * every report built on this column. With it, the odd case is recorded
+ * honestly in `exit_reason_other` and the filter still works, because `other`
+ * is itself a filterable value.
+ */
+export const EXIT_REASONS = [
+  "resigned",
+  "terminated_for_cause",
+  "redundancy",
+  "contract_ended",
+  "abandonment",
+  "retirement",
+  "deceased",
+  "other",
+] as const;
+export type ExitReason = (typeof EXIT_REASONS)[number];
+
+export const EXIT_REASON_LABELS: Record<ExitReason, string> = {
+  resigned: "Resigned",
+  terminated_for_cause: "Terminated for cause",
+  redundancy: "Redundancy",
+  contract_ended: "Contract ended",
+  abandonment: "Abandonment",
+  retirement: "Retirement",
+  deceased: "Deceased",
+  other: "Other",
+};
+
+/**
+ * Rehire eligibility — the single most-read field on an exit record when
+ * someone reapplies two years later. `with_review` is the default because
+ * "nobody decided" and "yes" are different answers, and defaulting to yes
+ * would silently assert a judgement no one made.
+ */
+export const REHIRE_ELIGIBILITIES = ["yes", "no", "with_review"] as const;
+export type RehireEligibility = (typeof REHIRE_ELIGIBILITIES)[number];
+
+export const REHIRE_LABELS: Record<RehireEligibility, string> = {
+  yes: "Eligible for rehire",
+  no: "Not eligible",
+  with_review: "Eligible with review",
+};
+
 // Worker type — the employment archetype that drives BOTH attendance grading
 // and pay. Source of truth for `employees.worker_type`. `full_time` is the
 // back-compat default (every existing employee = full-time, no behaviour change).

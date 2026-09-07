@@ -1127,7 +1127,18 @@ export async function deleteEmployee(
       };
     });
   } catch (err: any) {
-    return { ok: false, error: `DB: ${err?.message ?? err}` };
+    // Drizzle wraps EVERY query failure in a DrizzleQueryError whose `.message`
+    // is always "Failed query: <sql> params: …" — the real Postgres error
+    // (constraint name, detail, hint) sits on `.cause`. Reading only `.message`
+    // made the toast identical for every possible failure at this step, which is
+    // why a failing delete here was undiagnosable from the UI. Prefer the cause.
+    const cause = err?.cause;
+    const detail =
+      [cause?.message, cause?.detail, cause?.constraint_name ?? cause?.constraint]
+        .filter(Boolean)
+        .join(" — ") || null;
+    console.error("[deleteEmployee] transaction failed", cause ?? err);
+    return { ok: false, error: `DB: ${detail ?? err?.message ?? err}` };
   }
 
   // 6. Firebase user. Best-effort — the DB is already consistent, so a

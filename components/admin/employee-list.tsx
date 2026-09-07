@@ -126,6 +126,24 @@ function RoleChip({ role }: { role: "doer" | "initiator" | "both" }) {
   );
 }
 
+const STATUS_CHIP = {
+  active:      { bg: "#F0FDF4", fg: "#15803D", ring: "#BBF7D0", dot: "#22C55E", label: "Active" },
+  deactivated: { bg: "#FEF2F2", fg: "#B91C1C", ring: "#FECACA", dot: "#EF4444", label: "Deactivated" },
+} as const;
+
+function StatusChip({ active }: { active: boolean }) {
+  const c = active ? STATUS_CHIP.active : STATUS_CHIP.deactivated;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold ring-1 ring-inset"
+      style={{ background: c.bg, color: c.fg, boxShadow: `inset 0 0 0 1px ${c.ring}` }}
+    >
+      <span className="size-1.5 rounded-full" style={{ background: c.dot }} />
+      {c.label}
+    </span>
+  );
+}
+
 export function EmployeeList({
   employees,
   membershipsByEmployee,
@@ -237,6 +255,14 @@ export function EmployeeList({
           match: (e, v) =>
             (membershipsByEmployee[e.id] ?? []).some((m) => m.id === v),
         },
+        {
+          label: "Status",
+          options: [
+            { value: "active", label: "Active" },
+            { value: "deactivated", label: "Deactivated" },
+          ],
+          match: (e, v) => (v === "active" ? e.isActive : !e.isActive),
+        },
       ]}
       columns={[
         {
@@ -277,6 +303,12 @@ export function EmployeeList({
           render: (e) => (
             <DepartmentCell memberships={membershipsByEmployee[e.id] ?? []} />
           ),
+        },
+        {
+          key: "status",
+          label: "Status",
+          sortValue: (e) => (e.isActive ? 1 : 0),
+          render: (e) => <StatusChip active={e.isActive} />,
         },
       ]}
       rowActions={(e) => (

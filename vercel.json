@@ -139,6 +139,10 @@
     {
       "path": "/api/cron/ecos-reminders",
       "schedule": "45 4 * * *"
+    },
+    {
+      "path": "/api/cron/retention-anonymise",
+      "schedule": "0 21 * * 0"
     }
   ]
 }

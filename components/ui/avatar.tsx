@@ -11,6 +11,16 @@ interface AvatarProps {
   size?: number;
   /** Optional title attribute (tooltip on hover). */
   title?: string;
+  /**
+   * FORMER EMPLOYEE (migration 0212). Desaturates the badge and marks it, so
+   * a name that still appears on historical work reads as someone who has
+   * left rather than as an active colleague to hand more work to.
+   *
+   * Their avatar image is destroyed at offboarding, so the initials badge is
+   * all that renders here regardless — this changes how that badge LOOKS, and
+   * that is the whole job.
+   */
+  former?: boolean;
   className?: string;
 }
 
@@ -61,6 +71,7 @@ export function Avatar({
   avatarUrl,
   size = 28,
   title,
+  former = false,
   className,
 }: AvatarProps) {
   const safeName = (name ?? "?").trim() || "?";
@@ -84,16 +95,21 @@ export function Avatar({
     width: size,
     height: size,
     fontSize: Math.max(10, Math.round(size * 0.38)),
-    background: gradientFor(safeName),
+    background: former ? "#94A3B8" : gradientFor(safeName),
     boxShadow:
       "inset 0 0 0 1px rgba(255,255,255,0.18), 0 1px 2px rgba(15,23,42,0.10)",
+    // Flat slate rather than their colour gradient. Colour is how every other
+    // person on the page reads as present; removing it is the cheapest signal
+    // that this one is not, and it survives being rendered at 16px in a chip
+    // where a badge or an icon would not.
+    opacity: former ? 0.75 : 1,
   };
 
   return (
     <span
       role="img"
-      aria-label={safeName}
-      title={title ?? safeName}
+      aria-label={former ? `${safeName}, former employee` : safeName}
+      title={title ?? (former ? `${safeName} (former employee)` : safeName)}
       className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-white ${className ?? ""}`}
       style={style}
     >

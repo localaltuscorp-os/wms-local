@@ -36,6 +36,9 @@ import {
   APPROVAL_LEVELS,
   type TaskStatus,
   type AccountType,
+  type EmploymentStatus,
+  type ExitReason,
+  type RehireEligibility,
   type ReligionCode,
   type EventStatus,
   type EventSource,
@@ -215,6 +218,31 @@ export const employees = pgTable("employees", {
   managerId: uuid("manager_id").references((): AnyPgColumn => employees.id, {
     onDelete: "set null",
   }),
+  /**
+   * OFFBOARDING (migration 0212). A second axis alongside `isActive`.
+   *
+   * `isActive` answers "can they sign in" and remains the login gate.
+   * `employmentStatus` answers "do they still work here" — a suspended
+   * employee is inactive but current, and a former employee must stay former
+   * even if someone re-enables their login by accident.
+   *
+   * 'anonymised' is the terminal state: the row survives so history and audit
+   * chains stay intact, but name/email have been replaced with placeholders.
+   */
+  employmentStatus: text("employment_status")
+    .notNull()
+    .default("active")
+    .$type<EmploymentStatus>(),
+  lastWorkingDay: date("last_working_day"),
+  /**
+   * Exempts this person from every retention purge and from anonymisation.
+   * Set it when someone leaves under investigation — destroying data on a
+   * person you are investigating is spoliation, and no timer may do it.
+   */
+  legalHold: boolean("legal_hold").notNull().default(false),
+  legalHoldReason: text("legal_hold_reason"),
+  /** Non-null ⇒ name/email on this row are placeholders, not real data. */
+  anonymisedAt: timestamp("anonymised_at", { withTimezone: true }),
   // #11 compulsory gates — how many tasks this person must RECEIVE from their
   // manager each working day (admin-configurable per employee; default 3).
   dailyTaskQuota: integer("daily_task_quota").notNull().default(3),
@@ -7139,3 +7167,102 @@ export const paCalls = pgTable(
   },
   (t) => [index("pa_calls_entry_idx").on(t.entryId)],
 );
+/**
+ * EXIT RECORD (migration 0212) — one row per departure.
+ *
+ * Separate from `employees` rather than more columns on it: written once, read
+ * rarely, and the access rules differ — the exit interview is superadmin-only
+ * while the employees row is read app-wide.
+ *
+ * Nothing here is destroyed when someone leaves. This table is what makes the
+ * old hard-delete unnecessary: it records why they left and where their work
+ * went, so the audit trail no longer has to be erased to remove a login.
+ */
+export const employeeExits = pgTable(
+  "employee_exits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .unique()
+      .references(() => employees.id, { onDelete: "cascade" }),
+
+    /** Closed taxonomy; `other` carries its description in exitReasonOther. */
+    exitReason: text("exit_reason").notNull().$type<ExitReason>(),
+    exitReasonOther: text("exit_reason_other"),
+
+    rehireEligibility: text("rehire_eligibility")
+      .notNull()
+      .default("with_review")
+      .$type<RehireEligibility>(),
+    rehireNote: text("rehire_note"),
+
+    /**
+     * COPIED from employees at archive time, not read live. An exit record is
+     * a statement about the employment that ended; it must not change if the
+     * live row is corrected later. The admin may amend the DOJ during the exit
+     * flow, and this is what they amended it to.
+     */
+    joinedAt: timestamp("joined_at", { withTimezone: true }),
+    resignationDate: date("resignation_date"),
+    lastWorkingDay: date("last_working_day"),
+
+    noticeServed: boolean("notice_served"),
+    noticeDays: integer("notice_days"),
+    paidInLieu: boolean("paid_in_lieu").notNull().default(false),
+
+    /** Who inherited the open work. SET NULL — a successor may leave too. */
+    successorId: uuid("successor_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    /** Counts of what moved, by kind — {tasks: 12, goals: 3, …}. */
+    reassigned: jsonb("reassigned").notNull().default({}),
+
+    handover: jsonb("handover").notNull().default({}),
+    exitInterview: jsonb("exit_interview"),
+
+    /**
+     * What the irreversible half actually did. A Firebase outage must not
+     * leave the record asserting the login is gone when it is not.
+     */
+    firebaseDeleted: boolean("firebase_deleted").notNull().default(false),
+    firebaseError: text("firebase_error"),
+    avatarPurged: boolean("avatar_purged").notNull().default(false),
+
+    notes: text("notes"),
+    archivedById: uuid("archived_by_id")
+      .notNull()
+      .references((): AnyPgColumn => employees.id, { onDelete: "restrict" }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("employee_exits_archived_at_idx").on(t.archivedAt),
+    index("employee_exits_reason_idx").on(t.exitReason),
+    index("employee_exits_successor_idx").on(t.successorId),
+  ],
+);
+
+export type EmployeeExit = typeof employeeExits.$inferSelect;
+
+/**
+ * RETENTION SCHEDULE AS DATA (migration 0212).
+ *
+ * The periods are set by law, not by engineering, and an auditor asking "what
+ * is your retention policy" needs an answer that is not a code review. Holding
+ * them in a table also means changing one is a data edit rather than a deploy.
+ *
+ * `purgeEnabled` defaults FALSE for every class. A retention table that starts
+ * deleting the moment it is created is a data-loss incident wearing a policy
+ * costume; each class is switched on consciously once its purge path is proven.
+ */
+export const dataRetentionPolicies = pgTable("data_retention_policies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  recordClass: text("record_class").notNull().unique(),
+  retentionDays: integer("retention_days").notNull(),
+  legalBasis: text("legal_basis").notNull(),
+  purgeEnabled: boolean("purge_enabled").notNull().default(false),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type DataRetentionPolicy = typeof dataRetentionPolicies.$inferSelect;

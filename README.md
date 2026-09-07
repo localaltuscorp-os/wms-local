@@ -9,6 +9,7 @@ Internal work-management dashboard for the Altus Corp team. Tracks tasks, status
 | **[HANDOFF.md](./HANDOFF.md)** | **Start here.** Current state, known issues, changelog. Update it with every PR. |
 | **[SETUP.md](./SETUP.md)** | Running it locally or deploying. Covers the known migration failures. |
 | **[docs/WMS_BLUEPRINT.md](./docs/WMS_BLUEPRINT.md)** | Full system spec — architecture, data model, modules. Use to launch this for a new client. |
+| **[docs/OFFBOARDING.md](./docs/OFFBOARDING.md)** | How an employee leaves: what is destroyed, what is retained, and the statutory retention periods. Read before touching employee deletion. |
 
 > A fresh `pnpm db:migrate` currently fails three times. See SETUP.md §4 before
 > setting up a database.

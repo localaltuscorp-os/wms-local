@@ -12,13 +12,31 @@ broken, what changed and why.
 
 ---
 
-## Current state — 2026-09-04
+## Current state — 2026-09-05
 
-**🟠 Incident contained 2026-09-04 evening — the two leaked credentials that were
-actively in use (`DATABASE_URL`, Firebase service account) are dead, Firebase Auth
-is rebuilt and no rows have been deleted since 04:27. NOT fully resolved: several
-secrets from the same exposed file are still unrotated. Read the section below the
-table before doing anything else.**
+**🟠 Incident contained, NOT resolved.** `DATABASE_URL` and the Firebase service
+account are dead, Firebase Auth is rebuilt, no rows deleted since 2026-09-04
+04:27, and Supabase is migrated to new API keys as of 2026-09-05.
+
+**✅ The leaked Supabase keys are DEAD as of 2026-09-05.** Legacy JWT-based API
+keys were disabled after the migration. Verified by direct test against
+production: the leaked `anon` and `service_role` keys both return **401**, as
+does a `service_role` read of the `employees` table. Production healthy
+throughout (`/login` 200).
+
+The Legacy HS256 (Shared Secret) key was then **revoked**, making this permanent
+— the leaked keys cannot be re-enabled. Production verified healthy after the
+revoke (`/login` 200, `/api/health` 200, leaked `service_role` 401).
+
+**Still open:**
+
+1. 🔴 **The exposed `.env.production` is still on this machine** — incident item
+   6 previously recorded it as deleted; that was wrong. It is the origin of the
+   whole incident, and its Supabase values are now dead but its **other** six
+   secrets are still live (item 5). Back up the values, then delete.
+
+Several other secrets from the same file remain unrotated (item 5). Read the
+section below the table before doing anything else.
 
 | | |
 |---|---|
@@ -28,7 +46,7 @@ table before doing anything else.**
 | **Database** | Supabase Postgres `mwaijzxuyicysvimzspx`, `ap-south-1` (Mumbai) |
 | **Auth** | Firebase `altuscorp-e7140` — **28 users**, rebuilt 2026-09-04 evening from `employees.firebase_uid`. 19 active / 9 deactivated. Everyone except Rohan has **no password set** and must use Forgot Password. |
 | **Email** | Resend, `mananvasa.com` verified |
-| **Scale** | 216 pages · 143 API routes · 238 tables · 211 migrations · 34 crons |
+| **Scale** | 216 pages · 145 API routes · 240 tables · 212 migrations · 35 crons |
 
 ### Deploys are CLI-only right now
 
@@ -86,9 +104,10 @@ Token Creator** — without the latter, password resets work but sign-in fails w
 
 **Next tasks, highest value first:**
 
-1. **Rotate `SUPABASE_SERVICE_ROLE_KEY`** (item 3 below) — the largest remaining
-   exposure. Bypasses every RLS policy. Rotating the JWT secret also rotates
-   `NEXT_PUBLIC_SUPABASE_ANON_KEY`; push both, then one redeploy.
+1. **Finish the Supabase key migration** (item 3 below). New keys are live in
+   production as of 2026-09-05; what remains is disabling the legacy keys and
+   revoking the Legacy HS256 secret. ⚠️ `anon`/`service_role` **cannot be
+   rotated** — read item 3 before touching anything on that page.
 2. **Decide on Rashmi Tripathi** — active employee whose entire `employees` row was
    deleted during the incident. Recoverable from
    `Altus Backup/AltusOS WMS Backup/database/tables/employees.json`
@@ -147,10 +166,37 @@ timestamp.
 
 ### Then, still outstanding
 
-3. **Rotate `SUPABASE_SERVICE_ROLE_KEY`.** Still the original key. Bypasses
-   every RLS policy. Rotating the JWT secret in Supabase rotates this
-   *and* `NEXT_PUBLIC_SUPABASE_ANON_KEY` together — coordinate the env-var
-   push so the site isn't broken mid-rotation.
+3. **Supabase keys — MIGRATED 2026-09-05, two steps left.**
+
+   ⚠️ **The instruction this item used to carry was impossible.** Supabase has
+   **removed** the ability to rotate the legacy JWT secret, so `anon` and
+   `service_role` can never be reissued — they are JWTs minted once at project
+   creation with a ~10-year expiry. Rotating a JWT *signing key* only changes
+   what Auth signs NEW tokens with; `anon`/`service_role` stay valid and
+   byte-identical. Verified 2026-09-04: the `anon` key in the dashboard matched
+   the one in the leaked `.env.production` exactly. The dashboard's own hint
+   ("If leaked, generate a new JWT secret") is stale copy for a removed flow.
+
+   **What was done instead** — migrated to the new API keys
+   (Settings → API Keys → "Publishable and secret API keys"):
+   `sb_publishable_…` replaces `anon`, `sb_secret_…` replaces `service_role`.
+   Both drop into the SAME env var names with **no code change** — they are
+   passed positionally into `createClient()` in
+   `lib/supabase/{server,browser,admin}.ts`. Pushed to Vercel (prod + preview)
+   and deployed as `altus-dvg2f47dg`. Confirmed the `sb_publishable_` key ships
+   in the client bundle and the old leaked anon key is absent from it.
+
+   **Still to do:**
+   a. Verify the server-side path — log in, then open a document or avatar
+      (that is the only flow that exercises `sb_secret_` via Storage).
+   b. Then **Disable JWT-based API keys** (API Keys → legacy tab).
+   c. Then **revoke the "Legacy HS256 (Shared Secret)" key** on the JWT Keys
+      page. **This is the step that finally kills the leaked credential.**
+      Until it happens, the leaked `service_role` key still works.
+
+   The current signing key was already ECC (P-256), rotated ~3 months earlier,
+   so no signing-key work was needed. Do not rotate signing keys for this — it
+   achieves nothing here.
 4. ~~**Reactivate the wrongly-locked employees.**~~ **PARTLY DONE 2026-09-04
    evening.** Full offline audit in
    [`docs/INCIDENT_2026-09-04_REACTIVATION_AUDIT.md`](./docs/INCIDENT_2026-09-04_REACTIVATION_AUDIT.md)
@@ -165,12 +211,30 @@ timestamp.
    `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`, `VAPID_PRIVATE_KEY`,
    `WHISPER_API_KEY`, `OPENROUTER_API_KEY`. Same file, same exposure — no
    reason to assume these are clean just because they haven't been abused yet.
-6. ~~**Delete `.env.production` and `.env.production.bak`**~~ — **DONE / not
-   present.** Searched `Downloads`, `Desktop` and `Documents` four levels deep on
-   2026-09-04: neither file exists on this machine; only the repo's tracked
-   `.env.example`. Their *contents* were still exposed, which is why items 3 and 5
-   remain. Caveat for future work: `vercel env pull` returns `[SENSITIVE]` for
-   Secret-type vars, so it is **not** a way to recover a value you have lost.
+6. 🔴 **Delete `.env.production` and `.env.production.bak` — STILL NOT DONE.**
+
+   **The previous all-clear on this item was wrong.** It claimed both files had
+   been searched for and did not exist. On 2026-09-05 both were found sitting in
+   `C:\Users\Welcome\Downloads\ALTUS OS\` — the same folder the tooling runs
+   from — containing all 27 secrets in plaintext:
+
+   ```
+   .env.production       (Sep 2 23:42)
+   .env.production.bak   (Sep 2 19:21)
+   ```
+
+   A third file, `altus-corp-dashboard\.env.local`, is the same category of
+   exposure and also still present. It carries a Firebase service-account key
+   for `emulator@vpinnacle-dev.iam.gserviceaccount.com` (dev project, not
+   production — see Known Issue #5) which should be revoked.
+
+   **This is the single most important open item.** It is the origin of the
+   entire incident, and it survived this long because the doc said it was closed.
+
+   **Before deleting:** copy every value into a password manager first.
+   `vercel env pull` returns `[SENSITIVE]` for Secret-type vars, so it is **not**
+   a way to recover a value you have lost, and some of these values may exist
+   nowhere else.
 7. **Manually review today's salary changes.** `salary_runs` (2 rows) and
    `salary_profiles` (1 row) were modified during the incident window; neither
    table logs who touched them. Have someone who knows the numbers check them
@@ -225,7 +289,7 @@ applier to catch it, but a commented line reduces to `""` and can never match.
 `employees` has **no `status` column** despite code implying deactivation logic.
 Audit `db/schema.ts` against the live database before trusting either.
 
-### 4. 34 crons on a Hobby plan (limit: 2)
+### 4. 35 crons on a Hobby plan (limit: 2)
 
 `vercel.json` declares 34. Deploys aren't rejected, but **do not assume any cron
 runs** until verified in the Vercel dashboard.
@@ -270,9 +334,210 @@ Dynamic Links usage. Sign-in is email+password and resets use
 URL. **Safe to ignore** — unless someone later adds magic-link sign-in to the
 Android app.
 
+### 9. Former-employee marking is a primitive, not a sweep
+
+`components/ui/avatar.tsx` accepts a `former` prop (flat slate fill, reduced
+opacity, "former employee" in the tooltip and `aria-label`), but **nothing
+passes it yet**. Roughly 50 components render an employee name and none of them
+have been updated.
+
+The risk this was meant to guard — assigning work to someone who has left — is
+already closed a different way: `isCurrentStaff` (`lib/queries/employees.ts`)
+excludes former employees from every roster and picker, so they cannot be
+selected. What remains is cosmetic: a former employee's name on a historical
+task still renders exactly like a current colleague's.
+
+Deferred deliberately rather than bundled into the 0212 deploy — it is a
+50-file mechanical change and deserves its own review.
+
+### 10. `delete_guard` is undocumented and lives only on the database
+
+A trigger named `delete_guard` blocks bulk `DELETE`s and raises a message
+carrying `app=`, `addr=`, `user=` and the offending query. It is **not in this
+repo** — no migration, no code, no prior mention in this file. It was installed
+directly on the Postgres instance, almost certainly during the 2026-09-04
+incident response, and its definition has never been read back.
+
+It fired on 2026-09-05 blocking a `DELETE` of 224 `employee_events` rows during
+an attempted employee delete, which is what prompted the offboarding work. The
+new flow never bulk-deletes, so it should stay quiet.
+
+**Two things to do:** dump `pg_get_functiondef` for it and commit the definition
+so it survives a database rebuild, and consider formalising it as a proper
+append-only rule on the audit tables (blocking `UPDATE` and `DELETE` outright)
+rather than a hand-rolled bulk-delete heuristic.
+
+Related: the app connects as the Postgres **superuser** (`user=postgres` in the
+guard's own message). A least-privilege application role would make guards like
+this unnecessary for the app path and genuinely effective against everything
+else.
+
+### 11. Rashmi Tripathi is still not restored
+
+Unchanged from the 2026-09-04 entry, and now explicitly confirmed outstanding as
+of 2026-09-05. She is a **current employee, not a leaver** — restore her
+`is_active = true` and `employment_status = 'active'`; do **not** put her
+through the offboarding flow. Her row is recoverable from the 1-Sep Google Sheet
+backup, and the blocked `employee_departments` → Operations row goes in behind
+it.
+
 ---
 
 ## Changelog
+
+### 2026-09-05 — Offboarding replaces hard-delete; Supabase egress fixes
+
+**What changed**
+
+*Offboarding (migration 0212) — the main change.*
+- **`deleteEmployee` is deprecated and unreachable from the UI.** The row menu
+  now reads "Offboard employee" and opens a three-step wizard
+  (`components/admin/archive-employee-dialog.tsx`).
+- New action `archiveEmployee` in
+  `app/(admin)/admin/employees/offboarding-actions.ts`. It destroys exactly two
+  things — the Firebase user and the avatar — and retains everything else.
+- New tables: `employee_exits` (one row per departure: reason, rehire
+  eligibility, notice period, successor, handover checklist, exit interview)
+  and `data_retention_policies` (retention schedule as data, seeded with Indian
+  statutory periods).
+- New `employees` columns: `employment_status`, `last_working_day`,
+  `legal_hold`, `legal_hold_reason`, `anonymised_at`.
+- Work re-homing in `lib/employees/offboarding.ts`: open tasks (`doer_id`) and
+  direct reports (`manager_id`) move to a named successor; OOO delegations
+  pointing at the leaver are cleared. `initiator_id` / `created_by_id` and
+  completed tasks are never touched.
+- "Previous employees" section on `/admin/employees`
+  (`components/admin/previous-employees.tsx`) with a View-more panel: DOJ, last
+  working day, tenure, reason, rehire eligibility, notice, successor, and a
+  60-day activity log with a super-admin "show full history".
+- New `isCurrentStaff` filter in `lib/queries/employees.ts`. **Every roster and
+  picker must use this, not `isStaffAccount`** — a former employee keeps their
+  row now, so `isStaffAccount` alone would list people who have left.
+- Exit register CSV at `/api/admin/exit-register` (admin-gated,
+  formula-injection safe).
+- Anonymisation cron at `/api/cron/retention-anonymise`, weekly, **disarmed**.
+- `Avatar` gained a `former` prop (flat slate + "former employee" in the
+  tooltip/aria-label). **Not yet wired through the ~50 components that render
+  employee names** — see Known Issues.
+
+*Supabase egress (separate, earlier the same day).*
+- `app/api/avatar/[id]/route.ts` — signed-URL TTL 10 min → 1 hour, and the
+  redirect is now cacheable for 30 min (`private, max-age=1800`). It previously
+  answered `max-age=0, must-revalidate` while minting a new `?token=` per
+  request, so every revalidation was a guaranteed cache miss and a full
+  re-download.
+- `components/profile/identity/avatar-and-name.tsx` — client-side
+  `downscaleForAvatar()`: centre-crop, 256px, WebP q0.85 (~15–25 KB instead of
+  up to 2 MB). EXIF-aware, falls back to the original on any failure.
+- `app/api/profile/avatar/route.ts` — upload cap 2 MB → 1 MB as a backstop.
+
+**Why**
+
+- `actor_id` is `ON DELETE RESTRICT` across `employee_events`, `task_events`,
+  `settings_events`, `document_events` and `outstanding_followups`. Postgres
+  therefore refused to drop an employee while the company's own audit trail
+  referenced them, and `deleteEmployee` worked around that by **deleting the
+  audit trail first**. One click destroyed 112 tasks and 522 audit events
+  belonging to the organisation in order to remove one login. The record is the
+  company's; only the identity belongs to the person.
+- Audit history is deliberately **not** purged on exit. Misconduct is routinely
+  discovered months after a departure — as this company learned on 2026-09-04 —
+  so an exit-time purge is precisely the capability an insider would want. The
+  60-day limit is a query filter in `lib/queries/offboarding.ts`, never a delete.
+- Attendance is retained for the statutory period, not 60 days. It is the
+  evidentiary basis for wages paid, and the burden of proof in an Indian wage
+  dispute sits with the employer (Maharashtra S&E Act / Payment of Wages Act,
+  3 years; PF/ESI 8 years; IT Act 6 years). The 60-day figure is a UI window.
+- Egress was 6.27 GB against a 5 GB free-plan cap, with only 78 MB of database
+  and 100 MB of files — the whole dataset going out ~35× a month. Avatars were
+  the largest single contributor.
+
+**How to verify**
+
+```bash
+# Offboarding — signed in as an admin:
+#   /admin/employees → row menu → "Offboard employee" → 3 steps
+#   the same page, below the roster → "Previous employees" → "View more"
+#   /api/admin/exit-register → CSV download
+
+# Cron is auth-gated (expect 401 without the secret):
+curl -s -o /dev/null -w "%{http_code}\n" \
+  https://wms.mananvasa.com/api/cron/retention-anonymise
+
+# Egress — in the browser devtools Network tab, load any page with avatars
+# twice. The second load must serve them from cache, not re-download.
+```
+
+**Breaking / migration notes**
+
+- **Migration `0212_employee_offboarding.sql` must be applied before this code
+  runs.** It was applied to production by hand via the Supabase SQL editor on
+  2026-09-05, because `pnpm db:migrate` replays all 212 migrations and the chain
+  is broken (Known Issue 1). The migration is additive and fully idempotent
+  (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`), so re-running it is safe.
+- No new environment variables.
+- `vercel.json` gained a 35th cron. The Hobby plan limit is 2 (Known Issue 4);
+  this one is weekly and disarmed, so it changes nothing operationally.
+- **Every retention class except `work_session_shots` has
+  `purge_enabled = false`.** Nothing ages out until someone deliberately arms a
+  class. Do not arm `employee_pii` without legal sign-off.
+
+**Author:** Claude Opus 5 (paired with Manan)
+
+### 2026-09-05 — Supabase migrated to new API keys; two false all-clears corrected
+
+**What changed**
+
+- **Supabase `anon`/`service_role` replaced with publishable/secret API keys.**
+  New keys pushed to Vercel (prod + preview), deployed `altus-dvg2f47dg` from a
+  git-less copy. Verified live: `sb_publishable_` present in the client bundle,
+  old leaked anon key absent from all 20 scanned chunks, `wms.mananvasa.com` 200.
+  No code changes were needed — the keys drop into the same env var names.
+- **`components/admin/employee-list.tsx`**: added a Status column (Active /
+  Deactivated chip, sortable) and a matching Status filter. Deactivation state
+  was previously invisible in the roster — you had to open a row menu to see it.
+
+**Findings worth keeping**
+
+- **`anon`/`service_role` cannot be rotated.** Full detail in incident item 3
+  above. This invalidated the previous plan and cost a detour — the dashboard
+  still shows a hint pointing at the removed flow. Do not go looking for a
+  rotate button; there isn't one.
+- **`.env.production` + `.env.production.bak` were never deleted**, despite item
+  6 recording them as gone. Also `.env.local`. See item 6 — this is now the top
+  open item.
+- **`vercel env ls` shows CREATION time, not update time.** A var edited in the
+  dashboard still reports its original age on the CLI. Use the dashboard's "Last
+  Updated" column to verify a push landed — the CLI will mislead you.
+- **A claim made and retracted, recorded so nobody re-derives it:** it looked
+  like `COOKIE_SECRET_CURRENT`/`PREVIOUS` had been rotated on Production but not
+  Preview, based on those CLI timestamps. That inference was wrong for the reason
+  directly above, and there is **no evidence of an actual gap**. If you want to
+  check it properly, use the dashboard's Last Updated column. The broader
+  question worth reviewing on its own merits: **preview deployments point at the
+  production database**, so preview env vars are production-grade secrets.
+- **`deleteEmployee` hides its real error.** `app/(admin)/admin/employees/actions.ts`
+  catches with `err?.message`, but Drizzle wraps every failure in a
+  `DrizzleQueryError` whose message is always `"Failed query: <sql> params: …"`.
+  The actual Postgres cause sits on `.cause` and is never read, so the UI toast
+  is uninformative for *any* failure at that step. Fix: use
+  `err?.cause?.message ?? err?.message`. Surfaced by a failing Hetesh Vichare
+  delete whose root cause is still undiagnosed as a result.
+
+**How to verify**
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" https://wms.mananvasa.com/login   # 200
+# then, signed in: open a document or avatar — exercises sb_secret_ via Storage
+```
+
+**Breaking / migration notes**
+
+- None yet. The legacy keys are still enabled, so the old values remain a valid
+  rollback until incident item 3b/3c are done.
+
+**Author:** Claude Code, working with the `Altus-corp` account holder
+
 
 ### 2026-09-04 (evening) — Credentials rotated, Firebase Auth rebuilt, data recovered
 
