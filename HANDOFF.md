@@ -385,6 +385,56 @@ it.
 
 ## Changelog
 
+### 2026-09-07 (late) — `RESEND_API_KEY` rotated; sender finally working
+
+**What changed**
+
+- **`RESEND_API_KEY` replaced** (prod + preview) with a key issued from the Resend
+  account that actually owns the verified domains. **This also rotates one of the
+  six secrets still live from the exposed `.env.production`** — item 5 below is
+  now five secrets, not six: `CRON_SECRET`, `GOOGLE_CLIENT_SECRET`,
+  `VAPID_PRIVATE_KEY`, `WHISPER_API_KEY`, `OPENROUTER_API_KEY`.
+
+**Why sending kept failing after the domain verified**
+
+Resend's dashboard showed `altuscorp.in` as **Verified**, yet every send failed
+with *"The altuscorp.in domain is not verified"*. Both were true at once: the
+domain was verified **in the account being viewed**, while `RESEND_API_KEY` was
+5 days old and scoped to a different account, for which the domain genuinely did
+not exist. `SETUP.md` already warns to check `/domains` **for that API key** —
+that is exactly this trap, and the dashboard cannot show it to you.
+
+**Check a Resend key in seconds instead of guessing through deploys:**
+
+```bash
+curl -s -H "Authorization: Bearer $RESEND_API_KEY" https://api.resend.com/domains
+```
+
+It lists the domains that key can see, with status. If the sending domain is
+absent or unverified there, the key is the problem — no deploy required to find
+out. This was verified against the new key before it was pushed.
+
+**Note on rebuilding accounts**
+
+The instinct to recreate the Resend account under a company identity was sound,
+but unnecessary here — the fix was one API key. Worth knowing if it ever is
+necessary: **Resend DKIM values are per-account**, so a new account means
+replacing `resend._domainkey.altuscorp.in` and the `send.altuscorp.in` records
+in GoDaddy. Given how badly that DNS editor behaved during this outage, treat
+any Resend account migration as a planned change, not a quick fix.
+
+**Ownership, still worth fixing deliberately**
+
+Production depends on several *personal* identities: Supabase sits in
+`manan.vasa@gmail.com`'s org, Vercel is `manan-8621`, GCP `altuscorp-e7140` has
+one human Owner, and commits are authored `support@unleashed.in` (the old
+domain) which is why every `git push` is blocked. Consolidating onto a **role
+account** on `altuscorp.in` — `ops@`, not any individual's mailbox — removes the
+single-person failure mode the repo has already hit once with a departed
+developer.
+
+**Author:** Claude Code, working with the `Altus-corp` account holder
+
 ### 2026-09-07 (evening) — Domain cutover finished: DNS, sender, and the Firebase action-URL bug
 
 **What changed**
