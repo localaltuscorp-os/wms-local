@@ -40,7 +40,7 @@ section below the table before doing anything else.
 
 | | |
 |---|---|
-| **Production** | https://os.altuscorp.in — live, serving authenticated traffic. **Domain changed 2026-09-07**; `wms.mananvasa.com` is dead (404 `DEPLOYMENT_NOT_FOUND`). Historical references to the old host below are kept as written. |
+| **Production** | https://os.altuscorp.in — live. DNS: `os` is a CNAME to Vercel in GoDaddy; **do not add TXT records at `os`** (see 2026-09-07 entry) . `wms.mananvasa.com` is dead. Historical references to the old host below are kept as written. |
 | **Repo** | `Altus-corp/Altus-OS`, app at repo root, branch `main` |
 | **Hosting** | Vercel, team `altus-corp1`, project `altus-os`, region `bom1` |
 | **Database** | Supabase Postgres `mwaijzxuyicysvimzspx`, `ap-south-1` (Mumbai) |
@@ -384,6 +384,105 @@ it.
 ---
 
 ## Changelog
+
+### 2026-09-07 (evening) — Domain cutover finished: DNS, sender, and the Firebase action-URL bug
+
+**What changed**
+
+- **`RESEND_FROM_EMAIL` → `Altus Corp Dashboard <noreply@altuscorp.in>`** (prod +
+  preview). `altuscorp.in` and `os.altuscorp.in` are now verified in Resend.
+  `wms.mananvasa.com` is still verified there from 3 months ago — harmless, worth
+  removing once nothing references the old domain.
+- **DNS (GoDaddy, `altuscorp.in`)** — `os` now points at Vercel again.
+
+**The outage, and the DNS rule behind it**
+
+Setting up Firebase's *custom domain for email templates* put two TXT records on
+`os.altuscorp.in`. **A CNAME cannot coexist with any other record at the same
+name**, so adding those TXTs forced out the CNAME that pointed `os` at Vercel.
+The site went fully dark — `DNS_PROBE_FINISHED_NXDOMAIN`, which looks like a
+Vercel or app failure and is neither. Both GoDaddy nameservers simply had no
+address record for the host.
+
+Recovery was slower than it should have been because **GoDaddy's "Save All
+Records" is all-or-nothing**: the pending batch contained rows duplicating
+records that were already saved, every one of them flagged "conflicts with
+another record", and that silently discarded the whole submission — including
+the A record we actually needed. The zone serial advanced while nothing we
+wanted was being written.
+
+Resolution: **the Firebase custom email domain was never needed.** This app
+generates reset links with `generatePasswordResetLink()` and sends them through
+**Resend**; Firebase's own email sending, SPF and DKIM are never exercised. The
+two TXT records were deleted and `os` restored as a CNAME to Vercel.
+
+> **If you ever re-add the Firebase email domain:** its TXT records and a CNAME
+> at `os` are mutually exclusive. Use **A records** (`216.198.79.1`,
+> `64.29.17.1`) for Vercel instead — A and TXT coexist fine. The two
+> `firebase*._domainkey.os` CNAMEs are at their own names and never conflicted;
+> they are still in the zone.
+
+**The Firebase action URL cannot be changed — worked around in code**
+
+Reset links kept 404ing even after `NEXT_PUBLIC_SITE_URL` was corrected, because
+the link *host* comes from Firebase, not from us: Authentication → Templates →
+"Action URL" (`notification.sendEmail.callbackUri`). It is stuck on
+`https://wms.mananvasa.com/set-password` and **cannot be updated** — the Admin
+API returns `EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED` and the console fails with "An
+error occurred when updating action URL". `os.altuscorp.in` is already an
+authorized domain and the sender is Firebase-managed (`method: DEFAULT`), so
+neither is the cause. This looks like a bug on Google's side.
+
+`rehostActionLink()` in `lib/site-url.ts` swaps only the origin of the generated
+link, leaving path and query byte-for-byte — `oobCode`, `apiKey`, `continueUrl`
+and `lang` untouched. Applied at both `generatePasswordResetLink` call sites
+(public reset **and** admin invite links). It follows `NEXT_PUBLIC_SITE_URL`, so
+if Google fixes the console setting it silently becomes a no-op.
+
+**Two findings worth acting on**
+
+1. **Why every `git push` shows a failed deployment.** Vercel is linked correctly
+   (`github:Altus-corp/Altus-OS`, prod branch `main`) — the repo connection is
+   *not* the problem, and disconnecting/reconnecting it changes nothing. The
+   commits are authored `Rakesh Dubey <support@unleashed.in>`, which is not
+   attached to the `Altus-corp` GitHub account Vercel deploys through, so every
+   push is blocked with `UNKNOWN` status and a 0ms build. Fix without upgrading:
+   `git config --local user.email "324000021+Altus-corp@users.noreply.github.com"`
+   GitHub attributes commits by email, so this makes them land as `Altus-corp`
+   and `git push` would deploy normally — retiring the git-less-copy workaround.
+2. **Project Framework Preset is `null`** (= "Other"). Only `vercel.json`'s
+   `"framework": "nextjs"` saves you. If that line is ever dropped, Vercel serves
+   `public/` and **every route 404s while the build reports success** — the
+   failure already documented in the 2026-09-02 entry. Set the preset in
+   Settings → General as well, so it does not depend on one JSON line.
+
+**Diagnostics that paid off, for next time**
+
+- `vercel logs <deployment> | grep -i error` gave the exact provider message
+  every single time — `invalid_grant`, `INVALID_CUSTOM_TOKEN`, `28P01`, and
+  "The altuscorp.in domain is not verified". Never infer these from the UI.
+- Query the **authoritative** nameservers (`ns55/ns56.domaincontrol.com`)
+  directly. Public resolvers cannot distinguish "record missing" from "not yet
+  propagated"; the authoritative answer can.
+
+**Still open**
+
+- **Android app** — source now points at `os.altuscorp.in`, but an installed APK
+  does not change on a web deploy. Needs a rebuild and redistribution.
+- **CI has been red since 2026-09-02** — `pnpm typecheck` dies with
+  `FATAL ERROR: JavaScript heap out of memory` (exit 134) on the runner. One
+  line fixes it: `NODE_OPTIONS: --max-old-space-size=6144` in `ci.yml`. All four
+  CI secrets are also empty, so `pnpm test` would likely fail after it.
+- **Letterhead footer** (`lib/hr/entities.ts`) still prints `manan@unleashed.in`
+  and `www.mananvasa.com` on offer and selection letters. Branding on legal
+  documents — needs a decision, not a config change.
+- The other two Firebase email templates (verification, address change) have
+  their own action URLs, almost certainly still on the dead host. The code
+  workaround does **not** cover them, because the app does not generate those
+  links itself.
+
+**Author:** Claude Code, working with the `Altus-corp` account holder
+
 
 ### 2026-09-07 — Domain moved to os.altuscorp.in
 
