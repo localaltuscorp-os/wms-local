@@ -387,6 +387,13 @@ it.
 
 ### 2026-09-07 (late) — `RESEND_API_KEY` rotated; sender finally working
 
+> **✅ CONFIRMED WORKING 2026-09-07 by the account holder:** password reset
+> completes end to end — email delivered from `noreply@altuscorp.in`, link opens
+> `os.altuscorp.in/set-password`, password changes successfully. Every layer of
+> that chain was verified independently before this: DNS at the authoritative
+> nameservers, Firebase link generation in the logs, `rehostActionLink` against
+> the real failing URL, and the new Resend key against `/domains`.
+
 **What changed**
 
 - **`RESEND_API_KEY` replaced** (prod + preview) with a key issued from the Resend
