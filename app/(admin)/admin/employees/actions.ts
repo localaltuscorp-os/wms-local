@@ -42,7 +42,7 @@ import {
   sendPasswordChangedByAdminEmail,
   sendCredentialsEmail,
 } from "@/lib/email/resend";
-import { siteUrl } from "@/lib/site-url";
+import { siteUrl, rehostActionLink } from "@/lib/site-url";
 import { generateInvitePassword } from "@/lib/auth/default-password";
 
 /**
@@ -652,9 +652,11 @@ export async function getInviteLink(
     };
   }
   try {
-    const link = await getFirebaseAdminAuth().generatePasswordResetLink(
-      emp.email,
-      { url: `${siteUrl()}/welcome?intent=invite` },
+    const link = rehostActionLink(
+      await getFirebaseAdminAuth().generatePasswordResetLink(
+        emp.email,
+        { url: `${siteUrl()}/welcome?intent=invite` },
+      ),
     );
     return { ok: true, link };
   } catch (err: any) {

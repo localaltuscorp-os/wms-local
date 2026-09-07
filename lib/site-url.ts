@@ -33,3 +33,37 @@ export function siteUrl(): string {
 
   return cleaned;
 }
+
+/**
+ * Re-point a Firebase email action link at THIS deployment's origin.
+ *
+ * Firebase builds action links on the host in Authentication -> Templates ->
+ * "Action URL" (`notification.sendEmail.callbackUri`). That value lives in
+ * Firebase, not here. As of 2026-09-07 it is stuck on a host that no longer
+ * resolves and cannot be changed: the Admin API rejects the patch with
+ * EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED, and the console fails with "An error
+ * occurred when updating action URL". Every generated link therefore 404s.
+ *
+ * The `oobCode` carries the reset; the host only has to serve `/set-password`,
+ * which this app does. So we swap the origin and keep path and query
+ * byte-for-byte -- oobCode, apiKey, continueUrl and lang are untouched.
+ *
+ * If the Firebase setting is ever fixed, this becomes a no-op rather than a
+ * second source of truth: when the link is already on our origin it is returned
+ * unchanged.
+ *
+ * Never throws. An unparseable link is returned as-is -- a wrong link is better
+ * than an exception inside the password-reset flow.
+ */
+export function rehostActionLink(link: string): string {
+  try {
+    const u = new URL(link);
+    const site = new URL(siteUrl());
+    if (u.protocol === site.protocol && u.host === site.host) return link;
+    u.protocol = site.protocol;
+    u.host = site.host;
+    return u.toString();
+  } catch {
+    return link;
+  }
+}
