@@ -12,11 +12,18 @@ broken, what changed and why.
 
 ---
 
-## Current state — 2026-09-05
+## Current state — 2026-09-08
 
 **🟠 Incident contained, NOT resolved.** `DATABASE_URL` and the Firebase service
 account are dead, Firebase Auth is rebuilt, no rows deleted since 2026-09-04
 04:27, and Supabase is migrated to new API keys as of 2026-09-05.
+
+**New on 2026-09-08:** `git push` deploys again (see *Deploys* below — run the
+one-line `git config` on any machine you commit from). An outside developer
+(`localaltuscorp-os`) has **read-only** access and contributes by fork and pull
+request into `dev-integration`; he cannot push here at all. Rashmi Tripathi is
+restored and can log in. Two undocumented delete guards on the database are now
+written up in known issue 10 — read it before attempting any employee delete.
 
 **✅ The leaked Supabase keys are DEAD as of 2026-09-05.** Legacy JWT-based API
 keys were disabled after the migration. Verified by direct test against
@@ -44,23 +51,55 @@ section below the table before doing anything else.
 | **Repo** | `Altus-corp/Altus-OS`, app at repo root, branch `main` |
 | **Hosting** | Vercel, team `altus-corp1`, project `altus-os`, region `bom1` |
 | **Database** | Supabase Postgres `mwaijzxuyicysvimzspx`, `ap-south-1` (Mumbai) |
-| **Auth** | Firebase `altuscorp-e7140` — **28 users**, rebuilt 2026-09-04 evening from `employees.firebase_uid`. 19 active / 9 deactivated. Everyone except Rohan has **no password set** and must use Forgot Password. |
+| **Auth** | Firebase `altuscorp-e7140` — **29 users**, rebuilt 2026-09-04 evening from `employees.firebase_uid`, plus Rashmi's created by hand 2026-09-08. 20 active / 9 deactivated. Everyone except Rohan and Rashmi has **no password set** and must use Forgot Password. |
 | **Email** | Resend, `mananvasa.com` verified |
 | **Scale** | 216 pages · 145 API routes · 240 tables · 212 migrations · 35 crons |
 
-### Deploys are CLI-only right now
+### Deploys — `git push` works again as of 2026-09-08
 
-`git push` does **not** auto-deploy. Vercel Hobby rejects commits whose author
-isn't the linked GitHub account, and that link still points at a departed
-developer's account. Deploy from a git-less copy — see `SETUP.md` §7.
+**Fixed.** A plain `git push origin main` now builds and goes live on its own.
+The CLI workaround below is no longer needed; it is kept only because the same
+symptom will return the moment someone commits from a machine with the old
+identity.
 
-**Confirmed working 2026-09-04:** copy the tree excluding `.git` (keep `.vercel/`),
-then `vercel deploy --prod --yes` from the copy. `vercel redeploy <url>` also works
-and is faster when only env vars changed — but it re-runs EXISTING source, so it
-will **not** pick up code edits. Note `vercel ls --prod` lists blocked deployments
-too; a `Blocked`/`UNKNOWN` one cannot be redeployed (400). Pick a `● Ready` row.
+**What was wrong.** Vercel Hobby only builds commits whose author is authorised
+on the Vercel account. Every commit in this repo was authored
+`Rakesh Dubey <support@unleashed.in>`, which GitHub resolves to the login
+`MananVasa-support` — the old Unleashed workspace identity, not a collaborator
+here. Vercel created each deployment and immediately halted it:
+`readyState: BLOCKED` with a 0 ms build, showing in `vercel ls` as `UNKNOWN`.
+Nothing was wrong with the code, the branch, or the git connection, so
+disconnecting and reconnecting the repo would not have helped.
 
-**Git push was hanging** because `credential.helper` was Git Credential Manager,
+**The fix** — repo-local, so other projects on the machine keep the old identity:
+
+```bash
+git config --local user.email "324000021+Altus-corp@users.noreply.github.com"
+```
+
+That is the GitHub noreply address for account id 324000021 = `Altus-corp`, the
+account that owns both the repo and the Vercel project. **Run this on every
+machine you commit from**, or pushes from that machine start getting blocked
+again for the same reason.
+
+**Verified:** commit `b1c85885` — same repo, same branch, everything identical
+but the author — went `BUILDING → READY` and took `os.altuscorp.in`.
+
+**Still true: `git push` itself is unreliable on the office machine.** It has
+stalled for 10+ minutes on a single 2.6 KB file while `git fetch` stayed fast.
+When that happens, land the commit through the GitHub Contents API instead
+(`gh api -X PUT repos/Altus-corp/Altus-OS/contents/<path> --input body.json`
+with `message`, base64 `content`, `branch`, and `sha` when replacing a file),
+then `git fetch && git reset --hard origin/main` to re-sync. Commits made that
+way are authored by `Altus-corp`, so they deploy normally.
+
+**Old CLI fallback**, if the git path is ever blocked again: copy the tree
+excluding `.git` (keep `.vercel/`), then `vercel deploy --prod --yes` from the
+copy. `vercel redeploy <url>` re-runs EXISTING source, so it will **not** pick
+up code edits. A `Blocked`/`UNKNOWN` deployment cannot be redeployed (400) —
+pick a `● Ready` row.
+
+**Git push once hung** because `credential.helper` was Git Credential Manager,
 which opens a GUI dialog no script can answer. Fixed by scoping github.com to `gh`:
 `git config --global credential."https://github.com".helper '!gh auth git-credential'`
 
@@ -350,21 +389,52 @@ task still renders exactly like a current colleague's.
 Deferred deliberately rather than bundled into the 0212 deploy — it is a
 50-file mechanical change and deserves its own review.
 
-### 10. `delete_guard` is undocumented and lives only on the database
+### 10. TWO undocumented delete guards live only on the database
 
-A trigger named `delete_guard` blocks bulk `DELETE`s and raises a message
-carrying `app=`, `addr=`, `user=` and the offending query. It is **not in this
-repo** — no migration, no code, no prior mention in this file. It was installed
-directly on the Postgres instance, almost certainly during the 2026-09-04
-incident response, and its definition has never been read back.
+Neither is in this repo — no migration, no code. Both were installed directly on
+the Postgres instance during the 2026-09-04 incident response, and neither
+definition has ever been read back. **A database rebuild would silently lose
+both.**
 
-It fired on 2026-09-05 blocking a `DELETE` of 224 `employee_events` rows during
-an attempted employee delete, which is what prompted the offboarding work. The
-new flow never bulk-deletes, so it should stay quiet.
+**`delete_guard`** blocks bulk `DELETE`s and raises a message carrying `app=`,
+`addr=`, `user=` and the offending query. It fired on 2026-09-05 blocking a
+`DELETE` of 224 `employee_events` rows during an attempted employee delete,
+which is what prompted the offboarding work.
 
-**Two things to do:** dump `pg_get_functiondef` for it and commit the definition
-so it survives a database rebuild, and consider formalising it as a proper
-append-only rule on the audit tables (blocking `UPDATE` and `DELETE` outright)
+**`emergency_no_employee_delete`** — found 2026-09-08 — is stricter: it blocks
+**every** `DELETE` on `employees`, one row or many, via
+`block_all_employee_deletes()`:
+
+```
+P0001: INCIDENT LOCK: employee deletion is disabled while the security
+incident is being contained. (row: <uuid>)
+HINT: To offboard someone, set is_active=false. To lift this lock:
+      drop trigger emergency_no_employee_delete on employees.
+```
+
+**Do not follow that hint.** Dropping the trigger leaves the table unprotected
+from then on and nobody remembers to put it back — and this lock is the reason
+no employee row has been lost since 2026-09-04. If a delete is genuinely
+warranted, disable and re-enable it inside **one transaction**, so a failure
+anywhere rolls the trigger back on with everything else:
+
+```sql
+BEGIN;
+ALTER TABLE employees DISABLE TRIGGER emergency_no_employee_delete;
+-- ... the deletes, in deleteEmployee()'s order ...
+ALTER TABLE employees ENABLE TRIGGER emergency_no_employee_delete;
+-- verify tgenabled = 'O' in pg_trigger BEFORE committing
+COMMIT;
+```
+
+Better still, check whether you need the delete at all. On 2026-09-08 the lock
+blocked a delete that turned out to be unnecessary — see the Rashmi entry in
+that day's changelog.
+
+**Three things to do:** dump `pg_get_functiondef` for **both** and commit the
+definitions so they survive a rebuild; decide whether the incident lock should
+be lifted now that the incident is contained, or kept permanently; and consider
+formalising `delete_guard` as a proper append-only rule on the audit tables
 rather than a hand-rolled bulk-delete heuristic.
 
 Related: the app connects as the Postgres **superuser** (`user=postgres` in the
@@ -372,18 +442,118 @@ guard's own message). A least-privilege application role would make guards like
 this unnecessary for the app path and genuinely effective against everything
 else.
 
-### 11. Rashmi Tripathi is still not restored
+### 11. ✅ RESOLVED 2026-09-08 — Rashmi Tripathi restored
 
-Unchanged from the 2026-09-04 entry, and now explicitly confirmed outstanding as
-of 2026-09-05. She is a **current employee, not a leaver** — restore her
-`is_active = true` and `employment_status = 'active'`; do **not** put her
-through the offboarding flow. Her row is recoverable from the 1-Sep Google Sheet
-backup, and the blocked `employee_departments` → Operations row goes in behind
-it.
+Her `employees` row, her `employee_departments` → Operations membership and a
+working Firebase login are all back. See the 2026-09-08 changelog entry for what
+was done and for the two traps found along the way (offboarding does not release
+an email address; the app resolves the signed-in user by `firebase_uid`, not by
+email). Her original row id `b60094c4-513f-48ff-84e6-8fb5de54d615` was preserved
+throughout; her Firebase UID is new.
 
 ---
 
 ## Changelog
+
+### 2026-09-08 — Push-to-deploy fixed, outside contributor onboarded, Rashmi restored
+
+**What changed**
+
+- **`git push` deploys again.** Set the repo-local commit author to
+  `324000021+Altus-corp@users.noreply.github.com`. See *Deploys* near the top of
+  this file for the full diagnosis — the short version is that every commit was
+  authored by the old `support@unleashed.in` identity, which Vercel Hobby
+  refuses to build. Verified with `b1c85885`.
+- **Outside developer onboarded** (`localaltuscorp-os`, GitHub id 324032360) on
+  a **fork-and-pull-request** model. He has **read** access only, forks the repo,
+  and opens PRs against the new `dev-integration` branch. `main` moves only by a
+  deliberate merge.
+- **`CONTRIBUTING.md` added** at the repo root, where GitHub surfaces it
+  automatically when a PR is opened. Landed via the Contents API as `50b9f0fd`
+  because `git push` was stalling.
+- **Rashmi Tripathi restored** — `employees` row, `employee_departments` →
+  Operations membership, and a working Firebase login. Original row id
+  `b60094c4-513f-48ff-84e6-8fb5de54d615` preserved; **new** Firebase UID.
+- **Known issue 10 rewritten** to cover the second delete guard,
+  `emergency_no_employee_delete`, discovered when it blocked a delete.
+- **Known issue 11 closed.**
+
+**Why**
+
+- Branch protection is **impossible** on this repo: GitHub Free gives private
+  repos no rulesets and no classic branch protection. Both endpoints return
+  *"Upgrade to GitHub Pro or make this repository public."* Read-only access plus
+  forks enforces review by withholding write, which needs no paid plan and
+  cannot be bypassed by an admin editing a rule. Going public temporarily was
+  considered and **rejected**: forks made during a public window stay public
+  permanently, bots scan newly-public repos within seconds, and three live
+  Google API keys are committed at HEAD (`android-app/app/build.gradle.kts`,
+  `android-app/app/google-services.json`, `docs/local-deploy/env.local.template`,
+  `tests/unit/site-url.test.ts`). Protection would also stop being enforced the
+  moment the repo went private again, so it buys nothing.
+
+**Dead ends, in the order they were hit** — these are the useful part
+
+1. **`DATABASE_URL` is unrecoverable from tooling.** `vercel env pull` writes
+   `[SENSITIVE]` for all 19 secrets, and the password on file from 2026-09-04
+   is dead (`28P01`). The pooler host is
+   `aws-1-ap-south-1.pooler.supabase.com:6543` — **`aws-0`** returns
+   *"tenant/user not found"*. All DB work below was therefore run by hand in the
+   Supabase SQL Editor.
+2. **`ARRAY[]` will not restore.** Generating the row's `tags` column as an
+   empty `ARRAY[]` fails with `42P18: cannot determine type of empty array`.
+   Emit arrays and JSON as **untyped literals** (`'{}'`, `'{"1","2"}'`) so
+   Postgres coerces them to the column's real type; `ARRAY[...]` also wrongly
+   forces `text[]`.
+3. **Restoring the `employees` row is not enough.** Department membership lives
+   in `employee_departments`; the `department` / `department_id` columns on
+   `employees` do not grant it. A row restored without it looks correct in the
+   roster and still fails department-gated checks.
+4. **Offboarding does not release an email address.** `archiveEmployee` sets
+   `employment_status = 'former'` and deletes the Firebase user, but keeps the
+   real address. `inviteEmployee`'s duplicate check is on email alone with **no
+   status filter**, so re-inviting that person fails with *"An employee with
+   this email already exists."* `email` is not in `EditEmployeeSchema`, so the
+   UI cannot fix it either. **This will hit every rehire** — worth adding a
+   status filter to that check.
+5. **`deleteEmployee` is deprecated but not gone.** It still works from code;
+   it was only unwired from the UI in favour of Offboard.
+6. **The delete was blocked, and that was correct.**
+   `emergency_no_employee_delete` refused it. The blocked path turned out to be
+   unnecessary: `lib/auth/current.ts` resolves the signed-in user with
+   `eq(employees.firebaseUid, claims.uid)`, so a restored employee only needs a
+   Firebase account whose UID matches that column. Creating the account in the
+   Firebase Console and pointing `firebase_uid` at it is an `UPDATE` — no
+   delete, no offboard, no touching the lock, and her row id survives.
+
+**How to verify**
+
+```bash
+# push-to-deploy: the author must be Altus-corp, state must not be BLOCKED
+git log -1 --format='%an <%ae>'
+vercel ls altus-os | head -3
+
+# access model: read, and no write anywhere
+gh api repos/Altus-corp/Altus-OS/collaborators \
+  --jq '.[] | "\(.login) \(.role_name)"'
+```
+
+Rashmi: sign in as her with the temporary password — reaching the dashboard
+proves the UID matches. In Admin → Employees she is active, Operations, no
+Access chip.
+
+**Breaking / migration notes**
+
+- **Run `git config --local user.email "324000021+Altus-corp@users.noreply.github.com"`
+  on every machine you commit from**, or that machine's pushes silently stop
+  deploying.
+- No migrations. The Rashmi fixes were hand-run SQL against production and are
+  **not** in the migration chain.
+- Kept out of git deliberately: `restore-rashmi.sql`, `rashmi-login.sql`,
+  `rashmi-department.sql` in `~/Downloads` contain her full personal record.
+  Delete them once she is confirmed working.
+
+**Author:** Rohan Choudhary (with Claude)
 
 ### 2026-09-07 (late) — `RESEND_API_KEY` rotated; sender finally working
 
