@@ -332,9 +332,11 @@ export function TaskListPage({
       <header className="wg-rise relative mb-3 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-x-4 gap-y-2 flex-wrap min-w-0">
           <h1
-            /* `page-heading` (app/globals.css) — the rail's wordmark type and
-               its sheen, shared rather than restated. The ramp that used to sit
-               inline here travelled into that class unchanged. */
+            /* `page-heading` (app/globals.css) — the display face at 900 and
+               the shared size ramp, black. The ramp that used to sit inline
+               here travelled into that class unchanged; the brand red and
+               the sheen belong to the chrome (the rail's wordmark and the
+               top bar), not to the page body. */
             className="page-heading shrink-0"
           >
             {title}

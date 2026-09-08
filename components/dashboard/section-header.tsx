@@ -152,8 +152,19 @@ export function DashboardSectionHeader({
           to wrap their own actions in a second flex with their own gap, so the
           spacing differed card to card; the slot owns it now and callers pass a
           plain fragment. */}
+      {/* `section-actions` FIXES THE ORDER OF THE TOOLBAR (globals.css).
+
+          Twelve sections each compose this slot themselves, and each had
+          settled on its own sequence — dispatch first here, search first
+          there, the fold sometimes before a transpose toggle. Reading down the
+          page, the same four controls appeared in four arrangements.
+
+          The order is set with CSS `order` keyed on `data-sec`, not by
+          rewriting twelve call sites: a section can pass its children in any
+          sequence and they still land in the same places, and a section added
+          next year inherits it without knowing the rule exists. */}
       {actions && (
-        <div className="flex shrink-0 items-center gap-2.5">{actions}</div>
+        <div className="section-actions flex shrink-0 items-center gap-2.5">{actions}</div>
       )}
     </header>
   );

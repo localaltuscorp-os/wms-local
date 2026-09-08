@@ -69,9 +69,13 @@ export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
           controls rather than pushing them off the bar. `<h1>` because on most
           of these pages it genuinely is the page's heading — the dashboard and
           the task list have no other one. */}
-      <h1 className="min-w-0 truncate text-[17px] font-extrabold tracking-[-0.02em] text-ink-strong">
-        {title}
-      </h1>
+      {/* `topbar-heading` (app/globals.css) is the RAIL WORDMARK'S OWN TYPE —
+          the same display face at 900, the same brand-red gradient and the same
+          sheen, shared from one declaration rather than restated here. This bar
+          and the rail's module mark are the two fixed things on every screen in
+          every module, they sit ~200px apart, and until now one was a brand
+          mark and the other was 17px of grey-black UI text. */}
+      <h1 className="topbar-heading min-w-0 truncate">{title}</h1>
 
       {/* FAR RIGHT — search, create, focus, notifications. `ml-auto` pins the
           cluster to the edge; the rest of the bar is deliberately empty.

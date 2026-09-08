@@ -167,7 +167,9 @@ export function SectionDispatch({ report }: { report: () => SectionReport }) {
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <span className="flex shrink-0 items-center gap-0.5">
+      {/* `data-sec` — the WhatsApp/email pair sits immediately left of the
+          fold in every section's toolbar (see .section-actions). */}
+      <span data-sec="dispatch" className="flex shrink-0 items-center gap-0.5">
         <Popover.Anchor asChild>
           <button
             type="button"

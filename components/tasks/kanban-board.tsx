@@ -53,9 +53,9 @@ import { ARCHIVE_COL, type ColId } from "@/lib/kanban-columns";
 import { NoResults } from "./task-table";
 import {
   useSectionSearch,
-  matchesSearch,
   setSectionSearch,
 } from "@/lib/client/section-search";
+import { taskMatchesQuery } from "@/lib/tasks/task-search";
 import { setTaskStatus, archiveTask, unarchiveTask } from "@/app/(app)/tasks/actions";
 import { setBoardColumnOrder } from "@/app/(admin)/admin/settings/actions";
 import { fireToast } from "@/lib/toast";
@@ -474,12 +474,18 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
   // and search only decides what is *rendered* out of it.
   const matchIds = React.useMemo(() => {
     if (!sectionQuery) return null;
-    const qNum = sectionQuery.replace(/^#/, ""); // "#1042" and "1042" both hit
     const hits = new Set<string>();
     for (const t of items) {
       if (
-        (t.taskNo != null && String(t.taskNo).includes(qNum)) ||
-        matchesSearch(sectionQuery, t.title, t.description, t.subject, t.client, t.doerName)
+        taskMatchesQuery(
+          sectionQuery,
+          t.taskNo,
+          t.title,
+          t.description,
+          t.subject,
+          t.client,
+          t.doerName,
+        )
       ) {
         hits.add(t.id);
       }

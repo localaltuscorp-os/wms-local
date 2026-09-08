@@ -1188,6 +1188,26 @@ html {
   }
 }
 
+/* ────────────────────────────────────────────────────────────────────────
+   DASHBOARD SECTION TOOLBAR — one order for every section.
+
+   Left to right:  tools · search · WhatsApp+email · minimise/maximise
+
+   "Tools" is everything a section supplies itself — a date-range picker,
+   Expand all, Transpose, a sort control — and it is the DEFAULT, so a section
+   needs to know nothing about this rule to be ordered correctly. The three
+   shared controls tag themselves with `data-sec` (section-chrome.tsx,
+   section-dispatch.tsx) and are pulled to the right of them.
+
+   `order` only moves flex ITEMS, so every one of these must be a direct child
+   of .section-actions — which is why SectionSearchBox carries a real wrapper
+   span rather than display:contents.
+   ──────────────────────────────────────────────────────────────────────── */
+.section-actions > *                 { order: 1; }  /* the section's own tools */
+.section-actions > [data-sec="search"]   { order: 2; }
+.section-actions > [data-sec="dispatch"] { order: 3; }
+.section-actions > [data-sec="fold"]     { order: 4; }
+
 /* Pill-card filter trigger — icon badge + value/sublabel + chevron. */
 /* Compressed so the whole ribbon (date · filters · view toggle · switcher ·
    search) holds ONE non-wrapping line — see the flex-nowrap row in
@@ -3341,24 +3361,28 @@ html {
 .module-wordmark { animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .module-wordmark-icon { animation: mwPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 
-/* ── THE BRAND TYPE, SHARED BY THE RAIL AND EVERY PAGE TITLE ───────────────
+/* ── THE BRAND TYPE, SHARED BY THE RAIL AND THE TOP BAR ────────────────────
    `.module-wordmark-text` is the rail's module name (WMS / GOALS / HR …).
-   `.page-heading` is the <h1> at the top of a module page (Tasks, Weekly
-   Goals, Monthly Goals, Goals Dashboard).
+   `.topbar-heading` is the page name in the app-wide top bar ("WMS Dashboard",
+   "Aging Heatmap", "Daily Goals") — the one strip that is on every screen in
+   every module, sitting directly right of the rail that carries the wordmark.
 
    ONE DECLARATION, TWO SELECTORS — not a copy. These two marks sit within
    ~200px of each other on every screen in the app, so any drift between them
-   is drift you can see without scrolling. They were already drifting: the rail
-   ran the display face at 900 with a gradient sheen, and the page titles ran
-   the same face at 900 flat black, with the letter-spacing stated inline at
-   three separate call sites. Sharing the block is what stops a fourth page
-   inventing a fifth heading.
+   is drift you can see without scrolling. Sharing the block is what stops the
+   next module inventing a third brand mark.
+
+   THE PAGE <h1> IS DELIBERATELY NOT IN THIS SET (see `.page-heading` below).
+   It briefly was, which put the brand red and the sheen on the rail, the top
+   bar AND the page body at once — three red marks, two of them moving, stacked
+   down the same 200px of screen. The identity belongs to the chrome; the page
+   reads black.
 
    WHAT EACH KEEPS OF ITS OWN, below: the rail is UPPERCASE (a wordmark, not a
-   sentence) and sizes itself to the rail; a page title is a proper name in
-   title case and carries the page-title size ramp. */
+   sentence) and sizes itself to the rail; the top-bar title is a proper name
+   in title case and sizes itself to the 56px bar. */
 .module-wordmark-text,
-.page-heading {
+.topbar-heading {
   font-family: var(--font-display), system-ui, sans-serif;
   font-weight: 900;
   letter-spacing: -0.02em;
@@ -3375,7 +3399,7 @@ html {
    an invisible heading anywhere `background-clip: text` is not supported. */
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .module-wordmark-text,
-  .page-heading {
+  .topbar-heading {
     /* THE SHEEN'S PEAK IS A LIGHT BRAND TINT, NOT #ffffff.
        Pure white is invisible against a white page, so at the top of each
        sweep whichever glyph the highlight was crossing simply disappeared —
@@ -3428,18 +3452,42 @@ html {
   text-transform: uppercase;
 }
 
-/* The page <h1>. The three module boards each stated this ramp inline —
-   `clamp(20px, 1.8vw, 25px)` / 900 / -0.028em / line-height 1 — so it is
-   carried here verbatim rather than re-picked. Tracking stays a hair tighter
-   than the rail's: these are longer strings ("Monthly Goals", "Goals
-   Dashboard") and the wordmark's -0.02em leaves them looser than the mark
-   they sit beside. */
-.page-heading {
+/* The top bar's page name. Brand red and title case — NOT uppercased like the
+   rail's wordmark: the rail carries a three-letter mark, this carries strings
+   like "Goals Dashboard" and "People Allocation", and a bar full of shouted
+   proper names is a different thing from a wordmark.
+
+   Sized to the bar, not to the page. The strip is 56px tall and the title
+   shares it with a four-control cluster, so this runs a step under the page
+   <h1>'s ramp and truncates rather than pushing the cluster off the edge
+   (`min-w-0 truncate` at the call site). */
+.topbar-heading {
   --mw-a: var(--color-altus-red, #E10600);
   --mw-b: var(--color-altus-red-deep, #A80400);
+  font-size: clamp(17px, 1.35vw, 20px);
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+/* The page <h1> — Tasks, Weekly Goals, Monthly Goals, Goals Dashboard.
+   BLACK, AND NOT PART OF THE BRAND-TYPE SET ABOVE. It keeps the display face
+   and the 900 weight (that ramp was stated inline at each of the four call
+   sites before this class existed, and is carried here verbatim rather than
+   re-picked), but none of the gradient, none of the sheen and no animation:
+   the brand mark is the chrome's job, and the body of a page that already has
+   a red wordmark in the rail and a red title in the bar above it wants a
+   heading you can simply read.
+
+   Tracking stays a hair tighter than the rail's: these are longer strings
+   ("Monthly Goals", "Goals Dashboard") and the wordmark's -0.02em leaves them
+   looser than the mark they sit beside. */
+.page-heading {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 900;
   font-size: clamp(20px, 1.8vw, 25px);
   letter-spacing: -0.028em;
   line-height: 1;
+  color: var(--color-ink-strong);
 }
 
 /* A 5-second infinite sweep is exactly what a reduced-motion preference is
@@ -3447,7 +3495,7 @@ html {
    deep brand red — still the brand, still legible, no movement. */
 @media (prefers-reduced-motion: reduce) {
   .module-wordmark-text,
-  .page-heading {
+  .topbar-heading {
     animation: none;
     background-image: none;
     -webkit-text-fill-color: currentColor;
@@ -3472,8 +3520,11 @@ html {
   .wg-ring-glow, .wg-pip-pop, .wg-nudge { animation: none !important; }
   .module-wordmark, .module-wordmark-icon { animation: none !important; }
   /* A static slice of the sheen gradient would land the white 48% stop inside
-     the word. Drop the sheen stop entirely rather than freeze a blown-out frame. */
-  .module-wordmark-text {
+     the word. Drop the sheen stop entirely rather than freeze a blown-out frame.
+     `.topbar-heading` joins the two it already covered: it takes the same
+     sheen from the shared block above, so it had the same frozen frame. */
+  .module-wordmark-text,
+  .topbar-heading {
     animation: none !important;
     background-image: linear-gradient(100deg, var(--mw-a) 0%, var(--mw-b) 100%) !important;
     background-size: 100% 100% !important;
