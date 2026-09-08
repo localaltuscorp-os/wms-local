@@ -55,6 +55,10 @@ export function CollapseToggle({
   return (
     <button
       type="button"
+      /* `data-sec` places this control in the header's toolbar regardless of
+         where the section happens to render it — see .section-actions in
+         globals.css. The fold sits at the far right of every section. */
+      data-sec="fold"
       onClick={onToggle}
       aria-expanded={expanded}
       aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
@@ -434,6 +438,11 @@ export function SectionSearchBox({
        transpose toggle cannot spare 220px for a box that is empty most of the
        time; resting as an icon settles that properly. The widening below still
        governs the OPEN box. size-8 matches this header's 32px control row. */
+    /* The wrapper exists only to carry `data-sec` — CollapsibleSearch is the
+       root element and takes no arbitrary props. `contents` is NOT usable here:
+       the ordering below acts on flex ITEMS, and a display:contents box is not
+       one. `inline-flex` keeps it the same size as what it wraps. */
+    <span data-sec="search" className="inline-flex shrink-0">
     <CollapsibleSearch scope={searchScope(placeholder)} className="size-8">
     <div
       /* h-8 and w-36, widening to w-48 while it has focus — a header now
@@ -476,5 +485,6 @@ export function SectionSearchBox({
       )}
     </div>
     </CollapsibleSearch>
+    </span>
   );
 }

@@ -1188,6 +1188,26 @@ html {
   }
 }
 
+/* ────────────────────────────────────────────────────────────────────────
+   DASHBOARD SECTION TOOLBAR — one order for every section.
+
+   Left to right:  tools · search · WhatsApp+email · minimise/maximise
+
+   "Tools" is everything a section supplies itself — a date-range picker,
+   Expand all, Transpose, a sort control — and it is the DEFAULT, so a section
+   needs to know nothing about this rule to be ordered correctly. The three
+   shared controls tag themselves with `data-sec` (section-chrome.tsx,
+   section-dispatch.tsx) and are pulled to the right of them.
+
+   `order` only moves flex ITEMS, so every one of these must be a direct child
+   of .section-actions — which is why SectionSearchBox carries a real wrapper
+   span rather than display:contents.
+   ──────────────────────────────────────────────────────────────────────── */
+.section-actions > *                 { order: 1; }  /* the section's own tools */
+.section-actions > [data-sec="search"]   { order: 2; }
+.section-actions > [data-sec="dispatch"] { order: 3; }
+.section-actions > [data-sec="fold"]     { order: 4; }
+
 /* Pill-card filter trigger — icon badge + value/sublabel + chevron. */
 /* Compressed so the whole ribbon (date · filters · view toggle · switcher ·
    search) holds ONE non-wrapping line — see the flex-nowrap row in
