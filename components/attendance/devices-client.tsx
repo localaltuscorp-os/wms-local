@@ -5,6 +5,7 @@ import { Loader2, Search, ShieldCheck, ShieldX, Smartphone } from "lucide-react"
 import { fireToast } from "@/lib/toast";
 import { formatDate } from "@/lib/format";
 import { approveDevice, revokeDevice } from "@/app/(app)/attendance/devices/actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 interface DeviceRow {
   id: string;
@@ -83,6 +84,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
             </button>
           ))}
         </div>
+        <CollapsibleSearch scope="person or device">
         <div className="relative min-w-[220px] flex-1 max-w-[340px]">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input
@@ -92,6 +94,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
             className="w-full rounded-xl border border-hairline-strong bg-white py-2.5 pl-9 pr-3 text-[13.5px] font-medium text-ink-strong outline-none focus:border-altus-red"
           />
         </div>
+        </CollapsibleSearch>
       </div>
 
       {/* List */}

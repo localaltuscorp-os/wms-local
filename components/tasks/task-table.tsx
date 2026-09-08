@@ -175,6 +175,7 @@ import {
   matchesSearch,
   setSectionSearch,
 } from "@/lib/client/section-search";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 // Friendly labels for the column show/hide menu (#11).
 const COLUMN_LABELS: Record<string, string> = {
@@ -1938,6 +1939,7 @@ function SearchBox({
 }) {
   return (
     <div className="flex items-center gap-3 flex-wrap">
+      <CollapsibleSearch scope="tasks">
       <div className="relative w-full max-w-md">
         <Search
           size={16}
@@ -1964,6 +1966,7 @@ function SearchBox({
           </button>
         )}
       </div>
+      </CollapsibleSearch>
       {value.trim() && (
         <span className="text-[13px] font-semibold text-ink-subtle tabular-nums">
           {resultCount} {resultCount === 1 ? "match" : "matches"}

@@ -81,6 +81,7 @@ import { HierarchyKanban } from "./hierarchy-kanban";
 import { GoalsDashboard } from "./goals-dashboard";
 import { DEFAULT_DASHBOARD_FILTERS, type DashboardFilters } from "./dashboard-model";
 import type { GoalsLevelBoardProps } from "./types";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /** Shared visible focus ring for keyboard users (brand-red on neutral surfaces). */
 const FOCUS_RING =
@@ -1199,6 +1200,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
               width. Narrow enough and the whole cluster drops to a second line
               intact, which is the failure mode you want. */}
           <div className="flex flex-wrap items-center gap-2">
+          <CollapsibleSearch scope="goals, areas, notes">
           <div className="relative min-w-[180px] max-w-[360px] flex-1 shrink-0">
             <Search size={15} strokeWidth={2.4} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-subtle" />
             <input
@@ -1220,6 +1222,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
               </button>
             )}
           </div>
+          </CollapsibleSearch>
 
             {/* `flex-wrap justify-end`, and NOT `shrink-0`. Holding four
                 controls, this cluster is wider than a narrow window's content

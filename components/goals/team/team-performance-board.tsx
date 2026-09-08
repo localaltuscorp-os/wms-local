@@ -22,6 +22,7 @@ import { Donut, type DonutSlice } from "@/components/charts/donut";
 import { GradeBadge, GradeLegend } from "@/components/productivity/grade-badge";
 import { calculateCompletionGrade, type Grade } from "@/lib/productivity/calc";
 import { GRADE_ORDER, GRADE_OUTLINE, gradeColor } from "@/lib/productivity/theme";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /**
  * The Team Performance board — a COMPACT, SCANNABLE employee table with
@@ -527,6 +528,7 @@ export function TeamPerformanceBoard({
           options={SORT_OPTIONS.map((o) => ({ value: o.value, label: `Sort: ${o.label}` }))}
         />
 
+        <CollapsibleSearch scope="employee">
         <label className="relative ml-auto max-md:ml-0 max-md:w-full">
           <Search
             size={14}
@@ -549,6 +551,7 @@ export function TeamPerformanceBoard({
             </button>
           )}
         </label>
+        </CollapsibleSearch>
       </div>
 
       {/* Result count + reset — only once a filter is actually narrowing things. */}

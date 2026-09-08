@@ -12,6 +12,7 @@ import {
   createBankItem, updateBankItem, deleteBankItem,
   createBankWeek, deleteBankWeek, setBankBalance,
 } from "@/app/(app)/accounts/bank-balance/actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CELL = "w-full rounded-lg border border-hairline bg-white px-2 py-1.5 text-right text-[12.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-[color:var(--color-altus-red)]";
@@ -309,10 +310,12 @@ export function BankBalance({ fyStartYear, items, weeks, balances, entityOptions
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
+        <CollapsibleSearch scope="accounts">
         <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search — accounts" title="Local search — filters only the list on this page" aria-label="Local search — accounts — this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
+        </CollapsibleSearch>
         {/* Add a weekly snapshot column */}
         <div className="flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-2 py-1">
           <input value={newWeek} onChange={(e) => setNewWeek(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addWeek(); } }} placeholder="New week e.g. 27.06.2026" className="w-[150px] bg-transparent px-1 py-1.5 text-[13.5px] font-medium text-ink-strong outline-none placeholder:text-ink-subtle" aria-label="New week label" />

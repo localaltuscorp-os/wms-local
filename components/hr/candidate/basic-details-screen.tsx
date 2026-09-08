@@ -9,6 +9,7 @@ import type { CandidateRow } from "@/app/(app)/hr/candidate-actions";
 import { deleteCandidateIntake } from "@/app/(app)/hr/candidate-actions";
 import { CreateCandidateLogin } from "@/components/hr/candidate/create-candidate-login";
 import { fireToast } from "@/lib/toast";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /**
  * Candidate Records — the searchable list of every filled interview form. The
@@ -81,6 +82,7 @@ export function BasicDetailsScreen({
   return (
     <>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <CollapsibleSearch scope="candidates">
         <div className="relative max-w-[320px] flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input
@@ -90,6 +92,7 @@ export function BasicDetailsScreen({
             className="w-full rounded-lg border border-hairline-strong bg-white py-2 pl-9 pr-3 text-[14px] text-ink-strong outline-none focus:border-altus-red"
           />
         </div>
+        </CollapsibleSearch>
         <div className="flex flex-wrap items-center gap-2">
           <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLS} aria-label="Filter by status">
             <option value="all">All statuses</option>

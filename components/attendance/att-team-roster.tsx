@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { PunchEditControl } from "@/components/attendance/punch-edit-control";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /** One punch, pre-formatted on the server so the roster stays render-only. */
 export interface RosterPunch {
@@ -109,6 +110,7 @@ export function AttTeamRoster({
       </div>
 
       {/* ── Search ── */}
+      <CollapsibleSearch scope="people">
       <label className="relative mb-3 flex h-10 w-full items-center" aria-label="Search team members">
         <Search size={15} strokeWidth={2.4} className="pointer-events-none absolute left-3 text-ink-subtle" aria-hidden />
         <input
@@ -135,6 +137,7 @@ export function AttTeamRoster({
           </button>
         )}
       </label>
+      </CollapsibleSearch>
 
       {/* ── Capped roster — the card stays compact; the list scrolls inside ── */}
       {filtered.length === 0 ? (

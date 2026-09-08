@@ -5,6 +5,7 @@ import { Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { formatInr } from "@/lib/format";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import type { IncentiveDashboard as DashboardData } from "@/lib/queries/incentives";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 type Row = DashboardData["perEmployee"][number];
 type SortKey = "name" | "permanent" | "project" | "total" | "paid" | "unpaid";
@@ -56,6 +57,7 @@ export function IncEmployeeTable({
     <div>
       {/* Search */}
       <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+        <CollapsibleSearch scope="employee">
         <label
           className="flex h-10 w-full max-w-[300px] items-center gap-2 rounded-xl bg-surface-card px-3.5"
           style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
@@ -69,6 +71,7 @@ export function IncEmployeeTable({
             className="w-full bg-transparent text-[14px] font-semibold text-ink-strong outline-none placeholder:text-ink-subtle"
           />
         </label>
+        </CollapsibleSearch>
         <span className="text-[12.5px] font-semibold text-ink-subtle tabular-nums">
           {filtered.length} of {rows.length} employee{rows.length === 1 ? "" : "s"}
         </span>

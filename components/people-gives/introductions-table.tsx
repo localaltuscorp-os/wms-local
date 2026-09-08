@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { ArrowUpDown, ArrowUp, ArrowDown, Plus, Search, X } from "lucide-react";
 import type { PgIntroductionRow } from "@/lib/queries/people-gives";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 type SortKey =
   | "receivedOn"
@@ -115,6 +116,7 @@ export function IntroductionsTable({ rows }: { rows: PgIntroductionRow[] }) {
     <div className="flex flex-col gap-4">
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-3">
+        <CollapsibleSearch scope="introducer, company, prospect, notes">
         <div
           className="flex min-w-[260px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3"
         >
@@ -126,6 +128,7 @@ export function IntroductionsTable({ rows }: { rows: PgIntroductionRow[] }) {
             className="w-full bg-transparent py-2.5 outline-none text-[15px] font-medium text-ink-strong placeholder:text-ink-subtle placeholder:font-normal"
           />
         </div>
+        </CollapsibleSearch>
         <select className={CHIP} value={source} onChange={(e) => setSource(e.target.value)} aria-label="Filter by reference source">
           <option value="">All Sources</option>
           {sources.map((s) => <option key={s} value={s}>{s}</option>)}

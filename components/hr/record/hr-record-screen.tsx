@@ -73,6 +73,7 @@ import {
 import { SkillMultiSelect, type SkillSelection } from "@/components/hr/candidate/skill-multiselect";
 import type { SkillLookupOptions } from "@/lib/hr/skills";
 import { formatDate } from "@/lib/format";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const EMPTY_SKILLS: SkillSelection = { technical: [], nonTechnical: [] };
 
@@ -1647,6 +1648,7 @@ function Roster({
             Open anyone to work their whole file A–Z — letters, email, assets, policies, documents and exit.
           </p>
         </div>
+        <CollapsibleSearch scope="name, role or department">
         <div className="relative w-full max-w-[320px]">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input
@@ -1657,6 +1659,7 @@ function Roster({
             className="w-full rounded-xl border border-hairline-strong bg-white py-2.5 pl-9 pr-3 text-[13.5px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
           />
         </div>
+        </CollapsibleSearch>
       </div>
 
       {filtered.length === 0 ? (
@@ -1807,6 +1810,7 @@ function PersonPicker({
       {open && (
         <div className="rec-panel absolute left-0 right-0 top-[calc(100%+8px)] z-40 overflow-hidden rounded-2xl border border-hairline-strong bg-white shadow-[0_24px_60px_-24px_rgba(24,24,27,0.5)]">
           <div className="border-b border-hairline p-2.5">
+            <CollapsibleSearch scope="name, role or department">
             <div className="relative">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
               <input
@@ -1829,6 +1833,7 @@ function PersonPicker({
                 </button>
               )}
             </div>
+            </CollapsibleSearch>
           </div>
           {filtered.length === 0 ? (
             <p className="px-4 py-10 text-center text-[13px] font-medium text-ink-muted">

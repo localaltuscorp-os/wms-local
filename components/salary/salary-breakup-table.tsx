@@ -33,6 +33,7 @@ import {
   PAYMENT_STATUS_LABEL,
   type PaymentStatus,
 } from "@/lib/salary/payment";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /* These two were called GREEN / GREEN_DEEP but held the brand RED (#E10600) —
  * and that misnaming is how the payout column, the payslip button and the Paid
@@ -1132,6 +1133,7 @@ export function SalaryBreakupTable({
     >
       {/* ── Toolbar: search · company filter · count ── */}
       <div className="admin-toolbar">
+        <CollapsibleSearch scope="name, designation or entity">
         <div className="relative min-w-[220px] max-w-sm flex-1">
           <Search
             size={16}
@@ -1147,6 +1149,7 @@ export function SalaryBreakupTable({
             className="admin-search"
           />
         </div>
+        </CollapsibleSearch>
 
         {!hideCompanyFilter && companies.length > 1 && (
           <label className="inline-flex items-center gap-2">

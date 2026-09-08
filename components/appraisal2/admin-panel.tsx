@@ -19,6 +19,7 @@ import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { fireToast } from "@/lib/toast";
 import { MACRO_BUCKETS, ROLE_CLASSES, type RoleClass } from "@/lib/appraisal2/types";
 import { setAssignees, setRoleClass } from "@/app/(app)/appraisal/admin-actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const RED = "var(--color-altus-red)";
 const RED_DEEP = "var(--color-altus-red-deep)";
@@ -264,6 +265,7 @@ function Picker({
 
   return (
     <div className="rounded-2xl bg-surface-card p-4" style={{ boxShadow: CARD_SHADOW }}>
+      <CollapsibleSearch scope="people">
       <div className="relative mb-3">
         <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
         <input
@@ -273,6 +275,7 @@ function Picker({
           className="w-full rounded-xl border border-hairline bg-surface-soft py-2 pl-9 pr-3 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]"
         />
       </div>
+      </CollapsibleSearch>
 
       <div className="mb-3 flex flex-wrap gap-1.5">
         <DeptPill label="All" active={dept === null} onClick={() => setDept(null)} />

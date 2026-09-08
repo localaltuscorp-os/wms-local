@@ -8,6 +8,7 @@ import { addAccountsLookup, softDeleteAccountsLookup } from "@/lib/accounts/look
 import type { ShareRow } from "@/lib/queries/accounts-shares";
 import { parseAmount, formatINR, sumAmounts } from "@/lib/accounts/amounts";
 import { createShare, updateShare, deleteShare } from "@/app/(app)/accounts/shares-register/actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CHIP = "rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]";
@@ -93,10 +94,12 @@ export function SharesRegister({ rows, entityOptions }: { rows: ShareRow[]; enti
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
+        <CollapsibleSearch scope="company, entity, folio">
         <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search — company, entity, folio" title="Local search — filters only the list on this page" aria-label="Local search — company, entity, folio — this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
+        </CollapsibleSearch>
         <select className={CHIP} value={fEntity} onChange={(e) => setFEntity(e.target.value)} aria-label="Filter by entity">
           <option value="">All Entities</option>
           {entities.map((a) => (<option key={a} value={a}>{a}</option>))}

@@ -9,6 +9,7 @@ import { TierPill } from "@/components/ambassadors/tier-pill";
 import { ScoreBadge } from "@/components/ambassadors/score-badge";
 import { inr, inrCompact } from "@/lib/ambassadors/format";
 import type { AmbassadorListRow } from "@/lib/queries/ambassadors";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 type SortKey = "name" | "score" | "referrals" | "revenue" | "commission";
 
@@ -98,6 +99,7 @@ export function DirectoryTable({ rows }: { rows: AmbassadorListRow[] }) {
     <div className="flex flex-col gap-4">
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-3">
+        <CollapsibleSearch scope="name, company, owner">
         <div className="flex min-w-[260px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
           <input
@@ -107,6 +109,7 @@ export function DirectoryTable({ rows }: { rows: AmbassadorListRow[] }) {
             className="w-full bg-transparent py-2.5 outline-none text-[15px] font-medium text-ink-strong placeholder:text-ink-subtle placeholder:font-normal"
           />
         </div>
+        </CollapsibleSearch>
         <select className={CHIP} value={tier} onChange={(e) => setTier(e.target.value)} aria-label="Filter by tier">
           <option value="">All Tiers</option>
           {TIERS.map((t) => (

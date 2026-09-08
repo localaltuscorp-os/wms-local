@@ -31,6 +31,7 @@ import {
   updateShot,
   deleteShot,
 } from "@/app/(app)/accounts/task-list/actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 // ── Shared bits ──────────────────────────────────────────────────────────────
 
@@ -516,6 +517,7 @@ export function TaskListTable({
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
+        <CollapsibleSearch scope="area, description, links, notes">
         <div className="flex min-w-[260px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
           <input
@@ -525,6 +527,7 @@ export function TaskListTable({
             className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle"
           />
         </div>
+        </CollapsibleSearch>
         <select className={CHIP} value={fStatus} onChange={(e) => setFStatus(e.target.value)} aria-label="Filter by status">
           <option value="">All Statuses</option>
           {statusValues.map((s) => (
@@ -856,6 +859,7 @@ export function ScreenshotsTable({
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
+        <CollapsibleSearch scope="project, details, notes">
         <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
           <input
@@ -865,6 +869,7 @@ export function ScreenshotsTable({
             className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle"
           />
         </div>
+        </CollapsibleSearch>
         <button
           type="button"
           onClick={startAdd}

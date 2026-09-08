@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import type { CalendarEvent, EventCategory } from "@/lib/monthly-events/types";
 import { DEFAULT_EVENT_COLOR } from "./colors";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const UNCATEGORISED = "__none__";
 
@@ -76,6 +77,7 @@ export function LegendPanel({
 
       {open && (
         <div className="px-3 pb-3">
+          <CollapsibleSearch scope="categories">
           <div className="relative mb-2">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-soft" />
             <input
@@ -85,6 +87,7 @@ export function LegendPanel({
               className="w-full rounded-chip border border-hairline bg-surface-soft py-1.5 pl-7 pr-2 text-[12.5px] text-ink-strong outline-none focus:border-hairline-strong"
             />
           </div>
+          </CollapsibleSearch>
 
           {active.size > 0 && (
             <button
@@ -212,6 +215,7 @@ export function LegendDrawer({ categories, events, active, onToggle, onClear }: 
                 </button>
               </div>
               <div className="px-3 py-3">
+                <CollapsibleSearch scope="categories">
                 <div className="relative mb-2">
                   <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-soft" />
                   <input
@@ -221,6 +225,7 @@ export function LegendDrawer({ categories, events, active, onToggle, onClear }: 
                     className="w-full rounded-chip border border-hairline bg-surface-soft py-1.5 pl-7 pr-2 text-[12.5px] text-ink-strong outline-none focus:border-hairline-strong"
                   />
                 </div>
+                </CollapsibleSearch>
                 {active.size > 0 && (
                   <button type="button" onClick={onClear} className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--color-altus-red)" }}>
                     <X size={11} /> Clear Filter ({active.size})

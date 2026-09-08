@@ -17,6 +17,7 @@ import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { EmployeeDetailDialog } from "./employee-detail";
 import { SheetDailyDialog } from "./sheet-daily-dialog";
 import { AirstrikeDelete } from "./airstrike-delete";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /** Shared visible focus ring for keyboard users (brand-red on neutral surfaces). */
 const FOCUS_RING =
@@ -235,6 +236,7 @@ export function AttendanceDashboardTable({
         aria-label="Per-employee month attendance"
       >
         <div className="admin-toolbar">
+          <CollapsibleSearch scope="employee">
           <div className="relative w-full max-w-sm">
             <Search
               size={16}
@@ -249,6 +251,7 @@ export function AttendanceDashboardTable({
               className={`w-full h-10 pl-10 pr-4 rounded-full border border-hairline bg-white/75 text-[14px] font-medium text-ink-strong placeholder:text-ink-subtle transition-all focus:border-altus-red focus:ring-2 focus:ring-altus-red/20 ${FOCUS_RING}`}
             />
           </div>
+          </CollapsibleSearch>
           <div className="ml-auto flex items-center gap-3">
             <span className="text-[13px] font-semibold text-ink-subtle tabular-nums whitespace-nowrap">
               {sorted.length} {sorted.length === 1 ? "person" : "people"}
