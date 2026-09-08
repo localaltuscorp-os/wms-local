@@ -146,29 +146,29 @@ export function locateHrRoute(pathname: string): {
   // the standalone Policies module would highlight Pre-Joining instead.
   // Exact-match only, so prefix cases still fall through to the ordinary
   // module scan further down and nothing else changes.
-  for (const module of HR_CONSOLE_MODULES) {
-    const href = module.href ? (module.href.split("?")[0] ?? module.href) : null;
-    if (href && href === pathname) return { module, subModule: null };
+  for (const mod of HR_CONSOLE_MODULES) {
+    const href = mod.href ? (mod.href.split("?")[0] ?? mod.href) : null;
+    if (href && href === pathname) return { module: mod, subModule: null };
   }
 
   let best: { module: HrConsoleModule; subModule: HrConsoleSubModule } | null = null;
-  for (const module of HR_CONSOLE_MODULES) {
-    for (const sub of module.subModules) {
+  for (const mod of HR_CONSOLE_MODULES) {
+    for (const sub of mod.subModules) {
       if (!matches(pathname, sub.href)) continue;
       const len = (sub.href.split("?")[0] ?? sub.href).length;
       const bestLen = best ? (best.subModule.href.split("?")[0] ?? "").length : -1;
-      if (len > bestLen) best = { module, subModule: sub };
+      if (len > bestLen) best = { module: mod, subModule: sub };
     }
   }
   if (best) return best;
 
-  for (const module of HR_CONSOLE_MODULES) {
-    if (module.href && matches(pathname, module.href)) return { module, subModule: null };
+  for (const mod of HR_CONSOLE_MODULES) {
+    if (mod.href && matches(pathname, mod.href)) return { module: mod, subModule: null };
   }
   // The stage sub-hub itself (/hr/<stage>) has no step of its own.
-  for (const module of HR_CONSOLE_MODULES) {
-    if (module.subModules.length > 0 && matches(pathname, `/hr/${module.id}`)) {
-      return { module, subModule: null };
+  for (const mod of HR_CONSOLE_MODULES) {
+    if (mod.subModules.length > 0 && matches(pathname, `/hr/${mod.id}`)) {
+      return { module: mod, subModule: null };
     }
   }
   return { module: null, subModule: null };
