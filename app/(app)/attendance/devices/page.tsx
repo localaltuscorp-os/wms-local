@@ -62,7 +62,7 @@ export default async function AttendanceDevicesPage() {
           </h1>
           <p className="mt-1.5 max-w-[70ch] text-[13.5px] font-medium text-ink-muted">
             Each employee registers up to {MAX_DEVICES_PER_EMPLOYEE} devices — one Web (Desktop) and one
-            Web (Android), adopted the first time they punch in from that browser. Approve a pending device
+            Web (Android), adopted the first time they sign in from that browser. Approve a pending device
             so they can punch from it; only <strong>approved</strong> devices can mark attendance — any
             other is refused with “Incorrect device”. {pending > 0 ? `${pending} waiting for approval.` : "Nothing waiting for approval."}
           </p>

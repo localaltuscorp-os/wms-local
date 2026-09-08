@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { getFirebaseAdminAuth } from "@/lib/firebase/admin";
 import { isLoginLive } from "@/lib/auth/current";
+import { registerWebDeviceOnLogin } from "@/lib/attendance/web-device";
 
 export const runtime = "nodejs";
 
@@ -15,8 +16,13 @@ const SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60;
 /**
  * Sign-in session mint — kept deliberately SIMPLE: verify the Firebase ID token,
  * confirm it belongs to an active employee, mint the session cookie. No session
- * / device tracking, no extra writes on the critical path — login stays fast and
+ * tracking, no extra writes on the critical path — login stays fast and
  * resilient even under DB load.
+ *
+ * The ONE exception is the attendance device stamp below, which records whether
+ * this sign-in came from a phone or a desktop browser. It is deliberately
+ * fail-open: `registerWebDeviceOnLogin` swallows its own errors and returns
+ * null, so a database wobble costs the stamp and never the login.
  */
 export async function POST(req: Request) {
   let body: { idToken?: string };
@@ -77,11 +83,22 @@ export async function POST(req: Request) {
       .where(eq(employees.id, emp.id));
   }
 
+  // Stamp the attendance device for THIS browser: a phone user-agent claims the
+  // employee's one mobile slot, a desktop one their laptop slot (see
+  // lib/attendance/web-device.ts). Doing it here — rather than only on the first
+  // attendance punch, as before — means the device list reflects how people
+  // actually sign in, and a phone is registered before its owner tries to punch.
+  const deviceCookie = await registerWebDeviceOnLogin(
+    emp.id,
+    req.headers.get("user-agent") ?? "",
+    parseDeviceCookie(req.headers.get("cookie")),
+  );
+
   const forwardedHeaders = new Headers(req.headers);
   forwardedHeaders.set("Authorization", `Bearer ${idToken}`);
 
   try {
-    return await setAuthCookies(forwardedHeaders, {
+    const res = await setAuthCookies(forwardedHeaders, {
       apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
       cookieName: "__session",
       cookieSignatureKeys: [
@@ -101,8 +118,23 @@ export async function POST(req: Request) {
         privateKey: process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, "\n"),
       },
     });
+    // Append, rather than write through the cookie store: setAuthCookies builds
+    // its own response, and the session cookie it just set must survive next to
+    // ours. Both end up as separate Set-Cookie headers on the same response.
+    if (deviceCookie) res.headers.append("Set-Cookie", deviceCookie);
+    return res;
   } catch (err) {
     console.error("setAuthCookies failed", err);
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
+}
+
+/** Read `att_device` out of the raw Cookie header — a route handler gets no jar. */
+function parseDeviceCookie(header: string | null): string | undefined {
+  if (!header) return undefined;
+  for (const part of header.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === "att_device") return rest.join("=") || undefined;
+  }
+  return undefined;
 }

@@ -15,10 +15,9 @@ const APK_LINK =
   "https://drive.google.com/drive/folders/165wRhjtsU69A54OyRCGO2HbvS9VFUw87";
 
 /**
- * Android interstitial (rewritten here by middleware.ts for Android mobile
- * browsers). We've moved the Android mobile experience into a dedicated native
- * app, so instead of the responsive web UI these users get a clean "install the
- * app" screen with the APK link. iOS + desktop are unaffected.
+ * Optional Android app download page. Nothing routes users here automatically —
+ * every browser, mobile included, signs in on the responsive web UI. This page
+ * stays reachable at /get-app for anyone who does want the native APK.
  */
 export default function GetAppPage() {
   return (

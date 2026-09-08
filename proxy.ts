@@ -4,6 +4,7 @@ import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 
 const PUBLIC_PATHS = [
   "/ctest",
+  "/get-app",
   "/login",
   "/forgot-password",
   "/set-password",
@@ -71,23 +72,6 @@ function redirectClearingSession(url: URL): NextResponse {
   return res;
 }
 
-/**
- * Android mobile browsers are pushed to the native-app install screen (/get-app)
- * — we've retired the responsive web UI on Android in favour of the native app.
- * iOS + desktop are untouched. Detection requires a real browser UA (Mozilla +
- * Android + Mobile); the native app itself calls only /api/mobile/* over OkHttp
- * (UA "okhttp/…", no "Mozilla") so it never matches — and /api is excluded
- * regardless, so no app/data traffic is ever rewritten. Rewrite (not redirect)
- * keeps the typed URL and avoids history/loop churn.
- */
-function isAndroidMobileBrowser(userAgent: string): boolean {
-  return (
-    /Mozilla/i.test(userAgent) &&
-    /Android/i.test(userAgent) &&
-    /Mobile/i.test(userAgent)
-  );
-}
-
 // Next.js 16: the request-interception convention is `proxy.ts` exporting an
 // async `proxy` (formerly `middleware.ts` / `middleware`). It runs on the
 // Node.js runtime — REQUIRED by next-firebase-auth-edge ≥1.12 on Next 16: the
@@ -95,14 +79,6 @@ function isAndroidMobileBrowser(userAgent: string): boolean {
 // "Key for the RS256 algorithm must be … Received an instance of Uint8Array".
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  if (
-    !pathname.startsWith("/api/") &&
-    !pathname.startsWith("/get-app") &&
-    !pathname.startsWith("/_next/") &&
-    isAndroidMobileBrowser(request.headers.get("user-agent") ?? "")
-  ) {
-    return NextResponse.rewrite(new URL("/get-app", request.url));
-  }
 
   if (isPublic(request.nextUrl.pathname)) {
     return NextResponse.next();
