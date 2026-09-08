@@ -47,6 +47,7 @@ import {
   monthKey,
   monthsOfQuarterKey,
   shiftQuarterKey,
+  shiftMonthKey,
   type GoalPeriod,
 } from "@/lib/goals/types";
 import {
@@ -246,7 +247,66 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   //    Nothing below names a month, a quarter or a year: the anchor comes from
   //    `quarterKey(new Date())` and the window from `shiftQuarterKey`, whose
   //    absolute-quarter arithmetic owns the FY rollover. ──────────────────────
+  /* STEP THE PERIOD ITSELF, one quarter or one month at a time.
+
+     The header used to step only the FINANCIAL YEAR. Moving to the next
+     quarter meant finding its pill in the window below, and any quarter
+     outside that window -- anything already closed -- needed "Show past" or an
+     FY hop first. Yearly, Weekly and Daily all step their own period with a
+     pair of arrows; these two were the levels where the arrows in the header
+     moved something other than the thing the board is showing.
+
+     The FY it lands in is passed WITH the key, so stepping off the end of a
+     year carries the board into the next one instead of holding the old FY and
+     silently showing an empty bucket. Nothing here names a boundary: the key
+     arithmetic owns the rollover, and `fyStartYearOfKey` /
+     `fyStartYearOfMonthKey` read back which year the result belongs to.
+
+     The pill windows below re-anchor on their own when the selection lands
+     outside them (see `quarterAnchorKey` / `monthAnchorQuarterKey`), so the row
+     follows the arrows rather than being left behind. */
+  const stepPeriod = React.useCallback(
+    (delta: number) => {
+      if (isQuarterly) {
+        const next = shiftQuarterKey(props.periodKey, delta);
+        go({ period: next, fy: fyStartYearOfKey(next) });
+        return;
+      }
+      const next = shiftMonthKey(props.periodKey, delta);
+      go({ period: next, fy: fyStartYearOfMonthKey(next) });
+    },
+    [isQuarterly, props.periodKey, go],
+  );
+
   const [showPast, setShowPast] = React.useState(false);
+
+  /* IS THERE A PERIOD LIST TO FOLD? Yearly has no bucket row — the FY stepper
+     is its period control — so it gets neither the pills nor the toggle. */
+  const hasBuckets = isQuarterly || isMonthly;
+
+  /* FOLDED BY DEFAULT, and remembered per level (a Monthly window is much
+     taller than a Quarterly one, so the two earn different answers).
+
+     Starts `false` on the server AND on the first client render, with the
+     stored choice applied in an effect — reading localStorage during render
+     would make the two disagree and break hydration. */
+  const [bucketsOpen, setBucketsOpen] = React.useState(false);
+  const bucketsKey = `altus.goals.periodBuckets.v1:${props.level}`;
+  React.useEffect(() => {
+    try {
+      if (localStorage.getItem(bucketsKey) === "open") setBucketsOpen(true);
+    } catch {
+      /* storage may be unavailable (private mode) */
+    }
+  }, [bucketsKey]);
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(bucketsKey, bucketsOpen ? "open" : "closed");
+    } catch {
+      /* storage may be unavailable (private mode) */
+    }
+  }, [bucketsKey, bucketsOpen]);
+
   const currentQuarterKey = React.useMemo(() => quarterKey(new Date()), []);
 
   // The window normally sits on the LIVE quarter, and re-anchors only when the
@@ -1032,22 +1092,22 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
         <header className="wg-rise relative mb-3 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-x-4 gap-y-2 flex-wrap min-w-0">
             <h1
-              className="text-ink-strong shrink-0"
-              style={{
-                fontFamily: "var(--font-display), system-ui, sans-serif",
-                fontWeight: 900,
-                fontSize: "clamp(20px, 1.8vw, 25px)",
-                letterSpacing: "-0.028em",
-                lineHeight: 1,
-              }}
+              /* `page-heading` (app/globals.css) — the rail's wordmark type and
+                 its sheen, shared rather than restated. The ramp that used to sit
+                 inline here travelled into that class unchanged. */
+              className="page-heading shrink-0"
             >
               {props.heading}
             </h1>
             <div className="flex flex-wrap items-center gap-1.5">
               <GoalStatChip
+                /* `neutral`, not `slate` — Total and Not Started are both greys
+                   but deliberately different ones (#1F2937 vs #64748B), and
+                   sharing a tone made the first and last chip in the row look
+                   like the same filter. */
                 label="Total"
                 value={chipCounts.all}
-                tone="slate"
+                tone="neutral"
                 active={completion === "all"}
                 onClick={() => setCompletion("all")}
               />
@@ -1111,7 +1171,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
         </header>
 
         <div
-          className="wg-rise mb-3 flex items-center gap-2 flex-wrap rounded-section border border-hairline px-3 py-2 max-md:px-3"
+          className="wg-rise mb-3 flex flex-col gap-2 rounded-section border border-hairline px-3 py-2 max-md:px-3"
           style={{
             background:
               "linear-gradient(180deg, rgba(255,255,255,0.82), rgba(250,251,252,0.72))",
@@ -1121,6 +1181,24 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
               "0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 26px -20px rgba(15, 23, 42, 0.18)",
           }}
         >
+          {/* ROW 1 — the search, with every control on this strip pinned right:
+              New Goal · the time stepper · Maximize · Viewing.
+
+              THE TIME STEPPER USED TO HAVE A ROW OF ITS OWN, directly under the
+              search. That cost a whole line of vertical space to hold one
+              control on an otherwise empty row, on a page whose toolbar is
+              already three stacked strips before the table starts.
+
+              It is NOT a return to the version that broke. That one put
+              everything in a single wrapping row and let the flex algorithm
+              decide, so the steppers drifted to wherever there was room —
+              far-right one render, dropped onto a second line the next. Here
+              they sit INSIDE the `ml-auto shrink-0` cluster, which wraps as one
+              unit: the search (the only `flex-1` item) absorbs every pixel of
+              slack, so the group's internal order is fixed no matter the
+              width. Narrow enough and the whole cluster drops to a second line
+              intact, which is the failure mode you want. */}
+          <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[180px] max-w-[360px] flex-1 shrink-0">
             <Search size={15} strokeWidth={2.4} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-subtle" />
             <input
@@ -1143,82 +1221,13 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
             )}
           </div>
 
-          {/* Bucket nav — quarters (Quarterly), months (Monthly), nothing (Yearly). */}
-          {isQuarterly && (
-            <QuarterWindowNav
-              anchorKey={quarterAnchorKey}
-              extraKeys={revealedQuarters}
-              selectedKey={props.periodKey}
-              currentKey={currentQuarterKey}
-              countOf={quarterCountOf}
-              onPick={(k) => go({ fy: fyStartYearOfKey(k), period: k })}
-            />
-          )}
-          {isMonthly && (
-            <MonthWindowNav
-              anchorQuarterKey={monthAnchorQuarterKey}
-              extraQuarterKeys={revealedPastQuarters}
-              selectedKey={props.periodKey}
-              currentMonthKey={currentMonthKey}
-              countOf={monthCountOf}
-              // A month in the window's other FY (Apr, viewed from a January
-              // board) needs the LOADER moved with it, not just the selection
-              // — the fy hop is what fetches its goals.
-              onPick={(k) => go({ fy: fyStartYearOfMonthKey(k), period: k })}
-            />
-          )}
-
-          {isQuarterly && hiddenPastQuarters.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowPast((v) => !v)}
-              aria-pressed={showPast}
-              className={`shrink-0 inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[13px] font-bold text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink-strong ${FOCUS_RING}`}
-              style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
-            >
-              {showPast ? "Hide past" : `Show past (${hiddenPastQuarters.length})`}
-            </button>
-          )}
-          {isMonthly && pastQuarterKeys.length > 0 && (
-            // `self-stretch` — MonthWindowNav beside it is a multi-row bracket
-            // box (FY legend + quarter caption + month pills), so it's taller
-            // than a one-line button. Stretching to match its height (instead
-            // of floating short at `items-center`) is what keeps the two
-            // boxes reading as the same height in the row.
-            <button
-              type="button"
-              onClick={() => setShowPast((v) => !v)}
-              aria-pressed={showPast}
-              className={`shrink-0 self-stretch inline-flex items-center gap-1 rounded-lg px-2.5 text-[13px] font-bold text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink-strong ${FOCUS_RING}`}
-              style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
-            >
-              {showPast ? "Hide past" : "Show past"}
-            </button>
-          )}
-
-          <div className="ml-auto flex shrink-0 items-center gap-2.5">
-            <div className="inline-flex items-center overflow-hidden rounded-lg border border-hairline-strong bg-surface-card">
-              <button
-                type="button"
-                aria-label="Previous financial year"
-                onClick={() => go({ fy: fy - 1 })}
-                className={`cursor-pointer px-2 py-1.5 text-ink-subtle transition-colors hover:bg-surface-soft hover:text-altus-red ${FOCUS_RING}`}
-              >
-                <ChevronLeft size={15} strokeWidth={2.4} />
-              </button>
-              <span className="border-x border-hairline-strong px-2.5 py-1.5 text-[13px] font-bold tabular-nums text-ink-strong">
-                {fyLabel(fy)}
-              </span>
-              <button
-                type="button"
-                aria-label="Next financial year"
-                onClick={() => go({ fy: fy + 1 })}
-                className={`cursor-pointer px-2 py-1.5 text-ink-subtle transition-colors hover:bg-surface-soft hover:text-altus-red ${FOCUS_RING}`}
-              >
-                <ChevronRight size={15} strokeWidth={2.4} />
-              </button>
-            </div>
-
+            {/* `flex-wrap justify-end`, and NOT `shrink-0`. Holding four
+                controls, this cluster is wider than a narrow window's content
+                column — pinned rigid it simply overflowed sideways at ~900px.
+                Wrapping preserves DOM order, so the controls still cannot
+                reorder themselves; they only ever break onto a second line, in
+                sequence, right-aligned. */}
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2.5">
             {canWrite && (
               <button
                 type="button"
@@ -1231,6 +1240,117 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
               </button>
             )}
 
+            {/* ONE TIME CONTROL, two scales -- period then year, fine on the
+                left and coarse on the right:
+
+                    [ ‹ | Q1 · Apr–Jun | › ‖ ‹ | FY 2027–28 | › ]
+
+                These were two separate bordered boxes sitting a gap apart. They
+                do one job between them -- move the board through time -- and
+                the row beside them is a series of unrelated single controls
+                (New Goal, Viewing), so two near-identical chevron boxes read as
+                two more of those rather than as a pair. Joined into one group
+                with a divider, the relationship is visible: same box, two
+                scales, and the gap that follows now separates the time control
+                from everything that is not one.
+
+                The year half renders on EVERY level; the period half only where
+                there is a period below the year to step. On the Yearly board
+                the FY stepper IS the period control, so the group is simply the
+                one half -- which is exactly what it already looked like. */}
+            <div
+              className="inline-flex items-stretch overflow-hidden rounded-lg border border-hairline-strong bg-surface-card"
+              role="group"
+              aria-label="Move the board through time"
+            >
+              {(isQuarterly || isMonthly) && (
+                <>
+                  <button
+                    type="button"
+                    aria-label={isQuarterly ? "Previous quarter" : "Previous month"}
+                    onClick={() => stepPeriod(-1)}
+                    className={`inline-flex items-center cursor-pointer px-2 py-1.5 text-ink-subtle transition-colors hover:bg-surface-soft hover:text-altus-red ${FOCUS_RING}`}
+                  >
+                    <ChevronLeft size={15} strokeWidth={2.4} />
+                  </button>
+                  <span className="inline-flex items-center whitespace-nowrap border-x border-hairline-strong px-2.5 py-1.5 text-[13px] font-bold tabular-nums text-ink-strong">
+                    {periodKeyLabel(props.periodKey)}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={isQuarterly ? "Next quarter" : "Next month"}
+                    onClick={() => stepPeriod(1)}
+                    className={`inline-flex items-center cursor-pointer px-2 py-1.5 text-ink-subtle transition-colors hover:bg-surface-soft hover:text-altus-red ${FOCUS_RING}`}
+                  >
+                    <ChevronRight size={15} strokeWidth={2.4} />
+                  </button>
+
+                  {/* The seam between the two scales. Heavier than the hairlines
+                      flanking each label -- those separate a button from its
+                      own readout, this separates one stepper from the other, so
+                      reading it as the stronger line is what keeps the group
+                      parsing as 2+2 rather than as one run of six controls. */}
+                  <span
+                    aria-hidden
+                    className="my-1 w-px shrink-0"
+                    style={{ background: "var(--color-hairline-strong)" }}
+                  />
+                </>
+              )}
+
+              <button
+                type="button"
+                aria-label="Previous financial year"
+                onClick={() => go({ fy: fy - 1 })}
+                className={`inline-flex items-center cursor-pointer px-2 py-1.5 text-ink-subtle transition-colors hover:bg-surface-soft hover:text-altus-red ${FOCUS_RING}`}
+              >
+                <ChevronLeft size={15} strokeWidth={2.4} />
+              </button>
+              <span className="inline-flex items-center whitespace-nowrap border-x border-hairline-strong px-2.5 py-1.5 text-[13px] font-bold tabular-nums text-ink-strong">
+                {fyLabel(fy)}
+              </span>
+              <button
+                type="button"
+                aria-label="Next financial year"
+                onClick={() => go({ fy: fy + 1 })}
+                className={`inline-flex items-center cursor-pointer px-2 py-1.5 text-ink-subtle transition-colors hover:bg-surface-soft hover:text-altus-red ${FOCUS_RING}`}
+              >
+                <ChevronRight size={15} strokeWidth={2.4} />
+              </button>
+            </div>
+
+            {/* MINIMIZE / MAXIMIZE the period list.
+
+                The pill window is the bulkiest thing on the page — on Monthly
+                it is two FY brackets, four quarter captions and six month
+                pills, several lines tall — and now that the arrows beside it
+                step the same periods, it is no longer the only way to move.
+                So it folds, and starts folded: arrows for the ordinary hop
+                one period either way, the pills opened when you want to jump
+                somewhere specific or see where the counts sit.
+
+                Only rendered where there IS a list to fold — the Yearly board
+                has no bucket row, and a toggle for nothing is a dead control. */}
+            {hasBuckets && (
+              <button
+                type="button"
+                onClick={() => setBucketsOpen((v) => !v)}
+                aria-expanded={bucketsOpen}
+                aria-controls="goal-period-buckets"
+                title={bucketsOpen ? "Minimize the period list" : "Maximize the period list"}
+                className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-bold text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink-strong ${FOCUS_RING}`}
+                style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
+              >
+                {bucketsOpen ? (
+                  <Minimize2 size={13} strokeWidth={2.4} />
+                ) : (
+                  <Maximize2 size={13} strokeWidth={2.4} />
+                )}
+                {bucketsOpen ? "Minimize" : "Maximize"}
+              </button>
+            )}
+          
+
             {props.roster.length > 1 && (
               <ViewingSelect
                 people={props.roster}
@@ -1240,7 +1360,70 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                 myEmployeeId={props.myEmployeeId}
               />
             )}
+            </div>
           </div>
+
+          {/* ROW 3 — the period pills, revealed by Maximize. */}
+          {hasBuckets && bucketsOpen && (
+            <div
+              id="goal-period-buckets"
+              className="flex flex-wrap items-start gap-2 border-t border-hairline pt-2"
+            >
+            {/* Bucket nav — quarters (Quarterly), months (Monthly), nothing (Yearly). */}
+            {isQuarterly && (
+              <QuarterWindowNav
+                anchorKey={quarterAnchorKey}
+                extraKeys={revealedQuarters}
+                selectedKey={props.periodKey}
+                currentKey={currentQuarterKey}
+                countOf={quarterCountOf}
+                onPick={(k) => go({ fy: fyStartYearOfKey(k), period: k })}
+              />
+            )}
+            {isMonthly && (
+              <MonthWindowNav
+                anchorQuarterKey={monthAnchorQuarterKey}
+                extraQuarterKeys={revealedPastQuarters}
+                selectedKey={props.periodKey}
+                currentMonthKey={currentMonthKey}
+                countOf={monthCountOf}
+                // A month in the window's other FY (Apr, viewed from a January
+                // board) needs the LOADER moved with it, not just the selection
+                // — the fy hop is what fetches its goals.
+                onPick={(k) => go({ fy: fyStartYearOfMonthKey(k), period: k })}
+              />
+            )}
+
+            {isQuarterly && hiddenPastQuarters.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowPast((v) => !v)}
+                aria-pressed={showPast}
+                className={`shrink-0 inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[13px] font-bold text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink-strong ${FOCUS_RING}`}
+                style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
+              >
+                {showPast ? "Hide past" : `Show past (${hiddenPastQuarters.length})`}
+              </button>
+            )}
+            {isMonthly && pastQuarterKeys.length > 0 && (
+              // `self-stretch` — MonthWindowNav beside it is a multi-row bracket
+              // box (FY legend + quarter caption + month pills), so it's taller
+              // than a one-line button. Stretching to match its height (instead
+              // of floating short at `items-center`) is what keeps the two
+              // boxes reading as the same height in the row.
+              <button
+                type="button"
+                onClick={() => setShowPast((v) => !v)}
+                aria-pressed={showPast}
+                className={`shrink-0 self-stretch inline-flex items-center gap-1 rounded-lg px-2.5 text-[13px] font-bold text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink-strong ${FOCUS_RING}`}
+                style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
+              >
+                {showPast ? "Hide past" : "Show past"}
+              </button>
+            )}
+
+            </div>
+          )}
         </div>
 
         {/* ── Feature toolbar — Sort · Export · Bulk upload · filters ·
@@ -1484,10 +1667,16 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                 </button>
               )}
 
-              {/* Capture goals with AI + Add New Goal — side by side. */}
-              <div className="mb-3 flex flex-wrap items-center gap-2">
+              {/* Capture goals with AI + Add Goal — side by side, and the same
+                  size. `flex-1 basis-0` on both is what guarantees that: the
+                  two tiles split the row exactly in half no matter how long
+                  their labels are, which sizing to content never did. Capped
+                  at 640px so they stay buttons rather than stretching across a
+                  wide screen. */}
+              <div className="mb-3 flex max-w-[640px] flex-wrap items-stretch gap-2">
                 {canWrite && props.captureEnabled && (
                   <GoalCaptureBox
+                    className="min-w-[200px] flex-1 basis-0"
                     employeeId={props.viewedEmployeeId}
                     level={props.level}
                     periodKey={props.periodKey}
@@ -1504,6 +1693,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                   <BoardQuickAdd
                     ref={quickAddRef}
                     compact
+                    triggerClassName="min-w-[200px] flex-1 basis-0 w-full"
                     employeeId={props.viewedEmployeeId}
                     level={props.level}
                     periodKey={props.periodKey}
@@ -1628,46 +1818,61 @@ export function GoalStatChip({
 }: {
   label: string;
   value: number;
-  tone: "slate" | "green" | "amber" | "red" | "blue" | "yellow" | "orange";
+  tone: "slate" | "neutral" | "green" | "amber" | "red" | "blue" | "yellow" | "orange";
   active: boolean;
   onClick: () => void;
 }) {
+  /* EACH CHIP CARRIES ITS OWN COLOUR — the three-part palette per tone:
+       background  var(--color-<tone>-bg)     #ECFDF5, #EFF6FF, #FFFBEB …
+       text        var(--color-<tone>-deep)   #065F46, #1E40AF, #92400E …
+       accent/dot  var(--color-<tone>)        #10B981, #2563EB, #D97706 …
+
+     These used to be white cards distinguished only by a 8px dot, which is
+     why the row read as one undifferentiated strip. Now the whole chip is the
+     colour and the number sits in the matching ink, so "which band am I
+     looking at" is answerable without reading the label.
+
+     Selected state is a 2px ring in the ACCENT plus a deeper ground — a
+     stronger version of the same colour rather than a different colour, so
+     nothing has to be learned twice. */
+  const bg = `var(--color-${tone}-bg)`;
+  const ink = `var(--color-${tone}-deep)`;
+  const accent = `var(--color-${tone})`;
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
       aria-label={`${active ? "Remove" : "Add"} ${label.toLowerCase()} filter`}
-      className="group inline-flex items-center gap-2 rounded-xl transition-colors cursor-pointer"
+      className="group inline-flex items-center gap-2 rounded-xl transition-all cursor-pointer"
       style={{
         padding: "5px 10px",
-        background: active
-          ? `color-mix(in srgb, var(--color-${tone}) 8%, var(--color-surface-card))`
-          : "var(--color-surface-card)",
+        background: active ? `color-mix(in srgb, ${accent} 14%, ${bg})` : bg,
         boxShadow: active
-          ? `inset 0 0 0 1.5px var(--color-${tone}-deep)`
-          : "inset 0 0 0 1px var(--color-hairline)",
+          ? `inset 0 0 0 2px ${accent}`
+          : `inset 0 0 0 1px color-mix(in srgb, ${accent} 26%, transparent)`,
       }}
     >
       <span
         aria-hidden
         className="inline-block size-2 rounded-full shrink-0"
-        style={{ background: `var(--color-${tone})` }}
+        style={{ background: accent }}
       />
       <span
-        className="tabular-nums leading-none text-ink-strong"
+        className="tabular-nums leading-none"
         style={{
           fontFamily: "var(--font-display), system-ui, sans-serif",
           fontWeight: 900,
           fontSize: 16,
           letterSpacing: "-0.02em",
+          color: ink,
         }}
       >
         {value}
       </span>
       <span
         className="font-semibold leading-none"
-        style={{ fontSize: 11.5, color: active ? `var(--color-${tone}-deep)` : "var(--color-ink-soft)" }}
+        style={{ fontSize: 11.5, color: ink, opacity: active ? 1 : 0.88 }}
       >
         {label}
       </span>
@@ -1726,7 +1931,14 @@ export function MultiPickFilter({
                   background: "color-mix(in srgb, var(--color-altus-red) 7%, transparent)",
                   color: "var(--color-altus-red-deep)",
                 }
-              : { borderColor: "var(--color-hairline)", background: "var(--color-surface-card)", color: "var(--color-ink-soft)" }
+              : {
+                  // Was `hairline` (8%) + `ink-soft`, which on white gave a
+                  // control with no visible edge and grey text. Same treatment
+                  // as the WMS filter pills: a real border, full ink.
+                  borderColor: "var(--color-hairline-strong)",
+                  background: "var(--color-surface-card)",
+                  color: "var(--color-ink-strong)",
+                }
           }
         >
           {summary}

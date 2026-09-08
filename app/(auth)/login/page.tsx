@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation";
 import { LoginMosaic } from "@/components/auth/login-mosaic";
 import { LoginFormCanva } from "@/components/auth/login-form-canva";
+import { localSessionEnabled } from "@/lib/auth/local-session";
 
 // Never static: the root layout resolves the signed-in employee, which reads
 // the session cookie, so Next bails this route out to dynamic rendering
@@ -30,6 +32,11 @@ function firstString(v: string | string[] | undefined): string | undefined {
 }
 
 export default async function LoginPage({ searchParams }: PageProps) {
+  // Local no-login mode: there is nothing to sign into. The proxy already folds
+  // /login into /hub; this is the belt-and-braces copy for any path that reaches
+  // the page directly (e.g. a proxy-exempt render).
+  if (localSessionEnabled()) redirect("/hub");
+
   const sp = await searchParams;
   const reason = firstString(sp["reason"]);
 

@@ -469,7 +469,9 @@ function HowItWorks() {
 
 /* ── stat chip for the (light) header ── */
 function HeroChip({ label, value, tone }: { label: string; value: number; tone?: "green" | "amber" | "red" }) {
-  const dot = tone ? `var(--color-${tone})` : "var(--color-ink-subtle)";
+  // `-deep` for the dot, pastel for the chip's own fill below — the two roles
+  // the tone scale actually has, kept apart.
+  const dot = tone ? `var(--color-${tone}-deep)` : "var(--color-ink-subtle)";
   const bg = tone ? `color-mix(in srgb, var(--color-${tone}) 9%, #fff)` : "var(--color-surface-soft, #F4F4F5)";
   const border = tone ? `color-mix(in srgb, var(--color-${tone}) 26%, transparent)` : "var(--color-hairline)";
   return (

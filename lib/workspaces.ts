@@ -59,10 +59,15 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   training: "/training",
   accounts: "/accounts",
   events: "/events",
-  // The module entry = the Yearly board (the level pages' landing). With the
-  // canvas/board flag OFF that page server-redirects to /goals (the sub-hub),
-  // so production behaviour is unchanged until the flag flips.
-  goals: "/goals/yearly",
+  // The module entry = the GOALS DASHBOARD — the read-only overview across all
+  // five levels, which is what you want to see before deciding which level to
+  // go and work in. It used to be the Yearly board, i.e. you landed already
+  // inside one level with no view of the rest.
+  //
+  // With the canvas/board flag OFF that page server-redirects to /goals (the
+  // sub-hub) exactly as the Yearly board did, so production behaviour is
+  // unchanged until the flag flips.
+  goals: "/goals/dashboard",
   // The module opens on the personal view; Team Performance is a tab inside it
   // and is gated per-role, so the landing is the one surface everyone can reach.
   productivity: "/productivity",

@@ -251,7 +251,7 @@ function NumBox({
         }
       }}
       className={cn(
-        "h-6 rounded-md border-0 bg-transparent px-1.5 text-left text-[12.5px] font-semibold text-ink-strong tabular-nums transition-colors hover:bg-black/[0.04] focus:bg-black/[0.06]",
+        "h-7 rounded-md border-0 bg-transparent px-2 text-left text-[13px] font-semibold text-ink-strong tabular-nums transition-colors hover:bg-black/[0.04] focus:bg-black/[0.06]",
         "disabled:cursor-not-allowed disabled:opacity-60",
         "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
         FOCUS_RING,
@@ -1364,7 +1364,7 @@ function TargetDateInline({
         if (next !== (iso ?? null)) onCommit(next);
       }}
       className={cn(
-        "h-6 rounded-md border bg-white px-1.5 text-[12.5px] font-semibold text-ink-strong focus:border-altus-red disabled:opacity-60",
+        "h-7 rounded-md border bg-white px-2 text-[13px] font-semibold text-ink-strong focus:border-altus-red disabled:opacity-60",
         FOCUS_RING,
       )}
       style={{ borderColor: has ? st.color : "var(--color-hairline-strong)" }}
@@ -1819,7 +1819,10 @@ function DupCollisionDialog({
 /* ------------------------------------------------------------------ */
 
 const TH =
-  "px-2 py-1.5 text-left whitespace-nowrap max-md:px-1.5 max-md:py-1.5 font-sans text-[10.5px] font-bold uppercase tracking-[0.03em]";
+  // px-2.5/py-2.5 and 11px — the header was tighter than the tasks table's and
+  // set a full point smaller, which is what made the whole grid read as
+  // compressed before a single row was drawn.
+  "px-2.5 py-2.5 text-left whitespace-nowrap max-md:px-1.5 max-md:py-2 font-sans text-[11px] font-bold uppercase tracking-[0.03em]";
 
 /** Header cell metadata (not JSX — the component attaches live drag handlers
  *  itself) for one REORDERABLE_COLUMNS key, in the table's fixed per-column
@@ -2486,7 +2489,7 @@ export function GoalTableView(props: GoalTableViewProps) {
     switch (key) {
       case "srno":
         return [
-          <td key="srno" className="px-1.5 py-0 align-middle">
+          <td key="srno" className="px-2.5 py-2 align-middle">
             <div className="flex flex-col items-start gap-1">
               {/* The goal CODE is the select/click handle. It is the one cell
                   in the row that is not an inline editor, so making it the
@@ -2525,7 +2528,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "area":
         return [
-          <td key="area" {...grid.cellProps(i, grid.ci("area"), "pl-1.5 pr-0 py-0 align-middle")}>
+          <td key="area" {...grid.cellProps(i, grid.ci("area"), "pl-2.5 pr-0 py-2 align-middle")}>
             <div className={cn(locked && "pointer-events-none opacity-60")}>
               <GoalLookupSelect
                 kind="area"
@@ -2544,7 +2547,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "title":
         return [
-          <td key="title" {...grid.cellProps(i, grid.ci("title"), "pl-0 pr-1.5 py-0 align-middle")}>
+          <td key="title" {...grid.cellProps(i, grid.ci("title"), "pl-0 pr-2.5 py-2 align-middle")}>
             {/* Single-line, truncated — keeps every row one line tall (dense
                 table, column stays narrow) — but a hover tooltip always shows
                 the FULL goal text, so nothing is ever actually hidden. */}
@@ -2600,7 +2603,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "measure":
         return [
-          <td key="measure" {...grid.cellProps(i, grid.ci("measure"), "px-1.5 py-0 align-middle")}>
+          <td key="measure" {...grid.cellProps(i, grid.ci("measure"), "px-2.5 py-2 align-middle")}>
             <div className={cn(locked && "pointer-events-none opacity-60")}>
               <GoalLookupSelect
                 kind="measure"
@@ -2619,7 +2622,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "actual":
         return [
-          <td key="actual" {...grid.cellProps(i, grid.ci("actual"), "px-1.5 py-0 align-middle")}>
+          <td key="actual" {...grid.cellProps(i, grid.ci("actual"), "px-2.5 py-2 align-middle")}>
             <NumBox
               value={trimDecimal(g.actualQty)}
               disabled={locked}
@@ -2637,7 +2640,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "target":
         return [
-          <td key="target" {...grid.cellProps(i, grid.ci("target"), "px-1.5 py-0 align-middle")}>
+          <td key="target" {...grid.cellProps(i, grid.ci("target"), "px-2.5 py-2 align-middle")}>
             <NumBox
               value={trimDecimal(g.targetQty)}
               disabled={locked}
@@ -2655,7 +2658,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "pct":
         return [
-          <td key="pct" {...grid.cellProps(i, grid.ci("pct"), "px-1.5 py-0 align-middle")}>
+          <td key="pct" {...grid.cellProps(i, grid.ci("pct"), "px-2.5 py-2 align-middle")}>
             {(() => {
               const auto = autoPctDone(g.targetQty, g.actualQty);
               return (
@@ -2671,7 +2674,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "teamPct":
         return [
-          <td key="teamPct" {...grid.cellProps(i, grid.ci("teamPct"), "px-1.5 py-0 align-middle")}>
+          <td key="teamPct" {...grid.cellProps(i, grid.ci("teamPct"), "px-2.5 py-2 align-middle")}>
             <NumBox
               value={g.teamDependencyPct == null ? "" : String(g.teamDependencyPct)}
               min={0}
@@ -2685,7 +2688,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "delegate":
         return [
-          <td key="delegate" {...grid.cellProps(i, grid.ci("delegate"), "px-1.5 py-0 align-middle")}>
+          <td key="delegate" {...grid.cellProps(i, grid.ci("delegate"), "px-2.5 py-2 align-middle")}>
             <DelegatesCell
               delegates={g.delegatedTo ?? null}
               roster={roster}
@@ -2696,7 +2699,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "targetDate":
         return [
-          <td key="targetDate" className="px-1.5 py-0 align-middle">
+          <td key="targetDate" className="px-2.5 py-2 align-middle">
             <TargetDateInline
               iso={g.targetDate}
               editable={level === "month" && !weekly}
@@ -2708,16 +2711,16 @@ export function GoalTableView(props: GoalTableViewProps) {
       case "owner":
         return [
           level !== "day" ? (
-            <td key="owner" className="px-1.5 py-0 align-middle">
+            <td key="owner" className="px-2.5 py-2 align-middle">
               <AssignmentChip goal={g} />
             </td>
           ) : (
-            <td key="owner" className="px-1.5 py-0 align-middle" />
+            <td key="owner" className="px-2.5 py-2 align-middle" />
           ),
         ];
       case "type":
         return [
-          <td key="type" {...grid.cellProps(i, grid.ci("type"), "px-1.5 py-0 align-middle")}>
+          <td key="type" {...grid.cellProps(i, grid.ci("type"), "px-2.5 py-2 align-middle")}>
             <div className={cn(locked && "pointer-events-none opacity-60")}>
               <GoalLookupSelect
                 kind="goaltype"
@@ -2736,7 +2739,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "notes":
         return [
-          <td key="notes" className="px-1.5 py-0 align-top">
+          <td key="notes" className="px-2.5 py-2 align-top">
             <NotesCell
               goalId={g.id}
               hasNotes={(g.notes?.trim()?.length ?? 0) > 0}
@@ -2744,13 +2747,13 @@ export function GoalTableView(props: GoalTableViewProps) {
               onToggle={() => toggleExpand(g.id)}
             />
           </td>,
-          <td key="attachments" className="px-1.5 py-0 align-top">
+          <td key="attachments" className="px-2.5 py-2 align-top">
             <AttachmentsCell goalId={g.id} expanded={expanded.has(g.id)} onToggle={() => toggleExpand(g.id)} />
           </td>,
         ];
       case "targetDateStatus":
         return [
-          <td key="targetDateStatus" className="px-1.5 py-0 align-middle">
+          <td key="targetDateStatus" className="px-2.5 py-2 align-middle">
             <TargetDateStatusCell iso={g.targetDate} />
           </td>,
         ];
@@ -3192,9 +3195,16 @@ export function GoalTableView(props: GoalTableViewProps) {
               return (
                 <React.Fragment key={g.id}>
                 <tr
+                  /* Same row treatment as the Tasks table, which is the one
+                     this was asked to match: a full-width bottom rule, a hover
+                     wash, and a 4px LEFT ACCENT that only appears on hover —
+                     the Gmail-inbox tell that a row is a row and that it is
+                     the one under your pointer. The accent is transparent by
+                     default rather than absent, so hovering does not shift the
+                     row by 4px. */
                   className={cn(
-                    "group border-b border-gray-200 transition-colors",
-                    !isSel && "hover:bg-slate-50/80",
+                    "group border-b border-l-4 border-gray-200 border-l-transparent transition-colors",
+                    !isSel && "hover:bg-slate-50/80 hover:border-l-altus-red",
                   )}
                   style={{
                     background: isSel ? redTint(6) : undefined,
@@ -3202,7 +3212,7 @@ export function GoalTableView(props: GoalTableViewProps) {
                 >
                   {/* select — checking the box also opens the Edit popup
                       automatically (unchecking just deselects). */}
-                  <td className="py-0 pl-2 pr-1 align-middle">
+                  <td className="py-2 pl-3 pr-1 align-middle">
                     <BrandCheck
                       checked={isSel}
                       onToggle={() => {

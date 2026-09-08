@@ -12,7 +12,7 @@ import { DashboardSectionHeader } from "@/components/dashboard/section-header";
 import {
   CollapseToggle,
   CollapsibleBody,
-  DASHBOARD_CARD,
+  DASHBOARD_CARD_PADDED,
   SectionSearchBox,
 } from "@/components/dashboard/section-chrome";
 import { matchesSearch } from "@/lib/client/section-search";
@@ -97,14 +97,21 @@ export function SentBackSection({
   }, [byPerson, isAdmin, meId, query, total]);
 
   return (
-    <PageShell as="section" width="full" py={false} aria-label="Sent-back work">
+    <PageShell as="section" width="full" py={false} aria-label="Sent-Back Work">
       <DashboardSectionHeader
         icon={<SectionIcon icon={XCircle} tone="red" />}
-        /* This section's card is p-8 md:p-10, not the p-6 md:p-8 the header
-           insets to by default — so it states its own, or the title would sit
-           8px inside the card content it labels. */
-        inset="px-8 md:px-10"
-        title="Sent-back work, by person and by how overdue"
+        /* NO `inset` OVERRIDE ANY MORE — this was the only header on the
+           dashboard that carried one.
+
+           Its reasoning was locally sound: the card below used `p-8 md:p-10`
+           rather than the standard `p-6 md:p-8`, so the header inset to match
+           its own card. But that traded ONE alignment for a worse one. It kept
+           this title level with the card 8px beneath it, at the cost of
+           standing 8px right of the other nine titles running down the page —
+           and a stack of headings is read against each other, not against the
+           card each one sits on. The fix is to make the card standard rather
+           than the header bespoke; see the card below. */
+        title="Sent-Back Work, by Person and by How Overdue"
         subtitle="Tasks an Admin declined and returned. Left: who is carrying them · Right: aged against each task's effective due date (red = overdue)."
         actions={
           <>
@@ -123,17 +130,28 @@ export function SentBackSection({
         }
       />
       <CollapsibleBody expanded={open}>
-        {/* p-8 md:p-10 + a floor on the height, so this sits level with the
-            Aging Heatmap above it rather than ending short and leaving the
-            column ragged. `min-h`, not `h`: a short roster still shrinks to
-            fit rather than opening a void under the rows. */}
+        {/* STANDARD PADDING, so this card's content edge lines up with every
+            other card's and the header above needs no bespoke inset. It was
+            `p-8 md:p-10` — 8px more than the dashboard standard, which is what
+            forced the header override this section used to carry.
+
+            The `min-h` floor below is unrelated and stays: it keeps this level
+            with the Aging Heatmap above rather than ending short and leaving
+            the column ragged. `min-h`, not `h`, so a short roster still
+            shrinks to fit rather than opening a void under the rows. */}
         <div
-          className={`${DASHBOARD_CARD} p-8 md:p-10 ${
-            /* Only when there is something to fill it. The empty state is a
-               single centred line, and a 580px floor under it would open half a
-               screen of white below "No tasks awaiting re-work" — a section
-               looking broken precisely when the news is good. */
-            total > 0 ? "min-h-[580px]" : ""
+          className={`${DASHBOARD_CARD_PADDED} ${
+            /* Only when there are enough ROWS to fill it — not merely when the
+               count is non-zero.
+
+               `total > 0` was the wrong test: one person carrying one sent-back
+               task satisfies it, and the card then drew a single row above half
+               a screen of white inside its own border. That was rare while the
+               board always showed the whole org; now that the employee filter
+               reaches every section, a one-row board is an ordinary thing to be
+               looking at. Seven rows is where the tall layout starts earning
+               its floor. */
+            byPerson.length > 6 ? "min-h-[580px]" : ""
           }`}
         >
           <NotApprovedPanel

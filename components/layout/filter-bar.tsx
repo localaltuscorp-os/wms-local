@@ -54,6 +54,15 @@ interface Props {
   statusOptions?: { value: string; label: string }[];
   clients?: string[];
   me?: { id: string; isAdmin: boolean };
+  /**
+   * True on surfaces that OPEN on the viewer's own data (the WMS dashboard).
+   * It adds two rows to the Assignee dropdown — "All employees" and the
+   * viewer's own name pinned at the top and marked "(You)" — and makes an
+   * empty selection mean "me" rather than "everyone".
+   *
+   * Off everywhere else, so /tasks keeps the behaviour it has today.
+   */
+  scopeDefaultsToMe?: boolean;
   assigneeMode?: AssigneeMode;
   /** Number of tasks matching the current filters (shown in the summary row). */
   taskCount?: number;
@@ -82,6 +91,7 @@ export function FilterBar({
   statusOptions,
   clients,
   me,
+  scopeDefaultsToMe = false,
   assigneeMode: initialAssigneeMode = "all",
 }: Props) {
   const router = useRouter();
@@ -90,6 +100,14 @@ export function FilterBar({
   const [isPending, startTransition] = useTransition();
 
   const showScopeChip = Boolean(me && !me.isAdmin);
+  /* "All employees" is a ROW IN THE LIST, not a separate control: the ask was
+     for it to sit in the same checkbox dropdown as the individual names, and a
+     reader who has just learned to pick a person there should not have to
+     learn a second widget to un-pick them. It is a synthetic option — no
+     employee has this id — intercepted in `handleEmpChange` below. */
+  const ALL_EMP = "__all__";
+  const selfScope = scopeDefaultsToMe && Boolean(me);
+  const selfId = me?.id;
   // Overdue has no picker of its own — it arrives from a drill-through link
   // (e.g. the Task Report's sent-back-by-person rows) and is cleared from its
   // chip. A dropdown for a single boolean would be a worse control than the
@@ -120,10 +138,44 @@ export function FilterBar({
     }
   }, [start, end]);
 
-  function handleRange(r: DateRange | undefined) {
+  /* ── THE RANGE PICKER ────────────────────────────────────────────────────
+
+     WHY TWO CLICKS NEVER MADE A RANGE. `handleRange` used to write
+     `end = r.to ?? r.from` immediately, so the FIRST click of a range —
+     which react-day-picker reports as `{ from: X, to: undefined }` — was
+     stored as `{ from: X, to: X }`. `range` above is derived from
+     start/end, so the picker was handed back a COMPLETE range, and
+     day-picker's rule for a click on a complete range is to throw it away and
+     start a new one. Every click therefore began a fresh selection: you could
+     move a single day around forever and never reach a second endpoint.
+
+     It also refetched. The debounced `apply()` below watches start/end, so
+     that first click pushed a one-day window to the server and the whole
+     dashboard reloaded underneath the open calendar — the "not smooth" half
+     of the problem, and a wasted query every time.
+
+     So the calendar now edits a DRAFT while it is open and commits once. The
+     draft keeps `to: undefined` after one click, which is exactly what
+     day-picker needs to extend rather than restart. */
+  const [dateOpen, setDateOpen] = React.useState(false);
+  const [draftRange, setDraftRange] = React.useState<DateRange | undefined>(undefined);
+
+  const commitRange = React.useCallback((r: DateRange | undefined) => {
     if (!r?.from) return;
     setStart(format(r.from, "yyyy-MM-dd"));
+    // A single-day pick is a legitimate range of one, not an incomplete one.
     setEnd(format(r.to ?? r.from, "yyyy-MM-dd"));
+  }, []);
+
+  function handleRange(r: DateRange | undefined) {
+    setDraftRange(r);
+    // Both ends chosen — commit and get out of the way. Closing on completion
+    // is what makes it "one go": no Apply button to find, and no calendar left
+    // covering the numbers it just changed.
+    if (r?.from && r.to) {
+      commitRange(r);
+      setDateOpen(false);
+    }
   }
 
   function apply() {
@@ -133,7 +185,8 @@ export function FilterBar({
     sp.set("view", view);
     if (emp.length > 0) {
       sp.set("emp", emp.join(","));
-    } else if (showScopeChip && assigneeMode === "all") {
+    } else if ((showScopeChip || selfScope) && assigneeMode === "all") {
+      // Explicit, because an ABSENT `emp` is what means "the viewer" now.
       sp.set("emp", "all");
     } else {
       sp.delete("emp");
@@ -164,8 +217,8 @@ export function FilterBar({
     const today = new Date();
     setStart(format(new Date(today.getTime() - 30 * ONE_DAY), "yyyy-MM-dd"));
     setEnd(format(today, "yyyy-MM-dd"));
-    setEmp([]);
-    setAssigneeMode(showScopeChip ? "default" : "all");
+    setEmp(selfScope && selfId ? [selfId] : []);
+    setAssigneeMode(showScopeChip || selfScope ? "default" : "all");
     setView("doer");
     setDept([]);
     setPrio([]);
@@ -187,21 +240,72 @@ export function FilterBar({
   const formattedRange = `${fmt(start)} – ${fmt(end)}`;
 
   function handleEmpChange(next: string[]) {
+    if (selfScope) {
+      /* Order matters. "All employees" WINS when it was just ticked, because
+         at that moment your own name is still ticked too (you are the default)
+         and a plain "any real id present → specific" rule would read that as
+         "just me" and swallow the click. Every other case falls through to the
+         real ids. */
+      const allJustTicked = next.includes(ALL_EMP) && assigneeMode !== "all";
+      if (allJustTicked) {
+        setAssigneeMode("all");
+        setEmp([]);
+        return;
+      }
+      const ids = next.filter((v) => v !== ALL_EMP);
+      if (ids.length > 0) {
+        setAssigneeMode("specific");
+        setEmp(ids);
+        return;
+      }
+      // Nothing left ticked — including un-ticking "All employees" — returns
+      // to the default this surface opens on: you.
+      setAssigneeMode(selfId ? "default" : "all");
+      setEmp(selfId ? [selfId] : []);
+      return;
+    }
     setEmp(next);
     if (showScopeChip) setAssigneeMode(next.length > 0 ? "specific" : "default");
   }
+
+  /* The list the dropdown actually renders. Ordered deliberately: the widest
+     scope first, then YOU, then everybody else in the order the server sent.
+     Hunting for your own name in an alphabetical roster is the thing this is
+     meant to remove. */
+  const employeeOptions = React.useMemo(() => {
+    if (!selfScope) return employees;
+    const self = employees.find((e) => e.value === selfId);
+    return [
+      { value: ALL_EMP, label: "All employees" },
+      ...(self ? [{ value: self.value, label: `${self.label} (You)` }] : []),
+      ...employees.filter((e) => e.value !== selfId),
+    ];
+  }, [employees, selfId, selfScope]);
+
+  /* What the checkboxes show. In all-company mode nothing real is selected, so
+     the synthetic row carries the tick — otherwise the dropdown would look
+     exactly as it does when you have not chosen anything at all. */
+  const empSelection = selfScope && assigneeMode === "all" ? [ALL_EMP] : emp;
 
   const empLabel = (id: string) => employees.find((e) => e.value === id)?.label ?? id;
   const statusLabel = (v: string) =>
     statusOptions?.find((o) => o.value === v)?.label ?? v;
 
   const assigneeValue =
-    emp.length > 0
-      ? summarizeSelection(emp.map(empLabel), "All Employees")
-      : showScopeChip && assigneeMode === "default"
-        ? "My Tasks"
-        : "All Employees";
-  const assigneeActive = emp.length > 0 || (showScopeChip && assigneeMode === "all");
+    selfScope && assigneeMode === "all"
+      ? "All Employees"
+      : // "Only Me" rather than your own name: the pill is answering "whose
+        // numbers am I looking at", and your name alone reads like a filter
+        // someone else applied.
+        selfScope && emp.length === 1 && emp[0] === selfId
+        ? "Only Me"
+        : emp.length > 0
+          ? summarizeSelection(emp.map(empLabel), "All Employees")
+          : showScopeChip && assigneeMode === "default"
+            ? "My Tasks"
+            : "All Employees";
+  const assigneeActive =
+    emp.length > 0 || ((showScopeChip || selfScope) && assigneeMode === "all");
 
   // ── Active-filter chips (the summary row) ──────────────────────────────
   type ActivePill = { key: string; label: string; color: string; remove: () => void };
@@ -214,6 +318,18 @@ export function FilterBar({
     activePills.push({ key: `e-${id}`, label: empLabel(id), color: TINT.assignee, remove: () => handleEmpChange(emp.filter((x) => x !== id)) });
   if (showScopeChip && assigneeMode === "all" && emp.length === 0)
     activePills.push({ key: "scope-all", label: "All Tasks", color: TINT.assignee, remove: () => setAssigneeMode("default") });
+  // The dashboard's equivalent: says the view has been widened off you, and
+  // removing the chip puts it back.
+  if (selfScope && assigneeMode === "all")
+    activePills.push({
+      key: "scope-all-emp",
+      label: "All Employees",
+      color: TINT.assignee,
+      remove: () => {
+        setAssigneeMode(selfId ? "default" : "all");
+        setEmp(selfId ? [selfId] : []);
+      },
+    });
   for (const c of client)
     activePills.push({ key: `c-${c}`, label: c, color: TINT.client, remove: () => setClient(client.filter((x) => x !== c)) });
   for (const d of dept)
@@ -269,7 +385,23 @@ export function FilterBar({
             trigger on scroll, so a scrolled trigger still anchors correctly. */}
         <div className="flex items-center gap-x-1 flex-nowrap overflow-x-auto no-scrollbar min-w-0">
           {/* Date range */}
-          <Popover.Root>
+          <Popover.Root
+            open={dateOpen}
+            onOpenChange={(o) => {
+              setDateOpen(o);
+              if (o) {
+                // Seed the draft from what is actually applied, so reopening
+                // shows the range you are looking at rather than a blank slate.
+                setDraftRange(range);
+                return;
+              }
+              // Closed mid-selection, with only a start day picked. Commit it
+              // as a single day rather than discarding the click — dismissing
+              // someone's input because they did not finish the gesture is the
+              // more surprising of the two outcomes.
+              if (draftRange?.from && !draftRange.to) commitRange(draftRange);
+            }}
+          >
             <Popover.Trigger asChild>
               <FilterPill
                 icon={<Calendar size={16} strokeWidth={2} />}
@@ -289,12 +421,34 @@ export function FilterBar({
               >
                 <DayPicker
                   mode="range"
-                  selected={range}
+                  // The DRAFT while open, the applied range once closed. This
+                  // is the whole fix: an in-progress `{ from, to: undefined }`
+                  // survives the round trip, so the next click extends it.
+                  selected={dateOpen ? draftRange : range}
                   onSelect={handleRange}
+                  /* OPENS ON THE RANGE, not on today. With "Aug 2 – Sep 1"
+                     applied on the 1st of September this opened showing
+                     September and October — neither of which contains the start
+                     of the selection, so the calendar appeared to have lost it.
+                     Radix unmounts the content on close, so this re-applies on
+                     every open rather than sticking at the first month shown. */
+                  defaultMonth={range?.from}
                   numberOfMonths={2}
                   showOutsideDays
                   weekStartsOn={1}
                 />
+                {/* What the two clicks have selected so far. A range picker
+                    gives no feedback between the first click and the second —
+                    the pill behind it still reads the OLD range, because
+                    nothing is committed yet — so this is the only thing on
+                    screen confirming the first click registered. */}
+                <p className="mt-2 border-t border-hairline pt-2 text-center text-[12px] font-semibold text-ink-subtle">
+                  {draftRange?.from && draftRange.to
+                    ? `${format(draftRange.from, "d MMM yyyy")} – ${format(draftRange.to, "d MMM yyyy")}`
+                    : draftRange?.from
+                      ? `${format(draftRange.from, "d MMM yyyy")} — pick an end date`
+                      : "Pick a start date"}
+                </p>
                 <Popover.Arrow className="fill-white" />
               </Popover.Content>
             </Popover.Portal>
@@ -302,8 +456,8 @@ export function FilterBar({
 
           {/* Assignee */}
           <MultiSelect
-            options={employees}
-            selected={emp}
+            options={employeeOptions}
+            selected={empSelection}
             onChange={handleEmpChange}
             renderTrigger={() => (
               <FilterPill
@@ -341,10 +495,49 @@ export function FilterBar({
               <SegButton active={assigneeMode === "all" && emp.length === 0} onClick={() => { setAssigneeMode("all"); setEmp([]); }}>All Tasks</SegButton>
             </SegGroup>
           )}
+          {/* SOLID, not the frosted white pill the other segmented controls
+              use. This toggle decides WHICH LIST you are reading — your own
+              work, or work you handed out — and the two answers share a row
+              count, a column set and a layout, so a 4% shift in background
+              was the only thing telling them apart. Scope (My/All Tasks) keeps
+              the subtle treatment: it narrows one list rather than swapping it
+              for a different one, and making every segmented control shout
+              would leave none of them emphatic. */}
           <SegGroup label="View">
-            <SegButton layoutId="view-seg-active" active={view === "doer"} onClick={() => setView("doer")}>Doer</SegButton>
-            <SegButton layoutId="view-seg-active" active={view === "initiator"} onClick={() => setView("initiator")}>Initiator</SegButton>
+            <SegButton
+              layoutId="view-seg-active"
+              tone="solid"
+              solidColor="var(--color-altus-red)"
+              title="Listing tasks assigned TO the selected people"
+              active={view === "doer"}
+              onClick={() => setView("doer")}
+            >
+              Doer
+            </SegButton>
+            <SegButton
+              layoutId="view-seg-active"
+              tone="solid"
+              /* THE BRAND RED, same as Doer. It used to be slate-900 so the two
+                 sides differed by colour as well as position — but that made
+                 "which one is lit" a thing you had to learn, and only one of
+                 the two states looked like the app it lives in. Now the lit
+                 pill is always the logo red; WHICH pill is lit is what tells
+                 you the view, backed up by the "Viewing as:" caption beside it
+                 and by two different icons. */
+              solidColor="var(--color-altus-red)"
+              title="Listing tasks these people HANDED OUT to others"
+              active={view === "initiator"}
+              onClick={() => setView("initiator")}
+            >
+              Initiator
+            </SegButton>
           </SegGroup>
+
+          {/* A "Viewing as: Doer" caption used to sit here, spelling the state
+              out in words beside the toggle. Removed on request: the lit red
+              pill already says it, and the caption repeated it in a second
+              red pill right next to the first. What each view MEANS now lives
+              on the buttons' own hover titles instead of taking bar width. */}
 
           {/* The ⋯ import/export menu used to sit here. It moved to the Tasks
               page header so it pairs with the "Kanban View" button, and so this
@@ -524,20 +717,46 @@ function SegButton({
   onClick,
   children,
   layoutId = "scope-seg-active",
+  tone = "subtle",
+  solidColor,
+  title,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
   layoutId?: string;
+  /** Hover text — where the View pills explain what each list actually is. */
+  title?: string;
+  /** `subtle` is the frosted white pill every segmented control has always
+   *  used. `solid` fills the active pill with `solidColor` and sets the label
+   *  white — opt-in per group, so raising the contrast on the View toggle does
+   *  not silently restyle Scope, which shares this component. */
+  tone?: "subtle" | "solid";
+  /** Any CSS colour. Only read when `tone` is "solid" and this pill is active. */
+  solidColor?: string;
 }) {
+  const solid = tone === "solid" && active;
   return (
     <button
       type="button"
       onClick={onClick}
+      title={title}
+      aria-pressed={active}
       className="relative text-[11.5px] px-1.5 py-0.5 rounded-pill transition-colors whitespace-nowrap"
       style={{
-        color: active ? "var(--color-ink-strong)" : "var(--color-ink-subtle)",
-        fontWeight: active ? 600 : 500,
+        /* The fill is painted HERE as well as on the animated layer below.
+           The layer is what slides between the two pills; the button's own
+           background is what guarantees the lit state is visible even before
+           that layer mounts or animates in. Same colour, so they are
+           indistinguishable — this is belt-and-braces on the one piece of
+           state in this bar that changes which list you are reading. */
+        background: solid ? solidColor : undefined,
+        color: solid
+          ? "#ffffff"
+          : active
+            ? "var(--color-ink-strong)"
+            : "var(--color-ink-subtle)",
+        fontWeight: solid ? 700 : active ? 600 : 500,
       }}
     >
       {active && (
@@ -546,8 +765,10 @@ function SegButton({
           aria-hidden
           className="absolute inset-0 rounded-pill"
           style={{
-            background: "var(--color-surface-card)",
-            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04)",
+            background: solid ? solidColor : "var(--color-surface-card)",
+            boxShadow: solid
+              ? "0 1px 3px rgba(15, 23, 42, 0.28)"
+              : "0 1px 3px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04)",
           }}
           transition={{ type: "spring", stiffness: 380, damping: 32 }}
         />

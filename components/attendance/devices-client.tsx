@@ -10,7 +10,7 @@ interface DeviceRow {
   id: string;
   employeeId: string;
   employeeName: string;
-  /** 'laptop' | 'phone'. Which of the person's two designated devices this is. */
+  /** 'laptop' | 'phone'. Descriptive only — either kind may fill either slot. */
   kind: string;
   label: string | null;
   platform: string | null;
@@ -147,7 +147,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
           ))}
         </ul>
       )}
-      <p className="pt-1 text-[12px] text-ink-subtle">Cap: {maxPerEmployee} approved devices per employee — one Web (Desktop) and one Web (Android). Revoke an old one before approving a replacement.</p>
+      <p className="pt-1 text-[12px] text-ink-subtle">Cap: {maxPerEmployee} approved devices per employee, any kind — two laptops, two phones or one of each. Revoke an old one before approving a replacement.</p>
     </div>
   );
 }

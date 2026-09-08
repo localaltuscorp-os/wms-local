@@ -34,6 +34,10 @@ export const FilterPill = React.forwardRef<
       // fit every filter on one line; it lives on as the hover title.
       title={name}
       className={`filter-pill ${className ?? ""}`}
+      /* The accent travels as a CSS variable rather than an inline background,
+         so the `[data-active]` rule in globals.css can build BOTH the tinted
+         ground and the border from it and keep the two in step. */
+      style={{ ["--filter-pill-tint" as string]: tint, ...props.style }}
       {...props}
     >
       <span
@@ -42,19 +46,29 @@ export const FilterPill = React.forwardRef<
           width: 20,
           height: 20,
           background: active
-            ? `color-mix(in srgb, ${tint} 14%, transparent)`
+            ? `color-mix(in srgb, ${tint} 18%, transparent)`
             : "var(--color-hairline)",
-          color: active ? tint : "var(--color-ink-subtle)",
+          // `ink-soft`, not `ink-subtle`: the inactive icon was light grey on
+          // white and effectively decorative.
+          color: active ? tint : "var(--color-ink-soft)",
         }}
       >
         {icon}
       </span>
       {/* Capped tighter than before so seven pills + the view toggle + the
           switcher + search all hold one line. The full value is in `title`. */}
-      <span className="text-[11.5px] font-semibold truncate max-w-[86px] text-ink-strong">
+      <span
+        className="text-[11.5px] truncate max-w-[86px]"
+        // Bolder AND inked in the accent when the filter is live, so the pill
+        // says what it is doing without being opened.
+        style={{
+          fontWeight: active ? 800 : 600,
+          color: active ? tint : "var(--color-ink-strong)",
+        }}
+      >
         {value}
       </span>
-      <ChevronDown size={12} className="text-ink-subtle shrink-0" />
+      <ChevronDown size={12} className="shrink-0" style={{ color: active ? tint : "var(--color-ink-soft)" }} />
     </button>
   );
 });

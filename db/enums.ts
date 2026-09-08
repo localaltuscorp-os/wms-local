@@ -1261,9 +1261,10 @@ export const hhAccessSections = (moduleCode: string) => hhAccessModule(moduleCod
 /**
  * A registered attendance device is a LAPTOP or a PHONE (migration 0206).
  *
- * Each employee designates one of each and may punch from EITHER — the rule is
- * "at most one approved device per kind", never "both are required", so a
- * machine away for repair never blocks attendance.
+ * The kind DESCRIBES a device; since 0214 it no longer constrains one. Each
+ * employee may hold two approved devices of any kind — two laptops, two phones,
+ * or one of each — and may punch from EITHER, so a machine away for repair never
+ * blocks attendance.
  */
 export const DEVICE_KINDS = ["laptop", "phone"] as const;
 export type DeviceKind = (typeof DEVICE_KINDS)[number];

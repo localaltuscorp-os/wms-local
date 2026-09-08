@@ -69,10 +69,17 @@ export function CascadeGoalCard({
   return (
     <motion.article
       layout
+      /* The anchor a `?focus=<goalId>` arrival scrolls to — see the effect in
+         weekly-cascade-board.tsx. Prefixed `wg-` because these ids share the
+         document with the cascade `goals` table's own ids, and a bare uuid
+         would make the two collide the moment both are on one page.
+         `scroll-mt-24` keeps the card clear of the sticky board header it would
+         otherwise land underneath. */
+      id={`wg-${goal.id}`}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22, delay: Math.min(index * 0.03, 0.3) }}
-      className="group/card relative overflow-hidden rounded-section border border-hairline bg-surface-card transition-shadow hover:shadow-lg"
+      className="group/card relative scroll-mt-24 overflow-hidden rounded-section border border-hairline bg-surface-card transition-shadow hover:shadow-lg"
       style={{
         opacity: goal.adopted ? 1 : 0.62,
         boxShadow: "0 1px 2px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.6)",

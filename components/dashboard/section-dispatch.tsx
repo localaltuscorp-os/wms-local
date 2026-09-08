@@ -40,6 +40,9 @@ function WhatsAppIcon({ className }: { className?: string }) {
   );
 }
 
+/* The 32px BUTTON is deliberately unchanged while the glyphs inside it went
+   16px → 20px: the hit area and the row height stay exactly as they were, so
+   nothing in the aligned section header shifts — only the marks get bigger. */
 const ICON_BTN =
   "grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -173,7 +176,7 @@ export function SectionDispatch({ report }: { report: () => SectionReport }) {
             aria-label="Export PDF to WhatsApp"
             className={`${ICON_BTN} text-emerald-600 hover:bg-emerald-50`}
           >
-            <WhatsAppIcon className="size-4" />
+            <WhatsAppIcon className="size-5" />
           </button>
         </Popover.Anchor>
         <button
@@ -186,7 +189,7 @@ export function SectionDispatch({ report }: { report: () => SectionReport }) {
           // by that, whereas the mail icon has no brand of its own to borrow.
           className={`${ICON_BTN} text-[#B80D22] hover:bg-red-50`}
         >
-          <Mail className="size-4" strokeWidth={2.4} />
+          <Mail className="size-5" strokeWidth={2.4} />
         </button>
       </span>
 

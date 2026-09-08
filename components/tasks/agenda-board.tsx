@@ -453,7 +453,9 @@ function Column({
             <span
               aria-hidden
               className="h-2.5 w-2.5 rounded-full shrink-0"
-              style={{ background: `var(--color-${tone})` }}
+              // `-deep`: the bare tone is a pastel container fill, too light
+              // to read as a dot. Same change as the goals stat chips.
+              style={{ background: `var(--color-${tone}-deep)` }}
             />
           )}
           <span
@@ -624,7 +626,9 @@ function AgendaCard({
               <span
                 aria-hidden
                 className="h-1.5 w-1.5 rounded-full"
-                style={{ background: `var(--color-${statusTone})` }}
+                // Sitting on a 12% tint of its own tone, so the pastel was
+                // nearly the same colour as the pill behind it.
+                style={{ background: `var(--color-${statusTone}-deep)` }}
               />
               {statusLabel}
             </span>

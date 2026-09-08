@@ -1908,17 +1908,18 @@ export const mobileDevices = pgTable(
     label: text("label"),
     platform: text("platform"),
     /**
-     * 'laptop' | 'phone' (0206). An employee designates one of each and may
-     * punch from EITHER — a laptop away for repair must leave the phone working.
-     * Rows predating 0206 are phones: the table was populated exclusively by the
-     * mobile app's keystore id.
+     * 'laptop' | 'phone' (0206). DESCRIPTIVE ONLY since 0214 — it names the
+     * device on the admin screen and nothing else. An employee holds two device
+     * slots and either kind may fill either one, so two laptops is as valid as a
+     * laptop and a phone. Rows predating 0206 are phones: the table was populated
+     * exclusively by the mobile app's keystore id.
      */
     kind: text("kind").notNull().default("phone").$type<DeviceKind>(),
     // Device-allowlist lifecycle (Phase 1 anti-proxy, 2026-08). A device must be
-    // 'approved' to punch. New registrations land 'pending' (admin approves, cap
-    // 1-2); EXISTING rows were grandfathered to 'approved' by the migration
-    // default so nobody was locked out on rollout. 'revoked' = a lost/replaced
-    // phone an admin retired.
+    // 'approved' to punch. New registrations land 'pending' (admin approves; at
+    // most 2 approved per employee); EXISTING rows were grandfathered to
+    // 'approved' by the migration default so nobody was locked out on rollout.
+    // 'revoked' = a lost/replaced device an admin retired.
     status: text("status").notNull().default("approved"), // approved | pending | revoked
     approvedById: uuid("approved_by_id").references(() => employees.id, { onDelete: "set null" }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
@@ -1930,12 +1931,12 @@ export const mobileDevices = pgTable(
     uniqueIndex("mobile_devices_device_id_uq").on(t.deviceId),
     index("mobile_devices_employee_idx").on(t.employeeId),
     index("mobile_devices_kind_idx").on(t.kind),
-    // 0206. At most one APPROVED device of each kind per person. Partial on
-    // status so revoked history and a pending replacement can coexist with the
-    // approved device they are meant to succeed.
-    uniqueIndex("mobile_devices_employee_kind_approved_uq")
-      .on(t.employeeId, t.kind)
-      .where(sql`${t.status} = 'approved'`),
+    // NO per-kind unique index here. 0206 had one — at most one approved device
+    // of each kind — and 0214 dropped it: the cap is now two approved devices per
+    // employee of ANY kind, a cardinality no unique index can express. It lives
+    // in the `mobile_devices_cap_approved_trg` trigger that 0214 installs, which
+    // Drizzle has no way to declare. Adding an index back here would quietly
+    // reinstate the old rule on the next push.
     check("mobile_devices_kind_chk", sql`${t.kind} in ('laptop', 'phone')`),
   ],
 );
@@ -3902,6 +3903,10 @@ export const goals = pgTable(
     }),
     position: integer("position").notNull().default(1),
     area: text("area"),
+    // Free text, like `tasks.client` — the `clients` table backs the dropdown
+    // but does not constrain the column, because new clients are created by
+    // typing a name. Added by migration 0212.
+    client: text("client"),
     title: text("title").notNull(),
     uom: text("uom"),
     targetQty: numeric("target_qty", { precision: 14, scale: 2 }),

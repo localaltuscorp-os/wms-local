@@ -339,6 +339,9 @@ export async function importGoals(
       parentGoalId: null, // linked in a safe post-pass below
       _parentRaw: UUID_RE.test(parentRaw) ? parentRaw : null,
       area: cleanText(get("area"), 160) || null,
+      // Free text, so an unknown client imports rather than failing the row —
+      // same rule as the Tasks importer, which is how new clients get created.
+      client: cleanText(get("client"), 160) || null,
       title,
       uom: cleanText(get("uom"), 80) || null,
       notes: cleanText(get("notes"), 4000) || null,

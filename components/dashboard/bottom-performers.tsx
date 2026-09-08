@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { AlertTriangle, ChevronRight, TrendingDown } from "lucide-react";
-import type { PunctualityPerson } from "@/lib/types";
+import type { RankedPunctualityPerson } from "@/lib/types";
+import { TOP_PERFORMER_RANKS } from "@/lib/transforms/performer-split";
 import { useSectionSearch, matchesSearch } from "@/lib/client/section-search";
 import { Avatar } from "@/components/ui/avatar";
 import { SectionIcon } from "@/components/dashboard/section-icon";
@@ -66,14 +67,29 @@ import { PerformerTaskDrawer } from "@/components/dashboard/performer-task-drawe
  * card shape as its opposite number so the pair reads as one idea.
  */
 
-/** How deep the list runs. Matches Top Performers' own depth. */
-const DEPTH = 10;
+/** How tall the right column gets before it scrolls — level with the three
+ *  featured cards beside it. Replaces the old depth cap. */
+const LIST_MAX_H = "max-h-[520px]";
 /** Below this, the on-time rate is rendered as a solid alarm rather than a tint. */
 const CRITICAL_RATE = 50;
-/** A person with fewer dated completions than this is not judged: two late
- *  tasks out of two is 0%, and ranking that above someone genuinely slipping
- *  would put the wrong name in front of a manager. */
-const MIN_SAMPLE = 3;
+/* THE TWO ELIGIBILITY GATES ARE GONE, deliberately, and it changes what this
+   card means.
+
+   It used to admit only people with `late > 0` AND at least three dated
+   completions. Both had defensible reasons — a 0% rate off two tasks is noise,
+   and ordering by volume without a lateness gate promotes a quiet, punctual
+   person onto a card about slippage. But the sample floor is what made the
+   board demonstrably WRONG: the person with two completions — the lowest
+   volume in the org, visible at the bottom of Top Performers — was excluded
+   from the one card that ranks by lowest volume. A gate that hides the exact
+   row the card exists to surface is not protecting anyone.
+
+   So this is now every person, ordered least-done-first, and the subtitle says
+   that rather than claiming a lateness filter that no longer runs. The cost is
+   real and worth stating: someone with a light, punctual week now appears near
+   the top. The on-time rate and the late count are both on every row, so that
+   is readable rather than hidden — but it does mean rank 1 is "did the least",
+   not "is in the most trouble". */
 
 /** Ranks 1-3, as full cards down the left column. */
 const FEATURED_COUNT = 3;
@@ -96,30 +112,34 @@ const FEATURED_COUNT = 3;
 const PULL_UP = {
   1: {
     mark: "⚠️",
-    label: "1st",
     ring: "ring-rose-300",
     chip: "border-rose-200 bg-rose-50 text-rose-700",
   },
   2: {
     mark: null,
-    label: "2nd",
     ring: "ring-slate-300",
     chip: "border-slate-200 bg-slate-50 text-slate-700",
   },
   3: {
     mark: null,
-    label: "3rd",
     ring: "ring-slate-200",
     chip: "border-slate-200 bg-slate-50 text-slate-600",
   },
 } as const;
 
-type PullUpRank = keyof typeof PULL_UP;
-const pullUpFor = (rank: number) =>
-  (PULL_UP as Record<number, (typeof PULL_UP)[PullUpRank] | undefined>)[rank];
+type PullUpPlace = keyof typeof PULL_UP;
+/**
+ * Keyed on PLACE IN THIS CARD (1st, 2nd, 3rd from the top), NOT on the global
+ * rank. Those used to be the same number because this board renumbered its
+ * people from 1; it now shows their real standing, which starts at
+ * TOP_PERFORMER_RANKS + 1 — so keying the treatment on `rank` would light up
+ * nobody at all.
+ */
+const pullUpFor = (place: number) =>
+  (PULL_UP as Record<number, (typeof PULL_UP)[PullUpPlace] | undefined>)[place];
 
-/** A person plus the standing they hold in the un-searched leaderboard. */
-type RankedPerson = PunctualityPerson & { rank: number };
+/** A person plus the standing they hold on the whole-team leaderboard. */
+type RankedPerson = RankedPunctualityPerson;
 
 /**
  * ONE HOVER RECIPE, shared by the cards and the rows so both columns respond
@@ -135,7 +155,11 @@ export function BottomPerformersSection({
   people,
   avatarById = {},
 }: {
-  people: PunctualityPerson[];
+  /* ALREADY SPLIT AND ALREADY RANKED by the query — ranks 1-TOP_PERFORMER_RANKS
+     went to Top Performers and never reach this card, and the `rank` on each
+     row is its position on the ONE team leaderboard, not an index into this
+     list. See lib/transforms/performer-split.ts. */
+  people: RankedPunctualityPerson[];
   avatarById?: Record<string, string | null>;
 }) {
   const [open, setOpen] = React.useState(true);
@@ -159,37 +183,20 @@ export function BottomPerformersSection({
      (`.slice(0, FEATURED_COUNT)` on the filtered list) while the BADGES
      describe position in the standings — exactly the split Top Performers
      documents at the top of its own file. */
-  const leaderboard = React.useMemo<RankedPerson[]>(() => {
-    return people
-      .filter((p) => p.late > 0 && p.done >= MIN_SAMPLE)
-      /* THREE KEYS, ALL POINTING THE SAME WAY: least done, then least of it on
-         time, then furthest behind when it did land.
-
-           1. `done` ASC   — total completions, lowest first.
-           2. `rate` ASC   — on-time percentage, lowest first.
-           3. `avgDaysLate` DESC — average delay, HIGHEST first. The only key
-              that inverts, and it has to: a bigger delay is a worse outcome,
-              where a bigger count and a bigger percentage are both better ones.
-
-         Null `avgDaysLate` sorts LAST within its tie. It is null only when a
-         person has no late tasks at all, which the `late > 0` filter above has
-         already excluded — so this is a backstop, and `-1` is the right value
-         for it because in a descending key the lowest number goes last.
-
-         The population is still only people carrying late work, so this reads
-         "of the people slipping, who is getting the least done", which is the
-         pull-up question rather than the workload-burden one. */
-      .sort(
-        (a, b) =>
-          a.done - b.done ||
-          a.rate - b.rate ||
-          (b.avgDaysLate ?? -1) - (a.avgDaysLate ?? -1),
-      )
-      // STRICTLY TEN, and sliced before the search so the section is a top-ten
-      // board rather than "whatever survived the filter".
-      .slice(0, DEPTH)
-      .map((p, i) => ({ ...p, rank: i + 1 }));
-  }, [people]);
+  /* NO RANKING HAPPENS HERE ANY MORE.
+     
+     This used to sort the roster and stamp `rank = index + 1`, which made this
+     card its own separate leaderboard: the person it called "1st" was 1st ONLY
+     here, and the same person was simultaneously somewhere in Top Performers'
+     ordering under a different number. The query now ranks the whole team once
+     and hands each card its slice (lib/transforms/performer-split.ts), so the
+     number on a row is the person's real standing and the two cards read as one
+     continuous list.
+     
+     The order arrives WORST FIRST (descending rank) for the same reason it used
+     to be least-done first: the ⚠️ and the ring belong on the person most in
+     need, and that is the last name on the team's standing. */
+  const leaderboard = people;
 
   const ranked = React.useMemo(
     () =>
@@ -208,7 +215,7 @@ export function BottomPerformersSection({
   const buildReport = React.useCallback((): SectionReport => {
     return {
       title: "People To Pull Up",
-      subtitle: "People carrying late work, lowest task completion volume first",
+      subtitle: `Rank ${TOP_PERFORMER_RANKS + 1} and below, lowest standing first`,
       meta: localQuery.trim() ? [{ label: "Search", value: localQuery.trim() }] : [],
       summary: `${ranked.length} ${ranked.length === 1 ? "person" : "people"}`,
       columns: [
@@ -235,15 +242,20 @@ export function BottomPerformersSection({
       <DashboardSectionHeader
         icon={<SectionIcon icon={TrendingDown} tone="red" />}
         title="People To Pull Up"
-        subtitle="People carrying late work, ranked by lowest task completion volume."
+        subtitle={`Everyone ranked ${TOP_PERFORMER_RANKS + 1} and below on the team leaderboard — the tail of Top Performers, lowest standing first. Nobody appears in both.`}
         actions={
           <>
+            {/* SHARE ICONS FIRST, THEN THE SEARCH BOX — the order the other six
+                sections use. This one and the On-time gauge had it the other way
+                round, which is why their toolbars started with an input while
+                every section above them started with the same pair of round
+                icons: nothing lined up down the column. */}
+            <SectionDispatch report={buildReport} />
             <SectionSearchBox
               query={localQuery}
               onQuery={setLocalQuery}
               placeholder="Search member..."
             />
-            <SectionDispatch report={buildReport} />
             <CollapseToggle
               expanded={open}
               onToggle={() => setOpen((v) => !v)}
@@ -253,18 +265,30 @@ export function BottomPerformersSection({
         }
       />
 
-      <div className={`w-full max-w-none ${DASHBOARD_CARD_PADDED}`}>
-        <CollapsibleBody expanded={open}>
+      {/* CARD INSIDE THE FOLD, not around it.
+
+          This was the other way round, with a comment claiming it was "how
+          every other fold on this dashboard behaves". It is not: six of the
+          nine sections put CollapsibleBody outermost, so collapsing removes the
+          section down to its header. Here the padded, bordered card stayed
+          mounted with nothing in it — an empty outlined strip under the title,
+          on three sections and no others. That is what made the collapsed
+          dashboard look ragged. */}
+      <CollapsibleBody expanded={open}>
+        <div className={`w-full max-w-none ${DASHBOARD_CARD_PADDED}`}>
           {ranked.length === 0 ? (
             <div className="flex flex-col items-center gap-1.5 py-16 text-center">
               <TrendingDown size={22} strokeWidth={2} className="text-gray-400" />
               <p className="text-[14px] font-bold text-ink-soft">
-                {localQuery.trim() ? "No member matches that search" : "Nobody is slipping"}
+                {localQuery.trim() ? "No member matches that search" : "Nobody to show"}
               </p>
               <p className="max-w-[320px] text-[12.5px] font-semibold text-ink-subtle">
+                {/* The old copy explained the sample floor that used to empty
+                    this card. With no eligibility gate left, the only way here
+                    is a genuinely empty roster for the current filters. */}
                 {localQuery.trim()
                   ? "Clear the search to see the full list."
-                  : `Every person with at least ${MIN_SAMPLE} dated completions delivered them on time.`}
+                  : "Nobody has completed a task in the current filters."}
               </p>
             </div>
           ) : (
@@ -280,6 +304,7 @@ export function BottomPerformersSection({
                   <FeaturedCard
                     key={p.employeeId}
                     person={p}
+                    place={i + 1}
                     stagger={i}
                     avatarUrl={avatarById[p.employeeId] ?? null}
                     onOpen={() => setDrill(p)}
@@ -320,7 +345,13 @@ export function BottomPerformersSection({
                      its column instead of trailing off. `justify-between` is
                      kept as the fallback for the case where the rows cannot
                      grow (their min-height already exceeds the column). */
-                  <ol className="flex h-full w-full flex-col justify-between gap-2">
+                  <ol
+                    className={`slim-scroll flex h-full w-full flex-col justify-between gap-2 ${LIST_MAX_H} overflow-y-auto overscroll-contain pr-1`}
+                  >
+                    {/* Scrolls past the featured three rather than lengthening
+                        the section. Rows keep their `min-h` floor, so a long
+                        roster fills this box and scrolls instead of squeezing
+                        every row thinner. */}
                     {rest.map((p) => (
                       <PullUpRow
                         key={p.employeeId}
@@ -334,8 +365,8 @@ export function BottomPerformersSection({
               </div>
             </div>
           )}
-        </CollapsibleBody>
-      </div>
+        </div>
+      </CollapsibleBody>
 
       {/* The drill-down is now the SAME drawer Top Performers opens, replacing
           a link out to /tasks. That link was chosen when this card was a flat
@@ -358,17 +389,21 @@ export function BottomPerformersSection({
 
 function FeaturedCard({
   person,
+  place,
   stagger,
   avatarUrl,
   onOpen,
 }: {
   person: RankedPerson;
+  /** 1-3 — position in THIS card, which drives the ⚠️ and the ring. Distinct
+   *  from `person.rank`, the team-wide standing shown on the chip. */
+  place: number;
   /** Position in the rendered column — only staggers the count-up. */
   stagger: number;
   avatarUrl?: string | null;
   onOpen: () => void;
 }) {
-  const badge = pullUpFor(person.rank);
+  const badge = pullUpFor(place);
   const animated = useCountUp(person.done, 900 + stagger * 120);
 
   return (
@@ -378,9 +413,11 @@ function FeaturedCard({
       aria-label={`View ${person.employeeName}'s tasks — rank ${person.rank}, ${person.done} completed, ${person.rate}% on time`}
       className={`group relative block w-full border border-slate-200 bg-white p-4 text-left ${ROW_HOVER}`}
     >
-      {/* The warning mark sits on the TRUE first place only — the mirror of
-          the crown Top Performers gives its true #1. */}
-      {person.rank === 1 && (
+      {/* The warning mark sits on the person at the very BOTTOM of the team's
+          standing — the mirror of the crown Top Performers gives its true #1.
+          Keyed on `place`, not `rank`: rank is now a team-wide number starting
+          past the top-performer cut, so `rank === 1` can never be true here. */}
+      {place === 1 && (
         <span aria-hidden className="absolute right-4 top-4 text-rose-500">
           <AlertTriangle size={20} strokeWidth={2.4} />
         </span>
@@ -406,7 +443,9 @@ function FeaturedCard({
                 className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${badge.chip}`}
               >
                 {badge.mark && <span aria-hidden>{badge.mark}</span>}
-                {badge.label}
+                {/* The team-wide position, not "1st/2nd/3rd in this card" —
+                    those labels claimed a standing the person did not hold. */}
+                #{person.rank}
               </span>
             )}
             {person.department && (

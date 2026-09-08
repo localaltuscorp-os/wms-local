@@ -4,6 +4,8 @@ import * as React from "react";
 import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 import { GlobalSearch } from "@/components/header/global-search";
+import { navTitleFor } from "@/components/layout/main-nav";
+import { MODULE_THEME } from "@/lib/module-theme";
 import { NewTaskQuickAction } from "@/components/header/new-task-quick-action";
 import { FocusModeToggle } from "@/components/layout/focus-mode-toggle";
 import { workspaceForPath } from "@/lib/workspaces";
@@ -12,16 +14,16 @@ import { workspaceForPath } from "@/lib/workspaces";
  * The app-wide TOP BAR — one persistent strip across the content column on every
  * screen in every module.
  *
- * Why it exists: search used to be a 40×40 icon button tucked into the left
- * rail's top row, and the unread count lived only inside the user-menu dropdown.
- * Neither read as a permanent, findable place. This bar gives both a fixed home:
- * a WIDE global-search field on the left and the notification bell pinned far
- * right.
+ * Why it exists: search used to be an icon button tucked into the left rail's
+ * top row, and the unread count lived only inside the user-menu dropdown.
+ * Neither read as a permanent, findable place. This bar gives both a fixed
+ * home, in one right-hand cluster: search · create · focus · bell.
  *
- * The field says "Global search" in as many words. Every page-level search box
- * says "Local search" and names what it filters — the two were previously
- * indistinguishable magnifying glasses, so nobody could tell which one would
- * leave the page.
+ * SEARCH IS AN ICON, not a field. It spent a while as a wide labelled box here
+ * — the label existed to separate it from the page-level "Local search" boxes,
+ * which name what they filter. That distinction now rests on POSITION instead:
+ * global search lives in the top bar's cluster on every screen, local search
+ * lives in the page's own header. The wording survives inside the dialog.
  *
  * DESKTOP ONLY (`max-md:hidden`). Phones already carry a fixed 56px bar from
  * DashboardSidebar; a second one would eat a third of a small screen, so the
@@ -40,6 +42,19 @@ export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
   const ws = workspaceForPath(pathname);
 
+  /* WHERE AM I. The bar's left side was empty once global search became an
+     icon, and "empty" is a waste of the one strip that is on every screen in
+     every module. The page name goes there.
+
+     Three sources, in order of how specific they are:
+       1. the rail item that owns this path  ("Daily Goals", "Aging Heatmap")
+       2. the module, for a page no rail item covers ("WMS", "Goals")
+       3. "Altus", for the hub and anything outside a module
+     Never a raw slug — a header that reads "people-allocation" is worse than
+     no header. */
+  const moduleLabel = ws ? MODULE_THEME[ws].label : undefined;
+  const title = navTitleFor(pathname) ?? moduleLabel ?? "Altus";
+
   return (
     <div
       className="app-topbar sticky top-0 z-40 flex h-14 items-center gap-3 border-b px-6 max-lg:px-4 max-md:hidden"
@@ -50,42 +65,45 @@ export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
         WebkitBackdropFilter: "blur(18px) saturate(150%)",
       }}
     >
-      {/* Global search — a real field, not an icon. Capped so it stays a search
-          box rather than stretching to the full width of a 2560px monitor. */}
-      <div className="min-w-0 max-w-[520px] flex-1">
+      {/* THE PAGE NAME. `truncate` + `min-w-0` so a long title gives way to the
+          controls rather than pushing them off the bar. `<h1>` because on most
+          of these pages it genuinely is the page's heading — the dashboard and
+          the task list have no other one. */}
+      <h1 className="min-w-0 truncate text-[17px] font-extrabold tracking-[-0.02em] text-ink-strong">
+        {title}
+      </h1>
+
+      {/* FAR RIGHT — search, create, focus, notifications. `ml-auto` pins the
+          cluster to the edge; the rest of the bar is deliberately empty.
+
+          SEARCH IS AN ICON NOW, sitting immediately left of the +. It used to
+          be a 520px field on the left of this bar, which said "Global search —
+          tasks, clients, people, documents…" in as many words. That wording is
+          not lost: it is the placeholder inside the dialog this opens, where it
+          is read at the moment it matters instead of occupying the top of every
+          screen in the app. The ⌘K hint moves to the button's tooltip for the
+          same reason.
+
+          The + keeps its place: creating a task is the action the user came to
+          take, the bell is a thing that interrupts them, and the action reads
+          first in that pair. */}
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         <GlobalSearch
           workspace={ws}
           trigger={
             <button
               type="button"
               aria-label="Global search"
-              title="Global search (⌘K)"
-              className="flex h-9 w-full items-center gap-2.5 rounded-lg border border-hairline-strong bg-surface-soft px-3 text-left text-ink-subtle transition-colors hover:border-[color:var(--color-altus-red)] hover:bg-surface-card"
+              title="Global search — tasks, clients, people, documents (⌘K)"
+              // Same 36px square, same radius and the same hover as the focus
+              // toggle beside it, so the four controls read as one cluster
+              // rather than as a search box that happened to shrink.
+              className="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
-              <Search size={16} strokeWidth={2.3} className="shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold">
-                Global search
-                <span className="ml-1 font-medium text-ink-subtle max-lg:hidden">
-                  — tasks, clients, people, documents…
-                </span>
-              </span>
-              <kbd className="shrink-0 rounded border border-hairline-strong bg-surface-card px-1.5 py-0.5 text-[10.5px] font-bold text-ink-subtle max-lg:hidden">
-                ⌘K
-              </kbd>
+              <Search className="size-5" strokeWidth={2.2} />
             </button>
           }
         />
-      </div>
-
-      {/* FAR RIGHT — create, then notifications. `ml-auto` keeps the cluster
-          pinned to the edge no matter how wide the search field ends up.
-
-          The + sits immediately LEFT of the bell: creating a task is an action
-          the user initiates, the bell is a thing that interrupts them, and the
-          action reads first in that pair. It used to live in the WMS
-          dashboard's Task Summary header, where it was reachable from one
-          section of one page and vanished when that section was collapsed. */}
-      <div className="ml-auto flex shrink-0 items-center gap-2">
         <NewTaskQuickAction />
         {/* Focus mode sits between the + and the bell. The + is the action the
             user came to take and keeps its place; this changes how the whole

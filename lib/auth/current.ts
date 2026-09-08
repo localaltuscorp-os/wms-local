@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, type Employee } from "@/db/schema";
 import { readSession } from "@/lib/auth/session";
+import { localSessionEnabled, localSessionEmployee } from "@/lib/auth/local-session";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { isAttendanceAdmin } from "@/lib/auth/attendance-permissions";
 import { FORBIDDEN_DIGEST as FORBIDDEN_DIGEST_VALUE } from "./forbidden";
@@ -22,6 +23,12 @@ import { FORBIDDEN_DIGEST as FORBIDDEN_DIGEST_VALUE } from "./forbidden";
  * thrown errors under load, which surfaced as "We hit a snag" / failed actions.
  */
 export const getCurrentEmployee = cache(async (): Promise<Employee | null> => {
+  // Local no-login mode (DISABLE_AUTH=true, dev machines only — see
+  // localSessionEnabled). Resolves a REAL employee row instead of verifying a
+  // session cookie; every downstream query then runs against real data exactly
+  // as it would for that signed-in person.
+  if (localSessionEnabled()) return await localSessionEmployee();
+
   const claims = await readSession();
   if (!claims) return null;
   const row = await db.query.employees.findFirst({

@@ -1526,7 +1526,9 @@ function TaskHoverCard({
         <div className="hc-item flex items-center gap-2 flex-wrap" style={{ animationDelay: DELAY[0] }}>
           <Pill
             tone={statusTone}
-            icon={<span className="h-2 w-2 rounded-full" style={{ background: `var(--color-${statusTone})` }} />}
+            // `-deep` — a pastel dot inside an already-pastel Pill was two
+            // shades of the same near-white.
+            icon={<span className="h-2 w-2 rounded-full" style={{ background: `var(--color-${statusTone}-deep)` }} />}
           >
             {labels[t.status]}
           </Pill>

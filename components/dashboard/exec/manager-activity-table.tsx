@@ -876,7 +876,7 @@ export function ManagerActivityTable({
      reader's whole view rather than a fresh unfiltered query. */
   const buildReport = React.useCallback((): SectionReport => {
     const out: SectionReport = {
-      title: "Who is delegating, and how much",
+      title: "Who is Delegating, and How Much",
       subtitle: targets
         ? `Targets for this window: ${targets.goals} goals · ${targets.tasks} tasks · ${targets.commitments} commitments`
         : undefined,
@@ -1124,7 +1124,7 @@ export function ManagerActivityTable({
     <section className="relative min-w-0" aria-label="Manager activity board">
       <DashboardSectionHeader
         icon={<SectionIcon icon={Users} tone="blue" />}
-        title="Who is delegating, and how much"
+        title="Who is Delegating, and How Much"
         subtitle={
           targets
             ? `Targets for this window: ${targets.goals} goals · ${targets.tasks} tasks · ${targets.commitments} commitments (${targets.workingDays} working of ${targets.calendarDays} days)`

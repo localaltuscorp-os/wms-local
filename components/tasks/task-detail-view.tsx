@@ -868,7 +868,9 @@ function InteractiveStatusPill({
                   aria-hidden
                   className="inline-block size-2.5 rounded-full shrink-0"
                   style={{
-                    background: `var(--color-${tone})`,
+                    // `-deep`, so the status swatches in this menu are
+                    // distinguishable from each other at 10px.
+                    background: `var(--color-${tone}-deep)`,
                     boxShadow: "inset 0 0 0 1px rgba(15, 23, 42, 0.18)",
                   }}
                 />

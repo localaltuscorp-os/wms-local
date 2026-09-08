@@ -59,6 +59,21 @@ function redirectClearingSession(url: URL): NextResponse {
 }
 
 /**
+ * Local no-login mode — the inline twin of `localSessionEnabled()` in
+ * lib/auth/local-session.ts. It is duplicated rather than imported because that
+ * module is `server-only` and this file is the request interceptor; the two
+ * MUST stay in lock-step.
+ *
+ * When on, the whole auth middleware is skipped and /login is folded into /hub.
+ * The `VERCEL`/`VERCEL_ENV` guard means a stray DISABLE_AUTH=true in a
+ * deployment's environment can never take the login wall down.
+ */
+function localSessionEnabled(): boolean {
+  if (process.env.VERCEL || process.env.VERCEL_ENV) return false;
+  return process.env.DISABLE_AUTH === "true";
+}
+
+/**
  * Android mobile browsers are pushed to the native-app install screen (/get-app)
  * — we've retired the responsive web UI on Android in favour of the native app.
  * iOS + desktop are untouched. Detection requires a real browser UA (Mozilla +
@@ -89,6 +104,18 @@ export async function proxy(request: NextRequest) {
     isAndroidMobileBrowser(request.headers.get("user-agent") ?? "")
   ) {
     return NextResponse.rewrite(new URL("/get-app", request.url));
+  }
+
+  // Local no-login mode: no cookie to verify, so hand every request straight
+  // through with the identity headers the app layout expects, and send the two
+  // "signed out" entry points (/ and /login) to the hub — the app starts there.
+  if (localSessionEnabled()) {
+    if (pathname === "/" || pathname === "/login" || pathname.startsWith("/login/")) {
+      return NextResponse.redirect(new URL("/hub", request.url));
+    }
+    const headers = new Headers(request.headers);
+    headers.set("x-pathname", pathname);
+    return NextResponse.next({ request: { headers } });
   }
 
   if (isPublic(request.nextUrl.pathname)) {
