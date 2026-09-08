@@ -262,7 +262,7 @@ export function SalaryProfileDialog({
                   </Field>
                 </div>
                 <p className="rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[13px] text-[#475569]" style={{ lineHeight: 1.5 }}>
-                  Project / remote: flat monthly fee — no professional tax, and attendance is measured by work sessions.
+                  Project / remote: flat monthly fee - no professional tax, and attendance is measured by work sessions.
                 </p>
               </>
             )}
@@ -281,7 +281,7 @@ export function SalaryProfileDialog({
                 options={designationOptions}
                 value={designationId}
                 onValueChange={setDesignationId}
-                placeholder="— None —"
+                placeholder="- None -"
                 searchable
                 ariaLabel="Designation"
               />
@@ -292,7 +292,7 @@ export function SalaryProfileDialog({
                 options={entityOptions}
                 value={payingEntityId}
                 onValueChange={setPayingEntityId}
-                placeholder="— None —"
+                placeholder="- None -"
                 searchable
                 ariaLabel="Paying entity"
               />

@@ -178,7 +178,7 @@ export function SourceCard({ item, today, onAdd, onAbandon, addDayLabel = "Today
               type="button"
               onClick={() => onAbandon(item)}
               aria-label={`Abandon ${item.title} (moves to Recycle Bin)`}
-              title="Abandon — moves to Recycle Bin"
+              title="Abandon - moves to Recycle Bin"
               className="absolute bottom-1.5 right-1.5 inline-flex size-6 items-center justify-center rounded-full text-ink-muted/60 opacity-0 transition-opacity hover:bg-surface-soft hover:text-[color:var(--color-altus-red)] focus-visible:opacity-100 focus-visible:outline-2 group-hover:opacity-100"
               style={{ outlineColor: GOALS_ACCENT }}
             >

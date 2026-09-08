@@ -418,7 +418,7 @@ export function HierarchyKanban(props: HierarchyKanbanProps) {
         return `Reordered ${name}.`;
       },
       onDragCancel({ active }) {
-        return `Cancelled — ${nameOfDrop(active.id) ?? "the goal"} returned.`;
+        return `Cancelled - ${nameOfDrop(active.id) ?? "the goal"} returned.`;
       },
     }),
     [nameOfDrop, childGoals],
@@ -455,7 +455,7 @@ export function HierarchyKanban(props: HierarchyKanbanProps) {
           }}
         >
           <Sparkles size={15} strokeWidth={2.4} style={{ color: "var(--color-altus-red)" }} />
-          No week goals have landed in this month yet. Add them on the Weekly board — they appear
+          No week goals have landed in this month yet. Add them on the Weekly board - they appear
           in these lanes automatically, and you can drag one between weeks to re-home it.
         </div>
       )}
@@ -463,7 +463,7 @@ export function HierarchyKanban(props: HierarchyKanbanProps) {
       {/* Scroll STAGE — its own scroll region (capped height) so the lane +
           roll-up headers (sticky top) FREEZE as you scroll the cards; the frozen
           roll-up pins left, lanes scroll horizontally when they overflow. */}
-      <div className="wg-rise relative max-h-[calc(100dvh-210px)] overflow-auto pb-4" role="group" aria-label={`${parentLabel} goals with their ${childLabel} — drag a card between lanes to move it`}>
+      <div className="wg-rise relative max-h-[calc(100dvh-210px)] overflow-auto pb-4" role="group" aria-label={`${parentLabel} goals with their ${childLabel} - drag a card between lanes to move it`}>
         {/* min-w-full = fill the page when there's room; grow past it (→ scroll)
             only when the lanes' min-widths can't all fit. */}
         <div className="flex min-w-full items-stretch gap-4">
@@ -506,7 +506,7 @@ export function HierarchyKanban(props: HierarchyKanbanProps) {
                   No {parentLabel.toLowerCase()} goals yet
                 </p>
                 <p className="mt-1 text-[12px] font-medium" style={{ color: "var(--color-ink-subtle)" }}>
-                  Add one on the {parentLabel} board — the {childLabel} cascade from it.
+                  Add one on the {parentLabel} board - the {childLabel} cascade from it.
                 </p>
               </div>
             ) : (
@@ -717,7 +717,7 @@ function ParentCard({
       ? `${fmtNum(goal.actualQty ?? 0)} / ${fmtNum(goal.targetQty)}${goal.uom ? ` ${goal.uom}` : ""}`
       : goal.targetAmount != null
         ? `₹ ${fmtNum(goal.actualAmount ?? 0)} / ${fmtNum(goal.targetAmount)}`
-        : "—";
+        : "-";
 
   return (
     <article
@@ -739,7 +739,7 @@ function ParentCard({
             <span className="text-[11px] font-black tabular-nums" style={{ color: "var(--color-altus-red-deep)" }}>
               {code}
             </span>
-            <span className="inline-flex items-center rounded-full px-1.5 py-[1px] text-[10px] font-bold" style={{ background: cat.bg, color: cat.color }}>
+            <span className="inline-flex items-center rounded-pill px-1.5 py-[1px] text-[10px] font-bold" style={{ background: cat.bg, color: cat.color }}>
               {cat.label}
             </span>
             <AssignmentChip goal={goal} />
@@ -764,7 +764,7 @@ function ParentCard({
           {initialsOf(ownerName) || "?"}
         </span>
         <span
-          className="inline-flex flex-1 items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-bold"
+          className="inline-flex flex-1 items-center justify-center rounded-pill px-2 py-0.5 text-[11px] font-bold"
           style={{ background: band.bg, color: band.color }}
         >
           {crossed ? "Set aside" : band.label}
@@ -794,8 +794,8 @@ function ParentCard({
 
       {open && (
         <dl id={detailId} className="grid grid-cols-2 gap-x-3 gap-y-2 border-t px-4 py-3" style={{ borderColor: "var(--color-hairline)" }}>
-          <DetailCell label="Area" value={goal.area || "—"} />
-          <DetailCell label="Measure" value={goal.uom || "—"} />
+          <DetailCell label="Area" value={goal.area || "-"} />
+          <DetailCell label="Measure" value={goal.uom || "-"} />
           <DetailCell label="Target · Actual" value={targetLine} wide />
           <DetailCell label="Sr. No." value={`#${srNo}`} />
         </dl>
@@ -856,7 +856,7 @@ function Lane({
 
   return (
     <section
-      aria-label={`${lane.main} — ${goals.length} goal${goals.length === 1 ? "" : "s"}`}
+      aria-label={`${lane.main} - ${goals.length} goal${goals.length === 1 ? "" : "s"}`}
       className="flex min-w-[274px] flex-1 flex-col rounded-2xl border transition-all"
       style={{
         background: isOver
@@ -889,7 +889,7 @@ function Lane({
           )}
         </div>
         <span
-          className="inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-[1px] text-[11px] font-bold tabular-nums"
+          className="inline-flex min-w-[20px] items-center justify-center rounded-pill px-1.5 py-[1px] text-[11px] font-bold tabular-nums"
           style={{ background: "color-mix(in srgb, var(--color-altus-red) 10%, transparent)", color: "var(--color-altus-red-deep)" }}
         >
           {goals.length}
@@ -931,7 +931,7 @@ function Lane({
                 <div key={goal.id} className="relative">
                   {assigned && (
                     <span
-                      className="pointer-events-none absolute -top-1.5 right-2 z-10 inline-flex items-center gap-1 rounded-full px-1.5 py-[1px] text-[9px] font-black uppercase tracking-wide"
+                      className="pointer-events-none absolute -top-1.5 right-2 z-10 inline-flex items-center gap-1 rounded-pill px-1.5 py-[1px] text-[9px] font-black uppercase tracking-wide"
                       style={{ background: "var(--color-surface-card)", border: "1px solid var(--color-hairline-strong)", color: "var(--color-ink-subtle)" }}
                     >
                       <Lock size={9} strokeWidth={2.6} /> Assigned
@@ -1072,13 +1072,13 @@ function WeekLaneCard({
           W#{srNo}
         </span>
         <span
-          className="inline-flex items-center rounded-full px-1.5 py-[1px] text-[10.5px] font-bold"
+          className="inline-flex items-center rounded-pill px-1.5 py-[1px] text-[10.5px] font-bold"
           style={{ background: cat.bg, color: cat.color }}
         >
           {cat.label}
         </span>
         <span
-          className="inline-flex items-center rounded-full px-1.5 py-[1px] text-[10px] font-black uppercase tracking-wide"
+          className="inline-flex items-center rounded-pill px-1.5 py-[1px] text-[10px] font-black uppercase tracking-wide"
           style={{ background: "color-mix(in srgb, var(--color-altus-red) 10%, transparent)", color: "var(--color-altus-red-deep)" }}
         >
           Week

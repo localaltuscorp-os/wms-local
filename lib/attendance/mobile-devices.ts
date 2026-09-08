@@ -78,7 +78,7 @@ export async function resolveMobileDevice(
     };
   }
   if (existing.employeeId !== employeeId) {
-    return { ok: false, reason: "other_employee", error: "Incorrect device — this phone is registered to another employee." };
+    return { ok: false, reason: "other_employee", error: "Incorrect device - this phone is registered to another employee." };
   }
   if (existing.status === "revoked") {
     return { ok: false, reason: "revoked", error: "This device was removed. Register it again and ask HR to approve it." };
@@ -258,7 +258,7 @@ export async function listAllDevices(): Promise<AdminDeviceRow[]> {
       sql`case when ${mobileDevices.status} = 'pending' then 0 when ${mobileDevices.status} = 'approved' then 1 else 2 end`,
       desc(mobileDevices.createdAt),
     );
-  return rows.map((r) => ({ ...r, employeeName: r.employeeName ?? "—" }));
+  return rows.map((r) => ({ ...r, employeeName: r.employeeName ?? "-" }));
 }
 
 export async function setDeviceStatus(

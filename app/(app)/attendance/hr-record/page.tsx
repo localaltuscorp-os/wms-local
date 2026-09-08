@@ -103,7 +103,7 @@ export default async function HrRecordPage({ searchParams }: PageProps) {
           </h1>
           <p className="mt-1.5 max-w-[72ch] text-[15.5px] font-medium text-ink-muted">
             The authoritative month-by-month attendance and paid-leave history imported from
-            the HR sheet. This mirror is for reference — it can&apos;t be edited here.
+            the HR sheet. This mirror is for reference - it can&apos;t be edited here.
           </p>
         </header>
 
@@ -207,7 +207,7 @@ export default async function HrRecordPage({ searchParams }: PageProps) {
           <EmptyState
             icon={<UserRoundSearch size={26} strokeWidth={2.2} />}
             title="Pick an Employee"
-            body="Choose a teammate above to open their imported HR attendance record — months, day-by-day codes, and paid-leave entitlement."
+            body="Choose a teammate above to open their imported HR attendance record - months, day-by-day codes, and paid-leave entitlement."
           />
         ) : months.length === 0 && !paidLeave ? (
           <EmptyState

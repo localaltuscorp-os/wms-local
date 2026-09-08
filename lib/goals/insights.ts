@@ -170,7 +170,7 @@ function workloadFlags(f: Facts): WorkloadFlag[] {
     flags.push({
       kind: f.allocationState === "over" ? "over_allocation" : "under_allocation",
       message:
-        `${f.childLevel === "week" ? "Week" : "Child"} targets total ${fmt(f.allocationSum ?? 0)} — ` +
+        `${f.childLevel === "week" ? "Week" : "Child"} targets total ${fmt(f.allocationSum ?? 0)} - ` +
         `${f.allocationState} the target by ${fmt(Math.abs(f.allocationDelta ?? 0))}` +
         (moverTxt ? `. Rebalance: ${moverTxt}` : ""),
     });
@@ -189,7 +189,7 @@ function workloadFlags(f: Facts): WorkloadFlag[] {
       if (topT >= even * 2) {
         flags.push({
           kind: "outlier_load",
-          message: `"${top.title}" carries ${Math.round((topT / sum) * 100)}% of the load — ${measured.length - 1} siblings share the rest`,
+          message: `"${top.title}" carries ${Math.round((topT / sum) * 100)}% of the load - ${measured.length - 1} siblings share the rest`,
         });
       }
     }
@@ -198,7 +198,7 @@ function workloadFlags(f: Facts): WorkloadFlag[] {
   if (f.unmeasuredCount > 0) {
     flags.push({
       kind: "unmeasured_children",
-      message: `${f.unmeasuredCount} ${f.childLevel} goal${f.unmeasuredCount === 1 ? " has" : "s have"} no numeric target — excluded from the rollup math`,
+      message: `${f.unmeasuredCount} ${f.childLevel} goal${f.unmeasuredCount === 1 ? " has" : "s have"} no numeric target - excluded from the rollup math`,
     });
   }
 
@@ -223,12 +223,12 @@ function workloadFlags(f: Facts): WorkloadFlag[] {
 function heuristicInsight(f: Facts, flags: WorkloadFlag[]): GoalInsight {
   const narrative =
     f.band === "done"
-      ? `Complete — ${f.title} closed at ${f.effectivePct}%.`
+      ? `Complete - ${f.title} closed at ${f.effectivePct}%.`
       : f.band === "spillover"
-        ? `Spillover — carried forward and still at ${f.effectivePct}% with ${f.daysLeft} days left.`
+        ? `Spillover - carried forward and still at ${f.effectivePct}% with ${f.daysLeft} days left.`
         : f.deltaPts >= 0
           ? `${f.deltaPts === 0 ? "Exactly on" : `${f.deltaPts} pts ahead of`} pace at ${f.effectivePct}% with ${f.daysLeft} days left.`
-          : `${Math.abs(f.deltaPts)} pts behind pace at ${f.effectivePct}% — ${f.daysLeft} days left to close the gap.`;
+          : `${Math.abs(f.deltaPts)} pts behind pace at ${f.effectivePct}% - ${f.daysLeft} days left to close the gap.`;
 
   const suggestions: string[] = [];
   if (f.band === "at-risk" || f.band === "spillover") {
@@ -237,12 +237,12 @@ function heuristicInsight(f: Facts, flags: WorkloadFlag[]): GoalInsight {
       .sort((a, b) => effective(a) - effective(b))[0];
     suggestions.push(
       worst
-        ? `Front-load "${worst.title}" — the furthest-behind ${f.childLevel} at ${effective(worst)}%.`
+        ? `Front-load "${worst.title}" - the furthest-behind ${f.childLevel} at ${effective(worst)}%.`
         : `Record where progress actually stands, then plan the remaining ${f.daysLeft} days.`,
     );
   }
   if (f.allocationState === "over" || f.allocationState === "under") {
-    suggestions.push(`Targets don't sum to the ${f.period} target — apply the rebalance suggestion.`);
+    suggestions.push(`Targets don't sum to the ${f.period} target - apply the rebalance suggestion.`);
   }
   if (f.unmeasuredCount > 0) {
     suggestions.push(`Give the ${f.unmeasuredCount} unmeasured ${f.childLevel} goal${f.unmeasuredCount === 1 ? "" : "s"} a numeric target.`);
@@ -251,7 +251,7 @@ function heuristicInsight(f: Facts, flags: WorkloadFlag[]): GoalInsight {
     suggestions.push("Log a first progress % so the health read is honest.");
   }
   if (f.band === "ahead" && f.deltaPts >= 15) {
-    suggestions.push("Well ahead — consider pulling next period's work forward.");
+    suggestions.push("Well ahead - consider pulling next period's work forward.");
   }
   if (
     f.rollupPct != null &&
@@ -259,7 +259,7 @@ function heuristicInsight(f: Facts, flags: WorkloadFlag[]): GoalInsight {
     f.band !== "done"
   ) {
     suggestions.push(
-      `Child rollup projects ${f.rollupPct}% vs ${f.effectivePct}% recorded — reconcile the self-rating.`,
+      `Child rollup projects ${f.rollupPct}% vs ${f.effectivePct}% recorded - reconcile the self-rating.`,
     );
   }
 
@@ -280,10 +280,10 @@ function buildPrompt(f: Facts, flags: WorkloadFlag[]): string {
         (c.adopted ? "" : " (dropped)");
     })
     .join("\n");
-  return `You are an execution coach writing a short, factual read-out for one business goal. Base EVERY statement only on the numbers given — never invent figures, never moralize, be concrete.
+  return `You are an execution coach writing a short, factual read-out for one business goal. Base EVERY statement only on the numbers given - never invent figures, never moralize, be concrete.
 
 Goal: ${f.title} (${f.period} ${f.periodKey}${f.uom ? `, measured in ${f.uom}` : ""})
-Progress: ${f.effectivePct}% recorded vs ${f.expectedPct}% expected by elapsed time (${f.deltaPts >= 0 ? "+" : ""}${f.deltaPts} pts, band: ${f.band}); ${f.daysLeft} days left.${f.rollupPct != null ? `\nChild rollup projection: ${f.rollupPct}% (display-only projection — the recorded % above is the number of record).` : ""}${f.parentTarget != null ? `\nGoal target: ${fmt(f.parentTarget)}.` : ""}${f.allocationState && f.allocationState !== "exact" ? `\nAllocation: ${f.childLevel} targets sum to ${fmt(f.allocationSum ?? 0)} — ${f.allocationState} by ${fmt(Math.abs(f.allocationDelta ?? 0))}.` : ""}
+Progress: ${f.effectivePct}% recorded vs ${f.expectedPct}% expected by elapsed time (${f.deltaPts >= 0 ? "+" : ""}${f.deltaPts} pts, band: ${f.band}); ${f.daysLeft} days left.${f.rollupPct != null ? `\nChild rollup projection: ${f.rollupPct}% (display-only projection - the recorded % above is the number of record).` : ""}${f.parentTarget != null ? `\nGoal target: ${fmt(f.parentTarget)}.` : ""}${f.allocationState && f.allocationState !== "exact" ? `\nAllocation: ${f.childLevel} targets sum to ${fmt(f.allocationSum ?? 0)} - ${f.allocationState} by ${fmt(Math.abs(f.allocationDelta ?? 0))}.` : ""}
 ${f.childLevel} goals under it:
 ${childLines || "- none yet"}
 ${flags.length ? `Deterministic flags already shown to the user:\n${flags.map((w) => `- ${w.message}`).join("\n")}` : ""}

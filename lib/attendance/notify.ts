@@ -41,7 +41,7 @@ export interface AttendanceNotifyInfo {
 
 /** Pretty "h:mm" from minutes, or "—". */
 function hoursLabel(mins: number | null | undefined): string {
-  if (mins == null || mins <= 0) return "—";
+  if (mins == null || mins <= 0) return "-";
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return `${h}h ${String(m).padStart(2, "0")}m`;
@@ -49,9 +49,9 @@ function hoursLabel(mins: number | null | undefined): string {
 
 const TITLES: Record<AttendanceNotifyKind, string> = {
   attendance_late: "You checked in late",
-  attendance_late_waived: "Late arrival waived — full day logged",
+  attendance_late_waived: "Late arrival waived - full day logged",
   attendance_half_day: "Half-day recorded",
-  attendance_late_deduction: "Half-day salary deduction — 3 lates this month",
+  attendance_late_deduction: "Half-day salary deduction - 3 lates this month",
 };
 
 /** Build the JSON body the email templates parse (date / in / out / hours and

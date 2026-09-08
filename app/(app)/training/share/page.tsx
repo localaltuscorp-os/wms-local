@@ -37,7 +37,7 @@ export default async function WeeklySharePage() {
             Share & Learn
           </h1>
           <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-            Once a week, share 10 minutes of what you know — and rate what colleagues share. Both feed your Skill-Upgrade score.
+            Once a week, share 10 minutes of what you know - and rate what colleagues share. Both feed your Skill-Upgrade score.
           </p>
         </header>
 

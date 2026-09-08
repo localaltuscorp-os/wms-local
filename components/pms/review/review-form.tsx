@@ -200,7 +200,7 @@ export function ReviewForm({
                             <EmployeeAvatar name={p.name} size="sm" />
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-[14.5px] font-semibold text-ink-strong">{p.name}</span>
-                              <span className="block truncate text-[12px] text-ink-subtle">{p.department || "—"}</span>
+                              <span className="block truncate text-[12px] text-ink-subtle">{p.department || "-"}</span>
                             </span>
                             {p.done && (
                               <span
@@ -282,7 +282,7 @@ export function ReviewForm({
               value={explanation}
               maxLength={2000}
               rows={3}
-              placeholder="Context for the ratings — what's going well, what to work on."
+              placeholder="Context for the ratings - what's going well, what to work on."
               onChange={(e) => setExplanation(e.target.value)}
               onKeyDown={(e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {

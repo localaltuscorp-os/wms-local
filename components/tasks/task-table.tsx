@@ -33,9 +33,9 @@ const LOAD_MORE_STEP = 13;
 // crash the ENTIRE table render. Guard every cell so one bad row degrades to
 // "—" instead of taking down the whole list.
 function safeFormat(value: unknown): string {
-  if (!value) return "—";
+  if (!value) return "-";
   const d = value instanceof Date ? value : new Date(value as string);
-  return Number.isNaN(d.getTime()) ? "—" : formatDate(d);
+  return Number.isNaN(d.getTime()) ? "-" : formatDate(d);
 }
 
 // Due-date urgency for the list. Terminal/finished tasks never read as overdue
@@ -111,11 +111,11 @@ function groupValue(
   if (by === "priority") return PRIORITY_LABELS[row.priority];
   if (by === "employee") {
     const v = row.doerName?.trim();
-    return v && v.length > 0 ? v : "— Unassigned";
+    return v && v.length > 0 ? v : "- Unassigned";
   }
   const raw = by === "client" ? row.client : row.subject;
   const v = raw?.trim();
-  return v && v.length > 0 ? v : by === "client" ? "— No client" : "— No subject";
+  return v && v.length > 0 ? v : by === "client" ? "- No client" : "- No subject";
 }
 import { CriticalBadge } from "@/components/ui/critical-badge";
 import { PRIORITY_LABELS, TASK_STATUSES, TASK_PRIORITIES } from "@/db/enums";
@@ -307,7 +307,7 @@ function buildColumns(
       cell: (info) => {
         const n = info.getValue<number | null>();
         return n == null ? (
-          <span className="text-ink-subtle">—</span>
+          <span className="text-ink-subtle">-</span>
         ) : (
           <span className="font-bold tabular-nums text-ink-soft" style={{ fontSize: 14 }}>
             #{n}
@@ -331,7 +331,7 @@ function buildColumns(
             {v}
           </span>
         ) : (
-          <span className="text-ink-subtle">—</span>
+          <span className="text-ink-subtle">-</span>
         );
       },
     },
@@ -341,7 +341,7 @@ function buildColumns(
       meta: { narrow: true },
       cell: (info) => (
         <span className="text-body-lg text-ink-muted">
-          {info.getValue<string>() ?? "—"}
+          {info.getValue<string>() ?? "-"}
         </span>
       ),
     },
@@ -1195,7 +1195,7 @@ export function TaskTable({
                       >
                         {label}
                       </span>
-                      <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full bg-altus-red/10 text-altus-red font-bold tabular-nums text-[12px]">
+                      <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-pill bg-altus-red/10 text-altus-red font-bold tabular-nums text-[12px]">
                         {groupCounts?.get(label!) ?? 0}
                       </span>
                     </span>
@@ -1366,7 +1366,7 @@ export function TaskTable({
                   >
                     {label}
                   </span>
-                  <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full bg-altus-red/10 text-altus-red font-bold tabular-nums text-[12px]">
+                  <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-pill bg-altus-red/10 text-altus-red font-bold tabular-nums text-[12px]">
                     {groupCounts?.get(label!) ?? 0}
                   </span>
                 </div>
@@ -1478,9 +1478,9 @@ function SearchBox({
           type="search"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Local search — task no. (#1042), title, subject, client, doer"
-          title="Local search — filters only the list on this page"
-          aria-label="Local search — tasks on this page only"
+          placeholder="Local search - task no. (#1042), title, subject, client, doer"
+          title="Local search - filters only the list on this page"
+          aria-label="Local search - tasks on this page only"
           className="w-full h-10 pl-10 pr-9 rounded-pill border border-hairline bg-surface-card text-[15px] text-ink-strong placeholder:text-ink-subtle shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)] outline-none transition-all focus:border-altus-red focus:ring-2 focus:ring-altus-red/25"
         />
         {value && (
@@ -1680,7 +1680,7 @@ const TaskTitleCell = React.memo(function TaskTitleCell({
               </p>
             ) : (
               <p style={{ fontSize: 13, color: "var(--color-ink-subtle)" }}>
-                {subject ? `Subject — ${subject}` : "No description added yet."}
+                {subject ? `Subject - ${subject}` : "No description added yet."}
               </p>
             )}
             <Tooltip.Arrow style={{ fill: "var(--color-surface-card)" }} />
@@ -1850,7 +1850,7 @@ function TaskCard({
               </span>
             )}
             <span className="text-ink-strong font-semibold truncate" style={{ fontSize: 15 }}>
-              {row.client?.trim() ? row.client : "— No client"}
+              {row.client?.trim() ? row.client : "- No client"}
             </span>
           </div>
         </div>
@@ -1893,7 +1893,7 @@ function TaskCard({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-ink-muted" style={{ fontSize: 13 }}>
-        <span>{row.subject?.trim() ? row.subject : "—"}</span>
+        <span>{row.subject?.trim() ? row.subject : "-"}</span>
         <span aria-hidden>·</span>
         {p === "imp_urgent" ? <CriticalBadge /> : <span>{PRIORITY_LABELS[p]}</span>}
         <span aria-hidden>·</span>

@@ -296,7 +296,7 @@ export function SkillDistribution({ skills }: { skills: SkillBar[] }) {
             <div className="mb-1 flex items-baseline justify-between gap-3">
               <span className="truncate font-semibold text-ink-strong" style={{ fontSize: 13.5 }} title={s.label}>{s.label}</span>
               <span className="flex shrink-0 items-baseline gap-1.5">
-                <span className="tabular-nums font-black" style={{ fontSize: 14, color: tone.deep }}>{s.avg != null ? s.avg.toFixed(1) : "—"}</span>
+                <span className="tabular-nums font-black" style={{ fontSize: 14, color: tone.deep }}>{s.avg != null ? s.avg.toFixed(1) : "-"}</span>
                 {s.count > 0 && <span className="tabular-nums font-semibold" style={{ fontSize: 11.5, color: "var(--color-ink-muted)" }}>n={s.count}</span>}
               </span>
             </div>
@@ -342,7 +342,7 @@ export function SectionAverages({ sections }: { sections: SectionAvg[] }) {
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex items-baseline justify-between gap-2">
                 <span className="truncate font-semibold text-ink-strong" style={{ fontSize: 13.5 }} title={s.title}>{s.title}</span>
-                <span className="tabular-nums font-black shrink-0" style={{ fontSize: 14, color: tone.deep }}>{s.avg != null ? `${s.avg.toFixed(1)}/10` : "—"}</span>
+                <span className="tabular-nums font-black shrink-0" style={{ fontSize: 14, color: tone.deep }}>{s.avg != null ? `${s.avg.toFixed(1)}/10` : "-"}</span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full" style={{ background: "var(--color-surface-track)" }}>
                 <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${tone.deep}, ${tone.color})` }} />
@@ -381,10 +381,10 @@ export function InterviewerList({ people }: { people: InterviewerStat[] }) {
               </div>
             </div>
             <span
-              className="shrink-0 rounded-full px-2.5 py-1 tabular-nums font-black"
+              className="shrink-0 rounded-pill px-2.5 py-1 tabular-nums font-black"
               style={{ fontSize: 13, color: tone.deep, background: `color-mix(in srgb, ${tone.color} 14%, transparent)` }}
             >
-              {p.avgScore != null ? `${p.avgScore}` : "—"}
+              {p.avgScore != null ? `${p.avgScore}` : "-"}
             </span>
           </li>
         );

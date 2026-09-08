@@ -66,7 +66,7 @@ export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
               <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold">
                 Global search
                 <span className="ml-1 font-medium text-ink-subtle max-lg:hidden">
-                  — tasks, clients, people, documents…
+                  - tasks, clients, people, documents…
                 </span>
               </span>
               <kbd className="shrink-0 rounded border border-hairline-strong bg-surface-card px-1.5 py-0.5 text-[10.5px] font-bold text-ink-subtle max-lg:hidden">

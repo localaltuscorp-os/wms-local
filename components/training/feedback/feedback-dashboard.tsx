@@ -49,7 +49,7 @@ function StatusBadge({ row }: { row: FeedbackRow }) {
     archived: { bg: "var(--color-surface-track)", fg: "var(--color-ink-subtle)", label: "Archived" },
   };
   const s = map[row.status] ?? map.open;
-  return <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-bold" style={{ background: s!.bg, color: s!.fg }}>{s!.label}</span>;
+  return <span className="inline-flex items-center rounded-pill px-2.5 py-1 text-[12px] font-bold" style={{ background: s!.bg, color: s!.fg }}>{s!.label}</span>;
 }
 
 export function FeedbackDashboard({ rows, stats, canNew }: { rows: FeedbackRow[]; stats: FeedbackStats; canNew: boolean }) {
@@ -87,7 +87,7 @@ export function FeedbackDashboard({ rows, stats, canNew }: { rows: FeedbackRow[]
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex w-[300px] max-md:w-full items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search — feedback" title="Local search — filters only the list on this page" aria-label="Local search — feedback — this page only" className="w-full bg-transparent py-2.5 outline-none text-[15px] font-medium text-ink-strong placeholder:text-ink-subtle placeholder:font-normal" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - feedback" title="Local search - filters only the list on this page" aria-label="Local search - feedback - this page only" className="w-full bg-transparent py-2.5 outline-none text-[15px] font-medium text-ink-strong placeholder:text-ink-subtle placeholder:font-normal" />
         </div>
         <select className="rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">All Status</option>
@@ -116,12 +116,12 @@ export function FeedbackDashboard({ rows, stats, canNew }: { rows: FeedbackRow[]
               <tr key={r.id} onClick={() => router.push(`/training/feedback/${r.id}` as Route)} className="cursor-pointer transition-colors hover:bg-surface-soft" style={{ borderBottom: "1px solid var(--color-hairline)" }}>
                 <td className="px-4 py-3 text-[14px] text-ink-soft tabular-nums">{r.feedbackDate}</td>
                 <td className="px-4 py-3 text-[14px]"><span className="font-semibold text-ink-strong">{r.ratedName}</span></td>
-                <td className="px-4 py-3 text-[14px] text-ink-soft">{r.clientName || "—"}</td>
-                <td className="px-4 py-3 text-[14px] text-ink-soft">{r.service || "—"}</td>
+                <td className="px-4 py-3 text-[14px] text-ink-soft">{r.clientName || "-"}</td>
+                <td className="px-4 py-3 text-[14px] text-ink-soft">{r.service || "-"}</td>
                 <td className="px-4 py-3 text-[14px] text-ink-soft">{FEEDBACK_TEMPLATES[r.type as FeedbackType]?.label ?? r.type}</td>
-                <td className="px-4 py-3">{r.rating ? <span className="inline-flex items-center gap-1 font-bold tabular-nums" style={{ color: "var(--color-amber-deep)" }}><Star size={13} style={{ fill: "var(--color-amber)", color: "var(--color-amber)" }} />{r.rating}</span> : <span className="text-ink-subtle">—</span>}</td>
+                <td className="px-4 py-3">{r.rating ? <span className="inline-flex items-center gap-1 font-bold tabular-nums" style={{ color: "var(--color-amber-deep)" }}><Star size={13} style={{ fill: "var(--color-amber)", color: "var(--color-amber)" }} />{r.rating}</span> : <span className="text-ink-subtle">-</span>}</td>
                 <td className="px-4 py-3"><StatusBadge row={r} /></td>
-                <td className="px-4 py-3 text-[13.5px]">{r.resolution ? <span className="font-semibold tabular-nums text-ink-soft">{r.tatHours}h</span> : r.overdue ? <span className="inline-flex items-center gap-1 font-bold" style={{ color: "var(--color-altus-red-deep)" }}><Clock size={12} /> &gt;72h</span> : <span className="text-ink-subtle">—</span>}</td>
+                <td className="px-4 py-3 text-[13.5px]">{r.resolution ? <span className="font-semibold tabular-nums text-ink-soft">{r.tatHours}h</span> : r.overdue ? <span className="inline-flex items-center gap-1 font-bold" style={{ color: "var(--color-altus-red-deep)" }}><Clock size={12} /> &gt;72h</span> : <span className="text-ink-subtle">-</span>}</td>
                 <td className="px-4 py-3">{(r.hasVoice || r.hasPicture) && <span className="inline-flex items-center gap-1.5 text-ink-subtle">{r.hasVoice && <Mic size={14} />}{r.hasPicture && <ImageIcon size={14} />}</span>}</td>
               </tr>
             ))}

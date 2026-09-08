@@ -36,7 +36,7 @@ export function avgOf(ids: string[], inst: EvaluationInstance): number | null {
 
 /** Rating band for a 0..10 score → tone + label (green ≥8 / amber ≥6 / red else). */
 export function scoreBand(score: number | null): { tone: string; label: string } {
-  if (score === null) return { tone: "#94a3b8", label: "—" };
+  if (score === null) return { tone: "#94a3b8", label: "-" };
   if (score >= 8) return { tone: "#16a34a", label: "Strong" };
   if (score >= 6) return { tone: "#d97706", label: "Fair" };
   return { tone: "#dc2626", label: "Weak" };

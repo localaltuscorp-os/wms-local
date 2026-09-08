@@ -113,7 +113,7 @@ export function TeamWeightsField({
             type="button"
             disabled={disabled}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-bold text-altus-red-deep transition-colors hover:bg-altus-red/[0.05] disabled:opacity-50",
+              "inline-flex items-center gap-1.5 rounded-pill border px-3.5 py-2 text-[13px] font-bold text-altus-red-deep transition-colors hover:bg-altus-red/[0.05] disabled:opacity-50",
               FOCUS_RING,
             )}
             style={{ borderColor: "color-mix(in srgb, var(--color-altus-red) 40%, transparent)" }}

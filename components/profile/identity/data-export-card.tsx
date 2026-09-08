@@ -54,7 +54,7 @@ export function DataExportCard({ recent }: Props) {
         fireToast({ message: res.error });
         return;
       }
-      fireToast({ message: "Export queued — we'll email you the link." });
+      fireToast({ message: "Export queued - we'll email you the link." });
       router.refresh();
     });
   }
@@ -107,7 +107,7 @@ export function DataExportCard({ recent }: Props) {
   }
 
   function fmt(iso: string | null) {
-    if (!iso) return "—";
+    if (!iso) return "-";
     const d = new Date(iso);
     return `${formatDate(d)} · ${d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`;
   }

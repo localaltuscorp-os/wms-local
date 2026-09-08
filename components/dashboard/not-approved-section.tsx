@@ -50,7 +50,7 @@ export function NotApprovedSection({
               <span aria-hidden className="mr-2">↩️</span>Not Approved
             </h2>
             <p className="text-body-lg text-ink-subtle mt-1">
-              Tasks sent back, waiting to be redone — oldest first.{" "}
+              Tasks sent back, waiting to be redone - oldest first.{" "}
               <span className="font-semibold text-ink-soft">
                 {open ? "Click to hide." : "Click to view."}
               </span>
@@ -101,7 +101,7 @@ function Body({
   if (total === 0) {
     return (
       <p className="text-[14px] font-semibold text-ink-subtle">
-        No tasks have been sent back — nothing to action.
+        No tasks have been sent back - nothing to action.
       </p>
     );
   }
@@ -164,7 +164,7 @@ function Body({
         </p>
         {people.length === 0 ? (
           <p className="text-[14px] font-semibold text-ink-subtle">
-            Nothing sent back to you — you&apos;re all clear.
+            Nothing sent back to you - you&apos;re all clear.
           </p>
         ) : (
           <ul className="flex flex-col gap-2.5">
@@ -191,7 +191,7 @@ function PersonRow({ person }: { person: NotApprovedPerson }) {
               background: "var(--color-surface-card)",
               outlineColor: RED,
             }}
-            aria-label={`${person.employeeName}: ${person.count} declined ${person.count === 1 ? "task" : "tasks"} — view list`}
+            aria-label={`${person.employeeName}: ${person.count} declined ${person.count === 1 ? "task" : "tasks"} - view list`}
           >
             <span
               className="min-w-0 flex-1 truncate text-[15px] font-bold text-ink-strong"

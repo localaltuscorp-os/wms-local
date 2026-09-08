@@ -236,7 +236,7 @@ export function ExitHandoverForm({
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-5 py-3.5 max-md:px-4" style={{ background: "color-mix(in srgb, var(--color-altus-red) 4%, #fff)" }}>
                 <h3 className="text-[15px] font-extrabold text-ink-strong">{row.department}</h3>
                 <span
-                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-bold"
+                  className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11.5px] font-bold"
                   style={
                     rowDone
                       ? { background: "color-mix(in srgb, #16a34a 14%, #fff)", color: "#15803d" }

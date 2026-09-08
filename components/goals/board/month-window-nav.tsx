@@ -210,10 +210,10 @@ function MonthPill({
       // the window straddles two quarters or two financial years.
       aria-label={
         `${periodKeyLabel(monthKeyStr)}, ${quarterName}, ${fyName}` +
-        (count === null ? "" : ` — ${count} goal${count === 1 ? "" : "s"}`)
+        (count === null ? "" : ` - ${count} goal${count === 1 ? "" : "s"}`)
       }
       aria-current={live ? "date" : undefined}
-      className={`wg-btn inline-flex min-w-[34px] items-center justify-center rounded-full border px-1.5 py-0.5 text-[10.5px] font-bold whitespace-nowrap transition-all cursor-pointer ${FOCUS_RING}`}
+      className={`wg-btn inline-flex min-w-[34px] items-center justify-center rounded-pill border px-1.5 py-0.5 text-[10.5px] font-bold whitespace-nowrap transition-all cursor-pointer ${FOCUS_RING}`}
       style={tone}
     >
       {periodKeyShort(monthKeyStr)}

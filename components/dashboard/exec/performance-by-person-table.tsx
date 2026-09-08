@@ -381,7 +381,7 @@ export function PerformanceByPersonTable({
       ],
       rows: rows.map((p) => [
         p.employeeName,
-        p.done > 0 ? `${Math.round((p.onTime / p.done) * 100)}%` : "—",
+        p.done > 0 ? `${Math.round((p.onTime / p.done) * 100)}%` : "-",
         ...SPREAD_COLS.map((c) => String(p.lateSpread[c.key])),
         String(p.late),
       ]),
@@ -817,7 +817,7 @@ function OnTimeRateTooltip({
   const row = "flex items-baseline justify-between gap-6";
 
   const pct = (n: number) =>
-    person.done > 0 ? `${Math.round((n / person.done) * 100)}%` : "—";
+    person.done > 0 ? `${Math.round((n / person.done) * 100)}%` : "-";
 
   // NO RESIDUAL ROW any more. The brackets started at two days, so a task one
   // day late fell through all four and the tooltip had to add a "1 day" line to
@@ -961,7 +961,7 @@ function SpreadCell({
           href={`/tasks?emp=${encodeURIComponent(employeeId ?? "")}` as Route}
           onMouseEnter={preview.load}
           onFocus={preview.load}
-          title={`${employeeName} — ${LATE_BRACKETS[bracket].label}`}
+          title={`${employeeName} - ${LATE_BRACKETS[bracket].label}`}
           className={`inline-flex cursor-pointer items-center justify-center rounded-md px-1.5 tabular-nums font-black text-red-600 transition-all hover:scale-105 hover:bg-red-100/60 ${
             className ?? ""
           }`}

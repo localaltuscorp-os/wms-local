@@ -189,7 +189,7 @@ export async function alertAdminsNewAttendanceDevice(
       deviceCount > 1
         ? `${actor.name} added another attendance device`
         : `${actor.name} enrolled an attendance device`;
-    const body = `${actor.name} registered ${label} for attendance punch (now ${deviceCount} device${deviceCount === 1 ? "" : "s"}). A device registered to someone else can punch on their behalf — review if this looks off.`;
+    const body = `${actor.name} registered ${label} for attendance punch (now ${deviceCount} device${deviceCount === 1 ? "" : "s"}). A device registered to someone else can punch on their behalf - review if this looks off.`;
 
     await Promise.all(
       admins

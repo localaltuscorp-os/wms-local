@@ -38,7 +38,7 @@ export default async function AmbassadorsPage() {
               Partner Intelligence
             </h1>
             <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-              Your referral partners, their pipeline, and the commissions they earn — at a glance.
+              Your referral partners, their pipeline, and the commissions they earn - at a glance.
             </p>
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">

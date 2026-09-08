@@ -4,11 +4,53 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { UserPlus, ClipboardList, Phone, Mail, Search, PenLine, PlayCircle, ClipboardCheck, Trash2, Loader2 } from "lucide-react";
+import { UserPlus, ClipboardList, Phone, Mail, Search, PenLine, PlayCircle, ClipboardCheck, Trash2, Loader2, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { CandidateRow } from "@/app/(app)/hr/candidate-actions";
 import { deleteCandidateIntake } from "@/app/(app)/hr/candidate-actions";
 import { CreateCandidateLogin } from "@/components/hr/candidate/create-candidate-login";
 import { fireToast } from "@/lib/toast";
+
+/** The candidate's intake photo, falling back to their initials. Kept small and
+ *  local — this is the only table that shows it. */
+function CandidatePhoto({ name, src }: { name: string; src: string | null }) {
+  const initials =
+    (name || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ?? "")
+      .join("") || "?";
+
+  if (!src) {
+    return (
+      <span
+        aria-hidden
+        className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-soft text-[11px] font-bold text-ink-muted"
+      >
+        {initials}
+      </span>
+    );
+  }
+  return (
+    // A plain <img>, not next/image: the src is a short-lived SIGNED storage
+    // URL on a host the image optimiser is not configured for, and optimising
+    // a 36px avatar buys nothing.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      className="size-9 shrink-0 rounded-full object-cover"
+    />
+  );
+}
 
 /**
  * Candidate Records — the searchable list of every filled interview form. The
@@ -24,8 +66,10 @@ const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
   hired: { bg: "color-mix(in srgb, var(--color-green) 22%, white)", fg: "#166534" },
 };
 
+// Sized by their own text — the row they sit in is what the search bar above
+// then matches, rather than the other way round.
 const SELECT_CLS =
-  "rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-altus-red";
+  "h-10 shrink-0 rounded-lg border border-hairline-strong bg-white px-3 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-altus-red";
 
 export function BasicDetailsScreen({
   candidates,
@@ -63,7 +107,7 @@ export function BasicDetailsScreen({
 
   function onDelete(c: CandidateRow) {
     if (busyId) return;
-    if (!window.confirm(`Delete ${c.fullName || "this candidate"}? This wipes their entire record — form, checklist and evaluation. This cannot be undone.`)) return;
+    if (!window.confirm(`Delete ${c.fullName || "this candidate"}? This wipes their entire record - form, checklist and evaluation. This cannot be undone.`)) return;
     setBusyId(c.id);
     void deleteCandidateIntake(c.id)
       .then((r) => {
@@ -79,48 +123,63 @@ export function BasicDetailsScreen({
   }
 
   return (
-    <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="relative max-w-[320px] flex-1">
+    /* Full width, so the toolbar spans the page and grows with it as the
+       sidebars open and close. The table below keeps its own `mx-auto w-fit`
+       and stays centred and content-sized - only the controls stretch. */
+    <div className="w-full">
+      {/* One linear row: actions, then filters, then search. Every control is
+          h-10, so the strip reads as a single line rather than the two stacked
+          columns this used to be - that arrangement only existed to give the
+          count tile something to sit level with, and it had to be padded to
+          84px to manage it.
+
+          The search is the ONLY flex-1 item, so it absorbs whatever width is
+          left over - which is what makes the strip track the page as the
+          sidebars open and close. min-w-[200px] stops it collapsing to nothing
+          before the row is allowed to wrap. */}
+      <div className="mb-6 flex flex-wrap items-center gap-2.5">
+        {/* CreateCandidateLogin's button is `w-full` and takes no className, so
+            its height is set here and inherited through the wrapper. */}
+        <div className="w-[186px] shrink-0 [&>button]:h-10">
+          <CreateCandidateLogin />
+        </div>
+
+        <Link
+          href={"/hr/intake?new=1" as Route}
+          className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-hairline-strong bg-white px-4 text-[14px] font-bold text-ink-strong transition-colors hover:border-altus-red"
+        >
+          <UserPlus size={16} strokeWidth={2.4} /> New candidate
+        </Link>
+
+        <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLS} aria-label="Filter by status">
+          <option value="all">All statuses</option>
+          <option value="new">New</option>
+          <option value="shortlisted">Shortlisted</option>
+          <option value="hired">Hired</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <select value={form} onChange={(e) => setForm(e.target.value)} className={SELECT_CLS} aria-label="Filter by form state">
+          <option value="all">All forms</option>
+          <option value="complete">Complete</option>
+          <option value="draft">Draft</option>
+        </select>
+        {positions.length > 0 && (
+          <select value={position} onChange={(e) => setPosition(e.target.value)} className={SELECT_CLS} aria-label="Filter by position">
+            <option value="all">All positions</option>
+            {positions.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        )}
+
+        <div className="relative min-w-[200px] flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Local search — candidates" title="Local search — filters only the list on this page" aria-label="Local search — candidates — this page only"
-            className="w-full rounded-lg border border-hairline-strong bg-white py-2 pl-9 pr-3 text-[14px] text-ink-strong outline-none focus:border-altus-red"
+            placeholder="Local search - candidates" title="Local search - filters only the list on this page" aria-label="Local search - candidates - this page only"
+            className="h-10 w-full rounded-lg border border-hairline-strong bg-white pl-9 pr-3 text-[14px] text-ink-strong outline-none focus:border-altus-red"
           />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLS} aria-label="Filter by status">
-            <option value="all">All statuses</option>
-            <option value="new">New</option>
-            <option value="shortlisted">Shortlisted</option>
-            <option value="hired">Hired</option>
-            <option value="rejected">Rejected</option>
-          </select>
-          <select value={form} onChange={(e) => setForm(e.target.value)} className={SELECT_CLS} aria-label="Filter by form state">
-            <option value="all">All forms</option>
-            <option value="complete">Complete</option>
-            <option value="draft">Draft</option>
-          </select>
-          {positions.length > 0 && (
-            <select value={position} onChange={(e) => setPosition(e.target.value)} className={SELECT_CLS} aria-label="Filter by position">
-              <option value="all">All positions</option>
-              {positions.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <CreateCandidateLogin />
-          <Link
-            href={"/hr/intake?new=1" as Route}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-bold text-white transition-transform hover:-translate-y-0.5"
-            style={{ background: `linear-gradient(135deg, ${RED}, var(--color-altus-red-deep))` }}
-          >
-            <UserPlus size={16} strokeWidth={2.4} /> New candidate
-          </Link>
         </div>
       </div>
 
@@ -138,16 +197,27 @@ export function BasicDetailsScreen({
           )}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-hairline bg-surface-card">
-          <table className="w-full text-left">
+        /* The table sizes to its CONTENT, and the card to the table. Stretching
+           it to the full page width meant the leftover had to go somewhere: it
+           landed in Contact as a gap mid-row, and before that in the actions
+           column, pushing the menu button away from Status. With no slack to
+           distribute, neither happens. max-w-full keeps a wide table scrollable
+           rather than overflowing the page. */
+        <div className="mx-auto w-fit max-w-full overflow-x-auto rounded-2xl border border-hairline bg-surface-card">
+          <table className="text-left">
             <thead>
               <tr className="border-b border-hairline text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
-                <th className="px-4 py-3">Candidate</th>
-                <th className="px-4 py-3 max-md:hidden">Position</th>
-                <th className="px-4 py-3 max-md:hidden">Contact</th>
-                <th className="px-4 py-3">Form</th>
-                <th className="px-4 py-3 max-md:hidden">Status</th>
-                <th className="px-4 py-3 text-right">Action</th>
+                {/* The photo lives INSIDE the Candidate cell — they are one unit
+                    identifying the person, so a separate column would have put
+                    the "Candidate" header over the name only, offset from the
+                    left edge of the thing it labels. The row menu stays
+                    unlabelled: a header there would only name the obvious. */}
+                <th className="whitespace-nowrap py-3 pl-4 pr-5">Candidate</th>
+                <th className="whitespace-nowrap px-5 py-3 max-md:hidden">Position</th>
+                <th className="py-3 pl-5 pr-4 max-md:hidden">Contact</th>
+                <th className="whitespace-nowrap py-3 pl-4 pr-5">Form</th>
+                <th className="whitespace-nowrap py-3 pl-5 pr-2 max-md:hidden">Status</th>
+                <th className="w-px py-3 pl-2 pr-4"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
@@ -155,54 +225,74 @@ export function BasicDetailsScreen({
                 const tone = STATUS_TONE[c.status] ?? { bg: "var(--color-surface-soft)", fg: "#64748b" };
                 return (
                   <tr key={c.id} className="border-b border-hairline last:border-0 hover:bg-surface-muted/50">
-                    <td className="px-4 py-3">
-                      <span className="text-[14px] font-bold text-ink-strong">{c.fullName || "Unnamed"}</span>
+                    <td className="whitespace-nowrap py-3 pl-4 pr-5">
+                      <span className="flex items-center gap-3.5">
+                        <CandidatePhoto name={c.fullName} src={c.avatarUrl} />
+                        <span className="text-[14px] font-bold text-ink-strong">{c.fullName || "Unnamed"}</span>
+                      </span>
                     </td>
-                    <td className="px-4 py-3 text-[13.5px] text-ink-muted max-md:hidden">{c.positionApplied || "—"}</td>
-                    <td className="px-4 py-3 text-[12.5px] text-ink-muted max-md:hidden">
+                    <td className="whitespace-nowrap px-5 py-3 text-[13.5px] text-ink-muted max-md:hidden">{c.positionApplied || "-"}</td>
+                    <td className="py-3 pl-5 pr-4 text-[12.5px] text-ink-muted max-md:hidden">
                       <div className="flex flex-col gap-0.5">
                         {c.mobile && <span className="inline-flex items-center gap-1"><Phone size={11} /> {c.mobile}</span>}
                         {c.email && <span className="inline-flex items-center gap-1 truncate"><Mail size={11} /> {c.email}</span>}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap py-3 pl-4 pr-5">
                       {c.submitted ? (
                         <span className="rounded-pill px-2.5 py-0.5 text-[11px] font-bold" style={{ background: "color-mix(in srgb, var(--color-green) 18%, white)", color: "#166534" }}>Complete</span>
                       ) : (
                         <span className="rounded-pill px-2.5 py-0.5 text-[11px] font-bold" style={{ background: "color-mix(in srgb, #f59e0b 18%, white)", color: "#b45309" }}>Draft · {c.pct}%</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 max-md:hidden">
+                    <td className="whitespace-nowrap py-3 pl-5 pr-2 max-md:hidden">
                       <span className="rounded-pill px-2.5 py-0.5 text-[11px] font-bold capitalize" style={{ background: tone.bg, color: tone.fg }}>{c.status}</span>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link
-                          href={`/hr/candidates/${c.id}/evaluation` as Route}
-                          title="Evaluation Checklist Record"
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:border-ink-soft"
-                        >
-                          <ClipboardCheck size={13} style={{ color: RED }} /> <span className="max-md:hidden">Evaluation Record</span>
-                        </Link>
-                        <Link
-                          href={`/hr/intake?draft=${c.id}` as Route}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:border-ink-soft"
-                        >
-                          {c.submitted ? <><PenLine size={13} /> Edit</> : <><PlayCircle size={13} style={{ color: RED }} /> Resume</>}
-                        </Link>
-                        {canDelete && (
+                    {/* One kebab instead of a row of buttons: the actions are
+                        the same three every row, and a fixed-width menu button
+                        cannot be knocked out of alignment by its own label the
+                        way "Edit" vs "Resume" used to be. */}
+                    <td className="w-px py-3 pl-2 pr-4">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                           <button
                             type="button"
-                            onClick={() => onDelete(c)}
+                            aria-label={`Actions for ${c.fullName || "candidate"}`}
+                            title="Actions"
                             disabled={busyId === c.id}
-                            title="Delete candidate (wipes their whole record)"
-                            aria-label={`Delete ${c.fullName || "candidate"}`}
-                            className="inline-flex size-8 items-center justify-center rounded-lg border border-hairline-strong bg-white text-ink-muted transition-colors hover:border-[color:var(--color-altus-red)] hover:text-[color:var(--color-altus-red)] disabled:opacity-50"
+                            className="inline-flex size-8 items-center justify-center rounded-lg border border-hairline-strong bg-white text-ink-muted transition-colors hover:border-ink-soft hover:text-ink disabled:opacity-50"
                           >
-                            {busyId === c.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            {busyId === c.id ? <Loader2 size={15} className="animate-spin" /> : <MoreVertical size={15} />}
                           </button>
-                        )}
-                      </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/hr/candidates/${c.id}/evaluation` as Route}>
+                              <ClipboardCheck size={14} style={{ color: RED }} /> Evaluation Record
+                            </Link>
+                          </DropdownMenuItem>
+                          {/* Same destination either way — the intake form. The
+                              wording follows the form state so the menu says what
+                              opening it will actually do. */}
+                          <DropdownMenuItem asChild>
+                            <Link href={`/hr/intake?draft=${c.id}` as Route}>
+                              {c.submitted ? (
+                                <><PenLine size={14} style={{ color: RED }} /> Edit</>
+                              ) : (
+                                <><PlayCircle size={14} style={{ color: RED }} /> Resume</>
+                              )}
+                            </Link>
+                          </DropdownMenuItem>
+                          {canDelete && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem danger onSelect={() => onDelete(c)}>
+                                <Trash2 size={14} /> Delete candidate
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   </tr>
                 );
@@ -211,6 +301,6 @@ export function BasicDetailsScreen({
           </table>
         </div>
       )}
-    </>
+    </div>
   );
 }

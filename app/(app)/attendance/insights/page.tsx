@@ -53,7 +53,7 @@ export default async function AttendanceInsightsPage({ searchParams }: PageProps
   const monthTitle = `${MONTH_NAMES[month - 1] ?? ""} ${year}`;
 
   const backBtnCls =
-    "wg-btn inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white/75 py-2 px-4 text-[13.5px] font-bold text-ink-strong hover:border-hairline-strong hover:text-[var(--color-altus-red-deep)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 focus-visible:ring-offset-1";
+    "wg-btn inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white/75 py-2 px-4 text-[13.5px] font-bold text-ink-strong hover:border-hairline-strong hover:text-[var(--color-altus-red-deep)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 focus-visible:ring-offset-1";
 
   return (
     <>
@@ -87,7 +87,7 @@ export default async function AttendanceInsightsPage({ searchParams }: PageProps
                     letterSpacing: "-0.02em",
                   }}
                 >
-                  Attendance Insights — {monthTitle}
+                  Attendance Insights - {monthTitle}
                 </h1>
                 <p className="mt-2 text-[15px] font-medium text-ink-muted">
                   Org-wide attendance, punctuality, hours &amp; workforce health.

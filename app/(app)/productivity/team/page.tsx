@@ -120,6 +120,6 @@ export default async function ProductivityTeamPerformancePage() {
 }
 
 function timeLabel(d: Date | null): string {
-  if (!d) return "—";
+  if (!d) return "-";
   return new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
 }

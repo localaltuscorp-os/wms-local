@@ -636,7 +636,7 @@ export function ParticipantsTable({
                         label={`Call duration for ${r.name}`}
                         disabled={pending || !canEdit}
                         onCommit={(m) => changeDuration(r, m)}
-                        onInvalid={() => setError("Enter the duration as HH:MM — 114 becomes 1:14, and minutes stop at 59.")}
+                        onInvalid={() => setError("Enter the duration as HH:MM - 114 becomes 1:14, and minutes stop at 59.")}
                       />
                     </td>
                     {/* The day name, never a day number, and changeable in place. */}
@@ -688,7 +688,7 @@ export function ParticipantsTable({
                           <Trash2 size={13} /> Delete
                         </span>
                       ) : (
-                        <span className="text-[12.5px] text-ink-subtle">—</span>
+                        <span className="text-[12.5px] text-ink-subtle">-</span>
                       )}
                     </td>
                   </tr>

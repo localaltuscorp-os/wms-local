@@ -287,7 +287,7 @@ export async function confirmSalaryImport(
   const { mapped } = parsed.data;
 
   if (mapped.length === 0) {
-    return { ok: false, error: "Nothing to import — parsed 0 rows." };
+    return { ok: false, error: "Nothing to import - parsed 0 rows." };
   }
 
   let resolved;

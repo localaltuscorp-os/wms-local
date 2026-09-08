@@ -58,7 +58,7 @@ export async function GET(req: Request) {
     return {
       id: r.id,
       receivedOn: r.receivedOn,
-      receivedOnLabel: fmtDate(r.receivedOn) ?? "—",
+      receivedOnLabel: fmtDate(r.receivedOn) ?? "-",
       referenceSource: r.referenceSource,
       introducerName,
       introducerCell: r.introducerCell,

@@ -38,7 +38,7 @@ export default async function HrStageItemPage({
         <HrPageHeader
           title={`${st.title} · ${it.label}`}
           subtitle={it.blurb}
-          backHref={`/hr/${st.slug}`}
+          showBack={false}
         />
         <HrPlanned title={it.label} />
       </PageShell>

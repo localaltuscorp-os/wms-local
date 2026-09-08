@@ -49,7 +49,7 @@ function AttainRing({ pct, size = 40 }: { pct: number | null; size?: number }) {
         className="absolute tabular-nums font-black"
         style={{ fontSize: size >= 56 ? 13 : 9.5, color: tone.color }}
       >
-        {pct == null ? "—" : `${Math.round(pct)}%`}
+        {pct == null ? "-" : `${Math.round(pct)}%`}
       </span>
     </span>
   );
@@ -140,7 +140,7 @@ export function IncentiveTargets({
           icon={<Gauge size={17} strokeWidth={2.4} />}
           accent={attainTone(totals.attainmentPct).color}
           label="Attainment"
-          value={totals.attainmentPct == null ? "—" : `${totals.attainmentPct.toFixed(0)}%`}
+          value={totals.attainmentPct == null ? "-" : `${totals.attainmentPct.toFixed(0)}%`}
           caption={`${onTargetCount} at or above target`}
           ring={<AttainRing pct={totals.attainmentPct} size={56} />}
           delay={100}
@@ -191,7 +191,7 @@ export function IncentiveTargets({
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Local search — person" title="Local search — filters only the list on this page" aria-label="Local search — person — this page only"
+              placeholder="Local search - person" title="Local search - filters only the list on this page" aria-label="Local search - person - this page only"
               className="w-full bg-transparent text-[14px] font-semibold text-ink-strong outline-none placeholder:text-ink-subtle"
             />
           </label>
@@ -255,7 +255,7 @@ export function IncentiveTargets({
                           </span>
                         </button>
                       </td>
-                      <Td align="right">{r.target > 0 ? formatInr(r.target) : "—"}</Td>
+                      <Td align="right">{r.target > 0 ? formatInr(r.target) : "-"}</Td>
                       <Td align="right" bold>
                         {formatInr(r.actual)}
                       </Td>
@@ -278,7 +278,7 @@ export function IncentiveTargets({
                           <button
                             type="button"
                             onClick={() => openEdit(r.empName, r.target)}
-                            className="bg-surface-card wg-btn inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-ink-soft transition-colors hover:text-ink-strong"
+                            className="bg-surface-card wg-btn inline-flex cursor-pointer items-center gap-1.5 rounded-pill px-2.5 py-1 text-ink-soft transition-colors hover:text-ink-strong"
                             style={{
                               fontSize: 12,
                               fontWeight: 700,
@@ -311,7 +311,7 @@ export function IncentiveTargets({
                       className="tabular-nums font-black"
                       style={{ fontSize: 13, color: attainTone(totals.attainmentPct).color }}
                     >
-                      {totals.attainmentPct == null ? "—" : `${totals.attainmentPct.toFixed(0)}%`}
+                      {totals.attainmentPct == null ? "-" : `${totals.attainmentPct.toFixed(0)}%`}
                     </span>
                   </td>
                   {isAdmin && <td />}
@@ -426,7 +426,7 @@ function SetTargetDialog({
               <button
                 type="submit"
                 disabled={pending}
-                className="wg-btn wg-sheen inline-flex cursor-pointer items-center gap-2 rounded-full px-5 py-2.5 font-bold text-white disabled:opacity-50"
+                className="wg-btn wg-sheen inline-flex cursor-pointer items-center gap-2 rounded-pill px-5 py-2.5 font-bold text-white disabled:opacity-50"
                 style={{
                   fontSize: 14,
                   background: `linear-gradient(135deg, #E10600, #A80400)`,

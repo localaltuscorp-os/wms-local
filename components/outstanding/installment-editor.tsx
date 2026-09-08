@@ -71,7 +71,7 @@ export function InstallmentEditor({
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
-            Installments — {clientName}
+            Installments - {clientName}
           </Dialog.Title>
           <Dialog.Description className="text-[15px] text-[#64748B] mb-4" style={{ lineHeight: 1.5 }}>
             Edit a due date or amount to override the auto-generated schedule.
@@ -196,7 +196,7 @@ function InstallmentRow({
           {row.periodIndex === null ? "Ad-hoc" : `#${row.periodIndex + 1}`}
           {row.isOverride && (
             <span
-              className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+              className="inline-flex items-center rounded-pill px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
               style={{ background: "rgba(168, 85, 247, 0.12)", color: "#7C3AED" }}
             >
               Override

@@ -298,7 +298,7 @@ const POPUP_CSS = `
 .app-chip-ready{color:${RED_DEEP};}
 .app-chip-soon{color:var(--color-ink-muted, #94a3b8);}
 .app-chip-signed{color:var(--color-green-deep, #15803d);}
-/* A signed policy reads as "done" — a soft green edge + tint instead of the red
+/* A signed policy reads as "done" - a soft green edge + tint instead of the red
    call-to-action, so the eye skips straight to the ones still to sign. */
 .app-card-signed{
   border-color:color-mix(in srgb, var(--color-green-deep, #15803d) 40%, transparent) !important;

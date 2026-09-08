@@ -394,7 +394,7 @@ export async function summarizeDccDay(input: unknown): Promise<ActionResult<{ su
       .map((it) => {
         const e = byItem.get(it.id);
         if (!e || (!e.status && !e.valueNumber && !e.note)) return null;
-        return `- ${it.title}: ${e.status ?? "—"}${e.valueNumber ? ` (${e.valueNumber})` : ""}${e.note ? ` — ${e.note}` : ""}`;
+        return `- ${it.title}: ${e.status ?? "-"}${e.valueNumber ? ` (${e.valueNumber})` : ""}${e.note ? ` - ${e.note}` : ""}`;
       })
       .filter(Boolean)
       .join("\n");

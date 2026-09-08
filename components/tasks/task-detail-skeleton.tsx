@@ -95,7 +95,7 @@ interface BlockProps {
 }
 
 function Block({ w, h, pill, circle }: BlockProps) {
-  const radius = circle ? "9999px" : pill ? "9999px" : "6px";
+  const radius = circle ? "9999px" : pill ? "8px" : "6px";
   return (
     <span
       aria-hidden

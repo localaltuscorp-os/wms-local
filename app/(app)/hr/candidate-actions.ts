@@ -404,7 +404,8 @@ export interface CandidateRow {
   gender: string | null;
   position: string | null;
   recruiterName: string | null;
-  /** Character avatar (employees.avatar_url) — null for candidate-intake rows. */
+  /** The candidate's own photo from their intake form (candidate_intake.
+   *  photo_path), signed for display. Null when they never uploaded one. */
   avatarUrl: string | null;
 }
 
@@ -429,6 +430,26 @@ export async function listCandidateIntakes(): Promise<CandidateRow[]> {
     .from(candidateIntake)
     .orderBy(desc(candidateIntake.createdAt))
     .limit(200);
+
+  // photo_path was already being selected and then thrown away (avatarUrl was
+  // hardcoded null). Sign the whole set in ONE call rather than per row — 200
+  // rows would otherwise mean 200 round-trips to storage just to draw a list.
+  const photoPaths = [...new Set(rows.map((r) => r.photoPath).filter((p): p is string => !!p))];
+  const signedPhotos = new Map<string, string>();
+  if (photoPaths.length) {
+    try {
+      const { data } = await getSupabaseAdmin()
+        .storage.from(DOCUMENTS_BUCKET)
+        .createSignedUrls(photoPaths, LETTER_IMAGE_SIGNED_TTL_SECONDS);
+      for (const d of data ?? []) {
+        if (d.path && d.signedUrl) signedPhotos.set(d.path, d.signedUrl);
+      }
+    } catch {
+      // A photo that will not sign is not worth failing the whole list over —
+      // those rows just fall back to initials.
+    }
+  }
+
   return rows.map((r) => {
     const values = (r.data ?? {}) as Record<string, string>;
     const instances = (r.instances ?? {}) as Record<string, string[]>;
@@ -446,7 +467,7 @@ export async function listCandidateIntakes(): Promise<CandidateRow[]> {
       gender: values["personal.gender"] ?? null,
       position: values["personal.position"] ?? null,
       recruiterName: values["declaration.name"] ?? null,
-      avatarUrl: null,
+      avatarUrl: r.photoPath ? (signedPhotos.get(r.photoPath) ?? null) : null,
     };
   });
 }

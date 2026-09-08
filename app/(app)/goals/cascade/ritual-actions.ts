@@ -58,7 +58,7 @@ export async function loadCommitRitual(): Promise<CommitRitualResult> {
     const data = await loadCommitData({ id: me.id, isAdmin });
     return { ok: true, data };
   } catch {
-    return { ok: false, error: "Couldn't load the commit state — try again." };
+    return { ok: false, error: "Couldn't load the commit state - try again." };
   }
 }
 
@@ -83,6 +83,6 @@ export async function loadApproveRitual(): Promise<ApproveRitualResult> {
       },
     };
   } catch {
-    return { ok: false, error: "Couldn't load the approval state — try again." };
+    return { ok: false, error: "Couldn't load the approval state - try again." };
   }
 }

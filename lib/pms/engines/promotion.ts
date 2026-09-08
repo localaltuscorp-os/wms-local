@@ -28,7 +28,7 @@ export function evaluatePromotion(
 
   let rationale: string;
   if (eligible) {
-    rationale = `Score ${score} ≥ ${promotionScore} and tenure ${tenureDays}d ≥ ${minTenureDays}d — eligible for a promotion review (leadership decides).`;
+    rationale = `Score ${score} ≥ ${promotionScore} and tenure ${tenureDays}d ≥ ${minTenureDays}d - eligible for a promotion review (leadership decides).`;
   } else if (!scoreOk && !tenureOk) {
     rationale = `Score ${score} < ${promotionScore} and tenure ${tenureDays}d < ${minTenureDays}d.`;
   } else if (!scoreOk) {

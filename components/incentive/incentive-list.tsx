@@ -29,7 +29,7 @@ export function IncentiveList({
   if (rows.length === 0) {
     return (
       <p className="text-[15px] text-ink-subtle">
-        No incentive requests yet — file the first one with “New request”.
+        No incentive requests yet - file the first one with “New request”.
       </p>
     );
   }
@@ -99,7 +99,7 @@ function RequestCard({ row, isAdmin }: { row: IncentiveRequestRow; isAdmin: bool
                 type="button"
                 disabled={pending}
                 onClick={() => decide("approved")}
-                className="brand-btn wg-btn wg-sheen cursor-pointer rounded-full px-4 py-2 text-[13px] font-bold text-white disabled:opacity-50"
+                className="brand-btn wg-btn wg-sheen cursor-pointer rounded-pill px-4 py-2 text-[13px] font-bold text-white disabled:opacity-50"
                 style={{
                   background: "linear-gradient(135deg, #16A34A, #15803D)",
                   boxShadow:
@@ -112,7 +112,7 @@ function RequestCard({ row, isAdmin }: { row: IncentiveRequestRow; isAdmin: bool
                 type="button"
                 disabled={pending}
                 onClick={() => decide("rejected")}
-                className="wg-btn cursor-pointer rounded-full px-4 py-2 text-[13px] font-bold disabled:opacity-50"
+                className="wg-btn cursor-pointer rounded-pill px-4 py-2 text-[13px] font-bold disabled:opacity-50"
                 style={{
                   background: "rgba(225,6,0,0.08)",
                   color: "#A80400",

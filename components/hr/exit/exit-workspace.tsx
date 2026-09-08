@@ -11,6 +11,7 @@ import type { ExitRosterEmployee } from "@/lib/hr/exit/schema";
 import { ExitStyle } from "./exit-fields";
 import { ExitInterviewForm } from "./exit-interview-form";
 import { ExitHandoverForm } from "./exit-handover-form";
+import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 
 type EmployeeOpt = ExitRosterEmployee;
 
@@ -25,7 +26,7 @@ const CARDS: { kind: Kind; title: string; desc: string; annex: string; Icon: typ
   {
     kind: "interview",
     title: "Director Exit Interview",
-    desc: "Structured questions, a standardized 5-point experience scale and open feedback — captured confidentially.",
+    desc: "Structured questions, a standardized 5-point experience scale and open feedback - captured confidentially.",
     annex: "Annexure B",
     Icon: MessagesSquare,
   },
@@ -81,25 +82,12 @@ export function ExitWorkspace({
   const activeEmp = employees.find((e) => e.id === empId) ?? null;
 
   return (
-    <div className="min-h-dvh bg-[#faf9fb]">
+    <div className="min-h-full bg-[#faf9fb]">
       <ExitStyle />
 
-      {/* top bar */}
-      <header className="sticky sticky-below-topbar z-30 grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-hairline bg-white/90 px-6 py-3 backdrop-blur max-md:px-4">
-        <div className="justify-self-start">
-          <button
-            onClick={() => (mode.screen === "pick" ? router.push("/hr?open=exit" as Route) : backToPick())}
-            className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold text-white transition-transform hover:-translate-x-0.5 max-md:px-3"
-            style={{ background: "linear-gradient(120deg, #18181b 0%, #A80400 100%)", boxShadow: "0 12px 26px -12px rgba(168,4,0,0.55)" }}
-          >
-            <ArrowLeft size={15} strokeWidth={2.6} className="transition-transform group-hover:-translate-x-0.5" />
-            <span className="max-md:hidden">{mode.screen === "pick" ? "Back to Exit" : "Choose another form"}</span>
-            <span className="md:hidden">Back</span>
-          </button>
-        </div>
-        <img src="/logo.png" alt="Altus Corp" className="h-9 w-auto justify-self-center max-md:h-8" style={{ display: "block" }} />
-        <span aria-hidden className="justify-self-end" />
-      </header>
+      {/* The module rail and step list ARE the way back, so this carries no
+          back button of its own — just the title, like every other module. */}
+      <HrTitleBar />
 
       {mode.screen === "pick" ? (
         <PickScreen
@@ -159,16 +147,6 @@ function PickScreen({
 }) {
   return (
     <main className="mx-auto w-full max-w-[900px] px-6 pb-24 pt-10 max-md:px-4">
-      <div className="mb-8">
-        <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-ink-muted">Employee Lifecycle · Exit</span>
-        <h1
-          className="mt-1 text-ink-strong"
-          style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 800, fontSize: 30, letterSpacing: "-0.015em" }}
-        >
-          Exit &amp; Clearance
-        </h1>
-        <p className="mt-2 text-[15px] text-ink-muted">Pick the departing employee, then complete either exit form. Everything autosaves.</p>
-      </div>
 
       {/* employee picker */}
       <div className="mb-8 iwf is-float">
@@ -179,7 +157,7 @@ function PickScreen({
           data-autofocus
           aria-label="Select departing employee"
         >
-          <option value="">— Select employee —</option>
+          <option value="">- Select employee -</option>
           {employees.map((e) => (
             <option key={e.id} value={e.id}>
               {e.name}

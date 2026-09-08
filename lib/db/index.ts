@@ -3,6 +3,7 @@ import postgres from "postgres";
 import { env } from "@/lib/env";
 import * as schema from "@/db/schema";
 import { withSlowQueryLog } from "./slow-query";
+import { devDbOfflineEnabled, withDevOfflineFallback } from "./dev-offline";
 
 // Cache the postgres client on globalThis so Next.js HMR doesn't leak
 // connections on every save. In production this just runs once.
@@ -66,6 +67,13 @@ const slowMs = slowEnvVar
     : NaN;
 const tracedClient = Number.isFinite(slowMs) ? withSlowQueryLog(client, slowMs) : client;
 
-export const db = drizzle(tracedClient, { schema });
+// DEV_DB_OFFLINE (local dev only) — let read queries fall back to no rows
+// when the database is unreachable, so pages render their empty state rather
+// than sending the whole route to the error boundary. Off unless the flag is
+// set, and it wraps OUTSIDE the slow-query logger on purpose: the logger still
+// sees and reports the real failure before it is softened. See ./dev-offline.
+const dbClient = devDbOfflineEnabled() ? withDevOfflineFallback(tracedClient) : tracedClient;
+
+export const db = drizzle(dbClient, { schema });
 export * from "@/db/schema";
 export type { Employee, NewEmployee, Task, NewTask } from "@/db/schema";

@@ -217,7 +217,7 @@ export function PunctualityTaskList({
           {query.trim()
             ? `Nothing matches “${query.trim()}” in this list.`
             : bucket === "late"
-              ? "No late deliveries in range — everything landed on time."
+              ? "No late deliveries in range - everything landed on time."
               : bucket === "onTime"
                 ? "No on-time deliveries in range."
                 : "No completed tasks in range."}
@@ -350,17 +350,17 @@ export function PunctualityTaskList({
                       )}
                     </td>
                     <td className="px-3.5 py-2.5 text-[15px] font-semibold text-gray-900 whitespace-nowrap">
-                      {t.doerName ?? "—"}
+                      {t.doerName ?? "-"}
                     </td>
                     <td className="px-3.5 py-2.5 text-right">
                       {t.daysLate > 0 ? (
-                        <span className="inline-flex min-w-[46px] justify-center rounded-full bg-red-50 px-2.5 py-1 text-[13px] font-black tabular-nums text-red-600">
+                        <span className="inline-flex min-w-[46px] justify-center rounded-pill bg-red-50 px-2.5 py-1 text-[13px] font-black tabular-nums text-red-600">
                           {t.daysLate}d
                         </span>
                       ) : (
                         // An on-time row has no days-late to badge. Saying so in
                         // words beats a red "0", which reads as a near-miss.
-                        <span className="inline-flex justify-center rounded-full bg-emerald-50 px-2.5 py-1 text-[12.5px] font-bold text-emerald-700">
+                        <span className="inline-flex justify-center rounded-pill bg-emerald-50 px-2.5 py-1 text-[12.5px] font-bold text-emerald-700">
                           On time
                         </span>
                       )}
@@ -390,7 +390,7 @@ export function PunctualityTaskList({
                 ? `${visible.length.toLocaleString("en-IN")} matching`
                 : state.data.total.toLocaleString("en-IN")}
               {!query.trim() && state.data.truncated && shown >= visible.length
-                ? " — narrow the dashboard filters to see the rest."
+                ? " - narrow the dashboard filters to see the rest."
                 : ""}
             </span>
             {shown < visible.length && (

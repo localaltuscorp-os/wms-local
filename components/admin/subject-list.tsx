@@ -144,7 +144,7 @@ function SubjectRowActions({
 function StatusChip({ active }: { active: boolean }) {
   return active ? (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+      className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-semibold"
       style={{ background: "var(--color-green-bg)", color: "var(--color-green-deep)" }}
     >
       <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-green)" }} />
@@ -152,7 +152,7 @@ function StatusChip({ active }: { active: boolean }) {
     </span>
   ) : (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+      className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-semibold"
       style={{ background: "rgba(15, 23, 42, 0.05)", color: "var(--color-ink-subtle)" }}
     >
       <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-ink-subtle)" }} />

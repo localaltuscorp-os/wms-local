@@ -219,13 +219,22 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
     return "employees";
   }
 
-  // HR — the paperwork room: dossier, agreements, policies, letters & support.
+  // HR — the paperwork room: dossier, agreements, policies, letters, support
+  // & company-wide communications.
   // (Dossier + Agreements re-parented here from Employees.)
+  //
+  // /communications belonged to NO workspace, which is why it fell back to the
+  // legacy horizontal DashboardHeader nav rather than to any sidebar. Claiming
+  // it here retires that header on its own — DashboardHeader returns null once
+  // a path maps to a workspace — and lets it use the HR console shell like
+  // every other HR surface. Read access is unchanged: the HR room is open to
+  // every employee (see canAccessWorkspace); authoring stays gated by isHrStaff.
   if (
     p.startsWith("/hr") ||
     p.startsWith("/dossier") ||
     p.startsWith("/agreements") ||
     p.startsWith("/policies") ||
+    p.startsWith("/communications") ||
     p.startsWith("/holidays") ||
     p.startsWith("/letters") ||
     p.startsWith("/support")

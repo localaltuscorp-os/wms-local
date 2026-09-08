@@ -46,7 +46,7 @@ function loadServiceAccount(): ServiceAccountJson {
   const raw = process.env.GOOGLE_MEET_SA_JSON;
   if (!raw) {
     throw new MeetNotConfiguredError(
-      "GOOGLE_MEET_SA_JSON not set — Meet integration is dormant (see activation steps).",
+      "GOOGLE_MEET_SA_JSON not set - Meet integration is dormant (see activation steps).",
     );
   }
   let parsed: ServiceAccountJson;

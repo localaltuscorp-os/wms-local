@@ -94,7 +94,7 @@ function translateFirebaseAdminError(err: unknown): string | null {
     case "auth/invalid-email":
       return "That email isn't in a format Firebase accepts.";
     case "auth/user-disabled":
-      return "This Firebase account is disabled — reactivate it before inviting again.";
+      return "This Firebase account is disabled - reactivate it before inviting again.";
     case "auth/user-not-found":
       return "Firebase doesn't have an account for this email yet.";
     case "auth/insufficient-permission":
@@ -225,7 +225,7 @@ export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
     );
   } catch (err) {
     console.error(
-      `[inviteEmployee] setCustomUserClaims failed for ${fbUid} — continuing without role claim`,
+      `[inviteEmployee] setCustomUserClaims failed for ${fbUid} - continuing without role claim`,
       err,
     );
   }
@@ -643,12 +643,12 @@ export async function getInviteLink(
   const saGuard = guardSuperAdminTarget(me, emp);
   if (saGuard) return saGuard;
   if (!emp.isActive) {
-    return { ok: false, error: "Employee is deactivated — reactivate first." };
+    return { ok: false, error: "Employee is deactivated - reactivate first." };
   }
   if (!emp.firebaseUid) {
     return {
       ok: false,
-      error: "This employee has no Firebase account yet — contact support.",
+      error: "This employee has no Firebase account yet - contact support.",
     };
   }
   try {
@@ -732,7 +732,7 @@ export async function resetEmployeePassword(
     return { ok: false, error: parsedPw.error.issues[0]?.message ?? "Invalid password" };
   }
   if (parsedId.data === me.id) {
-    return { ok: false, error: "You can't reset your own password here — use Forgot password." };
+    return { ok: false, error: "You can't reset your own password here - use Forgot password." };
   }
 
   const emp = await db.query.employees.findFirst({
@@ -741,9 +741,9 @@ export async function resetEmployeePassword(
   if (!emp) return { ok: false, error: "Employee not found." };
   const saGuard = guardSuperAdminTarget(me, emp);
   if (saGuard) return saGuard;
-  if (!emp.isActive) return { ok: false, error: "Employee is deactivated — reactivate first." };
+  if (!emp.isActive) return { ok: false, error: "Employee is deactivated - reactivate first." };
   if (!emp.firebaseUid) {
-    return { ok: false, error: "This employee has no Firebase account yet — contact support." };
+    return { ok: false, error: "This employee has no Firebase account yet - contact support." };
   }
 
   // 1-2. Firebase: set password + revoke tokens (sign-out everywhere).
@@ -1137,7 +1137,7 @@ export async function deleteEmployee(
       await getFirebaseAdminAuth().deleteUser(snapshot.firebaseUid);
     } catch (err) {
       console.warn(
-        `[deleteEmployee] firebase deleteUser(${snapshot.firebaseUid}) failed — clean up manually`,
+        `[deleteEmployee] firebase deleteUser(${snapshot.firebaseUid}) failed - clean up manually`,
         err,
       );
     }

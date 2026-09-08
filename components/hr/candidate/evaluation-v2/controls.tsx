@@ -63,7 +63,7 @@ export function RatingControl({
     <div
       role="slider"
       tabIndex={muted ? -1 : 0}
-      aria-label={`${label} — rate 0 to 10`}
+      aria-label={`${label} - rate 0 to 10`}
       aria-valuemin={0}
       aria-valuemax={10}
       aria-valuenow={value}
@@ -91,7 +91,7 @@ export function CantSayToggle({ on, onToggle }: { on: boolean; onToggle: () => v
           ? { background: "var(--color-ink-strong)", color: "#fff" }
           : { background: "var(--color-surface-soft)", color: "var(--color-ink-subtle)", border: "1px solid var(--color-hairline)" }
       }
-      title={on ? "Counting as Can't Say — click to rate instead" : "Can't judge this one — exclude from the average"}
+      title={on ? "Counting as Can't Say - click to rate instead" : "Can't judge this one - exclude from the average"}
     >
       <EyeOff size={12} strokeWidth={2.4} /> Can&apos;t say
     </button>
@@ -146,7 +146,7 @@ export function ConfidenceControl({
     <div
       role="slider"
       tabIndex={0}
-      aria-label={`${label} — confidence 0 to 10`}
+      aria-label={`${label} - confidence 0 to 10`}
       aria-valuemin={0}
       aria-valuemax={10}
       aria-valuenow={v}
@@ -154,7 +154,7 @@ export function ConfidenceControl({
       onKeyDown={onKeyDown}
       className="ev2-rating inline-flex items-center gap-1.5 rounded-pill px-2 py-1 text-[11.5px] font-bold outline-none transition-colors"
       style={{ background: "var(--color-surface-soft)", border: "1px solid var(--color-hairline)", color: "var(--color-ink-muted)" }}
-      title="Optional — how confident are you in this rating?"
+      title="Optional - how confident are you in this rating?"
     >
       <Gauge size={12} strokeWidth={2.4} style={{ color: RED }} />
       <span className="uppercase tracking-[0.06em] text-ink-soft">Conf</span>
@@ -168,7 +168,7 @@ export function ConfidenceControl({
         −
       </button>
       <span className="min-w-[28px] text-center tabular-nums" style={{ color: set ? "var(--color-ink-strong)" : "var(--color-ink-subtle)" }}>
-        {set ? v : "—"}
+        {set ? v : "-"}
       </span>
       <button
         type="button"
@@ -199,7 +199,7 @@ export function PracticalTestedToggle({
   return (
     <div
       role="group"
-      aria-label={`${label} — practically tested?`}
+      aria-label={`${label} - practically tested?`}
       className="inline-flex items-center gap-1.5 rounded-pill px-2 py-1"
       style={{ background: "var(--color-surface-soft)", border: "1px solid var(--color-hairline)" }}
       title="Did you practically test this skill, or is it self-reported?"

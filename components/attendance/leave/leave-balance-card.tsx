@@ -76,7 +76,7 @@ export function LeaveBalanceCard({ balance }: { balance: LeaveBalance }) {
       {notEligible ? (
         <Notice
           icon={<Info size={17} strokeWidth={2.3} />}
-          text={`Paid leave doesn't apply to this employment type — unpaid leave only. ${balance.unpaidUsed} unpaid ${balance.unpaidUsed === 1 ? "day" : "days"} used in ${balance.cycleLabel}.`}
+          text={`Paid leave doesn't apply to this employment type - unpaid leave only. ${balance.unpaidUsed} unpaid ${balance.unpaidUsed === 1 ? "day" : "days"} used in ${balance.cycleLabel}.`}
         />
       ) : balance.beforeProbation ? (
         <Notice
@@ -86,7 +86,7 @@ export function LeaveBalanceCard({ balance }: { balance: LeaveBalance }) {
       ) : noAnchor ? (
         <Notice
           icon={<Info size={17} strokeWidth={2.3} />}
-          text="No probation-end date is set yet, so paid leave isn't available. Ask an admin to set it — unpaid leave requests still work."
+          text="No probation-end date is set yet, so paid leave isn't available. Ask an admin to set it - unpaid leave requests still work."
         />
       ) : (
         <>

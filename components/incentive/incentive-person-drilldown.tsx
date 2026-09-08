@@ -221,7 +221,7 @@ function DetailBody({ detail }: { detail: IncentivePersonDetail }) {
               <tbody>
                 {projects.map((p) => (
                   <tr key={p.id} className="border-t" style={{ borderColor: "var(--color-hairline)" }}>
-                    <Td>{p.projectName || "—"}</Td>
+                    <Td>{p.projectName || "-"}</Td>
                     <Td subtle>{p.role === "supervisor" ? "Supervisor" : "Intern"}</Td>
                     <Td subtle>{fmtMonth(p.periodMonth)}</Td>
                     <Td align="right">{formatInr(p.approved)}</Td>
@@ -327,7 +327,7 @@ function Td({
 }
 
 function fmtMonth(d: string | null): string {
-  if (!d) return "—";
+  if (!d) return "-";
   const m = d.match(/^(\d{4})-(\d{2})/);
   if (!m) return d;
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

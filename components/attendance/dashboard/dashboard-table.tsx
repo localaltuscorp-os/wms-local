@@ -245,7 +245,7 @@ export function AttendanceDashboardTable({
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Local search — employee" title="Local search — filters only the list on this page" aria-label="Local search — employee — this page only"
+              placeholder="Local search - employee" title="Local search - filters only the list on this page" aria-label="Local search - employee - this page only"
               className={`w-full h-10 pl-10 pr-4 rounded-full border border-hairline bg-white/75 text-[14px] font-medium text-ink-strong placeholder:text-ink-subtle transition-all focus:border-altus-red focus:ring-2 focus:ring-altus-red/20 ${FOCUS_RING}`}
             />
           </div>
@@ -257,7 +257,7 @@ export function AttendanceDashboardTable({
               type="button"
               onClick={() => setLegendOpen((o) => !o)}
               aria-expanded={legendOpen}
-              className={`wg-btn inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white/75 py-2 px-3.5 text-[13px] font-semibold text-ink-soft hover:text-ink-strong hover:border-hairline-strong ${FOCUS_RING}`}
+              className={`wg-btn inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white/75 py-2 px-3.5 text-[13px] font-semibold text-ink-soft hover:text-ink-strong hover:border-hairline-strong ${FOCUS_RING}`}
             >
               <Info size={14} strokeWidth={2.2} />
               Legend
@@ -510,7 +510,7 @@ function KpiCard({
               color: deep,
             }}
           >
-            {value == null ? "—" : <CountUp value={value} suffix={suffix} />}
+            {value == null ? "-" : <CountUp value={value} suffix={suffix} />}
           </span>
           {ring != null && <MiniRing pct={ring} color={deep} />}
         </div>
@@ -611,7 +611,7 @@ function Legend({ onClose }: { onClose: () => void }) {
               />
               <span className="text-[13px] leading-snug">
                 <span className="font-bold text-ink-strong">{l.label}</span>
-                <span className="text-ink-muted"> — {l.desc}</span>
+                <span className="text-ink-muted"> - {l.desc}</span>
               </span>
             </li>
           );
@@ -656,7 +656,7 @@ function EmptyState({ noData, onClear }: { noData: boolean; onClear?: () => void
         <button
           type="button"
           onClick={onClear}
-          className={`wg-btn mt-4 inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white/80 py-2 px-4 text-[13px] font-bold text-ink-strong hover:border-hairline-strong ${FOCUS_RING}`}
+          className={`wg-btn mt-4 inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white/80 py-2 px-4 text-[13px] font-bold text-ink-strong hover:border-hairline-strong ${FOCUS_RING}`}
         >
           <X size={14} strokeWidth={2.4} />
           Clear Search
@@ -670,7 +670,7 @@ function EmptyState({ noData, onClear }: { noData: boolean; onClear?: () => void
 
 function RateBar({ rate }: { rate: number | null }) {
   if (rate == null) {
-    return <span className="text-[13px] font-semibold text-ink-subtle tabular-nums">—</span>;
+    return <span className="text-[13px] font-semibold text-ink-subtle tabular-nums">-</span>;
   }
   const tone = rateTone(rate);
   return (
@@ -717,7 +717,7 @@ function MetricCell({
   } else if (chip && tone !== "neutral") {
     inner = (
       <span
-        className="inline-flex items-center justify-center rounded-full px-2 py-0.5 font-bold tabular-nums"
+        className="inline-flex items-center justify-center rounded-pill px-2 py-0.5 font-bold tabular-nums"
         style={{
           fontSize: 12.5,
           background: TONE[tone].bg,

@@ -348,7 +348,7 @@ function AadhaarField({
       const count = Object.values(data.fields ?? {}).filter((v) => (v ?? "").trim() !== "").length;
       fireToast({ message: count > 0 ? `Auto-filled ${count} field${count === 1 ? "" : "s"} from Aadhaar.` : "No details found for this Aadhaar." });
     } catch {
-      fireToast({ message: "Aadhaar lookup failed — enter details manually.", type: "error" });
+      fireToast({ message: "Aadhaar lookup failed - enter details manually.", type: "error" });
     } finally {
       setBusy(false);
     }
@@ -446,14 +446,14 @@ function NotesSection({
   const start = React.useCallback(() => {
     const Ctor = getSpeechRecognitionCtor();
     if (!Ctor) {
-      fireToast({ message: "Dictation isn't supported in this browser — use Chrome or Edge.", type: "error" });
+      fireToast({ message: "Dictation isn't supported in this browser - use Chrome or Edge.", type: "error" });
       return;
     }
     // The Web Speech API only runs on a SECURE origin. localhost counts; the LAN
     // IP (http://192.168.x.x) does NOT — the browser silently refuses the mic.
     if (typeof window !== "undefined" && !window.isSecureContext) {
       fireToast({
-        message: "Open the app at http://localhost:3000 to dictate — the microphone is blocked on the network IP (insecure page).",
+        message: "Open the app at http://localhost:3000 to dictate - the microphone is blocked on the network IP (insecure page).",
         type: "error",
       });
       return;
@@ -577,7 +577,7 @@ function NotesSection({
 
       {!supported && (
         <p className="mt-2 text-[12.5px] text-ink-subtle">
-          Voice dictation isn't available in this browser — you can still type your notes. For dictation, try Chrome or Edge.
+          Voice dictation isn't available in this browser - you can still type your notes. For dictation, try Chrome or Edge.
         </p>
       )}
     </div>

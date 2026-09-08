@@ -29,7 +29,7 @@ export default async function GoalsImportPage() {
           Bulk Import
         </h1>
         <p className="mt-2 max-w-[64ch] text-ink-muted">
-          Upload a spreadsheet to create Yearly, Quarterly, and Monthly cascade goals in bulk —
+          Upload a spreadsheet to create Yearly, Quarterly, and Monthly cascade goals in bulk -
           each row lands at the level its <strong>Period</strong> + <strong>PeriodKey</strong> name.
           Weekly goals import from the Weekly board.
         </p>

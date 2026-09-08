@@ -3,6 +3,7 @@ import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { DashboardHeader } from "@/components/layout/header";
 import { requireUser } from "@/lib/auth/current";
 import { requireHrSupport } from "@/lib/hr/flag";
+import { HrBackButton } from "@/components/hr/hr-back-button";
 import { TicketComposer } from "@/components/hr/ticket-composer/ticket-composer";
 import { getInboxNotificationsByIds } from "@/lib/queries/notifications";
 import {
@@ -53,7 +54,7 @@ async function inboxContext(
       `${rows.length > 1 ? `${i + 1}. ` : ""}${n.title}`,
       `   Category: ${CATEGORY_LABELS[categoryOfKind(n.kind)]}`,
       `   Notification date: ${formatShortDate(n.createdAt)}`,
-      `   Period: ${period ?? "—"}`,
+      `   Period: ${period ?? "-"}`,
       `   From: ${n.actorName ?? "System"}`,
     ];
     return lines.join(NL);
@@ -86,7 +87,7 @@ async function inboxContext(
     category,
     note:
       rows.length === 1
-        ? `Raising this about your notification from ${formatShortDate(first.createdAt)} — "${first.title}". Edit anything below before you send it.`
+        ? `Raising this about your notification from ${formatShortDate(first.createdAt)} - "${first.title}". Edit anything below before you send it.`
         : `Raising this about ${rows.length} notifications from your Inbox. Edit anything below before you send it.`,
   };
 }
@@ -106,6 +107,7 @@ export default async function NewTicketPage({
     <>
       <DashboardHeader generatedAt={new Date()} />
       <main className="mx-auto w-full max-w-[720px] px-8 max-md:px-4 pt-8 pb-16">
+        <HrBackButton fallbackHref="/support" />
         <header className="mb-6 wg-rise">
           <span
             className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white"

@@ -467,7 +467,7 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], c
         />
       </Field>
 
-      <SectionHeading step="04" title="Organize" hint="Optional — tags, project & schedule" />
+      <SectionHeading step="04" title="Organize" hint="Optional - tags, project & schedule" />
       {/* Tags — free-form chips. Type a tag, hit Enter or comma to commit.
           Stored as text[] on the task; each chip is searchable later. */}
       <Field id="nt-tags" label={`Tags${tagsCount > 0 ? ` · ${tagsCount}` : ""}`}>
@@ -508,7 +508,7 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], c
           only; not synced to any actual calendar API. */}
       <ScheduleSection value={schedule} onChange={setSchedule} />
 
-      <SectionHeading step="05" title="Attachments" hint="Optional — media & reference links" />
+      <SectionHeading step="05" title="Attachments" hint="Optional - media & reference links" />
       {/* Media + Links — side by side on desktop */}
       <div className="grid grid-cols-2 gap-5 max-md:grid-cols-1">
         <MediaSection
@@ -1325,7 +1325,7 @@ function LinksSection({
           >
             <span className="inline-flex items-center gap-2">
               <Link2 size={18} strokeWidth={2} />
-              No links yet — paste a URL above.
+              No links yet - paste a URL above.
             </span>
           </li>
         ) : (

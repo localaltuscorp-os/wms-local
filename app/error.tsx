@@ -18,7 +18,7 @@ export default function ErrorBoundary({
   const headline = isForbidden ? "Admin only." : "We hit a snag.";
   const explanation = isForbidden
     ? "This area is restricted to administrators. If you think you should have access, ask the team to update your role."
-    : "An unexpected error occurred. Try again in a moment — if it keeps happening, reach out to the team.";
+    : "An unexpected error occurred. Try again in a moment - if it keeps happening, reach out to the team.";
 
   const washRgba = isForbidden
     ? "rgba(245, 158, 11, 0.10)" // amber wash for 403

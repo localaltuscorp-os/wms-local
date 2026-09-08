@@ -30,7 +30,7 @@ export default async function DueDatesPage() {
 
         <PageCommandBar
           title="Due Dates Checklist"
-          hint="Recurring bills & statutory items by area — frequency, period, due date and status."
+          hint="Recurring bills & statutory items by area - frequency, period, due date and status."
         />
 
         <DueDatesChecklist items={items} areaOptions={areaOptions} frequencyOptions={frequencyOptions} />

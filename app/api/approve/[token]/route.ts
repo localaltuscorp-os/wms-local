@@ -39,7 +39,7 @@ function page(title: string, bodyHtml: string, status = 200): NextResponse {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
-<title>${escapeHtml(title)} — Altus Corp</title>
+<title>${escapeHtml(title)} - Altus Corp</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
@@ -129,7 +129,7 @@ export async function GET(_req: Request, ctx: Ctx): Promise<NextResponse> {
     return page(
       "Already actioned",
       `<h1 class="ok">Already confirmed.</h1>
-       <p>This approval link has already been used — no further action is needed.</p>
+       <p>This approval link has already been used - no further action is needed.</p>
        <a class="btn" href="${escapeHtml(siteUrl())}">Open dashboard</a>`,
     );
   }
@@ -172,7 +172,7 @@ export async function POST(_req: Request, ctx: Ctx): Promise<NextResponse> {
       },
       used: {
         title: "Already actioned",
-        body: `<h1 class="ok">Already confirmed.</h1><p>This link has already been used — nothing more to do.</p>`,
+        body: `<h1 class="ok">Already confirmed.</h1><p>This link has already been used - nothing more to do.</p>`,
         status: 200,
       },
       expired: {
@@ -191,7 +191,7 @@ export async function POST(_req: Request, ctx: Ctx): Promise<NextResponse> {
 
   const handler = getApprovalHandler(consumed.token.kind);
   if (!handler) {
-    // Token burned but no handler wired — fail safe with a neutral message.
+    // Token burned but no handler wired - fail safe with a neutral message.
     return page(
       "Received",
       `<h1 class="ok">Got it.</h1>

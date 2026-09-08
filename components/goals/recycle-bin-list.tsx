@@ -99,7 +99,7 @@ export function RecycleBinList({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               {it.taskNo != null && (
-                <span className="shrink-0 rounded-full bg-surface-soft px-2 py-0.5 text-[11px] font-bold tabular-nums text-ink-muted">
+                <span className="shrink-0 rounded-pill bg-surface-soft px-2 py-0.5 text-[11px] font-bold tabular-nums text-ink-muted">
                   #{it.taskNo}
                 </span>
               )}

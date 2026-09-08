@@ -19,7 +19,7 @@ function statusLabel(
   s: string | undefined,
   labels: StatusLabels,
 ): string {
-  if (!s) return "—";
+  if (!s) return "-";
   return labels[s as TaskStatus] ?? s;
 }
 
@@ -80,7 +80,7 @@ export function AuditEvent({ row, fresh, statusLabels, me }: Props) {
         </span>
         {fresh && (
           <span
-            className="text-[11px] uppercase tracking-[0.08em] font-bold px-2 py-0.5 rounded-full"
+            className="text-[11px] uppercase tracking-[0.08em] font-bold px-2 py-0.5 rounded-pill"
             style={{
               background:
                 "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
@@ -113,7 +113,7 @@ function Body({
       return (
         <>
           <strong>{who}</strong> created the task
-          {row.note ? <span className="text-ink-subtle"> — {row.note}</span> : null}
+          {row.note ? <span className="text-ink-subtle"> - {row.note}</span> : null}
         </>
       );
 
@@ -125,7 +125,7 @@ function Body({
           <strong>{who}</strong> moved status:{" "}
           <span className="font-medium">{from}</span> →{" "}
           <span className="font-medium">{to}</span>
-          {row.note ? <span className="text-ink-subtle"> — {row.note}</span> : null}
+          {row.note ? <span className="text-ink-subtle"> - {row.note}</span> : null}
         </>
       );
     }
@@ -139,7 +139,7 @@ function Body({
           <strong>{who}</strong> updated <code className="text-[13px]">{field}</code>
           {fromVal !== undefined && toVal !== undefined ? (
             <span className="text-ink-subtle">
-              {" "}({fromVal || "—"} → {toVal || "—"})
+              {" "}({fromVal || "-"} → {toVal || "-"})
             </span>
           ) : null}
         </>
@@ -167,7 +167,7 @@ function Body({
       return (
         <>
           <strong>{who}</strong> transferred the task externally
-          {row.note ? <span className="text-ink-subtle"> — {row.note}</span> : null}
+          {row.note ? <span className="text-ink-subtle"> - {row.note}</span> : null}
         </>
       );
 

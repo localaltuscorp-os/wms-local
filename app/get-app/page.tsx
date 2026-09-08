@@ -110,7 +110,7 @@ export default function GetAppPage() {
           }}
         >
           We&apos;ve moved the mobile experience into a fast, native Android app.
-          Please install it and sign in there — the mobile website is no longer
+          Please install it and sign in there - the mobile website is no longer
           used on Android.
         </p>
 

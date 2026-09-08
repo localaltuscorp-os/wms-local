@@ -97,7 +97,7 @@ export function UserMenu({
       <DropdownMenu.Trigger asChild>
         {variant === "rail" ? (
           <button
-            aria-label={inboxUnread > 0 ? `User menu — ${inboxUnread} unread` : "User menu"}
+            aria-label={inboxUnread > 0 ? `User menu - ${inboxUnread} unread` : "User menu"}
             className="group flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-altus-red)]"
           >
             {ringedAvatar}
@@ -111,7 +111,7 @@ export function UserMenu({
           </button>
         ) : (
           <button
-            aria-label={inboxUnread > 0 ? `User menu — ${inboxUnread} unread` : "User menu"}
+            aria-label={inboxUnread > 0 ? `User menu - ${inboxUnread} unread` : "User menu"}
             className="group relative flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-white/40 transition-transform"
             style={{ transition: "transform 200ms ease" }}
           >
@@ -160,7 +160,7 @@ export function UserMenu({
             <div className="mt-2.5">
               {isAdmin ? (
                 <span
-                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold tracking-wide text-white"
+                  className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-semibold tracking-wide text-white"
                   style={{
                     background:
                       "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
@@ -172,7 +172,7 @@ export function UserMenu({
                 </span>
               ) : (
                 <span
-                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold tracking-wide"
+                  className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-semibold tracking-wide"
                   style={{
                     background: "rgba(15, 23, 42, 0.06)",
                     color: "#334155",
@@ -333,7 +333,7 @@ function MenuCount({ n, tone }: { n: number; tone: "red" | "neutral" }) {
   const display = n > 99 ? "99+" : String(n);
   return (
     <span
-      className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold tabular-nums"
+      className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-pill text-[11px] font-bold tabular-nums"
       style={
         tone === "red"
           ? { background: "var(--color-altus-red)", color: "#fff" }

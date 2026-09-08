@@ -84,7 +84,7 @@ export function SalaryProfileList({
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-ink-strong font-semibold truncate">{r.name}</span>
                     {r.workerType !== "full_time" && (
-                      <span className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium tabular-nums"
+                      <span className="shrink-0 rounded-pill border px-2 py-0.5 text-[11px] font-medium tabular-nums"
                         style={{
                           borderColor: "color-mix(in srgb, var(--color-altus-red) 22%, transparent)",
                           background: "color-mix(in srgb, var(--color-altus-red) 8%, transparent)",
@@ -104,7 +104,7 @@ export function SalaryProfileList({
             label: "Designation",
             sortValue: (r) => r.designationName ?? "",
             render: (r) => (
-              <span className="text-ink-soft">{r.designationName ?? "—"}</span>
+              <span className="text-ink-soft">{r.designationName ?? "-"}</span>
             ),
           },
           {
@@ -112,7 +112,7 @@ export function SalaryProfileList({
             label: "Entity",
             sortValue: (r) => r.payingEntityName ?? "",
             render: (r) => (
-              <span className="text-ink-soft">{r.payingEntityName ?? "—"}</span>
+              <span className="text-ink-soft">{r.payingEntityName ?? "-"}</span>
             ),
           },
           {
@@ -136,13 +136,13 @@ export function SalaryProfileList({
               if (b === "fixed_fee") {
                 return (
                   <span className="tabular-nums text-ink-strong font-medium">
-                    {r.monthlyFee > 0 ? <>₹{inr(r.monthlyFee)}<span className="text-[11px] text-ink-subtle font-normal"> /mo fee</span></> : "—"}
+                    {r.monthlyFee > 0 ? <>₹{inr(r.monthlyFee)}<span className="text-[11px] text-ink-subtle font-normal"> /mo fee</span></> : "-"}
                   </span>
                 );
               }
               return (
                 <span className="tabular-nums text-ink-strong font-medium">
-                  {r.annualCtc > 0 ? `₹${inr(r.annualCtc)}` : "—"}
+                  {r.annualCtc > 0 ? `₹${inr(r.annualCtc)}` : "-"}
                 </span>
               );
             },
@@ -154,7 +154,7 @@ export function SalaryProfileList({
             sortValue: (r) => r.tdsMonthly,
             render: (r) => (
               <span className="tabular-nums text-ink-soft">
-                {r.tdsMonthly > 0 ? `₹${inr(r.tdsMonthly)}` : "—"}
+                {r.tdsMonthly > 0 ? `₹${inr(r.tdsMonthly)}` : "-"}
               </span>
             ),
           },
@@ -164,7 +164,7 @@ export function SalaryProfileList({
             align: "right",
             sortValue: (r) => (r.ptExempt ? 0 : 1),
             render: (r) => (
-              <span className="text-ink-soft">{r.ptExempt ? "✓" : "—"}</span>
+              <span className="text-ink-soft">{r.ptExempt ? "✓" : "-"}</span>
             ),
           },
           {
@@ -173,7 +173,7 @@ export function SalaryProfileList({
             sortValue: (r) => r.probationEnd ?? "",
             render: (r) => (
               <span className="text-ink-soft tabular-nums">
-                {r.probationEnd ?? "—"}
+                {r.probationEnd ?? "-"}
               </span>
             ),
           },
@@ -319,7 +319,7 @@ function AdvancesDialog({
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
-            Advances — {row?.name ?? ""}
+            Advances - {row?.name ?? ""}
           </Dialog.Title>
           <Dialog.Description className="text-[15px] text-[#64748B] mb-4" style={{ lineHeight: 1.5 }}>
             Advances apply to a salary month and reduce that month&apos;s net pay.

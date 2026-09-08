@@ -142,7 +142,7 @@ export function EventEditor({ target, categories, obligations, onClose, onSave }
                 onChange={(e) => set("categoryId", e.target.value || null)}
                 className={cn(field, "mt-1")}
               >
-                <option value="">— None —</option>
+                <option value="">- None -</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -267,7 +267,7 @@ export function EventEditor({ target, categories, obligations, onClose, onSave }
                 onChange={(e) => set("obligationId", e.target.value || null)}
                 className={cn(field, "mt-1")}
               >
-                <option value="">— None —</option>
+                <option value="">- None -</option>
                 {obligations.map((o) => (
                   <option key={o.id} value={o.id}>{o.name}{o.counterparty ? ` (${o.counterparty})` : ""}</option>
                 ))}

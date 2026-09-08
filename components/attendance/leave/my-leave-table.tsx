@@ -88,7 +88,7 @@ function Row({ row }: { row: LeaveRow }) {
         {row.days}
       </Td>
       <Td className="max-w-[320px] text-ink-soft">
-        {row.reason || <span className="text-ink-subtle">—</span>}
+        {row.reason || <span className="text-ink-subtle">-</span>}
         {row.decisionNote && (
           <span className="mt-0.5 block text-[12px] text-ink-subtle">
             {row.decidedByName ? `${row.decidedByName}: ` : ""}

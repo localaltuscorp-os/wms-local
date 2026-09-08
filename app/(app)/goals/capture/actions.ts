@@ -39,7 +39,7 @@ export async function captureGoals(input: {
   const periodKey = String(input.periodKey || "").trim();
   const text = String(input.text || "").trim();
   if (!text) return { ok: false, error: "Type or paste your goals first." };
-  if (text.length > 6000) return { ok: false, error: "That's a lot — keep it under 6000 characters." };
+  if (text.length > 6000) return { ok: false, error: "That's a lot - keep it under 6000 characters." };
 
   const scope = await goalScopeFor({ id: me.id, isAdmin });
   const employeeId = input.employeeId || me.id;
@@ -108,7 +108,7 @@ export async function transcribeCapture(
   const file = formData.get("audio");
   if (!(file instanceof File)) return { ok: false, error: "No audio received." };
   if (file.size === 0) return { ok: false, error: "The recording was empty." };
-  if (file.size > 20 * 1024 * 1024) return { ok: false, error: "Recording too long — keep it under a minute or two." };
+  if (file.size > 20 * 1024 * 1024) return { ok: false, error: "Recording too long - keep it under a minute or two." };
   const res = await transcribe(file, file.name || "capture.webm");
   return res.ok ? { ok: true, text: res.text } : { ok: false, error: res.error };
 }

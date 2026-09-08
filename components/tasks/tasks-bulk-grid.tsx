@@ -573,7 +573,7 @@ export function TasksBulkGrid(props: {
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <Sparkles size={15} className="text-altus-red" strokeWidth={2.4} />
         <span className="text-[13px] font-bold text-ink-strong">Fill your tasks below</span>
-        <span className="text-[12px] font-semibold text-ink-subtle">— type, pick a Doer + Initiator, paste from Excel, or drop a file</span>
+        <span className="text-[12px] font-semibold text-ink-subtle">- type, pick a Doer + Initiator, paste from Excel, or drop a file</span>
         <button
           type="button"
           onClick={() => fileRef.current?.click()}

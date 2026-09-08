@@ -50,9 +50,19 @@ export function ChromeShell({
   // stage pop-ups and in-page back buttons. Every /hr surface is full-bleed. The
   // Help Desk (`/support`) is part of the HR room too — reached from the HR-home
   // quick-popup — so it is rail-less as well, matching the rest of the module.
+  // `/policies` and `/communications` are HR surfaces at their own top-level
+  // routes. Both now render the HR console shell too (their own layout.tsx),
+  // so they must suppress the global sidebar the same way /hr does — otherwise
+  // the console's module rail and this sidebar would stack side by side.
   const isHrFullBleed =
     pathname === "/hr" ||
     (pathname?.startsWith("/hr/") ?? false) ||
+    pathname === "/policies" ||
+    (pathname?.startsWith("/policies/") ?? false) ||
+    pathname === "/communications" ||
+    (pathname?.startsWith("/communications/") ?? false) ||
+    pathname === "/dossier" ||
+    (pathname?.startsWith("/dossier/") ?? false) ||
     pathname === "/support" ||
     (pathname?.startsWith("/support/") ?? false);
   const showSidebar = Boolean(ws) && !isHrFullBleed;
@@ -68,12 +78,19 @@ export function ChromeShell({
   // The HUB does not get the dock: it IS the module picker, so a floating copy
   // of the same ten links over the grid is noise. It ends after the cards.
   const isHub = pathname === "/hub";
-  const dock = isHub ? null : footer;
+  // ...and NOT under the HR console either. That console sizes itself to the
+  // viewport (height: calc(100dvh - topbar)) and scrolls internally, so a dock
+  // appended after it necessarily sits past the fold — making the OUTER page
+  // scrollable purely to reach a strip of chrome. A stray Space keypress
+  // scrolled into that dead band and there was nothing above to scroll back to.
+  const dock = isHub || isHrFullBleed ? null : footer;
   // The dock sits IN FLOW at the end of the page and reserves its own height
   // (it used to be fixed, then sticky — both of which rode over whatever a page
   // ended with). So this padding only has to supply the gap BELOW it. The hub
   // has no dock but still wants breathing room under the grid.
-  const bottomPad = isHub ? "pb-10" : "pb-5";
+  // The HR console already fills the viewport exactly; trailing padding would
+  // re-introduce the same overflow the dock did.
+  const bottomPad = isHrFullBleed ? "" : isHub ? "pb-10" : "pb-5";
 
   // The hub is the module switchboard and renders the full DashboardHeader —
   // which already carries its own search — so a second bar there would stack two
@@ -82,7 +99,16 @@ export function ChromeShell({
 
   if (!showSidebar) {
     return (
-      <div className={`flex min-h-dvh flex-col ${bottomPad}`}>
+      // h-dvh + overflow-hidden for the HR console: it owns its own internal
+      // scrolling, so the page around it must not scroll at all. Every other
+      // full-bleed route keeps min-h-dvh and grows normally.
+      <div
+        className={
+          isHrFullBleed
+            ? "flex h-dvh flex-col overflow-hidden"
+            : `flex min-h-dvh flex-col ${bottomPad}`
+        }
+      >
         {bar}
         {children}
         {dock}

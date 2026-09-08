@@ -161,7 +161,7 @@ export function EvaluationV2Screen({
       if (!res.ok) { fireToast({ message: res.error, type: "error" }); return; }
       setDirty(false);
     } catch {
-      fireToast({ message: "Couldn't save the evaluation — check your connection.", type: "error" });
+      fireToast({ message: "Couldn't save the evaluation - check your connection.", type: "error" });
     } finally {
       setSaving(false);
     }
@@ -308,12 +308,12 @@ export function EvaluationV2Screen({
     if (!instance || !selected) return;
     const comp = computeComposites(instance, profile, ctx);
     const elig = eligibilityVerdict(instance);
-    const rec = RECOMMENDATIONS.find((r) => r.value === instance.recommendation)?.label ?? "—";
+    const rec = RECOMMENDATIONS.find((r) => r.value === instance.recommendation)?.label ?? "-";
     const cards = comp.scorecard.filter((c) => c.score !== null);
     const lines = [
-      `*${selected.fullName || "Candidate"} — Interview Intelligence*`,
+      `*${selected.fullName || "Candidate"} - Interview Intelligence*`,
       `Evaluator: ${roleLabel}`,
-      `Interview Score: ${comp.interviewScore !== null ? `${comp.interviewScore}/100` : "—"}`,
+      `Interview Score: ${comp.interviewScore !== null ? `${comp.interviewScore}/100` : "-"}`,
       `Eligibility: ${
         elig.dealbreaker
           ? `⚠️ Flagged for review (${elig.criticalNoItems.length} critical)`
@@ -348,7 +348,7 @@ export function EvaluationV2Screen({
                   value={candidateId || null}
                   onChange={(id) => void selectCandidate(id ?? "")}
                   options={candList.map((c) => ({ id: c.id, name: candidateLabel(c) }))}
-                  placeholder="— Select candidate —"
+                  placeholder="- Select candidate -"
                   className="w-full rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[14px] font-semibold text-ink-strong outline-none transition-colors focus:border-altus-red"
                   {...(isSuperAdmin
                     ? {
@@ -428,7 +428,7 @@ export function EvaluationV2Screen({
 
           {isSuperAdmin && load && (
             <p className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-ink-subtle">
-              <ShieldCheck size={12} /> Custom weight tuning is temporarily disabled — scoring uses the default section weights (pending the Department → Role → Designation mapping).
+              <ShieldCheck size={12} /> Custom weight tuning is temporarily disabled - scoring uses the default section weights (pending the Department → Role → Designation mapping).
             </p>
           )}
         </div>
@@ -554,7 +554,7 @@ export function EvaluationV2Screen({
                   <p className="mt-1 text-[13.5px] leading-relaxed text-ink-muted">
                     You&apos;re about to permanently delete{" "}
                     <span className="font-bold text-ink-strong">{confirmCand.name}</span>. Their entire record and
-                    interview history — intake form, checklist and all evaluation scores — will be erased. This cannot be
+                    interview history - intake form, checklist and all evaluation scores - will be erased. This cannot be
                     undone.
                   </p>
                 </div>
@@ -656,8 +656,8 @@ function EmptyState() {
         Choose a candidate to begin
       </h2>
       <p className="mt-1.5 max-w-[46ch] text-[14px] font-medium text-ink-muted">
-        Pick someone above and the full instrument — pre-requisites, competency ratings and the composite
-        recommendation — opens up, autosaving as you fill it.
+        Pick someone above and the full instrument - pre-requisites, competency ratings and the composite
+        recommendation - opens up, autosaving as you fill it.
       </p>
     </div>
   );
@@ -700,7 +700,10 @@ const CSS = `
   @keyframes ev2Collapse { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
   .ev2-select-wrap { position: relative; }
   .ev2-select-wrap > select { position: relative; }
-  .ev2-select-wrap::after { content: ""; position: absolute; right: 14px; bottom: 16px; width: 8px; height: 8px; border-right: 2px solid var(--color-ink-subtle); border-bottom: 2px solid var(--color-ink-subtle); transform: rotate(45deg); pointer-events: none; }
+  /* :has(> select) so this caret is painted ONLY for a native <select>.
+     The Candidate field is a LookupSelect, which renders its own chevron -
+     unscoped, this rule stacked a second arrow on top of it. */
+  .ev2-select-wrap:has(> select)::after { content: ""; position: absolute; right: 14px; bottom: 16px; width: 8px; height: 8px; border-right: 2px solid var(--color-ink-subtle); border-bottom: 2px solid var(--color-ink-subtle); transform: rotate(45deg); pointer-events: none; }
   .ev2-rating:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, ${RED} 30%, transparent); }
   .ev2-rec-dot { animation: ev2Pulse 1.1s ease-in-out infinite; }
   @keyframes ev2Pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }

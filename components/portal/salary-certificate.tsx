@@ -36,7 +36,7 @@ export function SalaryCertificate({ cert, issuedOn }: SalaryCertificateProps) {
 
   const details: [string, string][] = [
     ["Employee Name", cert.employeeName],
-    ["Designation", cert.designation?.trim() || "—"],
+    ["Designation", cert.designation?.trim() || "-"],
     ["Employer", firm],
     ["Annual CTC", inr(cert.annualCtc)],
     ["Monthly CTC", inr(cert.monthlyCtc)],

@@ -227,7 +227,7 @@ function DueChip({ dueAt }: { dueAt: Date | null }) {
   if (!dueAt) return <span className="text-[10px] font-semibold text-ink-subtle">No due date</span>;
   const d = dueAt instanceof Date ? dueAt : new Date(dueAt as unknown as string);
   if (Number.isNaN(d.getTime()))
-    return <span className="text-[10px] font-semibold text-ink-subtle">—</span>;
+    return <span className="text-[10px] font-semibold text-ink-subtle">-</span>;
 
   const days = differenceInCalendarDays(d, new Date());
   const overdue = days < 0;

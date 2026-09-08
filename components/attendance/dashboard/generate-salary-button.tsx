@@ -35,7 +35,7 @@ export function GenerateSalaryButton({ year, month, label }: { year: number; mon
       onClick={run}
       disabled={busy}
       title={`Generate salary runs for ${label}`}
-      className="brand-btn wg-btn wg-sheen inline-flex items-center gap-1.5 rounded-full py-2 px-4 text-[13.5px] font-bold text-white disabled:opacity-60"
+      className="brand-btn wg-btn wg-sheen inline-flex items-center gap-1.5 rounded-pill py-2 px-4 text-[13.5px] font-bold text-white disabled:opacity-60"
       style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))", boxShadow: "0 8px 20px -10px color-mix(in srgb, var(--color-altus-red-deep) 70%, transparent)" }}
     >
       {busy ? <Loader2 size={15} className="animate-spin" strokeWidth={2.4} /> : <Wallet size={15} strokeWidth={2.2} />}

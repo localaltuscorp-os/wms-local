@@ -42,7 +42,7 @@ function PassRing({ pct }: { pct: number | null }) {
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`var(${tone})`} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - shown / 100)} style={{ filter: `drop-shadow(0 2px 8px color-mix(in srgb, var(${tone}) 45%, transparent))` }} />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="tabular-nums" style={{ fontFamily: "var(--font-display), var(--font-serif), serif", fontWeight: 800, fontSize: 38, color: "var(--color-ink-strong)" }}>{pct == null ? "—" : `${Math.round(shown)}%`}</span>
+          <span className="tabular-nums" style={{ fontFamily: "var(--font-display), var(--font-serif), serif", fontWeight: 800, fontSize: 38, color: "var(--color-ink-strong)" }}>{pct == null ? "-" : `${Math.round(shown)}%`}</span>
           <span className="text-[11px] font-bold uppercase tracking-wide text-ink-subtle">pass rate</span>
         </div>
       </div>

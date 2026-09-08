@@ -83,7 +83,7 @@ export function PerfCard({ stats }: Props) {
           letterSpacing: "0.08em",
         }}
       >
-        Last 12 weeks — completed
+        Last 12 weeks - completed
       </h3>
       <TrendChart trend={stats.weeklyTrend} />
 
@@ -173,7 +173,7 @@ function TrendChart({
   if (trend.length === 0) {
     return (
       <p style={{ margin: 0, fontSize: 14, color: "var(--color-ink-subtle)" }}>
-        No completion data yet — finish some tasks and the trend will appear.
+        No completion data yet - finish some tasks and the trend will appear.
       </p>
     );
   }

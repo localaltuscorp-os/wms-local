@@ -3206,7 +3206,25 @@ html {
     100deg,
     var(--mw-a) 0%, var(--mw-b) 30%, #ffffff 48%, var(--mw-b) 66%, var(--mw-a) 100%
   );
-  background-size: 240% 100%;
+  /* ⚠ 200% is LOAD-BEARING, and so is the 200%→0% sweep — do not retune either
+     in isolation. A percentage `background-position` resolves against
+     (box_width - image_width), NOT the box, so the distance the gradient
+     actually travels is `Δposition% x (W - image_width)`. The image also TILES
+     (background-repeat defaults to `repeat`), with one sheen band per tile.
+     A seamless loop therefore requires exactly one invariant:
+
+         travel distance == image width  (one whole tile per cycle)
+
+     which, for an image `n` times the box width, means Δposition = n/(1-n).
+     n=2 is the one clean solution: Δ = -200%, i.e. 200% → 0%.
+
+     This previously read `240%` with a `200% → -40%` sweep: travel was
+     240% x 1.4W = 3.36W against a 2.4W tile — 1.4 tiles per cycle. The extra
+     0.4 tile meant the loop restarted mid-sweep, leaving a second band already
+     sitting ~75% across the text at t=0 (the second "R" of HUMAN RESOURCES),
+     which then slid off the right edge. Every other pass appeared to start near
+     the end instead of the first letter. */
+  background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -3215,7 +3233,7 @@ html {
 }
 @keyframes mwSheen {
   0%   { background-position: 200% 0; }
-  100% { background-position: -40% 0; }
+  100% { background-position: 0% 0; }
 }
 @keyframes mwPop {
   0%   { transform: scale(0.6) rotate(-8deg); opacity: 0; }
@@ -3230,7 +3248,14 @@ html {
   .wg-sheen:hover::after { animation: none !important; }
   .wg-ring-glow, .wg-pip-pop, .wg-nudge { animation: none !important; }
   .module-wordmark, .module-wordmark-icon { animation: none !important; }
-  .module-wordmark-text { animation: none !important; background-position: 0 0 !important; }
+  /* A static slice of the sheen gradient would land the white 48% stop inside
+     the word. Drop the sheen stop entirely rather than freeze a blown-out frame. */
+  .module-wordmark-text {
+    animation: none !important;
+    background-image: linear-gradient(100deg, var(--mw-a) 0%, var(--mw-b) 100%) !important;
+    background-size: 100% 100% !important;
+    background-position: 0 0 !important;
+  }
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

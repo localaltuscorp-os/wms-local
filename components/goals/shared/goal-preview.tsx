@@ -89,7 +89,7 @@ export function GoalPreview({ goal, ownerName, className, children }: GoalPrevie
         type="button"
         // The whole point is opening the goal; announce that rather than leaving
         // a screen reader with a bare code like "Y3".
-        aria-label={`${GOAL_LEVEL_LABEL[goal.period]}: ${goal.title || "Untitled goal"} — open details`}
+        aria-label={`${GOAL_LEVEL_LABEL[goal.period]}: ${goal.title || "Untitled goal"} - open details`}
         className={className ?? "cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/50 rounded-md"}
         onPointerEnter={(e) => {
           if (e.pointerType === "mouse") show();

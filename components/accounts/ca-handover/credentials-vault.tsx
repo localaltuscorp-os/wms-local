@@ -104,14 +104,14 @@ function PortalGroup({
           <h3 className="text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 800, fontSize: 18, letterSpacing: "-0.01em" }}>
             {group.label}
           </h3>
-          <span className="rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums" style={{ background: "var(--color-surface-muted, #f6f1e6)", color: "var(--color-ink-soft)" }}>
+          <span className="rounded-pill px-2 py-0.5 text-[11px] font-bold tabular-nums" style={{ background: "var(--color-surface-muted, #f6f1e6)", color: "var(--color-ink-soft)" }}>
             {group.rows.length}
           </span>
         </div>
         <button
           type="button"
           onClick={onAdd}
-          className="wg-btn cursor-pointer inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-bold border border-hairline bg-surface-card text-ink-strong hover:border-hairline-strong"
+          className="wg-btn cursor-pointer inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[12.5px] font-bold border border-hairline bg-surface-card text-ink-strong hover:border-hairline-strong"
         >
           <Plus size={14} strokeWidth={2.6} /> Add Login
         </button>
@@ -200,7 +200,7 @@ function CredentialRow({ row, onEdit }: { row: CaCredentialRow; onEdit: () => vo
             Open <ExternalLink size={13} strokeWidth={2.4} />
           </a>
         ) : (
-          <span className="text-ink-subtle">—</span>
+          <span className="text-ink-subtle">-</span>
         )}
       </td>
       <td className="px-4 py-3">
@@ -209,7 +209,7 @@ function CredentialRow({ row, onEdit }: { row: CaCredentialRow; onEdit: () => vo
             row[f.key] ? (
               <span
                 key={f.key}
-                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold"
+                className="inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[10.5px] font-bold"
                 style={{ background: "rgba(16,122,87,0.10)", color: "var(--color-green-deep)" }}
               >
                 <Check size={10} strokeWidth={3} /> {f.label}
@@ -217,7 +217,7 @@ function CredentialRow({ row, onEdit }: { row: CaCredentialRow; onEdit: () => vo
             ) : null,
           )}
           {FLAGS.every((f) => !row[f.key]) && (
-            <span className="text-ink-subtle" style={{ fontSize: 12 }}>—</span>
+            <span className="text-ink-subtle" style={{ fontSize: 12 }}>-</span>
           )}
         </div>
       </td>
@@ -242,7 +242,7 @@ function PasswordCell({ id, hasPassword }: { id: string; hasPassword: boolean })
   const [copied, setCopied] = React.useState(false);
 
   if (!hasPassword) {
-    return <span className="text-ink-subtle" style={{ fontSize: 13 }}>— not set —</span>;
+    return <span className="text-ink-subtle" style={{ fontSize: 13 }}>- not set -</span>;
   }
 
   function toggle() {
@@ -304,7 +304,7 @@ function PasswordCell({ id, hasPassword }: { id: string; hasPassword: boolean })
 /** Plain value cell with a hover copy affordance. */
 function CopyText({ value, mono }: { value: string | null; mono?: boolean }) {
   const [copied, setCopied] = React.useState(false);
-  if (!value) return <span className="text-ink-subtle">—</span>;
+  if (!value) return <span className="text-ink-subtle">-</span>;
   async function copy() {
     try {
       await navigator.clipboard.writeText(value ?? "");

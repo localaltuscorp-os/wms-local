@@ -11,7 +11,7 @@ import { createItFolder, updateItFolder, deleteItFolder } from "@/app/(app)/acco
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CHIP = "rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]";
 
-function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>; }
+function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>; }
 
 function ValueSelect({ label, kind, options, value, onChange, placeholder }: { label: string; kind: string; options: LookupOption[]; value: string | null; onChange: (n: string | null) => void; placeholder?: string }) {
   const [opts, setOpts] = React.useState(options);
@@ -85,7 +85,7 @@ export function ItMasterFolder({ rows, entityOptions }: { rows: ItFolderRow[]; e
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search — entity, FY, notes" title="Local search — filters only the list on this page" aria-label="Local search — entity, FY, notes — this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - entity, FY, notes" title="Local search - filters only the list on this page" aria-label="Local search - entity, FY, notes - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
         <select className={CHIP} value={fEntity} onChange={(e) => setFEntity(e.target.value)} aria-label="Filter by entity">
           <option value="">All Entities</option>

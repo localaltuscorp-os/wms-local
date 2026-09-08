@@ -76,7 +76,7 @@ export default async function PmsV3ConstitutionPage({
             className="mt-2 text-ink-strong"
             style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(24px,2.6vw,34px)", letterSpacing: "-0.02em" }}
           >
-            Para-by-para scoring — {subject.name}
+            Para-by-para scoring - {subject.name}
           </h1>
           <p className="mt-1.5 max-w-[74ch] text-[14.5px] text-ink-muted">
             Admin distributes a total weight of {cfg.constitutionTotalWeight} across the paragraphs; the admin scores

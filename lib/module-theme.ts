@@ -44,7 +44,7 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
   wms: {
     id: "wms",
     label: "WMS",
-    tagline: "The work dashboard — tasks, goals & the daily loop.",
+    tagline: "The work dashboard - tasks, goals & the daily loop.",
     href: "/ws/wms" as Route,
     Icon: LayoutGrid,
     accent: "#E10600",
@@ -123,7 +123,7 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
   events: {
     id: "events",
     label: "Monthly Events Master",
-    tagline: "The company calendar — batches, holidays & obligations in one grid.",
+    tagline: "The company calendar - batches, holidays & obligations in one grid.",
     href: "/ws/events" as Route,
     Icon: CalendarDays,
     accent: "#0891b2",
@@ -149,7 +149,7 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
   productivity: {
     id: "productivity",
     label: "Team Productivity",
-    tagline: "One cockpit per person — incentive, goals, tasks, training at a glance.",
+    tagline: "One cockpit per person - incentive, goals, tasks, training at a glance.",
     href: "/ws/productivity" as Route,
     Icon: Gauge,
     accent: "#4338ca",

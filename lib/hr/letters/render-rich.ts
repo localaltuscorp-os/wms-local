@@ -7,16 +7,16 @@ import { getEntity, DEFAULT_ENTITY_ID, type Entity, type EntityId } from "@/lib/
 import { letterFontsUsedIn } from "@/lib/hr/letters/fonts";
 
 /**
- * HR LETTERS — server-only headless-Chromium PDF renderer for RICH ("Edit
+ * HR LETTERS - server-only headless-Chromium PDF renderer for RICH ("Edit
  * freely" / Google-Docs) letters.
  *
  * A rich letter's body is arbitrary TipTap HTML (headings, lists, tables,
  * inline images, alignment …) that pdfkit cannot faithfully paint. Instead we
  * assemble a FULL standalone A4 HTML document that reproduces the FROZEN
- * <Letterhead> (components/hr/letterhead/letterhead.tsx) exactly — the
+ * <Letterhead> (components/hr/letterhead/letterhead.tsx) exactly - the
  * altus-header.png strip pinned to the top, the altus-footer.png strip pinned
  * to the bottom, the same 794×1123 page box + body padding, and (for a
- * non-Altus paying entity) the white logo-cover + entity-logo swap — inject the
+ * non-Altus paying entity) the white logo-cover + entity-logo swap - inject the
  * body HTML, and print it to PDF with headless Chromium.
  *
  * The letterhead strip PNGs and entity logos are read off the local filesystem
@@ -72,7 +72,7 @@ async function fileToDataUri(absPath: string): Promise<string | null> {
  * Build `@font-face` rules (base64-inlined woff2) for exactly the self-hosted
  * letter fonts REFERENCED in the body HTML. Headless Chromium has no network +
  * ships no fonts of its own, so every chosen family must be embedded here or it
- * silently falls back — this is what makes the printed letter match the editor.
+ * silently falls back - this is what makes the printed letter match the editor.
  * Only used families are embedded, keeping the document small.
  */
 async function buildLetterFontFaceCss(bodyHtml: string): Promise<string> {
@@ -142,7 +142,7 @@ async function resolveInlineImages(bodyHtml: string): Promise<string> {
             .createSignedUrl(p, IMAGE_SIGNED_TTL_SECONDS);
           if (data?.signedUrl) signed.set(p, data.signedUrl);
         } catch {
-          /* leave unresolved — Chromium simply shows a broken image */
+          /* leave unresolved - Chromium simply shows a broken image */
         }
       }),
     );
@@ -244,10 +244,10 @@ html,body{margin:0;padding:0;background:#ffffff;}
   color:#111114;
   overflow:hidden;
 }
-/* Header + footer artwork — crisp, edge-to-edge, natural aspect. Fixed so they
+/* Header + footer artwork - crisp, edge-to-edge, natural aspect. Fixed so they
    repeat on every printed page (matches letterhead.tsx @media print). The strips
    are cropped to their ink (see letterhead.tsx), so left:0/top:0 really is the
-   paper edge — no white gutter above or beside the banner. */
+   paper edge - no white gutter above or beside the banner. */
 .alh-art{position:fixed;left:0;width:794px;height:auto;margin:0;padding:0;display:block;z-index:0;pointer-events:none;}
 .alh-art-top{top:0;}
 .alh-art-bottom{bottom:0;}
@@ -260,7 +260,7 @@ html,body{margin:0;padding:0;background:#ffffff;}
   height:122px;width:auto;max-width:126px;
   object-fit:contain;display:block;z-index:2;
 }
-/* Page frame — thead/tfoot are empty spacer bands the browser REPEATS + reserves
+/* Page frame - thead/tfoot are empty spacer bands the browser REPEATS + reserves
    on every printed page, so the body never slides under the fixed header/footer
    on page 2+. (Same technique as letterhead.tsx.) */
 .alh-frame{position:relative;z-index:3;width:100%;border-collapse:collapse;table-layout:fixed;}
@@ -280,10 +280,10 @@ html,body{margin:0;padding:0;background:#ffffff;}
 .alh-body h1{font-size:22px;line-height:1.3;margin:0 0 12px;font-weight:700;}
 .alh-body h2{font-size:18px;line-height:1.35;margin:18px 0 10px;font-weight:700;}
 .alh-body h3{font-size:15.5px;line-height:1.4;margin:16px 0 8px;font-weight:700;}
-/* Lists — this document is standalone (no Tailwind preflight), so markers came
+/* Lists - this document is standalone (no Tailwind preflight), so markers came
  * from the UA defaults and already printed correctly. Stated explicitly anyway
  * so the PDF matches the in-app editor rule for rule: this file drifting from
- * the screen is exactly how the bug hid — the same letter printed with bullets
+ * the screen is exactly how the bug hid - the same letter printed with bullets
  * while the editor showed none. Nested levels mirror the UA sequence, so this
  * is a no-op on today's output, not a restyle. */
 .alh-body ul,.alh-body ol{margin:0 0 14px;padding-left:24px;}
@@ -350,7 +350,7 @@ async function launchBrowser(): Promise<any> {
     } as any);
   }
 
-  // Local dev — prefer the installed Chrome via the "chrome" channel.
+  // Local dev - prefer the installed Chrome via the "chrome" channel.
   try {
     return await puppeteer.launch({ channel: "chrome", headless: true } as any);
   } catch {
@@ -374,7 +374,7 @@ async function launchBrowser(): Promise<any> {
 export interface RenderRichLetterInput {
   /** Paying entity (id / display string). Drives the letterhead logo swap. */
   entity: string;
-  /** The rich letter body — arbitrary TipTap HTML. */
+  /** The rich letter body - arbitrary TipTap HTML. */
   bodyHtml: string;
 }
 
@@ -415,13 +415,13 @@ export async function renderRichLetterPdf({
     // ── SSRF / exfiltration hardening ──────────────────────────────────────
     // The body HTML is user-authored (the "Edit freely" letter). Without this,
     // headless Chromium would execute any injected <script> and fetch any
-    // sub-resource from the SERVER's network position — SSRF to internal hosts /
+    // sub-resource from the SERVER's network position - SSRF to internal hosts /
     // cloud metadata, file:// reads, and beaconing out. We:
     //   1) disable JavaScript entirely (a printed letter needs none), and
     //   2) intercept every request and allow ONLY `data:` URIs (our inlined
     //      letterhead/fonts/images) and the Supabase signed-URL host (legit
     //      inline letter images resolved by resolveInlineImages). Everything
-    //      else — http/https to any other host, file:, blob:, internal IPs — is
+    //      else - http/https to any other host, file:, blob:, internal IPs - is
     //      aborted.
     await page.setJavaScriptEnabled(false);
     const supabaseHost = (() => {

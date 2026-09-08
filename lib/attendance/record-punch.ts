@@ -26,7 +26,7 @@ export function resolvePunchGeofence(
   if (!location) {
     return {
       ok: false,
-      error: "Location is required to punch — please allow location access.",
+      error: "Location is required to punch - please allow location access.",
     };
   }
   const distanceM = distanceMeters(
@@ -42,7 +42,7 @@ export function resolvePunchGeofence(
       error:
         verdict.reason === "too_imprecise"
           ? `GPS too imprecise (±${Math.round(location.accuracyM)}m). Turn on Precise/High-accuracy location and try again.`
-          : `You're ~${Math.round(verdict.effectiveDistanceM)}m from the office — punches register only within ${settings.attendanceRadiusM}m.`,
+          : `You're ~${Math.round(verdict.effectiveDistanceM)}m from the office - punches register only within ${settings.attendanceRadiusM}m.`,
     };
   }
   return { ok: true, distanceM };
@@ -132,5 +132,5 @@ export async function insertPunchRow(
     }
   }
   const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
-  return { ok: false, error: `Couldn't record your punch — please try again. (${msg})` };
+  return { ok: false, error: `Couldn't record your punch - please try again. (${msg})` };
 }

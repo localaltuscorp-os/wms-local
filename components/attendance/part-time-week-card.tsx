@@ -37,7 +37,7 @@ export function PartTimeWeekCard({
           <p className="text-[13.5px] font-bold text-ink-strong">This week&apos;s hours</p>
           <p className="text-[12px] font-medium text-ink-muted">
             {done
-              ? `Target met — ${worked}h of ${target}h.`
+              ? `Target met - ${worked}h of ${target}h.`
               : `${worked}h of ${target}h · ${remaining}h to go.`}
           </p>
         </div>
@@ -71,7 +71,7 @@ export function PartTimeWeekCard({
 
       {payAtTarget != null && payAtTarget > 0 && (
         <p className="mt-2 text-[11.5px] font-medium text-ink-subtle">
-          Full week earns ₹{payAtTarget.toLocaleString("en-IN")} — pay is prorated to the hours actually worked.
+          Full week earns ₹{payAtTarget.toLocaleString("en-IN")} - pay is prorated to the hours actually worked.
         </p>
       )}
     </div>

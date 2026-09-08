@@ -19,7 +19,7 @@ export function ManagerReport({ report }: { report: ManagerTimeReport }) {
         />
         <StatCard
           label="Avg Time / Task"
-          value={report.taskCount > 0 ? formatMinutesLabel(report.avgSeconds) : "—"}
+          value={report.taskCount > 0 ? formatMinutesLabel(report.avgSeconds) : "-"}
           sub="Active effort per task"
           Icon={Gauge}
         />

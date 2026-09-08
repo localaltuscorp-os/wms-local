@@ -89,7 +89,7 @@ export const EXIT_CSS = `
   cursor: pointer;
   transition: color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .12s ease;
 }
-/* Fill sweep — a red disc that springs out from the chip centre on select. */
+/* Fill sweep - a red disc that springs out from the chip centre on select. */
 .iwc-chip::before {
   content: ""; position: absolute; inset: 0; z-index: 0;
   background: var(--color-altus-red);
@@ -353,7 +353,7 @@ export function FloatingSelect({
   value,
   onChange,
   options,
-  placeholder = "— Select —",
+  placeholder = "- Select -",
   autoFocus,
 }: {
   label: string;
@@ -402,7 +402,7 @@ export function LabelValueGrid({ rows }: { rows: { label: string; value: React.R
         return (
           <React.Fragment key={r.label}>
             <dt>{r.label}</dt>
-            <dd className={empty ? "is-empty" : undefined}>{empty ? "—" : r.value}</dd>
+            <dd className={empty ? "is-empty" : undefined}>{empty ? "-" : r.value}</dd>
           </React.Fragment>
         );
       })}

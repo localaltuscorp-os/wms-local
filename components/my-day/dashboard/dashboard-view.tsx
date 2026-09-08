@@ -289,7 +289,7 @@ export function DailyGoalsDashboard({ payload }: { payload: DashPayload }) {
       <div className="grid grid-cols-[1fr_1fr] gap-3 max-lg:grid-cols-1">
         <Panel
           title="Work Status"
-          hint="Unfinished and transferred work is accountability information — it does not reduce the score."
+          hint="Unfinished and transferred work is accountability information - it does not reduce the score."
         >
           <div className="grid grid-cols-3 gap-2 max-sm:grid-cols-1">
             <StatTile label="Completed" value={completed} tone="var(--color-green-deep)" />
@@ -527,7 +527,7 @@ function PerfCell({ label, card }: { label: string; card: DashPayload["score"] }
         {label}
       </div>
       {empty ? (
-        <div className="mt-1 text-[18px] font-black text-ink-subtle">—</div>
+        <div className="mt-1 text-[18px] font-black text-ink-subtle">-</div>
       ) : (
         <div className="mt-1 flex items-baseline gap-2">
           <span className="text-[22px] font-black leading-none tabular-nums" style={{ color: tone.fg }}>

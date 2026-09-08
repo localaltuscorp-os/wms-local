@@ -361,9 +361,9 @@ export function BillingDashboard({ data }: { data: BillingSummary & { error?: st
                   className="border-t transition-colors hover:bg-[color-mix(in_srgb,#E10600_3%,transparent)]"
                   style={{ borderColor: "var(--color-hairline)" }}
                 >
-                  <td className="py-2.5 font-semibold text-ink-strong" style={{ fontSize: 14 }}>{d.client || "—"}</td>
+                  <td className="py-2.5 font-semibold text-ink-strong" style={{ fontSize: 14 }}>{d.client || "-"}</td>
                   <td className="py-2.5 font-semibold text-ink-soft" style={{ fontSize: 14 }}>{d.salesperson}</td>
-                  <td className="py-2.5 font-semibold text-ink-subtle" style={{ fontSize: 13 }}>{d.entity || "—"}</td>
+                  <td className="py-2.5 font-semibold text-ink-subtle" style={{ fontSize: 13 }}>{d.entity || "-"}</td>
                   <Td align="right" bold>{formatInr(d.billed)}</Td>
                   <Td align="right" style={{ color: GREEN_DEEP }}>{formatInr(d.paid)}</Td>
                 </tr>

@@ -29,7 +29,7 @@ function codeInfo(raw: string): CodeInfo {
     case "H":
       return { label: "Holiday", bg: "color-mix(in srgb,#6366f1 12%,white)", fg: "#4338ca", worked: null };
     default:
-      return { label: c === "-" || c === "" ? "—" : raw, bg: "var(--color-surface-soft)", fg: "var(--color-ink-subtle)", worked: null };
+      return { label: c === "-" || c === "" ? "-" : raw, bg: "var(--color-surface-soft)", fg: "var(--color-ink-subtle)", worked: null };
   }
 }
 
@@ -112,13 +112,13 @@ export function SheetDailyDialog({
                     {info.worked ? (
                       hasPunch ? (
                         <span className="shrink-0 text-right text-[12.5px] font-semibold tabular-nums text-ink-strong">
-                          {d.inTime ?? "—"} <span className="text-ink-subtle">–</span> {d.outTime ?? "—"}
+                          {d.inTime ?? "-"} <span className="text-ink-subtle">–</span> {d.outTime ?? "-"}
                         </span>
                       ) : (
-                        <span className="shrink-0 text-[12px] font-semibold text-ink-subtle">— no punch logged</span>
+                        <span className="shrink-0 text-[12px] font-semibold text-ink-subtle">- no punch logged</span>
                       )
                     ) : (
-                      <span className="shrink-0 text-[13px] font-semibold text-ink-subtle">—</span>
+                      <span className="shrink-0 text-[13px] font-semibold text-ink-subtle">-</span>
                     )}
                   </div>
                 );

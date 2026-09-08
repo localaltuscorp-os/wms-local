@@ -65,7 +65,7 @@ export function DccManagerReviewGate({ greetingName, state }: { greetingName: st
     <div className="min-h-[calc(100vh-64px)] w-full bg-gradient-to-b from-[#F4EEE3] to-[#FBF7F0]">
       <div className="mx-auto w-full max-w-[860px] px-6 max-md:px-4 pt-10 pb-28">
         <div className="text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-hairline-strong bg-white px-4 py-1.5 text-[13px] font-extrabold uppercase tracking-[0.18em]" style={{ color: "var(--color-altus-red-deep)" }}>
+          <span className="inline-flex items-center gap-2 rounded-pill border border-hairline-strong bg-white px-4 py-1.5 text-[13px] font-extrabold uppercase tracking-[0.18em]" style={{ color: "var(--color-altus-red-deep)" }}>
             <Users size={16} /> Team review
           </span>
           <h1 className="mt-4 text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(28px, 4vw, 44px)", letterSpacing: "-0.03em", lineHeight: 1.04 }}>
@@ -139,7 +139,7 @@ export function DccManagerReviewGate({ greetingName, state }: { greetingName: st
                           {it.note && <p className="mt-0.5 text-[13.5px] font-medium text-ink-muted">{it.note}</p>}
                         </div>
                         {it.value && <span className="mt-0.5 shrink-0 text-[14px] font-bold text-ink-strong tabular-nums">{it.value}</span>}
-                        <span className="mt-0.5 shrink-0 rounded-lg px-2.5 py-1 text-[12.5px] font-bold" style={{ background: tone.bg, color: tone.fg }}>{it.status ?? "—"}</span>
+                        <span className="mt-0.5 shrink-0 rounded-lg px-2.5 py-1 text-[12.5px] font-bold" style={{ background: tone.bg, color: tone.fg }}>{it.status ?? "-"}</span>
                       </div>
                     );
                   })}

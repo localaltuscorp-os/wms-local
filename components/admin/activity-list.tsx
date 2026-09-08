@@ -274,7 +274,7 @@ function EmployeeRowBody({ row }: { row: ActivityRow }) {
       <div className="mt-1 text-[14.5px] text-ink" style={{ lineHeight: 1.5 }}>
         {employeeEventCopy(row)}
         {row.note ? (
-          <span className="text-ink-subtle"> — {row.note}</span>
+          <span className="text-ink-subtle"> - {row.note}</span>
         ) : null}
       </div>
     </>
@@ -293,7 +293,7 @@ function SettingsRowBody({ row }: { row: ActivityRow }) {
       <div className="mt-1 text-[14.5px] text-ink" style={{ lineHeight: 1.5 }}>
         {settingsEventCopy(row)}
         {row.note ? (
-          <span className="text-ink-subtle"> — {row.note}</span>
+          <span className="text-ink-subtle"> - {row.note}</span>
         ) : null}
       </div>
     </>
@@ -309,7 +309,7 @@ function SettingsRowBody({ row }: { row: ActivityRow }) {
 function SourceBadge({ source }: { source: ActivitySource }) {
   return (
     <span
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-[0.06em]"
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-pill text-[10.5px] font-bold uppercase tracking-[0.06em]"
       style={{
         color: SOURCE_TINTS[source],
         background: `color-mix(in srgb, ${SOURCE_TINTS[source]} 12%, transparent)`,

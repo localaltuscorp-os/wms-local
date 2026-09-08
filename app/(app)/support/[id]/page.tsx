@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { DashboardHeader } from "@/components/layout/header";
 import { requireHrSupport } from "@/lib/hr/flag";
+import { HrBackButton } from "@/components/hr/hr-back-button";
 import {
   resolveViewer,
   getTicketBundle,
@@ -31,6 +32,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
     <>
       <DashboardHeader generatedAt={new Date()} />
       <main className="mx-auto w-full max-w-[820px] px-8 max-md:px-4 pt-8 pb-16">
+        <HrBackButton fallbackHref="/support" />
         <TicketThread
           ticket={{
             id: t.id,

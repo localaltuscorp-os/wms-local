@@ -63,7 +63,7 @@ export function PinnedShelf({ initial }: Props) {
             lineHeight: 1.55,
           }}
         >
-          No pins yet — open a task, project, or document and look for the
+          No pins yet - open a task, project, or document and look for the
           pin icon to add it here.
         </p>
       ) : (

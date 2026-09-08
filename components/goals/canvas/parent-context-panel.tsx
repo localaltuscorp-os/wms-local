@@ -272,7 +272,7 @@ function SlimFySummary(): React.JSX.Element {
         className="mt-4 border-t pt-3 text-[13px] italic leading-relaxed text-ink-muted"
         style={{ borderColor: "var(--color-hairline)", fontFamily: "var(--font-serif), Georgia, serif" }}
       >
-        At Year the objective is the canvas — drill a quarter on the right to
+        At Year the objective is the canvas - drill a quarter on the right to
         open its full context here.
       </p>
     </aside>
@@ -365,7 +365,7 @@ function WeekContext(): React.JSX.Element {
         </div>
         <p className="mt-2 text-[12px] font-semibold text-ink-subtle">
           Weighted over the {week.allRows.filter((r) => r.adopted).length} adopted goal
-          {week.allRows.filter((r) => r.adopted).length === 1 ? "" : "s"} this week — a projection; each
+          {week.allRows.filter((r) => r.adopted).length === 1 ? "" : "s"} this week - a projection; each
           goal keeps its own recorded %.
         </p>
       </section>
@@ -429,7 +429,7 @@ function RitualStateSection(props: {
           ? { label: "Approved by manager", tone: "#15803d", bg: "color-mix(in srgb, #15803d 10%, transparent)" }
           : committed
             ? { label: "Committed · awaiting Monday approval", tone: ACCENT_DEEP, bg: accentMix(10) }
-            : { label: "Not committed — freeze at the Saturday commit", tone: ACCENT_DEEP, bg: accentMix(10) };
+            : { label: "Not committed - freeze at the Saturday commit", tone: ACCENT_DEEP, bg: accentMix(10) };
 
   return (
     <section className="border-t px-5 py-3.5" style={{ borderColor: "var(--color-hairline)" }}>
@@ -547,7 +547,7 @@ function GoalPanel({ g }: { g: GoalDTO }): React.JSX.Element {
 
   const paceSentence =
     h.band === "done"
-      ? "Complete — nothing left to chase."
+      ? "Complete - nothing left to chase."
       : h.delta === 0
         ? `Exactly on the ${periodKeyShort(g.periodKey)} pace.`
         : h.delta > 0
@@ -682,7 +682,7 @@ function GoalPanel({ g }: { g: GoalDTO }): React.JSX.Element {
           </div>
         ) : (
           <p className="mt-2.5 text-[12px] font-semibold text-ink-subtle">
-            View-only — this objective is owned by {shell.viewedName}.
+            View-only - this objective is owned by {shell.viewedName}.
           </p>
         )}
       </section>
@@ -740,7 +740,7 @@ function GoalPanel({ g }: { g: GoalDTO }): React.JSX.Element {
               type="button"
               onClick={() => setTeamOpen((o) => !o)}
               aria-expanded={teamOpen}
-              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-bold text-ink-muted transition-colors hover:text-ink-strong"
+              className="inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-[11.5px] font-bold text-ink-muted transition-colors hover:text-ink-strong"
               style={{ borderColor: "var(--color-hairline-strong)" }}
             >
               <UserPlus size={13} strokeWidth={2.4} /> {team.length > 0 ? "Edit" : "Involve people"}

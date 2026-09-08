@@ -12,7 +12,7 @@ import { createShare, updateShare, deleteShare } from "@/app/(app)/accounts/shar
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CHIP = "rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]";
 
-function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>; }
+function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>; }
 
 function ValueSelect({ label, kind, options, value, onChange, placeholder }: { label: string; kind: string; options: LookupOption[]; value: string | null; onChange: (n: string | null) => void; placeholder?: string }) {
   const [opts, setOpts] = React.useState(options);
@@ -95,7 +95,7 @@ export function SharesRegister({ rows, entityOptions }: { rows: ShareRow[]; enti
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search — company, entity, folio" title="Local search — filters only the list on this page" aria-label="Local search — company, entity, folio — this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - company, entity, folio" title="Local search - filters only the list on this page" aria-label="Local search - company, entity, folio - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
         <select className={CHIP} value={fEntity} onChange={(e) => setFEntity(e.target.value)} aria-label="Filter by entity">
           <option value="">All Entities</option>
@@ -179,7 +179,7 @@ function EditorRow({ colSpan, draft, setDraft, entityOptions, onSave, onCancel, 
           <Field label="Folio / Demat" className="col-span-4 max-md:col-span-1"><input value={draft.folioDemat} onChange={(e) => set({ folioDemat: e.target.value })} className={INPUT} placeholder="Folio / demat no" aria-label="Folio / Demat" /></Field>
           <Field label="Qty" className="col-span-2 max-md:col-span-1"><input value={draft.qty} onChange={(e) => set({ qty: e.target.value })} className={INPUT} inputMode="decimal" placeholder="100" aria-label="Qty" /></Field>
           <Field label="Rate (₹)" className="col-span-2 max-md:col-span-1"><input value={draft.rate} onChange={(e) => set({ rate: e.target.value })} className={INPUT} inputMode="decimal" placeholder="1200" aria-label="Rate" /></Field>
-          <Field label="Value (₹) — auto if blank" className="col-span-2 max-md:col-span-1"><input value={draft.value} onChange={(e) => set({ value: e.target.value })} className={INPUT} inputMode="numeric" placeholder="qty × rate" aria-label="Value" /></Field>
+          <Field label="Value (₹) - auto if blank" className="col-span-2 max-md:col-span-1"><input value={draft.value} onChange={(e) => set({ value: e.target.value })} className={INPUT} inputMode="numeric" placeholder="qty × rate" aria-label="Value" /></Field>
           <Field label="Date" className="col-span-2 max-md:col-span-1"><input value={draft.txnDate} onChange={(e) => set({ txnDate: e.target.value })} className={INPUT} placeholder="dd/mm/yy" aria-label="Date" /></Field>
           <Field label="Notes" className="col-span-12 max-md:col-span-2"><textarea value={draft.notes} onChange={(e) => set({ notes: e.target.value })} className={INPUT + " min-h-[48px] resize-y"} placeholder="Notes" aria-label="Notes" /></Field>
         </div>

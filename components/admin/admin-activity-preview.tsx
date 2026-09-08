@@ -227,7 +227,7 @@ function PreviewInlineBody({ row, text }: { row: ActivityRow; text: string }) {
       <div className="mt-1 text-[14px] text-ink-soft">
         {text}
         {row.note ? (
-          <span className="text-ink-subtle"> — {row.note}</span>
+          <span className="text-ink-subtle"> - {row.note}</span>
         ) : null}
       </div>
     </>

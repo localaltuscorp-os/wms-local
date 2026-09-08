@@ -517,7 +517,7 @@ function FilterBar({
               role="tab"
               aria-selected={active}
               onClick={() => onFilters({ ...filters, owner: o.id })}
-              className={`rounded-full px-3 py-1.5 text-[12px] font-bold transition-all ${FOCUS_RING}`}
+              className={`rounded-pill px-3 py-1.5 text-[12px] font-bold transition-all ${FOCUS_RING}`}
               style={{
                 background: active
                   ? "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))"
@@ -562,7 +562,7 @@ function FilterBar({
           <button
             type="button"
             onClick={() => onFilters(DEFAULT_DASHBOARD_FILTERS)}
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-bold text-ink-subtle transition-colors hover:text-ink-strong ${FOCUS_RING}`}
+            className={`inline-flex items-center gap-1 rounded-pill border px-2 py-1 text-[11px] font-bold text-ink-subtle transition-colors hover:text-ink-strong ${FOCUS_RING}`}
             style={{ borderColor: "var(--color-hairline-strong)" }}
           >
             <X size={11} strokeWidth={2.6} /> Clear
@@ -599,7 +599,7 @@ function MultiPick({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-bold transition-all cursor-pointer ${FOCUS_RING}`}
+          className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-pill border px-3.5 text-[13px] font-bold transition-all cursor-pointer ${FOCUS_RING}`}
           style={
             active
               ? {
@@ -671,7 +671,7 @@ function SinglePick({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-bold transition-all cursor-pointer ${FOCUS_RING}`}
+          className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-pill border px-3.5 text-[13px] font-bold transition-all cursor-pointer ${FOCUS_RING}`}
           style={
             active
               ? {
@@ -741,7 +741,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-full border px-2.5 py-1 text-[12px] font-bold transition-colors cursor-pointer ${FOCUS_RING}`}
+      className={`rounded-pill border px-2.5 py-1 text-[12px] font-bold transition-colors cursor-pointer ${FOCUS_RING}`}
       style={{
         borderColor: active ? "var(--color-altus-red)" : "var(--color-hairline-strong)",
         background: active ? "color-mix(in srgb, var(--color-altus-red) 10%, transparent)" : "transparent",
@@ -1097,7 +1097,7 @@ function TrackingToPlanPanel({ model }: { model: Model }) {
                   )}
                 </>
               ) : (
-                <>All {total} goals are tracking to schedule — nothing behind pace.</>
+                <>All {total} goals are tracking to schedule - nothing behind pace.</>
               )}
             </p>
           </div>
@@ -1210,7 +1210,7 @@ function AtRiskList({ rows, total }: { rows: Row[]; total: number }) {
           accent={RED}
           trailing={
             <span
-              className="rounded-full px-2 py-0.5 text-[11.5px] font-black tabular-nums text-white"
+              className="rounded-pill px-2 py-0.5 text-[11.5px] font-black tabular-nums text-white"
               style={{ background: RED }}
             >
               {rows.length}
@@ -1359,7 +1359,7 @@ function CoveragePanel({
             {coverage.orphans.slice(0, 8).map((r) => (
               <li
                 key={r.g.id}
-                className="inline-flex max-w-[240px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-bold text-ink-soft"
+                className="inline-flex max-w-[240px] items-center gap-1.5 rounded-pill border px-2.5 py-1 text-[12px] font-bold text-ink-soft"
                 style={{ borderColor: "var(--color-hairline-strong)", background: "var(--color-surface-soft)" }}
                 title={r.g.title}
               >
@@ -1434,7 +1434,7 @@ function GroupedBreakdownPanel({
                   key={mt}
                   type="button"
                   onClick={() => setMetric(mt)}
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${FOCUS_RING}`}
+                  className={`rounded-pill px-2.5 py-1 text-[11px] font-bold transition-colors ${FOCUS_RING}`}
                   style={{
                     background: metric === mt ? "var(--color-altus-red-deep)" : "transparent",
                     color: metric === mt ? "#fff" : "var(--color-ink-subtle)",
@@ -1450,7 +1450,7 @@ function GroupedBreakdownPanel({
                   key={d}
                   type="button"
                   onClick={() => setDim(d)}
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${FOCUS_RING}`}
+                  className={`rounded-pill px-2.5 py-1 text-[11px] font-bold transition-colors ${FOCUS_RING}`}
                   style={{
                     background: dim === d ? "var(--color-altus-red-deep)" : "transparent",
                     color: dim === d ? "#fff" : "var(--color-ink-subtle)",
@@ -1563,12 +1563,12 @@ function AccountabilityCallout({ model }: { model: Model }) {
         subtitle="₹ and quantity targets across these goals"
       />
       <p className="text-[13px] font-semibold text-ink-subtle">
-        No ₹ or quantity targets set on these goals — attainment is tracked by self-rated / reviewed progress
+        No ₹ or quantity targets set on these goals - attainment is tracked by self-rated / reviewed progress
         only.
       </p>
       <div className="mt-3 flex items-center gap-2">
         <span
-          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-bold tabular-nums text-ink-soft"
+          className="inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-[12px] font-bold tabular-nums text-ink-soft"
           style={{ borderColor: "var(--color-hairline-strong)", background: "var(--color-surface-soft)" }}
         >
           <ShieldCheck size={13} strokeWidth={2.6} style={{ color: GREEN }} />
@@ -1627,7 +1627,7 @@ function ActualVsTargetPanel({ rows }: { rows: Row[] }) {
                 key={s}
                 type="button"
                 onClick={() => setScope(s)}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${FOCUS_RING}`}
+                className={`rounded-pill px-2.5 py-1 text-[11px] font-bold transition-colors ${FOCUS_RING}`}
                 style={{
                   background: scope === s ? "var(--color-altus-red-deep)" : "transparent",
                   color: scope === s ? "#fff" : "var(--color-ink-subtle)",
@@ -1729,7 +1729,7 @@ function AreaTypeMatrixPanel({ rows }: { rows: Row[] }) {
                           color: n > 0 ? "var(--color-altus-red-deep)" : "var(--color-ink-subtle)",
                         }}
                       >
-                        {n > 0 ? n : "—"}
+                        {n > 0 ? n : "-"}
                       </div>
                     </td>
                   );
@@ -1784,7 +1784,7 @@ function DrillPanel({ drill, rows, onClose }: { drill: Drill; rows: Row[]; onClo
         <div className="flex items-center gap-2">
           <span className="size-3 rounded-full" style={{ background: drill.color }} />
           <h3 className="text-[14px] font-bold text-ink-strong">{drill.label}</h3>
-          <span className="rounded-full px-2 py-0.5 text-[11.5px] font-black tabular-nums text-white" style={{ background: drill.color }}>
+          <span className="rounded-pill px-2 py-0.5 text-[11.5px] font-black tabular-nums text-white" style={{ background: drill.color }}>
             {rows.length}
           </span>
         </div>
@@ -1792,7 +1792,7 @@ function DrillPanel({ drill, rows, onClose }: { drill: Drill; rows: Row[]; onClo
           type="button"
           onClick={onClose}
           aria-label="Close drill-down"
-          className={`inline-flex items-center gap-1 rounded-full border border-hairline-strong px-2.5 py-1 text-[12px] font-bold text-ink-soft transition-colors hover:text-ink-strong cursor-pointer ${FOCUS_RING}`}
+          className={`inline-flex items-center gap-1 rounded-pill border border-hairline-strong px-2.5 py-1 text-[12px] font-bold text-ink-soft transition-colors hover:text-ink-strong cursor-pointer ${FOCUS_RING}`}
         >
           <X size={13} strokeWidth={2.6} /> Clear
         </button>

@@ -26,7 +26,7 @@ export async function NotificationBell() {
     /* not signed in / count unavailable — render a plain bell */
   }
 
-  const label = unread > 0 ? `Inbox — ${unread} unread` : "Inbox";
+  const label = unread > 0 ? `Inbox - ${unread} unread` : "Inbox";
   return (
     <Link
       href={"/inbox" as Route}
@@ -38,7 +38,7 @@ export async function NotificationBell() {
       {unread > 0 && (
         <span
           aria-hidden
-          className="absolute -right-0.5 -top-0.5 grid min-w-[17px] place-items-center rounded-full px-1 text-[10px] font-black leading-[17px] text-white"
+          className="absolute -right-0.5 -top-0.5 grid min-w-[17px] place-items-center rounded-pill px-1 text-[10px] font-black leading-[17px] text-white"
           style={{ background: "var(--color-altus-red)" }}
         >
           {unread > 99 ? "99+" : unread}

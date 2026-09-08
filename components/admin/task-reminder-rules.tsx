@@ -124,7 +124,7 @@ function RuleRow({
     [employees],
   );
 
-  const recipients = rule.recipientIds.map((id) => nameOf.get(id) ?? "—");
+  const recipients = rule.recipientIds.map((id) => nameOf.get(id) ?? "-");
   const scopeLabel =
     rule.scope === "all"
       ? "All employees"

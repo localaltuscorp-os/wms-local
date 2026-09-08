@@ -128,7 +128,7 @@ export function ObligationsClient({
                 className="text-[19px] font-black tabular-nums text-ink-strong"
                 style={{ fontFamily: "var(--font-display), system-ui" }}
               >
-                {kpi ? `${kpi.onTrack}/${kpi.total}` : "—"}
+                {kpi ? `${kpi.onTrack}/${kpi.total}` : "-"}
               </span>
             </div>
           </div>
@@ -145,7 +145,7 @@ export function ObligationsClient({
               </>
             ) : (
               <p className="mt-0.5 text-[14px] text-ink-muted" style={{ maxWidth: "28ch" }}>
-                Not the current financial year — showing history only.
+                Not the current financial year - showing history only.
               </p>
             )}
           </div>
@@ -258,13 +258,13 @@ export function ObligationsClient({
                           <span className="tabular-nums">target {o.targetCount}/mo</span>
                           {o.isCompulsory ? (
                             <span
-                              className="rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                              className="rounded-pill px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
                               style={{ background: `${ACCENT}1a`, color: ACCENT_DEEP }}
                             >
                               Compulsory
                             </span>
                           ) : (
-                            <span className="rounded-full bg-surface-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-soft">
+                            <span className="rounded-pill bg-surface-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-soft">
                               Optional
                             </span>
                           )}
@@ -370,7 +370,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <button
         type="button"
         onClick={onCreate}
-        className="brand-btn wg-btn mt-5 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[15px] font-bold text-white"
+        className="brand-btn wg-btn mt-5 inline-flex items-center gap-2 rounded-pill px-5 py-2.5 text-[15px] font-bold text-white"
         style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
       >
         <Plus size={17} strokeWidth={2.6} aria-hidden />

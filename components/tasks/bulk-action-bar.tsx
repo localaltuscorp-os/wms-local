@@ -110,7 +110,7 @@ export function BulkActionBar({
       fireToast({
         message:
           res.skipped > 0
-            ? `${verb} ${res.updated} task${res.updated === 1 ? "" : "s"} — ${res.skipped} skipped (no permission or no change).`
+            ? `${verb} ${res.updated} task${res.updated === 1 ? "" : "s"} - ${res.skipped} skipped (no permission or no change).`
             : `${verb} ${res.updated} task${res.updated === 1 ? "" : "s"}.`,
       });
       onClear();
@@ -159,7 +159,7 @@ export function BulkActionBar({
       <span className="inline-flex items-center gap-2 text-[14px] font-bold text-ink-strong">
         {pending && <Loader2 size={14} className="animate-spin text-altus-red" />}
         <span
-          className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full text-white tabular-nums text-[12.5px] font-black"
+          className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-pill text-white tabular-nums text-[12.5px] font-black"
           style={{
             background:
               "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",

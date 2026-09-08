@@ -39,7 +39,7 @@ export async function GET(request: Request): Promise<Response> {
   const month = raw && /^\d{4}-\d{2}$/.test(raw) ? raw : currentMonthIST();
 
   const rows = toPayrollRows(await listSalaryBreakup(month));
-  // Group the detail by paying-from entity, then by name — so each company's
+  // Group the detail by paying-from entity, then by name - so each company's
   // people sit together and get their own subtotal row.
   const grouped = [...rows].sort(
     (a, b) => a.entity.localeCompare(b.entity) || a.employee.localeCompare(b.employee),
@@ -52,7 +52,7 @@ export async function GET(request: Request): Promise<Response> {
   const lines: string[] = [];
 
   // ── Section 1: COMPANY BREAKDOWN (paying-from summary) ──
-  lines.push(csvCell("COMPANY BREAKDOWN — paying from"));
+  lines.push(csvCell("COMPANY BREAKDOWN - paying from"));
   lines.push(
     ["Company", "Headcount", "Payable", "PT", "After PT", "Advance", "Prev. Pending", "Final Payment", "Net Payable (incl. wave-off)"]
       .map(csvCell)
@@ -88,12 +88,12 @@ export async function GET(request: Request): Promise<Response> {
   );
   lines.push(blank);
 
-  // ── Section 2: DETAIL — one row per person, grouped by entity w/ subtotals ──
+  // ── Section 2: DETAIL - one row per person, grouped by entity w/ subtotals ──
   lines.push(PAYROLL_COLUMNS.map((c) => csvCell(c.label)).join(","));
 
   const subtotalRow = (c: (typeof companies)[number]): string =>
     PAYROLL_COLUMNS.map((col) => {
-      if (col.key === "employee") return csvCell(`${c.entity} — subtotal (${c.headcount})`);
+      if (col.key === "employee") return csvCell(`${c.entity} - subtotal (${c.headcount})`);
       if (col.key === "payableAfterLeave") return csvCell(c.payableAfterLeave.toFixed(2));
       if (col.key === "pt") return csvCell(c.pt.toFixed(2));
       if (col.key === "payableAfterPt") return csvCell(c.payableAfterPt.toFixed(2));
@@ -127,7 +127,7 @@ export async function GET(request: Request): Promise<Response> {
 
   // Grand totals row for the money columns (blank Sr).
   const totals = PAYROLL_COLUMNS.map((c) => {
-    if (c.key === "employee") return csvCell("TOTAL — ALL");
+    if (c.key === "employee") return csvCell("TOTAL - ALL");
     if (c.money) return csvCell(rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0).toFixed(2));
     return "";
   });

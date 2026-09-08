@@ -38,7 +38,7 @@ export function NotificationChannels({ current }: { current: Current }) {
       </legend>
       <Row
         label="Email"
-        sub="Delivered to your work email — covers every task event."
+        sub="Delivered to your work email - covers every task event."
         checked={email}
         onChange={(n) => flip("email", n)}
         pending={pending}

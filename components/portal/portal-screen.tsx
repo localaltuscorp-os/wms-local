@@ -147,14 +147,14 @@ export function PortalScreen({ firstName, fullName }: { firstName: string; fullN
         <div className="portal-fade mb-5 flex flex-wrap items-center gap-2">
           <Link
             href={"/hr" as Route}
-            className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold text-white transition-transform hover:-translate-x-0.5"
+            className="group inline-flex items-center gap-2 rounded-pill px-4 py-2 text-[13px] font-bold text-white transition-transform hover:-translate-x-0.5"
             style={{ background: "linear-gradient(120deg, #18181b 0%, #A80400 100%)", boxShadow: "0 12px 26px -12px rgba(168,4,0,0.55)" }}
           >
             <ArrowLeft size={15} strokeWidth={2.6} aria-hidden /> HR Home
           </Link>
           <Link
             href={"/hub" as Route}
-            className="inline-flex items-center gap-1.5 rounded-full border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-colors hover:border-altus-red"
+            className="inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-colors hover:border-altus-red"
           >
             Hub
           </Link>
@@ -175,7 +175,7 @@ export function PortalScreen({ firstName, fullName }: { firstName: string; fullN
             Hi {firstName} 👋
           </h1>
           <p className="mt-1.5 max-w-[70ch] text-[15px] font-medium text-ink-muted">
-            Everything that&apos;s yours, in one place — your letters &amp; correspondence, the policies
+            Everything that&apos;s yours, in one place - your letters &amp; correspondence, the policies
             you&apos;ve signed, your salary slips &amp; certificate, and the forms you submitted.
           </p>
           {pendingPolicies > 0 && (
@@ -240,7 +240,7 @@ export function PortalScreen({ firstName, fullName }: { firstName: string; fullN
 
             {/* Salary Slips */}
             <section className="portal-fade col-span-12">
-              <Card n={3} icon={<IndianRupee size={18} />} title="Salary Slips" sub="Your monthly take-home, with annual totals — filter by year and print any slip.">
+              <Card n={3} icon={<IndianRupee size={18} />} title="Salary Slips" sub="Your monthly take-home, with annual totals - filter by year and print any slip.">
                 {(pay?.rows.length ?? 0) === 0 ? (
                   <Empty text="No salary slips on file yet." />
                 ) : (
@@ -324,7 +324,7 @@ export function PortalScreen({ firstName, fullName }: { firstName: string; fullN
                           {visibleRows.map((r) => (
                             <tr key={r.id} className="border-t border-hairline text-[13.5px]">
                               <td className="px-3.5 py-2.5 font-bold text-ink-strong">{r.monthLabel}</td>
-                              <td className="px-3.5 py-2.5 text-ink-muted">{r.companyName ?? "—"}</td>
+                              <td className="px-3.5 py-2.5 text-ink-muted">{r.companyName ?? "-"}</td>
                               <td className="px-3.5 py-2.5 text-right font-bold tabular-nums text-ink-strong">{inr(r.net)}</td>
                               <td className="px-3.5 py-2.5 text-center">
                                 <span
@@ -402,7 +402,7 @@ export function PortalScreen({ firstName, fullName }: { firstName: string; fullN
 
             {/* Forms you submitted */}
             <section className="portal-fade col-span-12 lg:col-span-6">
-              <Card n={5} icon={<ClipboardList size={18} />} title="Forms You Submitted" sub="The details you filled during onboarding — view or update them.">
+              <Card n={5} icon={<ClipboardList size={18} />} title="Forms You Submitted" sub="The details you filled during onboarding - view or update them.">
                 <div className="rounded-xl border border-hairline bg-surface-soft p-4">
                   {onboarding?.exists ? (
                     <>
@@ -415,7 +415,7 @@ export function PortalScreen({ firstName, fullName }: { firstName: string; fullN
                           <p className="text-[12px] font-medium capitalize text-ink-muted">
                             {onboarding.status === "submitted"
                               ? `Submitted${onboarding.submittedAt ? " · " + formatDate(onboarding.submittedAt) : ""}`
-                              : "Draft — not yet submitted"}
+                              : "Draft - not yet submitted"}
                           </p>
                         </div>
                       </div>
@@ -506,7 +506,7 @@ function DocGroup({ label, docs, icon }: { label: string; docs: PortalDocument[]
                   <Download size={12} /> PDF
                 </a>
               ) : (
-                <span className="shrink-0 text-[11px] font-medium text-ink-subtle">—</span>
+                <span className="shrink-0 text-[11px] font-medium text-ink-subtle">-</span>
               )}
             </div>
           ))}
@@ -519,8 +519,8 @@ function DocGroup({ label, docs, icon }: { label: string; docs: PortalDocument[]
 function slipRows(slip: PortalPayslip, fullName: string): [string, string][] {
   return [
     ["Employee", fullName],
-    ["Designation", slip.designation ?? "—"],
-    ["Paying Entity", slip.companyName ?? "—"],
+    ["Designation", slip.designation ?? "-"],
+    ["Paying Entity", slip.companyName ?? "-"],
     ["Pay Month", `${slip.monthLabel}  (${slip.fy})`],
     ["Monthly CTC", inr(slip.monthlyCtc)],
     ["Net Take-Home", inr(slip.net)],
@@ -633,7 +633,7 @@ function OnboardingModal({ data, fullName, onClose }: { data: PortalOnboarding; 
           <p className="text-[12px] font-medium text-ink-muted">
             {data.status === "submitted"
               ? `Submitted${data.submittedAt ? " · " + formatDate(data.submittedAt) : ""}`
-              : "Draft — not yet submitted"} · read-only
+              : "Draft - not yet submitted"} · read-only
           </p>
         </div>
         <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
@@ -673,7 +673,7 @@ function OnboardingModal({ data, fullName, onClose }: { data: PortalOnboarding; 
                           <ul className="mt-0.5 flex flex-col gap-0.5">
                             {rows.map((row, i) => (
                               <li key={i} className="text-[13px] font-semibold text-ink-strong">
-                                {(f.sub ?? []).map((s) => String(row?.[s.key] ?? "").trim() || "—").join(" · ")}
+                                {(f.sub ?? []).map((s) => String(row?.[s.key] ?? "").trim() || "-").join(" · ")}
                               </li>
                             ))}
                           </ul>
@@ -687,7 +687,7 @@ function OnboardingModal({ data, fullName, onClose }: { data: PortalOnboarding; 
                   return (
                     <div key={f.key} className="min-w-0 border-b border-hairline pb-1.5">
                       <p className="text-[11px] font-medium text-ink-soft">{f.label}</p>
-                      <p className="truncate text-[13px] font-semibold text-ink-strong">{val || "—"}</p>
+                      <p className="truncate text-[13px] font-semibold text-ink-strong">{val || "-"}</p>
                     </div>
                   );
                 })}
@@ -760,7 +760,7 @@ function PrintYear({ fy, rows, total, fullName }: { fy: string; rows: PortalPays
           {rows.map((r) => (
             <tr key={r.id}>
               <td>{r.monthLabel}</td>
-              <td>{r.companyName ?? "—"}</td>
+              <td>{r.companyName ?? "-"}</td>
               <td style={{ textAlign: "right" }}>{inr(r.net)}</td>
               <td style={{ textAlign: "center" }}>{r.paid ? "Paid" : "Pending"}</td>
             </tr>
@@ -823,7 +823,7 @@ const CSS = `
   @keyframes portalFade { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
   @media (prefers-reduced-motion: reduce) { .portal-fade { animation: none !important; } }
 
-  /* Hidden print root — parked off-screen on screen, the ONLY thing printed. */
+  /* Hidden print root - parked off-screen on screen, the ONLY thing printed. */
   .portal-print-root { position: fixed; left: -100000px; top: 0; width: 794px; }
   .pp-doc { font-family: var(--font-display, Georgia, "Times New Roman", serif); color: #111114; }
   .pp-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; border-bottom: 2px solid #E10600; padding-bottom: 12px; margin-bottom: 20px; }
@@ -841,8 +841,8 @@ const CSS = `
 
   @media print {
     html, body { background: #fff; }
-    /* Hide the entire app (chrome, sidebar, portal main) — everything except the
-       body-portaled print root — so ONLY the slip / statement / certificate prints. */
+    /* Hide the entire app (chrome, sidebar, portal main) - everything except the
+       body-portaled print root - so ONLY the slip / statement / certificate prints. */
     body > *:not([data-portal-print]) { display: none !important; }
     .portal-print-root { position: static; left: auto; top: auto; width: auto; }
     .pp-doc { padding: 28px; }

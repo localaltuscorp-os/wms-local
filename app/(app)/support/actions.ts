@@ -118,9 +118,9 @@ function notifyBody(t: Pick<HrTicket, "id" | "ticketNo" | "category" | "confiden
 
 /** Title for a ticket notification — confidential tickets NEVER leak the subject. */
 function ticketTitle(t: Pick<HrTicket, "ticketNo" | "subject" | "confidential">, verb: string): string {
-  if (t.confidential) return `Confidential HR case #${t.ticketNo} — ${verb}`;
+  if (t.confidential) return `Confidential HR case #${t.ticketNo} - ${verb}`;
   const subj = t.subject.length > 48 ? `${t.subject.slice(0, 47)}…` : t.subject;
-  return `#${t.ticketNo} ${subj} — ${verb}`;
+  return `#${t.ticketNo} ${subj} - ${verb}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -454,7 +454,7 @@ export async function changeStatus(ticketId: string, status: string): Promise<Re
   // Reopen window: ≤7 days after close.
   if (next === "reopened" && ticket.closedAt) {
     const days = (Date.now() - ticket.closedAt.getTime()) / 86_400_000;
-    if (days > 7) return { ok: false, error: "This ticket was closed more than 7 days ago — raise a new one." };
+    if (days > 7) return { ok: false, error: "This ticket was closed more than 7 days ago - raise a new one." };
   }
 
   const now = new Date();

@@ -31,7 +31,7 @@ export function OfficeNetworkEditor({ currentIp, allowlist }: { currentIp: strin
     const res = await setOfficeIpAllowlist(list);
     setSaving(false);
     if (!res.ok) return fireToast({ message: res.error, type: "error" });
-    fireToast({ message: list.length ? "Office network saved — web punches now require it." : "Office-network gate turned off.", type: "success" });
+    fireToast({ message: list.length ? "Office network saved - web punches now require it." : "Office-network gate turned off.", type: "success" });
   }
 
   return (
@@ -42,7 +42,7 @@ export function OfficeNetworkEditor({ currentIp, allowlist }: { currentIp: strin
           <div className="text-[14px] font-bold text-ink-strong">Office network</div>
           <div className="text-[12.5px] text-ink-muted">
             {list.length === 0
-              ? "Gate off — web attendance is allowed from anywhere. Add your office IP to require it."
+              ? "Gate off - web attendance is allowed from anywhere. Add your office IP to require it."
               : `Web attendance must come from ${list.length} allowed network${list.length === 1 ? "" : "s"}.`}
           </div>
         </div>

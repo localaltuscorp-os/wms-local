@@ -1,8 +1,8 @@
 /**
- * <Letterhead> — the reusable, multi-entity Altus letterhead frame.
+ * <Letterhead> - the reusable, multi-entity Altus letterhead frame.
  *
  * Uses the CLEAN master letterhead strips (public/letterhead/altus-header.png,
- * 995×219, and altus-footer.png, 995×92) as crisp <img> layers — the angular
+ * 995×219, and altus-footer.png, 995×92) as crisp <img> layers - the angular
  * red ribbon + logo on top, the contact line + red address bar on the bottom.
  * The middle stays white for the letter/policy body.
  *
@@ -16,7 +16,7 @@
  *
  * ── Repeating on EVERY printed page ─────────────────────────────────────────
  * The body sits inside a single-column <table> whose <thead>/<tfoot> are EMPTY
- * spacer bands. Browsers repeat thead/tfoot — AND reserve their height — at the
+ * spacer bands. Browsers repeat thead/tfoot - AND reserve their height - at the
  * top/bottom of every printed page, so the body text can never slide under the
  * header/footer on page 2+. The artwork itself is `position:fixed` in print so
  * it paints into those reserved bands on each page. This is the bulletproof,
@@ -52,7 +52,7 @@ export interface LetterheadProps {
 
 export function Letterhead({ entity, children, className }: LetterheadProps) {
   const e = getEntity(entity ?? null);
-  // EVERY entity — Altus included — has its logo baked into its own header strip
+  // EVERY entity - Altus included - has its logo baked into its own header strip
   // (opaque JPEG, the SAME image the PDF renderer embeds), so the on-screen
   // letterhead and the exported/issued PDF match pixel-for-pixel. No white-cover
   // / overlay hack, and no divergence between preview and PDF.
@@ -62,7 +62,7 @@ export function Letterhead({ entity, children, className }: LetterheadProps) {
     <div className={`alh-page${className ? ` ${className}` : ""}`}>
       <style>{LETTERHEAD_CSS}</style>
 
-      {/* ── Header + footer artwork (crisp strips) — absolute on screen,
+      {/* ── Header + footer artwork (crisp strips) - absolute on screen,
              FIXED in print so they repeat on every printed page. ─────── */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="alh-art alh-art-top" src={headerArt} alt="" aria-hidden />
@@ -124,16 +124,16 @@ const LETTERHEAD_CSS = `
   width:794px;
   max-width:100%;
   min-height:1123px;
-  /* No page padding — the header/footer strips are pinned to these edges. */
+  /* No page padding - the header/footer strips are pinned to these edges. */
   margin:0 auto;padding:0;
   background:#ffffff;
   color:#111114;
   box-shadow:0 30px 80px -34px rgba(15,23,42,.35);
   overflow:hidden;
-  /* Flat document sheet — no curved/cut-off corners on the letter surface. */
+  /* Flat document sheet - no curved/cut-off corners on the letter surface. */
   border-radius:0;
 }
-/* Header + footer artwork — crisp, edge-to-edge, natural aspect. The explicit
+/* Header + footer artwork - crisp, edge-to-edge, natural aspect. The explicit
  * zero margin/padding + left:0/right:0 keep the strips flush even if a parent
  * ever introduces inline-image spacing or its own inset. */
 .alh-art{
@@ -142,7 +142,7 @@ const LETTERHEAD_CSS = `
 }
 .alh-art-top{top:0;}
 .alh-art-bottom{bottom:0;}
-/* Code-rendered HR contact line — sits just above the baked footer strip. */
+/* Code-rendered HR contact line - sits just above the baked footer strip. */
 .alh-footer-contact{
   position:absolute;left:0;right:0;bottom:78px;z-index:4;
   display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;
@@ -159,7 +159,7 @@ const LETTERHEAD_CSS = `
   height:122px;width:auto;max-width:126px;
   object-fit:contain;display:block;z-index:2;
 }
-/* Page frame — a single-column table whose head/foot reserve + repeat the
+/* Page frame - a single-column table whose head/foot reserve + repeat the
  * header/footer band on every printed page (see file header). */
 .alh-frame{position:relative;z-index:3;width:100%;border-collapse:collapse;table-layout:fixed;}
 .alh-frame td{padding:0;border:0;vertical-align:top;}
@@ -178,16 +178,16 @@ const LETTERHEAD_CSS = `
 .alh-body p{margin:0 0 14px;text-align:left;}
 /* DELIBERATELY no ul/ol rule here. Every list that reaches this frame is either
  * a component's own bullet (.alw-ul in letter-editor.tsx, .apd-ul in
- * policy-document.tsx — both list-style:none plus a red ::before dot) or the
+ * policy-document.tsx - both list-style:none plus a red ::before dot) or the
  * rich editor's content, which carries its own markers via .rle-prose /
  * .alw-rich-preview. Setting .alh-body ul to disc here would outrank those
  * single-class rules (0,1,1 beats 0,1,0) and print a disc NEXT TO every red
  * dot. If a plain list ever needs markers in this frame, scope it to the
  * surface that owns the content, not to the shared letterhead. */
-/* Print / PDF — pin header + footer to every printed page; the thead/tfoot
+/* Print / PDF - pin header + footer to every printed page; the thead/tfoot
  * spacers keep the body from ever overlapping them. */
 @media print{
-  /* Zero page margins — otherwise the browser's own print margin pushes the
+  /* Zero page margins - otherwise the browser's own print margin pushes the
      header banner down and insets both strips from the paper edge. */
   @page{size:A4 portrait;margin:0;}
   html,body{
@@ -197,19 +197,19 @@ const LETTERHEAD_CSS = `
   /* ── Print ONLY the document ────────────────────────────────────────────
      window.print() on a letter page prints the whole app shell too: the left
      rail, the sticky top bar and the module dock all render, and PageShell's
-     pt-8 + fluid gutter inset the sheet — which is what left the white band
+     pt-8 + fluid gutter inset the sheet - which is what left the white band
      above the red banner and the gaps down both sides. Hide the chrome (the
      same selector set focus-mode collapses in globals.css) and flatten every
      wrapper BETWEEN <body> and the sheet, so the page box starts at the
      letterhead. Scoped with :has(.alh-page) so only letterhead documents
-     (letters + HR policies) print this way — every other page is untouched. */
+     (letters + HR policies) print this way - every other page is untouched. */
   body:has(.alh-page) .sidebar-rail,
   body:has(.alh-page) aside.hr-rail,
   body:has(.alh-page) .app-topbar,
   body:has(.alh-page) header.header-light,
   body:has(.alh-page) .module-footer{display:none !important;}
-  /* :has(.alh-page) matches every ANCESTOR of the sheet — html, body, the
-     chrome columns, PageShell, .alw-wrap, .alw-stage — and nothing inside it,
+  /* :has(.alh-page) matches every ANCESTOR of the sheet - html, body, the
+     chrome columns, PageShell, .alw-wrap, .alw-stage - and nothing inside it,
      so one rule zeroes the whole chain without naming each anonymous wrapper. */
   :has(.alh-page){
     margin:0 !important;padding:0 !important;

@@ -181,7 +181,7 @@ function ClientBulkActions({
               Delete {selected.length} client{selected.length === 1 ? "" : "s"}
             </Dialog.Title>
             <Dialog.Description className="text-[15px] text-[#64748B] mb-4">
-              Remove the selected clients from the Client Name picker. This can&rsquo;t be undone —
+              Remove the selected clients from the Client Name picker. This can&rsquo;t be undone -
               tasks already filed under these names keep their label.
             </Dialog.Description>
             <div className="flex justify-end gap-2 pt-2">
@@ -273,7 +273,7 @@ function ClientRowActions({
 function StatusChip({ active }: { active: boolean }) {
   return active ? (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+      className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-semibold"
       style={{ background: "var(--color-green-bg)", color: "var(--color-green-deep)" }}
     >
       <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-green)" }} />
@@ -281,7 +281,7 @@ function StatusChip({ active }: { active: boolean }) {
     </span>
   ) : (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+      className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-semibold"
       style={{ background: "rgba(15, 23, 42, 0.05)", color: "var(--color-ink-subtle)" }}
     >
       <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-ink-subtle)" }} />
@@ -446,7 +446,7 @@ function DeleteClientDialog({
                   {client.taskCount} {client.taskCount === 1 ? "task is" : "tasks are"} filed
                   under this name
                 </span>{" "}
-                — they keep the label, it just won&rsquo;t be selectable anymore.
+                - they keep the label, it just won&rsquo;t be selectable anymore.
               </>
             )}
           </Dialog.Description>

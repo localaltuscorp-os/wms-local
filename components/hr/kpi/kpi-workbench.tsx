@@ -34,7 +34,7 @@ import { quarterWindow } from "@/lib/hr/kpi/quarter";
 /** Options for the searchable KPI picker: "Manual entry" + every dictionary KPI. */
 const CATALOG_OPTIONS = [
   { id: "__manual__", name: "Manual entry (type below)" },
-  ...KPI_CATALOG.map((e) => ({ id: e.key, name: `${e.owner} — ${e.name}` })),
+  ...KPI_CATALOG.map((e) => ({ id: e.key, name: `${e.owner} - ${e.name}` })),
 ];
 import {
   loadKpiAssignments,
@@ -142,16 +142,6 @@ export function KpiWorkbench({
 
   return (
     <div className="kpi-in">
-      {/* Intro — just the centered brand badge (the top bar already titles the page) */}
-      <div className="mb-6 flex justify-center">
-        <span
-          className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[10.5px] font-bold uppercase tracking-[0.2em] text-white"
-          style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
-        >
-          <Target size={12} strokeWidth={2.6} /> Altus · Performance
-        </span>
-      </div>
-
       {/* Controls — a compact toolbar card (employee squeezed, year-filtered quarter) */}
       <div className="mb-6 flex flex-wrap items-end gap-3 rounded-2xl border border-hairline bg-white p-3.5 shadow-[0_10px_30px_-24px_rgba(24,24,27,0.5)]">
         <div className="min-w-[240px] max-w-[440px] flex-1">
@@ -190,7 +180,7 @@ export function KpiWorkbench({
       ) : rows.length === 0 ? (
         <EmptyState
           title={`No KPIs for ${employee?.name ?? "this employee"} in ${quarter}`}
-          sub="Assign the first KPI for this quarter — pick from the appraisal dictionary or enter one manually."
+          sub="Assign the first KPI for this quarter - pick from the appraisal dictionary or enter one manually."
         />
       ) : (
         <>
@@ -309,7 +299,7 @@ function EmployeePicker({
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Local search — people" title="Local search — filters only the list on this page" aria-label="Local search — people — this page only"
+              placeholder="Local search - people" title="Local search - filters only the list on this page" aria-label="Local search - people - this page only"
               className="w-full bg-transparent text-[13.5px] font-medium outline-none placeholder:text-ink-soft"
             />
           </div>
@@ -327,7 +317,7 @@ function EmployeePicker({
                   <span className="min-w-0">
                     <span className="block truncate text-[14px] font-semibold text-ink-strong">{r.name}</span>
                     <span className="block truncate text-[12px] font-medium text-ink-soft">
-                      {[r.designation, r.department].filter(Boolean).join(" · ") || "—"}
+                      {[r.designation, r.department].filter(Boolean).join(" · ") || "-"}
                     </span>
                   </span>
                   {r.id === value && <Check size={16} style={{ color: RED }} />}
@@ -423,7 +413,7 @@ function AssignmentCard({
             <h3 className="text-[16px] font-extrabold tracking-tight text-ink-strong">{row.kpiName}</h3>
             {isDict ? (
               <span
-                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider"
+                className="inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider"
                 style={{ background: "color-mix(in srgb, #f59e0b 16%, white)", color: "#b45309" }}
               >
                 <Sparkles size={10} /> From appraisal
@@ -431,16 +421,16 @@ function AssignmentCard({
             ) : (
               <>
                 {row.kpiKey ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.04] px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-ink-soft">
+                  <span className="inline-flex items-center gap-1 rounded-pill bg-black/[0.04] px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-ink-soft">
                     <Sparkles size={10} /> Dictionary
                   </span>
                 ) : (
-                  <span className="inline-flex items-center rounded-full bg-black/[0.04] px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-ink-soft">
+                  <span className="inline-flex items-center rounded-pill bg-black/[0.04] px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-ink-soft">
                     Manual
                   </span>
                 )}
                 <span
-                  className="inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider"
+                  className="inline-flex items-center rounded-pill px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider"
                   style={
                     inactive
                       ? { background: "color-mix(in srgb, #71717a 14%, white)", color: "#52525b" }
@@ -454,15 +444,15 @@ function AssignmentCard({
           </div>
 
           <dl className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-x-4 gap-y-2.5">
-            <Field label="Category" value={row.category || "—"} />
+            <Field label="Category" value={row.category || "-"} />
             <Field label="Frequency" value={KPI_FREQUENCY_LABELS[row.frequency as KpiFrequency] ?? row.frequency} />
             <Field label="Weightage" value={`${row.weightage}%`} />
             <Field label="Effective" value={row.effectiveQuarter} />
-            <Field label="Target" value={row.targetValue || "—"} />
-            <Field label="Current" value={row.currentValue?.trim() || "—"} />
+            <Field label="Target" value={row.targetValue || "-"} />
+            <Field label="Current" value={row.currentValue?.trim() || "-"} />
             <Field
               label="Achievement"
-              value={pct === null ? "—" : `${pct}%`}
+              value={pct === null ? "-" : `${pct}%`}
               tone={pct === null ? undefined : pct >= 100 ? "green" : pct >= 60 ? "amber" : "red"}
             />
           </dl>
@@ -480,7 +470,7 @@ function AssignmentCard({
               <Pencil size={14} /> Adopt &amp; edit
             </button>
             <span className="max-w-[190px] text-right text-[11px] font-medium leading-snug text-ink-subtle max-md:max-w-none">
-              Set in the appraisal — adopt to manage &amp; track it here.
+              Set in the appraisal - adopt to manage &amp; track it here.
             </span>
           </div>
         ) : (
@@ -800,7 +790,7 @@ function EditorModal({
             </FieldWrap>
           </div>
 
-          <FieldWrap label="Current value (optional — may be computed later)">
+          <FieldWrap label="Current value (optional - may be computed later)">
             <input
               value={currentValue}
               onChange={(e) => setCurrentValue(e.target.value)}
@@ -809,7 +799,7 @@ function EditorModal({
             />
           </FieldWrap>
 
-          <FieldWrap label="Reason for this change (optional — recorded in history & email)">
+          <FieldWrap label="Reason for this change (optional - recorded in history & email)">
             <input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -918,7 +908,7 @@ function HistoryDrawer({
                   />
                   <div className="flex items-center gap-2">
                     <span
-                      className="inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white"
+                      className="inline-flex items-center rounded-pill px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white"
                       style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
                     >
                       {KPI_CHANGE_TYPE_LABELS[h.changeType as keyof typeof KPI_CHANGE_TYPE_LABELS] ?? h.changeType}
@@ -963,7 +953,7 @@ function HistoryDiff({ previous, updated }: { previous: unknown; updated: unknow
   if (!next) return null;
 
   const fmt = (v: unknown) =>
-    v === true ? "Yes" : v === false ? "No" : v === null || v === undefined || v === "" ? "—" : String(v);
+    v === true ? "Yes" : v === false ? "No" : v === null || v === undefined || v === "" ? "-" : String(v);
 
   const changed = DIFF_FIELDS.filter(([k]) => !prev || prev[k] !== next[k]);
   if (changed.length === 0) return null;

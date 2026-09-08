@@ -160,7 +160,7 @@ function firstError(err: z.ZodError): string {
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
 
 const MIGRATION_HINT =
-  "Collaboration isn't provisioned yet (migration 0142 pending) — ask an admin to apply it.";
+  "Collaboration isn't provisioned yet (migration 0142 pending) - ask an admin to apply it.";
 
 interface NodeCore {
   id: string;

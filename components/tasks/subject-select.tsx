@@ -317,7 +317,7 @@ export function SubjectSelect({
                 setHi(0);
               }}
               onKeyDown={searchKeyDown}
-              placeholder="Local search — subjects" title="Local search — filters only the list on this page" aria-label="Local search — subjects — this page only"
+              placeholder="Local search - subjects" title="Local search - filters only the list on this page" aria-label="Local search - subjects - this page only"
               role="combobox"
               aria-expanded={open}
               aria-controls={listId}

@@ -111,7 +111,7 @@ export function EmployeeRowActions({
         const d = res.deleted;
         fireToast({
           message: d
-            ? `Deleted ${employee.name} — ${d.tasks} tasks, ${d.taskEvents} events.`
+            ? `Deleted ${employee.name} - ${d.tasks} tasks, ${d.taskEvents} events.`
             : `Deleted ${employee.name}.`,
         });
         setDeleteOpen(false);
@@ -142,7 +142,7 @@ export function EmployeeRowActions({
       try {
         await navigator.clipboard.writeText(res.link);
         fireToast({
-          message: `Invite link for ${employee.name} copied — paste anywhere to share. Expires in 1h.`,
+          message: `Invite link for ${employee.name} copied - paste anywhere to share. Expires in 1h.`,
         });
       } catch {
         // Clipboard write blocked (no permissions / insecure context).

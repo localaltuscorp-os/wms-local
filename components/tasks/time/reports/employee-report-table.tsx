@@ -46,16 +46,16 @@ export function EmployeeReportTable({ rows }: { rows: EmployeeTimeRow[] }) {
               className="hover:bg-surface-soft transition-colors"
             >
               <td className={TD + " font-bold"}>{r.name}</td>
-              <td className={TD + " text-ink-muted font-semibold"}>{r.department ?? "—"}</td>
+              <td className={TD + " text-ink-muted font-semibold"}>{r.department ?? "-"}</td>
               <td className={TD_NUM + " font-semibold"}>{r.taskCount}</td>
               <td className={TD_NUM + " font-semibold"}>{r.tasksCompleted}</td>
               <td className={TD_NUM + " font-bold"}>{formatMinutesLabel(r.totalActiveSeconds)}</td>
               <td className={TD_NUM}>{formatMinutesLabel(r.avgPerTaskSeconds)}</td>
               <td className={TD_NUM}>
-                {r.avgPerGoalSeconds > 0 ? formatMinutesLabel(r.avgPerGoalSeconds) : "—"}
+                {r.avgPerGoalSeconds > 0 ? formatMinutesLabel(r.avgPerGoalSeconds) : "-"}
               </td>
               <td className={TD_NUM}>
-                {r.avgRevisionSeconds > 0 ? formatMinutesLabel(r.avgRevisionSeconds) : "—"}
+                {r.avgRevisionSeconds > 0 ? formatMinutesLabel(r.avgRevisionSeconds) : "-"}
               </td>
               <td className={TD_NUM + " font-bold"} style={{ color: "var(--color-emerald-600, #059669)" }}>
                 {pct(r.approvalRate)}

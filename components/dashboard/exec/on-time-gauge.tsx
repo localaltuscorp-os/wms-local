@@ -80,9 +80,9 @@ export function OnTimeGauge({ data }: { data: DoneOnTime }) {
       ],
       rows: [
         ["On time", String(active.onTime), `${rate}%`],
-        ["Late", String(active.late), active.dated > 0 ? `${100 - rate}%` : "—"],
+        ["Late", String(active.late), active.dated > 0 ? `${100 - rate}%` : "-"],
         ["Dated completions", String(active.dated), "100%"],
-        ["Undated (no due date)", String(active.undated), "—"],
+        ["Undated (no due date)", String(active.undated), "-"],
       ],
     };
   }, [active]);
@@ -103,7 +103,7 @@ export function OnTimeGauge({ data }: { data: DoneOnTime }) {
           </span>
         }
         title="Delivered on time"
-        subtitle="Completed tasks delivered on or before the due date — pick a card to break it down."
+        subtitle="Completed tasks delivered on or before the due date - pick a card to break it down."
         /* Collapse only. The Original/Revised segmented toggle that used to sit
            to its left is gone — see BASIS above. */
         actions={

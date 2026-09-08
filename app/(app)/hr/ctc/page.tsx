@@ -4,6 +4,7 @@ import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { PageShell } from "@/components/layout/page-shell";
 import { loadCtcRoster } from "@/app/(app)/hr/ctc/actions";
 import { CtcWorkbench } from "@/components/hr/ctc/ctc-workbench";
+import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -20,15 +21,9 @@ export default async function CtcPage() {
   const roster = await loadCtcRoster().catch(() => []);
 
   return (
-    <div className="min-h-dvh bg-[#faf9fb]">
-      <header className="sticky sticky-below-topbar z-30 grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-hairline bg-white/90 px-6 py-3 backdrop-blur max-md:px-4">
-        <div className="justify-self-start">
-        </div>
-        <span className="justify-self-center truncate text-[15px] font-extrabold tracking-tight text-ink-strong">
-          CTC / Compensation Workbench
-        </span>
-        <span aria-hidden className="justify-self-end" />
-      </header>
+    <div className="min-h-full bg-[#faf9fb]">
+      <HrTitleBar
+      />
 
       <PageShell width="standard" py={false} className="pt-8 pb-24">
         <CtcWorkbench roster={roster} isAdmin={isAdmin} />

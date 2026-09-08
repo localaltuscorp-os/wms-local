@@ -91,7 +91,7 @@ export default async function MonthlyChecklistPage({ searchParams }: PageProps) 
           {MONTHLY_CHECK_STATUSES.map((s) => {
             const t = monthlyStatusTone(s);
             return (
-              <span key={s} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: t.bg, color: t.fg }}>
+              <span key={s} className="inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] font-bold" style={{ background: t.bg, color: t.fg }}>
                 <span className="inline-block size-[6px] rounded-full" style={{ background: t.dot }} />
                 {s}
               </span>

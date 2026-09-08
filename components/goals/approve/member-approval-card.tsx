@@ -170,7 +170,7 @@ function Column({
           type="button"
           disabled={pending || !canApprove}
           onClick={() => onApprove(!approved)}
-          className={`wg-btn inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-bold hover:brightness-110 disabled:opacity-50 ${FOCUS_RING}`}
+          className={`wg-btn inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[13px] font-bold hover:brightness-110 disabled:opacity-50 ${FOCUS_RING}`}
           style={{
             background: approved
               ? "linear-gradient(135deg, var(--color-slate), var(--color-slate-deep))"
@@ -212,7 +212,7 @@ function ReviewRow({
           {goal.subject || goal.targetDone || <span className="text-ink-muted">Untitled goal</span>}
         </p>
         <span
-          className="shrink-0 rounded-full px-2 py-0.5 text-[12px] font-black tabular-nums text-white"
+          className="shrink-0 rounded-pill px-2 py-0.5 text-[12px] font-black tabular-nums text-white"
           style={{ background: scoreColor(eff) }}
         >
           {eff}%
@@ -318,7 +318,7 @@ function CommitRow({
               onClick={() =>
                 run(() => requireGoalChange({ weeklyGoalId: goal.id, reviewNotes: note || null }), "Sent back for changes.")
               }
-              className={`wg-btn inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold text-white hover:brightness-110 disabled:opacity-50 ${FOCUS_RING}`}
+              className={`wg-btn inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12.5px] font-bold text-white hover:brightness-110 disabled:opacity-50 ${FOCUS_RING}`}
               style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
             >
               <MessageSquareWarning size={13} /> Require change
@@ -327,7 +327,7 @@ function CommitRow({
               type="button"
               disabled={pending}
               onClick={() => setChanging(false)}
-              className={`bg-surface-card wg-btn rounded-full border border-hairline px-3 py-1.5 text-[12.5px] font-bold text-ink-soft hover:text-ink-strong ${FOCUS_RING}`}
+              className={`bg-surface-card wg-btn rounded-pill border border-hairline px-3 py-1.5 text-[12.5px] font-bold text-ink-soft hover:text-ink-strong ${FOCUS_RING}`}
             >
               Cancel
             </button>
@@ -432,13 +432,13 @@ function NotesField({
 
 function WeekChip({ label, done, empty }: { label: string; done: boolean; empty: boolean }) {
   const tone = empty
-    ? { bg: "var(--color-surface-soft)", fg: "var(--color-ink-muted)", txt: "—" }
+    ? { bg: "var(--color-surface-soft)", fg: "var(--color-ink-muted)", txt: "-" }
     : done
       ? { bg: "color-mix(in srgb, var(--color-green) 16%, transparent)", fg: "var(--color-green-deep)", txt: "done" }
       : { bg: `color-mix(in srgb, ${ACCENT} 14%, transparent)`, fg: ACCENT_DEEP, txt: "pending" };
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.04em]"
+      className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.04em]"
       style={{ background: tone.bg, color: tone.fg }}
     >
       {label}: {tone.txt}
