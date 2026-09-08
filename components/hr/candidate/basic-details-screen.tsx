@@ -289,6 +289,6 @@ export function BasicDetailsScreen({
           </table>
         </div>
       )}
-    </div>
+    </>
   );
 }

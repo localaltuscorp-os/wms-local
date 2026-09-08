@@ -98,4 +98,11 @@ export const DEV_BYPASS_EMPLOYEE: Employee = {
   weeklyTargetMinutes: null,
   probationEnd: null,
   religion: null,
+  // Added when this merged onto main beside Shreya's and Vinal's schema
+  // work - `as Employee` is a cast, not a check, so a column missing here
+  // is a TS error rather than a silent undefined at runtime. Keep this
+  // object exhaustive against db/schema.ts's employees table.
+  performanceCriteria: null,
+  kra: null,
+  phone: null,
 } as Employee;
