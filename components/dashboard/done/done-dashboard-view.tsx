@@ -17,6 +17,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { CardGrid } from "@/components/layout/card-grid";
 import { formatDate } from "@/lib/format";
 import type { DoneDashboardData, DonePersonRow } from "@/lib/queries/done-dashboard";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /**
  * Statuses the drill-through carries. Matches the query's definition of
@@ -129,6 +130,7 @@ export function DoneDashboardView({
           <h2 className="text-[15px] font-black uppercase tracking-[0.08em] text-ink-strong">
             Done by person
           </h2>
+          <CollapsibleSearch scope="name or department" className="size-9">
           <div className="relative flex h-9 w-[240px] items-center rounded-lg border border-hairline bg-surface-card pl-2.5 pr-1.5 max-md:w-full">
             <Search className="size-3.5 shrink-0 text-ink-subtle" />
             <input
@@ -152,6 +154,7 @@ export function DoneDashboardView({
               </button>
             )}
           </div>
+          </CollapsibleSearch>
         </div>
 
         <div

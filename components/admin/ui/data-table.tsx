@@ -3,6 +3,7 @@
 import { useId, useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 export interface DataTableColumn<T> {
   /** Stable key — also the sort key. */
@@ -245,6 +246,7 @@ export function DataTable<T>({
       {hasToolbar ? (
         <div className="admin-toolbar">
           {searchText ? (
+            <CollapsibleSearch scope={searchPlaceholder.replace(/^search\s+/i, "").replace(/[.…\s]+$/, "")} className="size-9">
             <div className="relative min-w-[200px] flex-1 max-w-sm">
               <Search
                 size={16}
@@ -262,6 +264,7 @@ export function DataTable<T>({
                 className="admin-search"
               />
             </div>
+            </CollapsibleSearch>
           ) : null}
 
           {filters?.map((f, i) => (

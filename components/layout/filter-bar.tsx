@@ -28,6 +28,7 @@ import { StatusFilter } from "./filters/status-filter";
 import { SubjectFilter } from "./filters/subject-filter";
 import { ClientFilter } from "./filters/client-filter";
 import { FilterPill, summarizeSelection } from "./filters/filter-pill";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 type AssigneeMode = "default" | "all" | "specific";
 
@@ -659,6 +660,11 @@ function SectionSearchBox({ placeholder }: { placeholder: string }) {
   }
 
   return (
+    /* Rests as its magnifier until clicked. This bar is already a ribbon of
+       eight filter pills before the search; the box was 150px of permanent
+       width for something empty most of the time. size-[30px] matches the
+       ribbon's control height exactly. */
+    <CollapsibleSearch scope={placeholder.replace(/^search\s+/i, "").replace(/[.…\s]+$/, "")} className="size-[30px]">
     <div className="relative shrink-0">
       <Search
         size={14}
@@ -691,6 +697,7 @@ function SectionSearchBox({ placeholder }: { placeholder: string }) {
         </button>
       )}
     </div>
+    </CollapsibleSearch>
   );
 }
 

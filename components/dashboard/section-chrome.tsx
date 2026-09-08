@@ -7,6 +7,7 @@ import {
   DashboardSectionHeader,
   type DashboardSectionHeaderProps,
 } from "./section-header";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /**
  * Shared chrome for the analytics dashboard's panels — ONE collapse control and
@@ -385,6 +386,13 @@ export const SECTION_HEADER_GAP = "mb-6";
  * h-9 matches the Department trigger and the pager buttons next to it — the
  * three controls have to agree on height or the header row reads as ragged.
  */
+/** "Search employee..." -> "employee". The placeholder already names what the
+ *  box filters, so the collapsed button's tooltip reuses it rather than adding a
+ *  second prop all ten callers would have to pass. */
+function searchScope(placeholder: string): string {
+  return placeholder.replace(/^search\s+/i, "").replace(/[.…\s]+$/, "") || "this section";
+}
+
 export function SectionSearchBox({
   query,
   onQuery,
@@ -421,6 +429,12 @@ export function SectionSearchBox({
   }
 
   return (
+    /* Collapsed to its magnifier until clicked. The h-8/w-36 compromise below
+       existed because a header carrying two dispatch buttons, a pager and a
+       transpose toggle cannot spare 220px for a box that is empty most of the
+       time; resting as an icon settles that properly. The widening below still
+       governs the OPEN box. size-8 matches this header's 32px control row. */
+    <CollapsibleSearch scope={searchScope(placeholder)} className="size-8">
     <div
       /* h-8 and w-36, widening to w-48 while it has focus — a header now
          carrying two dispatch buttons, a pager and a transpose toggle cannot
@@ -461,5 +475,6 @@ export function SectionSearchBox({
         </button>
       )}
     </div>
+    </CollapsibleSearch>
   );
 }

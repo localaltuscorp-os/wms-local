@@ -91,6 +91,7 @@ import {
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { Route } from "next";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /** Sources that de-dupe against the plan (flip to "planned" once pulled). */
 const DEDUPE_KINDS: SourceKind[] = ["weekly", "task", "unfinished"];
@@ -506,6 +507,16 @@ export function PlanBoard({ target, payload, dashboardHref, quickDock }: Props) 
     [commitAdd, firstDay?.offset],
   );
 
+  /** The Today / Tomorrow / Day after chooser on a source card. Same optimistic
+   *  add, rollback and rail-removal as a drag — `commitAdd` is the one path, so
+   *  the button and the drag cannot drift apart. The offset is absolute (days
+   *  from today), which is what the server files against. */
+  const onAddSourceOn = React.useCallback(
+    (item: SourceItem, offset: number) =>
+      void commitAdd(item.kind, item.id, item.title, item.subtitle, offset),
+    [commitAdd],
+  );
+
   /**
    * COMPLETE — the only path that sets `done`. Explicit, labelled, and never
    * fired by a drag (rule 10). Uses the SAME `setItemProgress` the close-out
@@ -881,7 +892,6 @@ export function PlanBoard({ target, payload, dashboardHref, quickDock }: Props) 
       tabs={payload.tabs}
       windowStart={windowStart}
       windowOffsets={days.map((d) => d.offset)}
-      stripDays={payload.stripDays}
       maxWindowStart={maxWindowStart}
       minWindowStart={minWindowStart}
       windowDays={windowDays}
@@ -1003,6 +1013,7 @@ export function PlanBoard({ target, payload, dashboardHref, quickDock }: Props) 
               today={todayYmd}
               addDayLabel={firstDay?.offset === 0 ? "Today" : (firstDay?.date ?? "Today")}
               onAdd={onAddSource}
+              onAddOn={onAddSourceOn}
               onAbandon={onAbandon}
               onCollapse={() => setRailOpen(false)}
               matches={matches}
@@ -1144,6 +1155,7 @@ function PlannerBar({
 
       {/* SEARCH — filters the columns AND the pull rail as you type. Sits after
           the reporting line and before the day's own buttons (Sir). */}
+      <CollapsibleSearch scope="tasks" className="relative -top-[3px] size-9">
       <label className="relative -top-[3px] inline-flex min-w-0 shrink items-center">
         <Search size={14} className="pointer-events-none absolute left-2.5 shrink-0 text-ink-muted" aria-hidden />
         <input
@@ -1164,6 +1176,7 @@ function PlannerBar({
           </button>
         ) : null}
       </label>
+      </CollapsibleSearch>
 
       {/* The header's right-hand cluster. It became a COLUMN when the Dashboard
           button arrived: the existing row — Recycle Bin · C · Start/Review — is
@@ -1334,7 +1347,6 @@ function DaySwitcher({
   tabs,
   windowStart,
   windowOffsets,
-  stripDays,
   maxWindowStart,
   minWindowStart,
   windowDays,
@@ -1349,8 +1361,6 @@ function DaySwitcher({
   tabs: PlanDayTab[];
   windowStart: number;
   windowOffsets: number[];
-  /** How many days one page of the strip covers — ‹ / › move by this. */
-  stripDays: number;
   maxWindowStart: number;
   /** Negative — the strip pages four weeks back as well as forward. */
   minWindowStart: number;
@@ -1366,9 +1376,18 @@ function DaySwitcher({
   onSpan: (days: number) => void;
   onToggleRail: () => void;
 }) {
-  // The strip starts on the board's leftmost day, so paging it a week at a time
-  // is just moving that day — which is what the arrows do (Sir). Today snaps the
-  // whole thing home from wherever you've wandered to.
+  /* ONE DAY PER CLICK, not one week.
+
+     These arrows used to page by `stripDays` -- a whole week -- which made them
+     the one control on the board that could not do the ordinary thing: move to
+     tomorrow, or back to yesterday. Getting to Wednesday meant finding and
+     clicking its tab, and the arrows only ever jumped clean over the week the
+     tabs were showing.
+
+     Nothing is lost by the change. The tabs are still one click to ANY day in
+     the strip, which is the fast way across a week, and "Today" still snaps
+     home from wherever you have wandered to -- so the week-sized jump the
+     arrows used to make is the one motion the strip already did better. */
   const canPrev = windowStart > minWindowStart;
   const canNext = windowStart < maxWindowStart;
   const page = (delta: number) =>
@@ -1377,9 +1396,9 @@ function DaySwitcher({
   return (
     <div className="mb-2.5 flex items-stretch gap-1.5">
       <StripNavButton
-        label="Previous week"
+        label="Previous day"
         disabled={!canPrev}
-        onClick={() => page(-stripDays)}
+        onClick={() => page(-1)}
         icon={<ChevronLeft size={15} />}
       />
 
@@ -1402,9 +1421,9 @@ function DaySwitcher({
       </div>
 
       <StripNavButton
-        label="Next week"
+        label="Next day"
         disabled={!canNext}
-        onClick={() => page(stripDays)}
+        onClick={() => page(1)}
         icon={<ChevronRight size={15} />}
       />
 
@@ -1545,6 +1564,7 @@ function SourceRail({
   today,
   addDayLabel,
   onAdd,
+  onAddOn,
   onAbandon,
   onCollapse,
   matches,
@@ -1554,6 +1574,9 @@ function SourceRail({
   today: string;
   addDayLabel: string;
   onAdd: (item: SourceItem) => void;
+  /** Explicit Today / Tomorrow / Day after, passed straight through to the
+   *  cards. Offsets are days from today, not from the visible window. */
+  onAddOn: (item: SourceItem, offset: number) => void;
   onAbandon: (item: SourceItem) => void;
   /** Fold the whole rail away. */
   onCollapse: () => void;
@@ -1739,6 +1762,7 @@ function SourceRail({
               item={item}
               today={today}
               onAdd={onAdd}
+              onAddOn={onAddOn}
               onAbandon={item.taskId ? onAbandon : undefined}
               addDayLabel={addDayLabel}
             />
