@@ -172,9 +172,9 @@ import {
 } from "@/lib/format";
 import {
   useSectionSearch,
-  matchesSearch,
   setSectionSearch,
 } from "@/lib/client/section-search";
+import { taskMatchesQuery } from "@/lib/tasks/task-search";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 // Friendly labels for the column show/hide menu (#11).
@@ -826,21 +826,23 @@ export function TaskTable({
   // in behaves identically and neither silently overrides the other.
   const sectionQuery = useSectionSearch();
 
+  // DESCRIPTION IS SEARCHED. It was the one field this list left out while the
+  // Kanban board and the My Day agenda both matched on it — and it is the field
+  // the row's own hover preview and expanded panel put on screen, so a reader
+  // who searched a line they could see got "No tasks" back.
   const matchesRow = React.useCallback(
-    (r: TaskListRow, q: string) => {
-      if (!q) return true;
-      const qNum = q.replace(/^#/, ""); // "#1042" or "1042" both match the No.
-      if (r.taskNo != null && String(r.taskNo).includes(qNum)) return true;
-      return matchesSearch(
+    (r: TaskListRow, q: string) =>
+      taskMatchesQuery(
         q,
+        r.taskNo,
         r.title,
+        r.description,
         r.subject,
         r.client,
         r.doerName,
         r.initiatorName,
         resolvedLabels[r.status] ?? r.status,
-      );
-    },
+      ),
     [resolvedLabels],
   );
 
