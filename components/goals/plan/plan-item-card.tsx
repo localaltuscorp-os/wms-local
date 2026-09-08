@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Clock, Copy, GripVertical, Loader2, X } from "lucide-react";
+import { Clock, Copy, GripVertical, Loader2, Pencil, X } from "lucide-react";
 import { motion } from "motion/react";
 import { PRIORITY_LABELS } from "@/db/enums";
 import { hhmmToMin, minToHhmm } from "@/lib/goals/plan-time";
@@ -145,7 +145,7 @@ export function PlanItemCard({
                     setDetail(true);
                   }
                 }}
-                aria-label={`Open full details for ${item.title}`}
+                aria-label={onRename && !item.done ? `Open and edit ${item.title}` : `Open full details for ${item.title}`}
                 /* ONE LINE (Sir). The clamp used to run to three, which set the
                    card's height by its longest title and left every short one
                    sitting in empty space — the single biggest reason so few
@@ -247,6 +247,28 @@ export function PlanItemCard({
               ) : null}
             </div>
           </div>
+
+          {/* EDIT — the card could already be edited: clicking the title opens
+              the detail dialog, whose title field is a textarea with a Save.
+              Nothing SAID so. The only hint was a `cursor-pointer` that appears
+              on hover, next to a remove button that also appears on hover, so
+              the one discoverable action on a commitment was deleting it.
+
+              A pencil beside the ✕, opening the same dialog. Shown on the same
+              terms as the remove button rather than always-on: two permanent
+              icons on every row is what the hover treatment was avoiding. */}
+          {onRename && !item.done ? (
+            <button
+              type="button"
+              onClick={() => setDetail(true)}
+              aria-label={`Edit ${item.title}`}
+              title="Edit — change the wording or the time"
+              className="shrink-0 inline-flex size-5 items-center justify-center rounded-full text-ink-muted/50 opacity-0 transition-opacity hover:bg-surface-soft hover:text-ink-strong focus-visible:opacity-100 focus-visible:outline-2 group-hover:opacity-100"
+              style={{ outlineColor: GOALS_ACCENT }}
+            >
+              <Pencil size={12} />
+            </button>
+          ) : null}
 
           <button
             type="button"
