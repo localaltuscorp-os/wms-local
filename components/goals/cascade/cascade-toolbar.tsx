@@ -31,7 +31,7 @@ export function CascadeToolbar({
   return (
     <div className="flex flex-wrap items-center gap-3">
       {canPickEmployee && roster.length > 1 && (
-        <div className="inline-flex items-center gap-2 rounded-full border border-hairline bg-surface-card px-3 py-1.5">
+        <div className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-surface-card px-3 py-1.5">
           <User size={15} className="text-ink-soft" />
           <select
             value={viewedEmployeeId}

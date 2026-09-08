@@ -224,7 +224,7 @@ function EmployeeHeader({
           >
             {employee.name}
           </h1>
-          <p className="mt-1 text-[13px] font-semibold text-ink-muted">{role || "—"}</p>
+          <p className="mt-1 text-[13px] font-semibold text-ink-muted">{role || "-"}</p>
           {employee.managerName && (
             <p className="mt-0.5 text-[12.5px] text-ink-subtle">
               Reporting Manager:{" "}

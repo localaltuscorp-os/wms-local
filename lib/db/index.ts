@@ -5,6 +5,7 @@ import { env } from "@/lib/env";
 import * as schema from "@/db/schema";
 import { withSlowQueryLog } from "./slow-query";
 import { DUMMY_MODE, DUMMY_DB_DIR } from "./dummy-dir";
+import { devDbOfflineEnabled, withDevOfflineFallback } from "./dev-offline";
 
 // Cache the postgres client on globalThis so Next.js HMR doesn't leak
 // connections on every save. In production this just runs once.
@@ -158,8 +159,17 @@ function dummyDb() {
   return instance;
 }
 
+// DEV_DB_OFFLINE (local dev only) - let read queries fall back to no rows when
+// the database is unreachable, so pages render their empty state rather than
+// sending the whole route to the error boundary. Off unless the flag is set, and
+// it wraps OUTSIDE the slow-query logger on purpose: the logger still sees and
+// reports the real failure before it is softened. Applies to the REAL postgres
+// client only - DUMMY_MODE's PGlite database is local and always reachable, so
+// there is nothing there for it to soften. See ./dev-offline.
+const dbClient = devDbOfflineEnabled() ? withDevOfflineFallback(tracedClient) : tracedClient;
+
 export const db = DUMMY_MODE
   ? (dummyDb() as unknown as ReturnType<typeof drizzle<typeof schema>>)
-  : drizzle(tracedClient, { schema });
+  : drizzle(dbClient, { schema });
 export * from "@/db/schema";
 export type { Employee, NewEmployee, Task, NewTask } from "@/db/schema";

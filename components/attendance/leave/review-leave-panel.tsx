@@ -126,7 +126,7 @@ export function ReviewLeavePanel({
       className="fixed inset-0 z-[95] flex justify-end"
       role="dialog"
       aria-modal="true"
-      aria-label={`Review leave request — ${row.employeeName}`}
+      aria-label={`Review leave request - ${row.employeeName}`}
     >
       <button
         type="button"
@@ -256,7 +256,7 @@ export function ReviewLeavePanel({
                 of {balance.allowance} paid days left · {balance.cycleLabel}
                 {row.status === "pending" && balance.remaining < row.days && (
                   <span className="mt-1 block text-[12.5px] font-semibold" style={{ color: "#A80400" }}>
-                    This request is {row.days} days — approving would exceed the
+                    This request is {row.days} days - approving would exceed the
                     balance and will be refused.
                   </span>
                 )}

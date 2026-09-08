@@ -46,7 +46,7 @@ export function DashboardLoadError() {
         className="text-body-lg text-ink-muted mt-3 mx-auto"
         style={{ maxWidth: 480, lineHeight: 1.6 }}
       >
-        The database is responding slowly right now — this is usually
+        The database is responding slowly right now - this is usually
         temporary. Your data is safe; just give it another try.
       </p>
       <button

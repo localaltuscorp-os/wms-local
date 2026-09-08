@@ -674,12 +674,12 @@ export function NewTaskForm({
         />
       </Field>
 
-      {/* ORGANIZE — drawn only when it still has something in it. Tags, the
+      {/* ORGANIZE - drawn only when it still has something in it. Tags, the
           project link and the schedule are each optional and each removable by
           a caller, and a numbered heading standing over an empty stretch of
           form reads as something failing to load. */}
       {organizeShown && (
-        <SectionHeading step="04" title="Organize" hint={`Optional — ${organizeHint}`} />
+        <SectionHeading step="04" title="Organize" hint={`Optional - ${organizeHint}`} />
       )}
       {/* Tags — free-form chips. Type a tag, hit Enter or comma to commit.
           Stored as text[] on the task; each chip is searchable later. */}
@@ -725,7 +725,7 @@ export function NewTaskForm({
           the state stays at its empty default and the payload carries nulls. */}
       {!hideSchedule && <ScheduleSection value={schedule} onChange={setSchedule} />}
 
-      <SectionHeading step="05" title="Attachments" hint="Optional — media & reference links" />
+      <SectionHeading step="05" title="Attachments" hint="Optional - media & reference links" />
       {/* Media + Links — side by side on desktop */}
       <div className="grid grid-cols-2 gap-5 max-md:grid-cols-1">
         <MediaSection
@@ -1542,7 +1542,7 @@ function LinksSection({
           >
             <span className="inline-flex items-center gap-2">
               <Link2 size={18} strokeWidth={2} />
-              No links yet — paste a URL above.
+              No links yet - paste a URL above.
             </span>
           </li>
         ) : (

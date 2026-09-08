@@ -81,7 +81,7 @@ const FACTORS: FactorDef[] = [
   { key: "incentives", label: "Incentives", kind: "objective", hint: "Grade band from PAID incentive ÷ monthly CTC" },
   { key: "kpi", label: "KPI", kind: "objective", hint: "Weekly-goals & operational KPI attainment" },
   { key: "constitution", label: "Constitution", kind: "constitution", hint: "Para-by-para: admin + self" },
-  { key: "skillUpgrade", label: "Skill Upgrade", kind: "subjective", hint: "Self-learning / Coursera / series — anything that levels you up" },
+  { key: "skillUpgrade", label: "Skill Upgrade", kind: "subjective", hint: "Self-learning / Coursera / series - anything that levels you up" },
   { key: "knowledgeSharing", label: "Knowledge Sharing", kind: "subjective", hint: "Training given / shared to the team" },
   { key: "problemSolving", label: "Problem Solving", kind: "subjective", hint: "Cracked hard problems this month" },
   { key: "growthMindset", label: "Growth Mindset", kind: "subjective", hint: "Attitude to learning & feedback" },

@@ -60,8 +60,8 @@ export async function POST(req: Request) {
     if (!recipient || !recipient.isActive) {
       return NextResponse.json({ error: "That person is not on the active roster." }, { status: 404 });
     }
-    // The official address when there is one — it is the company mailbox this
-    // report belongs in — falling back to the login address.
+    // The official address when there is one - it is the company mailbox this
+    // report belongs in - falling back to the login address.
     const to = recipient.officialEmail?.trim() || recipient.email;
     if (!to) {
       return NextResponse.json(
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
       )
       .join("");
 
-    /* THE EXECUTIVE SUMMARY — the first few rows, inline.
+    /* THE EXECUTIVE SUMMARY - the first few rows, inline.
        A mail whose whole content is "see attached" makes the reader open a PDF
        on a phone to learn whether it was worth opening. The top rows in the
        body answer that in the preview pane; the attachment is then for the
@@ -114,7 +114,7 @@ export async function POST(req: Request) {
             .map((cell, i) => {
               const col = report.columns[i]!;
               const align = col.align ?? (i === 0 ? "left" : "right");
-              const hot = col.tone === "count" && cell !== "0" && cell !== "" && cell !== "—";
+              const hot = col.tone === "count" && cell !== "0" && cell !== "" && cell !== "-";
               return `<td style="padding:6px 10px;font-size:12px;text-align:${align};color:${
                 hot ? "#dc2626" : "#0f172a"
               };font-weight:${hot || i === 0 ? 600 : 400};border-bottom:1px solid #e2e8f0">${esc(cell)}</td>`;
@@ -129,7 +129,7 @@ export async function POST(req: Request) {
       from: FROM,
       to,
       ...companyBcc(),
-      subject: clampSubject(`${report.title} — Altus Corp Dashboard`),
+      subject: clampSubject(`${report.title} - Altus Corp Dashboard`),
       html: `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:620px;margin:0 auto">
   <div style="background:${BRAND};border-radius:10px 10px 0 0;padding:16px 20px">
     <div style="color:#fff;font-size:15px;font-weight:700;letter-spacing:.2px">Altus Corp · Executive Dashboard Report</div>
@@ -137,7 +137,7 @@ export async function POST(req: Request) {
   </div>
   <div style="border:1px solid #e2e8f0;border-top:0;border-radius:0 0 10px 10px;padding:20px">
     <p style="font-size:14px;color:#0f172a;margin:0 0 4px">Hi ${esc(recipient.name)},</p>
-    <p style="font-size:13px;color:#475569;margin:0 0 16px;line-height:1.5">Here is your ${esc(report.title)} snapshot from the Altus Corp dashboard${report.subtitle ? ` — ${esc(report.subtitle)}` : ""}.</p>
+    <p style="font-size:13px;color:#475569;margin:0 0 16px;line-height:1.5">Here is your ${esc(report.title)} snapshot from the Altus Corp dashboard${report.subtitle ? ` - ${esc(report.subtitle)}` : ""}.</p>
     ${report.summary ? `<div style="display:inline-block;background:#fee2e2;color:#dc2626;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;margin:0 0 14px">${esc(report.summary)}</div>` : ""}
     ${metaRows ? `<table style="border-collapse:collapse;margin:0 0 16px">${metaRows}</table>` : ""}
     ${
@@ -147,7 +147,7 @@ export async function POST(req: Request) {
         : ""
     }
     <p style="font-size:13px;color:#475569;margin:14px 0 0">The full table is attached as <strong style="color:#0f172a">${esc(filename)}</strong>.</p>
-    <p style="font-size:11px;color:#94a3b8;margin:20px 0 0;border-top:1px solid #e2e8f0;padding-top:12px">Sent by ${esc(me.name)} from the Altus Corp Dashboard · Confidential — Internal Altus Corp Report</p>
+    <p style="font-size:11px;color:#94a3b8;margin:20px 0 0;border-top:1px solid #e2e8f0;padding-top:12px">Sent by ${esc(me.name)} from the Altus Corp Dashboard · Confidential - Internal Altus Corp Report</p>
   </div>
 </div>`,
       attachments: [{ filename, content: pdf.toString("base64") }],
@@ -156,7 +156,7 @@ export async function POST(req: Request) {
     if (error) {
       return NextResponse.json({ error: error.message ?? "Send failed" }, { status: 502 });
     }
-    // The address goes back so the toast can name it — "sent" with no recipient
+    // The address goes back so the toast can name it - "sent" with no recipient
     // is the kind of confirmation nobody trusts.
     return NextResponse.json({ ok: true, to, filename });
   } catch (err) {

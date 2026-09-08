@@ -98,7 +98,7 @@ export async function autoPunch(kind: PunchKind): Promise<boolean> {
     if (!res.ok) {
       fireToast({
         message:
-          `${kind === "in" ? "Checked in" : "Checked out"} did not go through — ${res.error}`,
+          `${kind === "in" ? "Checked in" : "Checked out"} did not go through - ${res.error}`,
         type: "error",
       });
       return false;
@@ -111,8 +111,8 @@ export async function autoPunch(kind: PunchKind): Promise<boolean> {
     if (res.already) {
       fireToast({
         message: at
-          ? `Already checked ${kind} at ${at} — kept that record.`
-          : `Already checked ${kind} today — kept that record.`,
+          ? `Already checked ${kind} at ${at} - kept that record.`
+          : `Already checked ${kind} today - kept that record.`,
       });
       return true;
     }
@@ -121,8 +121,8 @@ export async function autoPunch(kind: PunchKind): Promise<boolean> {
       message:
         kind === "in"
           ? at
-            ? `Checked in at ${at} — have a great day!`
-            : "Checked in — have a great day!"
+            ? `Checked in at ${at} - have a great day!`
+            : "Checked in - have a great day!"
           : at
             ? `Checked out at ${at}. See you tomorrow!`
             : "Checked out. See you tomorrow!",

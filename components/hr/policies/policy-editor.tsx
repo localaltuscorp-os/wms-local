@@ -197,7 +197,7 @@ export function PolicyEditor({ policyKey, isSuperAdmin }: { policyKey: string; i
     }
     setPinOpen(false);
     setPinValue("");
-    setPublishedMsg(`Published v${res.version} — re-sign requested for all active employees.`);
+    setPublishedMsg(`Published v${res.version} - re-sign requested for all active employees.`);
     fireToast({ message: `Published version ${res.version}.`, type: "success" });
     // Refresh version list + compliance from the server; re-baseline (clears dirty).
     const ed = await loadPolicyEditor(policyKey);
@@ -363,7 +363,7 @@ export function PolicyEditor({ policyKey, isSuperAdmin }: { policyKey: string; i
             <div className="flex flex-col gap-4">
               {sections.length === 0 && (
                 <p className="rounded-xl border border-solid border-hairline-strong bg-surface-soft px-4 py-6 text-center text-[13.5px] font-medium text-ink-subtle">
-                  No sections yet — add the first one below.
+                  No sections yet - add the first one below.
                 </p>
               )}
               {sections.map((section, si) => (
@@ -408,7 +408,7 @@ export function PolicyEditor({ policyKey, isSuperAdmin }: { policyKey: string; i
         <Modal onClose={() => setPinOpen(false)} title="Confirm with Admin PIN" icon={<KeyRound size={18} />}>
           <p className="text-[13.5px] leading-relaxed text-ink-muted">
             Publishing mints <strong className="text-ink-strong">version {data.currentVersion + 1}</strong> and marks every active
-            employee <strong className="text-ink-strong">pending</strong> — a fresh re-sign request. Enter the secondary Admin PIN to continue.
+            employee <strong className="text-ink-strong">pending</strong> - a fresh re-sign request. Enter the secondary Admin PIN to continue.
           </p>
           <input
             className="pce-input pce-pin mt-4"
@@ -631,9 +631,9 @@ function NodeEditor({
 
         {advanced && (
           <div className="pce-advanced">
-            <span className="pce-advanced-badge"><Lock size={12} strokeWidth={2.6} /> Advanced block — preserved</span>
+            <span className="pce-advanced-badge"><Lock size={12} strokeWidth={2.6} /> Advanced block - preserved</span>
             <p className="pce-advanced-note">
-              {ADVANCED_LABEL[node.kind] ?? node.kind} — kept exactly as-is and republished unchanged. Reorder it above; edit it in code.
+              {ADVANCED_LABEL[node.kind] ?? node.kind} - kept exactly as-is and republished unchanged. Reorder it above; edit it in code.
             </p>
           </div>
         )}
@@ -914,7 +914,7 @@ const CSS = `
 .pce-advanced{display:flex;flex-direction:column;gap:5px;}
 .pce-advanced-badge{
   display:inline-flex;align-items:center;gap:6px;align-self:flex-start;
-  padding:4px 9px;border-radius:9999px;
+  padding:4px 9px;border-radius:8px;
   font-family:var(--font-display, system-ui, sans-serif);
   font-size:11.5px;font-weight:800;color:${RED_DEEP};
   background:color-mix(in srgb, ${RED} 10%, white);
@@ -929,7 +929,7 @@ const CSS = `
 }
 .pce-chipbtn{
   display:inline-flex;align-items:center;gap:5px;
-  padding:5px 11px;border-radius:9999px;
+  padding:5px 11px;border-radius:8px;
   font-family:var(--font-display, system-ui, sans-serif);
   font-size:12.5px;font-weight:700;cursor:pointer;
   color:var(--color-ink-strong, #0f172a);background:#fff;
@@ -976,7 +976,7 @@ const CSS = `
 }
 .pce-vdate{flex:0 0 auto;font-size:11.5px;font-weight:700;color:var(--color-ink-subtle, #94a3b8);}
 .pce-vlive{
-  flex:0 0 auto;padding:2px 8px;border-radius:9999px;
+  flex:0 0 auto;padding:2px 8px;border-radius:8px;
   font-size:10px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:#fff;
   background:linear-gradient(135deg, ${RED}, ${RED_DEEP});
 }

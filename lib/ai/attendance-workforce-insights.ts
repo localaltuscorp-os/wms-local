@@ -108,14 +108,14 @@ function buildPrompt(a: OrgAttendanceAnalytics): string {
 
   const alertLines = alerts
     .slice(0, 8)
-    .map((al) => `  · [${al.severity}] ${al.title} — ${al.detail}`)
+    .map((al) => `  · [${al.severity}] ${al.title} - ${al.detail}`)
     .join("\n");
 
   const components = a.health.components
     .map((c) => `${c.label} ${c.score}/100 (w${c.weight})`)
     .join(", ");
 
-  return `You are a workforce analytics lead writing a crisp, executive attendance read-out for HR + Finance leadership. Base EVERY statement ONLY on the numbers below — never invent figures, never moralize, be specific and concrete. Reference the actual percentages, counts and department names.
+  return `You are a workforce analytics lead writing a crisp, executive attendance read-out for HR + Finance leadership. Base EVERY statement ONLY on the numbers below - never invent figures, never moralize, be specific and concrete. Reference the actual percentages, counts and department names.
 
 Period: ${a.monthLabel}
 Headcount: ${k.totalEmployees}
@@ -224,10 +224,10 @@ export function heuristicWorkforceInsights(
 
   /* — Highlights: the metrics clearing a strong bar. — */
   if (k.attendanceRatePct >= 90) highlights.push(`Effective attendance strong at ${k.attendanceRatePct}%.`);
-  if (k.punctualityRatePct >= 90) highlights.push(`Punctuality healthy — ${k.punctualityRatePct}% on-time.`);
+  if (k.punctualityRatePct >= 90) highlights.push(`Punctuality healthy - ${k.punctualityRatePct}% on-time.`);
   if (a.targetHoursPerDay > 0 && k.avgHoursPerDay >= a.targetHoursPerDay)
     highlights.push(`Hours on target at ${k.avgHoursPerDay.toFixed(1)}h/day (goal ${a.targetHoursPerDay}h).`);
-  if (k.incomplete === 0 && k.present > 0) highlights.push("No incomplete punches — clean check-in/out data.");
+  if (k.incomplete === 0 && k.present > 0) highlights.push("No incomplete punches - clean check-in/out data.");
   if (k.unpaidLeave === 0 && k.payableDays > 0) highlights.push("Zero loss-of-pay leave this month.");
   if (a.health.band.key === "excellent") highlights.push(`Workforce health excellent at ${a.health.score}/100.`);
 
@@ -245,7 +245,7 @@ export function heuristicWorkforceInsights(
   // If nothing tripped, still surface the single lowest health component.
   if (concerns.length === 0) {
     const weakest = a.health.components.slice().sort((x, y) => x.score - y.score)[0];
-    if (weakest) concerns.push(`${weakest.label} is the softest driver at ${weakest.score}/100 — ${weakest.note}.`);
+    if (weakest) concerns.push(`${weakest.label} is the softest driver at ${weakest.score}/100 - ${weakest.note}.`);
   }
 
   /* — Recommendations: target the worst departments/metrics. — */
@@ -258,7 +258,7 @@ export function heuristicWorkforceInsights(
       `Review ${worstDept.department} (${worstDept.attendanceRatePct}% attendance, ${worstDept.absent} absent) with its manager.`,
     );
   if (k.punctualityRatePct < 85 && k.lateMarks > 0)
-    recommendations.push(`Address ${k.lateMarks} late mark(s) — reinforce the grace-time policy.`);
+    recommendations.push(`Address ${k.lateMarks} late mark(s) - reinforce the grace-time policy.`);
   if (k.incomplete > 0)
     recommendations.push(`Chase ${k.incomplete} incomplete punch(es) so payroll grades cleanly.`);
   if (a.targetHoursPerDay > 0 && k.avgHoursPerDay < a.targetHoursPerDay * 0.85)
@@ -268,7 +268,7 @@ export function heuristicWorkforceInsights(
   if (k.unpaidLeave > 0)
     recommendations.push(`Confirm the ${k.unpaidLeave} unpaid-leave day(s) before the payroll run.`);
   if (recommendations.length === 0)
-    recommendations.push("Hold the current cadence — no corrective action needed this month.");
+    recommendations.push("Hold the current cadence - no corrective action needed this month.");
 
   /* — Department call-outs — best + worst, plus late hot-spot. — */
   if (bestDept)
@@ -292,7 +292,7 @@ export function heuristicWorkforceInsights(
       `${lateDept.department}: most late arrivals (${lateDept.late}, ${lateDept.punctualityRatePct}% on-time).`,
     );
   if (departmentCallouts.length === 0)
-    departmentCallouts.push("Departments are evenly matched this month — no outlier.");
+    departmentCallouts.push("Departments are evenly matched this month - no outlier.");
 
   /* — Fallback highlight so the panel is never empty. — */
   if (highlights.length === 0) {
@@ -306,8 +306,8 @@ export function heuristicWorkforceInsights(
   const criticalCount = alerts.filter((x) => x.severity === "critical").length;
   const summary =
     a.health.band.key === "excellent" || a.health.band.key === "good"
-      ? `${a.monthLabel}: workforce health is ${a.health.band.label.toLowerCase()} at ${a.health.score}/100 — ${k.attendanceRatePct}% attendance and ${k.punctualityRatePct}% punctuality across ${k.totalEmployees} people.${criticalCount ? ` ${criticalCount} item(s) still need attention.` : ""}`
-      : `${a.monthLabel}: workforce health is ${a.health.band.label.toLowerCase()} at ${a.health.score}/100, dragged by ${weakestDriverLabel(a)} — ${k.attendanceRatePct}% attendance, ${k.punctualityRatePct}% punctuality. ${criticalCount || concerns.length} issue(s) to work.`;
+      ? `${a.monthLabel}: workforce health is ${a.health.band.label.toLowerCase()} at ${a.health.score}/100 - ${k.attendanceRatePct}% attendance and ${k.punctualityRatePct}% punctuality across ${k.totalEmployees} people.${criticalCount ? ` ${criticalCount} item(s) still need attention.` : ""}`
+      : `${a.monthLabel}: workforce health is ${a.health.band.label.toLowerCase()} at ${a.health.score}/100, dragged by ${weakestDriverLabel(a)} - ${k.attendanceRatePct}% attendance, ${k.punctualityRatePct}% punctuality. ${criticalCount || concerns.length} issue(s) to work.`;
 
   return {
     summary,
@@ -331,8 +331,8 @@ function trendLine(a: OrgAttendanceAnalytics, alerts: SmartAlert[]): string {
   const warn = alerts.filter((x) => x.severity === "warning").length;
   const driver = a.health.components.slice().sort((x, y) => x.score - y.score)[0];
   if (a.health.band.key === "excellent")
-    return `Strong, stable month — ${a.health.band.label} health at ${a.health.score}/100 with no critical flags.`;
+    return `Strong, stable month - ${a.health.band.label} health at ${a.health.score}/100 with no critical flags.`;
   if (crit > 0)
-    return `Under pressure — ${crit} critical + ${warn} warning alert(s); ${driver ? `${driver.label.toLowerCase()} is the weakest link.` : "watch the health drivers."}`;
-  return `Holding — ${a.health.band.label} at ${a.health.score}/100; ${warn} watch item(s), led by ${driver ? driver.label.toLowerCase() : "attendance"}.`;
+    return `Under pressure - ${crit} critical + ${warn} warning alert(s); ${driver ? `${driver.label.toLowerCase()} is the weakest link.` : "watch the health drivers."}`;
+  return `Holding - ${a.health.band.label} at ${a.health.score}/100; ${warn} watch item(s), led by ${driver ? driver.label.toLowerCase() : "attendance"}.`;
 }

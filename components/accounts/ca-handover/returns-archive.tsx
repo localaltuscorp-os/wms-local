@@ -52,13 +52,13 @@ export function ReturnsArchive({ rows }: { rows: CaReturnRow[] }) {
             Returns Archive
           </h2>
           <p className="mt-0.5 text-ink-muted font-medium" style={{ fontSize: 13.5 }}>
-            Filed income-tax &amp; GST documents per financial year and entity — {rows.length} record{rows.length === 1 ? "" : "s"}.
+            Filed income-tax &amp; GST documents per financial year and entity - {rows.length} record{rows.length === 1 ? "" : "s"}.
           </p>
         </div>
         <button
           type="button"
           onClick={() => setCreating(true)}
-          className="wg-btn wg-sheen cursor-pointer inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13.5px] font-bold text-white"
+          className="wg-btn wg-sheen cursor-pointer inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13.5px] font-bold text-white"
           style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
         >
           <Plus size={15} strokeWidth={2.6} /> Add FY Record
@@ -120,7 +120,7 @@ function ReturnCard({ row, onEdit }: { row: CaReturnRow; onEdit: () => void }) {
           <h3 className="text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 800, fontSize: 18, letterSpacing: "-0.01em" }}>
             {row.entityName}
           </h3>
-          <span className="rounded-full px-2.5 py-0.5 text-[12px] font-bold" style={{ background: "rgba(225,6,0,0.08)", color: "var(--color-altus-red-deep)" }}>
+          <span className="rounded-pill px-2.5 py-0.5 text-[12px] font-bold" style={{ background: "rgba(225,6,0,0.08)", color: "var(--color-altus-red-deep)" }}>
             FY {row.fy}
           </span>
         </div>
@@ -171,7 +171,7 @@ function DocGroup({
                   Open <ExternalLink size={12} strokeWidth={2.4} />
                 </a>
               ) : (
-                <span className="text-ink-subtle shrink-0" style={{ fontSize: 12.5 }}>—</span>
+                <span className="text-ink-subtle shrink-0" style={{ fontSize: 12.5 }}>-</span>
               )}
             </li>
           );

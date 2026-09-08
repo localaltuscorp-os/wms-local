@@ -173,7 +173,7 @@ export function GoalCard({
           <div className="flex flex-wrap items-center gap-2">
             {goal.area && (
               <span
-                className="rounded-full px-2 py-0.5 text-[11px] font-bold text-ink-soft"
+                className="rounded-pill px-2 py-0.5 text-[11px] font-bold text-ink-soft"
                 style={{ background: "color-mix(in srgb, #E10600 8%, transparent)" }}
               >
                 {goal.area}
@@ -181,7 +181,7 @@ export function GoalCard({
             )}
             {goal.source === "cascade" && (
               <span
-                className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.05em]"
+                className="rounded-pill px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.05em]"
                 style={{ background: "rgba(225,6,0,0.12)", color: "#A80400" }}
               >
                 Cascaded
@@ -214,7 +214,7 @@ export function GoalCard({
         {/* Score */}
         <div className="flex flex-col items-end gap-1.5">
           <div
-            className="flex items-center gap-1.5 rounded-full px-2.5 py-1"
+            className="flex items-center gap-1.5 rounded-pill px-2.5 py-1"
             style={{
               background: tone.bg,
               boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${tone.color} 24%, transparent)`,
@@ -257,7 +257,7 @@ export function GoalCard({
           <button
             type="button"
             onClick={() => setEditOpen(true)}
-            className="wg-btn inline-flex items-center gap-1 rounded-full border border-hairline bg-surface-card px-2.5 py-1 text-[12px] font-bold text-ink-soft transition-colors hover:text-ink-strong"
+            className="wg-btn inline-flex items-center gap-1 rounded-pill border border-hairline bg-surface-card px-2.5 py-1 text-[12px] font-bold text-ink-soft transition-colors hover:text-ink-strong"
           >
             <Pencil size={12} strokeWidth={2.4} /> Edit
           </button>
@@ -266,7 +266,7 @@ export function GoalCard({
               type="button"
               onClick={generate}
               disabled={pending}
-              className="wg-btn inline-flex items-center gap-1 rounded-full border border-hairline bg-surface-card px-2.5 py-1 text-[12px] font-bold text-ink-soft transition-colors hover:text-ink-strong disabled:opacity-60"
+              className="wg-btn inline-flex items-center gap-1 rounded-pill border border-hairline bg-surface-card px-2.5 py-1 text-[12px] font-bold text-ink-soft transition-colors hover:text-ink-strong disabled:opacity-60"
               title={`Auto-divide into ${childLevel} goals`}
             >
               {pending ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} strokeWidth={2.4} />}
@@ -277,7 +277,7 @@ export function GoalCard({
             <button
               type="button"
               onClick={() => setChildOpen(true)}
-              className="wg-btn inline-flex items-center gap-1 rounded-full border border-hairline bg-surface-card px-2.5 py-1 text-[12px] font-bold text-ink-soft transition-colors hover:text-ink-strong"
+              className="wg-btn inline-flex items-center gap-1 rounded-pill border border-hairline bg-surface-card px-2.5 py-1 text-[12px] font-bold text-ink-soft transition-colors hover:text-ink-strong"
             >
               <Plus size={12} strokeWidth={2.6} /> Add {childLevel}
             </button>
@@ -287,14 +287,14 @@ export function GoalCard({
             type="button"
             onClick={archive}
             disabled={pending}
-            className="wg-btn inline-flex items-center gap-1 rounded-full border border-hairline bg-surface-card px-2.5 py-1 text-[12px] font-bold text-ink-soft transition-colors hover:text-altus-red disabled:opacity-60"
+            className="wg-btn inline-flex items-center gap-1 rounded-pill border border-hairline bg-surface-card px-2.5 py-1 text-[12px] font-bold text-ink-soft transition-colors hover:text-altus-red disabled:opacity-60"
           >
             <Archive size={12} strokeWidth={2.4} /> Archive
           </button>
           {drillKey && (
             <Link
               href={`/goals/cascade/${drillKey}` as Route}
-              className="wg-btn wg-sheen ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-black text-white"
+              className="wg-btn wg-sheen ml-auto inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[12px] font-black text-white"
               style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
             >
               Open {childLevel} <ChevronRight size={13} strokeWidth={2.6} />

@@ -56,7 +56,7 @@ export function TeamAvatars({
     .map((m) => (m.employeeId ? nameById.get(m.employeeId) : m.name))
     .filter((n): n is string => !!n);
 
-  if (resolved.length === 0) return <span className="text-ink-soft text-[13px]">—</span>;
+  if (resolved.length === 0) return <span className="text-ink-soft text-[13px]">-</span>;
 
   const shown = resolved.slice(0, max);
   const extra = resolved.length - shown.length;

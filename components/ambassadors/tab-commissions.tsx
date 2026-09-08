@@ -17,7 +17,7 @@ const COMMISSION_STATUS: Record<string, { label: string; bg: string; ink: string
 };
 
 function fmtDate(d: string | null): string {
-  if (!d) return "—";
+  if (!d) return "-";
   const dt = new Date(d);
   if (!Number.isFinite(dt.getTime())) return d;
   return formatDate(dt);
@@ -81,9 +81,9 @@ export function TabCommissions({ referrals, payouts }: { referrals: ReferralRow[
                 return (
                   <tr key={r.id} className="border-t border-hairline transition-colors hover:bg-surface-soft">
                     <td className="px-5 py-3 text-[14px] font-semibold text-ink-strong">{r.prospectName}</td>
-                    <td className="px-3 py-3 text-[13px] font-medium text-ink-muted">{r.commissionBasis ?? "—"}</td>
+                    <td className="px-3 py-3 text-[13px] font-medium text-ink-muted">{r.commissionBasis ?? "-"}</td>
                     <td className="px-3 py-3">
-                      <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: cs.bg, color: cs.ink }}>{cs.label}</span>
+                      <span className="rounded-pill px-2 py-0.5 text-[11px] font-bold" style={{ background: cs.bg, color: cs.ink }}>{cs.label}</span>
                     </td>
                     <td className="px-5 py-3 text-right text-[14px] font-bold tabular-nums text-ink-strong">{inr(r.commissionAmount ?? 0)}</td>
                   </tr>
@@ -115,8 +115,8 @@ export function TabCommissions({ referrals, payouts }: { referrals: ReferralRow[
               {payouts.map((p) => (
                 <tr key={p.id} className="border-t border-hairline transition-colors hover:bg-surface-soft">
                   <td className="px-5 py-3 text-[13.5px] font-semibold text-ink-strong tabular-nums">{fmtDate(p.paidOn)}</td>
-                  <td className="px-3 py-3 text-[13px] font-medium text-ink-muted">{p.method ?? "—"}</td>
-                  <td className="px-3 py-3 text-[13px] font-medium text-ink-muted">{p.reference ?? "—"}</td>
+                  <td className="px-3 py-3 text-[13px] font-medium text-ink-muted">{p.method ?? "-"}</td>
+                  <td className="px-3 py-3 text-[13px] font-medium text-ink-muted">{p.reference ?? "-"}</td>
                   <td className="px-5 py-3 text-right text-[14px] font-bold tabular-nums text-ink-strong">{inr(p.amount)}</td>
                 </tr>
               ))}

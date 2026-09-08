@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authMiddleware } from "next-firebase-auth-edge";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
+import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 
 const PUBLIC_PATHS = [
   "/ctest",
@@ -94,6 +95,19 @@ function isAndroidMobileBrowser(userAgent: string): boolean {
 // legacy middleware/Edge path hands jose a raw key and throws
 // "Key for the RS256 algorithm must be … Received an instance of Uint8Array".
 export async function proxy(request: NextRequest) {
+  // DEV_AUTH_BYPASS=true (.env.local, non-production only) — skip Firebase
+  // session verification entirely. See lib/auth/dev-bypass.ts. Mirrors the
+  // real handleValidToken branch below (same "/" → /hub redirect, same
+  // x-pathname header) so the (app) layout behaves identically either way.
+  if (devAuthBypassEnabled()) {
+    if (request.nextUrl.pathname === "/") {
+      return NextResponse.redirect(new URL("/hub", request.url));
+    }
+    const headers = new Headers(request.headers);
+    headers.set("x-pathname", request.nextUrl.pathname);
+    return NextResponse.next({ request: { headers } });
+  }
+
   const pathname = request.nextUrl.pathname;
   if (
     !pathname.startsWith("/api/") &&

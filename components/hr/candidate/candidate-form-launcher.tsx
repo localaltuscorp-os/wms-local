@@ -46,7 +46,7 @@ export function CandidateFormLauncher({
             className="text-[26px] font-black text-ink-strong"
             style={{ fontFamily: "var(--font-display), system-ui, sans-serif", letterSpacing: "-0.02em" }}
           >
-            Thank you — your form is submitted.
+            Thank you - your form is submitted.
           </h1>
           <p className="mt-2 text-[14px] text-ink-muted">
             Our HR team has received your details. You can close this window now.

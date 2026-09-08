@@ -55,7 +55,7 @@ export function BoardQuickChips({
             type="button"
             aria-pressed={active}
             onClick={() => onSelect(active && c.key !== "all" ? "all" : c.key)}
-            className={`group inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold transition-all wg-btn cursor-pointer ${FOCUS_RING}`}
+            className={`group inline-flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-[13px] font-bold transition-all wg-btn cursor-pointer ${FOCUS_RING}`}
             style={
               active
                 ? {
@@ -74,7 +74,7 @@ export function BoardQuickChips({
             <Icon size={14} strokeWidth={2.5} style={{ color: active ? c.tint : "var(--color-ink-subtle)" }} />
             {c.label}
             <span
-              className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-bold tabular-nums"
+              className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-pill px-1 text-[11px] font-bold tabular-nums"
               style={
                 active
                   ? { background: c.tint, color: "#fff" }

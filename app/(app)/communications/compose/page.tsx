@@ -87,12 +87,12 @@ export default async function ComposeBroadcastPage({
   }
 
   return (
-    <div className="min-h-dvh bg-[#faf9fb]">
+    <div className="min-h-full bg-[#faf9fb]">
       <header className="sticky sticky-below-topbar z-40 grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-hairline bg-white/90 px-6 py-3 backdrop-blur max-md:px-4">
         <div className="justify-self-start">
           <Link
             href={"/communications" as Route}
-            className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold text-white transition-transform hover:-translate-x-0.5 max-md:px-3"
+            className="group inline-flex items-center gap-2 rounded-pill px-4 py-2 text-[13px] font-bold text-white transition-transform hover:-translate-x-0.5 max-md:px-3"
             style={{
               background: "linear-gradient(120deg, #18181b 0%, #A80400 100%)",
               boxShadow: "0 12px 26px -12px rgba(168,4,0,0.55)",

@@ -16,7 +16,7 @@ export function GradeBandBadge({ grade, size = "md" }: { grade: GradeResult; siz
         style={{ background: "var(--color-surface-soft)", color: "var(--color-ink-subtle)" }}
         title="Monthly CTC not available for this month yet"
       >
-        — no CTC
+        - no CTC
       </span>
     );
   }

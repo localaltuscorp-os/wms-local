@@ -66,7 +66,7 @@ export function IncentiveFormDialog() {
     >
       <Dialog.Trigger asChild>
         <button
-          className="wg-btn wg-sheen inline-flex cursor-pointer items-center gap-2 rounded-full py-2.5 px-5 text-[15px] font-bold text-white"
+          className="wg-btn wg-sheen inline-flex cursor-pointer items-center gap-2 rounded-pill py-2.5 px-5 text-[15px] font-bold text-white"
           style={{
             background: "linear-gradient(135deg, #E10600, #A80400)",
             boxShadow:
@@ -116,7 +116,7 @@ export function IncentiveFormDialog() {
                     New Incentive Request
                   </Dialog.Title>
                   <Dialog.Description className="mt-1 text-[14.5px] text-ink-muted" style={{ lineHeight: 1.5 }}>
-                    Pick the incentive type — the form adapts to what it needs. An
+                    Pick the incentive type - the form adapts to what it needs. An
                     admin reviews and approves each request.
                   </Dialog.Description>
                 </div>
@@ -145,7 +145,7 @@ export function IncentiveFormDialog() {
                     setType(v as IncentiveType);
                     setValues({});
                   }}
-                  placeholder="— Select incentive —"
+                  placeholder="- Select incentive -"
                   ariaLabel="Incentive type"
                 />
               </Field>
@@ -215,7 +215,7 @@ function FieldInput({
         options={(field.options ?? []).map((o) => ({ value: o, label: o }))}
         value={value}
         onValueChange={(v) => onChange(field.key, v)}
-        placeholder="— Select —"
+        placeholder="- Select -"
         ariaLabel={field.label}
       />
     );

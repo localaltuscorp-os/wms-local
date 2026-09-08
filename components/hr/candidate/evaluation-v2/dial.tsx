@@ -88,7 +88,7 @@ export function OverallDial({ value, pct, size = 124 }: { value: number | null; 
       ariaLabel={value === null ? "Overall score not yet rated" : `Overall weighted score ${fmt(value)} out of 10`}
       main={
         value === null ? (
-          <span className="text-ink-subtle">—</span>
+          <span className="text-ink-subtle">-</span>
         ) : (
           <>
             {fmt(value)}

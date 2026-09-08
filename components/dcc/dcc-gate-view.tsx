@@ -36,7 +36,7 @@ export function DccGateView({ greetingName, date, items, entries }: Props) {
     const order: string[] = [];
     const by = new Map<string, DccItemRow[]>();
     for (const it of items) {
-      const key = it.section || "—";
+      const key = it.section || "-";
       if (!by.has(key)) { by.set(key, []); order.push(key); }
       by.get(key)!.push(it);
     }
@@ -73,14 +73,14 @@ export function DccGateView({ greetingName, date, items, entries }: Props) {
       <div className="mx-auto w-full max-w-[860px] px-6 max-md:px-4 pt-10 pb-28">
         {/* Hero */}
         <div className="text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-hairline-strong bg-white px-4 py-1.5 text-[13px] font-extrabold uppercase tracking-[0.18em]" style={{ color: "var(--color-altus-red-deep)" }}>
+          <span className="inline-flex items-center gap-2 rounded-pill border border-hairline-strong bg-white px-4 py-1.5 text-[13px] font-extrabold uppercase tracking-[0.18em]" style={{ color: "var(--color-altus-red-deep)" }}>
             <Gauge size={16} /> Daily Compliance
           </span>
           <h1 className="mt-4 text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(30px, 4.4vw, 48px)", letterSpacing: "-0.03em", lineHeight: 1.04 }}>
             Good morning, {greetingName}.
           </h1>
           <p className="mt-3 text-[17px] font-semibold text-ink-muted">
-            Before you start — fill your DCC for <span className="text-ink-strong">{fmtLong(date)}</span>.
+            Before you start - fill your DCC for <span className="text-ink-strong">{fmtLong(date)}</span>.
           </p>
         </div>
 

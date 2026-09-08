@@ -73,7 +73,7 @@ export async function createCandidateAccount(input: {
   try {
     await auth.setCustomUserClaims(fbUid, { role: "authenticated", candidate: true });
   } catch (err) {
-    console.error(`[candidate] setCustomUserClaims failed for ${fbUid} — continuing`, err);
+    console.error(`[candidate] setCustomUserClaims failed for ${fbUid} - continuing`, err);
   }
 
   // 3. Draft intake row (prefill position); rollback the Firebase user on failure.
@@ -131,7 +131,7 @@ export async function createCandidateAccount(input: {
   return {
     ok: true,
     credentials: { email, password, loginUrl },
-    warning: mail.error ? "Couldn't email the candidate — hand them the details shown here." : undefined,
+    warning: mail.error ? "Couldn't email the candidate - hand them the details shown here." : undefined,
   };
 }
 
@@ -191,6 +191,6 @@ export async function resetCandidateCredentials(candidateEmployeeId: string): Pr
   return {
     ok: true,
     credentials: { email: emp.email, password, loginUrl },
-    warning: mail.error ? "Couldn't email the candidate — hand them the details shown here." : undefined,
+    warning: mail.error ? "Couldn't email the candidate - hand them the details shown here." : undefined,
   };
 }

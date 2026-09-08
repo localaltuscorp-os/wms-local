@@ -561,7 +561,7 @@ export function PlanBoard({ target, payload, dashboardHref, quickDock }: Props) 
           );
           fireToast({ message: r.error, type: "error" });
         } else {
-          fireToast({ message: "Kept as pending — it's in Unfinished." });
+          fireToast({ message: "Kept as pending - it's in Unfinished." });
           refresh();
         }
       })
@@ -657,9 +657,9 @@ export function PlanBoard({ target, payload, dashboardHref, quickDock }: Props) 
         fireToast({
           message:
             res.destination === "tasks"
-              ? "Off your day — the task is back in Tasks."
+              ? "Off your day - the task is back in Tasks."
               : res.destination === "goals"
-                ? "Off your day — the goal is back under Pull Work."
+                ? "Off your day - the goal is back under Pull Work."
                 : "Moved to the Recycle Bin.",
         });
         refresh();

@@ -38,7 +38,7 @@ export function SignPanel({
       fireToast({ message: res.error, type: "error" });
       return;
     }
-    fireToast({ message: "Signed. Thank you — your acceptance has been recorded.", type: "success" });
+    fireToast({ message: "Signed. Thank you - your acceptance has been recorded.", type: "success" });
     // Re-render the page in its signed state.
     location.reload();
   }

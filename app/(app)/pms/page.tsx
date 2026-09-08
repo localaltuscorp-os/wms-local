@@ -122,7 +122,7 @@ export default async function PmsPage() {
                 Performance Intelligence
               </h1>
               <p className="mt-1.5 max-w-[76ch] text-[15px] font-medium text-ink-muted">
-                A live rating out of 100 per person across five pillars — KPI (50), Skill Upgrade (20),
+                A live rating out of 100 per person across five pillars - KPI (50), Skill Upgrade (20),
                 Compliance (10), Attitude (10) and Team Work (10).
                 {" "}{admin ? "Every weight is yours to set." : "Your manager and admins set the weights."}
                 {eligible > 0 && ` ${eligible} flagged for a promotion review.`}
@@ -250,7 +250,7 @@ export default async function PmsPage() {
                         </span>
                       )}
                     </div>
-                    <span className="text-[13px] text-ink-subtle">{p.department || "—"} · {rs?.tenureDays ?? 0}d tenure</span>
+                    <span className="text-[13px] text-ink-subtle">{p.department || "-"} · {rs?.tenureDays ?? 0}d tenure</span>
                   </div>
                   <div className="shrink-0 text-right">
                     <div
@@ -311,7 +311,7 @@ export default async function PmsPage() {
                           />
                         </div>
                         <div className="mt-1 text-[10px] font-semibold text-ink-subtle">{label}</div>
-                        <div className="text-[11px] font-bold tabular-nums" style={{ color: pct == null ? "var(--color-ink-subtle)" : ACCENT_DEEP }}>{pct == null ? "—" : pct}</div>
+                        <div className="text-[11px] font-bold tabular-nums" style={{ color: pct == null ? "var(--color-ink-subtle)" : ACCENT_DEEP }}>{pct == null ? "-" : pct}</div>
                       </div>
                     );
                   })}

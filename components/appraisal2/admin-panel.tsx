@@ -129,7 +129,7 @@ function RoleEditor({ config }: { config: EmployeeConfig }) {
   return (
     <Section
       title="Role Class"
-      hint="Manager or Non-Manager — this selects the scorecard's dimension set and weights."
+      hint="Manager or Non-Manager - this selects the scorecard's dimension set and weights."
     >
       <form
         onSubmit={(e) => {
@@ -214,7 +214,7 @@ function AssigneesEditor({ config, people }: { config: EmployeeConfig; people: A
         <label className="flex flex-col gap-1.5">
           <Label>Manager (Advisory)</Label>
           <select className={INPUT} value={managerId} onChange={(e) => setManagerId(e.target.value)}>
-            <option value="">— None —</option>
+            <option value="">- None -</option>
             {options.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -225,7 +225,7 @@ function AssigneesEditor({ config, people }: { config: EmployeeConfig; people: A
         <label className="flex flex-col gap-1.5">
           <Label>Management (Final)</Label>
           <select className={INPUT} value={managementId} onChange={(e) => setManagementId(e.target.value)}>
-            <option value="">— None —</option>
+            <option value="">- None -</option>
             {options.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -269,7 +269,7 @@ function Picker({
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Local search — people" title="Local search — filters only the list on this page" aria-label="Local search — people — this page only"
+          placeholder="Local search - people" title="Local search - filters only the list on this page" aria-label="Local search - people - this page only"
           className="w-full rounded-xl border border-hairline bg-surface-soft py-2 pl-9 pr-3 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]"
         />
       </div>
@@ -299,7 +299,7 @@ function Picker({
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[14px] font-bold text-ink-strong">{p.name}</div>
                 <div className="truncate text-[12px] text-ink-subtle">
-                  {p.designation || p.department || "—"}
+                  {p.designation || p.department || "-"}
                 </div>
               </div>
             </button>
@@ -359,7 +359,7 @@ export function AdminPanel({
             <div className="min-w-0 flex-1">
               <div className="truncate text-[18px] font-black text-ink-strong">{selected.name}</div>
               <div className="text-[13px] text-ink-subtle">
-                {[selected.designation, selected.department].filter(Boolean).join(" · ") || "—"}
+                {[selected.designation, selected.department].filter(Boolean).join(" · ") || "-"}
               </div>
             </div>
           </div>

@@ -159,7 +159,7 @@ export function DailyPlanGate({ greetingName, today, items: pItems, overdue: pOv
             Plan Your Day{greetingName ? `, ${greetingName}` : ""}
           </h1>
           <p className="mt-1.5 text-[15px] font-medium text-ink-muted">
-            Add <b className="text-ink-strong">at least {MIN} things</b>{" "}you&apos;ll work on today — type your own or tap a task. Then start.
+            Add <b className="text-ink-strong">at least {MIN} things</b>{" "}you&apos;ll work on today - type your own or tap a task. Then start.
           </p>
         </header>
 

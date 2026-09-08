@@ -160,7 +160,7 @@ export function ScheduleSection({ value, onChange }: Props) {
       />
 
       <p className="mt-4 font-semibold" style={{ fontSize: 13, color: "var(--color-ink-muted)", lineHeight: 1.5 }}>
-        Internal scheduling only — not yet synced to Google Calendar. Use the
+        Internal scheduling only - not yet synced to Google Calendar. Use the
         deadline (<strong>Due Date</strong>) above for the commitment; this block
         describes when the work happens and how it repeats.
       </p>

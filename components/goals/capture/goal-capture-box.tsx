@@ -65,7 +65,7 @@ export function GoalCaptureBox(props: {
       recorderRef.current = rec;
       setRecording(true);
     } catch {
-      fireToast({ message: "Couldn't access the mic — check browser permissions.", type: "error" });
+      fireToast({ message: "Couldn't access the mic - check browser permissions.", type: "error" });
     }
   }
   function stopRecording() {
@@ -159,7 +159,7 @@ export function GoalCaptureBox(props: {
           >
             <Sparkles size={15} strokeWidth={2.4} className="text-altus-red" />
             Capture goals with AI
-            <span className="hidden text-[11px] font-semibold text-ink-subtle sm:inline">— type it in plain words</span>
+            <span className="hidden text-[11px] font-semibold text-ink-subtle sm:inline">- type it in plain words</span>
           </button>
         </div>
       ) : (

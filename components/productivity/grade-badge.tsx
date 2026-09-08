@@ -68,9 +68,9 @@ export function GradeBadge({
           background: "var(--color-surface-soft)",
           boxShadow: "inset 0 0 0 1px var(--color-hairline)",
         }}
-        title="Not graded — nothing was set to grade against"
+        title="Not graded - nothing was set to grade against"
       >
-        —
+        -
       </span>
     );
   }

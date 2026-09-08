@@ -108,7 +108,7 @@ export function ContributionBadge(props: {
       <span
         className="inline-flex items-center rounded-chip border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-ink-faint"
         style={{ borderColor: "var(--color-hairline-strong)" }}
-        title="No numeric target on this goal — excluded from the allocation math."
+        title="No numeric target on this goal - excluded from the allocation math."
       >
         unmeasured
       </span>
@@ -120,7 +120,7 @@ export function ContributionBadge(props: {
     <span
       className="inline-flex items-baseline gap-1 rounded-chip px-1.5 py-0.5 text-[10px] font-black uppercase tracking-[0.1em]"
       style={{ color: ACCENT_DEEP, background: accentMix(10) }}
-      title={`This goal's target is ${pct}% of the ${props.parentShort} target — recomputed live as siblings change.`}
+      title={`This goal's target is ${pct}% of the ${props.parentShort} target - recomputed live as siblings change.`}
     >
       <AnimatedNumber value={`${pct}%`} />
       <span className="font-bold normal-case tracking-normal text-ink-subtle">of {props.parentShort}</span>
@@ -149,7 +149,7 @@ export function RollupProjection(props: {
     <div
       className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-chip border px-2.5 py-1"
       style={{ borderColor: accentMix(30), background: accentMix(6) }}
-      title="Live rollup = weighted attainment derived from the child goals. It is a display-only projection — the recorded % below is what reports and gates read, and it is never overwritten."
+      title="Live rollup = weighted attainment derived from the child goals. It is a display-only projection - the recorded % below is what reports and gates read, and it is never overwritten."
     >
       <span className="text-[10px] font-black uppercase tracking-[0.12em]" style={{ color: ACCENT_DEEP }}>
         Live rollup
@@ -291,7 +291,7 @@ export function AllocationBanner(props: {
               {pctOfParent != null && (
                 <>
                   {" "}
-                  —{" "}
+                  -{" "}
                   <AnimatedNumber
                     value={`${pctOfParent}%`}
                     className="font-black"
@@ -350,7 +350,7 @@ export function AllocationBanner(props: {
                 <div className="border-t px-4 py-3" style={{ borderColor: "var(--color-hairline)" }}>
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <span className="text-[10px] font-black uppercase tracking-[0.12em] text-ink-subtle">
-                      Proportional rebalance — largest remainder, sums exactly to{" "}
+                      Proportional rebalance - largest remainder, sums exactly to{" "}
                       <span className="tabular-nums">{fmtNum(parentTarget)}</span>
                     </span>
                     <button

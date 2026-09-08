@@ -3,7 +3,7 @@ import type { Route } from "next";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { DashboardHeader } from "@/components/layout/header";
 import { PageShell } from "@/components/layout/page-shell";
-import { HrPageHeader } from "@/components/hr/hr-chrome";
+import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 import { requireUser } from "@/lib/auth/current";
 import { db } from "@/lib/db";
 import { hrFormSubmissions, asHrFormStatus } from "@/lib/hr/forms/schema";
@@ -82,11 +82,8 @@ export default async function MyFilledFormsPage({
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
+      <HrTitleBar title="My Filled Forms" />
       <PageShell width="full">
-        <HrPageHeader
-          title="My Filled Forms"
-          subtitle="The HR forms you've filled — view, download or mail any of them."
-        />
 
         <div className="mb-4 inline-flex items-center overflow-hidden rounded-lg border border-hairline-strong">
           <Tab href={"/hr/my-forms" as Route} active={tab === "submitted"} label="Submitted" />

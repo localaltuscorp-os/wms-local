@@ -90,7 +90,7 @@ export function buildMatrix(
     let net = 0;
     for (const col of parties) {
       if (col === row) {
-        line.push("—");
+        line.push("-");
         continue;
       }
       const v = byKey.get(`${row}|${col}`);
@@ -115,7 +115,7 @@ export function buildMatrix(
  * red the screen and the PDF use. Writing "₹25.00 Lakh" as a string instead
  * would look right and be useless: every downstream SUM would return zero.
  */
-const INR_FMT = '#,##,##0;[Red](#,##,##0);"—"';
+const INR_FMT = '#,##,##0;[Red](#,##,##0);"-"';
 
 /** One chart as an .xlsx buffer, values numeric and formatted. */
 export function snapshotXlsx(cells: VasaCell[], parties: string[], asOn: string): Buffer {

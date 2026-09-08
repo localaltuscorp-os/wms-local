@@ -78,7 +78,7 @@ export default async function TrainingCalendarPage() {
             <div>
               <p className="text-[15px] font-bold" style={{ color: "#92400e" }}>
                 No training scheduled
-                {alert.daysSinceLast != null ? ` — ${alert.daysSinceLast} day${alert.daysSinceLast === 1 ? "" : "s"} since the last session.` : "."}
+                {alert.daysSinceLast != null ? ` - ${alert.daysSinceLast} day${alert.daysSinceLast === 1 ? "" : "s"} since the last session.` : "."}
               </p>
               <p className="mt-0.5 text-[13.5px] font-semibold" style={{ color: "#a16207" }}>
                 {canManage

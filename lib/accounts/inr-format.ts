@@ -79,7 +79,7 @@ export function formatPreciseInr(n: number, g: InrGlyphs = INR_SCREEN): string {
  * empty cells, and a grid of "0.00 Lakh" is noise standing in for nothing.
  */
 export function formatCompactInr(n: number, g: InrGlyphs = INR_SCREEN): string {
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "-";
   const abs = Math.abs(n);
   if (abs === 0) return `${g.rupee}0`;
   const sign = n < 0 ? g.minus : "";

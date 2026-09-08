@@ -183,7 +183,7 @@ export function Workbench({
       employeeId,
       type,
       entity,
-      title: `${AGREEMENT_TYPE_LABELS[type]} — ${employeeName}`,
+      title: `${AGREEMENT_TYPE_LABELS[type]} - ${employeeName}`,
       fieldValues: fv,
     });
     if (!res.ok) {
@@ -251,7 +251,7 @@ export function Workbench({
           <div className="mt-4 grid grid-cols-1 gap-3.5">
             <Field label="Employee">
               <select className="ui-input" value={employeeId} onChange={(e) => onPickEmployee(e.target.value)}>
-                <option value="">— select an employee —</option>
+                <option value="">- select an employee -</option>
                 {roster.map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.name}

@@ -83,7 +83,7 @@ export function AttTeamRoster({
             </span>
             <span className="text-[13px] font-semibold text-ink-subtle">of {rows.length} in</span>
             <span
-              className="ml-1 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums"
+              className="ml-1 rounded-pill px-2 py-0.5 text-[11px] font-black tabular-nums"
               style={{ background: "var(--color-green-bg)", color: "var(--color-green-deep)" }}
             >
               {Math.round(pct * 100)}%
@@ -121,7 +121,7 @@ export function AttTeamRoster({
               setQuery("");
             }
           }}
-          placeholder="Local search — people" title="Local search — filters only the list on this page" aria-label="Local search — people — this page only"
+          placeholder="Local search - people" title="Local search - filters only the list on this page" aria-label="Local search - people - this page only"
           className="h-full w-full rounded-xl border-2 border-hairline-strong bg-white pl-9 pr-8 text-[14px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle focus:border-[var(--color-altus-red)]"
         />
         {query && (
@@ -300,7 +300,7 @@ function RosterItem({
             className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12.5px] font-semibold text-ink-subtle"
             style={{ background: "var(--color-surface-soft)" }}
           >
-            <LogOut size={12} strokeWidth={2.4} /> —
+            <LogOut size={12} strokeWidth={2.4} /> -
           </span>
         )}
       </div>

@@ -92,6 +92,29 @@ export function holidayMonthAbbr(month: number): string {
   return ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][month - 1] ?? "";
 }
 
+/**
+ * The holiday name as it should READ on screen, with a trailing
+ * "(National Holiday)" tag dropped.
+ *
+ * The tag is redundant in the UI — a national holiday already shows a red
+ * outline, a red date badge and a "National" marker — and because it only
+ * appears on some rows it made those cards wrap to a second line while their
+ * neighbours stayed on one, which is what left the list looking ragged.
+ *
+ * Stripping happens HERE, at the display edge, and never touches `name`: that
+ * field is transcribed verbatim from the government notification and is what
+ * the print view and the mobile API serve. Handles the tag mid-string too
+ * ("Independence Day (National Holiday) / Parsi New Year" keeps its second
+ * half) and tidies the separator left behind.
+ */
+export function holidayDisplayName(name: string): string {
+  return name
+    .replace(/\s*\(National Holiday\)\s*/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[\s/]+|[\s/]+$/g, "")
+    .trim();
+}
+
 // ── Management Discretion Regarding Holidays ────────────────────────────────
 
 export const MANAGEMENT_DISCRETION_TITLE = "Management Discretion Regarding Holidays";

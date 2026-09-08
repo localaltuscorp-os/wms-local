@@ -80,7 +80,7 @@ export async function buildManagerRollup(
     const nextG = goals.filter((g) => g.employeeId === p.id && g.weekStart === next);
     return {
       id: p.id,
-      name: p.name ?? "—",
+      name: p.name ?? "-",
       lastPct: last.length ? weeklyScore(last) : 0,
       lastCount: last.length,
       nextCount: nextG.length,
@@ -127,7 +127,7 @@ export async function renderManagerRollupPdf(r: ManagerRollup): Promise<Buffer> 
     }
   }
   doc.fillColor(RED).fontSize(11).font("Helvetica-Bold").text("ALTUS CORP · WEEKLY GOALS", 44, 72);
-  doc.fillColor(INK).fontSize(20).font("Helvetica-Bold").text(`${r.manager.name} — team review`, 44, 88);
+  doc.fillColor(INK).fontSize(20).font("Helvetica-Bold").text(`${r.manager.name} - team review`, 44, 88);
   doc
     .fillColor(MUTE)
     .fontSize(11)

@@ -384,7 +384,7 @@ export function SmartToolbar(props: SmartToolbarProps) {
                 data-pill
                 aria-pressed={isActive}
                 onClick={() => setActive(pill.id)}
-                className="shrink-0 inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-bold whitespace-nowrap transition-[background,color,border-color,box-shadow] duration-150"
+                className="shrink-0 inline-flex h-8 items-center gap-1.5 rounded-pill border px-3 text-[13px] font-bold whitespace-nowrap transition-[background,color,border-color,box-shadow] duration-150"
                 style={
                   isActive
                     ? {
@@ -409,7 +409,7 @@ export function SmartToolbar(props: SmartToolbarProps) {
                 ) : null}
                 {pill.label}
                 <span
-                  className="rounded-full px-1.5 py-px text-[11px] font-bold tabular-nums"
+                  className="rounded-pill px-1.5 py-px text-[11px] font-bold tabular-nums"
                   style={
                     isActive
                       ? { background: "rgba(255,255,255,0.18)", color: "#ffffff" }

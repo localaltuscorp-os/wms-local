@@ -151,7 +151,7 @@ export function ManagerFilterBar({
         <button
           type="button"
           onClick={apply}
-          className="wg-btn inline-flex items-center gap-2 rounded-full px-5 py-2.5 font-bold text-white transition-transform active:scale-[0.98]"
+          className="wg-btn inline-flex items-center gap-2 rounded-pill px-5 py-2.5 font-bold text-white transition-transform active:scale-[0.98]"
           style={{ background: "var(--color-altus-red)", fontSize: 13.5 }}
         >
           <SlidersHorizontal size={15} strokeWidth={2.4} />
@@ -160,7 +160,7 @@ export function ManagerFilterBar({
         <button
           type="button"
           onClick={reset}
-          className="wg-btn inline-flex items-center gap-2 rounded-full border border-hairline bg-white/75 px-4 py-2.5 font-bold text-ink-strong transition-colors hover:border-hairline-strong"
+          className="wg-btn inline-flex items-center gap-2 rounded-pill border border-hairline bg-white/75 px-4 py-2.5 font-bold text-ink-strong transition-colors hover:border-hairline-strong"
           style={{ fontSize: 13.5 }}
         >
           <RotateCcw size={15} strokeWidth={2.4} />

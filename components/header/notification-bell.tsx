@@ -30,7 +30,7 @@ export async function NotificationBell() {
   return (
     <Link
       href={"/inbox" as Route}
-      aria-label={unread ? `Notifications — ${inboxUnread} unread` : "Notifications"}
+      aria-label={unread ? `Notifications - ${inboxUnread} unread` : "Notifications"}
       title={unread ? `${inboxUnread} unread` : "Notifications"}
       className="relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-hairline-strong bg-surface-card text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong"
     >
@@ -38,7 +38,7 @@ export async function NotificationBell() {
       {unread && (
         <span
           // 99+ so a long-neglected inbox can't stretch the pill off the button.
-          className="absolute -right-1 -top-1 inline-flex min-w-[17px] items-center justify-center rounded-full px-1 text-[10px] font-black tabular-nums text-white"
+          className="absolute -right-1 -top-1 inline-flex min-w-[17px] items-center justify-center rounded-pill px-1 text-[10px] font-black tabular-nums text-white"
           style={{
             height: 17,
             background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",

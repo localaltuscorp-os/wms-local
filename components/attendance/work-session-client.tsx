@@ -55,7 +55,7 @@ function fmtDateTime(iso: string): string {
 }
 
 function fmtMinutes(min: number | null): string {
-  if (min == null) return "—";
+  if (min == null) return "-";
   const h = Math.floor(min / 60);
   const m = Math.round(min % 60);
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
@@ -190,7 +190,7 @@ export function WorkSessionClient({ recentSessions }: { recentSessions: RecentSe
     setPhase("live");
     setElapsed(0);
     setShotCount(0);
-    fireToast({ message: "Session started — screen sharing is live.", type: "success" });
+    fireToast({ message: "Session started - screen sharing is live.", type: "success" });
 
     // Elapsed timer.
     tickRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
@@ -319,7 +319,7 @@ export function WorkSessionClient({ recentSessions }: { recentSessions: RecentSe
           Recent sessions
         </h3>
         {recentSessions.length === 0 ? (
-          <p className="text-[13px] font-medium text-ink-subtle">No sessions yet — start one above.</p>
+          <p className="text-[13px] font-medium text-ink-subtle">No sessions yet - start one above.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {recentSessions.map((s) => {

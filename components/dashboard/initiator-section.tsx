@@ -166,7 +166,7 @@ function Board({
   if (board.managers.length === 0) {
     return (
       <p className="text-[14px] font-semibold text-ink-subtle">
-        No managers with direct reports yet — assign reporting lines in Admin →
+        No managers with direct reports yet - assign reporting lines in Admin →
         Employees.
       </p>
     );
@@ -175,7 +175,7 @@ function Board({
   if (managers.length === 0) {
     return (
       <p className="text-[14px] font-semibold text-ink-subtle">
-        You have no direct reports on record — nothing to score here.
+        You have no direct reports on record - nothing to score here.
       </p>
     );
   }
@@ -261,7 +261,7 @@ function ManagerCard({ manager: m }: { manager: InitiatorScorecard }) {
           label="Direct Reports"
           value={m.toDirectReports}
           highlight
-          title="Tasks pushed to direct reports — these count toward the target"
+          title="Tasks pushed to direct reports - these count toward the target"
         />
         <Chip label="Counterparts" value={m.toCounterparts} />
         <Chip label="Founder/Mgmt" value={m.toFounderMgmt} />

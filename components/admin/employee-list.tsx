@@ -47,7 +47,7 @@ function DepartmentCell({
   const [showAll, setShowAll] = React.useState(false);
 
   if (memberships.length === 0) {
-    return <span className="text-ink-subtle">—</span>;
+    return <span className="text-ink-subtle">-</span>;
   }
   // Primary first, then alphabetical — so the two that survive the cut are the
   // most meaningful ones, not an arbitrary slice.
@@ -62,7 +62,7 @@ function DepartmentCell({
       {visible.map((m) => (
         <span
           key={m.id}
-          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold ring-1 ring-inset"
+          className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[12px] font-semibold ring-1 ring-inset"
           style={{
             background: m.isPrimary ? "#FEF2F2" : "#F1F5F9",
             color: m.isPrimary ? "#A80400" : "#334155",
@@ -91,7 +91,7 @@ function DepartmentCell({
               ? "Show fewer departments"
               : ordered.slice(DEPT_VISIBLE).map((m) => m.name).join(", ")
           }
-          className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-bold ring-1 ring-inset transition-colors hover:brightness-95 outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60"
+          className="inline-flex items-center rounded-pill px-2.5 py-1 text-[12px] font-bold ring-1 ring-inset transition-colors hover:brightness-95 outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60"
           style={{
             background: "#F1F5F9",
             color: "#334155",
@@ -118,7 +118,7 @@ function RoleChip({ role }: { role: "doer" | "initiator" | "both" }) {
   const c = ROLE_CHIP[role];
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold ring-1 ring-inset"
+      className="inline-flex items-center rounded-pill px-2.5 py-1 text-[12px] font-semibold ring-1 ring-inset"
       style={{ background: c.bg, color: c.fg, boxShadow: `inset 0 0 0 1px ${c.ring}` }}
     >
       {c.label}
@@ -285,7 +285,7 @@ export function EmployeeList({
             href={`/attendance/insights/employee/${e.id}` as Route}
             title={`Open ${e.name}'s attendance dashboard`}
             aria-label={`Attendance dashboard for ${e.name}`}
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold text-[#A80400] transition-colors hover:bg-[color-mix(in_srgb,var(--color-altus-red)_10%,transparent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 focus-visible:ring-offset-1"
+            className="inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12.5px] font-bold text-[#A80400] transition-colors hover:bg-[color-mix(in_srgb,var(--color-altus-red)_10%,transparent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 focus-visible:ring-offset-1"
             style={{ background: "color-mix(in srgb, #E10600 7%, transparent)" }}
           >
             <BarChart3 size={14} strokeWidth={2.4} />
@@ -314,7 +314,7 @@ export function EmployeeList({
             No employees yet
           </p>
           <p className="mt-2 text-[14px] text-ink-subtle max-w-sm mx-auto" style={{ lineHeight: 1.5 }}>
-            Invite your first teammate with the button above — they&apos;ll get a
+            Invite your first teammate with the button above - they&apos;ll get a
             signed link to set their password.
           </p>
         </>

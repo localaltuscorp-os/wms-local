@@ -99,7 +99,7 @@ export function RbClaimDialog({
               Request Reimbursement
             </Dialog.Title>
             <Dialog.Description className="mt-1.5 text-[14.5px] font-medium text-ink-subtle" style={{ lineHeight: 1.5 }}>
-              Raise an expense with its receipt — an admin reviews and settles every claim.
+              Raise an expense with its receipt - an admin reviews and settles every claim.
             </Dialog.Description>
             <Dialog.Close asChild>
               <button

@@ -52,7 +52,7 @@ const STICKY_TH: React.CSSProperties = {
   boxShadow: "1px 0 0 var(--color-hairline)",
 };
 
-function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>; }
+function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>; }
 
 function lookupAdd(kind: string) {
   return async (name: string) => {
@@ -311,7 +311,7 @@ export function BankBalance({ fyStartYear, items, weeks, balances, entityOptions
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search — accounts" title="Local search — filters only the list on this page" aria-label="Local search — accounts — this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - accounts" title="Local search - filters only the list on this page" aria-label="Local search - accounts - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
         {/* Add a weekly snapshot column */}
         <div className="flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-2 py-1">
@@ -446,7 +446,7 @@ function BalanceCell({ value, state, onEdit, onFlush, label }: {
         className={CELL}
         style={{ minWidth: 92, paddingRight: state ? 18 : undefined }}
         aria-label={label}
-        placeholder="—"
+        placeholder="-"
       />
       {state && (
         <span

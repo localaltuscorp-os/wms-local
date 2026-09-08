@@ -127,7 +127,7 @@ export default async function PmsSignalsPage() {
                 Recognition &amp; Promotions
               </h1>
               <p className="mt-1.5 max-w-[76ch] text-[15px] font-medium text-ink-muted">
-                The score engine only <em>suggests</em> recognition and <em>flags</em> promotions — nothing is
+                The score engine only <em>suggests</em> recognition and <em>flags</em> promotions - nothing is
                 automatic. You decide and release every consequence here.
                 {(openRecognitions > 0 || flaggedPromotions > 0) &&
                   ` ${openRecognitions} recognition${openRecognitions === 1 ? "" : "s"} and ${flaggedPromotions} promotion${flaggedPromotions === 1 ? "" : "s"} awaiting your call.`}
@@ -170,7 +170,7 @@ export default async function PmsSignalsPage() {
             icon={<Target size={17} strokeWidth={2.4} />}
             accent={attainment == null ? "#334155" : attainment >= 100 ? "#16a34a" : attainment >= 70 ? "#d97706" : "#dc2626"}
             label="Attainment"
-            value={attainment != null ? `${Math.round(attainment)}%` : "—"}
+            value={attainment != null ? `${Math.round(attainment)}%` : "-"}
             caption="approved-earned vs target, YTD"
             progress={attainment != null ? Math.min(1, attainment / 100) : null}
             delay={150}
@@ -212,7 +212,7 @@ export default async function PmsSignalsPage() {
                             <StatusPill label={st.label} color={st.color} />
                           </div>
                           <div className="mt-0.5 text-[13px] text-ink-subtle">
-                            {r.department || "—"} · {fmtPeriod(r.period)}
+                            {r.department || "-"} · {fmtPeriod(r.period)}
                           </div>
                           <div className="mt-2 flex items-center gap-2">
                             <span
@@ -282,7 +282,7 @@ export default async function PmsSignalsPage() {
                             <span className="truncate text-[16px] font-bold text-ink-strong">{p.employeeName}</span>
                             <StatusPill label={st.label} color={st.color} />
                           </div>
-                          <div className="mt-0.5 text-[13px] text-ink-subtle">{p.department || "—"}</div>
+                          <div className="mt-0.5 text-[13px] text-ink-subtle">{p.department || "-"}</div>
                           <div className="mt-2 flex items-center gap-3">
                             {p.scoreSnapshot != null && (
                               <span
@@ -335,7 +335,7 @@ export default async function PmsSignalsPage() {
         <section className="mt-9 wg-rise">
           <div className="mb-3 flex items-end justify-between gap-3 flex-wrap">
             <h2 className="flex items-center gap-2 text-[17px] font-bold text-ink-strong">
-              <Target size={18} strokeWidth={2.4} style={{ color: ACCENT }} /> Incentive — Target vs Actual
+              <Target size={18} strokeWidth={2.4} style={{ color: ACCENT }} /> Incentive - Target vs Actual
               <span className="text-[13px] font-semibold text-ink-subtle">{tva.year}</span>
             </h2>
             <div className="flex items-center gap-5 text-[13px]">
@@ -396,7 +396,7 @@ export default async function PmsSignalsPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums text-ink-muted">
-                          {row.target > 0 ? rupee(row.target) : "—"}
+                          {row.target > 0 ? rupee(row.target) : "-"}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums font-semibold text-ink-strong">
                           {rupee(row.actual)}
@@ -435,7 +435,7 @@ export default async function PmsSignalsPage() {
                     <td className="px-4 py-3 text-right tabular-nums">{rupee(tva.totals.target)}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{rupee(tva.totals.actual)}</td>
                     <td className="px-4 py-3 tabular-nums">
-                      {tva.totals.attainmentPct != null ? `${Math.round(tva.totals.attainmentPct)}%` : "—"}
+                      {tva.totals.attainmentPct != null ? `${Math.round(tva.totals.attainmentPct)}%` : "-"}
                     </td>
                   </tr>
                 </tfoot>

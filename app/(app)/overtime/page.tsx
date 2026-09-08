@@ -115,7 +115,7 @@ export default async function OvertimePage() {
                 Team Dashboard
                 {pendingCount > 0 && (
                   <span
-                    className="grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold tabular-nums"
+                    className="grid h-5 min-w-5 place-items-center rounded-pill px-1.5 text-[11px] font-bold tabular-nums"
                     style={{ background: "rgba(255,255,255,0.25)", color: "#fff" }}
                   >
                     {pendingCount}

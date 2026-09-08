@@ -77,7 +77,7 @@ export default function AppError({
           className="text-body-lg text-ink-muted mt-3 mx-auto"
           style={{ maxWidth: 480, lineHeight: 1.6 }}
         >
-          Something hiccuped — usually the database being slow for a moment.
+          Something hiccuped - usually the database being slow for a moment.
           Your data is safe. Try that again; if it keeps happening, let the
           team know.
         </p>

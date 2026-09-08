@@ -180,7 +180,7 @@ function ConfirmPurgeModal({
               Permanently delete <span className="tabular-nums">{count}</span> goal{count === 1 ? "" : "s"}?
             </h3>
             <p className="mt-1 text-[13.5px] leading-relaxed text-ink-muted">
-              This wipes {count === 1 ? "it" : "them"} from the record for good — restoring later
+              This wipes {count === 1 ? "it" : "them"} from the record for good - restoring later
               won&apos;t be possible. This can&apos;t be undone.
             </p>
           </div>
@@ -355,12 +355,12 @@ export function RecycleBinGoals({ items }: { items: BinGoal[] }) {
           </h2>
           <p className="truncate text-[12.5px] text-ink-muted">
             <span className="tabular-nums">{items.length}</span> deleted goal
-            {items.length === 1 ? "" : "s"} — restore or clear for good.
+            {items.length === 1 ? "" : "s"} - restore or clear for good.
           </p>
         </div>
         {someSelected && (
           <span
-            className="rounded-full px-2.5 py-1 text-[12px] font-bold tabular-nums"
+            className="rounded-pill px-2.5 py-1 text-[12px] font-bold tabular-nums"
             style={{ background: RED_TINT_10, color: "var(--color-altus-red-deep)" }}
           >
             {selectedIds.length} selected
@@ -440,7 +440,7 @@ export function RecycleBinGoals({ items }: { items: BinGoal[] }) {
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="shrink-0 rounded-full bg-surface-soft px-2 py-0.5 text-[11px] font-bold tabular-nums text-ink-muted">
+                  <span className="shrink-0 rounded-pill bg-surface-soft px-2 py-0.5 text-[11px] font-bold tabular-nums text-ink-muted">
                     {g.code}
                   </span>
                   <span
@@ -451,7 +451,7 @@ export function RecycleBinGoals({ items }: { items: BinGoal[] }) {
                   </span>
                   {g.area && (
                     <span
-                      className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                      className="shrink-0 rounded-pill px-2 py-0.5 text-[11px] font-semibold"
                       style={{ background: RED_TINT_10, color: "var(--color-altus-red-deep)" }}
                     >
                       {g.area}

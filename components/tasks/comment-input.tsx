@@ -72,7 +72,7 @@ export function CommentInput({ taskId, me, compact = false }: Props) {
     return (
       <form onSubmit={submit} aria-label="Add a comment">
         <div
-          className="flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-2 pl-2.5 transition-shadow"
+          className="flex h-10 items-center gap-2 rounded-pill border border-slate-200 bg-white px-2 pl-2.5 transition-shadow"
           style={{
             boxShadow: focused
               ? "0 0 0 3px rgba(225, 6, 0, 0.08)"
@@ -106,7 +106,7 @@ export function CommentInput({ taskId, me, compact = false }: Props) {
           <button
             type="submit"
             disabled={!canSubmit}
-            className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-full px-3 text-[12.5px] font-bold text-white transition-colors disabled:cursor-not-allowed"
+            className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-pill px-3 text-[12.5px] font-bold text-white transition-colors disabled:cursor-not-allowed"
             style={{
               background: canSubmit ? "#B80D22" : "rgba(15, 23, 42, 0.12)",
               color: canSubmit ? "#ffffff" : "var(--color-ink-subtle)",
@@ -171,7 +171,7 @@ export function CommentInput({ taskId, me, compact = false }: Props) {
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[14px] font-semibold text-white transition-all disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-pill text-[14px] font-semibold text-white transition-all disabled:cursor-not-allowed"
                 style={{
                   background: canSubmit
                     ? "linear-gradient(135deg, #ff3845, var(--color-altus-red) 45%, var(--color-altus-red-deep))"

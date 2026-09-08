@@ -34,7 +34,7 @@ export function GoogleCalendarCard({
     const status = params.get("google");
     if (!status) return;
     const msg: Record<string, string> = {
-      connected: "Google Calendar connected — your tasks will sync.",
+      connected: "Google Calendar connected - your tasks will sync.",
       denied: "Google Calendar connection was cancelled.",
       error: "Couldn't connect Google Calendar. Please try again.",
       unconfigured: "Google Calendar isn't configured on the server yet.",
@@ -61,7 +61,7 @@ export function GoogleCalendarCard({
       fireToast({
         message:
           res.synced === 0
-            ? "No active tasks to sync — nothing assigned to you right now."
+            ? "No active tasks to sync - nothing assigned to you right now."
             : `Synced ${res.synced} of ${res.attempted} task${res.attempted === 1 ? "" : "s"} to your calendar.`,
       });
     });
@@ -86,7 +86,7 @@ export function GoogleCalendarCard({
           <h3 className="text-[16px] font-bold text-ink-strong">Google Calendar</h3>
           <p className="mt-1 text-[14px] text-ink-soft leading-relaxed">
             {connected
-              ? "Connected — tasks assigned to you are added to your Google Calendar automatically, and stay in sync as they change."
+              ? "Connected - tasks assigned to you are added to your Google Calendar automatically, and stay in sync as they change."
               : "Connect your Google Calendar so tasks assigned to you appear there automatically when they're created."}
           </p>
 

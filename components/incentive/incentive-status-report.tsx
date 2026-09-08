@@ -57,7 +57,7 @@ export function IncentiveStatusReport({ report }: { report: IncentiveStatusRepor
           >
             Performance Intelligence (PMS) counts PAID only
           </span>{" "}
-          — Booked and Accrued are client-payment progress signals and never feed a score.
+          - Booked and Accrued are client-payment progress signals and never feed a score.
         </p>
       </div>
 
@@ -106,14 +106,14 @@ function WindowCard({ window: w, delay }: { window: StatusWindow; delay: number 
           </p>
         </div>
         <span
-          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold tabular-nums"
+          className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11.5px] font-bold tabular-nums"
           style={{
             color: GREEN_DEEP,
             background: `color-mix(in srgb, ${GREEN} 12%, transparent)`,
           }}
         >
           <Gauge size={12} strokeWidth={2.6} />
-          {paidPct == null ? "—" : `${paidPct.toFixed(0)}%`}
+          {paidPct == null ? "-" : `${paidPct.toFixed(0)}%`}
         </span>
       </header>
 
@@ -189,14 +189,14 @@ function PersonTable({ report }: { report: IncentiveStatusReport }) {
             Per-Person · Year to Date
           </h2>
           <p className="text-[13px] font-medium text-ink-subtle">
-            Target vs Booked · Accrued · Paid — the <b>Attain</b> column is Paid ÷ Target (what PMS reads).
+            Target vs Booked · Accrued · Paid - the <b>Attain</b> column is Paid ÷ Target (what PMS reads).
           </p>
         </div>
         <input
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Local search — person" title="Local search — filters only the list on this page" aria-label="Local search — person — this page only"
+          placeholder="Local search - person" title="Local search - filters only the list on this page" aria-label="Local search - person - this page only"
           className="h-10 w-full max-w-[240px] rounded-xl bg-surface-card px-3.5 text-[14px] font-semibold text-ink-strong outline-none placeholder:text-ink-subtle"
           style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
         />
@@ -244,12 +244,12 @@ function PersonTable({ report }: { report: IncentiveStatusReport }) {
                         </span>
                       </span>
                     </td>
-                    <Td align="right">{r.target > 0 ? formatInr(r.target) : "—"}</Td>
+                    <Td align="right">{r.target > 0 ? formatInr(r.target) : "-"}</Td>
                     <Td align="right">{formatInr(r.booked)}</Td>
                     <Td align="right">{formatInr(r.accrued)}</Td>
                     <Td align="right" bold color={GREEN_DEEP}>{formatInr(r.paid)}</Td>
                     <td className="py-2.5 pl-3 text-right tabular-nums font-black" style={{ fontSize: 13.5, color: tone }}>
-                      {p == null ? "—" : `${p.toFixed(0)}%`}
+                      {p == null ? "-" : `${p.toFixed(0)}%`}
                     </td>
                   </tr>
                 );

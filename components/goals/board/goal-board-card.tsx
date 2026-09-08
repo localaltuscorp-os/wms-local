@@ -215,7 +215,7 @@ function GoalBoardCardImpl({
     void mutation
       .mutate({ type: "update", id: goal.id, fields: {} }, () => generateGoalChildren({ id: goal.id }))
       .then((ok) => {
-        if (ok) fireToast({ message: "Cascade children generated — check the level below.", type: "success" });
+        if (ok) fireToast({ message: "Cascade children generated - check the level below.", type: "success" });
       });
   }
 
@@ -316,7 +316,7 @@ function GoalBoardCardImpl({
             ref={setActivatorNodeRef}
             {...attributes}
             {...listeners}
-            aria-label={`Move "${goal.title}" — drag, or press space then arrows to reorder or reach a period pill`}
+            aria-label={`Move "${goal.title}" - drag, or press space then arrows to reorder or reach a period pill`}
             className={`mt-2.5 shrink-0 cursor-grab touch-none rounded text-ink-subtle opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 active:cursor-grabbing max-md:opacity-100 ${FOCUS_RING}`}
           >
             <GripVertical size={17} />
@@ -360,7 +360,7 @@ function GoalBoardCardImpl({
               {codeOf(goal)}
             </span>
             <span
-              className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] font-bold"
+              className="inline-flex items-center rounded-pill px-2 py-[1px] text-[11px] font-bold"
               style={{ background: cat.bg, color: cat.color }}
             >
               {cat.label}
@@ -368,7 +368,7 @@ function GoalBoardCardImpl({
             <AssignmentChip info={assign} />
             {atRisk && (
               <span
-                className="wg-pip-pop inline-flex items-center gap-1 rounded-full px-2 py-[1px] text-[11px] font-bold"
+                className="wg-pip-pop inline-flex items-center gap-1 rounded-pill px-2 py-[1px] text-[11px] font-bold"
                 style={{ background: "color-mix(in srgb, var(--color-altus-red) 14%, transparent)", color: "var(--color-altus-red-deep)" }}
               >
                 <AlertTriangle size={11} aria-hidden />
@@ -639,7 +639,7 @@ function GoalBoardCardImpl({
                   <span className="ml-1 text-[10px] font-semibold" style={{ color: "var(--color-ink-subtle)" }}>done</span>
                 </span>
                 <span
-                  className="inline-flex items-center rounded-full px-1.5 py-[1px] text-[10px] font-bold"
+                  className="inline-flex items-center rounded-pill px-1.5 py-[1px] text-[10px] font-bold"
                   style={{ background: health.bg, color: health.color }}
                 >
                   {health.label}
@@ -663,7 +663,7 @@ function GoalBoardCardImpl({
             style={{ color: "var(--color-ink-subtle)" }}
           >
             <span
-              className="inline-flex items-center rounded-full px-1.5 py-[1px] text-[10.5px] font-bold"
+              className="inline-flex items-center rounded-pill px-1.5 py-[1px] text-[10.5px] font-bold"
               style={{ background: cat.bg, color: cat.color }}
             >
               {cat.label}
@@ -697,7 +697,7 @@ function GoalBoardCardImpl({
               {goal.delegatedTo && goal.delegatedTo.length > 0 && (
                 <div
                   className="flex shrink-0 items-center -space-x-1.5"
-                  title={`Delegated → ${goal.delegatedTo.map((d) => `${d.name ?? "—"} ${d.pct}%`).join(" · ")}`}
+                  title={`Delegated → ${goal.delegatedTo.map((d) => `${d.name ?? "-"} ${d.pct}%`).join(" · ")}`}
                 >
                   {goal.delegatedTo.slice(0, 3).map((d) => (
                     <span
@@ -746,12 +746,12 @@ function GoalBoardCardImpl({
         footer={
           <div className="flex items-center justify-between gap-3">
             <span className="text-[12.5px] font-medium" style={{ color: "var(--color-ink-subtle)" }}>
-              {ro ? "View only — this board is read-only for you" : "Changes save automatically"}
+              {ro ? "View only - this board is read-only for you" : "Changes save automatically"}
             </span>
             <button
               type="button"
               onClick={() => setEditing(false)}
-              className={`wg-btn inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[14px] font-bold text-white ${FOCUS_RING}`}
+              className={`wg-btn inline-flex items-center gap-1.5 rounded-pill px-5 py-2.5 text-[14px] font-bold text-white ${FOCUS_RING}`}
               style={{ background: "var(--color-altus-red)" }}
             >
               {ro ? "Close" : "Done"}
@@ -791,7 +791,7 @@ function GoalBoardCardImpl({
               {goal.acceptPct != null && (
                 <p className="rounded-lg px-3 py-2 text-[13px] font-semibold" style={{ background: "var(--color-surface-soft)", color: "var(--color-ink-soft)" }}>
                   Manager accepted <b className="tabular-nums">{goal.acceptPct}%</b>
-                  {goal.reviewNotes ? ` — “${goal.reviewNotes}”` : ""}
+                  {goal.reviewNotes ? ` - “${goal.reviewNotes}”` : ""}
                 </p>
               )}
             </FieldGroup>
@@ -1165,7 +1165,7 @@ export function MonthlyMasterField({
     return (
       <div className="flex flex-wrap items-center gap-2">
         <span
-          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[13px] font-semibold"
+          className="inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-[13px] font-semibold"
           style={{ borderColor: "var(--color-hairline-strong)", background: "var(--color-surface-soft)", color: "var(--color-ink-strong)" }}
         >
           <CalendarClock size={13} aria-hidden style={{ color: "var(--color-altus-red)" }} />
@@ -1343,7 +1343,7 @@ function TeamPicker({
           {team.map((m, i) => (
             <span
               key={`${m.employeeId ?? m.name ?? i}`}
-              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[13px] font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-[13px] font-semibold"
               style={{ borderColor: "var(--color-hairline-strong)", background: "var(--color-surface-soft)", color: "var(--color-ink-strong)" }}
             >
               {nameOf(m)}
@@ -1548,7 +1548,7 @@ function MoveGoalDrawer({
             fireToast({ message: res.error, type: "error" });
             return;
           }
-          fireToast({ message: `Added a copy to ${label} — the original stays here`, type: "success" });
+          fireToast({ message: `Added a copy to ${label} - the original stays here`, type: "success" });
           router.refresh(); // surface it if the target is the current board
           onClose();
         })
@@ -1650,7 +1650,7 @@ function MoveGoalDrawer({
         <div className="flex items-center justify-between gap-3">
           <span className="text-[12.5px] font-medium" style={{ color: "var(--color-ink-subtle)" }}>
             {isCopy
-              ? "The original stays — a copy is added"
+              ? "The original stays - a copy is added"
               : canRehome
                 ? "Pick a level and a bucket"
                 : "You can move it between sibling buckets"}
@@ -1659,7 +1659,7 @@ function MoveGoalDrawer({
             type="button"
             onClick={commitMove}
             disabled={(!isCopy && samePlace) || busy || !keyShapeOk}
-            className={`wg-btn inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[14px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed ${FOCUS_RING}`}
+            className={`wg-btn inline-flex items-center gap-1.5 rounded-pill px-5 py-2.5 text-[14px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed ${FOCUS_RING}`}
             style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
           >
             {busy && <Loader2 size={14} className="animate-spin" />}
@@ -1683,7 +1683,7 @@ function MoveGoalDrawer({
                   title={disabled ? POLICY_REASONS.rehomeLevel : undefined}
                   aria-pressed={active}
                   onClick={() => pickLevel(l.level)}
-                  className={`rounded-full border px-3.5 py-1.5 text-[13.5px] font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${FOCUS_RING}`}
+                  className={`rounded-pill border px-3.5 py-1.5 text-[13.5px] font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${FOCUS_RING}`}
                   style={
                     active
                       ? { background: "var(--color-altus-red)", borderColor: "var(--color-altus-red)", color: "#fff" }
@@ -1719,12 +1719,12 @@ function MoveGoalDrawer({
 
         {isCopy ? (
           <p className="rounded-lg px-3 py-2 text-[12.5px] font-semibold" style={{ background: "var(--color-surface-soft)", color: "var(--color-ink-subtle)" }}>
-            Adds an independent copy to {level === "week" ? "that week (Weekly board)" : level === "day" ? "that day plan (Plan-Your-Day)" : "that period"} — the original
+            Adds an independent copy to {level === "week" ? "that week (Weekly board)" : level === "day" ? "that day plan (Plan-Your-Day)" : "that period"} - the original
             stays right here. The copy has its own progress; edit it on its own.
           </p>
         ) : (level === "week" || level === "day") && (
           <p className="rounded-lg px-3 py-2 text-[12.5px] font-semibold" style={{ background: "var(--color-surface-soft)", color: "var(--color-ink-subtle)" }}>
-            Moving {level === "week" ? "into a week" : "into a day plan"} converts the goal — it leaves this board and
+            Moving {level === "week" ? "into a week" : "into a day plan"} converts the goal - it leaves this board and
             appears {level === "week" ? "on the Weekly board (uncommitted, ready for the Saturday ritual)" : "in Plan-Your-Day"}.
           </p>
         )}

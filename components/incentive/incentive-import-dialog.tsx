@@ -88,7 +88,7 @@ export function IncentiveImportDialog() {
             Import Incentive Entries
           </Dialog.Title>
           <Dialog.Description className="text-ink-subtle font-semibold mb-4" style={{ fontSize: 13.5 }}>
-            Upload a .xlsx or .csv — each row becomes one incentive entry. Columns are
+            Upload a .xlsx or .csv - each row becomes one incentive entry. Columns are
             matched by name; employees are matched to the roster best-effort.
           </Dialog.Description>
 

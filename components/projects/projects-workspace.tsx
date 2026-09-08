@@ -1474,8 +1474,8 @@ function DeleteNodeDialog({
               </Dialog.Title>
               <Dialog.Description className="text-[14px] text-ink-subtle mt-1" style={{ lineHeight: 1.5 }}>
                 {step === 1
-                  ? "Step 1 of 2 — review what will be removed."
-                  : "Step 2 of 2 — confirm to finish."}
+                  ? "Step 1 of 2 - review what will be removed."
+                  : "Step 2 of 2 - confirm to finish."}
               </Dialog.Description>
             </div>
           </div>
@@ -1499,7 +1499,7 @@ function DeleteNodeDialog({
                       {descendants > 0 ? ` (${descendants} direct child${descendants === 1 ? "" : "ren"})` : ""}.
                     </li>
                   )}
-                  <li>• Linked tasks are <strong>kept</strong> — just unlinked from this project.</li>
+                  <li>• Linked tasks are <strong>kept</strong> - just unlinked from this project.</li>
                   <li>• This <strong>cannot be undone</strong>. Prefer Archive if unsure.</li>
                 </ul>
               </div>
@@ -1716,7 +1716,7 @@ function OwnerPicker({
               ? node.ownerName.split(" ")[0]
               : node.ownerName
             : compact
-              ? "—"
+              ? "-"
               : "No owner"}
         </span>
       </div>
@@ -1843,7 +1843,7 @@ function MembersPicker({ node }: { node: ProjectTreeNode }) {
         <FieldLabel icon={<Users size={12} strokeWidth={2.2} />}>Team</FieldLabel>
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
           {node.members.length === 0 ? (
-            <span className="text-[13.5px] text-ink-muted">—</span>
+            <span className="text-[13.5px] text-ink-muted">-</span>
           ) : (
             node.members.map((m) => (
               <span
@@ -1855,7 +1855,7 @@ function MembersPicker({ node }: { node: ProjectTreeNode }) {
                   border: "1px solid color-mix(in srgb, var(--color-blue) 28%, transparent)",
                 }}
               >
-                {m.name ?? "—"}
+                {m.name ?? "-"}
               </span>
             ))
           )}
@@ -1894,7 +1894,7 @@ function MembersPicker({ node }: { node: ProjectTreeNode }) {
               border: "1px solid color-mix(in srgb, var(--color-blue) 28%, transparent)",
             }}
           >
-            {m.name ?? "—"}
+            {m.name ?? "-"}
             <button
               type="button"
               onClick={() => toggle(m.id)}
@@ -2019,7 +2019,7 @@ function TargetDateEditor({ node }: { node: ProjectTreeNode }) {
               : "var(--color-ink-muted)",
           }}
         >
-          {node.targetDate ? fmtDate(node.targetDate) : "—"}
+          {node.targetDate ? fmtDate(node.targetDate) : "-"}
         </span>
       </div>
     );
@@ -2454,7 +2454,7 @@ function EmptyState() {
       </p>
       <p className="text-[14px] text-ink-subtle mt-3 max-w-sm mx-auto leading-relaxed">
         A project is the rough shape of an outcome. Break it down into
-        milestones, results, and concrete actions — then link tasks to any
+        milestones, results, and concrete actions - then link tasks to any
         node from the task's form.
       </p>
       <div className="mt-7 flex justify-center">

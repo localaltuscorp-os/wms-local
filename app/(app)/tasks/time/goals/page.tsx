@@ -18,7 +18,7 @@ export default async function GoalTimeReportPage() {
   return (
     <TimeReportFrame
       title="Goal Report"
-      subtitle="Tracked task time rolled up to each weekly goal — how much real effort every goal consumed, and the average per task."
+      subtitle="Tracked task time rolled up to each weekly goal - how much real effort every goal consumed, and the average per task."
     >
       <GoalReportTable rows={rows} />
     </TimeReportFrame>

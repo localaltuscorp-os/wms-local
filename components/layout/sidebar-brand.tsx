@@ -56,7 +56,7 @@ export function SidebarBrand() {
       {theme && ModuleIcon && (
         <Link
           href={landing as Route}
-          aria-label={`${theme.label} — module home`}
+          aria-label={`${theme.label} - module home`}
           className="module-wordmark inline-flex w-full items-center justify-center gap-2.5 rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
         >
           <span

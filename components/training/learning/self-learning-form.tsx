@@ -48,7 +48,7 @@ export function SelfLearningForm() {
     e.preventDefault();
     setError(null);
     if (!title.trim()) return setError("Add a title.");
-    if (!evidenceUrl.trim()) return setError("Evidence is required — paste a link.");
+    if (!evidenceUrl.trim()) return setError("Evidence is required - paste a link.");
     setSubmitting(true);
     const res = await logSelfLearning({
       kind,

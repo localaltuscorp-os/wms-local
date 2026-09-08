@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { employees, type Employee } from "@/db/schema";
 import { readSession } from "@/lib/auth/session";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { devAuthBypassEnabled, DEV_BYPASS_EMPLOYEE } from "@/lib/auth/dev-bypass";
 import { isAttendanceAdmin } from "@/lib/auth/attendance-permissions";
 import { FORBIDDEN_DIGEST as FORBIDDEN_DIGEST_VALUE } from "./forbidden";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
@@ -19,11 +20,11 @@ const DUMMY_USER_EMAIL = "dummy.admin@example.invalid";
  * Resolves the signed-in employee row, or null if not signed in.
  * Looks up by Firebase UID.  Used inside Server Components / Server Actions.
  *
- * This is the single most-used query in the app — the root layout and every
+ * This is the single most-used query in the app - the root layout and every
  * authed request resolve it. It is React-`cache()`d, so the lookup runs at most
  * ONCE per request and the healthy result is reused everywhere. We load it
  * DIRECTLY (no timeout/retry wrapper): a slow read just takes a little longer
- * and completes — wrapping it in a hard timeout turned slow-but-fine reads into
+ * and completes - wrapping it in a hard timeout turned slow-but-fine reads into
  * thrown errors under load, which surfaced as "We hit a snag" / failed actions.
  */
 export const getCurrentEmployee = cache(async (): Promise<Employee | null> => {
@@ -47,6 +48,12 @@ export const getCurrentEmployee = cache(async (): Promise<Employee | null> => {
     return row;
   }
 
+  // DEV_AUTH_BYPASS=true (.env.local, non-production only) - skip both the
+  // Firebase session cookie AND the DB lookup below, so pages render without
+  // a configured Firebase project or a live Supabase connection. See
+  // lib/auth/dev-bypass.ts.
+  if (devAuthBypassEnabled()) return DEV_BYPASS_EMPLOYEE;
+
   const claims = await readSession();
   if (!claims) return null;
   const row = await db.query.employees.findFirst({
@@ -56,7 +63,7 @@ export const getCurrentEmployee = cache(async (): Promise<Employee | null> => {
 });
 
 /**
- * The SINGLE login-liveness rule — used by every liveness gate (requireSession,
+ * The SINGLE login-liveness rule - used by every liveness gate (requireSession,
  * the session-cookie mint, the mobile auth). A real employee is live while
  * `isActive`; a candidate guest-account is live while `candidateActive` (a
  * candidate is always `isActive=false`, so it's excluded from every roster).
@@ -64,8 +71,8 @@ export const getCurrentEmployee = cache(async (): Promise<Employee | null> => {
  * A SYSTEM account (test / demo logins) follows the SAME hiding pattern as a
  * candidate, for the same reason: it is kept `isActive=false` so that the
  * ~120 roster queries which filter on `is_active = true` exclude it
- * AUTOMATICALLY — attendance boards, DCC rankings, PMS lists, pickers, team
- * views — without every one of them needing its own account_type filter (which
+ * AUTOMATICALLY - attendance boards, DCC rankings, PMS lists, pickers, team
+ * views - without every one of them needing its own account_type filter (which
  * is the kind of sweep that always misses one). Its liveness is therefore
  * independent of `isActive`: the account still logs in and works normally.
  */
@@ -81,7 +88,7 @@ export function isCandidateAccount(e: Employee): boolean {
 }
 
 /**
- * Login + liveness ONLY — no role/candidate opinion. Private to this module's
+ * Login + liveness ONLY - no role/candidate opinion. Private to this module's
  * guards: the candidate-form guards build on this so they don't inherit
  * requireUser's "candidates get redirected away" fork.
  */
@@ -92,7 +99,7 @@ async function requireSession(): Promise<Employee> {
 }
 
 /**
- * The DEFAULT gate for every normal surface — redirects to /login if absent or
+ * The DEFAULT gate for every normal surface - redirects to /login if absent or
  * not-live, AND forks a candidate guest-account OUT to their form. It can
  * therefore NEVER return a candidate: this is the choke point that keeps
  * candidates out of the entire app (requireAdmin/requireSuperAdmin/
@@ -126,8 +133,8 @@ export function guardNotCandidate(e: Employee): Employee {
 }
 
 /**
- * The 403 marker lives in `./forbidden` so the client error boundaries — which
- * cannot import this `server-only` module — recognise exactly what these guards
+ * The 403 marker lives in `./forbidden` so the client error boundaries - which
+ * cannot import this `server-only` module - recognise exactly what these guards
  * raise. Re-exported here so server callers have one import.
  */
 export { FORBIDDEN_DIGEST, isForbiddenError } from "./forbidden";
@@ -156,7 +163,7 @@ export async function requireAdmin(): Promise<Employee> {
  * Like requireUser but throws unless the signed-in employee may administer
  * DEVICES AND ATTENDANCE SETTINGS (the `ATTENDANCE_ADMIN_EMAILS` allow-list).
  *
- * Deliberately NOT "admin AND on the list" — being an admin grants nothing here.
+ * Deliberately NOT "admin AND on the list" - being an admin grants nothing here.
  * Whoever can register a device against a person can punch as that person, so
  * this capability has to be narrower than admin for the anti-proxy allowlist to
  * mean anything at all.
@@ -170,7 +177,7 @@ export async function requireAttendanceAdmin(): Promise<Employee> {
 /**
  * Like requireUser but additionally throws 403 unless the signed-in employee is
  * a super-admin (the `SUPER_ADMIN_EMAILS` allow-list). Used to gate the
- * Weekly-Goals review/approve/archive flow — those writes are super-admins only.
+ * Weekly-Goals review/approve/archive flow - those writes are super-admins only.
  */
 export async function requireSuperAdmin(): Promise<Employee> {
   const e = await requireUser();
@@ -182,7 +189,7 @@ export async function requireSuperAdmin(): Promise<Employee> {
  * Mandatory weekly-goals fill gate (design §11), defense-in-depth for mutating
  * server actions: a user with un-filled current-week goals assigned to them is
  * blocked from POSTing actions until they fill them (the authed layout performs
- * the primary redirect). Applies to EVERYONE — admins and super-admins included.
+ * the primary redirect). Applies to EVERYONE - admins and super-admins included.
  *
  * The actual EXISTS check lives in the query layer (`hasUnfilledWeekGoals`,
  * added by the weekly-goals query-layer work); we import it lazily so this guard
@@ -195,7 +202,7 @@ export async function requireSuperAdmin(): Promise<Employee> {
  */
 export async function requireWeeklyGoalsFilled(me: Employee): Promise<Employee> {
   // ⚠️ 2026-07-27: gate FORCE-DISABLED. It used to throw "Fill your weekly goals
-  // to continue" when the user had unfilled current-week goals — an UNHANDLED
+  // to continue" when the user had unfilled current-week goals - an UNHANDLED
   // throw that bubbled to the error boundary as "We hit a snag." and blocked task
   // creation (createTask + the mobile create path). Consistent with the other
   // daily-flow gates being off, this is now a no-op. To restore, put back the

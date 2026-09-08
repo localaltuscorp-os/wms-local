@@ -31,7 +31,7 @@ export function EmployeeGrid({ employees }: { employees: DossierEmployeeCard[] }
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Local search — a person" title="Local search — filters only the list on this page" aria-label="Local search — a person — this page only"
+          placeholder="Local search - a person" title="Local search - filters only the list on this page" aria-label="Local search - a person - this page only"
           className="w-full rounded-pill border border-hairline bg-surface-card py-2.5 pl-10 pr-4 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]"
           style={{ boxShadow: "0 6px 20px -16px rgba(15,23,42,0.4)" }}
         />
@@ -51,7 +51,7 @@ export function EmployeeGrid({ employees }: { employees: DossierEmployeeCard[] }
               <Avatar name={e.name} avatarUrl={e.avatarUrl} size={46} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[15.5px] font-black text-ink-strong">{e.name}</div>
-                <div className="truncate text-[12.5px] font-semibold text-ink-muted">{e.designation ?? "—"}</div>
+                <div className="truncate text-[12.5px] font-semibold text-ink-muted">{e.designation ?? "-"}</div>
               </div>
             </div>
             <div className="mt-4 flex items-center justify-between border-t border-hairline pt-3">

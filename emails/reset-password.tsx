@@ -15,7 +15,7 @@ export function ResetPasswordEmail({ link, recipientName }: Props) {
         {greeting}
       </Heading>
       <Text style={{ fontSize: 14, color: "#334155", lineHeight: 1.6, margin: "0 0 16px" }}>
-        Someone — likely you — asked to reset the password for your Altus Corp Dashboard account.
+        Someone - likely you - asked to reset the password for your Altus Corp Dashboard account.
         Click the button below to choose a new one.
       </Text>
       <Text style={{ fontSize: 14, color: "#334155", lineHeight: 1.6, margin: "0 0 24px" }}>
@@ -32,7 +32,7 @@ export function ResetPasswordEmail({ link, recipientName }: Props) {
         </Link>
       </Text>
       <Text style={{ fontSize: 12, color: "#94A3B8", margin: "16px 0 0" }}>
-        If you didn't request this, you can safely ignore this email — your password won't change.
+        If you didn't request this, you can safely ignore this email - your password won't change.
       </Text>
     </EmailLayout>
   );

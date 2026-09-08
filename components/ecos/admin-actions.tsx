@@ -124,7 +124,7 @@ function ActionBtn({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold transition-transform enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 ${
+      className={`inline-flex items-center gap-2 rounded-pill px-4 py-2 text-[13px] font-bold transition-transform enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 ${
         primary ? "text-white" : "text-ink-strong"
       }`}
       style={

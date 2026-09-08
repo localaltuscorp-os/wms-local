@@ -24,11 +24,11 @@ export class GeminiNotConfiguredError extends Error {
   }
 }
 
-const PROMPT = `You are a precise multilingual transcription assistant. You will be given an audio clip. Transcribe and summarize ONLY what is actually spoken — never guess, never invent.
+const PROMPT = `You are a precise multilingual transcription assistant. You will be given an audio clip. Transcribe and summarize ONLY what is actually spoken - never guess, never invent.
 
-CRITICAL — faithfulness:
+CRITICAL - faithfulness:
 - Transcribe ONLY the real words you can actually hear in THIS audio. Do not assume a topic. Do not produce a generic or templated "customer feedback" message.
-- If the audio has no intelligible speech (silence, music, noise, or you cannot make out words), return transcript: "" and summary: "No clear speech was detected in the recording." — do NOT fabricate any content.
+- If the audio has no intelligible speech (silence, music, noise, or you cannot make out words), return transcript: "" and summary: "No clear speech was detected in the recording." - do NOT fabricate any content.
 - Never add information that was not spoken.
 
 Language:
@@ -40,7 +40,7 @@ Output:
 1. transcript: the faithful transcription (verbatim, in the Hinglish/English style above).
 2. summary: 1-3 sentences summarizing what was actually said, in the same style. If nothing was said, see the rule above.
 
-Return ONLY the JSON object — no extra commentary.`;
+Return ONLY the JSON object - no extra commentary.`;
 
 /**
  * Transcribe + summarize a base64-encoded audio clip.
@@ -87,7 +87,7 @@ export async function transcribeAndSummarize(base64: string, mimeType: string): 
     });
   } catch (err) {
     clearTimeout(timer);
-    if (err instanceof Error && err.name === "AbortError") throw new Error("The summary timed out — try a shorter clip.");
+    if (err instanceof Error && err.name === "AbortError") throw new Error("The summary timed out - try a shorter clip.");
     throw new Error("Couldn't reach the summary service.");
   }
   clearTimeout(timer);
@@ -95,7 +95,7 @@ export async function transcribeAndSummarize(base64: string, mimeType: string): 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     if (res.status === 400 && /API key not valid/i.test(detail)) throw new Error("The GEMINI_API_KEY is invalid.");
-    if (res.status === 429) throw new Error("Summary rate limit hit — try again in a moment.");
+    if (res.status === 429) throw new Error("Summary rate limit hit - try again in a moment.");
     throw new Error(`Summary service error (${res.status}).`);
   }
 
@@ -105,7 +105,7 @@ export async function transcribeAndSummarize(base64: string, mimeType: string): 
   };
   if (json.promptFeedback?.blockReason) throw new Error("The audio couldn't be processed (content filter).");
   const text = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
-  if (!text.trim()) throw new Error("The summary came back empty — try re-recording.");
+  if (!text.trim()) throw new Error("The summary came back empty - try re-recording.");
 
   let parsed: AudioSummary;
   try {
@@ -148,7 +148,7 @@ export async function generateText(prompt: string): Promise<string> {
   }
   clearTimeout(timer);
   if (!res.ok) {
-    if (res.status === 429) throw new Error("Summary rate limit hit — try again in a moment.");
+    if (res.status === 429) throw new Error("Summary rate limit hit - try again in a moment.");
     throw new Error(`Summary service error (${res.status}).`);
   }
   const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };

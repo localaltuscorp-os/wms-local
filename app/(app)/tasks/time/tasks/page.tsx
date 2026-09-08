@@ -25,7 +25,7 @@ export default async function TaskTimeReportPage({ searchParams }: PageProps) {
   return (
     <TimeReportFrame
       title="Task Report"
-      subtitle="Search any task to see its full time story — created / started / done / approved, sessions, revisions and total active time."
+      subtitle="Search any task to see its full time story - created / started / done / approved, sessions, revisions and total active time."
       actions={<TaskSearchBar initial={q} />}
     >
       <TaskReportTable rows={rows} searched={q.trim().length > 0} />

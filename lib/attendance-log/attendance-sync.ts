@@ -108,7 +108,7 @@ export async function runAttendanceSheetSync(opts: {
       // A broken/blank read must never "succeed" into an untouched-but-green
       // run — fail loudly, tables untouched.
       throw new Error(
-        `Sheet mapped to 0 attendance rows (${matrix.length} raw rows read) — check sharing, tab name and range.`,
+        `Sheet mapped to 0 attendance rows (${matrix.length} raw rows read) - check sharing, tab name and range.`,
       );
     }
 

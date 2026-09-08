@@ -94,7 +94,7 @@ export function SessionFeedbackForm({
       </div>
 
       <div className="flex items-center justify-end gap-3">
-        {mine && <span className="text-[12.5px] font-semibold text-ink-subtle">You've already given feedback — editing it.</span>}
+        {mine && <span className="text-[12.5px] font-semibold text-ink-subtle">You've already given feedback - editing it.</span>}
         <button
           type="submit"
           disabled={pending}

@@ -226,14 +226,14 @@ export function CredentialDialog({
           </div>
 
           <div className="shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t border-hairline">
-            <button type="button" onClick={onClose} disabled={saving} className="cursor-pointer rounded-full px-4 py-2 text-[13.5px] font-bold text-ink-soft hover:text-ink-strong">
+            <button type="button" onClick={onClose} disabled={saving} className="cursor-pointer rounded-pill px-4 py-2 text-[13.5px] font-bold text-ink-soft hover:text-ink-strong">
               Cancel
             </button>
             <button
               type="button"
               onClick={save}
               disabled={saving}
-              className="wg-btn wg-sheen cursor-pointer inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-[13.5px] font-bold text-white disabled:opacity-60"
+              className="wg-btn wg-sheen cursor-pointer inline-flex items-center gap-1.5 rounded-pill px-5 py-2 text-[13.5px] font-bold text-white disabled:opacity-60"
               style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.6} />}

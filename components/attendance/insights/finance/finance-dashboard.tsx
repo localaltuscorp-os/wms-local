@@ -296,7 +296,7 @@ export function FinanceDashboard({ data }: { data: FinanceAttendanceAnalytics })
               </ul>
             </div>
           ) : (
-            <EmptyBox label="No salary lost this month — full attendance, or no CTC on file." />
+            <EmptyBox label="No salary lost this month - full attendance, or no CTC on file." />
           )}
         </Card>
 
@@ -335,7 +335,7 @@ export function FinanceDashboard({ data }: { data: FinanceAttendanceAnalytics })
                   <Td className="font-semibold text-ink-strong">{d.department}</Td>
                   <Td align="right" className="tabular-nums text-ink-soft">{d.headcount}</Td>
                   <Td align="right" className="tabular-nums font-bold" style={{ color: d.totalLoss > 0 ? "var(--color-altus-red-deep)" : "var(--color-ink-subtle)" }}>
-                    {d.totalLoss > 0 ? formatInr(d.totalLoss) : "—"}
+                    {d.totalLoss > 0 ? formatInr(d.totalLoss) : "-"}
                   </Td>
                   <Td align="right" className="tabular-nums text-ink-soft">{formatInr(d.projectedPay)}</Td>
                 </tr>
@@ -418,22 +418,22 @@ function EmployeeRow({ e }: { e: FinanceEmployeeRow }) {
           )}
         </div>
       </Td>
-      <Td align="right" className="tabular-nums text-ink-soft">{e.absentDays || "—"}</Td>
-      <Td align="right" className="tabular-nums text-ink-soft">{e.halfDays || "—"}</Td>
-      <Td align="right" className="tabular-nums text-ink-soft">{e.unpaidLeaveDays || "—"}</Td>
+      <Td align="right" className="tabular-nums text-ink-soft">{e.absentDays || "-"}</Td>
+      <Td align="right" className="tabular-nums text-ink-soft">{e.halfDays || "-"}</Td>
+      <Td align="right" className="tabular-nums text-ink-soft">{e.unpaidLeaveDays || "-"}</Td>
       <Td align="right" className="tabular-nums text-ink-soft">{lateCut}</Td>
       <Td align="right" className="tabular-nums text-ink-subtle">
-        {e.hasSalaryProfile ? formatInr(e.perDay) : "—"}
+        {e.hasSalaryProfile ? formatInr(e.perDay) : "-"}
       </Td>
       <Td
         align="right"
         className="tabular-nums font-bold"
         style={{ color: e.totalLoss > 0 ? "var(--color-altus-red-deep)" : "var(--color-ink-subtle)" }}
       >
-        {e.hasSalaryProfile ? (e.totalLoss > 0 ? formatInr(e.totalLoss) : formatInr(0)) : "—"}
+        {e.hasSalaryProfile ? (e.totalLoss > 0 ? formatInr(e.totalLoss) : formatInr(0)) : "-"}
       </Td>
       <Td align="right" className="tabular-nums font-semibold text-ink-strong">
-        {e.hasSalaryProfile ? formatInr(e.projectedPay) : "—"}
+        {e.hasSalaryProfile ? formatInr(e.projectedPay) : "-"}
       </Td>
     </tr>
   );

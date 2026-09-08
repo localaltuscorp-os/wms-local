@@ -24,24 +24,9 @@ export function IntakeChooser({ drafts }: { drafts: CandidateDraft[] }) {
 
   return (
     <div className="mx-auto w-full max-w-[720px]">
-      <div className="mb-7 text-center">
-        <span
-          className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white"
-          style={{ background: `linear-gradient(135deg,${RED},${RED_DEEP})` }}
-        >
-          Pre-Interview · Candidate Interview Form
-        </span>
-        <h1
-          className="mt-3 text-ink-strong"
-          style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(28px,3.6vw,44px)", letterSpacing: "-0.03em", lineHeight: 1.02 }}
-        >
-          New candidate, or continue?
-        </h1>
-        <p className="mt-2 text-[15px] font-medium text-ink-muted">
-          Start a fresh interview form, or pick up one you left mid-way. Everything autosaves as you go.
-        </p>
-      </div>
-
+      {/* The eyebrow/heading/subtitle that used to open this page now lives in
+          the frozen HrTitleBar (see page.tsx) instead of scrolling with the
+          rest of the chooser. */}
       <button
         type="button"
         onClick={startNew}
@@ -91,7 +76,7 @@ export function IntakeChooser({ drafts }: { drafts: CandidateDraft[] }) {
 
       {drafts.length === 0 && (
         <p className="mt-6 flex items-center justify-center gap-2 text-[13px] text-ink-subtle">
-          <Plus size={13} /> No unfinished forms — start a new candidate above.
+          <Plus size={13} /> No unfinished forms - start a new candidate above.
         </p>
       )}
     </div>

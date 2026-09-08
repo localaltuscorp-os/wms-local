@@ -115,7 +115,7 @@ export default async function AppraisalEmployeePage({
               {card.employee.name}
             </h1>
             <div className="mt-0.5 text-[13px] text-ink-subtle">
-              {card.employee.department || "—"} · Cycle {card.cycle.label || card.cycle.period} · {APPRAISAL_CYCLE_STATUS_LABELS[card.cycle.status]}
+              {card.employee.department || "-"} · Cycle {card.cycle.label || card.cycle.period} · {APPRAISAL_CYCLE_STATUS_LABELS[card.cycle.status]}
               {card.isManager ? " · Manager" : ""}
             </div>
           </div>

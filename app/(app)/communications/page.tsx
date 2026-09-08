@@ -10,6 +10,7 @@ import {
   Lock,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
+import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 import { PageShell } from "@/components/layout/page-shell";
 import { requireUser } from "@/lib/auth/current";
 import { isHrStaff } from "@/lib/hr/access";
@@ -40,38 +41,14 @@ export default async function CommunicationsHomePage() {
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
+      <HrTitleBar />
       <PageShell width="wide" style={{ maxWidth: "1180px" }}>
         <header className="mb-7 wg-rise">
-          <span
-            className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white"
-            style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
-          >
-            <Megaphone size={13} strokeWidth={2.6} /> Altus · Communications
-          </span>
-          <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
-            <div className="min-w-0">
-              <h1
-                className="text-ink-strong"
-                style={{
-                  fontFamily: "var(--font-display), system-ui, sans-serif",
-                  fontWeight: 900,
-                  fontSize: "clamp(28px, 3.4vw, 44px)",
-                  letterSpacing: "-0.025em",
-                  lineHeight: 1.04,
-                }}
-              >
-                Enterprise Communications
-              </h1>
-              <p className="mt-1.5 max-w-[62ch] text-[13.5px] font-medium leading-snug text-ink-muted">
-                {author
-                  ? "Author, publish and track every company-wide broadcast — with live read and acknowledgement receipts per message."
-                  : "Every announcement, policy and message sent to you — in one place, newest first."}
-              </p>
-            </div>
+          <div className="flex flex-wrap items-end justify-end gap-4">
             {author && (
               <Link
                 href={"/communications/compose" as Route}
-                className="group inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-bold text-white transition-transform hover:-translate-y-0.5"
+                className="group inline-flex items-center gap-2 rounded-pill px-5 py-2.5 text-[14px] font-bold text-white transition-transform hover:-translate-y-0.5"
                 style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})`, boxShadow: "0 12px 26px -12px rgba(168,4,0,0.55)" }}
               >
                 <Plus size={16} strokeWidth={2.6} className="transition-transform group-hover:rotate-90" />
@@ -99,7 +76,7 @@ async function AuthorList() {
       <EmptyState
         Icon={Megaphone}
         title="No broadcasts yet"
-        body="Create your first company-wide message — announcements, policies, CEO notes and more, with delivery + read tracking."
+        body="Create your first company-wide message - announcements, policies, CEO notes and more, with delivery + read tracking."
         cta={{ href: "/communications/compose", label: "New Broadcast" }}
       />
     );
@@ -291,7 +268,7 @@ function EmptyState({
       {cta && (
         <Link
           href={cta.href as Route}
-          className="mt-5 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-bold text-white transition-transform hover:-translate-y-0.5"
+          className="mt-5 inline-flex items-center gap-2 rounded-pill px-5 py-2.5 text-[14px] font-bold text-white transition-transform hover:-translate-y-0.5"
           style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})`, boxShadow: "0 12px 26px -12px rgba(168,4,0,0.55)" }}
         >
           <Plus size={16} strokeWidth={2.6} /> {cta.label}

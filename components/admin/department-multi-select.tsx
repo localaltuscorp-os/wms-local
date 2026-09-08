@@ -48,7 +48,7 @@ export function DepartmentMultiSelect({
   if (options.length === 0) {
     return (
       <p className="text-[13px] text-[#64748B]">
-        No departments yet — create them in{" "}
+        No departments yet - create them in{" "}
         <span className="font-medium">/admin/departments</span> first.
       </p>
     );

@@ -282,7 +282,7 @@ function ReviewCard({
 
   const commitSelf = (v: number) => {
     if (!canWrite || v === item.pctDone) return;
-    run({ kind: item.kind, id: item.id, self: v }, `${item.title} — set to ${v}% done`);
+    run({ kind: item.kind, id: item.id, self: v }, `${item.title} - set to ${v}% done`);
   };
 
   const saveApproval = () => {
@@ -768,7 +768,7 @@ export function ReviewWorkbench({ data }: { data: ReviewData }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* scoped slider styling — tone-filled track, tactile thumb */}
+      {/* scoped slider styling - tone-filled track, tactile thumb */}
       <style>{`
         .rw-range{appearance:none;-webkit-appearance:none;height:6px;border-radius:999px;outline:none;cursor:pointer;
           background:linear-gradient(to right,var(--rw-tone) 0%,var(--rw-tone) var(--rw-pct),color-mix(in srgb,var(--color-ink-strong) 9%,transparent) var(--rw-pct),color-mix(in srgb,var(--color-ink-strong) 9%,transparent) 100%);}
@@ -822,7 +822,7 @@ export function ReviewWorkbench({ data }: { data: ReviewData }) {
                   style={activeBtn ? { color: "rgba(255,255,255,0.9)" } : { color: "var(--color-ink-subtle)" }}
                 />
                 <span
-                  className="rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums"
+                  className="rounded-pill px-2 py-0.5 text-[11px] font-bold tabular-nums"
                   style={
                     activeBtn
                       ? { color: "var(--color-altus-red-deep)", background: "rgba(255,255,255,0.92)" }
@@ -865,7 +865,7 @@ export function ReviewWorkbench({ data }: { data: ReviewData }) {
         <span className="font-semibold" style={{ color: "var(--color-ink-soft)" }}>
           {active.label}
         </span>{" "}
-        — reviewing {data.viewedName}'s {level} items for FY {data.fyStartYear}–
+        - reviewing {data.viewedName}'s {level} items for FY {data.fyStartYear}–
         {String((data.fyStartYear + 1) % 100).padStart(2, "0")}
         {level === "daily" ? " (self-completed; no approval tier)" : ""}.
       </p>

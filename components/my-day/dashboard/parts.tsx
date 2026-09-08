@@ -123,7 +123,7 @@ export function ScoreCard({
       {empty ? (
         <>
           <span className="text-ink-subtle tabular-nums" style={{ fontSize: emphasis ? 30 : 24, fontWeight: 800 }}>
-            —
+            -
           </span>
           <span className="text-[11.5px] font-semibold text-ink-subtle">Nothing planned</span>
         </>
@@ -156,7 +156,7 @@ export function ScoreCard({
 /** A percentage on its own — used by the Performance strip and the drill-down,
  *  where the fraction is already stated elsewhere on the row. */
 export function PctPill({ bucket }: { bucket: ScoreBucket }) {
-  if (bucket.planned <= 0) return <span className="text-[12.5px] font-semibold text-ink-subtle">—</span>;
+  if (bucket.planned <= 0) return <span className="text-[12.5px] font-semibold text-ink-subtle">-</span>;
   const value = pct(bucket);
   const tone = band(value);
   return (

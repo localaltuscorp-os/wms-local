@@ -97,7 +97,7 @@ export function VoiceNoteButton({
       }
       const text = (json.transcript?.trim() || json.summary?.trim() || "");
       if (!text) {
-        fireToast({ message: "Nothing clear could be transcribed — try again.", type: "error" });
+        fireToast({ message: "Nothing clear could be transcribed - try again.", type: "error" });
         return;
       }
       onText(text);
@@ -179,7 +179,7 @@ export function VoiceNoteButton({
       chunksRef.current = [];
       if (discardRef.current) { setPhase("idle"); return; }
       if (blob.size < 1200) {
-        fireToast({ message: "That was too short to hear — hold and speak a moment longer.", type: "error" });
+        fireToast({ message: "That was too short to hear - hold and speak a moment longer.", type: "error" });
         setPhase("idle");
         return;
       }

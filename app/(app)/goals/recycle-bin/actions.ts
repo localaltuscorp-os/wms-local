@@ -68,7 +68,7 @@ export async function purgeTask(taskId: string): Promise<Result> {
     return {
       ok: false,
       error:
-        "Couldn't permanently delete — it may be linked to other records. Restore it instead. (" +
+        "Couldn't permanently delete - it may be linked to other records. Restore it instead. (" +
         (err instanceof Error ? err.message : String(err)) +
         ")",
     };

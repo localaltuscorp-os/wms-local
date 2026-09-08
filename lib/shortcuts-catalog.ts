@@ -36,8 +36,8 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: "Anywhere",
     note: "These work on every screen, unless you are typing in a field.",
     items: [
-      { keys: "Ctrl + K", does: "Global search — tasks, clients, projects, people across the whole app" },
-      { keys: "Ctrl + Q", does: "Focus mode — hide the rail, top bar and footer so the page fills the screen" },
+      { keys: "Ctrl + K", does: "Global search - tasks, clients, projects, people across the whole app" },
+      { keys: "Ctrl + Q", does: "Focus mode - hide the rail, top bar and footer so the page fills the screen" },
       { keys: "Esc", does: "Leave focus mode (also closes any open dialog)" },
       { keys: "?", does: "Show this shortcut list" },
     ],
@@ -46,7 +46,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: "Jump to a module",
     note: "The number matches the badge on each module card in the footer.",
     items: [
-      { keys: "1 … 9, 0", does: "Open that module — WMS, Goals, Team Productivity, Billing, HR, Sales, Accounts, Training, Employees, Monthly Events" },
+      { keys: "1 … 9, 0", does: "Open that module - WMS, Goals, Team Productivity, Billing, HR, Sales, Accounts, Training, Employees, Monthly Events" },
     ],
   },
   {

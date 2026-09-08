@@ -99,7 +99,7 @@ export function ManagerWeeklyGoalGate({
             disabled={busy}
             className={`inline-flex items-center gap-2 rounded-xl border border-hairline-strong bg-white px-5 py-3 text-[15px] font-bold text-ink-strong disabled:opacity-60 ${FOCUS}`}
           >
-            {busy ? <Loader2 size={17} className="animate-spin" /> : <RefreshCw size={16} strokeWidth={2.4} />} I&apos;ve set them — re-check
+            {busy ? <Loader2 size={17} className="animate-spin" /> : <RefreshCw size={16} strokeWidth={2.4} />} I&apos;ve set them - re-check
           </button>
           <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-subtle">
             <ArrowRight size={14} /> unlocks once everyone has 5 open goals

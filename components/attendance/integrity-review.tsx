@@ -53,7 +53,7 @@ export function IntegrityReview({ anomalies }: { anomalies: AnomalyPunch[] }) {
             {a.anomalyFlags.map((f) => {
               const m = flagMeta(f);
               return (
-                <span key={f} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: "color-mix(in srgb, " + m.tone + " 12%, white)", color: m.tone }}>
+                <span key={f} className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11px] font-bold" style={{ background: "color-mix(in srgb, " + m.tone + " 12%, white)", color: m.tone }}>
                   <m.Icon size={12} /> {m.label}
                 </span>
               );

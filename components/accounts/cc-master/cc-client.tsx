@@ -31,7 +31,7 @@ function recFrom(m: CcMonthRow): MonthRec {
 }
 
 function Dim() {
-  return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>;
+  return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>;
 }
 
 function lookupAdd(kind: string) {
@@ -72,7 +72,7 @@ function CellSelect({ value, options, onChange, busy }: { value: string; options
       className="w-full cursor-pointer appearance-none rounded-lg px-2 py-1.5 text-center text-[12px] font-bold outline-none transition-colors focus:ring-2 focus:ring-[color:var(--color-altus-red)] disabled:opacity-60"
       style={{ background: t?.bg ?? "transparent", color: t?.fg ?? "var(--color-ink-subtle)", border: `1px solid ${value ? "transparent" : "var(--color-hairline)"}`, minWidth: 70 }}
     >
-      <option value="">—</option>
+      <option value="">-</option>
       {options.map((o) => (<option key={o} value={o}>{o}</option>))}
     </select>
   );
@@ -231,7 +231,7 @@ export function CcMaster({
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search — cards, entity" title="Local search — filters only the list on this page" aria-label="Local search — cards, entity — this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - cards, entity" title="Local search - filters only the list on this page" aria-label="Local search - cards, entity - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
         <select className="rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]" value={fEntity} onChange={(e) => setFEntity(e.target.value)} aria-label="Filter by entity">
           <option value="">All Entities</option>
@@ -331,7 +331,7 @@ export function CcMaster({
             {showArchived ? <ChevronDown size={16} className="text-ink-subtle" /> : <ChevronRight size={16} className="text-ink-subtle" />}
             <Archive size={15} className="text-ink-subtle" strokeWidth={2.2} />
             <span className="text-[13.5px] font-bold text-ink-soft">Archived Cards</span>
-            <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[11.5px] font-bold text-ink-subtle">{archivedCards.length}</span>
+            <span className="rounded-pill bg-surface-soft px-2 py-0.5 text-[11.5px] font-bold text-ink-subtle">{archivedCards.length}</span>
           </button>
           {showArchived && (
             <div className="border-t border-hairline">
@@ -408,7 +408,7 @@ function CardYearDrawer({ card, fyStartYear, monthRows, onClose }: {
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 max-md:items-end max-md:p-0" role="dialog" aria-modal="true" aria-label={`${card.cardName} — full year`}>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 max-md:items-end max-md:p-0" role="dialog" aria-modal="true" aria-label={`${card.cardName} - full year`}>
       <button aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(15,23,42,0.44)] backdrop-blur-[2px]" />
       <div className="relative flex max-h-[92vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-2xl bg-surface-card max-md:max-w-none max-md:rounded-b-none" style={{ border: "1px solid var(--color-hairline)", boxShadow: "0 32px 90px -24px rgba(15,23,42,0.55)" }}>
         <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ background: "var(--color-altus-red)" }} />
@@ -539,7 +539,7 @@ function CardEditorRow({ colSpan, draft, setDraft, entityOptions, onSave, onCanc
           </Field>
           <Field label="ECS" className="col-span-3 max-lg:col-span-2 max-md:col-span-1">
             <select value={draft.ecs ?? ""} onChange={(e) => set({ ecs: e.target.value || null })} className={INPUT} aria-label="ECS">
-              <option value="">—</option>
+              <option value="">-</option>
               {YES_NO.map((o) => (<option key={o} value={o}>{o}</option>))}
             </select>
           </Field>
@@ -557,7 +557,7 @@ function CardEditorRow({ colSpan, draft, setDraft, entityOptions, onSave, onCanc
           </Field>
           <Field label="Soft copy auto-email" className="col-span-4 max-lg:col-span-6 max-md:col-span-2">
             <select value={draft.softCopyAutoEmail ?? ""} onChange={(e) => set({ softCopyAutoEmail: e.target.value || null })} className={INPUT} aria-label="Soft copy auto-email">
-              <option value="">—</option>
+              <option value="">-</option>
               {["Yes", "No", "NA"].map((o) => (<option key={o} value={o}>{o}</option>))}
             </select>
           </Field>

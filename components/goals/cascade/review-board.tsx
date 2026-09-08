@@ -207,7 +207,7 @@ function PctField({
           value={value == null ? "" : String(value)}
           disabled={disabled}
           inputMode="numeric"
-          placeholder={placeholder ?? "—"}
+          placeholder={placeholder ?? "-"}
           onChange={(e) => {
             const raw = e.target.value.trim();
             onChange(raw === "" ? null : clamp(Number(raw) || 0));
@@ -326,7 +326,7 @@ function ReviewRow({
           <div className="flex flex-wrap items-center gap-2">
             {goal.area && (
               <span
-                className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+                className="rounded-pill px-2.5 py-0.5 text-[11px] font-bold"
                 style={{ background: "color-mix(in srgb, #E10600 9%, transparent)", color: GOALS_ACCENT_DEEP }}
               >
                 {goal.area}
@@ -335,7 +335,7 @@ function ReviewRow({
             <span className="text-[15.5px] font-bold text-ink-strong">{goal.title}</span>
             {reviewed && (
               <span
-                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-black uppercase tracking-[0.05em]"
+                className="inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[10.5px] font-black uppercase tracking-[0.05em]"
                 style={{ background: "color-mix(in srgb, #15803d 12%, transparent)", color: "#15803d" }}
               >
                 <ShieldCheck size={11} strokeWidth={2.6} /> Reviewed
@@ -348,7 +348,7 @@ function ReviewRow({
             </span>
             <span className="font-semibold">Act {fmtNum(goal.actualQty)}</span>
             {adjusted && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] font-bold text-ink-soft">
+              <span className="inline-flex items-center gap-1 rounded-pill bg-black/[0.04] px-2 py-0.5 text-[11px] font-bold text-ink-soft">
                 self {goal.pctDone}% → accepted {goal.acceptPct}%
               </span>
             )}
@@ -380,7 +380,7 @@ function ReviewRow({
                 type="button"
                 onClick={commitReview}
                 disabled={pending}
-                className="wg-btn wg-sheen inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-bold text-white disabled:opacity-60"
+                className="wg-btn wg-sheen inline-flex items-center gap-1 rounded-pill px-3 py-1 text-[12px] font-bold text-white disabled:opacity-60"
                 style={{ background: `linear-gradient(135deg, ${GOALS_ACCENT}, ${GOALS_ACCENT_DEEP})` }}
               >
                 {pending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} strokeWidth={3} />}
@@ -394,7 +394,7 @@ function ReviewRow({
               onChange={setAccept}
               onCommit={canReview ? commitReview : () => {}}
               disabled={!canReview || pending}
-              placeholder={canReview ? "—" : "n/a"}
+              placeholder={canReview ? "-" : "n/a"}
               tone={accept == null ? "var(--color-ink-subtle)" : pctTone(accept).color}
             />
           </div>
@@ -427,7 +427,7 @@ function ReviewRow({
             href={evidenceHref}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold text-white transition-transform hover:-translate-y-px"
+            className="inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12px] font-bold text-white transition-transform hover:-translate-y-px"
             style={{ background: "linear-gradient(135deg, #1f2937, #0f172a)" }}
           >
             <ExternalLink size={12} /> View evidence
@@ -437,7 +437,7 @@ function ReviewRow({
           <button
             type="button"
             onClick={() => setEvOpen((s) => !s)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-surface-card px-3 py-1.5 text-[12px] font-bold text-ink-soft transition-colors hover:border-hairline-strong hover:text-ink-strong"
+            className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3 py-1.5 text-[12px] font-bold text-ink-soft transition-colors hover:border-hairline-strong hover:text-ink-strong"
           >
             <Paperclip size={12} /> {evidenceHref ? "Replace" : "Attach"} evidence
           </button>
@@ -453,13 +453,13 @@ function ReviewRow({
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={pending}
-            className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:brightness-95 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:brightness-95 disabled:opacity-60"
           >
             <Upload size={12} /> Upload file
           </button>
           <input ref={fileRef} type="file" className="hidden" onChange={onPickFile} />
           <span className="text-[12px] font-semibold text-ink-subtle">or</span>
-          <div className="flex min-w-[200px] flex-1 items-center gap-1.5 rounded-full border border-hairline bg-surface-card px-3">
+          <div className="flex min-w-[200px] flex-1 items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3">
             <Link2 size={13} className="shrink-0 text-ink-subtle" />
             <input
               placeholder="Paste a link, press Enter"
@@ -587,14 +587,14 @@ export function ReviewBoard({
               key={lvl}
               type="button"
               onClick={() => setFilter(lvl)}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-bold transition-all ${
+              className={`inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[13px] font-bold transition-all ${
                 active ? "text-white" : "text-ink-soft hover:text-ink-strong"
               }`}
               style={active ? { background: `linear-gradient(135deg, ${GOALS_ACCENT}, ${GOALS_ACCENT_DEEP})`, boxShadow: "0 6px 16px -8px rgba(225,6,0,0.5)" } : undefined}
             >
               {label}
               <span
-                className="inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-black tabular-nums"
+                className="inline-flex min-w-[18px] items-center justify-center rounded-pill px-1 text-[11px] font-black tabular-nums"
                 style={{
                   background: active ? "rgba(255,255,255,0.22)" : "color-mix(in srgb, var(--color-ink-strong) 7%, transparent)",
                   color: active ? "#fff" : "var(--color-ink-muted)",

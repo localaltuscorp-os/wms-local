@@ -120,7 +120,7 @@ export function SectionDispatch({ report }: { report: () => SectionReport }) {
         "noopener,noreferrer",
       );
       fireToast({
-        message: `PDF downloaded — attach it in the WhatsApp chat with ${person.name}.`,
+        message: `PDF downloaded - attach it in the WhatsApp chat with ${person.name}.`,
         type: "success",
         duration: 8000,
       });
@@ -274,7 +274,7 @@ export function SectionDispatch({ report }: { report: () => SectionReport }) {
           {mode === "whatsapp" && (
             <p className="mt-1.5 border-t border-slate-100 px-1.5 pt-1.5 text-[10.5px] font-medium leading-snug text-slate-400">
               The PDF downloads to this device, then WhatsApp opens with the message
-              ready — attach the file there.
+              ready - attach the file there.
             </p>
           )}
         </Popover.Content>

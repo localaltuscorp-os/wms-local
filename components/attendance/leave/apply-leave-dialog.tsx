@@ -37,7 +37,7 @@ const SLATE = "#475569";
  * "NA" is THIS form's wording. The review panel still spells out "Not
  * applicable" from the shared enum labels, where the reader is reading one
  * request rather than scanning a strip of buttons. The stored VALUES are the
- * OFFICE_PHONE_AVAILABILITY enum's, untouched — the annotation below makes a
+ * OFFICE_PHONE_AVAILABILITY enum's, untouched - the annotation below makes a
  * typo in one a compile error rather than a row that silently stores nothing.
  */
 const OFFICE_PHONE_OPTIONS: readonly { value: OfficePhoneAvailability; label: string }[] = [
@@ -50,7 +50,7 @@ const OFFICE_PHONE_OPTIONS: readonly { value: OfficePhoneAvailability; label: st
  * The Leave Duration ground. A step darker than the `surface-soft` the rest of
  * the form uses, with the stronger hairline, so the block holding the Full /
  * Half decisions is findable at a glance instead of dissolving into the card.
- * Same radius and same padding — only the contrast moved.
+ * Same radius and same padding - only the contrast moved.
  */
 const DURATION_BOX = {
   background: "var(--color-surface-track)",
@@ -62,7 +62,7 @@ export interface ApplyLeaveDialogProps {
   /**
    * The kinds THIS employee may request, resolved server-side from their worker
    * type (lib/attendance/leave-eligibility). One entry means the choice is not
-   * a choice — the control collapses to a static line rather than a radio pair
+   * a choice - the control collapses to a static line rather than a radio pair
    * with nothing to pick.
    */
   allowedKinds: readonly LeaveKind[];
@@ -72,7 +72,7 @@ export interface ApplyLeaveDialogProps {
   paidEligible: boolean;
   /** This period's entitlement and its name. Still accepted (the parent computes
    *  it and the leave-credit logic is unchanged) but no longer shown in the
-   *  form — the standing balance lives on the Leave page, not inside every
+   *  form - the standing balance lives on the Leave page, not inside every
    *  application. */
   allowance: number;
   cycleLabel: string;
@@ -87,7 +87,7 @@ export interface ApplyLeaveDialogProps {
  * ── TWO COLUMNS, ONE SCREEN ────────────────────────────────────────────────
  * Leave Details (what and when) on the left, Request Details (why and how to
  * reach you) on the right, so the form reads across rather than scrolls down.
- * The "available leave credit" bar was removed from here — it stated a standing
+ * The "available leave credit" bar was removed from here - it stated a standing
  * balance that belongs on the Leave page, not re-drawn inside every application,
  * and it cost a row of vertical space the two-column layout exists to reclaim.
  * The credit LOGIC is untouched: `paidRemaining` / `paidEligible` still drive
@@ -98,7 +98,7 @@ export interface ApplyLeaveDialogProps {
  * are not the same half: on the START date "half" means you work the morning and
  * leave at lunch; on the END date it means you are back after lunch. The leave
  * engine models a range with a half on the first and/or last day (intermediate
- * days are always full), so the middle dates show as Full — and every real case
+ * days are always full), so the middle dates show as Full - and every real case
  * this was asked for (out Tuesday lunchtime, back Friday lunchtime) is a boundary
  * half. The running total does the arithmetic out loud.
  */
@@ -125,7 +125,7 @@ export function ApplyLeaveDialog({
   const [pending, startTransition] = useTransition();
 
   /**
-   * Voice typing for the reason box — the same Web Speech hook the rest of the
+   * Voice typing for the reason box - the same Web Speech hook the rest of the
    * app dictates with. Finalised phrases are appended to `reason` as they are
    * spoken, so the textarea stays the single source of the text and typing and
    * dictating mix freely. Where the browser has no Speech API `supported` is
@@ -376,7 +376,7 @@ export function ApplyLeaveDialog({
                     className="text-[15px] font-bold tabular-nums text-ink-strong"
                     aria-live="polite"
                   >
-                    {days == null ? "—" : dayCountLabel(days)}
+                    {days == null ? "-" : dayCountLabel(days)}
                   </span>
                 </div>
               </section>
@@ -563,8 +563,8 @@ function eachDateInclusive(start: string, end: string): string[] {
 /**
  * The per-date duration list. A single day is one Full / Half toggle; a range
  * lists each date, with the FIRST and LAST selectable (they map to the leave's
- * start/end half-day). Intermediate dates are Full — the leave engine has no
- * per-day portion for them — and say so once, quietly, rather than looking
+ * start/end half-day). Intermediate dates are Full - the leave engine has no
+ * per-day portion for them - and say so once, quietly, rather than looking
  * broken. A long range collapses its middle so the list never runs off-screen.
  */
 function DurationByDate({
@@ -742,8 +742,8 @@ function FullHalfToggle({
  *
  * The selected state is never colour ALONE: the chosen answer also gains a tick,
  * a solid tinted fill and a heavier border, so it reads for a colour-blind user
- * and in a screenshot. Answers are OPTIONAL and start UNSET — the columns are
- * nullable so "didn't say" stays distinct from "said no" — and clicking the
+ * and in a screenshot. Answers are OPTIONAL and start UNSET - the columns are
+ * nullable so "didn't say" stays distinct from "said no" - and clicking the
  * chosen answer again clears it, so one given by accident can be taken back.
  */
 function ChoiceRow({
@@ -773,7 +773,7 @@ function ChoiceRow({
               onClick={() => onChange(active ? "" : o.value)}
               className="inline-flex items-center justify-center gap-1 rounded-md px-2.5 py-1 text-[12px] font-semibold transition-colors"
               /* One width for every answer on every row, so Yes and No line up
-                 down the three rows, and picking one — which adds a tick — does
+                 down the three rows, and picking one - which adds a tick - does
                  not re-flow the strip under the cursor. */
               style={{
                 minWidth: 58,

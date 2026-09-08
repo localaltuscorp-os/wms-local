@@ -50,7 +50,7 @@ export async function listAttendanceAnomalies(days = 14, limit = 200): Promise<A
 
   return rows.map((r) => ({
     ...r,
-    employeeName: r.employeeName ?? "—",
+    employeeName: r.employeeName ?? "-",
     anomalyFlags: r.anomalyFlags ?? [],
   }));
 }

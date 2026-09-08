@@ -131,7 +131,7 @@ export function SentBackSection({
           className={`${DASHBOARD_CARD} p-8 md:p-10 ${
             /* Only when there is something to fill it. The empty state is a
                single centred line, and a 580px floor under it would open half a
-               screen of white below "No tasks awaiting re-work" — a section
+               screen of white below "No tasks awaiting re-work" - a section
                looking broken precisely when the news is good. */
             total > 0 ? "min-h-[580px]" : ""
           }`}
@@ -273,7 +273,7 @@ function NotApprovedPanel({
             By person · most first
           </span>
           <span
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-pill border px-3 py-1"
             style={{
               /* The BRAND red via its token, not Tailwind's red-50/200/600 —
                  those are a different hue from #E10600 and this pill sits a few
@@ -399,7 +399,7 @@ function NotApprovedPanel({
         </div>
         {undated > 0 && (
           <p className="mt-3 text-[12px] font-semibold text-ink-subtle">
-            {undated} declined without a due date — not placed.
+            {undated} declined without a due date - not placed.
           </p>
         )}
       </GlassCard>

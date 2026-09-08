@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Privacy Policy · Altus Corp Dashboard",
   description:
-    "How the Altus Corp operations dashboard collects, stores, and shares personal data — written for the staff and contractors who use it daily.",
+    "How the Altus Corp operations dashboard collects, stores, and shares personal data - written for the staff and contractors who use it daily.",
 };
 
 export default function PrivacyPage() {
@@ -26,7 +26,7 @@ export default function PrivacyPage() {
         The dashboard collects your name, work email, role, department, and a
         record of the tasks you create, edit, or work on. Data sits in Supabase
         (Singapore) and Firebase Auth (US). We send you email notifications via
-        Resend and — if your admin enables it — Slack DMs, WhatsApp messages,
+        Resend and - if your admin enables it - Slack DMs, WhatsApp messages,
         and Web Push notifications. We do not sell, rent, or share your data
         with anyone outside Altus Corp's narrow list of operational
         sub-processors. You can request a copy of your data or have it
@@ -35,7 +35,7 @@ export default function PrivacyPage() {
 
       <h2>2 · Who controls the data</h2>
       <p>
-        <strong>Data controller:</strong> Altus Corp — the operational data
+        <strong>Data controller:</strong> Altus Corp - the operational data
         (tasks, comments, assignments, statuses) is theirs.
       </p>
       <p>
@@ -53,7 +53,7 @@ export default function PrivacyPage() {
         <li>Whether you're an administrator (boolean flag, admin-toggled)</li>
         <li>Firebase UID (issued automatically by Firebase Authentication)</li>
         <li>Avatar URL, if you have one (optional)</li>
-        <li>Account state — invited at, joined at, active / deactivated</li>
+        <li>Account state - invited at, joined at, active / deactivated</li>
       </ul>
       <h3>Operational content</h3>
       <ul>
@@ -64,68 +64,68 @@ export default function PrivacyPage() {
       </ul>
       <h3>Channel-specific identifiers (only if enabled)</h3>
       <ul>
-        <li>Slack member ID — looked up automatically by email when Slack notifications are enabled at the workspace level</li>
-        <li>WhatsApp phone number in E.164 format — entered by an admin with your consent</li>
-        <li>Web Push browser subscription endpoint + per-device encryption keys — captured when you click "Enable push notifications" on /profile</li>
+        <li>Slack member ID - looked up automatically by email when Slack notifications are enabled at the workspace level</li>
+        <li>WhatsApp phone number in E.164 format - entered by an admin with your consent</li>
+        <li>Web Push browser subscription endpoint + per-device encryption keys - captured when you click "Enable push notifications" on /profile</li>
       </ul>
       <h3>Technical metadata</h3>
       <ul>
         <li>Authentication session cookie (the magic <code>__session</code> cookie, signed with our cookie secrets)</li>
-        <li>Server logs (request paths, status codes, error stacks) retained for debugging — never enriched with operational content</li>
+        <li>Server logs (request paths, status codes, error stacks) retained for debugging - never enriched with operational content</li>
       </ul>
 
       <h2>4 · Why we collect it</h2>
       <ul>
         <li><strong>To let you sign in.</strong> Email + Firebase UID; nothing more.</li>
-        <li><strong>To run the operations workflow.</strong> Tasks, assignments, status transitions, approvals — the dashboard's core purpose.</li>
+        <li><strong>To run the operations workflow.</strong> Tasks, assignments, status transitions, approvals - the dashboard's core purpose.</li>
         <li><strong>To notify the right people at the right time.</strong> The fan-out matrix is locked in code; you don't get notifications for events you aren't a participant in.</li>
         <li><strong>To audit who did what, when.</strong> Every task event is logged for Altus Corp's internal compliance.</li>
         <li><strong>To deliver on the channels you've consented to.</strong> Email is on by default; Slack auto-discovers via email; WhatsApp requires explicit admin-recorded consent; Web Push requires your browser permission.</li>
       </ul>
 
-      <h2>5 · Where it sits — sub-processors</h2>
+      <h2>5 · Where it sits - sub-processors</h2>
       <p>
         We use a small, named set of third parties. None of them get more data
         than they need to deliver their narrow function:
       </p>
       <ul>
         <li>
-          <strong>Supabase</strong> (Postgres database, Singapore region) —
+          <strong>Supabase</strong> (Postgres database, Singapore region) -
           stores all operational data behind row-level security policies that
           gate every read and write to the signed-in employee or admin.
         </li>
         <li>
-          <strong>Firebase Authentication</strong> (US region) — stores your
+          <strong>Firebase Authentication</strong> (US region) - stores your
           email, password hash, and session metadata. Note: Firebase Auth
           cannot currently be hosted in <code>asia-south1</code>; this is a
           compliance flag we are tracking against India's DPDP Act 2027
           deadline.
         </li>
         <li>
-          <strong>Vercel</strong> — application hosting + edge-runtime
+          <strong>Vercel</strong> - application hosting + edge-runtime
           middleware. Reads only the auth cookie + the request body for each
           page render.
         </li>
         <li>
-          <strong>Resend</strong> — transactional email delivery (invites,
+          <strong>Resend</strong> - transactional email delivery (invites,
           notifications, daily digest). Sees email address + body of each
           message.
         </li>
         <li>
-          <strong>Slack</strong> (if your workspace enables it) — the bot
+          <strong>Slack</strong> (if your workspace enables it) - the bot
           token + your Slack user ID + the body of each notification message.
           Workspace install scopes are read-only beyond <code>chat:write</code>{" "}
           and <code>users:read.email</code>.
         </li>
         <li>
-          <strong>Meta WhatsApp Cloud API</strong> (if enabled) — your phone
+          <strong>Meta WhatsApp Cloud API</strong> (if enabled) - your phone
           number + the parameter values that fill the approved utility
           templates. Each message is bound to a Meta-approved template; we
           cannot send freeform content.
         </li>
         <li>
           <strong>Google / Mozilla / Apple Push Services</strong> (if you
-          enable Web Push) — the encrypted notification payload, routed to
+          enable Web Push) - the encrypted notification payload, routed to
           your device via the browser vendor's push service. We never see
           the device-level identifier; we only hold the W3C subscription
           endpoint.
@@ -145,7 +145,7 @@ export default function PrivacyPage() {
         Active accounts: indefinitely, while the engagement is live. Deactivated
         accounts: the row is preserved with{" "}
         <code>is_active = false</code> so historical attributions on tasks
-        remain accurate — Altus Corp's audit needs require this. Hard
+        remain accurate - Altus Corp's audit needs require this. Hard
         deletion is not exposed in the dashboard; if you want a row purged,
         that becomes a manual ops runbook with Altus Corp's legal point of
         contact.
@@ -169,7 +169,7 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>The right to correct.</strong> Name, email, role, department,
-          channel preferences — all editable. Either edit them in{" "}
+          channel preferences - all editable. Either edit them in{" "}
           <code>/profile</code> yourself or ask an admin.
         </li>
         <li>
@@ -178,7 +178,7 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>The right to withdraw consent.</strong> WhatsApp opt-in can be
-          flipped off by replying STOP to any WhatsApp notification — the
+          flipped off by replying STOP to any WhatsApp notification - the
           webhook flips your flag within seconds. Web Push opt-in is revoked
           via your browser's notification settings. Email + in-app inbox
           delivery cannot be fully suppressed without deactivation, because

@@ -47,7 +47,7 @@ export default async function TaskRemindersPage() {
     <AdminSection
       eyebrow="Admin · System"
       title="Task Reminders"
-      subtitle="Daily emails chasing open tasks — one consolidated mail per recipient, grouped by employee."
+      subtitle="Daily emails chasing open tasks - one consolidated mail per recipient, grouped by employee."
       icon={BellRing}
       stats={[
         { label: "Rules", value: rules.length },

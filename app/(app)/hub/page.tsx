@@ -225,7 +225,7 @@ export default async function HubPage() {
               href="https://altuscorp.in"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Altus Corp — altuscorp.in"
+              aria-label="Altus Corp - altuscorp.in"
               className="shrink-0 rounded-lg outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
             >
               <Image

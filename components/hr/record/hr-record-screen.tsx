@@ -311,7 +311,7 @@ export function HrRecordScreen({
       const res = await createOfficialEmail(id);
       if (!res.ok) { fireToast({ message: res.error, type: "error" }); return; }
       if (cidRef.current === id) setWorkflow(res.status);
-      fireToast({ message: `Official email created — welcome mail sent.`, type: "success" });
+      fireToast({ message: `Official email created - welcome mail sent.`, type: "success" });
     } catch {
       fireToast({ message: "Couldn't create the official email.", type: "error" });
     } finally {
@@ -343,21 +343,8 @@ export function HrRecordScreen({
     <>
       <style>{CSS}</style>
       <PageShell width="narrow" py={false} className="pt-7 pb-24">
-        {/* Hero */}
-        <div className="mb-6 rec-fade">
-          <span
-            className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white"
-            style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
-          >
-            <IdCard size={13} strokeWidth={2.6} /> HR · Record
-          </span>
-          <h1
-            className="mt-2 text-ink-strong"
-            style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(28px,3.4vw,44px)", letterSpacing: "-0.03em", lineHeight: 1.02 }}
-          >
-            HR Record
-          </h1>
-        </div>
+        {/* The "HR · Record" eyebrow + "HR Record" heading that used to open
+            this page now live in the frozen HrTitleBar (see page.tsx). */}
 
         {/* Person picker + header.
             `relative z-30`: the combobox dropdown panel lives inside this card.
@@ -492,7 +479,7 @@ export function HrRecordScreen({
                 n={3}
                 icon={<Boxes size={18} />}
                 title="Allocate Assets"
-                sub="Hand over the laptop, access & kit — mark it done once allocated."
+                sub="Hand over the laptop, access & kit - mark it done once allocated."
               >
                 <AssetsStepCard
                   workflow={workflow}
@@ -509,7 +496,7 @@ export function HrRecordScreen({
                 n={4}
                 icon={<FileSignature size={18} />}
                 title="Letters"
-                sub="Open a letter already issued to this person, or compose a new one — their name & gender are pre-filled."
+                sub="Open a letter already issued to this person, or compose a new one - their name & gender are pre-filled."
               >
                 <IssuedLetters letters={files.letters} loading={filesLoading} />
                 <div className="grid gap-2.5 sm:grid-cols-2">
@@ -547,7 +534,7 @@ export function HrRecordScreen({
                 n={5}
                 icon={<FolderLock size={18} />}
                 title="Documents"
-                sub="Their secure document vault — appointment, CTC, IDs & more."
+                sub="Their secure document vault - appointment, CTC, IDs & more."
               >
                 {/* ── WHOSE VAULT ────────────────────────────────────────
                     This used to link to a bare "/dossier". With no employee on
@@ -610,7 +597,7 @@ export function HrRecordScreen({
                 n={6}
                 icon={<ScrollText size={18} />}
                 title="Policy Signatures"
-                sub="How many firm policies this person has signed — and what's still pending."
+                sub="How many firm policies this person has signed - and what's still pending."
                 right={
                   <span
                     className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-bold"
@@ -630,7 +617,7 @@ export function HrRecordScreen({
                 n={7}
                 icon={<LogOut size={18} />}
                 title="Exit & Handover"
-                sub="This person's exit interview and handover clearance — populated once their separation begins."
+                sub="This person's exit interview and handover clearance - populated once their separation begins."
                 right={
                   <Link
                     href={"/hr/exit" as Route}
@@ -650,7 +637,7 @@ export function HrRecordScreen({
                 n={8}
                 icon={<Sparkles size={18} />}
                 title="Skills requirement checklist"
-                sub="The bare-minimum skills this role demands — tick what they can genuinely do. Add or remove options inline."
+                sub="The bare-minimum skills this role demands - tick what they can genuinely do. Add or remove options inline."
                 right={
                   <span className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-bold" style={{ background: "color-mix(in srgb, var(--color-altus-red) 10%, white)", color: RED_DEEP }}>
                     {skillCount} selected
@@ -676,7 +663,7 @@ export function HrRecordScreen({
                   </div>
                 )}
                 <p className="mt-3 text-[12px] leading-relaxed text-ink-subtle">
-                  Saved onto the person&apos;s record — the same skills the Management Assessment shows.
+                  Saved onto the person&apos;s record - the same skills the Management Assessment shows.
                 </p>
               </RecordCard>
             </section>
@@ -687,7 +674,7 @@ export function HrRecordScreen({
                 n={9}
                 icon={<Contact size={18} />}
                 title="Records"
-                sub="Everything this person has filled — open it, read the actual answers, and correct them against their record."
+                sub="Everything this person has filled - open it, read the actual answers, and correct them against their record."
               >
                 <RecordsPanel
                   records={records}
@@ -805,7 +792,7 @@ function PoliciesSigned({ status, loading }: { status: PolicySignStatus | null; 
             {status && !status.matched && (
               <p className="mt-3 flex items-start gap-2 text-[12px] leading-relaxed text-ink-subtle">
                 <UserRound size={13} className="mt-0.5 shrink-0" />
-                Not yet linked to an employee account — signatures will appear here once this person joins and signs on day one.
+                Not yet linked to an employee account - signatures will appear here once this person joins and signs on day one.
               </p>
             )}
           </>
@@ -863,8 +850,8 @@ function ExitHandover({ status, loading }: { status: ExitSummary | null; loading
       <p className="flex items-start gap-2 text-[13px] leading-relaxed text-ink-subtle">
         <UserRound size={13} className="mt-0.5 shrink-0" />
         {status && !status.matched
-          ? "Not linked to an employee account yet — exit records will appear here once this person joins and their separation begins."
-          : "No exit process on file yet — the exit interview and handover clearance will show here once started."}
+          ? "Not linked to an employee account yet - exit records will appear here once this person joins and their separation begins."
+          : "No exit process on file yet - the exit interview and handover clearance will show here once started."}
       </p>
     );
   }
@@ -952,7 +939,7 @@ function PendingSummary({
 
   if (matched) {
     if (!workflow!.onboardingSubmitted) {
-      items.push(workflow!.onboardingExists ? "Onboarding form is a draft — awaiting submission" : "Onboarding form not started");
+      items.push(workflow!.onboardingExists ? "Onboarding form is a draft - awaiting submission" : "Onboarding form not started");
     }
     if (workflow!.onboardingSubmitted && !workflow!.officialEmail) items.push("Official company email not created");
     if (workflow!.onboardingSubmitted && !workflow!.assetsAllocatedAt) items.push("Company assets not allocated");
@@ -985,7 +972,7 @@ function PendingSummary({
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="text-[16px] font-black text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", letterSpacing: "-0.01em" }}>
-            {loading ? "Checking what needs action…" : allClear ? "All clear — nothing pending" : items.length > 0 ? "Pending · action needed" : "Nothing to action yet"}
+            {loading ? "Checking what needs action…" : allClear ? "All clear - nothing pending" : items.length > 0 ? "Pending · action needed" : "Nothing to action yet"}
           </h2>
           <p className="mt-0.5 text-[12.5px] font-medium text-ink-muted">
             {loading
@@ -993,8 +980,8 @@ function PendingSummary({
               : allClear
                 ? "Onboarding, email, assets and every policy are complete."
                 : items.length > 0
-                  ? "Clear these first — they sit above the rest of the file for a reason."
-                  : "Not yet linked to an employee account — items appear here once this person joins."}
+                  ? "Clear these first - they sit above the rest of the file for a reason."
+                  : "Not yet linked to an employee account - items appear here once this person joins."}
           </p>
         </div>
       </div>
@@ -1124,7 +1111,7 @@ function EmailStepCard({
             <Mail size={13} className="mt-0.5 shrink-0" />
             {workflow.emailProvisionedAt
               ? "Welcome mail sent to their personal inbox with login details."
-              : "Already has a company email — nothing to provision."}
+              : "Already has a company email - nothing to provision."}
           </p>
         </>
       ) : unlocked ? (
@@ -1218,7 +1205,7 @@ function UnlinkedNote({ what }: { what: string }) {
   return (
     <p className="flex items-start gap-2 text-[12.5px] leading-relaxed text-ink-subtle">
       <UserRound size={13} className="mt-0.5 shrink-0" />
-      Not yet linked to an employee account — {what} becomes available once this person joins.
+      Not yet linked to an employee account - {what} becomes available once this person joins.
     </p>
   );
 }
@@ -1274,7 +1261,7 @@ function RecordsPanel({
           fillLabel="Fill Onboarding Form"
           fillHref={onboardingHref(employeeId)}
           editHref={onboardingHref(employeeId)}
-          editHint="Address, phone, bank and ID details — saved onto this person's record."
+          editHint="Address, phone, bank and ID details - saved onto this person's record."
           /* With no resolved employee there is nothing to edit safely: an id-less
              link opens the VIEWER's own onboarding form. */
           editDisabled={!employeeId}
@@ -1289,7 +1276,7 @@ function RecordsPanel({
           fillLabel="Fill Candidate Interview Form"
           fillHref={"/hr/intake?new=1" as Route}
           editHref={candidateFormHref(records?.candidate?.id ?? null)}
-          editHint="Resumes their saved interview record — it updates in place, no second copy."
+          editHint="Resumes their saved interview record - it updates in place, no second copy."
           editDisabled={!records?.candidate?.id}
         />
       </div>
@@ -1371,7 +1358,7 @@ function SavedFormsList({ forms, loading }: { forms: FiledFormRow[]; loading: bo
                 <Link
                   href={f.moduleHref as Route}
                   className="inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-white px-3 py-1.5 text-[12px] font-bold text-ink-muted transition-colors hover:bg-surface-soft"
-                  title="Opens the module this form lives in — pick the person there."
+                  title="Opens the module this form lives in - pick the person there."
                 >
                   Open module <ArrowUpRight size={13} />
                 </Link>
@@ -1527,7 +1514,7 @@ function FormRecordBlock({
           <div className="mt-3">
             {editDisabled ? (
               <LockedNote>
-                This person isn&apos;t linked to a record yet, so there is nothing to open — link
+                This person isn&apos;t linked to a record yet, so there is nothing to open - link
                 them first and the form becomes editable here.
               </LockedNote>
             ) : (
@@ -1644,7 +1631,7 @@ function Roster({
             </span>
           </h2>
           <p className="mt-0.5 text-[13px] font-medium text-ink-muted">
-            Open anyone to work their whole file A–Z — letters, email, assets, policies, documents and exit.
+            Open anyone to work their whole file A–Z - letters, email, assets, policies, documents and exit.
           </p>
         </div>
         <div className="relative w-full max-w-[320px]">
@@ -1653,7 +1640,7 @@ function Roster({
             type="text"
             value={query}
             onChange={(e) => onQuery(e.target.value)}
-            placeholder="Local search — name, role or department" title="Local search — filters only the list on this page" aria-label="Local search — name, role or department — this page only"
+            placeholder="Local search - name, role or department" title="Local search - filters only the list on this page" aria-label="Local search - name, role or department - this page only"
             className="w-full rounded-xl border border-hairline-strong bg-white py-2.5 pl-9 pr-3 text-[13.5px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
           />
         </div>
@@ -1815,7 +1802,7 @@ function PersonPicker({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Local search — name, role or department" title="Local search — filters only the list on this page" aria-label="Local search — name, role or department — this page only"
+                placeholder="Local search - name, role or department" title="Local search - filters only the list on this page" aria-label="Local search - name, role or department - this page only"
                 className="w-full rounded-lg border border-hairline-strong bg-surface-soft py-2.5 pl-9 pr-8 text-[13.5px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red focus:bg-white"
               />
               {query && (
@@ -1927,7 +1914,7 @@ const CSS = `
   .rec-fade { animation: recFade 0.5s cubic-bezier(0.22,1,0.36,1) both; }
   @keyframes recFade { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
-  /* Body grid — a gentle staggered cascade as the person's file loads. */
+  /* Body grid - a gentle staggered cascade as the person's file loads. */
   .rec-grid > section { animation: recFade 0.5s cubic-bezier(0.22,1,0.36,1) both; }
   .rec-grid > section:nth-child(1) { animation-delay: 0ms; }
   .rec-grid > section:nth-child(2) { animation-delay: 45ms; }
@@ -1947,7 +1934,7 @@ const CSS = `
   .rec-scroll::-webkit-scrollbar { width: 8px; }
   .rec-scroll::-webkit-scrollbar-thumb { background: var(--color-hairline-strong); border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
 
-  /* Records — collapsible section chevron */
+  /* Records - collapsible section chevron */
   .rec-details summary::-webkit-details-marker { display: none; }
   .rec-details[open] .rec-chevron { transform: rotate(180deg); }
   .rec-details summary:hover { background: color-mix(in srgb, var(--color-altus-red) 4%, white); border-radius: 0.75rem; }

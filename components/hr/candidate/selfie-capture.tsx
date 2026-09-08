@@ -29,12 +29,12 @@ export function SelfieCapture({ onCapture }: { onCapture: (f: File) => void }) {
 
   const start = React.useCallback(async () => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      fireToast({ message: "This browser can't access the camera — upload a photo instead.", type: "error" });
+      fireToast({ message: "This browser can't access the camera - upload a photo instead.", type: "error" });
       return;
     }
     if (typeof window !== "undefined" && !window.isSecureContext) {
       fireToast({
-        message: "Open the app at http://localhost:3000 to use the camera — it's blocked on the network IP. You can still upload a photo.",
+        message: "Open the app at http://localhost:3000 to use the camera - it's blocked on the network IP. You can still upload a photo.",
         type: "error",
       });
       return;
@@ -67,7 +67,7 @@ export function SelfieCapture({ onCapture }: { onCapture: (f: File) => void }) {
     canvas.toBlob(
       (blob) => {
         if (!blob) {
-          fireToast({ message: "Couldn't capture the photo — try again.", type: "error" });
+          fireToast({ message: "Couldn't capture the photo - try again.", type: "error" });
           return;
         }
         onCapture(new File([blob], `selfie-${Date.now()}.jpg`, { type: "image/jpeg" }));

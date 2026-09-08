@@ -69,7 +69,7 @@ export function TabOverview({
               {products.map((p) => (
                 <span
                   key={p.id}
-                  className="inline-flex items-center rounded-full border px-3 py-1.5 text-[13px] font-bold text-ink-strong"
+                  className="inline-flex items-center rounded-pill border px-3 py-1.5 text-[13px] font-bold text-ink-strong"
                   style={{ borderColor: "color-mix(in srgb, var(--color-altus-red) 22%, transparent)", background: "color-mix(in srgb, var(--color-altus-red) 6%, transparent)" }}
                 >
                   {p.name}

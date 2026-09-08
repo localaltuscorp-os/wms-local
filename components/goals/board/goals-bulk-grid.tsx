@@ -257,7 +257,7 @@ export function GoalsBulkGrid(props: {
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <Sparkles size={15} className="text-altus-red" strokeWidth={2.4} />
         <span className="text-[13px] font-bold text-ink-strong">Fill your {props.levelName.toLowerCase()} goals below</span>
-        <span className="text-[12px] font-semibold text-ink-subtle">— type, pick from the dropdowns, delegate, or paste rows from Excel</span>
+        <span className="text-[12px] font-semibold text-ink-subtle">- type, pick from the dropdowns, delegate, or paste rows from Excel</span>
       </div>
 
       <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--color-hairline-strong)" }} onPaste={onPaste}>
@@ -309,7 +309,7 @@ export function GoalsBulkGrid(props: {
                         onChange={(e) => setCell(r.id, c.key, e.target.value)}
                         className={`${CELL} cursor-pointer text-center ${r[c.key] ? "text-ink-strong" : "text-ink-subtle"}`}
                       >
-                        <option value="">—</option>
+                        <option value="">-</option>
                         {optionsFor(c.kind).map((o) => (
                           <option key={o} value={o}>{o}</option>
                         ))}

@@ -1,7 +1,4 @@
-import Link from "next/link";
-import type { Route } from "next";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { requireHrStaff } from "@/lib/hr/access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { DashboardHeader } from "@/components/layout/header";
@@ -36,12 +33,6 @@ export default async function RoutingPage() {
     <>
       <DashboardHeader generatedAt={new Date()} />
       <PageShell width="narrow" style={{ maxWidth: "820px" }}>
-        <Link
-          href={"/hr" as Route}
-          className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-muted transition hover:text-ink-strong"
-        >
-          <ArrowLeft size={15} /> Back to HR
-        </Link>
         <header className="mb-6">
           <h1
             className="text-ink-strong"

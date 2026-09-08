@@ -73,7 +73,7 @@ export function DailyScoreCard({ score }: { score: DailyScore }) {
           label="Average delay"
           value={
             score.avgDelayDays == null
-              ? "—"
+              ? "-"
               : `${Math.abs(score.avgDelayDays)}d ${late ? "late" : early ? "early" : ""}`.trim()
           }
           hint={

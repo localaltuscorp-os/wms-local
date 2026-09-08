@@ -95,7 +95,7 @@ export function MobileTodayTasks({
           />
           {!expanded && hidden > 0 && (
             <span
-              className="ml-0.5 inline-flex items-center justify-center rounded-full bg-altus-red px-1.5 font-bold text-white tabular-nums"
+              className="ml-0.5 inline-flex items-center justify-center rounded-pill bg-altus-red px-1.5 font-bold text-white tabular-nums"
               style={{ fontSize: 11.5, minWidth: 18, height: 18 }}
             >
               +{hidden}

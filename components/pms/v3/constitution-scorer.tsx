@@ -217,11 +217,11 @@ function ParaCard({
       <div className="mt-3 flex flex-wrap items-center gap-4">
         <div className="flex flex-col items-center gap-0.5">
           <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-subtle">Admin</span>
-          <span className="text-[14px] font-black tabular-nums" style={{ color: accentDeep }}>{para.adminScore ?? "—"}</span>
+          <span className="text-[14px] font-black tabular-nums" style={{ color: accentDeep }}>{para.adminScore ?? "-"}</span>
         </div>
         <div className="flex flex-col items-center gap-0.5">
           <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-subtle">Self</span>
-          <span className="text-[14px] font-black tabular-nums" style={{ color: accent }}>{para.selfScore ?? "—"}</span>
+          <span className="text-[14px] font-black tabular-nums" style={{ color: accent }}>{para.selfScore ?? "-"}</span>
         </div>
         {gap != null && gap >= 2 && (
           <span className="rounded-pill px-2 py-0.5 text-[11px] font-bold" style={{ background: "color-mix(in srgb, #d97706 14%, transparent)", color: "#b45309" }}>

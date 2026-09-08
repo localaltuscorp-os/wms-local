@@ -206,7 +206,7 @@ export function AccountsTaskImport() {
             {/* Recognised columns hint */}
             <div className="mt-5">
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle mb-2">
-                Recognised columns — Task list
+                Recognised columns - Task list
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {TASK_COLUMNS.map((c) => (
@@ -214,7 +214,7 @@ export function AccountsTaskImport() {
                 ))}
               </div>
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle mb-2 mt-4">
-                Recognised columns — Screenshots to Post
+                Recognised columns - Screenshots to Post
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {SHOT_COLUMNS.map((c) => (

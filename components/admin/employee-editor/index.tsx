@@ -277,7 +277,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
       out.push({
         label: "Manager",
         value: p.managerId
-          ? (managerOptions.find((m) => m.value === p.managerId)?.label ?? "—")
+          ? (managerOptions.find((m) => m.value === p.managerId)?.label ?? "-")
           : "None",
       });
     }
@@ -297,7 +297,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
         value: p.workerType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
       });
     }
-    if (p.weeklyOff !== undefined) out.push({ label: "Weekly Off", value: WEEKDAY_NAMES[p.weeklyOff] ?? "—" });
+    if (p.weeklyOff !== undefined) out.push({ label: "Weekly Off", value: WEEKDAY_NAMES[p.weeklyOff] ?? "-" });
     if (p.attOfficialStart !== undefined) out.push({ label: "Official Start", value: p.attOfficialStart || blank });
     if (p.attLateAfter !== undefined) out.push({ label: "Late After", value: p.attLateAfter || blank });
     if (p.attOfficialEnd !== undefined) out.push({ label: "Official End", value: p.attOfficialEnd || blank });
@@ -459,7 +459,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                   {targets.map((t) => (
                     <span
                       key={t.id}
-                      className="inline-flex items-center rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[12px] font-semibold text-[#334155]"
+                      className="inline-flex items-center rounded-pill bg-[#F1F5F9] px-2.5 py-1 text-[12px] font-semibold text-[#334155]"
                       style={{ boxShadow: "inset 0 0 0 1px #CBD5E1" }}
                     >
                       {t.name}
@@ -485,7 +485,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                   <Card title="Basic Information">
                     <Field
                       label="Full Name"
-                      hint={bulk ? "Per-person — not available in bulk edit." : undefined}
+                      hint={bulk ? "Per-person - not available in bulk edit." : undefined}
                     >
                       <input
                         value={bulk ? "" : name}
@@ -516,7 +516,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                         searchable
                         options={[
                           ...(bulk ? [{ value: NO_CHANGE, label: "No Change" }] : []),
-                          { value: "", label: "— None —" },
+                          { value: "", label: "- None -" },
                           ...managerOptions.filter((o) => o.value !== one?.id),
                         ]}
                       />
@@ -609,7 +609,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                   <Card title="Contact & Notifications">
                     <Field
                       label="WhatsApp Phone (E.164)"
-                      hint={bulk ? "Per-person — not available in bulk edit." : undefined}
+                      hint={bulk ? "Per-person - not available in bulk edit." : undefined}
                     >
                       <input
                         value={bulk ? "" : waPhone}
@@ -623,7 +623,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                     {bulk ? (
                       <Field
                         label="WhatsApp consent"
-                        hint="Required by Meta + DPDP — only set this where the employee has agreed."
+                        hint="Required by Meta + DPDP - only set this where the employee has agreed."
                       >
                         <Select
                           value={waOptIn === null ? NO_CHANGE : waOptIn ? "yes" : "no"}
@@ -654,7 +654,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                             notifications
                           </span>
                           <span className="mt-0.5 block text-[12px] text-ink-subtle">
-                            Required by Meta + DPDP — leave off if the employee hasn&apos;t
+                            Required by Meta + DPDP - leave off if the employee hasn&apos;t
                             agreed.
                           </span>
                         </span>
@@ -710,7 +710,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                 <ul className="space-y-1">
                   {failures.map((f) => (
                     <li key={f.id} className="text-[13px] text-ink-soft">
-                      <b>{f.name}</b> — {f.error}
+                      <b>{f.name}</b> - {f.error}
                     </li>
                   ))}
                 </ul>
