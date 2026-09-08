@@ -11,6 +11,7 @@ import {
   type LucideIcon,
   Gauge,
   Users2,
+  FolderTree,
 } from "lucide-react";
 import type { Route } from "next";
 import type { WorkspaceId } from "@/lib/workspaces";
@@ -181,6 +182,20 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
     accentDeep: "#c2410c",
     image: null,
   },
+  // Project — the planning hierarchy (Project → Milestone → Result → Action).
+  // The WMS red on purpose: its executable rows ARE WMS tasks (one `tasks`
+  // record, shown from a second angle), so the two rooms are meant to read as
+  // one family rather than as neighbours.
+  "project-plan": {
+    id: "project-plan",
+    label: "Project",
+    tagline: "Projects, milestones, results & the actions under them.",
+    href: "/project-plan" as Route,
+    Icon: FolderTree,
+    accent: "#E10600",
+    accentDeep: "#A80400",
+    image: null,
+  },
 };
 
 /** Hub display order. */
@@ -201,6 +216,7 @@ export const MODULE_ORDER: WorkspaceId[] = [
   "events",       // 0  — "Monthly Events Master"
   // Past the tenth there is no digit left, so this one renders unnumbered.
   "people-allocation", // 11 — "HandHolding"
+  "project-plan",      // 12 — "Project" (sits beside HandHolding)
 ];
 
 /**

@@ -1945,7 +1945,14 @@ html {
 
    `--frozen-left` is set per cell by the table (see frozenCell). */
 @media (min-width: 768px) {
-  .task-frozen-cell {
+  .task-frozen-cell,
+  /* The Project registers freeze their identity block the same way — the
+     checkbox, every ancestor No/Name pair and the level's own No/Name — so the
+     row you are reading stays put while the dates, counts, files and links
+     scroll under it. Same class contract: the cell sets `--frozen-left` and an
+     explicit width, this rule does the pinning, and below `md` neither table
+     freezes anything. */
+  .plan-frozen-cell {
     position: sticky;
     left: var(--frozen-left, 0px);
   }
@@ -2774,31 +2781,30 @@ html {
   background-clip: padding-box;
 }
 
-/* Slim, premium sliding bar for the header pill nav — only appears when the
-   pills overflow (e.g. under zoom), so it's obvious the row scrolls instead of
-   looking cut-off. Branded thumb that warms to red on hover. A little bottom
-   padding gives the bar breathing room beneath the pills. */
+/* Scroll container for the header pill nav and the sidebars — the row still
+   scrolls when its items overflow (wheel, two-finger swipe, drag, keyboard),
+   but the bar itself is HIDDEN.
+
+   It used to draw a slim branded slider, on the reasoning that a visible bar
+   makes it obvious the row scrolls rather than looking cut-off. It read as a
+   stray grey line sitting under the pills, which is the thing people noticed
+   first about the header, so it is gone on every surface that uses this class.
+   Panning is unaffected; only the painted bar is suppressed. */
 .nav-scroll {
   scroll-behavior: smooth;
   overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--color-ink-subtle) 32%, transparent) transparent;
+  /* Firefox + legacy Edge. Chrome/Safari need the ::-webkit rule below. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   /* overflow-x:auto forces overflow-y to clip too, which would cut off the
      notification badges that poke ABOVE the pills (e.g. Inbox). The top pad
-     gives those badges room; the bottom pad leaves space for the slider. */
+     gives those badges room; the bottom pad is what the slider used to sit in
+     and is kept so removing it does not shift the pills down. */
   padding-top: 12px;
   padding-bottom: 6px;
 }
 .nav-scroll::-webkit-scrollbar {
-  height: 6px;
-}
-.nav-scroll::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 0 12px;
-}
-.nav-scroll::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--color-ink-subtle) 32%, transparent);
-  border-radius: 9999px;
+  display: none;
 }
 
 /* ============================================================
@@ -2973,9 +2979,8 @@ html {
     transition: none;
   }
 }
-.nav-scroll::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--color-altus-red) 55%, transparent);
-}
+/* (The `.nav-scroll` thumb's red hover tint lived here. The bar is hidden now —
+   see the `.nav-scroll` block above — so there is no thumb left to tint.) */
 
 /* ── Clean borderless left-rail nav (2026-07-29) ───────────────────────────
    Module sidebar nav items: NO outlined box — just icon + label on quiet slate
@@ -3482,4 +3487,71 @@ html {
 }
 :root[data-focus-mode="on"] .max-md\:pt-14 {
   padding-top: 0 !important;
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────────
+   PROJECT VIEWS — the plan tree.
+
+   NO CARD. The tree sits directly on the page ground instead of inside a white
+   panel. At five levels of indent a card's own edge competes with the indent
+   for the eye, and the indent is the part that carries meaning: it is the only
+   thing telling you a Sub-Action belongs to that Action. Taking the panel away
+   leaves the hierarchy as the loudest thing on the screen.
+
+   WHAT SEPARATES THE ROWS INSTEAD is a line that catches the light — brightest
+   across the middle, fading to nothing at both ends, so it reads as a sheen on
+   an edge rather than as a rule someone drew. Drawn as a background-image
+   rather than a border because a border cannot fade along its own length.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.plan-shine {
+  /* The line lives at the bottom edge of the element, 1px tall, full width. */
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-hairline) 8%,
+    rgba(60, 44, 40, 0.18) 38%,
+    rgba(225, 6, 0, 0.16) 50%,
+    rgba(60, 44, 40, 0.18) 62%,
+    var(--color-hairline) 92%,
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 100% 1px;
+}
+
+/* The header's line is the same shine, lit a little harder and slowly moving —
+   one live element at the top of an otherwise still table. The gradient is
+   twice the width of the element so `accentStripFlow` can travel it without a
+   seam, and it is a ::after rather than the element's own background so a row
+   underneath can carry `.plan-shine` at the same time. */
+.plan-shine-live {
+  position: relative;
+}
+.plan-shine-live::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 1px;
+  pointer-events: none;
+  background-image: linear-gradient(
+    90deg,
+    rgba(60, 44, 40, 0.14) 0%,
+    rgba(225, 6, 0, 0.42) 18%,
+    rgba(255, 255, 255, 0.85) 26%,
+    rgba(225, 6, 0, 0.42) 34%,
+    rgba(60, 44, 40, 0.14) 52%,
+    rgba(60, 44, 40, 0.14) 100%
+  );
+  background-size: 200% 100%;
+  animation: accentStripFlow 7s linear infinite;
+}
+
+/* The sweep is decoration, not information — the line stays, the travel stops. */
+@media (prefers-reduced-motion: reduce) {
+  .plan-shine-live::after {
+    animation: none;
+  }
 }
