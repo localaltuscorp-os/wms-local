@@ -150,6 +150,9 @@ import { LateBadge } from "@/components/ui/late-badge";
 import { isDoneLate } from "@/lib/task-late";
 import { InlineStatusCell } from "./inline-status-cell";
 import { canEditTaskFields } from "@/lib/auth/task-permissions";
+// Shared with the dashboard's section pager so both agree on which page numbers
+// to show; see the footer pager below.
+import { pageWindow } from "@/components/dashboard/section-chrome";
 import {
   InlineDoerCell,
   InlinePriorityCell,
@@ -1584,13 +1587,18 @@ export function TaskTable({
           {countLabel}
         </span>
         {pageCount > 1 && (
-          /* A SECOND, minimal pager — Prev/Next only. After scrolling to the
-             bottom of a 50-row page the toolbar is off-screen, and making
-             someone scroll back up to reach "next" is the thing that made the
-             old numbered pager annoying. The page NUMBER and the size selector
-             stay in the toolbar; only the two controls you want at the end of
-             a page are repeated here. */
-          <span className="flex shrink-0 items-center gap-1">
+          /* A SECOND pager. After scrolling to the bottom of a 50-row page the
+             toolbar is off-screen, and making someone scroll back up to reach
+             "next" is the thing that made the old pager annoying.
+
+             NUMBERED PAGES SIT BETWEEN Prev and Next (2026-09-08), so a jump to
+             page 4 no longer costs three clicks or a trip back to the toolbar.
+             `pageWindow` is the dashboard pager's own function rather than a
+             second copy — two windowing rules that disagree about what to show
+             at page 7 of 40 is the bug this avoids. The page-size selector still
+             lives only in the toolbar: it is a setting, not a movement, and it
+             is not what you reach for at the end of a page. */
+          <nav className="flex shrink-0 items-center gap-1" aria-label="Task pages">
             <button
               type="button"
               onClick={() => setPageIndex((n) => Math.max(0, n - 1))}
@@ -1600,6 +1608,47 @@ export function TaskTable({
             >
               <ChevronLeft size={14} strokeWidth={2.6} /> Prev
             </button>
+
+            {/* Hidden below `sm`: the phone layout has its own pager, and eight
+                tap targets do not fit beside a range label at 360px. */}
+            <span className="flex items-center gap-1 max-sm:hidden">
+              {pageWindow(safePageIndex + 1, pageCount).map((p, i) =>
+                p === "…" ? (
+                  <span
+                    key={`gap-${i}`}
+                    aria-hidden
+                    className="px-0.5 text-[12.5px] font-bold text-ink-subtle"
+                  >
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPageIndex(p - 1)}
+                    aria-label={`Page ${p}`}
+                    aria-current={p === safePageIndex + 1 ? "page" : undefined}
+                    className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-[12.5px] font-bold tabular-nums transition-colors ${
+                      p === safePageIndex + 1
+                        ? "text-white"
+                        : "text-ink-strong hover:bg-gray-200"
+                    }`}
+                    style={
+                      p === safePageIndex + 1
+                        ? {
+                            background:
+                              "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
+                            boxShadow: "0 4px 10px -4px rgba(225,6,0,0.5)",
+                          }
+                        : undefined
+                    }
+                  >
+                    {p}
+                  </button>
+                ),
+              )}
+            </span>
+
             <button
               type="button"
               onClick={() => setPageIndex((n) => Math.min(pageCount - 1, n + 1))}
@@ -1609,7 +1658,7 @@ export function TaskTable({
             >
               Next <ChevronRight size={14} strokeWidth={2.6} />
             </button>
-          </span>
+          </nav>
         )}
       </div>
       </div>

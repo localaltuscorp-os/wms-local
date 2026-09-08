@@ -180,8 +180,16 @@ export function CollapsibleSection({
 
 /* ───────────────────────────── Pagination ──────────────────────────── */
 
-/** Up to 5 numbered buttons around the current page, with ellipses at the ends. */
-function pageWindow(current: number, total: number): (number | "…")[] {
+/**
+ * Up to 5 numbered buttons around the current page, with ellipses at the ends.
+ *
+ * Exported because the tasks table's sticky footer needs the SAME windowing
+ * without the rest of {@link SectionPagination}: that pager owns its own
+ * icon-only Prev/Next, and the footer already has a labelled "Prev · Next" pair
+ * it keeps. Sharing the function rather than the component is what stops the
+ * two pagers from disagreeing about which numbers to show at page 7 of 40.
+ */
+export function pageWindow(current: number, total: number): (number | "…")[] {
   if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
   const out: (number | "…")[] = [1];
   const from = Math.max(2, Math.min(current - 1, total - 3));
