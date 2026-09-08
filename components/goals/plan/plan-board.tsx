@@ -613,25 +613,35 @@ export function PlanBoard({ target, payload, dashboardHref, quickDock }: Props) 
   );
 
   /**
-   * DUPLICATE a commitment onto the same day. The copy is standalone — see
+   * DUPLICATE a commitment onto a CHOSEN day. The copy is standalone — see
    * duplicatePlanItem for why the goal/task link is deliberately not cloned.
+   *
+   * `ymd` comes from the card's date picker. The optimistic insert only applies
+   * when the destination is a day currently on screen: `days` holds the three
+   * columns in the window, so a copy sent to next Tuesday has no list to push
+   * into and is picked up by the refresh instead. Pushing it into the source
+   * day's list "for now" would show the copy on the wrong day until the server
+   * answered, which is worse than showing it a moment late.
    */
   const onDuplicate = React.useCallback(
-    (item: PlanItem) => {
+    (item: PlanItem, ymd?: string) => {
       const found = findItem(item.id);
       if (!found) return;
       startTransition(async () => {
-        const res = await duplicatePlanItem(item.id);
+        const res = await duplicatePlanItem(item.id, ymd);
         if (!res.ok) {
           fireToast({ message: res.error, type: "error" });
           return;
         }
-        setDayItems(found.day.offset, (list) => [...list, res.item]);
-        fireToast({ message: "Duplicated." });
+        const dest = ymd ? days.find((d) => d.ymd === ymd) : found.day;
+        if (dest) setDayItems(dest.offset, (list) => [...list, res.item]);
+        fireToast({
+          message: dest ? "Duplicated." : "Duplicated onto that day.",
+        });
         refresh();
       });
     },
-    [findItem, setDayItems, router],
+    [findItem, setDayItems, days, refresh],
   );
 
   /** Abandon a task → Recycle Bin. Optimistically drop it from its source list. */
