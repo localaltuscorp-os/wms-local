@@ -1178,13 +1178,18 @@ function PlannerBar({
       </label>
       </CollapsibleSearch>
 
-      {/* The header's right-hand cluster. It became a COLUMN when the Dashboard
-          button arrived: the existing row — Recycle Bin · C · Start/Review — is
-          untouched on top, and Dashboard sits directly under it (Sir) rather
-          than lengthening a row that already gives way first when the header
-          gets tight. */}
-      <div className="ml-auto flex shrink-0 flex-col items-end gap-1.5">
-      <div className="flex items-center gap-2">
+      {/* The header's right-hand cluster — ONE ROW: Recycle Bin · Add ·
+          Start/Review My Day · Dashboard.
+
+          It was a column, so Dashboard sat on a second line under the others.
+          That was to avoid lengthening a row that gives way first when the
+          header gets tight — but it cost a whole extra line of header height on
+          every load to place one chip, and a lone button hanging under a row of
+          three reads as though it belongs to something else. Back on one line;
+          `flex-wrap` on the row means a narrow window drops Dashboard to a
+          second line by itself, which is the same outcome the column forced
+          permanently, only now it happens when it is actually needed. */}
+      <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
 
       {/* The day's lifecycle — one button, whichever one applies now. Hidden
           while the window is parked on future days (starting and reviewing are
@@ -1248,17 +1253,20 @@ function PlannerBar({
           <ClipboardCheck size={13} /> Review My Day
         </button>
       )}
-      </div>
 
       {/* DAILY GOALS → DASHBOARD. Rendered only when a caller supplied the href
           — which is the Daily Goals page and nothing else (see the prop's note
           on Props). Deliberately the QUIET treatment: the outlined chip the
           Recycle Bin link already uses, not a second filled brand button, so
-          the day's own closing action stays the one thing that draws the eye. */}
+          the day's own closing action stays the one thing that draws the eye.
+
+          h-8 and text-[11.5px] to match Add and Start My Day beside it. On its
+          own line the old py-1.5/text-[12px] passed unnoticed; in the row it
+          would have stood a couple of pixels taller than everything else. */}
       {dashboardHref ? (
         <Link
           href={dashboardHref}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-chip border px-3 py-1.5 text-[12px] font-bold transition-colors focus-visible:outline-2"
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-chip border px-3 text-[11.5px] font-bold transition-colors focus-visible:outline-2"
           style={{
             borderColor: `color-mix(in srgb, ${GOALS_ACCENT} 32%, transparent)`,
             color: GOALS_ACCENT_DEEP,
