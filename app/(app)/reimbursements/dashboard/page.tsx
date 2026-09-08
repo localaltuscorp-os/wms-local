@@ -255,7 +255,7 @@ export default async function Page() {
             <h1 className="text-display-lg text-ink-strong">Reimbursement Dashboard</h1>
             <p className="text-body-lg text-ink-subtle mt-1">
               {data.scopeAll
-                ? "Org-wide expense reimbursements — submitted, approved, paid."
+                ? "Org-wide expense reimbursements - submitted, approved, paid."
                 : "Your reimbursement requests at a glance."}
             </p>
           </div>
@@ -295,7 +295,7 @@ export default async function Page() {
           </div>
 
           {/* Trend */}
-          <Panel title="Month-over-Month" description="Reimbursed (paid) vs submitted ₹ per month — last 12 months" tone="red">
+          <Panel title="Month-over-Month" description="Reimbursed (paid) vs submitted ₹ per month - last 12 months" tone="red">
             <TrendChart rows={data.trend} />
           </Panel>
 
@@ -367,11 +367,11 @@ export default async function Page() {
                             {formatDate(r.createdAt)}
                           </td>
                           <td className="py-2.5 font-semibold text-ink-subtle whitespace-nowrap" style={{ fontSize: 13 }}>
-                            {r.expenseHead ?? "—"}
+                            {r.expenseHead ?? "-"}
                           </td>
                           {!data.scopeAll && (
                             <td className="py-2.5 font-semibold text-ink-subtle whitespace-nowrap" style={{ fontSize: 13 }}>
-                              {r.paidThrough ?? "—"}
+                              {r.paidThrough ?? "-"}
                             </td>
                           )}
                           <td className="py-2.5 tabular-nums font-black text-ink-strong text-right whitespace-nowrap" style={{ fontSize: 14 }}>
@@ -379,7 +379,7 @@ export default async function Page() {
                           </td>
                           <td className="py-2.5 text-right whitespace-nowrap">
                             <span
-                              className="inline-flex items-center rounded-full px-2.5 py-0.5 font-bold"
+                              className="inline-flex items-center rounded-pill px-2.5 py-0.5 font-bold"
                               style={{
                                 fontSize: 11,
                                 background: `color-mix(in srgb, var(--color-${statusTone}) 14%, transparent)`,

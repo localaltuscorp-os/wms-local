@@ -64,11 +64,11 @@ export function GoalsImport({ roster }: { roster: RosterMember[] }) {
         <p className="text-[12px] font-black uppercase tracking-[0.05em] text-ink-muted">Branded Excel template</p>
         <p className="mt-1 text-[13px] font-semibold text-ink-soft">
           Level · Title · Year/Quarter/Month · Type · Category · Area · UoM · Target/Actual · Owner ·
-          Reviewer · Team · Status · Weight — with dropdowns, frozen panes and locked read-only columns.
+          Reviewer · Team · Status · Weight - with dropdowns, frozen panes and locked read-only columns.
         </p>
         <a
           href={TEMPLATE_URL}
-          className="wg-btn mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-hairline bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:brightness-95"
+          className="wg-btn mt-2.5 inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:brightness-95"
         >
           <Download size={14} strokeWidth={2.4} /> Download template (.xlsx)
         </a>
@@ -121,7 +121,7 @@ export function GoalsImport({ roster }: { roster: RosterMember[] }) {
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={pending}
-          className="wg-btn wg-sheen inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-bold text-white disabled:opacity-60"
+          className="wg-btn wg-sheen inline-flex items-center gap-2 rounded-pill px-5 py-2.5 text-[14px] font-bold text-white disabled:opacity-60"
           style={{ background: `linear-gradient(135deg, ${GOALS_ACCENT}, ${GOALS_ACCENT_DEEP})` }}
         >
           {pending ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}

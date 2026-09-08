@@ -151,9 +151,9 @@ export function PerformerTaskDrawer({
         {/* ── Header ── */}
         <div className="flex shrink-0 items-center gap-3 border-b border-gray-200 px-5 py-3">
           <h2 className="min-w-0 flex-1 truncate text-[15px] font-bold text-gray-900">
-            Completed tasks — {employeeName}
+            Completed tasks - {employeeName}
           </h2>
-          <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[12px] font-bold tabular-nums text-emerald-700">
+          <span className="shrink-0 rounded-pill bg-emerald-50 px-2.5 py-1 text-[12px] font-bold tabular-nums text-emerald-700">
             {rows.length}
             {rows.length !== all.length && ` of ${all.length}`}
           </span>
@@ -286,20 +286,20 @@ export function PerformerTaskDrawer({
                       </Link>
                     </td>
                     <td className="whitespace-nowrap px-3 py-1.5 text-[12.5px] text-gray-600">
-                      {t.initiatorName ?? "—"}
+                      {t.initiatorName ?? "-"}
                     </td>
                     <td className="max-w-[20ch] px-3 py-1.5">
                       <span className="block truncate text-[12.5px] text-gray-600" title={t.client ?? ""}>
-                        {t.client ?? "—"}
+                        {t.client ?? "-"}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-1.5">
                       <span className="text-[12px] tabular-nums text-gray-600">
-                        {t.dueAt ? formatDate(t.dueAt) : "—"}
+                        {t.dueAt ? formatDate(t.dueAt) : "-"}
                       </span>
                       {t.daysLate !== null && (
                         <span
-                          className={`ml-2 rounded-full border px-1.5 py-0.5 text-[10.5px] font-bold tabular-nums ${
+                          className={`ml-2 rounded-pill border px-1.5 py-0.5 text-[10.5px] font-bold tabular-nums ${
                             t.daysLate > 0
                               ? "border-rose-200 bg-rose-50 text-rose-700"
                               : "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -310,14 +310,14 @@ export function PerformerTaskDrawer({
                       )}
                     </td>
                     <td className="whitespace-nowrap px-3 py-1.5 text-[12px] tabular-nums text-gray-600">
-                      {t.completedAt ? formatDate(t.completedAt) : "—"}
+                      {t.completedAt ? formatDate(t.completedAt) : "-"}
                       {t.turnaroundDays !== null && (
                         <span className="ml-1.5 text-[11px] text-gray-400">{t.turnaroundDays}d</span>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-3 py-1.5">
                       <span
-                        className={`rounded-full border px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide ${PRIORITY_TONE[t.priority]}`}
+                        className={`rounded-pill border px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide ${PRIORITY_TONE[t.priority]}`}
                       >
                         {PRIORITY_LABELS[t.priority]}
                       </span>
@@ -331,7 +331,7 @@ export function PerformerTaskDrawer({
 
           {state.kind === "ok" && state.data.truncated && (
             <p className="border-t border-gray-100 bg-gray-50 px-4 py-2 text-[12px] font-semibold text-gray-500">
-              Showing the first {all.length.toLocaleString("en-IN")} completions — narrow the
+              Showing the first {all.length.toLocaleString("en-IN")} completions - narrow the
               dashboard date range to see older work.
             </p>
           )}

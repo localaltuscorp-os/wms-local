@@ -83,8 +83,25 @@ export function maxWindowStartFor(days: number): number {
   return Math.max(0, PLAN_MAX_DAY_OFFSET + 1 - days);
 }
 
-/** The furthest BACK the window may start — four weeks of history. */
-export const MIN_WINDOW_START = PLAN_MIN_DAY_OFFSET;
+/**
+ * The furthest BACK the window may start: TODAY. The strip does not go into the
+ * past, in either plan or review mode — `‹` is disabled on today and no past day
+ * gets a tab.
+ *
+ * It used to be PLAN_MIN_DAY_OFFSET (four weeks back), which contradicted the
+ * rule `clampWindowStart` states three lines below — "Previous stops at today
+ * (you plan forward, you don't re-plan the past)". The comment was right about
+ * the intent and the constant was wrong, so reviewing your day let you page back
+ * to last Tuesday and start ticking it off.
+ *
+ * THIS IS THE VIEWING WINDOW, NOT THE DATING RULE. PLAN_MIN_DAY_OFFSET stays at
+ * -27 and still governs where an ITEM may be dated, because "I actually did this
+ * yesterday" is a legitimate correction (see its note in lib/queries/
+ * daily-checklist.ts). Back-dating a commitment still works; browsing backwards
+ * to do it in bulk does not. Past days remain readable in the Done Dashboard,
+ * which is the surface built for looking at history.
+ */
+export const MIN_WINDOW_START = 0;
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

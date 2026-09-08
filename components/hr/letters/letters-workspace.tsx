@@ -9,6 +9,7 @@ import { uploadLetter, deleteLetter } from "@/app/(app)/letters/actions";
 import { SignatureStatusPill } from "@/components/documents/signature-status-pill";
 import { formatDate } from "@/lib/format";
 import type { SignatureStatus } from "@/lib/documents/signing";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const RED = "var(--color-altus-red)";
 const RED_DEEP = "var(--color-altus-red-deep)";
@@ -75,15 +76,17 @@ export function LettersWorkspace({
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {isAdmin ? (
+          <CollapsibleSearch scope="person, letter or title">
           <div className="relative min-w-[220px] flex-1 max-w-[360px]">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Local search — person, letter or title" title="Local search — filters only the list on this page" aria-label="Local search — person, letter or title — this page only"
+              placeholder="Local search - person, letter or title" title="Local search - filters only the list on this page" aria-label="Local search - person, letter or title - this page only"
               className="w-full rounded-pill border border-hairline bg-surface-card py-2 pl-9 pr-3 text-[13px] text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
             />
           </div>
+          </CollapsibleSearch>
         ) : <span />}
         {isAdmin && (
           <button
@@ -237,7 +240,7 @@ function IssueDialog({
             </select>
           </Field>
           <Field label="Title">
-            <input name="title" required maxLength={200} placeholder="e.g. Offer Letter — Jul 2026" className={inputCls} />
+            <input name="title" required maxLength={200} placeholder="e.g. Offer Letter - Jul 2026" className={inputCls} />
           </Field>
           <Field label="Effective Date (optional)">
             <input name="effectiveDate" type="date" className={inputCls} />

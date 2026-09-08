@@ -25,6 +25,7 @@ import {
 } from "@/components/dashboard/section-chrome";
 import type { PunctualityPerson } from "@/lib/types";
 import { isAppDepartment, type TeamView } from "@/lib/teams/app-team";
+import { TeamToggle } from "@/components/dashboard/team-toggle";
 import Link from "next/link";
 import type { Route } from "next";
 import { formatDate } from "@/lib/format";
@@ -381,7 +382,7 @@ export function PerformanceByPersonTable({
       ],
       rows: rows.map((p) => [
         p.employeeName,
-        p.done > 0 ? `${Math.round((p.onTime / p.done) * 100)}%` : "—",
+        p.done > 0 ? `${Math.round((p.onTime / p.done) * 100)}%` : "-",
         ...SPREAD_COLS.map((c) => String(p.lateSpread[c.key])),
         String(p.late),
       ]),
@@ -570,74 +571,6 @@ export function PerformanceByPersonTable({
   );
 }
 
-/**
- * The All / App / Non-App segmented control.
- *
- * A SEGMENTED CONTROL, not two checkboxes or a dropdown: the three options are
- * mutually exclusive views of one list, and the counts have to be readable
- * without opening anything — comparing 9 against 9 is most of why someone looks
- * at this split at all. Deliberately the same markup, order, labels and default
- * as the aging heatmap's toggle, so the two sections read as one control.
- *
- * ── NO `dark:` VARIANTS ──────────────────────────────────────────────────
- * Same correctness point SortHeader records above, not a style preference.
- * This app registers no dark theme, so Tailwind compiles `dark:` to a bare
- * @media (prefers-color-scheme: dark) keyed on the READER'S OS SETTING — while
- * the card underneath stays DASHBOARD_CARD's unconditional `bg-white`. A
- * `dark:bg-slate-800/80` pill would therefore paint a near-black bar onto a
- * white card for every reader browsing in dark mode, and `dark:hover:text-white`
- * would make the inactive tabs vanish on hover at 1.00:1. The light rules below
- * are the whole control until a real dark theme exists.
- */
-function TeamToggle({
-  view,
-  onChange,
-  counts,
-}: {
-  view: TeamView;
-  onChange: (v: TeamView) => void;
-  counts: { all: number; app: number; nonApp: number };
-}) {
-  const tabs: { id: TeamView; label: string; count: number }[] = [
-    { id: "all", label: "All Employees", count: counts.all },
-    { id: "app", label: "App Team", count: counts.app },
-    { id: "nonApp", label: "Non-App Team", count: counts.nonApp },
-  ];
-  return (
-    <div
-      role="tablist"
-      aria-label="Which team to show"
-      className="inline-flex items-center gap-1 rounded-xl bg-slate-100 p-1 text-xs font-bold"
-    >
-      {tabs.map((t) => {
-        const active = view === t.id;
-        return (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(t.id)}
-            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 ${
-              active
-                ? "bg-white text-slate-900 shadow-sm transition-all"
-                : "text-slate-500 transition-colors hover:text-slate-900"
-            }`}
-          >
-            {t.label}
-            <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold tabular-nums ${
-                active ? "bg-slate-100 text-slate-700" : "bg-slate-200 text-slate-600"
-              }`}
-            >
-              {t.count}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 /**
  * TRANSPOSED — metrics down the side, people across the top.
@@ -817,7 +750,7 @@ function OnTimeRateTooltip({
   const row = "flex items-baseline justify-between gap-6";
 
   const pct = (n: number) =>
-    person.done > 0 ? `${Math.round((n / person.done) * 100)}%` : "—";
+    person.done > 0 ? `${Math.round((n / person.done) * 100)}%` : "-";
 
   // NO RESIDUAL ROW any more. The brackets started at two days, so a task one
   // day late fell through all four and the tooltip had to add a "1 day" line to
@@ -961,7 +894,7 @@ function SpreadCell({
           href={`/tasks?emp=${encodeURIComponent(employeeId ?? "")}` as Route}
           onMouseEnter={preview.load}
           onFocus={preview.load}
-          title={`${employeeName} — ${LATE_BRACKETS[bracket].label}`}
+          title={`${employeeName} - ${LATE_BRACKETS[bracket].label}`}
           className={`inline-flex cursor-pointer items-center justify-center rounded-md px-1.5 tabular-nums font-black text-red-600 transition-all hover:scale-105 hover:bg-red-100/60 ${
             className ?? ""
           }`}

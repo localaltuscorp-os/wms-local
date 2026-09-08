@@ -51,7 +51,7 @@ export function TypeBrowse({
               }}
             >
               {d.short}
-              <span className="tabular-nums rounded-full bg-black/5 px-1.5 py-0.5 text-[11px]">{n}</span>
+              <span className="tabular-nums rounded-pill bg-black/5 px-1.5 py-0.5 text-[11px]">{n}</span>
             </Link>
           );
         })}

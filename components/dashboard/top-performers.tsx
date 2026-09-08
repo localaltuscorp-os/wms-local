@@ -5,6 +5,7 @@ import type { TopPerformer } from "@/lib/types";
 import { useSectionSearch, matchesSearch } from "@/lib/client/section-search";
 import { SectionDispatch } from "@/components/dashboard/section-dispatch";
 import type { SectionReport } from "@/lib/reports/section-report";
+import { TOP_PERFORMER_RANKS } from "@/lib/transforms/performer-split";
 import { useCountUp } from "@/lib/use-count-up";
 import { Avatar } from "@/components/ui/avatar";
 import { SectionIcon } from "@/components/dashboard/section-icon";
@@ -151,7 +152,7 @@ export function TopPerformersSection({
   const buildReport = React.useCallback((): SectionReport => {
     return {
       title: "Top Performers",
-      subtitle: "Completed tasks, and how many landed on or before the due date",
+      subtitle: `Top ${TOP_PERFORMER_RANKS} by completed tasks, and how many landed on or before the due date`,
       meta: localQuery.trim() ? [{ label: "Search", value: localQuery.trim() }] : [],
       summary: `${visible.length} ${visible.length === 1 ? "person" : "people"}`,
       columns: [
@@ -164,7 +165,7 @@ export function TopPerformersSection({
       rows: visible.map((p) => [
         `#${p.rank}`,
         p.employeeName,
-        p.department ?? "—",
+        p.department ?? "-",
         String(p.doneCount),
         `${p.completedOnTime} / ${p.datedCompletions}`,
       ]),
@@ -193,7 +194,7 @@ export function TopPerformersSection({
       <DashboardSectionHeader
         icon={<SectionIcon icon={Trophy} tone="amber" />}
         title="Top Performers"
-        subtitle="Ranked by completed tasks — click any member to view their completed task list."
+        subtitle={`The team’s top ${TOP_PERFORMER_RANKS} by completed tasks — click any member to view their completed task list. Rank ${TOP_PERFORMER_RANKS + 1} and below is People To Pull Up.`}
         actions={
           <>
           <SectionDispatch report={buildReport} />
@@ -300,16 +301,35 @@ function PodiumCard({
     <button
       type="button"
       onClick={onOpen}
-      aria-label={`View ${performer.employeeName}'s completed tasks — rank ${performer.rank}, ${performer.doneCount} completed`}
+      aria-label={`View ${performer.employeeName}'s completed tasks - rank ${performer.rank}, ${performer.doneCount} completed`}
       className={`group relative block w-full border border-slate-200 bg-white p-4 text-left ${ROW_HOVER}`}
     >
-      {/* Crown marks the TRUE #1 only — not whoever happens to sit at the top
-          of a filtered column. */}
-      {performer.rank === 1 && (
-        <span aria-hidden className="absolute right-4 top-4 text-amber-400">
-          <Crown size={20} strokeWidth={2.4} fill="currentColor" />
+      {/* THE POSITION, IN THE CORNER, ON EVERY CARD.
+          
+          It used to be the crown and nothing else, so a card only stated a
+          position when its occupant was 1st — and the medal chip beside the
+          name covers ranks 1-3 alone. Rank 4 and below therefore showed no
+          standing at all, which is exactly the case a reader wants it for: the
+          podium column renders `slice(0, 3)` of whatever is on the board, so
+          when a filter narrows the list the person sitting in the first card
+          can be #6 with nothing on the card saying so.
+
+          `#{rank}` reads the TRUE global standing, never the position in the
+          rendered column. The crown still marks a real #1 and now sits beside
+          the number rather than instead of it. */}
+      <span className="absolute right-4 top-4 flex items-center gap-1.5">
+        {performer.rank === 1 && (
+          <span aria-hidden className="text-amber-400">
+            <Crown size={20} strokeWidth={2.4} fill="currentColor" />
+          </span>
+        )}
+        <span
+          className="grid h-6 min-w-6 place-items-center rounded-full bg-slate-100 px-1.5 text-xs font-bold tabular-nums text-slate-700"
+          title={`Rank ${performer.rank} of the whole team`}
+        >
+          #{performer.rank}
         </span>
-      )}
+      </span>
 
       <span className="flex items-center gap-3">
         <Avatar
@@ -328,14 +348,14 @@ function PodiumCard({
           <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
             {medal && (
               <span
-                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${medal.chip}`}
+                className={`inline-flex items-center gap-1 rounded-pill border px-2 py-0.5 text-[10px] font-bold ${medal.chip}`}
               >
                 <span aria-hidden>{medal.medal}</span>
                 {medal.label}
               </span>
             )}
             {performer.department && (
-              <span className="inline-block max-w-[16ch] truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+              <span className="inline-block max-w-[16ch] truncate rounded-pill border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                 {performer.department}
               </span>
             )}
@@ -393,7 +413,7 @@ function LeaderRow({
       <button
         type="button"
         onClick={onOpen}
-        aria-label={`View ${performer.employeeName}'s completed tasks — rank ${performer.rank}, ${performer.doneCount} completed`}
+        aria-label={`View ${performer.employeeName}'s completed tasks - rank ${performer.rank}, ${performer.doneCount} completed`}
         /* py-1.5 px-3 — a second pass on the same problem. p-4 -> py-2.5 took
            12px a row; this takes another 8px, 56px more over seven rows. The
            floor is the 28px avatar: below py-1.5 the padding stops setting the
@@ -419,7 +439,7 @@ function LeaderRow({
               {performer.employeeName}
             </span>
             {performer.department && (
-              <span className="mt-0.5 inline-block max-w-[16ch] truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+              <span className="mt-0.5 inline-block max-w-[16ch] truncate rounded-pill border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                 {performer.department}
               </span>
             )}

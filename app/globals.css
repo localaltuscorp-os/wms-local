@@ -71,25 +71,63 @@
   --color-altus-red-wash:  #FDF0F0;
 
   /* status palette — container / ink / wash / edge per family */
-  --color-blue:    #d3e3fd;  --color-blue-deep:   #174ea6;  --color-blue-bg:   #eef3fd;  --color-blue-edge:   #4a7fd4;
-  --color-green:   #c3ebcd;  --color-green-deep:  #0f5b2e;  --color-green-bg:  #eef7f0;  --color-green-edge:  #3e8f5a;
-  --color-amber:   #fbe0a6;  --color-amber-deep:  #8a3d06;  --color-amber-bg:  #fdf6e8;  --color-amber-edge:  #a8761f;
-  --color-red:     #f8c8c7;  --color-red-deep:    #A80400;  --color-red-bg:    #fdf0f0;  --color-red-edge:    #d4706d;
-  --color-rose:    #f9ceda;  --color-rose-deep:   #9f0f33;  --color-rose-bg:   #fdeef1;  --color-rose-edge:   #c0567f;
-  --color-purple:  #e9ddff;  --color-purple-deep: #5b21b6;  --color-purple-bg: #f4eefe;  --color-purple-edge: #8a6bd0;
+  --color-blue:    #2563EB;  --color-blue-deep:   #1E40AF;  --color-blue-bg:   #EFF6FF;  --color-blue-edge:   #4a7fd4;
+  --color-green:   #10B981;  --color-green-deep:  #065F46;  --color-green-bg:  #ECFDF5;  --color-green-edge:  #3e8f5a;
+  --color-amber:   #b45309;  --color-amber-deep:  #8a3d06;  --color-amber-bg:  #fdf6e8;  --color-amber-edge:  #a8761f;
+  --color-red:     #DC2626;  --color-red-deep:    #991B1B;  --color-red-bg:    #FEF2F2;  --color-red-edge:    #d4706d;
+  --color-rose:    #be123c;  --color-rose-deep:   #9f0f33;  --color-rose-bg:   #fdeef1;  --color-rose-edge:   #c0567f;
+  --color-purple:  #7c3aed;  --color-purple-deep: #5b21b6;  --color-purple-bg: #f4eefe;  --color-purple-edge: #8a6bd0;
   /* extended tones (Manan status palette): yellow, orange, slate=dark grey, brown */
-  --color-yellow:  #f5eda4;  --color-yellow-deep: #7a5c00;  --color-yellow-bg: #fbf8e6;  --color-yellow-edge: #a88a2e;
-  --color-orange:  #ffd9c2;  --color-orange-deep: #973108;  --color-orange-bg: #fdf1e9;  --color-orange-edge: #b25a22;
-  --color-slate:   #dce2ea;  --color-slate-deep:  #334155;  --color-slate-bg:  #f0f3f6;  --color-slate-edge:  #7c8595;
-  --color-brown:   #e4d6c3;  --color-brown-deep:  #6b4a2b;  --color-brown-bg:  #f6f1e9;  --color-brown-edge:  #a08556;
-  --color-stone:   #e4e7eb;  --color-stone-deep:  #545a63;  --color-stone-bg:  #f3f4f6;  --color-stone-edge:  #8b929c;
+  --color-yellow:  #D97706;  --color-yellow-deep: #92400E;  --color-yellow-bg: #FFFBEB;  --color-yellow-edge: #a88a2e;
+  --color-orange:  #EA580C;  --color-orange-deep: #9A3412;  --color-orange-bg: #FFEDD5;  --color-orange-edge: #b25a22;
+  --color-slate:   #64748B;  --color-slate-deep:  #334155;  --color-slate-bg:  #F8FAFC;  --color-slate-edge:  #7c8595;
+  /* `neutral` — the near-black grey. Distinct from `slate`: this is the
+     TOTAL/all-items tone, slate is the not-started tone, and the spec gives
+     them different values. */
+  --color-neutral:   #1F2937;  --color-neutral-deep: #111827;  --color-neutral-bg: #F3F4F6;  --color-neutral-edge: #4B5563;
+
+  --color-brown:   #8a6234;  --color-brown-deep:  #6b4a2b;  --color-brown-bg:  #f6f1e9;  --color-brown-edge:  #a08556;
+  --color-stone:   #6b7280;  --color-stone-deep:  #545a63;  --color-stone-bg:  #f3f4f6;  --color-stone-edge:  #8b929c;
   /* attendance Phase B tones: teal=comp-off, indigo=holiday */
-  --color-teal:    #b8e7e1;  --color-teal-deep:   #0b5a54;  --color-teal-bg:   #eaf7f5;  --color-teal-edge:   #3f9a90;
-  --color-indigo:  #d6d9fb;  --color-indigo-deep: #3a32a6;  --color-indigo-bg: #eef0fd;  --color-indigo-edge: #6f79dc;
+  --color-teal:    #0f766e;  --color-teal-deep:   #0b5a54;  --color-teal-bg:   #eaf7f5;  --color-teal-edge:   #3f9a90;
+  --color-indigo:  #4338ca;  --color-indigo-deep: #3a32a6;  --color-indigo-bg: #eef0fd;  --color-indigo-edge: #6f79dc;
+
+  /* ── THE PASTELS, KEPT ────────────────────────────────────────────────
+     The values `--color-<tone>` held until now. They were CONTAINER fills —
+     built to sit behind dark text — but the app overwhelmingly uses the bare
+     token for MARKS instead: 6-8px legend dots, 4px priority rails, progress
+     fills, chart strokes, `background` on an Approve button whose label is
+     white. At those sizes a pastel on a white card is invisible, which is what
+     "the colours are not visible" meant.
+
+     So the bare token is now the STRONG tone, and these keep the pastels under
+     an explicit name. Nothing was deleted; anything that wants a soft fill can
+     ask for it by saying so.
+
+     UNCHANGED, deliberately: `-deep` (the ink), `-bg` (the very light wash
+     behind that ink) and `-edge` (outlines). Every pill in the app is a `-bg`
+     ground with `-deep` text, so none of them shifted — and the ~116 places
+     that build a tint with `color-mix(var(--color-<tone>) N%, …)` now mix from
+     a real hue rather than from something already three-quarters white. */
+  --color-blue-pale:    #d3e3fd;
+  --color-green-pale:   #c3ebcd;
+  --color-amber-pale:   #fbe0a6;
+  --color-red-pale:     #f8c8c7;
+  --color-rose-pale:    #f9ceda;
+  --color-purple-pale:  #e9ddff;
+  --color-yellow-pale:  #f5eda4;
+  --color-orange-pale:  #ffd9c2;
+  --color-slate-pale:   #dce2ea;
+  --color-brown-pale:   #e4d6c3;
+  --color-stone-pale:   #e4e7eb;
+  --color-teal-pale:    #b8e7e1;
+  --color-indigo-pale:  #d6d9fb;
 
   /* Chart series — referenced by components/charts/h-bars-impl.tsx but never
      defined before this pass, so those bars rendered UNFILLED. Now real. */
-  --color-chart-1: #d3e3fd;  --color-chart-2: #c3ebcd;  --color-chart-3: #f8c8c7;  --color-chart-4: #fbe0a6;
+  /* Chart series, moved in step with the tones they mirror — a bar chart drawn
+     in pastels was the same invisibility problem at a larger size. */
+  --color-chart-1: #1d4ed8;  --color-chart-2: #15803d;  --color-chart-3: #b91c1c;  --color-chart-4: #b45309;
   --color-chart-5: #e9ddff;  --color-chart-6: #b8e7e1;  --color-chart-7: #ffd9c2;  --color-chart-8: #e4d6c3;
 
   /* Goals module identity accent — Altus brand red (in-module chrome is red
@@ -162,20 +200,58 @@
      tokens are consumed as raw `var(--color-…)` in style props (dots, pills,
      distribution bars), which @theme alone does not emit. It MUST stay in sync —
      it is declared later, so anything left saturated here would silently win. */
-  --color-blue:    #d3e3fd;  --color-blue-deep:   #174ea6;  --color-blue-bg:   #eef3fd;  --color-blue-edge:   #4a7fd4;
-  --color-green:   #c3ebcd;  --color-green-deep:  #0f5b2e;  --color-green-bg:  #eef7f0;  --color-green-edge:  #3e8f5a;
-  --color-amber:   #fbe0a6;  --color-amber-deep:  #8a3d06;  --color-amber-bg:  #fdf6e8;  --color-amber-edge:  #a8761f;
-  --color-red:     #f8c8c7;  --color-red-deep:    #A80400;  --color-red-bg:    #fdf0f0;  --color-red-edge:    #d4706d;
-  --color-rose:    #f9ceda;  --color-rose-deep:   #9f0f33;  --color-rose-bg:   #fdeef1;  --color-rose-edge:   #c0567f;
-  --color-purple:  #e9ddff;  --color-purple-deep: #5b21b6;  --color-purple-bg: #f4eefe;  --color-purple-edge: #8a6bd0;
-  --color-yellow:  #f5eda4;  --color-yellow-deep: #7a5c00;  --color-yellow-bg: #fbf8e6;  --color-yellow-edge: #a88a2e;
-  --color-orange:  #ffd9c2;  --color-orange-deep: #973108;  --color-orange-bg: #fdf1e9;  --color-orange-edge: #b25a22;
-  --color-slate:   #dce2ea;  --color-slate-deep:  #334155;  --color-slate-bg:  #f0f3f6;  --color-slate-edge:  #7c8595;
-  --color-brown:   #e4d6c3;  --color-brown-deep:  #6b4a2b;  --color-brown-bg:  #f6f1e9;  --color-brown-edge:  #a08556;
-  --color-stone:   #e4e7eb;  --color-stone-deep:  #545a63;  --color-stone-bg:  #f3f4f6;  --color-stone-edge:  #8b929c;
-  --color-teal:    #b8e7e1;  --color-teal-deep:   #0b5a54;  --color-teal-bg:   #eaf7f5;  --color-teal-edge:   #3f9a90;
-  --color-indigo:  #d6d9fb;  --color-indigo-deep: #3a32a6;  --color-indigo-bg: #eef0fd;  --color-indigo-edge: #6f79dc;
-  --color-chart-1: #d3e3fd;  --color-chart-2: #c3ebcd;  --color-chart-3: #f8c8c7;  --color-chart-4: #fbe0a6;
+  --color-blue:    #2563EB;  --color-blue-deep:   #1E40AF;  --color-blue-bg:   #EFF6FF;  --color-blue-edge:   #4a7fd4;
+  --color-green:   #10B981;  --color-green-deep:  #065F46;  --color-green-bg:  #ECFDF5;  --color-green-edge:  #3e8f5a;
+  --color-amber:   #b45309;  --color-amber-deep:  #8a3d06;  --color-amber-bg:  #fdf6e8;  --color-amber-edge:  #a8761f;
+  --color-red:     #DC2626;  --color-red-deep:    #991B1B;  --color-red-bg:    #FEF2F2;  --color-red-edge:    #d4706d;
+  --color-rose:    #be123c;  --color-rose-deep:   #9f0f33;  --color-rose-bg:   #fdeef1;  --color-rose-edge:   #c0567f;
+  --color-purple:  #7c3aed;  --color-purple-deep: #5b21b6;  --color-purple-bg: #f4eefe;  --color-purple-edge: #8a6bd0;
+  --color-yellow:  #D97706;  --color-yellow-deep: #92400E;  --color-yellow-bg: #FFFBEB;  --color-yellow-edge: #a88a2e;
+  --color-orange:  #EA580C;  --color-orange-deep: #9A3412;  --color-orange-bg: #FFEDD5;  --color-orange-edge: #b25a22;
+  --color-slate:   #64748B;  --color-slate-deep:  #334155;  --color-slate-bg:  #F8FAFC;  --color-slate-edge:  #7c8595;
+  /* `neutral` — the near-black grey. Distinct from `slate`: this is the
+     TOTAL/all-items tone, slate is the not-started tone, and the spec gives
+     them different values. */
+  --color-neutral:   #1F2937;  --color-neutral-deep: #111827;  --color-neutral-bg: #F3F4F6;  --color-neutral-edge: #4B5563;
+
+  --color-brown:   #8a6234;  --color-brown-deep:  #6b4a2b;  --color-brown-bg:  #f6f1e9;  --color-brown-edge:  #a08556;
+  --color-stone:   #6b7280;  --color-stone-deep:  #545a63;  --color-stone-bg:  #f3f4f6;  --color-stone-edge:  #8b929c;
+  --color-teal:    #0f766e;  --color-teal-deep:   #0b5a54;  --color-teal-bg:   #eaf7f5;  --color-teal-edge:   #3f9a90;
+  --color-indigo:  #4338ca;  --color-indigo-deep: #3a32a6;  --color-indigo-bg: #eef0fd;  --color-indigo-edge: #6f79dc;
+
+  /* ── THE PASTELS, KEPT ────────────────────────────────────────────────
+     The values `--color-<tone>` held until now. They were CONTAINER fills —
+     built to sit behind dark text — but the app overwhelmingly uses the bare
+     token for MARKS instead: 6-8px legend dots, 4px priority rails, progress
+     fills, chart strokes, `background` on an Approve button whose label is
+     white. At those sizes a pastel on a white card is invisible, which is what
+     "the colours are not visible" meant.
+
+     So the bare token is now the STRONG tone, and these keep the pastels under
+     an explicit name. Nothing was deleted; anything that wants a soft fill can
+     ask for it by saying so.
+
+     UNCHANGED, deliberately: `-deep` (the ink), `-bg` (the very light wash
+     behind that ink) and `-edge` (outlines). Every pill in the app is a `-bg`
+     ground with `-deep` text, so none of them shifted — and the ~116 places
+     that build a tint with `color-mix(var(--color-<tone>) N%, …)` now mix from
+     a real hue rather than from something already three-quarters white. */
+  --color-blue-pale:    #d3e3fd;
+  --color-green-pale:   #c3ebcd;
+  --color-amber-pale:   #fbe0a6;
+  --color-red-pale:     #f8c8c7;
+  --color-rose-pale:    #f9ceda;
+  --color-purple-pale:  #e9ddff;
+  --color-yellow-pale:  #f5eda4;
+  --color-orange-pale:  #ffd9c2;
+  --color-slate-pale:   #dce2ea;
+  --color-brown-pale:   #e4d6c3;
+  --color-stone-pale:   #e4e7eb;
+  --color-teal-pale:    #b8e7e1;
+  --color-indigo-pale:  #d6d9fb;
+  /* Chart series, moved in step with the tones they mirror — a bar chart drawn
+     in pastels was the same invisibility problem at a larger size. */
+  --color-chart-1: #1d4ed8;  --color-chart-2: #15803d;  --color-chart-3: #b91c1c;  --color-chart-4: #b45309;
   --color-chart-5: #e9ddff;  --color-chart-6: #b8e7e1;  --color-chart-7: #ffd9c2;  --color-chart-8: #e4d6c3;
   --color-altus-red-edge: #D4706D;  --color-altus-red-wash: #FDF0F0;  --color-altus-red-seed: #E10600;
   --color-altus-red-soft: #F8C8C7;
@@ -1112,6 +1188,26 @@ html {
   }
 }
 
+/* ────────────────────────────────────────────────────────────────────────
+   DASHBOARD SECTION TOOLBAR — one order for every section.
+
+   Left to right:  tools · search · WhatsApp+email · minimise/maximise
+
+   "Tools" is everything a section supplies itself — a date-range picker,
+   Expand all, Transpose, a sort control — and it is the DEFAULT, so a section
+   needs to know nothing about this rule to be ordered correctly. The three
+   shared controls tag themselves with `data-sec` (section-chrome.tsx,
+   section-dispatch.tsx) and are pulled to the right of them.
+
+   `order` only moves flex ITEMS, so every one of these must be a direct child
+   of .section-actions — which is why SectionSearchBox carries a real wrapper
+   span rather than display:contents.
+   ──────────────────────────────────────────────────────────────────────── */
+.section-actions > *                 { order: 1; }  /* the section's own tools */
+.section-actions > [data-sec="search"]   { order: 2; }
+.section-actions > [data-sec="dispatch"] { order: 3; }
+.section-actions > [data-sec="fold"]     { order: 4; }
+
 /* Pill-card filter trigger — icon badge + value/sublabel + chevron. */
 /* Compressed so the whole ribbon (date · filters · view toggle · switcher ·
    search) holds ONE non-wrapping line — see the flex-nowrap row in
@@ -1124,21 +1220,31 @@ html {
   padding: 3px 6px;
   flex-shrink: 0;
   background: var(--color-surface-card);
-  border: 1px solid var(--color-hairline);
+  /* `hairline-strong` (14%), not `hairline` (8%). At 8% on a white ground the
+     pills had no visible edge at all — the filter row read as loose text
+     floating on the page rather than as a row of controls. */
+  border: 1px solid var(--color-hairline-strong);
   border-radius: 11px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-  transition: box-shadow 180ms ease, border-color 180ms ease;
+  transition: box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
   cursor: pointer;
   text-align: left;
   white-space: nowrap;
+  color: var(--color-ink-strong);
 }
 @utility filter-pill {
   &:hover {
-    border-color: var(--color-hairline-strong);
+    border-color: var(--color-ink-subtle);
     box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
   }
+  /* AN ACTIVE FILTER NOW LOOKS ACTIVE. It used to differ from an inactive one
+     by a 30%-alpha border and nothing else, so "is this filtering anything?"
+     could not be answered at a glance. Now it takes a tinted ground and a
+     full-strength edge in its own accent. */
   &[data-active="true"] {
-    border-color: color-mix(in srgb, var(--color-altus-red) 30%, transparent);
+    border-color: var(--filter-pill-tint, var(--color-altus-red));
+    background: color-mix(in srgb, var(--filter-pill-tint, var(--color-altus-red)) 7%, var(--color-surface-card));
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
   }
 }
 
@@ -1945,7 +2051,14 @@ html {
 
    `--frozen-left` is set per cell by the table (see frozenCell). */
 @media (min-width: 768px) {
-  .task-frozen-cell {
+  .task-frozen-cell,
+  /* The Project registers freeze their identity block the same way — the
+     checkbox, every ancestor No/Name pair and the level's own No/Name — so the
+     row you are reading stays put while the dates, counts, files and links
+     scroll under it. Same class contract: the cell sets `--frozen-left` and an
+     explicit width, this rule does the pinning, and below `md` neither table
+     freezes anything. */
+  .plan-frozen-cell {
     position: sticky;
     left: var(--frozen-left, 0px);
   }
@@ -2774,31 +2887,30 @@ html {
   background-clip: padding-box;
 }
 
-/* Slim, premium sliding bar for the header pill nav — only appears when the
-   pills overflow (e.g. under zoom), so it's obvious the row scrolls instead of
-   looking cut-off. Branded thumb that warms to red on hover. A little bottom
-   padding gives the bar breathing room beneath the pills. */
+/* Scroll container for the header pill nav and the sidebars — the row still
+   scrolls when its items overflow (wheel, two-finger swipe, drag, keyboard),
+   but the bar itself is HIDDEN.
+
+   It used to draw a slim branded slider, on the reasoning that a visible bar
+   makes it obvious the row scrolls rather than looking cut-off. It read as a
+   stray grey line sitting under the pills, which is the thing people noticed
+   first about the header, so it is gone on every surface that uses this class.
+   Panning is unaffected; only the painted bar is suppressed. */
 .nav-scroll {
   scroll-behavior: smooth;
   overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--color-ink-subtle) 32%, transparent) transparent;
+  /* Firefox + legacy Edge. Chrome/Safari need the ::-webkit rule below. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   /* overflow-x:auto forces overflow-y to clip too, which would cut off the
      notification badges that poke ABOVE the pills (e.g. Inbox). The top pad
-     gives those badges room; the bottom pad leaves space for the slider. */
+     gives those badges room; the bottom pad is what the slider used to sit in
+     and is kept so removing it does not shift the pills down. */
   padding-top: 12px;
   padding-bottom: 6px;
 }
 .nav-scroll::-webkit-scrollbar {
-  height: 6px;
-}
-.nav-scroll::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 0 12px;
-}
-.nav-scroll::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--color-ink-subtle) 32%, transparent);
-  border-radius: 9999px;
+  display: none;
 }
 
 /* ============================================================
@@ -2958,6 +3070,58 @@ html {
 .sidebar-rail[data-collapsed="true"] .sidebar-foot {
   justify-content: center;
 }
+/* New Task → a centred + tile. It USED to vanish entirely: its wrapper carried
+   `.sidebar-collapsible-hide`, so collapsing the rail took away the only action
+   in it while every nav pill survived as an icon. These rules are the desktop
+   twin of the `max-md:` classes the button already carries for phones — same
+   40px square, same icon-only treatment — so the two narrow layouts agree
+   instead of each having their own idea of the button. */
+.sidebar-rail[data-collapsed="true"] .sidebar-new-task {
+  align-items: center;
+}
+.sidebar-rail[data-collapsed="true"] .sidebar-new-task button {
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  gap: 0;
+  /* 14px, not the expanded 16px: a 2xl radius on a 40px box is nearly a circle,
+     and the nav glyphs above it sit in soft squares. */
+  border-radius: 0.875rem;
+}
+/* THE LABEL IS HIDDEN VISUALLY, NOT REMOVED. `display: none` would take it out
+   of the accessibility tree too, leaving a button whose only content is a
+   decorative icon — an unlabelled control for anyone on a screen reader. This
+   is the same clip-rect treatment `max-md:sr-only` applies on phones, and the
+   Radix tooltip still names it for everyone else on hover. */
+.sidebar-rail[data-collapsed="true"] .sidebar-new-task button > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border-width: 0;
+}
+/* The N hint is already aria-hidden, so it can go outright. */
+.sidebar-rail[data-collapsed="true"] .sidebar-new-task button > kbd {
+  display: none;
+}
+/* 15px reads as an afterthought once the word beside it is gone. */
+.sidebar-rail[data-collapsed="true"] .sidebar-new-task button > svg {
+  width: 19px;
+  height: 19px;
+}
+/* The first-run hint balloon is 240-280px wide and anchors to the button. In a
+   74px rail it would hang across the page content it is pointing away from, so
+   the collapsed rail does not show it. Nothing is lost: it is dismissed on the
+   first click either way, and it reappears in full the moment the rail is
+   expanded — which is where its arrow actually lines up with something. */
+.sidebar-rail[data-collapsed="true"] .sidebar-new-task [aria-label="Dismiss hint"] {
+  display: none;
+}
+
 /* Collapsed: the top control row keeps only the toggle → centre it; the footer
    profile bar keeps only the avatar → centre it too. */
 .sidebar-rail[data-collapsed="true"] .sidebar-toprow {
@@ -2973,9 +3137,8 @@ html {
     transition: none;
   }
 }
-.nav-scroll::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--color-altus-red) 55%, transparent);
-}
+/* (The `.nav-scroll` thumb's red hover tint lived here. The bar is hidden now —
+   see the `.nav-scroll` block above — so there is no thumb left to tint.) */
 
 /* ── Clean borderless left-rail nav (2026-07-29) ───────────────────────────
    Module sidebar nav items: NO outlined box — just icon + label on quiet slate
@@ -3197,25 +3360,151 @@ html {
    an entrance pop on the icon tile. Replaces the old flat module pill. */
 .module-wordmark { animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .module-wordmark-icon { animation: mwPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-.module-wordmark-text {
+
+/* ── THE BRAND TYPE, SHARED BY THE RAIL AND THE TOP BAR ────────────────────
+   `.module-wordmark-text` is the rail's module name (WMS / GOALS / HR …).
+   `.topbar-heading` is the page name in the app-wide top bar ("WMS Dashboard",
+   "Aging Heatmap", "Daily Goals") — the one strip that is on every screen in
+   every module, sitting directly right of the rail that carries the wordmark.
+
+   ONE DECLARATION, TWO SELECTORS — not a copy. These two marks sit within
+   ~200px of each other on every screen in the app, so any drift between them
+   is drift you can see without scrolling. Sharing the block is what stops the
+   next module inventing a third brand mark.
+
+   THE PAGE <h1> IS DELIBERATELY NOT IN THIS SET (see `.page-heading` below).
+   It briefly was, which put the brand red and the sheen on the rail, the top
+   bar AND the page body at once — three red marks, two of them moving, stacked
+   down the same 200px of screen. The identity belongs to the chrome; the page
+   reads black.
+
+   WHAT EACH KEEPS OF ITS OWN, below: the rail is UPPERCASE (a wordmark, not a
+   sentence) and sizes itself to the rail; the top-bar title is a proper name
+   in title case and sizes itself to the 56px bar. */
+.module-wordmark-text,
+.topbar-heading {
   font-family: var(--font-display), system-ui, sans-serif;
   font-weight: 900;
   letter-spacing: -0.02em;
+  /* The colour a browser without `background-clip: text` will actually paint.
+     It has to be stated BEFORE the @supports block below overrides it —
+     without it, the `color: transparent` the effect needs would render every
+     heading in the app invisible on any engine that cannot clip the fill. The
+     rail's wordmark carried exactly that risk before this. */
+  color: var(--mw-b, var(--color-altus-red-deep, #A80400));
+}
+
+/* The sheen. Gated, because the whole effect rests on painting the text
+   transparent and letting a moving gradient show through the glyphs — which is
+   an invisible heading anywhere `background-clip: text` is not supported. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .module-wordmark-text,
+  .topbar-heading {
+    /* THE SHEEN'S PEAK IS A LIGHT BRAND TINT, NOT #ffffff.
+       Pure white is invisible against a white page, so at the top of each
+       sweep whichever glyph the highlight was crossing simply disappeared —
+       "Weekly G als", and the rail's own "WM S". That reads as a rendering
+       fault rather than as a shine, and it is worse on a page title than on a
+       three-letter wordmark because there is more word to lose.
+
+       35% brand red over white still reads clearly as a bright highlight
+       travelling through the letters, and never drops to the page colour. The
+       rail's wordmark takes the same fix — it shares this declaration, it had
+       the same defect, and letting the two diverge here is exactly what this
+       block exists to prevent. */
+    background-image: linear-gradient(
+      100deg,
+      var(--mw-a) 0%,
+      var(--mw-b) 30%,
+      color-mix(in srgb, var(--mw-a) 35%, #ffffff) 48%,
+      var(--mw-b) 66%,
+      var(--mw-a) 100%
+    );
+    /* 200% IS LOAD-BEARING, and so is the 200% -> 0% sweep in @keyframes
+       mwSheen - do not retune either in isolation. A percentage
+       `background-position` resolves against (box_width - image_width), NOT
+       the box, so the distance the gradient actually travels is
+       `delta_position% x (W - image_width)`. The image also TILES
+       (background-repeat defaults to `repeat`), with one sheen band per tile,
+       so a seamless loop requires exactly one invariant:
+
+           travel distance == image width  (one whole tile per cycle)
+
+       which, for an image `n` times the box width, means delta = n/(1-n).
+       n=2 is the one clean solution: delta = -200%, i.e. 200% -> 0%.
+
+       This read `240%` against a `200% -> 0%` sweep: travel was 200% x 1.4W =
+       2.8W over a 2.4W tile, 1.17 tiles per cycle. The leftover fraction
+       restarted the loop mid-sweep, leaving a second band already sitting
+       part-way across the text at t=0 (the second "R" of HUMAN RESOURCES)
+       which then slid off the right edge, so every other pass appeared to
+       start near the end of the word instead of the first letter. */
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: mwSheen 5s linear infinite;
+  }
+}
+
+.module-wordmark-text {
   text-transform: uppercase;
-  background-image: linear-gradient(
-    100deg,
-    var(--mw-a) 0%, var(--mw-b) 30%, #ffffff 48%, var(--mw-b) 66%, var(--mw-a) 100%
-  );
-  background-size: 240% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  animation: mwSheen 5s linear infinite;
+}
+
+/* The top bar's page name. Brand red and title case — NOT uppercased like the
+   rail's wordmark: the rail carries a three-letter mark, this carries strings
+   like "Goals Dashboard" and "People Allocation", and a bar full of shouted
+   proper names is a different thing from a wordmark.
+
+   Sized to the bar, not to the page. The strip is 56px tall and the title
+   shares it with a four-control cluster, so this runs a step under the page
+   <h1>'s ramp and truncates rather than pushing the cluster off the edge
+   (`min-w-0 truncate` at the call site). */
+.topbar-heading {
+  --mw-a: var(--color-altus-red, #E10600);
+  --mw-b: var(--color-altus-red-deep, #A80400);
+  font-size: clamp(17px, 1.35vw, 20px);
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+/* The page <h1> — Tasks, Weekly Goals, Monthly Goals, Goals Dashboard.
+   BLACK, AND NOT PART OF THE BRAND-TYPE SET ABOVE. It keeps the display face
+   and the 900 weight (that ramp was stated inline at each of the four call
+   sites before this class existed, and is carried here verbatim rather than
+   re-picked), but none of the gradient, none of the sheen and no animation:
+   the brand mark is the chrome's job, and the body of a page that already has
+   a red wordmark in the rail and a red title in the bar above it wants a
+   heading you can simply read.
+
+   Tracking stays a hair tighter than the rail's: these are longer strings
+   ("Monthly Goals", "Goals Dashboard") and the wordmark's -0.02em leaves them
+   looser than the mark they sit beside. */
+.page-heading {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 900;
+  font-size: clamp(20px, 1.8vw, 25px);
+  letter-spacing: -0.028em;
+  line-height: 1;
+  color: var(--color-ink-strong);
+}
+
+/* A 5-second infinite sweep is exactly what a reduced-motion preference is
+   about, and the rail's wordmark never honoured it. Both drop to the solid
+   deep brand red — still the brand, still legible, no movement. */
+@media (prefers-reduced-motion: reduce) {
+  .module-wordmark-text,
+  .topbar-heading {
+    animation: none;
+    background-image: none;
+    -webkit-text-fill-color: currentColor;
+    color: var(--mw-b, var(--color-altus-red-deep, #A80400));
+  }
 }
 @keyframes mwSheen {
   0%   { background-position: 200% 0; }
-  100% { background-position: -40% 0; }
+  100% { background-position: 0% 0; }
 }
 @keyframes mwPop {
   0%   { transform: scale(0.6) rotate(-8deg); opacity: 0; }
@@ -3230,7 +3519,17 @@ html {
   .wg-sheen:hover::after { animation: none !important; }
   .wg-ring-glow, .wg-pip-pop, .wg-nudge { animation: none !important; }
   .module-wordmark, .module-wordmark-icon { animation: none !important; }
-  .module-wordmark-text { animation: none !important; background-position: 0 0 !important; }
+  /* A static slice of the sheen gradient would land the white 48% stop inside
+     the word. Drop the sheen stop entirely rather than freeze a blown-out frame.
+     `.topbar-heading` joins the two it already covered: it takes the same
+     sheen from the shared block above, so it had the same frozen frame. */
+  .module-wordmark-text,
+  .topbar-heading {
+    animation: none !important;
+    background-image: linear-gradient(100deg, var(--mw-a) 0%, var(--mw-b) 100%) !important;
+    background-size: 100% 100% !important;
+    background-position: 0 0 !important;
+  }
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -3482,4 +3781,71 @@ html {
 }
 :root[data-focus-mode="on"] .max-md\:pt-14 {
   padding-top: 0 !important;
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────────
+   PROJECT VIEWS — the plan tree.
+
+   NO CARD. The tree sits directly on the page ground instead of inside a white
+   panel. At five levels of indent a card's own edge competes with the indent
+   for the eye, and the indent is the part that carries meaning: it is the only
+   thing telling you a Sub-Action belongs to that Action. Taking the panel away
+   leaves the hierarchy as the loudest thing on the screen.
+
+   WHAT SEPARATES THE ROWS INSTEAD is a line that catches the light — brightest
+   across the middle, fading to nothing at both ends, so it reads as a sheen on
+   an edge rather than as a rule someone drew. Drawn as a background-image
+   rather than a border because a border cannot fade along its own length.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.plan-shine {
+  /* The line lives at the bottom edge of the element, 1px tall, full width. */
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-hairline) 8%,
+    rgba(60, 44, 40, 0.18) 38%,
+    rgba(225, 6, 0, 0.16) 50%,
+    rgba(60, 44, 40, 0.18) 62%,
+    var(--color-hairline) 92%,
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 100% 1px;
+}
+
+/* The header's line is the same shine, lit a little harder and slowly moving —
+   one live element at the top of an otherwise still table. The gradient is
+   twice the width of the element so `accentStripFlow` can travel it without a
+   seam, and it is a ::after rather than the element's own background so a row
+   underneath can carry `.plan-shine` at the same time. */
+.plan-shine-live {
+  position: relative;
+}
+.plan-shine-live::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 1px;
+  pointer-events: none;
+  background-image: linear-gradient(
+    90deg,
+    rgba(60, 44, 40, 0.14) 0%,
+    rgba(225, 6, 0, 0.42) 18%,
+    rgba(255, 255, 255, 0.85) 26%,
+    rgba(225, 6, 0, 0.42) 34%,
+    rgba(60, 44, 40, 0.14) 52%,
+    rgba(60, 44, 40, 0.14) 100%
+  );
+  background-size: 200% 100%;
+  animation: accentStripFlow 7s linear infinite;
+}
+
+/* The sweep is decoration, not information — the line stays, the travel stops. */
+@media (prefers-reduced-motion: reduce) {
+  .plan-shine-live::after {
+    animation: none;
+  }
 }

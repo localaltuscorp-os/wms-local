@@ -26,7 +26,7 @@ const META: Record<
   timer_restarted: { label: "Task Timer Restarted", icon: RotateCcw, tone: "text-amber-500" },
   revision_started: { label: "Started Revision", icon: RotateCcw, tone: "text-altus-red" },
   work_done: { label: "Marked Done", icon: CheckCircle2, tone: "text-emerald-600" },
-  sent_back: { label: "Not Approved — Sent Back", icon: XCircle, tone: "text-altus-red" },
+  sent_back: { label: "Not Approved - Sent Back", icon: XCircle, tone: "text-altus-red" },
   approved: { label: "Approved", icon: BadgeCheck, tone: "text-emerald-600" },
   auto_closed: { label: "Auto-closed (cap reached)", icon: ShieldAlert, tone: "text-amber-500" },
 };
@@ -46,7 +46,7 @@ const REWORK_LABEL: Partial<Record<TimelineEntry["kind"], string>> = {
   work_started: "Rework Start",
   work_resumed: "Rework Resumed",
   work_paused: "Rework Paused",
-  work_done: "Rework Ended — Marked Done",
+  work_done: "Rework Ended - Marked Done",
 };
 
 /** Modern vertical activity timeline. Click any event to expand its details. */
@@ -67,7 +67,7 @@ export function ActivityTimeline({ entries }: { entries: TimelineEntry[] }) {
             {reworkRounds} rework round{reworkRounds > 1 ? "s" : ""}
           </span>
           <span className="text-[12px] font-medium text-ink-subtle">
-            — rejection cycles before final approval
+            - rejection cycles before final approval
           </span>
         </div>
       )}
@@ -93,7 +93,7 @@ export function ActivityTimeline({ entries }: { entries: TimelineEntry[] }) {
                 <span className="text-[13.5px] font-bold text-ink-strong">
                   {(e.revision > 1 && REWORK_LABEL[e.kind]) || meta.label}
                   {e.revision > 1 && (
-                    <span className="ml-2 rounded-full bg-surface-soft px-2 py-0.5 text-[10.5px] font-bold text-ink-muted">
+                    <span className="ml-2 rounded-pill bg-surface-soft px-2 py-0.5 text-[10.5px] font-bold text-ink-muted">
                       Rev {e.revision}
                     </span>
                   )}

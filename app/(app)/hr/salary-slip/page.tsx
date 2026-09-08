@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { Route } from "next";
-import { ArrowLeft, FileText } from "lucide-react";
+import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
+import { PageShell } from "@/components/layout/page-shell";
 import { getCurrentEmployee } from "@/lib/auth/current";
 import { mySalaryBreakup } from "@/lib/queries/salary-breakup";
 import { netAfterWaiveOff } from "@/lib/salary/waive-off";
@@ -66,44 +66,25 @@ export default async function SalarySlipPage() {
   });
 
   return (
-    <main className="mx-auto w-full max-w-[900px] px-8 pb-20 pt-8 max-md:px-4">
-      <Link
-        href={"/hr" as Route}
-        className="mb-6 inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-surface-card px-3.5 py-2 text-[12.5px] font-bold text-ink-soft transition-colors hover:border-[color-mix(in_srgb,var(--color-altus-red)_45%,transparent)] hover:text-altus-red"
-      >
-        <ArrowLeft size={15} strokeWidth={2.6} /> Back to HR
-      </Link>
+    <>
+      <HrTitleBar />
+      {/* PageShell rather than a hand-rolled `max-w-[900px]`: the 900px cap
+          froze this page at one size, so collapsing either sidebar just added
+          empty margin instead of giving the content the room. PageShell's cap
+          is the shared `wide` token and its gutter is fluid, so the card tracks
+          the column it actually sits in - the same behaviour the letters have.
+          The list inside is a full-width flex column with no fixed widths of
+          its own, so it reflows cleanly at every size. */}
+      <PageShell width="wide" py={false} className="pt-8 pb-20">
+        <SalarySlipList employeeId={me.id} months={months} />
 
-      <header className="mb-6">
-        <div
-          className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em]"
-          style={{ color: ACCENT_DEEP }}
-        >
-          <FileText size={14} strokeWidth={2.6} /> Altus · Salary Slip
-        </div>
-        <h1
-          className="mt-2 text-ink-strong"
-          style={{
-            fontFamily: "var(--font-display), system-ui, sans-serif",
-            fontWeight: 900,
-            fontSize: "clamp(26px,3vw,34px)",
-            letterSpacing: "-0.025em",
-          }}
-        >
-          {me.name?.split(" ")[0] ? `${me.name.split(" ")[0]}'s salary slips` : "Salary slips"}
-        </h1>
-        <p className="mt-1 text-[14.5px] text-ink-muted">
-          Every month your salary has been processed. Open one to read it here, or
-          download the PDF. Visible only to you.
+        {/* Centered under the card it describes, rather than ragged against
+            the left edge of a now-variable-width column. */}
+        <p className="mt-6 text-center text-[12.5px] text-ink-subtle">
+          A slip covers salary, attendance and incentives for the month - the same
+          document that is emailed to you when the month is marked paid.
         </p>
-      </header>
-
-      <SalarySlipList employeeId={me.id} months={months} />
-
-      <p className="mt-6 text-[12.5px] text-ink-subtle">
-        A slip covers salary, attendance and incentives for the month — the same
-        document that is emailed to you when the month is marked paid.
-      </p>
-    </main>
+      </PageShell>
+    </>
   );
 }

@@ -87,6 +87,11 @@ export function BulkActionBar({
   isAdmin,
   statusLabels,
   onClear,
+  extras,
+  showArchive = true,
+  showTaskActions = true,
+  onDeleteOverride,
+  count: countOverride,
 }: {
   selectedIds: string[];
   employees: { id: string; name: string }[];
@@ -95,10 +100,40 @@ export function BulkActionBar({
   isAdmin: boolean;
   statusLabels: Record<TaskStatus, string>;
   onClear: () => void;
+  /** Host-specific buttons, rendered just after the "N selected" chip. Project
+   *  Plan puts View / Edit / Duplicate / Owner here so its selection keeps ONE
+   *  bar instead of growing a second one below this. */
+  extras?: React.ReactNode;
+  /** Project Plan hides Archive: its Delete already archives the row AND the
+   *  task (`deletePlanNode`), so both buttons would do the same thing. */
+  showArchive?: boolean;
+  /**
+   * Draw the six task-side dropdowns (Doer Status, Priority, Reassign, Subject,
+   * Client, Manager Status). Default true — the WMS list is made of tasks.
+   *
+   * The Project Plan REGISTER turns them off: its rows are plan rows, and only
+   * some of them have a task at all, so a Client or a Doer Status set from
+   * there would silently reach a subset of what is ticked. What it keeps is the
+   * plan-side set in `extras` plus Delete, which act on every selected row.
+   */
+  showTaskActions?: boolean;
+  /** Replaces the task-level delete. Project Plan passes its own, which
+   *  archives plan rows and their tasks together — the task-only delete would
+   *  strand the rows behind. The host owns the confirm and the toast. */
+  onDeleteOverride?: () => void;
+  /**
+   * What the "[N] selected" chip reports. Defaults to `selectedIds.length`.
+   *
+   * Project Plan overrides it because the two numbers genuinely differ there:
+   * `selectedIds` carries the TASKS behind the selection, while the user has
+   * selected ROWS — and a row with no task yet contributes no id. Without this
+   * the chip reads "0 selected" while rows are visibly ticked.
+   */
+  count?: number;
 }) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
-  const count = selectedIds.length;
+  const count = countOverride ?? selectedIds.length;
 
   function run(verb: string, fn: () => Promise<BulkResult>) {
     start(async () => {
@@ -110,7 +145,7 @@ export function BulkActionBar({
       fireToast({
         message:
           res.skipped > 0
-            ? `${verb} ${res.updated} task${res.updated === 1 ? "" : "s"} — ${res.skipped} skipped (no permission or no change).`
+            ? `${verb} ${res.updated} task${res.updated === 1 ? "" : "s"} - ${res.skipped} skipped (no permission or no change).`
             : `${verb} ${res.updated} task${res.updated === 1 ? "" : "s"}.`,
       });
       onClear();
@@ -125,8 +160,11 @@ export function BulkActionBar({
   const statuses: readonly TaskStatus[] = DOER_TASK_STATUSES;
 
   return (
+    /* flex-nowrap + overflow-x-auto: the bar stays ONE line and scrolls when
+       the controls outrun the width. Wrapping made it grow a second row that
+       shoved the table down and left "Clear" stranded on its own line. */
     <div
-      className="wg-rise sticky top-[150px] z-30 mb-3 flex items-center gap-2 flex-wrap overflow-hidden rounded-section border px-4 py-2.5 max-md:top-[120px]"
+      className="wg-rise sticky top-[150px] z-30 mb-3 flex items-center gap-2 flex-nowrap overflow-x-auto overflow-y-hidden rounded-section border px-4 py-2.5 max-md:top-[120px] [scrollbar-width:thin]"
       style={{
         borderColor: "color-mix(in srgb, var(--color-altus-red) 22%, var(--color-hairline-strong))",
         background:
@@ -156,10 +194,10 @@ export function BulkActionBar({
             "linear-gradient(180deg, var(--color-altus-red), var(--color-altus-red-deep))",
         }}
       />
-      <span className="inline-flex items-center gap-2 text-[14px] font-bold text-ink-strong">
+      <span className="shrink-0 whitespace-nowrap inline-flex items-center gap-2 text-[14px] font-bold text-ink-strong">
         {pending && <Loader2 size={14} className="animate-spin text-altus-red" />}
         <span
-          className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full text-white tabular-nums text-[12.5px] font-black"
+          className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-pill text-white tabular-nums text-[12.5px] font-black"
           style={{
             background:
               "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
@@ -171,8 +209,17 @@ export function BulkActionBar({
         selected
       </span>
 
-      <span className="mx-1 h-5 w-px bg-hairline" aria-hidden />
+      <span className="mx-1 h-5 w-px shrink-0 bg-hairline" aria-hidden />
 
+      {extras}
+
+      {/* THE TASK-SIDE CONTROLS — Doer Status · Priority · Reassign · Subject ·
+          Client · Manager Status. Every one of them writes `tasks`, so a host
+          whose selection is not made of tasks turns the whole block off with
+          `showTaskActions={false}` and keeps the bar for what it still owns:
+          the count, its own `extras`, Delete and Clear. */}
+      {showTaskActions && (
+      <>
       {/* Doer Status */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -323,8 +370,12 @@ export function BulkActionBar({
         </DropdownMenu>
       )}
 
+      </>
+      )}
+
       {isAdmin && (
         <>
+          {showArchive && (
           <button
             type="button"
             disabled={pending}
@@ -338,10 +389,16 @@ export function BulkActionBar({
             <Archive size={14} strokeWidth={2.2} />
             Archive
           </button>
+          )}
           <button
             type="button"
             disabled={pending}
             onClick={() => {
+              // Host-owned delete (Project Plan archives rows + tasks together).
+              if (onDeleteOverride) {
+                onDeleteOverride();
+                return;
+              }
               if (
                 confirm(
                   `Permanently delete ${count} task${count === 1 ? "" : "s"}?\n\nThis removes the tasks and their history and cannot be undone.`,
@@ -350,7 +407,7 @@ export function BulkActionBar({
                 run("Deleted", () => bulkDelete(selectedIds));
               }
             }}
-            className="inline-flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-[13px] font-bold text-altus-red bg-surface-card shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:bg-altus-red/8 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
+            className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-[13px] font-bold text-altus-red bg-surface-card shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:bg-altus-red/8 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
             style={{ borderColor: "color-mix(in srgb, var(--color-altus-red) 35%, transparent)" }}
           >
             <Trash2 size={14} strokeWidth={2.2} />
@@ -362,7 +419,7 @@ export function BulkActionBar({
       <button
         type="button"
         onClick={onClear}
-        className="ml-auto inline-flex items-center gap-1.5 rounded-pill bg-surface-card px-3 py-1.5 text-[13px] font-semibold text-ink-subtle hover:text-ink-strong transition-colors"
+        className="ml-auto shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-pill bg-surface-card px-3 py-1.5 text-[13px] font-semibold text-ink-subtle hover:text-ink-strong transition-colors"
       >
         <X size={14} strokeWidth={2.4} />
         Clear
@@ -372,4 +429,4 @@ export function BulkActionBar({
 }
 
 const chipBtn =
-  "inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-surface-card px-3 py-1.5 text-[13px] font-bold text-ink-soft shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:border-altus-red hover:text-altus-red hover:bg-altus-red/[0.04] transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40";
+  "shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-surface-card px-3 py-1.5 text-[13px] font-bold text-ink-soft shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:border-altus-red hover:text-altus-red hover:bg-altus-red/[0.04] transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40";

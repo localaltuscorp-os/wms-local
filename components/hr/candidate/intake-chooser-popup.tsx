@@ -54,7 +54,7 @@ export function IntakeChooserPopup({ onClose }: { onClose: () => void }) {
           <button type="button" onClick={onClose} aria-label="Close" className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink-strong">
             <X size={18} strokeWidth={2.4} />
           </button>
-          <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.2em] text-white" style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}>
+          <span className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.2em] text-white" style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}>
             Pre-Interview · Candidate Interview Form
           </span>
           <h2 className="mt-2.5 text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 26, letterSpacing: "-0.02em", lineHeight: 1.05 }}>
@@ -116,7 +116,7 @@ export function IntakeChooserPopup({ onClose }: { onClose: () => void }) {
               </div>
             </section>
           ) : (
-            <p className="mt-4 text-center text-[12.5px] text-ink-subtle">No unfinished forms — start a new candidate above.</p>
+            <p className="mt-4 text-center text-[12.5px] text-ink-subtle">No unfinished forms - start a new candidate above.</p>
           )}
         </div>
       </div>

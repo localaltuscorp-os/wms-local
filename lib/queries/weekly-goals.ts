@@ -588,3 +588,25 @@ export async function listGoalEmployeesScoped(scope: {
     .where(and(eq(employees.isActive, true), inArray(employees.id, scope.ids)))
     .orderBy(asc(employees.name));
 }
+
+/**
+ * One employee's performance criteria ("how we measure it", mig 0061) and KRA
+ * ("what we measure", mig 0065), for the CriteriaCard on the Weekly Goals
+ * board. `name` is used only when an admin has drilled into someone else, to
+ * label whose criteria is on screen. Returns null for an unknown id so the
+ * caller simply omits the card.
+ */
+export async function getEmployeeCriteria(
+  employeeId: string,
+): Promise<{ name: string; criteria: string | null; kra: string | null } | null> {
+  const [row] = await db
+    .select({
+      name: employees.name,
+      criteria: employees.performanceCriteria,
+      kra: employees.kra,
+    })
+    .from(employees)
+    .where(eq(employees.id, employeeId))
+    .limit(1);
+  return row ?? null;
+}

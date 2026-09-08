@@ -34,7 +34,7 @@ export default async function HrStagePage({
     <>
       <DashboardHeader generatedAt={new Date()} />
       <PageShell width="full">
-        <HrPageHeader title={st.title} subtitle={st.blurb} />
+        <HrPageHeader title={st.title} subtitle={st.blurb} showBack={false} />
         <section
           className="grid gap-4 max-md:gap-3"
           style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}

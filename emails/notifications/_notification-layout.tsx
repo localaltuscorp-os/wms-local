@@ -383,7 +383,12 @@ export const STATUS_TONE_MAP: Record<string, ChipTone> = {
 };
 
 export const STATUS_LABEL_MAP: Record<string, string> = {
-  dont_know:    "Don't Know",
+  // "Not Read", matching STATUS_LABELS_FALLBACK (lib/format.ts), db/enums.ts and
+  // the `status_settings` row that migration 0213 corrected. This copy said
+  // "Don't Know" — the name the status carried when 0024 introduced it — so a
+  // task sitting in this status showed as "Not Read" in the app and arrived as
+  // "Don't Know" in the email about it.
+  dont_know:    "Not Read",
   not_started:  "Not Started",
   initiated:    "Initiated",
   follow_up:    "Follow Up",

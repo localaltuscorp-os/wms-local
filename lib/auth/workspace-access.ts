@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { Employee } from "@/db/schema";
 import { requireUser, forbiddenError } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { localAllWorkspaces } from "@/lib/auth/local-session";
 import { employeeDepartmentNames } from "@/lib/queries/departments";
 import { canAccessWorkspace, type WorkspaceId } from "@/lib/workspaces";
 
@@ -24,7 +25,10 @@ export async function accessFor(me: Employee) {
   return {
     departments,
     isAdmin: me.isAdmin,
-    isSuperAdmin: isSuperAdmin(me.email),
+    // DEV_ALL_WORKSPACES reopens every room on a dev machine when the local
+    // session user isn't in the needed department. Inert on any deployment
+    // (localAllWorkspaces() is gated by localSessionEnabled()).
+    isSuperAdmin: isSuperAdmin(me.email) || localAllWorkspaces(),
   };
 }
 

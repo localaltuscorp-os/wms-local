@@ -10,7 +10,7 @@ import type { Tone } from "@/lib/ecos/labels";
 export function Pill({ tone, children, style }: { tone: Tone; children: ReactNode; style?: CSSProperties }) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em] whitespace-nowrap"
+      className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em] whitespace-nowrap"
       style={{ color: tone.fg, background: tone.bg, boxShadow: `inset 0 0 0 1px ${tone.border}`, ...style }}
     >
       {children}

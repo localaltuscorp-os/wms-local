@@ -42,6 +42,7 @@ import {
   computeInitiatorScorecard,
   countWorkingDays,
 } from "@/lib/transforms";
+import { rankWholeRoster, splitLeaderboard } from "@/lib/transforms/performer-split";
 import { PENDING_STATUSES } from "@/db/enums";
 import { effectiveDueAtSql } from "@/lib/tasks/effective-due";
 import type { TaskStatus } from "@/db/enums";
@@ -439,11 +440,15 @@ export async function loadDashboardDataUncached(
 
   // Rank the WHOLE team on the base scope, then narrow the display to the
   // filtered people (keeping their global rank). No people filter → top 6.
-  const globalRanking = computeTopPerformers(
-    rankingTasks,
+  /* EVERY member of staff is ranked, not only the ones who completed
+     something. `computeTopPerformers` counts completions, so a person who
+     closed nothing simply was not in it — and was therefore in NEITHER of the
+     page's two leaderboards, invisible on the one page whose job is to say who
+     needs a conversation. rankWholeRoster carries them at the bottom of the
+     standings, which is where the split then puts them. */
+  const globalRanking = rankWholeRoster(
+    computeTopPerformers(rankingTasks, allEmployees, now, Number.MAX_SAFE_INTEGER),
     allEmployees,
-    now,
-    Number.MAX_SAFE_INTEGER,
   );
   const focusEmployeeIds =
     filters.employeeIds.length > 0
@@ -454,7 +459,7 @@ export async function loadDashboardDataUncached(
   // yield three list rows no matter what the view asked for. The filtered
   // branch already sent 10; the two now agree, so the leaderboard is the same
   // depth whether or not a people filter is on.
-  const topPerformers =
+  const selectedPerformers =
     focusEmployeeIds.length > 0
       ? pickPerformersForEmployees(globalRanking, focusEmployeeIds, allEmployees, TOP_PERFORMER_COUNT)
       : globalRanking.slice(0, TOP_PERFORMER_COUNT);
@@ -527,6 +532,17 @@ export async function loadDashboardDataUncached(
   // D16 — on-time vs late delivery, off the same filtered period scan
   // (`periodTasks.dueAt` is already the effective revised-or-original due).
   const punctuality = computePunctuality(periodTasks, nameById);
+
+  /* THE ONE SPLIT between the page's two leaderboards. Top Performers keeps
+     ranks 1-15; everyone from 16 down is the pull-up board, carrying the SAME
+     position number. Before this the two cards were built from two lists that
+     had never heard of each other and both admitted the whole roster, so a
+     person was praised at the top of the page and flagged for a pull-up
+     conversation 600px below it. See lib/transforms/performer-split.ts. */
+  const { top: topPerformers, pullUp: pullUpBoard } = splitLeaderboard(
+    selectedPerformers,
+    punctuality.byPerson,
+  );
 
   // ① Done on-time + aging (Original vs Revised). periodTasks already carry
   //    originalDueAt (Step 1) + effective dueAt.
@@ -734,6 +750,7 @@ export async function loadDashboardDataUncached(
     sentBack,
     statusTable,
     topPerformers,
+    pullUpBoard,
     agingTable: computeEmployeeAgingTable(periodTasks, allEmployees, now),
     agingHeatmap: [],
     agingByDate: computeAgingByDate(periodTasks, now),

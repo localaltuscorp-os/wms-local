@@ -35,7 +35,7 @@ export function AssignmentChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-1.5 py-px text-[9px] font-black uppercase tracking-[0.06em] leading-none",
+        "inline-flex items-center rounded-pill px-1.5 py-px text-[9px] font-black uppercase tracking-[0.06em] leading-none",
         className,
       )}
       title={assigned ? assignmentSummary(info) : "Created by the goal owner"}

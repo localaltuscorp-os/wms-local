@@ -1,7 +1,7 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { DashboardHeader } from "@/components/layout/header";
 import { PageShell } from "@/components/layout/page-shell";
-import { HrPageHeader } from "@/components/hr/hr-chrome";
+import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 import { requireHrStaff } from "@/lib/hr/access";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
@@ -81,11 +81,8 @@ export default async function AllFilledFormsPage() {
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
+      <HrTitleBar />
       <PageShell width="full">
-        <HrPageHeader
-          title="All Filled Forms"
-          subtitle="Every employee's HR form submissions — search, filter, view, download or mail."
-        />
         <FilledFormsTable rows={tableRows} variant="all" />
         {/* Say so when the cap is in play. A silently truncated list reads as
             "this is everything", which is how someone concludes a submission

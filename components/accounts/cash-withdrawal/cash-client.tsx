@@ -11,12 +11,13 @@ import { parseAmount, formatINR, sumAmounts } from "@/lib/accounts/amounts";
 import {
   createCashItem, updateCashItem, deleteCashItem, setCashMonth, setCashLimit,
 } from "@/app/(app)/accounts/cash-withdrawal/actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CELL = "w-full rounded-lg border border-hairline bg-white px-2 py-1.5 text-right text-[12.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-[color:var(--color-altus-red)]";
 const CHIP = "rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]";
 
-function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>; }
+function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>; }
 
 function lookupAdd(kind: string) {
   return async (name: string) => {
@@ -71,7 +72,7 @@ export function CashWithdrawal({ fyStartYear, cols, currentMonth, items, months,
     for (const it of items) {
       const t = sumAmounts(cols.map((c) => parseAmount(grid[key(it.id, c.month)])));
       if (!t) continue;
-      const e = it.entity ?? "—";
+      const e = it.entity ?? "-";
       map.set(e, (map.get(e) ?? 0) + t);
     }
     return map;
@@ -145,10 +146,12 @@ export function CashWithdrawal({ fyStartYear, cols, currentMonth, items, months,
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
+          <CollapsibleSearch scope="cheques, entity, payee">
           <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
             <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search — cheques, entity, payee" title="Local search — filters only the list on this page" aria-label="Local search — cheques, entity, payee — this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - cheques, entity, payee" title="Local search - filters only the list on this page" aria-label="Local search - cheques, entity, payee - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
           </div>
+          </CollapsibleSearch>
           <select className={CHIP} value={fEntity} onChange={(e) => setFEntity(e.target.value)} aria-label="Filter by entity">
             <option value="">All Entities</option>
             {entities.map((a) => (<option key={a} value={a}>{a}</option>))}
@@ -202,7 +205,7 @@ export function CashWithdrawal({ fyStartYear, cols, currentMonth, items, months,
                       const k = key(r.id, c.month);
                       return (
                         <td key={c.month} className="px-1.5 py-2 align-middle" style={{ background: c.month === currentMonth ? "color-mix(in srgb, var(--color-altus-red) 4%, transparent)" : undefined }}>
-                          <input value={grid[k] ?? ""} disabled={rowBusy === k} inputMode="numeric" onChange={(e) => setGrid((g) => ({ ...g, [k]: e.target.value }))} onBlur={(e) => commitCell(r.id, c.month, e.target.value)} className={CELL + " disabled:opacity-60"} style={{ minWidth: 84, borderColor: c.month === currentMonth ? "var(--color-altus-red)" : undefined }} aria-label="Monthly amount" placeholder="—" />
+                          <input value={grid[k] ?? ""} disabled={rowBusy === k} inputMode="numeric" onChange={(e) => setGrid((g) => ({ ...g, [k]: e.target.value }))} onBlur={(e) => commitCell(r.id, c.month, e.target.value)} className={CELL + " disabled:opacity-60"} style={{ minWidth: 84, borderColor: c.month === currentMonth ? "var(--color-altus-red)" : undefined }} aria-label="Monthly amount" placeholder="-" />
                         </td>
                       );
                     })}
@@ -236,7 +239,7 @@ function CapsPanel({ fyStartYear, limits, withdrawnByEntity, entityOptions }: {
 
   // Any entity that has withdrawals but no cap row still deserves a tile.
   const capEntities = new Set(limits.map((l) => l.entity));
-  const extras = [...withdrawnByEntity.keys()].filter((e) => e !== "—" && !capEntities.has(e));
+  const extras = [...withdrawnByEntity.keys()].filter((e) => e !== "-" && !capEntities.has(e));
   const rows = [
     ...limits.map((l) => ({ id: l.id, entity: l.entity, max: parseAmount(l.maxAllowed) })),
     ...extras.map((e) => ({ id: `extra:${e}`, entity: e, max: null as number | null })),
@@ -257,7 +260,7 @@ function CapsPanel({ fyStartYear, limits, withdrawnByEntity, entityOptions }: {
     <div>
       <div className="mb-2 flex items-center gap-2">
         <h2 className="text-[13px] font-bold uppercase tracking-[0.12em] text-ink-soft">Annual cap by entity</h2>
-        <span className="text-[12px] font-semibold text-ink-subtle">— withdrawn vs allowed this FY</span>
+        <span className="text-[12px] font-semibold text-ink-subtle">- withdrawn vs allowed this FY</span>
       </div>
       <div className="grid grid-cols-4 gap-3 max-2xl:grid-cols-3 max-lg:grid-cols-2 max-md:grid-cols-1">
         {rows.map((r) => {
@@ -272,7 +275,7 @@ function CapsPanel({ fyStartYear, limits, withdrawnByEntity, entityOptions }: {
             <div key={r.id} className="rounded-xl border border-hairline bg-surface-card p-3.5" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-bold text-ink-strong text-[14px] truncate">{r.entity}</span>
-                {over && <span className="text-[10px] font-bold uppercase tracking-[0.08em] rounded-full px-2 py-0.5" style={{ background: "color-mix(in srgb, var(--color-altus-red) 14%, transparent)", color: "var(--color-altus-red-deep)" }}>Over</span>}
+                {over && <span className="text-[10px] font-bold uppercase tracking-[0.08em] rounded-pill px-2 py-0.5" style={{ background: "color-mix(in srgb, var(--color-altus-red) 14%, transparent)", color: "var(--color-altus-red-deep)" }}>Over</span>}
               </div>
               <div className="mt-2 text-[13px] font-semibold text-ink-soft">
                 ₹{formatINR(withdrawn)} <span className="text-ink-subtle">withdrawn</span>

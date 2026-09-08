@@ -18,6 +18,10 @@ export function GoalCaptureBox(props: {
   periodKey: string;
   levelLabel: string;
   voiceEnabled?: boolean;
+  /** Sizing for the CLOSED trigger, from the caller. Dropped while the
+   *  composer is open — a textarea squeezed into half a row is not the same
+   *  control as the button that opened it. */
+  className?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -65,7 +69,7 @@ export function GoalCaptureBox(props: {
       recorderRef.current = rec;
       setRecording(true);
     } catch {
-      fireToast({ message: "Couldn't access the mic — check browser permissions.", type: "error" });
+      fireToast({ message: "Couldn't access the mic - check browser permissions.", type: "error" });
     }
   }
   function stopRecording() {
@@ -115,8 +119,13 @@ export function GoalCaptureBox(props: {
     }
   }
 
+  /* Open (or showing the undo banner) ⇒ take the whole row. `basis-full` is
+     what makes the flex row wrap, so the Add Goal tile drops to the next line
+     instead of being crushed beside a composer. */
+  const wide = open || batch !== null;
+
   return (
-    <div className="space-y-2">
+    <div className={`space-y-2 ${wide ? "w-full basis-full" : (props.className ?? "")}`}>
       {/* Undo banner — appears after a capture until Keep/Undo. */}
       {batch && (
         <div
@@ -150,16 +159,22 @@ export function GoalCaptureBox(props: {
 
       {/* Trigger + composer */}
       {!open ? (
-        <div className="flex flex-wrap items-center gap-2">
+        /* MATCHED TO THE "+ Add Goal" TILE: same 40px height, same rounded-xl
+           corner, same hairline-strong border, same `justify-center` — and
+           `w-full`, so whatever width the caller's layout gives this box, the
+           button fills it. The two tiles are therefore identical boxes rather
+           than two different shapes whose widths happen to depend on how long
+           their labels are. */
+        <div className="flex w-full items-center">
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="group inline-flex h-9 items-center gap-2 rounded-pill border px-3.5 text-[13px] font-bold text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red"
-            style={{ borderColor: "var(--color-hairline)" }}
+            className="group inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border px-3 text-[13px] font-bold text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red"
+            style={{ borderColor: "var(--color-hairline-strong)", background: "var(--color-surface-soft)" }}
           >
-            <Sparkles size={15} strokeWidth={2.4} className="text-altus-red" />
+            <Sparkles size={15} strokeWidth={2.4} className="text-altus-red shrink-0" />
             Capture goals with AI
-            <span className="hidden text-[11px] font-semibold text-ink-subtle sm:inline">— type it in plain words</span>
+            <span className="hidden truncate text-[11px] font-semibold text-ink-subtle sm:inline">— type it in plain words</span>
           </button>
         </div>
       ) : (

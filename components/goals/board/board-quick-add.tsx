@@ -58,6 +58,11 @@ interface Props {
   existingTitles?: string[];
   /** Small "+ Add" tile for a Kanban column footer (same composer drawer). */
   compact?: boolean;
+  /** Extra classes for the trigger BUTTON (not the composer). Used by the
+   *  level board to size this tile and the Capture-with-AI tile identically —
+   *  they sit side by side and two boxes of different widths doing the same
+   *  kind of job read as a mistake. */
+  triggerClassName?: string;
   /** Projects a goal can be tagged to when "Part of Project? = Yes" (mig 0184).
    *  Optional so callers that don't pass them simply render an empty picker. */
   projects?: ProjectOption[];
@@ -264,7 +269,7 @@ export const BoardQuickAdd = React.forwardRef<BoardQuickAddHandle, Props>(
         }}
         className={
           compact
-            ? `wg-btn cursor-pointer group inline-flex w-auto shrink-0 items-center justify-center gap-1.5 self-start rounded-xl border px-3 py-2 text-[13px] font-bold transition-colors hover:bg-surface-soft ${FOCUS_RING}`
+            ? `wg-btn cursor-pointer group inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3 text-[13px] font-bold transition-colors hover:bg-surface-soft ${FOCUS_RING} ${props.triggerClassName ?? "w-auto shrink-0 self-start"}`
             : `wg-btn cursor-pointer group inline-flex w-auto items-center justify-center gap-2 self-start rounded-full border px-4 py-2.5 text-[13.5px] font-bold transition-colors hover:bg-surface-soft ${FOCUS_RING}`
         }
         style={{ borderColor: "var(--color-hairline-strong)", color: "var(--color-ink-soft)", background: "var(--color-surface-soft)" }}
@@ -321,7 +326,7 @@ export const BoardQuickAdd = React.forwardRef<BoardQuickAddHandle, Props>(
                   reset();
                   setAddedCount(0);
                 }}
-                className={`inline-flex items-center whitespace-nowrap rounded-full border px-5 py-2.5 text-[14px] font-bold text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong ${FOCUS_RING}`}
+                className={`inline-flex items-center whitespace-nowrap rounded-pill border px-5 py-2.5 text-[14px] font-bold text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong ${FOCUS_RING}`}
                 style={{ borderColor: "var(--color-hairline-strong)" }}
               >
                 End
@@ -330,7 +335,7 @@ export const BoardQuickAdd = React.forwardRef<BoardQuickAddHandle, Props>(
                 type="button"
                 onClick={submit}
                 disabled={saving}
-                className={`pastel-cta wg-btn inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-6 py-2.5 text-[14px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${FOCUS_RING}`}
+                className={`pastel-cta wg-btn inline-flex items-center gap-1.5 whitespace-nowrap rounded-pill px-6 py-2.5 text-[14px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${FOCUS_RING}`}
               >
                 {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={2.8} />}
                 Add Goal

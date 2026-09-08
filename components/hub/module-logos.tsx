@@ -38,6 +38,7 @@ const PAL: Record<WorkspaceId, { from: string; to: string; ink: string }> = {
   events: { from: "#D9F1F5", to: "#D9F1F5", ink: "#167C91" }, // 0 · cyan/teal
   "people-allocation": { from: "#FFDCC0", to: "#FCC79C", ink: "#C2410C" }, // 11 · orange (matches the card)
   accounts: { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B" }, // shadows `admin`
+  "project-plan": { from: "#FFC9C6", to: "#FFA9A5", ink: "#B4160E" }, // 12 · red (matches the wms tile)
 };
 
 function Glyph({ id, ink, light }: { id: WorkspaceId; ink: string; light: string }) {
@@ -196,6 +197,21 @@ function Glyph({ id, ink, light }: { id: WorkspaceId; ink: string; light: string
             <path d="M9 13c6.667 0 6.667-10 0-10" />
             <path d="M6 13l8.5 8" />
           </g>
+        </g>
+      );
+    // Project — an indented tree: one root with two children stepping down and
+    // in, which is the hierarchy the module is for.
+    case "project-plan":
+      return (
+        <g stroke={ink} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none">
+          {/* Root row. */}
+          <path d="M15 19h20" />
+          {/* Spine dropping to each child, with the elbow into the child row. */}
+          <path d="M20 19v11h15" />
+          <path d="M20 30v13h22" />
+          {/* Child rows, drawn shorter so the indent reads at 24px. */}
+          <path d="M35 30h11" />
+          <path d="M42 43h7" />
         </g>
       );
     default:

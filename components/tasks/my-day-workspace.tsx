@@ -7,9 +7,9 @@ import { TaskTable, NoResults } from "./task-table";
 import { SectionErrorBoundary } from "@/components/ui/section-error-boundary";
 import {
   useSectionSearch,
-  matchesSearch,
   setSectionSearch,
 } from "@/lib/client/section-search";
+import { taskMatchesQuery } from "@/lib/tasks/task-search";
 import type { TaskListRow } from "@/lib/types";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 
@@ -79,11 +79,16 @@ export function MyDayWorkspace({
   const sectionQuery = useSectionSearch();
   const visibleAgenda = React.useMemo(() => {
     if (!sectionQuery) return agendaTasks;
-    const qNum = sectionQuery.replace(/^#/, "");
-    return agendaTasks.filter(
-      (t) =>
-        (t.taskNo != null && String(t.taskNo).includes(qNum)) ||
-        matchesSearch(sectionQuery, t.title, t.description, t.subject, t.client, t.doerName),
+    return agendaTasks.filter((t) =>
+      taskMatchesQuery(
+        sectionQuery,
+        t.taskNo,
+        t.title,
+        t.description,
+        t.subject,
+        t.client,
+        t.doerName,
+      ),
     );
   }, [agendaTasks, sectionQuery]);
 

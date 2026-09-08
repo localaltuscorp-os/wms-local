@@ -195,7 +195,7 @@ export function IncentiveTeamSplit({
               </Dialog.Title>
               <Dialog.Description className="text-ink-subtle font-semibold" style={{ fontSize: 13 }}>
                 {row?.incentiveName}
-                {row?.approvedAmt ? ` · approved ${formatInr(row.approvedAmt)}` : ""} — each row is one person’s share.
+                {row?.approvedAmt ? ` · approved ${formatInr(row.approvedAmt)}` : ""} - each row is one person’s share.
               </Dialog.Description>
             </div>
           </div>
@@ -225,7 +225,7 @@ export function IncentiveTeamSplit({
                       options={empOptions}
                       value={s.employeeId ?? ""}
                       onValueChange={(id) => pickEmployee(i, id)}
-                      placeholder={s.empName || "— Select participant —"}
+                      placeholder={s.empName || "- Select participant -"}
                       ariaLabel="Participant"
                       searchable
                     />
@@ -249,7 +249,7 @@ export function IncentiveTeamSplit({
                 <button
                   type="button"
                   onClick={addRow}
-                  className="bg-surface-card wg-btn inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-2 font-bold text-ink-soft transition-colors hover:text-ink-strong"
+                  className="bg-surface-card wg-btn inline-flex cursor-pointer items-center gap-1.5 rounded-pill px-3.5 py-2 font-bold text-ink-soft transition-colors hover:text-ink-strong"
                   style={{ fontSize: 13, boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
                 >
                   <Plus size={15} strokeWidth={2.6} /> Add Participant
@@ -285,7 +285,7 @@ export function IncentiveTeamSplit({
                   <button
                     type="submit"
                     disabled={pending}
-                    className="wg-btn wg-sheen inline-flex cursor-pointer items-center gap-2 rounded-full px-5 py-2.5 font-bold text-white disabled:opacity-50"
+                    className="wg-btn wg-sheen inline-flex cursor-pointer items-center gap-2 rounded-pill px-5 py-2.5 font-bold text-white disabled:opacity-50"
                     style={{
                       fontSize: 14,
                       background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})`,

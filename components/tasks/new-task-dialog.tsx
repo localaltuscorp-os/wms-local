@@ -164,7 +164,7 @@ export function NewTaskDialog({ defaultInitiatorId }: Props) {
                 color: "var(--color-ink-muted)",
               }}
             >
-              Capture work, attach context, assign owners — all in one go.
+              Capture work, attach context, assign owners - all in one go.
             </Dialog.Description>
             {/* Top-right actions — Import shortcut (all users) + Close. */}
             <div className="absolute top-4 right-5 flex items-center gap-2.5">
@@ -172,7 +172,7 @@ export function NewTaskDialog({ defaultInitiatorId }: Props) {
                 type="button"
                 onClick={goImport}
                 title="Bulk-import tasks from CSV or Excel"
-                className="inline-flex items-center gap-2 rounded-full px-4 h-10 text-[14px] font-semibold transition-colors hover:bg-surface-soft max-md:px-3"
+                className="inline-flex items-center gap-2 rounded-pill px-4 h-10 text-[14px] font-semibold transition-colors hover:bg-surface-soft max-md:px-3"
                 style={{
                   border: "1px solid var(--color-hairline)",
                   background: "#ffffff",
@@ -267,7 +267,7 @@ export function NewTaskDialog({ defaultInitiatorId }: Props) {
                 Bulk Add Tasks
               </Dialog.Title>
               <Dialog.Description className="mt-1 font-semibold" style={{ fontSize: 14.5, color: "var(--color-ink-muted)" }}>
-                Fill the grid (or paste from Excel), review duplicates &amp; anomalies, then create — or import a file.
+                Fill the grid (or paste from Excel), review duplicates &amp; anomalies, then create - or import a file.
               </Dialog.Description>
               <Dialog.Close asChild>
                 <button

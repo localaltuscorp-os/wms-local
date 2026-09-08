@@ -102,7 +102,7 @@ export function ActivityFeed({ activities }: { activities: ActivityRow[] }) {
               )}
               <div className="mt-1 flex items-center gap-2 text-[11.5px] font-medium text-ink-soft">
                 <span
-                  className="rounded-full px-1.5 py-px font-bold uppercase tracking-wide"
+                  className="rounded-pill px-1.5 py-px font-bold uppercase tracking-wide"
                   style={{ background: meta.tint, color: meta.ink, fontSize: 9.5, letterSpacing: "0.06em" }}
                 >
                   {meta.label}

@@ -19,10 +19,11 @@ const RED_DEEP = "#A80400";
 
 /**
  * Attendance · Registered Devices (admin). The device-allowlist control room:
- * every phone employees registered from the app, newest/pending first. Admins
- * approve a pending device (cap MAX_DEVICES_PER_EMPLOYEE per person) so its owner
+ * every device employees registered from the app or the web punch, newest/pending
+ * first. Admins approve a pending device (cap MAX_DEVICES_PER_EMPLOYEE per
+ * person, any mix of kinds) so its owner
  * can punch, or revoke a lost/replaced/suspicious one. Only APPROVED devices can
- * mark attendance — everything else gets "Incorrect device" at the punch.
+ * mark attendance - everything else gets "Incorrect device" at the punch.
  */
 export default async function AttendanceDevicesPage() {
   const me = await requireAttendanceAdmin();
@@ -30,7 +31,7 @@ export default async function AttendanceDevicesPage() {
   const pending = devices.filter((d) => d.status === "pending").length;
   const anomalies = await listAttendanceAnomalies();
   const mode = attendanceIntegrityMode();
-  // Everyone who can reach this page is an attendance administrator — the page
+  // Everyone who can reach this page is an attendance administrator - the page
   // guard and setOfficeIpAllowlist now read the SAME predicate, so there is no
   // second capability left to branch on.
   const settings = await getOrgSettings();
@@ -42,7 +43,7 @@ export default async function AttendanceDevicesPage() {
       <main className="mx-auto w-full max-w-[1000px] px-8 max-md:px-4 pt-8 pb-20">
         <Link
           href={"/attendance" as Route}
-          className="inline-flex items-center gap-2 rounded-full border border-hairline-strong bg-white px-3.5 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:border-altus-red"
+          className="inline-flex items-center gap-2 rounded-pill border border-hairline-strong bg-white px-3.5 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:border-altus-red"
         >
           <ArrowLeft size={14} /> Attendance
         </Link>
@@ -61,8 +62,8 @@ export default async function AttendanceDevicesPage() {
             Device allowlist
           </h1>
           <p className="mt-1.5 max-w-[70ch] text-[13.5px] font-medium text-ink-muted">
-            Each employee registers up to {MAX_DEVICES_PER_EMPLOYEE} devices — one Web (Desktop) and one
-            Web (Android), adopted the first time they punch in from that browser. Approve a pending device
+            Each employee registers up to {MAX_DEVICES_PER_EMPLOYEE} devices of any kind — two laptops, two
+            phones or one of each — adopted the first time they punch in from that browser. Approve a pending device
             so they can punch from it; only <strong>approved</strong> devices can mark attendance — any
             other is refused with “Incorrect device”. {pending > 0 ? `${pending} waiting for approval.` : "Nothing waiting for approval."}
           </p>
@@ -76,14 +77,14 @@ export default async function AttendanceDevicesPage() {
 
         <DevicesClient devices={devices} maxPerEmployee={MAX_DEVICES_PER_EMPLOYEE} />
 
-        {/* ── Attendance Integrity — flagged punches (Phase 2 L6 attribution) ── */}
+        {/* ── Attendance Integrity - flagged punches (Phase 2 L6 attribution) ── */}
         <section className="mt-10">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[18px] font-black text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", letterSpacing: "-0.01em" }}>
               Attendance Integrity
             </h2>
             <span
-              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
+              className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
               style={
                 mode === "enforce"
                   ? { background: "var(--color-green-bg, #e9f7ef)", color: "var(--color-green-deep, #15803d)" }
@@ -96,8 +97,8 @@ export default async function AttendanceDevicesPage() {
             </span>
           </div>
           <p className="mb-4 max-w-[70ch] text-[13px] text-ink-muted">
-            Punches flagged by the device-health checks — mocked GPS, failed device/app integrity, or replay attempts.
-            {mode === "off" ? " Set ATTENDANCE_INTEGRITY_MODE=report (then enforce) once the updated app is live." : mode === "report" ? " Currently recording only — nothing is blocked yet." : " Flagged punches are being refused."}
+            Punches flagged by the device-health checks - mocked GPS, failed device/app integrity, or replay attempts.
+            {mode === "off" ? " Set ATTENDANCE_INTEGRITY_MODE=report (then enforce) once the updated app is live." : mode === "report" ? " Currently recording only - nothing is blocked yet." : " Flagged punches are being refused."}
           </p>
           <IntegrityReview anomalies={anomalies} />
         </section>

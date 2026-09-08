@@ -16,7 +16,7 @@ import { MonthCalendar, type MonthCell } from "@/components/attendance/month-cal
 /**
  * Shape assembled server-side by `lib/salary/my-salary.ts`. The money always
  * comes from the payroll engine; `hourly` only decides how the month is
- * PRESENTED — hours for the shifts whose pay tracks hours, days for everyone
+ * PRESENTED - hours for the shifts whose pay tracks hours, days for everyone
  * else.
  */
 export interface MySalaryMonth {
@@ -26,7 +26,7 @@ export interface MySalaryMonth {
   companyName: string | null;
   /** "live" = computed just now for the open month. */
   source: "live" | "run" | "legacy";
-  /** The graded calendar for this month — same cells the Attendance page draws. */
+  /** The graded calendar for this month - same cells the Attendance page draws. */
   cells: MonthCell[];
   /** This employee's OWN weekly target; the calendar must not fall back to 54h. */
   weekTargetMinutes: number | null;
@@ -35,7 +35,7 @@ export interface MySalaryMonth {
   baseAmount: number;
   overtimeAmount: number;
   /** Server-computed attendance reduction (₹0 for hourly staff). Same figure the
-   *  Attendance KPI shows — never re-derived in the browser. */
+   *  Attendance KPI shows - never re-derived in the browser. */
   attendanceDeduction: number;
   gross: number;
   pt: number;
@@ -70,20 +70,20 @@ function inr(n: number): string {
   );
 }
 
-/** Day counts are halves as often as not — "18.5" must not render as "18.5000". */
+/** Day counts are halves as often as not - "18.5" must not render as "18.5000". */
 function fmtDays(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
 /**
- * My Salary — the employee's OWN self-service pay view. Read-only: a net-pay
+ * My Salary - the employee's OWN self-service pay view. Read-only: a net-pay
  * card with the month picker built in, the full "how it's calculated" breakdown
  * (compact by default, expandable to every attendance / hours / salary figure),
  * the attendance KPIs and the graded calendar. No other person's data is loaded.
  *
  * ── ONE SET OF NUMBERS ─────────────────────────────────────────────────────
  * Every figure here is read from the server-graded month (`MySalaryMonth` +
- * its calendar cells) — the SAME source the Attendance page uses. Nothing is
+ * its calendar cells) - the SAME source the Attendance page uses. Nothing is
  * recomputed on the client beyond formatting and summing rows that already add
  * up, so this page and the Attendance page can never disagree.
  */
@@ -105,10 +105,10 @@ export function MySalaryView({ months }: { months: MySalaryMonth[] }) {
   }
 
   const paidAmount = m.salaryGiven ?? m.finalPayment;
-  // Post-gross deductions net of any carried balance — pt + advance − pending.
+  // Post-gross deductions net of any carried balance - pt + advance − pending.
   // Defined as gross − final so the compact card always reconciles exactly.
   const deductions = Math.round((m.gross - m.finalPayment) * 100) / 100;
-  // The attendance-driven reduction of base pay — the SAME "Salary Lost" the
+  // The attendance-driven reduction of base pay - the SAME "Salary Lost" the
   // Attendance KPI shows. Computed server-side (see MySalaryMonth.attendanceDeduction:
   // ₹0 for hourly staff, monthly shortfall for a full-timer) so the browser never
   // re-derives it and the two surfaces can never disagree.
@@ -116,8 +116,8 @@ export function MySalaryView({ months }: { months: MySalaryMonth[] }) {
   // Signed: pending carried in, minus PT and advance taken out.
   const otherAdjustments = Math.round((m.previousPending - m.pt - m.advance) * 100) / 100;
 
-  // Leave / extra-day counts come from the graded calendar — the same cells the
-  // Attendance page draws — over the ELAPSED days, so they stay consistent with
+  // Leave / extra-day counts come from the graded calendar - the same cells the
+  // Attendance page draws - over the ELAPSED days, so they stay consistent with
   // the present/absent KPIs (which are elapsed-only).
   const elapsed = m.cells.filter((c) => !c.future);
   const paidLeaveDays = elapsed.filter((c) => c.code === "PL" || c.code === "CO").length;
@@ -131,7 +131,7 @@ export function MySalaryView({ months }: { months: MySalaryMonth[] }) {
 
   return (
     <div className="space-y-6">
-      {/* ── NET PAY — the month picker lives here, top-right ─────────────── */}
+      {/* ── NET PAY - the month picker lives here, top-right ─────────────── */}
       <div className="wg-rise rounded-2xl border border-hairline bg-surface-card px-5 py-4 max-md:px-4 max-md:py-3.5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-ink-muted">
@@ -173,7 +173,7 @@ export function MySalaryView({ months }: { months: MySalaryMonth[] }) {
             <span />
           )}
           <span
-            className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-black"
+            className="inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[13px] font-black"
             style={{
               background: "var(--color-surface-soft)",
               color: m.paid ? "var(--color-green-deep)" : "var(--color-ink-muted)",
@@ -185,7 +185,7 @@ export function MySalaryView({ months }: { months: MySalaryMonth[] }) {
         </div>
       </div>
 
-      {/* ── HOW YOUR SALARY IS CALCULATED — compact, expandable ──────────── */}
+      {/* ── HOW YOUR SALARY IS CALCULATED - compact, expandable ──────────── */}
       <div className="wg-rise rounded-3xl border border-hairline bg-surface-card p-5" style={{ animationDelay: "60ms" }}>
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 text-[13px] font-black uppercase tracking-[0.07em] text-ink-muted">
@@ -202,7 +202,7 @@ export function MySalaryView({ months }: { months: MySalaryMonth[] }) {
           </button>
         </div>
 
-        {/* Compact — base + overtime − deductions = final, always. */}
+        {/* Compact - base + overtime − deductions = final, always. */}
         <div className="space-y-0.5">
           <Line label="Base Salary" value={inr(m.baseAmount)} />
           {m.overtimeAmount > 0 && <Line label="Additional Hours Pay" value={`+ ${inr(m.overtimeAmount)}`} gain />}
@@ -214,7 +214,7 @@ export function MySalaryView({ months }: { months: MySalaryMonth[] }) {
           </div>
         </div>
 
-        {/* Full breakdown — every figure from the graded month + payroll engine. */}
+        {/* Full breakdown - every figure from the graded month + payroll engine. */}
         {showDetail && (
           <div className="mt-4 border-t border-solid border-hairline pt-2">
             <Section title="Attendance">
@@ -294,7 +294,7 @@ export function MySalaryView({ months }: { months: MySalaryMonth[] }) {
         </div>
       )}
 
-      {/* History quick list — pay per month; selecting one drives the page. */}
+      {/* History quick list - pay per month; selecting one drives the page. */}
       {months.length > 1 && (
         <div className="rounded-3xl border border-hairline bg-surface-card p-2">
           <p className="px-3 pb-1 pt-2 text-[11px] font-black uppercase tracking-[0.08em] text-ink-muted">History</p>
@@ -352,9 +352,9 @@ function Line({
   label: string;
   value: string;
   muted?: boolean;
-  /** A subtraction — renders red. */
+  /** A subtraction - renders red. */
   deduct?: boolean;
-  /** Money ADDED — green, so it reads as earnings at a glance. */
+  /** Money ADDED - green, so it reads as earnings at a glance. */
   gain?: boolean;
 }) {
   const tone = deduct ? "text-altus-red" : gain ? "text-[#16a34a]" : "text-ink-strong";

@@ -246,7 +246,7 @@ export function PriorityPicker({
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value as TaskPriority)}
-      className="rounded-full px-3 py-1 text-[13px] font-bold outline-none disabled:appearance-none disabled:opacity-90"
+      className="rounded-pill px-3 py-1 text-[13px] font-bold outline-none disabled:appearance-none disabled:opacity-90"
       style={{
         background: `color-mix(in srgb, var(--color-${tone}) 14%, transparent)`,
         color: `var(--color-${tone}-deep)`,
@@ -281,7 +281,7 @@ export function YesNo({
       type="button"
       disabled={disabled}
       onClick={() => onChange(!value)}
-      className="rounded-full px-3 py-1 text-[13px] font-black transition-colors disabled:opacity-60"
+      className="rounded-pill px-3 py-1 text-[13px] font-black transition-colors disabled:opacity-60"
       style={{
         background: value
           ? "color-mix(in srgb, var(--color-green) 16%, transparent)"

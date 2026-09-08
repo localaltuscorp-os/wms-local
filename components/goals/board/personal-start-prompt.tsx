@@ -48,14 +48,14 @@ export function PersonalStartPrompt() {
           Start your Personal space from your Professional goals?
         </h3>
         <p className="mt-0.5 text-[13.5px] font-medium text-ink-muted">
-          Copies your Yearly → Monthly goal tree into Personal — progress reset, yours to edit privately. Or just add your own below.
+          Copies your Yearly → Monthly goal tree into Personal - progress reset, yours to edit privately. Or just add your own below.
         </p>
       </div>
       <button
         type="button"
         onClick={start}
         disabled={busy}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-5 py-2.5 text-[14px] font-bold text-white disabled:opacity-60"
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-pill px-5 py-2.5 text-[14px] font-bold text-white disabled:opacity-60"
         style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
       >
         {busy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} strokeWidth={2.6} />}

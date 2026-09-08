@@ -123,7 +123,7 @@ const PRIORITY_LABELS: Record<BroadcastPriority, string> = {
 };
 
 const ACK_LABELS: Record<BroadcastAckMode, string> = {
-  none: "None — informational only",
+  none: "None - informational only",
   read: "Read receipt (auto)",
   acknowledge: "Require acknowledgement",
 };
@@ -674,7 +674,7 @@ export function BroadcastComposer({
           message:
             recurrence !== "none"
               ? `Scheduled to recur ${recurrence}.`
-              : "Scheduled — it'll publish automatically.",
+              : "Scheduled - it'll publish automatically.",
           type: "success",
         });
         setConfirmOpen(false);
@@ -1671,7 +1671,7 @@ function ChipGroup({
               type="button"
               onClick={() => onToggle(o.id)}
               aria-pressed={on}
-              className={`rounded-full border px-3 py-1.5 text-[12.5px] font-semibold transition ${
+              className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold transition ${
                 on
                   ? "border-[color:var(--color-altus-red)] bg-[color:color-mix(in_srgb,var(--color-altus-red)_12%,transparent)] text-[color:var(--color-altus-red-deep)]"
                   : "border-hairline text-ink-muted hover:border-hairline-strong hover:text-ink-strong"

@@ -457,7 +457,7 @@ export function AmbassadorForm({ mode, initial, products, employees }: Props) {
                   type="button"
                   onClick={() => toggleProduct(p.id)}
                   aria-pressed={on}
-                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13.5px] font-bold transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-pill px-3.5 py-2 text-[13.5px] font-bold transition-colors"
                   style={
                     on
                       ? {

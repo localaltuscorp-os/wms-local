@@ -119,11 +119,14 @@ export type HealthBand = "spillover" | "done" | "ahead" | "on-track" | "at-risk"
 
 /** Semantic hexes (blueprint §8.1) — green / goals-amber / at-risk red. */
 export const HEALTH_STYLE: Record<HealthBand, { color: string; bg: string; label: string }> = {
-  done: { color: "#15803d", bg: "rgba(21,128,61,0.12)", label: "Done" },
-  ahead: { color: "#15803d", bg: "rgba(21,128,61,0.12)", label: "Ahead of pace" },
-  "on-track": { color: "#b45309", bg: "rgba(180,83,9,0.12)", label: "On track" },
-  "at-risk": { color: "#b91c1c", bg: "rgba(185,28,28,0.10)", label: "At risk" },
-  spillover: { color: "#b91c1c", bg: "rgba(185,28,28,0.10)", label: "Spillover" },
+  // Deepened in step with dashboard-model.ts — these two must agree or a goal
+  // reads one green in its pill and another in the chart beside it. The `bg`
+  // tints keep their old lightness on purpose: they sit BEHIND this text.
+  done: { color: "#0f5b2e", bg: "rgba(21,128,61,0.12)", label: "Done" },
+  ahead: { color: "#0f5b2e", bg: "rgba(21,128,61,0.12)", label: "Ahead of pace" },
+  "on-track": { color: "#8a3d06", bg: "rgba(180,83,9,0.12)", label: "On track" },
+  "at-risk": { color: "#A80400", bg: "rgba(185,28,28,0.10)", label: "At risk" },
+  spillover: { color: "#A80400", bg: "rgba(185,28,28,0.10)", label: "Spillover" },
 };
 
 export interface DerivedHealth {

@@ -48,7 +48,17 @@ import { formatDate } from "@/lib/format";
 import type { ProjectTreeNode } from "@/lib/queries/projects";
 import type { EmployeeOption } from "@/lib/queries/employees";
 
-type NodeKind = "project" | "milestone" | "result" | "action" | "sub_action";
+// The sixth level ('sub_sub_action') belongs to the Project Plan screen
+// (/project-plan, migration 0203). This board does not offer it — CHILD_KIND
+// below stops at sub_action — but both screens read the same project_nodes
+// rows, so one created there must still render here rather than crash.
+type NodeKind =
+  | "project"
+  | "milestone"
+  | "result"
+  | "action"
+  | "sub_action"
+  | "sub_sub_action";
 
 /** Roster for owner / team-member pickers, shared via context so it doesn't
  *  have to thread through the recursive tree. */
@@ -66,12 +76,26 @@ function useCanManage() {
   return React.useContext(CanManageContext);
 }
 
-const CHILD_KIND: Record<NodeKind, NodeKind | null> = {
+/**
+ * The five kinds THIS board can create. Its server action
+ * (app/(app)/projects/actions.ts) accepts no more than these, so the add-child
+ * plumbing is typed to the creatable subset rather than to NodeKind — that way
+ * the sixth level can never be handed to a write that would reject it.
+ */
+type CreatableKind = Exclude<NodeKind, "sub_sub_action">;
+
+const CHILD_KIND: Record<NodeKind, CreatableKind | null> = {
   project: "milestone",
   milestone: "result",
   result: "action",
   action: "sub_action",
+  // This board deliberately STOPS at sub_action: its create action
+  // (app/(app)/projects/actions.ts) only accepts the five original kinds, so
+  // offering a sixth here would render a button whose write is rejected. The
+  // sixth level is added and edited on /project-plan; a row created there
+  // simply renders here as a leaf.
   sub_action: null,
+  sub_sub_action: null,
 };
 
 const KIND_LABEL: Record<NodeKind, string> = {
@@ -80,6 +104,7 @@ const KIND_LABEL: Record<NodeKind, string> = {
   result: "Result",
   action: "Action",
   sub_action: "Sub-Action",
+  sub_sub_action: "Sub-Sub-Action",
 };
 
 // Recursive sum of all linked tasks across the subtree. The DB only carries
@@ -103,6 +128,27 @@ function countByKind(
 function pluralize(n: number, one: string, many: string = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
+
+/** Every descendant of `node` of a given kind, in tree order. Used by the
+ *  Results scope, which flattens results out from under their milestones. */
+function collectByKind(node: ProjectTreeNode, kind: NodeKind): ProjectTreeNode[] {
+  const out: ProjectTreeNode[] = [];
+  for (const c of node.children) {
+    if (c.kind === kind) out.push(c);
+    out.push(...collectByKind(c, kind));
+  }
+  return out;
+}
+
+/**
+ * Deepest tree depth a NodeList is allowed to expand to, or null for "no
+ * limit" (the Project scope, i.e. the full breakdown). The Milestone and
+ * Results scopes cap it so each renders a single flat level.
+ *
+ * Passed by context rather than as a prop because NodeList and TreeNode
+ * recurse into each other — threading it through would touch every level.
+ */
+const MaxDepthContext = React.createContext<number | null>(null);
 
 /** "12 Jun 2026" — canonical Altus date. */
 function fmtDate(d: Date | string | null): string {
@@ -353,11 +399,128 @@ function RailItem({
 
 /* ──────────────────────────────────────────────────────────── Detail ─ */
 
+/* ────────────────────────────────────────────────────── Scope tabs ─ */
+
+type Scope = "project" | "milestone" | "result";
+
+const SCOPES: Array<{ value: Scope; label: string }> = [
+  { value: "project", label: "Project" },
+  { value: "milestone", label: "Milestone" },
+  { value: "result", label: "Results" },
+];
+
+/** One segment of the pill. Declared at module scope on purpose — defining it
+ *  inside ScopeTabs would hand React a new component type every render, which
+ *  remounts the buttons instead of updating them (see GoalsSpaceToggle). */
+function ScopeSeg({
+  value,
+  label,
+  count,
+  active,
+  onPick,
+}: {
+  value: Scope;
+  label: string;
+  count: number;
+  active: boolean;
+  onPick: (next: Scope) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={() => onPick(value)}
+      className="relative inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-bold transition-colors"
+      style={
+        active
+          ? {
+              background:
+                "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
+              color: "#fff",
+              boxShadow: "0 6px 14px -8px var(--color-altus-red-deep)",
+            }
+          : { color: "var(--color-ink-muted)" }
+      }
+    >
+      {label}
+      <span
+        className="tabular-nums font-mono"
+        style={{ fontSize: 11, opacity: active ? 0.75 : 0.6 }}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Project | Milestone | Results — the breakdown's level switcher, styled as
+ * the segmented red pill this app already uses for Personal/Professional.
+ * Picking a level narrows the tree below to exactly that level instead of the
+ * full four-deep nest.
+ */
+function ScopeTabs({
+  scope,
+  onPick,
+  counts,
+}: {
+  scope: Scope;
+  onPick: (next: Scope) => void;
+  counts: Record<Scope, number>;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Breakdown level"
+      className="inline-flex items-center gap-1 rounded-full p-1"
+      style={{
+        background: "var(--color-surface-soft)",
+        border: "1px solid var(--color-hairline-strong)",
+      }}
+    >
+      {SCOPES.map((s) => (
+        <ScopeSeg
+          key={s.value}
+          value={s.value}
+          label={s.label}
+          count={counts[s.value]}
+          active={scope === s.value}
+          onPick={onPick}
+        />
+      ))}
+    </div>
+  );
+}
+
 function ProjectDetail({ project }: { project: ProjectTreeNode }) {
   const milestones = project.children.length;
   const results = countByKind(project, "result");
   const allActions = countByKind(project, "action") + countByKind(project, "sub_action");
   const linked = totalActions(project);
+
+  // Which level of the breakdown is on screen. "project" is the old behaviour
+  // — the whole nest — and the other two flatten to one level.
+  const [scope, setScope] = React.useState<Scope>("project");
+
+  // Results live one level under a milestone (CHILD_KIND), so the Results
+  // scope groups them by their milestone. Grouping is not cosmetic: each
+  // NodeList reorders by writing sortOrder across the ids it holds, so a list
+  // must never mix children of different parents.
+  const resultGroups = React.useMemo(
+    () =>
+      project.children.map((m) => ({
+        milestone: m,
+        results: m.children.filter((c) => c.kind === "result"),
+      })),
+    [project],
+  );
+
+  const counts: Record<Scope, number> = {
+    project: milestones + results + allActions + countByKind(project, "sub_sub_action"),
+    milestone: milestones,
+    result: results,
+  };
 
   return (
     <article
@@ -435,25 +598,20 @@ function ProjectDetail({ project }: { project: ProjectTreeNode }) {
           />
         </div>
 
-        {/* Section eyebrow */}
-        <div
-          className="text-ink-subtle mb-5 flex items-center gap-2 pb-3 border-b border-hairline"
-          style={{
-            fontSize: 11.5,
-            fontWeight: 700,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-          }}
-        >
-          Breakdown
-          <span className="text-ink-subtle tabular-nums font-mono ml-auto" style={{ fontSize: 12 }}>
+        {/* Section eyebrow — the level switcher, plus what it will show. */}
+        <div className="mb-5 flex items-center gap-3 flex-wrap pb-3 border-b border-hairline">
+          <ScopeTabs scope={scope} onPick={setScope} counts={counts} />
+          <span
+            className="text-ink-subtle tabular-nums font-mono ml-auto"
+            style={{ fontSize: 12 }}
+          >
             {project.children.length === 0
               ? "Empty"
               : `${milestones} · ${results} · ${allActions}`}
           </span>
         </div>
 
-        {/* Tree body */}
+        {/* Tree body — one of three levels, per the tabs above. */}
         <div>
           {project.children.length === 0 ? (
             <div
@@ -486,18 +644,58 @@ function ProjectDetail({ project }: { project: ProjectTreeNode }) {
                 />
               </div>
             </div>
+          ) : scope === "result" ? (
+            /* Results — every result in the project, kept under the milestone
+               it belongs to so the reorder writes stay within one parent. */
+            <div className="flex flex-col gap-7">
+              {resultGroups.map((g) => (
+                <section key={g.milestone.id}>
+                  <div
+                    className="text-ink-subtle flex items-center gap-2"
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    <Layers size={12} strokeWidth={2.4} />
+                    <span className="truncate">{g.milestone.name}</span>
+                    <span className="tabular-nums font-mono ml-auto" style={{ fontSize: 11 }}>
+                      {pluralize(g.results.length, "result")}
+                    </span>
+                  </div>
+                  <MaxDepthContext.Provider value={1}>
+                    <NodeList
+                      nodes={g.results}
+                      depth={1}
+                      addButton={
+                        <AddChildButton
+                          kind="result"
+                          parentId={g.milestone.id}
+                          label="Add result"
+                        />
+                      }
+                    />
+                  </MaxDepthContext.Provider>
+                </section>
+              ))}
+            </div>
           ) : (
-            <NodeList
-              nodes={project.children}
-              depth={0}
-              addButton={
-                <AddChildButton
-                  kind="milestone"
-                  parentId={project.id}
-                  label="Add Milestone"
-                />
-              }
-            />
+            /* Project — the full nest. Milestone — the top level only. */
+            <MaxDepthContext.Provider value={scope === "milestone" ? 0 : null}>
+              <NodeList
+                nodes={project.children}
+                depth={0}
+                addButton={
+                  <AddChildButton
+                    kind="milestone"
+                    parentId={project.id}
+                    label="Add Milestone"
+                  />
+                }
+              />
+            </MaxDepthContext.Provider>
           )}
         </div>
       </div>
@@ -734,7 +932,11 @@ function TreeNode({
   dnd: Dnd;
 }) {
   const canManage = useCanManage();
+  const maxDepth = React.useContext(MaxDepthContext);
   const childKind = CHILD_KIND[node.kind];
+  // In a capped scope this row is the last level shown, so its subtree (and
+  // the add-child button that would grow one) stays folded away.
+  const expandable = maxDepth === null || depth < maxDepth;
   const hasChildren = node.children.length > 0;
   const linked = node.actionCount;
   const [showDetails, setShowDetails] = React.useState(false);
@@ -821,7 +1023,7 @@ function TreeNode({
         </div>
       )}
 
-      {(hasChildren || childKind) && (
+      {expandable && (hasChildren || childKind) && (
         <NodeList
           nodes={node.children}
           depth={depth + 1}
@@ -1272,8 +1474,8 @@ function DeleteNodeDialog({
               </Dialog.Title>
               <Dialog.Description className="text-[14px] text-ink-subtle mt-1" style={{ lineHeight: 1.5 }}>
                 {step === 1
-                  ? "Step 1 of 2 — review what will be removed."
-                  : "Step 2 of 2 — confirm to finish."}
+                  ? "Step 1 of 2 - review what will be removed."
+                  : "Step 2 of 2 - confirm to finish."}
               </Dialog.Description>
             </div>
           </div>
@@ -1297,7 +1499,7 @@ function DeleteNodeDialog({
                       {descendants > 0 ? ` (${descendants} direct child${descendants === 1 ? "" : "ren"})` : ""}.
                     </li>
                   )}
-                  <li>• Linked tasks are <strong>kept</strong> — just unlinked from this project.</li>
+                  <li>• Linked tasks are <strong>kept</strong> - just unlinked from this project.</li>
                   <li>• This <strong>cannot be undone</strong>. Prefer Archive if unsure.</li>
                 </ul>
               </div>
@@ -1514,7 +1716,7 @@ function OwnerPicker({
               ? node.ownerName.split(" ")[0]
               : node.ownerName
             : compact
-              ? "—"
+              ? "-"
               : "No owner"}
         </span>
       </div>
@@ -1641,7 +1843,7 @@ function MembersPicker({ node }: { node: ProjectTreeNode }) {
         <FieldLabel icon={<Users size={12} strokeWidth={2.2} />}>Team</FieldLabel>
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
           {node.members.length === 0 ? (
-            <span className="text-[13.5px] text-ink-muted">—</span>
+            <span className="text-[13.5px] text-ink-muted">-</span>
           ) : (
             node.members.map((m) => (
               <span
@@ -1653,7 +1855,7 @@ function MembersPicker({ node }: { node: ProjectTreeNode }) {
                   border: "1px solid color-mix(in srgb, var(--color-blue) 28%, transparent)",
                 }}
               >
-                {m.name ?? "—"}
+                {m.name ?? "-"}
               </span>
             ))
           )}
@@ -1692,7 +1894,7 @@ function MembersPicker({ node }: { node: ProjectTreeNode }) {
               border: "1px solid color-mix(in srgb, var(--color-blue) 28%, transparent)",
             }}
           >
-            {m.name ?? "—"}
+            {m.name ?? "-"}
             <button
               type="button"
               onClick={() => toggle(m.id)}
@@ -1817,7 +2019,7 @@ function TargetDateEditor({ node }: { node: ProjectTreeNode }) {
               : "var(--color-ink-muted)",
           }}
         >
-          {node.targetDate ? fmtDate(node.targetDate) : "—"}
+          {node.targetDate ? fmtDate(node.targetDate) : "-"}
         </span>
       </div>
     );
@@ -1956,7 +2158,7 @@ function AddChildButton({
   parentId,
   label,
 }: {
-  kind: NodeKind;
+  kind: CreatableKind;
   parentId: string | null;
   label: string;
 }) {
@@ -2252,7 +2454,7 @@ function EmptyState() {
       </p>
       <p className="text-[14px] text-ink-subtle mt-3 max-w-sm mx-auto leading-relaxed">
         A project is the rough shape of an outcome. Break it down into
-        milestones, results, and concrete actions — then link tasks to any
+        milestones, results, and concrete actions - then link tasks to any
         node from the task's form.
       </p>
       <div className="mt-7 flex justify-center">

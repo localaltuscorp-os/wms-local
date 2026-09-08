@@ -32,7 +32,7 @@ function Ring({ pct }: { pct: number }) {
 function Chip({ on, label, icon }: { on: boolean | null; label: string; icon: React.ReactNode }) {
   if (on === null) return null;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-bold" style={on ? { background: "color-mix(in srgb, var(--color-green) 15%, transparent)", color: "var(--color-green-deep)" } : { background: "var(--color-surface-track)", color: "var(--color-ink-subtle)" }}>
+    <span className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[12px] font-bold" style={on ? { background: "color-mix(in srgb, var(--color-green) 15%, transparent)", color: "var(--color-green-deep)" } : { background: "var(--color-surface-track)", color: "var(--color-ink-subtle)" }}>
       {on ? <Check size={12} strokeWidth={3} /> : icon} {label}
     </span>
   );
@@ -67,7 +67,7 @@ export function InductionProgress({ items }: { items: InductionItem[] }) {
             </span>
             <div className="min-w-0 flex-1">
               <div className="truncate font-semibold text-ink-strong" style={{ fontSize: 15.5 }}>{it.fileName || (it.videoUrl ? "Video material" : it.subject || "Material")}</div>
-              <div className="text-[13px] font-medium text-ink-subtle">{[it.subject, it.los].filter(Boolean).join(" · ") || "—"}</div>
+              <div className="text-[13px] font-medium text-ink-subtle">{[it.subject, it.los].filter(Boolean).join(" · ") || "-"}</div>
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-end">
               <Chip on={it.watched} label="Watched" icon={<Eye size={12} />} />

@@ -88,7 +88,13 @@ export async function getPunctualityDrilldown(
     if (!parsed.success) return { error: "Invalid input" };
 
     const sp = Object.fromEntries(new URLSearchParams(parsed.data.search).entries());
-    return await loadPunctualityDrilldown(parseFilters(sp), parsed.data.basis, parsed.data.bucket);
+    // Same viewer default as the page, or the drawer would list the whole
+    // company's tasks under a gauge that is showing only yours.
+    return await loadPunctualityDrilldown(
+      parseFilters(sp, { defaultEmployeeId: me.id }),
+      parsed.data.basis,
+      parsed.data.bucket,
+    );
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load drill-down" };
   }

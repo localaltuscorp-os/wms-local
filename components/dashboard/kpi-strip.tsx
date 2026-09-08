@@ -137,7 +137,7 @@ export function KpiStrip({
         title="Task Summary"
         subtitle={
           <>
-            <span className="font-semibold tabular-nums text-gray-900">
+            <span className="font-semibold tabular-nums">
               {headline.toLocaleString()}
             </span>{" "}
             {headline === 1 ? "task" : "tasks"} in the current filter
@@ -230,8 +230,11 @@ export function KpiStrip({
                   <Link
                     href={item.href}
                     className="group/link min-w-0 flex-1 outline-none"
-                    aria-label={`${item.label} — view tasks`}
+                    aria-label={`${item.label} - view tasks`}
                   >
+                    {/* minHeight survives the class rewrite: it is what keeps a
+                        wrapping label ("NOT APPROVED") from pushing its number
+                        down a line while its neighbours' numbers stay put. */}
                     {/* minHeight survives the class rewrite: it is what keeps a
                         wrapping label ("NOT APPROVED") from pushing its number
                         down a line while its neighbours' numbers stay put. */}
@@ -276,7 +279,7 @@ export function KpiStrip({
                     // saturated fill; on a `-50` tint it is invisible, so the
                     // badge takes `-100` with `-700` type and the open state
                     // steps to `-200`/`-900`.
-                    className={`inline-flex shrink-0 items-center justify-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.04em] ${
+                    className={`inline-flex shrink-0 items-center justify-center rounded-pill px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.04em] ${
                       isOpen ? t.badgeActive : t.badge
                     }`}
                   >

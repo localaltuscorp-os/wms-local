@@ -152,7 +152,7 @@ export function AgingTaskDrawer({
               </p>
             )}
           </div>
-          <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-[12px] font-bold tabular-nums text-gray-700">
+          <span className="shrink-0 rounded-pill bg-gray-100 px-2.5 py-1 text-[12px] font-bold tabular-nums text-gray-700">
             {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
           </span>
           <button
@@ -316,10 +316,10 @@ export function AgingTaskDrawer({
                           which is exactly the case worth surfacing here. */}
                       <td className="whitespace-nowrap px-4 py-3">
                         <span className="text-[12px] font-medium tabular-nums text-gray-600">
-                          {t.dueAt ? formatDate(t.dueAt) : "—"}
+                          {t.dueAt ? formatDate(t.dueAt) : "-"}
                         </span>
                         <span
-                          className={`ml-2 rounded-full border px-1.5 py-0.5 text-[10.5px] font-bold tabular-nums ${ageTone(t.ageDays)}`}
+                          className={`ml-2 rounded-pill border px-1.5 py-0.5 text-[10.5px] font-bold tabular-nums ${ageTone(t.ageDays)}`}
                         >
                           {t.ageDays}d
                         </span>
@@ -338,7 +338,7 @@ export function AgingTaskDrawer({
                       {/* Priority */}
                       <td className="whitespace-nowrap px-4 py-3">
                         <span
-                          className={`rounded-full border px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide ${prioTone}`}
+                          className={`rounded-pill border px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide ${prioTone}`}
                         >
                           {prioLabel}
                         </span>
@@ -405,7 +405,7 @@ export function AgingTaskDrawer({
 }
 
 function Person({ name, avatarUrl }: { name: string | null; avatarUrl: string | null }) {
-  if (!name) return <span className="text-[12px] text-gray-400">—</span>;
+  if (!name) return <span className="text-[12px] text-gray-400">-</span>;
   return (
     <span className="inline-flex items-center gap-1.5">
       <Avatar name={name} avatarUrl={avatarUrl} size={20} />
