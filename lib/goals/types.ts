@@ -116,6 +116,28 @@ export function shiftQuarterKey(periodKey: string, delta: number): string {
 }
 
 /**
+ * Step a month key by `delta` CALENDAR months, rolling the year over.
+ * '2026-12' +1 -> '2027-01'; '2026-01' -1 -> '2025-12'.
+ *
+ * The twin of `shiftQuarterKey`, and deliberately the SIMPLER of the two: a
+ * month key is a plain calendar 'YYYY-MM', so this counts absolute months and
+ * knows nothing about financial years. Which FY a stepped month lands in is
+ * `fyStartYearOfMonthKey`'s job, not this one's -- keeping the two apart is
+ * what lets a caller walk from March into April and have the FY change fall
+ * out of the key rather than being encoded here a second time.
+ *
+ * Floor-division for the same reason as `shiftQuarterKey`: JS `%` keeps the
+ * dividend's sign, which would yield month 0 or a negative index walking back.
+ */
+export function shiftMonthKey(monthKeyStr: string, delta: number): string {
+  const absolute =
+    Number(monthKeyStr.slice(0, 4)) * 12 + (Number(monthKeyStr.slice(5, 7)) - 1) + delta;
+  const year = Math.floor(absolute / 12);
+  const month = absolute - year * 12 + 1;
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+/**
  * The Quarterly board's ROLLING WINDOW: `anchorKey` plus the next `size - 1`
  * quarters, crossing the financial-year boundary wherever it falls.
  *

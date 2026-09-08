@@ -21,7 +21,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * a finished task cannot be overdue, it is finished — including one delivered
  * late, which the Age column already records. `not_approved` IS live: a
  * sent-back task is waiting on the doer, and it is the whole point of the
- * "Sent-back work, by person" drill-through.
+ * "Sent-Back Work, by Person" drill-through.
  */
 const AGE_TERMINAL: readonly string[] = ["done", "approved", "cancelled", "transferred"];
 

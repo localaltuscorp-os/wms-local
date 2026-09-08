@@ -213,7 +213,7 @@ export function GoalLookupSelect({
             "group/gdd flex w-full items-center justify-between text-left text-ink-strong",
             compact
               ? cn(
-                  "h-5 gap-0.5 rounded-md px-0.5 text-[11px] font-semibold transition-colors hover:bg-[color-mix(in_srgb,var(--color-altus-red)_7%,transparent)] data-[state=open]:bg-[color-mix(in_srgb,var(--color-altus-red)_9%,transparent)]",
+                  "h-7 gap-1 rounded-md px-1.5 text-[12.5px] font-semibold transition-colors hover:bg-[color-mix(in_srgb,var(--color-altus-red)_7%,transparent)] data-[state=open]:bg-[color-mix(in_srgb,var(--color-altus-red)_9%,transparent)]",
                   FOCUS_RING,
                 )
               : "gdd-trigger h-10 gap-1.5 rounded-xl px-3 text-[14px] font-semibold",

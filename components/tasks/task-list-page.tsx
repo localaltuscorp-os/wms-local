@@ -332,14 +332,10 @@ export function TaskListPage({
       <header className="wg-rise relative mb-3 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-x-4 gap-y-2 flex-wrap min-w-0">
           <h1
-            className="text-ink-strong shrink-0"
-            style={{
-              fontFamily: "var(--font-display), system-ui, sans-serif",
-              fontWeight: 900,
-              fontSize: "clamp(20px, 1.8vw, 25px)",
-              letterSpacing: "-0.028em",
-              lineHeight: 1,
-            }}
+            /* `page-heading` (app/globals.css) — the rail's wordmark type and
+               its sheen, shared rather than restated. The ramp that used to sit
+               inline here travelled into that class unchanged. */
+            className="page-heading shrink-0"
           >
             {title}
           </h1>

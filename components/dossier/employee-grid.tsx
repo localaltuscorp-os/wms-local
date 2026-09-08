@@ -7,6 +7,7 @@ import { Search, FolderOpen, FileText } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import type { DossierEmployeeCard } from "@/lib/queries/dossier";
 import { formatDate } from "@/lib/format";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 function fmtDate(iso: string | null): string | null {
   if (!iso) return null;
@@ -26,6 +27,7 @@ export function EmployeeGrid({ employees }: { employees: DossierEmployeeCard[] }
   return (
     <div className="flex flex-col gap-4">
       {/* search */}
+      <CollapsibleSearch scope="a person">
       <div className="relative max-w-[420px]">
         <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-subtle" />
         <input
@@ -36,6 +38,7 @@ export function EmployeeGrid({ employees }: { employees: DossierEmployeeCard[] }
           style={{ boxShadow: "0 6px 20px -16px rgba(15,23,42,0.4)" }}
         />
       </div>
+      </CollapsibleSearch>
 
       <div className="grid grid-cols-3 gap-4 max-lg:grid-cols-2 max-sm:grid-cols-1">
         {filtered.map((e, i) => (

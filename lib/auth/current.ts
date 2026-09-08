@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, type Employee } from "@/db/schema";
 import { readSession } from "@/lib/auth/session";
+import { localSessionEnabled, localSessionEmployee } from "@/lib/auth/local-session";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { devAuthBypassEnabled, DEV_BYPASS_EMPLOYEE } from "@/lib/auth/dev-bypass";
 import { isAttendanceAdmin } from "@/lib/auth/attendance-permissions";
@@ -53,6 +54,12 @@ export const getCurrentEmployee = cache(async (): Promise<Employee | null> => {
   // a configured Firebase project or a live Supabase connection. See
   // lib/auth/dev-bypass.ts.
   if (devAuthBypassEnabled()) return DEV_BYPASS_EMPLOYEE;
+
+  // Local no-login mode (DISABLE_AUTH=true, dev machines only — see
+  // localSessionEnabled). Resolves a REAL employee row instead of verifying a
+  // session cookie; every downstream query then runs against real data exactly
+  // as it would for that signed-in person.
+  if (localSessionEnabled()) return await localSessionEmployee();
 
   const claims = await readSession();
   if (!claims) return null;

@@ -5,6 +5,7 @@ import { CalendarCheck } from "lucide-react";
 import type { DoneOnTime } from "@/lib/types";
 import { Gauge } from "./viz/gauge";
 import { DashboardSectionHeader } from "@/components/dashboard/section-header";
+import { SectionIcon } from "@/components/dashboard/section-icon";
 import { SectionDispatch } from "@/components/dashboard/section-dispatch";
 import type { SectionReport } from "@/lib/reports/section-report";
 import {
@@ -69,6 +70,9 @@ export function OnTimeGauge({ data }: { data: DoneOnTime }) {
   const buildReport = React.useCallback((): SectionReport => {
     const rate = active.dated > 0 ? Math.round((active.onTime / active.dated) * 100) : 0;
     return {
+      // Matches the on-screen section header below, character for character.
+      // An export titled differently from the card it came from reads as a
+      // different report.
       title: "Delivered on Time",
       subtitle: "Completed tasks delivered on or before the due date",
       meta: [{ label: "Basis", value: BASIS === "revised" ? "Revised due date" : "Original due date" }],
@@ -91,31 +95,31 @@ export function OnTimeGauge({ data }: { data: DoneOnTime }) {
     <div className="flex min-w-0 flex-col">
       {/* Header ABOVE this card — see components/dashboard/section-header.tsx. */}
       <DashboardSectionHeader
-        icon={
-          <span
-            className="inline-flex size-9 items-center justify-center rounded-full"
-            style={{
-              background: "color-mix(in srgb, var(--color-altus-red) 12%, transparent)",
-              color: "var(--color-altus-red)",
-            }}
-          >
-            <CalendarCheck size={18} strokeWidth={2.4} />
-          </span>
-        }
-        title="Delivered on time"
-        subtitle="Completed tasks delivered on or before the due date - pick a card to break it down."
+        /* THE SHARED BADGE. This was the genuinely last hand-rolled one — a
+           near-copy of SectionIcon's red tone that had drifted in two ways it
+           is easy to miss: no `border`, so it was the one badge on the page
+           without the faint ring every other badge carries, and no `shrink-0`,
+           so a long title could squeeze it out of round. Same size and shape
+           as the rest, which is why the title lined up and only the badge
+           itself looked a shade lighter than its neighbours. */
+        icon={<SectionIcon icon={CalendarCheck} tone="red" />}
+        title="Delivered on Time"
+        subtitle="Completed tasks delivered on or before the due date — pick a card to break it down."
         /* Collapse only. The Original/Revised segmented toggle that used to sit
            to its left is gone — see BASIS above. */
         actions={
           <>
-          {/* Left of the share icons, per the house order: narrow the set, then
-              send what is left. */}
+          {/* SHARE ICONS FIRST, THEN THE SEARCH BOX. The comment here used to
+              claim the opposite was "the house order" — it was not: six of the
+              eight toolbars put SectionDispatch first, and only this section and
+              People To Pull Up inverted it, so their toolbars began with an
+              input where every other row began with the same pair of icons. */}
+          <SectionDispatch report={buildReport} />
           <SectionSearchBox
             query={query}
             onQuery={setQuery}
             placeholder="Search task or assignee..."
           />
-          <SectionDispatch report={buildReport} />
           <CollapseToggle
             expanded={sectionOpen}
             onToggle={() => setSectionOpen((v) => !v)}

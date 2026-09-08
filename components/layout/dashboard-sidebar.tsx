@@ -79,7 +79,14 @@ export async function DashboardSidebar() {
         <div className="sidebar-toprow flex items-center gap-2">
           <div className="sidebar-collapsible-hide flex min-w-0 flex-1 items-center gap-2">
             <NavHistoryButtons />
-            <SidebarSearch />
+            {/* PHONES ONLY. Global search now lives in the top bar's right-hand
+                cluster, beside the + — but that bar is `max-md:hidden`, so on a
+                phone this rail is the only place it can live. Rendering it in
+                both on desktop put two identical magnifiers on the same screen,
+                which is the ambiguity the top bar exists to remove. */}
+            <span className="md:hidden">
+              <SidebarSearch />
+            </span>
           </div>
           <SidebarToggle />
         </div>

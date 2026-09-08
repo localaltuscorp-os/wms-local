@@ -47,6 +47,7 @@ import {
   type KpiAssignmentDTO,
   type KpiHistoryDTO,
 } from "@/app/(app)/hr/kpi/actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
@@ -293,6 +294,7 @@ function EmployeePicker({
       </button>
       {open && (
         <div className="absolute z-40 mt-2 w-full overflow-hidden rounded-xl border border-hairline bg-white shadow-xl">
+          <CollapsibleSearch scope="people">
           <div className="flex items-center gap-2 border-b border-hairline px-3 py-2">
             <Search size={15} className="text-ink-soft" />
             <input
@@ -303,6 +305,7 @@ function EmployeePicker({
               className="w-full bg-transparent text-[13.5px] font-medium outline-none placeholder:text-ink-soft"
             />
           </div>
+          </CollapsibleSearch>
           <div className="max-h-[280px] overflow-y-auto py-1">
             {filtered.length === 0 ? (
               <div className="px-4 py-3 text-[13px] text-ink-soft">No matches.</div>

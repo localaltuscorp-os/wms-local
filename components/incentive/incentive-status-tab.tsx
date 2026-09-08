@@ -12,6 +12,7 @@ import type {
 import { IncentiveStatusReport } from "./incentive-status-report";
 import { IncentiveStatusEditor } from "./incentive-status-editor";
 import { IncentiveTeamSplit } from "./incentive-team-split";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const GREEN = "#16a34a";
 const GREEN_DEEP = "#15803d";
@@ -89,6 +90,7 @@ export function IncentiveStatusTab({
                 </p>
               </div>
             </div>
+            <CollapsibleSearch scope="incentive or person">
             <label
               className="flex h-10 w-full max-w-[260px] items-center gap-2 rounded-xl bg-surface-card px-3.5"
               style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
@@ -102,6 +104,7 @@ export function IncentiveStatusTab({
                 className="w-full bg-transparent text-[14px] font-semibold text-ink-strong outline-none placeholder:text-ink-subtle"
               />
             </label>
+            </CollapsibleSearch>
           </header>
 
           {entries.length === 0 ? (

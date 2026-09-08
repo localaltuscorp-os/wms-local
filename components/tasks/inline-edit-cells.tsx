@@ -3,10 +3,9 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import * as Popover from "@radix-ui/react-popover";
-import { ChevronDown, Check, Loader2, Search } from "lucide-react";
+import { ChevronDown, Check, Flame, Loader2, Search } from "lucide-react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { formatDate } from "@/lib/format";
-import { CriticalBadge } from "@/components/ui/critical-badge";
 import { fireToast } from "@/lib/toast";
 import { scheduleReconcile } from "@/lib/client/reconcile";
 import {
@@ -91,6 +90,71 @@ const PRIORITY_TONE: Record<TaskPriority, { bg: string; fg: string; ring: string
   imp_not_urgent: { bg: "#E9F7EF", fg: "#15803D", ring: "#22C55E" }, // Important → green
   not_imp_not_urgent: { bg: "#EAF2FE", fg: "#1D4ED8", ring: "#3B82F6" }, // Normal → blue
 };
+
+/* ── THE PRIORITY BADGE ───────────────────────────────────────────────────
+   Same shell, same width and the same internal layout as the Doer Status chip
+   next door (see inline-status-cell.tsx: BADGE_WIDTH / BADGE_SHELL /
+   BADGE_LABEL). Two adjacent columns of clickable chips that sized themselves
+   to their own text made the priority column ragged — CRITICAL, URGENT,
+   IMPORTANT and NORMAL are four different lengths, so no two rows lined up and
+   the chevrons landed wherever the word ended.
+
+   140px is Doer Status's width, reused deliberately rather than tuned to the
+   longest priority word: the point is that the two columns read as the same
+   kind of control.
+
+   `flex-1 text-center` on the label is what does the real work — it takes the
+   leftover space and centres the word inside it, which pins the dot to the
+   left padding and the chevron to the right one at EVERY label length. */
+const PRIORITY_BADGE =
+  "inline-flex items-center justify-center gap-1.5 min-w-[140px] px-3 py-1.5 rounded-pill whitespace-nowrap";
+const PRIORITY_BADGE_TEXT = {
+  fontFamily: "var(--font-sans)",
+  fontSize: 11,
+  fontWeight: 700,
+  lineHeight: 1,
+  letterSpacing: "0.04em",
+  textTransform: "uppercase",
+} as const;
+
+function PriorityBadge({
+  priority,
+  trailing,
+}: {
+  priority: TaskPriority;
+  /** The chevron, the spinner, or the spacer that stands in for them. */
+  trailing?: React.ReactNode;
+}) {
+  const tone = PRIORITY_TONE[priority];
+  const critical = priority === "imp_urgent";
+  return (
+    <span
+      className={PRIORITY_BADGE}
+      style={{
+        background: tone.bg,
+        color: tone.fg,
+        border: `1px solid color-mix(in srgb, ${tone.ring} 30%, transparent)`,
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35)",
+        ...PRIORITY_BADGE_TEXT,
+      }}
+    >
+      {/* Critical keeps its flame; everything else takes the status chip's dot,
+          so all four occupy the same leading slot and the words start on one
+          vertical line. */}
+      {critical ? (
+        <Flame size={11} strokeWidth={2.4} className="shrink-0" />
+      ) : (
+        <span
+          aria-hidden
+          className="inline-block size-1.5 rounded-full shrink-0"
+          style={{ background: tone.ring }}
+        />
+      )}
+      <span className="flex-1 text-center">{PRIORITY_LABELS[priority]}</span>
+      {trailing ?? <span aria-hidden className="w-3 shrink-0" />}
+    </span>
+  );
+}
 
 export function PriorityPill({ priority }: { priority: TaskPriority }) {
   const tone = PRIORITY_TONE[priority];
@@ -293,8 +357,10 @@ export function InlinePriorityCell({
   const [shown, setShown] = React.useState<TaskPriority>(priority);
   React.useEffect(() => setShown(priority), [priority]);
 
-  const chip = shown === "imp_urgent" ? <CriticalBadge /> : <PriorityPill priority={shown} />;
-  if (!editable) return chip;
+  // Read-only rows get the SAME badge, spacer and all — the two render side by
+  // side in one column, so a non-editable row must centre its word on the same
+  // axis as an editable one.
+  if (!editable) return <PriorityBadge priority={shown} />;
 
   async function pick(p: TaskPriority) {
     setOpen(false);
@@ -323,16 +389,30 @@ export function InlinePriorityCell({
           type="button"
           onClick={(e) => e.stopPropagation()}
           disabled={pending}
-          className="inline-flex items-center gap-1.5 rounded-pill px-1.5 py-1 -mx-1.5 hover:bg-surface-soft transition-colors"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-label={`Priority: ${PRIORITY_LABELS[shown]}. Click to change.`}
+          className="transition-all hover:brightness-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40 rounded-pill"
           style={{ cursor: pending ? "wait" : "pointer", opacity: pending ? 0.7 : 1 }}
-          aria-label="Change priority"
         >
-          {chip}
-          {pending ? (
-            <Loader2 size={12} className="shrink-0" style={{ animation: "spinFast 0.8s linear infinite" }} />
-          ) : (
-            <ChevronDown size={12} strokeWidth={2.6} className="shrink-0 text-ink-subtle" />
-          )}
+          {/* The badge IS the button — the chip no longer floats inside a
+              wider invisible hit area, which is what let the outline sit
+              off-centre around it. Both markers are 12px and `shrink-0`, so
+              swapping the chevron for the spinner never re-centres the word. */}
+          <PriorityBadge
+            priority={shown}
+            trailing={
+              pending ? (
+                <Loader2
+                  size={12}
+                  className="shrink-0"
+                  style={{ animation: "spinFast 0.8s linear infinite" }}
+                />
+              ) : (
+                <ChevronDown size={12} strokeWidth={2.6} className="shrink-0 opacity-70" />
+              )
+            }
+          />
         </button>
       </Popover.Trigger>
       <Popover.Portal>

@@ -2,10 +2,10 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { cookies, headers } from "next/headers";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { mobileDevices } from "@/db/schema";
-import type { DeviceRejectReason } from "./mobile-devices";
+import { MAX_DEVICES_PER_EMPLOYEE, type DeviceRejectReason } from "./mobile-devices";
 
 /**
  * THE LAPTOP HALF of the device allowlist.
@@ -34,11 +34,11 @@ import type { DeviceRejectReason } from "./mobile-devices";
  * registered laptop yet. So the FIRST browser each person punches from is
  * adopted as their approved laptop — exactly how the phone allowlist rolled out
  * (its migration grandfathered every existing device to 'approved'). The window
- * closes per-person the moment it is used: once someone holds an approved
- * laptop, a second browser lands 'pending' and is refused until an attendance
- * administrator approves it. Clearing cookies after that point does NOT hand out
- * a fresh laptop — it produces a pending registration, which is the same answer
- * a colleague's browser gets.
+ * closes per-person the moment the slots fill: once someone holds their two
+ * approved devices, a further browser lands 'pending' and is refused until an
+ * attendance administrator approves it. Clearing cookies after that point does
+ * NOT hand out a fresh device — it produces a pending registration, which is the
+ * same answer a colleague's browser gets.
  */
 
 /** Long-lived, httpOnly. Names a device; never authenticates a person. */
@@ -59,11 +59,11 @@ export async function resolveWebDevice(employeeId: string): Promise<WebDeviceRes
   const jar = await cookies();
   const existingId = jar.get(COOKIE)?.value?.trim();
 
-  // Which WEB slot this browser fills. A person may hold ONE approved desktop-web
-  // device AND ONE approved mobile-web device — the schema's one-approved-per-kind
-  // rule, mapped desktop→laptop and mobile/Android→phone — so a laptop browser and
-  // an Android browser no longer fight over a single slot. The user-agent is the
-  // only signal a browser offers; it is descriptive, never a credential.
+  // What KIND of device this browser is, mapped desktop→laptop and
+  // mobile/Android→phone. Since 0214 this is DESCRIPTIVE ONLY: a person holds two
+  // device slots and either kind may fill either one, so this decides the label,
+  // not whether the registration is allowed. The user-agent is the only signal a
+  // browser offers; it is descriptive, never a credential.
   const ua = (await headers()).get("user-agent") ?? "";
   const isAndroid = /android/i.test(ua);
   const isMobileWeb =
@@ -111,17 +111,19 @@ export async function resolveWebDevice(employeeId: string): Promise<WebDeviceRes
 
   const deviceId = existingId || `web_${randomUUID()}`;
 
-  // Does this employee already have their one approved device of THIS web slot
-  // (desktop-web = laptop, mobile-web = phone)? If not, adopt this one.
-  const approvedOfKind = await db.query.mobileDevices.findFirst({
-    where: and(
-      eq(mobileDevices.employeeId, employeeId),
-      eq(mobileDevices.kind, kind),
-      eq(mobileDevices.status, "approved"),
-    ),
-  });
+  // Has this employee filled both device slots yet? If not, adopt this browser
+  // into a free one. Counted as a TOTAL across kinds (0214) — the slots are no
+  // longer one-laptop-one-phone, so a second desktop browser is as legitimate a
+  // second device as a phone is, and asking "do they have an approved laptop"
+  // would refuse it for the wrong reason.
+  const [approvedNow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(mobileDevices)
+    .where(
+      and(eq(mobileDevices.employeeId, employeeId), eq(mobileDevices.status, "approved")),
+    );
 
-  const grandfathered = !approvedOfKind;
+  const grandfathered = (approvedNow?.n ?? 0) < MAX_DEVICES_PER_EMPLOYEE;
   try {
     await db.insert(mobileDevices).values({
       employeeId,

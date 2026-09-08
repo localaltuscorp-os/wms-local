@@ -22,6 +22,7 @@
     "db:migrate:ci:dry": "tsx scripts/apply-all-migrations.ts",
     "db:studio": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs studio",
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "seed:dummy": "tsx --env-file=.env.local scripts/seed-dummy.ts",
     "seed:reset": "tsx --env-file=.env.local scripts/seed-reset.ts",
     "seed:firebase": "tsx --env-file=.env.local scripts/seed-firebase.ts",
     "sync:departments": "tsx --env-file=.env.local scripts/sync-departments.ts",

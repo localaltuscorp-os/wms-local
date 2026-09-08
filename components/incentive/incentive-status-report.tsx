@@ -9,6 +9,7 @@ import type {
   StatusTotals,
   StatusWindow,
 } from "@/lib/queries/incentive-status";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const GREEN = "#16a34a";
 const GREEN_DEEP = "#15803d";
@@ -192,14 +193,18 @@ function PersonTable({ report }: { report: IncentiveStatusReport }) {
             Target vs Booked · Accrued · Paid - the <b>Attain</b> column is Paid ÷ Target (what PMS reads).
           </p>
         </div>
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Local search - person" title="Local search - filters only the list on this page" aria-label="Local search - person - this page only"
-          className="h-10 w-full max-w-[240px] rounded-xl bg-surface-card px-3.5 text-[14px] font-semibold text-ink-strong outline-none placeholder:text-ink-subtle"
-          style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
-        />
+        {/* No icon and no wrapper on this one — it is a bare input, so the
+            collapsed state is the only magnifier it has ever had. */}
+        <CollapsibleSearch scope="person">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Local search — person" title="Local search — filters only the list on this page" aria-label="Local search — person — this page only"
+            className="h-10 w-full max-w-[240px] rounded-xl bg-surface-card px-3.5 text-[14px] font-semibold text-ink-strong outline-none placeholder:text-ink-subtle"
+            style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
+          />
+        </CollapsibleSearch>
       </header>
 
       {report.perPersonYtd.length === 0 ? (

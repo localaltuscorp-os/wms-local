@@ -25,19 +25,32 @@ import { deriveHealth, rollupPct, expectedPct, asNum, type DerivedHealth } from 
 import { GOAL_TYPE_LABELS, type GoalType } from "@/db/enums";
 import { quartersOfFy, type GoalPeriod } from "@/lib/goals/types";
 
-/* ── Semantic status hexes (mirror lib/goals/derive HEALTH_STYLE) ──────── */
-export const GREEN = "#15803d"; // done / healthy
-export const GREEN_BRIGHT = "#16a34a"; // ahead of pace
-export const AMBER = "#b45309"; // on-track (slightly behind, within tolerance)
-export const RED = "#b91c1c"; // at-risk / behind pace
-export const RED_DEEP = "#7f1d1d"; // overdue (past target date)
-export const ROSE = "#9f1239"; // spillover (carried + incomplete)
-export const SLATE = "#475569"; // self / neutral
-export const BLUE = "#1d4ed8"; // delegated / structural
-export const YELLOW = "#ca8a04"; // caution accent (distinct from AMBER)
-export const ORANGE = "#c2410c"; // warm accent, e.g. money / secondary measures
-export const PURPLE = "#7c3aed"; // structural accent, e.g. cascade coverage
-export const TEAL = "#0d9488"; // count accent, e.g. clustered goal-count bars
+/* ── Semantic status hexes (mirror lib/goals/derive HEALTH_STYLE) ────────
+ *
+ * DEEPENED ACROSS THE BOARD. Every hue here dropped roughly one Tailwind step
+ * (600/700 → 800/900). The meanings are untouched — green is still ahead,
+ * amber still on-track, red still at-risk — because these colours are read as
+ * a scale and re-assigning them would invalidate every screenshot, PDF export
+ * and habit built on the old one. What changed is only that they now hold
+ * their contrast at the sizes this app actually draws them: 6px legend dots,
+ * 4–6px distribution bars, and 11px caption text on white, where the previous
+ * mid-tones washed out.
+ *
+ * They line up with the CSS `--color-<tone>-deep` tokens the rest of the app
+ * uses for exactly this job, so the goals palette and the WMS palette are now
+ * the same depth rather than two different ideas of "green". */
+export const GREEN = "#0f5b2e"; // done / healthy
+export const GREEN_BRIGHT = "#15803d"; // ahead of pace
+export const AMBER = "#8a3d06"; // on-track (slightly behind, within tolerance)
+export const RED = "#A80400"; // at-risk / behind pace — the brand's deep red
+export const RED_DEEP = "#6b1010"; // overdue (past target date)
+export const ROSE = "#831843"; // spillover (carried + incomplete)
+export const SLATE = "#334155"; // self / neutral
+export const BLUE = "#174ea6"; // delegated / structural
+export const YELLOW = "#a16207"; // caution accent (distinct from AMBER)
+export const ORANGE = "#9a3412"; // warm accent, e.g. money / secondary measures
+export const PURPLE = "#5b21b6"; // structural accent, e.g. cascade coverage
+export const TEAL = "#0f766e"; // count accent, e.g. clustered goal-count bars
 
 export const DISPLAY = "var(--font-display), system-ui, sans-serif";
 

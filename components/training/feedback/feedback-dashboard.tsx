@@ -7,6 +7,7 @@ import type { Route } from "next";
 import { Search, X, Plus, Mic, ImageIcon, AlertTriangle, Clock, Star } from "lucide-react";
 import type { FeedbackRow, FeedbackStats } from "@/lib/queries/feedback";
 import { FEEDBACK_TEMPLATES, type FeedbackType } from "@/lib/training/feedback-templates";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 function useCountUp(target: number, run = true) {
   const [n, setN] = React.useState(0);
@@ -85,10 +86,12 @@ export function FeedbackDashboard({ rows, stats, canNew }: { rows: FeedbackRow[]
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
+        <CollapsibleSearch scope="feedback">
         <div className="flex w-[300px] max-md:w-full items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - feedback" title="Local search - filters only the list on this page" aria-label="Local search - feedback - this page only" className="w-full bg-transparent py-2.5 outline-none text-[15px] font-medium text-ink-strong placeholder:text-ink-subtle placeholder:font-normal" />
         </div>
+        </CollapsibleSearch>
         <select className="rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">All Status</option>
           <option value="open">Open</option><option value="escalated">Escalated</option><option value="resolved">Resolved</option><option value="signed_off">Signed Off</option>

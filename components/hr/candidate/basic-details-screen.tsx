@@ -16,6 +16,7 @@ import type { CandidateRow } from "@/app/(app)/hr/candidate-actions";
 import { deleteCandidateIntake } from "@/app/(app)/hr/candidate-actions";
 import { CreateCandidateLogin } from "@/components/hr/candidate/create-candidate-login";
 import { fireToast } from "@/lib/toast";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /** The candidate's intake photo, falling back to their initials. Kept small and
  *  local — this is the only table that shows it. */
@@ -123,56 +124,10 @@ export function BasicDetailsScreen({
   }
 
   return (
-    /* Full width, so the toolbar spans the page and grows with it as the
-       sidebars open and close. The table below keeps its own `mx-auto w-fit`
-       and stays centred and content-sized - only the controls stretch. */
-    <div className="w-full">
-      {/* One linear row: actions, then filters, then search. Every control is
-          h-10, so the strip reads as a single line rather than the two stacked
-          columns this used to be - that arrangement only existed to give the
-          count tile something to sit level with, and it had to be padded to
-          84px to manage it.
-
-          The search is the ONLY flex-1 item, so it absorbs whatever width is
-          left over - which is what makes the strip track the page as the
-          sidebars open and close. min-w-[200px] stops it collapsing to nothing
-          before the row is allowed to wrap. */}
-      <div className="mb-6 flex flex-wrap items-center gap-2.5">
-        {/* CreateCandidateLogin's button is `w-full` and takes no className, so
-            its height is set here and inherited through the wrapper. */}
-        <div className="w-[186px] shrink-0 [&>button]:h-10">
-          <CreateCandidateLogin />
-        </div>
-
-        <Link
-          href={"/hr/intake?new=1" as Route}
-          className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-hairline-strong bg-white px-4 text-[14px] font-bold text-ink-strong transition-colors hover:border-altus-red"
-        >
-          <UserPlus size={16} strokeWidth={2.4} /> New candidate
-        </Link>
-
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLS} aria-label="Filter by status">
-          <option value="all">All statuses</option>
-          <option value="new">New</option>
-          <option value="shortlisted">Shortlisted</option>
-          <option value="hired">Hired</option>
-          <option value="rejected">Rejected</option>
-        </select>
-        <select value={form} onChange={(e) => setForm(e.target.value)} className={SELECT_CLS} aria-label="Filter by form state">
-          <option value="all">All forms</option>
-          <option value="complete">Complete</option>
-          <option value="draft">Draft</option>
-        </select>
-        {positions.length > 0 && (
-          <select value={position} onChange={(e) => setPosition(e.target.value)} className={SELECT_CLS} aria-label="Filter by position">
-            <option value="all">All positions</option>
-            {positions.map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
-        )}
-
-        <div className="relative min-w-[200px] flex-1">
+    <>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <CollapsibleSearch scope="candidates">
+        <div className="relative max-w-[320px] flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input
             value={q}
@@ -180,6 +135,39 @@ export function BasicDetailsScreen({
             placeholder="Local search - candidates" title="Local search - filters only the list on this page" aria-label="Local search - candidates - this page only"
             className="h-10 w-full rounded-lg border border-hairline-strong bg-white pl-9 pr-3 text-[14px] text-ink-strong outline-none focus:border-altus-red"
           />
+        </div>
+        </CollapsibleSearch>
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLS} aria-label="Filter by status">
+            <option value="all">All statuses</option>
+            <option value="new">New</option>
+            <option value="shortlisted">Shortlisted</option>
+            <option value="hired">Hired</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <select value={form} onChange={(e) => setForm(e.target.value)} className={SELECT_CLS} aria-label="Filter by form state">
+            <option value="all">All forms</option>
+            <option value="complete">Complete</option>
+            <option value="draft">Draft</option>
+          </select>
+          {positions.length > 0 && (
+            <select value={position} onChange={(e) => setPosition(e.target.value)} className={SELECT_CLS} aria-label="Filter by position">
+              <option value="all">All positions</option>
+              {positions.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <CreateCandidateLogin />
+          <Link
+            href={"/hr/intake?new=1" as Route}
+            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-bold text-white transition-transform hover:-translate-y-0.5"
+            style={{ background: `linear-gradient(135deg, ${RED}, var(--color-altus-red-deep))` }}
+          >
+            <UserPlus size={16} strokeWidth={2.4} /> New candidate
+          </Link>
         </div>
       </div>
 

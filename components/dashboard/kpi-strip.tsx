@@ -137,7 +137,7 @@ export function KpiStrip({
         title="Task Summary"
         subtitle={
           <>
-            <span className="font-semibold tabular-nums text-gray-900">
+            <span className="font-semibold tabular-nums">
               {headline.toLocaleString()}
             </span>{" "}
             {headline === 1 ? "task" : "tasks"} in the current filter
@@ -232,6 +232,9 @@ export function KpiStrip({
                     className="group/link min-w-0 flex-1 outline-none"
                     aria-label={`${item.label} - view tasks`}
                   >
+                    {/* minHeight survives the class rewrite: it is what keeps a
+                        wrapping label ("NOT APPROVED") from pushing its number
+                        down a line while its neighbours' numbers stay put. */}
                     {/* minHeight survives the class rewrite: it is what keeps a
                         wrapping label ("NOT APPROVED") from pushing its number
                         down a line while its neighbours' numbers stay put. */}

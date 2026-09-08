@@ -9,6 +9,7 @@ import { setIncentiveYearTarget } from "@/app/(app)/incentive/admin-actions";
 import { fireToast } from "@/lib/toast";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { IncentivePersonDrilldown } from "./incentive-person-drilldown";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const GREEN = "#16a34a";
 const GREEN_DEEP = "#15803d";
@@ -182,6 +183,7 @@ export function IncentiveTargets({
               </p>
             </div>
           </div>
+          <CollapsibleSearch scope="person">
           <label
             className="flex h-10 w-full max-w-[260px] items-center gap-2 rounded-xl bg-surface-card px-3.5"
             style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
@@ -195,6 +197,7 @@ export function IncentiveTargets({
               className="w-full bg-transparent text-[14px] font-semibold text-ink-strong outline-none placeholder:text-ink-subtle"
             />
           </label>
+          </CollapsibleSearch>
         </header>
 
         {rows.length === 0 ? (

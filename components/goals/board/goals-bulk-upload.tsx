@@ -511,8 +511,11 @@ export function GoalsBulkUpload(props: Props) {
                   <p className="mt-4 text-[13.5px] font-medium" style={{ color: "var(--color-ink-muted)", lineHeight: 1.5 }}>
                     Download the <strong className="text-ink-soft">{levelName}</strong> template, fill one goal per row, then upload
                     the Excel/CSV. Columns:{" "}
-                    <strong className="text-ink-soft">Area · Goal · Measure · Actual · Target · Type</strong>. Only{" "}
-                    <strong className="text-ink-soft">Goal</strong> is required - % Done is computed from Actual ÷ Target.
+                    <strong className="text-ink-soft">
+                      Area · Goal · Measure · Actual · Target · Type · Client
+                    </strong>
+                    . Only{" "}
+                    <strong className="text-ink-soft">Goal</strong> is required — % Done is computed from Actual ÷ Target.
                     Duplicates (of an existing goal or another row) are flagged so you can rename or drop them before importing.
                   </p>
                 )}

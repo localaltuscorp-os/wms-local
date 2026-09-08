@@ -26,6 +26,18 @@ interface MultiSelectProps {
    *  of the current selection + the open state. When set, replaces the default
    *  inline button trigger entirely. Must forward props/ref (Radix asChild). */
   renderTrigger?: (state: { selectedLabels: string[]; open: boolean }) => React.ReactElement;
+  /**
+   * Told whenever the popover opens or closes.
+   *
+   * For callers that treat `onChange` as a DRAFT and only commit on close —
+   * anything whose commit is expensive or disruptive, like writing the URL and
+   * re-rendering a page. Without it such a caller has to commit on every
+   * toggle, which tears the list down under the pointer and makes picking a
+   * second name impossible.
+   *
+   * Purely additive: the popover still owns its own open state.
+   */
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function MultiSelect({
@@ -35,8 +47,20 @@ export function MultiSelect({
   placeholder = "All Employees",
   className,
   renderTrigger,
+  onOpenChange,
 }: MultiSelectProps) {
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpenState] = React.useState(false);
+  // One setter, so every path that closes the popover — Escape, Tab-commit,
+  // outside click, picking an item — reports it. Wrapping the state rather than
+  // only forwarding Radix's own callback is what keeps the internal
+  // `setOpen(false)` calls below from closing silently.
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      setOpenState(next);
+      onOpenChange?.(next);
+    },
+    [onOpenChange],
+  );
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const labelMap = new Map(options.map((o) => [o.value, o.label]));
 

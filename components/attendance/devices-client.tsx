@@ -5,12 +5,13 @@ import { Loader2, Search, ShieldCheck, ShieldX, Smartphone } from "lucide-react"
 import { fireToast } from "@/lib/toast";
 import { formatDate } from "@/lib/format";
 import { approveDevice, revokeDevice } from "@/app/(app)/attendance/devices/actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 interface DeviceRow {
   id: string;
   employeeId: string;
   employeeName: string;
-  /** 'laptop' | 'phone'. Which of the person's two designated devices this is. */
+  /** 'laptop' | 'phone'. Descriptive only — either kind may fill either slot. */
   kind: string;
   label: string | null;
   platform: string | null;
@@ -83,6 +84,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
             </button>
           ))}
         </div>
+        <CollapsibleSearch scope="person or device">
         <div className="relative min-w-[220px] flex-1 max-w-[340px]">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input
@@ -92,6 +94,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
             className="w-full rounded-xl border border-hairline-strong bg-white py-2.5 pl-9 pr-3 text-[13.5px] font-medium text-ink-strong outline-none focus:border-altus-red"
           />
         </div>
+        </CollapsibleSearch>
       </div>
 
       {/* List */}
@@ -147,7 +150,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
           ))}
         </ul>
       )}
-      <p className="pt-1 text-[12px] text-ink-subtle">Cap: {maxPerEmployee} approved devices per employee — one Web (Desktop) and one Web (Android). Revoke an old one before approving a replacement.</p>
+      <p className="pt-1 text-[12px] text-ink-subtle">Cap: {maxPerEmployee} approved devices per employee, any kind — two laptops, two phones or one of each. Revoke an old one before approving a replacement.</p>
     </div>
   );
 }

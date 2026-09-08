@@ -43,10 +43,10 @@ export async function GET(
     return NextResponse.redirect(new URL("/hub", req.url));
   }
 
-  // Goals module entry lands on the Yearly board when the new level-page UI is
-  // live; with the flag OFF prod keeps landing on the /goals hub, unchanged.
+  // Goals module entry lands on the Goals Dashboard when the new level-page UI
+  // is live; with the flag OFF prod keeps landing on the /goals hub, unchanged.
   const landing =
-    id === "goals" && goalsCanvasOn() ? "/goals/yearly" : WORKSPACE_LANDING[id];
+    id === "goals" && goalsCanvasOn() ? "/goals/dashboard" : WORKSPACE_LANDING[id];
 
   const res = NextResponse.redirect(new URL(landing, req.url));
   res.cookies.set(ACTIVE_WORKSPACE_COOKIE, id, {

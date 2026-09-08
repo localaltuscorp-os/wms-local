@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Clock, Copy, GripVertical, Loader2, X } from "lucide-react";
+import { Clock, Copy, GripVertical, Loader2, Pencil, X } from "lucide-react";
 import { motion } from "motion/react";
 import { PRIORITY_LABELS } from "@/db/enums";
 import { hhmmToMin, minToHhmm } from "@/lib/goals/plan-time";
@@ -24,8 +25,8 @@ interface Props {
   onToggleDone: (item: PlanItem) => void;
   /** Park it: stays on this day, surfaces under Unfinished (rule 5/6). */
   onPending: (item: PlanItem) => void;
-  /** Copy the row onto the same day. */
-  onDuplicate: (item: PlanItem) => void;
+  /** Copy the row onto `ymd`. The card's picker always supplies one. */
+  onDuplicate: (item: PlanItem, ymd?: string) => void;
   /** The × — off the plan, and into the Recycle Bin when a task backs it. */
   onRemove: (item: PlanItem) => void;
   /** Save an edited title (fix a typo). Absent ⇒ the card is read-only text. */
@@ -37,6 +38,8 @@ interface Props {
   /** Which planner day this card sits on — its own day is dropped from the
    *  move menu, and the two shortcut buttons target the next two days. */
   dayOffset: number;
+  /** This day as `YYYY-MM-DD` — what the duplicate picker opens on. */
+  dayYmd: string;
 }
 
 /**
@@ -65,6 +68,7 @@ export function PlanItemCard({
   onTransfer,
   onSetTime,
   dayOffset,
+  dayYmd,
 }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -74,6 +78,12 @@ export function PlanItemCard({
   // Single click opens the full view; renaming happens in there (a card can't
   // have single-click-to-open AND double-click-to-rename on the same text).
   const [detail, setDetail] = React.useState(false);
+
+  // The duplicate picker. `copyTo` is a draft date and nothing happens until
+  // Copy is pressed, so opening it and changing your mind costs nothing —
+  // duplicating used to fire on the first click with no way back.
+  const [copyOpen, setCopyOpen] = React.useState(false);
+  const [copyTo, setCopyTo] = React.useState(dayYmd);
 
   // The live drag placeholder — a dashed ghost the column opens up around.
   if (item.ghost) {
@@ -145,7 +155,7 @@ export function PlanItemCard({
                     setDetail(true);
                   }
                 }}
-                aria-label={`Open full details for ${item.title}`}
+                aria-label={onRename && !item.done ? `Open and edit ${item.title}` : `Open full details for ${item.title}`}
                 /* ONE LINE (Sir). The clamp used to run to three, which set the
                    card's height by its longest title and left every short one
                    sitting in empty space — the single biggest reason so few
@@ -248,6 +258,28 @@ export function PlanItemCard({
             </div>
           </div>
 
+          {/* EDIT — the card could already be edited: clicking the title opens
+              the detail dialog, whose title field is a textarea with a Save.
+              Nothing SAID so. The only hint was a `cursor-pointer` that appears
+              on hover, next to a remove button that also appears on hover, so
+              the one discoverable action on a commitment was deleting it.
+
+              A pencil beside the ✕, opening the same dialog. Shown on the same
+              terms as the remove button rather than always-on: two permanent
+              icons on every row is what the hover treatment was avoiding. */}
+          {onRename && !item.done ? (
+            <button
+              type="button"
+              onClick={() => setDetail(true)}
+              aria-label={`Edit ${item.title}`}
+              title="Edit — change the wording or the time"
+              className="shrink-0 inline-flex size-5 items-center justify-center rounded-full text-ink-muted/50 opacity-0 transition-opacity hover:bg-surface-soft hover:text-ink-strong focus-visible:opacity-100 focus-visible:outline-2 group-hover:opacity-100"
+              style={{ outlineColor: GOALS_ACCENT }}
+            >
+              <Pencil size={12} />
+            </button>
+          ) : null}
+
           <button
             type="button"
             onClick={() => onRemove(item)}
@@ -283,7 +315,10 @@ export function PlanItemCard({
             the 7-day view is 210px, so below that the type and padding step
             down through the container queries on ActionButton until they fit.
             Same five words throughout; only their size changes. */}
-        <div className="mt-1 flex flex-nowrap items-center gap-[2px] pb-0.5 @min-[230px]:gap-1">
+        {/* RIGHT-ALIGNED (justify-end): the chips are decisions ABOUT the card
+            above them, and ending them at the same edge as the ✕ and the pencil
+            puts every action on this card in one column instead of two. */}
+        <div className="mt-1 flex flex-nowrap items-center justify-end gap-[2px] pb-0.5 @min-[230px]:gap-1">
             <ActionButton
               label={item.done ? "Undo" : "Done"}
               tone={item.done ? "muted" : "green"}
@@ -325,7 +360,10 @@ export function PlanItemCard({
                   tone="yellow"
                   iconOnly
                   icon={<Copy size={11} />}
-                  onClick={() => onDuplicate(item)}
+                  onClick={() => {
+                    setCopyTo(dayYmd);
+                    setCopyOpen(true);
+                  }}
                 />
               </>
             ) : null}
@@ -333,6 +371,72 @@ export function PlanItemCard({
           </div>
         </div>
       </motion.div>
+      {/* DUPLICATE PICKER — a portal, not a popover anchored to the button.
+          The review row it lives under is a collapsing `grid-rows-[0fr]` box
+          with `overflow-hidden`, sitting inside a scrolling day column: an
+          absolutely-positioned panel there is clipped by the collapse wrapper
+          and again by the column, so it would simply never be visible. The
+          detail dialog already solved this the same way. */}
+      {copyOpen
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(15,23,42,0.42)] p-4 backdrop-blur-[2px]"
+              onClick={() => setCopyOpen(false)}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Duplicate this commitment"
+                onClick={(e) => e.stopPropagation()}
+                className="w-[300px] max-w-[92vw] rounded-2xl border border-hairline-strong bg-surface-card p-4 shadow-[0_40px_100px_rgba(15,23,42,0.35)]"
+              >
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+                  Duplicate to
+                </p>
+                <p className="mt-1 truncate text-[13.5px] font-bold text-ink-strong" title={item.title}>
+                  {item.title}
+                </p>
+                <input
+                  type="date"
+                  value={copyTo}
+                  autoFocus
+                  onChange={(e) => setCopyTo(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setCopyOpen(false);
+                    if (e.key === "Enter" && copyTo) {
+                      onDuplicate(item, copyTo);
+                      setCopyOpen(false);
+                    }
+                  }}
+                  aria-label="Day to copy this onto"
+                  className="mt-3 w-full rounded-lg border border-hairline bg-surface-card px-2.5 py-2 text-[13px] font-semibold text-ink-strong outline-none focus:border-hairline-strong"
+                />
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCopyOpen(false)}
+                    className="rounded-lg px-2.5 py-1.5 text-[12px] font-bold text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink-strong"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!copyTo}
+                    onClick={() => {
+                      onDuplicate(item, copyTo);
+                      setCopyOpen(false);
+                    }}
+                    className="rounded-lg px-3 py-1.5 text-[12px] font-bold text-white transition-opacity disabled:opacity-40"
+                    style={{ background: GOALS_ACCENT }}
+                  >
+                    Duplicate
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
       {detail ? (
         <PlanItemDetailModal
           item={item}

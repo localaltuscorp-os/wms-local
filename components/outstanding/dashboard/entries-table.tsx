@@ -6,6 +6,7 @@ import { OUTSTANDING_CYCLE_LABELS } from "@/db/enums";
 import type { OutstandingCycle } from "@/db/enums";
 import type { DerivedInstallment } from "@/lib/outstanding/types";
 import { SectionHeading } from "./section-heading";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const PAGE_SIZE = 20;
 
@@ -92,6 +93,7 @@ export function OutstandingEntriesTable({
       />
 
       <div className="mt-5 flex items-center gap-3 flex-wrap">
+        <CollapsibleSearch scope="client, product, entity, responsible">
         <div className="relative w-full max-w-md">
           <Search
             size={16}
@@ -116,6 +118,7 @@ export function OutstandingEntriesTable({
             </button>
           )}
         </div>
+        </CollapsibleSearch>
         {query.trim() && (
           <span className="text-[13px] font-semibold text-ink-subtle tabular-nums">
             {filtered.length} {filtered.length === 1 ? "match" : "matches"}

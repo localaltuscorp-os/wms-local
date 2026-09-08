@@ -22,6 +22,7 @@ import { GOAL_TYPES, GOAL_TYPE_LABELS, TASK_STATUSES, isDeprecatedStatus, type T
 /* (roster / lookups are dynamic; the rest are code constants below).  */
 /* ------------------------------------------------------------------ */
 export type ColumnSource =
+  | "client"
   | "level"
   | "quarter"
   | "month"
@@ -246,6 +247,22 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     aliases: ["area", "pillar", "function"],
     examples: ["Revenue", "Strategy"],
     help: "Focus area / pillar (admin-extensible list).",
+  },
+  {
+    /* CLIENT — the same free-text-with-a-dropdown deal the Tasks template
+       makes. The list comes from the active clients, but a name that is not on
+       it still imports: that is how a new client gets created on the Tasks
+       side, and rejecting it here would make the two bulk uploads disagree
+       about what a valid client is.
+
+       `entry: 7` puts it last on the download rather than between existing
+       columns — see the note in template.xlsx/route.ts for why the position is
+       the safe end of a hand-built sheet. */
+    field: "client", header: "Client", schemaField: "client",
+    writable: true, persisted: true, locked: false, source: "client", width: 22, entry: 7,
+    aliases: ["client", "customer", "account", "clientname"],
+    examples: ["Carbide India", "Altus Corp"],
+    help: "Which client the goal is for. Pick from the list or type a new name.",
   },
   {
     field: "uom", header: "Measure", schemaField: "uom",

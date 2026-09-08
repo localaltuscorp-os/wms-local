@@ -14,12 +14,13 @@ import {
   ArrowDown,
   ChevronsUpDown,
   ChevronUp,
+  RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
 import { AGE_BUCKETS, type AgeBucketId } from "@/db/enums";
 import type { AgingRow, HeatmapCellTask } from "@/lib/types";
-import { useSectionSearch, matchesSearch } from "@/lib/client/section-search";
+import { useSectionSearch, setSectionSearch, matchesSearch } from "@/lib/client/section-search";
 import { Avatar } from "@/components/ui/avatar";
 import { PageShell } from "@/components/layout/page-shell";
 import { DashboardSectionHeader } from "@/components/dashboard/section-header";
@@ -36,6 +37,7 @@ import type { SectionReport } from "@/lib/reports/section-report";
 import { SectionIcon } from "@/components/dashboard/section-icon";
 import { DASHBOARD_TABLE_HEAD } from "@/components/dashboard/section-chrome";
 import { isAppDepartment, type TeamView } from "@/lib/teams/app-team";
+import { TeamToggle } from "@/components/dashboard/team-toggle";
 
 /**
  * THE AGE RAMP - one continuous risk gradient, green through burgundy.
@@ -560,6 +562,31 @@ export function AgingHeatmap({
 
      Independent per-column sorting goes with it. That was only ever needed
      because there were two headers to click. */
+  /* THE WAY BACK OUT. An age pill can empty this card on perfectly healthy
+     data — "nobody is carrying work aged 46-60 days" is good news — and the
+     filter row used to be rendered INSIDE the non-empty branch, so the moment
+     a pill emptied the list the pill that caused it disappeared with it. The
+     only way back was a page refresh.
+
+     Two things fix that, and both are needed: the filter row now renders in
+     BOTH states (below), and any active filter gets an explicit Clear. */
+  const filtersActive =
+    ageFilter !== null ||
+    teamView !== "all" ||
+    localQuery.trim().length > 0 ||
+    // The PAGE search counts too: it can empty this card just as completely,
+    // and a Clear that left it running would look broken.
+    sectionQuery.trim().length > 0;
+  const clearFilters = React.useCallback(() => {
+    setAgeFilter(null);
+    setTeamView("all");
+    setLocalQuery("");
+    // Page-wide, and deliberately so — it is the only way this card can get
+    // back to showing everyone. The search box empties visibly, so nothing
+    // happens behind the reader's back.
+    setSectionSearch("");
+  }, []);
+
   const teamRows =
     teamView === "app" ? appRows : teamView === "nonApp" ? nonAppRows : enriched;
   const teamSorted = React.useMemo(
@@ -647,7 +674,7 @@ export function AgingHeatmap({
           <>
             {enriched.length} {enriched.length === 1 ? "person" : "people"}
             {" · "}
-            <span className="tabular-nums font-semibold text-gray-900">
+            <span className="tabular-nums font-semibold">
               {totalAging}
             </span>{" "}
             pending {totalAging === 1 ? "task" : "tasks"} aging - click any lane to
@@ -728,24 +755,71 @@ export function AgingHeatmap({
               above a header that then repeated the column names. It now lives
               INSIDE the lane header, over the bar track it describes. */}
 
+          {/* THE FILTER ROW, ALWAYS. Rendered outside the empty/non-empty fork
+              on purpose: these controls are how you undo the filter that
+              emptied the card, so they have to survive it. Toggle left, legend
+              + Clear right, all on one rule — they are filters over the same
+              list, so they belong on the same line. */}
+          {!isTransposed && (
+            <div className="mb-4 mt-3 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4 max-md:hidden">
+              <TeamToggle
+                view={teamView}
+                onChange={setTeamView}
+                counts={{
+                  all: enriched.length,
+                  app: appRows.length,
+                  nonApp: nonAppRows.length,
+                }}
+              />
+              <div className="flex min-w-0 items-center gap-2">
+                <Legend
+                  selected={ageFilter}
+                  counts={ageCounts}
+                  onToggle={(b) => setAgeFilter((cur) => (cur === b ? null : b))}
+                />
+                {filtersActive && <ClearFiltersButton onClick={clearFilters} />}
+              </div>
+            </div>
+          )}
+
+          {/* TRANSPOSED VIEW: the legend row does not render there, but the age
+              filter still APPLIES to it — so filtering, then transposing, would
+              strand you in exactly the same dead end. The Clear follows. */}
+          {isTransposed && filtersActive && (
+            <div className="mb-3 mt-3 flex justify-end">
+              <ClearFiltersButton onClick={clearFilters} />
+            </div>
+          )}
+
           {top12.length === 0 ? (
-            <p className="mt-6 font-semibold" style={{ fontSize: 17, color: "var(--color-ink-muted)" }}>
-              {/* Says WHICH filter emptied it. An age pill can empty this list
-                  on perfectly healthy data, and a bare "no pending tasks" there
-                  reads as a loading failure rather than as good news. */}
-              {localQuery.trim()
-                ? `No one matching "${localQuery.trim()}" is carrying pending work.`
-                : ageFilter
-                  ? `Nobody is carrying work aged ${
-                      AGE_BUCKETS.find((b) => b.id === ageFilter)?.label ?? ageFilter
-                    }.`
-                  : "No pending tasks for the current filter."}
-            </p>
+            <div className="mt-6">
+              <p className="font-semibold" style={{ fontSize: 17, color: "var(--color-ink-muted)" }}>
+                {/* Says WHICH filter emptied it. An age pill can empty this list
+                    on perfectly healthy data, and a bare "no pending tasks" there
+                    reads as a loading failure rather than as good news. */}
+                {localQuery.trim()
+                  ? `No one matching "${localQuery.trim()}" is carrying pending work.`
+                  : ageFilter
+                    ? `Nobody is carrying work aged ${
+                        AGE_BUCKETS.find((b) => b.id === ageFilter)?.label ?? ageFilter
+                      }.`
+                    : "No pending tasks for the current filter."}
+              </p>
+              {/* A second Clear, right where the eye already is. The row above
+                  has one too, but on a card this tall the filter row can be
+                  scrolled past — and this is the moment someone is looking for
+                  the way back. */}
+              {filtersActive && (
+                <div className="mt-3">
+                  <ClearFiltersButton onClick={clearFilters} label="Clear filters and show everyone" />
+                </div>
+              )}
+            </div>
           ) : (
             /* No gap between lanes and no card per lane: the rows are separated
                by a hairline rule instead, which is what lets twice as many
                people fit on screen at once. */
-            <div className="mt-3">
+            <div>
               {isTransposed ? (
                 <TransposedAging
                   rows={top12}
@@ -755,26 +829,6 @@ export function AgingHeatmap({
                 />
               ) : (
                 <>
-                  {/* Toggle left, legend right, on one rule. Both are filters
-                      over the same list, so they belong on the same line rather
-                      than in two bands stacked above the table. */}
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4 max-md:hidden">
-                    <TeamToggle
-                      view={teamView}
-                      onChange={setTeamView}
-                      counts={{
-                        all: enriched.length,
-                        app: appRows.length,
-                        nonApp: nonAppRows.length,
-                      }}
-                    />
-                    <Legend
-                      selected={ageFilter}
-                      counts={ageCounts}
-                      onToggle={(b) => setAgeFilter((cur) => (cur === b ? null : b))}
-                    />
-                  </div>
-
                   <LaneSortRow sortMode={sortMode} sortDir={sortDir} onSort={onColumnSort} />
 
                   {/* `slim-scroll`, not the browser's own bar: a 17px grey
@@ -911,6 +965,26 @@ function AlertBanner({ count }: { count: number }) {
         </span>
       </p>
     </div>
+  );
+}
+
+/**
+ * CLEAR FILTERS — shown only while something is actually filtered, so it never
+ * sits there as a no-op control. Deliberately not styled as one of the age
+ * pills: it undoes them rather than being one of them, and a ninth coloured
+ * chip in that row would read as a ninth bucket.
+ */
+function ClearFiltersButton({ onClick, label }: { onClick: () => void; label?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Clear the age, team and search filters"
+      className="inline-flex shrink-0 items-center gap-1 rounded-pill border border-hairline-strong bg-surface-card px-2.5 py-1 text-[11.5px] font-bold text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red"
+    >
+      <RotateCcw size={12} strokeWidth={2.6} />
+      {label ?? "Clear"}
+    </button>
   );
 }
 
@@ -1058,63 +1132,6 @@ function SortCap({
  * the grid track it sits on, which is the constraint that ruled out the
  * side-by-side split this replaced (see ONE LIST, THREE VIEWS above).
  */
-/**
- * The App / Non-App / All segmented control.
- *
- * A SEGMENTED CONTROL, not two checkboxes or a dropdown: the three options are
- * mutually exclusive views of one list, and the counts have to be readable
- * without opening anything - comparing 9 against 9 is most of why someone looks
- * at this split at all.
- */
-function TeamToggle({
-  view,
-  onChange,
-  counts,
-}: {
-  view: TeamView;
-  onChange: (v: TeamView) => void;
-  counts: { all: number; app: number; nonApp: number };
-}) {
-  const tabs: { id: TeamView; label: string; count: number }[] = [
-    { id: "all", label: "All Employees", count: counts.all },
-    { id: "app", label: "App Team", count: counts.app },
-    { id: "nonApp", label: "Non-App Team", count: counts.nonApp },
-  ];
-  return (
-    <div
-      role="tablist"
-      aria-label="Which team to show"
-      className="flex items-center gap-1.5 rounded-xl bg-slate-100 p-1 text-xs font-bold"
-    >
-      {tabs.map((t) => {
-        const active = view === t.id;
-        return (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(t.id)}
-            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${
-              active
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            {t.label}
-            <span
-              className={`rounded-pill px-1.5 py-0.5 text-[10px] tabular-nums ${
-                active ? "bg-slate-100 text-slate-700" : "bg-slate-200 text-slate-600"
-              }`}
-            >
-              {t.count}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function LaneSortRow({
   sortMode,

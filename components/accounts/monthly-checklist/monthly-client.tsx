@@ -29,6 +29,7 @@ import {
   deleteMonthlyItem,
   setMonthlyCheck,
 } from "@/app/(app)/accounts/monthly-quarterly-annual/actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const INPUT =
   "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
@@ -400,6 +401,7 @@ export function MonthlyChecklist({
     <section className="flex flex-col gap-2.5">
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
+        <CollapsibleSearch scope="checklist, notes, responsible">
         <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-2.5">
           <Search size={15} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
           <input
@@ -409,6 +411,7 @@ export function MonthlyChecklist({
             className="w-full bg-transparent py-1.5 text-[13px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle"
           />
         </div>
+        </CollapsibleSearch>
         <select className={CHIP} value={fType} onChange={(e) => setFType(e.target.value)} aria-label="Filter by type">
           <option value="">All Types</option>
           {types.map((c) => (<option key={c} value={c}>{c}</option>))}

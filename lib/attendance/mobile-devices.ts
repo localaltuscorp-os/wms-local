@@ -8,9 +8,10 @@ import type { DeviceKind } from "@/db/enums";
 /**
  * Device-allowlist anti-proxy (Phase 1, 2026-08).
  *
- * A phone must be REGISTERED and APPROVED to punch. Registration is an explicit
+ * A device must be REGISTERED and APPROVED to punch. Registration is an explicit
  * one-time act (the app's "Register this device" button → status 'pending'),
- * capped at {@link MAX_DEVICES_PER_EMPLOYEE} per person; an admin approves it.
+ * capped at {@link MAX_DEVICES_PER_EMPLOYEE} per person regardless of kind; an
+ * admin approves it.
  * The device id is the app's non-extractable keystore id, so it can't be copied
  * to another phone — buddy-punching is impossible once the allowlist is enforced.
  *
@@ -19,16 +20,13 @@ import type { DeviceKind } from "@/db/enums";
  */
 
 /**
- * ONE approved device of each KIND — one laptop and one phone — so two per
- * person in total (migration 0206).
+ * TWO devices per employee, of ANY kind (migration 0214).
  *
- * The cap is counted PER KIND, not as a total. Counting the total let someone
- * register two phones and then find their laptop refused because "you already
- * have 2 devices", which is not the rule and reads as a bug to whoever hits it.
+ * The cap is a TOTAL, not per kind. 0206 counted per kind, which came to the
+ * same two devices but forced the pair to be one laptop and one phone; someone
+ * who works from two laptops, or two phones, had their second one refused. The
+ * kind is still recorded and still shown — it just no longer decides anything.
  */
-export const MAX_DEVICES_PER_KIND = 1;
-
-/** Kept for callers that mean "how many devices may one person hold". */
 export const MAX_DEVICES_PER_EMPLOYEE = 2;
 
 /** Why a device can't punch — the app maps this to the right screen/message. */
@@ -100,7 +98,8 @@ export type RegisterDeviceResult =
  *  - already registered to THIS employee → returns its current status.
  *  - registered to ANOTHER employee → rejected (a phone can't be shared).
  *  - new → enrolled as 'pending' if under the {@link MAX_DEVICES_PER_EMPLOYEE}
- *    cap (approved + pending), else rejected. Caller alerts admins when isNew.
+ *    cap (approved + pending, all kinds), else rejected. Caller alerts admins
+ *    when isNew.
  */
 export async function registerMobileDevice(
   employeeId: string,
@@ -139,11 +138,11 @@ export async function registerMobileDevice(
     };
   }
 
-  // Cap on active (approved + pending) devices of THIS KIND for this employee.
-  if ((await activeCountOfKind(employeeId, kind)) >= MAX_DEVICES_PER_KIND) {
+  // Cap on active (approved + pending) devices for this employee, all kinds.
+  if ((await activeCount(employeeId)) >= MAX_DEVICES_PER_EMPLOYEE) {
     return {
       ok: false,
-      error: `You already have a registered ${kind}. Ask an attendance administrator to remove the old one first.`,
+      error: `You already have ${MAX_DEVICES_PER_EMPLOYEE} registered devices. Ask an attendance administrator to remove one first.`,
     };
   }
 
@@ -163,21 +162,6 @@ export async function registerMobileDevice(
     if (msg.includes("mobile_devices_device_id_uq")) return registerMobileDevice(employeeId, input);
     return { ok: false, error: `Could not register device: ${msg}` };
   }
-}
-
-/** Active (approved OR pending) devices of one KIND — what the cap measures. */
-async function activeCountOfKind(employeeId: string, kind: DeviceKind): Promise<number> {
-  const [r] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(mobileDevices)
-    .where(
-      and(
-        eq(mobileDevices.employeeId, employeeId),
-        eq(mobileDevices.kind, kind),
-        inArray(mobileDevices.status, ["approved", "pending"]),
-      ),
-    );
-  return r?.n ?? 0;
 }
 
 /** Active (approved OR pending) device count — what the cap is measured against. */
@@ -226,7 +210,7 @@ export interface AdminDeviceRow {
   id: string;
   employeeId: string;
   employeeName: string;
-  /** 'laptop' | 'phone' — which of the person's two designated devices this is. */
+  /** 'laptop' | 'phone' — descriptive only; either kind may fill either slot. */
   kind: DeviceKind;
   label: string | null;
   platform: string | null;
@@ -270,24 +254,24 @@ export async function setDeviceStatus(
   if (!row) return { ok: false, error: "Device not found." };
 
   if (status === "approved") {
-    // Enforce the cap at approval time too (in case two pendings sit under the cap).
-    // Per KIND, matching the registration cap and the 0206 unique index. Left
-    // as a total, this check would pass and the INSERT would then die on the
-    // index — a constraint-name error where a sentence belongs.
+    // Enforce the cap at approval time too — registration counts pending rows,
+    // so two pendings can both sit under the cap and only the second approval
+    // crosses it. A TOTAL across kinds, matching the registration cap and 0214's
+    // trigger. Counted per kind, this check would pass and the UPDATE would then
+    // die on the trigger — a raised exception where a sentence belongs.
     const [c] = await db
       .select({ n: sql<number>`count(*)::int` })
       .from(mobileDevices)
       .where(
         and(
           eq(mobileDevices.employeeId, row.employeeId),
-          eq(mobileDevices.kind, row.kind),
           eq(mobileDevices.status, "approved"),
         ),
       );
-    if ((c?.n ?? 0) >= MAX_DEVICES_PER_KIND && row.status !== "approved") {
+    if ((c?.n ?? 0) >= MAX_DEVICES_PER_EMPLOYEE && row.status !== "approved") {
       return {
         ok: false,
-        error: `This employee already has an approved ${row.kind}. Revoke it first.`,
+        error: `This employee already has ${MAX_DEVICES_PER_EMPLOYEE} approved devices. Revoke one first.`,
       };
     }
     await db.update(mobileDevices)
