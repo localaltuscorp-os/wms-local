@@ -132,3 +132,5 @@ __claude-*.mjs
 
 # legacy mobile drop - removed 2026-09-02
 mobile_LEGACY_DROP_*/
+# Dummy-mode object storage — the local stand-in for the Supabase bucket.
+.dummy-storage/

@@ -406,6 +406,11 @@ export interface TaskListFilters {
   clients: string[];
   taskId: string | null;
   archived: boolean;
+  /** `true` on the Project Plan board: narrow to tasks that belong to a plan
+   *  row (`tasks.project_node_id IS NOT NULL`). Optional because every other
+   *  caller wants the whole task list; `parseTaskFilters` never sets it, so the
+   *  WMS board is untouched and only the plan page opts in. */
+  projectOnly?: boolean;
   /** `?type=goals|tasks|commitments` -- which activity family a manager-board
    *  click came from. Null when absent or unrecognised. */
   activityType: import("@/lib/task-filters").ActivityType | null;

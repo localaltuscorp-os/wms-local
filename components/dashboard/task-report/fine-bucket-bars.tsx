@@ -98,8 +98,10 @@ export function FineBucketBars({
           const empty = b.count === 0;
           const pct = Math.round((b.count / pctBase) * 100);
           const clickable = Boolean(linkStatuses) && b.count > 0;
+          // Kept a plain string here and cast at the `href` below: a ternary with
+          // a `Route` branch makes TS normalise the whole route union (TS2590).
           const href = clickable
-            ? (`/tasks?age_range=${FINE_BUCKET_SLUGS[b.key]}&status=${linkStatuses!.join(",")}` as Route)
+            ? `/tasks?age_range=${FINE_BUCKET_SLUGS[b.key]}&status=${linkStatuses!.join(",")}`
             : null;
           const rowInner = (
             <>
@@ -146,7 +148,7 @@ export function FineBucketBars({
           // as a broken filter rather than an honest zero.
           const row = href ? (
             <Link
-              href={href}
+              href={href as Route}
               className="flex flex-1 items-center gap-3 rounded-lg px-2 -mx-2 py-2 transition-colors hover:bg-slate-50"
             >
               {rowInner}

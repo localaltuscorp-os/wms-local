@@ -23,6 +23,7 @@ export const WORKSPACE_IDS = [
   "productivity",
   "billing",
   "people-allocation",
+  "project-plan",
 ] as const;
 
 export type WorkspaceId = (typeof WORKSPACE_IDS)[number];
@@ -44,6 +45,7 @@ export const WORKSPACE_LABEL: Record<WorkspaceId, string> = {
   productivity: "Team Productivity",
   billing: "Billing",
   "people-allocation": "Hand-holding",
+  "project-plan": "Project",
 };
 
 /** Where each card drops you when you enter the workspace. */
@@ -72,6 +74,10 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   // Hand-holding is its own room: staffing is read and maintained by team leads
   // who have no reason to enter Billing.
   "people-allocation": "/people-allocation",
+  // Project — the Project → Milestone → Result → Action hierarchy. Its own room
+  // beside Hand-holding. The older /projects board stays where it is, on the
+  // WMS rail; this room is the planning table, not a replacement for it.
+  "project-plan": "/project-plan",
 };
 
 export const ACTIVE_WORKSPACE_COOKIE = "aw";
@@ -165,6 +171,13 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
   // /goals: it is a separate module at the same level, and letting Goals own the
   // path would swap the sidebar to Goals the moment you opened it.
   if (p.startsWith("/productivity")) return "productivity";
+
+  // Project — the hierarchy planning table. Matched here, above the WMS block:
+  // that block claims `/projects` (the older board, which stays a WMS surface),
+  // and keeping the two rules apart is what stops a future edit from widening
+  // one prefix over the other. `/project-plan` does not start with `/projects`,
+  // so the two never overlap today either.
+  if (p.startsWith("/project-plan")) return "project-plan";
 
   // Appraisal moved INTO Team Productivity, so its room moved with it. `/appraisal`
   // itself redirects to `/productivity/appraisal`, but the admin panel still lives

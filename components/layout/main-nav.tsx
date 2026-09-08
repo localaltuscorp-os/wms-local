@@ -7,9 +7,14 @@ import {
   ClipboardList,
   CalendarDays,
   FolderKanban,
+  FolderTree,
   SquareKanban,
   Target,
   ListChecks,
+  Flag,
+  CircleDot,
+  CornerDownRight,
+  Telescope,
   CalendarCheck,
   Plane,
   CalendarRange,
@@ -381,6 +386,33 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
         Icon: ShieldCheck,
         hhAccessOnly: true,
       },
+    ],
+    groups: [],
+  },
+  // Project — a single-surface room: the hierarchy planning table. The older
+  // /projects board is deliberately NOT listed here; it stays a WMS rail item,
+  // so neither room's sidebar changes shape.
+  "project-plan": {
+    // One room, one board, six ways in. Each level item is the SAME hierarchy
+    // table scoped to that level (app/(app)/project-plan/plan-page.tsx) rather
+    // than six screens to keep in step — pick "Results" and you get every
+    // result in the plan, under the milestone it belongs to.
+    //
+    // `exact` on Projects only: it is the bare /project-plan route, so without
+    // it every child route would light it up too.
+    top: [
+      // THE WHOLE PLAN AS ONE TREE, and therefore the way in — it sits above
+      // Projects because it is the only item that answers "what is in this
+      // plan?" without a click. The five level items below it slice the same
+      // rows by level once you know which branch you want.
+      { href: "/project-plan/views" as Route, label: "Project Views", Icon: Telescope },
+      { href: "/project-plan" as Route, label: "Projects", Icon: FolderTree, exact: true },
+      { href: "/project-plan/milestones" as Route, label: "Milestones", Icon: Flag },
+      { href: "/project-plan/results" as Route, label: "Results", Icon: Target },
+      { href: "/project-plan/actions" as Route, label: "Actions", Icon: ListChecks },
+      { href: "/project-plan/sub-actions" as Route, label: "Sub-Actions", Icon: CornerDownRight },
+      // The same board component WMS renders, narrowed to plan-linked tasks.
+      { href: "/project-plan/kanban" as Route, label: "Kanban", Icon: SquareKanban },
     ],
     groups: [],
   },

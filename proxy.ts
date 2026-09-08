@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authMiddleware } from "next-firebase-auth-edge";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 
 const PUBLIC_PATHS = [
   "/ctest",
@@ -31,10 +32,22 @@ const PUBLIC_API = [
 // the app and register the Service Worker before the user signs in.
 const PUBLIC_FILES = ["/manifest.json", "/sw.js"];
 
+/**
+ * DEVELOPMENT ONLY — the fixture-data UI previews under `app/ui-preview/`.
+ *
+ * They exist so a layout can be looked at when the database is unreachable, and
+ * the auth check itself is a database read, so they have to skip it. The list is
+ * EMPTY in a production build: this cannot become a way in, because the route is
+ * not public there and `app/ui-preview/*` calls `notFound()` as well.
+ */
+const DEV_PUBLIC_PATHS = process.env.NODE_ENV === "production" ? [] : ["/ui-preview"];
+
 function isPublic(pathname: string): boolean {
   if (PUBLIC_FILES.includes(pathname)) return true;
   if (PUBLIC_API.some((p) => pathname.startsWith(p))) return true;
-  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  return [...PUBLIC_PATHS, ...DEV_PUBLIC_PATHS].some(
+    (p) => pathname === p || pathname.startsWith(p + "/"),
+  );
 }
 
 /**
@@ -93,6 +106,30 @@ export async function proxy(request: NextRequest) {
 
   if (isPublic(request.nextUrl.pathname)) {
     return NextResponse.next();
+  }
+
+  // DUMMY MODE — every route is public. The cookie check below would redirect
+  // to /login, and there is nothing to sign in to: Firebase is not contacted and
+  // lib/auth/current.ts hands back the seeded dummy employee instead. Guarded on
+  // NODE_ENV inside DUMMY_MODE, so a production build never takes this branch.
+  //
+  // It must still do the TWO things `handleValidToken` does below, because they
+  // are not authentication — they are how the app knows where it is:
+  //
+  //   · `x-pathname`. Server Components cannot read the request path, so layouts
+  //     read this header instead. Without it `workspaceForPath()` sees "/" and
+  //     reports NO workspace, and `DashboardHeader` renders its retired
+  //     horizontal header (it returns null only INSIDE a workspace) on top of
+  //     the layout's own top bar — two stacked headers on every page. The
+  //     workspace access checks and the daily-gate scoping read it too.
+  //   · the "/" → /hub redirect, so the root lands somewhere real.
+  if (DUMMY_MODE) {
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/hub", request.url));
+    }
+    const forwarded = new Headers(request.headers);
+    forwarded.set("x-pathname", pathname);
+    return NextResponse.next({ request: { headers: forwarded } });
   }
 
   // Self-heal a stale/garbage `__session` cookie. A legacy cookie signed with a

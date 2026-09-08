@@ -9,6 +9,11 @@ import { readSession } from "@/lib/auth/session";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { isAttendanceAdmin } from "@/lib/auth/attendance-permissions";
 import { FORBIDDEN_DIGEST as FORBIDDEN_DIGEST_VALUE } from "./forbidden";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
+
+/** The seeded account DUMMY MODE signs in as. Mirrors scripts/dummy-db-seed.ts;
+ *  duplicated as a plain string so this module never pulls in a script. */
+const DUMMY_USER_EMAIL = "dummy.admin@example.invalid";
 
 /**
  * Resolves the signed-in employee row, or null if not signed in.
@@ -22,6 +27,26 @@ import { FORBIDDEN_DIGEST as FORBIDDEN_DIGEST_VALUE } from "./forbidden";
  * thrown errors under load, which surfaced as "We hit a snag" / failed actions.
  */
 export const getCurrentEmployee = cache(async (): Promise<Employee | null> => {
+  // DUMMY MODE — Firebase is not contacted and no session cookie is read; you
+  // are simply signed in as the seeded dummy admin. Because a REAL row is
+  // returned (not a fabricated object), its id is a real foreign key, so every
+  // "assigned to me" filter, ownership check and join behaves normally.
+  //
+  // Development only: DUMMY_MODE is hard-false under NODE_ENV=production, so a
+  // production build cannot be talked into an unauthenticated session by an
+  // environment variable. See lib/db/dummy-dir.ts.
+  if (DUMMY_MODE) {
+    const row = await db.query.employees.findFirst({
+      where: eq(employees.email, DUMMY_USER_EMAIL),
+    });
+    if (!row) {
+      throw new Error(
+        `DUMMY_MODE is on but the dummy employee (${DUMMY_USER_EMAIL}) is missing. Run: pnpm dummy:setup`,
+      );
+    }
+    return row;
+  }
+
   const claims = await readSession();
   if (!claims) return null;
   const row = await db.query.employees.findFirst({
