@@ -149,7 +149,7 @@ export function PlanItemDrawer({
           <div className="border-b border-hairline px-5 py-4">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold"
+                className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11.5px] font-bold"
                 style={{
                   background: "var(--color-surface-soft)",
                   color: CATEGORY_ACCENT[category],
@@ -251,11 +251,11 @@ export function PlanItemDrawer({
                     {item.priority ? (
                       <PriorityPill priority={item.priority} />
                     ) : (
-                      <span className="text-ink-subtle">—</span>
+                      <span className="text-ink-subtle">-</span>
                     )}
                   </DetailRow>
-                  <DetailRow label="Due">{item.dueYmd ?? "—"}</DetailRow>
-                  <DetailRow label="Created">{item.createdYmd ?? "—"}</DetailRow>
+                  <DetailRow label="Due">{item.dueYmd ?? "-"}</DetailRow>
+                  <DetailRow label="Created">{item.createdYmd ?? "-"}</DetailRow>
                   {item.ageDays != null && (
                     <DetailRow label="Age">{item.ageDays}d open</DetailRow>
                   )}
@@ -305,7 +305,7 @@ function PriorityPill({ priority }: { priority: TaskPriority }) {
   const tone = PRIORITY_TONE[priority];
   return (
     <span
-      className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold"
+      className="inline-flex rounded-pill px-2 py-0.5 text-[11px] font-bold"
       style={{ background: tone.bg, color: tone.fg }}
     >
       {PRIORITY_LABELS[priority]}

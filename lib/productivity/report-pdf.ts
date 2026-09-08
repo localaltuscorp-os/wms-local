@@ -51,7 +51,7 @@ export async function renderProductivityReportPdf(snap: ProductivitySnapshot): P
     layout: "portrait",
     margin: MARGIN,
     info: {
-      Title: `Productivity Report — ${employee.name} — ${period.label}`,
+      Title: `Productivity Report - ${employee.name} - ${period.label}`,
       Author: "Altus Corp Dashboard",
       Subject: `Productivity Dashboard · ${period.label}`,
     },
@@ -87,7 +87,7 @@ export async function renderProductivityReportPdf(snap: ProductivitySnapshot): P
   doc.font("Helvetica-Bold").fontSize(22).fillColor(INK).text(employee.name, MARGIN, y, { width });
   y = doc.y + 2;
 
-  const role = [employee.designation, employee.department].filter(Boolean).join("  ·  ") || "—";
+  const role = [employee.designation, employee.department].filter(Boolean).join("  ·  ") || "-";
   doc.font("Helvetica").fontSize(10.5).fillColor(INK_MUTED).text(role, MARGIN, y, { width });
   y = doc.y + 1;
 
@@ -177,7 +177,7 @@ export async function renderProductivityReportPdf(snap: ProductivitySnapshot): P
    *  failure in a document that leaves the building. */
   function gradeRow(label: string, grade: Grade | null) {
     if (!grade) {
-      row(label, "—", { bold: true, color: INK_SUBTLE });
+      row(label, "-", { bold: true, color: INK_SUBTLE });
       return;
     }
     ensure(20);
@@ -205,7 +205,7 @@ export async function renderProductivityReportPdf(snap: ProductivitySnapshot): P
   row("Incentive % of salary", formatPct(kpi.incentivePct), { bold: true });
   gradeRow("Incentive grade", kpi.grade);
   note(
-    `Earned incentive is the amount APPROVED for ${period.label} — the figure signed off as this employee's, which does not lag behind a payroll run the way a disbursed amount does.` +
+    `Earned incentive is the amount APPROVED for ${period.label} - the figure signed off as this employee's, which does not lag behind a payroll run the way a disbursed amount does.` +
       (kpi.baseSalary > 0
         ? ""
         : " With no salary profile on record the percentage is unknown, so it reads as a dash rather than 0%."),
@@ -221,7 +221,7 @@ export async function renderProductivityReportPdf(snap: ProductivitySnapshot): P
   row("MTD completion", formatPct(goals.mtd.pct), { bold: true });
   gradeRow("MTD grade", goals.mtd.grade);
   note(
-    "MTD sums every weekly board whose Monday falls inside the month — W1 + W2 + W3 + W4 (+ W5 where the month has one). The period therefore begins on the 1st, needs no special case for 28/29/30/31-day months, and starts a new period on its own when the calendar turns over. Nothing carries forward from last month.",
+    "MTD sums every weekly board whose Monday falls inside the month - W1 + W2 + W3 + W4 (+ W5 where the month has one). The period therefore begins on the 1st, needs no special case for 28/29/30/31-day months, and starts a new period on its own when the calendar turns over. Nothing carries forward from last month.",
   );
 
   /* ── Tasks ────────────────────────────────────────────────────── */
@@ -231,7 +231,7 @@ export async function renderProductivityReportPdf(snap: ProductivitySnapshot): P
   row("Overdue 1-7 days", String(tasks.days1to7), { bold: true });
   row('Flagged "need help"', String(tasks.needHelp), { bold: true });
   note(
-    "Open assigned work only — done, approved and cancelled tasks are excluded. Age is counted in whole calendar days against each task's effective due date.",
+    "Open assigned work only - done, approved and cancelled tasks are excluded. Age is counted in whole calendar days against each task's effective due date.",
   );
 
   /* ── Training ─────────────────────────────────────────────────── */
@@ -250,7 +250,7 @@ export async function renderProductivityReportPdf(snap: ProductivitySnapshot): P
     row("Tasks delegated", String(manager.tasksDelegated), { bold: true });
     row("Goals delegated", String(manager.goalsDelegated), { bold: true });
     note(
-      "Work handed to direct reports this month — tasks this person raised on a report's list, and weekly goals they created on a report's board.",
+      "Work handed to direct reports this month - tasks this person raised on a report's list, and weekly goals they created on a report's board.",
     );
   }
 
@@ -282,7 +282,7 @@ export async function renderProductivityReportPdf(snap: ProductivitySnapshot): P
   drawScale("INCENTIVE - % OF BASE SALARY", INCENTIVE_SCALE, MARGIN + colWidth + 24, colWidth);
   y = Math.max(leftEnd, y) + 6;
   note(
-    "Two deliberately different scales: an employee can legitimately hold a strong goal grade and a weak incentive grade, because they measure different things. No grade is stored — each is derived from the values above it.",
+    "Two deliberately different scales: an employee can legitimately hold a strong goal grade and a weak incentive grade, because they measure different things. No grade is stored - each is derived from the values above it.",
   );
 
   /* ── Footer ───────────────────────────────────────────────────── */
@@ -292,7 +292,7 @@ export async function renderProductivityReportPdf(snap: ProductivitySnapshot): P
     .fontSize(8)
     .fillColor(INK_SUBTLE)
     .text(
-      `Generated ${snap.generatedAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" })} IST · every figure reads live from the tasks, goals, training, salary and incentive records — nothing is duplicated for this report.`,
+      `Generated ${snap.generatedAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" })} IST · every figure reads live from the tasks, goals, training, salary and incentive records - nothing is duplicated for this report.`,
       MARGIN,
       y + 4,
       { width },

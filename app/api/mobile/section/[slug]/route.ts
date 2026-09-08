@@ -30,7 +30,7 @@ function fmtDateTime(iso: string | null): string {
 function sessionRow(s: SessionListRow): Row {
   const when = fmtDateTime(s.scheduledAt);
   const modeLabel = s.mode === "online" ? "Online" : "In person";
-  const where = s.mode === "online" ? (s.meetingUrl || "Online") : (s.location || "—");
+  const where = s.mode === "online" ? (s.meetingUrl || "Online") : (s.location || "-");
   const statusLabel = s.status.charAt(0).toUpperCase() + s.status.slice(1);
   return {
     title: s.topic,

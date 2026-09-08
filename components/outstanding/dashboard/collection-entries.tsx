@@ -41,7 +41,7 @@ export function CollectionEntriesTable({ rows }: { rows: CollectionDisplayRow[] 
     >
       <header className="flex items-baseline justify-between gap-3 flex-wrap">
         <h2 className="text-display-lg text-ink-strong">
-          Total Collection Entries —{" "}
+          Total Collection Entries -{" "}
           <span className="tabular-nums">{rows.length}</span>{" "}
           {rows.length === 1 ? "entry" : "entries"}
         </h2>
@@ -91,9 +91,9 @@ export function CollectionEntriesTable({ rows }: { rows: CollectionDisplayRow[] 
                     >
                       {formatInr(r.amount)}
                     </Td>
-                    <Cell>{r.paymentMode ?? "—"}</Cell>
-                    <Cell>{r.responsible ?? "—"}</Cell>
-                    <Cell>{r.comments?.trim() ? r.comments : "—"}</Cell>
+                    <Cell>{r.paymentMode ?? "-"}</Cell>
+                    <Cell>{r.responsible ?? "-"}</Cell>
+                    <Cell>{r.comments?.trim() ? r.comments : "-"}</Cell>
                   </tr>
                 ))}
               </tbody>

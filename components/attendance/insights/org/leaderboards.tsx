@@ -37,7 +37,7 @@ export function Leaderboards({ boards }: { boards: OrgLeaderboards }) {
               role="tab"
               aria-selected={on}
               onClick={() => setActive(b.key)}
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/50"
+              className="inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12.5px] font-bold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/50"
               style={
                 on
                   ? { color: "#fff", background: b.tone }
@@ -95,7 +95,7 @@ function LeaderItem({ row, rank, tone, suffix }: { row: LeaderRow; rank: number;
           </div>
         </div>
         <span
-          className="shrink-0 rounded-full px-2.5 py-1 tabular-nums font-black"
+          className="shrink-0 rounded-pill px-2.5 py-1 tabular-nums font-black"
           style={{ fontSize: 13, color: tone, background: `color-mix(in srgb, ${tone} 13%, transparent)` }}
         >
           {row.value.toLocaleString()}

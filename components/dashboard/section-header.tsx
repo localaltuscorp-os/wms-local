@@ -1,4 +1,5 @@
 import * as React from "react";
+import { HoverTip } from "@/components/ui/hover-tip";
 
 /* ────────────────────────────────────────────────────────────────────────
    DashboardSectionHeader — the one header block every dashboard widget uses.
@@ -22,10 +23,33 @@ export interface DashboardSectionHeaderProps {
      the design reserves for alerts, and each said little the title below it
      did not already say. Removed at the source so no section can reintroduce
      one by passing a prop. */
-  /** Optional glyph to the left of the title block. */
+  /**
+   * The badge to the left of the title block.
+   *
+   * Optional to PASS, but the 36px column it sits in is reserved either way —
+   * see the render. A header that ships without one keeps its title on the
+   * column with the rest of the page instead of sliding 48px left.
+   */
   icon?: React.ReactNode;
   title: React.ReactNode;
-  /** One line of description under the title. */
+  /**
+   * The section's description. NOT rendered as a visible line any more — it is
+   * the hover tooltip on the title, plus an `sr-only` copy so the information
+   * stays in the accessibility tree for anyone who never hovers.
+   *
+   * ⚠️ NO COLOUR CLASSES IN HERE. Three sections carried a `text-gray-900`
+   * count, from when this was grey caption text and the number needed darkening
+   * against it. That colour is now at best redundant (the tooltip already sets
+   * the ink) and at worst invisible, depending on the surface it lands on. Use
+   * `font-semibold` / `tabular-nums` to pick a value out and let the colour
+   * inherit.
+   *
+   * ⚠️ Several sections put LIVE STATE in here rather than a description —
+   * "63 tasks in the current filter", "12 people · 57 pending tasks aging",
+   * "Showing 5 of 12 people". Those numbers now cost a hover to read. If a
+   * count needs to stay glanceable, it belongs in the title or the card, not
+   * here.
+   */
   subtitle?: React.ReactNode;
   /** Right-aligned controls (pager, toggles). */
   actions?: React.ReactNode;
@@ -77,28 +101,70 @@ export function DashboardSectionHeader({
     <header
       className={`flex w-full items-center justify-between gap-4 border-b border-slate-100 pb-2 ${inset} ${className}`}
     >
-      <div className="flex min-w-0 items-start gap-3">
-        {icon && <span className="mt-0.5 shrink-0">{icon}</span>}
+      {/* items-CENTER, not items-start. The icon was top-aligned to sit level
+          with the first line of a two-line title-and-subtitle block; with the
+          subtitle gone that block is one line shorter than the 36px badge, so
+          top-aligning left the badge hanging below the title. */}
+      <div className="flex min-w-0 items-center gap-3">
+        {/* THE ICON COLUMN IS ALWAYS RESERVED, icon or no icon.
+            
+            This used to be `{icon && <span…>}`, so a section that shipped
+            without a badge lost the column entirely and its title started 48px
+            (36px badge + the gap-3) to the LEFT of every other title on the
+            page. That is not a hypothetical: the Task Summary header was
+            exactly that section, and being the FIRST heading down the page it
+            made every section under it read as indented rather than itself as
+            outdented. Fixing it by adding a badge fixed that one header; the
+            next header to forget one would do it again. An empty span of the
+            same width costs nothing and makes the column structural. */}
+        <span className="size-9 shrink-0" aria-hidden={!icon}>
+          {icon}
+        </span>
         <div className="min-w-0">
           {/* text-xl, down from text-2xl. Eight of these run down one page and
               at 24px they competed with the numbers inside the cards — the data
               is the thing to read, the heading only has to label it. */}
           <h2 className="text-xl font-bold tracking-tight text-slate-900">
-            {title}
+            {/* THE DESCRIPTION IS A HOVER TOOLTIP, not a caption line.
+                
+                Eleven sections each carried a second, smaller line of grey text
+                under the title, and stacked down one page they doubled the
+                vertical cost of every heading while saying something most
+                readers only need once. On hover, at the moment someone actually
+                asks "what is this section?", it is still one gesture away.
+
+                HoverTip rather than the native `title` attribute: it is the
+                portal-based bubble the plan board already uses, so it wraps,
+                reads at a normal size, and is never clipped by a scrolling
+                parent — and it fires on FOCUS as well as hover, so the keyboard
+                reaches it too. */}
+            <HoverTip text={subtitle} className={subtitle ? "cursor-help" : undefined}>
+              {title}
+            </HoverTip>
           </h2>
-          {/* text-xs + font-medium: a step further from the title, so the pair
-              reads as heading-and-caption rather than as two similar lines. */}
-          {subtitle && (
-            <p className="mt-0.5 text-xs font-medium text-slate-500">{subtitle}</p>
-          )}
+          {/* The same text, always in the accessibility tree. A tooltip that
+              only exists while a pointer is over it would otherwise delete the
+              description outright for anyone not using one. */}
+          {subtitle && <p className="sr-only">{subtitle}</p>}
         </div>
       </div>
       {/* gap-2.5 — the standard gutter between toolbar controls. Sections used
           to wrap their own actions in a second flex with their own gap, so the
           spacing differed card to card; the slot owns it now and callers pass a
           plain fragment. */}
+      {/* `section-actions` FIXES THE ORDER OF THE TOOLBAR (globals.css).
+
+          Twelve sections each compose this slot themselves, and each had
+          settled on its own sequence — dispatch first here, search first
+          there, the fold sometimes before a transpose toggle. Reading down the
+          page, the same four controls appeared in four arrangements.
+
+          The order is set with CSS `order` keyed on `data-sec`, not by
+          rewriting twelve call sites: a section can pass its children in any
+          sequence and they still land in the same places, and a section added
+          next year inherits it without knowing the rule exists. */}
       {actions && (
-        <div className="flex shrink-0 items-center gap-2.5">{actions}</div>
+        <div className="section-actions flex shrink-0 items-center gap-2.5">{actions}</div>
       )}
     </header>
   );

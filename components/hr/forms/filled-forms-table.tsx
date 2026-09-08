@@ -240,7 +240,7 @@ export function FilledFormsTable({
       ) : visible.length === 0 ? (
         <EmptyState
           title="No submissions match these filters."
-          body="Try a different section, form or status — or reset to see everything."
+          body="Try a different section, form or status - or reset to see everything."
           action={
             <button
               type="button"
@@ -260,8 +260,17 @@ export function FilledFormsTable({
                 <Th className={showEmployee ? "" : "pl-4"}>Form</Th>
                 <Th className="max-md:hidden">{showEmployee ? "HR Section" : "Section"}</Th>
                 <Th className="max-sm:hidden">Submitted On</Th>
-                <Th>Status</Th>
-                <Th className="pr-4 text-right">Actions</Th>
+                {/* pl-2 matches the pill's own px-2, so the header lines up with
+                    the word inside the pill rather than with the pill's edge —
+                    the pill is the only cell content that carries padding of its
+                    own, which is why this column alone needs the offset. */}
+                <Th className="w-px whitespace-nowrap pl-2">Status</Th>
+                {/* w-px on the last TWO columns is what closes the gap before the
+                    actions: the table is w-full, so its leftover width has to land
+                    somewhere, and it was landing in Status and Actions — both wide
+                    columns holding narrow, edge-aligned content. Hugging them
+                    sends that slack to the four text columns instead. */}
+                <Th className="w-px pr-4 text-center">Actions</Th>
               </tr>
             </thead>
             <tbody>
@@ -286,7 +295,7 @@ function Row({ row, showEmployee }: { row: FilledFormRow; showEmployee: boolean 
     <tr className="border-b border-hairline transition-colors last:border-b-0 hover:bg-surface-soft">
       {showEmployee && (
         <td className="py-2.5 pl-4 pr-3 text-[13.5px] font-bold text-ink-strong">
-          {row.employeeName || "—"}
+          {row.employeeName || "-"}
         </td>
       )}
       <td className={`py-2.5 pr-3 text-[13.5px] font-semibold text-ink-strong ${showEmployee ? "" : "pl-4"}`}>
@@ -294,9 +303,9 @@ function Row({ row, showEmployee }: { row: FilledFormRow; showEmployee: boolean 
       </td>
       <td className="py-2.5 pr-3 text-[12.5px] text-ink-subtle max-md:hidden">{row.sectionLabel}</td>
       <td className="py-2.5 pr-3 text-[12.5px] tabular-nums text-ink-subtle max-sm:hidden">
-        {row.submittedOn || "—"}
+        {row.submittedOn || "-"}
       </td>
-      <td className="py-2.5 pr-3">
+      <td className="w-px whitespace-nowrap py-2.5 pr-3">
         <span
           className="inline-flex items-center whitespace-nowrap rounded-pill px-2 py-0.5 text-[11px] font-bold"
           style={{ color: st.color, background: st.bg }}
@@ -304,8 +313,8 @@ function Row({ row, showEmployee }: { row: FilledFormRow; showEmployee: boolean 
           {st.label}
         </span>
       </td>
-      <td className="py-2.5 pr-4">
-        <div className="flex items-center justify-end gap-1">
+      <td className="w-px py-2.5 pr-4">
+        <div className="flex items-center justify-center gap-1">
           <ActionLink href={`/hr/forms/${row.id}` as Route} label="View" icon={<Eye size={13} strokeWidth={2.4} />} />
           <ActionAnchor
             href={`/api/hr/forms/${row.id}/pdf`}

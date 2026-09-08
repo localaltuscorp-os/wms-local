@@ -140,9 +140,9 @@ export async function structureGoals(
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) return { ok: false, error: "Goal Capture isn't configured." };
   const text = rawText.trim();
-  if (!text) return { ok: false, error: "Nothing to capture — say or type your goals." };
+  if (!text) return { ok: false, error: "Nothing to capture - say or type your goals." };
 
-  let lastErr = "The AI didn't return any goals — try rephrasing.";
+  let lastErr = "The AI didn't return any goals - try rephrasing.";
 
   for (const model of MODELS) {
     let content: string;
@@ -187,7 +187,7 @@ export async function structureGoals(
         ? (parsed as { goals: unknown[] }).goals
         : null;
     if (!arr) {
-      lastErr = "The AI didn't return any goals — try rephrasing.";
+      lastErr = "The AI didn't return any goals - try rephrasing.";
       continue;
     }
 
@@ -208,7 +208,7 @@ export async function structureGoals(
       });
     }
     if (rows.length === 0) {
-      lastErr = "Couldn't find any goals in that — try rephrasing.";
+      lastErr = "Couldn't find any goals in that - try rephrasing.";
       continue;
     }
     return { ok: true, rows, model };

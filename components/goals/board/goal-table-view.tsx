@@ -237,7 +237,7 @@ function NumBox({
       max={max}
       disabled={disabled}
       aria-label={ariaLabel}
-      placeholder={placeholder ?? "—"}
+      placeholder={placeholder ?? "-"}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
@@ -251,7 +251,7 @@ function NumBox({
         }
       }}
       className={cn(
-        "h-6 rounded-md border-0 bg-transparent px-1.5 text-left text-[12.5px] font-semibold text-ink-strong tabular-nums transition-colors hover:bg-black/[0.04] focus:bg-black/[0.06]",
+        "h-7 rounded-md border-0 bg-transparent px-2 text-left text-[13px] font-semibold text-ink-strong tabular-nums transition-colors hover:bg-black/[0.04] focus:bg-black/[0.06]",
         "disabled:cursor-not-allowed disabled:opacity-60",
         "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
         FOCUS_RING,
@@ -553,7 +553,7 @@ function PctCell({
         className="w-[46px]"
       />
       <span
-        className="inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[12px] font-bold tabular-nums"
+        className="inline-flex h-5 min-w-5 items-center justify-center rounded-pill px-1 text-[12px] font-bold tabular-nums"
         style={{ color: tone.color, background: tone.bg }}
       >
         %
@@ -667,7 +667,7 @@ function TeamMembersCell({
         <span
           key={memberKey(m)}
           title={`${m.name}${m.weight != null ? ` · weight ${m.weight}` : ""}`}
-          className="inline-flex max-w-[112px] items-center gap-1 truncate rounded-full border px-1.5 py-0.5 text-[11px] font-semibold text-ink-strong"
+          className="inline-flex max-w-[112px] items-center gap-1 truncate rounded-pill border px-1.5 py-0.5 text-[11px] font-semibold text-ink-strong"
           style={{ borderColor: "var(--color-hairline)", background: "var(--color-surface-soft)" }}
         >
           <span
@@ -677,7 +677,7 @@ function TeamMembersCell({
           >
             {(m.name ?? "?").trim().charAt(0).toUpperCase()}
           </span>
-          <span className="truncate">{m.name ?? "—"}</span>
+          <span className="truncate">{m.name ?? "-"}</span>
           {m.weight != null && (
             <span className="tabular-nums font-bold text-altus-red-deep">·{m.weight}</span>
           )}
@@ -685,9 +685,9 @@ function TeamMembersCell({
       ))}
       {extra > 0 && (
         <span
-          className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-altus-red-deep"
+          className="inline-flex items-center rounded-pill px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-altus-red-deep"
           style={{ background: redTint(10) }}
-          title={list.slice(2).map((m) => `${m.name} (wt ${m.weight ?? "—"})`).join(", ")}
+          title={list.slice(2).map((m) => `${m.name} (wt ${m.weight ?? "-"})`).join(", ")}
         >
           +{extra}
         </span>
@@ -701,7 +701,7 @@ function TeamMembersCell({
             disabled={disabled}
             aria-label="Edit team members + weights"
             className={cn(
-              "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[11px] font-bold text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red",
+              "inline-flex h-6 items-center gap-1 rounded-pill border px-2 text-[11px] font-bold text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red",
               "disabled:cursor-not-allowed disabled:opacity-60",
               FOCUS_RING,
             )}
@@ -729,7 +729,7 @@ function TeamMembersCell({
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setActive(0); }}
                 onKeyDown={onSearchKeyDown}
-                placeholder="Local search — people" title="Local search — filters only the list on this page" aria-label="Local search — people — this page only"
+                placeholder="Local search - people" title="Local search - filters only the list on this page" aria-label="Local search - people - this page only"
                 className="h-8 w-full bg-transparent text-[13px] font-medium text-ink-strong outline-none placeholder:text-ink-subtle"
               />
             </div>
@@ -1040,7 +1040,7 @@ function DelegatesCell({
             ref={triggerRef}
             type="button"
             disabled={disabled}
-            aria-label={list.length > 0 ? `${list.length} delegate${list.length === 1 ? "" : "s"} — click to edit` : "Delegate to team"}
+            aria-label={list.length > 0 ? `${list.length} delegate${list.length === 1 ? "" : "s"} - click to edit` : "Delegate to team"}
             className={cn(
               "inline-flex items-center justify-center rounded-md p-0.5 transition-colors hover:text-altus-red",
               "disabled:cursor-not-allowed disabled:opacity-60",
@@ -1070,7 +1070,7 @@ function DelegatesCell({
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setActive(0); }}
                 onKeyDown={onSearchKeyDown}
-                placeholder="Local search — people" title="Local search — filters only the list on this page" aria-label="Local search — people — this page only"
+                placeholder="Local search - people" title="Local search - filters only the list on this page" aria-label="Local search - people - this page only"
                 className="h-8 w-full bg-transparent text-[13px] font-medium text-ink-strong outline-none placeholder:text-ink-subtle"
               />
             </div>
@@ -1172,7 +1172,7 @@ function DelegatesCell({
                       {(d.name ?? "?").trim().charAt(0).toUpperCase()}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-ink-strong">
-                      {d.name ?? "—"}
+                      {d.name ?? "-"}
                     </span>
                     <span className="shrink-0 text-[11.5px] font-bold tabular-nums text-altus-red-deep">{d.pct}%</span>
                     {!disabled && (
@@ -1364,7 +1364,7 @@ function TargetDateInline({
         if (next !== (iso ?? null)) onCommit(next);
       }}
       className={cn(
-        "h-6 rounded-md border bg-white px-1.5 text-[12.5px] font-semibold text-ink-strong focus:border-altus-red disabled:opacity-60",
+        "h-7 rounded-md border bg-white px-2 text-[13px] font-semibold text-ink-strong focus:border-altus-red disabled:opacity-60",
         FOCUS_RING,
       )}
       style={{ borderColor: has ? st.color : "var(--color-hairline-strong)" }}
@@ -1379,13 +1379,13 @@ function TargetDateStatusCell({ iso }: { iso: string | null }) {
   if (st.daysLeft == null) {
     return (
       <span className="text-[12px] font-semibold" style={{ color: "var(--color-ink-subtle)" }}>
-        —
+        -
       </span>
     );
   }
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-1.5 py-[1px] text-[11px] font-bold tabular-nums"
+      className="inline-flex items-center gap-1 rounded-pill px-1.5 py-[1px] text-[11px] font-bold tabular-nums"
       style={{ background: `color-mix(in srgb, ${st.color} 12%, transparent)`, color: st.color }}
       title={st.label}
     >
@@ -1819,7 +1819,10 @@ function DupCollisionDialog({
 /* ------------------------------------------------------------------ */
 
 const TH =
-  "px-2 py-1.5 text-left whitespace-nowrap max-md:px-1.5 max-md:py-1.5 font-sans text-[10.5px] font-bold uppercase tracking-[0.03em]";
+  // px-2.5/py-2.5 and 11px — the header was tighter than the tasks table's and
+  // set a full point smaller, which is what made the whole grid read as
+  // compressed before a single row was drawn.
+  "px-2.5 py-2.5 text-left whitespace-nowrap max-md:px-1.5 max-md:py-2 font-sans text-[11px] font-bold uppercase tracking-[0.03em]";
 
 /** Header cell metadata (not JSX — the component attaches live drag handlers
  *  itself) for one REORDERABLE_COLUMNS key, in the table's fixed per-column
@@ -2330,7 +2333,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         parse: (raw, g) => {
           const s = raw.trim();
           const low = s.toLowerCase();
-          if (s === "" || low === "no" || low === "-" || low === "—") {
+          if (s === "" || low === "no" || low === "-" || low === "-") {
             return {
               partial: { isProject: false, projectNodeId: null, vendorId: null },
               run: () => A.editGoal({ id: g.id, isProject: false }),
@@ -2486,7 +2489,7 @@ export function GoalTableView(props: GoalTableViewProps) {
     switch (key) {
       case "srno":
         return [
-          <td key="srno" className="px-1.5 py-0 align-middle">
+          <td key="srno" className="px-2.5 py-2 align-middle">
             <div className="flex flex-col items-start gap-1">
               {/* The goal CODE is the select/click handle. It is the one cell
                   in the row that is not an inline editor, so making it the
@@ -2504,7 +2507,7 @@ export function GoalTableView(props: GoalTableViewProps) {
                       setPreviewGoal(g);
                     }
                   }}
-                  aria-label={`Goal: ${g.title || "Untitled goal"} — view details`}
+                  aria-label={`Goal: ${g.title || "Untitled goal"} - view details`}
                   className="whitespace-nowrap text-[13px] font-bold text-ink-soft tabular-nums underline decoration-transparent underline-offset-2 transition-colors hover:text-altus-red hover:decoration-current outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/50 rounded-md"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
@@ -2525,7 +2528,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "area":
         return [
-          <td key="area" {...grid.cellProps(i, grid.ci("area"), "pl-1.5 pr-0 py-0 align-middle")}>
+          <td key="area" {...grid.cellProps(i, grid.ci("area"), "pl-2.5 pr-0 py-2 align-middle")}>
             <div className={cn(locked && "pointer-events-none opacity-60")}>
               <GoalLookupSelect
                 kind="area"
@@ -2544,7 +2547,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "title":
         return [
-          <td key="title" {...grid.cellProps(i, grid.ci("title"), "pl-0 pr-1.5 py-0 align-middle")}>
+          <td key="title" {...grid.cellProps(i, grid.ci("title"), "pl-0 pr-2.5 py-2 align-middle")}>
             {/* Single-line, truncated — keeps every row one line tall (dense
                 table, column stays narrow) — but a hover tooltip always shows
                 the FULL goal text, so nothing is ever actually hidden. */}
@@ -2600,7 +2603,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "measure":
         return [
-          <td key="measure" {...grid.cellProps(i, grid.ci("measure"), "px-1.5 py-0 align-middle")}>
+          <td key="measure" {...grid.cellProps(i, grid.ci("measure"), "px-2.5 py-2 align-middle")}>
             <div className={cn(locked && "pointer-events-none opacity-60")}>
               <GoalLookupSelect
                 kind="measure"
@@ -2619,7 +2622,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "actual":
         return [
-          <td key="actual" {...grid.cellProps(i, grid.ci("actual"), "px-1.5 py-0 align-middle")}>
+          <td key="actual" {...grid.cellProps(i, grid.ci("actual"), "px-2.5 py-2 align-middle")}>
             <NumBox
               value={trimDecimal(g.actualQty)}
               disabled={locked}
@@ -2637,7 +2640,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "target":
         return [
-          <td key="target" {...grid.cellProps(i, grid.ci("target"), "px-1.5 py-0 align-middle")}>
+          <td key="target" {...grid.cellProps(i, grid.ci("target"), "px-2.5 py-2 align-middle")}>
             <NumBox
               value={trimDecimal(g.targetQty)}
               disabled={locked}
@@ -2655,7 +2658,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "pct":
         return [
-          <td key="pct" {...grid.cellProps(i, grid.ci("pct"), "px-1.5 py-0 align-middle")}>
+          <td key="pct" {...grid.cellProps(i, grid.ci("pct"), "px-2.5 py-2 align-middle")}>
             {(() => {
               const auto = autoPctDone(g.targetQty, g.actualQty);
               return (
@@ -2671,7 +2674,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "teamPct":
         return [
-          <td key="teamPct" {...grid.cellProps(i, grid.ci("teamPct"), "px-1.5 py-0 align-middle")}>
+          <td key="teamPct" {...grid.cellProps(i, grid.ci("teamPct"), "px-2.5 py-2 align-middle")}>
             <NumBox
               value={g.teamDependencyPct == null ? "" : String(g.teamDependencyPct)}
               min={0}
@@ -2685,7 +2688,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "delegate":
         return [
-          <td key="delegate" {...grid.cellProps(i, grid.ci("delegate"), "px-1.5 py-0 align-middle")}>
+          <td key="delegate" {...grid.cellProps(i, grid.ci("delegate"), "px-2.5 py-2 align-middle")}>
             <DelegatesCell
               delegates={g.delegatedTo ?? null}
               roster={roster}
@@ -2696,7 +2699,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "targetDate":
         return [
-          <td key="targetDate" className="px-1.5 py-0 align-middle">
+          <td key="targetDate" className="px-2.5 py-2 align-middle">
             <TargetDateInline
               iso={g.targetDate}
               editable={level === "month" && !weekly}
@@ -2708,16 +2711,16 @@ export function GoalTableView(props: GoalTableViewProps) {
       case "owner":
         return [
           level !== "day" ? (
-            <td key="owner" className="px-1.5 py-0 align-middle">
+            <td key="owner" className="px-2.5 py-2 align-middle">
               <AssignmentChip goal={g} />
             </td>
           ) : (
-            <td key="owner" className="px-1.5 py-0 align-middle" />
+            <td key="owner" className="px-2.5 py-2 align-middle" />
           ),
         ];
       case "type":
         return [
-          <td key="type" {...grid.cellProps(i, grid.ci("type"), "px-1.5 py-0 align-middle")}>
+          <td key="type" {...grid.cellProps(i, grid.ci("type"), "px-2.5 py-2 align-middle")}>
             <div className={cn(locked && "pointer-events-none opacity-60")}>
               <GoalLookupSelect
                 kind="goaltype"
@@ -2736,7 +2739,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         ];
       case "notes":
         return [
-          <td key="notes" className="px-1.5 py-0 align-top">
+          <td key="notes" className="px-2.5 py-2 align-top">
             <NotesCell
               goalId={g.id}
               hasNotes={(g.notes?.trim()?.length ?? 0) > 0}
@@ -2744,13 +2747,13 @@ export function GoalTableView(props: GoalTableViewProps) {
               onToggle={() => toggleExpand(g.id)}
             />
           </td>,
-          <td key="attachments" className="px-1.5 py-0 align-top">
+          <td key="attachments" className="px-2.5 py-2 align-top">
             <AttachmentsCell goalId={g.id} expanded={expanded.has(g.id)} onToggle={() => toggleExpand(g.id)} />
           </td>,
         ];
       case "targetDateStatus":
         return [
-          <td key="targetDateStatus" className="px-1.5 py-0 align-middle">
+          <td key="targetDateStatus" className="px-2.5 py-2 align-middle">
             <TargetDateStatusCell iso={g.targetDate} />
           </td>,
         ];
@@ -2850,7 +2853,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         // than the outcome here.
         if (copied === 0) {
           fireToast({
-            message: `Already in ${dest} — nothing to copy.`,
+            message: `Already in ${dest} - nothing to copy.`,
             type: "info",
           });
           clearSelection();
@@ -2991,9 +2994,9 @@ export function GoalTableView(props: GoalTableViewProps) {
     <div className="relative">
       {/* scoped slider chrome */}
       <style>{`
-        /* No vertical dividers — a clean list feel with only horizontal rules. */
+        /* No vertical dividers - a clean list feel with only horizontal rules. */
         .gtv-table th, .gtv-table td { border-right: none; }
-        /* Frozen header — the same crisp glass strip as the Tasks table, at a
+        /* Frozen header - the same crisp glass strip as the Tasks table, at a
            smaller size than the shared text-table-head utility (dense table). */
         .gtv-table thead th {
           position: sticky;
@@ -3029,7 +3032,7 @@ export function GoalTableView(props: GoalTableViewProps) {
           />
           <span className="inline-flex items-center gap-2 text-[14px] font-bold text-ink-strong">
             <span
-              className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full text-white tabular-nums text-[12.5px] font-black"
+              className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-pill text-white tabular-nums text-[12.5px] font-black"
               style={{
                 background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
                 boxShadow: "0 3px 8px -3px rgba(225, 6, 0, 0.5)",
@@ -3192,9 +3195,16 @@ export function GoalTableView(props: GoalTableViewProps) {
               return (
                 <React.Fragment key={g.id}>
                 <tr
+                  /* Same row treatment as the Tasks table, which is the one
+                     this was asked to match: a full-width bottom rule, a hover
+                     wash, and a 4px LEFT ACCENT that only appears on hover —
+                     the Gmail-inbox tell that a row is a row and that it is
+                     the one under your pointer. The accent is transparent by
+                     default rather than absent, so hovering does not shift the
+                     row by 4px. */
                   className={cn(
-                    "group border-b border-gray-200 transition-colors",
-                    !isSel && "hover:bg-slate-50/80",
+                    "group border-b border-l-4 border-gray-200 border-l-transparent transition-colors",
+                    !isSel && "hover:bg-slate-50/80 hover:border-l-altus-red",
                   )}
                   style={{
                     background: isSel ? redTint(6) : undefined,
@@ -3202,7 +3212,7 @@ export function GoalTableView(props: GoalTableViewProps) {
                 >
                   {/* select — checking the box also opens the Edit popup
                       automatically (unchecking just deselects). */}
-                  <td className="py-0 pl-2 pr-1 align-middle">
+                  <td className="py-2 pl-3 pr-1 align-middle">
                     <BrandCheck
                       checked={isSel}
                       onToggle={() => {

@@ -33,6 +33,7 @@ import {
   PAYMENT_STATUS_LABEL,
   type PaymentStatus,
 } from "@/lib/salary/payment";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /* These two were called GREEN / GREEN_DEEP but held the brand RED (#E10600) —
  * and that misnaming is how the payout column, the payslip button and the Paid
@@ -97,7 +98,7 @@ export interface SalaryRow {
 // net-to-pay can never drift between the table, CSV, payroll PDF and mobile.
 
 const inr = (v: string | null) =>
-  v == null || v === "" ? "—" : `₹${Math.round(Number(v)).toLocaleString("en-IN")}`;
+  v == null || v === "" ? "-" : `₹${Math.round(Number(v)).toLocaleString("en-IN")}`;
 /** Rupees from an already-computed number. The payment columns are derived, so
  *  they never have the "missing" case `inr` renders as an em dash. */
 const inrN = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
@@ -106,7 +107,7 @@ const inrN = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 const netToPay = (r: SalaryRow) => totalPayable(r);
 /** Day counts, trimmed of trailing zeros. Only the Wave-Off editor needs it now
  *  that the attendance columns are gone. */
-const dec = (v: string | null) => (v == null || v === "" ? "—" : String(Number(v)));
+const dec = (v: string | null) => (v == null || v === "" ? "-" : String(Number(v)));
 const num = (v: string | null) => (v == null || v === "" ? 0 : Number(v));
 /**
  * The signed total of BOTH pre-payout grants — condoned wave-off days converted
@@ -250,7 +251,7 @@ const COLUMNS: Col[] = [
           <span className="truncate">{r.companyName}</span>
         </span>
       ) : (
-        <span className="text-ink-subtle">—</span>
+        <span className="text-ink-subtle">-</span>
       ),
   },
   {
@@ -541,7 +542,7 @@ function AmountToPayCell({ row, editable }: { row: SalaryRow; editable: boolean 
       fireToast({ message: res.error, type: "error" });
       return;
     }
-    fireToast({ message: `${row.employeeName} — recorded payment cleared.`, type: "info" });
+    fireToast({ message: `${row.employeeName} - recorded payment cleared.`, type: "info" });
     router.refresh();
   }
 
@@ -647,14 +648,14 @@ function paymentToast(
     : "";
 
   if (res.noChange) {
-    return { message: `${name} — no change; nothing re-sent.${capped}`, type: "info" };
+    return { message: `${name} - no change; nothing re-sent.${capped}`, type: "info" };
   }
 
   // Still outstanding → a plain record of the running total. No slip goes out
   // until the balance clears, and saying "paid" here would be wrong.
   if (res.status !== "paid") {
     return {
-      message: `${name} — ${inrN(res.amountPaid)} of ${inrN(res.payable)} recorded. ${inrN(res.balance)} still outstanding.${capped}`,
+      message: `${name} - ${inrN(res.amountPaid)} of ${inrN(res.payable)} recorded. ${inrN(res.balance)} still outstanding.${capped}`,
       type: "info",
     };
   }
@@ -671,19 +672,19 @@ function paymentToast(
   }
   if (mail.to.length === 0) {
     return {
-      message: `${name} paid in full — but no email address is on file, so the salary slip was NOT sent.${capped}`,
+      message: `${name} paid in full - but no email address is on file, so the salary slip was NOT sent.${capped}`,
       type: "error",
     };
   }
   if (!mail.personal) {
     return {
-      message: `${name} paid in full. Slip sent to the work address only — no personal email on file.${capped}`,
+      message: `${name} paid in full. Slip sent to the work address only - no personal email on file.${capped}`,
       type: "info",
     };
   }
   if (!mail.business) {
     return {
-      message: `${name} paid in full. Slip sent to the personal address only — no work email on file.${capped}`,
+      message: `${name} paid in full. Slip sent to the personal address only - no work email on file.${capped}`,
       type: "info",
     };
   }
@@ -708,7 +709,7 @@ function RemarkCell({ row, editable }: { row: SalaryRow; editable: boolean }) {
         {saved}
       </span>
     ) : (
-      <span className="text-ink-subtle">—</span>
+      <span className="text-ink-subtle">-</span>
     );
   }
 
@@ -771,7 +772,7 @@ function AdjustmentsCell({ row, editable }: { row: SalaryRow; editable: boolean 
 
   const badge =
     total === 0 ? (
-      <span className="text-[13px] text-ink-subtle">—</span>
+      <span className="text-[13px] text-ink-subtle">-</span>
     ) : (
       <span
         className="tabular-nums text-[13.5px] font-black"
@@ -843,7 +844,7 @@ function WaiveOffCell({ row, editable }: { row: SalaryRow; editable: boolean }) 
         {delta}
       </div>
     ) : (
-      <span className="text-ink-subtle">—</span>
+      <span className="text-ink-subtle">-</span>
     );
   }
 
@@ -887,8 +888,8 @@ function WaiveOffCell({ row, editable }: { row: SalaryRow; editable: boolean }) 
             }
           }}
           placeholder="0"
-          aria-label={`Wave off days for ${row.employeeName} — your money isn't deducted`}
-          title="Condone attendance days — your money isn't deducted"
+          aria-label={`Wave off days for ${row.employeeName} - your money isn't deducted`}
+          title="Condone attendance days - your money isn't deducted"
           className="w-[54px] rounded-md border border-hairline bg-surface-card px-2 py-1 text-right text-[12.5px] font-bold tabular-nums text-ink-strong transition-colors placeholder:font-normal placeholder:text-ink-subtle hover:border-hairline-strong focus:border-[color-mix(in_srgb,#166534_55%,transparent)] focus:outline-none disabled:opacity-60"
         />
         <span className="text-[11px] font-semibold text-ink-subtle">days</span>
@@ -920,7 +921,7 @@ function AdjustmentCell({ row, editable }: { row: SalaryRow; editable: boolean }
     ) : null;
 
   if (!editable) {
-    return saved !== 0 ? <div>{delta}</div> : <span className="text-ink-subtle">—</span>;
+    return saved !== 0 ? <div>{delta}</div> : <span className="text-ink-subtle">-</span>;
   }
 
   async function commit() {
@@ -977,7 +978,7 @@ function AdjustmentCell({ row, editable }: { row: SalaryRow; editable: boolean }
  * incentives) via the combined-earnings route, for the currently-viewed month. */
 function PayslipLink({ row, month }: { row: SalaryRow; month?: string }) {
   if (!row.employeeId || !month) {
-    return <span className="text-ink-subtle">—</span>;
+    return <span className="text-ink-subtle">-</span>;
   }
   const href = `/salary/earnings/${row.employeeId}?month=${month}&name=${encodeURIComponent(row.employeeName)}`;
   return (
@@ -1132,6 +1133,7 @@ export function SalaryBreakupTable({
     >
       {/* ── Toolbar: search · company filter · count ── */}
       <div className="admin-toolbar">
+        <CollapsibleSearch scope="name, designation or entity">
         <div className="relative min-w-[220px] max-w-sm flex-1">
           <Search
             size={16}
@@ -1143,10 +1145,11 @@ export function SalaryBreakupTable({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Local search — name, designation or entity" title="Local search — filters only the list on this page" aria-label="Local search — name, designation or entity — this page only"
+            placeholder="Local search - name, designation or entity" title="Local search - filters only the list on this page" aria-label="Local search - name, designation or entity - this page only"
             className="admin-search"
           />
         </div>
+        </CollapsibleSearch>
 
         {!hideCompanyFilter && companies.length > 1 && (
           <label className="inline-flex items-center gap-2">

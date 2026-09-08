@@ -160,7 +160,7 @@ export const BulkEditEmployeesSchema = z
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, {
-    message: "Nothing to apply — no field was changed.",
+    message: "Nothing to apply - no field was changed.",
   });
 
 export type BulkEditEmployeesInput = z.infer<typeof BulkEditEmployeesSchema>;

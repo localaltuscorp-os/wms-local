@@ -52,7 +52,7 @@ export default async function MemberChecklistReviewPage({
           <ArrowLeft size={15} strokeWidth={2.4} /> Team performance
         </Link>
         <header className="mt-3 mb-6 flex items-center gap-4 wg-rise">
-          <EmployeeAvatar name={name ?? "—"} size="lg" />
+          <EmployeeAvatar name={name ?? "-"} size="lg" />
           <div>
             <span className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white" style={{ background: `linear-gradient(135deg, ${RED}, var(--color-altus-red-deep))` }}>
               <ClipboardList size={13} strokeWidth={2.6} /> Daily checklist review
@@ -99,7 +99,7 @@ export default async function MemberChecklistReviewPage({
                             </span>
                             {it.title}
                           </span>
-                          {it.doneNote && <span className="block text-[12.5px] text-ink-subtle">— {it.doneNote}</span>}
+                          {it.doneNote && <span className="block text-[12.5px] text-ink-subtle">- {it.doneNote}</span>}
                         </span>
                       </li>
                     ))}

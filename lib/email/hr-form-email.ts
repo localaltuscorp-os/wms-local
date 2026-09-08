@@ -73,7 +73,7 @@ export async function sendHrFormPdfEmail(args: {
       from: FROM,
       to: args.to,
       ...(cc ? { cc } : {}),
-      subject: clampSubject(`${args.formName} — ${args.recipientName ?? "Filled form"}`),
+      subject: clampSubject(`${args.formName} - ${args.recipientName ?? "Filled form"}`),
       html: `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:640px;margin:0 auto;color:#1a1a1a">
         <div style="border-bottom:3px solid ${BRAND};padding-bottom:10px;margin-bottom:16px">
           <div style="font-size:12px;font-weight:800;letter-spacing:2px;color:${BRAND};text-transform:uppercase">${esc(

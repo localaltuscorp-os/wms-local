@@ -15,12 +15,12 @@ import { SectionDispatch } from "@/components/dashboard/section-dispatch";
 import type { SectionReport } from "@/lib/reports/section-report";
 
 /**
- * DELIVERY VS DUE DATE — the 12-bucket spread.
+ * DELIVERY VS DUE DATE - the 12-bucket spread.
  *
  * Moved here from the Task Analytics report (task-report-view.tsx), where it
  * was the first section. `DoneCard` and its `GlassCard` shell are carried over
- * UNCHANGED — same bucket split, same denominator, same bars, same on-time
- * percentage — because the point of the move was the placement, not a redesign.
+ * UNCHANGED - same bucket split, same denominator, same bars, same on-time
+ * percentage - because the point of the move was the placement, not a redesign.
  *
  * What could not come with it is the report's `ReportSection` chrome: that
  * component is shared with the report's other sections and stays there. The
@@ -28,8 +28,8 @@ import type { SectionReport } from "@/lib/reports/section-report";
  * this section folds like every other section on this page rather than
  * importing a second set of section furniture.
  *
- * The DATA is computed the way the report computed it — every non-archived done
- * task, NOT the dashboard's filtered period — so the percentage reads the same
+ * The DATA is computed the way the report computed it - every non-archived done
+ * task, NOT the dashboard's filtered period - so the percentage reads the same
  * here as it did there. See `doneSpread` in lib/queries/dashboard.ts.
  */
 /* Carried over verbatim from task-report-view, where DoneCard read them. */
@@ -42,7 +42,7 @@ export function DeliverySpreadSection({ dist }: { dist: DoneFineDistribution }) 
   // directly under the section's actual one.
   const rate = dist.dated > 0 ? Math.round((dist.onTime / dist.dated) * 100) : 0;
 
-  /* A distribution, not a roster — so the report's rows are the BUCKETS, which
+  /* A distribution, not a roster - so the report's rows are the BUCKETS, which
      is the only thing this section actually shows. */
   const buildReport = React.useCallback((): SectionReport => {
     return {
@@ -55,12 +55,12 @@ export function DeliverySpreadSection({ dist }: { dist: DoneFineDistribution }) 
         { label: "Tasks", weight: 1, align: "right" },
         { label: "Share", weight: 1, align: "right" },
       ],
-      // `key` IS the label here — FINE_AGING_BUCKETS is a union of the written
+      // `key` IS the label here - FINE_AGING_BUCKETS is a union of the written
       // band names ("4 to 7 days overdue"), not of slugs.
       rows: dist.buckets.map((b) => [
         b.key,
         String(b.count),
-        dist.dated > 0 ? `${Math.round((b.count / dist.dated) * 100)}%` : "—",
+        dist.dated > 0 ? `${Math.round((b.count / dist.dated) * 100)}%` : "-",
       ]),
     };
   }, [dist, rate]);
@@ -82,7 +82,7 @@ export function DeliverySpreadSection({ dist }: { dist: DoneFineDistribution }) 
         /* THE METRICS MOVED INTO THE CARD. They sat here, in the section
            header, where they were a 12.5px caption competing with the title
            beside them and hidden outright below md. Inside the card they sit on
-           the same line as the basis caption they qualify — "32% on time" means
+           the same line as the basis caption they qualify - "32% on time" means
            nothing until you know it is measured against the ORIGINAL due date,
            and that sentence is now readable in one glance. */
         actions={
@@ -163,7 +163,7 @@ function DoneCard({
 
       {/* Side-by-side split. The buckets are already ordered most-overdue first
           through earliest-delivery last, so `fineBucketIsLate` cuts the list
-          cleanly in two at the "On Due Date" boundary — no re-ordering and no
+          cleanly in two at the "On Due Date" boundary - no re-ordering and no
           second source of truth for which band is which.
           On Due Date sits on the RIGHT: delivering exactly on the committed day
           is hitting the deadline, not missing it. */}
@@ -184,7 +184,7 @@ function DoneCard({
 
       {dist.undated > 0 && (
         <p className="mt-3 text-[12px] font-semibold text-ink-subtle">
-          {dist.undated} Done Without a Comparable Date — Not Counted.
+          {dist.undated} Done Without a Comparable Date - Not Counted.
         </p>
       )}
     </GlassCard>

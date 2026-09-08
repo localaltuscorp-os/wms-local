@@ -74,6 +74,9 @@ const HUB_PASTEL: Record<WorkspaceId, { from: string; to: string; ink: string; i
   accounts:     { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B", inkSoft: "#315A9B" },
   // Hand-holding — orange, the module's own accent (lib/module-theme).
   "people-allocation": { from: "#FBE7D6", to: "#FBE7D6", ink: "#C2410C", inkSoft: "#C2410C" },
+  // Project — the WMS red, matching the wms card above: the plan and the task
+  // list are two windows onto the same records.
+  "project-plan": { from: "#FEE2E2", to: "#FECACA", ink: "#B91C1C", inkSoft: "#DC2626" },
 };
 
 /**
@@ -121,11 +124,18 @@ function WorkspaceCard({ m, locked, i }: { m: ModuleTheme; locked: boolean; i: n
           <h3 className="text-[22px] font-extrabold leading-none tracking-tight max-md:text-[20px]" style={{ color: p.ink }}>
             {m.label}
           </h3>
-          {/* Cards grow to fit (min-h + grid stretch equalises the row), so the
-              full tagline shows without ever being clipped mid-line. */}
-          <p className="mt-1.5 line-clamp-3 text-[12.5px] font-medium leading-snug" style={{ color: p.inkSoft }}>
-            {m.tagline}
-          </p>
+          {/* NO TAGLINE (2026-09-08). It was three lines of prose under every
+              title and it set the card's height: eleven cards each tall enough
+              for a sentence is what pushed the grid past one screen. The name
+              and the glyph identify a workspace on their own — this is a hub
+              you pass through, not something you read.
+
+              `tagline` STAYS in MODULE_THEME and this was its only reader, so
+              the field is now carried and unread. Left deliberately: it is one
+              accurate sentence per module, the Android hub keeps its own copy
+              of the same strings, and deleting eleven of them to satisfy a
+              tidiness impulse is not what was asked for here. If it is still
+              unread when something else needs that shape, delete it then. */}
           {locked ? (
             <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-pill bg-black/10 px-3 py-1 text-[12.5px] font-bold" style={{ color: p.ink }}>
               <Lock size={13} strokeWidth={2.5} /> No Access
@@ -142,7 +152,10 @@ function WorkspaceCard({ m, locked, i }: { m: ModuleTheme; locked: boolean; i: n
   );
 
   const base =
-    "wg-rise group relative block h-full min-h-[236px] overflow-hidden rounded-[28px] shadow-md max-md:min-h-[204px]";
+    // Shorter than the 236px it was: that height existed to fit three lines of
+    // tagline under the title, and with the tagline gone it would have left the
+    // glyph floating in a card two-thirds empty.
+    "wg-rise group relative block h-full min-h-[176px] overflow-hidden rounded-[28px] shadow-md max-md:min-h-[158px]";
   const bg = { background: `linear-gradient(145deg, ${p.from}, ${p.to})` };
 
   if (locked) {
@@ -222,7 +235,7 @@ export default async function HubPage() {
               href="https://altuscorp.in"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Altus Corp — altuscorp.in"
+              aria-label="Altus Corp - altuscorp.in"
               className="shrink-0 rounded-lg outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
             >
               <Image
@@ -254,11 +267,16 @@ export default async function HubPage() {
           </div>
         </header>
 
-        {/* Workspace grid — 10 modules. On xl the 5×2 grid fills the viewport
-            with no scroll; below xl it flows into fewer columns (3s on lg, so a
-            row never ends in a single orphan card) and the page scrolls. */}
+        {/* Workspace grid — FOUR per row, so eleven modules read as 4 · 4 · 3.
+            It was five per row, which split them 5 · 5 · 1 and left HandHolding
+            alone on a line looking like an afterthought rather than the eleventh
+            workspace. Four also keeps the cards wide enough to hold a two-word
+            title on one line at lg.
+
+            Below lg it still steps down to two columns and then one; those
+            breakpoints are unchanged. */}
         <section
-          className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+          className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4"
           aria-label="Workspaces"
         >
           {/* A workspace you can't enter is HIDDEN, not shown greyed as "No

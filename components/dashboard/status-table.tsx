@@ -33,6 +33,7 @@ import {
   CollapseToggle,
   CollapsibleBody,
   SectionSearchBox,
+  SECTION_CONTROL,
   DASHBOARD_CARD,
   DASHBOARD_TABLE_HEAD,
 } from "./section-chrome";
@@ -41,11 +42,8 @@ import { CriticalBadge } from "@/components/ui/critical-badge";
 import { Avatar } from "@/components/ui/avatar";
 import { SectionIcon } from "@/components/dashboard/section-icon";
 import { PageShell } from "@/components/layout/page-shell";
-import {
-  DEPT_BUCKETS,
-  inDeptBucket,
-  type DeptBucket,
-} from "@/lib/teams/department-buckets";
+import { inTeamView, TEAM_VIEW_LABELS, type TeamView } from "@/lib/teams/app-team";
+import { TeamToggle } from "@/components/dashboard/team-toggle";
 
 /* The two non-department tab keys. Sentinels rather than "" / null so the tab
    list, the active-tab check and the filter all speak one type — and prefixed
@@ -412,9 +410,12 @@ export function StatusTable({
     );
   }, []);
   const [query, setQuery] = React.useState("");
-  /* ONE bucket at a time, because the control is a segmented tab bar rather
-     than a multi-select. See DepartmentTabs for what that trades. */
-  const [selectedDept, setSelectedDept] = React.useState<DeptBucket>("all");
+  /* ONE team at a time, because the control is a segmented tab bar rather than
+     a multi-select. That was a real capability of the dropdown this replaced
+     and it is gone deliberately: two controls that can each filter the same
+     column are two controls that can disagree, with no way for a reader to
+     tell which one the table is obeying. */
+  const [teamView, setTeamView] = React.useState<TeamView>("all");
   /* The opening batch on the All tab, and the step each "Load More" adds. */
   const BATCH = 10;
 
@@ -466,44 +467,39 @@ export function StatusTable({
     });
   }, [rows, query, sectionQuery, focusColumns]);
 
-  /* SIX FIXED TABS, counted from the data.
-     
-     This replaced a bar derived from the departments actually present, and the
-     reason is what that produced on the real roster: eleven-plus tabs — HR,
-     Accounts, Founder, Social Media, Admin, Graduate Programs, Lead
-     Generation, Videos, Business Development, Consulting, Unassigned — most of
-     them one or two people, and the big-team comparison the bar existed for
-     unreadable inside them. The bucket definitions live in
-     lib/teams/department-buckets.ts, with the trade written out there.
+  /* THE TEAM TABS — the SAME control, labels and membership rule as Overdue
+     Tasks by Person, the Aging Heatmap and People To Pull Up
+     (components/dashboard/team-toggle.tsx, lib/teams/app-team.ts).
 
-     THE LABELS ARE FIXED; THE COUNTS ARE NOT. Every tab is always rendered,
+     This replaced a bar of six department buckets — All / Ops / Sales /
+     Marketing / App / Others — that only this section ran. It filtered
+     correctly, but it meant one page asked "which team?" in two incompatible
+     vocabularies, and "App Team" named one set of people here and a different
+     set two sections up. A reader comparing the two bars had no way to know
+     they did not mean the same thing.
+
+     TWO TABS THAT PARTITION THE ROSTER, so the counts always sum to All and
+     there is no third group left for an "Others" tab to hold: `nonApp` is
+     defined as the exact complement of `app` (see inTeamView). Someone in both
+     Apps and HR counts as App under the any-of rule, and someone with no
+     department at all lands in Non-App.
+
+     THE LABELS ARE FIXED; THE COUNTS ARE NOT. All three tabs always render,
      including one that currently counts zero — a bar whose tabs appear and
-     disappear as you type is a bar you cannot aim at. That also means the
-     empty tab is legible as a fact about the org ("nobody in Ops is carrying
-     this") rather than as a missing control.
-
-     The counts do NOT sum to the roster, and should not: a person holding two
-     departments in different buckets is counted under both, matching the
-     any-of rule inDeptBucket applies. Others is the exception — it is defined
-     as matching none of the four, so nobody appears in it AND a named tab. */
-  const deptTabs = React.useMemo(
-    () =>
-      DEPT_BUCKETS.map((b) => ({
-        ...b,
-        count: preDeptFiltered.filter((r) =>
-          inDeptBucket(departmentNames(r), b.key),
-        ).length,
-      })),
+     disappear as you type is a bar you cannot aim at, and an empty tab is
+     legible as a fact about the org rather than as a missing control. */
+  const teamCounts = React.useMemo(
+    () => ({
+      all: preDeptFiltered.length,
+      app: preDeptFiltered.filter((r) => inTeamView(departmentNames(r), "app")).length,
+      nonApp: preDeptFiltered.filter((r) => inTeamView(departmentNames(r), "nonApp")).length,
+    }),
     [preDeptFiltered],
   );
 
-  /* No fallback needed any more: the six tabs are always all present, so the
-     selected one cannot vanish under the reader the way a derived tab could. */
-  const activeDept = selectedDept;
-
   const filtered = React.useMemo(
-    () => preDeptFiltered.filter((r) => inDeptBucket(departmentNames(r), activeDept)),
-    [preDeptFiltered, activeDept],
+    () => preDeptFiltered.filter((r) => inTeamView(departmentNames(r), teamView)),
+    [preDeptFiltered, teamView],
   );
 
   const columns = React.useMemo(
@@ -539,7 +535,7 @@ export function StatusTable({
 
   const hasActiveFilter =
     query.trim().length > 0 ||
-    activeDept !== "all" ||
+    teamView !== "all" ||
     sectionQuery.length > 0 ||
     focusColumns !== null;
 
@@ -555,10 +551,10 @@ export function StatusTable({
         { label: "View", value: view === "doer" ? "By doer" : "By initiator" },
         ...(query.trim() ? [{ label: "Search", value: query.trim() }] : []),
         {
-          label: "Department",
-          /* The tab's own label, so the export says "Ops Team" rather than the
-             bucket key it is keyed on. */
-          value: DEPT_BUCKETS.find((b) => b.key === activeDept)?.label ?? "All",
+          label: "Team",
+          /* The tab's own label, so the export says "Non-App Team" rather than
+             the key it is stored under. */
+          value: TEAM_VIEW_LABELS[teamView],
         },
         ...(kpiFocus ? [{ label: "Focused on", value: kpiFocus }] : []),
       ],
@@ -572,7 +568,7 @@ export function StatusTable({
         ...STATUS_COLUMNS.map((c) => String(r[c.key] ?? 0)),
       ]),
     };
-  }, [filtered, query, activeDept, kpiFocus, view]);
+  }, [filtered, query, teamView, kpiFocus, view]);
 
   /* ── ONE GROWING SLICE, NOT PAGES ────────────────────────────────────────
      Replaces usePagedRows and the header's prev/next pager. Two controls that
@@ -601,7 +597,7 @@ export function StatusTable({
      renders the stale slice and corrects it on the next pass, which is the
      cascading render `react-hooks/set-state-in-effect` flags and, on a tab
      switch, a visible flash of the previous team's rows. */
-  const listKey = `${activeDept}|${query.trim()}|${sectionQuery}|${kpiFocus ?? ""}|${sorting
+  const listKey = `${teamView}|${query.trim()}|${sectionQuery}|${kpiFocus ?? ""}|${sorting
     .map((sc) => `${sc.id}:${sc.desc}`)
     .join(",")}`;
   const [seenListKey, setSeenListKey] = React.useState(listKey);
@@ -610,7 +606,7 @@ export function StatusTable({
     setVisibleCount(BATCH);
   }
 
-  const isAllTab = activeDept === "all";
+  const isAllTab = teamView === "all";
   const visibleRows = isAllTab ? sortedRows.slice(0, visibleCount) : sortedRows;
   /* `visibleRows.length`, not `visibleCount`: the count is a ceiling that can
      sit above a list the search just shortened, and "Showing 20 of 14" is
@@ -640,7 +636,7 @@ export function StatusTable({
           hasActiveFilter ? (
             <>
               Showing{" "}
-              <span className="font-semibold tabular-nums text-gray-900">
+              <span className="font-semibold tabular-nums">
                 {filtered.length}
               </span>{" "}
               of {rows.length} {rows.length === 1 ? "person" : "people"}
@@ -650,7 +646,7 @@ export function StatusTable({
               {kpiFocus && kpiFocus !== "total" && (
                 <>
                   {" · focused on "}
-                  <span className="font-semibold text-gray-900">
+                  <span className="font-semibold">
                     {KPI_FOCUS_LABELS[kpiFocus]}
                   </span>
                 </>
@@ -666,10 +662,14 @@ export function StatusTable({
            bands with a table sandwiched between them. `items-center gap-3` and
            a shared h-9 keep the input, the dropdown and the pager on one
            baseline. */
+        /* A FRAGMENT, not a nested flex. This was the one section that wrapped
+           its own controls in a second flex with its own `gap-1.5` and its own
+           h-9 buttons, so the shared slot's `gap-2.5` never applied and this
+           header alone stood 36px tall against every other section's 32px —
+           the toolbar that visibly sat out of step down the page. The slot owns
+           the gutter now; the buttons use SECTION_CONTROL like everyone else. */
         actions={
-          /* gap-1.5: seven controls in one row, so the spacing between them has
-             to be a hairline rather than a gutter. */
-          <div className="flex items-center gap-1.5 max-md:flex-wrap">
+          <>
             {/* `filtered`, so the dispatch list follows the table's own search,
                 department picker and KPI focus rather than the raw roster. */}
             <SectionDispatch report={buildReport} />
@@ -682,10 +682,10 @@ export function StatusTable({
                 // button on the page.
                 onClick={() => {
                   setQuery("");
-                  setSelectedDept("all");
+                  setTeamView("all");
                   setKpiFocus(null);
                 }}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[13px] font-bold text-ink-muted transition-colors hover:text-altus-red"
+                className={SECTION_CONTROL}
               >
                 <X className="size-3.5" />
                 Clear
@@ -698,9 +698,7 @@ export function StatusTable({
               onClick={() => setIsTransposed((v) => !v)}
               aria-pressed={isTransposed}
               title={isTransposed ? "Back to people as rows" : "Transpose: statuses as rows"}
-              className={`inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[13px] font-bold transition-colors ${
-                isTransposed ? "text-altus-red" : "text-ink-muted hover:text-ink-strong"
-              }`}
+              className={`${SECTION_CONTROL} ${isTransposed ? "text-altus-red" : ""}`}
             >
               <ArrowLeftRight className="size-3.5" strokeWidth={2.6} />
               Transpose
@@ -710,7 +708,7 @@ export function StatusTable({
               onToggle={() => setOpen((v) => !v)}
               label="Status by doer"
             />
-          </div>
+          </>
         }
       />
 
@@ -734,7 +732,7 @@ export function StatusTable({
               type="button"
               onClick={() => {
                 setQuery("");
-                setSelectedDept("all");
+                setTeamView("all");
                 setKpiFocus(null);
               }}
               className="bg-surface-card mt-3 text-cta text-altus-red hover:underline"
@@ -750,15 +748,15 @@ export function StatusTable({
              hard against the card edge. */
           className={`${DASHBOARD_CARD} p-6`}
         >
-          {/* THE DEPARTMENT TABS — inside the card, above the column headers.
-              Unconditional now. The old gate ("render only if more than two
-              tabs exist") guarded against a derived bar collapsing to
-              "All 9 / Sales 9" on a single-department roster; a fixed six can
-              never do that. */}
-          <DepartmentTabs
-            tabs={deptTabs}
-            active={activeDept}
-            onChange={setSelectedDept}
+          {/* THE TEAM TABS — inside the card, above the column headers, and
+              unconditional: three fixed tabs can never collapse to a bar with
+              nothing to choose between, the way the derived department bar
+              this replaced could on a single-department roster. */}
+          <TeamToggle
+            view={teamView}
+            onChange={setTeamView}
+            counts={teamCounts}
+            className="mb-4"
           />
 
           {filtered.length === 0 ? (
@@ -766,8 +764,7 @@ export function StatusTable({
                it — the outer empty state above cannot say this, because it only
                renders when the department filter has not run yet. */
             <p className="py-10 text-center text-body-lg text-ink-subtle">
-              Nobody in {DEPT_BUCKETS.find((b) => b.key === activeDept)?.label} matches the
-              current filters.
+              Nobody in {TEAM_VIEW_LABELS[teamView]} matches the current filters.
             </p>
           ) : isTransposed ? (
             /* Transposed reads the SAME filtered set, but not the paged one:
@@ -986,93 +983,3 @@ function departmentNames(row: EmployeeStatusRow): string[] {
   return legacy ? [legacy] : [];
 }
 
-/**
- * Department as a segmented tab bar of SIX FIXED BUCKETS.
- *
- * WHY TABS BEAT THE DROPDOWN THIS REPLACED. The old control was fixed-width
- * and closed, which is what you want from a filter you rarely touch and wrong
- * for the one number a reader of this table wants first: how the teams
- * compare. "Sales 4, Apps 5, Ops 3" is that comparison, and a closed dropdown
- * reading "Department (All)" hides all three counts behind a click.
- *
- * WHY SIX, AND NOT ONE PER DEPARTMENT. The first version of this bar built
- * itself from the departments actually present, which is the more robust shape
- * in the abstract and produced eleven-plus tabs on the real roster — most of
- * them one or two people, and the comparison unreadable inside them. The
- * buckets and the trade they carry are in lib/teams/department-buckets.ts.
- *
- * WHAT IT COSTS: the dropdown could select two departments at once; a tab bar
- * picks one. That was a real capability and it is gone. It goes because two
- * controls that can each filter the same column is two controls that can
- * disagree, with no way for a reader to tell which one the table is obeying —
- * and because the any-of rule the multi-select existed to express survives
- * inside a single tab anyway (inDeptBucket: a person in Sales and HR is under
- * Sales, not Others).
- *
- * ── NO `dark:` VARIANTS ──────────────────────────────────────────────────
- * The rule section-chrome.tsx states for DASHBOARD_CARD, which is the card
- * this bar sits inside: no dark theme is registered anywhere in the app, so
- * Tailwind compiles `dark:` to a bare @media (prefers-color-scheme: dark)
- * keyed on the reader's OS while the card underneath stays unconditionally
- * white. `dark:bg-slate-800/80` would paint a near-black bar onto a white card
- * for anyone browsing in dark mode, and `dark:hover:text-white` would erase
- * the inactive tabs on hover at 1.00:1.
- */
-function DepartmentTabs({
-  tabs,
-  active,
-  onChange,
-}: {
-  tabs: { key: DeptBucket; label: string; count: number }[];
-  active: DeptBucket;
-  onChange: (key: DeptBucket) => void;
-}) {
-  return (
-    <div
-      role="tablist"
-      aria-label="Filter by team"
-      /* `flex-wrap`, and no scroller. Six short labels fit one line on any
-         normal card width, so the `overflow-x-auto` the eleven-tab version
-         needed is gone — that is the horizontal scrolling this was asked to
-         eliminate. Wrap rather than nothing at all is the honest floor: on a
-         narrow phone six pills still do not fit, and wrapping to a second line
-         beats either clipping them or reintroducing a sideways scroll. */
-      /* `inline-flex`, NOT `flex`. A flex container is block-level, so the
-         grey pill stretched the full width of the card and read as a toolbar
-         band rather than a segmented control. inline-flex shrinks to fit its
-         buttons, matching the bar on Overdue Tasks by Person.
-
-         `flex-wrap` and `max-w-full` stay as the floor: inline-flex still
-         cannot exceed its container, and without wrapping the six pills would
-         be clipped on a narrow phone instead of dropping to a second line. */
-      className="mb-4 inline-flex w-auto max-w-full flex-wrap items-center gap-1 rounded-xl bg-slate-100 p-1 text-xs font-bold"
-    >
-      {tabs.map((t) => {
-        const isActive = active === t.key;
-        return (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(t.key)}
-            className={`flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 ${
-              isActive
-                ? "bg-white text-slate-900 shadow-sm transition-all"
-                : "text-slate-500 transition-colors hover:text-slate-900"
-            }`}
-          >
-            {t.label}
-            <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold tabular-nums ${
-                isActive ? "bg-slate-100 text-slate-700" : "bg-slate-200 text-slate-600"
-              }`}
-            >
-              {t.count}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}

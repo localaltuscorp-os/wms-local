@@ -5,12 +5,13 @@ import { Loader2, Search, ShieldCheck, ShieldX, Smartphone } from "lucide-react"
 import { fireToast } from "@/lib/toast";
 import { formatDate } from "@/lib/format";
 import { approveDevice, revokeDevice } from "@/app/(app)/attendance/devices/actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 interface DeviceRow {
   id: string;
   employeeId: string;
   employeeName: string;
-  /** 'laptop' | 'phone'. Which of the person's two designated devices this is. */
+  /** 'laptop' | 'phone'. Descriptive only — either kind may fill either slot. */
   kind: string;
   label: string | null;
   platform: string | null;
@@ -30,7 +31,7 @@ function StatusPill({ status }: { status: string }) {
   };
   const s = map[status] ?? map.revoked!;
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: s.bg, color: s.fg }}>
+    <span className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11px] font-bold" style={{ background: s.bg, color: s.fg }}>
       <span className="inline-block size-1.5 rounded-full" style={{ background: s.fg }} /> {s.label}
     </span>
   );
@@ -57,7 +58,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
     fireToast({ message: done, type: "success" });
   }
 
-  const fmt = (d: string | Date | null) => (d ? formatDate(typeof d === "string" ? d : d.toISOString()) : "—");
+  const fmt = (d: string | Date | null) => (d ? formatDate(typeof d === "string" ? d : d.toISOString()) : "-");
 
   const counts = {
     all: devices.length,
@@ -83,15 +84,17 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
             </button>
           ))}
         </div>
+        <CollapsibleSearch scope="person or device">
         <div className="relative min-w-[220px] flex-1 max-w-[340px]">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Local search — person or device" title="Local search — filters only the list on this page" aria-label="Local search — person or device — this page only"
+            placeholder="Local search - person or device" title="Local search - filters only the list on this page" aria-label="Local search - person or device - this page only"
             className="w-full rounded-xl border border-hairline-strong bg-white py-2.5 pl-9 pr-3 text-[13.5px] font-medium text-ink-strong outline-none focus:border-altus-red"
           />
         </div>
+        </CollapsibleSearch>
       </div>
 
       {/* List */}
@@ -125,7 +128,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
                   <button
                     type="button"
                     disabled={busy === d.id}
-                    onClick={() => act(d.id, approveDevice, "Device approved — they can now punch from it.")}
+                    onClick={() => act(d.id, approveDevice, "Device approved - they can now punch from it.")}
                     className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-60"
                     style={{ background: "var(--color-green-deep, #15803d)" }}
                   >
@@ -136,7 +139,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
                   <button
                     type="button"
                     disabled={busy === d.id}
-                    onClick={() => act(d.id, revokeDevice, "Device revoked — it can no longer punch.")}
+                    onClick={() => act(d.id, revokeDevice, "Device revoked - it can no longer punch.")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:border-altus-red hover:text-[color:var(--color-altus-red)] disabled:opacity-60"
                   >
                     {busy === d.id ? <Loader2 size={14} className="animate-spin" /> : <ShieldX size={14} />} Revoke
@@ -147,7 +150,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
           ))}
         </ul>
       )}
-      <p className="pt-1 text-[12px] text-ink-subtle">Cap: {maxPerEmployee} approved devices per employee — one Web (Desktop) and one Web (Android). Revoke an old one before approving a replacement.</p>
+      <p className="pt-1 text-[12px] text-ink-subtle">Cap: {maxPerEmployee} approved devices per employee, any kind — two laptops, two phones or one of each. Revoke an old one before approving a replacement.</p>
     </div>
   );
 }

@@ -23,7 +23,7 @@ export const previewText = (p: Pick<AttendanceLateProps, "dateLabel">) =>
 export function AttendanceLateEmail(props: AttendanceLateProps) {
   const items: Array<{ label: string; value: string }> = [
     { label: "Date", value: props.dateLabel },
-    { label: "Checked in", value: props.inAt ?? "—" },
+    { label: "Checked in", value: props.inAt ?? "-" },
   ];
   if (props.lateAfter) {
     items.push({ label: "On-time by", value: props.lateAfter });
@@ -40,7 +40,7 @@ export function AttendanceLateEmail(props: AttendanceLateProps) {
       <NotificationHeadline>You checked in late today.</NotificationHeadline>
       <NotificationParagraph>
         Your check-in was recorded after the on-time cut-off. A full day&apos;s work
-        can still waive this — make sure you complete your hours.
+        can still waive this - make sure you complete your hours.
       </NotificationParagraph>
       <MetaList items={items} />
       <NotificationCTA href={`${stripTrailingSlash(props.siteUrl)}/attendance`}>

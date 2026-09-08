@@ -43,7 +43,7 @@ export function StatusRowEditor({ status, initial, isLast }: Props) {
       }`}
     >
       <span
-        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+        className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-xs font-semibold"
         style={{
           background: `${colorToCss(color)}1a`,
           color: colorToCss(color),

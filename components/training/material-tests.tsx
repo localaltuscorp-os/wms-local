@@ -30,7 +30,7 @@ export function MaterialTests({
                   <p className="mt-0.5 text-[13px] font-medium text-ink-subtle">{kindLabel} · pass {t.passMark}% · {t.questionCount} {t.questionCount === 1 ? "question" : "questions"}</p>
                 </div>
                 {t.latest && (
-                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-bold" style={t.latest.passed ? { background: "color-mix(in srgb, var(--color-green) 14%, transparent)", color: "var(--color-green-deep)" } : { background: "color-mix(in srgb, var(--color-altus-red) 10%, transparent)", color: "var(--color-altus-red-deep)" }}>
+                  <span className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[12px] font-bold" style={t.latest.passed ? { background: "color-mix(in srgb, var(--color-green) 14%, transparent)", color: "var(--color-green-deep)" } : { background: "color-mix(in srgb, var(--color-altus-red) 10%, transparent)", color: "var(--color-altus-red-deep)" }}>
                     {t.latest.passed ? <Check size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />} {t.latest.score}%
                   </span>
                 )}

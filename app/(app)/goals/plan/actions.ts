@@ -702,7 +702,7 @@ export async function startMyDay(): Promise<ActionResult> {
     const short = MIN_ATTENDANCE_ITEMS - committed;
     return {
       ok: false,
-      error: `Plan at least ${MIN_ATTENDANCE_ITEMS} things before you start your day — you have ${committed}, add ${short} more.`,
+      error: `Plan at least ${MIN_ATTENDANCE_ITEMS} things before you start your day - you have ${committed}, add ${short} more.`,
     };
   }
 
@@ -1133,11 +1133,27 @@ export async function abandonPlanItem(
  * both claiming to be that task, and ticking either would fight over its status.
  * A duplicate is therefore a NEW piece of work that happens to read the same.
  */
-export async function duplicatePlanItem(itemId: string): Promise<ActionResult<{ item: PlanItem }>> {
+export async function duplicatePlanItem(
+  itemId: string,
+  /**
+   * WHICH DAY the copy lands on, as `YYYY-MM-DD`. Omitted ⇒ the source's own
+   * day, which is what every existing caller got and still gets.
+   *
+   * The picker in the card always sends one. A copy is usually made BECAUSE the
+   * work is going to happen again on another day — same-day-only meant making
+   * the copy and then dragging it, so the date is now part of the one action.
+   */
+  targetYmd?: string,
+): Promise<ActionResult<{ item: PlanItem }>> {
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
   if (!UUID.safeParse(itemId).success) return { ok: false, error: "Invalid item." };
+  // Shape only. A date the user can reach in the picker is a date they may copy
+  // onto; the plan has no notion of a forbidden day, and refusing the past would
+  // block the ordinary "log what I actually did yesterday" case.
+  if (targetYmd != null && !/^\d{4}-\d{2}-\d{2}$/.test(targetYmd))
+    return { ok: false, error: "Invalid date." };
   const ownerId = await ownerIfPermitted(me, itemId);
   if (!ownerId) return { ok: false, error: "That item isn't on your plan." };
 
@@ -1156,7 +1172,11 @@ export async function duplicatePlanItem(itemId: string): Promise<ActionResult<{ 
       .limit(1);
     if (!src) return { ok: false, error: "That item isn't on your plan." };
 
-    const { count, nextPosition } = await countAndNextPosition(ownerId, src.planDate);
+    // The cap and the position are BOTH counted on the destination day, not the
+    // source's. Counting the source would let a copy slip onto an already-full
+    // day and land at a position that day has taken.
+    const destDate = targetYmd ?? src.planDate;
+    const { count, nextPosition } = await countAndNextPosition(ownerId, destDate);
     if (count >= MAX_ITEMS_PER_DAY)
       return { ok: false, error: `That day already has ${MAX_ITEMS_PER_DAY} items.` };
 
@@ -1164,7 +1184,7 @@ export async function duplicatePlanItem(itemId: string): Promise<ActionResult<{ 
       .insert(dailyChecklist)
       .values({
         employeeId: ownerId,
-        planDate: src.planDate,
+        planDate: destDate,
         origin: "standalone",
         title: src.title,
         client: src.client,

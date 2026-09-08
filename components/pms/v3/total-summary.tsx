@@ -145,7 +145,7 @@ export function TotalSummary({
             <div>
               <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-subtle">Base</span>
               <div className="text-[22px] font-black tabular-nums text-ink-strong">
-                {total.bandResolved ? total.base.toFixed(1) : "—"}
+                {total.bandResolved ? total.base.toFixed(1) : "-"}
                 <span className="ml-0.5 text-[13px] font-bold text-ink-subtle">/100</span>
               </div>
             </div>
@@ -206,7 +206,7 @@ export function TotalSummary({
                           {row.detail ?? "not scored yet"}
                         </span>
                       ) : (
-                        row.detail ?? "—"
+                        row.detail ?? "-"
                       )}
                     </td>
                     <td className="py-2 pr-3 text-right font-black tabular-nums" style={{ color: row.missing ? "var(--color-ink-subtle)" : accentDeep }}>

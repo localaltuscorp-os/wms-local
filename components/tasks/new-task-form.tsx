@@ -40,6 +40,93 @@ interface Props {
   canAddRoster?: boolean;
   /** Called after a successful create. Default: navigate to /tasks/[id]. */
   onSuccess?: (taskId: string) => void;
+  /**
+   * Runs INSIDE the submit transition, immediately before `createTask`, and
+   * supplies the `project_nodes` row the new task must link to.
+   *
+   * The Project Plan's "New Item" dialog uses this: its row has to exist before
+   * the task can point at it, but making the user save twice would be two
+   * dialogs for one thought. Returning `ok: false` aborts the create and shows
+   * the message, so a failed row-create never leaves a task orphaned.
+   *
+   * Absent everywhere else, which leaves the WMS path byte-identical.
+   */
+  beforeSubmit?: (values: {
+    title: string;
+    doerIds: string[];
+    dueAt: string;
+    startsAt: string | null;
+    endsAt: string | null;
+    /** The Links section's URLs, so the host can store them as a list. */
+    links: string[];
+    /** The Media section's files, for a host that has somewhere to put them. */
+    media: File[];
+  }) => Promise<{ ok: true; projectNodeId: string } | { ok: false; error: string }>;
+  /**
+   * Take over the create entirely: when supplied this runs INSTEAD of
+   * `createTask` (and instead of `beforeSubmit`), and whatever it returns is
+   * the whole outcome. The form keeps its fields, its validation, its pending
+   * state and its error line — only the destination of the payload changes.
+   *
+   * The Project Plan's container levels use this. A Project / Milestone /
+   * Result is not a task — `syncNodeTask` refuses to build one for a container
+   * — so the same form that creates a task for an Action writes a
+   * `project_nodes` row for the three levels above it. Without this the only
+   * way to share the form would be to make a milestone a task, which is the
+   * one thing the module's central rule forbids.
+   *
+   * Absent everywhere else, which leaves the WMS path byte-identical.
+   */
+  createOverride?: (values: {
+    title: string;
+    initiatorId: string;
+    doerIds: string[];
+    priority: TaskPriority;
+    dueAt: string;
+    subject: string;
+    description: string;
+    /** Notes with the Links block already appended, or null if both are empty. */
+    notes: string | null;
+    tags: string[];
+    startsAt: string | null;
+    endsAt: string | null;
+    /** The Links section's URLs, kept as a list rather than folded into notes. */
+    links: string[];
+    /** The Media section's files, uploaded by the host once the row exists. */
+    media: File[];
+  }) => Promise<{ ok: true; id: string } | { ok: false; error: string }>;
+  /**
+   * Hide the Schedule block (start / end / recurrence).
+   *
+   * Used for Project and Milestone, which are dated by the work underneath them
+   * rather than by a block someone drew on a calendar. Hidden, not disabled:
+   * the schedule state stays at its empty default, so the payload carries nulls
+   * exactly as it would if the user had left the section untouched.
+   */
+  hideSchedule?: boolean;
+  /** Submit button text. Defaults to "Create Task". */
+  submitLabel?: string;
+  /**
+   * The first field's label. Defaults to "Client Name".
+   *
+   * The Project Plan's container levels rename it — a Project's first field is
+   * its own name, not a client — and `titleFreeText` swaps the client picker
+   * for a plain input to match. Both are cosmetic to this form: the value still
+   * arrives as `title`, which is the one thing every caller writes somewhere.
+   */
+  titleLabel?: string;
+  /** Render the first field as a plain text input rather than the client picker. */
+  titleFreeText?: boolean;
+  /** The description field's label. Defaults to "Task Description". */
+  descriptionLabel?: string;
+  /**
+   * Drop the Subject field. It is a WMS roster concept — a task's subject line
+   * — and a Project has no equivalent, so asking for one would be a required
+   * field with nothing to fill it from. `subject` then arrives as "".
+   */
+  hideSubject?: boolean;
+  /** Drop the Tags field. */
+  hideTags?: boolean;
   /** Optional defaults for the form (used by the canonical route + the
    *  Duplicate action, which prefills from an existing task). */
   defaults?: {
@@ -60,16 +147,40 @@ const MEDIA_SLOT_COUNT = 4;
 // react-hook-form + zod own the validated core fields. Complex/auxiliary
 // widgets (tags, schedule, media, links) stay in local state and are folded
 // into the payload at submit — same shape createTask has always received.
-const NewTaskSchema = z.object({
-  title: z.string().trim().min(1, "Client name is required"),
-  initiatorId: z.string().min(1, "Initiator is required"),
-  doerIds: z.array(z.string()).min(1, "Pick at least one Doer"),
-  priority: z.enum(TASK_PRIORITIES),
-  dueAt: z.string().min(1, "Due date is required"),
-  subject: z.string().trim().min(1, "Subject is required"),
-  description: z.string().trim().min(1, "Task Description is required"),
-  notes: z.string(),
-  projectNodeId: z.string(),
+/**
+ * Built per-render rather than declared once, so the messages quote the labels
+ * actually on screen ("Project Name is required", not "Client name") and a
+ * caller that removes Subject doesn't leave a required field nobody can see.
+ *
+ * Every branch yields the SAME shape — `subject` is a ZodString either way,
+ * strict or not — because react-hook-form's resolver is typed off this and an
+ * optional-or-absent key here turns into a resolver type mismatch at the
+ * `useForm` call rather than anything useful.
+ */
+function buildSchema(opts: {
+  titleLabel: string;
+  descriptionLabel: string;
+  hideSubject: boolean;
+}) {
+  return z.object({
+    title: z.string().trim().min(1, `${opts.titleLabel} is required`),
+    initiatorId: z.string().min(1, "Initiator is required"),
+    doerIds: z.array(z.string()).min(1, "Pick at least one Doer"),
+    priority: z.enum(TASK_PRIORITIES),
+    dueAt: z.string().min(1, "Due date is required"),
+    subject: opts.hideSubject
+      ? z.string()
+      : z.string().trim().min(1, "Subject is required"),
+    description: z.string().trim().min(1, `${opts.descriptionLabel} is required`),
+    notes: z.string(),
+    projectNodeId: z.string(),
+  });
+}
+
+const NewTaskSchema = buildSchema({
+  titleLabel: "Client Name",
+  descriptionLabel: "Task Description",
+  hideSubject: false,
 });
 type NewTaskFormValues = z.infer<typeof NewTaskSchema>;
 
@@ -82,9 +193,33 @@ interface PreviewFile {
   url: string;
 }
 
-export function NewTaskForm({ employees, clients, subjects, projectNodes = [], canAddRoster = false, onSuccess, defaults }: Props) {
+export function NewTaskForm({
+  employees, clients, subjects, projectNodes = [], canAddRoster = false,
+  onSuccess, defaults, beforeSubmit, createOverride, hideSchedule = false,
+  submitLabel = "Create Task",
+  titleLabel = "Client Name", titleFreeText = false,
+  descriptionLabel = "Task Description",
+  hideSubject = false, hideTags = false,
+}: Props) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
+
+  /** The validated core, carrying this instance's labels — see `buildSchema`. */
+  const schema = React.useMemo(
+    () => buildSchema({ titleLabel, descriptionLabel, hideSubject }),
+    [titleLabel, descriptionLabel, hideSubject],
+  );
+
+  /** What section 04 still contains, and therefore whether it is drawn at all. */
+  const projectLinkShown = projectNodes.length > 0 && !beforeSubmit && !createOverride;
+  const organizeHint = [
+    !hideTags && "tags",
+    projectLinkShown && "project",
+    !hideSchedule && "schedule",
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const organizeShown = organizeHint.length > 0;
 
   // Default due: 1 day after the entry date.
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
@@ -102,7 +237,7 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], c
     getValues,
     formState: { errors },
   } = useForm<NewTaskFormValues>({
-    resolver: zodResolver(NewTaskSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       title: defaults?.title ?? "",
       initiatorId: defaults?.initiatorId ?? "",
@@ -208,7 +343,57 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], c
     const finalTags =
       pendingTag && !tags.includes(pendingTag) ? [...tags, pendingTag] : tags;
 
+    const startsAtIso = schedule.startsAt ? schedule.startsAt.toISOString() : null;
+    const endsAtIso = schedule.endsAt ? schedule.endsAt.toISOString() : null;
+
     startTransition(async () => {
+      // Host owns the whole create (Project Plan container levels). No task is
+      // written at all — see `createOverride` on Props for why a milestone must
+      // not become one.
+      if (createOverride) {
+        const res = await createOverride({
+          title: values.title,
+          initiatorId: values.initiatorId,
+          doerIds: values.doerIds,
+          priority: values.priority,
+          dueAt: dueIso,
+          subject: values.subject,
+          description: values.description,
+          notes: composedNotes,
+          tags: finalTags,
+          startsAt: startsAtIso,
+          endsAt: endsAtIso,
+          links,
+          media: media.map((m) => m.file),
+        });
+        if (!res.ok) {
+          setError(res.error);
+          return;
+        }
+        onSuccess?.(res.id);
+        return;
+      }
+
+      // Host-supplied row create (Project Plan). Runs first so its id can be
+      // stamped onto the task below; an error here stops before any write.
+      let linkedNodeId = values.projectNodeId || null;
+      if (beforeSubmit) {
+        const pre = await beforeSubmit({
+          title: values.title,
+          doerIds: values.doerIds,
+          dueAt: dueIso,
+          startsAt: startsAtIso,
+          endsAt: endsAtIso,
+          links,
+          media: media.map((m) => m.file),
+        });
+        if (!pre.ok) {
+          setError(pre.error);
+          return;
+        }
+        linkedNodeId = pre.projectNodeId;
+      }
+
       const result = await createTask({
         title: values.title,
         doerIds: values.doerIds,       // multi-doer fanout — N tasks if N doers
@@ -226,7 +411,7 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], c
         allDay: schedule.allDay,
         recurrence: schedule.recurrence,
         recurrenceRule: schedule.recurrenceRule,
-        projectNodeId: values.projectNodeId || null,
+        projectNodeId: linkedNodeId,
       });
       if (!result.ok) {
         setError(result.error);
@@ -302,44 +487,66 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], c
         }
       `}</style>
 
-      <SectionHeading step="01" title="Basics" hint="Who this is for" />
+      <SectionHeading
+        step="01"
+        title="Basics"
+        hint={hideSubject ? "What this is" : "Who this is for"}
+      />
       {/* Client + Subject — paired top row (was two stretched full-width fields).
           items-start so each field keeps its own resting height (the comboboxes
-          don't stretch to match a taller row-mate). */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-3 items-start max-md:grid-cols-1 max-md:gap-3">
-        <Field id="nt-title" label="Client Name" required>
-          <Controller
-            control={control}
-            name="title"
-            render={({ field }) => (
-              <ClientSelect
-                id="nt-title"
-                value={field.value}
-                onChange={field.onChange}
-                clients={clients}
-                canAdd={canAddRoster}
-                className="nt-input"
-              />
-            )}
-          />
+          don't stretch to match a taller row-mate). With Subject hidden the
+          first field takes the whole row rather than sitting next to a gap. */}
+      <div
+        className={`grid gap-x-4 gap-y-3 items-start max-md:grid-cols-1 max-md:gap-3 ${
+          hideSubject ? "grid-cols-1" : "grid-cols-2"
+        }`}
+      >
+        <Field id="nt-title" label={titleLabel} required>
+          {titleFreeText ? (
+            // A plan row names ITSELF here — there is no roster to pick from,
+            // so this is a plain input rather than the client combobox.
+            <input
+              id="nt-title"
+              className="nt-input"
+              placeholder={`${titleLabel}…`}
+              {...register("title")}
+            />
+          ) : (
+            <Controller
+              control={control}
+              name="title"
+              render={({ field }) => (
+                <ClientSelect
+                  id="nt-title"
+                  value={field.value}
+                  onChange={field.onChange}
+                  clients={clients}
+                  canAdd={canAddRoster}
+                  className="nt-input"
+                />
+              )}
+            />
+          )}
         </Field>
-        <Field id="nt-subject" label="Subject" required>
-          <Controller
-            control={control}
-            name="subject"
-            render={({ field }) => (
-              <SubjectSelect
-                id="nt-subject"
-                value={field.value}
-                onChange={field.onChange}
-                subjects={subjects}
-                canAdd={canAddRoster}
-                className="nt-input"
-                placeholder="Select a subject…"
-              />
-            )}
-          />
-        </Field>
+        {!hideSubject && (
+          <Field id="nt-subject" label="Subject" required>
+            <Controller
+              control={control}
+              name="subject"
+              render={({ field }) => (
+                <SubjectSelect
+                  id="nt-subject"
+                  value={field.value}
+                  onChange={field.onChange}
+                  subjects={subjects}
+                  canAdd={canAddRoster}
+                  className="nt-input"
+                  placeholder="Select a subject…"
+                />
+              )}
+            />
+          </Field>
+        )}
       </div>
 
       <SectionHeading step="02" title="Assignment" hint="Owners, priority & deadline" />
@@ -422,7 +629,7 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], c
           mic that records a voice note → Gemini transcript appended to the field. */}
       <Field
         id="nt-desc"
-        label="Task Description"
+        label={descriptionLabel}
         required
         action={
           <VoiceNoteButton
@@ -467,22 +674,30 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], c
         />
       </Field>
 
-      <SectionHeading step="04" title="Organize" hint="Optional — tags, project & schedule" />
+      {/* ORGANIZE - drawn only when it still has something in it. Tags, the
+          project link and the schedule are each optional and each removable by
+          a caller, and a numbered heading standing over an empty stretch of
+          form reads as something failing to load. */}
+      {organizeShown && (
+        <SectionHeading step="04" title="Organize" hint={`Optional - ${organizeHint}`} />
+      )}
       {/* Tags — free-form chips. Type a tag, hit Enter or comma to commit.
           Stored as text[] on the task; each chip is searchable later. */}
-      <Field id="nt-tags" label={`Tags${tagsCount > 0 ? ` · ${tagsCount}` : ""}`}>
-        <TagsInput
-          id="nt-tags"
-          tags={tags}
-          input={tagInput}
-          onInputChange={setTagInput}
-          onCommit={commitTag}
-          onRemove={removeTag}
-        />
-      </Field>
+      {!hideTags && (
+        <Field id="nt-tags" label={`Tags${tagsCount > 0 ? ` · ${tagsCount}` : ""}`}>
+          <TagsInput
+            id="nt-tags"
+            tags={tags}
+            input={tagInput}
+            onInputChange={setTagInput}
+            onCommit={commitTag}
+            onRemove={removeTag}
+          />
+        </Field>
+      )}
 
       {/* Project link — optional connection to a Project / Milestone / Result. */}
-      {projectNodes.length > 0 && (
+      {projectLinkShown && (
         <Field id="nt-project" label="Project">
           <Controller
             control={control}
@@ -505,10 +720,12 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], c
       )}
 
       {/* Schedule — GCal-style start/end + recurrence. Internal metadata
-          only; not synced to any actual calendar API. */}
-      <ScheduleSection value={schedule} onChange={setSchedule} />
+          only; not synced to any actual calendar API. Hidden for the levels
+          that are dated by the work underneath them (Project, Milestone), where
+          the state stays at its empty default and the payload carries nulls. */}
+      {!hideSchedule && <ScheduleSection value={schedule} onChange={setSchedule} />}
 
-      <SectionHeading step="05" title="Attachments" hint="Optional — media & reference links" />
+      <SectionHeading step="05" title="Attachments" hint="Optional - media & reference links" />
       {/* Media + Links — side by side on desktop */}
       <div className="grid grid-cols-2 gap-5 max-md:grid-cols-1">
         <MediaSection
@@ -576,7 +793,7 @@ export function NewTaskForm({ employees, clients, subjects, projectNodes = [], c
             letterSpacing: "0.005em",
           }}
         >
-          {pending ? "Creating…" : "Create Task"}
+          {pending ? "Creating…" : submitLabel}
         </button>
       </div>
     </form>
@@ -1325,7 +1542,7 @@ function LinksSection({
           >
             <span className="inline-flex items-center gap-2">
               <Link2 size={18} strokeWidth={2} />
-              No links yet — paste a URL above.
+              No links yet - paste a URL above.
             </span>
           </li>
         ) : (

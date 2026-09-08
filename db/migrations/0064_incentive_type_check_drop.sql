@@ -1,0 +1,14 @@
+-- Drop the legacy CHECK constraint on incentive_requests.type.
+--
+-- Migration 0053 created the table with:
+--   type text NOT NULL CHECK (type IN
+--     ('bss_conversion','sales_pitch','client_happiness','group_intro'))
+--
+-- Later schemes (project bulk incentives, Google-Sheet sync, and Weekly-Goal
+-- incentives) introduce new type values ('project', 'sheet', 'weekly_goal').
+-- The old check rejected every INSERT carrying those values, so e.g. a Weekly
+-- Goal marked with an incentive amount never appeared in the Incentive tab.
+--
+-- The type is already validated in the action layer (lib/incentive-fields.ts
+-- and the per-source upserts), so the DB-level enum is redundant. Drop it.
+ALTER TABLE incentive_requests DROP CONSTRAINT IF EXISTS incentive_requests_type_check;

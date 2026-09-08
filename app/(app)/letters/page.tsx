@@ -28,7 +28,7 @@ export default async function LettersPage() {
       <HrComingSoon
         title="Letters"
         Icon={Mail}
-        blurb="HR letters — offer, confirmation, increment and experience letters, per employee. This section is being built."
+        blurb="HR letters - offer, confirmation, increment and experience letters, per employee. This section is being built."
       />
     );
   }
@@ -132,7 +132,7 @@ export default async function LettersPage() {
               </h2>
               <p className="mt-1.5 max-w-[76ch] text-[13.5px] font-medium text-ink-muted">
                 Generate the Full &amp; Final Settlement, Return of Company Assets and Handover
-                Accepted letters — each closed with the entity&apos;s Authorised Signatory block.
+                Accepted letters - each closed with the entity&apos;s Authorised Signatory block.
                 Pick an employee to also archive the letter and send it for DigiLocker-verified
                 e-signing.
               </p>

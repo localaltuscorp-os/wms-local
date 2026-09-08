@@ -33,9 +33,9 @@ function notifyBody(t: { id: string; ticketNo: number; category: string; confide
   return JSON.stringify({ ticketId: t.id, ticketNo: t.ticketNo, category: t.category, confidential: t.confidential, ...extra });
 }
 function ticketTitle(t: { ticketNo: number; subject: string; confidential: boolean }, verb: string): string {
-  if (t.confidential) return `Confidential HR case #${t.ticketNo} — ${verb}`;
+  if (t.confidential) return `Confidential HR case #${t.ticketNo} - ${verb}`;
   const subj = t.subject.length > 48 ? `${t.subject.slice(0, 47)}…` : t.subject;
-  return `#${t.ticketNo} ${subj} — ${verb}`;
+  return `#${t.ticketNo} ${subj} - ${verb}`;
 }
 
 async function run(request: Request): Promise<NextResponse> {

@@ -50,8 +50,8 @@ export function hrDateLabel(date: string): string {
 
 /** Numeric-string → tidy display: integers bare, otherwise one decimal. */
 export function hrNum(v: string | number | null | undefined): string {
-  if (v == null) return "—";
+  if (v == null) return "-";
   const n = Number(v);
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "-";
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }

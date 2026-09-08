@@ -53,9 +53,9 @@ import { ARCHIVE_COL, type ColId } from "@/lib/kanban-columns";
 import { NoResults } from "./task-table";
 import {
   useSectionSearch,
-  matchesSearch,
   setSectionSearch,
 } from "@/lib/client/section-search";
+import { taskMatchesQuery } from "@/lib/tasks/task-search";
 import { setTaskStatus, archiveTask, unarchiveTask } from "@/app/(app)/tasks/actions";
 import { setBoardColumnOrder } from "@/app/(admin)/admin/settings/actions";
 import { fireToast } from "@/lib/toast";
@@ -474,12 +474,18 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
   // and search only decides what is *rendered* out of it.
   const matchIds = React.useMemo(() => {
     if (!sectionQuery) return null;
-    const qNum = sectionQuery.replace(/^#/, ""); // "#1042" and "1042" both hit
     const hits = new Set<string>();
     for (const t of items) {
       if (
-        (t.taskNo != null && String(t.taskNo).includes(qNum)) ||
-        matchesSearch(sectionQuery, t.title, t.description, t.subject, t.client, t.doerName)
+        taskMatchesQuery(
+          sectionQuery,
+          t.taskNo,
+          t.title,
+          t.description,
+          t.subject,
+          t.client,
+          t.doerName,
+        )
       ) {
         hits.add(t.id);
       }
@@ -629,7 +635,7 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
             : res.error === "invalid"
               ? res.message ?? "That move isn't allowed from here."
               : res.error === "stale"
-                ? "Task changed elsewhere — refreshing."
+                ? "Task changed elsewhere - refreshing."
                 : "Couldn't update the task.",
       });
       router.refresh();
@@ -963,7 +969,7 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
                         style={{ border: "1.5px dashed var(--color-hairline-strong)" }}
                       >
                         <p className="text-[13.5px] font-semibold text-ink-subtle">
-                          Nothing here — drop a card to move it.
+                          Nothing here - drop a card to move it.
                         </p>
                       </div>
                     )}
@@ -1484,7 +1490,7 @@ function Meta({
     <div className="min-w-0">
       <FieldHead icon={icon}>{label}</FieldHead>
       <div className="mt-1 truncate text-ink-strong" style={{ fontSize: 14.5, fontWeight: 600 }}>
-        {value && value.trim() ? value : "—"}
+        {value && value.trim() ? value : "-"}
       </div>
     </div>
   );
@@ -1526,7 +1532,9 @@ function TaskHoverCard({
         <div className="hc-item flex items-center gap-2 flex-wrap" style={{ animationDelay: DELAY[0] }}>
           <Pill
             tone={statusTone}
-            icon={<span className="h-2 w-2 rounded-full" style={{ background: `var(--color-${statusTone})` }} />}
+            // `-deep` — a pastel dot inside an already-pastel Pill was two
+            // shades of the same near-white.
+            icon={<span className="h-2 w-2 rounded-full" style={{ background: `var(--color-${statusTone}-deep)` }} />}
           >
             {labels[t.status]}
           </Pill>

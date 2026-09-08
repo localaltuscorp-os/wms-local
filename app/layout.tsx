@@ -79,7 +79,7 @@ const fraunces = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Altus Corp — Work Management Dashboard",
+  title: "Altus Corp - Work Management Dashboard",
   description: "Altus Corp work management dashboard",
   metadataBase: new URL("https://altus-corp-dashboard.vercel.app"),
   manifest: "/manifest.json",

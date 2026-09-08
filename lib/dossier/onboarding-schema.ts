@@ -71,7 +71,7 @@ export const ONBOARDING_SECTIONS: OnbSection[] = [
       { key: "lastCompanyName", label: "Last Company Name", type: "text", required: r, w: "lg" },
       { key: "lastCompanyAddress", label: "Last Company Address", type: "text", required: r, w: "xl" },
       { key: "lastSalaryCertificate", label: "Last Salary Certificate", type: "file", required: r, w: "lg" },
-      { key: "lastSalaryBankProof", label: "Last Salary — bank proof", type: "file", required: r, w: "lg" },
+      { key: "lastSalaryBankProof", label: "Last Salary - bank proof", type: "file", required: r, w: "lg" },
     ],
   },
   {
@@ -96,7 +96,7 @@ export const ONBOARDING_SECTIONS: OnbSection[] = [
   {
     key: "emergency",
     title: "Emergency Contacts",
-    hint: "At least TWO direct family members we can reach in an emergency — each with Name, Relation and Mobile Number.",
+    hint: "At least TWO direct family members we can reach in an emergency - each with Name, Relation and Mobile Number.",
     fields: [
       {
         key: "emergencyContacts",
@@ -132,7 +132,7 @@ export const ONBOARDING_SECTIONS: OnbSection[] = [
   {
     key: "current",
     title: "Current Address",
-    hint: "Choose YES if same as permanent — the fields fill automatically.",
+    hint: "Choose YES if same as permanent - the fields fill automatically.",
     fields: [
       { key: "sameAsPermanent", label: "Same as Permanent?", type: "select", required: r, options: ["YES", "NO"], w: "sm" },
       { key: "currAddr1", label: "Line 1 (House / Building / Society)", type: "text", required: r, w: "xl" },
@@ -147,7 +147,7 @@ export const ONBOARDING_SECTIONS: OnbSection[] = [
   {
     key: "native",
     title: "Native Place (if applicable)",
-    hint: "Your home town / native place, if different from the addresses above. Optional — leave blank if not applicable.",
+    hint: "Your home town / native place, if different from the addresses above. Optional - leave blank if not applicable.",
     fields: [
       { key: "nativeAddr", label: "Native Place Address (Village / Town / Area)", type: "text", w: "xl" },
       { key: "nativeCity", label: "District / City", type: "text", w: "sm" },
@@ -184,7 +184,7 @@ export const ONBOARDING_SECTIONS: OnbSection[] = [
         label: "Cancelled Cheque / Passbook / Online Banking Screenshot",
         type: "file",
         required: r,
-        hint: "Any ONE showing your Name & Account No — cancelled cheque, passbook first page, or a mobile/net-banking screenshot",
+        hint: "Any ONE showing your Name & Account No - cancelled cheque, passbook first page, or a mobile/net-banking screenshot",
         w: "xl",
       },
       {

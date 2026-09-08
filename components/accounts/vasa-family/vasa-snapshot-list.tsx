@@ -93,7 +93,7 @@ export function VasaSnapshotList({
     setMenu(null);
     const origin = typeof window === "undefined" ? "" : window.location.origin;
     const url = `${origin}${downloadHref(asOn)}`;
-    const text = `Vasa Family Interpersonal Balance — ${labelOf(asOn)} (${quarterOf(asOn)}): ${url}`;
+    const text = `Vasa Family Interpersonal Balance - ${labelOf(asOn)} (${quarterOf(asOn)}): ${url}`;
     if (via === "whatsapp") {
       // A LINK, not the file: WhatsApp cannot take an attachment from a URL, and
       // the link resolves to this exact snapshot behind the same access check.
@@ -345,7 +345,7 @@ export function VasaSnapshotList({
                               if (row === col) {
                                 return (
                                   <td key={col} className="px-2.5 py-1.5 text-center text-ink-subtle">
-                                    —
+                                    -
                                   </td>
                                 );
                               }
@@ -367,7 +367,7 @@ export function VasaSnapshotList({
                                       ? undefined
                                       : st === "mismatch"
                                         ? `${inrTooltip(v!)}
-Does not agree with ${col} → ${row}, which implies ${formatPreciseInr(exp ?? 0)} — a difference of ${formatPreciseInr(Math.abs(dlt ?? 0))}.`
+Does not agree with ${col} → ${row}, which implies ${formatPreciseInr(exp ?? 0)} - a difference of ${formatPreciseInr(Math.abs(dlt ?? 0))}.`
                                         : inrTooltip(v!)
                                   }
                                   style={{
@@ -401,7 +401,7 @@ Does not agree with ${col} → ${row}, which implies ${formatPreciseInr(exp ?? 0
                                       : "var(--color-ink-subtle)",
                               }}
                             >
-                              {net === 0 ? "—" : formatFullInr(net)}
+                              {net === 0 ? "-" : formatFullInr(net)}
                             </td>
                           </tr>
                         );

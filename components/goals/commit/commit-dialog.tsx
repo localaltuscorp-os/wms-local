@@ -148,7 +148,7 @@ export function CommitDialog({
           <ul className="flex flex-col gap-2">
             {member.nextWeek.length === 0 && (
               <li className="rounded-xl border border-hairline-strong bg-surface-soft/40 px-4 py-6 text-center text-[13px] font-medium text-ink-soft">
-                No goals cascaded yet — add what you&apos;ll commit to below.
+                No goals cascaded yet - add what you&apos;ll commit to below.
               </li>
             )}
             {member.nextWeek.map((g) => (
@@ -227,7 +227,7 @@ export function CommitDialog({
               type="button"
               onClick={unfreeze}
               disabled={pending}
-              className="inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13.5px] font-bold text-altus-red disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-pill border px-4 py-2 text-[13.5px] font-bold text-altus-red disabled:opacity-60"
               style={{ borderColor: ACCENT }}
             >
               {pending ? <Loader2 size={15} className="animate-spin" /> : <LockOpen size={15} />} Unfreeze
@@ -237,7 +237,7 @@ export function CommitDialog({
               type="button"
               onClick={freeze}
               disabled={pending || adopted.length === 0}
-              className="wg-sheen inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-[13.5px] font-bold text-white disabled:opacity-50"
+              className="wg-sheen inline-flex items-center gap-1.5 rounded-pill px-5 py-2 text-[13.5px] font-bold text-white disabled:opacity-50"
               style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
             >
               {pending ? <Loader2 size={15} className="animate-spin" /> : <Snowflake size={15} />} Freeze next week

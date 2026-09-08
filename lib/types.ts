@@ -17,6 +17,19 @@ export interface DashboardFilters {
   departments: Department[];
   priorities: EisenhowerPriority[];
   subjects: string[];
+  /**
+   * HOW `employeeIds` was arrived at — the dashboard opens on the viewer's own
+   * numbers, so "one person selected" and "nobody chose anything yet" are no
+   * longer the same state and the bar has to be able to tell them apart.
+   *
+   *   default  — nothing in the URL; scoped to the viewer
+   *   all      — `?emp=all`, the whole company, chosen deliberately
+   *   specific — `?emp=<ids>`
+   *
+   * Optional so the existing literal constructions of this type (the diag
+   * script, tests) keep compiling unchanged.
+   */
+  assigneeMode?: "default" | "all" | "specific";
 }
 
 export interface KpiTotals {
@@ -269,6 +282,17 @@ export interface PunctualityPerson {
   department: string | null;
 }
 
+/**
+ * A punctuality row carrying its position on the single team leaderboard.
+ * Lives here rather than beside the split so `DashboardData` does not have to
+ * import from a transform that imports from this file.
+ */
+export interface RankedPunctualityPerson extends PunctualityPerson {
+  /** 1-based position in the WHOLE-TEAM ranking. Always past the top-performer
+   *  cut for a row on the pull-up board — that is what put it there. */
+  rank: number;
+}
+
 export interface Punctuality {
   /** All done & non-archived tasks in scope (incl. undated). */
   total: number;
@@ -386,7 +410,13 @@ export interface DashboardData {
     undated: number;
   };
   statusTable: EmployeeStatusRow[];
+  /** Ranks 1…TOP_PERFORMER_RANKS only — see lib/transforms/performer-split.ts.
+   *  The tail of the same ranking is `pullUpBoard`, and the two never overlap. */
   topPerformers: TopPerformer[];
+  /** Rank TOP_PERFORMER_RANKS+1 and below, worst first. Split from the SAME
+   *  ranking as `topPerformers`, so a person is in exactly one of the two and
+   *  carries the same position number in either. */
+  pullUpBoard: RankedPunctualityPerson[];
   agingTable: AgingRow[];
   agingHeatmap: AgingHeatmapCell[];
   agingByDate: AgingByDate[];
@@ -406,6 +436,11 @@ export interface TaskListFilters {
   clients: string[];
   taskId: string | null;
   archived: boolean;
+  /** `true` on the Project Plan board: narrow to tasks that belong to a plan
+   *  row (`tasks.project_node_id IS NOT NULL`). Optional because every other
+   *  caller wants the whole task list; `parseTaskFilters` never sets it, so the
+   *  WMS board is untouched and only the plan page opts in. */
+  projectOnly?: boolean;
   /** `?type=goals|tasks|commitments` -- which activity family a manager-board
    *  click came from. Null when absent or unrecognised. */
   activityType: import("@/lib/task-filters").ActivityType | null;

@@ -1,12 +1,9 @@
-import Link from "next/link";
-import type { Route } from "next";
-import { ArrowLeft } from "lucide-react";
 import { requireHrStaff } from "@/lib/hr/access";
 import { DashboardHeader } from "@/components/layout/header";
+import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 import { PageShell } from "@/components/layout/page-shell";
 import { loadHiringAnalytics, type HiringAnalytics } from "@/lib/hr/candidate/analytics-data";
 import { HiringAnalyticsDashboard } from "@/components/hr/candidate/analytics/hiring-analytics-dashboard";
-import { HrShellSidebar } from "@/components/hr/hr-shell-sidebar";
 
 export const dynamic = "force-dynamic";
 
@@ -31,30 +28,12 @@ export default async function HiringAnalyticsPage() {
   const generatedAt = new Date(data.generatedAt);
 
   return (
-    <div className="flex min-h-dvh">
-      <HrShellSidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
+    <div className="flex min-h-full flex-col">
       <DashboardHeader generatedAt={generatedAt} />
+      <HrTitleBar />
       <PageShell width="standard" py={false} className="pt-8 pb-20">
-        <Link
-          href={"/hr?open=pre-interview" as Route}
-          className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-muted transition hover:text-ink-strong"
-        >
-          <ArrowLeft size={15} /> Back to HR
-        </Link>
-
-        <header className="mb-7">
-          <h1
-            className="text-ink-strong"
-            style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(28px,3.4vw,44px)", letterSpacing: "-0.03em", lineHeight: 1.02 }}
-          >
-            Hiring Analytics
-          </h1>
-        </header>
-
         <HiringAnalyticsDashboard data={data} />
       </PageShell>
-      </div>
     </div>
   );
 }

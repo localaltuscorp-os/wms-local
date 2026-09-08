@@ -35,7 +35,15 @@ export function SidebarNewTask({ children }: { children: React.ReactNode }): Rea
   // Dashboard pill above it. `justify-center` sized the wrapper to the button's
   // own content instead, which is why it read narrower than the rail's nav —
   // the button already carries `w-full`, it just had nothing to fill.
-  return <div className="mt-3 flex flex-col sidebar-collapsible-hide">{children}</div>;
+  //
+  // `sidebar-new-task`, NOT `sidebar-collapsible-hide`. That class is
+  // `display: none` on a collapsed rail (app/globals.css), which deleted the
+  // one ACTION in the sidebar the moment anyone minimised it — every nav pill
+  // survived the collapse as an icon and the primary button did not, so the
+  // only way to start a task from a collapsed rail was to know the N shortcut.
+  // It now shrinks to a centred 40px + tile the same way the nav pills shrink
+  // to their glyphs; the collapsed rules live beside theirs.
+  return <div className="mt-3 flex flex-col sidebar-new-task">{children}</div>;
 }
 
 /** Personal | Professional space toggle — Goals room, ADMINS only. */

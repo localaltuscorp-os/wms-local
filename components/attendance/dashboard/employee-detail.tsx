@@ -59,7 +59,7 @@ function dayLabel(row: DayRow): string {
 
 /** Minutes → "h:mm". */
 function hmm(mins: number): string {
-  if (!mins) return "—";
+  if (!mins) return "-";
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return `${h}:${String(m).padStart(2, "0")}`;
@@ -88,12 +88,12 @@ function codeLabel(code: DayRow["code"]): string {
 
 function CodePill({ code }: { code: DayRow["code"] }) {
   if (code === "–") {
-    return <span className="text-ink-subtle">—</span>;
+    return <span className="text-ink-subtle">-</span>;
   }
   const s = CODE_STYLE[code] ?? CODE_STYLE["W/O"]!;
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 font-bold whitespace-nowrap"
+      className="inline-flex items-center rounded-pill px-2.5 py-1 font-bold whitespace-nowrap"
       style={{ fontSize: 12, background: s.bg, color: s.fg }}
     >
       {codeLabel(code)}
@@ -110,7 +110,7 @@ function FlagPill({ label, tone }: { label: string; tone: "red" | "amber" | "blu
   const s = map[tone];
   return (
     <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 font-bold"
+      className="inline-flex items-center rounded-pill px-2 py-0.5 font-bold"
       style={{ fontSize: 11, background: s.bg, color: s.fg }}
     >
       {label}
@@ -324,8 +324,8 @@ export function EmployeeDetailDialog({
                         >
                           {dayLabel(d)}
                         </td>
-                        <Td>{d.inAt ?? "—"}</Td>
-                        <Td>{d.outAt ?? "—"}</Td>
+                        <Td>{d.inAt ?? "-"}</Td>
+                        <Td>{d.outAt ?? "-"}</Td>
                         <Td align="right">{hmm(d.workedMinutes)}</Td>
                         <td className="px-3 py-2.5">
                           <CodePill code={d.code} />
@@ -871,7 +871,7 @@ function LeaveCompOffPanel({
                 <div key={c.id} className="flex items-center gap-2 rounded-md border border-hairline px-2.5 py-1.5">
                   <span className="text-[12.5px] font-bold text-ink-strong tabular-nums">Earned {c.earnedDate}</span>
                   <span
-                    className="rounded-full px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide"
+                    className="rounded-pill px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide"
                     style={c.status === "redeemed"
                       ? { background: "var(--color-surface-soft)", color: "var(--color-ink-muted)" }
                       : { background: "var(--color-teal-bg)", color: "var(--color-teal-deep)" }}

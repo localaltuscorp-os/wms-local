@@ -64,7 +64,7 @@ async function confirmAttendanceApproval(
     ok: true,
     title: "Attendance confirmed",
     message:
-      "Thanks — your team's outside-office attendance for this week is recorded. You can review the details in the dashboard.",
+      "Thanks - your team's outside-office attendance for this week is recorded. You can review the details in the dashboard.",
   };
 }
 

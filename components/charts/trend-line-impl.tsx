@@ -66,7 +66,7 @@ export function TrendLine({
                 >
                   <strong>{label}</strong>
                   <div style={{ fontFamily: "var(--font-mono)" }}>
-                    Actual: {point.actual != null ? `${point.actual}%` : "—"}
+                    Actual: {point.actual != null ? `${point.actual}%` : "-"}
                   </div>
                   <div style={{ fontFamily: "var(--font-mono)", color: "var(--color-ink-subtle)" }}>
                     Expected: {point.expected}%

@@ -7,6 +7,7 @@ import { Search, FolderOpen, FileText } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import type { DossierEmployeeCard } from "@/lib/queries/dossier";
 import { formatDate } from "@/lib/format";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 function fmtDate(iso: string | null): string | null {
   if (!iso) return null;
@@ -26,16 +27,18 @@ export function EmployeeGrid({ employees }: { employees: DossierEmployeeCard[] }
   return (
     <div className="flex flex-col gap-4">
       {/* search */}
+      <CollapsibleSearch scope="a person">
       <div className="relative max-w-[420px]">
         <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-subtle" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Local search — a person" title="Local search — filters only the list on this page" aria-label="Local search — a person — this page only"
+          placeholder="Local search - a person" title="Local search - filters only the list on this page" aria-label="Local search - a person - this page only"
           className="w-full rounded-pill border border-hairline bg-surface-card py-2.5 pl-10 pr-4 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]"
           style={{ boxShadow: "0 6px 20px -16px rgba(15,23,42,0.4)" }}
         />
       </div>
+      </CollapsibleSearch>
 
       <div className="grid grid-cols-3 gap-4 max-lg:grid-cols-2 max-sm:grid-cols-1">
         {filtered.map((e, i) => (
@@ -51,7 +54,7 @@ export function EmployeeGrid({ employees }: { employees: DossierEmployeeCard[] }
               <Avatar name={e.name} avatarUrl={e.avatarUrl} size={46} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[15.5px] font-black text-ink-strong">{e.name}</div>
-                <div className="truncate text-[12.5px] font-semibold text-ink-muted">{e.designation ?? "—"}</div>
+                <div className="truncate text-[12.5px] font-semibold text-ink-muted">{e.designation ?? "-"}</div>
               </div>
             </div>
             <div className="mt-4 flex items-center justify-between border-t border-hairline pt-3">

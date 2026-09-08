@@ -4,7 +4,9 @@ import { useState, useTransition } from "react";
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
+  signInWithEmailAndPassword,
   updatePassword,
+  type User,
 } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase/client";
 import { fireToast } from "@/lib/toast";
@@ -19,13 +21,20 @@ function translateFirebaseError(err: unknown): string {
   switch (code) {
     case "auth/wrong-password":
     case "auth/invalid-credential":
+    case "auth/user-not-found":
       return "Current password is incorrect.";
     case "auth/weak-password":
-      return "New password is too weak — try at least 8 characters with mixed cases and a number.";
+      return "New password is too weak - try at least 8 characters with mixed cases and a number.";
     case "auth/requires-recent-login":
-      return "Sign out and back in, then try again — Firebase needs a recent sign-in.";
+      return "Sign out and back in, then try again - Firebase needs a recent sign-in.";
     case "auth/network-request-failed":
       return "Network hiccup. Try again.";
+    // The sign-in fallback can hit rate limiting and disabled accounts, which
+    // reauthenticating an already-loaded user never surfaced.
+    case "auth/too-many-requests":
+      return "Too many attempts. Wait a few minutes and try again.";
+    case "auth/user-disabled":
+      return "This account is deactivated. Ask an admin to reactivate it.";
     default:
       return "Couldn't update password. Try again.";
   }
@@ -66,14 +75,48 @@ export function ChangePasswordCard({ email }: Props) {
     startTransition(async () => {
       try {
         const auth = getFirebaseAuth();
-        const user = auth.currentUser;
-        if (!user) {
-          setError("You're not signed in here. Refresh and try again.");
-          return;
+
+        // The client SDK restores its persisted session asynchronously (and
+        // getFirebaseAuth fires setPersistence without awaiting it), so
+        // currentUser reads null for a moment after every page load. Wait for
+        // that to settle before concluding anything about who is signed in.
+        await auth.authStateReady();
+
+        let user: User | null = auth.currentUser;
+
+        if (user) {
+          const cred = EmailAuthProvider.credential(email, current);
+          await reauthenticateWithCredential(user, cred);
+        } else {
+          // Still nothing — but the page rendered, so the server accepted our
+          // __session cookie. The cookie and the SDK's IndexedDB state are
+          // independent and routinely diverge: signing in on another device,
+          // clearing site data, or a private window all leave a valid cookie
+          // with no client session, and refreshing never repairs it.
+          //
+          // The form already holds the only two things a sign-in needs, and
+          // signing in both proves the current password (same check
+          // reauthenticate would make) and counts as a recent login.
+          const cred = await signInWithEmailAndPassword(auth, email, current);
+          user = cred.user;
         }
-        const cred = EmailAuthProvider.credential(email, current);
-        await reauthenticateWithCredential(user, cred);
+
         await updatePassword(user, next);
+
+        // Re-mint __session from a token issued after the change, mirroring
+        // what set-password-form does. Best-effort: the password is already
+        // updated by this point, so a failure here must not read as one.
+        try {
+          const idToken = await user.getIdToken(true);
+          await fetch("/api/auth/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken }),
+          });
+        } catch (err) {
+          console.warn("[change-password] session refresh failed", err);
+        }
+
         fireToast({ message: "Password updated." });
         reset();
       } catch (err) {

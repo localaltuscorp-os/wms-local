@@ -221,7 +221,7 @@ export function GoalDetailRow({
             />
             {dictation.recording && (
               <p className="mt-1 text-[11.5px] font-semibold text-altus-red">
-                Speak now — your words appear as you talk. Click <span className="font-black">Listening…</span> to stop.
+                Speak now - your words appear as you talk. Click <span className="font-black">Listening…</span> to stop.
               </p>
             )}
           </div>

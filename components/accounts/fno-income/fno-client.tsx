@@ -9,12 +9,13 @@ import type { FnoItemRow, FnoMonthCell } from "@/lib/queries/accounts-fno";
 import { type FyMonthCol } from "@/lib/accounts/cc";
 import { parseAmount, formatINR, sumAmounts, pctOf } from "@/lib/accounts/amounts";
 import { createFnoItem, updateFnoItem, deleteFnoItem, setFnoMonth } from "@/app/(app)/accounts/fno-income/actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CELL = "w-full rounded-lg border border-hairline bg-white px-2 py-1.5 text-right text-[12.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-[color:var(--color-altus-red)]";
 const CHIP = "rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]";
 
-function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>; }
+function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>; }
 
 function lookupAdd(kind: string) {
   return async (name: string) => {
@@ -129,10 +130,12 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
+        <CollapsibleSearch scope="agencies, entity">
         <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search — agencies, entity" title="Local search — filters only the list on this page" aria-label="Local search — agencies, entity — this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - agencies, entity" title="Local search - filters only the list on this page" aria-label="Local search - agencies, entity - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
+        </CollapsibleSearch>
         <select className={CHIP} value={fEntity} onChange={(e) => setFEntity(e.target.value)} aria-label="Filter by entity">
           <option value="">All Entities</option>
           {entities.map((a) => (<option key={a} value={a}>{a}</option>))}
@@ -199,7 +202,7 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
                             className={CELL + " disabled:opacity-60"}
                             style={{ minWidth: 88, borderColor: c.month === currentMonth ? "var(--color-altus-red)" : undefined }}
                             aria-label="Monthly income"
-                            placeholder="—"
+                            placeholder="-"
                           />
                           {pct && <div className="mt-0.5 text-right text-[10px] font-bold" style={{ color: "var(--color-green-deep)" }}>{pct}</div>}
                         </td>

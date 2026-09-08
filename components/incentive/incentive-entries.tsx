@@ -58,7 +58,7 @@ export function IncentiveEntries({
           <button
             type="button"
             onClick={() => setMode({ kind: "create" })}
-            className="wg-btn wg-sheen inline-flex cursor-pointer items-center gap-2 rounded-full px-4 h-10 font-bold text-white"
+            className="wg-btn wg-sheen inline-flex cursor-pointer items-center gap-2 rounded-pill px-4 h-10 font-bold text-white"
             style={{
               fontSize: 13.5,
               background: "linear-gradient(135deg, #E10600, #A80400)",
@@ -275,7 +275,7 @@ function EntryDialog({
                 options={empOptions}
                 value={empId}
                 onValueChange={pickEmployee}
-                placeholder="— Select employee —"
+                placeholder="- Select employee -"
                 ariaLabel="Employee"
                 searchable
               />
@@ -328,7 +328,7 @@ function EntryDialog({
               <button
                 type="submit"
                 disabled={pending}
-                className="wg-btn wg-sheen inline-flex cursor-pointer items-center gap-2 rounded-full px-5 py-2.5 font-bold text-white disabled:opacity-50"
+                className="wg-btn wg-sheen inline-flex cursor-pointer items-center gap-2 rounded-pill px-5 py-2.5 font-bold text-white disabled:opacity-50"
                 style={{
                   fontSize: 14,
                   background: "linear-gradient(135deg, #E10600, #A80400)",
@@ -436,7 +436,7 @@ function Td({
 }
 
 function fmtMonth(d: string | null): string {
-  if (!d) return "—";
+  if (!d) return "-";
   const m = d.match(/^(\d{4})-(\d{2})/);
   if (!m) return d;
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

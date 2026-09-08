@@ -13,26 +13,18 @@ import { CACHE_TAGS, PROFILE_CACHE_TAGS } from "@/lib/cache-tags";
 export const runtime = "nodejs";
 
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
-/**
- * 1 MB (2026-09-05, egress). The client re-encodes to a 256px square WebP
- * before posting — see downscaleForAvatar in components/profile/identity/
- * avatar-and-name.tsx — which lands around 15-25 KB, so this cap sits ~50x
- * above the normal path and only ever bites the client's fallback (a browser
- * where the canvas re-encode failed and the original went up raw). It is a
- * backstop against storing a multi-megabyte original we would then pay to
- * serve on every render, not the mechanism that makes avatars small.
- */
-const MAX_BYTES = 1 * 1024 * 1024;
+const MAX_BYTES = 2 * 1024 * 1024; // 2MB
 
 /**
- * Avatar upload — multipart POST. The client center-crops and re-encodes to a
- * 256px WebP before posting; we re-validate server-side (MIME, size) because
- * the client is a convenience, not the guarantee.
+ * Avatar upload — multipart POST. The client uploads the cropped square
+ * blob (handled by react-easy-crop). We re-validate server-side: MIME,
+ * size, and reject anything else. The uploaded blob is stored at
+ * `avatars/<employeeId>/<random>.<ext>` and we generate a 7-day signed
+ * URL stored as the employee's avatarUrl.
  *
- * The blob is stored at `avatars/<employeeId>/<random>.<ext>` and the
- * employee row keeps the durable PATH, pointing avatarUrl at /api/avatar/<id>,
- * which signs on demand. Persisting a signed URL here — as this once did —
- * meant every avatar broke permanently when its TTL ran out.
+ * On each profile read we'll refresh the signed URL transparently when
+ * it's within 24h of expiry (handled in lib/profile/queries.ts at a
+ * later step — for v1 we just stamp it on upload and refresh manually).
  *
  * Returns: { ok: true, url } | { ok: false, error }
  */
@@ -64,7 +56,7 @@ export async function POST(req: Request) {
   }
   if (file.size > MAX_BYTES) {
     return NextResponse.json(
-      { ok: false, error: "Image must be 1MB or smaller — try a smaller photo" },
+      { ok: false, error: "Image must be 2MB or smaller" },
       { status: 413 },
     );
   }

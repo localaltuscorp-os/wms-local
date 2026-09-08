@@ -69,7 +69,7 @@ export async function renderVasaPdf(input: VasaPdfInput): Promise<Buffer> {
     layout: "landscape",
     margin: MARGIN,
     info: {
-      Title: `Vasa Family Interpersonal Balance — ${snapshotLabel(asOn)}`,
+      Title: `Vasa Family Interpersonal Balance - ${snapshotLabel(asOn)}`,
       Author: "Altus Corp Dashboard",
       Subject: "Interpersonal reconciliation",
     },
@@ -252,7 +252,7 @@ export async function renderVasaPdf(input: VasaPdfInput): Promise<Buffer> {
           .font("Helvetica")
           .fontSize(bodySize)
           .fillColor(INK_FAINT)
-          .text("—", x + 3, y + 4, { width: valueW - 6, align: "center", lineBreak: false });
+          .text("-", x + 3, y + 4, { width: valueW - 6, align: "center", lineBreak: false });
         return;
       }
       const v = byKey.get(`${row}|${col}`);
@@ -287,7 +287,7 @@ export async function renderVasaPdf(input: VasaPdfInput): Promise<Buffer> {
       .font("Helvetica-Bold")
       .fontSize(bodySize)
       .fillColor(net > 0 ? GREEN_DEEP : net < 0 ? RED : INK_FAINT)
-      .text(net === 0 ? "—" : formatFullInr(net, INR_PDF), nx + 3, y + 4, {
+      .text(net === 0 ? "-" : formatFullInr(net, INR_PDF), nx + 3, y + 4, {
         width: valueW - 6,
         align: "right",
         lineBreak: false,

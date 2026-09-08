@@ -44,7 +44,7 @@ export function CandidateSignOut() {
       type="button"
       onClick={() => void handleSignOut()}
       disabled={busy}
-      className="inline-flex items-center gap-1.5 rounded-full border border-hairline-strong bg-white px-3.5 py-2 text-[13px] font-bold text-ink-soft transition-colors hover:border-ink-muted hover:text-ink-strong disabled:opacity-60"
+      className="inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-white px-3.5 py-2 text-[13px] font-bold text-ink-soft transition-colors hover:border-ink-muted hover:text-ink-strong disabled:opacity-60"
     >
       {busy ? <Loader2 size={15} className="animate-spin" /> : <LogOut size={15} strokeWidth={2.4} />}
       {busy ? "Signing out…" : "Sign out"}

@@ -13,7 +13,7 @@ import { db } from "@/lib/db";
 import { taskAttachments, tasks } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
-import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
+import { getSupabaseAdmin, DOCUMENTS_BUCKET, storageErrorMessage } from "@/lib/supabase/admin";
 import { canEditTaskFields } from "@/lib/auth/task-permissions";
 import { validateUpload } from "@/lib/hr/upload";
 
@@ -69,7 +69,7 @@ export async function uploadTaskAttachment(fd: FormData): Promise<Result> {
   const { error } = await admin.storage
     .from(DOCUMENTS_BUCKET)
     .upload(path, buf, { contentType: file.type || "application/octet-stream", upsert: false });
-  if (error) return { ok: false, error: `Upload failed: ${error.message}` };
+  if (error) return { ok: false, error: storageErrorMessage(error.message) };
 
   await db.insert(taskAttachments).values({
     taskId,

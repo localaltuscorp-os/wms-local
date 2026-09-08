@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { getFirebaseAdminAuth } from "@/lib/firebase/admin";
 import { sendResetPasswordEmail } from "@/lib/email/resend";
-import { siteUrl, rehostActionLink } from "@/lib/site-url";
+import { siteUrl } from "@/lib/site-url";
 
 const RequestSchema = z.object({
   email: z.string().trim().toLowerCase().email("Invalid email"),
@@ -57,11 +57,9 @@ export async function requestPasswordReset(emailInput: string): Promise<ResetRes
 
   let link: string;
   try {
-    link = rehostActionLink(
-      await getFirebaseAdminAuth().generatePasswordResetLink(email, {
-        url: `${siteUrl()}/login`,
-      }),
-    );
+    link = await getFirebaseAdminAuth().generatePasswordResetLink(email, {
+      url: `${siteUrl()}/login`,
+    });
   } catch (err) {
     const code = (err as { code?: string })?.code;
     // The ONLY swallowed case: the address has no account. Silent by design.

@@ -17,7 +17,7 @@ import {
 /**
  * ONE NUMBER CELL, shared by both delegation sections.
  *
- * "Who is delegating, and how much" and "Who is creating how much work" sit
+ * "Who is Delegating, and How Much" and "Who is creating how much work" sit
  * directly above one another and count the same things. Two implementations of
  * the cell would be two attainment palettes, two tooltip sentences and two href
  * builders — and the first one edited alone would have the same figure reading

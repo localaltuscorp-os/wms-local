@@ -8,7 +8,7 @@ import { runFullBackup } from "@/lib/backup/run";
  * this automatically when CRON_SECRET is configured), same as the other crons.
  *
  * Local/manual test:
- *   curl -X POST https://os.altuscorp.in/api/cron/backup -H "Authorization: Bearer $CRON_SECRET"
+ *   curl -X POST https://wms.mananvasa.com/api/cron/backup -H "Authorization: Bearer $CRON_SECRET"
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

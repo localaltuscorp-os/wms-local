@@ -19,6 +19,7 @@ import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { fireToast } from "@/lib/toast";
 import { MACRO_BUCKETS, ROLE_CLASSES, type RoleClass } from "@/lib/appraisal2/types";
 import { setAssignees, setRoleClass } from "@/app/(app)/appraisal/admin-actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const RED = "var(--color-altus-red)";
 const RED_DEEP = "var(--color-altus-red-deep)";
@@ -129,7 +130,7 @@ function RoleEditor({ config }: { config: EmployeeConfig }) {
   return (
     <Section
       title="Role Class"
-      hint="Manager or Non-Manager — this selects the scorecard's dimension set and weights."
+      hint="Manager or Non-Manager - this selects the scorecard's dimension set and weights."
     >
       <form
         onSubmit={(e) => {
@@ -214,7 +215,7 @@ function AssigneesEditor({ config, people }: { config: EmployeeConfig; people: A
         <label className="flex flex-col gap-1.5">
           <Label>Manager (Advisory)</Label>
           <select className={INPUT} value={managerId} onChange={(e) => setManagerId(e.target.value)}>
-            <option value="">— None —</option>
+            <option value="">- None -</option>
             {options.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -225,7 +226,7 @@ function AssigneesEditor({ config, people }: { config: EmployeeConfig; people: A
         <label className="flex flex-col gap-1.5">
           <Label>Management (Final)</Label>
           <select className={INPUT} value={managementId} onChange={(e) => setManagementId(e.target.value)}>
-            <option value="">— None —</option>
+            <option value="">- None -</option>
             {options.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -264,15 +265,17 @@ function Picker({
 
   return (
     <div className="rounded-2xl bg-surface-card p-4" style={{ boxShadow: CARD_SHADOW }}>
+      <CollapsibleSearch scope="people">
       <div className="relative mb-3">
         <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Local search — people" title="Local search — filters only the list on this page" aria-label="Local search — people — this page only"
+          placeholder="Local search - people" title="Local search - filters only the list on this page" aria-label="Local search - people - this page only"
           className="w-full rounded-xl border border-hairline bg-surface-soft py-2 pl-9 pr-3 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]"
         />
       </div>
+      </CollapsibleSearch>
 
       <div className="mb-3 flex flex-wrap gap-1.5">
         <DeptPill label="All" active={dept === null} onClick={() => setDept(null)} />
@@ -299,7 +302,7 @@ function Picker({
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[14px] font-bold text-ink-strong">{p.name}</div>
                 <div className="truncate text-[12px] text-ink-subtle">
-                  {p.designation || p.department || "—"}
+                  {p.designation || p.department || "-"}
                 </div>
               </div>
             </button>
@@ -359,7 +362,7 @@ export function AdminPanel({
             <div className="min-w-0 flex-1">
               <div className="truncate text-[18px] font-black text-ink-strong">{selected.name}</div>
               <div className="text-[13px] text-ink-subtle">
-                {[selected.designation, selected.department].filter(Boolean).join(" · ") || "—"}
+                {[selected.designation, selected.department].filter(Boolean).join(" · ") || "-"}
               </div>
             </div>
           </div>

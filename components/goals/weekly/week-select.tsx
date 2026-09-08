@@ -104,7 +104,7 @@ export function WeekSelect({ value, thisWeek, onPick }: WeekSelectProps) {
         <PopoverTrigger asChild>
           <button
             type="button"
-            aria-label={`Week ${weekNo}, ${range} — pick a week`}
+            aria-label={`Week ${weekNo}, ${range} - pick a week`}
             className={`flex cursor-pointer items-center gap-1 border-x border-hairline-strong px-1.5 py-0.5 transition-colors hover:bg-surface-soft ${FOCUS_RING}`}
           >
             <CalendarDays size={11} className="text-ink-subtle" />

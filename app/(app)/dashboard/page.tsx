@@ -48,11 +48,26 @@ interface PageProps {
  */
 export default async function DashboardPage({ searchParams }: PageProps) {
   const sp = await searchParams;
-  const filters = parseFilters(sp);
 
   // Auth is cached for the request. `.catch → null` keeps the public-ish
   // dashboard rendering even if the auth read hiccups (My Day just hides).
+  // Resolved BEFORE the filters, because it now decides their default scope.
   const me = await getCurrentEmployee().catch(() => null);
+
+  /* THE DASHBOARD OPENS ON YOU. With no `?emp=` in the URL every section —
+     KPIs, the leaderboards, the heatmap, delivery, sent-back — is scoped to
+     the signed-in employee, so the first thing you see is your own standing
+     rather than the whole company's. "All employees" is one click away in the
+     Assignee dropdown and writes `?emp=all`.
+
+     The leaderboards do NOT lose their meaning under this: they rank the whole
+     team first and then narrow the DISPLAY to the filtered people, keeping the
+     global rank (see loadDashboardData) — so a self-scoped Top Performers is
+     still "you, at position N of the company", not "you, at position 1 of 1".
+
+     If auth hiccuped we fall back to the old company-wide view rather than
+     showing an empty dashboard. */
+  const filters = parseFilters(sp, { defaultEmployeeId: me?.id });
 
   // Mobile home: phones open on "Today" (the user's overdue + due-today tasks)
   // instead of the company dashboard. `?full=1` opts into the full dashboard.
@@ -159,6 +174,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <FilterBar
           employees={employeeOptions}
           subjects={subjects}
+          // `me` + `scopeDefaultsToMe` are what put "All employees" and the
+          // "(You)" row in the Assignee dropdown, and what let the pill read
+          // "Only Me" instead of a bare name.
+          me={me ? { id: me.id, isAdmin: me.isAdmin } : undefined}
+          scopeDefaultsToMe={Boolean(me)}
+          assigneeMode={filters.assigneeMode}
           initial={{
             start: isoDay(filters.startDate ?? new Date()),
             end: isoDay(filters.endDate ?? new Date()),
@@ -183,7 +204,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 §10) — visible on mobile Today + desktop. Display-only. */}
             {myGoals.length > 0 && (
               <PageShell as="div" width="full" py={false} className="mt-6">
-                <WeeklyGoalTaskGroup goals={myGoals} />
+                {/* The section inset, so this banner's content shares the left
+                    and right edge of every section header below it — see the
+                    `inset` prop. */}
+                <WeeklyGoalTaskGroup goals={myGoals} inset="px-6 md:px-8" />
               </PageShell>
             )}
             {mobileToday && me && (
@@ -340,7 +364,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   {/* ONE delegation scorecard, not two.
                   
                       There were two here, stacked, and they rendered the SAME
-                      <h2> — "Who is delegating, and how much" — twice down the
+                      <h2> — "Who is Delegating, and How Much" — twice down the
                       page. The one removed was the initiation scorecard
                       (<ExecDelegationSection>: % of target, direct/downline/
                       counterpart split); what remains is the activity board,
@@ -422,7 +446,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                     <WidgetBoundary label="people to pull up">
                       <PageShell as="div" width="full" py={false}>
                         <BottomPerformersSection
-                          people={data.punctuality.byPerson}
+                          people={data.pullUpBoard}
                           avatarById={avatarById}
                         />
                       </PageShell>

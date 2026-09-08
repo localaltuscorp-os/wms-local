@@ -73,7 +73,7 @@ export function EmployeeDossierView({
             {data.employee.name}
           </div>
           <div className="mt-0.5 text-[13.5px] font-semibold text-ink-muted">
-            {data.employee.designation ?? "—"} · <span className="tabular-nums">{totalDocs}</span> document{totalDocs === 1 ? "" : "s"} on file
+            {data.employee.designation ?? "-"} · <span className="tabular-nums">{totalDocs}</span> document{totalDocs === 1 ? "" : "s"} on file
           </div>
         </div>
       </div>
@@ -191,7 +191,7 @@ function DocRow({
           {date && <span className="inline-flex items-center gap-1 tabular-nums"><Calendar size={11} />{date}</span>}
           <span className="truncate">{doc.fileName}</span>
           {doc.sizeBytes ? <span className="tabular-nums">{fmtSize(doc.sizeBytes)}</span> : null}
-          {doc.archived && <span className="rounded-full bg-ink-subtle/10 px-1.5 py-0.5 font-bold uppercase tracking-wide text-ink-subtle">Archived</span>}
+          {doc.archived && <span className="rounded-pill bg-ink-subtle/10 px-1.5 py-0.5 font-bold uppercase tracking-wide text-ink-subtle">Archived</span>}
         </div>
       </button>
 

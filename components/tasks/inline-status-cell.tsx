@@ -163,7 +163,7 @@ export function InlineStatusCell({
           res.error === "forbidden"
             ? "Not allowed to make that transition."
             : res.error === "stale"
-              ? "This row was changed elsewhere — refreshing."
+              ? "This row was changed elsewhere - refreshing."
               : res.message ?? "Could not update status.";
         fireToast({ message: msg });
         // Stale = our token is behind the row; pull the truth right away.

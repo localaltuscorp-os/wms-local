@@ -208,7 +208,7 @@ async function build(slug: string): Promise<Section | null> {
             link: r.websiteLink && r.websiteLink.trim() ? r.websiteLink.trim() : null,
             fields: fields(
               kv("Username", r.username),
-              { label: "Password", value: r.hasPassword ? "•••••• — reveal on web" : "—" },
+              { label: "Password", value: r.hasPassword ? "•••••• - reveal on web" : "-" },
               kv("Email", r.defaultEmail),
               kv("Phone", r.phone),
               kv("Notes", r.note),

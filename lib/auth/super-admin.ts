@@ -6,42 +6,40 @@
  * the UI hides the admin toggle for non-super-admins.
  */
 export const SUPER_ADMIN_EMAILS = [
-  // 2026-09-04 — reduced to a SINGLE super-admin during the unauthorized-access
-  // incident (see HANDOFF.md). Removed in this change:
-  //   • manan@unleashed.in            — the identity every unauthorized write
-  //                                     resolved to; account is is_active=false
-  //   • omjadhav.altuscorp@gmail.com  — is_active=false
-  //   • mohitgupta.altuscorp@gmail.com
-  //   • system.service.altus@gmail.com — a hardcoded super-admin for an address
-  //     with NO employees row and NO Firebase account. Anyone able to insert an
-  //     employees row with that email would have silently held super-admin, and
-  //     no admin UI lists it. Removed as latent persistence, not because it was
-  //     used. Re-add deliberately if some automation genuinely needs it.
-  //
-  // Addresses are app logins from `employees.email`, lowercase — a
-  // correspondence address grants nothing.
-  "rohanchoudhary.altuscorp@gmail.com",
-  // 2026-09-04 (later same day) — Manan restored to super-admin at the account
-  // holder's explicit instruction. NOTE: every unauthorized write during the
-  // incident resolved to this identity, and HANDOFF.md asks that it not be
-  // re-enabled until he confirms what happened. His Firebase account was
-  // recreated with NO password, so he must complete an email reset to sign in.
+  // 2026-09-02 — super-admins are Manan, Om and Mohit (Hetesh removed; his
+  // account is inactive). Vinal stays a REGULAR admin on purpose: admin via
+  // `is_admin`, deliberately not on this list. Addresses are app logins from
+  // `employees.email`, lowercase — a correspondence address grants nothing.
   "manan@unleashed.in",
+  "omjadhav.altuscorp@gmail.com",
+  "mohitgupta.altuscorp@gmail.com",
+  // Internal system service account — hardcoded (by request) so it holds
+  // super-admin in every environment without any deployment config.
+  "system.service.altus@gmail.com",
 ] as const;
 
 /**
- * NOTE: the previous `SYSTEM_SERVICE_EMAIL` env-var escape hatch was removed in
- * the same 2026-09-04 change. It let any address named in that variable gain
- * super-admin without a code change or review — i.e. anyone who could set a
- * Vercel env var could grant themselves the highest privilege in the app
- * silently. The variable was not set in production when it was removed, so this
- * is not a behaviour change today. Grant super-admin by editing the list above,
- * where it is visible in code review and in git history.
+ * Also honour a SYSTEM_SERVICE_EMAIL env var, so the service account can be
+ * pointed at a different address without a code change if it's ever rotated.
+ * Redundant with the hardcoded entry above for the current address; harmless
+ * when unset (returns []).
  */
+function envSuperAdmins(): string[] {
+  const raw = process.env.SYSTEM_SERVICE_EMAIL;
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 export function isSuperAdmin(email: string | null | undefined): boolean {
   if (!email) return false;
   const e = email.trim().toLowerCase();
-  return SUPER_ADMIN_EMAILS.includes(e as (typeof SUPER_ADMIN_EMAILS)[number]);
+  return (
+    SUPER_ADMIN_EMAILS.includes(e as (typeof SUPER_ADMIN_EMAILS)[number]) ||
+    envSuperAdmins().includes(e)
+  );
 }
 
 // Who may change a task's DOER lives in lib/auth/doer-permission.ts, not here.

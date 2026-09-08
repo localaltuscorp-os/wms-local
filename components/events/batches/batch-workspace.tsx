@@ -70,7 +70,7 @@ export function BatchWorkspace({
           New Schedule moves into the band's actions slot. */}
       <PageCommandBar
         title="Batch Schedules"
-        hint="Enter a batch's dates and times — the calendar auto-blocks the whole range."
+        hint="Enter a batch's dates and times - the calendar auto-blocks the whole range."
         actions={
           <button
             type="button"
@@ -147,7 +147,7 @@ function EmptyState({ onNew, disabled }: { onNew: () => void; disabled: boolean 
         type="button"
         onClick={onNew}
         disabled={disabled}
-        className="brand-btn wg-btn mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full px-5 py-2.5 text-[15px] font-bold text-white disabled:opacity-50"
+        className="brand-btn wg-btn mt-5 inline-flex cursor-pointer items-center gap-2 rounded-pill px-5 py-2.5 text-[15px] font-bold text-white disabled:opacity-50"
         style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
       >
         <Plus size={17} strokeWidth={2.6} />
@@ -185,8 +185,8 @@ function ScheduleCard({
       if (!res.ok) return fireToast({ message: res.error, type: "error" });
       fireToast({
         message: row.isActive
-          ? "Schedule deactivated — blocks removed."
-          : "Schedule reactivated — calendar re-blocked.",
+          ? "Schedule deactivated - blocks removed."
+          : "Schedule reactivated - calendar re-blocked.",
       });
       router.refresh();
     });

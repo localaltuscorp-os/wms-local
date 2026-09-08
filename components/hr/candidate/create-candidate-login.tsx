@@ -57,7 +57,10 @@ export function CreateCandidateLogin() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-xl border border-hairline-strong bg-white px-4 py-2.5 text-[14px] font-bold text-ink-strong transition-colors hover:border-altus-red"
+        // The filled/outline treatments are swapped with "New candidate":
+        // creating a login is the primary action on this screen.
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-[14px] font-bold text-white transition-transform hover:-translate-y-0.5"
+        style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
       >
         <KeyRound size={16} strokeWidth={2.4} /> Candidate login
       </button>
@@ -82,7 +85,7 @@ export function CreateCandidateLogin() {
             ) : (
               <form onSubmit={submit} className="flex flex-col gap-3">
                 <p className="text-[13px] leading-[1.5] text-ink-muted">
-                  Creates a one-time login the candidate uses to fill their <strong>own</strong> interview form — no
+                  Creates a one-time login the candidate uses to fill their <strong>own</strong> interview form - no
                   need to lend your account. It deactivates automatically when they submit.
                 </p>
                 <Field label="Full name">
@@ -135,7 +138,7 @@ function CredentialsView({
         className="rounded-lg px-3 py-2 text-[12.5px] font-semibold"
         style={{ background: "var(--color-amber-bg, #fef3e2)", color: "var(--color-amber-deep, #b45309)" }}
       >
-        Shown once — copy these and hand them to the candidate. The password can’t be retrieved later (only reset).
+        Shown once - copy these and hand them to the candidate. The password can’t be retrieved later (only reset).
       </div>
       {warning ? <div className="text-[12.5px] font-semibold text-[color:var(--color-altus-red)]">{warning}</div> : null}
       <CopyRow label="Login link" value={creds.loginUrl} />

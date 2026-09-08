@@ -12,20 +12,6 @@ import { CACHE_TAGS } from "@/lib/cache-tags";
 export const isStaffAccount = eq(employees.accountType, "employee");
 
 /**
- * CURRENT staff — a real employee account that has not been offboarded.
- *
- * Distinct from `isStaffAccount`, which only excludes candidate/system rows.
- * After migration 0212 a former employee KEEPS their employees row forever, so
- * every roster, picker and headcount that used `isStaffAccount` alone would
- * start listing people who left. Rosters want this; historical views that need
- * to resolve an old actor name still want `isStaffAccount`.
- */
-export const isCurrentStaff = and(
-  eq(employees.accountType, "employee"),
-  eq(employees.employmentStatus, "active"),
-)!;
-
-/**
  * Returns the employee roster ordered by name.
  *
  * Defaults to ACTIVE-ONLY because the vast majority of callers feed

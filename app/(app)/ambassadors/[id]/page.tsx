@@ -82,7 +82,7 @@ export default async function AmbassadorWorkspacePage({
                     {a.name}
                   </h1>
                   <TierPill tier={a.tier} />
-                  <span className="rounded-full px-2.5 py-1 text-[11.5px] font-bold" style={{ background: status.bg, color: status.ink }}>
+                  <span className="rounded-pill px-2.5 py-1 text-[11.5px] font-bold" style={{ background: status.bg, color: status.ink }}>
                     {status.label}
                   </span>
                 </div>
@@ -103,7 +103,7 @@ export default async function AmbassadorWorkspacePage({
                   {a.email && (
                     <a
                       href={`mailto:${a.email}`}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white px-3 py-1.5 text-[12.5px] font-semibold text-ink-strong transition-colors hover:border-[color:var(--color-altus-red)]"
+                      className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white px-3 py-1.5 text-[12.5px] font-semibold text-ink-strong transition-colors hover:border-[color:var(--color-altus-red)]"
                     >
                       <Mail size={13} strokeWidth={2.5} />
                       {a.email}
@@ -112,7 +112,7 @@ export default async function AmbassadorWorkspacePage({
                   {a.phone && (
                     <a
                       href={`tel:${a.phone}`}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white px-3 py-1.5 text-[12.5px] font-semibold text-ink-strong transition-colors hover:border-[color:var(--color-altus-red)]"
+                      className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white px-3 py-1.5 text-[12.5px] font-semibold text-ink-strong transition-colors hover:border-[color:var(--color-altus-red)]"
                     >
                       <Phone size={13} strokeWidth={2.5} />
                       {a.phone}

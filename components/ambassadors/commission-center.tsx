@@ -17,7 +17,7 @@ function todayISO(): string {
 }
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const [y, m, d] = iso.split("T")[0]!.split("-");
   if (!y || !m || !d) return iso;
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -136,7 +136,7 @@ export function CommissionCenter({ owed, paid }: { owed: ReferralRow[]; paid: Re
       <section>
         <SectionHeading title="Owed" hint="Select referrals from one partner, then record a payout." />
         {groups.length === 0 ? (
-          <EmptyState icon={Check} text="Nothing owed — every commission is settled." />
+          <EmptyState icon={Check} text="Nothing owed - every commission is settled." />
         ) : (
           <div className="space-y-4">
             {groups.map((g) => {
@@ -202,7 +202,7 @@ export function CommissionCenter({ owed, paid }: { owed: ReferralRow[]; paid: Re
                               {r.prospectCompany && <div className="text-[12.5px] text-ink-subtle">{r.prospectCompany}</div>}
                             </td>
                             <td className="px-4 py-3 align-middle text-[13.5px] tabular-nums text-ink-soft">
-                              {r.dealAmount != null ? <>Deal {inr(r.dealAmount)}</> : <span className="text-ink-subtle">—</span>}
+                              {r.dealAmount != null ? <>Deal {inr(r.dealAmount)}</> : <span className="text-ink-subtle">-</span>}
                             </td>
                             <td className="px-2 py-3 align-middle">
                               {r.commissionBasis && <StatusPill text={r.commissionBasis} tone="slate" />}
@@ -288,7 +288,7 @@ export function CommissionCenter({ owed, paid }: { owed: ReferralRow[]; paid: Re
                       <div className="text-ink-strong">{r.prospectName}</div>
                       {r.prospectCompany && <div className="text-[12.5px] text-ink-subtle">{r.prospectCompany}</div>}
                     </Td>
-                    <Td>{r.commissionBasis ? <StatusPill text={r.commissionBasis} tone="green" /> : <span className="text-ink-subtle">—</span>}</Td>
+                    <Td>{r.commissionBasis ? <StatusPill text={r.commissionBasis} tone="green" /> : <span className="text-ink-subtle">-</span>}</Td>
                     <Td right><span className="text-[14px] font-bold tabular-nums text-ink-strong">{inr(r.commissionAmount ?? 0)}</span></Td>
                   </tr>
                 ))}
@@ -627,7 +627,7 @@ function StatusPill({ text, tone }: { text: string; tone: "slate" | "green" }) {
     green: { bg: "color-mix(in srgb, var(--color-green) 14%, transparent)", fg: "var(--color-green-deep)" },
   }[tone];
   return (
-    <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-bold" style={{ background: map.bg, color: map.fg }}>
+    <span className="inline-flex items-center rounded-pill px-2.5 py-1 text-[12px] font-bold" style={{ background: map.bg, color: map.fg }}>
       {text}
     </span>
   );

@@ -238,7 +238,7 @@ export async function getReimbursementDashboard(opts: {
       recent.push({
         id: r.id,
         employeeName: r.employeeName || "Unknown",
-        expenseFor: (fields.expense_for || "").trim() || "—",
+        expenseFor: (fields.expense_for || "").trim() || "-",
         amount,
         status: r.status,
         approved: approvedFlag,

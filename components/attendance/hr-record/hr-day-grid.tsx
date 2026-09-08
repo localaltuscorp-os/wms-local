@@ -34,7 +34,7 @@ export function HrDayGrid({ month, days }: { month: string; days: HrSheetDayCell
           "inset 0 0 0 1px var(--color-hairline), 0 6px 24px -18px rgba(15,23,42,0.25)",
         animationDelay: "120ms",
       }}
-      aria-label={`Daily record — ${hrMonthLabel(month)}`}
+      aria-label={`Daily record - ${hrMonthLabel(month)}`}
     >
       <div className="mb-5 flex items-center gap-2.5">
         <span

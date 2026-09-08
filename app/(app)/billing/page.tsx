@@ -77,7 +77,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
               Billing · {year}
             </h1>
             <p className="mt-1.5 max-w-[76ch] text-[15px] font-medium text-ink-muted">
-              Invoices, payments, billing cycles &amp; revenue management — billed,
+              Invoices, payments, billing cycles &amp; revenue management - billed,
               collected and outstanding across the year.
             </p>
           </div>

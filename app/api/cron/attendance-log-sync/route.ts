@@ -19,7 +19,7 @@ import { runPaidLeaveSync } from "@/lib/attendance-log/paid-leave-sync";
  * automatically).
  *
  * Manual test:
- *   curl -X POST https://os.altuscorp.in/api/cron/attendance-log-sync -H "Authorization: Bearer $CRON_SECRET"
+ *   curl -X POST https://wms.mananvasa.com/api/cron/attendance-log-sync -H "Authorization: Bearer $CRON_SECRET"
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

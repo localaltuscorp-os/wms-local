@@ -327,7 +327,7 @@ function CommitRitual(props: { forced: boolean; onClose: () => void }): React.JS
       if (!res.ok) setState({ phase: "error", message: res.error });
       else setState({ phase: "ready", data: res.data });
     } catch {
-      setState({ phase: "error", message: "Couldn't load the commit state — try again." });
+      setState({ phase: "error", message: "Couldn't load the commit state - try again." });
     }
   }, []);
   React.useEffect(() => {
@@ -550,7 +550,7 @@ function CommitMemberSection(props: {
           <ul className="mt-2 flex flex-col gap-2">
             {m.thisWeek.filter((r) => r.adopted).length === 0 && (
               <li className="text-[12.5px] font-semibold text-ink-subtle">
-                No adopted goals this week — nothing to fill.
+                No adopted goals this week - nothing to fill.
               </li>
             )}
             {m.thisWeek
@@ -579,7 +579,7 @@ function CommitMemberSection(props: {
           <ul className="mt-2 flex flex-col gap-1.5">
             {m.nextWeek.length === 0 && (
               <li className="text-[12.5px] font-semibold text-ink-subtle">
-                Nothing planned yet — add at least one goal, then freeze.
+                Nothing planned yet - add at least one goal, then freeze.
               </li>
             )}
             {m.nextWeek.map((r) => (
@@ -637,7 +637,7 @@ function CommitMemberSection(props: {
             {frozen ? (
               <>
                 <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold" style={{ color: GREEN }}>
-                  <Snowflake size={13} strokeWidth={2.6} /> Frozen — committed_at stamped
+                  <Snowflake size={13} strokeWidth={2.6} /> Frozen - committed_at stamped
                 </span>
                 <button
                   type="button"
@@ -719,7 +719,7 @@ function ApproveRitual(props: { forced: boolean; onClose: () => void }): React.J
       if (!res.ok) setState({ phase: "error", message: res.error });
       else setState({ phase: "ready", data: res.data });
     } catch {
-      setState({ phase: "error", message: "Couldn't load the approval state — try again." });
+      setState({ phase: "error", message: "Couldn't load the approval state - try again." });
     }
   }, []);
   React.useEffect(() => {
@@ -770,7 +770,7 @@ function ApproveRitual(props: { forced: boolean; onClose: () => void }): React.J
       {state.phase === "error" && <ErrorRow message={state.message} onRetry={() => void load()} />}
       {data && data.members.length === 0 && (
         <p className="py-1 text-[13px] font-semibold text-ink-subtle">
-          You don&apos;t have any reports — there&apos;s nothing to approve.
+          You don&apos;t have any reports - there&apos;s nothing to approve.
         </p>
       )}
       {data && data.members.length > 0 && (
@@ -858,7 +858,7 @@ function ApproveMemberSection(props: {
         return;
       }
       props.onGoal("thisWeek", row.id, { committed: false, approved: false, reviewNotes: note || null });
-      fireToast({ message: `Sent back to ${m.name} — they must re-commit before approval.` });
+      fireToast({ message: `Sent back to ${m.name} - they must re-commit before approval.` });
     });
 
   return (
@@ -922,7 +922,7 @@ function ApproveWeekGroup(props: {
                 onClick={() => props.onApproveAll(props.bucket, false)}
                 className="inline-flex items-center gap-1 rounded-chip px-2 py-1 text-[11.5px] font-bold transition-colors disabled:opacity-50"
                 style={{ color: GREEN, background: "color-mix(in srgb, #15803d 10%, transparent)" }}
-                title="Approved — click to undo"
+                title="Approved - click to undo"
               >
                 <Check size={11} strokeWidth={3} /> Approved · undo
               </button>
@@ -942,7 +942,7 @@ function ApproveWeekGroup(props: {
       </div>
       <ul className="mt-2 flex flex-col gap-2">
         {props.rows.length === 0 && (
-          <li className="text-[12.5px] font-semibold text-ink-subtle">No adopted goals — nothing blocks here.</li>
+          <li className="text-[12.5px] font-semibold text-ink-subtle">No adopted goals - nothing blocks here.</li>
         )}
         {props.rows.map((r) => (
           <ApproveGoalRow
@@ -1006,7 +1006,7 @@ function ApproveGoalRow(props: {
             inputMode="numeric"
             value={draft}
             disabled={props.busy}
-            placeholder="—"
+            placeholder="-"
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commitAccept}
             onKeyDown={(e) => {
@@ -1026,7 +1026,7 @@ function ApproveGoalRow(props: {
             disabled={props.busy}
             onClick={() => setNoteOpen((v) => !v)}
             className="inline-flex items-center gap-1 rounded-chip px-2 py-1 text-[11.5px] font-bold text-ink-subtle transition-colors hover:text-ink-strong disabled:opacity-50"
-            title="Require a change — un-freezes the goal so they re-commit"
+            title="Require a change - un-freezes the goal so they re-commit"
           >
             <CornerUpLeft size={11} strokeWidth={2.8} /> Send back
           </button>

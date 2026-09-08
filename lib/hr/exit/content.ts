@@ -79,7 +79,7 @@ export const EXIT_RATING_LEGEND = ["Poor", "Average", "Good", "Very Good", "Exce
 export const EXIT_ENV_FEEDBACK = {
   id: "env_culture_feedback",
   n: 11,
-  prompt: "Work environment & culture — in your own words",
+  prompt: "Work environment & culture - in your own words",
   label: "Write a few words about the work environment & culture…",
 };
 
@@ -87,7 +87,7 @@ export const EXIT_INFRA_FEEDBACK = {
   id: "infrastructure_feedback",
   n: 12,
   prompt: "Infrastructure Feedback",
-  label: "Tell us about the office infrastructure — workspace, equipment, tools, connectivity…",
+  label: "Tell us about the office infrastructure - workspace, equipment, tools, connectivity…",
 };
 
 // ── Handover & Clearance Checklist (Annexure A) ──
@@ -135,7 +135,7 @@ export const HANDOVER_INSTRUCTIONS =
 
 /** Handover clearance notes — free-text label for the new Notes field. */
 export const HANDOVER_NOTES_LABEL =
-  "Notes — pending items, exceptions, or context for the F&F team…";
+  "Notes - pending items, exceptions, or context for the F&F team…";
 
 export const EXIT_CONFIDENTIALITY_NOTE =
   "The feedback provided here will be used solely to improve the Firm's work environment. It will not affect your relieving letter or final settlement.";

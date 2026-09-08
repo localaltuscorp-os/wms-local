@@ -112,7 +112,7 @@ const template: LetterTemplate = {
       f("joiningDocsLink", "Onboarding Form Link", {
         // The public production URL of the in-app Onboarding Form (never a dev /
         // localhost host — this is a document link that goes out to recipients).
-        defaultValue: "https://os.altuscorp.in/dossier/onboarding",
+        defaultValue: "https://wms.mananvasa.com/dossier/onboarding",
       }),
     ),
 

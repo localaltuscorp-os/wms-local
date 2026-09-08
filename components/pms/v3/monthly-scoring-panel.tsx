@@ -76,7 +76,7 @@ function LaneChip({ role, points, accent }: { role: string; points: number | nul
           color: points == null ? "var(--color-ink-subtle)" : accent,
         }}
       >
-        {points == null ? "—" : points}
+        {points == null ? "-" : points}
       </span>
     </div>
   );
@@ -94,7 +94,7 @@ function PctLaneChip({ role, pct, accent }: { role: string; pct: number | null; 
           color: pct == null ? "var(--color-ink-subtle)" : accent,
         }}
       >
-        {pct == null ? "—" : `${pct}%`}
+        {pct == null ? "-" : `${pct}%`}
       </span>
     </div>
   );
@@ -196,7 +196,7 @@ function KpiCard({
             Points{kpi.effectivePct != null ? ` · ${kpi.effectivePct}% used` : ""}
           </span>
           <span className="text-[16px] font-black tabular-nums" style={{ color: accentDeep }}>
-            {kpi.points == null ? "—" : kpi.points.toFixed(1)}
+            {kpi.points == null ? "-" : kpi.points.toFixed(1)}
           </span>
         </div>
       </div>
@@ -345,7 +345,7 @@ function FactorCard({
         <div className="ml-auto flex flex-col items-end">
           <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-subtle">Final</span>
           <span className="text-[16px] font-black tabular-nums" style={{ color: accentDeep }}>
-            {factor.final == null ? "—" : factor.final.toFixed(1)}
+            {factor.final == null ? "-" : factor.final.toFixed(1)}
           </span>
         </div>
       </div>
@@ -480,7 +480,7 @@ export function MonthlyScoringPanel({
           style={{ background: "color-mix(in srgb, #d97706 8%, transparent)", color: "#b45309" }}
         >
           <TriangleAlert size={16} strokeWidth={2.4} />
-          Non-manager weight band is pending Sir&apos;s ruling — scores are captured, but the weighted total is
+          Non-manager weight band is pending Sir&apos;s ruling - scores are captured, but the weighted total is
           withheld until the canonical band is chosen in Score settings.
         </div>
       )}

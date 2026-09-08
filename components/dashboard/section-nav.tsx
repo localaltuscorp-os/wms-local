@@ -22,7 +22,7 @@ import { PageShell } from "@/components/layout/page-shell";
  */
 export const DASHBOARD_SECTIONS = [
   { id: "overdue-by-person", label: "Overdue by Person" },
-  { id: "sent-back-work", label: "Sent-back Work" },
+  { id: "sent-back-work", label: "Sent-Back Work" },
   { id: "aging-heatmap", label: "Aging Heatmap" },
   { id: "delivery-vs-due-date", label: "Delivery vs Due Date" },
   { id: "status-by-doer", label: "Status by Doer" },
@@ -60,7 +60,31 @@ const SCROLL_GAP = 16;
  *  to the clicked pill forever after the first click in that browser. */
 const SCROLL_SETTLE_MS = 1000;
 
-export function DashboardSectionNav() {
+/** One pill: the id of the section it scrolls to, and what it is called. */
+export interface SectionNavItem {
+  id: string;
+  label: string;
+}
+
+/**
+ * `sections` is a PROP with the WMS list as its default.
+ *
+ * The bar was hardcoded to DASHBOARD_SECTIONS, which was right while the
+ * dashboard was the only page with sections to navigate. The Goals Dashboard
+ * now has its own, and the choice was to duplicate this file or to pass the
+ * list in. Everything below the list — measuring the sticky band, the
+ * started/upcoming winner rule, the page-bottom fallback, suppressing the
+ * observer during a click-driven scroll — is generic and hard-won, and a copy
+ * of it would drift the moment either page was tuned.
+ *
+ * The default keeps every existing caller (`<DashboardSectionNav />`)
+ * behaving exactly as before.
+ */
+export function DashboardSectionNav({
+  sections = DASHBOARD_SECTIONS,
+}: {
+  sections?: readonly SectionNavItem[];
+} = {}) {
   const [present, setPresent] = React.useState<readonly string[]>([]);
   const [active, setActive] = React.useState<string | null>(null);
   // Where this bar pins: the app top bar plus whatever the filter bar above it
@@ -105,9 +129,9 @@ export function DashboardSectionNav() {
   // so a tab can never point at an element that is not there.
   React.useEffect(() => {
     setPresent(
-      DASHBOARD_SECTIONS.map((s) => s.id).filter((id) => document.getElementById(id)),
+      sections.map((s) => s.id).filter((id) => document.getElementById(id)),
     );
-  }, []);
+  }, [sections]);
 
   // What is pinned above the content, in px: this bar's sticky offset plus its
   // own height. Drives BOTH the observer's detection band and the click-scroll
@@ -324,7 +348,7 @@ export function DashboardSectionNav() {
 
   if (present.length === 0) return null;
 
-  const tabs = DASHBOARD_SECTIONS.filter((s) => present.includes(s.id));
+  const tabs = sections.filter((s) => present.includes(s.id));
 
   return (
     // A FULL-BLEED FROSTED BAND, pinned under the filter bar.

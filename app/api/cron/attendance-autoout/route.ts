@@ -80,7 +80,7 @@ async function run(request: Request): Promise<NextResponse> {
           source: "admin",
           reason: "forgot",
           verifyMethod: "none",
-          note: "Auto punch-out — no manual clock-out (compulsory punch-out policy → half-day).",
+          note: "Auto punch-out - no manual clock-out (compulsory punch-out policy → half-day).",
         })
         .onConflictDoNothing({
           target: [attendanceLogs.employeeId, attendanceLogs.logDate, attendanceLogs.kind],

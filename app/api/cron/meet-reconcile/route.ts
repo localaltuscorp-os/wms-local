@@ -20,7 +20,7 @@ import { listParticipantSessions } from "@/lib/meet/client";
  * set.
  *
  * Manual test:
- *   curl -X POST https://os.altuscorp.in/api/cron/meet-reconcile -H "Authorization: Bearer $CRON_SECRET"
+ *   curl -X POST https://wms.mananvasa.com/api/cron/meet-reconcile -H "Authorization: Bearer $CRON_SECRET"
  */
 
 export const runtime = "nodejs";

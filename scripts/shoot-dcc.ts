@@ -7,7 +7,7 @@ import { getApps, initializeApp, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { mkdirSync } from "node:fs";
 
-const BASE = process.env.SHOOT_BASE || "https://os.altuscorp.in";
+const BASE = process.env.SHOOT_BASE || "https://wms.mananvasa.com";
 const FULL_UID = process.env.SHOOT_UID_FULL || "Rc4buo6UVqWgWFmSjoKLa6ePxnz1";
 const RUCHITA = "989ef576-db34-4d23-a095-5ae06b4e2873";
 const OUT = "D:/altus-dashboard/.shots";

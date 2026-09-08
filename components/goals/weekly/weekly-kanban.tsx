@@ -237,7 +237,7 @@ export function WeeklyKanban({
         return o ? `Moved ${name} to ${dayShort(o.periodKey)}.` : `Dropped ${name}.`;
       },
       onDragCancel({ active: a }) {
-        return `Cancelled — ${nameOf(a.id) ?? "the goal"} returned.`;
+        return `Cancelled - ${nameOf(a.id) ?? "the goal"} returned.`;
       },
     }),
     [nameOf, items],
@@ -265,7 +265,7 @@ export function WeeklyKanban({
       <div
         className="wg-rise relative overflow-x-auto overflow-y-visible pb-4"
         role="group"
-        aria-label={`This week's goals with their days — drag a day card between lanes to re-home it`}
+        aria-label={`This week's goals with their days - drag a day card between lanes to re-home it`}
       >
         <div className="flex min-w-max items-stretch gap-4">
           {/* ── FROZEN WEEK COLUMN — sticky, the roll-up the days ladder up to ── */}
@@ -305,7 +305,7 @@ export function WeeklyKanban({
                   No weekly goals for W{weekNo}
                 </p>
                 <p className="mt-1 text-[12px] font-medium" style={{ color: "var(--color-ink-subtle)" }}>
-                  Add one above — the days below ladder up to it.
+                  Add one above - the days below ladder up to it.
                 </p>
               </div>
             ) : (
@@ -388,7 +388,7 @@ function FrozenWeekCard({ goal }: { goal: CascadeWeeklyGoal }) {
             </span>
             {goal.area && (
               <span
-                className="inline-flex items-center rounded-full px-1.5 py-[1px] text-[10px] font-bold uppercase tracking-wide"
+                className="inline-flex items-center rounded-pill px-1.5 py-[1px] text-[10px] font-bold uppercase tracking-wide"
                 style={{ background: "color-mix(in srgb, var(--color-altus-red) 10%, transparent)", color: ACCENT_DEEP }}
               >
                 {goal.area}
@@ -438,7 +438,7 @@ function DayLane({
 
   return (
     <section
-      aria-label={`${dow} ${dayShort(date)} — ${goals.length} day goal${goals.length === 1 ? "" : "s"}`}
+      aria-label={`${dow} ${dayShort(date)} - ${goals.length} day goal${goals.length === 1 ? "" : "s"}`}
       className="flex w-[240px] shrink-0 flex-col rounded-2xl border transition-all"
       style={{
         background: isOver
@@ -469,7 +469,7 @@ function DayLane({
           </div>
         </div>
         <span
-          className="inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-[1px] text-[11px] font-bold tabular-nums"
+          className="inline-flex min-w-[20px] items-center justify-center rounded-pill px-1.5 py-[1px] text-[11px] font-bold tabular-nums"
           style={{ background: "color-mix(in srgb, var(--goals-accent, #E10600) 10%, transparent)", color: ACCENT_DEEP }}
         >
           {goals.length}
@@ -548,13 +548,13 @@ function DayCard({ goal, draggable }: { goal: GoalDTO; draggable: boolean }) {
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px]" style={{ color: "var(--color-ink-subtle)" }}>
         <span
-          className="inline-flex items-center rounded-full px-1.5 py-[1px] text-[10px] font-black uppercase tracking-wide"
+          className="inline-flex items-center rounded-pill px-1.5 py-[1px] text-[10px] font-black uppercase tracking-wide"
           style={{ background: "color-mix(in srgb, var(--goals-accent, #E10600) 10%, transparent)", color: ACCENT_DEEP }}
         >
           Day
         </span>
         <span
-          className="inline-flex items-center rounded-full px-1.5 py-[1px] text-[10.5px] font-bold"
+          className="inline-flex items-center rounded-pill px-1.5 py-[1px] text-[10.5px] font-bold"
           style={{ background: cat.bg, color: cat.color }}
         >
           {cat.label}

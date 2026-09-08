@@ -69,7 +69,7 @@ export function AdminHeader({ adminName, adminEmail, avatarUrl, backHref, canSee
           <div className="flex items-center gap-1 rounded-full border border-hairline bg-white/60 p-1 shrink-0">
             <span
               aria-current="page"
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-bold text-white"
+              className="inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[13px] font-bold text-white"
               style={{
                 background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
                 boxShadow: "0 2px 8px rgba(225, 6, 0, 0.35)",
@@ -92,7 +92,7 @@ export function AdminHeader({ adminName, adminEmail, avatarUrl, backHref, canSee
             <Link
               href={backHref as Route}
               aria-label="Back to Hub"
-              className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[13.5px] font-bold border border-hairline bg-white/70 transition-colors hover:bg-black/[0.05]"
+              className="inline-flex items-center gap-2 rounded-pill px-3.5 py-2 text-[13.5px] font-bold border border-hairline bg-white/70 transition-colors hover:bg-black/[0.05]"
               style={{ color: "#000" }}
             >
               <LayoutGrid size={15} strokeWidth={2.4} />

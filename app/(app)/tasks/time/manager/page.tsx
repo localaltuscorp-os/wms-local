@@ -57,7 +57,7 @@ export default async function ManagerTimeReportPage({ searchParams }: PageProps)
   return (
     <TimeReportFrame
       title="Manager Report"
-      subtitle="Slice tracked time by employee, department, client, subject, priority, date range, goal or task — then see the biggest time sinks."
+      subtitle="Slice tracked time by employee, department, client, subject, priority, date range, goal or task - then see the biggest time sinks."
     >
       <ManagerFilterBar options={options} initial={filters} />
       <ManagerReport report={report} />

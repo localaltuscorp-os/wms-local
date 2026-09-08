@@ -28,7 +28,7 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
   const [picked, setPicked] = React.useState<Record<string, File>>({});
   const [links, setLinks] = React.useState<Record<string, string>>({});
 
-  // Repeater rows (e.g. Emergency Contacts) — seeded from saved JSON, else N empty rows.
+  // Repeater rows (e.g. Emergency Contacts) - seeded from saved JSON, else N empty rows.
   const repeaterFields = React.useMemo(() => ONB_ALL_FIELDS.filter((f) => f.type === "repeater"), []);
   const [repeaters, setRepeaters] = React.useState<Record<string, Record<string, string>[]>>(() => {
     const out: Record<string, Record<string, string>[]> = {};
@@ -79,7 +79,7 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
   }
 
   /**
-   * AUTOSAVE PAYLOAD — text answers, repeater rows and pasted links only.
+   * AUTOSAVE PAYLOAD - text answers, repeater rows and pasted links only.
    *
    * Picked FILES are deliberately excluded. They are `File` handles, they do not
    * serialise into the change signature, and re-posting one on every debounce
@@ -104,7 +104,7 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
       fd.set("employeeId", employeeId);
       // ALWAYS "draft". The server refuses to demote an already-submitted form,
       // so this is a no-op on status for a submitted record and simply updates
-      // the answers — an autosave must never submit on the user's behalf.
+      // the answers - an autosave must never submit on the user's behalf.
       fd.set("status", "draft");
       for (const [k, v] of Object.entries(d.values)) fd.set(k, v ?? "");
       if (d.values.sameAsPermanent === "YES") {
@@ -148,7 +148,7 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
           }
           continue;
         }
-        // sameAsPermanent auto-fills the current-address fields — treat them as
+        // sameAsPermanent auto-fills the current-address fields - treat them as
         // present when the toggle is on.
         const autofilled = sameAsPerm && PERM_TO_CURR.some(([, c]) => c === f.key);
         if (!autofilled && !String(values[f.key] ?? "").trim()) {
@@ -162,7 +162,7 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
 
     // Upload any newly PICKED files DIRECTLY to Supabase Storage (signed URL),
     // then post back only their storage refs. This keeps the Server Action body
-    // tiny so large scans/photos submit at all — see createOnboardingUploadUrl.
+    // tiny so large scans/photos submit at all - see createOnboardingUploadUrl.
     const uploadedRefs: Record<string, { path: string; fileName: string; mime: string | null; size: number }> = {};
     const pickedKeys = ONB_FILE_KEYS.filter((k) => picked[k]);
     if (pickedKeys.length) {
@@ -192,7 +192,7 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
     const res = await submitOnboarding(fd);
     setBusy(null);
     if (!res.ok) { fireToast({ message: res.error, type: "error" }); return; }
-    // Stored now — drop the local picks so the fields show the saved "View" link
+    // Stored now - drop the local picks so the fields show the saved "View" link
     // from the refreshed server data rather than the transient picked name.
     if (Object.keys(uploadedRefs).length) setPicked({});
     fireToast({ message: status === "draft" ? "Draft saved" : "Onboarding submitted", type: "success" });
@@ -208,7 +208,7 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
         <div className="min-w-0 flex-1">
           <div className="text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui", fontWeight: 900, fontSize: "clamp(18px,2vw,24px)", letterSpacing: "-0.02em" }}>Onboarding · {initial.employee.name}</div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] font-semibold text-ink-muted">
-            <span>{initial.status === "submitted" ? "Submitted — update any answer below." : initial.status === "draft" ? "Draft saved — finish and submit." : "Every field is required. Type NA where it doesn't apply."}</span>
+            <span>{initial.status === "submitted" ? "Submitted - update any answer below." : initial.status === "draft" ? "Draft saved - finish and submit." : "Every field is required. Type NA where it doesn't apply."}</span>
             <SaveIndicator state={autosave.state} savedAt={autosave.savedAt} error={autosave.error} />
           </div>
         </div>
@@ -314,7 +314,7 @@ function Field({
           <Paperclip size={13} className="shrink-0 text-ink-subtle" />
           <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-ink-muted">{hasPicked ? pickedFile!.name : hasExisting ? (existingFile!.isLink ? "Linked" : existingFile!.fileName) : "Choose file…"}</span>
           {hasExisting && existingFile!.signedUrl && (
-            <a href={existingFile!.signedUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="relative z-10 inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10.5px] font-bold text-ink-soft hover:text-ink-strong"><Eye size={11} /> View</a>
+            <a href={existingFile!.signedUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="relative z-10 inline-flex items-center gap-1 rounded-pill bg-white px-2 py-0.5 text-[10.5px] font-bold text-ink-soft hover:text-ink-strong"><Eye size={11} /> View</a>
           )}
           <input type="file" accept={ONB_ACCEPT} onChange={(e) => e.target.files?.[0] && onPick(e.target.files[0])} className="absolute inset-0 cursor-pointer opacity-0" />
         </div>

@@ -40,6 +40,9 @@ function WhatsAppIcon({ className }: { className?: string }) {
   );
 }
 
+/* The 32px BUTTON is deliberately unchanged while the glyphs inside it went
+   16px → 20px: the hit area and the row height stay exactly as they were, so
+   nothing in the aligned section header shifts — only the marks get bigger. */
 const ICON_BTN =
   "grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -120,7 +123,7 @@ export function SectionDispatch({ report }: { report: () => SectionReport }) {
         "noopener,noreferrer",
       );
       fireToast({
-        message: `PDF downloaded — attach it in the WhatsApp chat with ${person.name}.`,
+        message: `PDF downloaded - attach it in the WhatsApp chat with ${person.name}.`,
         type: "success",
         duration: 8000,
       });
@@ -164,7 +167,9 @@ export function SectionDispatch({ report }: { report: () => SectionReport }) {
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <span className="flex shrink-0 items-center gap-0.5">
+      {/* `data-sec` — the WhatsApp/email pair sits immediately left of the
+          fold in every section's toolbar (see .section-actions). */}
+      <span data-sec="dispatch" className="flex shrink-0 items-center gap-0.5">
         <Popover.Anchor asChild>
           <button
             type="button"
@@ -173,7 +178,7 @@ export function SectionDispatch({ report }: { report: () => SectionReport }) {
             aria-label="Export PDF to WhatsApp"
             className={`${ICON_BTN} text-emerald-600 hover:bg-emerald-50`}
           >
-            <WhatsAppIcon className="size-4" />
+            <WhatsAppIcon className="size-5" />
           </button>
         </Popover.Anchor>
         <button
@@ -186,7 +191,7 @@ export function SectionDispatch({ report }: { report: () => SectionReport }) {
           // by that, whereas the mail icon has no brand of its own to borrow.
           className={`${ICON_BTN} text-[#B80D22] hover:bg-red-50`}
         >
-          <Mail className="size-4" strokeWidth={2.4} />
+          <Mail className="size-5" strokeWidth={2.4} />
         </button>
       </span>
 
@@ -274,7 +279,7 @@ export function SectionDispatch({ report }: { report: () => SectionReport }) {
           {mode === "whatsapp" && (
             <p className="mt-1.5 border-t border-slate-100 px-1.5 pt-1.5 text-[10.5px] font-medium leading-snug text-slate-400">
               The PDF downloads to this device, then WhatsApp opens with the message
-              ready — attach the file there.
+              ready - attach the file there.
             </p>
           )}
         </Popover.Content>

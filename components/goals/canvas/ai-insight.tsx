@@ -195,12 +195,12 @@ export function AiInsightSection({ g }: { g: GoalDTO }): React.JSX.Element {
           <p className="text-[12px] font-semibold text-ink-faint">The AI read isn&apos;t available right now.</p>
         ) : data?.aiReady === false ? (
           <p className="text-[12px] font-semibold text-ink-faint">
-            Insights aren&apos;t provisioned yet (migration 0143 pending) — ask an admin to apply it.
+            Insights aren&apos;t provisioned yet (migration 0143 pending) - ask an admin to apply it.
           </p>
         ) : !insight ? (
           <p className="text-[12px] font-semibold text-ink-subtle">
             {data?.refreshing
-              ? "Reading the numbers — the first insight lands here shortly."
+              ? "Reading the numbers - the first insight lands here shortly."
               : "No insight cached yet."}
           </p>
         ) : (

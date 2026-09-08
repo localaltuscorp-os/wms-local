@@ -140,7 +140,7 @@ export function ScheduleFields({
 
         <p className="text-[12.5px] text-ink-subtle" style={{ lineHeight: 1.55 }}>
           Leave a time blank to fall back to the company default. These values are
-          what the Attendance system grades against — nothing is duplicated.
+          what the Attendance system grades against - nothing is duplicated.
         </p>
 
         {extras}

@@ -15,7 +15,7 @@ import {
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CELL = "w-full rounded-lg border border-hairline bg-white px-2 py-1.5 text-right text-[12.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-[color:var(--color-altus-red)]";
 
-function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>; }
+function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>; }
 const ck = (loanId: string, periodId: string) => `${loanId}:${periodId}`;
 type CellVal = { emi: string; closing: string };
 
@@ -164,7 +164,7 @@ export function LoansPanel({ loans, periods, cells, entityOptions }: {
                   <Td><LoanIdentity r={r} /></Td>
                   {periods.map((p) => {
                     const id = `${ck(r.id, p.id)}:emi`;
-                    return <td key={p.id} className="px-1.5 py-2"><input value={val(r.id, p.id).emi} disabled={cellBusy === id} inputMode="numeric" onChange={(e) => setGrid((g) => ({ ...g, [ck(r.id, p.id)]: { ...val(r.id, p.id), emi: e.target.value } }))} onBlur={(e) => commit(r.id, p.id, "emi", e.target.value)} className={CELL + " disabled:opacity-60"} style={{ minWidth: 88 }} aria-label="EMI" placeholder="—" /></td>;
+                    return <td key={p.id} className="px-1.5 py-2"><input value={val(r.id, p.id).emi} disabled={cellBusy === id} inputMode="numeric" onChange={(e) => setGrid((g) => ({ ...g, [ck(r.id, p.id)]: { ...val(r.id, p.id), emi: e.target.value } }))} onBlur={(e) => commit(r.id, p.id, "emi", e.target.value)} className={CELL + " disabled:opacity-60"} style={{ minWidth: 88 }} aria-label="EMI" placeholder="-" /></td>;
                   })}
                   <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{ytdEmi(r.id) ? `₹${formatINR(ytdEmi(r.id))}` : <Dim />}</Td>
                   <Td className="text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => removeLoan(r.id)} busy={busy} /></Td>
@@ -194,7 +194,7 @@ export function LoansPanel({ loans, periods, cells, entityOptions }: {
                     <Td className="font-bold text-ink-strong whitespace-nowrap">{r.loanName}</Td>
                     {periods.map((p) => {
                       const id = `${ck(r.id, p.id)}:closing`;
-                      return <td key={p.id} className="px-1.5 py-2"><input value={val(r.id, p.id).closing} disabled={cellBusy === id} inputMode="numeric" onChange={(e) => setGrid((g) => ({ ...g, [ck(r.id, p.id)]: { ...val(r.id, p.id), closing: e.target.value } }))} onBlur={(e) => commit(r.id, p.id, "closing", e.target.value)} className={CELL + " disabled:opacity-60"} style={{ minWidth: 88 }} aria-label="Closing balance" placeholder="—" /></td>;
+                      return <td key={p.id} className="px-1.5 py-2"><input value={val(r.id, p.id).closing} disabled={cellBusy === id} inputMode="numeric" onChange={(e) => setGrid((g) => ({ ...g, [ck(r.id, p.id)]: { ...val(r.id, p.id), closing: e.target.value } }))} onBlur={(e) => commit(r.id, p.id, "closing", e.target.value)} className={CELL + " disabled:opacity-60"} style={{ minWidth: 88 }} aria-label="Closing balance" placeholder="-" /></td>;
                     })}
                     <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{latestClosing(r.id) !== null ? `₹${formatINR(latestClosing(r.id))}` : <Dim />}</Td>
                   </tr>

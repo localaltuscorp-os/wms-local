@@ -108,14 +108,14 @@ export function HrPaidLeaveCard({ record }: { record: HrPaidLeaveRecord }) {
                         {c.status}
                       </span>
                     ) : (
-                      <span className="text-[13px] text-ink-subtle">—</span>
+                      <span className="text-[13px] text-ink-subtle">-</span>
                     )}
                   </td>
                   <td className="py-3 pr-4 tabular-nums text-[15px] font-black text-ink-strong">
-                    {c.leaves != null ? hrNum(c.leaves) : "—"}
+                    {c.leaves != null ? hrNum(c.leaves) : "-"}
                   </td>
                   <td className="py-3 text-[13.5px] font-medium text-ink-muted">
-                    {c.remarks || "—"}
+                    {c.remarks || "-"}
                   </td>
                 </tr>
               );

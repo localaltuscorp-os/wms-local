@@ -188,7 +188,7 @@ export function SalaryImportDialog() {
                   className="mt-3 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[13px] text-[#475569]"
                   style={{ lineHeight: 1.5 }}
                 >
-                  {preview.noProfile} matched employee(s) have no CTC profile —
+                  {preview.noProfile} matched employee(s) have no CTC profile -
                   attendance-only, skipped for salary.
                 </p>
               )}
@@ -225,7 +225,7 @@ export function SalaryImportDialog() {
                 style={{ lineHeight: 1.5 }}
               >
                 Historical runs use the sheet&apos;s attendance summary only. The
-                Summary sheet has no late-marks, advances or carry-forward — so
+                Summary sheet has no late-marks, advances or carry-forward - so
                 imported runs are computed with <strong>0 late marks</strong>,{" "}
                 <strong>0 advances</strong> and <strong>0 pending balance</strong>.
               </p>

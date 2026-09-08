@@ -161,7 +161,7 @@ function AmbassadorList({
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[15px] font-extrabold text-ink-strong">
-          Ambassadors <span className="text-ink-subtle">— {rows.length}</span>
+          Ambassadors <span className="text-ink-subtle">- {rows.length}</span>
         </h2>
         <div className="flex items-center gap-2">
           <span className="max-md:hidden" title="Press A to add">
@@ -427,17 +427,17 @@ function AmbassadorList({
                     </td>
                     <td className="px-4 py-3">
                       {a.products.length === 0
-                        ? "—"
+                        ? "-"
                         : a.products
                             .map((c) => ALLOCATION_CATEGORIES.find((x) => x.code === c)?.short ?? c)
                             .join(", ")}
                     </td>
-                    <td className="px-4 py-3 tabular-nums">{a.batchNo || "—"}</td>
-                    <td className="px-4 py-3 tabular-nums">{a.startDate ? formatDMonY(a.startDate) : "—"}</td>
-                    <td className="px-4 py-3 tabular-nums">{a.endDate ? formatDMonY(a.endDate) : "—"}</td>
+                    <td className="px-4 py-3 tabular-nums">{a.batchNo || "-"}</td>
+                    <td className="px-4 py-3 tabular-nums">{a.startDate ? formatDMonY(a.startDate) : "-"}</td>
+                    <td className="px-4 py-3 tabular-nums">{a.endDate ? formatDMonY(a.endDate) : "-"}</td>
                     <td className="px-4 py-3">
                       {mine.length === 0 ? (
-                        <span className="text-ink-subtle">{"—"}</span>
+                        <span className="text-ink-subtle">{"-"}</span>
                       ) : (
                         <span className="flex flex-wrap gap-1.5">
                           {mine.map((c) => (

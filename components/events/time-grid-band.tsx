@@ -94,7 +94,7 @@ export function TimeGridBand(props: TimeGridBandProps) {
             >
               <span
                 className={cn(
-                  "inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[12.5px] font-bold",
+                  "inline-flex h-6 min-w-6 items-center justify-center rounded-pill px-1 text-[12.5px] font-bold",
                   isToday ? "text-white" : "text-ink-strong",
                 )}
                 style={isToday ? { background: "var(--color-altus-red, #c8102e)" } : undefined}

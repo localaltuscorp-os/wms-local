@@ -32,7 +32,7 @@ function FieldBox({ label, wide, children }: { label: string; wide?: boolean; ch
         className="mt-1 min-h-9 whitespace-pre-wrap rounded-xl border bg-surface-soft px-3 py-2 text-[14px] font-semibold leading-snug text-ink-strong"
         style={{ borderColor: "var(--color-hairline-strong)" }}
       >
-        {empty ? <span className="font-normal text-ink-subtle">—</span> : children}
+        {empty ? <span className="font-normal text-ink-subtle">-</span> : children}
       </p>
     </div>
   );
@@ -66,7 +66,7 @@ export function GoalDetailPopup({ goal, onClose }: GoalDetailPopupProps) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`${goal.title || "Goal"} — details`}
+        aria-label={`${goal.title || "Goal"} - details`}
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-3xl rounded-2xl p-7"
         style={{
@@ -135,7 +135,7 @@ export function GoalDetailPopup({ goal, onClose }: GoalDetailPopupProps) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full px-5 py-2 text-[14px] font-bold text-white"
+            className="rounded-pill px-5 py-2 text-[14px] font-bold text-white"
             style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
           >
             Close

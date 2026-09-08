@@ -117,7 +117,7 @@ export function PolicyView({
                   className="apv-signed"
                   role="status"
                   style={{ background: "color-mix(in srgb, #f59e0b 14%, white)", color: "#b45309" }}
-                  title={`You signed version ${formatDate(signedAt)} — a newer version has been published.`}
+                  title={`You signed version ${formatDate(signedAt)} - a newer version has been published.`}
                 >
                   <PenLine size={15} strokeWidth={2.4} aria-hidden /> New version · last signed {formatDate(signedAt)}
                 </span>

@@ -88,7 +88,7 @@ export function FeedbackDetailView({ fb, canManage, employees }: { fb: FD; canMa
             {ai && (
               <div className="mt-2 rounded-xl border border-hairline bg-surface-soft p-3">
                 <div className="text-[11px] font-bold uppercase tracking-[0.06em]" style={{ color: "var(--color-purple-deep)" }}>AI summary</div>
-                <p className="mt-1 text-[14px] font-semibold text-ink-strong" style={{ overflowWrap: "anywhere" }}>{ai.summary || "—"}</p>
+                <p className="mt-1 text-[14px] font-semibold text-ink-strong" style={{ overflowWrap: "anywhere" }}>{ai.summary || "-"}</p>
                 {ai.transcript && (
                   <details className="mt-2">
                     <summary className="cursor-pointer text-[12.5px] font-bold text-ink-soft">Full Transcript</summary>

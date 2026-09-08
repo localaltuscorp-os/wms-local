@@ -41,6 +41,9 @@ export default async function ProductivityMyDashboardPage({
 
   const snap = await loadProductivity(targetId);
   if (!snap) notFound();
+  // Annotated rather than cast inside the ternary: a `Route | undefined`
+  // built from a conditional forces TS to normalise the route union (TS2590).
+  const backHref: Route | undefined = viewingOther ? "/productivity/team" : undefined;
 
   return (
     <>
@@ -54,7 +57,7 @@ export default async function ProductivityMyDashboardPage({
           viewingOther={viewingOther}
           // The back-link only makes sense when you actually came from the team
           // list — on your own dashboard there is nothing to go back to.
-          backHref={viewingOther ? ("/productivity/team" as Route) : undefined}
+          backHref={backHref}
         />
       </PageShell>
     </>

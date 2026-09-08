@@ -66,7 +66,7 @@ export function EligibilitySection({ ctrl }: { ctrl: EvalController }) {
         >
           <Flag size={15} strokeWidth={2.8} style={{ color: RED }} className="shrink-0" />
           <p className="text-[13px] font-bold" style={{ color: "var(--color-altus-red-deep)" }}>
-            {unansweredCritical.length} critical point{unansweredCritical.length === 1 ? "" : "s"} still need an answer — these are mandatory.
+            {unansweredCritical.length} critical point{unansweredCritical.length === 1 ? "" : "s"} still need an answer - these are mandatory.
           </p>
         </div>
       )}
@@ -104,7 +104,7 @@ export function EligibilitySection({ ctrl }: { ctrl: EvalController }) {
                       <span
                         className="inline-flex items-center gap-1 rounded-pill px-1.5 py-0.5 text-[9.5px] font-black uppercase tracking-[0.08em]"
                         style={{ background: "color-mix(in srgb, var(--color-altus-red) 12%, white)", color: "var(--color-altus-red-deep)" }}
-                        title="Critical — mandatory; a ‘No’ here flags the candidate for review"
+                        title="Critical - mandatory; a ‘No’ here flags the candidate for review"
                       >
                         <Flag size={9} strokeWidth={3} /> Critical{needsAnswer ? " · Required" : ""}
                       </span>
@@ -127,7 +127,7 @@ export function EligibilitySection({ ctrl }: { ctrl: EvalController }) {
           label="Exceptions (waives a critical flag above)"
           value={instance.sectionNotes[section.id] ?? ""}
           onChange={(v) => ctrl.setSectionNote(section.id, v)}
-          placeholder="If a critical ‘No’ is acceptable for this candidate, record why here — this clears the review flag…"
+          placeholder="If a critical ‘No’ is acceptable for this candidate, record why here - this clears the review flag…"
           rows={3}
           minHeight={80}
           hint="A recorded exception overrides the strict pass/fail so the candidate isn't auto-flagged."
@@ -161,7 +161,7 @@ function VerdictBanner({
       <div className="flex items-center gap-3 rounded-2xl border border-hairline bg-surface-soft px-4 py-3.5">
         <ShieldQuestion size={20} className="shrink-0 text-ink-subtle" />
         <p className="text-[13.5px] font-semibold text-ink-muted">
-          Confirm each pre-requisite — a critical “No” without an exception flags the candidate for review.
+          Confirm each pre-requisite - a critical “No” without an exception flags the candidate for review.
         </p>
         <span className="ml-auto shrink-0 text-[12px] font-bold tabular-nums text-ink-subtle">
           {answered} / {total}
@@ -178,7 +178,7 @@ function VerdictBanner({
       >
         <ShieldCheck size={20} className="shrink-0" style={{ color: "#15803d" }} />
         <p className="text-[14px] font-bold" style={{ color: "#15803d" }}>
-          All clear — no critical concerns.
+          All clear - no critical concerns.
         </p>
         <span className="ml-auto shrink-0 text-[12px] font-bold tabular-nums" style={{ color: "#15803d" }}>
           {answered} / {total} answered
@@ -196,7 +196,7 @@ function VerdictBanner({
         <div className="flex items-center gap-3">
           <ShieldAlert size={20} className="shrink-0" style={{ color: "#b45309" }} />
           <p className="text-[14px] font-bold" style={{ color: "#b45309" }}>
-            {noLabels.length} non-critical concern{noLabels.length === 1 ? "" : "s"} noted — no review flag.
+            {noLabels.length} non-critical concern{noLabels.length === 1 ? "" : "s"} noted - no review flag.
           </p>
           <span className="ml-auto shrink-0 text-[12px] font-bold tabular-nums" style={{ color: "#b45309" }}>
             {answered} / {total}
@@ -233,7 +233,7 @@ function VerdictBanner({
       <div className="flex flex-wrap items-center gap-3">
         <AlertTriangle size={20} className="shrink-0" style={{ color: RED }} />
         <p className="text-[14px] font-black" style={{ color: "var(--color-altus-red-deep)" }}>
-          ⚠ Flagged for review — {criticalNoLabels.length} critical pre-requisite{criticalNoLabels.length === 1 ? "" : "s"} failed.
+          ⚠ Flagged for review - {criticalNoLabels.length} critical pre-requisite{criticalNoLabels.length === 1 ? "" : "s"} failed.
         </p>
         <button
           type="button"

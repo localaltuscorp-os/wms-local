@@ -44,8 +44,8 @@ export default async function HrOverviewPage() {
       : []),
     { slug: "/dossier", title: "Dossier", blurb: "Every person's complete document file.", Icon: FolderLock },
     { slug: "/agreements", title: "Agreements", blurb: "Issue, sign and archive employee agreements digitally.", Icon: FileSignature },
-    { slug: "/hr/letters", title: "Letters", blurb: "Every letter on the Altus letterhead — editable red fields, export or issue.", Icon: Mail },
-    { slug: "/policies", title: "Policies", blurb: "The company handbook — every policy in one place.", Icon: ScrollText },
+    { slug: "/hr/letters", title: "Letters", blurb: "Every letter on the Altus letterhead - editable red fields, export or issue.", Icon: Mail },
+    { slug: "/policies", title: "Policies", blurb: "The company handbook - every policy in one place.", Icon: ScrollText },
     { slug: "/holidays", title: "Holiday List", blurb: "The official holiday calendar for the year.", Icon: PartyPopper },
     { slug: "/support", title: "Help Desk", blurb: "Questions, requests and escalations to the HR desk.", Icon: LifeBuoy },
   ];
@@ -56,7 +56,8 @@ export default async function HrOverviewPage() {
       <PageShell width="full">
         <HrPageHeader
           title="HR Overview"
-          subtitle="Every HR surface in one index — the five lifecycle stages and the cross-cutting record, document and support surfaces."
+          subtitle="Every HR surface in one index - the five lifecycle stages and the cross-cutting record, document and support surfaces."
+          showBack={false}
         />
 
         <h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.14em] text-ink-soft">Lifecycle stages</h2>

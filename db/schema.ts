@@ -36,9 +36,6 @@ import {
   APPROVAL_LEVELS,
   type TaskStatus,
   type AccountType,
-  type EmploymentStatus,
-  type ExitReason,
-  type RehireEligibility,
   type ReligionCode,
   type EventStatus,
   type EventSource,
@@ -67,6 +64,7 @@ import {
   type BroadcastAuthorIdentity,
   type BroadcastRecipientStatus,
   type BroadcastRecurrence,
+  type TaskPriority,
 } from "./enums";
 import type { DocKind, SignatureStatus } from "@/lib/documents/signing";
 
@@ -127,6 +125,11 @@ export const employees = pgTable("employees", {
   departmentId: uuid("department_id").references(() => departments.id, {
     onDelete: "set null",
   }),
+  // Performance criteria — "how we measure it" (mig 0061) — and KRA — "what we
+  // measure" (mig 0065). Admin-editable free text, read by Profile >
+  // Performance and the Weekly Goals board; both feed Star of the Month.
+  performanceCriteria: text("performance_criteria"),
+  kra: text("kra"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -218,31 +221,6 @@ export const employees = pgTable("employees", {
   managerId: uuid("manager_id").references((): AnyPgColumn => employees.id, {
     onDelete: "set null",
   }),
-  /**
-   * OFFBOARDING (migration 0212). A second axis alongside `isActive`.
-   *
-   * `isActive` answers "can they sign in" and remains the login gate.
-   * `employmentStatus` answers "do they still work here" — a suspended
-   * employee is inactive but current, and a former employee must stay former
-   * even if someone re-enables their login by accident.
-   *
-   * 'anonymised' is the terminal state: the row survives so history and audit
-   * chains stay intact, but name/email have been replaced with placeholders.
-   */
-  employmentStatus: text("employment_status")
-    .notNull()
-    .default("active")
-    .$type<EmploymentStatus>(),
-  lastWorkingDay: date("last_working_day"),
-  /**
-   * Exempts this person from every retention purge and from anonymisation.
-   * Set it when someone leaves under investigation — destroying data on a
-   * person you are investigating is spoliation, and no timer may do it.
-   */
-  legalHold: boolean("legal_hold").notNull().default(false),
-  legalHoldReason: text("legal_hold_reason"),
-  /** Non-null ⇒ name/email on this row are placeholders, not real data. */
-  anonymisedAt: timestamp("anonymised_at", { withTimezone: true }),
   // #11 compulsory gates — how many tasks this person must RECEIVE from their
   // manager each working day (admin-configurable per employee; default 3).
   dailyTaskQuota: integer("daily_task_quota").notNull().default(3),
@@ -845,8 +823,17 @@ export const projectNodes = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    // 'sub_sub_action' added by migration 0203 (Project Plan). `kind` is plain
+    // text with no check constraint, so widening this union needed no DDL.
     kind: text("kind")
-      .$type<"project" | "milestone" | "result" | "action" | "sub_action">()
+      .$type<
+        | "project"
+        | "milestone"
+        | "result"
+        | "action"
+        | "sub_action"
+        | "sub_sub_action"
+      >()
       .notNull(),
     parentId: uuid("parent_id"),
     sortOrder: integer("sort_order").notNull().default(100),
@@ -866,6 +853,67 @@ export const projectNodes = pgTable(
     // owner_id + project_members. ON DELETE SET NULL — retiring a vendor must
     // never delete project work.
     vendorId: uuid("vendor_id").references(() => vendors.id, { onDelete: "set null" }),
+    // ── Project Plan hierarchy columns (migration 0203) ──────────────────────
+    // The plan of record for the hierarchy table. On an executable row
+    // (action / sub_action / sub_sub_action) these are mirrored onto the linked
+    // task (tasks.project_node_id) on every write, so WMS and Google Calendar
+    // read ONE task record rather than a second copy of the work.
+    category: text("category"),
+    purpose: text("purpose"),
+    /** Whole minutes ("2 h 30 m" → 150) — same unit as tasks.estimatedMinutes. */
+    durationMinutes: integer("duration_minutes"),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    // ── Project status + partial progress (migration 0204) ───────────────────
+    // ⚠ Migration 0204 may be UNAPPLIED in prod. Reads of these three go
+    // through `loadPlanMeta()` in lib/queries/project-plan.ts, which catches an
+    // undefined-column error and degrades to defaults — never add them to an
+    // unguarded `.select()` or a bare `.returning()`, which would 500 the whole
+    // Project screen against a database without 0204.
+    //
+    // These describe CONTAINER rows (project / milestone / result). An
+    // executable row's status of record stays on its linked task
+    // (tasks.status): that row IS one shared record with WMS and the calendar,
+    // and a second status here would be a copy free to disagree with it.
+    /** Working flow — the same six values as DOER_TASK_STATUSES. */
+    status: text("status").$type<
+      "dont_know" | "not_started" | "initiated" | "follow_up" | "need_info" | "done"
+    >(),
+    /** Restricted flow — an owner/admin verdict layered on top of `status`. */
+    approvalStatus: text("approval_status").$type<
+      "not_approved" | "approved" | "on_hold" | "cancelled"
+    >(),
+    /** Recorded partial completion 0–100. NULL = derive it from the work below. */
+    progressPercent: integer("progress_percent"),
+    // ── Container intake fields (migration 0213) ─────────────────────────────
+    // ⚠ Migration 0213 may be UNAPPLIED in prod. These five are written only by
+    // `createPlanContainer`, which retries without them when Postgres reports an
+    // undefined column — never add them to an unguarded `.select()` or a bare
+    // `.returning()`, which would 500 the whole Project screen against a
+    // database without 0213. Same rule as the 0204 columns above.
+    //
+    // All five come from the ONE new-item form the four create buttons share —
+    // the real WMS task form. On an executable row they live on the linked task
+    // instead (tasks.title / .subject / .priority / .initiatorId / .tags), which
+    // stays the single execution record; these columns exist because a
+    // container row has no task to carry them.
+    /** "Client Name" — the form's first field, mirroring tasks.title. */
+    clientName: text("client_name"),
+    subject: text("subject"),
+    /** One of TASK_PRIORITIES (db/enums.ts). Text, like `kind` and `status`. */
+    priority: text("priority").$type<TaskPriority>(),
+    initiatorId: uuid("initiator_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    tags: text("tags").array(),
+    /**
+     * Reference links (migration 0214) — the form's Links section, kept as a
+     * list rather than folded into `notes` the way the WMS task form folds
+     * them, because the register renders them as a COLUMN and a column must not
+     * be parsed out of prose. Same ⚠ as the columns above: read through
+     * `loadPlanLinks`, never in an unguarded select.
+     */
+    links: text("links").array(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -873,6 +921,8 @@ export const projectNodes = pgTable(
     index("project_nodes_parent_idx").on(t.parentId),
     index("project_nodes_kind_idx").on(t.kind, t.isArchived),
     index("project_nodes_vendor_idx").on(t.vendorId),
+    index("project_nodes_parent_sort_idx").on(t.parentId, t.sortOrder),
+    index("project_nodes_kind_sort_idx").on(t.kind, t.isArchived, t.sortOrder),
   ],
 );
 
@@ -1340,6 +1390,33 @@ export const taskAttachments = pgTable(
   (t) => [index("task_attachments_task_idx").on(t.taskId, t.createdAt)],
 );
 export type TaskAttachment = typeof taskAttachments.$inferSelect;
+
+/**
+ * Attachments on a PLAN row — Milestone, Result, or any project_node
+ * (migration 0212).
+ *
+ * Same shape and same storage as `taskAttachments` above (the private Supabase
+ * `documents` bucket), deliberately: a container level has no task to hang a
+ * file off, and minting a placeholder task per milestone would push phantom
+ * work into WMS and onto calendars. See the migration for the full note.
+ */
+export const projectNodeAttachments = pgTable(
+  "project_node_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nodeId: uuid("node_id")
+      .notNull()
+      .references(() => projectNodes.id, { onDelete: "cascade" }),
+    storagePath: text("storage_path").notNull(),
+    fileName: text("file_name").notNull(),
+    mime: text("mime"),
+    sizeBytes: integer("size_bytes"),
+    uploadedById: uuid("uploaded_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("project_node_attachments_node_idx").on(t.nodeId, t.createdAt)],
+);
+export type ProjectNodeAttachment = typeof projectNodeAttachments.$inferSelect;
 
 /**
  * M2.3 — frozen contract for the `kind` column on notifications.
@@ -1931,17 +2008,18 @@ export const mobileDevices = pgTable(
     label: text("label"),
     platform: text("platform"),
     /**
-     * 'laptop' | 'phone' (0206). An employee designates one of each and may
-     * punch from EITHER — a laptop away for repair must leave the phone working.
-     * Rows predating 0206 are phones: the table was populated exclusively by the
-     * mobile app's keystore id.
+     * 'laptop' | 'phone' (0206). DESCRIPTIVE ONLY since 0214 — it names the
+     * device on the admin screen and nothing else. An employee holds two device
+     * slots and either kind may fill either one, so two laptops is as valid as a
+     * laptop and a phone. Rows predating 0206 are phones: the table was populated
+     * exclusively by the mobile app's keystore id.
      */
     kind: text("kind").notNull().default("phone").$type<DeviceKind>(),
     // Device-allowlist lifecycle (Phase 1 anti-proxy, 2026-08). A device must be
-    // 'approved' to punch. New registrations land 'pending' (admin approves, cap
-    // 1-2); EXISTING rows were grandfathered to 'approved' by the migration
-    // default so nobody was locked out on rollout. 'revoked' = a lost/replaced
-    // phone an admin retired.
+    // 'approved' to punch. New registrations land 'pending' (admin approves; at
+    // most 2 approved per employee); EXISTING rows were grandfathered to
+    // 'approved' by the migration default so nobody was locked out on rollout.
+    // 'revoked' = a lost/replaced device an admin retired.
     status: text("status").notNull().default("approved"), // approved | pending | revoked
     approvedById: uuid("approved_by_id").references(() => employees.id, { onDelete: "set null" }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
@@ -1953,12 +2031,12 @@ export const mobileDevices = pgTable(
     uniqueIndex("mobile_devices_device_id_uq").on(t.deviceId),
     index("mobile_devices_employee_idx").on(t.employeeId),
     index("mobile_devices_kind_idx").on(t.kind),
-    // 0206. At most one APPROVED device of each kind per person. Partial on
-    // status so revoked history and a pending replacement can coexist with the
-    // approved device they are meant to succeed.
-    uniqueIndex("mobile_devices_employee_kind_approved_uq")
-      .on(t.employeeId, t.kind)
-      .where(sql`${t.status} = 'approved'`),
+    // NO per-kind unique index here. 0206 had one — at most one approved device
+    // of each kind — and 0214 dropped it: the cap is now two approved devices per
+    // employee of ANY kind, a cardinality no unique index can express. It lives
+    // in the `mobile_devices_cap_approved_trg` trigger that 0214 installs, which
+    // Drizzle has no way to declare. Adding an index back here would quietly
+    // reinstate the old rule on the next push.
     check("mobile_devices_kind_chk", sql`${t.kind} in ('laptop', 'phone')`),
   ],
 );
@@ -3925,6 +4003,10 @@ export const goals = pgTable(
     }),
     position: integer("position").notNull().default(1),
     area: text("area"),
+    // Free text, like `tasks.client` — the `clients` table backs the dropdown
+    // but does not constrain the column, because new clients are created by
+    // typing a name. Added by migration 0212.
+    client: text("client"),
     title: text("title").notNull(),
     uom: text("uom"),
     targetQty: numeric("target_qty", { precision: 14, scale: 2 }),
@@ -7167,102 +7249,3 @@ export const paCalls = pgTable(
   },
   (t) => [index("pa_calls_entry_idx").on(t.entryId)],
 );
-/**
- * EXIT RECORD (migration 0212) — one row per departure.
- *
- * Separate from `employees` rather than more columns on it: written once, read
- * rarely, and the access rules differ — the exit interview is superadmin-only
- * while the employees row is read app-wide.
- *
- * Nothing here is destroyed when someone leaves. This table is what makes the
- * old hard-delete unnecessary: it records why they left and where their work
- * went, so the audit trail no longer has to be erased to remove a login.
- */
-export const employeeExits = pgTable(
-  "employee_exits",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    employeeId: uuid("employee_id")
-      .notNull()
-      .unique()
-      .references(() => employees.id, { onDelete: "cascade" }),
-
-    /** Closed taxonomy; `other` carries its description in exitReasonOther. */
-    exitReason: text("exit_reason").notNull().$type<ExitReason>(),
-    exitReasonOther: text("exit_reason_other"),
-
-    rehireEligibility: text("rehire_eligibility")
-      .notNull()
-      .default("with_review")
-      .$type<RehireEligibility>(),
-    rehireNote: text("rehire_note"),
-
-    /**
-     * COPIED from employees at archive time, not read live. An exit record is
-     * a statement about the employment that ended; it must not change if the
-     * live row is corrected later. The admin may amend the DOJ during the exit
-     * flow, and this is what they amended it to.
-     */
-    joinedAt: timestamp("joined_at", { withTimezone: true }),
-    resignationDate: date("resignation_date"),
-    lastWorkingDay: date("last_working_day"),
-
-    noticeServed: boolean("notice_served"),
-    noticeDays: integer("notice_days"),
-    paidInLieu: boolean("paid_in_lieu").notNull().default(false),
-
-    /** Who inherited the open work. SET NULL — a successor may leave too. */
-    successorId: uuid("successor_id").references((): AnyPgColumn => employees.id, {
-      onDelete: "set null",
-    }),
-    /** Counts of what moved, by kind — {tasks: 12, goals: 3, …}. */
-    reassigned: jsonb("reassigned").notNull().default({}),
-
-    handover: jsonb("handover").notNull().default({}),
-    exitInterview: jsonb("exit_interview"),
-
-    /**
-     * What the irreversible half actually did. A Firebase outage must not
-     * leave the record asserting the login is gone when it is not.
-     */
-    firebaseDeleted: boolean("firebase_deleted").notNull().default(false),
-    firebaseError: text("firebase_error"),
-    avatarPurged: boolean("avatar_purged").notNull().default(false),
-
-    notes: text("notes"),
-    archivedById: uuid("archived_by_id")
-      .notNull()
-      .references((): AnyPgColumn => employees.id, { onDelete: "restrict" }),
-    archivedAt: timestamp("archived_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    index("employee_exits_archived_at_idx").on(t.archivedAt),
-    index("employee_exits_reason_idx").on(t.exitReason),
-    index("employee_exits_successor_idx").on(t.successorId),
-  ],
-);
-
-export type EmployeeExit = typeof employeeExits.$inferSelect;
-
-/**
- * RETENTION SCHEDULE AS DATA (migration 0212).
- *
- * The periods are set by law, not by engineering, and an auditor asking "what
- * is your retention policy" needs an answer that is not a code review. Holding
- * them in a table also means changing one is a data edit rather than a deploy.
- *
- * `purgeEnabled` defaults FALSE for every class. A retention table that starts
- * deleting the moment it is created is a data-loss incident wearing a policy
- * costume; each class is switched on consciously once its purge path is proven.
- */
-export const dataRetentionPolicies = pgTable("data_retention_policies", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  recordClass: text("record_class").notNull().unique(),
-  retentionDays: integer("retention_days").notNull(),
-  legalBasis: text("legal_basis").notNull(),
-  purgeEnabled: boolean("purge_enabled").notNull().default(false),
-  notes: text("notes"),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export type DataRetentionPolicy = typeof dataRetentionPolicies.$inferSelect;

@@ -209,7 +209,7 @@ export function CommitWorkspace({ data }: { data: CommitData }) {
         {!data.isSaturday && (
           <div className="mt-4 flex items-center gap-2 rounded-xl border border-hairline bg-surface-soft px-4 py-2.5 text-[13.5px] font-medium text-ink-muted">
             <Sparkles size={15} style={{ color: ACCENT }} />
-            You&apos;re preparing early — the Saturday punch-out commit gate goes live on Saturday
+            You&apos;re preparing early - the Saturday punch-out commit gate goes live on Saturday
             (IST). Everything here still saves.
           </div>
         )}
@@ -310,7 +310,7 @@ function ThisWeekCard({
         doneLabel="Progress filled"
       />
       {adopted.length === 0 ? (
-        <Empty text="No goals this week — nothing to score." />
+        <Empty text="No goals this week - nothing to score." />
       ) : (
         <ul className="mt-4 flex flex-col gap-3">
           {adopted.map((g) => (
@@ -436,7 +436,7 @@ function NextWeekCard({
 
       <ul className="mt-4 flex flex-col gap-2">
         {member.nextWeek.length === 0 && (
-          <Empty text="No goals cascaded yet — add what you'll commit to below." />
+          <Empty text="No goals cascaded yet - add what you'll commit to below." />
         )}
         {member.nextWeek.map((g) => (
           <li

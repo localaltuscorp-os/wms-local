@@ -63,7 +63,7 @@ export function MoveForwardMenu({
         <button
           type="button"
           title="Carry forward"
-          className="wg-btn inline-flex items-center gap-1 rounded-full border border-hairline bg-surface-card px-2.5 py-1 text-[12px] font-bold text-ink-soft transition-colors hover:text-ink-strong"
+          className="wg-btn inline-flex items-center gap-1 rounded-pill border border-hairline bg-surface-card px-2.5 py-1 text-[12px] font-bold text-ink-soft transition-colors hover:text-ink-strong"
         >
           <ArrowRightCircle size={13} strokeWidth={2.4} />
           Carry
@@ -103,7 +103,7 @@ export function MoveForwardMenu({
             type="button"
             onClick={() => run("clone")}
             disabled={pending}
-            className="wg-btn wg-sheen inline-flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-bold text-white disabled:opacity-60"
+            className="wg-btn wg-sheen inline-flex flex-1 items-center justify-center gap-1.5 rounded-pill px-3 py-1.5 text-[13px] font-bold text-white disabled:opacity-60"
             style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
           >
             {pending && <Loader2 size={13} className="animate-spin" />}
@@ -113,7 +113,7 @@ export function MoveForwardMenu({
             type="button"
             onClick={() => run("move")}
             disabled={pending}
-            className="rounded-full border border-hairline bg-surface-card px-3 py-1.5 text-[13px] font-bold text-ink-soft transition-colors hover:text-altus-red"
+            className="rounded-pill border border-hairline bg-surface-card px-3 py-1.5 text-[13px] font-bold text-ink-soft transition-colors hover:text-altus-red"
             title="Re-timeframe in place (removes from origin)"
           >
             Move

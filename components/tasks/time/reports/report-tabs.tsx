@@ -30,7 +30,7 @@ export function TimeReportTabs() {
             key={t.href}
             href={t.href as Route}
             aria-current={active ? "page" : undefined}
-            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-bold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 focus-visible:ring-offset-1"
+            className="inline-flex items-center gap-2 rounded-pill px-4 py-2 text-[13.5px] font-bold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 focus-visible:ring-offset-1"
             style={
               active
                 ? {

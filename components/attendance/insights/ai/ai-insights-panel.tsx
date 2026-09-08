@@ -96,7 +96,7 @@ export function AiInsightsPanel({
           type="button"
           onClick={run}
           disabled={pending}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white/75 px-3 py-1.5 text-[12.5px] font-bold text-ink-strong outline-none transition-colors hover:border-hairline-strong hover:text-[var(--color-altus-red-deep)] focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 disabled:opacity-60"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white/75 px-3 py-1.5 text-[12.5px] font-bold text-ink-strong outline-none transition-colors hover:border-hairline-strong hover:text-[var(--color-altus-red-deep)] focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 disabled:opacity-60"
         >
           {pending ? (
             <>

@@ -876,7 +876,7 @@ export function ManagerActivityTable({
      reader's whole view rather than a fresh unfiltered query. */
   const buildReport = React.useCallback((): SectionReport => {
     const out: SectionReport = {
-      title: "Who is delegating, and how much",
+      title: "Who is Delegating, and How Much",
       subtitle: targets
         ? `Targets for this window: ${targets.goals} goals · ${targets.tasks} tasks · ${targets.commitments} commitments`
         : undefined,
@@ -896,8 +896,8 @@ export function ManagerActivityTable({
       columns: [
         { label: "Manager / Member", weight: 3, align: "left" },
         ...WORKLOAD_FAMILIES.flatMap((f) => [
-          { label: `${f.label} — Self`, weight: 1.4, align: "right" as const },
-          { label: `${f.label} — Out`, weight: 1.4, align: "right" as const },
+          { label: `${f.label} - Self`, weight: 1.4, align: "right" as const },
+          { label: `${f.label} - Out`, weight: 1.4, align: "right" as const },
           { label: f.totalLabel, weight: 1.3, align: "right" as const },
         ]),
         { label: "Grand Total", weight: 1.2, align: "right" },
@@ -912,7 +912,7 @@ export function ManagerActivityTable({
     for (const row of rows) {
       const line = WORKLOAD_FAMILIES.flatMap((f) => {
         const { actual, headcount } = rosterTotals(row, f.key);
-        return ["—", "—", `${actual} / ${targets ? targets[f.key] * headcount : 0}`];
+        return ["-", "-", `${actual} / ${targets ? targets[f.key] * headcount : 0}`];
       });
       push(
         [
@@ -928,7 +928,7 @@ export function ManagerActivityTable({
       for (const mem of row.members) {
         push(
           [
-            mem.isSelf ? `Self — ${mem.employeeName}` : mem.employeeName,
+            mem.isSelf ? `Self - ${mem.employeeName}` : mem.employeeName,
             ...WORKLOAD_FAMILIES.flatMap((f) => {
               const split = mem.created[f.key];
               const selfT = cellTarget(targets!, f.key, "self", mem.directReports);
@@ -1124,7 +1124,7 @@ export function ManagerActivityTable({
     <section className="relative min-w-0" aria-label="Manager activity board">
       <DashboardSectionHeader
         icon={<SectionIcon icon={Users} tone="blue" />}
-        title="Who is delegating, and how much"
+        title="Who is Delegating, and How Much"
         subtitle={
           targets
             ? `Targets for this window: ${targets.goals} goals · ${targets.tasks} tasks · ${targets.commitments} commitments (${targets.workingDays} working of ${targets.calendarDays} days)`

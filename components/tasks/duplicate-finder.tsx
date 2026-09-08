@@ -102,7 +102,7 @@ export function DuplicateFinder({
       </div>
       <p className="text-ink-soft mb-7" style={{ fontSize: 15, maxWidth: "70ch" }}>
         Tasks that share the <strong>same doer, same due date and identical details</strong>,
-        with no repeat frequency — usually the result of a sheet imported twice. The oldest
+        with no repeat frequency - usually the result of a sheet imported twice. The oldest
         copy in each set is kept; newer copies start selected for deletion.
       </p>
 
@@ -212,7 +212,7 @@ function GroupCard({
     <section
       className="rounded-section border border-hairline bg-surface-card overflow-hidden"
       style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}
-      aria-label={`Duplicate set — ${group.doerName}, due ${dateLabel(group.dueAt)}`}
+      aria-label={`Duplicate set - ${group.doerName}, due ${dateLabel(group.dueAt)}`}
     >
       <header className="flex items-center gap-x-3 gap-y-1 flex-wrap px-5 py-3.5 border-b border-hairline bg-surface-soft/60">
         <span className="font-bold text-ink-strong" style={{ fontSize: 15 }}>
@@ -258,7 +258,7 @@ function GroupCard({
               {keeper ? (
                 <span
                   className="inline-flex h-5 w-5 items-center justify-center shrink-0"
-                  title="Oldest copy — kept"
+                  title="Oldest copy - kept"
                 >
                   <ShieldCheck size={17} strokeWidth={2.2} style={{ color: "var(--color-green-deep)" }} />
                 </span>
@@ -272,7 +272,7 @@ function GroupCard({
                 />
               )}
               <span className="font-bold tabular-nums text-ink-subtle shrink-0" style={{ fontSize: 13.5 }}>
-                {t.taskNo != null ? `#${t.taskNo}` : "—"}
+                {t.taskNo != null ? `#${t.taskNo}` : "-"}
               </span>
               <span
                 className="inline-flex items-center rounded-pill px-2 py-0.5 font-semibold shrink-0"

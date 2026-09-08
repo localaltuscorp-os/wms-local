@@ -240,7 +240,7 @@ function SalaryRow({ row, rowIndex }: { row: SalaryRunRow; rowIndex: number }) {
         {row.employeeName}
       </td>
       <td className="px-4 py-3.5 text-ink-soft whitespace-nowrap">
-        {row.designationName ?? "—"}
+        {row.designationName ?? "-"}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-soft">
         ₹{inr(monthlyCtc)}
@@ -249,22 +249,22 @@ function SalaryRow({ row, rowIndex }: { row: SalaryRunRow; rowIndex: number }) {
         {days(row.payableDays)}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-soft">
-        {row.lateDeductionDays > 0 ? days(row.lateDeductionDays) : "—"}
+        {row.lateDeductionDays > 0 ? days(row.lateDeductionDays) : "-"}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-strong">
         ₹{inr(row.gross)}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-soft">
-        {row.pt > 0 ? `₹${inr(row.pt)}` : "—"}
+        {row.pt > 0 ? `₹${inr(row.pt)}` : "-"}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-soft">
-        {row.tds > 0 ? `₹${inr(row.tds)}` : "—"}
+        {row.tds > 0 ? `₹${inr(row.tds)}` : "-"}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-soft">
-        {row.advances > 0 ? `₹${inr(row.advances)}` : "—"}
+        {row.advances > 0 ? `₹${inr(row.advances)}` : "-"}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-soft">
-        {row.pendingBalanceIn !== 0 ? `₹${inr(row.pendingBalanceIn)}` : "—"}
+        {row.pendingBalanceIn !== 0 ? `₹${inr(row.pendingBalanceIn)}` : "-"}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums font-bold text-ink-strong">
         ₹{inr(row.netPayable)}

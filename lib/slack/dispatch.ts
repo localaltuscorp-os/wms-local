@@ -78,7 +78,7 @@ export async function sendSlackDigest(
           .slice(0, 10)
           .map(
             (t) =>
-              `• <${SITE}/t/${t.shortId}|${t.subject}> — ${t.daysOverdue}d overdue`,
+              `• <${SITE}/t/${t.shortId}|${t.subject}> - ${t.daysOverdue}d overdue`,
           )
           .join("\n"),
       },

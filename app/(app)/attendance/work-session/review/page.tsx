@@ -66,7 +66,7 @@ function endMs(s: WorkSession): number {
 
 /** Human "Xh YYm" from minutes, matching the capture page's formatting. */
 function fmtHours(min: number | null): string {
-  if (min == null) return "—";
+  if (min == null) return "-";
   const h = Math.floor(min / 60);
   const m = Math.round(min % 60);
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
@@ -237,7 +237,7 @@ export default async function WorkSessionReviewPage({ searchParams }: PageProps)
             Work session review
           </h1>
           <p className="mt-1 text-[13.5px] font-medium text-ink-subtle">
-            Project / remote work sessions from the last 30 days — Meet joins and screen-share captures, with screenshot proof.
+            Project / remote work sessions from the last 30 days - Meet joins and screen-share captures, with screenshot proof.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] font-semibold text-ink-subtle">
             <span className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1" style={{ background: "var(--color-surface-soft)", boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}>

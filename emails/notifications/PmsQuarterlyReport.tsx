@@ -28,12 +28,12 @@ export interface PmsQuarterlyReportProps {
 }
 
 function pctText(pct: number | null): string {
-  if (pct === null) return "—";
+  if (pct === null) return "-";
   return `${Math.round(pct)}%`;
 }
 
 export const previewText = (p: Pick<PmsQuarterlyReportProps, "quarterLabel" | "overallScore">) =>
-  `Your ${p.quarterLabel} performance report — ${Math.round(p.overallScore)}/100`;
+  `Your ${p.quarterLabel} performance report - ${Math.round(p.overallScore)}/100`;
 
 export function PmsQuarterlyReportEmail(props: PmsQuarterlyReportProps) {
   const pmsUrl = `${stripTrailingSlash(props.siteUrl)}/pms`;
@@ -48,7 +48,7 @@ export function PmsQuarterlyReportEmail(props: PmsQuarterlyReportProps) {
       <NotificationHeadline>Your {props.quarterLabel} report.</NotificationHeadline>
       <NotificationParagraph>
         Here's your Performance Intelligence summary for the quarter. The full
-        breakdown — including the self vs manager perception view — lives in the
+        breakdown - including the self vs manager perception view - lives in the
         dashboard.
       </NotificationParagraph>
 

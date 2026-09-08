@@ -7,6 +7,7 @@ import { fireToast } from "@/lib/toast";
 import { addAccountsLookup, softDeleteAccountsLookup } from "@/lib/accounts/lookups";
 import type { DueItemRow } from "@/lib/queries/accounts-due";
 import { createDueItem, updateDueItem, deleteDueItem } from "@/app/(app)/accounts/due-dates/actions";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const INPUT =
   "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
@@ -31,14 +32,14 @@ function tone(value: string | null): { bg: string; fg: string } | null {
 }
 
 function Dim() {
-  return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>;
+  return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>;
 }
 
 function StatusChip({ value }: { value: string | null }) {
   const t = tone(value);
   if (!value || !t) return <Dim />;
   return (
-    <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-bold whitespace-nowrap" style={{ background: t.bg, color: t.fg }}>
+    <span className="inline-flex items-center rounded-pill px-2.5 py-1 text-[12px] font-bold whitespace-nowrap" style={{ background: t.bg, color: t.fg }}>
       {value === "Not Applicable" ? "N/A" : value}
     </span>
   );
@@ -179,10 +180,12 @@ export function DueDatesChecklist({
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
+        <CollapsibleSearch scope="bills, area, notes">
         <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search — bills, area, notes" title="Local search — filters only the list on this page" aria-label="Local search — bills, area, notes — this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - bills, area, notes" title="Local search - filters only the list on this page" aria-label="Local search - bills, area, notes - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
+        </CollapsibleSearch>
         <select className={CHIP} value={fArea} onChange={(e) => setFArea(e.target.value)} aria-label="Filter by area">
           <option value="">All Areas</option>
           {areas.map((a) => (<option key={a} value={a}>{a}</option>))}
@@ -269,7 +272,7 @@ export function DueDatesChecklist({
 function StatusChipNeutral({ value }: { value: string | null }) {
   if (!value) return <Dim />;
   return (
-    <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-bold whitespace-nowrap" style={{ background: "color-mix(in srgb, var(--color-altus-red) 8%, transparent)", color: "var(--color-altus-red-deep)" }}>
+    <span className="inline-flex items-center rounded-pill px-2.5 py-1 text-[12px] font-bold whitespace-nowrap" style={{ background: "color-mix(in srgb, var(--color-altus-red) 8%, transparent)", color: "var(--color-altus-red-deep)" }}>
       {value}
     </span>
   );
@@ -393,7 +396,7 @@ function EditorRow({
 function FixedSelect({ value, onChange, options, placeholder }: { value: string | null; onChange: (v: string | null) => void; options: string[]; placeholder?: string }) {
   return (
     <select value={value ?? ""} onChange={(e) => onChange(e.target.value || null)} className={INPUT} aria-label={placeholder}>
-      <option value="">{placeholder ?? "—"}</option>
+      <option value="">{placeholder ?? "-"}</option>
       {options.map((o) => (<option key={o} value={o}>{o}</option>))}
     </select>
   );

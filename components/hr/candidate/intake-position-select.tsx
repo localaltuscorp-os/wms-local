@@ -57,7 +57,7 @@ export function IntakePositionSelect({
         options={options}
         onAdd={onAdd}
         onDelete={onDelete}
-        placeholder="— Select —"
+        placeholder="- Select -"
         className="iwf-control iwf-lookup"
       />
       <label className="iwf-label">

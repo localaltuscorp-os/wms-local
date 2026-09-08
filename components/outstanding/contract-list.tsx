@@ -35,7 +35,7 @@ const CYCLE_OPTIONS = OUTSTANDING_CYCLES.map((c) => ({
 
 const GST_OPTIONS = GST_RATES.map((r) => ({
   value: String(r),
-  label: r === 0 ? "0 — No GST" : `${r}%`,
+  label: r === 0 ? "0 - No GST" : `${r}%`,
 }));
 
 const YES_NO_OPTIONS = [
@@ -190,7 +190,7 @@ function ContractRow({
           {contract.clientName}
         </td>
         <td className="px-5 py-4 text-ink-soft whitespace-nowrap">
-          {contract.productName ?? "—"}
+          {contract.productName ?? "-"}
         </td>
         <td className="px-5 py-4 text-ink-soft whitespace-nowrap">
           {OUTSTANDING_CYCLE_LABELS[contract.cycle]}
@@ -200,11 +200,11 @@ function ContractRow({
         </td>
         <td className="px-5 py-4 tabular-nums text-ink-soft">{contract.gstRate}%</td>
         <td className="px-5 py-4 tabular-nums text-ink-soft">
-          {contract.periods ?? "—"}
+          {contract.periods ?? "-"}
         </td>
         <td className="px-5 py-4">
           <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-semibold whitespace-nowrap"
             style={{ background: badge.bg, color: badge.color }}
           >
             {badge.label}
@@ -452,7 +452,7 @@ function EditContractDialog({
                 options={lookups.products.map((p) => ({ value: p.id, label: p.name }))}
                 value={productId}
                 onValueChange={setProductId}
-                placeholder="— Select product —"
+                placeholder="- Select product -"
                 ariaLabel="Product"
               />
             </Field>
@@ -461,7 +461,7 @@ function EditContractDialog({
                 options={lookups.entities.map((en) => ({ value: en.id, label: en.name }))}
                 value={entityId}
                 onValueChange={setEntityId}
-                placeholder="— Select entity —"
+                placeholder="- Select entity -"
                 ariaLabel="Entity"
               />
             </Field>
@@ -470,7 +470,7 @@ function EditContractDialog({
                 options={lookups.employees.map((em) => ({ value: em.id, label: em.name }))}
                 value={responsibleId}
                 onValueChange={setResponsibleId}
-                placeholder="— Select person —"
+                placeholder="- Select person -"
                 searchable
                 ariaLabel="Responsible person"
               />
@@ -480,7 +480,7 @@ function EditContractDialog({
                 options={lookups.modes.map((m) => ({ value: m.id, label: m.name }))}
                 value={modeId}
                 onValueChange={setModeId}
-                placeholder="— Select mode —"
+                placeholder="- Select mode -"
                 ariaLabel="Payment mode"
               />
             </Field>
@@ -500,7 +500,7 @@ function EditContractDialog({
                   options={GST_OPTIONS}
                   value={gst}
                   onValueChange={setGst}
-                  placeholder="— GST —"
+                  placeholder="- GST -"
                   ariaLabel="GST rate"
                 />
               </Field>
@@ -510,7 +510,7 @@ function EditContractDialog({
                 options={CYCLE_OPTIONS}
                 value={cycle}
                 onValueChange={setCycle}
-                placeholder="— Select cycle —"
+                placeholder="- Select cycle -"
                 ariaLabel="Payment cycle"
               />
             </Field>
@@ -542,7 +542,7 @@ function EditContractDialog({
                 options={YES_NO_OPTIONS}
                 value={pdc}
                 onValueChange={setPdc}
-                placeholder="— Select —"
+                placeholder="- Select -"
                 ariaLabel="PDC received"
               />
             </Field>

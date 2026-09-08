@@ -150,7 +150,7 @@ function toGoogleRecurrence(rule: string, allDay: boolean): string[] {
 }
 
 // MUST go through siteUrl() — it guarantees an https:// SCHEME. Prod's
-// NEXT_PUBLIC_SITE_URL is scheme-less ("os.altuscorp.in"), and Google
+// NEXT_PUBLIC_SITE_URL is scheme-less ("wms.mananvasa.com"), and Google
 // Calendar REJECTS a scheme-less event `source.url` with 400 "Invalid source
 // url" — the real reason newly-assigned tasks stopped appearing (the error was
 // swallowed). Never build this URL by hand again.

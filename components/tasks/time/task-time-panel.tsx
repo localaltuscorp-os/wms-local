@@ -113,7 +113,7 @@ export function TaskTimePanel(props: Props) {
         </span>
         <h2 className="text-[15px] font-black uppercase tracking-[0.1em] text-ink-strong">Time Intelligence</h2>
         {r.rejectionCount > 0 && (
-          <span className="ml-auto rounded-full bg-[color-mix(in_srgb,var(--color-altus-red)_10%,white)] px-2.5 py-1 text-[11px] font-bold text-altus-red-deep">
+          <span className="ml-auto rounded-pill bg-[color-mix(in_srgb,var(--color-altus-red)_10%,white)] px-2.5 py-1 text-[11px] font-bold text-altus-red-deep">
             {r.rejectionCount} rework round{r.rejectionCount > 1 ? "s" : ""}
           </span>
         )}
@@ -275,7 +275,7 @@ export function TaskTimePanel(props: Props) {
         <Chip label="Rework Rounds" value={String(r.rejectionCount)} />
         <Chip label="Avg session" value={formatMinutesLabel(r.avgSessionSec)} />
         <Chip label="Longest" value={formatMinutesLabel(r.longestSessionSec)} />
-        <Chip label="Shortest" value={r.shortestSessionSec != null ? formatMinutesLabel(r.shortestSessionSec) : "—"} />
+        <Chip label="Shortest" value={r.shortestSessionSec != null ? formatMinutesLabel(r.shortestSessionSec) : "-"} />
         <Chip label="Pauses" value={String(r.pauseCount)} />
       </div>
 

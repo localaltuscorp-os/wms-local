@@ -110,7 +110,7 @@ export function GoalDetails({ goal, ownerName, onClose }: GoalDetailsProps) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`${GOAL_LEVEL_LABEL[goal.period]} — ${goal.title}`}
+        aria-label={`${GOAL_LEVEL_LABEL[goal.period]} - ${goal.title}`}
         onClick={(e) => e.stopPropagation()}
         className="max-h-[86vh] w-full max-w-[620px] overflow-auto rounded-2xl border border-hairline bg-surface-card shadow-2xl"
       >
@@ -185,7 +185,7 @@ export function GoalDetails({ goal, ownerName, onClose }: GoalDetailsProps) {
             <Row label="Assigned by">{goal.createdByName || null}</Row>
             <Row label="Assigned on">{fmtDate(goal.createdAt)}</Row>
             <Row label="Source">{goal.source || null}</Row>
-            <Row label="Carried forward">{goal.clonedFromId ? "Yes — spilled over from an earlier period" : null}</Row>
+            <Row label="Carried forward">{goal.clonedFromId ? "Yes - spilled over from an earlier period" : null}</Row>
             <Row label="Evidence">
               {goal.evidenceUrl ? (
                 <a

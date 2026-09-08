@@ -219,7 +219,7 @@ export function SingleWindowGuard({ enabled = true }: { enabled?: boolean }) {
         </h2>
         <p className="mt-2 text-[14.5px] font-medium text-ink-muted" style={{ lineHeight: 1.55 }}>
           For your security, the WMS runs in one window at a time. Click{" "}
-          <strong className="text-ink-strong">Use here</strong> to switch control to this window —
+          <strong className="text-ink-strong">Use here</strong> to switch control to this window -
           the other one will be locked.
         </p>
         <div className="mt-6 flex items-center justify-center gap-3">

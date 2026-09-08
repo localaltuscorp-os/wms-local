@@ -156,7 +156,7 @@ export function WeekLossDialog({ loss }: { loss: WeekLoss }) {
             icon={<IndianRupee size={13} />}
             value={
               loss.payUnaffected
-                ? "—"
+                ? "-"
                 : !loss.priced
                   ? "Not priced"
                   : loss.moneyLost > 0
@@ -165,7 +165,7 @@ export function WeekLossDialog({ loss }: { loss: WeekLoss }) {
             }
             sub={
               loss.payUnaffected
-                ? "Your pay is a fixed fee — attendance does not change it"
+                ? "Your pay is a fixed fee - attendance does not change it"
                 : !loss.priced
                   ? "No pay rate on file yet"
                   : loss.basis === "hourly"
@@ -187,20 +187,20 @@ export function WeekLossDialog({ loss }: { loss: WeekLoss }) {
                 k="Hours worked"
                 v={`${hoursLabel(loss.workedMinutes)} of ${hoursLabel(loss.targetMinutes)}`}
               />
-              <Row k="Short by" v={loss.shortMinutes > 0 ? hoursLabel(loss.shortMinutes) : "—"} />
-              <Row k="Late arrivals" v={loss.lateCount > 0 ? String(loss.lateCount) : "—"} />
-              <Row k="Left early" v={loss.leftEarlyCount > 0 ? String(loss.leftEarlyCount) : "—"} />
-              <Row k="Absent" v={loss.absentDays > 0 ? daysLabel(loss.absentDays) : "—"} />
+              <Row k="Short by" v={loss.shortMinutes > 0 ? hoursLabel(loss.shortMinutes) : "-"} />
+              <Row k="Late arrivals" v={loss.lateCount > 0 ? String(loss.lateCount) : "-"} />
+              <Row k="Left early" v={loss.leftEarlyCount > 0 ? String(loss.leftEarlyCount) : "-"} />
+              <Row k="Absent" v={loss.absentDays > 0 ? daysLabel(loss.absentDays) : "-"} />
               <Row
                 k="Unpaid leave"
-                v={loss.unpaidLeaveDays > 0 ? daysLabel(loss.unpaidLeaveDays) : "—"}
+                v={loss.unpaidLeaveDays > 0 ? daysLabel(loss.unpaidLeaveDays) : "-"}
               />
             </dl>
             {/* The one thing people get wrong about this report, said plainly
                 rather than left to be inferred from the numbers. */}
             {loss.lateCount > 0 ? (
               <p className="mt-2.5 border-t border-hairline pt-2 text-[11px] font-medium leading-relaxed text-ink-subtle">
-                Late marks are not charged separately — a late start already shows
+                Late marks are not charged separately - a late start already shows
                 up as fewer worked hours above.
               </p>
             ) : null}

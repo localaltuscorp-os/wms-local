@@ -327,13 +327,13 @@ export function TaskDetailRedesign(props: Props) {
               together. Category leads because it is the coarsest label. */}
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {task.subject && (
-              <span className="inline-flex h-8 items-center rounded-full bg-[color-mix(in_srgb,#B80D22_9%,white)] px-3 text-[12.5px] font-bold text-[#B80D22]">
+              <span className="inline-flex h-8 items-center rounded-pill bg-[color-mix(in_srgb,#B80D22_9%,white)] px-3 text-[12.5px] font-bold text-[#B80D22]">
                 {task.subject}
               </span>
             )}
               {/* Status pill */}
               <div className="relative">
-                <button onClick={() => setStatusOpen((v) => !v)} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-surface-soft px-3.5 text-[12.5px] font-bold text-ink-strong hover:bg-hairline">
+                <button onClick={() => setStatusOpen((v) => !v)} className="inline-flex h-8 items-center gap-1.5 rounded-pill bg-surface-soft px-3.5 text-[12.5px] font-bold text-ink-strong hover:bg-hairline">
                   <span className="h-2 w-2 rounded-full bg-ink-subtle" /> {statusLabels[task.status] ?? task.status}
                   <ChevronDown size={13} />
                 </button>
@@ -352,7 +352,7 @@ export function TaskDetailRedesign(props: Props) {
                 )}
               </div>
               {/* Priority pill */}
-              <span className="inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-bold" style={{ background: PRIORITY_TONE[task.priority]?.bg, color: PRIORITY_TONE[task.priority]?.fg }}>
+              <span className="inline-flex h-8 items-center gap-1.5 rounded-pill px-3.5 text-[12.5px] font-bold" style={{ background: PRIORITY_TONE[task.priority]?.bg, color: PRIORITY_TONE[task.priority]?.fg }}>
                 <Flag size={13} /> {PRIORITY_LABELS[task.priority] ?? task.priority}
               </span>
           </div>
@@ -395,7 +395,7 @@ export function TaskDetailRedesign(props: Props) {
                 <SessionHistory
                   sessions={timePanel.state.sessions}
                   liveStartedAt={timePanel.state.live?.startedAt ?? null}
-                  byName={task.doerName ?? "—"}
+                  byName={task.doerName ?? "-"}
                 />
               )}
             </div>
@@ -468,7 +468,7 @@ function TabBtn({ active, onClick, icon, label, count }: { active: boolean; onCl
     >
       {icon}
       {label}
-      {count != null && count > 0 && <span className="rounded-full bg-surface-soft px-1.5 py-0.5 text-[10.5px] font-bold text-ink-muted">{count}</span>}
+      {count != null && count > 0 && <span className="rounded-pill bg-surface-soft px-1.5 py-0.5 text-[10.5px] font-bold text-ink-muted">{count}</span>}
     </button>
   );
 }
@@ -527,12 +527,12 @@ function TaskFieldsGrid({
   const tags = task.tags ?? [];
   return (
     <div className="grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
-      <Field label="Company">{task.client ?? "—"}</Field>
-      <Field label="Category">{task.subject ?? "—"}</Field>
+      <Field label="Company">{task.client ?? "-"}</Field>
+      <Field label="Category">{task.subject ?? "-"}</Field>
       <Field label="Module">WMS</Field>
       <Field label="Priority">{PRIORITY_LABELS[task.priority] ?? task.priority}</Field>
 
-      <Field label="Start date">{task.startsAt ? formatDate(task.startsAt) : "—"}</Field>
+      <Field label="Start date">{task.startsAt ? formatDate(task.startsAt) : "-"}</Field>
       <Field label="Due date">{formatDate(task.revisedTargetDate ?? task.dueAt)}</Field>
       <Field label="Estimated">
         {editing ? (
@@ -577,11 +577,11 @@ function TaskFieldsGrid({
             ))}
           </span>
         ) : (
-          "—"
+          "-"
         )}
       </Field>
-      <Field label="Approver">{task.doerManagerName ?? "—"}</Field>
-      <Field label="Assignee">{task.doerName ?? "—"}</Field>
+      <Field label="Approver">{task.doerManagerName ?? "-"}</Field>
+      <Field label="Assignee">{task.doerName ?? "-"}</Field>
     </div>
   );
 }
@@ -664,7 +664,7 @@ function SessionHistory({
                 >
                   <td className="px-4 py-2 text-[12.5px]">{stampOf(r.startedAt)}</td>
                   <td className="px-4 py-2 text-[12.5px]">
-                    {r.live ? "Running…" : r.endedAt ? stampOf(r.endedAt) : "—"}
+                    {r.live ? "Running…" : r.endedAt ? stampOf(r.endedAt) : "-"}
                   </td>
                   <td className="px-4 py-2 text-right text-[12.5px] tabular-nums">
                     {r.live && liveStartedAt ? (

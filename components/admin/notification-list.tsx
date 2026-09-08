@@ -120,7 +120,7 @@ export function NotificationList({ rows, hasMore, loadOlderHref }: Props) {
                       key={ch}
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border"
                       style={CHIP_STYLE[s]}
-                      title={`${CHANNEL_LABELS[ch]} — ${s.replace(/_/g, " ")}`}
+                      title={`${CHANNEL_LABELS[ch]} - ${s.replace(/_/g, " ")}`}
                     >
                       <span aria-hidden>{STATUS_GLYPH[s]}</span>
                       {CHANNEL_LABELS[ch]}
@@ -140,19 +140,19 @@ export function NotificationList({ rows, hasMore, loadOlderHref }: Props) {
                 <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 mt-3 text-[12.5px]">
                   <dt className="text-ink-subtle">Recipient Email</dt>
                   <dd className="font-mono text-ink-strong">
-                    {n.recipientEmail || "—"}
+                    {n.recipientEmail || "-"}
                   </dd>
                   <dt className="text-ink-subtle">Attempted</dt>
                   <dd className="text-ink-strong">
                     {n.attemptedChannels.length > 0
                       ? n.attemptedChannels.join(", ")
-                      : "—"}
+                      : "-"}
                   </dd>
                   <dt className="text-ink-subtle">Delivered</dt>
                   <dd className="text-ink-strong">
                     {n.deliveredChannels.length > 0
                       ? n.deliveredChannels.join(", ")
-                      : "—"}
+                      : "-"}
                   </dd>
                   {n.taskId && (
                     <>

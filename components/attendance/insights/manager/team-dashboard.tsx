@@ -70,7 +70,7 @@ export function TeamAttendanceDashboard({ data }: { data: ManagerTeamAnalytics }
       {/* Needs attention: late + absent */}
       <div className="grid grid-cols-2 gap-6 max-lg:grid-cols-1">
         <ChartCard title="Late This Month" subtitle="Un-waived late marks, most first" icon={<AlertTriangle size={18} strokeWidth={2.2} />}>
-          <AttentionList rows={data.lateEmployees} metric="late" emptyLabel="No late marks — the whole team is on time." />
+          <AttentionList rows={data.lateEmployees} metric="late" emptyLabel="No late marks - the whole team is on time." />
         </ChartCard>
         <ChartCard title="Absences This Month" subtitle="Absent days, most first" icon={<UserX size={18} strokeWidth={2.2} />}>
           <AttentionList rows={data.absentEmployees} metric="absent" emptyLabel="No absences recorded this month." />
@@ -89,7 +89,7 @@ export function TeamAttendanceDashboard({ data }: { data: ManagerTeamAnalytics }
       {/* Per-member table */}
       <ChartCard
         title="Team Roster"
-        subtitle="Attendance & productivity per member — open anyone for their full record"
+        subtitle="Attendance & productivity per member - open anyone for their full record"
         icon={<Users size={18} strokeWidth={2.2} />}
       >
         <MemberTable rows={data.members} />
@@ -105,7 +105,7 @@ export function TeamAttendanceDashboard({ data }: { data: ManagerTeamAnalytics }
 function TodayStrip({ data }: { data: ManagerTeamAnalytics }) {
   const { today } = data;
   const pill = (label: string, value: number, tone: string) => (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-surface-card px-3 py-1.5" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.05)" }}>
+    <span className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3 py-1.5" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.05)" }}>
       <span className="inline-block size-2 rounded-full" style={{ background: tone, boxShadow: `0 0 6px ${tone}` }} />
       <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-ink-subtle">{label}</span>
       <span className="tabular-nums font-black text-ink-strong" style={{ fontSize: 15 }}>{value}</span>
@@ -216,7 +216,7 @@ function AttentionList({ rows, metric, emptyLabel }: { rows: TeamMemberRow[]; me
               <div className="truncate text-[13.5px] font-bold text-ink-strong">{m.name}</div>
               {m.department && <div className="truncate text-[11.5px] font-medium text-ink-muted">{m.department}</div>}
             </div>
-            <span className="shrink-0 rounded-full px-2.5 py-1 tabular-nums font-black" style={{ fontSize: 13, color: tone, background: `color-mix(in srgb, ${toneBg} 14%, transparent)` }}>
+            <span className="shrink-0 rounded-pill px-2.5 py-1 tabular-nums font-black" style={{ fontSize: 13, color: tone, background: `color-mix(in srgb, ${toneBg} 14%, transparent)` }}>
               {metric === "late" ? `${m.late} late` : `${m.absent} abs`}
             </span>
             <ChevronRight size={15} strokeWidth={2.4} className="shrink-0 text-ink-subtle transition-transform group-hover:translate-x-0.5" />
@@ -239,7 +239,7 @@ function PendingLeaveQueue({ rows }: { rows: LeaveRow[] }) {
           <CheckCircle2 size={18} strokeWidth={2.2} style={{ color: "var(--color-green-deep)" }} />
           <span className="text-[13.5px] font-semibold text-ink-strong">No pending leave requests from your team.</span>
         </span>
-        <Link href={"/attendance/leave" as Route} className="pastel-cta inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-bold">
+        <Link href={"/attendance/leave" as Route} className="pastel-cta inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[12.5px] font-bold">
           Leave Centre <ArrowUpRight size={14} strokeWidth={2.4} />
         </Link>
       </div>
@@ -260,7 +260,7 @@ function PendingLeaveQueue({ rows }: { rows: LeaveRow[] }) {
                 {lv.endDate !== lv.startDate ? ` → ${lv.endDate}` : ""} · {lv.days} day{lv.days === 1 ? "" : "s"}
               </div>
             </div>
-            <Link href={"/attendance/leave" as Route} className="shrink-0 inline-flex items-center gap-1 rounded-full border border-hairline px-3 py-1.5 text-[12px] font-bold text-ink-strong hover:border-hairline-strong hover:text-[var(--color-altus-red-deep)] transition-colors">
+            <Link href={"/attendance/leave" as Route} className="shrink-0 inline-flex items-center gap-1 rounded-pill border border-hairline px-3 py-1.5 text-[12px] font-bold text-ink-strong hover:border-hairline-strong hover:text-[var(--color-altus-red-deep)] transition-colors">
               Review <ChevronRight size={13} strokeWidth={2.4} />
             </Link>
           </li>
@@ -322,7 +322,7 @@ function MemberTable({ rows }: { rows: TeamMemberRow[] }) {
                 <Stat value={m.avgHoursPerDay.toFixed(1)} tone="var(--color-ink-strong)" />
                 <Stat value={String(m.absent)} tone={m.absent > 0 ? "var(--color-altus-red-deep)" : "var(--color-ink-soft)"} />
                 <Stat value={String(m.late)} tone={m.late > 0 ? "var(--color-amber-deep)" : "var(--color-ink-soft)"} />
-                <Stat value={m.productivityPct == null ? "—" : `${m.productivityPct}%`} tone={m.productivityPct == null ? "var(--color-ink-muted)" : band100(m.productivityPct).deep} />
+                <Stat value={m.productivityPct == null ? "-" : `${m.productivityPct}%`} tone={m.productivityPct == null ? "var(--color-ink-muted)" : band100(m.productivityPct).deep} />
                 <ChevronRight size={15} strokeWidth={2.4} className="justify-self-end text-ink-subtle transition-transform group-hover:translate-x-0.5" />
               </Link>
             </li>

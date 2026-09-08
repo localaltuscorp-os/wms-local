@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "My HR Record · Altus",
-  description: "Your documents, policies, salary slips, certificate and submitted forms — all in one place.",
+  description: "Your documents, policies, salary slips, certificate and submitted forms - all in one place.",
 };
 
 /**

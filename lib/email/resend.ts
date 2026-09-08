@@ -117,10 +117,10 @@ export function clampSubject(s: string): string {
 
 export function digestSubject(pendingCount: number): string {
   if (pendingCount === 0) {
-    return "You're all clear — no pending tasks — Altus Corp Dashboard";
+    return "You're all clear - no pending tasks - Altus Corp Dashboard";
   }
   const noun = pendingCount === 1 ? "task" : "tasks";
-  return `You have ${pendingCount} pending ${noun} — Altus Corp Dashboard`;
+  return `You have ${pendingCount} pending ${noun} - Altus Corp Dashboard`;
 }
 
 export function errorMessage(err: unknown): string {
@@ -259,7 +259,7 @@ export async function sendWelcomeEmail(args: {
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.email,
-      subject: `Welcome to Altus Corp — your official email is ready`,
+      subject: `Welcome to Altus Corp - your official email is ready`,
       react: WelcomeOfficialEmail({
         employeeName: args.employeeName,
         officialEmail: args.officialEmail,
@@ -488,8 +488,8 @@ export async function sendWeeklyGoalsMondayEmail(args: {
       to: args.recipient.email,
       subject: clampSubject(
         args.goals.length > 0
-          ? `Your ${args.goals.length} priorities for the week — Altus Corp`
-          : `Set your weekly priorities — Altus Corp`,
+          ? `Your ${args.goals.length} priorities for the week - Altus Corp`
+          : `Set your weekly priorities - Altus Corp`,
       ),
       react: WeeklyGoalsMondayEmail({
         recipientName: args.recipient.name,
@@ -519,7 +519,7 @@ export async function sendWeeklyGoalsFillReminderEmail(args: {
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.recipient.email,
-      subject: clampSubject("Update your % done before the week closes — Altus Corp"),
+      subject: clampSubject("Update your % done before the week closes - Altus Corp"),
       react: WeeklyGoalsFillReminderEmail({
         recipientName: args.recipient.name,
         weekLabel: args.weekLabel,
@@ -549,7 +549,7 @@ export async function sendWeeklyGoalsIncompleteEmail(args: {
       from: FROM,
       to: args.recipient.email,
       subject: clampSubject(
-        `${args.unmarkedCount} weekly ${args.unmarkedCount === 1 ? "goal" : "goals"} still unmarked — Altus Corp`,
+        `${args.unmarkedCount} weekly ${args.unmarkedCount === 1 ? "goal" : "goals"} still unmarked - Altus Corp`,
       ),
       react: WeeklyGoalsIncompleteEmail({
         recipientName: args.recipient.name,
@@ -591,7 +591,7 @@ export async function sendIncentiveDecisionEmail(args: {
       from: FROM,
       to: args.recipient.email,
       subject: clampSubject(
-        `Your ${args.typeLabel} incentive request was ${args.verdict} — Altus Corp`,
+        `Your ${args.typeLabel} incentive request was ${args.verdict} - Altus Corp`,
       ),
       react: IncentiveDecisionEmail({
         recipientName: args.recipient.name,
@@ -626,7 +626,7 @@ export async function sendIncentiveMonthlyDigestEmail(args: {
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.recipient.email,
-      subject: clampSubject(`Your incentive summary for ${args.periodLabel} — Altus Corp`),
+      subject: clampSubject(`Your incentive summary for ${args.periodLabel} - Altus Corp`),
       react: IncentiveMonthlyDigestEmail({
         recipientName: args.recipient.name,
         periodLabel: args.periodLabel,
@@ -664,7 +664,7 @@ const BROADCAST_PRIORITY_BANNER: Record<
   { label: string; bg: string; fg: string } | undefined
 > = {
   high: { label: "High priority", bg: "#FEF3C7", fg: "#92400E" },
-  critical: { label: "Critical — action required", bg: "#FEE2E2", fg: "#991B1B" },
+  critical: { label: "Critical - action required", bg: "#FEE2E2", fg: "#991B1B" },
   emergency: { label: "Emergency", bg: "#7F1D1D", fg: "#FFFFFF" },
 };
 
@@ -678,13 +678,13 @@ const BROADCAST_PRIORITY_BANNER: Record<
  * `{ id: null, error: null }`) when Resend is unconfigured (dev without a key).
  *
  * The email goes to the recipient's WORK inbox (the caller resolves and passes
- * `to`) — broadcasts are official company communications, so we do NOT fall
+ * `to`) - broadcasts are official company communications, so we do NOT fall
  * back to a personal address the way the onboarding welcome mail does.
  */
 export async function sendBroadcastEmail(args: {
   /** The recipient's work email address (already resolved by the caller). */
   to: string;
-  /** The broadcast title — becomes the subject line. */
+  /** The broadcast title - becomes the subject line. */
   subject: string;
   /** The author-composed HTML body (sanitised upstream at compose time). */
   bodyHtml: string;
@@ -692,7 +692,7 @@ export async function sendBroadcastEmail(args: {
   bodyText?: string | null;
   /** Display name for the sender identity ("Altus HR", a CEO/Founder name). */
   senderLabel: string;
-  /** One of BROADCAST_PRIORITIES — drives the optional priority banner. */
+  /** One of BROADCAST_PRIORITIES - drives the optional priority banner. */
   priority?: string;
   /** Whether recipients must explicitly acknowledge (adds a CTA nudge). */
   requireAck?: boolean;
@@ -755,7 +755,7 @@ export async function sendBroadcastEmail(args: {
 }
 
 /* ------------------------------------------------------------------ */
-/* internal — template selection + DB resolvers                         */
+/* internal - template selection + DB resolvers                         */
 /* ------------------------------------------------------------------ */
 
 interface RenderContext {
@@ -770,7 +770,7 @@ interface RenderContext {
 /** Friendly "Sat, Jun 14, 2026" for a YYYY-MM-DD attendance log date. Falls
  *  back to the raw string if it isn't a parseable date. */
 function attendanceDateLabel(ymd: string | undefined): string {
-  if (!ymd) return "—";
+  if (!ymd) return "-";
   const d = new Date(`${ymd}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return ymd;
   const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short" }).format(d);
@@ -783,9 +783,9 @@ function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
   const subject = ctx.taskSubject ?? "your task";
   const taskId = ctx.notification.taskId ?? "";
 
-  // Attendance Phase A (Task A8) — these kinds carry no taskId; route them
+  // Attendance Phase A (Task A8) - these kinds carry no taskId; route them
   // BEFORE the task guard below. The meta JSON is read off `notification.body`
-  // (logDate / inAt / outAt / hoursLabel — see lib/attendance/notify.ts).
+  // (logDate / inAt / outAt / hoursLabel - see lib/attendance/notify.ts).
   switch (ctx.notification.kind) {
     case "attendance_late":
       return AttendanceLateEmail({
@@ -800,7 +800,7 @@ function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
         dateLabel: attendanceDateLabel(meta.logDate),
         inAt: meta.inAt ?? null,
         outAt: meta.outAt ?? null,
-        hoursLabel: meta.hoursLabel ?? "—",
+        hoursLabel: meta.hoursLabel ?? "-",
         siteUrl: ctx.siteUrl,
       });
     case "attendance_half_day":
@@ -809,7 +809,7 @@ function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
         dateLabel: attendanceDateLabel(meta.logDate),
         inAt: meta.inAt ?? null,
         outAt: meta.outAt ?? null,
-        hoursLabel: meta.hoursLabel ?? "—",
+        hoursLabel: meta.hoursLabel ?? "-",
         siteUrl: ctx.siteUrl,
       });
     case "attendance_late_deduction":
@@ -824,7 +824,7 @@ function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
       break;
   }
 
-  // HR Support tickets (mig 0145) — these kinds carry no taskId; the ticket id +
+  // HR Support tickets (mig 0145) - these kinds carry no taskId; the ticket id +
   // number ride in the JSON `body` meta the HR actions write. Confidential
   // (grievance) copy stays generic (the title the dispatcher built already is).
   if (ctx.notification.kind.startsWith("hr_ticket_")) {
@@ -840,7 +840,7 @@ function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
           confidential = m.confidential === true;
         }
       } catch {
-        // free-text body — fall through with defaults (still renders a CTA).
+        // free-text body - fall through with defaults (still renders a CTA).
       }
     }
     if (!ticketId) return null;
@@ -850,7 +850,7 @@ function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
       hr_ticket_replied: "There's a new reply on your HR ticket.",
       hr_ticket_status_changed: "The status of your HR ticket has changed.",
       hr_ticket_sla_breach: "This HR ticket has breached its response target.",
-      hr_ticket_csat_request: "Your HR ticket was resolved — let us know how it went.",
+      hr_ticket_csat_request: "Your HR ticket was resolved - let us know how it went.",
     };
     return HrTicketNoticeEmail({
       recipientName: ctx.recipient.name,
@@ -864,7 +864,7 @@ function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
   }
 
   // Without a task to link to, none of the remaining per-task templates make
-  // sense.  Drop the email — the in-app inbox still surfaces the row.
+  // sense.  Drop the email - the in-app inbox still surfaces the row.
   if (!taskId) return null;
 
   switch (ctx.notification.kind) {
@@ -974,11 +974,11 @@ function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
       });
 
     case "overdue_digest":
-    // Attendance Phase A — `attendance_device` stays inbox-only (no email).
+    // Attendance Phase A - `attendance_device` stays inbox-only (no email).
     // The four other attendance kinds (late / late-waived / half-day /
     // late-deduction) are routed above the task guard and never reach here.
     case "attendance_device":
-    // Nudge — an on-demand ⚡ ping. Deliberately in-app + push only; we don't
+    // Nudge - an on-demand ⚡ ping. Deliberately in-app + push only; we don't
     // want a nudge to also spawn an email.
     case "nudged":
       // overdue_digest belongs in `sendDigestEmail`; attendance_device is kept
@@ -993,7 +993,7 @@ function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
       return null;
     default:
       // Kinds without a dedicated email template (e.g. training_test_failed)
-      // are inbox-only — the in-app row still surfaces them.
+      // are inbox-only - the in-app row still surfaces them.
       return null;
   }
 }
@@ -1026,7 +1026,7 @@ async function resolveTaskSubject(taskId: string): Promise<string | null> {
 /**
  * Looks up the actor's display name for a given notification id by
  * joining `notifications.actor_id` against `employees.id`.  Used so the
- * dispatcher doesn't have to pre-resolve the actor — it just writes
+ * dispatcher doesn't have to pre-resolve the actor - it just writes
  * the actor id on the notifications row.
  */
 async function resolveActorNameFor(notificationId: string): Promise<string | null> {
