@@ -965,6 +965,21 @@ export async function setWeeklyGoalReview(
   if (!loaded.ok) return loaded;
   const goal = loaded.row;
 
+  // ANYTHING SHORT OF 100 HAS TO BE EXPLAINED — the same rule cascade goals
+  // enforce in app/(app)/goals/review/actions.ts, applied here so the Review
+  // workbench behaves identically whichever level's row you are scoring.
+  //
+  // The note that MATTERS is the one the row ends up with: `reviewNotes` being
+  // absent from the patch means the existing note stands, and an existing note
+  // satisfies the rule. Only an ending state of "under 100, nothing written"
+  // is refused.
+  if (acceptPct != null && acceptPct < 100) {
+    const endingNote = (reviewNotes !== undefined ? reviewNotes : goal.reviewNotes) ?? "";
+    if (!endingNote.trim()) {
+      return { ok: false, error: "Add an approver note explaining why this is under 100%." };
+    }
+  }
+
   // Accept % is locked once approved — reject the write rather than silently drop it.
   if (acceptPct !== undefined && goal.approvedAt) {
     return { ok: false, error: "Accept % is locked while approved — un-approve to change it" };

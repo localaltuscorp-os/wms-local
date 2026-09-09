@@ -286,7 +286,11 @@ function ReviewCard({
   };
 
   const saveApproval = () => {
-    if (!canReview) return;
+    if (!canApprove) return;
+    if (accept < 100 && !notes.trim()) {
+      fireToast({ message: "Add an approver note explaining why this is under 100%." });
+      return;
+    }
     run(
       { kind: item.kind, id: item.id, acceptPct: accept, reviewNotes: notes.trim() || null },
       `Approved ${accept}% for “${item.title}”`,
@@ -294,7 +298,7 @@ function ReviewCard({
   };
 
   const saveNotesOnBlur = () => {
-    if (!canReview || item.kind === "daily") return;
+    if (!canApprove || item.kind === "daily") return;
     if ((notes.trim() || null) === (item.reviewNotes?.trim() || null)) return;
     // Notes always travel WITH the current accepted % — the server treats a
     // notes write as an approval write, so never let it clear the score.
@@ -352,7 +356,15 @@ function ReviewCard({
     fireToast({ message: "Left pending - it carries into Unfinished." });
   }
 
-  const notesEditable = item.kind === "daily" ? canWrite : canReview;
+  /** See review-table.tsx and loadApprovableGoalRow — the board-wide
+   *  `canReview` cannot express "I raised this one myself", so the initiator is
+   *  added as a per-row second key. */
+  const canApprove = item.approvable && (canReview || item.initiatedByMe);
+
+  // Anything short of 100 owes the owner a written reason.
+  const needsNote = accept < 100 && !notes.trim();
+
+  const notesEditable = item.kind === "daily" ? canWrite : canApprove;
 
   return (
     <article
@@ -492,7 +504,7 @@ function ReviewCard({
                     value={accept}
                     onChange={setAccept}
                     onCommit={() => {}}
-                    disabled={!canReview || pending}
+                    disabled={!canApprove || pending}
                     toneColor={acceptTone.color}
                     ariaLabel={`Approved percent for ${item.title}`}
                   />
@@ -502,14 +514,15 @@ function ReviewCard({
                     value={accept}
                     onChange={setAccept}
                     onCommit={() => {}}
-                    disabled={!canReview || pending}
+                    disabled={!canApprove || pending}
                     toneColor={acceptTone.color}
                     ariaLabel={`Approved percent slider for ${item.title}`}
                   />
                   <button
                     type="button"
                     onClick={saveApproval}
-                    disabled={!canReview || pending}
+                    disabled={!canApprove || pending || needsNote}
+                    title={needsNote ? "Add an approver note explaining why this is under 100%." : undefined}
                     className="wg-btn inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
                     style={{
                       background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
@@ -519,9 +532,13 @@ function ReviewCard({
                     <Check className="h-3 w-3" /> Save
                   </button>
                 </div>
-                {!canReview ? (
+                {!canApprove ? (
                   <p className="mt-1 text-[10px]" style={{ color: "var(--color-ink-subtle)" }}>
                     Approver-only field
+                  </p>
+                ) : needsNote ? (
+                  <p className="mt-1 text-[10px]" style={{ color: "var(--color-altus-red)" }}>
+                    Under 100% — an approver note is required.
                   </p>
                 ) : null}
               </div>

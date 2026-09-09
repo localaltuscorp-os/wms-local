@@ -83,7 +83,14 @@ function ReviewRow({
     run({ kind: item.kind, id: item.id, self: n }, `${item.title} → ${n}% done`);
   };
   const saveApproval = () => {
-    if (!canReview || !item.approvable) return;
+    if (!canApprove) return;
+    if (clampPct(accept) < 100 && !notes.trim()) {
+      fireToast({
+        message: "Add an approver note explaining why this is under 100%.",
+        type: "error",
+      });
+      return;
+    }
     run(
       { kind: item.kind, id: item.id, acceptPct: clampPct(accept), reviewNotes: notes.trim() || null },
       `Approved ${clampPct(accept)}% · "${item.title}"`,
@@ -103,6 +110,26 @@ function ReviewRow({
   };
 
   const reviewed = item.acceptPct != null;
+
+  /**
+   * WHO MAY SET APPROVED % ON *THIS* ROW.
+   *
+   * `canReview` is one flag for the whole board and is false while you are
+   * looking at your own, so on its own it left a self-raised goal with a Self %
+   * its owner could fill and an Approved % nobody could — permanently
+   * unreviewed. The initiator is added as a second key: they asked for the
+   * work, so they rule on it. When they and the owner are the same person that
+   * hands the owner their own approval; when someone else raised it the owner
+   * is not the initiator and stays locked out, which is the point.
+   *
+   * The server re-decides this in loadApprovableGoalRow — this only decides
+   * what to render.
+   */
+  const canApprove = item.approvable && (canReview || item.initiatedByMe);
+
+  // Anything short of 100 owes the owner a reason. Mirrored server-side; here
+  // it disables Save and says so, rather than letting a doomed write travel.
+  const needsNote = clampPct(accept) < 100 && !notes.trim();
 
   return (
     <tr
@@ -175,7 +202,7 @@ function ReviewRow({
       <td className="px-3 py-3.5">
         {!item.approvable ? (
           <span className="text-[12px] font-semibold text-ink-subtle">self-completed</span>
-        ) : canReview ? (
+        ) : canApprove ? (
           <input
             type="number"
             min={0}
@@ -200,19 +227,25 @@ function ReviewRow({
 
       {/* Approver notes */}
       <td className="px-3 py-3.5">
-        {item.approvable && canReview ? (
+        {canApprove ? (
           <textarea
             value={notes}
             disabled={pending}
             rows={2}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Feedback for the owner…"
+            placeholder={needsNote ? "Required — why under 100%?" : "Feedback for the owner…"}
             aria-label="Approver notes"
+            aria-required={needsNote}
             className={cn(
               "w-full min-w-[180px] resize-y rounded-md border bg-white px-2 py-1.5 text-[12.5px] leading-snug text-ink-strong focus:border-altus-red",
               FOCUS_RING,
             )}
-            style={{ borderColor: "var(--color-hairline-strong)" }}
+            style={{
+              // Red while the score is under 100 and nothing is written: the
+              // rule is enforced on save either way, and a field that shows it
+              // is about to block you beats a toast that tells you afterwards.
+              borderColor: needsNote ? "var(--color-altus-red)" : "var(--color-hairline-strong)",
+            }}
           />
         ) : item.reviewNotes ? (
           <p className="max-w-[280px] text-[12.5px] text-ink-soft">{item.reviewNotes}</p>
@@ -223,11 +256,12 @@ function ReviewRow({
 
       {/* Save */}
       <td className="px-3 py-3.5 text-right">
-        {item.approvable && canReview ? (
+        {canApprove ? (
           <button
             type="button"
             onClick={saveApproval}
-            disabled={pending}
+            disabled={pending || needsNote}
+            title={needsNote ? "Add an approver note explaining why this is under 100%." : undefined}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12.5px] font-bold text-white disabled:opacity-60",
               FOCUS_RING,
