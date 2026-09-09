@@ -1508,7 +1508,7 @@ function Segment({
       </Tooltip.Trigger>
       <Tooltip.Portal>
         <Tooltip.Content
-          side="top"
+          side="bottom"
           align="center"
           sideOffset={10}
           collisionPadding={12}

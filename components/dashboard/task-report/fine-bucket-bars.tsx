@@ -169,7 +169,7 @@ export function FineBucketBars({
                 <Tooltip.Trigger asChild>{row}</Tooltip.Trigger>
                 <Tooltip.Portal>
                   <Tooltip.Content
-                    side="top"
+                    side="bottom"
                     align="center"
                     sideOffset={6}
                     collisionPadding={12}

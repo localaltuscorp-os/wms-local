@@ -149,7 +149,7 @@ export function ActivityCellPopover({
         <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
         <Tooltip.Portal>
           <Tooltip.Content
-          side="top"
+          side="bottom"
           align="center"
           sideOffset={6}
           collisionPadding={12}
