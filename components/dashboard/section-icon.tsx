@@ -18,9 +18,16 @@ import type { LucideIcon } from "lucide-react";
  * that answer: fixed geometry for every section, and the only thing a caller
  * chooses is the glyph and the hue.
  *
- * HUE IS PER SECTION AND MEANS SOMETHING — red for work that has gone wrong,
- * amber for recognition, slate for a neutral rollup. It is the one part worth
- * varying, so it stays a prop rather than being flattened into the recipe.
+ * HUE IS NOW ONE HUE. It used to be per-section and to mean something — red
+ * for work that has gone wrong, amber for recognition, slate for a neutral
+ * rollup. On the page that read as five unrelated widgets rather than one
+ * dashboard, because colour is the first thing the eye groups by and nothing
+ * else on these headings varied. Every caller passes `red`, the brand red the
+ * Sent-Back Work badge has always used.
+ *
+ * The prop stays — the other tones are still defined and still correct if a
+ * section ever needs to break out of the set — but "matches the others" now
+ * has a single answer, and `red` is it.
  */
 export type SectionIconTone = "red" | "amber" | "slate" | "blue" | "violet";
 

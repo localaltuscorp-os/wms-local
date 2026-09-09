@@ -315,8 +315,25 @@ export function FilterBar({
     activePills.push({ key: `s-${s}`, label: statusLabel(s), color: TINT.status, remove: () => setStatus(status.filter((x) => x !== s)) });
   for (const p of prio)
     activePills.push({ key: `p-${p}`, label: PRIORITY_LABELS[p as TaskPriority] ?? p, color: TINT.priority, remove: () => setPrio(prio.filter((x) => x !== p)) });
-  for (const id of emp)
-    activePills.push({ key: `e-${id}`, label: empLabel(id), color: TINT.assignee, remove: () => handleEmpChange(emp.filter((x) => x !== id)) });
+  /* THE DEFAULT SCOPE IS NOT A FILTER.
+
+     A self-scoped page opens with `emp = [you]` — nobody chose that, it is
+     just where the page starts, and the assignee pill already says "Only Me"
+     rather than your name for exactly that reason. Pushing a chip for it made
+     the summary row read "1 active · Vinal Patil · Clear All" on a page you
+     had not touched: an active-filter count of one before any filter existed,
+     your own name presented as though someone had filtered you, and a
+     "Clear All" offering to undo nothing.
+
+     So the row stays hidden in that one state. The moment the selection is
+     anything else — a colleague, several people, you AND someone else — every
+     name chips as before, including yours, because then it IS a choice. Same
+     condition as `assigneeValue`'s "Only Me" branch above; the two readings of
+     "this is the default" must not drift apart. */
+  const selfOnlyDefault = selfScope && emp.length === 1 && emp[0] === selfId;
+  if (!selfOnlyDefault)
+    for (const id of emp)
+      activePills.push({ key: `e-${id}`, label: empLabel(id), color: TINT.assignee, remove: () => handleEmpChange(emp.filter((x) => x !== id)) });
   if (showScopeChip && assigneeMode === "all" && emp.length === 0)
     activePills.push({ key: "scope-all", label: "All Tasks", color: TINT.assignee, remove: () => setAssigneeMode("default") });
   // The dashboard's equivalent: says the view has been widened off you, and
