@@ -160,7 +160,11 @@ export function MonthCalendar({ cells, monthLabel, compact, canEdit, employeeId,
                 if (!c) return <div key={ci} className={`${compact ? "h-9" : "aspect-square"} rounded-md`} />;
                 // Anchor the popover so it never spills off the card at edge columns.
                 const anchor = ci <= 1 ? "left" : ci >= 5 ? "right" : "center";
-                const place = wi === 0 ? "below" : "above";
+                // DOWNWARD, EVERY ROW. This was `wi === 0 ? "below" : "above"`,
+                // so only the top week opened down and the other four to six
+                // opened up, over the days you had just read. One direction for
+                // the whole grid is what makes the gesture predictable.
+                const place = "below" as const;
                 return <DayCell key={ci} c={c} compact={compact} anchor={anchor} place={place} canEdit={canEdit} employeeId={employeeId} />;
               })}
               {/* week 54h bar */}

@@ -44,7 +44,7 @@ function FileTypeIcon({ mime }: { mime: string | null }) {
 }
 
 /** The hovered image and where on screen to hang its preview. */
-type Preview = { id: string; url: string; name: string; left: number; top: number };
+type Preview = { id: string; url: string; name: string; left: number; top: number; below: boolean };
 
 export function TaskAttachments({
   taskId,
@@ -143,8 +143,10 @@ export function TaskAttachments({
           off as the two fought over the pointer. */}
       {livePreview && (
         <div
-          className="pointer-events-none fixed z-[80] w-64 -translate-x-1/2 -translate-y-full rounded-xl border border-[#EBE7E0] bg-white p-1.5 shadow-2xl"
-          style={{ left: livePreview.left, top: livePreview.top - 8 }}
+          className={`pointer-events-none fixed z-[80] w-64 -translate-x-1/2 rounded-xl border border-[#EBE7E0] bg-white p-1.5 shadow-2xl${
+            livePreview.below ? "" : " -translate-y-full"
+          }`}
+          style={{ left: livePreview.left, top: livePreview.top + (livePreview.below ? 8 : -8) }}
         >
           <img
             src={livePreview.url}
@@ -183,12 +185,18 @@ export function TaskAttachments({
               onMouseEnter={(e) => {
                 if (!att.mime?.startsWith("image/") || !att.url) return;
                 const r = e.currentTarget.getBoundingClientRect();
+                // BELOW THE CARD by default, like every other hover in the
+                // app. Flips up only when the ~220px bubble would run past the
+                // bottom of the window and there is more room above.
+                const TIP_H = 220;
+                const below = window.innerHeight - r.bottom >= TIP_H || r.top < TIP_H;
                 setPreview({
                   id: att.id,
                   url: att.url,
                   name: att.fileName,
                   left: r.left + r.width / 2,
-                  top: r.top,
+                  top: below ? r.bottom : r.top,
+                  below,
                 });
               }}
               onMouseLeave={() => setPreview((prev) => (prev?.id === att.id ? null : prev))}
