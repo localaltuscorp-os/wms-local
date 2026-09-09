@@ -9,7 +9,7 @@ pnpm install
 cp .env.local.example .env.local   # fill in Supabase / Firebase / Resend values
 pnpm db:generate                    # generate first migration
 pnpm db:migrate                     # apply schema to your dev Supabase
-pnpm seed                           # populate fake data (~20 emp, ~1200 tasks)
+pnpm seed                           # populate fake data (~20 emp, ~1200 tasks) 
 pnpm dev                            # http://localhost:3000
 ```
 
