@@ -92,6 +92,7 @@ import {
 import { addTaskComment } from "@/lib/tasks/add-comment";
 import { createTasksCore } from "@/lib/tasks/create-task";
 import { nudgeTaskCore } from "@/lib/tasks/nudge";
+import { dbErrorMessage, logDbError } from "@/lib/db/error";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -613,7 +614,13 @@ export async function bulkSetStatus(
       );
     });
   } catch (err) {
-    return { ok: false, error: `Could not update: ${(err as Error).message}` };
+    // `(err as Error).message` on a drizzle failure is ONLY ever "Failed query:
+    // <sql> params: <values>" — the table named, the problem withheld, and the
+    // bound parameters (names, salaries) dumped into a toast. The actual reason
+    // hangs on `.cause`. dbErrorMessage digs it out and drops the parameters;
+    // logDbError puts the stack somewhere an incident can be read from.
+    logDbError("tasks:update", err);
+    return { ok: false, error: `Could not update: ${dbErrorMessage(err)}` };
   }
   nudgeRelay();
   for (const id of allowed) afterResponse(() => reconcileTaskEvent(id));
@@ -680,7 +687,13 @@ export async function bulkSetApprovalStatus(
       );
     });
   } catch (err) {
-    return { ok: false, error: `Could not update: ${(err as Error).message}` };
+    // `(err as Error).message` on a drizzle failure is ONLY ever "Failed query:
+    // <sql> params: <values>" — the table named, the problem withheld, and the
+    // bound parameters (names, salaries) dumped into a toast. The actual reason
+    // hangs on `.cause`. dbErrorMessage digs it out and drops the parameters;
+    // logDbError puts the stack somewhere an incident can be read from.
+    logDbError("tasks:update", err);
+    return { ok: false, error: `Could not update: ${dbErrorMessage(err)}` };
   }
   revalidateTaskRoutes();
   return { ok: true, updated: allowed.length, skipped: ids.length - allowed.length };
@@ -720,7 +733,13 @@ export async function bulkSetPriority(
       );
     });
   } catch (err) {
-    return { ok: false, error: `Could not update: ${(err as Error).message}` };
+    // `(err as Error).message` on a drizzle failure is ONLY ever "Failed query:
+    // <sql> params: <values>" — the table named, the problem withheld, and the
+    // bound parameters (names, salaries) dumped into a toast. The actual reason
+    // hangs on `.cause`. dbErrorMessage digs it out and drops the parameters;
+    // logDbError puts the stack somewhere an incident can be read from.
+    logDbError("tasks:update", err);
+    return { ok: false, error: `Could not update: ${dbErrorMessage(err)}` };
   }
   revalidateTaskRoutes();
   return { ok: true, updated: changed.length, skipped: ids.length - changed.length };
@@ -836,7 +855,13 @@ export async function bulkSetSubject(
       );
     });
   } catch (err) {
-    return { ok: false, error: `Could not update: ${(err as Error).message}` };
+    // `(err as Error).message` on a drizzle failure is ONLY ever "Failed query:
+    // <sql> params: <values>" — the table named, the problem withheld, and the
+    // bound parameters (names, salaries) dumped into a toast. The actual reason
+    // hangs on `.cause`. dbErrorMessage digs it out and drops the parameters;
+    // logDbError puts the stack somewhere an incident can be read from.
+    logDbError("tasks:update", err);
+    return { ok: false, error: `Could not update: ${dbErrorMessage(err)}` };
   }
   revalidateTaskRoutes();
   return { ok: true, updated: changed.length, skipped: ids.length - changed.length };
@@ -896,7 +921,13 @@ export async function bulkSetClient(
       );
     });
   } catch (err) {
-    return { ok: false, error: `Could not update: ${(err as Error).message}` };
+    // `(err as Error).message` on a drizzle failure is ONLY ever "Failed query:
+    // <sql> params: <values>" — the table named, the problem withheld, and the
+    // bound parameters (names, salaries) dumped into a toast. The actual reason
+    // hangs on `.cause`. dbErrorMessage digs it out and drops the parameters;
+    // logDbError puts the stack somewhere an incident can be read from.
+    logDbError("tasks:update", err);
+    return { ok: false, error: `Could not update: ${dbErrorMessage(err)}` };
   }
   revalidateTaskRoutes();
   return { ok: true, updated: changed.length, skipped: ids.length - changed.length };
