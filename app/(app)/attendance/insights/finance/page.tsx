@@ -56,7 +56,7 @@ export default async function FinanceAttendanceInsightsPage({ searchParams }: Pa
   const monthTitle = `${MONTH_NAMES[month - 1] ?? ""} ${year}`;
 
   const exportBtnCls =
-    "wg-btn inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white/75 py-2 px-4 text-[13.5px] font-bold text-ink-strong hover:border-hairline-strong hover:text-[var(--color-altus-red-deep)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 focus-visible:ring-offset-1";
+    "wg-btn inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white/75 py-2 px-4 text-[13.5px] font-bold text-ink-strong hover:border-hairline-strong hover:text-[var(--color-altus-red-deep)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 focus-visible:ring-offset-1";
 
   return (
     <>
@@ -104,7 +104,7 @@ export default async function FinanceAttendanceInsightsPage({ searchParams }: Pa
                 </div>
                 <p className="mt-2 text-[15px] font-medium text-ink-muted max-w-[70ch]">
                   Salary lost to attendance, decomposed into absence, unpaid-leave, half-day and
-                  late-penalty buckets — with projected payroll. Read-only.
+                  late-penalty buckets - with projected payroll. Read-only.
                 </p>
               </div>
             </div>

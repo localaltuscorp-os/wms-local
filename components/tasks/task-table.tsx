@@ -18,24 +18,30 @@ import {
 } from "@tanstack/react-table";
 import { differenceInCalendarDays } from "date-fns";
 
-// Classic numbered pagination: a rows-per-page selector (default 25) with
-// First « · Prev · 1 2 3 … N · Next · Last » controls.
-const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
-// Progressive disclosure replaces paging: the grid opens at 13 rows and grows
-// by 13 on each Load More. TanStack's pagination row model still does the
-// slicing — pageIndex is pinned at 0 and pageSize IS the visible count — so
-// sorting, grouping and the phone card list all stay on the same slice for free.
-const INITIAL_ROWS = 13;
-const LOAD_MORE_STEP = 13;
+/* NUMBERED PAGING, back in place of Load More.
+
+   Progressive disclosure (open at 13, grow by 13) replaced a numbered pager
+   here once, and it is being reversed deliberately: Load More can only ever
+   move forward, so reaching row 200 costs fifteen clicks and there is no way
+   back to row 20 except scrolling. A pager answers "how much is there" and
+   "take me to the middle" in one control, which is what a 241-row list needs.
+
+   TanStack's pagination row model was doing the slicing all along — it was
+   simply pinned to pageIndex 0 with pageSize standing in for a visible count.
+   Restoring real paging is therefore a change of STATE, not of machinery:
+   sorting, grouping, selection and the phone card list all keep working off
+   the same slice for free, exactly as they did. */
+const PAGE_SIZE_OPTIONS = [10, 20, 25, 50] as const;
+const DEFAULT_PAGE_SIZE = 20;
 
 
 // date-fns `format()` throws RangeError on a null/invalid Date — which would
 // crash the ENTIRE table render. Guard every cell so one bad row degrades to
 // "—" instead of taking down the whole list.
 function safeFormat(value: unknown): string {
-  if (!value) return "—";
+  if (!value) return "-";
   const d = value instanceof Date ? value : new Date(value as string);
-  return Number.isNaN(d.getTime()) ? "—" : formatDate(d);
+  return Number.isNaN(d.getTime()) ? "-" : formatDate(d);
 }
 
 // Due-date urgency for the list. Terminal/finished tasks never read as overdue
@@ -74,6 +80,8 @@ import {
   ArrowDown,
   ChevronsUpDown,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Search,
   SearchX,
   X,
@@ -111,11 +119,11 @@ function groupValue(
   if (by === "priority") return PRIORITY_LABELS[row.priority];
   if (by === "employee") {
     const v = row.doerName?.trim();
-    return v && v.length > 0 ? v : "— Unassigned";
+    return v && v.length > 0 ? v : "- Unassigned";
   }
   const raw = by === "client" ? row.client : row.subject;
   const v = raw?.trim();
-  return v && v.length > 0 ? v : by === "client" ? "— No client" : "— No subject";
+  return v && v.length > 0 ? v : by === "client" ? "- No client" : "- No subject";
 }
 import { CriticalBadge } from "@/components/ui/critical-badge";
 import { PRIORITY_LABELS, TASK_STATUSES, TASK_PRIORITIES } from "@/db/enums";
@@ -142,6 +150,9 @@ import { LateBadge } from "@/components/ui/late-badge";
 import { isDoneLate } from "@/lib/task-late";
 import { InlineStatusCell } from "./inline-status-cell";
 import { canEditTaskFields } from "@/lib/auth/task-permissions";
+// Shared with the dashboard's section pager so both agree on which page numbers
+// to show; see the footer pager below.
+import { pageWindow } from "@/components/dashboard/section-chrome";
 import {
   InlineDoerCell,
   InlinePriorityCell,
@@ -161,9 +172,10 @@ import {
 } from "@/lib/format";
 import {
   useSectionSearch,
-  matchesSearch,
   setSectionSearch,
 } from "@/lib/client/section-search";
+import { taskMatchesQuery } from "@/lib/tasks/task-search";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 // Friendly labels for the column show/hide menu (#11).
 const COLUMN_LABELS: Record<string, string> = {
@@ -171,6 +183,7 @@ const COLUMN_LABELS: Record<string, string> = {
   taskNo: "ID No.",
   client: "Client",
   doerName: "Doer",
+  initiatorName: "Initiator",
   priority: "Priority",
   status: "Doer Status",
   subject: "Subject",
@@ -275,8 +288,10 @@ function buildColumns(
   me: { id: string; isAdmin: boolean; canChangeDoer?: boolean },
   statusLabels: StatusLabels,
   statusTones: StatusTones,
-  /** Present only when the list opens records in the drawer. */
+  /** DOUBLE-click / Enter — open the record in full. */
   onOpenTask?: (id: string) => void,
+  /** SINGLE click — select the row and expand it in place. */
+  onSelectTask?: (id: string) => void,
 ): TaskCol[] {
   return [
     {
@@ -307,7 +322,7 @@ function buildColumns(
       cell: (info) => {
         const n = info.getValue<number | null>();
         return n == null ? (
-          <span className="text-ink-subtle">—</span>
+          <span className="text-ink-subtle">-</span>
         ) : (
           <span className="font-bold tabular-nums text-ink-soft" style={{ fontSize: 14 }}>
             #{n}
@@ -331,7 +346,7 @@ function buildColumns(
             {v}
           </span>
         ) : (
-          <span className="text-ink-subtle">—</span>
+          <span className="text-ink-subtle">-</span>
         );
       },
     },
@@ -341,7 +356,7 @@ function buildColumns(
       meta: { narrow: true },
       cell: (info) => (
         <span className="text-body-lg text-ink-muted">
-          {info.getValue<string>() ?? "—"}
+          {info.getValue<string>() ?? "-"}
         </span>
       ),
     },
@@ -350,7 +365,7 @@ function buildColumns(
       header: "Task",
       meta: { wide: true },
       cell: ({ row }) => (
-        <TaskTitleCell row={row.original} onOpen={onOpenTask} />
+        <TaskTitleCell row={row.original} onOpen={onOpenTask} onSelect={onSelectTask} />
       ),
     },
     // TIMER — takes the slot the Start Time / End Time columns held. Those two
@@ -399,6 +414,44 @@ function buildColumns(
           editable={me.canChangeDoer === true}
         />
       ),
+    },
+    {
+      /* WHO HANDED THE WORK OVER. `initiatorName` has been on TaskListRow all
+         along — the list simply never rendered a column for it, so in Doer view
+         there was no way to see who assigned a task without opening it.
+
+         Read-only, unlike the Doer cell beside it: reassigning a doer is a
+         supported action, changing who initiated a task is not — that is a fact
+         about the past.
+
+         SHOWN BY DEFAULT rather than forced per view. The brief asks for the
+         counterpart column to appear automatically with the active View, and
+         forcing it would have to override each person's saved column choices
+         (localStorage, per user) and then fight the Columns menu, whose tick
+         for that column could no longer turn it off. Defaulting it visible
+         reaches the same place — Initiator readable in Doer view, Doer readable
+         in Initiator view — and leaves the menu in charge. */
+      accessorKey: "initiatorName",
+      header: "Initiator",
+      meta: { mobileHide: true },
+      /* TEXT ONLY — no avatar.
+
+         The Doer cell beside it earns its avatar: it is an editable control,
+         and the face is what you aim at to reassign. This one is a read-only
+         fact, so the circle bought nothing and cost ~28px of gutter on every
+         row plus a second thing to scan past before reaching the name.
+
+         `min-w-[120px]` is a floor, not a fixed width: enough that the column
+         header and a first name never sit on top of each other, while the
+         column still sizes to its content like every other text column here. */
+      cell: ({ row }) => {
+        const name = row.original.initiatorName;
+        return name ? (
+          <span className="block min-w-[120px] truncate whitespace-nowrap">{name}</span>
+        ) : (
+          <span className="text-ink-subtle">—</span>
+        );
+      },
     },
     {
       accessorKey: "priority",
@@ -453,6 +506,27 @@ function buildColumns(
         );
       },
     },
+    /* MANAGER STATUS WAS HERE, and is removed on request (2026-09-07).
+     *
+     * It rendered `approval_status` — the admin's verdict — immediately right
+     * of Doer Status, and it was added because without it "Mark Approved" in
+     * the bulk bar looked broken: the verdict is stored in a DIFFERENT column
+     * from `status`, so approving a selection wrote the rows correctly and
+     * changed nothing on screen.
+     *
+     * THAT IS AGAIN TRUE. Approving from the bulk bar now has no visible effect
+     * on the row it applied to — the only feedback is the Approved pill's count
+     * ticking up at the top of the page. The verdict is still recorded, still
+     * filterable from that pill, and still shown on the task's own detail view;
+     * it is only this column that is gone. Flagged rather than argued: the
+     * column was carrying ~150px of a table whose width is contested, and every
+     * row in it read "—".
+     *
+     * `APPROVAL_LOOK` / `APPROVAL_RANK` / `ApprovalCell` went with it. All three
+     * were module-private and this column was their only caller, so keeping them
+     * would have left three definitions that compile, read as live code and
+     * render nothing. Git has them if the column is ever wanted back.
+     */
     {
       accessorKey: "createdAt",
       header: "Created",
@@ -541,6 +615,18 @@ export function TaskTable({
   const resolvedLabels = statusLabels ?? STATUS_LABELS_FALLBACK;
   const resolvedTones = statusTones ?? STATUS_TONES_FALLBACK;
 
+  /* THE SELECTED ROW.
+
+     One piece of state for two things that were always the same idea: the J/K
+     keyboard highlight, and now the row a single click selects. Keeping them
+     separate would let the list show two different "current" rows at once —
+     click one, press J, and which is selected? — so a click simply moves the
+     same highlight the keyboard moves.
+
+     Declared up here rather than beside the other list state because the
+     `columns` memo below closes over `selectTask`. */
+  const [focusedId, setFocusedId] = React.useState<string | null>(null);
+
   // Declared ahead of the `columns` memo below, which closes over `openTask`.
   const drawerRouter = useRouter();
   const pathname = usePathname();
@@ -558,6 +644,42 @@ export function TaskTable({
     },
     [drawerRouter, pathname, searchParams],
   );
+
+  /** SINGLE CLICK — select the row. Cheap, reversible, and it changes nothing
+   *  but what is highlighted and expanded, which is why it can fire
+   *  immediately: there is no need to wait out a double-click timer to find
+   *  out whether the second click is coming. A 250ms delay on every single
+   *  click to serve the rarer gesture is the thing that makes tables like this
+   *  feel slow. */
+  const selectTask = React.useCallback(
+    /* TOGGLE, not set. Clicking the open row again closes the preview — the
+       gesture that opened it is the gesture that undoes it, which is what the
+       panel was missing: there was no way back out short of opening the full
+       task or reloading the page. */
+    (id: string) => setFocusedId((cur) => (cur === id ? null : id)),
+    [],
+  );
+
+  /* `closePreview` lived here. It existed only for the panel's own "✕ Close"
+     button, which is gone — and the two routes out that remain do not need it:
+     the row click toggles through `selectTask` above, and Escape clears
+     `focusedId` directly in the key handler. */
+
+  /** DOUBLE CLICK — open the record in full: the drawer where the list has
+   *  one, otherwise the task's own page. The single click that necessarily
+   *  precedes it has already selected the row, so the two gestures compose
+   *  rather than conflict. */
+  const openFull = React.useCallback(
+    (id: string) => {
+      if (openInDrawer) {
+        openTask(id);
+        return;
+      }
+      drawerRouter.push(`/tasks/${id}` as never);
+    },
+    [openInDrawer, openTask, drawerRouter],
+  );
+
   // Prefer the server-provided rosters; otherwise derive distinct values from
   // the loaded rows so bulk Subject/Client still works on pages that don't
   // pass the full picker lists (e.g. Archived).
@@ -584,9 +706,10 @@ export function TaskTable({
         me,
         resolvedLabels,
         resolvedTones,
-        openInDrawer ? openTask : undefined,
+        openFull,
+        selectTask,
       ),
-    [employees, me, resolvedLabels, resolvedTones, openInDrawer, openTask],
+    [employees, me, resolvedLabels, resolvedTones, openFull, selectTask],
   );
 
   // #11 — per-user column visibility, persisted in localStorage. Seeded from
@@ -686,13 +809,13 @@ export function TaskTable({
   // Multi-select (bulk actions). Keyed by task id via getRowId, so selection
   // survives sorting, paging, and grouping.
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
-  // Keyboard list navigation: J/K move a highlight, Enter opens, F → Focus
-  // mode. Tracked by task id so it survives re-sorts.
-  const [focusedId, setFocusedId] = React.useState<string | null>(null);
+  // (`focusedId` — the J/K highlight and the single-click selection — is
+  //  declared above the `columns` memo, which closes over `selectTask`.)
   const router = useRouter();
-  // How many rows are rendered. Grows on Load More; never shrinks except when
-  // the underlying list changes (new search / grouping / filter).
-  const [shown, setShown] = React.useState<number>(INITIAL_ROWS);
+  // Which page, and how big. Both are LOCAL rather than URL params — see the
+  // note on `pageCount` below for why this list does not page on the server.
+  const [pageSize, setPageSize] = React.useState<number>(DEFAULT_PAGE_SIZE);
+  const [pageIndex, setPageIndex] = React.useState(0);
 
   // Free-text search across task no + the human-readable fields. Runs purely
   // client-side over the already-loaded rows (the list query returns the full
@@ -703,21 +826,23 @@ export function TaskTable({
   // in behaves identically and neither silently overrides the other.
   const sectionQuery = useSectionSearch();
 
+  // DESCRIPTION IS SEARCHED. It was the one field this list left out while the
+  // Kanban board and the My Day agenda both matched on it — and it is the field
+  // the row's own hover preview and expanded panel put on screen, so a reader
+  // who searched a line they could see got "No tasks" back.
   const matchesRow = React.useCallback(
-    (r: TaskListRow, q: string) => {
-      if (!q) return true;
-      const qNum = q.replace(/^#/, ""); // "#1042" or "1042" both match the No.
-      if (r.taskNo != null && String(r.taskNo).includes(qNum)) return true;
-      return matchesSearch(
+    (r: TaskListRow, q: string) =>
+      taskMatchesQuery(
         q,
+        r.taskNo,
         r.title,
+        r.description,
         r.subject,
         r.client,
         r.doerName,
         r.initiatorName,
         resolvedLabels[r.status] ?? r.status,
-      );
-    },
+      ),
     [resolvedLabels],
   );
 
@@ -758,20 +883,21 @@ export function TaskTable({
     getRowId: (row) => row.id,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    // Used as a "first N rows" window, not as pages: pageIndex stays 0 and
-    // pageSize tracks `shown`. Sorting/visibility still apply across the FULL
-    // set before the slice, so Load More reveals the next rows in order rather
-    // than re-sorting what is on screen.
+    // Real pages now. Sorting, grouping and column visibility still apply
+    // across the FULL set BEFORE the slice, so page 2 is the next rows in the
+    // sorted order rather than a re-sort of what happens to be on screen.
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageIndex: 0, pageSize: INITIAL_ROWS } },
+    initialState: { pagination: { pageIndex: 0, pageSize: DEFAULT_PAGE_SIZE } },
     autoResetPageIndex: false,
   });
 
-  // The window is always the first `shown` rows.
+  // Push both halves of the local pagination state into the table.
   React.useEffect(() => {
-    table.setPageSize(shown);
-    table.setPageIndex(0);
-  }, [shown, table]);
+    table.setPageSize(pageSize);
+  }, [pageSize, table]);
+  React.useEffect(() => {
+    table.setPageIndex(pageIndex);
+  }, [pageIndex, table]);
 
   // Total rows per group across the full (unpaginated) set, for the count
   // shown in each group header. Keyed by the same label `groupValue` renders.
@@ -785,16 +911,24 @@ export function TaskTable({
     return m;
   }, [groupBy, visibleRows, resolvedLabels]);
 
-  // Regrouping reorders everything, so collapse back to the first 13 rather
-  // than leaving a long expansion pointing at a list that no longer matches it.
+  // Regrouping reorders everything, so page 7 of the old order describes
+  // nothing in the new one. Back to the first page.
   React.useEffect(() => {
-    setShown(INITIAL_ROWS);
+    setPageIndex(0);
   }, [groupBy]);
 
-  // A new search is a different list — start it at 13 again.
+  /* A DIFFERENT LIST STARTS AT PAGE ONE — and `rows` is in here, not just the
+     search box.
+
+     `rows` changes whenever a GLOBAL filter changes (status, priority, client,
+     doer, date range): the server re-queries and hands this component a new
+     array. Watching only `query` would leave someone on page 9 of a list that
+     now has two pages, staring at an empty grid with no obvious way back.
+     `sectionQuery` is the filter bar's own search box, which narrows the same
+     set through the same matcher. */
   React.useEffect(() => {
-    setShown(INITIAL_ROWS);
-  }, [query]);
+    setPageIndex(0);
+  }, [query, sectionQuery, rows]);
 
   // Scroll the table back into view when the page changes, so the new rows are
   // visible without a manual scroll up.
@@ -827,6 +961,10 @@ export function TaskTable({
       } else if (k === "k") {
         e.preventDefault();
         setFocusedId(ids[cur < 0 ? 0 : Math.max(0, cur - 1)] ?? null);
+      } else if (e.key === "Escape" && focusedId) {
+        // The keyboard's way out of the preview, matching the click toggle.
+        e.preventDefault();
+        setFocusedId(null);
       } else if (cur >= 0 && (e.key === "Enter" || k === "f")) {
         // Don't steal Enter from a focused button / link / menu item.
         const ae = document.activeElement as HTMLElement | null;
@@ -849,12 +987,27 @@ export function TaskTable({
       ?.scrollIntoView({ block: "nearest" });
   }, [focusedId]);
 
-  // Pre-slice total = every row that survived filters + search. `rendered` is
-  // what the window is actually showing, which is `shown` until the list runs
-  // out. Both feed the footer's "Showing X of Y".
+  /* Pre-slice total = every row that survived the global filters, the search
+     box and the filter bar's search. That is the number the pager divides.
+
+     PAGING IS CLIENT-SIDE, over rows already in memory, and that is a choice
+     rather than an oversight. The list query hands this component the whole
+     filtered set, so a page change costs an array slice — instant, no spinner,
+     no server round-trip. Putting `?page=` in the URL would trade that for a
+     server render per click over data the browser already holds. The cursor
+     API that does exist (`listTasksPage`) is forward-only by design, so it
+     cannot answer "jump to page 7" at all, which is half of what a pager is
+     for. If this list ever outgrows one payload, THAT is the change to make —
+     offset paging server-side — not a URL param over the current query. */
   const totalFiltered = table.getPrePaginationRowModel().rows.length;
-  const rendered = Math.min(shown, totalFiltered);
-  const hasMore = rendered < totalFiltered;
+  const pageCount = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  // Clamped for the render pass where `totalFiltered` has already shrunk but
+  // the reset effect above has not yet run — without this the label reads
+  // "Page 9 of 2" for one frame.
+  const safePageIndex = Math.min(pageIndex, pageCount - 1);
+  const rangeStart = totalFiltered === 0 ? 0 : safePageIndex * pageSize + 1;
+  const rangeEnd = Math.min((safePageIndex + 1) * pageSize, totalFiltered);
+  const rendered = table.getRowModel().rows.length;
 
   /** Cell (body) alignment. Headers are ALWAYS left — see `headAlign` below. */
   function alignClass(c: TaskCol): string {
@@ -911,15 +1064,15 @@ export function TaskTable({
   const countLabel =
     totalFiltered === 0
       ? `No tasks${filterSuffix}`
-      : hasMore
-        ? `Showing ${rendered.toLocaleString("en-IN")} of ${totalFiltered.toLocaleString("en-IN")}${filterSuffix}`
+      : pageCount > 1
+        ? `Showing ${rangeStart.toLocaleString("en-IN")}–${rangeEnd.toLocaleString("en-IN")} of ${totalFiltered.toLocaleString("en-IN")}${filterSuffix}`
         : `Showing all ${totalFiltered.toLocaleString("en-IN")} ${totalFiltered === 1 ? "task" : "tasks"}${filterSuffix}`;
 
   return (
     <div ref={listTopRef} className="scroll-mt-6">
-      {/* Toolbar — Group-by ▾ · Search · Columns. The pager and rows-per-page
-          that used to sit here are gone; the row count and Load More live in
-          the table's sticky footer instead, beside the rows they describe. */}
+      {/* Toolbar — Group-by ▾ · Search · Pager · Columns. The range label and a
+          Prev/Next pair are repeated in the table's sticky footer, beside the
+          rows they describe and reachable without scrolling back up. */}
       <div
         className="wg-rise mb-3 flex items-center gap-2 flex-wrap rounded-section border border-hairline px-3 py-2 max-md:px-3"
         style={{
@@ -938,10 +1091,24 @@ export function TaskTable({
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2 flex-wrap">
-          {/* No numbered pager and no rows-per-page: the grid is a single
-              growing list now, and both controls describe a page model that no
-              longer exists. The count and the Load More that replaced them live
-              in the table's own sticky footer, next to the rows they govern. */}
+          {/* The pager sits beside the search box, where it was before Load
+              More replaced it — the two controls answer the same question
+              ("show me a different part of this list") and belong on one rail. */}
+          <TablePager
+            pageIndex={safePageIndex}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            total={totalFiltered}
+            onPage={setPageIndex}
+            onPageSize={(n) => {
+              // Page size changes the meaning of every page number, so the only
+              // honest landing spot is the first page.
+              setPageSize(n);
+              setPageIndex(0);
+            }}
+          />
           <MobileSortControl table={table} className="hidden max-md:flex" />
           <ColumnsMenu table={table} />
         </div>
@@ -978,15 +1145,18 @@ export function TaskTable({
         //     `sticky right-0`, which only works because the sticky ancestor is
         //     THIS element (an overflow container) — so the scrolling had to stay
         //     on one div rather than being split across the two axes.
-        //   overflow-y-auto + max-h — the 13-row window. Rows are content-sized
-        //     rather than a fixed height, so 560px is an APPROXIMATION of
-        //     13 rows (~40px) plus the header (~40px); it is the cap that stops
-        //     Load More growing the page instead of the scroller.
+        //   overflow-y-auto + max-h — the scrollport for a page taller than the
+        //     viewport. The cap is CONDITIONAL: at 10 rows a page fits without
+        //     one, and capping it there would put a scrollbar on a list that
+        //     has nothing to scroll. At 20+ the cap is what keeps the page
+        //     itself from growing and pushing the footer off-screen.
         // `max-h`, deliberately, NOT a fixed `h-`: a short list must shrink to
         // its rows rather than leave a tall empty box below the last one.
+        // The header row is `sticky top-0 z-20` (see the <th> below), so it
+        // stays put while rows move under it.
         // `overscroll-x-contain` stops a sideways fling from also triggering the
         // browser's back-navigation gesture.
-        className="overflow-x-auto overflow-y-auto overscroll-x-contain max-h-[560px]"
+        className={`overflow-x-auto overflow-y-auto overscroll-x-contain ${pageSize > 10 ? "max-h-[600px]" : ""}`}
       >
       <table className="min-w-full">
         <thead>
@@ -1195,7 +1365,7 @@ export function TaskTable({
                       >
                         {label}
                       </span>
-                      <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full bg-altus-red/10 text-altus-red font-bold tabular-nums text-[12px]">
+                      <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-pill bg-altus-red/10 text-altus-red font-bold tabular-nums text-[12px]">
                         {groupCounts?.get(label!) ?? 0}
                       </span>
                     </span>
@@ -1212,32 +1382,50 @@ export function TaskTable({
                  (rgba(60,44,40,0.07)) that made the list read as one block.
                  `last:border-b-0` is dropped — a closing rule under the final
                  row is what makes the table look finished rather than cut off. */
-              // Row click opens the drawer, so the whole row is the target and
-              // not just the title link. Guarded below against clicks that
-              // started on a control.
-              onClick={
-                openInDrawer
-                  ? (e) => {
-                      // Never hijack a click that belongs to something else:
-                      // the select checkbox, the inline status editor, the
-                      // Manage cluster, or the title link (which handles
-                      // modifier-clicks to open a new tab itself).
-                      const el = e.target as HTMLElement;
-                      if (el.closest("a, button, input, select, textarea, [role='button'], [role='menuitem']"))
-                        return;
-                      // A drag-select of cell text should not open the record.
-                      if (window.getSelection()?.toString()) return;
-                      openTask(row.original.id);
-                    }
-                  : undefined
-              }
+              /* SINGLE CLICK SELECTS, DOUBLE CLICK OPENS.
+
+                 A single click used to open the drawer outright, which made
+                 reading a truncated title cost a full navigation and a trip
+                 back. Now it selects: the row highlights and expands in place
+                 to show the whole task. Opening the record is the double
+                 click.
+
+                 No timer between the two. `click` fires before `dblclick`, so
+                 a double click selects and then opens — and because selecting
+                 is instant and reversible, that sequence is harmless. The
+                 alternative, holding every single click for ~250ms to see
+                 whether a second one lands, would tax the common gesture to
+                 serve the rare one.
+
+                 Both handlers share one guard: a click that started on a
+                 control belongs to that control. */
+              onClick={(e) => {
+                if (!isRowClick(e)) return;
+                /* `detail` is the click count: 2 on the second click of a
+                   double click. Without this, a double click would select on
+                   the first click and DESELECT on the second, closing the
+                   preview underneath the full task the gesture is opening.
+                   The dblclick handler owns that gesture; this one owns
+                   genuine single clicks. */
+                if (e.detail > 1) return;
+                selectTask(row.original.id);
+              }}
+              onDoubleClick={(e) => {
+                if (startedOnControl(e)) return;
+                // Drop the word the double click just selected. Leaving it
+                // highlighted behind the opening record is visible mess, and
+                // the next single click on the row would then be read as a
+                // drag-select and ignored.
+                window.getSelection()?.removeAllRanges();
+                openFull(row.original.id);
+              }}
               // border-l-4 transparent by default so turning it red on hover
               // costs no layout shift — a border that appears would push every
               // cell 4px right. See the note in globals.css for why this is a
               // border and not a box-shadow.
-              className={`task-row border-b border-l-4 border-gray-200 border-l-transparent hover:border-l-red-600 ${
-                openInDrawer ? "is-clickable" : ""
-              } ${row.original.id === focusedId ? "is-focused bg-altus-red/[0.06]" : ""}`}
+              className={`task-row is-clickable border-b border-l-4 border-gray-200 border-l-transparent hover:border-l-red-600 ${
+                row.original.id === focusedId ? "is-focused bg-altus-red/[0.06]" : ""
+              }`}
               style={{
                 boxShadow:
                   [
@@ -1315,6 +1503,77 @@ export function TaskTable({
                 );
               })}
             </tr>
+
+            {/* THE FULL TASK, in place. What the single click is FOR: the Task
+                column caps at 64ch and ellipsizes, so on this list a long
+                title is unreadable without either hovering for the tooltip or
+                opening the record. This is the same content the hover tooltip
+                carries, but pinned by the selection instead of tied to where
+                the pointer happens to rest — so it can be read, scrolled past
+                and returned to.
+
+                A second `<tr>` rather than growing the row itself: every cell
+                in the row is `whitespace-nowrap`, and the frozen columns have
+                exact widths, so a row that grew taller would drag the sticky
+                Client/Subject block out of alignment with its neighbours. */}
+            {row.original.id === focusedId && (
+              <tr data-task-detail={row.original.id}>
+                {/* PADDING MOVED OFF THE CELL and onto the panel inside it. The
+                    cell spans the table's whole SCROLL width; the panel is the
+                    part that has to stay on screen, so it owns the box. */}
+                <td
+                  colSpan={visibleCols}
+                  className="border-b border-gray-200 p-0"
+                  style={{ background: "color-mix(in srgb, var(--color-altus-red) 3.5%, #fff)" }}
+                >
+                  {/* FROZEN TO THE LEFT EDGE. `sticky left-0` inside a cell that
+                      spans every column, so the panel slides along as the table
+                      scrolls sideways and stays fully readable instead of
+                      travelling off to the left with the Client column. Measured
+                      before this: at full right-scroll the panel sat at x =
+                      -234px — the title and description were simply gone while
+                      the row that opened them was still on screen.
+
+                      It works because the panel is NARROWER than the cell:
+                      `max-w-[110ch]` leaves the browser room to shift it within
+                      its containing block, which is the whole mechanism sticky
+                      has. A full-width panel has zero offset room and would not
+                      move at all.
+
+                      The red rule and the background travel WITH the panel, not
+                      with the cell — a border pinned to the table's left edge
+                      scrolls away and leaves the frozen panel looking unmoored.
+                      Opaque, because it slides across the cell behind it. */}
+                  <div
+                    className="sticky left-0 max-w-[110ch] whitespace-normal border-l-4 border-l-altus-red px-5 py-3 max-md:px-3"
+                    style={{ background: "color-mix(in srgb, var(--color-altus-red) 3.5%, #fff)" }}
+                  >
+                    <p className="text-[14.5px] font-bold leading-snug text-ink-strong">
+                      {row.original.title}
+                    </p>
+                    {row.original.description?.trim() ? (
+                      <p className="mt-1.5 whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink-soft">
+                        {row.original.description.trim()}
+                      </p>
+                    ) : (
+                      <p className="mt-1.5 text-[12.5px] font-semibold text-ink-subtle">
+                        No description added yet.
+                      </p>
+                    )}
+                    {/* THE "Open full task" / "Close" HINT ROW IS GONE, on
+                        request. It spelled out both gestures — double-click to
+                        open, click again or Esc to close — on the reasoning that
+                        an unadvertised gesture goes unused.
+
+                        Every gesture it described still works: the row still
+                        toggles this panel shut on a second click, Esc still
+                        closes it, and a double click still opens the record.
+                        Only the instructions are gone, so the panel shows the
+                        task and nothing about itself. */}
+                  </div>
+                </td>
+              </tr>
+            )}
             </React.Fragment>
           );
           })}
@@ -1330,15 +1589,79 @@ export function TaskTable({
         <span className="text-[12.5px] font-semibold text-ink-subtle tabular-nums">
           {countLabel}
         </span>
-        {hasMore && (
-          <button
-            type="button"
-            onClick={() => setShown((n) => n + LOAD_MORE_STEP)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-gray-200"
-          >
-            <ChevronDown size={14} strokeWidth={2.6} />
-            Load More
-          </button>
+        {pageCount > 1 && (
+          /* A SECOND pager. After scrolling to the bottom of a 50-row page the
+             toolbar is off-screen, and making someone scroll back up to reach
+             "next" is the thing that made the old pager annoying.
+
+             NUMBERED PAGES SIT BETWEEN Prev and Next (2026-09-08), so a jump to
+             page 4 no longer costs three clicks or a trip back to the toolbar.
+             `pageWindow` is the dashboard pager's own function rather than a
+             second copy — two windowing rules that disagree about what to show
+             at page 7 of 40 is the bug this avoids. The page-size selector still
+             lives only in the toolbar: it is a setting, not a movement, and it
+             is not what you reach for at the end of a page. */
+          <nav className="flex shrink-0 items-center gap-1" aria-label="Task pages">
+            <button
+              type="button"
+              onClick={() => setPageIndex((n) => Math.max(0, n - 1))}
+              disabled={safePageIndex === 0}
+              aria-label="Previous page"
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-gray-200 disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <ChevronLeft size={14} strokeWidth={2.6} /> Prev
+            </button>
+
+            {/* Hidden below `sm`: the phone layout has its own pager, and eight
+                tap targets do not fit beside a range label at 360px. */}
+            <span className="flex items-center gap-1 max-sm:hidden">
+              {pageWindow(safePageIndex + 1, pageCount).map((p, i) =>
+                p === "…" ? (
+                  <span
+                    key={`gap-${i}`}
+                    aria-hidden
+                    className="px-0.5 text-[12.5px] font-bold text-ink-subtle"
+                  >
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPageIndex(p - 1)}
+                    aria-label={`Page ${p}`}
+                    aria-current={p === safePageIndex + 1 ? "page" : undefined}
+                    className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-[12.5px] font-bold tabular-nums transition-colors ${
+                      p === safePageIndex + 1
+                        ? "text-white"
+                        : "text-ink-strong hover:bg-gray-200"
+                    }`}
+                    style={
+                      p === safePageIndex + 1
+                        ? {
+                            background:
+                              "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
+                            boxShadow: "0 4px 10px -4px rgba(225,6,0,0.5)",
+                          }
+                        : undefined
+                    }
+                  >
+                    {p}
+                  </button>
+                ),
+              )}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setPageIndex((n) => Math.min(pageCount - 1, n + 1))}
+              disabled={safePageIndex >= pageCount - 1}
+              aria-label="Next page"
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-gray-200 disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              Next <ChevronRight size={14} strokeWidth={2.6} />
+            </button>
+          </nav>
         )}
       </div>
       </div>
@@ -1366,7 +1689,7 @@ export function TaskTable({
                   >
                     {label}
                   </span>
-                  <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full bg-altus-red/10 text-altus-red font-bold tabular-nums text-[12px]">
+                  <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-pill bg-altus-red/10 text-altus-red font-bold tabular-nums text-[12px]">
                     {groupCounts?.get(label!) ?? 0}
                   </span>
                 </div>
@@ -1390,17 +1713,38 @@ export function TaskTable({
           sticking. */}
       <div className="mt-5 flex items-center justify-center gap-3 md:hidden">
         <p className="text-[13px] font-semibold text-ink-subtle tabular-nums">
-          Showing {rendered.toLocaleString("en-IN")} of {totalFiltered.toLocaleString("en-IN")}
+          {rendered === 0
+            ? `0 of ${totalFiltered.toLocaleString("en-IN")}`
+            : `${rangeStart.toLocaleString("en-IN")}–${rangeEnd.toLocaleString("en-IN")} of ${totalFiltered.toLocaleString("en-IN")}`}
           {filterSuffix}
         </p>
-        {hasMore && (
-          <button
-            type="button"
-            onClick={() => setShown((n) => n + LOAD_MORE_STEP)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-white px-3 py-1.5 text-[13px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
-          >
-            <ChevronDown size={14} strokeWidth={2.6} /> Load More
-          </button>
+        {pageCount > 1 && (
+          /* Prev/Next only on phones. A jump input and a size selector on a
+             360px-wide screen would wrap the row onto three lines to serve a
+             gesture nobody makes with a thumb. */
+          <span className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPageIndex((n) => Math.max(0, n - 1))}
+              disabled={safePageIndex === 0}
+              aria-label="Previous page"
+              className="inline-flex items-center rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-[13px] font-bold text-ink-strong transition-colors hover:bg-surface-soft disabled:opacity-40"
+            >
+              <ChevronLeft size={14} strokeWidth={2.6} />
+            </button>
+            <span className="text-[12.5px] font-bold tabular-nums text-ink-subtle">
+              {safePageIndex + 1}/{pageCount}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPageIndex((n) => Math.min(pageCount - 1, n + 1))}
+              disabled={safePageIndex >= pageCount - 1}
+              aria-label="Next page"
+              className="inline-flex items-center rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-[13px] font-bold text-ink-strong transition-colors hover:bg-surface-soft disabled:opacity-40"
+            >
+              <ChevronRight size={14} strokeWidth={2.6} />
+            </button>
+          </span>
         )}
       </div>
     </div>
@@ -1457,6 +1801,135 @@ export function NoResults({
 // Search box for the task list. Matches the task No. (with or without the
 // leading #) plus title / subject / client / doer / initiator / status —
 // "search by task no or any other criteria".
+/**
+ * The pager: a range label, a rows-per-page selector, and page navigation with
+ * a jump box.
+ *
+ * ONE CONTROL, not three scattered ones. The label says what you are looking
+ * at, the selector says how much of it fits, and the arrows move you — read
+ * left to right it is a sentence about the same list.
+ *
+ * The jump box is an `<input type="number">` rather than a row of numbered
+ * buttons. At 241 tasks and 20 a page that is 13 buttons, which either wraps
+ * the toolbar onto a second line or gets elided to "1 2 3 … 13" — and the
+ * elision hides exactly the middle pages someone would want to jump to. A box
+ * reaches any page in the same two keystrokes.
+ *
+ * NO `dark:` VARIANTS, as everywhere else in this file: the app registers no
+ * dark theme and the toolbar under this is hardcoded light, so a `dark:`
+ * variant would darken these controls for anyone whose OS is in dark mode
+ * while the bar they sit on stayed white.
+ */
+function TablePager({
+  pageIndex,
+  pageCount,
+  pageSize,
+  rangeStart,
+  rangeEnd,
+  total,
+  onPage,
+  onPageSize,
+}: {
+  pageIndex: number;
+  pageCount: number;
+  pageSize: number;
+  rangeStart: number;
+  rangeEnd: number;
+  total: number;
+  onPage: (i: number) => void;
+  onPageSize: (n: number) => void;
+}) {
+  // Local, so the box can hold a half-typed number ("1" on the way to "12")
+  // without the table jumping to page 1 between the two keystrokes.
+  const [draft, setDraft] = React.useState("");
+  const shownPage = draft === "" ? String(pageIndex + 1) : draft;
+
+  function commit(raw: string) {
+    setDraft("");
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return;
+    // Clamped rather than rejected: typing 99 into a 12-page list means "the
+    // end", and an error state for that would be pedantry.
+    onPage(Math.min(pageCount, Math.max(1, Math.trunc(n))) - 1);
+  }
+
+  const btn =
+    "inline-flex size-7 shrink-0 items-center justify-center rounded-md border border-hairline bg-white text-ink-strong transition-colors hover:bg-surface-soft disabled:opacity-40 disabled:hover:bg-white";
+
+  return (
+    <div className="flex items-center gap-2 text-[12px] font-semibold text-ink-subtle">
+      <span className="whitespace-nowrap tabular-nums max-lg:hidden">
+        {total === 0
+          ? "No tasks"
+          : `Showing ${rangeStart.toLocaleString("en-IN")}–${rangeEnd.toLocaleString("en-IN")} of ${total.toLocaleString("en-IN")}`}
+      </span>
+
+      <label className="flex items-center gap-1 whitespace-nowrap">
+        <span className="max-sm:hidden">Rows</span>
+        <select
+          value={pageSize}
+          onChange={(e) => onPageSize(Number(e.target.value))}
+          aria-label="Rows per page"
+          className="h-7 rounded-md border border-hairline bg-white px-1.5 text-[12px] font-bold text-ink-strong"
+        >
+          {PAGE_SIZE_OPTIONS.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <span className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onPage(Math.max(0, pageIndex - 1))}
+          disabled={pageIndex === 0}
+          aria-label="Previous page"
+          className={btn}
+        >
+          <ChevronLeft size={14} strokeWidth={2.6} />
+        </button>
+
+        <span className="flex items-center gap-1 whitespace-nowrap">
+          <span className="max-sm:hidden">Page</span>
+          <input
+            type="number"
+            min={1}
+            max={pageCount}
+            value={shownPage}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={(e) => commit(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit((e.target as HTMLInputElement).value);
+                (e.target as HTMLInputElement).blur();
+              } else if (e.key === "Escape") {
+                setDraft("");
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            aria-label={`Page number, 1 to ${pageCount}`}
+            className="h-7 w-11 rounded-md border border-hairline bg-white px-1 text-center text-[12px] font-bold tabular-nums text-ink-strong"
+          />
+          <span className="tabular-nums">of {pageCount}</span>
+        </span>
+
+        <button
+          type="button"
+          onClick={() => onPage(Math.min(pageCount - 1, pageIndex + 1))}
+          disabled={pageIndex >= pageCount - 1}
+          aria-label="Next page"
+          className={btn}
+        >
+          <ChevronRight size={14} strokeWidth={2.6} />
+        </button>
+      </span>
+    </div>
+  );
+}
+
 function SearchBox({
   value,
   onChange,
@@ -1468,6 +1941,7 @@ function SearchBox({
 }) {
   return (
     <div className="flex items-center gap-3 flex-wrap">
+      <CollapsibleSearch scope="tasks">
       <div className="relative w-full max-w-md">
         <Search
           size={16}
@@ -1478,9 +1952,9 @@ function SearchBox({
           type="search"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Local search — task no. (#1042), title, subject, client, doer"
-          title="Local search — filters only the list on this page"
-          aria-label="Local search — tasks on this page only"
+          placeholder="Local search - task no. (#1042), title, subject, client, doer"
+          title="Local search - filters only the list on this page"
+          aria-label="Local search - tasks on this page only"
           className="w-full h-10 pl-10 pr-9 rounded-pill border border-hairline bg-surface-card text-[15px] text-ink-strong placeholder:text-ink-subtle shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)] outline-none transition-all focus:border-altus-red focus:ring-2 focus:ring-altus-red/25"
         />
         {value && (
@@ -1494,6 +1968,7 @@ function SearchBox({
           </button>
         )}
       </div>
+      </CollapsibleSearch>
       {value.trim() && (
         <span className="text-[13px] font-semibold text-ink-subtle tabular-nums">
           {resultCount} {resultCount === 1 ? "match" : "matches"}
@@ -1598,13 +2073,48 @@ function taskCellLabel(row: TaskListRow): string {
  * pure overhead, so if either of those ever stops being stable, this stops
  * helping and should be revisited rather than left as decoration.
  */
+
+/**
+ * Did this gesture start on something that handles its own clicks — the select
+ * checkbox, an inline status editor, the Manage cluster, the title link? Those
+ * belong to the control, never to the row.
+ *
+ * Shared by the row's click and double-click handlers so the two can never
+ * disagree about which targets the row owns.
+ */
+function startedOnControl(e: React.MouseEvent<HTMLElement>): boolean {
+  const el = e.target as HTMLElement;
+  return Boolean(
+    el.closest("a, button, input, select, textarea, [role='button'], [role='menuitem']"),
+  );
+}
+
+/**
+ * A SINGLE click the row should act on.
+ *
+ * Also excludes the case where text is selected: dragging across a cell to
+ * copy a value ends in a click, and moving the selection out from under
+ * someone mid-drag is the wrong response to that.
+ *
+ * Deliberately NOT reused by the double-click handler. A double click selects
+ * the word under the pointer as a matter of browser behaviour, so this check
+ * is true of literally every double click — sharing it would have made
+ * double-click-to-open silently never fire.
+ */
+function isRowClick(e: React.MouseEvent<HTMLElement>): boolean {
+  return !startedOnControl(e) && !window.getSelection()?.toString();
+}
+
 const TaskTitleCell = React.memo(function TaskTitleCell({
   row,
   onOpen,
+  onSelect,
 }: {
   row: TaskListRow;
-  /** When set, a plain click opens the drawer instead of navigating. */
+  /** Double click — open the record in full. */
   onOpen?: (id: string) => void;
+  /** Single click — select the row and expand it in place. */
+  onSelect?: (id: string) => void;
 }) {
   // Gmail's unread rule: never-opened tasks read heavier than the rest.
   // `firstReadAt` is the same column the NOT READ KPI counts, so the two
@@ -1613,12 +2123,23 @@ const TaskTitleCell = React.memo(function TaskTitleCell({
   const link = (
     <Link
       href={`/tasks/${row.id}` as Route}
+      /* The title obeys the row's rule — single selects, double opens — so
+         clicking the words is not a different gesture from clicking the space
+         beside them. It keeps its own handlers only because it is an `<a>`,
+         which the row's guard deliberately skips.
+
+         `href` stays real: ⌘/Ctrl/middle-click still opens the task in a new
+         tab, and the link is still a link to a crawler and to the keyboard.
+         Only the plain left click is intercepted. */
       onClick={(e) => {
-        // Let ⌘/Ctrl/middle-click and new-tab intents through untouched —
-        // only a plain left click is rerouted into the drawer.
-        if (!onOpen || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         e.preventDefault();
-        onOpen(row.id);
+        onSelect?.(row.id);
+      }}
+      onDoubleClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        onOpen?.(row.id);
       }}
       className="task-title-link text-body underline-offset-2 transition-colors"
       style={{
@@ -1680,7 +2201,7 @@ const TaskTitleCell = React.memo(function TaskTitleCell({
               </p>
             ) : (
               <p style={{ fontSize: 13, color: "var(--color-ink-subtle)" }}>
-                {subject ? `Subject — ${subject}` : "No description added yet."}
+                {subject ? `Subject - ${subject}` : "No description added yet."}
               </p>
             )}
             <Tooltip.Arrow style={{ fill: "var(--color-surface-card)" }} />
@@ -1850,7 +2371,7 @@ function TaskCard({
               </span>
             )}
             <span className="text-ink-strong font-semibold truncate" style={{ fontSize: 15 }}>
-              {row.client?.trim() ? row.client : "— No client"}
+              {row.client?.trim() ? row.client : "- No client"}
             </span>
           </div>
         </div>
@@ -1893,7 +2414,7 @@ function TaskCard({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-ink-muted" style={{ fontSize: 13 }}>
-        <span>{row.subject?.trim() ? row.subject : "—"}</span>
+        <span>{row.subject?.trim() ? row.subject : "-"}</span>
         <span aria-hidden>·</span>
         {p === "imp_urgent" ? <CriticalBadge /> : <span>{PRIORITY_LABELS[p]}</span>}
         <span aria-hidden>·</span>

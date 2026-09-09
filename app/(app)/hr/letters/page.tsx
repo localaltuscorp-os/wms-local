@@ -1,10 +1,11 @@
 import Link from "next/link";
 import type { Route } from "next";
 import type { CSSProperties } from "react";
-import { ArrowLeft, ArrowUpRight, Mail } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { requireHrStaff } from "@/lib/hr/access";
 import { PageShell } from "@/components/layout/page-shell";
 import { lettersByCategory } from "@/lib/hr/letters/registry";
+import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -22,54 +23,14 @@ export default async function LettersIndexPage() {
   const groups = lettersByCategory();
 
   return (
-    <div className="min-h-dvh bg-[#faf9fb]">
+    <div className="min-h-full bg-[#faf9fb]">
       <style>{`.ltr-grid{display:grid;gap:16px;grid-template-columns:1fr}@media(min-width:640px){.ltr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(min-width:1024px){.ltr-grid{grid-template-columns:repeat(var(--cols),minmax(0,1fr))}}`}</style>
-      <header className="sticky sticky-below-topbar z-20 grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-hairline bg-white/90 px-6 py-3 backdrop-blur max-md:px-4">
-        <div className="justify-self-start">
-          <Link
-            href={"/hr" as Route}
-            className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold text-white transition-transform hover:-translate-x-0.5 max-md:px-3"
-            style={{
-              background: "linear-gradient(120deg, #18181b 0%, #A80400 100%)",
-              boxShadow: "0 12px 26px -12px rgba(168,4,0,0.55)",
-            }}
-          >
-            <ArrowLeft size={15} strokeWidth={2.6} className="transition-transform group-hover:-translate-x-0.5" />
-            <span className="max-md:hidden">HR Home</span>
-            <span className="md:hidden">Back</span>
-          </Link>
-        </div>
-        <img src="/logo.png" alt="Altus Corp" className="h-9 w-auto justify-self-center max-md:h-8" style={{ display: "block" }} />
-        <span aria-hidden className="justify-self-end" />
-      </header>
+      <HrTitleBar
+        title="Letters & Agreements"
+
+      />
 
       <PageShell width="full" py={false} className="pt-10 pb-24">
-        <header className="mb-8 wg-rise">
-          <span
-            className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white"
-            style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
-          >
-            <Mail size={13} strokeWidth={2.6} /> HR · Letters
-          </span>
-          <h1
-            className="mt-2 text-ink-strong"
-            style={{
-              fontFamily: "var(--font-display), system-ui, sans-serif",
-              fontWeight: 900,
-              fontSize: "clamp(30px,3.6vw,46px)",
-              letterSpacing: "-0.03em",
-              lineHeight: 1.02,
-            }}
-          >
-            Letters &amp; Agreements
-          </h1>
-          <p className="mt-1.5 max-w-[70ch] text-[15px] font-medium text-ink-muted">
-            Every letter opens on its own page — fill the highlighted fields, pick the paying
-            entity, then export or issue. The fixed wording stays fixed; only the red text is yours
-            to edit.
-          </p>
-        </header>
-
         {groups.length === 0 ? (
           <div className="rounded-2xl border border-solid border-hairline-strong bg-white px-6 py-14 text-center text-[15px] font-medium text-ink-muted">
             No letters authored yet.

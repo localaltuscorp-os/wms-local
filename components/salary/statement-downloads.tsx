@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Route } from "next";
 import { CalendarRange, FileText, Wallet } from "lucide-react";
 
 /**
@@ -50,12 +49,19 @@ export function StatementDownloads({
   const current = sorted.find((e) => e.id === selected);
   const disabled = !current;
 
-  const annualHref = current
-    ? (`/salary/annual-statement/${current.id}?year=${fyStartYear}` as Route)
-    : ("#" as Route);
-  const earningsHref = current
-    ? (`/salary/earnings/${current.id}?month=${month}&name=${encodeURIComponent(current.name)}` as Route)
-    : ("#" as Route);
+  // PLAIN STRINGS, deliberately not `Route`. These are ordinary <a> links to
+  // the nodejs PDF routes, not next/link — an <a href> takes a string, so the
+  // typed-routes cast bought nothing and cost a great deal: casting a template
+  // literal to `Route` makes TS expand the entire route union to check it, and
+  // once the app grew past a certain number of routes it gave up outright
+  // (TS2590 "union type that is too complex to represent"). Same trap the note
+  // in components/project-plan/plan-register.tsx describes.
+  const annualHref: string | undefined = current
+    ? `/salary/annual-statement/${current.id}?year=${fyStartYear}`
+    : undefined;
+  const earningsHref: string | undefined = current
+    ? `/salary/earnings/${current.id}?month=${month}&name=${encodeURIComponent(current.name)}`
+    : undefined;
 
   return (
     <section

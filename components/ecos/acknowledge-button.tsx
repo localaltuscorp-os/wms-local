@@ -27,7 +27,7 @@ export function AcknowledgeButton({ broadcastId }: { broadcastId: string }) {
           fireToast({ message: res.error ?? "Couldn't record your acknowledgement.", type: "error" });
           return;
         }
-        fireToast({ message: "Acknowledged — thank you.", type: "success" });
+        fireToast({ message: "Acknowledged - thank you.", type: "success" });
         router.refresh();
       } catch {
         fireToast({ message: "Couldn't record your acknowledgement.", type: "error" });
@@ -40,7 +40,7 @@ export function AcknowledgeButton({ broadcastId }: { broadcastId: string }) {
       type="button"
       onClick={run}
       disabled={pending}
-      className="group inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-bold text-white transition-transform hover:-translate-y-0.5 disabled:opacity-70"
+      className="group inline-flex items-center gap-2 rounded-pill px-5 py-2.5 text-[14px] font-bold text-white transition-transform hover:-translate-y-0.5 disabled:opacity-70"
       style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})`, boxShadow: "0 12px 26px -12px rgba(168,4,0,0.55)" }}
     >
       {pending ? (

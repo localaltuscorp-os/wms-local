@@ -153,7 +153,7 @@ export function TaskHeroBand({
         <div className="flex items-center gap-1.5 text-[13px] font-semibold text-white/75">
           {breadcrumb}
         </div>
-        <span className="rounded-full bg-white/20 px-3 py-1 text-[11.5px] font-bold uppercase tracking-wider text-white backdrop-blur-xs">
+        <span className="rounded-pill bg-white/20 px-3 py-1 text-[11.5px] font-bold uppercase tracking-wider text-white backdrop-blur-xs">
           {statusLabel}
         </span>
         {/* REWORK CYCLES — `rejectionCount` is the number of times this task was
@@ -161,7 +161,7 @@ export function TaskHeroBand({
             a "0 REWORK CYCLES" badge is noise on the majority of tasks that
             have never bounced. */}
         {(time?.rollup.rejectionCount ?? 0) > 0 && (
-          <span className="rounded-full bg-black/25 px-3 py-1 text-[11.5px] font-bold uppercase tracking-wider text-white">
+          <span className="rounded-pill bg-black/25 px-3 py-1 text-[11.5px] font-bold uppercase tracking-wider text-white">
             {time!.rollup.rejectionCount} rework{" "}
             {time!.rollup.rejectionCount === 1 ? "cycle" : "cycles"}
           </span>
@@ -182,15 +182,34 @@ export function TaskHeroBand({
           </h1>
         </div>
 
+        {/* TIMER — one horizontal group, so the banner is TWO rows and not four.
+            It used to stack: label, then the clock, then the buttons, then a
+            caption under those. Four stacked things on the right of a row whose
+            left side is a 44px ring and one line of title, which is what made a
+            "compact banner" three times the height of its content.
+
+            Now the readout and its buttons sit side by side, which also puts
+            Start Work · Restart directly beneath Edit Task · Link · Duplicate ·
+            Archive on the row above — the same right-hand column, so the two
+            action clusters line up instead of one being centred under a clock.
+
+            The caption moved into this group's tooltip. "Runs until approved,
+            cancelled or on hold" is worth saying once to someone who wonders;
+            it is not worth a permanent fourth line on every task. */}
         {time && (
-          <div className="shrink-0 text-right">
-            <p className="text-[10.5px] font-bold uppercase tracking-wider text-white/70">
-              Total task timer
-            </p>
-            <p className="text-[22px] font-black leading-none tabular-nums text-white">
-              {hms(total)}
-            </p>
-            <div className="mt-1.5 flex items-center justify-end gap-2">
+          <div
+            className="ml-auto flex shrink-0 items-center gap-3"
+            title="The timer runs until the task is approved, cancelled or put on hold."
+          >
+            <div className="text-right">
+              <p className="text-[10px] font-bold uppercase leading-none tracking-wider text-white/70">
+                Total task timer
+              </p>
+              <p className="mt-1 text-[20px] font-black leading-none tabular-nums text-white">
+                {hms(total)}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
               {canOperate && !locked && (
                 <>
                   <button
@@ -243,9 +262,6 @@ export function TaskHeroBand({
                 </>
               )}
             </div>
-            <p className="mt-1 text-[10.5px] font-medium text-white/60">
-              Runs until approved, cancelled or on hold.
-            </p>
           </div>
         )}
       </div>

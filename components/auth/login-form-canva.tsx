@@ -39,6 +39,10 @@ function translateFirebaseError(code: string | undefined): string {
   }
 }
 
+/** A refused DEVICE, as distinct from refused credentials. Its own class so the
+ *  handler can show the server's message verbatim without string-matching. */
+class DeviceNotAuthorizedError extends Error {}
+
 async function exchangeIdTokenForSession(idToken: string): Promise<void> {
   const res = await fetch("/api/auth/session", {
     method: "POST",
@@ -46,7 +50,7 @@ async function exchangeIdTokenForSession(idToken: string): Promise<void> {
     body: JSON.stringify({ idToken }),
   });
   if (res.ok) return;
-  let payload: { error?: string } = {};
+  let payload: { error?: string; message?: string } = {};
   try {
     payload = await res.json();
   } catch {
@@ -54,6 +58,17 @@ async function exchangeIdTokenForSession(idToken: string): Promise<void> {
   }
   if (res.status === 403 && payload.error === "not-enrolled") {
     throw new Error("not-enrolled");
+  }
+  // DEVICE ACCESS. The sign-in was valid; the DEVICE is not registered for WMS
+  // use, so the server refused before minting a session (see
+  // app/api/auth/session/route.ts). Carry the server's own sentence through —
+  // it distinguishes "never registered" from "waiting for approval" from
+  // "revoked", and the generic "couldn't sign you in" hides exactly the
+  // information the person needs to get unblocked.
+  if (res.status === 403 && payload.error === "device-not-authorized") {
+    throw new DeviceNotAuthorizedError(
+      payload.message ?? "This device is not authorized to use Altus.",
+    );
   }
   throw new Error("session-exchange-failed");
 }
@@ -96,6 +111,18 @@ export function LoginFormCanva() {
         window.location.replace(requestedNext);
       } catch (err: unknown) {
         const code = (err as { code?: string })?.code;
+        if (err instanceof DeviceNotAuthorizedError) {
+          setError(err.message);
+          // Sign out of Firebase too. The server issued no session cookie, so
+          // leaving a live Firebase credential behind would let the next page
+          // load silently re-attempt the exchange and fail the same way.
+          try {
+            await firebaseSignOut(getFirebaseAuth());
+          } catch {
+            /* best effort */
+          }
+          return;
+        }
         if ((err as Error)?.message === "not-enrolled") {
           setError("This email isn't enrolled in Altus Corp. Ask your admin to invite you.");
           try {

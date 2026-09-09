@@ -307,7 +307,7 @@ export function GoalsBulkUpload(props: Props) {
    *  run them through the same duplicate/anomaly evaluation as a file upload. */
   function onGridProceed(gridRows: BulkGridRow[]) {
     if (gridRows.length === 0) {
-      setError("Fill at least one goal — a Goal Title is required.");
+      setError("Fill at least one goal - a Goal Title is required.");
       return;
     }
     setError(null);
@@ -469,7 +469,7 @@ export function GoalsBulkUpload(props: Props) {
                   </span>
                   <a
                     href={templateUrl(props.level, props.periodKey)}
-                    className={`wg-btn inline-flex items-center gap-1.5 rounded-full border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:brightness-95 cursor-pointer ${FOCUS_RING}`}
+                    className={`wg-btn inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:brightness-95 cursor-pointer ${FOCUS_RING}`}
                   >
                     <Download size={14} strokeWidth={2.4} /> Download Excel
                   </a>
@@ -482,7 +482,7 @@ export function GoalsBulkUpload(props: Props) {
                     <button
                       type="button"
                       onClick={() => inputRef.current?.click()}
-                      className={`wg-btn inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-bold text-white cursor-pointer ${FOCUS_RING}`}
+                      className={`wg-btn inline-flex items-center gap-1.5 rounded-pill px-4 py-1.5 text-[13px] font-bold text-white cursor-pointer ${FOCUS_RING}`}
                       style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
                     >
                       <Upload size={14} strokeWidth={2.6} /> {rows ? "Choose another" : "Choose file"}
@@ -511,7 +511,10 @@ export function GoalsBulkUpload(props: Props) {
                   <p className="mt-4 text-[13.5px] font-medium" style={{ color: "var(--color-ink-muted)", lineHeight: 1.5 }}>
                     Download the <strong className="text-ink-soft">{levelName}</strong> template, fill one goal per row, then upload
                     the Excel/CSV. Columns:{" "}
-                    <strong className="text-ink-soft">Area · Goal · Measure · Actual · Target · Type</strong>. Only{" "}
+                    <strong className="text-ink-soft">
+                      Area · Goal · Measure · Actual · Target · Type · Client
+                    </strong>
+                    . Only{" "}
                     <strong className="text-ink-soft">Goal</strong> is required — % Done is computed from Actual ÷ Target.
                     Duplicates (of an existing goal or another row) are flagged so you can rename or drop them before importing.
                   </p>
@@ -522,14 +525,14 @@ export function GoalsBulkUpload(props: Props) {
                   <>
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <span
-                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-bold"
+                        className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12.5px] font-bold"
                         style={{ background: "color-mix(in srgb, var(--color-green) 14%, transparent)", color: "var(--color-green-deep)" }}
                       >
                         <CheckCircle2 size={14} /> {validCount} valid
                       </span>
                       {dupCount > 0 && (
                         <span
-                          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-bold"
+                          className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12.5px] font-bold"
                           style={{ background: "color-mix(in srgb, #b45309 16%, transparent)", color: "#92400e" }}
                         >
                           <Copy size={13} /> {dupCount} duplicate{dupCount === 1 ? "" : "s"}
@@ -537,7 +540,7 @@ export function GoalsBulkUpload(props: Props) {
                       )}
                       {invalidCount > 0 && (
                         <span
-                          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-bold"
+                          className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12.5px] font-bold"
                           style={{ background: "color-mix(in srgb, var(--color-altus-red) 12%, transparent)", color: "var(--color-altus-red-deep)" }}
                         >
                           <AlertTriangle size={14} /> {invalidCount} need fixing
@@ -608,15 +611,15 @@ export function GoalsBulkUpload(props: Props) {
                                     </div>
                                   )}
                                 </td>
-                                <td className="px-2.5 py-2 align-top text-ink-soft">{r.area ?? "—"}</td>
-                                <td className="px-2.5 py-2 align-top text-ink-soft">{r.uom ?? "—"}</td>
-                                <td className="px-2.5 py-2 align-top tabular-nums text-ink-soft">{r.actual ?? "—"}</td>
-                                <td className="px-2.5 py-2 align-top tabular-nums text-ink-soft">{r.target ?? "—"}</td>
-                                <td className="px-2.5 py-2 align-top text-ink-soft">{r.category ?? "—"}</td>
+                                <td className="px-2.5 py-2 align-top text-ink-soft">{r.area ?? "-"}</td>
+                                <td className="px-2.5 py-2 align-top text-ink-soft">{r.uom ?? "-"}</td>
+                                <td className="px-2.5 py-2 align-top tabular-nums text-ink-soft">{r.actual ?? "-"}</td>
+                                <td className="px-2.5 py-2 align-top tabular-nums text-ink-soft">{r.target ?? "-"}</td>
+                                <td className="px-2.5 py-2 align-top text-ink-soft">{r.category ?? "-"}</td>
                                 <td className="px-2.5 py-2 align-top">
                                   {isDup ? (
                                     <span
-                                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                      className="inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] font-bold"
                                       style={{ background: "color-mix(in srgb, #b45309 16%, transparent)", color: "#92400e" }}
                                       title={r.dup === "existing" ? "A goal with this title already exists in this bucket" : "This title is repeated earlier in the file"}
                                     >
@@ -668,7 +671,7 @@ export function GoalsBulkUpload(props: Props) {
                     type="button"
                     onClick={close}
                     disabled={pending}
-                    className={`cursor-pointer rounded-full border border-hairline-strong px-4 py-2 text-[13.5px] font-semibold text-ink-soft hover:text-ink-strong hover:bg-surface-soft disabled:opacity-60 ${FOCUS_RING}`}
+                    className={`cursor-pointer rounded-pill border border-hairline-strong px-4 py-2 text-[13.5px] font-semibold text-ink-soft hover:text-ink-strong hover:bg-surface-soft disabled:opacity-60 ${FOCUS_RING}`}
                   >
                     Cancel
                   </button>
@@ -676,7 +679,7 @@ export function GoalsBulkUpload(props: Props) {
                     type="button"
                     onClick={doImport}
                     disabled={pending || selectedCount === 0}
-                    className={`inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-[13.5px] font-bold text-white transition-all hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 cursor-pointer ${FOCUS_RING}`}
+                    className={`inline-flex items-center gap-1.5 rounded-pill px-5 py-2 text-[13.5px] font-bold text-white transition-all hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 cursor-pointer ${FOCUS_RING}`}
                     style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
                   >
                     {pending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={2.8} />}

@@ -63,7 +63,7 @@ export function FieldInput({
               key={o}
               type="button"
               onClick={() => onChange(field.key, active ? "" : o)}
-              className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-bold border transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[13px] font-bold border transition-colors"
               style={
                 active
                   ? { background: "var(--color-altus-red)", color: "#fff", borderColor: "var(--color-altus-red)" }
@@ -76,7 +76,7 @@ export function FieldInput({
           );
         })}
         {(field.options ?? []).length === 0 && (
-          <span className="text-[13px] text-ink-muted">No options yet — add some in “Edit form”.</span>
+          <span className="text-[13px] text-ink-muted">No options yet - add some in “Edit form”.</span>
         )}
       </div>
     );
@@ -87,7 +87,7 @@ export function FieldInput({
         options={(field.options ?? []).map((o) => ({ value: o, label: o }))}
         value={value}
         onValueChange={(v) => onChange(field.key, v)}
-        placeholder="— Select —"
+        placeholder="- Select -"
         ariaLabel={field.label}
       />
     );
@@ -162,7 +162,7 @@ export function ProductButtons({
             key={o}
             type="button"
             onClick={() => onChange(active ? "" : o)}
-            className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-bold border transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[13px] font-bold border transition-colors"
             style={
               active
                 ? { background: "var(--color-altus-red)", color: "#fff", borderColor: "var(--color-altus-red)" }
@@ -186,10 +186,10 @@ export function ProductButtons({
                 if (e.key === "Escape") { setAdding(false); setDraft(""); }
               }}
               placeholder="New product"
-              className="rounded-full border border-hairline px-3 py-1.5 text-[13px] outline-none focus:border-altus-red/60"
+              className="rounded-pill border border-hairline px-3 py-1.5 text-[13px] outline-none focus:border-altus-red/60"
             />
             <button type="button" onClick={addNew} disabled={pending}
-              className="rounded-full px-3 py-1.5 text-[13px] font-bold text-white" style={{ background: "var(--color-altus-red)" }}>
+              className="rounded-pill px-3 py-1.5 text-[13px] font-bold text-white" style={{ background: "var(--color-altus-red)" }}>
               Add
             </button>
           </span>
@@ -197,7 +197,7 @@ export function ProductButtons({
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="bg-surface-card inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold border border-solid border-hairline text-ink-soft hover:text-ink-strong"
+            className="bg-surface-card inline-flex items-center gap-1 rounded-pill px-3 py-1.5 text-[13px] font-bold border border-solid border-hairline text-ink-soft hover:text-ink-strong"
           >
             <Plus size={13} /> Add
           </button>

@@ -107,7 +107,7 @@ export function IncentivePayoutPanel({
           message:
             res.paidCount > 0
               ? `Paid ${formatInr(res.totalPaid)} incentive with salary (${res.paidCount} item${res.paidCount === 1 ? "" : "s"}).`
-              : "Nothing to pay — already settled.",
+              : "Nothing to pay - already settled.",
         });
         router.refresh();
       } finally {
@@ -128,7 +128,7 @@ export function IncentivePayoutPanel({
         >
           <Ban size={16} strokeWidth={2.4} style={{ color: AMBER }} className="mt-0.5 shrink-0" />
           <p className="text-[13px] font-semibold text-ink-soft">
-            Payouts are turned OFF (<code>INCENTIVE_PAYOUT</code>). This board is read-only — the
+            Payouts are turned OFF (<code>INCENTIVE_PAYOUT</code>). This board is read-only - the
             &ldquo;Pay with salary&rdquo; action is a no-op until Sir enables the flag.
           </p>
         </div>
@@ -168,7 +168,7 @@ export function IncentivePayoutPanel({
                               <div className="text-[11.5px] font-medium text-ink-subtle">
                                 {row.salaryRunId ? (
                                   <>
-                                    {row.designationName ?? "—"}
+                                    {row.designationName ?? "-"}
                                     {row.payingEntityName ? ` · ${row.payingEntityName}` : ""}
                                   </>
                                 ) : (
@@ -179,8 +179,8 @@ export function IncentivePayoutPanel({
                           </div>
                         </td>
                       );
-                      if (c.id === "booked") return <Td key={c.id} align="right" muted>{row.booked ? formatInr(row.booked) : "—"}</Td>;
-                      if (c.id === "accrued") return <Td key={c.id} align="right">{row.accrued ? formatInr(row.accrued) : "—"}</Td>;
+                      if (c.id === "booked") return <Td key={c.id} align="right" muted>{row.booked ? formatInr(row.booked) : "-"}</Td>;
+                      if (c.id === "accrued") return <Td key={c.id} align="right">{row.accrued ? formatInr(row.accrued) : "-"}</Td>;
                       if (c.id === "payable") return <Td key={c.id} align="right" strong>{formatInr(row.payable)}</Td>;
                       if (c.id === "paid") return <Td key={c.id} align="right">{formatInr(row.paid)}</Td>;
                       if (c.id === "remainder") return (
@@ -205,7 +205,7 @@ export function IncentivePayoutPanel({
                             type="button"
                             disabled={!canPay || busy}
                             onClick={() => pay(row)}
-                            className="wg-btn inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                            className="wg-btn inline-flex cursor-pointer items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[12.5px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
                             style={{
                               background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DEEP})`,
                               boxShadow: `0 8px 20px -12px color-mix(in srgb, ${GREEN_DEEP} 70%, transparent), inset 0 1px 0 rgba(255,255,255,0.25)`,

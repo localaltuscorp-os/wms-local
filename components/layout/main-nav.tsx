@@ -7,9 +7,14 @@ import {
   ClipboardList,
   CalendarDays,
   FolderKanban,
+  FolderTree,
   SquareKanban,
   Target,
   ListChecks,
+  Flag,
+  CircleDot,
+  CornerDownRight,
+  Telescope,
   CalendarCheck,
   Plane,
   CalendarRange,
@@ -384,6 +389,33 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
     ],
     groups: [],
   },
+  // Project — a single-surface room: the hierarchy planning table. The older
+  // /projects board is deliberately NOT listed here; it stays a WMS rail item,
+  // so neither room's sidebar changes shape.
+  "project-plan": {
+    // One room, one board, six ways in. Each level item is the SAME hierarchy
+    // table scoped to that level (app/(app)/project-plan/plan-page.tsx) rather
+    // than six screens to keep in step — pick "Results" and you get every
+    // result in the plan, under the milestone it belongs to.
+    //
+    // `exact` on Projects only: it is the bare /project-plan route, so without
+    // it every child route would light it up too.
+    top: [
+      // THE WHOLE PLAN AS ONE TREE, and therefore the way in — it sits above
+      // Projects because it is the only item that answers "what is in this
+      // plan?" without a click. The five level items below it slice the same
+      // rows by level once you know which branch you want.
+      { href: "/project-plan/views" as Route, label: "Project Views", Icon: Telescope },
+      { href: "/project-plan" as Route, label: "Projects", Icon: FolderTree, exact: true },
+      { href: "/project-plan/milestones" as Route, label: "Milestones", Icon: Flag },
+      { href: "/project-plan/results" as Route, label: "Results", Icon: Target },
+      { href: "/project-plan/actions" as Route, label: "Actions", Icon: ListChecks },
+      { href: "/project-plan/sub-actions" as Route, label: "Sub-Actions", Icon: CornerDownRight },
+      // The same board component WMS renders, narrowed to plan-linked tasks.
+      { href: "/project-plan/kanban" as Route, label: "Kanban", Icon: SquareKanban },
+    ],
+    groups: [],
+  },
   events: {
     // Monthly Events Master — the calendar is the hero; masters/batches/
     // obligations are admin surfaces. (Holidays moved to HR.)
@@ -477,6 +509,64 @@ const GOALS_PERSONAL_NAV: WorkspaceNav = {
   ],
   groups: [],
 };
+
+/* ────────────────────────────────────────────────────────────────────────
+   PAGE TITLES — derived from the nav above, never re-typed.
+
+   The top bar shows the name of the page you are on ("WMS Dashboard", "Daily
+   Goals", "Aging Heatmap"…). That name already exists: it is the label on the
+   rail item that got you there. Deriving it here means renaming a nav item
+   renames the header with it, and a page can never end up with a title that
+   disagrees with the rail highlighting it.
+
+   Declared AFTER every nav constant on purpose — these are module-level consts
+   and reading one before its initialiser has run yields undefined.
+   ──────────────────────────────────────────────────────────────────────── */
+const NAV_TITLE_ENTRIES: Array<[string, string]> = (() => {
+  const out: Array<[string, string]> = [];
+  const push = (nav: WorkspaceNav) => {
+    for (const i of nav.top) out.push([i.href as string, i.label]);
+    for (const g of nav.groups) for (const i of g.items) out.push([i.href as string, i.label]);
+  };
+  for (const nav of Object.values(WORKSPACE_NAV)) push(nav);
+  for (const nav of Object.values(HR_SECTION_NAV)) push(nav);
+  push(GOALS_PERSONAL_NAV);
+  return out;
+})();
+
+/**
+ * The page name for a path, or null if no nav item covers it.
+ *
+ * LONGEST PREFIX WINS. `/dashboard/done` has to resolve to "Done Dashboard",
+ * not to "WMS Dashboard" just because `/dashboard` also matches — and a detail
+ * route like `/tasks/<id>` has to fall back to its parent's "Tasks" rather than
+ * to nothing at all.
+ */
+/* Paths whose rail label does not survive being read alone. "Index" is a fine
+   name for the first pill in the Accounts rail, where the rail itself says
+   Accounts; as the only heading on the screen it says nothing. Small by
+   design — the rail label is right almost everywhere. */
+const TITLE_OVERRIDES: Record<string, string> = {
+  "/accounts": "Accounts",
+  "/hub": "Hub",
+  "/": "Hub",
+};
+
+export function navTitleFor(pathname: string): string | null {
+  const override = TITLE_OVERRIDES[pathname];
+  if (override) return override;
+  let best: string | null = null;
+  let bestLen = -1;
+  for (const [href, label] of NAV_TITLE_ENTRIES) {
+    if (pathname === href || pathname.startsWith(href + "/")) {
+      if (href.length > bestLen) {
+        best = label;
+        bestLen = href.length;
+      }
+    }
+  }
+  return best;
+}
 
 export function MainNav({
   activeTasks,

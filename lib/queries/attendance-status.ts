@@ -5,6 +5,7 @@ import { attendanceLogs, employees, type OrgSettings } from "@/db/schema";
 import { getOrgSettings } from "@/lib/queries/org-settings";
 import { type AttendanceSchedule } from "@/lib/attendance/schedule";
 import { computeDayCode, type DayCodeResult } from "@/lib/attendance/status";
+import { isSystemAutoPunchOut } from "@/lib/attendance/auto-punch-out";
 import { payableDaysByHours, weekKeyOf } from "@/lib/attendance/hours-rule";
 import {
   reconcileMonth,
@@ -242,16 +243,12 @@ type PunchRow = {
 /**
  * Is this the system's auto punch-out?
  *
- * All THREE conditions matter. `source='admin'` alone is any admin correction,
- * and `reason='forgot'` is what a human admin picks too when fixing exactly this
- * situation — but a human correction carries `recordedById`. Only the cron
- * leaves it null (see app/api/cron/attendance-autoout/route.ts), so this is what
- * separates "the system closed your day" from "someone fixed your day", which
- * should NOT be floored at half.
+ * The test moved to `lib/attendance/auto-punch-out.ts` so that the job which
+ * WRITES the stamp and the grader which READS it can no longer drift apart —
+ * this file used to carry its own copy, with a comment asking future editors to
+ * keep the two in step by hand.
  */
-function isAutoPunchOut(r: PunchRow): boolean {
-  return r.source === "admin" && r.reason === "forgot" && !r.recordedById;
-}
+const isAutoPunchOut = isSystemAutoPunchOut;
 
 /** Fold an employee's raw punch rows into per-day in/out "HH:mm" times (in the
  *  employee's timezone). The day key is recomputed from `loggedAt` in `tz` so

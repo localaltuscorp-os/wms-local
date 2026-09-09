@@ -45,11 +45,11 @@ export function AttendanceMonthSelector({
   for (let y = year - 3; y <= year + 1; y++) years.push(y);
 
   const chevronCls = `wg-btn inline-flex items-center justify-center size-8 rounded-full text-ink-soft hover:text-[var(--color-altus-red)] hover:bg-[color-mix(in_srgb,var(--color-altus-red)_8%,transparent)] transition-colors ${FOCUS_RING}`;
-  const selectCls = `h-8 rounded-full bg-transparent px-2 text-[14px] font-bold text-ink-strong cursor-pointer hover:text-[var(--color-altus-red-deep)] transition-colors ${FOCUS_RING}`;
+  const selectCls = `h-8 rounded-pill bg-transparent px-2 text-[14px] font-bold text-ink-strong cursor-pointer hover:text-[var(--color-altus-red-deep)] transition-colors ${FOCUS_RING}`;
 
   return (
     <div
-      className="inline-flex items-center gap-0.5 rounded-full border border-hairline px-1.5 py-1"
+      className="inline-flex items-center gap-0.5 rounded-pill border border-hairline px-1.5 py-1"
       style={{
         background: "rgba(255,255,255,0.72)",
         backdropFilter: "blur(8px)",

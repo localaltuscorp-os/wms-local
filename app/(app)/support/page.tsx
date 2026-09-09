@@ -4,7 +4,7 @@ import { LifeBuoy, Plus } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { DashboardHeader } from "@/components/layout/header";
 import { HrComingSoon } from "@/components/hr/coming-soon";
-import { HrBackButton } from "@/components/hr/hr-back-button";
+import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 import { hrSupportEnabled } from "@/lib/hr/flag";
 import {
   resolveViewer,
@@ -37,7 +37,7 @@ export default async function SupportPage({ searchParams }: PageProps) {
       <HrComingSoon
         title="Help Desk"
         Icon={LifeBuoy}
-        blurb="Get help from the HR desk — questions, requests and escalations, all tracked in one place. This section is being built."
+        blurb="Get help from the HR desk - questions, requests and escalations, all tracked in one place. This section is being built."
       />
     );
   }
@@ -62,28 +62,11 @@ export default async function SupportPage({ searchParams }: PageProps) {
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
+      <HrTitleBar />
       <main className="w-full px-8 max-md:px-4 pt-8 pb-16">
-        <HrBackButton fallbackHref="/hr" />
-        <header className="mb-6 flex flex-wrap items-end justify-between gap-4 wg-rise">
-          <div>
-            <span
-              className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white"
-              style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
-            >
-              HR · Help Desk
-            </span>
-            <h1
-              className="mt-1.5 text-ink-strong"
-              style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(26px,3vw,38px)", letterSpacing: "-0.025em" }}
-            >
-              {v.handler ? "Help Desk" : "Help Desk"}
-            </h1>
-            <p className="mt-1 text-[14px] font-medium text-ink-muted">
-              {v.handler
-                ? `${counts.open} open · ${counts.unassigned} unassigned · ${counts.breaching} breaching SLA`
-                : "Raise a request and track it here."}
-            </p>
-          </div>
+        {/* Title moved into the frozen bar; the ticket counts it used to
+            narrate are already on the filter chips below. */}
+        <header className="mb-6 flex flex-wrap items-end justify-end gap-4 wg-rise">
           <Link
             href={"/support/new" as Route}
             className="inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[14px] font-bold text-white transition hover:brightness-110"

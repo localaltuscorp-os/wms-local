@@ -84,6 +84,7 @@ import {
 } from "lucide-react";
 
 import { Letterhead } from "@/components/hr/letterhead/letterhead";
+import { FitToWidth } from "./fit-to-width";
 import { uploadLetterImage } from "@/app/(app)/hr/candidate-actions";
 import { fireToast } from "@/lib/toast";
 import { letterFontGroups, letterFontStack } from "@/lib/hr/letters/fonts";
@@ -1110,24 +1111,26 @@ export function RichLetterEditor({
         <div className="rle-pagecount no-print" aria-live="polite">
           {breakYs.length + 1} {breakYs.length + 1 === 1 ? "page" : "pages"}
         </div>
-        <Letterhead entity={entity}>
-          {/* Continuous body + overlaid page-break guides. The guides bleed to
-              the sheet edges (−70px cancels the body's side padding) and sit on
-              a pointer-events-none layer so they never intercept editing. */}
-          <div className="rle-paged">
-            <EditorContent editor={editor} className="rle-editor" />
-            {breakYs.map((y, i) => (
-              <div
-                key={y}
-                className="rle-pagebreak no-print"
-                style={{ top: `${y}px` }}
-                aria-hidden
-              >
-                <span className="rle-pagebreak-label">Page {i + 2}</span>
-              </div>
-            ))}
-          </div>
-        </Letterhead>
+        <FitToWidth className="rle-stage">
+          <Letterhead entity={entity}>
+            {/* Continuous body + overlaid page-break guides. The guides bleed to
+                the sheet edges (−70px cancels the body's side padding) and sit on
+                a pointer-events-none layer so they never intercept editing. */}
+            <div className="rle-paged">
+              <EditorContent editor={editor} className="rle-editor" />
+              {breakYs.map((y, i) => (
+                <div
+                  key={y}
+                  className="rle-pagebreak no-print"
+                  style={{ top: `${y}px` }}
+                  aria-hidden
+                >
+                  <span className="rle-pagebreak-label">Page {i + 2}</span>
+                </div>
+              ))}
+            </div>
+          </Letterhead>
+        </FitToWidth>
       </div>
     </div>
   );
@@ -1208,7 +1211,7 @@ const RLE_CSS = `
   --rle-bg:#f4f5f7;
   display:flex;flex-direction:column;gap:16px;
 }
-/* Toolbar — sticky, premium Google-Docs pill bar */
+/* Toolbar - sticky, premium Google-Docs pill bar */
 .rle-toolbar{
   position:sticky;top:8px;z-index:40;
   display:flex;flex-wrap:nowrap;overflow-x:auto;align-items:center;justify-content:safe center;gap:2px;
@@ -1311,9 +1314,12 @@ const RLE_CSS = `
 .rle-spin{animation:rle-spin 1s linear infinite;}
 @keyframes rle-spin{to{transform:rotate(360deg);}}
 
-/* Page scroller — a block container; the A4 sheet centres itself via its own
+/* Page scroller - a block container; the A4 sheet centres itself via its own
    margin:0 auto, which lets the page-count badge sticky-float at the top-right. */
 .rle-page-scroll{position:relative;overflow:auto;padding:4px 0 40px;}
+/* Measuring host for <FitToWidth> - see components/hr/letters/fit-to-width.tsx. */
+.rle-stage{display:block;}
+.alw-fit{transform-origin:top left;}
 .rle-pagecount{
   position:sticky;top:8px;z-index:6;width:max-content;margin:0 16px 2px auto;
   padding:3px 11px;border-radius:999px;background:rgba(15,23,42,.74);color:#fff;
@@ -1323,7 +1329,7 @@ const RLE_CSS = `
 /* Continuous body + overlaid page-break guides */
 .rle-paged{position:relative;}
 /* A dashed rule bleeding to the sheet edges, marking where the printed PDF
-   splits to the next A4 page (approx — flow model matches render-rich.ts). */
+   splits to the next A4 page (approx - flow model matches render-rich.ts). */
 .rle-pagebreak{
   position:absolute;left:-70px;right:-70px;height:0;z-index:5;pointer-events:none;
   border-top:2px dashed color-mix(in srgb,var(--rle-red) 42%,#94a3b8);
@@ -1339,7 +1345,7 @@ const RLE_CSS = `
   padding:1px 9px;border-radius:999px;box-shadow:0 2px 8px -2px rgba(15,23,42,.35);
 }
 
-/* Editable ProseMirror surface — inherits the letterhead serif frame */
+/* Editable ProseMirror surface - inherits the letterhead serif frame */
 .rle-editor{outline:none;}
 .rle-prose{outline:none;min-height:760px;}
 .rle-prose:focus{outline:none;}
@@ -1347,13 +1353,13 @@ const RLE_CSS = `
 .rle-prose h1{font-size:26px;line-height:1.25;margin:0 0 12px;font-weight:700;}
 .rle-prose h2{font-size:21px;line-height:1.3;margin:0 0 10px;font-weight:700;}
 .rle-prose h3{font-size:17px;line-height:1.35;margin:0 0 8px;font-weight:700;}
-/* Lists — the marker MUST be restored explicitly.
+/* Lists - the marker MUST be restored explicitly.
  *
  * Tailwind v4's preflight (pulled in by the tailwindcss import in globals.css)
  * ships "ol, ul, menu { list-style: none }". So Bullet list / Numbered list were
  * never broken: TipTap toggled real ul/ol markup and the buttons lit up, but
  * every marker was blanked by a global reset and the items looked like plain
- * indented paragraphs — indistinguishable from "the button does nothing".
+ * indented paragraphs - indistinguishable from "the button does nothing".
  *
  * The PDF path (lib/hr/letters/render-rich.ts) renders in a standalone Chromium
  * document with no Tailwind, so UA defaults applied and the SAME letter printed
@@ -1362,7 +1368,7 @@ const RLE_CSS = `
  *
  * The nested levels are spelled out because one ul rule set to disc beats the
  * UA's depth-based defaults at equal specificity and would flatten every nested
- * list to the same marker — losing the visual step that Increase indent
+ * list to the same marker - losing the visual step that Increase indent
  * (sinkListItem) exists to create. */
 .rle-prose ul,.rle-prose ol{margin:0 0 14px;padding-left:26px;}
 .rle-prose ul{list-style:disc outside;}
@@ -1382,7 +1388,7 @@ const RLE_CSS = `
 .rle-prose img.ProseMirror-selectednode{outline:2px solid var(--rle-red);outline-offset:2px;}
 .rle-prose sub,.rle-prose sup{font-size:.72em;line-height:0;}
 .rle-prose hr{border:0;border-top:1px solid var(--rle-line);margin:16px 0;}
-/* Tables — match the bordered/padded letter-body term-table look */
+/* Tables - match the bordered/padded letter-body term-table look */
 .rle-prose .rle-table,.rle-prose table{
   border-collapse:collapse;width:100%;margin:12px 0;
   font-variant-numeric:tabular-nums;table-layout:fixed;overflow:hidden;
@@ -1407,8 +1413,8 @@ const RLE_CSS = `
 .rle-prose.ProseMirror .tableWrapper{overflow-x:auto;margin:12px 0;}
 .rle-prose .resize-cursor{cursor:col-resize;}
 /* Empty fillable markers carried over from the structured seed. The
-   FieldPlaceholder mark preserves the class through TipTap so this styling —
-   a subtly highlighted, red-underlined "[Field]" chip — survives free-edit. */
+   FieldPlaceholder mark preserves the class through TipTap so this styling -
+   a subtly highlighted, red-underlined "[Field]" chip - survives free-edit. */
 .rle-prose .letter-field-empty{
   background:color-mix(in srgb,var(--rle-red) 8%,transparent);
   border-bottom:1px dashed color-mix(in srgb,var(--rle-red) 55%,transparent);
@@ -1424,5 +1430,7 @@ const RLE_CSS = `
   .no-print{display:none !important;}
   .rle-root{gap:0;}
   .rle-page-scroll{overflow:visible;padding:0;display:block;}
+  /* A true A4 page on paper, whatever the screen was scaled to. */
+  .alw-fit{zoom:1 !important;}
 }
 `;

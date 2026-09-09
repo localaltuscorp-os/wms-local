@@ -22,6 +22,7 @@ import { Donut, type DonutSlice } from "@/components/charts/donut";
 import { GradeBadge, GradeLegend } from "@/components/productivity/grade-badge";
 import { calculateCompletionGrade, type Grade } from "@/lib/productivity/calc";
 import { GRADE_ORDER, GRADE_OUTLINE, gradeColor } from "@/lib/productivity/theme";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /**
  * The Team Performance board — a COMPACT, SCANNABLE employee table with
@@ -453,7 +454,7 @@ export function TeamPerformanceBoard({
                   <span className="tabular-nums font-bold text-ink-muted">
                     {distribution.ungraded}
                   </span>{" "}
-                  ungraded — no goals set to grade against.
+                  ungraded - no goals set to grade against.
                 </>
               )}
             </p>
@@ -527,6 +528,7 @@ export function TeamPerformanceBoard({
           options={SORT_OPTIONS.map((o) => ({ value: o.value, label: `Sort: ${o.label}` }))}
         />
 
+        <CollapsibleSearch scope="employee">
         <label className="relative ml-auto max-md:ml-0 max-md:w-full">
           <Search
             size={14}
@@ -535,7 +537,7 @@ export function TeamPerformanceBoard({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Local search — employee" title="Local search — filters only the list on this page" aria-label="Local search — employee — this page only"
+            placeholder="Local search - employee" title="Local search - filters only the list on this page" aria-label="Local search - employee - this page only"
             className={`h-9 w-[210px] rounded-lg border border-hairline-strong bg-surface-card pl-8 pr-7 text-[13px] font-medium text-ink-strong outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/40 max-md:w-full`}
           />
           {query && (
@@ -549,6 +551,7 @@ export function TeamPerformanceBoard({
             </button>
           )}
         </label>
+        </CollapsibleSearch>
       </div>
 
       {/* Result count + reset — only once a filter is actually narrowing things. */}
@@ -580,7 +583,7 @@ export function TeamPerformanceBoard({
           body={
             query.trim()
               ? "Check the spelling, or clear the search to see the whole team."
-              : "Try a different department, team or status — or reset to see the whole team."
+              : "Try a different department, team or status - or reset to see the whole team."
           }
           action={
             <button
@@ -624,8 +627,8 @@ export function TeamPerformanceBoard({
       )}
 
       <p className="mt-4 text-[12.5px] text-ink-subtle">
-        Goal score is this week&apos;s weight-aware completion; “—” means no goals set. All figures read
-        live from the same task, goal and attendance records — nothing duplicated.
+        Goal score is this week&apos;s weight-aware completion; “-” means no goals set. All figures read
+        live from the same task, goal and attendance records - nothing duplicated.
       </p>
     </>
   );
@@ -670,7 +673,7 @@ function EmployeeRow({
           </div>
         </td>
         <td className="py-2.5 pr-3 text-[12.5px] text-ink-subtle max-lg:hidden">
-          <span className="block truncate">{row.department || "—"}</span>
+          <span className="block truncate">{row.department || "-"}</span>
           {row.managerName && (
             <span className="block truncate text-[11.5px] text-ink-subtle opacity-80">
               {row.managerName}
@@ -766,7 +769,7 @@ function EmployeeDetail({ row, variant }: { row: TeamRow; variant: TeamBoardVari
       </div>
 
       <div className="grid grid-cols-5 gap-x-5 gap-y-3 max-lg:grid-cols-3 max-sm:grid-cols-2">
-        <Detail label="Goal score" value={row.goalScorePct == null ? "—" : `${row.goalScorePct}%`} tone={scoreTone(row.goalScorePct)} />
+        <Detail label="Goal score" value={row.goalScorePct == null ? "-" : `${row.goalScorePct}%`} tone={scoreTone(row.goalScorePct)} />
         <Detail label="Goals" value={`${row.goalsDone}/${row.goalsCount}`} />
         <Detail label="Tasks given" value={row.assignedToday} />
         <Detail label="Done today" value={row.doneToday} tone={row.doneToday > 0 ? "green" : undefined} />
@@ -776,7 +779,7 @@ function EmployeeDetail({ row, variant }: { row: TeamRow; variant: TeamBoardVari
         <Detail label="Need help" value={row.needHelp} tone={row.needHelp > 0 ? "amber" : undefined} />
         <Detail
           label="Daily checklist"
-          value={row.dccCompliancePct == null ? "—" : `${row.dccCompliancePct}%`}
+          value={row.dccCompliancePct == null ? "-" : `${row.dccCompliancePct}%`}
           tone={row.dccCompliancePct != null && row.dccCompliancePct < 80 ? "red" : undefined}
         />
         <Detail label="Training this month" value={`${row.trainingHoursMonth}h`} />
@@ -859,7 +862,7 @@ function ScoreText({ pct }: { pct: number | null }) {
       className="text-[13.5px] font-bold tabular-nums"
       style={{ color: tone ? TONE_COLOR[tone] : "var(--color-ink-subtle)" }}
     >
-      {pct == null ? "—" : `${pct}%`}
+      {pct == null ? "-" : `${pct}%`}
     </span>
   );
 }

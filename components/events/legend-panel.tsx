@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import type { CalendarEvent, EventCategory } from "@/lib/monthly-events/types";
 import { DEFAULT_EVENT_COLOR } from "./colors";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const UNCATEGORISED = "__none__";
 
@@ -76,15 +77,17 @@ export function LegendPanel({
 
       {open && (
         <div className="px-3 pb-3">
+          <CollapsibleSearch scope="categories">
           <div className="relative mb-2">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-soft" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Local search — categories" title="Local search — filters only the list on this page" aria-label="Local search — categories — this page only"
+              placeholder="Local search - categories" title="Local search - filters only the list on this page" aria-label="Local search - categories - this page only"
               className="w-full rounded-chip border border-hairline bg-surface-soft py-1.5 pl-7 pr-2 text-[12.5px] text-ink-strong outline-none focus:border-hairline-strong"
             />
           </div>
+          </CollapsibleSearch>
 
           {active.size > 0 && (
             <button
@@ -119,7 +122,7 @@ export function LegendPanel({
                     <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink-strong">
                       {r.name}
                     </span>
-                    <span className="shrink-0 rounded-full bg-surface-soft px-1.5 text-[10.5px] font-bold text-ink-soft">
+                    <span className="shrink-0 rounded-pill bg-surface-soft px-1.5 text-[10.5px] font-bold text-ink-soft">
                       {r.count}
                     </span>
                   </button>
@@ -180,7 +183,7 @@ export function LegendDrawer({ categories, events, active, onToggle, onClear }: 
         <Palette size={15} strokeWidth={2.5} style={{ writingMode: "horizontal-tb" as React.CSSProperties["writingMode"] }} />
         <span className="text-[11px] font-black uppercase tracking-[0.18em]">Legend</span>
         {active.size > 0 && (
-          <span className="rounded-full bg-white px-1.5 text-[10px] font-black text-[color:var(--color-altus-red)]" style={{ writingMode: "horizontal-tb" as React.CSSProperties["writingMode"] }}>
+          <span className="rounded-pill bg-white px-1.5 text-[10px] font-black text-[color:var(--color-altus-red)]" style={{ writingMode: "horizontal-tb" as React.CSSProperties["writingMode"] }}>
             {active.size}
           </span>
         )}
@@ -212,15 +215,17 @@ export function LegendDrawer({ categories, events, active, onToggle, onClear }: 
                 </button>
               </div>
               <div className="px-3 py-3">
+                <CollapsibleSearch scope="categories">
                 <div className="relative mb-2">
                   <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-soft" />
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Local search — categories" title="Local search — filters only the list on this page" aria-label="Local search — categories — this page only"
+                    placeholder="Local search - categories" title="Local search - filters only the list on this page" aria-label="Local search - categories - this page only"
                     className="w-full rounded-chip border border-hairline bg-surface-soft py-1.5 pl-7 pr-2 text-[12.5px] text-ink-strong outline-none focus:border-hairline-strong"
                   />
                 </div>
+                </CollapsibleSearch>
                 {active.size > 0 && (
                   <button type="button" onClick={onClear} className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--color-altus-red)" }}>
                     <X size={11} /> Clear Filter ({active.size})
@@ -243,7 +248,7 @@ export function LegendDrawer({ categories, events, active, onToggle, onClear }: 
                         >
                           <span className="h-3.5 w-3.5 shrink-0 rounded-[4px] ring-1 ring-black/10" style={{ background: r.color }} />
                           <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink-strong">{r.name}</span>
-                          <span className="shrink-0 rounded-full bg-surface-soft px-1.5 text-[10.5px] font-bold text-ink-soft">{r.count}</span>
+                          <span className="shrink-0 rounded-pill bg-surface-soft px-1.5 text-[10.5px] font-bold text-ink-soft">{r.count}</span>
                         </button>
                       </li>
                     );

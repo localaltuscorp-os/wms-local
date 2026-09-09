@@ -38,7 +38,7 @@ const TEAL = { c: "var(--color-teal)", d: "var(--color-teal-deep)" };
 const INDIGO = { c: "var(--color-indigo, #6366f1)", d: "var(--color-indigo-deep, #4338ca)" };
 
 function fmtHours(h: number | null): string {
-  if (h === null) return "—";
+  if (h === null) return "-";
   if (h < 1) return `${Math.round(h * 60)}m`;
   if (h < 48) return `${h.toFixed(1)}h`;
   return `${(h / 24).toFixed(1)}d`;
@@ -67,8 +67,15 @@ export function HiringAnalyticsDashboard({ data }: { data: HiringAnalytics }) {
         </div>
       )}
 
+      {/* Every two-up row below is `lg:grid-cols-2` on purpose. Tailwind
+          compiles that to repeat(2, minmax(0, 1fr)) — genuinely equal halves.
+          An arbitrary ratio like `lg:grid-cols-[1.4fr_1fr]` does NOT hold: bare
+          `fr` means minmax(auto, 1fr), so a card whose content is wider than its
+          share silently overrides the ratio and you get an arbitrary split
+          (measured 543px / 533px) that reads as a misalignment bug. Use
+          minmax(0, …) if a deliberate ratio is ever wanted here. */}
       {/* Row 1 — Pipeline donut + score rings */}
-      <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
+      <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard title="Candidate Pipeline" subtitle="Every candidate by current stage" icon={<Layers size={18} strokeWidth={2.2} />}>
           <PipelineDonut slices={data.pipeline} />
         </ChartCard>
@@ -84,7 +91,7 @@ export function HiringAnalyticsDashboard({ data }: { data: HiringAnalytics }) {
             />
           </div>
           <p className="mt-4 text-[11.5px] font-medium leading-relaxed text-ink-muted">
-            Offer acceptance is approximated as hired ÷ (shortlisted + hired) — the pipeline has no explicit “offered” stage.
+            Offer acceptance is approximated as hired ÷ (shortlisted + hired) - the pipeline has no explicit “offered” stage.
           </p>
         </ChartCard>
       </div>
@@ -125,7 +132,7 @@ export function HiringAnalyticsDashboard({ data }: { data: HiringAnalytics }) {
       </div>
 
       {/* Row 6 — Sources + completion time */}
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard title="Top Hiring Sources" subtitle="Where candidates heard about the opening" icon={<Radio size={18} strokeWidth={2.2} />}>
           {data.sourcesAvailable ? <SourceList sources={data.sources} /> : <EmptyState label="No hiring-source data captured on the intake form yet." />}
         </ChartCard>

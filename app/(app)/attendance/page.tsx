@@ -10,10 +10,12 @@ import {
   BarChart3,
   MonitorPlay,
   Smartphone,
+  ScrollText,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
 import { PageShell } from "@/components/layout/page-shell";
 import { PunchCard } from "@/components/attendance/punch-card";
+import { PunchCorrection } from "@/components/attendance/punch-correction";
 import { AttendanceKpiStrip } from "@/components/attendance/attendance-kpi-strip";
 import { MonthCalendar } from "@/components/attendance/month-calendar";
 import { RemoteCheckInTrigger } from "@/components/attendance/remote-checkin-trigger";
@@ -28,6 +30,10 @@ import {
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import {
+  canManageDevices,
+  canViewAttendanceAuditLog,
+} from "@/lib/security/capabilities";
 import { isManagerWithReports } from "@/lib/manager-gates";
 import { hasStartedDay } from "@/lib/queries/daily-checklist";
 import { punchPlanGateOn, goalsCascadeEnabled } from "@/lib/goals/flag";
@@ -314,7 +320,29 @@ export default async function AttendancePage({ searchParams }: PageProps) {
       lastPunchLabel={lastPunchLabel}
     />
   );
-  const wfhBox = <RemoteCheckInTrigger hasCheckedIn={!!todayRow?.in} hasCheckedOut={!!todayRow?.out} />;
+
+  // ── THE 15-MINUTE SELF-CORRECTION CONTROLS ───────────────────────────────
+  // One per punch on file today. Each renders only while ITS OWN window is
+  // open, which each control asks the SERVER — the countdown is presentation,
+  // and `correctOwnPunch` re-derives the same window on every call, so a
+  // control that lingers past its deadline is refused rather than obeyed.
+  const correctionControls =
+    todayRow?.in || todayRow?.out ? (
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {todayRow?.in && (
+          <PunchCorrection logDate={today} kind="in" label={formatTimeInTz(todayRow.in.at, tz)} />
+        )}
+        {todayRow?.out && (
+          <PunchCorrection logDate={today} kind="out" label={formatTimeInTz(todayRow.out.at, tz)} />
+        )}
+      </div>
+    ) : null;
+  const wfhBox = (
+    <>
+      {correctionControls}
+      <RemoteCheckInTrigger hasCheckedIn={!!todayRow?.in} hasCheckedOut={!!todayRow?.out} />
+    </>
+  );
   // ── MY EFFECTIVE CONFIGURATION (spec §10) ────────────────────────────────
   // Resolved from this employee's own row through the SAME resolver the grader
   // and the salary engine use, so what is displayed cannot drift from what is
@@ -398,14 +426,28 @@ export default async function AttendancePage({ searchParams }: PageProps) {
                   <MonitorPlay size={15} strokeWidth={2.4} /> Work Sessions
                 </a>
               )}
+              {/* DEVICES + CHANGE LOG are gated on CAPABILITIES, not on
+                  `isAdmin`: both pages refuse an ordinary admin server-side, so
+                  showing them to every admin would advertise a door that does
+                  not open. Hiding is presentation — the pages guard themselves. */}
+              {canManageDevices(me.email) && (
+                <a
+                  href="/attendance/devices"
+                  className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
+                >
+                  <Smartphone size={15} strokeWidth={2.4} /> Devices
+                </a>
+              )}
+              {canViewAttendanceAuditLog(me.email) && (
+                <a
+                  href="/attendance/change-log"
+                  className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
+                >
+                  <ScrollText size={15} strokeWidth={2.4} /> Change Log
+                </a>
+              )}
               {me.isAdmin && (
                 <>
-                  <a
-                    href="/attendance/devices"
-                    className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
-                  >
-                    <Smartphone size={15} strokeWidth={2.4} /> Devices
-                  </a>
                   <a
                     href="/attendance/insights"
                     className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"

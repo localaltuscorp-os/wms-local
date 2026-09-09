@@ -104,7 +104,7 @@ export function FilterBar({
       <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-black text-white" style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}>
         <SlidersHorizontal size={14} strokeWidth={2.6} />
         Filters
-        {count > 0 && <span className="rounded-full bg-white px-1.5 text-[10.5px] font-black" style={{ color: "var(--color-altus-red)" }}>{count}</span>}
+        {count > 0 && <span className="rounded-pill bg-white px-1.5 text-[10.5px] font-black" style={{ color: "var(--color-altus-red)" }}>{count}</span>}
       </span>
 
       <Divider />

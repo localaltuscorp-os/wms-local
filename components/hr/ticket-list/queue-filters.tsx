@@ -51,7 +51,7 @@ function PillRow({
             {p.label}
             {typeof p.count === "number" && (
               <span
-                className="rounded-full px-1.5 text-[11px] font-bold"
+                className="rounded-pill px-1.5 text-[11px] font-bold"
                 style={{ background: active ? "#ffffff33" : "var(--color-surface-subtle, #f1f1f2)" }}
               >
                 {p.count}

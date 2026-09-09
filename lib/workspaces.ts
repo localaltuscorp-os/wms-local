@@ -23,6 +23,7 @@ export const WORKSPACE_IDS = [
   "productivity",
   "billing",
   "people-allocation",
+  "project-plan",
 ] as const;
 
 export type WorkspaceId = (typeof WORKSPACE_IDS)[number];
@@ -44,6 +45,7 @@ export const WORKSPACE_LABEL: Record<WorkspaceId, string> = {
   productivity: "Team Productivity",
   billing: "Billing",
   "people-allocation": "Hand-holding",
+  "project-plan": "Project",
 };
 
 /** Where each card drops you when you enter the workspace. */
@@ -59,10 +61,15 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   training: "/training",
   accounts: "/accounts",
   events: "/events",
-  // The module entry = the Yearly board (the level pages' landing). With the
-  // canvas/board flag OFF that page server-redirects to /goals (the sub-hub),
-  // so production behaviour is unchanged until the flag flips.
-  goals: "/goals/yearly",
+  // The module entry = the GOALS DASHBOARD — the read-only overview across all
+  // five levels, which is what you want to see before deciding which level to
+  // go and work in. It used to be the Yearly board, i.e. you landed already
+  // inside one level with no view of the rest.
+  //
+  // With the canvas/board flag OFF that page server-redirects to /goals (the
+  // sub-hub) exactly as the Yearly board did, so production behaviour is
+  // unchanged until the flag flips.
+  goals: "/goals/dashboard",
   // The module opens on the personal view; Team Performance is a tab inside it
   // and is gated per-role, so the landing is the one surface everyone can reach.
   productivity: "/productivity",
@@ -72,6 +79,10 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   // Hand-holding is its own room: staffing is read and maintained by team leads
   // who have no reason to enter Billing.
   "people-allocation": "/people-allocation",
+  // Project — the Project → Milestone → Result → Action hierarchy. Its own room
+  // beside Hand-holding. The older /projects board stays where it is, on the
+  // WMS rail; this room is the planning table, not a replacement for it.
+  "project-plan": "/project-plan",
 };
 
 export const ACTIVE_WORKSPACE_COOKIE = "aw";
@@ -166,6 +177,13 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
   // path would swap the sidebar to Goals the moment you opened it.
   if (p.startsWith("/productivity")) return "productivity";
 
+  // Project — the hierarchy planning table. Matched here, above the WMS block:
+  // that block claims `/projects` (the older board, which stays a WMS surface),
+  // and keeping the two rules apart is what stops a future edit from widening
+  // one prefix over the other. `/project-plan` does not start with `/projects`,
+  // so the two never overlap today either.
+  if (p.startsWith("/project-plan")) return "project-plan";
+
   // Appraisal moved INTO Team Productivity, so its room moved with it. `/appraisal`
   // itself redirects to `/productivity/appraisal`, but the admin panel still lives
   // on the old path — claiming it here is what keeps the Productivity rail on
@@ -219,13 +237,22 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
     return "employees";
   }
 
-  // HR — the paperwork room: dossier, agreements, policies, letters & support.
+  // HR — the paperwork room: dossier, agreements, policies, letters, support
+  // & company-wide communications.
   // (Dossier + Agreements re-parented here from Employees.)
+  //
+  // /communications belonged to NO workspace, which is why it fell back to the
+  // legacy horizontal DashboardHeader nav rather than to any sidebar. Claiming
+  // it here retires that header on its own — DashboardHeader returns null once
+  // a path maps to a workspace — and lets it use the HR console shell like
+  // every other HR surface. Read access is unchanged: the HR room is open to
+  // every employee (see canAccessWorkspace); authoring stays gated by isHrStaff.
   if (
     p.startsWith("/hr") ||
     p.startsWith("/dossier") ||
     p.startsWith("/agreements") ||
     p.startsWith("/policies") ||
+    p.startsWith("/communications") ||
     p.startsWith("/holidays") ||
     p.startsWith("/letters") ||
     p.startsWith("/support")

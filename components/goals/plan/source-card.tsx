@@ -10,6 +10,7 @@ import type { SourceItem } from "./types";
 import { SourceTag, fmtYmd } from "./source-tag";
 import { overdueLabel } from "./wms-filters";
 import { ItemDetailModal, ItemHoverCard } from "./item-detail";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /** dnd id for a source card — namespaced so it never collides with plan row ids. */
 export function sourceDragId(item: SourceItem): string {
@@ -23,12 +24,47 @@ const GOALS_GRADIENT = `linear-gradient(135deg, ${GOALS_ACCENT}, ${GOALS_ACCENT_
 const RISK = "var(--color-red-deep)";
 const WARN = "var(--color-amber-deep)";
 
+/**
+ * `ymd` plus `n` days, still as YYYY-MM-DD.
+ *
+ * Parsed into a UTC instant rather than a local Date: `new Date("2026-08-31")`
+ * is midnight UTC, and reading it back with local getters in IST returns the
+ * 31st, but in any timezone west of Greenwich it returns the 30th. Doing the
+ * arithmetic in UTC on both ends keeps the label matching the day the server
+ * will file it on, whose own `ymdForOffset` works exactly this way.
+ */
+function plusDays(ymd: string, n: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, (d ?? 1) + n));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** The three days a plan is actually made for. Offsets are days from TODAY,
+ *  which is what the server's `ymdForOffset` expects — deliberately not the
+ *  visible window's first column, which is a different day the moment the
+ *  strip is paged forward. */
+const QUICK_DAYS = [
+  { offset: 0, label: "Today" },
+  { offset: 1, label: "Tomorrow" },
+  { offset: 2, label: "Day after" },
+] as const;
+
 interface Props {
   item: SourceItem;
   /** Today's date (YYYY-MM-DD) — what the overdue counts compare against. */
   today: string;
   /** No-drag quick path — add straight to the first day of the visible window. */
   onAdd: (item: SourceItem) => void;
+  /**
+   * File onto an EXPLICIT day, `offset` days from today.
+   *
+   * When present the `+` opens a Today / Tomorrow / Day after chooser instead
+   * of filing blind. The plain `+` files onto the first column of the visible
+   * WINDOW, which is only "today" until someone pages the strip forward — after
+   * that the button quietly means a different day than it says. Naming the three
+   * days removes the guess. Dragging still handles every other date.
+   */
+  onAddOn?: (item: SourceItem, offset: number) => void;
   /** Abandon the underlying task → Recycle Bin (only for task-linked cards). */
   onAbandon?: (item: SourceItem) => void;
   /** "Today" | "18 Aug" — where the `+` button files it. */
@@ -49,8 +85,9 @@ interface Props {
  * `weekly_goals.id` / `goals.id` / prior `daily_checklist.id`, and adding it
  * calls the matching server action, which stores that id on the plan row.
  */
-export function SourceCard({ item, today, onAdd, onAbandon, addDayLabel = "Today" }: Props) {
+export function SourceCard({ item, today, onAdd, onAddOn, onAbandon, addDayLabel = "Today" }: Props) {
   const [detail, setDetail] = React.useState(false);
+  const [pickDay, setPickDay] = React.useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: sourceDragId(item),
     data: { type: "source", kind: item.kind, sourceId: item.id, title: item.title, subtitle: item.subtitle },
@@ -84,6 +121,44 @@ export function SourceCard({ item, today, onAdd, onAbandon, addDayLabel = "Today
           >
             Planned
           </span>
+        ) : onAddOn ? (
+          <Popover open={pickDay} onOpenChange={setPickDay}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                title="Add to a day"
+                aria-label={`Add ${item.title} to a day`}
+                className="absolute right-1.5 top-1.5 z-10 grid h-6 w-6 place-items-center rounded-full text-white shadow-sm transition-transform hover:scale-110 focus-visible:outline-2"
+                style={{ background: GOALS_GRADIENT, outlineColor: GOALS_ACCENT }}
+              >
+                <Plus size={14} strokeWidth={3.2} />
+              </button>
+            </PopoverTrigger>
+            {/* Radix, like every other popover in this app: the rail is an
+                `overflow-y-auto` column, so an in-flow menu would be clipped by
+                the very first card and unreachable from the last. */}
+            <PopoverContent align="end" sideOffset={6} className="w-[168px] p-1">
+              {QUICK_DAYS.map((q) => (
+                <button
+                  key={q.offset}
+                  type="button"
+                  onClick={() => {
+                    setPickDay(false);
+                    onAddOn(item, q.offset);
+                  }}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft focus-visible:outline-2"
+                  style={{ outlineColor: GOALS_ACCENT }}
+                >
+                  {q.label}
+                  {/* The date under the word. "Day after" is unambiguous only
+                      if you can see which date it lands on. */}
+                  <span className="text-[11px] font-semibold text-ink-muted">
+                    {fmtYmd(plusDays(today, q.offset))}
+                  </span>
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
         ) : (
           <button
             type="button"
@@ -178,7 +253,7 @@ export function SourceCard({ item, today, onAdd, onAbandon, addDayLabel = "Today
               type="button"
               onClick={() => onAbandon(item)}
               aria-label={`Abandon ${item.title} (moves to Recycle Bin)`}
-              title="Abandon — moves to Recycle Bin"
+              title="Abandon - moves to Recycle Bin"
               className="absolute bottom-1.5 right-1.5 inline-flex size-6 items-center justify-center rounded-full text-ink-muted/60 opacity-0 transition-opacity hover:bg-surface-soft hover:text-[color:var(--color-altus-red)] focus-visible:opacity-100 focus-visible:outline-2 group-hover:opacity-100"
               style={{ outlineColor: GOALS_ACCENT }}
             >

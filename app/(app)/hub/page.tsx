@@ -74,6 +74,9 @@ const HUB_PASTEL: Record<WorkspaceId, { from: string; to: string; ink: string; i
   accounts:     { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B", inkSoft: "#315A9B" },
   // Hand-holding — orange, the module's own accent (lib/module-theme).
   "people-allocation": { from: "#FBE7D6", to: "#FBE7D6", ink: "#C2410C", inkSoft: "#C2410C" },
+  // Project — the WMS red, matching the wms card above: the plan and the task
+  // list are two windows onto the same records.
+  "project-plan": { from: "#FEE2E2", to: "#FECACA", ink: "#B91C1C", inkSoft: "#DC2626" },
 };
 
 /**
@@ -122,7 +125,13 @@ function WorkspaceCard({ m, locked, i }: { m: ModuleTheme; locked: boolean; i: n
             {m.label}
           </h3>
           {/* Cards grow to fit (min-h + grid stretch equalises the row), so the
-              full tagline shows without ever being clipped mid-line. */}
+              full tagline shows without ever being clipped mid-line.
+
+              The WMS branch removed this on 2026-09-08 to fit the grid on one
+              screen; restored 2026-09-09 at the account holder's request. The
+              tagline is what tells someone which workspace they want before
+              they have learned the eleven glyphs, so a hub that scrolls is the
+              cheaper cost. */}
           <p className="mt-1.5 line-clamp-3 text-[12.5px] font-medium leading-snug" style={{ color: p.inkSoft }}>
             {m.tagline}
           </p>
@@ -142,6 +151,8 @@ function WorkspaceCard({ m, locked, i }: { m: ModuleTheme; locked: boolean; i: n
   );
 
   const base =
+    // Back to 236px alongside the restored tagline: 176px was sized for a card
+    // with no prose under the title, and it clips the third line.
     "wg-rise group relative block h-full min-h-[236px] overflow-hidden rounded-[28px] shadow-md max-md:min-h-[204px]";
   const bg = { background: `linear-gradient(145deg, ${p.from}, ${p.to})` };
 
@@ -254,9 +265,14 @@ export default async function HubPage() {
           </div>
         </header>
 
-        {/* Workspace grid — 10 modules. On xl the 5×2 grid fills the viewport
-            with no scroll; below xl it flows into fewer columns (3s on lg, so a
-            row never ends in a single orphan card) and the page scrolls. */}
+        {/* Workspace grid. On xl the 5-wide grid fills the viewport; below xl it
+            flows into fewer columns (3s on lg, so a row never ends in a single
+            orphan card) and the page scrolls.
+
+            Restored 2026-09-09 from the WMS branch's four-per-row. The reason
+            given for four was that five left HandHolding alone on the last row
+            — with Project added there are twelve modules, so five now reads
+            5 · 5 · 2 and the orphan that motivated the change is gone. */}
         <section
           className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
           aria-label="Workspaces"

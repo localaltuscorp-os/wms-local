@@ -216,7 +216,7 @@ export function DayLedger({ today, items: pItems, overdue: pOverdue, pullable: p
               </h2>
               {total > 0 && (
                 <span
-                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-bold tabular-nums"
+                  className="inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[13px] font-bold tabular-nums"
                   style={{ background: "color-mix(in srgb, var(--color-altus-red) 8%, transparent)", color: "var(--color-altus-red-deep)" }}
                 >
                   {doneCount}/{total} closed
@@ -296,7 +296,7 @@ export function DayLedger({ today, items: pItems, overdue: pOverdue, pullable: p
               >
                 <h3 className="font-bold text-ink-strong mb-1" style={{ fontSize: 17 }}>Pull from Weekly Goals</h3>
                 <p className="text-ink-subtle mb-3" style={{ fontSize: 13.5, lineHeight: 1.45 }}>
-                  Commit a goal to today — it joins as a goal-related item.
+                  Commit a goal to today - it joins as a goal-related item.
                 </p>
                 {/* Capped + scrollable: a long goal list must NOT stretch the page
                     tall (leaving the short ledger column with a big empty gap). */}
@@ -375,12 +375,12 @@ function DailyMin5({ count, assignedCount }: { count: number; assignedCount: num
         </span>
         <div className="min-w-0">
           <div className="font-bold text-ink-strong" style={{ fontSize: 17 }}>
-            {met ? "Your day is planned — you're set to clock in" : "Nothing planned yet — add one item to start your day"}
+            {met ? "Your day is planned - you're set to clock in" : "Nothing planned yet - add one item to start your day"}
           </div>
           <div className="font-semibold text-ink-soft" style={{ fontSize: 14 }}>
             {assignedCount > 0
               ? `${assignedCount} task${assignedCount === 1 ? "" : "s"} assigned by your manager · ${count} planned in total.`
-              : "Your assigned tasks appear here automatically — add personal items any time."}
+              : "Your assigned tasks appear here automatically - add personal items any time."}
           </div>
         </div>
       </div>
@@ -437,8 +437,8 @@ function AtAGlance({ committed, done, pending, goalCount }: { committed: number;
 /* ── sidebar: the daily ritual (dark guidance panel) ── */
 function HowItWorks() {
   const steps = [
-    { n: "1", t: "Plan", d: `Plan at least ${MIN_DAILY_ITEMS} things you'll get done today — pulled from goals or your own.` },
-    { n: "2", t: "Do", d: "Work through them — this is your checklist for the day." },
+    { n: "1", t: "Plan", d: `Plan at least ${MIN_DAILY_ITEMS} things you'll get done today - pulled from goals or your own.` },
+    { n: "2", t: "Do", d: "Work through them - this is your checklist for the day." },
     { n: "3", t: "Close Out", d: "Tonight, tick what's done and note what slipped." },
   ];
   return (
@@ -469,12 +469,14 @@ function HowItWorks() {
 
 /* ── stat chip for the (light) header ── */
 function HeroChip({ label, value, tone }: { label: string; value: number; tone?: "green" | "amber" | "red" }) {
-  const dot = tone ? `var(--color-${tone})` : "var(--color-ink-subtle)";
+  // `-deep` for the dot, pastel for the chip's own fill below — the two roles
+  // the tone scale actually has, kept apart.
+  const dot = tone ? `var(--color-${tone}-deep)` : "var(--color-ink-subtle)";
   const bg = tone ? `color-mix(in srgb, var(--color-${tone}) 9%, #fff)` : "var(--color-surface-soft, #F4F4F5)";
   const border = tone ? `color-mix(in srgb, var(--color-${tone}) 26%, transparent)` : "var(--color-hairline)";
   return (
     <span
-      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
+      className="inline-flex items-center gap-2 rounded-pill px-3 py-1.5"
       style={{ background: bg, border: `1px solid ${border}` }}
     >
       <span aria-hidden style={{ width: 7, height: 7, borderRadius: 999, background: dot }} />
@@ -503,7 +505,7 @@ function SectionGroup({
   return (
     <div>
       <div className="mb-1.5 flex items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em]" style={{ background: tint, color }}>
+        <span className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em]" style={{ background: tint, color }}>
           {icon}
           {label}
         </span>

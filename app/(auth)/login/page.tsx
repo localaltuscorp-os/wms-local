@@ -1,5 +1,9 @@
+import { redirect } from "next/navigation";
+import type { Route } from "next";
+import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 import { LoginMosaic } from "@/components/auth/login-mosaic";
 import { LoginFormCanva } from "@/components/auth/login-form-canva";
+import { localSessionEnabled } from "@/lib/auth/local-session";
 
 // Never static: the root layout resolves the signed-in employee, which reads
 // the session cookie, so Next bails this route out to dynamic rendering
@@ -30,6 +34,19 @@ function firstString(v: string | string[] | undefined): string | undefined {
 }
 
 export default async function LoginPage({ searchParams }: PageProps) {
+  // DEV_AUTH_BYPASS=true (.env.local, non-production only) — there is no sign-in
+  // to perform: the proxy and getCurrentEmployee both skip auth, so rendering the
+  // form here would be a dead end (submitting it hits a Firebase project that may
+  // not be configured). Bounce to the hub instead, which also catches the paths
+  // that navigate here on purpose — the sign-out buttons and any stale bookmark.
+  // See lib/auth/dev-bypass.ts.
+  if (devAuthBypassEnabled()) redirect("/hub" as Route);
+
+  // Local no-login mode: there is nothing to sign into. The proxy already folds
+  // /login into /hub; this is the belt-and-braces copy for any path that reaches
+  // the page directly (e.g. a proxy-exempt render).
+  if (localSessionEnabled()) redirect("/hub" as Route);
+
   const sp = await searchParams;
   const reason = firstString(sp["reason"]);
 

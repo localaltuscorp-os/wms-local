@@ -134,7 +134,7 @@ export function AdminMobileBar({ adminName, adminEmail, backHref, canSeeAccounts
                   style={{ height: 26, width: "auto", display: "block" }}
                 />
                 <span
-                  className="inline-flex items-center text-[9px] font-bold uppercase text-white px-1.5 py-0.5 rounded-full"
+                  className="inline-flex items-center text-[9px] font-bold uppercase text-white px-1.5 py-0.5 rounded-pill"
                   style={{
                     background:
                       "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",

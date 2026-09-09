@@ -91,7 +91,7 @@ export function IndexHubBoard({ sections, isAdmin, canDelete }: Props) {
             Index
           </h1>
           <p className="mt-2 text-ink-muted font-semibold" style={{ fontSize: 17 }}>
-            Every sheet, folder and tool in the Altus Corp ecosystem — one click away.
+            Every sheet, folder and tool in the Altus Corp ecosystem - one click away.
           </p>
         </div>
         {isAdmin && (
@@ -99,7 +99,7 @@ export function IndexHubBoard({ sections, isAdmin, canDelete }: Props) {
             <button
               type="button"
               onClick={() => setAddingSection((v) => !v)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[14.5px] font-bold text-ink-strong transition-all active:scale-[0.98] hover:border-altus-red/40"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-pill text-[14.5px] font-bold text-ink-strong transition-all active:scale-[0.98] hover:border-altus-red/40"
               style={{
                 border: "1px solid var(--color-hairline)",
                 background: "var(--color-surface-card)",
@@ -111,7 +111,7 @@ export function IndexHubBoard({ sections, isAdmin, canDelete }: Props) {
             <button
               type="button"
               onClick={() => setEditing((v) => !v)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[14.5px] font-bold transition-all active:scale-[0.98]"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-pill text-[14.5px] font-bold transition-all active:scale-[0.98]"
               style={
                 editing
                   ? {
@@ -164,7 +164,7 @@ export function IndexHubBoard({ sections, isAdmin, canDelete }: Props) {
                 key={s.id}
                 type="button"
                 onClick={() => jumpTo(s.id)}
-                className="rounded-full border border-hairline bg-white px-3 py-1 text-[12.5px] font-bold text-ink-strong transition-all hover:border-altus-red/40 hover:text-altus-red"
+                className="rounded-pill border border-hairline bg-white px-3 py-1 text-[12.5px] font-bold text-ink-strong transition-all hover:border-altus-red/40 hover:text-altus-red"
               >
                 {s.title}
                 <span className="ml-1.5 text-ink-muted tabular-nums">{s.links.length}</span>
@@ -334,7 +334,7 @@ function SectionCard({
 
       <ConfirmDeleteDialog
         open={confirming}
-        detail={`“${section.title}” — this section and all ${section.links.length} document(s) inside it.`}
+        detail={`“${section.title}” - this section and all ${section.links.length} document(s) inside it.`}
         pending={pending}
         onCancel={() => setConfirming(false)}
         onConfirm={removeSection}
@@ -511,7 +511,7 @@ function ConfirmDeleteDialog({
             type="button"
             onClick={onCancel}
             disabled={pending}
-            className="rounded-full border border-hairline bg-white px-4 py-2 text-[13.5px] font-bold text-ink-strong transition-colors hover:bg-black/[0.04] disabled:opacity-60"
+            className="rounded-pill border border-hairline bg-white px-4 py-2 text-[13.5px] font-bold text-ink-strong transition-colors hover:bg-black/[0.04] disabled:opacity-60"
           >
             Cancel
           </button>
@@ -519,7 +519,7 @@ function ConfirmDeleteDialog({
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13.5px] font-bold text-white transition-all hover:brightness-110 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13.5px] font-bold text-white transition-all hover:brightness-110 disabled:opacity-60"
             style={{
               background:
                 "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
@@ -583,7 +583,7 @@ function AddLink({ sectionId }: { sectionId: string }) {
         type="button"
         onClick={submit}
         disabled={pending}
-        className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13.5px] font-bold text-white transition-all hover:brightness-110 disabled:opacity-60"
+        className="inline-flex items-center gap-1.5 rounded-pill px-4 py-1.5 text-[13.5px] font-bold text-white transition-all hover:brightness-110 disabled:opacity-60"
         style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
       >
         {pending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
@@ -633,7 +633,7 @@ function AddSection({ onDone }: { onDone?: () => void } = {}) {
         type="button"
         onClick={submit}
         disabled={pending}
-        className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-[14px] font-bold text-white transition-all hover:brightness-110 disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-pill px-5 py-2 text-[14px] font-bold text-white transition-all hover:brightness-110 disabled:opacity-60"
         style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
       >
         {pending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
@@ -643,7 +643,7 @@ function AddSection({ onDone }: { onDone?: () => void } = {}) {
         <button
           type="button"
           onClick={onDone}
-          className="rounded-full border border-hairline bg-white px-4 py-2 text-[13.5px] font-bold text-ink-strong transition-colors hover:bg-black/[0.04]"
+          className="rounded-pill border border-hairline bg-white px-4 py-2 text-[13.5px] font-bold text-ink-strong transition-colors hover:bg-black/[0.04]"
         >
           Cancel
         </button>

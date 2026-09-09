@@ -9,6 +9,7 @@ import { TierPill } from "@/components/ambassadors/tier-pill";
 import { ScoreBadge } from "@/components/ambassadors/score-badge";
 import { inr, inrCompact } from "@/lib/ambassadors/format";
 import type { AmbassadorListRow } from "@/lib/queries/ambassadors";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 type SortKey = "name" | "score" | "referrals" | "revenue" | "commission";
 
@@ -34,7 +35,7 @@ function StatusBadge({ status }: { status: string }) {
   const tone = STATUS_TONE[status] ?? STATUS_TONE.archived!;
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-bold capitalize"
+      className="inline-flex items-center rounded-pill px-2.5 py-1 text-[12px] font-bold capitalize"
       style={{ background: tone.bg, color: tone.fg }}
     >
       {status}
@@ -98,15 +99,17 @@ export function DirectoryTable({ rows }: { rows: AmbassadorListRow[] }) {
     <div className="flex flex-col gap-4">
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-3">
+        <CollapsibleSearch scope="name, company, owner">
         <div className="flex min-w-[260px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Local search — name, company, owner" title="Local search — filters only the list on this page" aria-label="Local search — name, company, owner — this page only"
+            placeholder="Local search - name, company, owner" title="Local search - filters only the list on this page" aria-label="Local search - name, company, owner - this page only"
             className="w-full bg-transparent py-2.5 outline-none text-[15px] font-medium text-ink-strong placeholder:text-ink-subtle placeholder:font-normal"
           />
         </div>
+        </CollapsibleSearch>
         <select className={CHIP} value={tier} onChange={(e) => setTier(e.target.value)} aria-label="Filter by tier">
           <option value="">All Tiers</option>
           {TIERS.map((t) => (
@@ -343,5 +346,5 @@ function Td({ children, align }: { children: React.ReactNode; align?: "right" })
 }
 
 function Dim() {
-  return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>;
+  return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>;
 }

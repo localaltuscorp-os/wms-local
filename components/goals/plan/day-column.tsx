@@ -25,7 +25,8 @@ interface Props {
   onToggleDone: (item: PlanItem) => void;
   onPending: (item: PlanItem) => void;
   /** Copy a card onto the same day. */
-  onDuplicate: (item: PlanItem) => void;
+  /** `ymd` = the day the copy should land on; omitted means this same day. */
+  onDuplicate: (item: PlanItem, ymd?: string) => void;
   onRemove: (item: PlanItem) => void;
   onRename: (id: string, title: string) => void;
   onTransfer: (id: string, off: number) => void;
@@ -203,6 +204,7 @@ export function DayColumn({
                   onTransfer={onTransfer}
                   onSetTime={onSetTime}
                   dayOffset={day.offset}
+                  dayYmd={day.ymd}
                 />
               ))}
             </AnimatePresence>

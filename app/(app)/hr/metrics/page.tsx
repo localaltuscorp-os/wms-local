@@ -1,7 +1,4 @@
-import Link from "next/link";
-import type { Route } from "next";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { requireHrStaff } from "@/lib/hr/access";
 import { DashboardHeader } from "@/components/layout/header";
 import { PageShell } from "@/components/layout/page-shell";
@@ -16,7 +13,7 @@ export const dynamic = "force-dynamic";
 const RED = "#E10600";
 
 function fmtHours(h: number | null): string {
-  if (h === null) return "—";
+  if (h === null) return "-";
   if (h < 1) return `${Math.round(h * 60)}m`;
   if (h < 48) return `${h.toFixed(1)}h`;
   return `${(h / 24).toFixed(1)}d`;
@@ -37,19 +34,13 @@ export default async function HrMetricsPage() {
     { label: "Avg first response", value: fmtHours(m.avgFirstResponseHours) },
     { label: "Avg resolution", value: fmtHours(m.avgResolutionHours) },
     { label: "Resolved / closed", value: String(m.resolvedOrClosed) },
-    { label: "CSAT", value: m.csatAvg !== null ? `${m.csatAvg}/5` : "—", sub: m.csatCount ? `${m.csatCount} rated` : "no ratings yet" },
+    { label: "CSAT", value: m.csatAvg !== null ? `${m.csatAvg}/5` : "-", sub: m.csatCount ? `${m.csatCount} rated` : "no ratings yet" },
   ];
 
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
       <PageShell width="narrow" style={{ maxWidth: "960px" }}>
-        <Link
-          href={"/hr" as Route}
-          className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-muted transition hover:text-ink-strong"
-        >
-          <ArrowLeft size={15} /> Back to HR
-        </Link>
         <header className="mb-6">
           <h1
             className="text-ink-strong"

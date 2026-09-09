@@ -196,6 +196,76 @@ export type EmployeeRole = (typeof EMPLOYEE_ROLES)[number];
 export const ACCOUNT_TYPES = ["employee", "candidate", "system"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
+/**
+ * OFFBOARDING (migration 0212).
+ *
+ * Employment status is a SECOND axis, orthogonal to `is_active`:
+ *  · is_active         — can they sign in right now
+ *  · employment_status — do they still work here
+ *
+ * Both are needed. A suspended employee is inactive but current; a former
+ * employee must remain former even if their login is re-enabled by mistake.
+ *
+ *  · active     — current staff, whatever their login state.
+ *  · former     — offboarded. Identity destroyed (Firebase + avatar), record
+ *                 retained in full. This is the terminal state for the person;
+ *                 nothing about them is deleted on reaching it.
+ *  · anonymised — retention has expired and the PII has been replaced with
+ *                 placeholders. The row and every FK survive so history,
+ *                 headcount and audit chains do not develop holes.
+ */
+export const EMPLOYMENT_STATUSES = ["active", "former", "anonymised"] as const;
+export type EmploymentStatus = (typeof EMPLOYMENT_STATUSES)[number];
+
+/**
+ * Why someone left. A CLOSED list, because free text cannot be filtered,
+ * grouped or reported on — and attrition analysis is the reason to capture a
+ * reason at all.
+ *
+ * `other` is the deliberate escape hatch. Without it, an admin facing a case
+ * the list does not cover picks the nearest wrong bucket and quietly poisons
+ * every report built on this column. With it, the odd case is recorded
+ * honestly in `exit_reason_other` and the filter still works, because `other`
+ * is itself a filterable value.
+ */
+export const EXIT_REASONS = [
+  "resigned",
+  "terminated_for_cause",
+  "redundancy",
+  "contract_ended",
+  "abandonment",
+  "retirement",
+  "deceased",
+  "other",
+] as const;
+export type ExitReason = (typeof EXIT_REASONS)[number];
+
+export const EXIT_REASON_LABELS: Record<ExitReason, string> = {
+  resigned: "Resigned",
+  terminated_for_cause: "Terminated for cause",
+  redundancy: "Redundancy",
+  contract_ended: "Contract ended",
+  abandonment: "Abandonment",
+  retirement: "Retirement",
+  deceased: "Deceased",
+  other: "Other",
+};
+
+/**
+ * Rehire eligibility — the single most-read field on an exit record when
+ * someone reapplies two years later. `with_review` is the default because
+ * "nobody decided" and "yes" are different answers, and defaulting to yes
+ * would silently assert a judgement no one made.
+ */
+export const REHIRE_ELIGIBILITIES = ["yes", "no", "with_review"] as const;
+export type RehireEligibility = (typeof REHIRE_ELIGIBILITIES)[number];
+
+export const REHIRE_LABELS: Record<RehireEligibility, string> = {
+  yes: "Eligible for rehire",
+  no: "Not eligible",
+  with_review: "Eligible with review",
+};
+
 // Worker type — the employment archetype that drives BOTH attendance grading
 // and pay. Source of truth for `employees.worker_type`. `full_time` is the
 // back-compat default (every existing employee = full-time, no behaviour change).
@@ -727,7 +797,7 @@ export const AGREEMENT_TYPE_LABELS: Record<AgreementType, string> = {
   nda: "NDA / Confidentiality",
   ctc: "CTC / Salary Letter",
   probation_confirmation: "Confirmation of Appointment (Post-Probation)",
-  training_completion: "Confirmation — End of Free Training",
+  training_completion: "Confirmation - End of Free Training",
 };
 /** Lifecycle: drafted by HR → sent to the employee → e-signed. */
 export const AGREEMENT_STATUSES = ["draft", "sent", "signed"] as const;
@@ -1261,9 +1331,10 @@ export const hhAccessSections = (moduleCode: string) => hhAccessModule(moduleCod
 /**
  * A registered attendance device is a LAPTOP or a PHONE (migration 0206).
  *
- * Each employee designates one of each and may punch from EITHER — the rule is
- * "at most one approved device per kind", never "both are required", so a
- * machine away for repair never blocks attendance.
+ * The kind DESCRIBES a device; since 0214 it no longer constrains one. Each
+ * employee may hold two approved devices of any kind — two laptops, two phones,
+ * or one of each — and may punch from EITHER, so a machine away for repair never
+ * blocks attendance.
  */
 export const DEVICE_KINDS = ["laptop", "phone"] as const;
 export type DeviceKind = (typeof DEVICE_KINDS)[number];
@@ -1272,3 +1343,76 @@ export const DEVICE_KIND_LABELS: Record<DeviceKind, string> = {
   laptop: "Laptop",
   phone: "Phone",
 };
+
+/* ── Attendance audit log (migration 0215) ────────────────────────────────── */
+
+/**
+ * What a privileged attendance change DID. Four verbs, because the change log
+ * has to distinguish "there was no punch and now there is" from "there was one
+ * and now there is not" — a reader looking for a suspicious edit needs to see
+ * a creation and a deletion as different events, not both as "changed".
+ */
+export const ATTENDANCE_AUDIT_ACTIONS = [
+  /** No punch existed for that employee/day/kind; one was recorded. */
+  "create",
+  /** An existing punch's time was changed. */
+  "update",
+  /** The punch row was removed entirely. */
+  "delete",
+  /** A punch was cleared to empty via the set-or-clear editor. Distinct from
+   *  `delete` so the log distinguishes the admin day-detail "delete punch"
+   *  button from clearing a field in the inline editor. */
+  "clear",
+] as const;
+export type AttendanceAuditAction = (typeof ATTENDANCE_AUDIT_ACTIONS)[number];
+
+export const ATTENDANCE_AUDIT_ACTION_LABELS: Record<AttendanceAuditAction, string> = {
+  create: "Created",
+  update: "Changed",
+  delete: "Deleted",
+  clear: "Cleared",
+};
+
+/**
+ * The authorization decision, recorded verbatim on every audited change.
+ *
+ * This is the "relevant authorization context" the audit requirement asks for,
+ * and it is deliberately the SERVER's own reasoning rather than a summary
+ * written afterwards: it names the capability that permitted the write and
+ * states, for each time lock, whether it was overridden. A reader auditing a
+ * change six months later can see not just that Ruchita edited a punch, but
+ * that she did so past a closed 15-minute window and past the September lock,
+ * from her registered laptop.
+ */
+export interface AttendanceAuthorizationContext {
+  /**
+   * "self"       — the employee corrected their own punch.
+   * "privileged" — an attendance manager acted on someone else's, or past a lock.
+   * "system"     — no human acted at all: a scheduled job classified the day.
+   *
+   * `system` exists so the change log never implies an administrator made a
+   * change the machine made. `attendance_audit_log.actor_id` is NOT NULL and
+   * references a real employee, so a system row is filed against the employee
+   * whose day it is; THIS field is what says nobody chose it.
+   */
+  basis: "self" | "privileged" | "system";
+  /** The capability that permitted it, when one was needed. */
+  capability?: "attendance.manage_others";
+  /** True when the actor is not the employee whose attendance changed. */
+  onBehalfOfOther: boolean;
+  /** Was the employee's own 15-minute correction window still open? */
+  selfWindowOpen: boolean;
+  /** Was the month already locked when this change was made? */
+  monthLocked: boolean;
+  /** Did this write require the monthly-lock override to proceed? */
+  monthLockOverridden: boolean;
+  /** The device kind the change was made from — 'laptop' | 'phone'. Null only
+   *  for a device-exempt actor working from an unregistered device. */
+  deviceKind: string | null;
+  /** True when the actor holds `device.exempt_from_restriction`. */
+  deviceExempt: boolean;
+  /** Which scheduled job wrote this, when `basis` is "system". */
+  systemJob?: string;
+  /** A plain-language reason, for a system entry that has no human to ask. */
+  note?: string;
+}

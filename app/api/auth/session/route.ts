@@ -5,6 +5,12 @@ import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { getFirebaseAdminAuth } from "@/lib/firebase/admin";
 import { isLoginLive } from "@/lib/auth/current";
+import {
+  adoptDeviceOnLogin,
+  DEVICE_COOKIE,
+  DEVICE_COOKIE_MAX_AGE_SECONDS,
+} from "@/lib/security/device-access";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 
 export const runtime = "nodejs";
 
@@ -77,11 +83,46 @@ export async function POST(req: Request) {
       .where(eq(employees.id, emp.id));
   }
 
+  // ── DEVICE ACCESS ────────────────────────────────────────────────────────
+  //
+  // Resolve (and on a first sign-in, adopt) the browser this login came from.
+  // THIS IS THE ONLY PLACE the device cookie is minted: Next permits setting a
+  // cookie in a Route Handler, and a Server Component — where the gate itself
+  // runs — cannot. Doing it at sign-in means every authenticated request that
+  // follows can simply READ the cookie.
+  //
+  // A refusal is returned BEFORE the session cookie is minted, deliberately.
+  // Issuing a session and then blocking every page would leave the person
+  // signed in to an application they cannot use, and would hand an unregistered
+  // device a valid session cookie — which is exactly the thing the whole
+  // feature is trying not to do. `deviceStatus` lets /login show the right
+  // message instead of a generic failure.
+  //
+  // FAIL-OPEN ON AN INFRASTRUCTURE ERROR, not on a verdict: if the device
+  // lookup THROWS (database unreachable), sign-in proceeds, because a database
+  // hiccup must not lock the entire company out of the WMS. A device that is
+  // successfully checked and refused is still refused.
+  let deviceCookieId: string | null = null;
+  if (!DUMMY_MODE) {
+    try {
+      const device = await adoptDeviceOnLogin(emp);
+      if (!device.ok) {
+        return NextResponse.json(
+          { error: "device-not-authorized", deviceStatus: device.reason, message: device.error },
+          { status: 403 },
+        );
+      }
+      deviceCookieId = device.deviceId;
+    } catch (err) {
+      console.error("device adoption failed — allowing sign-in", err);
+    }
+  }
+
   const forwardedHeaders = new Headers(req.headers);
   forwardedHeaders.set("Authorization", `Bearer ${idToken}`);
 
   try {
-    return await setAuthCookies(forwardedHeaders, {
+    const res = await setAuthCookies(forwardedHeaders, {
       apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
       cookieName: "__session",
       cookieSignatureKeys: [
@@ -101,6 +142,25 @@ export async function POST(req: Request) {
         privateKey: process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, "\n"),
       },
     });
+
+    // Set the device cookie on the response we ACTUALLY return. `adoptDeviceOnLogin`
+    // already set it through `cookies()`, but `setAuthCookies` constructs its own
+    // NextResponse, and trusting Next to merge a cookie mutation into a response
+    // object a library built is the kind of assumption that works until it quietly
+    // does not — and if this cookie is dropped, the next request is "unidentified"
+    // and the person is bounced to /device-blocked one redirect after signing in.
+    if (deviceCookieId) {
+      res.cookies.set(DEVICE_COOKIE, deviceCookieId, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure:
+          process.env.NODE_ENV === "production" &&
+          process.env.ALLOW_INSECURE_COOKIES !== "true",
+        path: "/",
+        maxAge: DEVICE_COOKIE_MAX_AGE_SECONDS,
+      });
+    }
+    return res;
   } catch (err) {
     console.error("setAuthCookies failed", err);
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });

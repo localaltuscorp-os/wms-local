@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth/current";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { gateSkipActive } from "@/lib/auth/gate-skip";
+import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 import { SkipGateButton } from "@/components/layout/skip-gate-button";
 import { needsDailyChecklistPlan, needsGoalsPlanCommit } from "@/lib/daily-checklist/gate";
 import { planGateOn, managerTaskGateOn, dccReviewGateOn, goalsCascadeEnabled, loginPlanGateOn, loginDccGateOn } from "@/lib/goals/flag";
@@ -206,7 +207,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           a digit can never be used to walk out of a daily ritual. The allow-list
           reuses the layout's single `accessFor` result — no extra query. */}
       <ModuleShortcuts allowed={MODULE_ORDER.filter((id) => canAccessWorkspace(id, access))} />
-      <IdleTimerClient timeoutMinutes={15} />
+      {/* DEV_AUTH_BYPASS=true (.env.local, non-production only) — the idle
+          timer is the ONE piece of auth that still bites while the bypass is
+          on: the server never redirects, but after 15 idle minutes this client
+          hard-navigates to /login?reason=idle, dropping you on the sign-in
+          screen anyway. Skipped alongside the rest of auth so the bypass is
+          complete. See lib/auth/dev-bypass.ts. */}
+      {devAuthBypassEnabled() ? null : <IdleTimerClient timeoutMinutes={15} />}
       <OnboardingNudge />
       {/* The app's ONE New Task dialog, mounted above ChromeShell so it exists
           on every (app) route — including the hub and the full-screen HR

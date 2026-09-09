@@ -29,6 +29,7 @@ import { formatDate, formatInr, formatCount } from "@/lib/format";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { Select } from "@/components/ui/select";
 import { Field, FieldInput } from "@/components/forms/form-fields";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 type Status = "pending" | "approved" | "rejected";
 type DerivedStatus = Status | "paid";
@@ -197,16 +198,18 @@ export function RbClaimsList({
         className="wg-rise mb-4 flex flex-wrap items-center gap-3 rounded-2xl bg-surface-card px-4 py-3"
         style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline), 0 10px 28px -22px rgba(15,23,42,0.35)" }}
       >
+        <CollapsibleSearch scope="claims, person, head, amount">
         <label className="relative flex-1 min-w-[220px]">
           <span className="sr-only">Search claims</span>
           <Search size={15} strokeWidth={2.4} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Local search — claims, person, head, amount" title="Local search — filters only the list on this page" aria-label="Local search — claims — expense, person, head, amount — this page only"
+            placeholder="Local search - claims, person, head, amount" title="Local search - filters only the list on this page" aria-label="Local search - claims - expense, person, head, amount - this page only"
             className="w-full rounded-pill border border-hairline bg-white py-2 pl-9 pr-4 text-[13.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle focus:border-[#16a34a99]"
           />
         </label>
+        </CollapsibleSearch>
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by status">
           {chip("all", "All")}
           {chip("pending", "Pending")}
@@ -232,7 +235,7 @@ export function RbClaimsList({
       </p>
 
       {shown.length === 0 ? (
-        <p className="px-1 py-6 text-[14.5px] font-medium text-ink-subtle">No claims match — clear the search or filters.</p>
+        <p className="px-1 py-6 text-[14.5px] font-medium text-ink-subtle">No claims match - clear the search or filters.</p>
       ) : (
         <ul className="space-y-3">
           {shown.map((r, i) => (

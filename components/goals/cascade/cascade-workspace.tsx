@@ -205,7 +205,7 @@ function PeriodRow({ d }: { d: PeriodRowData }) {
         className="w-[58px] shrink-0 text-right text-[19px] font-black tabular-nums"
         style={{ color: d.has ? tone.color : "var(--color-ink-subtle)", fontFamily: "var(--font-display), system-ui, sans-serif" }}
       >
-        {d.has ? `${d.pct}%` : "—"}
+        {d.has ? `${d.pct}%` : "-"}
       </span>
       <ChevronRight size={16} className="shrink-0 text-ink-soft transition-transform group-hover:translate-x-0.5" />
     </button>
@@ -352,7 +352,7 @@ export function CascadeWorkspace(props: Props) {
               >
                 The Cascade
               </h1>
-              <span className="rounded-full px-2 py-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-white" style={{ background: "#0f172a" }}>
+              <span className="rounded-pill px-2 py-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-white" style={{ background: "#0f172a" }}>
                 Kanban
               </span>
             </div>
@@ -465,7 +465,7 @@ export function CascadeWorkspace(props: Props) {
                     </div>
                   </Ring>
                   <div className="min-w-[220px] flex-1">
-                    <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10.5px] font-black uppercase tracking-[0.14em] text-white" style={{ background: "#0f172a" }}>
+                    <span className="inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-[10.5px] font-black uppercase tracking-[0.14em] text-white" style={{ background: "#0f172a" }}>
                       {fyLabel(fyStartYear)} · Cascade health
                     </span>
                     <h2
@@ -626,7 +626,7 @@ export function CascadeWorkspace(props: Props) {
         {lens === "levels" && (
           <>
             <p className="mb-3 text-center text-[12.5px] font-medium text-ink-muted">
-              Drag a card <b className="text-ink-strong">up a level</b> to promote it — a weekly can become a month, quarter, or yearly goal.
+              Drag a card <b className="text-ink-strong">up a level</b> to promote it - a weekly can become a month, quarter, or yearly goal.
             </p>
             <div className="flex gap-4 overflow-x-auto pb-3">
               <LevelColumn level="year" label="Yearly" sub="the north star" goals={goals.filter((g) => g.period === "year")} />
@@ -660,7 +660,7 @@ function AssignedStrip({ items, reduce }: { items: AssignedGoal[]; reduce: boole
       <div className="mb-2 flex items-center gap-2 px-1">
         <Users2 size={15} style={{ color: ACCENT_DEEP }} />
         <span className="text-[13px] font-black text-ink-strong">Also on You</span>
-        <span className="text-[11.5px] font-medium text-ink-muted">— goals others made you responsible for</span>
+        <span className="text-[11.5px] font-medium text-ink-muted">- goals others made you responsible for</span>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {items.map((a) => {
@@ -725,7 +725,7 @@ function WeekColumn({ weekStart, items, canWrite, onPct, busy }: { weekStart: st
       <div className="mb-3 flex items-baseline gap-2 border-b-2 px-1 pb-2.5" style={{ borderColor: "var(--color-hairline)" }}>
         <span className="text-[17px] font-black text-ink-strong">W{weekNoOf(weekStart)}</span>
         <span className="text-[12.5px] font-semibold text-ink-muted">{weekStart.slice(8)}/{weekStart.slice(5, 7)}</span>
-        <span className="ml-auto inline-flex min-w-5 justify-center rounded-full bg-surface-soft px-2 text-[12px] font-black tabular-nums text-ink-soft">{items.length}</span>
+        <span className="ml-auto inline-flex min-w-5 justify-center rounded-pill bg-surface-soft px-2 text-[12px] font-black tabular-nums text-ink-soft">{items.length}</span>
       </div>
       <div className="flex flex-1 flex-col gap-2.5">
         {items.map((w) => (
@@ -917,7 +917,7 @@ function GoalCard(props: {
             type="button"
             onPointerDown={stopDrag}
             onClick={() => setTeamOpen((o) => !o)}
-            className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-bold text-ink-muted transition-colors hover:border-hairline-strong hover:text-ink-strong"
+            className="inline-flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-[12.5px] font-bold text-ink-muted transition-colors hover:border-hairline-strong hover:text-ink-strong"
             style={{ borderColor: "var(--color-hairline-strong)" }}
           >
             <UserPlus size={15} strokeWidth={2.4} /> {team.length > 0 ? "Edit people" : "Involve people"}
@@ -1080,7 +1080,7 @@ function CockpitGoalCard({
                 key={n}
                 type="button"
                 onClick={() => commitPct(n)}
-                className="rounded-full border px-2.5 py-1 text-[11px] font-bold tabular-nums transition-colors"
+                className="rounded-pill border px-2.5 py-1 text-[11px] font-bold tabular-nums transition-colors"
                 style={pct === n ? { background: tone.color, color: "#fff", borderColor: tone.color } : { color: "var(--color-ink-muted)", borderColor: "var(--color-hairline-strong)" }}
               >
                 {n}%
@@ -1128,7 +1128,7 @@ function CockpitGoalCard({
             <button
               type="button"
               onClick={() => setTeamOpen((o) => !o)}
-              className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-bold text-ink-muted transition-colors hover:border-hairline-strong hover:text-ink-strong"
+              className="inline-flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-[12.5px] font-bold text-ink-muted transition-colors hover:border-hairline-strong hover:text-ink-strong"
               style={{ borderColor: "var(--color-hairline-strong)" }}
             >
               <UserPlus size={15} strokeWidth={2.4} /> {team.length > 0 ? "Edit people" : "Involve people"}
@@ -1303,7 +1303,7 @@ function QuickAdd({ busy, onAdd, compact }: { busy: boolean; onAdd: (title: stri
         onChange={(e) => setV(e.target.value)}
         onBlur={() => { if (!v.trim() && !listening) setOpen(false); }}
         maxLength={400}
-        placeholder={compact ? "Goal…" : "Name your goal — or tap the mic to dictate…"}
+        placeholder={compact ? "Goal…" : "Name your goal - or tap the mic to dictate…"}
         className={`min-w-0 flex-1 border-0 bg-transparent text-ink-strong outline-none placeholder:text-ink-subtle ${compact ? "text-[12.5px]" : "text-[15px] font-medium"}`}
       />
       <MicButton listening={listening} onClick={dictate} size={compact ? 32 : 40} />
@@ -1355,7 +1355,7 @@ function LevelColumn({ level, label, sub, goals }: { level: string; label: strin
       <div className="flex items-baseline gap-2 border-b-2 px-3.5 py-3" style={{ borderColor: "var(--color-hairline)" }}>
         <span className="text-[15px] font-black text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>{label}</span>
         <span className="text-[11.5px] font-medium text-ink-muted">{sub}</span>
-        <span className="ml-auto inline-flex min-w-5 justify-center rounded-full bg-surface-soft px-1.5 text-[11px] font-black tabular-nums text-ink-soft">{goals.length}</span>
+        <span className="ml-auto inline-flex min-w-5 justify-center rounded-pill bg-surface-soft px-1.5 text-[11px] font-black tabular-nums text-ink-soft">{goals.length}</span>
       </div>
       <div className="flex flex-1 flex-col gap-2.5 p-2.5">
         {goals.length === 0 ? (
@@ -1382,7 +1382,7 @@ function WeekLevelColumn({ weekly, canWrite, onPct, busy }: { weekly: WeeklyDTO[
       <div className="flex items-baseline gap-2 border-b-2 px-3.5 py-3" style={{ borderColor: "var(--color-hairline)" }}>
         <span className="text-[15px] font-black text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>Weekly</span>
         <span className="text-[11.5px] font-medium text-ink-muted">the leaf</span>
-        <span className="ml-auto inline-flex min-w-5 justify-center rounded-full bg-surface-soft px-1.5 text-[11px] font-black tabular-nums text-ink-soft">{items.length}</span>
+        <span className="ml-auto inline-flex min-w-5 justify-center rounded-pill bg-surface-soft px-1.5 text-[11px] font-black tabular-nums text-ink-soft">{items.length}</span>
       </div>
       <div className="flex flex-1 flex-col gap-2.5 p-2.5">
         {items.length === 0 ? (

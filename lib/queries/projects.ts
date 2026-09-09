@@ -29,7 +29,10 @@ export async function listProjectOptions(): Promise<{ id: string; name: string }
 export interface ProjectTreeNode {
   id: string;
   name: string;
-  kind: "project" | "milestone" | "result" | "action" | "sub_action";
+  // 'sub_sub_action' is the sixth level added by the Project Plan screen
+  // (migration 0203). This board never creates one, but it must be able to
+  // TYPE one, because both screens read the same project_nodes rows.
+  kind: "project" | "milestone" | "result" | "action" | "sub_action" | "sub_sub_action";
   parentId: string | null;
   sortOrder: number;
   actionCount: number;

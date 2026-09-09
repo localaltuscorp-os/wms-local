@@ -33,7 +33,9 @@ export function SidebarBrand() {
   const theme = ws ? MODULE_THEME[ws] : null;
   const ModuleIcon = theme?.Icon;
 
-  const landing = ws ? (WORKSPACE_LANDING[ws] as Route) : ("/hub" as Route);
+  // Cast at the point of use, not here: a ternary whose branches are already
+  // `Route` forces TS to normalise the whole typed-routes union (TS2590).
+  const landing = ws ? WORKSPACE_LANDING[ws] : "/hub";
 
   return (
     <div className="mx-auto flex w-full flex-col items-center justify-center gap-3 text-center">
@@ -53,8 +55,8 @@ export function SidebarBrand() {
 
       {theme && ModuleIcon && (
         <Link
-          href={landing}
-          aria-label={`${theme.label} — module home`}
+          href={landing as Route}
+          aria-label={`${theme.label} - module home`}
           className="module-wordmark inline-flex w-full items-center justify-center gap-2.5 rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
         >
           <span

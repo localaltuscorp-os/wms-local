@@ -79,7 +79,7 @@ export default async function WeeklyChecklistPage({ searchParams }: PageProps) {
             decoration and the week number now rides on the stepper label. */}
         <PageCommandBar
           title="Weekly Checklist"
-          hint="Recurring weekly compliance — tick each week of the month as it's done."
+          hint="Recurring weekly compliance - tick each week of the month as it's done."
           actions={
             <>
               <div className="inline-flex items-center overflow-hidden rounded-lg border border-hairline-strong bg-surface-card">
@@ -108,7 +108,7 @@ export default async function WeeklyChecklistPage({ searchParams }: PageProps) {
           {WEEKLY_CHECK_STATUSES.map((s) => {
             const t = weeklyStatusTone(s);
             return (
-              <span key={s} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: t.bg, color: t.fg }}>
+              <span key={s} className="inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] font-bold" style={{ background: t.bg, color: t.fg }}>
                 <span className="inline-block size-[6px] rounded-full" style={{ background: t.dot }} />
                 {s}
               </span>

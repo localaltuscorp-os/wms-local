@@ -232,6 +232,46 @@ export function WeeklyCascadeBoard({
   const adopted = rows.filter((r) => r.adopted);
   const dropped = rows.filter((r) => !r.adopted);
 
+  /* ?focus=<goalId> — scroll that card into view and flash it.
+   *
+   * The pinned "This Week's Goals" block on the WMS dashboard, the Tasks list
+   * and My Day deep-links here (lib/weekly-goals/as-task-row.ts). Landing on
+   * the right WEEK is most of the job, but on a full week the goal you clicked
+   * can be six cards down — arriving at the top of a list and hunting for it is
+   * not "opening the goal".
+   *
+   * A DOM WRITE, NOT setState. This runs once per arrival and touches one
+   * element; routing it through React state would re-render every card on the
+   * board to draw a ring on one of them, and the ring has to come off on a
+   * timer anyway. Updating something outside React is what an effect is for —
+   * the same call the sidebar's collapse rules and Status by Doer's sticky
+   * headers make.
+   *
+   * `rows.length` is in the deps, not `rows`: the card cannot be scrolled to
+   * before it has rendered, and the list identity changes on every keystroke
+   * commit further down the board — which would re-flash the card while
+   * somebody was editing.
+   */
+  React.useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("focus");
+    if (!id) return;
+    // Two frames: one for the cards to commit, one for the motion/react entry
+    // transform to settle, or the scroll lands on where the card was mid-slide.
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(`wg-${id}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      const previous = el.style.boxShadow;
+      el.style.transition = "box-shadow 260ms ease";
+      el.style.boxShadow =
+        "0 0 0 3px color-mix(in srgb, var(--color-altus-red) 55%, transparent), 0 10px 30px -12px rgba(15,23,42,0.35)";
+      window.setTimeout(() => {
+        el.style.boxShadow = previous;
+      }, 2400);
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [rows.length]);
+
   // GoalDTO projection of the adopted goals — the filters, sort, export and
   // the table itself all operate on this shape, same as the Yearly/Quarterly/
   // Monthly boards.
@@ -375,22 +415,21 @@ export function WeeklyCascadeBoard({
       <header className="wg-rise relative mb-3 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-x-4 gap-y-2 flex-wrap min-w-0">
           <h1
-            className="text-ink-strong shrink-0"
-            style={{
-              fontFamily: "var(--font-display), system-ui, sans-serif",
-              fontWeight: 900,
-              fontSize: "clamp(20px, 1.8vw, 25px)",
-              letterSpacing: "-0.028em",
-              lineHeight: 1,
-            }}
+            /* `page-heading` (app/globals.css) — the display face at 900 and
+               the shared size ramp, black. The ramp that used to sit inline
+               here travelled into that class unchanged; the brand red and
+               the sheen belong to the chrome (the rail's wordmark and the
+               top bar), not to the page body. */
+            className="page-heading shrink-0"
           >
             Weekly Goals
           </h1>
           <div className="flex flex-wrap items-center gap-1.5">
             <GoalStatChip
+              /* `neutral` here too — the two boards' chip rows have to agree. */
               label="Total"
               value={chipCounts.all}
-              tone="slate"
+              tone="neutral"
               active={completion === "all"}
               onClick={() => setCompletion("all")}
             />
@@ -704,7 +743,7 @@ export function WeeklyCascadeBoard({
             <button
               type="button"
               onClick={() => setRowsPerPage("all")}
-              className={`self-start cursor-pointer rounded-full border border-hairline-strong bg-surface-card px-4 py-2 text-[13px] font-bold text-ink-soft transition-colors hover:text-ink-strong ${FOCUS_RING}`}
+              className={`self-start cursor-pointer rounded-pill border border-hairline-strong bg-surface-card px-4 py-2 text-[13px] font-bold text-ink-soft transition-colors hover:text-ink-strong ${FOCUS_RING}`}
             >
               Show all ({displayed.length - pagedGoals.length} more)
             </button>
@@ -995,7 +1034,7 @@ const WeeklyQuickAdd = React.forwardRef<
           setOpen(true);
           requestAnimationFrame(() => titleRef.current?.focus());
         }}
-        className={`wg-btn group inline-flex w-auto cursor-pointer items-center justify-center gap-2 self-start rounded-full border px-4 py-2.5 text-[13.5px] font-bold transition-colors hover:bg-surface-soft ${QUICK_ADD_FOCUS_RING}`}
+        className={`wg-btn group inline-flex w-auto cursor-pointer items-center justify-center gap-2 self-start rounded-pill border px-4 py-2.5 text-[13.5px] font-bold transition-colors hover:bg-surface-soft ${QUICK_ADD_FOCUS_RING}`}
         style={{
           borderColor: "var(--color-hairline-strong)",
           color: "var(--color-ink-soft)",
@@ -1042,7 +1081,7 @@ const WeeklyQuickAdd = React.forwardRef<
               <button
                 type="button"
                 onClick={closeAll}
-                className={`inline-flex items-center rounded-full border px-5 py-2.5 text-[14px] font-bold text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong ${QUICK_ADD_FOCUS_RING}`}
+                className={`inline-flex items-center rounded-pill border px-5 py-2.5 text-[14px] font-bold text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong ${QUICK_ADD_FOCUS_RING}`}
                 style={{ borderColor: "var(--color-hairline-strong)" }}
               >
                 End
@@ -1051,7 +1090,7 @@ const WeeklyQuickAdd = React.forwardRef<
                 type="button"
                 onClick={submit}
                 disabled={saving}
-                className={`wg-btn inline-flex items-center gap-1.5 rounded-full px-6 py-2.5 text-[14px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${QUICK_ADD_FOCUS_RING}`}
+                className={`wg-btn inline-flex items-center gap-1.5 rounded-pill px-6 py-2.5 text-[14px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${QUICK_ADD_FOCUS_RING}`}
                 style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
               >
                 {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={2.8} />}
@@ -1180,7 +1219,7 @@ const WeeklyQuickAdd = React.forwardRef<
             <span className="mb-1 block text-[12px] font-bold text-ink-soft">Team Members</span>
             <TeamWeightsField value={team} roster={props.roster} onChange={setTeam} />
             <span className="mt-1 block text-[11.5px] font-medium text-ink-subtle">
-              Add the people on this goal — each gets their own weight (share).
+              Add the people on this goal - each gets their own weight (share).
             </span>
           </div>
 

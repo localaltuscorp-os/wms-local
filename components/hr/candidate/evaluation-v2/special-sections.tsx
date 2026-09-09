@@ -83,7 +83,7 @@ export function OverallSection({
             </p>
             {elig.dealbreaker && (
               <span className="mt-2 inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-[12px] font-bold" style={{ background: "color-mix(in srgb, var(--color-altus-red) 12%, white)", color: RED_DEEP }}>
-                <AlertTriangle size={13} /> Flagged for review — critical pre-requisite failed
+                <AlertTriangle size={13} /> Flagged for review - critical pre-requisite failed
               </span>
             )}
           </div>
@@ -173,7 +173,7 @@ function InterviewScoreDial({ pct, avg }: { pct: number | null; avg: number | nu
       tone={tone}
       sub="Interview Score"
       ariaLabel={pct === null ? "Interview score not yet computed" : `Interview score ${pct} out of 100`}
-      main={pct === null ? <span className="text-ink-subtle">—</span> : <>{pct}<span className="text-[0.5em] font-bold text-ink-subtle">/100</span></>}
+      main={pct === null ? <span className="text-ink-subtle">-</span> : <>{pct}<span className="text-[0.5em] font-bold text-ink-subtle">/100</span></>}
     />
   );
 }
@@ -193,7 +193,7 @@ function ScorecardRing({ label, score }: { label: string; score: number | null }
         fill={score === null ? 0 : score / 10}
         tone={tone}
         ariaLabel={score === null ? `${label} not rated` : `${label} ${fmt(score)} out of 10`}
-        main={score === null ? <span className="text-ink-subtle">—</span> : fmt(score)}
+        main={score === null ? <span className="text-ink-subtle">-</span> : fmt(score)}
       />
       <span className="text-center text-[11.5px] font-bold leading-tight text-ink-strong">{label}</span>
       <span className="text-[10px] font-black uppercase tracking-[0.08em]" style={{ color: band.tone }}>{band.label}</span>
@@ -223,7 +223,7 @@ function IndexStat({ label, value, small }: { label: string; value: number | nul
         className={`${small ? "text-[17px]" : "text-[22px]"} font-black leading-none tabular-nums`}
         style={{ fontFamily: DISPLAY, color: value === null ? "var(--color-ink-subtle)" : tone.fg }}
       >
-        {value === null ? "—" : fmt(value)}
+        {value === null ? "-" : fmt(value)}
         <span className={`${small ? "text-[10px]" : "text-[12px]"} font-bold text-ink-subtle`}>/10</span>
       </p>
     </div>
@@ -337,7 +337,7 @@ export function RecommendationPicker({ ctrl, auto }: { ctrl: EvalController; aut
               </span>
               {r.label}
               {isAuto && !active && (
-                <span className="ml-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.06em]" style={{ background: `color-mix(in srgb, ${r.tone} 14%, white)` }}>
+                <span className="ml-0.5 rounded-pill px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.06em]" style={{ background: `color-mix(in srgb, ${r.tone} 14%, white)` }}>
                   Auto
                 </span>
               )}
@@ -404,7 +404,7 @@ export function RecommendationPicker({ ctrl, auto }: { ctrl: EvalController; aut
           </p>
           <ul className="space-y-1.5">
             {history.slice().reverse().map((ev, i) => {
-              const fromL = ev.from ? RECOMMENDATIONS.find((r) => r.value === ev.from)?.label ?? ev.from : "—";
+              const fromL = ev.from ? RECOMMENDATIONS.find((r) => r.value === ev.from)?.label ?? ev.from : "-";
               const toL = RECOMMENDATIONS.find((r) => r.value === ev.to)?.label ?? ev.to;
               return (
                 <li key={`${ev.at}-${i}`} className="rounded-lg border border-hairline bg-surface-soft px-3 py-2 text-[12.5px]">
@@ -454,14 +454,14 @@ export function OverallInput({
           <div className="text-right">
             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-soft">Computed weighted</p>
             <p className="text-[32px] font-black tabular-nums leading-none" style={{ color: tone.fg, fontFamily: DISPLAY }}>
-              {computed.avg === null ? "— / 10" : `${fmt(computed.avg)} / 10`}
+              {computed.avg === null ? "- / 10" : `${fmt(computed.avg)} / 10`}
             </p>
           </div>
         </div>
       </div>
       {set && instance.overall !== null && computed.avg !== null && Math.abs(instance.overall - computed.avg) >= 2 && (
         <p className="mt-2 text-[12px] font-semibold" style={{ color: RED_DEEP }}>
-          Your gut ({fmt(instance.overall)}) differs from the computed score ({fmt(computed.avg)}) by {fmt(Math.abs(instance.overall - computed.avg))} — worth a note on why.
+          Your gut ({fmt(instance.overall)}) differs from the computed score ({fmt(computed.avg)}) by {fmt(Math.abs(instance.overall - computed.avg))} - worth a note on why.
         </p>
       )}
     </div>

@@ -12,8 +12,8 @@ import {
   type NotificationKind,
 } from "@/db/schema";
 import type { PunchReason } from "@/db/enums";
-import { requireUser, requireAdmin } from "@/lib/auth/current";
-import { resolveWebDevice } from "@/lib/attendance/web-device";
+import { requireUser } from "@/lib/auth/current";
+import { resolveDeviceContext } from "@/lib/security/device-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { afterResponse } from "@/lib/after";
@@ -60,6 +60,13 @@ import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { withTimeout } from "@/lib/db/with-timeout";
 import { CLOSEOUT_BLOCK_MESSAGE, CLOSEOUT_REDIRECT_TO } from "@/lib/attendance/closeout-gate";
 import { assertRemoteWorkApproved } from "@/lib/attendance/remote-work";
+import {
+  authorizeAttendanceMutation,
+  isPrivilegedChange,
+} from "@/lib/security/attendance-authorization";
+import { recordAttendanceAudit } from "@/lib/security/attendance-audit";
+import { selfCorrectionWindow } from "@/lib/security/attendance-time-rules";
+import { isSystemAutoPunchOut } from "@/lib/attendance/auto-punch-out";
 
 type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -144,18 +151,25 @@ export async function punchAttendance(input: {
   });
 
   // ── DESIGNATED-DEVICE GATE (WEB punch) ───────────────────────────────
-  // The phone half of the allowlist has been enforced since the anti-proxy
-  // work; the web punch had NO device binding at all, so signing in on a
-  // colleague's laptop and punching for them was simply possible. The browser
-  // is now bound the same way — see lib/attendance/web-device.ts for how the
-  // first laptop is grandfathered in and why that window closes per person.
+  // Now the SAME check the whole WMS runs — `lib/security/device-access.ts` —
+  // rather than the punch-only `resolveWebDevice` that used to live here.
   //
-  // EITHER DEVICE SATISFIES THE RULE: this gate only speaks for the browser in
-  // front of it. Someone whose laptop is away for repair punches from their
-  // registered phone through the app, which carries its own gate — neither
-  // device is a prerequisite for the other.
-  const webDevice = await resolveWebDevice(me.id);
-  if (!webDevice.ok) return { ok: false, error: webDevice.error };
+  // That module carried its own copy of the allowlist rules, including its own
+  // enrolment path and its own reading of the cap. With the cap now one device
+  // per KIND (0215), its across-kinds arithmetic was wrong, and it would have
+  // enrolled rows the database then refused. Two implementations of one rule is
+  // exactly what the brief asks not to build, so there is one left.
+  //
+  // In practice `requireUser()` above has already refused an unauthorized
+  // device, so this is belt-and-braces — and it stays, because punching is the
+  // act with the most to gain from being done as somebody else.
+  //
+  // EITHER DEVICE SATISFIES THE RULE: this only speaks for the browser in front
+  // of it. Someone whose laptop is away for repair punches from their registered
+  // phone through the app, which runs the same check — neither device is a
+  // prerequisite for the other.
+  const webDevice = await resolveDeviceContext(me);
+  if (!webDevice.allowed) return { ok: false, error: webDevice.error };
 
   // ── Office geofence ──────────────────────────────────────────────────
   // When office coordinates are configured the punch must carry a GPS fix
@@ -505,14 +519,79 @@ function revalidateAttendanceAdmin(): void {
 }
 
 /**
+ * The punch as it stands RIGHT NOW, read from the database.
+ *
+ * The authorization service measures the 15-minute correction window from this
+ * — never from anything the client sent — and the audit log records it as the
+ * OLD value. Taking either from the request would let a crafted call reopen a
+ * window that closed hours ago, or file a false "changed from" in a trail that
+ * is supposed to be the record of what happened.
+ */
+async function currentPunch(
+  employeeId: string,
+  logDate: string,
+  kind: "in" | "out",
+): Promise<{
+  id: string;
+  loggedAt: Date;
+  source: string | null;
+  reason: string | null;
+  recordedById: string | null;
+} | null> {
+  const [row] = await db
+    .select({
+      id: attendanceLogs.id,
+      loggedAt: attendanceLogs.loggedAt,
+      // Read so the self-correction guard can tell the system's own
+      // forgotten-logout row apart from a punch the employee may correct.
+      source: attendanceLogs.source,
+      reason: attendanceLogs.reason,
+      recordedById: attendanceLogs.recordedById,
+    })
+    .from(attendanceLogs)
+    .where(
+      and(
+        eq(attendanceLogs.employeeId, employeeId),
+        eq(attendanceLogs.logDate, logDate),
+        eq(attendanceLogs.kind, kind),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/** A punch time as the audit log and the refusal messages show it: "18:02" in
+ *  the employee's own timezone, which is the only rendering anyone recognises. */
+function punchTimeLabel(at: Date | null | undefined, tz: string): string | null {
+  if (!at) return null;
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(at);
+}
+
+/**
  * Create or overwrite a single in/out punch for an employee+day. Upsert on the
  * (employee, day, kind) unique index: a second admin punch of the same kind
  * updates the time/reason rather than failing.
+ *
+ * ── THE GATE CHANGED, DELIBERATELY ─────────────────────────────────────────
+ * This used to be `requireAdmin()` — every admin in the company could rewrite
+ * anybody's attendance. It is now `requireUser()` plus
+ * `authorizeAttendanceMutation`, which grants changing SOMEONE ELSE'S
+ * attendance only to holders of `attendance.manage_others`. That is a genuine
+ * NARROWING and it is the point: attendance decides pay, and the rule asked for
+ * names two people rather than a role that thirty accounts carry.
+ *
+ * An ordinary admin keeps every other admin capability, and keeps their own
+ * 15-minute self-correction like everyone else.
  */
 export async function adminUpsertPunch(
   input: unknown,
 ): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -520,7 +599,7 @@ export async function adminUpsertPunch(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  return upsertPunchCore(me.id, parsed.data);
+  return upsertPunchCore(me, parsed.data);
 }
 
 /**
@@ -532,7 +611,7 @@ export async function adminUpsertPunch(
  * inline on the team list).
  */
 async function upsertPunchCore(
-  meId: string,
+  me: Employee,
   {
     employeeId,
     logDate,
@@ -547,13 +626,32 @@ async function upsertPunchCore(
     reason: PunchReason;
   },
 ): Promise<ActionResult> {
-  // Rule 7 — a frozen month can't be edited (fail-open + flag-gated, default OFF).
+  const meId = me.id;
+
+  // Rule 7 — the legacy month FREEZE (fail-open + flag-gated, default OFF).
+  // Kept as-is and left ahead of the new checks: it is a separate, manually
+  // triggered mechanism from the automatic monthly LOCK below, it is enforced
+  // for everyone including privileged managers ("no override, per Sir"), and
+  // conflating the two would quietly hand the freeze an override it never had.
   const editable = await assertMonthEditable(logDate);
   if (!editable.ok) return editable;
 
   const tz = await targetTz(employeeId);
   if (!tz) return { ok: false, error: "Employee not found." };
   const loggedAt = zonedWallClockToUtc(logDate, timeHHmm, tz);
+
+  // Read BEFORE deciding and before writing: the 15-minute window is measured
+  // from the stored punch, and the audit trail needs the value being replaced.
+  const before = await currentPunch(employeeId, logDate, kind);
+
+  const auth = await authorizeAttendanceMutation({
+    actor: me,
+    targetEmployeeId: employeeId,
+    logDate,
+    action: before ? "update" : "create",
+    existingPunchAt: before?.loggedAt ?? null,
+  });
+  if (!auth.ok) return auth;
 
   try {
     await db
@@ -593,6 +691,24 @@ async function upsertPunchCore(
     timeHHmm,
     reason,
   });
+  // THE IMMUTABLE TRAIL. Written only for a change the capability made possible
+  // — someone else's attendance, or past a lock/window. An employee correcting
+  // their own punch inside their own 15 minutes has nothing to explain, and
+  // filling the log with those would bury the entries that do.
+  if (isPrivilegedChange(auth.context)) {
+    await recordAttendanceAudit({
+      attendanceLogId: (await currentPunch(employeeId, logDate, kind))?.id ?? null,
+      employeeId,
+      actorId: meId,
+      action: before ? "update" : "create",
+      attendanceDate: logDate,
+      punchKind: kind,
+      oldValue: punchTimeLabel(before?.loggedAt, tz),
+      newValue: timeHHmm,
+      reason,
+      authorization: auth,
+    });
+  }
   // If this upsert finalized the day (both in + out now present), fire the
   // same waived/half-day email an organic check-out would. Best-effort,
   // DEFERRED off the response (persist-then-return) — the day-grade read +
@@ -625,10 +741,13 @@ const SuperAdminSetPunch = z.object({
  * for a full audit trail.
  */
 export async function superAdminSetPunch(input: unknown): Promise<ActionResult> {
-  const me = await requireAdmin();
-  if (!isSuperAdmin(me.email)) {
-    return { ok: false, error: "Only super-admins can edit attendance." };
-  }
+  // `requireUser` + the authorization service, NOT `requireAdmin` + super-admin.
+  // The super-admin email test used to be the whole gate here; it is now one
+  // input among several, and the capability registry decides. Super-admins who
+  // hold `attendance.manage_others` are unaffected; one who does not now edits
+  // only their own attendance, inside their own window — which is the rule the
+  // brief asks for, applied without an exception for seniority.
+  const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -638,16 +757,28 @@ export async function superAdminSetPunch(input: unknown): Promise<ActionResult> 
   }
   const { employeeId, logDate, kind, timeHHmm } = parsed.data;
 
-  // SET → the audited admin upsert (respects the month freeze internally).
+  // SET → the audited upsert (which authorizes, writes and audits internally).
   if (timeHHmm) {
-    const res = await upsertPunchCore(me.id, { employeeId, logDate, kind, timeHHmm, reason: "correction" });
+    const res = await upsertPunchCore(me, { employeeId, logDate, kind, timeHHmm, reason: "correction" });
     if (res.ok) revalidatePath("/attendance");
     return res;
   }
 
-  // CLEAR → delete that day+kind punch (still respect the freeze).
+  // CLEAR → delete that day+kind punch (still respect the legacy freeze).
   const editable = await assertMonthEditable(logDate);
   if (!editable.ok) return editable;
+
+  const before = await currentPunch(employeeId, logDate, kind);
+  const auth = await authorizeAttendanceMutation({
+    actor: me,
+    targetEmployeeId: employeeId,
+    logDate,
+    action: "clear",
+    existingPunchAt: before?.loggedAt ?? null,
+  });
+  if (!auth.ok) return auth;
+
+  const tz = (await targetTz(employeeId)) ?? "Asia/Kolkata";
   try {
     await db
       .delete(attendanceLogs)
@@ -662,6 +793,22 @@ export async function superAdminSetPunch(input: unknown): Promise<ActionResult> 
     return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
   }
   await auditPunch(me.id, employeeId, "attendance_punch_clear", { logDate, kind });
+  if (isPrivilegedChange(auth.context)) {
+    await recordAttendanceAudit({
+      // The row is gone, so no fk — `attendanceDate` + `punchKind` are what keep
+      // the entry identifiable, which is exactly why they are columns.
+      attendanceLogId: null,
+      employeeId,
+      actorId: me.id,
+      action: "clear",
+      attendanceDate: logDate,
+      punchKind: kind,
+      oldValue: punchTimeLabel(before?.loggedAt, tz),
+      newValue: null,
+      reason: "correction",
+      authorization: auth,
+    });
+  }
   revalidateAttendanceAdmin();
   revalidatePath("/attendance");
   return { ok: true };
@@ -678,10 +825,11 @@ export async function superAdminSetPunch(input: unknown): Promise<ActionResult> 
 export async function superAdminQuickPunch(
   input: unknown,
 ): Promise<ActionResult> {
-  const me = await requireAdmin();
-  if (!isSuperAdmin(me.email)) {
-    return { ok: false, error: "Only super-admins can mark attendance here." };
-  }
+  // Same change of gate as `superAdminSetPunch`: authorization is decided by the
+  // capability registry inside `upsertPunchCore`, not by a super-admin email
+  // test here. The "today only" restriction below is unrelated to identity and
+  // stays exactly as it was.
+  const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -700,7 +848,7 @@ export async function superAdminQuickPunch(
   if (parsed.data.logDate !== localDateString(tz)) {
     return { ok: false, error: "Quick punch is for today only." };
   }
-  return upsertPunchCore(me.id, parsed.data);
+  return upsertPunchCore(me, parsed.data);
 }
 
 /**
@@ -711,7 +859,7 @@ export async function superAdminQuickPunch(
 export async function adminEditDayTimes(
   input: unknown,
 ): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -726,6 +874,39 @@ export async function adminEditDayTimes(
 
   const tz = await targetTz(employeeId);
   if (!tz) return { ok: false, error: "Employee not found." };
+
+  // This action can touch BOTH punches in one call, so it authorizes BOTH before
+  // writing EITHER. Authorizing per-side as we go would let a request that is
+  // allowed to change the check-in but not the check-out half-apply — and half
+  // of an attendance correction is a wrong day, not a partial success.
+  //
+  // The 15-minute window is per-punch, so each side is measured from its own
+  // `logged_at`; the check-in and the check-out genuinely do have different
+  // deadlines.
+  const beforeIn = inHHmm ? await currentPunch(employeeId, logDate, "in") : null;
+  const beforeOut = outHHmm ? await currentPunch(employeeId, logDate, "out") : null;
+
+  const authIn = inHHmm
+    ? await authorizeAttendanceMutation({
+        actor: me,
+        targetEmployeeId: employeeId,
+        logDate,
+        action: "update",
+        existingPunchAt: beforeIn?.loggedAt ?? null,
+      })
+    : null;
+  if (authIn && !authIn.ok) return authIn;
+
+  const authOut = outHHmm
+    ? await authorizeAttendanceMutation({
+        actor: me,
+        targetEmployeeId: employeeId,
+        logDate,
+        action: "update",
+        existingPunchAt: beforeOut?.loggedAt ?? null,
+      })
+    : null;
+  if (authOut && !authOut.ok) return authOut;
 
   try {
     if (inHHmm) {
@@ -762,6 +943,35 @@ export async function adminEditDayTimes(
     inHHmm: inHHmm ?? null,
     outHHmm: outHHmm ?? null,
   });
+  // ONE AUDIT ROW PER PUNCH, not one per call. A reader asking "when did Om's
+  // check-out change and from what" must not have to unpack a combined entry
+  // that also carries an unrelated check-in edit.
+  if (authIn?.ok && isPrivilegedChange(authIn.context)) {
+    await recordAttendanceAudit({
+      attendanceLogId: beforeIn?.id ?? null,
+      employeeId,
+      actorId: me.id,
+      action: "update",
+      attendanceDate: logDate,
+      punchKind: "in",
+      oldValue: punchTimeLabel(beforeIn?.loggedAt, tz),
+      newValue: inHHmm ?? null,
+      authorization: authIn,
+    });
+  }
+  if (authOut?.ok && isPrivilegedChange(authOut.context)) {
+    await recordAttendanceAudit({
+      attendanceLogId: beforeOut?.id ?? null,
+      employeeId,
+      actorId: me.id,
+      action: "update",
+      attendanceDate: logDate,
+      punchKind: "out",
+      oldValue: punchTimeLabel(beforeOut?.loggedAt, tz),
+      newValue: outHHmm ?? null,
+      authorization: authOut,
+    });
+  }
   // Re-grade the (now edited) day and fire waived/half-day if it applies.
   // Best-effort, DEFERRED off the response (persist-then-return).
   afterResponse(async () => {
@@ -779,7 +989,7 @@ export async function adminEditDayTimes(
 export async function adminDeletePunch(
   input: unknown,
 ): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -792,6 +1002,17 @@ export async function adminDeletePunch(
   const editable = await assertMonthEditable(logDate);
   if (!editable.ok) return editable;
 
+  const before = await currentPunch(employeeId, logDate, kind);
+  const auth = await authorizeAttendanceMutation({
+    actor: me,
+    targetEmployeeId: employeeId,
+    logDate,
+    action: "delete",
+    existingPunchAt: before?.loggedAt ?? null,
+  });
+  if (!auth.ok) return auth;
+
+  const tz = (await targetTz(employeeId)) ?? "Asia/Kolkata";
   try {
     await db
       .delete(attendanceLogs)
@@ -811,6 +1032,19 @@ export async function adminDeletePunch(
     logDate,
     kind,
   });
+  if (isPrivilegedChange(auth.context)) {
+    await recordAttendanceAudit({
+      attendanceLogId: null, // deleted — the date + kind identify it instead
+      employeeId,
+      actorId: me.id,
+      action: "delete",
+      attendanceDate: logDate,
+      punchKind: kind,
+      oldValue: punchTimeLabel(before?.loggedAt, tz),
+      newValue: null,
+      authorization: auth,
+    });
+  }
   revalidateAttendanceAdmin();
   return { ok: true };
 }
@@ -1063,3 +1297,153 @@ export async function acknowledgeWeekLoss(input: {
   } catch (err: unknown) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }}
+
+/* ── EMPLOYEE SELF-CORRECTION (the 15-minute window) ───────────────────────── */
+
+const CorrectOwnPunch = z
+  .object({
+    kind: z.enum(["in", "out"]),
+    /** The corrected wall-clock time, "HH:mm" in the employee's own timezone. */
+    timeHHmm: z.string().regex(/^\d{2}:\d{2}$/, "Enter a time as HH:mm"),
+    /** Today, or any past day — the window rule decides, not the date. */
+    logDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Bad date"),
+  })
+  .strict();
+
+/**
+ * "I mistyped my punch" — an employee correcting their OWN check-in or
+ * check-out, for 15 minutes after making it and not a second longer.
+ *
+ * ── WHY THIS ACTION EXISTS AT ALL ──────────────────────────────────────────
+ * Before this change an employee had NO way to correct their own punch: the
+ * only edit paths were admin ones. The 15-minute rule presupposes a
+ * self-correction that could be time-boxed, so the surface it governs had to be
+ * built alongside it — a window with nothing behind it is not a rule.
+ *
+ * ── THE WINDOW IS ENFORCED HERE, ON THE SERVER, AND ONLY HERE ──────────────
+ * `authorizeAttendanceMutation` reads the punch's stored `logged_at` and
+ * compares it to the server clock. Nothing about the deadline comes off the
+ * wire: not the punch time, not "now", not a token minted when the button was
+ * drawn. A hand-written POST 20 minutes later is refused exactly as the UI
+ * would have been, which is the property the requirement asks for — the button
+ * disappearing is a courtesy, not the control.
+ *
+ * SELF-ONLY BY CONSTRUCTION. The employee id is taken from the session, never
+ * from the request, so there is no field to tamper with to reach someone else's
+ * attendance; a privileged manager uses `superAdminSetPunch`, which authorizes
+ * that separately.
+ */
+export async function correctOwnPunch(input: unknown): Promise<ActionResult> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = CorrectOwnPunch.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+  const { kind, timeHHmm, logDate } = parsed.data;
+
+  const editable = await assertMonthEditable(logDate);
+  if (!editable.ok) return editable;
+
+  const tz = me.timezone || "Asia/Kolkata";
+  const before = await currentPunch(me.id, logDate, kind);
+  if (!before) return { ok: false, error: "There's no punch on that day to correct." };
+
+  // ── A SYSTEM AUTO-PUNCH-OUT IS NOT THE EMPLOYEE'S TO CORRECT ─────────────
+  //
+  // The forgotten-logout job stamps its out-punch at the CLOCK-IN time, so on an
+  // ordinary day the 15-minute window closed hours before it runs and this never
+  // comes up. It DOES come up for someone who clocked in shortly before 23:59:
+  // their window is still open when the job fires, and without this guard they
+  // could "correct" the system's row — which would rewrite `reason` to
+  // "correction" and, because the grader identifies an auto-close by exactly
+  // (source=admin, reason=forgot, no recordedById), silently promote a forgotten
+  // logout to a graded working day. That is the one edit that must not be
+  // reachable, so it is refused on the row's identity rather than on the clock.
+  //
+  // Correcting it is an attendance manager's job — `superAdminSetPunch` stamps
+  // `recordedById`, which is what legitimately releases the half-day floor.
+  if (isSystemAutoPunchOut(before)) {
+    return {
+      ok: false,
+      error:
+        "This check-out was recorded automatically because no clock-out was made before " +
+        "11:59 PM, and the day is marked Half Day. You can't change it yourself — ask an " +
+        "attendance manager to correct it.",
+    };
+  }
+
+  const auth = await authorizeAttendanceMutation({
+    actor: me,
+    targetEmployeeId: me.id,
+    logDate,
+    action: "update",
+    existingPunchAt: before.loggedAt,
+  });
+  if (!auth.ok) return auth;
+
+  const loggedAt = zonedWallClockToUtc(logDate, timeHHmm, tz);
+  try {
+    await db
+      .update(attendanceLogs)
+      .set({ loggedAt, reason: "correction" })
+      .where(eq(attendanceLogs.id, before.id));
+  } catch (err) {
+    return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  await auditPunch(me.id, me.id, "attendance_punch_self_correct", {
+    logDate,
+    kind,
+    from: punchTimeLabel(before.loggedAt, tz),
+    to: timeHHmm,
+  });
+  // A privileged manager correcting their own punch OUTSIDE their window lands
+  // here too, and that one IS audited — `isPrivilegedChange` is what tells the
+  // two apart, so the ordinary case stays out of the trail and the exceptional
+  // one does not.
+  if (isPrivilegedChange(auth.context)) {
+    await recordAttendanceAudit({
+      attendanceLogId: before.id,
+      employeeId: me.id,
+      actorId: me.id,
+      action: "update",
+      attendanceDate: logDate,
+      punchKind: kind,
+      oldValue: punchTimeLabel(before.loggedAt, tz),
+      newValue: timeHHmm,
+      reason: "correction",
+      authorization: auth,
+    });
+  }
+
+  revalidatePath("/attendance");
+  return { ok: true };
+}
+
+/**
+ * How long the signed-in employee has left to correct a given punch.
+ *
+ * Read-only, for the UI: the punch card uses it to show a countdown and to stop
+ * offering a control that would be refused. It grants nothing — `correctOwnPunch`
+ * re-derives the same window from the same stored value on every call, so a
+ * client that ignores this answer gets the same refusal it would have anyway.
+ */
+export async function ownPunchCorrectionWindow(input: {
+  kind: "in" | "out";
+  logDate: string;
+}): Promise<ActionResult<{ open: boolean; secondsRemaining: number; currentHHmm: string | null }>> {
+  const me = await requireUser();
+  const row = await currentPunch(me.id, input.logDate, input.kind);
+  if (!row) return { ok: true, open: false, secondsRemaining: 0, currentHHmm: null };
+
+  const w = selfCorrectionWindow(row.loggedAt, new Date());
+  return {
+    ok: true,
+    open: w.open,
+    secondsRemaining: w.secondsRemaining,
+    currentHHmm: punchTimeLabel(row.loggedAt, me.timezone || "Asia/Kolkata"),
+  };
+}

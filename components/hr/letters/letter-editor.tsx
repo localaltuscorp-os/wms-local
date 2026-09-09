@@ -21,6 +21,7 @@ import {
   Calculator,
 } from "lucide-react";
 import { Letterhead } from "@/components/hr/letterhead/letterhead";
+import { FitToWidth } from "./fit-to-width";
 import { ENTITY_LIST, getEntity, type EntityId } from "@/lib/hr/entities";
 import {
   type LetterTemplate,
@@ -373,7 +374,7 @@ export function LetterEditor({
     richHtmlRef.current = "";
     setRichDirty(false);
     setIssued(false);
-    fireToast({ message: "Free-edit discarded — using the field version." });
+    fireToast({ message: "Free-edit discarded - using the field version." });
   }, []);
 
   const onRichChange = useCallback((html: string) => {
@@ -453,7 +454,7 @@ export function LetterEditor({
       } else {
         fireToast({
           message:
-            "Letter issued & archived — but it was NOT emailed. Add a recipient email (or attach an employee with an email on file), then use “Export & Email PDF”.",
+            "Letter issued & archived - but it was NOT emailed. Add a recipient email (or attach an employee with an email on file), then use “Export & Email PDF”.",
           type: "error",
         });
       }
@@ -662,7 +663,7 @@ export function LetterEditor({
               }}
               aria-label="Pick the employee this letter is for"
             >
-              <option value="">— pick an employee —</option>
+              <option value="">- pick an employee -</option>
               {roster.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
@@ -701,7 +702,7 @@ export function LetterEditor({
               className={`alw-btn alw-btn-ghost${clean ? " alw-btn-on" : ""}`}
               onClick={() => setClean((c) => !c)}
               aria-pressed={clean}
-              title={clean ? "Show the editable boxes" : "Hide boxes — preview the finished letter"}
+              title={clean ? "Show the editable boxes" : "Hide boxes - preview the finished letter"}
             >
               {clean ? <Eye size={15} strokeWidth={2.2} /> : <EyeOff size={15} strokeWidth={2.2} />}
               {clean ? "Show boxes" : "Hide boxes"}
@@ -818,23 +819,23 @@ export function LetterEditor({
               padding: "8px 12px",
             }}
           >
-            ✎ Showing your saved free-edit for this letter. The field version (main content) is untouched — use
+            ✎ Showing your saved free-edit for this letter. The field version (main content) is untouched - use
             &ldquo;Resume free edit&rdquo; to keep editing, or &ldquo;Discard free edit&rdquo; to revert.
           </div>
-          <div className="alw-stage">
+          <FitToWidth className="alw-stage">
             <Letterhead entity={entity}>
               {showHeaderDate && <div className="alw-date">{today}</div>}
               <div className="alw-rich-preview" dangerouslySetInnerHTML={{ __html: savedRichHtml }} />
             </Letterhead>
-          </div>
+          </FitToWidth>
         </>
       ) : (
-        <div className="alw-stage">
+        <FitToWidth className="alw-stage">
           <Letterhead entity={entity}>
             {showHeaderDate && <div className="alw-date">{today}</div>}
             {renderBlocks(template.blocks, ctx)}
           </Letterhead>
-        </div>
+        </FitToWidth>
       )}
 
       {/* ── "Send Email" composer ────────────────────────────────────── */}
@@ -943,8 +944,8 @@ function CtcCalculator({
     setManyValues(updates);
   }, [ctc, pct, setManyValues]);
 
-  const grossPa = values[CTC_LETTER_TOTALS.subtotalPa] || "—";
-  const netPm = values[CTC_LETTER_TOTALS.netPm] || "—";
+  const grossPa = values[CTC_LETTER_TOTALS.subtotalPa] || "-";
+  const netPm = values[CTC_LETTER_TOTALS.netPm] || "-";
 
   return (
     <div className="alw-calc no-print">
@@ -1005,7 +1006,7 @@ function CtcCalculator({
               <span aria-hidden>!</span>
             )}
             Total: {Math.round(pctSum)}%
-            {balanced ? " — balanced" : " — must equal 100%"}
+            {balanced ? " - balanced" : " - must equal 100%"}
           </span>
           {ctc > 0 && (
             <span className="alw-calc-preview">
@@ -1210,8 +1211,8 @@ function PrintPreviewModal({
       ? "Issuing…"
       : "Emailing…"
     : isIssue
-      ? "Looks good — Issue"
-      : "Looks good — Email PDF";
+      ? "Looks good - Issue"
+      : "Looks good - Email PDF";
 
   return (
     <div
@@ -1519,11 +1520,20 @@ function SignatureView({
 function Spans({ spans, ctx }: { spans: Span[]; ctx: RenderCtx }) {
   return (
     <>
+      {/* Keyed by POSITION, including the fields. A field id is deliberately
+          NOT unique within a block: a template may name the same value twice
+          in one paragraph — the recommendation letter reads "...for
+          {employeeName}... Having worked with {employeeName}..." — and both
+          spans must resolve to the same ctx.values entry. Keying on span.id
+          therefore collided (React: "two children with the same key"), which
+          lets React drop or duplicate one of the inputs. These arrays come
+          straight from a static template and never reorder or filter, so the
+          index is a stable identity for every span. */}
       {spans.map((span, i) =>
         span.t === "text" ? (
           <span key={i}>{applyFirm(applyPronouns(span.text, ctx.gender), ctx.entity)}</span>
         ) : (
-          <Field key={span.id} spec={span} ctx={ctx} />
+          <Field key={i} spec={span} ctx={ctx} />
         ),
       )}
     </>
@@ -1552,6 +1562,30 @@ function displayDateToIso(display: string): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * Ref callback that focuses the first editable field WITHOUT scrolling to it.
+ *
+ * React's declarative `autoFocus` maps onto the DOM autofocus behaviour, and a
+ * browser focusing an element ALWAYS scrolls it into view. Each template puts
+ * its first editable value at a different depth, so on the letters whose first
+ * field sits below the fold the page opened already scrolled past the
+ * letterhead — measured at 80px down for the minor-intern undertaking (its
+ * first field is the "Date:" line, ~840px in) and ~2,950px down for Free
+ * Training, whose first field is most of a page further on.
+ *
+ * `preventScroll` keeps the keyboard-first behaviour (the caret is still in the
+ * first field, Tab still walks from there) and drops the jump. The data-flag
+ * makes it fire once: a ref callback re-runs on re-render, and without the
+ * guard every keystroke would steal focus back to the first field.
+ */
+function focusWithoutScroll(
+  el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null,
+): void {
+  if (!el || el.dataset.alwAutofocused) return;
+  el.dataset.alwAutofocused = "1";
+  el.focus({ preventScroll: true });
+}
+
 function Field({
   spec,
   ctx,
@@ -1572,7 +1606,6 @@ function Field({
   const autoFocus = spec.id === ctx.firstFieldId;
   const common = {
     value,
-    autoFocus,
     placeholder: spec.label,
     "aria-label": spec.label,
     "data-filled": filled || undefined,
@@ -1591,7 +1624,7 @@ function Field({
     const opts = ctx.optionLists[spec.optionsKey] ?? [];
     return (
       <select
-        autoFocus={autoFocus}
+        ref={autoFocus ? focusWithoutScroll : undefined}
         aria-label={spec.label}
         data-filled={filled || undefined}
         value={value}
@@ -1618,7 +1651,7 @@ function Field({
         type="text"
         inputMode="numeric"
         value={value}
-        autoFocus={autoFocus}
+        ref={autoFocus ? focusWithoutScroll : undefined}
         placeholder={spec.label}
         aria-label={spec.label}
         data-filled={filled || undefined}
@@ -1634,7 +1667,7 @@ function Field({
     return (
       <input
         type="date"
-        autoFocus={autoFocus}
+        ref={autoFocus ? focusWithoutScroll : undefined}
         aria-label={spec.label}
         data-filled={filled || undefined}
         value={displayDateToIso(value)}
@@ -1645,11 +1678,17 @@ function Field({
     );
   }
   return spec.multiline ? (
-    <textarea rows={1} {...common} className={`alw-input alw-input-multi${boldCls}`} />
+    <textarea
+      rows={1}
+      {...common}
+      ref={autoFocus ? focusWithoutScroll : undefined}
+      className={`alw-input alw-input-multi${boldCls}`}
+    />
   ) : (
     <input
       type="text"
       {...common}
+      ref={autoFocus ? focusWithoutScroll : undefined}
       className={`alw-input${boldCls}`}
       // A FILLED field sizes purely to its content (`field-sizing:content`) — the
       // old `value.length ch` floor padded every value with dead space, because
@@ -1727,8 +1766,12 @@ const EDITOR_CSS = `
 }
 .alw-rich-loading svg{color:${RED};}
 
-/* Stage — centres the A4 page */
-.alw-stage{display:flex;justify-content:center;padding-bottom:40px;}
+/* Stage - centres the A4 page */
+/* The measuring host for <FitToWidth>. BLOCK, not a centring flex row: the
+   sheet now fills this box exactly, and a flex row would let the scaled
+   child influence the width we measure. */
+.alw-stage{display:block;padding-bottom:40px;}
+.alw-fit{transform-origin:top left;}
 
 /* Body typography inside the letterhead */
 .alw-date{
@@ -1746,7 +1789,7 @@ const EDITOR_CSS = `
 .alw-term-value{min-width:0;}
 .alw-term-colon{font-weight:700;margin-right:6px;}
 @media (max-width:640px){.alw-term{grid-template-columns:130px 1fr;}}
-/* Grouped term rows as a real table — colons aligned in a shared column. */
+/* Grouped term rows as a real table - colons aligned in a shared column. */
 .alw-termtable{border-collapse:collapse;margin:8px 0 18px;width:100%;font-variant-numeric:tabular-nums;border:1px solid #d4d4d8;}
 .alw-termtable th.alw-tt-label{text-align:left;vertical-align:top;font-weight:700;padding:7px 12px;width:38%;white-space:normal;background:#f6f5f7;border:1px solid #d4d4d8;color:var(--color-ink-strong,#0f172a);}
 .alw-termtable td.alw-tt-val{vertical-align:top;padding:7px 12px;border:1px solid #d4d4d8;color:var(--color-ink-strong,#0f172a);overflow-wrap:break-word;}
@@ -1760,7 +1803,7 @@ const EDITOR_CSS = `
 .alw-table{
   width:100%;border-collapse:collapse;table-layout:fixed;
   border:1px solid var(--color-hairline-strong, #cbd5e1);
-  /* Flat document table — no rounded corners on the letter surface. */
+  /* Flat document table - no rounded corners on the letter surface. */
   border-radius:0;overflow:hidden;font-variant-numeric:tabular-nums;
 }
 .alw-table thead th{
@@ -1869,7 +1912,7 @@ const EDITOR_CSS = `
 .alw-calc-preview{font-size:13px;color:var(--color-ink-muted,#475569);}
 .alw-calc-preview b{color:var(--color-ink-strong,#0f172a);font-weight:800;}
 
-/* Inline editable field — grey placeholder when empty, black text when filled */
+/* Inline editable field - grey placeholder when empty, black text when filled */
 .alw-input{
   font:inherit;color:var(--color-ink-strong,#0f172a);font-weight:600;
   background:transparent;border:none;outline:none;
@@ -1889,7 +1932,7 @@ const EDITOR_CSS = `
   display:block;width:100%;min-width:0;max-width:100%;
   resize:none;overflow:hidden;line-height:inherit;white-space:pre-wrap;vertical-align:top;
 }
-/* Inline dropdown fields (Department / Reporting Manager) — same underline
+/* Inline dropdown fields (Department / Reporting Manager) - same underline
    language as a text field, with a small caret so it reads as a picker. */
 .alw-input-select{
   appearance:none;-webkit-appearance:none;
@@ -1898,10 +1941,10 @@ const EDITOR_CSS = `
   background-repeat:no-repeat;background-position:right 1px center;background-size:13px;
 }
 
-/* "Hide boxes" clean render — the field's value as plain document text. */
+/* "Hide boxes" clean render - the field's value as plain document text. */
 .alw-clean{font:inherit;color:var(--color-ink-strong,#0f172a);font-weight:600;}
 .alw-clean-multi{display:block;white-space:pre-wrap;}
-/* Bold field modifier — the Subject line renders in bold, editor + preview. */
+/* Bold field modifier - the Subject line renders in bold, editor + preview. */
 .alw-bold{font-weight:800 !important;color:var(--color-ink-strong,#0f172a);}
 .alw-tr-grand .alw-clean{color:#fff;}
 /* Active state for the Hide-boxes toggle */
@@ -1924,7 +1967,7 @@ const EDITOR_CSS = `
   width:min(920px,100%);max-height:92vh;
   background:var(--color-surface, #fff);
   border:1px solid var(--color-hairline-strong, #cbd5e1);
-  /* Flat preview surface — minimal corner rounding. */
+  /* Flat preview surface - minimal corner rounding. */
   border-radius:4px;overflow:hidden;
   box-shadow:0 40px 90px -30px rgba(15,23,42,.55);
   animation:alw-pop .16s ease;
@@ -1979,7 +2022,7 @@ const EDITOR_CSS = `
 
 /* "Edit freely" HTML rendered read-only inside the preview modal. */
 .alw-rich-preview{font-size:15px;line-height:1.72;color:var(--color-ink-strong,#0f172a);}
-/* Lists — restore the markers Tailwind v4 preflight blanks app-wide
+/* Lists - restore the markers Tailwind v4 preflight blanks app-wide
  * ("ol, ul, menu { list-style: none }"). Without this the preview drops the
  * bullets the editor just showed; see the note at .rle-prose ul in
  * components/hr/letters/rich-letter-editor.tsx. */
@@ -2003,12 +2046,14 @@ const EDITOR_CSS = `
   color:#A80400;background:#FCE9E8;border-radius:3px;padding:0 3px;white-space:nowrap;
 }
 
-/* Print — only the paper */
+/* Print - only the paper */
 @media print{
   .no-print{display:none !important;}
   .alw-stage{padding:0;}
+  /* A true A4 page on paper, whatever the screen was scaled to. */
+  .alw-fit{zoom:1 !important;}
   .alw-input{border-bottom:none;background:transparent;color:var(--color-ink-strong,#0f172a);}
-  /* Never print the grey "fill this in" placeholders — an unfilled field is blank. */
+  /* Never print the grey "fill this in" placeholders - an unfilled field is blank. */
   .alw-input::placeholder{color:transparent !important;}
   .alw-tablewrap{overflow:visible;}
   /* Keep the coloured group/total/grand rows in the printout + PDF. */

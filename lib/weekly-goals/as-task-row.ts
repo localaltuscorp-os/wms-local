@@ -76,9 +76,22 @@ export function weeklyGoalTitle(goal: {
   return "Weekly goal";
 }
 
-/** Deep link to the Weekly Goals workspace, focused on a goal in its week. */
+/**
+ * Deep link to the Weekly Goals board, on that goal's week and focused on it.
+ *
+ * `/goals/weekly`, NOT `/weekly-goals`. The legacy route is gone —
+ * `app/(app)/weekly-goals/` holds an `actions.ts` and no `page.tsx`, so every
+ * one of these links 404'd. Nothing pointed that out because the rows they sit
+ * on are a display-only overlay: the pinned "This Week's Goals" block renders
+ * fine, and only a click found the missing page.
+ *
+ * `focus` is the id convention the goals boards already use
+ * (components/goals/board/goal-table-view.tsx reads `?focus=` and opens that
+ * goal); the weekly board now honours it by scrolling the card into view and
+ * flashing it.
+ */
 export function weeklyGoalHref(weekStart: string, goalId: string): string {
-  return `/weekly-goals?week=${weekStart}&focus=${goalId}`;
+  return `/goals/weekly?week=${weekStart}&focus=${goalId}`;
 }
 
 /** Map a full `WeeklyGoal` (+ doer name) to a `VirtualTaskRow`. Pure. */

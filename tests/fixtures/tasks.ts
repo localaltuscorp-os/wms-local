@@ -54,7 +54,16 @@ function profileV2Defaults() {
     personalEmail: null as string | null,
     emailProvisionedAt: null as Date | null,
     assetsAllocatedAt: null as Date | null,
-    // Performance criteria (migration 0061) and KRA (migration 0065).
+    // Offboarding (migration 0212). Fixtures are current staff by definition.
+    employmentStatus: "active" as "active" | "former" | "anonymised",
+    lastWorkingDay: null as string | null,
+    legalHold: false,
+    legalHoldReason: null as string | null,
+    anonymisedAt: null as Date | null,
+    // Performance criteria (migration 0061) and KRA (migration 0065), declared
+    // in db/schema.ts by the WMS team's branch. Both column sets are required
+    // here: the fixture is typed `Employee[]`, so a missing column is a
+    // compile error rather than a silent undefined.
     performanceCriteria: null as string | null,
     kra: null as string | null,
   };

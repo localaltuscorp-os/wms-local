@@ -133,19 +133,12 @@ export function HrPlanned({ title, note }: { title: string; note?: string }) {
         className="mt-4 text-ink-strong"
         style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 800, fontSize: 22, letterSpacing: "-0.01em" }}
       >
-        {title} — to be planned
+        {title} - to be planned
       </h2>
       <p className="mt-2 max-w-[52ch] text-[14px] font-medium leading-relaxed text-ink-muted">
         {note ??
-          "This HR sub-module is being scoped. Its own workflow, forms and sidebar will land in a later build — the room and its place in the flow are reserved."}
+          "This HR sub-module is being scoped. Its own workflow, forms and sidebar will land in a later build - the room and its place in the flow are reserved."}
       </p>
-      <Link
-        href={"/hr" as Route}
-        className="mt-6 inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-[13.5px] font-bold text-white transition-transform hover:-translate-y-0.5"
-        style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
-      >
-        Back to HR
-      </Link>
     </section>
   );
 }

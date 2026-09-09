@@ -251,7 +251,7 @@ function MeasurePairChip(props: {
     }
   }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const show = (n: number | null) => (n == null ? "—" : props.rupee ? `₹${fmtNum(n)}` : fmtNum(n));
+  const show = (n: number | null) => (n == null ? "-" : props.rupee ? `₹${fmtNum(n)}` : fmtNum(n));
 
   if (!editing) {
     return (
@@ -433,7 +433,7 @@ export function PctControls(props: {
               setLocal(n);
               props.onCommit(n);
             }}
-            className="rounded-full border px-1.5 py-0.5 text-[11px] font-bold tabular-nums transition-colors"
+            className="rounded-pill border px-1.5 py-0.5 text-[11px] font-bold tabular-nums transition-colors"
             style={
               local === n
                 ? { background: tone.color, color: "#fff", borderColor: tone.color }
@@ -732,7 +732,7 @@ function MoveGoalControl(props: { g: GoalDTO }): React.JSX.Element {
         disabled={busy || samePlace || !keyShapeOk}
         className="inline-flex h-7 items-center gap-1 rounded-[9px] px-2.5 text-[12px] font-bold text-white disabled:opacity-50"
         style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
-        title={samePlace ? "Already there — pick a different bucket" : undefined}
+        title={samePlace ? "Already there - pick a different bucket" : undefined}
       >
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRightLeft className="h-3.5 w-3.5" />}
         Move
@@ -921,7 +921,7 @@ export function GoalContainer(props: GoalContainerProps): React.JSX.Element {
             <span
               className="self-start inline-flex items-center rounded-chip border px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-faint"
               style={{ borderColor: "var(--color-hairline-strong)" }}
-              title="No numeric target — excluded from the allocation math."
+              title="No numeric target - excluded from the allocation math."
             >
               unmeasured
             </span>
@@ -1051,7 +1051,7 @@ export function WeeklyGoalContainer(props: WeeklyGoalContainerProps): React.JSX.
         <span
           className="shrink-0 rounded-chip px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-white"
           style={{ background: chipColor }}
-          title={w.spillover ? "Spillover — carried forward" : w.cascade ? "Cascaded from the month goal" : "Manual weekly goal"}
+          title={w.spillover ? "Spillover - carried forward" : w.cascade ? "Cascaded from the month goal" : "Manual weekly goal"}
         >
           W{w.weekNo}
         </span>
@@ -1070,7 +1070,7 @@ export function WeeklyGoalContainer(props: WeeklyGoalContainerProps): React.JSX.
                 ? { color: "#15803d", borderColor: "rgba(21,128,61,0.35)", background: "rgba(21,128,61,0.08)" }
                 : { color: "var(--color-ink-faint)", borderColor: "var(--color-hairline-strong)" }
             }
-            title={w.adopted ? "Adopted — counts toward the week" : "Dropped — excluded from the week"}
+            title={w.adopted ? "Adopted - counts toward the week" : "Dropped - excluded from the week"}
           >
             {w.adopted ? <Check size={11} strokeWidth={3} /> : <X size={11} strokeWidth={3} />}
             {w.adopted ? "Adopted" : "Dropped"}
@@ -1118,7 +1118,7 @@ export function WeeklyGoalContainer(props: WeeklyGoalContainerProps): React.JSX.
             <span
               className="self-start inline-flex items-center rounded-chip border px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-faint"
               style={{ borderColor: "var(--color-hairline-strong)" }}
-              title="Free-text target — excluded from the numeric rollup (self-rated % still counts)."
+              title="Free-text target - excluded from the numeric rollup (self-rated % still counts)."
             >
               unmeasured
             </span>

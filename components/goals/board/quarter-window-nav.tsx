@@ -146,7 +146,7 @@ function QuarterPill({
       // name each tab with its year — "Q1 · Apr–Jun" alone is ambiguous once the
       // window straddles two FYs.
       aria-label={name}
-      className={`wg-btn inline-flex items-center justify-center gap-1 rounded-full border px-1.5 py-0.5 text-[10.5px] font-bold whitespace-nowrap transition-all cursor-pointer ${FOCUS_RING}`}
+      className={`wg-btn inline-flex items-center justify-center gap-1 rounded-pill border px-1.5 py-0.5 text-[10.5px] font-bold whitespace-nowrap transition-all cursor-pointer ${FOCUS_RING}`}
       style={
         active
           ? {

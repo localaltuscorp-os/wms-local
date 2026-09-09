@@ -29,7 +29,7 @@ export default async function CaHandoverPage() {
               Accounts · Section 14
             </span>
             <span
-              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.1em]"
+              className="inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.1em]"
               style={{
                 color: "var(--color-altus-red-deep)",
                 background: "rgba(225,6,0,0.08)",
@@ -51,7 +51,7 @@ export default async function CaHandoverPage() {
               maxWidth: "24ch",
             }}
           >
-            CA Handover — Logins, Passwords &amp; Govt Portals
+            CA Handover - Logins, Passwords &amp; Govt Portals
           </h1>
           <p className="mt-2 font-medium text-ink-muted" style={{ fontSize: 15.5, maxWidth: "70ch" }}>
             The secure vault of statutory-portal credentials and the filed-returns
@@ -76,11 +76,11 @@ export default async function CaHandoverPage() {
           />
           <div>
             <p className="font-bold text-ink-strong" style={{ fontSize: 14.5 }}>
-              Sensitive — handle with care
+              Sensitive - handle with care
             </p>
             <p className="mt-0.5 text-ink-muted font-medium" style={{ fontSize: 13.5, lineHeight: 1.5 }}>
               Passwords are encrypted at rest and masked by default. Use the eye
-              button to reveal one password at a time — nothing is shown until you
+              button to reveal one password at a time - nothing is shown until you
               ask for it. Do not share, screenshot, or paste these credentials
               outside trusted hands.
             </p>

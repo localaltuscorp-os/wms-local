@@ -74,7 +74,7 @@ export async function DashboardHeader({
           <a
             href="/hub"
             aria-label="Back to Hub"
-            className="inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-[14px] font-bold text-white transition-transform active:scale-[0.98] hover:brightness-125 max-md:px-3 max-md:py-2"
+            className="inline-flex shrink-0 items-center gap-2 rounded-pill px-4 py-2.5 text-[14px] font-bold text-white transition-transform active:scale-[0.98] hover:brightness-125 max-md:px-3 max-md:py-2"
             style={{ background: "#000", color: "#fff", boxShadow: "0 6px 16px -8px rgba(0,0,0,0.45)" }}
           >
             <LayoutGrid size={17} strokeWidth={2.4} />

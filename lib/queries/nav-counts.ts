@@ -51,9 +51,28 @@ export async function getNavCounts(args?: {
   // Unread count is per-user — kept out of the shared cache. The two
   // task totals are now one cache lookup that hits Postgres at most
   // once per minute (or until a task mutation invalidates the tag).
+  //
+  // BOTH SOURCES DEGRADE TO 0 INDEPENDENTLY. These are badge counts on
+  // chrome that renders on EVERY route — NotificationBell and the sidebar
+  // pills live in `app/(app)/layout.tsx`. An unhandled rejection there is not
+  // a missing number, it is the whole app: React unwinds the layout, every
+  // page falls to the error boundary, and "Try again" re-runs the same failing
+  // query, so the user is stuck on "We hit a snag" with no way out — which is
+  // exactly what a dead database connection caused.
+  //
+  // A count is cosmetic; the page behind it is not. Failing soft trades a
+  // missing badge for a working app, and each source is caught separately so
+  // one dead counter cannot blank the other. The warning keeps the real fault
+  // visible in the server log rather than silently swallowed.
   const [totals, inboxUnread] = await Promise.all([
-    fetchTaskTotals(),
-    args?.userId ? getUnreadCount(args.userId) : Promise.resolve(0),
+    fetchTaskTotals().catch((err) => {
+      console.warn("[nav-counts] task totals unavailable:", (err as Error)?.message);
+      return { activeTasks: 0, archivedTasks: 0 };
+    }),
+    (args?.userId ? getUnreadCount(args.userId) : Promise.resolve(0)).catch((err) => {
+      console.warn("[nav-counts] unread count unavailable:", (err as Error)?.message);
+      return 0;
+    }),
   ]);
   return { ...totals, inboxUnread };
 }

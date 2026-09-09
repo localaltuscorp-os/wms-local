@@ -5,6 +5,7 @@ import { requireHrStaff } from "@/lib/hr/access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { PageShell } from "@/components/layout/page-shell";
 import { PolicyEditor } from "@/components/hr/policies/policy-editor";
+import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -25,26 +26,26 @@ export default async function PolicyEditPage({
   const superAdmin = isSuperAdmin(me.email);
 
   return (
-    <div className="min-h-dvh bg-[#faf9fb]">
-      <header className="sticky sticky-below-topbar z-30 grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-hairline bg-white/90 px-6 py-3 backdrop-blur max-md:px-4 print:hidden">
-        <div className="justify-self-start">
-        </div>
-        <span className="justify-self-center inline-flex items-center gap-1.5 truncate text-[15px] font-extrabold tracking-tight text-ink-strong">
-          <SlidersHorizontal size={15} strokeWidth={2.4} style={{ color: "#A80400" }} aria-hidden />
-          <span className="truncate">Policy Editor</span>
-        </span>
-        <div className="justify-self-end">
+    <div className="min-h-full bg-[#faf9fb]">
+      <HrTitleBar
+        title={
+          <span className="inline-flex items-center gap-1.5">
+            <SlidersHorizontal size={17} strokeWidth={2.4} style={{ color: "#A80400" }} aria-hidden />
+            Policy Editor
+          </span>
+        }
+        right={
           <Link
             href={`/hr/policies/${key}` as Route}
-            className="group inline-flex items-center gap-2 rounded-full border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-transform hover:-translate-y-0.5 max-md:px-3"
+            className="group inline-flex items-center gap-2 rounded-pill border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-transform hover:-translate-y-0.5 max-md:px-3"
             style={{ boxShadow: "0 10px 24px -16px rgba(24,24,27,0.55)" }}
           >
             <Eye size={15} strokeWidth={2.4} style={{ color: "#A80400" }} />
             <span className="max-md:hidden">View Live</span>
             <span className="md:hidden">View</span>
           </Link>
-        </div>
-      </header>
+        }
+      />
 
       <PageShell width="wide" py={false} className="pt-8 pb-24">
         <PolicyEditor policyKey={key} isSuperAdmin={superAdmin} />
