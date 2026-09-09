@@ -562,7 +562,7 @@ export function CreatorWorkloadTable({
   return (
     <section className="relative min-w-0" aria-label="Creator workload board">
       <DashboardSectionHeader
-        icon={<SectionIcon icon={Users} tone="blue" />}
+        icon={<SectionIcon icon={Users} tone="red" />}
         title="Who Is Creating How Much Work"
         subtitle={
           targets

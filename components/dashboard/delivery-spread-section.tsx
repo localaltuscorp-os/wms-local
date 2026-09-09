@@ -5,6 +5,7 @@ import { CalendarCheck2 } from "lucide-react";
 import { FineBucketBars } from "@/components/dashboard/task-report/fine-bucket-bars";
 import type { DoneFineDistribution } from "@/lib/queries/task-report";
 import { DashboardSectionHeader } from "@/components/dashboard/section-header";
+import { SectionIcon } from "@/components/dashboard/section-icon";
 import {
   CollapseToggle,
   CollapsibleBody,
@@ -68,15 +69,12 @@ export function DeliverySpreadSection({ dist }: { dist: DoneFineDistribution }) 
   return (
     <PageShell as="section" width="full" py={false} aria-label="Delivery vs due date">
       <DashboardSectionHeader
-        icon={
-          <span
-            aria-hidden
-            className="inline-flex size-10 items-center justify-center rounded-xl"
-            style={{ background: "rgba(15, 23, 42, 0.05)", color: "var(--color-ink-strong)" }}
-          >
-            <CalendarCheck2 size={20} strokeWidth={2.2} />
-          </span>
-        }
+        /* The SHARED badge, not a hand-rolled one. This was a size-10
+           rounded-xl slate square - one of the very "every section rolled its
+           own" cases SectionIcon exists to replace, and the reason this badge
+           was a different SHAPE as well as a different colour from its
+           neighbours. */
+        icon={<SectionIcon icon={CalendarCheck2} tone="red" />}
         title="Delivery vs Due Date"
         subtitle="Completed tasks categorized by delivery timing relative to their committed due dates."
         /* THE METRICS MOVED INTO THE CARD. They sat here, in the section

@@ -1123,7 +1123,7 @@ export function ManagerActivityTable({
   return (
     <section className="relative min-w-0" aria-label="Manager activity board">
       <DashboardSectionHeader
-        icon={<SectionIcon icon={Users} tone="blue" />}
+        icon={<SectionIcon icon={Users} tone="red" />}
         title="Who is Delegating, and How Much"
         subtitle={
           targets
