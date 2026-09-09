@@ -71,7 +71,7 @@ export function TabTimeline({
         dueAt: remindAt ? new Date(remindAt).toISOString().slice(0, 10) : null,
       });
       if (res.ok) {
-        fireToast({ message: "Follow-up task created - it'll sync to the calendar." });
+        fireToast({ message: "Follow-up task created — it'll sync to the calendar." });
         router.refresh();
       } else {
         fireToast({ message: res.error, type: "error" });

@@ -6,7 +6,7 @@ import { getApps, initializeApp, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { mkdirSync } from "node:fs";
 
-const BASE = process.env.SHOOT_BASE || "https://wms.mananvasa.com";
+const BASE = process.env.SHOOT_BASE || "https://os.altuscorp.in";
 const FULL_UID = process.env.SHOOT_UID_FULL || "Rc4buo6UVqWgWFmSjoKLa6ePxnz1";
 const EMP = "c2209647-892b-4c4f-8e93-ad46500c5912"; // Dattaram Kap
 const OUT = "D:/altus-dashboard/.shots";

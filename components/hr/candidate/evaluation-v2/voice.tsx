@@ -153,7 +153,7 @@ export function RowNotes({
         <MessageSquarePlus size={13} />
         {hasNote ? "Note" : label}
         <ChevronDown size={12} className="transition-transform" style={{ transform: open ? "rotate(180deg)" : "none" }} />
-        {hasNote && !open && <span className="ml-1 max-w-[220px] truncate font-medium text-ink-muted">- {value.trim()}</span>}
+        {hasNote && !open && <span className="ml-1 max-w-[220px] truncate font-medium text-ink-muted">— {value.trim()}</span>}
       </button>
 
       {open && (

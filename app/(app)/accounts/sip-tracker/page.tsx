@@ -51,7 +51,7 @@ export default async function SipTrackerPage({ searchParams }: PageProps) {
 
         <PageCommandBar
           title="SIP Tracker"
-          hint="Mutual-fund SIPs by entity - monthly contributions with a running YTD total."
+          hint="Mutual-fund SIPs by entity — monthly contributions with a running YTD total."
           actions={
             <>
               <div className="inline-flex items-center overflow-hidden rounded-lg border border-hairline-strong bg-surface-card">

@@ -26,11 +26,11 @@ function translateFirebaseError(err: unknown): string {
   const code = (err as { code?: string })?.code;
   switch (code) {
     case "auth/weak-password":
-      return "Firebase rejected that password - try at least 8 characters with a number and a symbol.";
+      return "Firebase rejected that password — try at least 8 characters with a number and a symbol.";
     case "auth/expired-action-code":
       return "This link has expired. Ask your admin to resend it.";
     case "auth/invalid-action-code":
-      return "This link is no longer valid - it may have already been used. Ask your admin to resend it.";
+      return "This link is no longer valid — it may have already been used. Ask your admin to resend it.";
     case "auth/user-disabled":
       return "This account is disabled. Ask your admin to reactivate it.";
     case "auth/user-not-found":
@@ -38,7 +38,7 @@ function translateFirebaseError(err: unknown): string {
     case "auth/network-request-failed":
       return "Network hiccup. Check your connection and try again.";
     default:
-      return "Couldn't save your password - try the link again, or request a new one.";
+      return "Couldn't save your password — try the link again, or request a new one.";
   }
 }
 
@@ -295,7 +295,7 @@ export function SetPasswordForm() {
               animation: "errorSlide 220ms ease both",
             }}
           >
-            Doesn't match yet - keep typing.
+            Doesn't match yet — keep typing.
           </p>
         )}
       </motion.div>

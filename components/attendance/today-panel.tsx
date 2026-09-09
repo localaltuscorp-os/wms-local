@@ -92,8 +92,8 @@ export function TodayPanel({
         </div>
 
         <div className="min-w-0 flex-1">
-          <Row icon={<LogIn size={14} strokeWidth={2.4} />} label="Checked In" value={inLabel ?? "-"} on={!!inLabel} />
-          <Row icon={<LogOut size={14} strokeWidth={2.4} />} label="Checked Out" value={outLabel ?? "-"} on={!!outLabel} />
+          <Row icon={<LogIn size={14} strokeWidth={2.4} />} label="Checked In" value={inLabel ?? "—"} on={!!inLabel} />
+          <Row icon={<LogOut size={14} strokeWidth={2.4} />} label="Checked Out" value={outLabel ?? "—"} on={!!outLabel} />
         </div>
       </div>
 
@@ -103,7 +103,7 @@ export function TodayPanel({
           <p className="text-[13px] font-medium text-ink-muted">Punch in to start counting your hours.</p>
         ) : full ? (
           <p className="inline-flex items-center gap-1.5 text-[13px] font-bold" style={{ color: GREEN_DEEP }}>
-            <CheckCircle2 size={15} strokeWidth={2.4} /> Full day complete - {fmtHm(workedMin)} logged.
+            <CheckCircle2 size={15} strokeWidth={2.4} /> Full day complete — {fmtHm(workedMin)} logged.
           </p>
         ) : (
           <p className="text-[13px] font-medium text-ink-muted">

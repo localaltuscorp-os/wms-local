@@ -69,7 +69,7 @@ export async function GET(request: Request): Promise<Response> {
   // No state → we can't key the row; send somewhere safe.
   if (!state) {
     const back = new URL(SIGN_PATH, url.origin);
-    back.searchParams.set("error", "Verification failed - no signing session was provided.");
+    back.searchParams.set("error", "Verification failed — no signing session was provided.");
     return redirectTo(back);
   }
 

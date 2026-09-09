@@ -210,7 +210,7 @@ export async function convertToCompOff(input: {
   if (!(await hasInPunchOn(employeeId, earnedDate))) {
     return {
       ok: false,
-      error: "No check-in on that day - nothing to convert to comp-off.",
+      error: "No check-in on that day — nothing to convert to comp-off.",
     };
   }
 

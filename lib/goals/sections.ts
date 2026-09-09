@@ -29,7 +29,7 @@ export const GOALS_SECTIONS: GoalsSection[] = [
     order: 1,
     title: "The Cascade",
     blurb:
-      "Sir's yearly-goal sheet, live - Year → Quarter → Month → Week. Auto-divide targets, cross-out what you drop, add extras and carry unfinished goals forward.",
+      "Sir's yearly-goal sheet, live — Year → Quarter → Month → Week. Auto-divide targets, cross-out what you drop, add extras and carry unfinished goals forward.",
     Icon: Target,
   },
   {
@@ -37,7 +37,7 @@ export const GOALS_SECTIONS: GoalsSection[] = [
     order: 2,
     title: "Weekly Board",
     blurb:
-      "This week's priorities linked up to their monthly goal - the mature weekly engine, now showing area, targets, team and month linkage.",
+      "This week's priorities linked up to their monthly goal — the mature weekly engine, now showing area, targets, team and month linkage.",
     Icon: ListChecks,
   },
   // "Plan Your Day" removed (2026-08): the planner moved out of this room to
@@ -49,7 +49,7 @@ export const GOALS_SECTIONS: GoalsSection[] = [
     order: 4,
     title: "Saturday Commit",
     blurb:
-      "Fill this week's progress and freeze next week's committed goals - the Saturday sign-out ritual.",
+      "Fill this week's progress and freeze next week's committed goals — the Saturday sign-out ritual.",
     Icon: CalendarCheck,
   },
   {
@@ -65,7 +65,7 @@ export const GOALS_SECTIONS: GoalsSection[] = [
     order: 6,
     title: "Review & Scores",
     blurb:
-      "Dual-rating across every level - self vs manager %, week / month / YTD roll-ups and the colour scorecard.",
+      "Dual-rating across every level — self vs manager %, week / month / YTD roll-ups and the colour scorecard.",
     Icon: ClipboardList,
   },
   {
@@ -73,7 +73,7 @@ export const GOALS_SECTIONS: GoalsSection[] = [
     order: 7,
     title: "Bulk Import",
     blurb:
-      "Fan goals across the team from a spreadsheet - Area / Goal / UOM / Target / Team / Period / Parent.",
+      "Fan goals across the team from a spreadsheet — Area / Goal / UOM / Target / Team / Period / Parent.",
     Icon: Upload,
     adminOnly: true,
   },

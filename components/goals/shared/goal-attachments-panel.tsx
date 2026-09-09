@@ -121,7 +121,7 @@ export function GoalAttachmentsPanel({ goalId, canWrite, nodeKind = "cascade", s
         </p>
       ) : atts.length === 0 ? (
         <p className="rounded-lg border px-3 py-3 text-[12.5px] text-ink-subtle" style={{ borderColor: "var(--color-hairline-strong)" }}>
-          No files yet - attach evidence, briefs or screenshots.
+          No files yet — attach evidence, briefs or screenshots.
         </p>
       ) : (
         <ul className="grid gap-1.5">

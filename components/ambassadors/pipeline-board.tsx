@@ -489,7 +489,7 @@ function PipelineCard({
 
       <div className="mt-2.5 flex items-center justify-between gap-2">
         <span className="text-[13.5px] font-bold tabular-nums text-ink-strong">
-          {r.dealAmount != null ? inr(r.dealAmount) : "-"}
+          {r.dealAmount != null ? inr(r.dealAmount) : "—"}
         </span>
         {r.commissionAmount != null && (
           <span
@@ -590,12 +590,12 @@ function PipelineTable({
                   <span className="text-[13.5px] font-medium text-ink-soft">{r.ambassadorName}</span>
                 </span>
               </td>
-              <td className="px-4 py-3 text-[13.5px] text-ink-soft">{r.assignedToName ?? "-"}</td>
+              <td className="px-4 py-3 text-[13.5px] text-ink-soft">{r.assignedToName ?? "—"}</td>
               <td className="px-4 py-3 text-right text-[14px] font-bold tabular-nums text-ink-strong">
-                {r.dealAmount != null ? inr(r.dealAmount) : "-"}
+                {r.dealAmount != null ? inr(r.dealAmount) : "—"}
               </td>
               <td className="px-4 py-3 text-right text-[13.5px] font-semibold tabular-nums text-ink-soft">
-                {r.commissionAmount != null ? inr(r.commissionAmount) : "-"}
+                {r.commissionAmount != null ? inr(r.commissionAmount) : "—"}
               </td>
               <td className="px-4 py-3">
                 <div className="relative inline-flex items-center">
@@ -632,7 +632,7 @@ function PipelineTable({
                     View
                   </Link>
                 ) : (
-                  <span className="text-[13px] text-ink-subtle">-</span>
+                  <span className="text-[13px] text-ink-subtle">—</span>
                 )}
               </td>
             </tr>

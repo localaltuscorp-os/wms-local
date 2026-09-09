@@ -170,7 +170,7 @@ function summaryText(data: GoalsReportData, weekNo: number, label: string): stri
   const d = data.dashboard;
   const name = data.employee.name?.trim() || "Employee";
   return (
-    `${name} - Weekly Goals (W${weekNo}, ${label}). ` +
+    `${name} — Weekly Goals (W${weekNo}, ${label}). ` +
     `Last week ${d.lastWeekScore}%` +
     (d.monthAvg != null ? ` · month ${d.monthAvg}%` : "") +
     ` · YTD ${d.ytdWeeklyAvg}%.`
@@ -209,7 +209,7 @@ async function renderScorecardImage(
         createElement(
           "div",
           { style: { fontSize: 72, fontWeight: 700, color: "#0A0A0A" } },
-          s.value == null ? "-" : `${s.value}%`,
+          s.value == null ? "—" : `${s.value}%`,
         ),
       );
     const element = createElement(

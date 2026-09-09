@@ -88,7 +88,7 @@ export function MyDayBoard({ payload }: { payload: MyDayPayload }) {
         fireToast({
           message:
             r.error === "stale"
-              ? "That task changed elsewhere - refresh and try again."
+              ? "That task changed elsewhere — refresh and try again."
               : (r.message ?? "Couldn't update that status."),
           type: "error",
         });
@@ -139,7 +139,7 @@ export function MyDayBoard({ payload }: { payload: MyDayPayload }) {
         </h2>
         <p className="mx-auto mt-1.5 max-w-[46ch] text-[13px] text-ink-muted">
           My Day shows the work you committed to in Daily Goals &amp; Commitments. Line up your goals and tasks there
-          first - they&apos;ll appear here ready to work through.
+          first — they&apos;ll appear here ready to work through.
         </p>
         <Link
           href={PLAN_HREF}
@@ -164,9 +164,9 @@ export function MyDayBoard({ payload }: { payload: MyDayPayload }) {
           </h2>
           <p className="truncate text-[11px] text-ink-muted">
             {closed
-              ? "Day closed - here's how it went."
+              ? "Day closed — here's how it went."
               : remaining === 0
-                ? "Everything's done - nice."
+                ? "Everything's done — nice."
                 : `${remaining} still to do`}
           </p>
         </div>
@@ -243,7 +243,7 @@ export function MyDayBoard({ payload }: { payload: MyDayPayload }) {
               <Sparkles size={13} /> That&apos;s a wrap on today.
             </span>
           ) : started ? (
-            "Your day is running - tick work off as you go."
+            "Your day is running — tick work off as you go."
           ) : (
             "Start your day when you're ready to begin."
           )}

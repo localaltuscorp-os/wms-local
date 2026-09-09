@@ -225,7 +225,7 @@ function CascadeList(): React.JSX.Element {
             message:
               res.created > 0
                 ? `Divided into ${res.created} ${childLevel} goal${res.created === 1 ? "" : "s"}.`
-                : "Nothing new to divide - children already exist.",
+                : "Nothing new to divide — children already exist.",
             type: "success",
           });
         } else {
@@ -262,7 +262,7 @@ function CascadeList(): React.JSX.Element {
       <EmptyPanel
         text={
           canWrite
-            ? "No goals on the canvas yet - create the first with New goal in the toolbar."
+            ? "No goals on the canvas yet — create the first with New goal in the toolbar."
             : "No goals on the canvas yet."
         }
       />
@@ -304,7 +304,7 @@ function CascadeList(): React.JSX.Element {
         <EmptyPanel
           text={
             canWrite
-              ? "No yearly objectives yet - create one with New goal in the toolbar."
+              ? "No yearly objectives yet — create one with New goal in the toolbar."
               : "No yearly objectives yet."
           }
         />
@@ -614,7 +614,7 @@ function MonthWeeks(): React.JSX.Element {
         >
           <Scale className="h-4 w-4 shrink-0" style={{ color: ACCENT }} aria-hidden="true" />
           <p className="min-w-0 flex-1 text-[12.5px] font-semibold text-ink-strong">
-            Week targets total <span className="font-bold tabular-nums">{fmtNum(alloc.sum)}</span> -{" "}
+            Week targets total <span className="font-bold tabular-nums">{fmtNum(alloc.sum)}</span> —{" "}
             <span className="font-bold tabular-nums" style={{ color: alloc.state === "over" ? "#b91c1c" : undefined }}>
               {alloc.state === "over" ? "over" : "under"} the {monthName} target by {fmtNum(Math.abs(alloc.delta))}
             </span>
@@ -923,7 +923,7 @@ function DayStage(): React.JSX.Element {
           style={{ borderColor: accentMix(40), background: accentMix(5) }}
         >
           <p className="mx-auto max-w-md text-[15px] italic text-ink-muted" style={{ fontFamily: "var(--font-serif), Georgia, serif" }}>
-            The daily plan is personal - you&apos;re viewing {viewedName}&apos;s cascade. Switch back to
+            The daily plan is personal — you&apos;re viewing {viewedName}&apos;s cascade. Switch back to
             yourself to plan the day.
           </p>
         </div>

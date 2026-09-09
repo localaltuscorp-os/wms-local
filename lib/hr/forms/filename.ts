@@ -55,7 +55,7 @@ export function submissionFilename(formName: string, employeeName: string): stri
 export function contentDispositionAttachment(filename: string): string {
   // Build the fallback from the STEM and re-attach the extension, so a name that
   // is entirely non-ASCII degrades to `filled-form.pdf` rather than the bare
-  // `.pdf` a straight strip leaves - which is an extension with no filename, and
+  // `.pdf` a straight strip leaves — which is an extension with no filename, and
   // a hidden file on unix. `[^\x20-\x7e]` also covers control characters, so the
   // newline case is handled here as well as in `submissionFilename`.
   const ext = /\.[a-z0-9]+$/i.exec(filename)?.[0] ?? "";

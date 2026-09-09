@@ -455,6 +455,72 @@ throughout; her Firebase UID is new.
 
 ## Changelog
 
+### 2026-09-08 (late) — WMS team's work merged; four silent reverts caught
+
+**What changed**
+
+- Merged PR #3 (`localaltuscorp-os:wms-integration-pr`) — HR console, Project
+  Plan, goals dashboard, attendance devices. **136 new files, +62,503 lines.**
+- Restored our versions of 479 files their branch had reverted or mangled.
+- Hand-merged 10 files where both sides had real work.
+- Fixed their `lib/auth/dev-bypass.ts`, which omitted the five offboarding
+  columns and so would not compile against the current schema.
+- **Excluded** `.github/workflows/migrations-prod.yml` — see below.
+
+**Why — read this before accepting the next PR from them**
+
+Their branch was cut from this repo on **2 September** and never pulled again.
+Git offered it as a clean fast-forward with **zero conflicts**, and it silently
+reverted four days of fixes. A green "mergeable" badge means nothing here.
+
+What it would have undone, all restored:
+
+| Reverted | Consequence had it merged |
+|---|---|
+| `rehostActionLink` + both call sites | every password-reset link 404s again |
+| offboarding enums, `employee_exits`, `data_retention_policies` | **build fails** — the offboarding code that imports them was kept |
+| `.env*` and `/Altus Backup/` in `.gitignore` | env files and 112MB of salary/PII become committable |
+| `"regions": ["bom1"]` in `vercel.json` | deploys leave Mumbai, DB stays in ap-south-1 |
+| Access column, `ArchiveEmployeeDialog`, 6543 pooler note, retention cron | assorted |
+
+Their `employee-row-actions.tsx` was **rejected wholesale**: it re-added the
+hard-delete dialog and removed `ArchiveEmployeeDialog`. Offboarding stays; hard
+delete stays unreachable from the UI (and `emergency_no_employee_delete` blocks
+it at the database anyway — known issue 10).
+
+**How to review the next one.** Do not read the diff top to bottom; 456 of their
+949 files differed only by their toolchain rewriting `—` to `-`, which buries
+the real changes. Instead hash every file in their tree against this branch's
+history — if their blob equals an older blob of ours, they changed nothing there
+and our version wins. That reduced a 949-file review to 10 genuine merges.
+
+**The excluded workflow.** `migrations-prod.yml` is a `workflow_dispatch` job
+running `pnpm db:migrate` against production via `PROD_DATABASE_URL`. Left out
+deliberately: the migration chain cannot rebuild the database (known issue 1),
+all four CI secrets are empty, and giving CI write access to the production
+database is a decision to take on its own merits — not as a side effect of a
+feature merge. It still exists on the PR branch if wanted.
+
+**How to verify**
+
+```bash
+pnpm typecheck        # passes clean; needs NODE_OPTIONS=--max-old-space-size=6144
+pnpm test             # 9 failures across 6 files — IDENTICAL to pre-merge
+```
+
+The typecheck no longer OOMs at 6144MB — that is the fix `ci.yml` still needs.
+The 9 test failures and 9 lint errors are pre-existing; both were confirmed by
+running the same files in a worktree at the pre-merge commit `19f0845f`, not
+assumed.
+
+**Breaking / migration notes**
+
+- Their new files reference **migrations 0213/0214**, which have **not** been
+  run or verified against production. Check before relying on the new modules.
+- No env vars added. `DUMMY_MODE` is documented in `.env.example` but optional.
+
+**Author:** Rohan Choudhary (with Claude)
+
 ### 2026-09-08 — Push-to-deploy fixed, outside contributor onboarded, Rashmi restored
 
 **What changed**

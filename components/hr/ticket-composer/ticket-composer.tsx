@@ -165,7 +165,7 @@ export function TicketComposer({
           <ShieldAlert size={17} className="mt-0.5 shrink-0" />
           <span>
             This is a <strong>confidential grievance</strong>. Only you, the HR person handling it,
-            and firm super-admins can ever read it - never your manager or other HR staff.
+            and firm super-admins can ever read it — never your manager or other HR staff.
           </span>
         </div>
       )}
@@ -197,7 +197,7 @@ export function TicketComposer({
           rows={isQuery ? 3 : 6}
           maxLength={8000}
           defaultValue={initialDescription}
-          placeholder={isQuery ? "Add any details that help HR answer you faster." : "Describe your request - dates, amounts, people, anything relevant."}
+          placeholder={isQuery ? "Add any details that help HR answer you faster." : "Describe your request — dates, amounts, people, anything relevant."}
           className="w-full resize-y rounded-xl border border-hairline bg-surface-card px-3.5 py-3 text-[14.5px] leading-relaxed text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
         />
       </div>

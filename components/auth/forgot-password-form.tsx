@@ -25,7 +25,7 @@ export function ForgotPasswordForm() {
     e.preventDefault();
     const trimmed = email.trim();
     if (!EMAIL_RE.test(trimmed)) {
-      setError("That doesn't look like a valid email - double-check and try again.");
+      setError("That doesn't look like a valid email — double-check and try again.");
       return;
     }
     setError(null);

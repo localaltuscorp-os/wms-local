@@ -257,7 +257,7 @@ export function LeaveRequestsClient({
                     {r.days}
                   </Td>
                   <Td className="max-w-[260px] truncate text-ink-soft" title={r.reason ?? ""}>
-                    {r.reason || <span className="text-ink-subtle">-</span>}
+                    {r.reason || <span className="text-ink-subtle">—</span>}
                   </Td>
                   <Td>
                     <LeaveStatusChip status={r.status as LeaveStatus} />

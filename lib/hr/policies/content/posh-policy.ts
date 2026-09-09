@@ -183,7 +183,7 @@ const poshPolicy: PolicyDoc = {
       ),
       sub("8.3 Third-Party (Client, Vendor, & Visitor) Responsibilities"),
       p(
-        "All external stakeholders-including vendors, associates, clients, contractors, and visitors-must strictly comply with this POSH policy while on firm premises, participating in Enterprise events, or communicating with {firm} personnel through digital channels. Non-compliance will result in immediate termination of business associations, removal from premises, and legal action if warranted.",
+        "All external stakeholders—including vendors, associates, clients, contractors, and visitors—must strictly comply with this POSH policy while on firm premises, participating in Enterprise events, or communicating with {firm} personnel through digital channels. Non-compliance will result in immediate termination of business associations, removal from premises, and legal action if warranted.",
       ),
       sub("8.4 Firm Responsibilities"),
       ul(
@@ -239,31 +239,31 @@ const poshPolicy: PolicyDoc = {
       workflow(
         [
           {
-            text: "Incident Occurs - An incident of sexual harassment takes place within the scope of the workplace, as defined under this policy.",
+            text: "Incident Occurs — An incident of sexual harassment takes place within the scope of the workplace, as defined under this policy.",
             note: "Trigger Event",
           },
           {
-            text: "Complaint Submission - Written complaint submitted to the ICC or hr@altuscorp.in within seven (7) days of the incident.",
+            text: "Complaint Submission — Written complaint submitted to the ICC or hr@altuscorp.in within seven (7) days of the incident.",
             note: "Within 7 Days",
           },
           {
-            text: "Acknowledgment - Notice sent to the Respondent within 7 working days; response required within 10 working days.",
+            text: "Acknowledgment — Notice sent to the Respondent within 7 working days; response required within 10 working days.",
             note: "7 + 10 Working Days",
           },
           {
-            text: "Inquiry Process - Fair hearings, evidence evaluation, and witness interviews are conducted, to be completed within a maximum of 30 days.",
+            text: "Inquiry Process — Fair hearings, evidence evaluation, and witness interviews are conducted, to be completed within a maximum of 30 days.",
             note: "Max 30 Days",
           },
           {
-            text: "Recommendation - The ICC issues formal findings and recommends appropriate penalties to Management.",
+            text: "Recommendation — The ICC issues formal findings and recommends appropriate penalties to Management.",
             note: "ICC Findings",
           },
           {
-            text: "Management Action - Disciplinary action or penalties are executed within statutory timelines.",
+            text: "Management Action — Disciplinary action or penalties are executed within statutory timelines.",
             note: "Statutory Limit",
           },
         ],
-        "Case Closure - Implementation verification, documentation filing, and final closure of the case.",
+        "Case Closure — Implementation verification, documentation filing, and final closure of the case.",
       ),
     ),
 

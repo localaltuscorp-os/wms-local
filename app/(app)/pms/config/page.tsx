@@ -61,7 +61,7 @@ export default async function PmsConfigPage() {
             Scoring Policy
           </h1>
           <p className="mt-1.5 max-w-[76ch] text-[15px] font-medium text-ink-muted">
-            You define exactly how performance is measured - every weight, threshold and curve lives
+            You define exactly how performance is measured — every weight, threshold and curve lives
             here as data, not code. Changes apply on the next score, no deploy.
           </p>
         </header>

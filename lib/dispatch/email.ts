@@ -90,7 +90,7 @@ export async function sendAttendanceConfirmRequestEmail(args: {
       from: FROM,
       to: args.recipient.email,
       subject: clampSubject(
-        `Confirm ${args.scopeLabel}'s attendance - ${args.weekLabel} - Altus Corp`,
+        `Confirm ${args.scopeLabel}'s attendance — ${args.weekLabel} — Altus Corp`,
       ),
       react: AttendanceConfirmRequestEmail({
         recipientName: args.recipient.name,
@@ -129,7 +129,7 @@ export async function sendPmsQuarterlyReportEmail(args: {
       from: FROM,
       to: args.recipient.email,
       subject: clampSubject(
-        `Your ${args.quarterLabel} performance report - Altus Corp`,
+        `Your ${args.quarterLabel} performance report — Altus Corp`,
       ),
       react: PmsQuarterlyReportEmail({
         recipientName: args.recipient.name,

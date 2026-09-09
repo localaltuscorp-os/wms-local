@@ -99,7 +99,7 @@ export function RatingSection({
           fill={score.micro === null ? 0 : score.micro / 10}
           tone={tone}
           ariaLabel={score.micro === null ? `${section.title} not yet rated` : `${section.title} scores ${fmt(score.micro)} out of 10`}
-          main={score.micro === null ? <span className="text-ink-subtle">-</span> : fmt(score.micro)}
+          main={score.micro === null ? <span className="text-ink-subtle">—</span> : fmt(score.micro)}
         />
         <div className="min-w-0 flex-1">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-ink-subtle">Section score</div>

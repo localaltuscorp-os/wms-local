@@ -52,7 +52,7 @@ export default async function SelfLearningPage() {
             Self-Learning
           </h1>
           <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-            Log what you learn from books, videos and YouTube - with evidence. This feeds your PMS Skill-Upgrade score.
+            Log what you learn from books, videos and YouTube — with evidence. This feeds your PMS Skill-Upgrade score.
           </p>
         </header>
 
@@ -66,7 +66,7 @@ export default async function SelfLearningPage() {
                   {hoursDone}
                 </span>
                 <span className="mb-1 text-[15px] font-bold text-ink-muted">
-                  / {targetHours || "-"} hrs
+                  / {targetHours || "—"} hrs
                 </span>
               </div>
               <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full" style={{ background: "var(--color-surface-soft)" }}>
@@ -77,7 +77,7 @@ export default async function SelfLearningPage() {
               </div>
               <p className="mt-2.5 text-[13.5px] font-semibold" style={{ color: met ? "#15803d" : "var(--color-ink-muted)" }}>
                 {met
-                  ? "Monthly target met - nice."
+                  ? "Monthly target met — nice."
                   : targetMin > 0
                     ? `${Math.max(0, Math.ceil((targetMin - minutesThisMonth) / 60 * 10) / 10)} hrs to go this month.`
                     : "Keep a steady self-learning habit."}

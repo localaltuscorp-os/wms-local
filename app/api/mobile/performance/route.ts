@@ -30,7 +30,7 @@ const PILLARS: { key: keyof ScoreBreakdown; name: string; hint: string | null }[
   {
     key: "skillUpgrade",
     name: "Skill Upgrade",
-    hint: "Training attended & given, self-learning and the weekly Share - pro-rated to this month.",
+    hint: "Training attended & given, self-learning and the weekly Share — pro-rated to this month.",
   },
   { key: "compliance", name: "Compliance", hint: "DCC compliance and Daily-Checklist completion." },
   { key: "attitude", name: "Attitude & Mindset", hint: null },

@@ -377,7 +377,7 @@ export function IncentiveDashboard({ data, year }: { data: DashboardData; year: 
       {/* Employee-wise YTD table — searchable + sortable */}
       <Panel
         title="Employee-wise YTD"
-        description="Permanent + project totals per employee - click a person to drill down"
+        description="Permanent + project totals per employee — click a person to drill down"
         icon={<Users size={18} strokeWidth={2.3} />}
         delay={200}
       >
@@ -451,7 +451,7 @@ export function IncentiveDashboard({ data, year }: { data: DashboardData; year: 
                     <td className="py-2.5 font-semibold text-ink-soft" style={{ fontSize: 14 }}>
                       Project Based Incentive
                     </td>
-                    <Td align="right">-</Td>
+                    <Td align="right">—</Td>
                     <Td align="right" bold>{formatInr(project.approved)}</Td>
                     <Td align="right" style={{ color: GREEN_DEEP }}>
                       {formatInr(project.paid)}
@@ -468,7 +468,7 @@ export function IncentiveDashboard({ data, year }: { data: DashboardData; year: 
                   >
                     Total
                   </td>
-                  <Td align="right">-</Td>
+                  <Td align="right">—</Td>
                   <Td align="right" bold>{formatInr(nameApproved + project.approved)}</Td>
                   <Td align="right" bold style={{ color: GREEN_DEEP }}>
                     {formatInr(namePaid + project.paid)}

@@ -33,7 +33,7 @@ export function CsatCard({
     return (
       <div className="rounded-2xl border border-hairline bg-surface-card p-5">
         <div className="flex items-center gap-2 text-[13.5px] font-semibold text-ink-strong">
-          <Heart size={15} style={{ color: RED }} /> Thanks for rating this - {existingScore}/5.
+          <Heart size={15} style={{ color: RED }} /> Thanks for rating this — {existingScore}/5.
         </div>
         {existingComment && <p className="mt-1.5 text-[13px] text-ink-muted">“{existingComment}”</p>}
       </div>

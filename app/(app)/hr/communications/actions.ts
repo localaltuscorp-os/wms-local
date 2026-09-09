@@ -142,7 +142,7 @@ export async function scheduleBroadcast(id: string): Promise<VoidResult> {
   if (!b.title.trim()) return { ok: false, error: "Give the broadcast a title first." };
   if (!b.scheduledFor) return { ok: false, error: "Pick a date & time to schedule for." };
   if (b.recurrence === "none" && b.scheduledFor.getTime() <= Date.now()) {
-    return { ok: false, error: "That time is in the past - publish now instead." };
+    return { ok: false, error: "That time is in the past — publish now instead." };
   }
   try {
     await db

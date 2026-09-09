@@ -32,7 +32,7 @@ export default async function AccountsIndexPage() {
             which is the only part of it that told you anything. */}
         <PageCommandBar
           title="Accounts"
-          hint={`${built} of ${sections.length} sections live - checklists, trackers and master registers.`}
+          hint={`${built} of ${sections.length} sections live — checklists, trackers and master registers.`}
           actions={
             <>
               <Link

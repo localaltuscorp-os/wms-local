@@ -61,9 +61,9 @@ export interface WeeklyGoalsPdfInput {
 
 /** numeric(14,2) columns arrive as STRINGs — render compactly or a dash. */
 function num(v: string | null): string {
-  if (v == null || v === "") return "-";
+  if (v == null || v === "") return "—";
   const n = Number(v);
-  if (!Number.isFinite(n)) return "-";
+  if (!Number.isFinite(n)) return "—";
   return n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
@@ -86,7 +86,7 @@ export async function renderWeeklyGoalsPdf(input: WeeklyGoalsPdfInput): Promise<
     layout: "landscape",
     margin: 32,
     info: {
-      Title: `Weekly Goals - ${name}`,
+      Title: `Weekly Goals — ${name}`,
       Author: "Altus Corp Dashboard",
       Subject: "Weekly Goals Report",
     },
@@ -117,7 +117,7 @@ export async function renderWeeklyGoalsPdf(input: WeeklyGoalsPdfInput): Promise<
     ytd: dashboard.ytdWeeklyAvg,
   });
   sheet(doc, left, right, width, {
-    heading: "Last Week - Progress",
+    heading: "Last Week — Progress",
     subheading: weekTitle(lastWeek.weekStart),
     goals: lastWeek.goals,
     showScores: true,
@@ -128,7 +128,7 @@ export async function renderWeeklyGoalsPdf(input: WeeklyGoalsPdfInput): Promise<
   doc.addPage();
   masthead(doc, left, right, width, name);
   sheet(doc, left, right, width, {
-    heading: "Next Week - Committed",
+    heading: "Next Week — Committed",
     subheading: weekTitle(nextWeek.weekStart),
     goals: nextWeek.goals,
     showScores: false,
@@ -232,7 +232,7 @@ function analyticsBand(
       .font("Helvetica-Bold")
       .fontSize(22)
       .fillColor(pal.fg)
-      .text(t.value == null ? "-" : `${t.value}%`, x + 12, top + 22, { lineBreak: false });
+      .text(t.value == null ? "—" : `${t.value}%`, x + 12, top + 22, { lineBreak: false });
   });
   doc.y = top + tileH + 16;
 }
@@ -358,16 +358,16 @@ function sheet(doc: Doc, left: number, right: number, width: number, opts: Sheet
 
     cell(0, String(g.position), false, COLORS.inkSoft);
     cell(1, goalText, true, COLORS.ink);
-    cell(2, g.uom || "-");
+    cell(2, g.uom || "—");
     cell(3, num(g.targetQty));
     cell(4, num(g.actualQty));
     cell(5, num(g.targetAmount));
     if (opts.showScores) {
       cell(6, `${self}%`, true);
-      cell(7, g.acceptPct == null ? "-" : `${g.acceptPct}%`, true, scorePalette(eff).fg);
+      cell(7, g.acceptPct == null ? "—" : `${g.acceptPct}%`, true, scorePalette(eff).fg);
     } else {
-      cell(6, "-");
-      cell(7, "-");
+      cell(6, "—");
+      cell(7, "—");
     }
 
     doc.y = y + ROW_H;
@@ -398,7 +398,7 @@ function footer(doc: Doc, left: number, right: number, width: number): void {
     .fontSize(7.5)
     .fillColor(COLORS.inkSoft)
     .text(
-      "Altus Corp · Goals Cascade · computer-generated weekly goals report - effective % = accepted % where reviewed, else self %.",
+      "Altus Corp · Goals Cascade · computer-generated weekly goals report — effective % = accepted % where reviewed, else self %.",
       left,
       footerY,
       { width, lineBreak: false },

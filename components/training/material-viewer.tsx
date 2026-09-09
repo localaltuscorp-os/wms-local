@@ -160,7 +160,7 @@ export function MaterialViewer({
         )}
         {material.archived && (
           <div className="rounded-lg px-3 py-2 text-[12.5px] font-bold" style={{ background: "var(--color-surface-track)", color: "var(--color-ink-subtle)" }}>
-            <span className="inline-flex items-center gap-1.5"><Archive size={13} /> Archived - hidden from learners.</span>
+            <span className="inline-flex items-center gap-1.5"><Archive size={13} /> Archived — hidden from learners.</span>
           </div>
         )}
       </aside>

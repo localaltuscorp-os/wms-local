@@ -319,7 +319,7 @@ export async function requestDataExport(): Promise<
     if (ageMs < DATA_EXPORT_COOLDOWN_MS) {
       return {
         ok: false,
-        error: "An export is already being prepared - we'll email you.",
+        error: "An export is already being prepared — we'll email you.",
       };
     }
   }

@@ -68,7 +68,7 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
     <AdminSection
       eyebrow="Admin · Activity"
       title="Everything happening across the team"
-      subtitle="A live, filterable audit timeline of every action - comments, status changes, transfers, and approvals."
+      subtitle="A live, filterable audit timeline of every action — comments, status changes, transfers, and approvals."
       icon={ActivityIcon}
       stats={[
         { label: "Today", value: stats.today },

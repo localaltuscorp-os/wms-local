@@ -28,7 +28,7 @@ export function LeaveSummaryCards({ balance }: { balance: LeaveBalance }) {
     : balance.beforeProbation
       ? "Paid leave accrues from your probation-end date. Unpaid leave can still be requested."
       : balance.allowance === 0
-        ? "No probation-end date is set yet, so paid leave isn't available. Ask an admin to set it - unpaid leave still works."
+        ? "No probation-end date is set yet, so paid leave isn't available. Ask an admin to set it — unpaid leave still works."
         : null;
 
   return (

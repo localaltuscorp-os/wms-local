@@ -18,7 +18,7 @@ export default async function EmployeeTimeReportPage() {
   return (
     <TimeReportFrame
       title="Employee Report"
-      subtitle="Tracked effort per person - total active time, per-task and per-goal averages, revision time, and approval / rejection rates."
+      subtitle="Tracked effort per person — total active time, per-task and per-goal averages, revision time, and approval / rejection rates."
     >
       <EmployeeReportTable rows={rows} />
     </TimeReportFrame>

@@ -183,7 +183,7 @@ function blockToHtml(
       // The signature MARK, matching the PDF renderer's precedence: a per-block
       // baked image first, then the HR desk's standing signature on HR letters.
       // "(E-Sign)" used to stand in for a signature that was never actually
-      // applied - the letter went out with a typed placeholder where a mark
+      // applied — the letter went out with a typed placeholder where a mark
       // belonged. Now the mark is real, and the placeholder is only a fallback
       // for non-HR blocks that have no image of their own.
       const mark = baked ?? (isHr ? HR_SIGNATURE_IMAGE : null);
@@ -246,7 +246,7 @@ export function templateToRichHtml(
   const blocks = template.blocks;
 
   // Group CONSECUTIVE `term` blocks into ONE bordered 2-column table
-  // (Label | value) - identical structure/classes to the structured field
+  // (Label | value) — identical structure/classes to the structured field
   // view's <TermTable> so the professional table survives an "Edit freely"
   // eject AND its save. (Previously each term became a colon <p>, so entering
   // free-edit silently flattened the table into "Label : value" text lines.)

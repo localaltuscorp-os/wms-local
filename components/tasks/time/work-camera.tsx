@@ -115,7 +115,7 @@ export function WorkCamera({
             <p className="mt-0.5 text-[12px] leading-relaxed text-ink-muted">
               While a work session is running, the company captures a webcam snapshot every {intervalMin} minutes for
               verification. You will always see a &ldquo;monitoring active&rdquo; indicator and your browser&apos;s own
-              camera light. Snapshots are visible to super-admins only. You can decline - the timer still works, no
+              camera light. Snapshots are visible to super-admins only. You can decline — the timer still works, no
               snapshots are taken.
               {/* NOTE: replace with your organisation's finalised monitoring policy text. */}
             </p>
@@ -155,7 +155,7 @@ export function WorkCamera({
         <div className="min-w-0 flex-1">
           {camState === "blocked" ? (
             <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-amber-600">
-              <VideoOff size={14} /> Camera blocked - snapshots paused
+              <VideoOff size={14} /> Camera blocked — snapshots paused
             </p>
           ) : (
             <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-ink-strong">

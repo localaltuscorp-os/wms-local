@@ -114,7 +114,7 @@ export function DccBoard({ ownerId, ownerName, meId, canFill, canReview, canMana
     const order: string[] = [];
     const by = new Map<string, { section: string; clientName: string | null; rows: DccItemRow[] }>();
     for (const it of daily) {
-      const sec = it.section || "-";
+      const sec = it.section || "—";
       const key = `${sec}∷${it.clientId ?? ""}`;
       if (!by.has(key)) { by.set(key, { section: sec, clientName: it.clientId ? clientById.get(it.clientId)?.name ?? null : null, rows: [] }); order.push(key); }
       by.get(key)!.rows.push(it);
@@ -353,7 +353,7 @@ export function DccBoard({ ownerId, ownerName, meId, canFill, canReview, canMana
             const color = s.pct < 0 ? "var(--color-hairline-strong)" : rateColor(s.pct);
             const h = s.pct < 0 ? 8 : 8 + Math.round((s.pct / 100) * 26);
             return (
-              <button key={s.iso} onClick={() => setSelectedDate(s.iso)} className="group flex flex-1 min-w-[20px] flex-col items-center gap-1" title={`${fmtLong(s.iso)} · ${s.pct < 0 ? "no items" : s.pct + "%"}`} aria-label={`${fmtLong(s.iso)} - ${s.pct < 0 ? "no items due" : `${s.pct}% done`}`}>
+              <button key={s.iso} onClick={() => setSelectedDate(s.iso)} className="group flex flex-1 min-w-[20px] flex-col items-center gap-1" title={`${fmtLong(s.iso)} · ${s.pct < 0 ? "no items" : s.pct + "%"}`} aria-label={`${fmtLong(s.iso)} — ${s.pct < 0 ? "no items due" : `${s.pct}% done`}`}>
                 <div className="w-full rounded-md transition-all group-hover:opacity-90" style={{ height: h + 4, background: color, opacity: active ? 1 : 0.55, outline: active ? "2px solid var(--color-ink-strong)" : "none", outlineOffset: 2 }} />
                 <span className={`text-[11px] font-bold ${active ? "text-ink-strong" : "text-ink-subtle"}`}>{dateToObj(s.iso).getDate()}</span>
               </button>
@@ -369,7 +369,7 @@ export function DccBoard({ ownerId, ownerName, meId, canFill, canReview, canMana
 
       {!canFill && ownerId !== meId && (
         <p className="rounded-xl bg-surface-soft px-4 py-2.5 text-[13px] font-semibold text-ink-muted" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}>
-          Viewing {ownerName}&apos;s KPIs - read-only.
+          Viewing {ownerName}&apos;s KPIs — read-only.
         </p>
       )}
 
@@ -775,7 +775,7 @@ function ReviewBar({ ownerId, date, canReview, review }: { ownerId: string; date
           <input value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => save(status)} placeholder="Review note…" className="flex-1 min-w-[180px] rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors focus:border-[#16a34a]" aria-label="Review note" />
         </>
       ) : (
-        <span className="text-[14.5px] font-bold" style={{ color: status === "approved" ? GREEN_DEEP : tone }}>{status === "approved" ? "Approved" : status === "needs_rework" ? "Needs Rework" : "Not Yet Reviewed"}{review?.note ? ` - ${review.note}` : ""}</span>
+        <span className="text-[14.5px] font-bold" style={{ color: status === "approved" ? GREEN_DEEP : tone }}>{status === "approved" ? "Approved" : status === "needs_rework" ? "Needs Rework" : "Not Yet Reviewed"}{review?.note ? ` — ${review.note}` : ""}</span>
       )}
     </div>
   );

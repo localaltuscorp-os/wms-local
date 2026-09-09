@@ -47,7 +47,7 @@ export default async function AccountsTaskListPage() {
               Accounts Task List
             </h1>
             <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-              The working task tracker - area, status, target vs actual dates, with a Screenshots-to-Post sub-table.
+              The working task tracker — area, status, target vs actual dates, with a Screenshots-to-Post sub-table.
             </p>
           </div>
           <div className="shrink-0 pt-1">

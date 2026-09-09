@@ -98,7 +98,7 @@ export function IntakeField({
           value={value || null}
           onChange={(v) => onChange(field.key, v ?? "")}
           options={opts.map((o) => ({ id: o, name: o }))}
-          placeholder="- Select -"
+          placeholder="— Select —"
           className="iwf-control iwf-lookup"
         />
         {labelEl}
@@ -164,7 +164,7 @@ export function IntakeReadonlyField({ label, value }: { label: string; value: st
   const id = `iwf-ro-${reactId}`;
   return (
     <div className="iwf is-float is-readonly">
-      <input id={id} value={value} readOnly placeholder="-" aria-label={label} className="iwf-control" />
+      <input id={id} value={value} readOnly placeholder="—" aria-label={label} className="iwf-control" />
       <label htmlFor={id} className="iwf-label">
         {label}
       </label>

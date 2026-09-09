@@ -178,7 +178,7 @@ export function SessionForm({
       </div>
 
       <div>
-        <Label>LOS <span className="font-semibold normal-case tracking-normal text-ink-subtle/80">- learning-outcome statements</span></Label>
+        <Label>LOS <span className="font-semibold normal-case tracking-normal text-ink-subtle/80">— learning-outcome statements</span></Label>
         <textarea
           className={INPUT + " resize-y"}
           rows={2}
@@ -290,7 +290,7 @@ export function SessionForm({
           />
         </div>
         {v.attendeeIds.length > 0 && (
-          <p className="mt-1 text-[12px] font-semibold text-ink-subtle">{v.attendeeIds.length} invited - they'll get an in-app alert.</p>
+          <p className="mt-1 text-[12px] font-semibold text-ink-subtle">{v.attendeeIds.length} invited — they'll get an in-app alert.</p>
         )}
       </div>
 
@@ -316,7 +316,7 @@ export function SessionForm({
         <span className="flex items-center gap-1.5 text-[14px] font-bold text-ink-strong">
           <Star size={15} fill={v.inManual ? ACCENT : "transparent"} style={{ color: ACCENT }} /> Add to the Training Manual
         </span>
-        <span className="text-[12.5px] font-semibold text-ink-subtle">- curate this high-value session</span>
+        <span className="text-[12.5px] font-semibold text-ink-subtle">— curate this high-value session</span>
       </label>
 
       <div className="flex items-center justify-end gap-3 pt-1">

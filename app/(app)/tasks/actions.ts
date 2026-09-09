@@ -162,7 +162,7 @@ export async function archiveTask(
       await emit(tx, taskArchived(taskId, { doerId: updated[0]!.doerId }, { actorId: me.id }));
       return true;
     });
-    if (!found) return { ok: false, error: "Task not found - it may already be gone." };
+    if (!found) return { ok: false, error: "Task not found — it may already be gone." };
   } catch (err) {
     logDbError("tasks:archive", err);
     return { ok: false, error: `Could not archive: ${dbErrorMessage(err)}` };
@@ -213,7 +213,7 @@ export async function deleteTask(
       return d;
     });
     if (deleted.length === 0) {
-      return { ok: false, error: "Task not found - it may already be deleted." };
+      return { ok: false, error: "Task not found — it may already be deleted." };
     }
   } catch (err) {
     logDbError("tasks:delete", err);
@@ -261,7 +261,7 @@ export async function unarchiveTask(
       await emit(tx, taskRestored(taskId, { doerId: updated[0]!.doerId }, { actorId: me.id }));
       return true;
     });
-    if (!found) return { ok: false, error: "Task not found - it may already be gone." };
+    if (!found) return { ok: false, error: "Task not found — it may already be gone." };
   } catch (err) {
     logDbError("tasks:restore", err);
     return { ok: false, error: `Could not restore: ${dbErrorMessage(err)}` };

@@ -72,7 +72,7 @@ export function PillarBar({
               color: pct == null ? "var(--color-ink-subtle)" : accentDeep,
             }}
           >
-            {pct == null ? "-" : pct}
+            {pct == null ? "—" : pct}
           </div>
           <div className="text-[10.5px] font-bold uppercase tracking-wide text-ink-subtle">
             {pct == null ? "no data" : "of 100"}

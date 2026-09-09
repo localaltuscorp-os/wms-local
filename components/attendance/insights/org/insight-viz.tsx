@@ -82,7 +82,7 @@ function KpiTile({
   const animated = useAnimCount(tile.value ?? 0, 1100, tile.decimals ?? 0);
   const shown =
     tile.value == null
-      ? "-"
+      ? "—"
       : tile.decimals
         ? animated.toFixed(tile.decimals)
         : Math.round(animated).toLocaleString();

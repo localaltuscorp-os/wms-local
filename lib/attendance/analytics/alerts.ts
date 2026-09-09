@@ -93,7 +93,7 @@ export function computeSmartAlerts(a: OrgAttendanceAnalytics): SmartAlert[] {
       id: "health-critical",
       severity: "critical",
       title: "Workforce health is critical",
-      detail: `Composite health score is ${a.health.score}/100 for ${a.monthLabel} - below the 50-point critical line.`,
+      detail: `Composite health score is ${a.health.score}/100 for ${a.monthLabel} — below the 50-point critical line.`,
       metric: `${a.health.score}/100`,
       actionRoute: route,
     });
@@ -114,7 +114,7 @@ export function computeSmartAlerts(a: OrgAttendanceAnalytics): SmartAlert[] {
       id: "attendance-critical",
       severity: "critical",
       title: "Org attendance critically low",
-      detail: `Effective attendance is ${pct(k.attendanceRatePct)} across ${k.totalEmployees} employees - under the ${T.attendance.critical}% floor.`,
+      detail: `Effective attendance is ${pct(k.attendanceRatePct)} across ${k.totalEmployees} employees — under the ${T.attendance.critical}% floor.`,
       metric: pct(k.attendanceRatePct),
       actionRoute: route,
     });
@@ -143,7 +143,7 @@ export function computeSmartAlerts(a: OrgAttendanceAnalytics): SmartAlert[] {
       id: "absenteeism-critical",
       severity: "critical",
       title: "Absenteeism spike",
-      detail: `${days(k.absent)} logged absent - ${pct(absentRate * 100)} of all graded days this month.`,
+      detail: `${days(k.absent)} logged absent — ${pct(absentRate * 100)} of all graded days this month.`,
       metric: pct(absentRate * 100),
       actionRoute: route,
     });
@@ -152,7 +152,7 @@ export function computeSmartAlerts(a: OrgAttendanceAnalytics): SmartAlert[] {
       id: "absenteeism-warning",
       severity: "warning",
       title: "Elevated absenteeism",
-      detail: `${days(k.absent)} logged absent - ${pct(absentRate * 100)} of graded days, above the ${pct(T.absentRate.warning * 100)} watch level.`,
+      detail: `${days(k.absent)} logged absent — ${pct(absentRate * 100)} of graded days, above the ${pct(T.absentRate.warning * 100)} watch level.`,
       metric: pct(absentRate * 100),
       actionRoute: route,
     });
@@ -185,7 +185,7 @@ export function computeSmartAlerts(a: OrgAttendanceAnalytics): SmartAlert[] {
       id: "incomplete-critical",
       severity: "critical",
       title: "Punch data is unreliable",
-      detail: `${k.incomplete} incomplete punch(es) - ${pct(incompleteRate * 100)} of attended days are missing a check-in or check-out.`,
+      detail: `${k.incomplete} incomplete punch(es) — ${pct(incompleteRate * 100)} of attended days are missing a check-in or check-out.`,
       metric: `${k.incomplete}`,
       actionRoute: route,
     });
@@ -194,7 +194,7 @@ export function computeSmartAlerts(a: OrgAttendanceAnalytics): SmartAlert[] {
       id: "incomplete-warning",
       severity: "warning",
       title: "High incomplete punches",
-      detail: `${k.incomplete} incomplete punch(es) this month - ${pct(incompleteRate * 100)} of attended days.`,
+      detail: `${k.incomplete} incomplete punch(es) this month — ${pct(incompleteRate * 100)} of attended days.`,
       metric: `${k.incomplete}`,
       actionRoute: route,
     });
@@ -206,7 +206,7 @@ export function computeSmartAlerts(a: OrgAttendanceAnalytics): SmartAlert[] {
       id: "hours-critical",
       severity: "critical",
       title: "Working hours well below target",
-      detail: `Avg ${k.avgHoursPerDay.toFixed(1)}h/day vs the ${a.targetHoursPerDay}h target - a ${pct((1 - hoursRatio) * 100)} shortfall.`,
+      detail: `Avg ${k.avgHoursPerDay.toFixed(1)}h/day vs the ${a.targetHoursPerDay}h target — a ${pct((1 - hoursRatio) * 100)} shortfall.`,
       metric: `${k.avgHoursPerDay.toFixed(1)}h`,
       actionRoute: route,
     });
@@ -227,7 +227,7 @@ export function computeSmartAlerts(a: OrgAttendanceAnalytics): SmartAlert[] {
       id: "unpaid-leave-critical",
       severity: "critical",
       title: "Loss-of-pay leave is high",
-      detail: `${days(k.unpaidLeave)} of unpaid (LWP) leave - ${pct(unpaidRate * 100)} of graded days, hitting payroll.`,
+      detail: `${days(k.unpaidLeave)} of unpaid (LWP) leave — ${pct(unpaidRate * 100)} of graded days, hitting payroll.`,
       metric: days(k.unpaidLeave),
       actionRoute: route,
     });
@@ -236,7 +236,7 @@ export function computeSmartAlerts(a: OrgAttendanceAnalytics): SmartAlert[] {
       id: "unpaid-leave-warning",
       severity: "warning",
       title: "Unpaid leave to watch",
-      detail: `${days(k.unpaidLeave)} of unpaid (LWP) leave - ${pct(unpaidRate * 100)} of graded days.`,
+      detail: `${days(k.unpaidLeave)} of unpaid (LWP) leave — ${pct(unpaidRate * 100)} of graded days.`,
       metric: days(k.unpaidLeave),
       actionRoute: route,
     });
@@ -248,7 +248,7 @@ export function computeSmartAlerts(a: OrgAttendanceAnalytics): SmartAlert[] {
       id: "comp-off-info",
       severity: "info",
       title: "Comp-off redeemed",
-      detail: `${days(k.compOff)} of comp-off taken this month - factored into the attendance base.`,
+      detail: `${days(k.compOff)} of comp-off taken this month — factored into the attendance base.`,
       metric: days(k.compOff),
     });
   }

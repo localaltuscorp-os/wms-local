@@ -58,7 +58,7 @@ export async function ModulePage({ module, searchParams }: Props) {
             <h1 className="text-display-lg text-ink-strong">{def.title}</h1>
             <p className="text-body-lg text-ink-subtle mt-1">
               {view === "archived"
-                ? "Archived - restore or delete from the ⋯ menu."
+                ? "Archived — restore or delete from the ⋯ menu."
                 : me.isAdmin
                   ? `${pendingCount} pending review.`
                   : def.subtitle}
@@ -85,8 +85,8 @@ export async function ModulePage({ module, searchParams }: Props) {
             )}
             {me.isAdmin && (
               <>
-                <FormEditorDialog formKey={requestKey(module)} formName={`${def.title} - request`} fields={requestFieldsRaw} />
-                <FormEditorDialog formKey={adminKey(module)} formName={`${def.title} - admin fields`} fields={adminFieldsRaw} />
+                <FormEditorDialog formKey={requestKey(module)} formName={`${def.title} — request`} fields={requestFieldsRaw} />
+                <FormEditorDialog formKey={adminKey(module)} formName={`${def.title} — admin fields`} fields={adminFieldsRaw} />
               </>
             )}
             <DynamicFormDialog

@@ -47,7 +47,7 @@ export default async function AmbassadorPipelinePage() {
             Pipeline
           </h1>
           <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-            Every referral from received to commission paid - drag a card to advance the deal.
+            Every referral from received to commission paid — drag a card to advance the deal.
           </p>
         </header>
 

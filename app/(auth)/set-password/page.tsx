@@ -15,7 +15,7 @@ export default function SetPasswordPage() {
       <BrandStack
         eyebrow="Almost in"
         title="Set your password"
-        subtitle="Pick something memorable but tough - you'll use it every day to step into operations."
+        subtitle="Pick something memorable but tough — you'll use it every day to step into operations."
       />
       <AuthCard>
         <Suspense

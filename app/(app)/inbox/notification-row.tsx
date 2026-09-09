@@ -202,7 +202,7 @@ export function NotificationRow({
         onClick={onActivate}
         disabled={isPending}
         className="flex items-center gap-1.5 py-2 text-left"
-        title={`Open - sent ${sharedOn} at ${sentAt}`}
+        title={`Open — sent ${sharedOn} at ${sentAt}`}
       >
         <span aria-hidden className="flex w-2 shrink-0 justify-center">
           {unread && (
@@ -290,7 +290,7 @@ export function NotificationRow({
 
         {meta && "text" in meta && (
           <span className="min-w-0 truncate text-[12.5px] font-normal text-ink-subtle max-lg:hidden">
-            - {meta.text}
+            — {meta.text}
           </span>
         )}
 
@@ -309,7 +309,7 @@ export function NotificationRow({
         className="py-2 text-left max-lg:hidden"
       >
         <span className="block truncate whitespace-nowrap text-[12px] tabular-nums text-ink-soft">
-          {period ?? <span className="text-ink-subtle">-</span>}
+          {period ?? <span className="text-ink-subtle">—</span>}
         </span>
       </button>
 

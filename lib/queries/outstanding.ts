@@ -349,7 +349,7 @@ export async function loadOutstanding(
       clientName: c.clientName,
       amount,
       paymentMode: c.paymentModeName ?? "Unknown",
-      responsible: c.responsibleName ?? "-",
+      responsible: c.responsibleName ?? "—",
     });
     collectionsDisplay.push({
       id: c.id,
@@ -412,7 +412,7 @@ export async function loadOutstandingDashboard(
       (filters.modes.length === 0 ||
         filters.modes.includes(c.paymentMode ?? "Unknown")) &&
       (filters.employees.length === 0 ||
-        filters.employees.includes(c.responsible ?? "-")),
+        filters.employees.includes(c.responsible ?? "—")),
   );
 
   return { dashboard, entries, collectionEntries };

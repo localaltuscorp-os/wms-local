@@ -74,7 +74,7 @@ export function CreateRecognitionForm({
         fireToast({ message: res.error, type: "error" });
         return;
       }
-      fireToast({ message: "Recognition added - release it when you're ready.", type: "success" });
+      fireToast({ message: "Recognition added — release it when you're ready.", type: "success" });
       close();
       router.refresh();
     });

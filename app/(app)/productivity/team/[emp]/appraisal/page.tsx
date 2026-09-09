@@ -107,7 +107,7 @@ export default async function TeamAppraisalPage({
             Appraisal
           </h1>
           <p className="mt-1.5 max-w-[76ch] text-[15px] font-medium text-ink-muted">
-            One live rolling scorecard per person - the KPI bucket drives the incentive payout,
+            One live rolling scorecard per person — the KPI bucket drives the incentive payout,
             Monthly Goals and the culture/competency dimensions round out the rest. Self and
             Manager advise, Management is final.
           </p>

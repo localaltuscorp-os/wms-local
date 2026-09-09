@@ -37,7 +37,7 @@ export function WelcomeHero() {
           style={{ maxWidth: 520, lineHeight: 1.6 }}
         >
           No data yet. Once tasks start being logged, this dashboard becomes
-          the single source of truth for the team - replacing the old
+          the single source of truth for the team — replacing the old
           Sheets-based system.
         </p>
 

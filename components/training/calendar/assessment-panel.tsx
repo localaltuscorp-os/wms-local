@@ -49,7 +49,7 @@ export function AssessmentPanel({
     const res = await recordAssessment({ sessionId, employeeId, score: sc, target: tg, note: note.trim() || null });
     setPending(false);
     if (!res.ok) return fireToast({ message: res.error, type: "error" });
-    fireToast({ message: res.passed ? "Assessment recorded - passed." : "Recorded - below pass, marked to redo.", type: "success" });
+    fireToast({ message: res.passed ? "Assessment recorded — passed." : "Recorded — below pass, marked to redo.", type: "success" });
     setEmployeeId(null);
     setScore("");
     setNote("");
@@ -80,7 +80,7 @@ export function AssessmentPanel({
 
                 <div className="flex items-center gap-2 text-[13px] font-bold tabular-nums">
                   <span className="rounded-lg px-2.5 py-1" style={{ background: "var(--color-surface-track)", color: "var(--color-ink-soft)" }}>
-                    {a.score ?? "-"}% <span className="font-semibold text-ink-subtle">/ target {a.target ?? "-"}%</span>
+                    {a.score ?? "—"}% <span className="font-semibold text-ink-subtle">/ target {a.target ?? "—"}%</span>
                   </span>
                 </div>
 
@@ -94,7 +94,7 @@ export function AssessmentPanel({
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12.5px] font-bold" style={{ background: "color-mix(in srgb, var(--color-altus-red) 12%, transparent)", color: "var(--color-altus-red-deep)" }}>
-                    <AlertTriangle size={13} /> Fail - Redo
+                    <AlertTriangle size={13} /> Fail — Redo
                   </span>
                 )}
 
@@ -121,7 +121,7 @@ export function AssessmentPanel({
         <form onSubmit={record} className="rounded-xl border border-hairline bg-surface-soft p-4">
           <div className="mb-3 flex items-center gap-2 text-[12.5px] font-bold uppercase tracking-[0.06em] text-ink-subtle">
             <ClipboardCheck size={15} style={{ color: ACCENT }} /> Record assessment
-            <span className="font-semibold normal-case tracking-normal">- below {passPct}% fails &amp; must redo</span>
+            <span className="font-semibold normal-case tracking-normal">— below {passPct}% fails &amp; must redo</span>
           </div>
           <div className="grid grid-cols-[2fr_1fr_1fr] gap-3 max-md:grid-cols-1">
             <div>

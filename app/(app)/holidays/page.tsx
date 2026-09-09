@@ -90,7 +90,7 @@ export default async function HolidayListPage({
           {hasReligion ? (
             <span>
               Showing your personalised list for{" "}
-              <strong className="text-ink-strong">{RELIGION_LABELS[religion]}</strong> - the company
+              <strong className="text-ink-strong">{RELIGION_LABELS[religion]}</strong> — the company
               holidays plus your religion&apos;s add-ons.
             </span>
           ) : (

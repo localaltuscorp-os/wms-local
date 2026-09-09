@@ -81,7 +81,7 @@ async function run(request: Request): Promise<NextResponse> {
 
     const label = d.kind === "probation" ? "probation" : "free-training";
     const title = d.kind === "probation" ? "Issue appointment confirmation" : "Issue training-completion confirmation";
-    const body = `${d.emp.name ?? "An employee"}'s ${label} period ends ${d.endDate} - issue the confirmation letter in Agreements.`;
+    const body = `${d.emp.name ?? "An employee"}'s ${label} period ends ${d.endDate} — issue the confirmation letter in Agreements.`;
     for (const adminId of adminIds) {
       try {
         await db.insert(notifications).values({

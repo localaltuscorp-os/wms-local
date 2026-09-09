@@ -112,7 +112,7 @@ export function ScheduleSummary({
       </div>
 
       <p className="mt-3 text-[11.5px] font-medium text-ink-subtle">
-        Surplus hours carry across weeks inside this calendar month only - the
+        Surplus hours carry across weeks inside this calendar month only — the
         balance resets to zero on the 1st.
       </p>
     </section>

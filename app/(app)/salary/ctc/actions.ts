@@ -124,7 +124,7 @@ function dbError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
   // Friendly hint when the v2 tables aren't applied yet.
   if (/relation .* does not exist|undefined table/i.test(msg)) {
-    return "Salary v2 tables aren't applied yet - run the INTEGRATION NOTE DDL first.";
+    return "Salary v2 tables aren't applied yet — run the INTEGRATION NOTE DDL first.";
   }
   return `DB: ${msg}`;
 }

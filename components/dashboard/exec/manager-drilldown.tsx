@@ -476,12 +476,12 @@ function TaskRow({ task }: { task: ManagerDrilldown["tasks"][number] }) {
           r.error === "forbidden"
             ? "Not allowed to do that."
             : r.error === "stale"
-              ? "This task changed elsewhere - reopen to refresh."
+              ? "This task changed elsewhere — reopen to refresh."
               : r.message ?? r.error ?? "Action failed.";
         fireToast({ message: msg });
       }
     } catch {
-      fireToast({ message: "Action failed - please retry." });
+      fireToast({ message: "Action failed — please retry." });
     } finally {
       setPending(null);
     }

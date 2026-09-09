@@ -77,7 +77,7 @@ export default async function WorkSessionPage() {
             Work sessions, {firstName}
           </h1>
           <p className="mt-1 text-[13.5px] font-medium text-ink-subtle">
-            Share your screen to log project work - we capture a screenshot every 5 minutes as proof of the session.
+            Share your screen to log project work — we capture a screenshot every 5 minutes as proof of the session.
           </p>
         </header>
 

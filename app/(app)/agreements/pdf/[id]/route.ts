@@ -67,7 +67,7 @@ export async function GET(
     layout: "portrait",
     margin: 56,
     info: {
-      Title: `${rendered.title} - ${employeeName}`,
+      Title: `${rendered.title} — ${employeeName}`,
       Author: "Altus Corp Dashboard",
       Subject: rendered.title,
     },

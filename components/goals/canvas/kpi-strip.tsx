@@ -463,7 +463,7 @@ export function KpiStrip(props: KpiStripProps = {}): React.JSX.Element {
       key: "rupee",
       label: "₹ achievement",
       icon: IndianRupee,
-      big: kpi.rupee ? `₹${fmtNum(rupeeShown)}` : "-",
+      big: kpi.rupee ? `₹${fmtNum(rupeeShown)}` : "—",
       bigColor: kpi.rupee ? undefined : "var(--color-ink-subtle)",
       sub: kpi.rupee ? (
         <span>

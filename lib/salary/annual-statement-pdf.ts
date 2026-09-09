@@ -29,7 +29,7 @@ export async function renderAnnualStatementPdf(
   const signatory = signatoryForEntity(entity);
 
   const { doc, done } = newDoc({
-    title: `Annual Salary Statement - ${stmt.employeeName} - ${stmt.fy}`,
+    title: `Annual Salary Statement — ${stmt.employeeName} — ${stmt.fy}`,
     subject: "Annual Salary Statement",
     margin: 48,
   });
@@ -40,7 +40,7 @@ export async function renderAnnualStatementPdf(
 
   drawChrome(doc);
   drawMasthead(doc, entity, "Payroll Department  ·  Private & Confidential");
-  drawTitleBand(doc, `Annual Salary Statement  -  ${stmt.fy}`, "1 Apr – 31 Mar");
+  drawTitleBand(doc, `Annual Salary Statement  —  ${stmt.fy}`, "1 Apr – 31 Mar");
 
   // ── Employee details ──
   doc
@@ -54,7 +54,7 @@ export async function renderAnnualStatementPdf(
     .fontSize(9.5)
     .fillColor(COLORS.inkSoft)
     .text(
-      [stmt.designation, entity].filter(Boolean).join("  ·  ") || "-",
+      [stmt.designation, entity].filter(Boolean).join("  ·  ") || "—",
       left,
       doc.y,
       { lineBreak: false },
@@ -105,11 +105,11 @@ export async function renderAnnualStatementPdf(
     const y = doc.y + 5;
     const cells = [
       m.label,
-      m.present ? m.finalWorkingDays.toLocaleString("en-IN") : "-",
-      m.present ? inr(m.monthlyCtc) : "-",
-      m.present ? inr(m.payableAfterPt) : "-",
-      m.present && m.advance > 0 ? inr(m.advance) : "-",
-      m.present ? inr(m.finalPayment) : "-",
+      m.present ? m.finalWorkingDays.toLocaleString("en-IN") : "—",
+      m.present ? inr(m.monthlyCtc) : "—",
+      m.present ? inr(m.payableAfterPt) : "—",
+      m.present && m.advance > 0 ? inr(m.advance) : "—",
+      m.present ? inr(m.finalPayment) : "—",
     ];
     cx = left;
     cells.forEach((val, i) => {

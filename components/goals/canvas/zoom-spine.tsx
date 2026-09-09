@@ -361,7 +361,7 @@ function ParentPicker(): React.JSX.Element | null {
             active={activeQuarterKey === q.key}
             tabStop={activeQuarterKey === q.key || (!anyQuarterActive && i === 0)}
             onClick={() => onQuarter(q)}
-            title={q.goal ? q.goal.title : `${periodKeyLabel(q.key)} - no goal yet`}
+            title={q.goal ? q.goal.title : `${periodKeyLabel(q.key)} — no goal yet`}
           />
         ))}
       </PickerRow>
@@ -381,7 +381,7 @@ function ParentPicker(): React.JSX.Element | null {
                 // the "now" fallback) and its synthesized week buckets render
                 // (bug #2/#3). Previously smuggled via a first-Monday ?wk= hack.
                 onClick={() => zoom.focusNode(m.goal?.id ?? null, "month", m.goal ? null : m.key)}
-                title={m.goal ? m.goal.title : `${monthNameOf(m.key)} - no goal yet`}
+                title={m.goal ? m.goal.title : `${monthNameOf(m.key)} — no goal yet`}
               />
             ))}
           </PickerRow>
@@ -478,7 +478,7 @@ function PersonSwitcher(): React.JSX.Element {
         <span
           className="inline-flex shrink-0 items-center gap-1 rounded-chip px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em]"
           style={{ color: "var(--color-ink-muted)", background: "var(--color-surface-soft)" }}
-          title={`You're viewing ${shell.viewedName}'s cascade in read-only capacity - edits belong to the owner (and their managers).`}
+          title={`You're viewing ${shell.viewedName}'s cascade in read-only capacity — edits belong to the owner (and their managers).`}
         >
           <Eye size={11} strokeWidth={2.6} /> view-only
         </span>
@@ -651,7 +651,7 @@ export function ZoomSpine(): React.JSX.Element {
             onChange={zoom.setRepr}
             options={[
               { value: "list", label: "List", icon: <Rows3 size={13} strokeWidth={2.6} />, hint: "List (⌘.)" },
-              { value: "board", label: "Board", icon: <KanbanSquare size={13} strokeWidth={2.6} />, hint: "Kanban - drag cards between periods (⌘.)" },
+              { value: "board", label: "Board", icon: <KanbanSquare size={13} strokeWidth={2.6} />, hint: "Kanban — drag cards between periods (⌘.)" },
             ]}
           />
           {/* §2.8 — the ONE keyboard-help affordance (the inline hints are gone). */}

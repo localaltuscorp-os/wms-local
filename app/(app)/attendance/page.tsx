@@ -460,7 +460,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
                 Start Work Session
               </div>
               <p className="mt-0.5 text-[13.5px] font-medium text-white/85">
-                Share your screen so your work time is captured and reviewed - this is how you check in.
+                Share your screen so your work time is captured and reviewed — this is how you check in.
               </p>
             </div>
             <span className="inline-flex shrink-0 items-center gap-1.5 rounded-pill bg-white/15 px-4 py-2 text-[13.5px] font-bold max-sm:w-full max-sm:justify-center">
@@ -546,7 +546,7 @@ function PunchChip({
         className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12.5px] font-semibold text-ink-subtle"
         style={{ background: "var(--color-surface-soft)" }}
       >
-        <Icon size={12} strokeWidth={2.4} /> -
+        <Icon size={12} strokeWidth={2.4} /> —
       </span>
     );
   }
@@ -625,7 +625,7 @@ function MyTimeline({ days, tz, today }: { days: DayPunches[]; tz: string; today
 
       {days.length === 0 ? (
         <p className="py-8 text-center text-[15px] text-ink-subtle">
-          No punches yet - your log starts with today&apos;s first check-in.
+          No punches yet — your log starts with today&apos;s first check-in.
         </p>
       ) : (
         <ol className="space-y-1">
@@ -700,7 +700,7 @@ function TimelineRow({
           className="tabular-nums text-[14px] font-black text-ink-strong"
           title={ms != null ? "Hours worked (check-out − check-in)" : undefined}
         >
-          {ms != null ? fmtDur(ms) : "-"}
+          {ms != null ? fmtDur(ms) : "—"}
         </span>
         <span
           className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11.5px] font-bold"

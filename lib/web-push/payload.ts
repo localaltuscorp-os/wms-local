@@ -87,7 +87,7 @@ export function buildPushPayload(
 ): PushPayload {
   return {
     title: TITLES[kind](ctx.actorName),
-    body: ctx.body ? `${ctx.taskSubject} - ${ctx.body}` : ctx.taskSubject,
+    body: ctx.body ? `${ctx.taskSubject} — ${ctx.body}` : ctx.taskSubject,
     url: `/tasks/${ctx.taskId}`,
     tag: `task:${ctx.taskId}`,
     kind,

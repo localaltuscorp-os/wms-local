@@ -82,7 +82,7 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({
       ok: false,
       error:
-        "No recipient email - add the candidate's email on the letter, or attach an employee with an email on file.",
+        "No recipient email — add the candidate's email on the letter, or attach an employee with an email on file.",
     });
   }
 

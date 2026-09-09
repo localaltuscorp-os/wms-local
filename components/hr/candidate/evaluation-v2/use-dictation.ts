@@ -84,7 +84,7 @@ export function useDictation({
   const start = React.useCallback(() => {
     const Ctor = getSpeechRecognitionCtor();
     if (!Ctor) {
-      fireToast({ message: "Dictation isn't supported in this browser - use Chrome or Edge.", type: "error" });
+      fireToast({ message: "Dictation isn't supported in this browser — use Chrome or Edge.", type: "error" });
       return;
     }
     // The Web Speech API only runs on a SECURE origin. localhost counts; a LAN IP
@@ -92,7 +92,7 @@ export function useDictation({
     if (typeof window !== "undefined" && !window.isSecureContext) {
       fireToast({
         message:
-          "Open the app at http://localhost:3000 to dictate - the microphone is blocked on the network IP (insecure page).",
+          "Open the app at http://localhost:3000 to dictate — the microphone is blocked on the network IP (insecure page).",
         type: "error",
       });
       return;

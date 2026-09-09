@@ -30,9 +30,9 @@ const STATUS_STYLE: Record<AgreementStatus, { bg: string; fg: string }> = {
 };
 
 function fmt(iso: string | null): string {
-  if (!iso) return "-";
+  if (!iso) return "—";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "-" : formatDate(d);
+  return Number.isNaN(d.getTime()) ? "—" : formatDate(d);
 }
 
 function StatusChip({ status }: { status: AgreementStatus }) {
@@ -141,7 +141,7 @@ export function StatusTracker({
                         {r.signedName ? <span className="text-ink-subtle"> · {r.signedName}</span> : null}
                       </span>
                     ) : (
-                      "-"
+                      "—"
                     )}
                   </td>
                   <td className="py-2.5 pr-3">

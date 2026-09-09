@@ -76,8 +76,8 @@ function Shell({ children, isAdmin, tab }: { children: React.ReactNode; isAdmin:
           </h1>
           <p className="mt-1.5 max-w-[74ch] text-[15.5px] font-medium text-ink-muted">
             {isAdmin
-              ? "Every person's complete document file - appointment, probation, CTC, increments, confidentiality and onboarding - in one secure place."
-              : "Your documents on file - appointment, probation, CTC, increments, confidentiality and onboarding. View or download anytime."}
+              ? "Every person's complete document file — appointment, probation, CTC, increments, confidentiality and onboarding — in one secure place."
+              : "Your documents on file — appointment, probation, CTC, increments, confidentiality and onboarding. View or download anytime."}
           </p>
 
           {isAdmin && (

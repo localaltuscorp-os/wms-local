@@ -18,7 +18,7 @@ export interface AttendanceLateWaivedProps {
 }
 
 export const previewText = (p: Pick<AttendanceLateWaivedProps, "dateLabel">) =>
-  `Full day logged - late arrival waived on ${p.dateLabel}`;
+  `Full day logged — late arrival waived on ${p.dateLabel}`;
 
 export function AttendanceLateWaivedEmail(props: AttendanceLateWaivedProps) {
   return (
@@ -30,7 +30,7 @@ export function AttendanceLateWaivedEmail(props: AttendanceLateWaivedProps) {
       <div style={{ margin: "0 0 12px" }}>
         <Chip tone="amber">Late · waived</Chip>
       </div>
-      <NotificationHeadline>Full day logged - late arrival waived.</NotificationHeadline>
+      <NotificationHeadline>Full day logged — late arrival waived.</NotificationHeadline>
       <NotificationParagraph>
         You arrived late (or left early), but you put in a full day&apos;s work, so the
         day counts as a full present day. Nice recovery.
@@ -38,8 +38,8 @@ export function AttendanceLateWaivedEmail(props: AttendanceLateWaivedProps) {
       <MetaList
         items={[
           { label: "Date", value: props.dateLabel },
-          { label: "Checked in", value: props.inAt ?? "-" },
-          { label: "Checked out", value: props.outAt ?? "-" },
+          { label: "Checked in", value: props.inAt ?? "—" },
+          { label: "Checked out", value: props.outAt ?? "—" },
           { label: "Worked", value: props.hoursLabel },
         ]}
       />

@@ -167,7 +167,7 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
             return (
               <span
                 key={id}
-                title={`${m.label} - you don't have access to this module`}
+                title={`${m.label} — you don't have access to this module`}
                 className="inline-flex cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold"
                 style={{ color: "rgba(15,23,42,0.30)" }}
               >
@@ -181,7 +181,7 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
             <Link
               key={id}
               href={m.href}
-              title={shortcut ? `${m.label} - Ctrl+${shortcut} (or Alt+${shortcut})` : m.label}
+              title={shortcut ? `${m.label} — Ctrl+${shortcut} (or Alt+${shortcut})` : m.label}
               aria-current={active ? "page" : undefined}
               // Resting state is a dark neutral so ten labels do not glare on the
               // light glass; the module's own accent appears on hover/focus, and
@@ -216,7 +216,7 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
             setVisible(false);
           }}
           aria-label="Hide module bar"
-          title="Hide - hover the strip at the end of the page to bring it back"
+          title="Hide — hover the strip at the end of the page to bring it back"
           className="inline-flex shrink-0 items-center justify-center rounded-lg p-1.5 outline-none transition-colors hover:bg-[rgba(15,23,42,0.06)] focus-visible:ring-2 focus-visible:ring-[rgba(15,23,42,0.35)]"
           style={{ color: "rgba(15,23,42,0.45)" }}
         >

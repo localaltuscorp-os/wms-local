@@ -21,7 +21,7 @@ export function buildDashboard(rows: DerivedInstallment[], collections: Collecti
   const byKey = (xs: DerivedInstallment[], key: (r: DerivedInstallment) => string) => {
     const m = new Map<string, { notDue: number; overdue: number; balance: number }>();
     for (const r of xs) {
-      const k = key(r) || "-";
+      const k = key(r) || "—";
       const cur = m.get(k) ?? { notDue: 0, overdue: 0, balance: 0 };
       if (r.state === "overdue") cur.overdue += r.balance;
       if (r.state === "not_due" || r.state === "due_soon") cur.notDue += r.balance;
@@ -45,7 +45,7 @@ export function buildDashboard(rows: DerivedInstallment[], collections: Collecti
   const pdcByResp = (() => {
     const m = new Map<string, { entries: number; amount: number }>();
     for (const r of pdcRows) {
-      const k = r.responsibleName ?? "-";
+      const k = r.responsibleName ?? "—";
       const cur = m.get(k) ?? { entries: 0, amount: 0 };
       cur.entries += 1; cur.amount += r.balance; m.set(k, cur);
     }
@@ -56,7 +56,7 @@ export function buildDashboard(rows: DerivedInstallment[], collections: Collecti
   const topBy = (key: (c: CollectionAggRow) => string) => {
     const m = new Map<string, number>();
     for (const c of collections) m.set(key(c), (m.get(key(c)) ?? 0) + c.amount);
-    return [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "-";
+    return [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
   };
   const groupSum = (key: (c: CollectionAggRow) => string) => {
     const m = new Map<string, number>();
@@ -74,8 +74,8 @@ export function buildDashboard(rows: DerivedInstallment[], collections: Collecti
     buckets,
     monthOverdue: monthAgg(overdue),
     monthNotDue: monthAgg(notDue),
-    byEmployee: byKey(open, (r) => r.responsibleName ?? "-"),
-    byEntity: byKey(open, (r) => r.entityName ?? "-"),
+    byEmployee: byKey(open, (r) => r.responsibleName ?? "—"),
+    byEntity: byKey(open, (r) => r.entityName ?? "—"),
     pdc: { rows: pdcByResp, totalEntries: pdcRows.length, totalAmount: sum(pdcRows) },
     collections: {
       totalCollected,

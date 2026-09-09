@@ -38,8 +38,8 @@ export function AttendanceHalfDayEmail(props: AttendanceHalfDayProps) {
       <MetaList
         items={[
           { label: "Date", value: props.dateLabel },
-          { label: "Checked in", value: props.inAt ?? "-" },
-          { label: "Checked out", value: props.outAt ?? "-" },
+          { label: "Checked in", value: props.inAt ?? "—" },
+          { label: "Checked out", value: props.outAt ?? "—" },
           { label: "Worked", value: props.hoursLabel },
         ]}
       />

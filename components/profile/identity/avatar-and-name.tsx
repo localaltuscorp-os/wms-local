@@ -10,6 +10,60 @@ interface Props {
   initialAvatarUrl: string | null;
 }
 
+/**
+ * AVATAR DOWNSCALE (2026-09-05, egress) — re-encode to a small square WebP
+ * before upload.
+ *
+ * The picker hands us whatever the device produced, and a phone camera-roll
+ * photo is 2-5 MB. This component used to post that byte-for-byte. The result
+ * is rendered at 28-128px in ~50 places, so every one of those views pulled a
+ * multi-megapixel original out of Supabase Storage to paint a circle the size
+ * of a fingernail — and Storage egress is metered.
+ *
+ * Center-cropped to a square: the avatar is a circle, so a non-square source
+ * gets cropped by CSS anyway and the discarded pixels were never bytes worth
+ * sending. `imageOrientation: "from-image"` applies the EXIF rotation phone
+ * photos carry — without it a portrait shot uploads sideways, because a canvas
+ * ignores the EXIF tag an <img> would have honoured.
+ *
+ * Best-effort by design: if anything here throws (an exotic codec, no
+ * createImageBitmap, OOM on a huge source) we post the original and let the
+ * server's cap have the final word. A failed optimisation must not become a
+ * failed upload.
+ */
+const AVATAR_PX = 256;
+const AVATAR_QUALITY = 0.85;
+
+async function downscaleForAvatar(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const side = Math.min(bitmap.width, bitmap.height);
+    const sx = (bitmap.width - side) / 2;
+    const sy = (bitmap.height - side) / 2;
+    // Never upscale a source that is already smaller than the target box.
+    const out = Math.min(side, AVATAR_PX);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = out;
+    canvas.height = out;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, out, out);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/webp", AVATAR_QUALITY),
+    );
+    // toBlob answers null when the codec is unavailable. The size comparison
+    // guards the case where re-encoding an already-optimised source makes it
+    // bigger — then the original is simply the better upload.
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], "avatar.webp", { type: "image/webp" });
+  } catch {
+    return file;
+  }
+}
+
 export function AvatarAndName({ initialName, initialAvatarUrl }: Props) {
   const router = useRouter();
   // Display name is assigned by an admin and final — not self-editable here.
@@ -33,8 +87,9 @@ export function AvatarAndName({ initialName, initialAvatarUrl }: Props) {
     }
     setUploading(true);
     try {
+      const upload = await downscaleForAvatar(file);
       const form = new FormData();
-      form.set("file", file);
+      form.set("file", upload, upload.name);
       const res = await fetch("/api/profile/avatar", {
         method: "POST",
         body: form,

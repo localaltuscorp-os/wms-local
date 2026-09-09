@@ -60,7 +60,7 @@ export async function renderPayrollPdf(
   const drawHeaderBand = () => {
     doc.save().rect(0, 0, doc.page.width, 4).fill(COLORS.brand).restore();
     doc.fillColor(COLORS.brand).font("Helvetica-Bold").fontSize(15).text("ALTUS CORP", left, 16);
-    doc.fillColor("#0f172a").font("Helvetica-Bold").fontSize(12).text(`Payroll - ${monthLabelStr}`, left, 34);
+    doc.fillColor("#0f172a").font("Helvetica-Bold").fontSize(12).text(`Payroll — ${monthLabelStr}`, left, 34);
     doc
       .fillColor("#64748b")
       .font("Helvetica")
@@ -100,7 +100,7 @@ export async function renderPayrollPdf(
   const drawCompanySummary = (startY: number): number => {
     let sy = startY;
     doc.font("Helvetica-Bold").fontSize(9).fillColor(COLORS.brandDeep);
-    doc.text("BY COMPANY - PAYING FROM", left, sy, { characterSpacing: 0.6 });
+    doc.text("BY COMPANY — PAYING FROM", left, sy, { characterSpacing: 0.6 });
     sy += 15;
     doc.save().rect(left, sy, sumW, 16).fill("#f1f5f9").restore();
     let x = left;
@@ -159,7 +159,7 @@ export async function renderPayrollPdf(
     if (!entity) return;
     doc.save().rect(left, y, totalW, 15).fill("#ecfdf5").restore();
     doc.font("Helvetica-Bold").fontSize(7.5).fillColor(COLORS.brandDeep);
-    doc.text(`${entity} - subtotal`, left + 4, y + 4, { width: totalW - 90, align: "left" });
+    doc.text(`${entity} — subtotal`, left + 4, y + 4, { width: totalW - 90, align: "left" });
     doc.text(inr(entitySub), left + totalW - 86, y + 4, { width: 82, align: "right" });
     y += 15;
     entitySub = 0;

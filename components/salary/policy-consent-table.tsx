@@ -46,7 +46,7 @@ const CONSENT_COLUMNS: ConsentCol[] = [
             ✓
           </span>
         ) : (
-          <span className="text-ink-subtle">-</span>
+          <span className="text-ink-subtle">—</span>
         )}
       </td>
     ),
@@ -57,7 +57,7 @@ const CONSENT_COLUMNS: ConsentCol[] = [
     thClass: "px-6 py-3.5 text-right",
     cell: (r) => (
       <td className="px-6 py-3 text-right tabular-nums text-ink-soft">
-        {r.signedAt ? fmtDate(r.signedAt) : "-"}
+        {r.signedAt ? fmtDate(r.signedAt) : "—"}
       </td>
     ),
   },

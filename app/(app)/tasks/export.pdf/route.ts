@@ -144,7 +144,7 @@ async function renderPdf(
     // breathe without crowding the first table row.
     margin: 40,
     info: {
-      Title: meta.archived ? "Altus Corp - Archived Tasks" : "Altus Corp - Tasks",
+      Title: meta.archived ? "Altus Corp — Archived Tasks" : "Altus Corp — Tasks",
       Author: "Altus Corp Dashboard",
       Subject: "Internal Task Report",
     },
@@ -679,7 +679,7 @@ function drawCell(
         .font("Helvetica")
         .fontSize(9)
         .fillColor(COLORS.inkMuted)
-        .text(row.subject || "-", cellX, cellY, {
+        .text(row.subject || "—", cellX, cellY, {
           width: cellW,
           lineBreak: true,
         });
@@ -699,7 +699,7 @@ function drawCell(
           .font("Helvetica")
           .fontSize(9)
           .fillColor(COLORS.inkSoft)
-          .text("-", cellX, cellY, { width: cellW, lineBreak: false });
+          .text("—", cellX, cellY, { width: cellW, lineBreak: false });
       } else {
         // Approval uses a thinner outline pill so it doesn't compete
         // with the colour-saturated status pill next door.
@@ -745,7 +745,7 @@ function drawCell(
 
     case "doer":
     case "initiator": {
-      const text = c.key === "doer" ? row.doerName ?? "-" : row.initiatorName ?? "-";
+      const text = c.key === "doer" ? row.doerName ?? "—" : row.initiatorName ?? "—";
       doc
         .font("Helvetica")
         .fontSize(9)

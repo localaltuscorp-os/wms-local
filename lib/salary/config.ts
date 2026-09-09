@@ -67,7 +67,7 @@ export async function getSalaryConfig(): Promise<SalaryConfigResolved> {
       .limit(1);
 
     if (!row) {
-      gaps.push("salary_config row 'default' missing - using seeded defaults");
+      gaps.push("salary_config row 'default' missing — using seeded defaults");
       return { ...DEFAULTS, gaps };
     }
 
@@ -85,7 +85,7 @@ export async function getSalaryConfig(): Promise<SalaryConfigResolved> {
     };
   } catch (err: unknown) {
     gaps.push(
-      `salary_config read failed (${err instanceof Error ? err.message : String(err)}) - using defaults`,
+      `salary_config read failed (${err instanceof Error ? err.message : String(err)}) — using defaults`,
     );
     return { ...DEFAULTS, gaps };
   }

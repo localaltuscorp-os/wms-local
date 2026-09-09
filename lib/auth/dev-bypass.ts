@@ -105,4 +105,12 @@ export const DEV_BYPASS_EMPLOYEE: Employee = {
   performanceCriteria: null,
   kra: null,
   phone: null,
+  // Offboarding (migration 0212), added when this branch merged onto main.
+  // The bypass employee is a current member of staff by definition, so the
+  // lifecycle is "active" and every exit field is empty.
+  employmentStatus: "active",
+  lastWorkingDay: null,
+  legalHold: false,
+  legalHoldReason: null,
+  anonymisedAt: null,
 } as Employee;

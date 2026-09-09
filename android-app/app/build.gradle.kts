@@ -24,7 +24,7 @@ if (file("google-services.json").exists()) {
 // verification are the real gates. The service-role key and DATABASE_URL must
 // NEVER appear here.
 val apiBaseUrl: String =
-    providers.gradleProperty("altus.apiBaseUrl").getOrElse("https://wms.mananvasa.com")
+    providers.gradleProperty("altus.apiBaseUrl").getOrElse("https://os.altuscorp.in")
 val firebaseApiKey: String =
     providers.gradleProperty("altus.firebaseApiKey").getOrElse("AIzaSyBNQ9eTGVV3SxX-g0BKxwVcLzNsI1fezlM")
 // Runtime-Firebase fallback identity (used only when google-services.json is

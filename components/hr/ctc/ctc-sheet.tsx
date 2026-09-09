@@ -130,7 +130,7 @@ export function CtcSheet({
               <span>Total {GROUP_LABELS[group]}</span>
               <span className="ctc-num">{formatINR(sub.monthly)}</span>
               <span className="ctc-num">{formatINR(sub.annual)}</span>
-              <span className="ctc-num">{subPct ? `${subPct.toFixed(1)}%` : "-"}</span>
+              <span className="ctc-num">{subPct ? `${subPct.toFixed(1)}%` : "—"}</span>
             </div>
           </section>
         );
@@ -182,7 +182,7 @@ function Row({
       inputMode="numeric"
       className="ctc-input"
       value={value ? String(value) : ""}
-      placeholder="-"
+      placeholder="—"
       disabled={disabled}
       aria-label={`${def.label} (${def.periodicity})`}
       onChange={(e) => onChange(num(e.target.value))}
@@ -198,10 +198,10 @@ function Row({
         <span className="ctc-row-native">{nativeMonthly ? "/mo" : "/yr"}</span>
       </span>
       <span className="ctc-num ctc-cell">
-        {nativeMonthly ? input : <span className="ctc-derived">{monthly ? formatINR(monthly) : "-"}</span>}
+        {nativeMonthly ? input : <span className="ctc-derived">{monthly ? formatINR(monthly) : "—"}</span>}
       </span>
       <span className="ctc-num ctc-cell">
-        {nativeMonthly ? <span className="ctc-derived">{annual ? formatINR(annual) : "-"}</span> : input}
+        {nativeMonthly ? <span className="ctc-derived">{annual ? formatINR(annual) : "—"}</span> : input}
       </span>
       <span className="ctc-num ctc-cell">
         <PctInput pct={pct} onCommitPct={onPctChange} onCommit={onCommit} disabled={disabled} label={def.label} />
@@ -247,9 +247,9 @@ function PctInput({
         inputMode="decimal"
         className="ctc-input ctc-pct"
         value={shown}
-        placeholder="-"
+        placeholder="—"
         disabled={disabled}
-        aria-label={`${label} - percent of CTC`}
+        aria-label={`${label} — percent of CTC`}
         onFocus={(e) => { setDraft(pct ? pct.toFixed(1) : ""); requestAnimationFrame(() => e.currentTarget.select()); }}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
@@ -311,7 +311,7 @@ const SHEET_CSS = `
   color:var(--color-ink-soft, #475569);
 }
 .ctc-num{text-align:right;font-variant-numeric:tabular-nums;}
-/* Column dividers - vertical lines between Component | Monthly | Annual | %CTC */
+/* Column dividers — vertical lines between Component | Monthly | Annual | %CTC */
 .ctc-grid-head > .ctc-num,
 .ctc-row > .ctc-num,
 .ctc-subtotal > .ctc-num,

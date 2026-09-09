@@ -184,8 +184,8 @@ export function BatchScheduleForm({
       }
       fireToast({
         message: isEdit
-          ? "Batch schedule updated - calendar re-blocked."
-          : "Batch schedule created - calendar auto-blocked.",
+          ? "Batch schedule updated — calendar re-blocked."
+          : "Batch schedule created — calendar auto-blocked.",
       });
       onOpenChange(false);
       router.refresh();
@@ -194,7 +194,7 @@ export function BatchScheduleForm({
 
   const typeOptions = batchTypes.map((t) => ({ value: t.id, label: t.name }));
   const categoryOptions = [
-    { value: "", label: "- No category -" },
+    { value: "", label: "— No category —" },
     ...categories.map((c) => ({ value: c.id, label: c.name })),
   ];
 
@@ -236,7 +236,7 @@ export function BatchScheduleForm({
                   </Dialog.Title>
                   <Dialog.Description className="mt-1 text-[14.5px] text-ink-muted" style={{ lineHeight: 1.5 }}>
                     The calendar auto-blocks locked events across the range × days ×
-                    time slots. Re-saving reconciles them - never duplicates.
+                    time slots. Re-saving reconciles them — never duplicates.
                   </Dialog.Description>
                 </div>
               </div>
@@ -259,7 +259,7 @@ export function BatchScheduleForm({
                     options={typeOptions}
                     value={form.batchTypeId}
                     onValueChange={pickBatchType}
-                    placeholder="- Select type -"
+                    placeholder="— Select type —"
                     ariaLabel="Batch type"
                   />
                 </Field>
@@ -378,7 +378,7 @@ export function BatchScheduleForm({
                     options={categoryOptions}
                     value={form.categoryId}
                     onValueChange={(v) => set("categoryId", v)}
-                    placeholder="- No category -"
+                    placeholder="— No category —"
                     ariaLabel="Category"
                   />
                 </Field>

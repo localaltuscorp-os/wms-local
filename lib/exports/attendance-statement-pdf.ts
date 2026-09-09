@@ -129,7 +129,7 @@ export async function renderAttendanceStatementPdf(
     const flags = [d.late ? "Late" : null, d.leftEarly ? "Left early" : null]
       .filter(Boolean)
       .join(" · ");
-    const cells = [d.date, d.inAt ?? "-", d.outAt ?? "-", d.code, flags || "-"];
+    const cells = [d.date, d.inAt ?? "—", d.outAt ?? "—", d.code, flags || "—"];
     let x = left;
     doc.fontSize(9).font("Helvetica").fillColor(INK);
     cells.forEach((cell, i) => {

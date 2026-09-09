@@ -33,7 +33,7 @@ export function ScoreBadge({ score, size = 56 }: { score: number | null; size?: 
         className="absolute font-bold tabular-nums text-ink-strong"
         style={{ fontFamily: "var(--font-display), system-ui", fontSize: size < 50 ? 15 : 18 }}
       >
-        {score == null ? "-" : value}
+        {score == null ? "—" : value}
       </span>
     </div>
   );

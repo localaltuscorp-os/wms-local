@@ -146,7 +146,7 @@ export function computePmsTotal(
       total: xFactor,
       breakdown: [],
       pending: true,
-      pendingReasons: ["Weight band pending - the non-manager variant has not been chosen yet"],
+      pendingReasons: ["Weight band pending — the non-manager variant has not been chosen yet"],
       bandResolved: false,
     };
   }

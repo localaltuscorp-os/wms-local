@@ -100,7 +100,7 @@ export function PeriodView({
           >
             <span className="text-[12.5px] font-black uppercase tracking-[0.06em] text-ink-muted">
               {parentGoals.length} parent {PERIOD_LABEL[parentPeriod].toLowerCase()} goal
-              {parentGoals.length === 1 ? "" : "s"} - decide what to keep
+              {parentGoals.length === 1 ? "" : "s"} — decide what to keep
             </span>
             <ChevronDown
               size={16}
@@ -171,7 +171,7 @@ export function PeriodView({
       {period === "month" && (
         <p className="text-[12.5px] text-ink-muted">
           Weekly goals for this month live on the{" "}
-          <span className="font-bold text-ink-soft">Weekly Board</span> - use “Generate weeks” on a goal to
+          <span className="font-bold text-ink-soft">Weekly Board</span> — use “Generate weeks” on a goal to
           prepopulate them.
         </p>
       )}

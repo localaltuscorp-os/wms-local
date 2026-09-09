@@ -185,7 +185,7 @@ export default async function IncentivePage({ searchParams }: PageProps) {
             icon={<Gauge size={17} strokeWidth={2.4} />}
             accent={attainAccent}
             label="Avg attainment"
-            value={attainPct == null ? "-" : `${attainPct.toFixed(0)}%`}
+            value={attainPct == null ? "—" : `${attainPct.toFixed(0)}%`}
             caption={
               attainPct == null
                 ? "no targets set"

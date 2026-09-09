@@ -53,7 +53,7 @@ export function IncentiveDecisionEmail(props: IncentiveDecisionProps) {
       </NotificationHeadline>
       <NotificationParagraph>
         {approved
-          ? "Nice work - this request has been approved. It will be reflected in your incentive ledger once the amount is finalised."
+          ? "Nice work — this request has been approved. It will be reflected in your incentive ledger once the amount is finalised."
           : "This request was not approved. See the note below for details, and reach out to your manager if you have questions."}
       </NotificationParagraph>
 

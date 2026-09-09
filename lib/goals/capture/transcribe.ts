@@ -38,7 +38,7 @@ export async function transcribe(audio: Blob, filename = "audio.webm"): Promise<
     }
     const data = (await res.json()) as { text?: string };
     const text = (data.text ?? "").trim();
-    if (!text) return { ok: false, error: "Couldn't make out any speech - try again." };
+    if (!text) return { ok: false, error: "Couldn't make out any speech — try again." };
     return { ok: true, text };
   } catch (err) {
     return { ok: false, error: `Couldn't reach transcription: ${(err as Error).message ?? "network error"}` };

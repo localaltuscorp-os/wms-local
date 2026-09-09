@@ -99,7 +99,7 @@ export function TabDocuments({ detail }: { detail: AmbassadorDetail }) {
       {docs.length === 0 ? (
         <div className="px-5 py-10 text-center">
           <p className="mx-auto max-w-md text-[13.5px] font-medium leading-relaxed text-ink-muted">
-            Agreements, brochures, and signed paperwork for this partner live here - with version
+            Agreements, brochures, and signed paperwork for this partner live here — with version
             history, so re-uploading the same file name keeps the older copies intact.
           </p>
         </div>

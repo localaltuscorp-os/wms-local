@@ -80,8 +80,8 @@ function dayTable(days: DayLine[]): string {
         .join(" · ");
       return `<tr>
         <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:13px">${d.date}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:13px">${d.inAt ?? "-"}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:13px">${d.outAt ?? "-"}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:13px">${d.inAt ?? "—"}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:13px">${d.outAt ?? "—"}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:13px;font-weight:700">${d.code}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:12px">${flags}</td>
       </tr>`;
@@ -110,12 +110,12 @@ export async function sendWeeklyAttendanceReportEmail(args: {
   try {
     const resend = getResend();
     if (!resend) return { id: null, error: null };
-    const inner = `<p style="font-size:14px;margin:0 0 14px">Hi ${args.recipient.name.split(" ")[0]}, here's your attendance for <b>${args.weekLabel}</b> - including late marks, early leaves, and their money impact.</p>
+    const inner = `<p style="font-size:14px;margin:0 0 14px">Hi ${args.recipient.name.split(" ")[0]}, here's your attendance for <b>${args.weekLabel}</b> — including late marks, early leaves, and their money impact.</p>
       ${totalsGrid(args.totals)}${dayTable(args.days)}`;
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.recipient.email,
-      subject: clampSubject(`Your week's attendance - ${args.weekLabel} - Altus Corp`),
+      subject: clampSubject(`Your week's attendance — ${args.weekLabel} — Altus Corp`),
       html: shell("Weekly attendance report", args.weekLabel, inner, args.siteUrl),
       ...companyBcc(),
     });
@@ -188,12 +188,12 @@ export async function sendWeeklyAttendanceRosterEmail(args: {
   try {
     const resend = getResend();
     if (!resend) return { id: null, error: null };
-    const inner = `<p style="font-size:14px;margin:0 0 14px">Weekly attendance roster for <b>${args.weekLabel}</b> - every processed employee with a working day this week, their present/absent/late/early-leave counts, and the ₹ money impact of their attendance.</p>
+    const inner = `<p style="font-size:14px;margin:0 0 14px">Weekly attendance roster for <b>${args.weekLabel}</b> — every processed employee with a working day this week, their present/absent/late/early-leave counts, and the ₹ money impact of their attendance.</p>
       ${rosterTable(args.rows, args.totalLost, "No employees had a working day in this period.")}`;
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: HR_CONTACT.email,
-      subject: clampSubject(`Weekly attendance roster - ${args.weekLabel} - Altus Corp`),
+      subject: clampSubject(`Weekly attendance roster — ${args.weekLabel} — Altus Corp`),
       html: shell("Weekly attendance roster", args.weekLabel, inner, args.siteUrl),
       ...companyBcc(),
     });
@@ -229,12 +229,12 @@ export async function sendWeeklyAttendanceTeamEmail(args: {
     const resend = getResend();
     if (!resend) return { id: null, error: null };
     const headcount = args.rows.length;
-    const intro = `<p style="font-size:14px;margin:0 0 14px">Hi ${args.recipient.name.split(" ")[0]}, here is the attendance and money-lost summary for <b>${args.scopeLabel}</b> - week of <b>${args.weekLabel}</b>. ${headcount} ${headcount === 1 ? "person" : "people"} listed, with their late marks, early leaves, absences, and the ₹ impact on pay.</p>`;
+    const intro = `<p style="font-size:14px;margin:0 0 14px">Hi ${args.recipient.name.split(" ")[0]}, here is the attendance and money-lost summary for <b>${args.scopeLabel}</b> — week of <b>${args.weekLabel}</b>. ${headcount} ${headcount === 1 ? "person" : "people"} listed, with their late marks, early leaves, absences, and the ₹ impact on pay.</p>`;
     const inner = `${intro}${rosterTable(args.rows, args.totalLost, "Nobody in this list had a working day in this period.")}`;
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.recipient.email,
-      subject: clampSubject(`Attendance & money lost - ${args.subjectScope} - ${args.weekLabel}`),
+      subject: clampSubject(`Attendance & money lost — ${args.subjectScope} — ${args.weekLabel}`),
       html: shell("Weekly attendance & money lost", `${args.scopeLabel} · ${args.weekLabel}`, inner, args.siteUrl),
       ...companyBcc(),
     });
@@ -274,7 +274,7 @@ export async function sendMonthlyAttendanceStatementEmail(args: {
       ...(args.pdf
         ? { attachments: [{ filename: args.pdfFilename ?? "attendance-statement.pdf", content: args.pdf }] }
         : {}),
-      subject: clampSubject(`Attendance statement - ${args.monthLabel} - Altus Corp`),
+      subject: clampSubject(`Attendance statement — ${args.monthLabel} — Altus Corp`),
       html: shell("Monthly attendance statement", args.monthLabel, inner, args.siteUrl),
       ...companyBcc(),
     });
@@ -302,7 +302,7 @@ export async function sendGoalsRollupEmail(args: {
     const flag = args.notWritten > 0
       ? `<span style="color:${BRAND};font-weight:800">${args.notWritten} of ${args.total} wrote no goals</span>`
       : `<span style="color:#059669;font-weight:800">all ${args.total} wrote goals</span>`;
-    const inner = `<p style="font-size:14px;margin:0 0 12px">Weekly goals review for <b>${args.managerName}</b>'s team - week of <b>${args.weekLabel}</b>.</p>
+    const inner = `<p style="font-size:14px;margin:0 0 12px">Weekly goals review for <b>${args.managerName}</b>'s team — week of <b>${args.weekLabel}</b>.</p>
       <table style="width:100%;border-collapse:separate;border-spacing:6px;margin:6px 0"><tr>
         <td style="padding:12px 14px;border:1px solid #eee;border-radius:8px"><div style="font-size:11px;color:#888;text-transform:uppercase">Team avg (last week)</div><div style="font-size:24px;font-weight:800">${args.teamAvg}%</div></td>
         <td style="padding:12px 14px;border:1px solid #eee;border-radius:8px"><div style="font-size:11px;color:#888;text-transform:uppercase">Not written</div><div style="font-size:16px;font-weight:700;margin-top:6px">${flag}</div></td>
@@ -311,7 +311,7 @@ export async function sendGoalsRollupEmail(args: {
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.recipient.email,
-      subject: clampSubject(`Weekly goals - ${args.managerName}'s team - ${args.weekLabel} - Altus Corp`),
+      subject: clampSubject(`Weekly goals — ${args.managerName}'s team — ${args.weekLabel} — Altus Corp`),
       html: shell("Weekly goals review", `${args.managerName}'s team`, inner),
       attachments: [{ filename: args.filename, content: args.pdf }],
       ...companyBcc(),
@@ -337,7 +337,7 @@ export async function sendMonthlySlipsEmail(args: {
   try {
     const resend = getResend();
     if (!resend) return { id: null, error: null };
-    const inner = `<p style="font-size:14px;margin:0 0 12px">Hi ${args.recipient.name.split(" ")[0]}, your earnings statement for <b>${args.monthLabel}</b> is attached - it covers your salary, incentives, and attendance for the month.</p>
+    const inner = `<p style="font-size:14px;margin:0 0 12px">Hi ${args.recipient.name.split(" ")[0]}, your earnings statement for <b>${args.monthLabel}</b> is attached — it covers your salary, incentives, and attendance for the month.</p>
       <table style="width:100%;border-collapse:separate;border-spacing:6px;margin:6px 0 4px"><tr>
         <td style="padding:12px 14px;border:1px solid #eee;border-radius:8px">
           <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px">Total earnings</div>
@@ -348,7 +348,7 @@ export async function sendMonthlySlipsEmail(args: {
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.recipient.email,
-      subject: clampSubject(`Your ${args.monthLabel} salary, incentive & attendance slip - Altus Corp`),
+      subject: clampSubject(`Your ${args.monthLabel} salary, incentive & attendance slip — Altus Corp`),
       html: shell("Monthly earnings statement", args.monthLabel, inner, args.siteUrl),
       attachments: [{ filename: args.filename, content: args.pdf }],
       ...companyBcc(),

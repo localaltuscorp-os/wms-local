@@ -73,7 +73,7 @@ export function TeamInvolvedEditor({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {resolved.length === 0 && !canEdit && (
-        <span className="text-[12px] text-ink-soft">-</span>
+        <span className="text-[12px] text-ink-soft">—</span>
       )}
       <div className="flex -space-x-1.5">
         {resolved.map((m, i) =>

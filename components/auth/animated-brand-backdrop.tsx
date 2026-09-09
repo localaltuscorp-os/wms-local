@@ -94,12 +94,12 @@ export function AnimatedBrandBackdrop() {
       <style jsx>{`
         /*
          * Loop choreography (22s):
-         *   0%   - invisible at centre
-         *   8%   - faded in at centre, overlapping
-         *   28%  - fully split, parked at outer edges
-         *   70%  - still parked (a long, calm rest - the "settled" feel)
-         *   88%  - drifted back to centre
-         *   100% - faded out, ready to restart
+         *   0%   — invisible at centre
+         *   8%   — faded in at centre, overlapping
+         *   28%  — fully split, parked at outer edges
+         *   70%  — still parked (a long, calm rest — the "settled" feel)
+         *   88%  — drifted back to centre
+         *   100% — faded out, ready to restart
          *
          * Brand-mark parks at the midpoint between the viewport's left
          * edge and the form card's left edge. Card max-width is 660px
@@ -108,7 +108,7 @@ export function AnimatedBrandBackdrop() {
          * centre (W/2), so the translate needed to land its centre
          * exactly at that midpoint is:
          *   (W-660)/4 − W/2  =  −(W + 660)/4  =  −25vw − 165px
-         * Using calc() makes the math viewport-agnostic - the logo
+         * Using calc() makes the math viewport-agnostic — the logo
          * lands in the correct spot on a 1280, 1440, 1920, or 2560
          * screen with no per-breakpoint tuning.
          */
@@ -120,7 +120,7 @@ export function AnimatedBrandBackdrop() {
           88%  { transform: translateX(0)                       scale(0.96); opacity: 0.55; }
           100% { transform: translateX(0)                       scale(0.94); opacity: 0; }
         }
-        /* Symmetric to the brand-mark - parks at the midpoint between
+        /* Symmetric to the brand-mark — parks at the midpoint between
            the card's RIGHT edge and the viewport's right edge:
              (3W + 660)/4 − W/2  =  (W + 660)/4  =  +25vw + 165px
            Same calc() pattern as the left lane, just positive. */

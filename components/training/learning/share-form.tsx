@@ -65,7 +65,7 @@ export function ShareForm({
         )}
         <div className="min-w-0">
           <p className="text-[14.5px] font-bold" style={{ color: existing ? "#15803d" : ACCENT_DEEP }}>
-            {existing ? "Done - this week's Share is logged" : "You haven't done this week's Share yet"}
+            {existing ? "Done — this week's Share is logged" : "You haven't done this week's Share yet"}
           </p>
           <p className="text-[12.5px] font-medium text-ink-muted">{weekLabel} · {SHARE_MIN} min compulsory</p>
         </div>
@@ -77,7 +77,7 @@ export function ShareForm({
       </div>
 
       <div>
-        <label className={LABEL}>Topic - what are you sharing?</label>
+        <label className={LABEL}>Topic — what are you sharing?</label>
         <input
           ref={firstRef}
           className={FIELD}

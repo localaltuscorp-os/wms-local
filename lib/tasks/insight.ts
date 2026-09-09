@@ -30,7 +30,7 @@ export function progressFromStatus(status: TaskStatus, approvalStatus: string | 
 
 /** Minutes → "2h 30m" / "45m" / "—". */
 export function formatEstimate(minutes: number | null | undefined): string {
-  if (minutes == null || minutes <= 0) return "-";
+  if (minutes == null || minutes <= 0) return "—";
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   if (h === 0) return `${m}m`;
@@ -71,7 +71,7 @@ export function computeTaskInsight(input: {
     return {
       tone: "warn",
       title: "In revision",
-      body: `Sent back ${rejectionCount || 1} time${(rejectionCount || 1) > 1 ? "s" : ""} - ${formatEstimate(
+      body: `Sent back ${rejectionCount || 1} time${(rejectionCount || 1) > 1 ? "s" : ""} — ${formatEstimate(
         actualMin,
       )} logged so far.`,
     };
@@ -84,7 +84,7 @@ export function computeTaskInsight(input: {
     };
   }
   if (status === "done") {
-    return { tone: "good", title: "Awaiting approval", body: `Marked done - ${formatEstimate(actualMin)} of effort logged.` };
+    return { tone: "good", title: "Awaiting approval", body: `Marked done — ${formatEstimate(actualMin)} of effort logged.` };
   }
   if (estimatedMinutes && actualMin > estimatedMinutes * 1.25) {
     return {

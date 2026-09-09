@@ -88,7 +88,7 @@ export function PunctualityCard({
 
             {undated > 0 && (
               <p className="mt-2.5 text-[12px] font-semibold text-ink-subtle">
-                {undated} done without a completion date - not counted.
+                {undated} done without a completion date — not counted.
               </p>
             )}
           </div>

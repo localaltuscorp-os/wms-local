@@ -80,7 +80,7 @@ export default async function GoalsHubPage() {
           >
             Plan the year, auto-divide it into quarters, months and weeks, commit
             every Saturday, get your manager&apos;s Monday sign-off, and deliver it
-            in the daily plan - one connected loop.
+            in the daily plan — one connected loop.
           </p>
         </header>
 

@@ -26,8 +26,8 @@ type Density = "cozy" | "compact" | "dense";
  *  default (no scaling); compact/dense shrink rem-based SPACING app-wide (px
  *  text stays legible) so more fits on screen at high zoom / OS scaling. */
 const DENSITY_OPTS: { value: Density; label: string; hint: string }[] = [
-  { value: "cozy", label: "Comfortable", hint: "Roomy - easiest to read" },
-  { value: "compact", label: "Compact", hint: "Tighter - fits more on screen" },
+  { value: "cozy", label: "Comfortable", hint: "Roomy — easiest to read" },
+  { value: "compact", label: "Compact", hint: "Tighter — fits more on screen" },
   { value: "dense", label: "Dense", hint: "Maximum on screen" },
 ];
 

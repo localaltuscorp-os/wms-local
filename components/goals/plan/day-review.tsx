@@ -161,7 +161,7 @@ export function DayReview({
           </h2>
           <p className="mx-auto mt-1.5 max-w-[52ch] text-[15px] font-medium text-ink-muted">
             You&apos;re set to clock in. {items.length} commitment{items.length === 1 ? "" : "s"} lined up for today
-            - come back at the end of the day to mark what you delivered.
+            — come back at the end of the day to mark what you delivered.
           </p>
 
           {/* ADD ANOTHER — right at the top of the list, so a commitment that
@@ -288,7 +288,7 @@ export function DayReview({
               ? "Nothing was planned for today."
               : isClosed
                 ? `${doneCount} of ${total} completed.`
-                : `${doneCount} done · ${openCount} still open - mark each one.`}
+                : `${doneCount} done · ${openCount} still open — mark each one.`}
           </p>
         </div>
       </header>
@@ -409,10 +409,10 @@ export function DayReview({
                       onClick={() => onRemove(it)}
                       aria-label={
                         it.taskId
-                          ? `Cancel ${it.title} - moves it to the Recycle Bin`
+                          ? `Cancel ${it.title} — moves it to the Recycle Bin`
                           : `Cancel ${it.title}`
                       }
-                      title="Cancel - moves it to the Recycle Bin"
+                      title="Cancel — moves it to the Recycle Bin"
                       className="inline-flex size-7 items-center justify-center rounded-lg border border-hairline text-ink-muted/70 transition-colors hover:border-hairline-strong hover:text-ink-strong"
                     >
                       <X size={13} />

@@ -24,7 +24,7 @@ export default async function DevelopmentPage() {
       >
         <p className="text-[15px] font-bold text-ink-strong">Development</p>
         <p className="mt-1 text-[13.5px] text-ink-subtle">
-          This section is ready for its content - tell me what belongs here and I will build it.
+          This section is ready for its content — tell me what belongs here and I will build it.
         </p>
       </section>
     </PageShell>

@@ -161,7 +161,7 @@ export function ObligationFormDialog({
                     className="mt-1 text-[14.5px] text-ink-muted"
                     style={{ lineHeight: 1.5 }}
                   >
-                    A compulsory monthly session - set the counterparty and how
+                    A compulsory monthly session — set the counterparty and how
                     many are needed each month.
                   </Dialog.Description>
                 </div>
@@ -218,12 +218,12 @@ export function ObligationFormDialog({
               <Field label="Category">
                 <Select
                   options={[
-                    { value: "", label: "- None -" },
+                    { value: "", label: "— None —" },
                     ...categoryOptions.map((c) => ({ value: c.id, label: c.name })),
                   ]}
                   value={form.categoryId}
                   onValueChange={(v) => set("categoryId", v)}
-                  placeholder="- None -"
+                  placeholder="— None —"
                   ariaLabel="Category"
                 />
               </Field>

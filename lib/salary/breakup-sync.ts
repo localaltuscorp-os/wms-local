@@ -89,7 +89,7 @@ export async function runSalaryBreakupSync(opts: {
       // A broken/blank read must never "succeed" into an untouched-but-green
       // run — fail loudly, table untouched.
       throw new Error(
-        `Sheet mapped to 0 salary rows (${matrix.length} raw rows read) - check sharing, tab name and range.`,
+        `Sheet mapped to 0 salary rows (${matrix.length} raw rows read) — check sharing, tab name and range.`,
       );
     }
 

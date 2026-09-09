@@ -687,12 +687,12 @@ function SectionCard({
                         </span>
                       )}
                     </td>
-                    {sectionBatched && <td className="px-4 py-3 tabular-nums">{r.batchNo || "-"}</td>}
-                    <td className="px-4 py-3 tabular-nums">{r.startDate ? formatDMonY(r.startDate) : "-"}</td>
-                    <td className="px-4 py-3 tabular-nums">{r.endDate ? formatDMonY(r.endDate) : "-"}</td>
+                    {sectionBatched && <td className="px-4 py-3 tabular-nums">{r.batchNo || "—"}</td>}
+                    <td className="px-4 py-3 tabular-nums">{r.startDate ? formatDMonY(r.startDate) : "—"}</td>
+                    <td className="px-4 py-3 tabular-nums">{r.endDate ? formatDMonY(r.endDate) : "—"}</td>
                     <td className="px-4 py-3">
                       {mine.length === 0 ? (
-                        <span className="text-ink-subtle">{"-"}</span>
+                        <span className="text-ink-subtle">{"—"}</span>
                       ) : (
                         <span className="flex flex-wrap gap-1.5">
                           {mine.map((c) => (

@@ -74,7 +74,7 @@ export function AiInsightsPanel({
       }
       ctrl.setAiInsights(res.insights);
     } catch {
-      fireToast({ message: "Couldn't generate insights - please try again.", type: "error" });
+      fireToast({ message: "Couldn't generate insights — please try again.", type: "error" });
     } finally {
       setLoading(false);
     }
@@ -94,7 +94,7 @@ export function AiInsightsPanel({
             AI Insights
           </h3>
           <p className="text-[12.5px] font-medium text-ink-muted">
-            A structured read of the interview - generate, then refine any field before you save.
+            A structured read of the interview — generate, then refine any field before you save.
           </p>
         </div>
         {insights && <SourceBadge source={insights.source} edited={insights.edited} />}
@@ -114,7 +114,7 @@ export function AiInsightsPanel({
         <div className="mt-4 grid place-items-center rounded-xl border border-solid border-hairline-strong bg-white px-6 py-10 text-center">
           <Cpu size={26} strokeWidth={1.8} style={{ color: RED_DEEP }} />
           <p className="mt-2 max-w-[46ch] text-[13px] font-medium text-ink-muted">
-            Generate an AI read of the ratings and notes. Every field stays fully editable - the model drafts, you decide.
+            Generate an AI read of the ratings and notes. Every field stays fully editable — the model drafts, you decide.
           </p>
         </div>
       ) : (

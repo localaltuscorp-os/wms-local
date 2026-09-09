@@ -185,7 +185,7 @@ export function TicketThread(props: TicketThreadProps) {
               {ticket.subject}
             </h1>
             <p className="mt-1 text-[12.5px] text-ink-muted">
-              Raised by {ticket.requesterName ?? "-"} · {relTime(ticket.createdAt)}
+              Raised by {ticket.requesterName ?? "—"} · {relTime(ticket.createdAt)}
               {ticket.assigneeName && ` · Handled by ${ticket.assigneeName}`}
             </p>
           </div>
@@ -258,7 +258,7 @@ export function TicketThread(props: TicketThreadProps) {
             {ticket.status === "resolved" && (
               <>
                 <button
-                  onClick={() => run(() => changeStatus(ticket.id, "closed"), "Thanks - closed")}
+                  onClick={() => run(() => changeStatus(ticket.id, "closed"), "Thanks — closed")}
                   disabled={busy}
                   className="inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-60"
                   style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
@@ -348,7 +348,7 @@ export function TicketThread(props: TicketThreadProps) {
             maxLength={8000}
             placeholder={
               tab === "note"
-                ? "HR-only note - the employee never sees this."
+                ? "HR-only note — the employee never sees this."
                 : canHandle
                   ? "Write your reply to the employee…"
                   : "Add more detail or reply to HR…"

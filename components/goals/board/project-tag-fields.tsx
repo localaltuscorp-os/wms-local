@@ -92,7 +92,7 @@ export function ProjectTagFields({
               onChange={(e) => set({ projectNodeId: e.target.value })}
               className="w-full rounded-lg border border-hairline-strong bg-white px-2.5 py-2 text-[13px] font-medium text-ink-strong outline-none focus:border-altus-red"
             >
-              <option value="">- select a project -</option>
+              <option value="">— select a project —</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -101,7 +101,7 @@ export function ProjectTagFields({
             </select>
             {projects.length === 0 && (
               <span className="mt-1 block text-[11.5px] font-medium text-ink-subtle">
-                No projects yet - create one in the Projects module.
+                No projects yet — create one in the Projects module.
               </span>
             )}
           </label>
@@ -115,7 +115,7 @@ export function ProjectTagFields({
               onChange={(e) => set({ vendorId: e.target.value })}
               className="w-full rounded-lg border border-hairline-strong bg-white px-2.5 py-2 text-[13px] font-medium text-ink-strong outline-none focus:border-altus-red"
             >
-              <option value="">- none -</option>
+              <option value="">— none —</option>
               {vendors.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}

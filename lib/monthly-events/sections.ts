@@ -30,7 +30,7 @@ export const EVENTS_SECTIONS: EventsSection[] = [
     order: 1,
     title: "The Calendar",
     blurb:
-      "Sir's Event Master, rebuilt - stacked weekly time-grids, drag/resize/copy-paste, per-event colour and Tentative/Confirmed. Month, week & overview views.",
+      "Sir's Event Master, rebuilt — stacked weekly time-grids, drag/resize/copy-paste, per-event colour and Tentative/Confirmed. Month, week & overview views.",
     Icon: CalendarDays,
   },
   {
@@ -38,7 +38,7 @@ export const EVENTS_SECTIONS: EventsSection[] = [
     order: 2,
     title: "Category & Batch Masters",
     blurb:
-      "The colour legend - add, rename, recolour and reorder event categories, plus the batch/section types that auto-block the calendar.",
+      "The colour legend — add, rename, recolour and reorder event categories, plus the batch/section types that auto-block the calendar.",
     Icon: Palette,
     adminOnly: true,
   },
@@ -47,7 +47,7 @@ export const EVENTS_SECTIONS: EventsSection[] = [
     order: 3,
     title: "Batch Schedules",
     blurb:
-      "PS / BSS / Conclave / Graduate batch instances - enter dates & times and the calendar auto-blocks locked events across the range.",
+      "PS / BSS / Conclave / Graduate batch instances — enter dates & times and the calendar auto-blocks locked events across the range.",
     Icon: CalendarClock,
     adminOnly: true,
   },
@@ -56,7 +56,7 @@ export const EVENTS_SECTIONS: EventsSection[] = [
     order: 4,
     title: "Obligations Dashboard",
     blurb:
-      "Compulsory monthly sessions - a done/target compliance grid across the financial year, auto-counted from tagged calendar events.",
+      "Compulsory monthly sessions — a done/target compliance grid across the financial year, auto-counted from tagged calendar events.",
     Icon: Gauge,
     adminOnly: true,
   },

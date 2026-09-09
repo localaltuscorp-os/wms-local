@@ -166,7 +166,7 @@ export function SalaryProfileImportDialog() {
                             )}
                           </td>
                           <td className="py-1.5 pr-3 text-right text-[#94A3B8] tabular-nums">
-                            {m.currentCtc > 0 ? `₹${num(m.currentCtc)}` : "-"}
+                            {m.currentCtc > 0 ? `₹${num(m.currentCtc)}` : "—"}
                           </td>
                           <td className="py-1.5 pr-3 text-right text-[#0F172A] font-semibold tabular-nums">
                             ₹{num(m.annualCtc)}
@@ -174,8 +174,8 @@ export function SalaryProfileImportDialog() {
                           <td className="py-1.5 pr-3 text-[#475569]">
                             {m.ptExempt ? "Exempt" : "₹200"}
                           </td>
-                          <td className="py-1.5 pr-3 text-[#475569]">{m.designation ?? "-"}</td>
-                          <td className="py-1.5 text-[#475569]">{m.payingEntity ?? "-"}</td>
+                          <td className="py-1.5 pr-3 text-[#475569]">{m.designation ?? "—"}</td>
+                          <td className="py-1.5 text-[#475569]">{m.payingEntity ?? "—"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -183,7 +183,7 @@ export function SalaryProfileImportDialog() {
                 </div>
               ) : (
                 <p className="mt-4 text-[14px] text-[#475569]">
-                  Every matched employee already has these exact values - nothing
+                  Every matched employee already has these exact values — nothing
                   to change. (Re-running still safely re-stamps designation/entity.)
                 </p>
               )}

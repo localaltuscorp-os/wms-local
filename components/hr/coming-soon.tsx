@@ -65,7 +65,7 @@ export function HrComingSoon({
               letterSpacing: "-0.015em",
             }}
           >
-            Coming soon - {title}
+            Coming soon — {title}
           </h2>
           <p className="mt-2 max-w-[46ch] text-[14.5px] font-medium leading-relaxed text-ink-muted">
             {blurb}

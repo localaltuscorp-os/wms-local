@@ -176,7 +176,7 @@ export async function createOfficialEmail(candidateId: string): Promise<StatusRe
         await getFirebaseAdminAuth().updateUser(emp.firebaseUid, { password: fresh });
         password = fresh;
       } catch (err) {
-        console.error("[createOfficialEmail] password reset failed - welcoming without a password", err);
+        console.error("[createOfficialEmail] password reset failed — welcoming without a password", err);
       }
     }
 

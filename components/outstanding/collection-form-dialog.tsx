@@ -124,7 +124,7 @@ export function CollectionFormDialog({
                   options={clients.map((c) => ({ value: c, label: c }))}
                   value={clientName}
                   onValueChange={setClientName}
-                  placeholder="- Select client -"
+                  placeholder="— Select client —"
                   searchable
                   ariaLabel="Client"
                 />
@@ -149,7 +149,7 @@ export function CollectionFormDialog({
                   options={modes.map((m) => ({ value: m.id, label: m.name }))}
                   value={modeId}
                   onValueChange={setModeId}
-                  placeholder="- Select mode -"
+                  placeholder="— Select mode —"
                   ariaLabel="Payment mode"
                 />
               </Field>
@@ -161,7 +161,7 @@ export function CollectionFormDialog({
                   options={responsibles.map((r) => ({ value: r.id, label: r.name }))}
                   value={responsibleId}
                   onValueChange={setResponsibleId}
-                  placeholder="- Select person -"
+                  placeholder="— Select person —"
                   searchable
                   ariaLabel="Responsible person"
                 />

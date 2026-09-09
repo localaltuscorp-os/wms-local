@@ -217,8 +217,8 @@ function CommitteeView({ node, fx }: { node: Extract<PolicyNode, { kind: "commit
             <tr key={i}>
               <td className="apd-cell-pos">{fx(m.position)}</td>
               <td>{fx(m.name)}</td>
-              <td>{m.email ?? "-"}</td>
-              <td>{m.contact ?? "-"}</td>
+              <td>{m.email ?? "—"}</td>
+              <td>{m.contact ?? "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -398,7 +398,7 @@ const POLICY_CSS = `
   color:var(--color-ink-muted, #64748b);
 }
 
-/* Legend - premium code-chip grid (attendance codes, etc.) */
+/* Legend — premium code-chip grid (attendance codes, etc.) */
 .apd-legend-wrap{margin:8px 0 18px;}
 .apd-legend{
   display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));

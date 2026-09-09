@@ -198,7 +198,7 @@ export function ManagerInitiatorCard({
          across the surface, which is invisible on white and was only ever
          legible against the peach. */
       className="wms-card wg-rise group relative cursor-pointer overflow-hidden rounded-2xl bg-white shadow-xs"
-      aria-label={`${managerName} - initiation scorecard. Open drill-down.`}
+      aria-label={`${managerName} — initiation scorecard. Open drill-down.`}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {

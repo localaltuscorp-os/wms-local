@@ -60,7 +60,7 @@ export function StarRating({
         className="text-[17px] font-black tabular-nums"
         style={{ color: value > 0 ? "var(--color-altus-red-deep)" : "var(--color-ink-subtle)", minWidth: 62 }}
       >
-        {value > 0 ? `${Number.isInteger(value) ? value : value.toFixed(1)} / 10` : "- / 10"}
+        {value > 0 ? `${Number.isInteger(value) ? value : value.toFixed(1)} / 10` : "— / 10"}
       </span>
     </div>
   );

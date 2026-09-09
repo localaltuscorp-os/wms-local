@@ -242,7 +242,7 @@ export default async function ProfilePage() {
                       }}
                     >
                       Real-time notifications on this device, even when the
-                      tab isn't open. Per-device - enable on every browser
+                      tab isn't open. Per-device — enable on every browser
                       you use.
                     </p>
                     <EnablePushButton />
@@ -296,7 +296,7 @@ export default async function ProfilePage() {
                   />
                   <AchievementsGrid
                     rows={achievements.map((a) => ({
-                      // Pass ONLY the serializable fields - `a.def` also carries
+                      // Pass ONLY the serializable fields — `a.def` also carries
                       // an `evaluate` function, which can't cross the RSC→client
                       // boundary (throws "Functions cannot be passed…").
                       def: {

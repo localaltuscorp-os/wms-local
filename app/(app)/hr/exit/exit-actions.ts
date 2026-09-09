@@ -243,7 +243,7 @@ export async function listExitRecords(): Promise<ExitRecordRow[]> {
   return rows.map((r) => ({
     id: r.id,
     employeeId: r.employeeId,
-    employeeName: r.employeeName ?? "-",
+    employeeName: r.employeeName ?? "—",
     kind: r.kind as (typeof KINDS)[number],
     updatedAt: r.updatedAt,
   }));

@@ -96,7 +96,7 @@ export function TabAi({ detail }: { detail: AmbassadorDetail }) {
           No AI Summary Yet
         </h2>
         <p className="mx-auto mt-1.5 max-w-md text-[13.5px] font-medium leading-relaxed text-ink-muted">
-          Generate a crisp narrative of this partner&apos;s referrals, conversion, revenue, and momentum -
+          Generate a crisp narrative of this partner&apos;s referrals, conversion, revenue, and momentum —
           drafted from their live data.
         </p>
         <button

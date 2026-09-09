@@ -263,7 +263,7 @@ export function VasaBalances({
     if (!asOn) { fireToast({ message: "Open a chart first.", type: "error" }); return; }
     const url = `/accounts/vasa-family-interpersonal/export?asOn=${encodeURIComponent(asOn)}&format=xlsx`;
     const name = `Vasa-Interpersonal-${chartLabel(asOn).replace(/[^A-Za-z0-9-]/g, "")}.xlsx`;
-    const text = `Vasa Family Interpersonal Balance - ${chartLabel(asOn)}`;
+    const text = `Vasa Family Interpersonal Balance — ${chartLabel(asOn)}`;
     setSharing(true);
     void (async () => {
       try {
@@ -283,7 +283,7 @@ export function VasaBalances({
         document.body.appendChild(a); a.click(); a.remove();
         URL.revokeObjectURL(href);
         window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
-        fireToast({ message: "Excel downloaded - attach it in WhatsApp.", type: "info" });
+        fireToast({ message: "Excel downloaded — attach it in WhatsApp.", type: "info" });
       } catch (err) {
         // An abort is the user closing the share sheet; that is not an error.
         if (err instanceof Error && err.name === "AbortError") return;
@@ -343,7 +343,7 @@ export function VasaBalances({
       if (q) { setQuarter(q); setQEnd((e) => (qIndex(q) > qIndex(e) ? q : e)); }
       setAsOn(stored);
       setTab("sheet");
-      fireToast({ message: `${chartLabel(stored)} already exists - opened it.`, type: "info" });
+      fireToast({ message: `${chartLabel(stored)} already exists — opened it.`, type: "info" });
       return;
     }
 
@@ -363,7 +363,7 @@ export function VasaBalances({
       setTab("sheet");
       setSaveState("saved");
       setSavedAt(new Date());
-      fireToast({ message: `Chart ${chartLabel(stored)} created - empty and ready.`, type: "success" });
+      fireToast({ message: `Chart ${chartLabel(stored)} created — empty and ready.`, type: "success" });
       router.refresh();
     });
   }, [snapshots, router]);
@@ -627,7 +627,7 @@ export function VasaBalances({
                 </thead>
                 <tbody>
                   {parties.length === 0 && (
-                    <tr><td colSpan={2} className="px-5 py-12 text-center text-[14px] font-semibold text-ink-muted">No parties yet - add one to start the matrix.</td></tr>
+                    <tr><td colSpan={2} className="px-5 py-12 text-center text-[14px] font-semibold text-ink-muted">No parties yet — add one to start the matrix.</td></tr>
                   )}
                   {parties.map((row) => {
                     const net = rowTotal(row);
@@ -635,7 +635,7 @@ export function VasaBalances({
                       <tr key={row} className="hover:bg-surface-soft" style={{ borderTop: "1px solid var(--color-hairline)" }}>
                         <th className="sticky left-0 z-10 px-3 py-1.5 text-left font-bold text-ink-strong whitespace-nowrap" style={{ background: "var(--color-surface-card)", minWidth: 140 }}>{row}</th>
                         {parties.map((col) => {
-                          if (row === col) return <td key={col} className="px-1 py-1 text-center text-ink-subtle" style={{ background: "color-mix(in srgb, var(--color-ink-subtle) 6%, transparent)" }}>-</td>;
+                          if (row === col) return <td key={col} className="px-1 py-1 text-center text-ink-subtle" style={{ background: "color-mix(in srgb, var(--color-ink-subtle) 6%, transparent)" }}>—</td>;
                           // The opposite cell is what this one is checked
                           // against — read live, so correcting either side
                           // re-colours both without a reload.
@@ -646,7 +646,7 @@ export function VasaBalances({
                           title={net === 0 ? undefined : inrTooltip(net)}
                           style={{ color: net > 0 ? "var(--color-green-deep)" : net < 0 ? "var(--color-altus-red)" : "var(--color-ink-subtle)" }}
                         >
-                          {net === 0 ? "-" : formatFullInr(net)}
+                          {net === 0 ? "—" : formatFullInr(net)}
                         </td>
                       </tr>
                     );
@@ -681,7 +681,7 @@ export function VasaBalances({
             nameOf={chartName}
             quarterOf={(x) => {
               const q = quarterOfStored(x);
-              return q ? qKey(q) : "-";
+              return q ? qKey(q) : "—";
             }}
             onOpen={(s) => { setAsOn(s); setTab("sheet"); }}
             onDelete={async (s) => {

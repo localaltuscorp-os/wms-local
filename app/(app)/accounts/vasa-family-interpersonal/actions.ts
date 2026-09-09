@@ -280,7 +280,7 @@ export async function emailVasaSnapshot(input: unknown): Promise<ActionResult<{ 
     const res = await sendVasaReportEmail({
       to: VASA_REPORT_RECIPIENT,
       snapshotLabel: snapshotLabel(asOn),
-      quarter: q ? quarterKey(q.q, q.year) : "-",
+      quarter: q ? quarterKey(q.q, q.year) : "—",
       filename: snapshotFilename(asOn, "pdf"),
       pdf,
       senderName: me.name ?? null,

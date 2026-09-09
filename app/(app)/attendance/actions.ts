@@ -193,7 +193,7 @@ export async function punchAttendance(input: {
   if (kind === "out" && satCommitGateOn() && isSaturdayIST()) {
     const committed = await weekCommitSatisfied(me.id, currentWeekStart()).catch(() => true);
     if (!committed) {
-      return { ok: false, error: "Commit next week's goals and fill this week's progress before you clock out - open Goals › Commit." };
+      return { ok: false, error: "Commit next week's goals and fill this week's progress before you clock out — open Goals › Commit." };
     }
   }
 
@@ -246,7 +246,7 @@ export async function punchAttendance(input: {
   if (kind === "out" && dccBlockDay && false /* gate force-off 2026-07-27 (attendance unblock) */) {
     const dccDone = await isDccFilledFor(me.id, today).catch(() => true);
     if (!dccDone) {
-      return { ok: false, error: "Fill today's DCC before you clock out - open the DCC page, then try again." };
+      return { ok: false, error: "Fill today's DCC before you clock out — open the DCC page, then try again." };
     }
   }
 
@@ -324,7 +324,7 @@ export async function punchAttendance(input: {
     if (week.pending && week.loss) {
       return {
         ok: false,
-        error: `Read last week's attendance and money-lost report (${weekLabel(week.loss.weekStart, week.loss.weekEnd)}) before you clock in - it is on this page.`,
+        error: `Read last week's attendance and money-lost report (${weekLabel(week.loss.weekStart, week.loss.weekEnd)}) before you clock in — it is on this page.`,
       };
     }
   }
@@ -341,7 +341,7 @@ export async function punchAttendance(input: {
       if (!approved) {
         return {
           ok: false,
-          error: "Approve your team's last-week progress and this-week goals before you clock in - open Goals › Approve.",
+          error: "Approve your team's last-week progress and this-week goals before you clock in — open Goals › Approve.",
         };
       }
     }
@@ -362,7 +362,7 @@ export async function punchAttendance(input: {
       const short = monday.reports.filter((r) => !r.ok).map((r) => r.name).join(", ");
       return {
         ok: false,
-        error: `Set this week's goals (weights = 100) for ${short} before you clock in - open Weekly Goals.`,
+        error: `Set this week's goals (weights = 100) for ${short} before you clock in — open Weekly Goals.`,
       };
     }
   }
@@ -865,7 +865,7 @@ export async function punchRemote(form: FormData): Promise<ActionResult<{ date: 
   const lng = Number(form.get("lng"));
   const acc = Number(form.get("accuracyM"));
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    return { ok: false, error: "Location is required - tap Enable location." };
+    return { ok: false, error: "Location is required — tap Enable location." };
   }
 
   const photo = form.get("photo");
@@ -892,7 +892,7 @@ export async function punchRemote(form: FormData): Promise<ActionResult<{ date: 
     if (week.pending && week.loss) {
       return {
         ok: false,
-        error: `Read last week's attendance and money-lost report (${weekLabel(week.loss.weekStart, week.loss.weekEnd)}) before you check in - open the Attendance page.`,
+        error: `Read last week's attendance and money-lost report (${weekLabel(week.loss.weekStart, week.loss.weekEnd)}) before you check in — open the Attendance page.`,
       };
     }
   }

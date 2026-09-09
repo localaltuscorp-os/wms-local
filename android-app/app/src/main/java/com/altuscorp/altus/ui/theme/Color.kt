@@ -3,7 +3,7 @@ package com.altuscorp.altus.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Altus brand palette — faithful to the web app (wms.mananvasa.com).
+// Altus brand palette — faithful to the web app (os.altuscorp.in).
 // Brand = Altus red #E10600. Surfaces are LIGHT (warm paper + white), the way
 // the web renders. Green is demoted to the "Done / success" semantic only.
 //

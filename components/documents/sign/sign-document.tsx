@@ -42,9 +42,9 @@ const RED = "var(--color-altus-red)";
 const RED_DEEP = "var(--color-altus-red-deep)";
 
 function fmt(iso: string | null): string {
-  if (!iso) return "-";
+  if (!iso) return "—";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "-";
+  if (Number.isNaN(d.getTime())) return "—";
   return `${formatDate(d)} · ${d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
@@ -202,7 +202,7 @@ function PendingStep({
           </span>{" "}
           You can still e-sign this {label} as a{" "}
           <span className="font-semibold text-ink-strong">self-attested</span>{" "}
-          signature - your identity won&apos;t be Aadhaar-verified, and the signed
+          signature — your identity won&apos;t be Aadhaar-verified, and the signed
           PDF will clearly say so. It upgrades to full DigiLocker verification
           automatically once an admin adds the credentials
           {missingEnv.length > 0 ? ` (${missingEnv.join(", ")})` : ""}.
@@ -369,7 +369,7 @@ function VerifiedStep({
       {selfAttested && (
         <Notice tone="info" icon={<UserRound size={15} strokeWidth={2.2} />}>
           You&apos;re signing as a <span className="font-semibold text-ink-strong">self-attested</span> signer
-          - your identity isn&apos;t DigiLocker-verified. The signed PDF records this.
+          — your identity isn&apos;t DigiLocker-verified. The signed PDF records this.
         </Notice>
       )}
 
@@ -405,7 +405,7 @@ function VerifiedStep({
             {selfAttested ? (
               <>
                 <Field label="Name" value={id.name} />
-                <Field label="Identity" value="Self-attested - not DigiLocker-verified" full />
+                <Field label="Identity" value="Self-attested — not DigiLocker-verified" full />
               </>
             ) : (
               <>
@@ -460,7 +460,7 @@ function VerifiedStep({
 
       <p className="mb-4 mt-4 text-[12px] leading-relaxed text-ink-soft">
         {selfAttested
-          ? "By signing, you confirm you have read this document and willingly e-sign it. This is a self-attested signature - your identity is not DigiLocker-verified - and is legally attributable to you."
+          ? "By signing, you confirm you have read this document and willingly e-sign it. This is a self-attested signature — your identity is not DigiLocker-verified — and is legally attributable to you."
           : "By signing, you confirm your DigiLocker-verified identity above is yours and you willingly e-sign this document. This signature is legally attributable to you."}
       </p>
 
@@ -584,7 +584,7 @@ function Field({
       <dd
         className={`mt-0.5 text-[13px] text-ink-strong ${mono ? "font-mono tracking-tight" : "font-medium"}`}
       >
-        {value && value.trim() ? value : "-"}
+        {value && value.trim() ? value : "—"}
       </dd>
     </div>
   );

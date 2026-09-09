@@ -94,9 +94,9 @@ export default async function IncentivePayoutPage({ searchParams }: PageProps) {
                 Pay Incentive with Salary
               </h1>
               <p className="mt-1.5 max-w-[76ch] text-[15px] font-medium text-ink-muted">
-                {monthLabel(month)} - pay each person&apos;s incentive from the same place as
+                {monthLabel(month)} — pay each person&apos;s incentive from the same place as
                 salary. Payable is what the client has fully paid (Accrued); the account nils when
-                Paid catches up. This records the payout only - it does not disburse to a bank.
+                Paid catches up. This records the payout only — it does not disburse to a bank.
               </p>
             </div>
 

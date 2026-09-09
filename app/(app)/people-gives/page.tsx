@@ -38,7 +38,7 @@ export default async function PeopleGivesPage() {
               Introductions
             </h1>
             <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-              Who can introduce us to whom - the referral network at a glance.
+              Who can introduce us to whom — the referral network at a glance.
             </p>
           </div>
           <div className="flex items-center gap-2.5">

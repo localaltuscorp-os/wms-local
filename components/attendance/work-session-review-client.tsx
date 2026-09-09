@@ -56,7 +56,7 @@ function fmtTime(iso: string): string {
   return TIME_FMT.format(new Date(iso));
 }
 function fmtHours(min: number | null): string {
-  if (min == null) return "-";
+  if (min == null) return "—";
   const h = Math.floor(min / 60);
   const m = Math.round(min % 60);
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
@@ -223,7 +223,7 @@ export function WorkSessionReviewClient({
                     type="button"
                     onClick={() => shot.url && setBox({ session: s, index: idx })}
                     disabled={!shot.url}
-                    title={`${fmtTime(shot.takenAt)}${shot.url ? "" : " - unavailable"}`}
+                    title={`${fmtTime(shot.takenAt)}${shot.url ? "" : " — unavailable"}`}
                     className="group relative size-[72px] shrink-0 overflow-hidden rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-default"
                     style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)", background: "var(--color-surface-soft)" }}
                   >

@@ -214,7 +214,7 @@ function SlipRow({
             )}
             <iframe
               src={viewHref}
-              title={`Salary slip - ${slip.label}`}
+              title={`Salary slip — ${slip.label}`}
               onLoad={() => setLoaded(true)}
               className="h-[70vh] min-h-[420px] w-full"
               style={{ border: 0, opacity: loaded ? 1 : 0 }}

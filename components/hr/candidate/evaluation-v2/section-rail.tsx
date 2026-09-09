@@ -124,7 +124,7 @@ export function SectionRail({
                 onClick={() => onJump(s.id)}
                 onKeyDown={(e) => onKeyDown(e, i)}
                 aria-current={active ? "true" : undefined}
-                title={collapsed ? `${s.title} - ${st.skipped ? "skipped" : `${st.rated}/${st.total}`}` : undefined}
+                title={collapsed ? `${s.title} — ${st.skipped ? "skipped" : `${st.rated}/${st.total}`}` : undefined}
                 className={`group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors ${collapsed ? "justify-center" : ""}`}
                 style={active ? { background: "color-mix(in srgb, var(--color-altus-red) 8%, white)" } : undefined}
               >

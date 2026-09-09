@@ -348,7 +348,7 @@ export function OutstandingImportDialog() {
                       {preview.sample.map((s, i) => (
                         <tr key={i} className="border-b border-[#F1F5F9]">
                           <td className="py-1.5 pr-3 text-[#0F172A]">{s.clientName}</td>
-                          <td className="py-1.5 pr-3 text-[#475569]">{s.product ?? "-"}</td>
+                          <td className="py-1.5 pr-3 text-[#475569]">{s.product ?? "—"}</td>
                           <td className="py-1.5 pr-3 text-[#475569]">{s.cycle}</td>
                           <td className="py-1.5 pr-3 text-right text-[#475569]">{s.installments}</td>
                           <td className="py-1.5 text-right text-[#0F172A]">{inr(s.amount)}</td>

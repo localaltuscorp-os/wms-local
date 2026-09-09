@@ -16,7 +16,7 @@ export default async function YearlyGoalsPage({
       level="year"
       basePath="/goals/yearly"
       heading="Yearly Goals"
-      tagline="Every goal for the financial year - each one cascades into quarters, months and weeks below it."
+      tagline="Every goal for the financial year — each one cascades into quarters, months and weeks below it."
     />
   );
 }

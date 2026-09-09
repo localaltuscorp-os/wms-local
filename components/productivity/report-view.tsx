@@ -69,7 +69,7 @@ export function ProductivityReportView({
             >
               {employee.name}
             </h1>
-            <p className="mt-1 text-[13px] font-semibold text-ink-muted">{role || "-"}</p>
+            <p className="mt-1 text-[13px] font-semibold text-ink-muted">{role || "—"}</p>
             {employee.managerName && (
               <p className="mt-0.5 text-[12.5px] text-ink-subtle">
                 Reporting Manager:{" "}
@@ -104,10 +104,10 @@ export function ProductivityReportView({
         <Row label="Incentive % of salary" value={formatPct(kpi.incentivePct)} strong />
         <Row label="Incentive grade" value={<GradeChip grade={kpi.grade} />} />
         <Note>
-          Earned incentive is the amount APPROVED for {period.label} - the figure signed off as this
+          Earned incentive is the amount APPROVED for {period.label} — the figure signed off as this
           employee&apos;s, which does not lag behind a payroll run the way a disbursed amount does.
           {kpi.baseSalary <= 0 &&
-            " With no salary profile on record the percentage is unknown, so it reads “-” rather than 0%."}
+            " With no salary profile on record the percentage is unknown, so it reads “—” rather than 0%."}
         </Note>
       </Block>
 
@@ -125,7 +125,7 @@ export function ProductivityReportView({
         <Row label="MTD grade" value={<GradeChip grade={goals.mtd.grade} />} />
         <Note>
           The month runs {period.monthStart} to {period.monthEnd}. MTD sums every weekly board whose
-          Monday falls inside it - W1 + W2 + W3 + W4 (+ W5 where the month has one) - so the period
+          Monday falls inside it — W1 + W2 + W3 + W4 (+ W5 where the month has one) — so the period
           begins on the 1st, handles 28/29/30/31-day months without a special case, and starts a new
           period on its own when the calendar turns over. Nothing carries forward.
         </Note>
@@ -138,7 +138,7 @@ export function ProductivityReportView({
         <Row label="Overdue 1–7 days" value={<Count n={tasks.days1to7} color={TASK_COLOR.days1to7} />} />
         <Row label="Flagged “need help”" value={<Count n={tasks.needHelp} color={TASK_COLOR.needHelp} />} />
         <Note>
-          Open assigned work only - done, approved and cancelled tasks are excluded. Age is counted
+          Open assigned work only — done, approved and cancelled tasks are excluded. Age is counted
           in whole calendar days against each task&apos;s effective due date, so a task due yesterday
           evening reads as one day overdue this morning.
         </Note>
@@ -151,13 +151,13 @@ export function ProductivityReportView({
           value={`${formatHours(training.givenHours)} / ${training.targetHours} hrs`}
           strong
         />
-        <Row label="Given - % of target" value={formatPct(training.givenPct)} />
+        <Row label="Given — % of target" value={formatPct(training.givenPct)} />
         <Row
           label="Training attended (by employee)"
           value={`${formatHours(training.attendedHours)} / ${training.targetHours} hrs`}
           strong
         />
-        <Row label="Attended - % of target" value={formatPct(training.attendedPct)} />
+        <Row label="Attended — % of target" value={formatPct(training.attendedPct)} />
         <Note>
           Counted from completed sessions this month: hours GIVEN are sessions this person ran as
           trainer, hours ATTENDED are sessions they joined. The target is {training.targetHours} hours
@@ -171,7 +171,7 @@ export function ProductivityReportView({
           <Row label="Tasks delegated" value={`${manager.tasksDelegated}`} strong />
           <Row label="Goals delegated" value={`${manager.goalsDelegated}`} strong />
           <Note>
-            Work handed to direct reports this month - tasks this person raised on a report&apos;s
+            Work handed to direct reports this month — tasks this person raised on a report&apos;s
             list, and weekly goals they created on a report&apos;s board.
           </Note>
         </Block>
@@ -181,7 +181,7 @@ export function ProductivityReportView({
       <Block title="Grading" Icon={Gauge} theme={KPI_THEME}>
         <div className="grid grid-cols-2 gap-x-8 gap-y-1 max-md:grid-cols-1">
           <div>
-            <ScaleHeading>Completion - goals, MTD</ScaleHeading>
+            <ScaleHeading>Completion — goals, MTD</ScaleHeading>
             <ScaleRow grade="O" band="Above 100%" />
             <ScaleRow grade="A" band="90% and above" />
             <ScaleRow grade="B" band="80% and above" />
@@ -190,7 +190,7 @@ export function ProductivityReportView({
             <ScaleRow grade="F" band="Below 60%" />
           </div>
           <div>
-            <ScaleHeading>Incentive - % of base salary</ScaleHeading>
+            <ScaleHeading>Incentive — % of base salary</ScaleHeading>
             <ScaleRow grade="O" band="30% and above" />
             <ScaleRow grade="A" band="20% and above" />
             <ScaleRow grade="B" band="15% and above" />
@@ -202,13 +202,13 @@ export function ProductivityReportView({
         <Note>
           Two deliberately different scales: an employee can legitimately hold a strong goal grade
           and a weak incentive grade, because they measure different things. No grade is ever stored
-          - each is derived from the values above it, so the report and the dashboard cannot drift.
+          — each is derived from the values above it, so the report and the dashboard cannot drift.
         </Note>
       </Block>
 
       <p className="text-[12px] text-ink-subtle">
         Generated {snap.generatedAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" })} IST ·
-        every figure reads live from the tasks, goals, training, salary and incentive records - nothing
+        every figure reads live from the tasks, goals, training, salary and incentive records — nothing
         is duplicated for this report.
       </p>
     </div>

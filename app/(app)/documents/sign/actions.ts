@@ -372,7 +372,7 @@ export async function finalizeSignature(input: {
   const signedAt = new Date();
   const verifiedNameForConsent = row.verifiedName ?? doc.employeeName;
   const consentText = selfAttested
-    ? `I, ${verifiedNameForConsent}, confirm I have read and willingly e-sign the ${DOC_KIND_LABELS[docKind]} "${doc.title}". This is a SELF-ATTESTED electronic signature - my identity was NOT verified via DigiLocker (Aadhaar e-KYC). This signature is legally attributable to me.`
+    ? `I, ${verifiedNameForConsent}, confirm I have read and willingly e-sign the ${DOC_KIND_LABELS[docKind]} "${doc.title}". This is a SELF-ATTESTED electronic signature — my identity was NOT verified via DigiLocker (Aadhaar e-KYC). This signature is legally attributable to me.`
     : `I, ${verifiedNameForConsent}, confirm my identity was verified via DigiLocker (Aadhaar e-KYC) and I willingly e-sign the ${DOC_KIND_LABELS[docKind]} "${doc.title}". This signature and the identity block below are legally attributable to me.`;
 
   // ── Render the signed PDF ──
@@ -666,7 +666,7 @@ async function buildSignedPdf(input: SignedPdfInput): Promise<Buffer> {
     layout: "portrait",
     margin: 56,
     info: {
-      Title: `${input.title} - Signed`,
+      Title: `${input.title} — Signed`,
       Author: "Altus Corp Dashboard",
       Subject: `${input.selfAttested ? "Self-attested e-signature" : "DigiLocker-verified e-signature"} · ${input.docKindLabel}`,
     },
@@ -785,21 +785,21 @@ async function buildSignedPdf(input: SignedPdfInput): Promise<Buffer> {
   doc.y += 20;
 
   // ── VERIFIED IDENTITY block ──
-  drawSectionHeading(doc, input.selfAttested ? "Signatory - Self-Attested" : "Verified Identity - DigiLocker e-KYC");
+  drawSectionHeading(doc, input.selfAttested ? "Signatory — Self-Attested" : "Verified Identity — DigiLocker e-KYC");
   const idRows: Array<[string, string]> = input.selfAttested
     ? [
         ["Name", input.identity.name ?? input.employeeName],
-        ["Identity", "Self-attested - NOT DigiLocker-verified"],
+        ["Identity", "Self-attested — NOT DigiLocker-verified"],
         ["Signed At", fmtStamp(input.identity.verifiedAt ?? input.signedAt)],
       ]
     : [
-        ["Name", input.identity.name ?? "-"],
-        ["Date of Birth", input.identity.dob ?? "-"],
-        ["Gender", input.identity.gender ?? "-"],
-        ["Address", input.identity.address ?? "-"],
-        ["Aadhaar (masked)", input.identity.maskedAadhaar ?? "-"],
-        ["DigiLocker Ref", input.identity.ref ?? "-"],
-        ["Verified At", input.identity.verifiedAt ? fmtStamp(input.identity.verifiedAt) : "-"],
+        ["Name", input.identity.name ?? "—"],
+        ["Date of Birth", input.identity.dob ?? "—"],
+        ["Gender", input.identity.gender ?? "—"],
+        ["Address", input.identity.address ?? "—"],
+        ["Aadhaar (masked)", input.identity.maskedAadhaar ?? "—"],
+        ["DigiLocker Ref", input.identity.ref ?? "—"],
+        ["Verified At", input.identity.verifiedAt ? fmtStamp(input.identity.verifiedAt) : "—"],
       ];
   const labelW = 130;
   for (const [label, value] of idRows) {

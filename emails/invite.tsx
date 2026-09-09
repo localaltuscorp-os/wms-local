@@ -16,7 +16,7 @@ export function InviteEmail({ inviteeName, inviterName, link }: Props) {
         Hi {firstName},
       </Heading>
       <Text style={{ fontSize: 14, color: "#334155", lineHeight: 1.6, margin: "0 0 16px" }}>
-        <strong>{inviterName}</strong> has invited you to the Altus Corp Dashboard -
+        <strong>{inviterName}</strong> has invited you to the Altus Corp Dashboard —
         the work-management tool the team uses to track tasks day-to-day.
       </Text>
       <Text style={{ fontSize: 14, color: "#334155", lineHeight: 1.6, margin: "0 0 24px" }}>
@@ -34,7 +34,7 @@ export function InviteEmail({ inviteeName, inviterName, link }: Props) {
         </Link>
       </Text>
       <Text style={{ fontSize: 12, color: "#94A3B8", margin: "16px 0 0" }}>
-        If you weren't expecting this, you can ignore this email - no account will be created without you signing in.
+        If you weren't expecting this, you can ignore this email — no account will be created without you signing in.
       </Text>
     </EmailLayout>
   );

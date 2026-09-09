@@ -46,7 +46,7 @@ function timeAndLog<T>(label: string, started: number, p: T, slowMs: number): T 
         const ms = Math.round(performance.now() - started);
         if (ms >= slowMs) {
           // eslint-disable-next-line no-console
-          console.warn(`[slow-query] ${ms}ms - ${label}`);
+          console.warn(`[slow-query] ${ms}ms — ${label}`);
         }
       },
       () => {
@@ -54,7 +54,7 @@ function timeAndLog<T>(label: string, started: number, p: T, slowMs: number): T 
         // Log every failed query, slow or not — failures are always
         // interesting. Errors propagate to the caller as normal.
         // eslint-disable-next-line no-console
-        console.warn(`[slow-query] FAILED after ${ms}ms - ${label}`);
+        console.warn(`[slow-query] FAILED after ${ms}ms — ${label}`);
       },
     );
   }

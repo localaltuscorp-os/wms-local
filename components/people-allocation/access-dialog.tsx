@@ -788,7 +788,7 @@ export function AccessDialog({
                         />
                       </td>
                       <td className="px-4 py-3 tabular-nums text-ink-soft">
-                        {r.occurredAt ? formatTime(r.occurredAt) : "-"}
+                        {r.occurredAt ? formatTime(r.occurredAt) : "—"}
                       </td>
                       {/* Delete is the only thing this column does. */}
                       <td className="px-4 py-3">

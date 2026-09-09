@@ -98,7 +98,7 @@ export default async function PmsV3ScorePage({
             >
               {subject.name}
             </h1>
-            <span className="text-[13.5px] text-ink-subtle">{subject.department || "-"}</span>
+            <span className="text-[13.5px] text-ink-subtle">{subject.department || "—"}</span>
           </div>
           {grade && (
             <div className="flex flex-col items-end gap-1">

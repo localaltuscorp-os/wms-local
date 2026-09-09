@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   }
   if (file.size > MAX_BYTES) {
     return NextResponse.json(
-      { ok: false, error: "File exceeds 100MB - use a video URL for large videos." },
+      { ok: false, error: "File exceeds 100MB — use a video URL for large videos." },
       { status: 413 },
     );
   }

@@ -274,7 +274,7 @@ export async function editRun(input: unknown): Promise<ActionResult> {
   if (run.disbursed) {
     return {
       ok: false,
-      error: "This run is already disbursed - un-disburse it first to edit advances or pending balance.",
+      error: "This run is already disbursed — un-disburse it first to edit advances or pending balance.",
     };
   }
 

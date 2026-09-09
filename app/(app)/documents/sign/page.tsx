@@ -81,7 +81,7 @@ export default async function DocumentSignPage({
           </h1>
           <p className="mt-1.5 max-w-[60ch] text-[13.5px] font-medium text-ink-muted">
             {state.digilockerConfigured
-              ? "Confirm your identity with DigiLocker (Aadhaar e-KYC - masked last-4 only), then draw or type your signature. We archive a signed PDF to your private document vault."
+              ? "Confirm your identity with DigiLocker (Aadhaar e-KYC — masked last-4 only), then draw or type your signature. We archive a signed PDF to your private document vault."
               : "Read the document, then draw or type your signature to self-attest it (identity not DigiLocker-verified). We archive a signed PDF to your private document vault."}
           </p>
         </header>

@@ -29,8 +29,12 @@ interface Props {
   /** employeeId → their salary_profiles pay rates (absent when no row yet). */
   salaryProfileByEmployee: Record<string, SalaryProfileRates>;
   currentEmployeeId: string;
-  /** True only for super-admins (Hetesh / Manan) — gates the admin toggle. */
+  /** Gates the admin toggle. Any admin may manage admins (see page.tsx);
+   *  the server actions are the real boundary. */
   canManageAdmins: boolean;
+  /** Employee ids on the super-admin allow-list. Computed server-side so the
+   *  email allow-list itself never reaches the browser. */
+  superAdminIds: string[];
   departmentOptions: DepartmentOption[];
   managerOptions: { value: string; label: string }[];
 }
@@ -114,6 +118,28 @@ const ROLE_CHIP: Record<
   both:      { bg: "#F1F5F9", fg: "#334155", ring: "#CBD5E1", label: "Both" },
 };
 
+/** Access level shown per row: super-admin > admin > plain employee.
+ *  Deliberately three visually distinct states rather than one "Admin" chip —
+ *  super-admin is the only level that can change another person's admin flag,
+ *  so conflating the two hides the privilege that actually matters. */
+const ACCESS_CHIP = {
+  super: { bg: "#FEF3C7", fg: "#92400E", ring: "#FDE68A", label: "Super-admin" },
+  admin: { bg: "#ECFEFF", fg: "#0E7490", ring: "#A5F3FC", label: "Admin" },
+} as const;
+
+function AccessChip({ level }: { level: "super" | "admin" | "none" }) {
+  if (level === "none") return <span className="text-ink-subtle">—</span>;
+  const c = ACCESS_CHIP[level];
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold ring-1 ring-inset"
+      style={{ background: c.bg, color: c.fg, boxShadow: `inset 0 0 0 1px ${c.ring}` }}
+    >
+      {c.label}
+    </span>
+  );
+}
+
 function RoleChip({ role }: { role: "doer" | "initiator" | "both" }) {
   const c = ROLE_CHIP[role];
   return (
@@ -126,15 +152,40 @@ function RoleChip({ role }: { role: "doer" | "initiator" | "both" }) {
   );
 }
 
+const STATUS_CHIP = {
+  active:      { bg: "#F0FDF4", fg: "#15803D", ring: "#BBF7D0", dot: "#22C55E", label: "Active" },
+  deactivated: { bg: "#FEF2F2", fg: "#B91C1C", ring: "#FECACA", dot: "#EF4444", label: "Deactivated" },
+} as const;
+
+function StatusChip({ active }: { active: boolean }) {
+  const c = active ? STATUS_CHIP.active : STATUS_CHIP.deactivated;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold ring-1 ring-inset"
+      style={{ background: c.bg, color: c.fg, boxShadow: `inset 0 0 0 1px ${c.ring}` }}
+    >
+      <span className="size-1.5 rounded-full" style={{ background: c.dot }} />
+      {c.label}
+    </span>
+  );
+}
+
 export function EmployeeList({
   employees,
   membershipsByEmployee,
   salaryProfileByEmployee,
   currentEmployeeId,
   canManageAdmins,
+  superAdminIds,
   departmentOptions,
   managerOptions,
 }: Props) {
+  // Set, not .includes() — this is read once per row on every render/sort.
+  const superAdminSet = React.useMemo(
+    () => new Set(superAdminIds),
+    [superAdminIds],
+  );
+
   const deptNames = (e: Employee) =>
     (membershipsByEmployee[e.id] ?? []).map((m) => m.name).join(" ");
 
@@ -237,6 +288,14 @@ export function EmployeeList({
           match: (e, v) =>
             (membershipsByEmployee[e.id] ?? []).some((m) => m.id === v),
         },
+        {
+          label: "Status",
+          options: [
+            { value: "active", label: "Active" },
+            { value: "deactivated", label: "Deactivated" },
+          ],
+          match: (e, v) => (v === "active" ? e.isActive : !e.isActive),
+        },
       ]}
       columns={[
         {
@@ -272,11 +331,28 @@ export function EmployeeList({
           render: (e) => <RoleChip role={e.role} />,
         },
         {
+          key: "access",
+          label: "Access",
+          // super-admins first, then admins, then everyone else
+          sortValue: (e) => (superAdminSet.has(e.id) ? 2 : e.isAdmin ? 1 : 0),
+          render: (e) => (
+            <AccessChip
+              level={superAdminSet.has(e.id) ? "super" : e.isAdmin ? "admin" : "none"}
+            />
+          ),
+        },
+        {
           key: "department",
           label: "Department",
           render: (e) => (
             <DepartmentCell memberships={membershipsByEmployee[e.id] ?? []} />
           ),
+        },
+        {
+          key: "status",
+          label: "Status",
+          sortValue: (e) => (e.isActive ? 1 : 0),
+          render: (e) => <StatusChip active={e.isActive} />,
         },
       ]}
       rowActions={(e) => (

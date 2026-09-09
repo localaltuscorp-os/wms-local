@@ -53,7 +53,7 @@ export async function GET(req: Request) {
   return NextResponse.json(
     {
       title: "Due Dates Checklist",
-      tagline: "Recurring bills & statutory items - frequency, period, due date and payment status.",
+      tagline: "Recurring bills & statutory items — frequency, period, due date and payment status.",
       counts: { total: items.length, paid: paidCount, pending: items.length - paidCount },
       items,
     },

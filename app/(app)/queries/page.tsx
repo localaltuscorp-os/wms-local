@@ -45,7 +45,7 @@ export default async function QueriesPage() {
       <main className="mx-auto w-full max-w-[900px] px-8 pt-6 pb-8 max-md:px-4 max-md:pt-5 max-md:pb-6">
         <PageCommandBar
           title="Queries & Notifications"
-          hint="Ask HR anything - you'll be notified when they reply."
+          hint="Ask HR anything — you'll be notified when they reply."
         />
 
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">

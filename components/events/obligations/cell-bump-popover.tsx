@@ -107,7 +107,7 @@ export function CellBumpPopover({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={`${obligationName} - ${col.label} ${col.calYear}: ${cell.effective} of ${target}`}
+          aria-label={`${obligationName} — ${col.label} ${col.calYear}: ${cell.effective} of ${target}`}
           className="relative flex h-11 w-full items-center justify-center rounded-md border text-[13px] font-bold tabular-nums transition-transform hover:-translate-y-px focus-visible:outline-2"
           style={{
             background: st.bg,
@@ -117,7 +117,7 @@ export function CellBumpPopover({
           }}
         >
           {status === "future" ? (
-            <span className="opacity-70">-</span>
+            <span className="opacity-70">—</span>
           ) : (
             <span>
               {cell.effective}

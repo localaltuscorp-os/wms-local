@@ -240,7 +240,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
                   <ul className="flex flex-col gap-4">
                     {session.feedback.map((f) => {
                       const avg = [f.content, f.depth, f.understanding, f.applicability].filter((x): x is number => x != null);
-                      const mean = avg.length ? (avg.reduce((a, b) => a + b, 0) / avg.length).toFixed(1) : "-";
+                      const mean = avg.length ? (avg.reduce((a, b) => a + b, 0) / avg.length).toFixed(1) : "—";
                       return (
                         <li key={f.id} className="rounded-xl border border-hairline bg-surface-soft p-3.5">
                           <div className="flex items-center justify-between">
@@ -250,10 +250,10 @@ export default async function SessionDetailPage({ params }: PageProps) {
                             </span>
                           </div>
                           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] font-semibold text-ink-subtle">
-                            <span>Content {f.content ?? "-"}</span>
-                            <span>Depth {f.depth ?? "-"}</span>
-                            <span>Understanding {f.understanding ?? "-"}</span>
-                            <span>Applicability {f.applicability ?? "-"}</span>
+                            <span>Content {f.content ?? "—"}</span>
+                            <span>Depth {f.depth ?? "—"}</span>
+                            <span>Understanding {f.understanding ?? "—"}</span>
+                            <span>Applicability {f.applicability ?? "—"}</span>
                           </div>
                           {f.learned && <p className="mt-2 text-[13.5px] text-ink-soft"><span className="font-bold text-ink-strong">Learned: </span>{f.learned}</p>}
                           {f.improve && <p className="mt-1 text-[13.5px] text-ink-soft"><span className="font-bold text-ink-strong">Improve: </span>{f.improve}</p>}

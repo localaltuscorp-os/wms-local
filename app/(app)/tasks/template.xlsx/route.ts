@@ -91,7 +91,7 @@ export async function GET(): Promise<Response> {
   const lastCol = cols.length;
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = "ALTUS Corp - Tasks";
+  wb.creator = "ALTUS Corp — Tasks";
   wb.created = new Date();
 
   /* ================================================================ */
@@ -134,7 +134,7 @@ export async function GET(): Promise<Response> {
   // ── Row 1: brand title banner (logo + title) ───────────────────────
   sheet.mergeCells(1, 1, 1, lastCol);
   const titleCell = sheet.getCell(1, 1);
-  titleCell.value = "ALTUS Corp · Tasks - Bulk Import Template";
+  titleCell.value = "ALTUS Corp · Tasks — Bulk Import Template";
   titleCell.font = { name: "Calibri", bold: true, size: 18, color: { argb: BRAND_RED } };
   titleCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
   sheet.getRow(1).height = 40;
@@ -264,13 +264,13 @@ export async function GET(): Promise<Response> {
   how.getColumn(4).width = 70;
   const h1 = how.getCell(1, 1);
   how.mergeCells(1, 1, 1, 4);
-  h1.value = "ALTUS Corp · Tasks bulk import - how to use";
+  h1.value = "ALTUS Corp · Tasks bulk import — how to use";
   h1.font = { name: "Calibri", bold: true, size: 16, color: { argb: BRAND_RED } };
   how.getRow(1).height = 30;
   const intro = how.getCell(2, 1);
   how.mergeCells(2, 1, 2, 4);
   intro.value =
-    "Fill the 'Tasks' sheet - one task per row. Required: Client, Subject, Description, Doer, Due Date. Doer & Initiator match by employee name or email. Cells marked 🔒 are read-only. Use the dropdowns (they support type-ahead). Re-upload the same file to import.";
+    "Fill the 'Tasks' sheet — one task per row. Required: Client, Subject, Description, Doer, Due Date. Doer & Initiator match by employee name or email. Cells marked 🔒 are read-only. Use the dropdowns (they support type-ahead). Re-upload the same file to import.";
   intro.alignment = { wrapText: true, vertical: "top" };
   intro.font = { name: "Calibri", size: 10.5, color: { argb: INK } };
   how.getRow(2).height = 46;
@@ -287,7 +287,7 @@ export async function GET(): Promise<Response> {
   cols.forEach((c: TaskTemplateColumn, idx) => {
     const row = how.getRow(5 + idx);
     const editable = c.locked ? "Read-only" : c.writable ? "Yes" : "No";
-    const values = [c.header, editable, c.schemaField ?? "-", c.help];
+    const values = [c.header, editable, c.schemaField ?? "—", c.help];
     values.forEach((v, i) => {
       const cell = row.getCell(i + 1);
       cell.value = v;

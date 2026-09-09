@@ -31,13 +31,13 @@ export function WelcomeOfficialEmail({
 }: Props) {
   const firstName = employeeName.split(" ")[0] ?? employeeName;
   return (
-    <EmailLayout preview={`Welcome to Altus Corp - your official email is ${officialEmail}`}>
+    <EmailLayout preview={`Welcome to Altus Corp — your official email is ${officialEmail}`}>
       <Heading style={{ fontSize: 20, color: "#0F172A", margin: "0 0 16px" }}>
         Welcome aboard, {firstName}🎉
       </Heading>
       <Text style={{ fontSize: 14, color: "#334155", lineHeight: 1.6, margin: "0 0 16px" }}>
         We&apos;re delighted to have you at <strong>Altus Corp</strong>. Your
-        official company email address is ready - this is the address to use for
+        official company email address is ready — this is the address to use for
         all work correspondence going forward.
       </Text>
 
@@ -59,7 +59,7 @@ export function WelcomeOfficialEmail({
       </div>
 
       <Text style={{ fontSize: 14, color: "#334155", lineHeight: 1.6, margin: "0 0 12px" }}>
-        Sign in to the Altus Corp Dashboard - the tool the team uses day-to-day -
+        Sign in to the Altus Corp Dashboard — the tool the team uses day-to-day —
         with the details below.
       </Text>
       <div
@@ -98,7 +98,7 @@ export function WelcomeOfficialEmail({
         <Link href={loginUrl} style={{ color: "#A80400" }}>
           {loginUrl}
         </Link>
-        {password ? " - change your password anytime from your Profile." : " - use “Forgot password” on the login page to set your password."}
+        {password ? " — change your password anytime from your Profile." : " — use “Forgot password” on the login page to set your password."}
       </Text>
 
       <Heading style={{ fontSize: 15, color: "#0F172A", margin: "24px 0 8px" }}>
@@ -108,7 +108,7 @@ export function WelcomeOfficialEmail({
         1. Sign in and complete your profile.<br />
         2. Read &amp; sign your company policies from the HR section.<br />
         3. Confirm your induction details (address, bank &amp; emergency contacts)
-        - pre-filled from your joining form.<br />
+        — pre-filled from your joining form.<br />
         4. Say hello to your team and your reporting manager.
       </Text>
 

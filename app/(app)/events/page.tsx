@@ -32,7 +32,7 @@ export default async function EventsHubPage() {
             any content. The band keeps the name and one line of orientation. */}
         <PageCommandBar
           title="Monthly Events Master"
-          hint="The company calendar - batches, meetings and obligations, one month at a glance."
+          hint="The company calendar — batches, meetings and obligations, one month at a glance."
         />
 
         <section

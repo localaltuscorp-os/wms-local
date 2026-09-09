@@ -132,5 +132,13 @@ __claude-*.mjs
 
 # legacy mobile drop - removed 2026-09-02
 mobile_LEGACY_DROP_*/
+
+.vercel
+.env*
+
+# Local backup snapshots — contains full DB rows (salary + PII) and git bundles.
+# Never commit: 112MB and employee personal data.
+/Altus Backup/
+
 # Dummy-mode object storage — the local stand-in for the Supabase bucket.
 .dummy-storage/

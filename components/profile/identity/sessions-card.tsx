@@ -117,7 +117,7 @@ export function SessionsCard({ sessions }: Props) {
 
       {sessions.length === 0 ? (
         <p style={{ color: "var(--color-ink-subtle)", fontSize: 15, margin: 0 }}>
-          No tracked sessions yet - sign out and back in to see this device
+          No tracked sessions yet — sign out and back in to see this device
           listed.
         </p>
       ) : (

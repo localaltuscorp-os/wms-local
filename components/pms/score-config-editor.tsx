@@ -62,7 +62,7 @@ export function ScoreConfigEditor({ initial }: { initial: PmsScoreConfig }) {
     start(async () => {
       const res = await saveScoreConfig({ weights, thresholds, formula });
       if (!res.ok) { fireToast({ message: res.error }); return; }
-      fireToast({ message: "Scoring policy saved - applies on the next score.", type: "success" });
+      fireToast({ message: "Scoring policy saved — applies on the next score.", type: "success" });
       router.refresh();
     });
   }
@@ -99,7 +99,7 @@ export function ScoreConfigEditor({ initial }: { initial: PmsScoreConfig }) {
             total {weightTotal} · relative (normalised)
           </span>
         </div>
-        <p className="mt-2 text-[13.5px] text-ink-muted">How much each pillar counts toward the score. Relative - a pillar with no data is excluded, not zeroed.</p>
+        <p className="mt-2 text-[13.5px] text-ink-muted">How much each pillar counts toward the score. Relative — a pillar with no data is excluded, not zeroed.</p>
 
         {/* Live weight-share bar — folds over the inputs, zero queries */}
         {weightTotal > 0 && (

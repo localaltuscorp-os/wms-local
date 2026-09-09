@@ -58,7 +58,7 @@ export function IntakeReviewStep({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${header.name} - Candidate Interview Form.pdf`;
+      a.download = `${header.name} — Candidate Interview Form.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

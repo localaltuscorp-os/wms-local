@@ -250,7 +250,7 @@ export function PunchCard({
         }
         fireToast({
           message:
-            kind === "in" ? "Checked in - have a great day!" : "Checked out. See you tomorrow!",
+            kind === "in" ? "Checked in — have a great day!" : "Checked out. See you tomorrow!",
         });
         setNote("");
         router.refresh();
@@ -381,7 +381,7 @@ export function PunchCard({
                 onChange={(e) => setNote(e.target.value)}
                 maxLength={500}
                 rows={2}
-                placeholder="e.g. client visit in the morning - or tap Voice to dictate"
+                placeholder="e.g. client visit in the morning — or tap Voice to dictate"
                 className="w-full resize-y rounded-xl px-3.5 py-2.5 text-[14.5px] font-medium text-ink-strong bg-white outline-none transition-colors focus:border-[#E10600]"
                 style={{ border: "2px solid var(--color-hairline-strong)", boxShadow: "inset 0 1px 3px rgba(15,23,42,0.05)" }}
               />
@@ -428,7 +428,7 @@ export function PunchCard({
               <>
                 <LocateFixed size={16} strokeWidth={2.6} />
                 {loc.phase === "denied" || loc.phase === "error"
-                  ? "Location blocked - tap to enable"
+                  ? "Location blocked — tap to enable"
                   : "Enable location to punch"}
               </>
             )}
@@ -708,7 +708,7 @@ function LocationPanel({
         style={{ background: "var(--color-green-bg)", color: "var(--color-green-deep)" }}
       >
         <CheckCircle2 size={16} strokeWidth={2.3} />
-        Location enabled - you&apos;re ready to punch.
+        Location enabled — you&apos;re ready to punch.
       </div>
     );
   }
@@ -845,7 +845,7 @@ function Stat({ label, value, kind }: { label: string; value: string | null; kin
         <Icon size={12} strokeWidth={2.6} /> {label}
       </div>
       <div className="mt-1 tabular-nums font-black" style={{ fontSize: 24, color: has ? "var(--color-ink-strong)" : "var(--color-ink-subtle)" }}>
-        {value ?? "-"}
+        {value ?? "—"}
       </div>
     </div>
   );

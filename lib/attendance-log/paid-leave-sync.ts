@@ -79,7 +79,7 @@ export async function runPaidLeaveSync(opts: {
 
     if (cycles.length === 0) {
       throw new Error(
-        `Sheet mapped to 0 paid-leave cycles (${matrix.length} raw rows read) - check sharing, tab name and range.`,
+        `Sheet mapped to 0 paid-leave cycles (${matrix.length} raw rows read) — check sharing, tab name and range.`,
       );
     }
 

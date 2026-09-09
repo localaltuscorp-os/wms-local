@@ -100,7 +100,7 @@ export function ApproveWorkbench({
               signed off
             </p>
             <p className="text-[13px] font-semibold text-ink-muted">
-              {done ? "Your team is fully approved - you're clear to clock in." : "Approve each person's last week + this week."}
+              {done ? "Your team is fully approved — you're clear to clock in." : "Approve each person's last week + this week."}
             </p>
           </div>
           <div className="min-w-[160px] flex-1">
@@ -120,7 +120,7 @@ export function ApproveWorkbench({
 
         {!isMonday && (
           <p className="relative z-10 mt-3 inline-flex items-center gap-1.5 rounded-pill bg-surface-soft px-3 py-1.5 text-[12.5px] font-semibold text-ink-muted">
-            <CalendarClock size={14} style={{ color: ACCENT }} /> Preview - the clock-in approval gate is live on Mondays (IST).
+            <CalendarClock size={14} style={{ color: ACCENT }} /> Preview — the clock-in approval gate is live on Mondays (IST).
           </p>
         )}
       </div>

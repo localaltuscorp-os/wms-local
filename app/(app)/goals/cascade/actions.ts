@@ -534,7 +534,7 @@ export async function addChildGoal(
   if (!childPeriod) {
     return {
       ok: false,
-      error: "Add weekly goals from the month view - use “Generate weekly rows”.",
+      error: "Add weekly goals from the month view — use “Generate weekly rows”.",
     };
   }
 
@@ -656,7 +656,7 @@ export async function editGoal(
       if (others + d.weight > WEIGHT_CAP) {
         return {
           ok: false,
-          error: `Total weight for this period would be ${others + d.weight}% - keep all goals' weights at or below 100% combined (${WEIGHT_CAP - others}% left).`,
+          error: `Total weight for this period would be ${others + d.weight}% — keep all goals' weights at or below 100% combined (${WEIGHT_CAP - others}% left).`,
         };
       }
     }
@@ -1585,7 +1585,7 @@ export async function undoConvertGoal(
   const loaded = await loadWritableGoalRow(d.goalId, { id: me.id, isAdmin });
   if (!loaded.ok) return loaded;
   const src = loaded.row;
-  if (!src.archived) return { ok: false, error: "That goal isn't archived - nothing to undo." };
+  if (!src.archived) return { ok: false, error: "That goal isn't archived — nothing to undo." };
 
   // Same Option-A gate as the convert it reverses — no bypass.
   const pol = await policyGate({ id: me.id, isAdmin }, src.employeeId);
@@ -2245,7 +2245,7 @@ export async function redistributeChildren(
           })
           .where(eq(goals.id, id))
           .returning();
-        if (!row) throw new Error("A goal vanished mid-rebalance - nothing was changed.");
+        if (!row) throw new Error("A goal vanished mid-rebalance — nothing was changed.");
         out.push(row);
       }
       return out;

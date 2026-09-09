@@ -120,7 +120,7 @@ export function EvaluationChecklistBody({
           </div>
         </div>
         <span className="text-right tabular-nums" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 40, lineHeight: 1 }}>
-          {overall.rated ? fmt(overall.avg) : "-"}<span className="text-[20px] font-bold text-white/70"> / 10</span>
+          {overall.rated ? fmt(overall.avg) : "—"}<span className="text-[20px] font-bold text-white/70"> / 10</span>
         </span>
       </section>
 
@@ -129,7 +129,7 @@ export function EvaluationChecklistBody({
         <h2 className="text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 800, fontSize: 20 }}>
           Quick Interview Summary
         </h2>
-        <p className="mt-1 mb-4 text-[13.5px] text-ink-muted">Auto-derived scores from the ratings above - no need to re-rate.</p>
+        <p className="mt-1 mb-4 text-[13.5px] text-ink-muted">Auto-derived scores from the ratings above — no need to re-rate.</p>
         <div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
           {SUMMARY_ITEMS.map((item) => {
             const s = summaryScore(item, ratings);
@@ -142,7 +142,7 @@ export function EvaluationChecklistBody({
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink-strong">{item.label}</span>
                 <span className="shrink-0 text-[12.5px] font-bold tabular-nums" style={{ color: tone.fg }}>
-                  {s.rated ? `${fmt(s.avg)} / 10` : "-"}
+                  {s.rated ? `${fmt(s.avg)} / 10` : "—"}
                 </span>
               </div>
             );
@@ -168,7 +168,7 @@ function ScorePill({ label, score }: { label: string; score: Score }) {
       style={{ background: tone.bg, color: tone.fg }}
     >
       <span className="text-[10.5px] uppercase tracking-wide opacity-80">{label}</span>
-      {rated ? `${fmt(score.avg)} / 10` : "- / 10"}
+      {rated ? `${fmt(score.avg)} / 10` : "— / 10"}
     </span>
   );
 }

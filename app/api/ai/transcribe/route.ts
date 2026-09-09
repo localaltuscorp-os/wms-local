@@ -97,11 +97,11 @@ export async function POST(req: Request) {
   }
 
   if (!audio || audio.size === 0) {
-    return NextResponse.json({ ok: false, error: "The recording was empty - try again." }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "The recording was empty — try again." }, { status: 400 });
   }
   if (audio.size > MAX_BYTES) {
     return NextResponse.json(
-      { ok: false, error: "Recording too long - keep it under ~5 minutes." },
+      { ok: false, error: "Recording too long — keep it under ~5 minutes." },
       { status: 413 },
     );
   }
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
       // treat it as no-speech rather than writing garbage into the user's note.
       if (isHallucination(r.text)) {
         return NextResponse.json(
-          { ok: false, error: "No clear speech was detected - try again and speak a little louder." },
+          { ok: false, error: "No clear speech was detected — try again and speak a little louder." },
           { status: 422 },
         );
       }

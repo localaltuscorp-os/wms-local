@@ -40,7 +40,7 @@ export async function renderCombinedEarningsPdf(
   const signatory = signatoryForEntity(entity);
 
   const { doc, done } = newDoc({
-    title: `Total Earnings - ${data.employeeName} - ${data.monthLabel}`,
+    title: `Total Earnings — ${data.employeeName} — ${data.monthLabel}`,
     subject: "Total Earnings Statement",
     margin: 48,
   });
@@ -51,7 +51,7 @@ export async function renderCombinedEarningsPdf(
 
   drawChrome(doc);
   drawMasthead(doc, entity, "Payroll Department  ·  Private & Confidential");
-  drawTitleBand(doc, `Total Earnings  -  ${data.monthLabel}`, data.fy);
+  drawTitleBand(doc, `Total Earnings  —  ${data.monthLabel}`, data.fy);
 
   // ── Employee line ──
   doc
@@ -64,7 +64,7 @@ export async function renderCombinedEarningsPdf(
     .font("Helvetica")
     .fontSize(9.5)
     .fillColor(COLORS.inkSoft)
-    .text([data.designation, entity].filter(Boolean).join("  ·  ") || "-", left, doc.y, {
+    .text([data.designation, entity].filter(Boolean).join("  ·  ") || "—", left, doc.y, {
       lineBreak: false,
     });
   doc.y += 20;
@@ -98,7 +98,7 @@ export async function renderCombinedEarningsPdf(
     if (data.salary.previousPending !== 0) {
       rowLine("Previous pending", inr(data.salary.previousPending));
     }
-    rowLine("Salary - final payment", inr(data.salary.finalPayment), { bold: true });
+    rowLine("Salary — final payment", inr(data.salary.finalPayment), { bold: true });
   } else {
     doc
       .font("Helvetica-Oblique")
@@ -184,7 +184,7 @@ export async function renderCombinedEarningsPdf(
     doc.text(inr(w.target), c2, y, { width: width * 0.18, align: "right", lineBreak: false });
     doc.text(inr(w.paid), c3, y, { width: width * 0.18, align: "right", lineBreak: false });
     doc.text(
-      w.attainmentPct == null ? "-" : `${Math.round(w.attainmentPct)}%`,
+      w.attainmentPct == null ? "—" : `${Math.round(w.attainmentPct)}%`,
       c4,
       y,
       { width: width * 0.18 - 4, align: "right", lineBreak: false },
@@ -199,7 +199,7 @@ export async function renderCombinedEarningsPdf(
     { label: "Target", value: inr(inc.thisMonth.target) },
     {
       label: "Attainment",
-      value: inc.thisMonth.attainmentPct == null ? "-" : `${Math.round(inc.thisMonth.attainmentPct)}%`,
+      value: inc.thisMonth.attainmentPct == null ? "—" : `${Math.round(inc.thisMonth.attainmentPct)}%`,
     },
     { label: "Year to date", value: inr(inc.ytd.paid) },
   ]);

@@ -246,7 +246,7 @@ function TierColumn({
             className="tabular-nums flex h-[38px] items-center rounded-xl bg-surface-card px-3 text-[16px] font-black text-ink-strong"
             style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}
           >
-            {savedScore ?? "-"}
+            {savedScore ?? "—"}
             {savedScore != null && <span className="ml-0.5 text-[11px] font-bold text-ink-subtle">%</span>}
           </div>
           {savedNote ? (
@@ -326,7 +326,7 @@ function KpiSection({ data }: { data: ScorecardData }) {
 
   if (!target || target.lines.length === 0) {
     return (
-      <EmptyBox label="No KPI targets in the dictionary for this person - their KPI (incentive) dimension computes to 0." />
+      <EmptyBox label="No KPI targets in the dictionary for this person — their KPI (incentive) dimension computes to 0." />
     );
   }
 
@@ -619,7 +619,7 @@ function Scorecard({ data, isAdmin }: { data: ScorecardData; isAdmin: boolean })
                   {data.employee.name}
                 </h2>
                 <p className="truncate text-[13.5px] font-semibold text-ink-subtle">
-                  {[data.employee.designation, data.employee.department].filter(Boolean).join(" · ") || "-"}
+                  {[data.employee.designation, data.employee.department].filter(Boolean).join(" · ") || "—"}
                 </p>
               </div>
             </div>
@@ -698,7 +698,7 @@ function Scorecard({ data, isAdmin }: { data: ScorecardData; isAdmin: boolean })
       {/* cumulative expanded sections */}
       {openList.length === 0 ? (
         <div className="rounded-2xl bg-surface-card p-8 text-center text-[13.5px] font-medium text-ink-muted" style={{ boxShadow: CARD_SHADOW }}>
-          Click any dimension above to open its scoring section. Sections stack here - open as many as you like.
+          Click any dimension above to open its scoring section. Sections stack here — open as many as you like.
         </div>
       ) : (
         <div className="flex flex-col gap-4">

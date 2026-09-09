@@ -121,7 +121,7 @@ export async function broadcastAttendanceAlert(
     if (recipients.length === 0) return { ok: true, sent: 0 };
 
     const title = `Attendance alert · ${analytics.monthLabel}`;
-    const body = `${alert.title} - ${alert.detail}`;
+    const body = `${alert.title} — ${alert.detail}`;
     await Promise.allSettled(
       recipients.map((employeeId) =>
         sendFcmToEmployee(employeeId, {

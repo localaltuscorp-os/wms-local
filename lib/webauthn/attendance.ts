@@ -97,7 +97,7 @@ export async function verifyAndStoreRegistration(
 > {
   const expectedChallenge = await consumeChallenge();
   if (!expectedChallenge) {
-    return { ok: false, error: "Setup expired - try again." };
+    return { ok: false, error: "Setup expired — try again." };
   }
   const { rpID, origin } = await rpContext();
   let verification;
@@ -158,7 +158,7 @@ export async function verifyPunchAssertion(
 ): Promise<{ ok: true; credentialId: string } | { ok: false; error: string }> {
   const expectedChallenge = await consumeChallenge();
   if (!expectedChallenge) {
-    return { ok: false, error: "Biometric check expired - punch again." };
+    return { ok: false, error: "Biometric check expired — punch again." };
   }
   const creds = await listCredentials(employeeId);
   const cred = creds.find((c) => c.credentialId === response.id);

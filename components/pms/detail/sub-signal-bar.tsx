@@ -32,7 +32,7 @@ export function SubSignalBar({
         className="w-12 shrink-0 text-right text-[13px] font-bold tabular-nums"
         style={{ color: pct == null ? "var(--color-ink-subtle)" : accentDeep }}
       >
-        {pct == null ? "-" : `${pct}%`}
+        {pct == null ? "—" : `${pct}%`}
       </span>
     </div>
   );

@@ -24,7 +24,7 @@ export function CredentialsInviteEmail({
         Hi {firstName},
       </Heading>
       <Text style={{ fontSize: 14, color: "#334155", lineHeight: 1.6, margin: "0 0 16px" }}>
-        <strong>{inviterName}</strong> has added you to the Altus Corp Dashboard -
+        <strong>{inviterName}</strong> has added you to the Altus Corp Dashboard —
         the work-management tool the team uses to track tasks day-to-day. Sign in
         with the details below.
       </Text>
@@ -62,7 +62,7 @@ export function CredentialsInviteEmail({
       </Text>
       <Text style={{ fontSize: 13, color: "#334155", lineHeight: 1.6, margin: "0 0 16px" }}>
         You can change your password anytime from your Profile. If you've already
-        set your own password, keep using it - this message just confirms your
+        set your own password, keep using it — this message just confirms your
         account is ready.
       </Text>
       <Text style={{ fontSize: 12, color: "#94A3B8", margin: "16px 0 0" }}>

@@ -64,7 +64,7 @@ export function TaskReportView({ data, avatarById, isAdmin, meId }: TaskReportVi
         <ReportSection
           icon={<Users size={22} strokeWidth={2.4} />}
           kicker="Task initiator"
-          title="Who is delegating - target vs actual"
+          title="Who is delegating — target vs actual"
           /* Reads the CONSTANT, not a literal. This said "3 tasks per report
              per working day" while PER_REPORT_PER_DAY has been 5 — harmless
              while the section showed cards, but now that it renders the same

@@ -126,7 +126,7 @@ export function ArchiveCategoryDialog({
                   />
                 ) : (
                   <p className="text-[12.5px] font-semibold text-altus-red">
-                    No other active category to reassign to - use “Clear” instead.
+                    No other active category to reassign to — use “Clear” instead.
                   </p>
                 )}
               </div>

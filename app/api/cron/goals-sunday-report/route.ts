@@ -74,7 +74,7 @@ async function run(request: Request): Promise<NextResponse> {
       if (goalsWhatsappOn() && toPhone) {
         const up = await uploadMedia(pdf, "application/pdf");
         if (up.ok) {
-          const caption = `${rollup.manager.name}'s team - week of ${rollup.weekLabel}. ${rollup.notWritten} of ${rollup.rows.length} wrote no goals · team avg ${rollup.teamLastAvg}%.`;
+          const caption = `${rollup.manager.name}'s team — week of ${rollup.weekLabel}. ${rollup.notWritten} of ${rollup.rows.length} wrote no goals · team avg ${rollup.teamLastAvg}%.`;
           const sent = await sendDocument({ toPhone, mediaId: up.id, filename, caption });
           if (sent.ok) whatsapped++;
         }

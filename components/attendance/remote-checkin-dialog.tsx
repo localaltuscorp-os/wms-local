@@ -53,7 +53,7 @@ export function RemoteCheckInDialog({
     setLocBusy(true);
     navigator.geolocation.getCurrentPosition(
       (p) => { setLoc({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }); setLocBusy(false); },
-      () => { setLocBusy(false); fireToast({ message: "Couldn't get location - allow access and retry.", type: "error" }); },
+      () => { setLocBusy(false); fireToast({ message: "Couldn't get location — allow access and retry.", type: "error" }); },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 },
     );
   }
@@ -91,7 +91,7 @@ export function RemoteCheckInDialog({
           <MapPinned size={19} className="text-white" strokeWidth={2.3} />
           <div className="min-w-0 flex-1">
             <div className="text-[15.5px] font-black text-white">Remote / On-Site Check-In</div>
-            <div className="text-[12px] font-semibold text-white/80">Log attendance from anywhere - with evidence</div>
+            <div className="text-[12px] font-semibold text-white/80">Log attendance from anywhere — with evidence</div>
           </div>
           <button type="button" onClick={() => !busy && onClose()} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25" aria-label="Close"><X size={17} strokeWidth={2.4} /></button>
         </div>

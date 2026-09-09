@@ -111,7 +111,7 @@ export async function loadCommitData(me: {
       const mine = rows.filter((r) => r.employeeId === id);
       return {
         employeeId: id,
-        name: nameById.get(id) ?? "-",
+        name: nameById.get(id) ?? "—",
         isSelf: id === me.id,
         thisWeek: mine.filter((r) => r.weekStart === weekStart).map(toRow),
         nextWeek: mine.filter((r) => r.weekStart === nextWeek).map(toRow),

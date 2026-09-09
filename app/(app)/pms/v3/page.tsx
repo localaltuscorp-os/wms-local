@@ -93,7 +93,7 @@ export default async function PmsV3Page() {
           </h1>
           <p className="mt-1.5 max-w-[80ch] text-[15px] font-medium text-ink-muted">
             Everyone self-scores; managers score their juniors; Manan scores everyone. Incentives convert to a
-            grade band of monthly CTC (paid only). This surface is DARK behind <code>PMS_V3</code> - it does not
+            grade band of monthly CTC (paid only). This surface is DARK behind <code>PMS_V3</code> — it does not
             affect the live score until Sir verifies.
           </p>
           <div className="mt-4 flex flex-wrap gap-2.5">
@@ -132,7 +132,7 @@ export default async function PmsV3Page() {
                 <EmployeeAvatar name={p.name} size="lg" />
                 <div className="min-w-0 flex-1">
                   <span className="block truncate text-[16px] font-bold text-ink-strong">{p.name}</span>
-                  <span className="text-[13px] text-ink-subtle">{p.department || "-"}</span>
+                  <span className="text-[13px] text-ink-subtle">{p.department || "—"}</span>
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
                   {t && <TotalBadge total={t.total} accent={ACCENT} accentDeep={ACCENT_DEEP} />}

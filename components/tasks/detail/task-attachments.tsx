@@ -21,7 +21,7 @@ import { uploadTaskAttachment, deleteTaskAttachment } from "@/app/(app)/tasks/at
 import { fireToast } from "@/lib/toast";
 
 function formatBytes(bytes: number | null): string {
-  if (bytes == null || bytes <= 0) return "-";
+  if (bytes == null || bytes <= 0) return "—";
   const units = ["B", "KB", "MB", "GB"];
   let n = bytes;
   let u = 0;

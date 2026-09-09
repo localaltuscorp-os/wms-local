@@ -78,7 +78,7 @@ function buildPrompt(input: InsightsInput): string {
     ...input.exGratiaRemarks.map((r) => `ex-gratia: ${r}`),
     ...input.deductionRemarks.map((r) => `deduction: ${r}`),
   ];
-  return `You are an HR analyst writing a short, fair attendance read-out for a salary sheet. Base every statement ONLY on the numbers given - never invent figures, never moralize, be specific and concrete.
+  return `You are an HR analyst writing a short, fair attendance read-out for a salary sheet. Base every statement ONLY on the numbers given — never invent figures, never moralize, be specific and concrete.
 
 Employee: ${input.employeeName}
 Selected month: ${input.month}
@@ -136,7 +136,7 @@ export function heuristicInsights(input: InsightsInput): AttendanceInsights {
 
   // Pros
   if (m.attendedDays > 0 && earlyThis.pct >= 80) {
-    pros.push(`Punctual - started on-time/early ${fmtRatio(earlyThis)} (${fmtPct(earlyThis)}) this month`);
+    pros.push(`Punctual — started on-time/early ${fmtRatio(earlyThis)} (${fmtPct(earlyThis)}) this month`);
   }
   if (m.lateNetDays === 0 && m.attendedDays > 0) {
     pros.push("No un-waived late arrivals this month");
@@ -150,7 +150,7 @@ export function heuristicInsights(input: InsightsInput): AttendanceInsights {
 
   // Cons
   if (lateThis.pct >= 20 && m.lateNetDays > 0) {
-    cons.push(`Late ${fmtRatio(lateThis)} (${fmtPct(lateThis)}) this month - above comfort`);
+    cons.push(`Late ${fmtRatio(lateThis)} (${fmtPct(lateThis)}) this month — above comfort`);
   } else if (m.lateNetDays >= 3) {
     cons.push(`${m.lateNetDays} un-waived late arrivals this month`);
   }
@@ -168,7 +168,7 @@ export function heuristicInsights(input: InsightsInput): AttendanceInsights {
 
   const summary =
     m.lateNetDays === 0 && pctOf(earlyThis) >= 80
-      ? "Strong, disciplined month - punctual with a clean late record."
+      ? "Strong, disciplined month — punctual with a clean late record."
       : m.lateNetDays > 0
         ? `Attendance is workable but lateness needs attention (${fmtRatio(lateThis)} un-waived).`
         : "Steady attendance this month.";

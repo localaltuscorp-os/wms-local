@@ -32,7 +32,7 @@ export function WorkSessions({
 }) {
   if (sessions.length === 0) {
     return (
-      <p className="text-[13.5px] text-ink-muted">No work sessions yet - press Start Work to begin recording.</p>
+      <p className="text-[13.5px] text-ink-muted">No work sessions yet — press Start Work to begin recording.</p>
     );
   }
 
@@ -66,7 +66,7 @@ export function WorkSessions({
                   <div className="text-[13.5px] font-semibold text-ink-strong tabular-nums">
                     {clock(s.startedAt)}
                     {" → "}
-                    {s.live ? <span className="text-altus-red-deep">live</span> : s.endedAt ? clock(s.endedAt) : "-"}
+                    {s.live ? <span className="text-altus-red-deep">live</span> : s.endedAt ? clock(s.endedAt) : "—"}
                   </div>
                   <div className="text-[11.5px] font-medium text-ink-subtle">
                     {s.live ? "In progress" : auto ? "Auto-closed (cap reached)" : s.endReason === "done" ? "Ended on Done" : "Completed"}

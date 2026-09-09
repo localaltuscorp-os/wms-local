@@ -34,7 +34,7 @@ export function LocalSearch({
   className?: string;
   autoFocus?: boolean;
 }) {
-  const label = `Local search - ${scope} only`;
+  const label = `Local search — ${scope} only`;
   return (
     <div
       className={`flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-2.5 ${className}`}

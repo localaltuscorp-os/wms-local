@@ -2,7 +2,7 @@ import { getResend, FROM, companyBcc, clampSubject } from "./resend";
 import { HR_CONTACT } from "@/lib/hr/firm";
 
 /**
- * HR LETTER - "Export & Email PDF" sender. Emails a rendered HR-letter PDF to the
+ * HR LETTER — "Export & Email PDF" sender. Emails a rendered HR-letter PDF to the
  * candidate/employee as an attachment, with a copy to the HR desk (HR_CONTACT.email
  * as CC) plus the company archive (companyBcc). Raw-HTML Resend body (same isolated
  * pattern as hr-recruiter-email.ts / report-emails.ts), on brand. Never throws;
@@ -29,7 +29,7 @@ function shell(title: string, sub: string, inner: string): string {
 /**
  * Email a rendered HR-letter PDF to its recipient, copying the HR desk.
  *
- * @returns `{ ok, skipped? }` - `skipped` when Resend is unconfigured (dev).
+ * @returns `{ ok, skipped? }` — `skipped` when Resend is unconfigured (dev).
  */
 export async function sendLetterPdfEmail(args: {
   to: string;
@@ -38,7 +38,7 @@ export async function sendLetterPdfEmail(args: {
   entityName: string;
   pdf: Buffer;
   filename: string;
-  /** Overrides the default "<title> - <entity>" subject (the composer's field). */
+  /** Overrides the default "<title> — <entity>" subject (the composer's field). */
   subject?: string;
   /** Optional free-text note from the sender, shown above the standard body. */
   message?: string;
@@ -49,7 +49,7 @@ export async function sendLetterPdfEmail(args: {
 
     const firstName = args.recipientName?.trim().split(/\s+/)[0];
     const greeting = firstName ? `Hi ${esc(firstName)},` : "Hello,";
-    // The sender's optional note, kept as authored - escaped, with blank lines
+    // The sender's optional note, kept as authored — escaped, with blank lines
     // turned into paragraphs so a multi-line message doesn't collapse to one run.
     const note = (args.message ?? "").trim();
     const noteHtml = note
@@ -70,7 +70,7 @@ export async function sendLetterPdfEmail(args: {
       from: FROM,
       to: args.to,
       ...(cc ? { cc } : {}),
-      subject: clampSubject(args.subject?.trim() || `${args.letterTitle} - ${args.entityName}`),
+      subject: clampSubject(args.subject?.trim() || `${args.letterTitle} — ${args.entityName}`),
       html: shell(args.letterTitle, args.entityName, inner),
       attachments: [{ filename: args.filename, content: args.pdf }],
       ...companyBcc(),

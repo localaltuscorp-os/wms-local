@@ -55,7 +55,7 @@ export function SmartAlertsPanel({
 
   const subtitle =
     alerts.length === 0
-      ? "No anomalies detected - everything is within thresholds"
+      ? "No anomalies detected — everything is within thresholds"
       : `${counts.critical} critical · ${counts.warning} warning · ${counts.info} info`;
 
   return (

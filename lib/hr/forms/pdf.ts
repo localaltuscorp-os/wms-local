@@ -40,7 +40,7 @@ export async function renderHrFormPdf(input: FormPdfInput): Promise<Buffer> {
     layout: "portrait",
     margin: MARGIN,
     info: {
-      Title: `${input.formName} - ${input.employeeName}`,
+      Title: `${input.formName} — ${input.employeeName}`,
       Author: "Altus Corp Dashboard",
       Subject: `${input.sectionLabel} · ${input.formName}`,
     },
@@ -64,7 +64,7 @@ export async function renderHrFormPdf(input: FormPdfInput): Promise<Buffer> {
     .fillColor(MUTED)
     .text(`${input.sectionLabel}  ·  ${input.employeeName}`, { width });
   doc.text(
-    input.status === "submitted" ? `Submitted ${input.submittedOn}` : `DRAFT - last saved ${input.submittedOn}`,
+    input.status === "submitted" ? `Submitted ${input.submittedOn}` : `DRAFT — last saved ${input.submittedOn}`,
     { width },
   );
 
@@ -101,7 +101,7 @@ export async function renderHrFormPdf(input: FormPdfInput): Promise<Buffer> {
     ensureRoom(doc, 46);
     doc.font("Helvetica").fontSize(9.5).fillColor(MUTED).text(r.question, { width });
     doc.moveDown(0.15);
-    doc.font("Helvetica-Bold").fontSize(11).fillColor(INK).text(r.answer || "-", { width });
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(INK).text(r.answer || "—", { width });
     doc.moveDown(0.15);
 
     const y = doc.y;

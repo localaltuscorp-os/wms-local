@@ -117,7 +117,7 @@ export function SectionErrorBoundary({
           Couldn&apos;t load {label}.
         </p>
         <p className="mx-auto mt-1 max-w-[46ch] text-[13px] font-medium text-ink-muted">
-          The rest of the page is still working - only this section failed.
+          The rest of the page is still working — only this section failed.
           {exhausted
             ? " It has failed repeatedly, so it is likely not a transient blip."
             : " This is usually a timeout and clears on a retry."}

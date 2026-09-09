@@ -347,7 +347,7 @@ export function score(completed: number, target: number): Scored {
 
 /** Format a percentage for display; `null` reads as an em dash, never "0%". */
 export function formatPct(pct: number | null): string {
-  return pct == null ? "-" : `${pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(2)}%`;
+  return pct == null ? "—" : `${pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(2)}%`;
 }
 
 /**
@@ -358,7 +358,7 @@ export function formatPct(pct: number | null): string {
  * changes a grade: the grade is derived from the exact value before this runs.
  */
 export function formatPctCompact(pct: number | null): string {
-  return pct == null ? "-" : `${Math.round(pct)}%`;
+  return pct == null ? "—" : `${Math.round(pct)}%`;
 }
 
 /** Whole rupees, Indian digit grouping. The paise on an incentive figure are

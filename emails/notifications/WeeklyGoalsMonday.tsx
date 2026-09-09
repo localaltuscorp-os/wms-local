@@ -44,7 +44,7 @@ export function WeeklyGoalsMondayEmail(props: WeeklyGoalsMondayProps) {
       {props.goals.length === 0 ? (
         <NotificationParagraph>
           You don&apos;t have any weekly goals set yet. Take two minutes to add the
-          top things you want to finish this week - it keeps everyone aligned.
+          top things you want to finish this week — it keeps everyone aligned.
         </NotificationParagraph>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse", margin: "4px 0 8px" }}>

@@ -44,7 +44,7 @@ export function AttendanceConfirmRequestEmail(props: AttendanceConfirmRequestPro
         Please confirm {props.scopeLabel}'s attendance.
       </NotificationHeadline>
       <NotificationParagraph>
-        It's Monday - time to confirm the outside-office attendance for{" "}
+        It's Monday — time to confirm the outside-office attendance for{" "}
         <strong>{props.weekLabel}</strong>. Tap the button below to confirm in one
         click, or open the dashboard to review each person first.
       </NotificationParagraph>

@@ -38,7 +38,7 @@ export function ResetPasswordDialog({ open, onOpenChange, employee }: Props) {
         fireToast({
           message:
             res.warning ??
-            `Password reset for ${employee.name} - they've been signed out and emailed.`,
+            `Password reset for ${employee.name} — they've been signed out and emailed.`,
         });
         setPassword("");
         setConfirm("");
@@ -72,7 +72,7 @@ export function ResetPasswordDialog({ open, onOpenChange, employee }: Props) {
                 style={{ lineHeight: 1.5 }}
               >
                 Sets a new password and <strong>signs them out of all devices</strong>.
-                Share the new password with them directly - they'll also get an
+                Share the new password with them directly — they'll also get an
                 email letting them know it was changed.
               </Dialog.Description>
             </div>

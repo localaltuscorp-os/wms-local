@@ -53,7 +53,7 @@ export async function renderExitLetterPdf(
     layout: "portrait",
     margin: 56,
     info: {
-      Title: `${letter.title} - ${input.employeeName}`,
+      Title: `${letter.title} — ${input.employeeName}`,
       Author: "Altus Corp Dashboard",
       Subject: letter.title,
     },

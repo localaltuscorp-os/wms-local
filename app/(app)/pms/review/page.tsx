@@ -128,7 +128,7 @@ export default async function PmsReviewPage() {
               </h1>
               <p className="mt-1.5 max-w-[76ch] text-[15px] font-medium text-ink-muted">
                 Rate the people you work with on Attitude, Behaviour and Skill (3–5) for {label}. Your
-                ratings feed the Attitude and Team-Work pillars of each person&apos;s PMS score - set
+                ratings feed the Attitude and Team-Work pillars of each person&apos;s PMS score — set
                 your own three personal goals below.
               </p>
 
@@ -223,7 +223,7 @@ export default async function PmsReviewPage() {
               </h2>
             </div>
             <p className="mb-4 text-[13.5px] text-ink-muted" style={{ maxWidth: "44ch" }}>
-              Three non-work goals for {label} - yours to track and reflect on.
+              Three non-work goals for {label} — yours to track and reflect on.
             </p>
             <PersonalGoalsEditor
               initial={goalRows}

@@ -961,7 +961,7 @@ export async function refreshKnowledgeSharing(itemId: string): Promise<Result<{ 
 
   const counts = await computeKnowledgeSharing(item.employeeId, cycle.period);
   if (!counts.wired) {
-    return { ok: false, error: "No training sessions found for this month - enter counts manually." };
+    return { ok: false, error: "No training sessions found for this month — enter counts manually." };
   }
 
   await db

@@ -145,10 +145,10 @@ export async function POST(req: Request) {
         return err(403, "Your location looks mocked. Turn off any fake-GPS app and punch again from the office.");
       }
       if (integ.configured && !integ.ok) {
-        return err(403, "This device failed the security check - punch from your genuine registered phone.");
+        return err(403, "This device failed the security check — punch from your genuine registered phone.");
       }
       if (nonceStale) {
-        return err(403, "That punch expired - please try again.");
+        return err(403, "That punch expired — please try again.");
       }
     }
   }
@@ -175,7 +175,7 @@ export async function POST(req: Request) {
     const closed = await isDayClosedOut(me.id, today).catch(() => true);
     if (!closed) {
       return NextResponse.json(
-        { ok: false, error: "Mark your today's commitment before you clock out - open Plan my day, then Finish day.", needsCloseout: true },
+        { ok: false, error: "Mark your today's commitment before you clock out — open Plan my day, then Finish day.", needsCloseout: true },
         { status: 409, headers: MOBILE_CORS },
       );
     }

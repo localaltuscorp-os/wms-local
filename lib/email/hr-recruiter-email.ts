@@ -34,7 +34,7 @@ function esc(s: string): string {
 }
 
 /**
- * Intake SUBMIT email - sent to the referring recruiter/consultant when a
+ * Intake SUBMIT email — sent to the referring recruiter/consultant when a
  * candidate's interview form is submitted, so they know their referral landed.
  * Best-effort: never throws; no-ops when Resend is unconfigured
  * (returns { ok:false, skipped:true }).
@@ -52,7 +52,7 @@ export async function sendRecruiterIntakeEmail(args: {
     const greeting = args.recruiterName?.trim()
       ? `Hi ${esc(args.recruiterName.trim().split(" ")[0]!)},`
       : "Hello,";
-    const posLine = args.position?.trim() ? ` - ${esc(args.position.trim())}` : "";
+    const posLine = args.position?.trim() ? ` — ${esc(args.position.trim())}` : "";
 
     const card = `<table style="width:100%;border-collapse:separate;border-spacing:0;margin:6px 0 14px"><tr>
       <td style="padding:14px 16px;border:1px solid #eee;border-radius:10px">
@@ -69,7 +69,7 @@ export async function sendRecruiterIntakeEmail(args: {
     const { error } = await resend.emails.send({
       from: FROM,
       to: args.to,
-      subject: clampSubject(`New candidate submitted - ${args.candidateName}`),
+      subject: clampSubject(`New candidate submitted — ${args.candidateName}`),
       html: shell("New candidate submitted", `${args.candidateName}${posLine}`, inner),
       ...companyBcc(),
     });
@@ -102,7 +102,7 @@ export async function sendRecruiterOutcomeEmail(args: {
       <td style="padding:14px 16px;border:1px solid #eee;border-radius:10px">
         <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px">Decision</div>
         <div style="font-size:22px;font-weight:800;color:${tone}">${verdict}</div>
-        <div style="font-size:13px;color:#555;margin-top:4px"><b>${esc(args.candidateName)}</b> - ${esc(args.position)}</div>
+        <div style="font-size:13px;color:#555;margin-top:4px"><b>${esc(args.candidateName)}</b> — ${esc(args.position)}</div>
       </td>
     </tr></table>`;
 
@@ -121,8 +121,8 @@ export async function sendRecruiterOutcomeEmail(args: {
     const { error } = await resend.emails.send({
       from: FROM,
       to: args.to,
-      subject: clampSubject(`Candidate ${args.candidateName} - ${verdict}`),
-      html: shell("Candidate outcome", `${args.candidateName} - ${args.position}`, inner),
+      subject: clampSubject(`Candidate ${args.candidateName} — ${verdict}`),
+      html: shell("Candidate outcome", `${args.candidateName} — ${args.position}`, inner),
       ...companyBcc(),
     });
     if (error) return { ok: false };

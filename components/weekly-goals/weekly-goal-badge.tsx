@@ -21,7 +21,7 @@ export function WeeklyGoalBadge({ className = "" }: { className?: string }) {
         letterSpacing: "0.04em",
         textTransform: "uppercase",
       }}
-      title="A weekly goal - open the Weekly Goals workspace to edit"
+      title="A weekly goal — open the Weekly Goals workspace to edit"
     >
       <Target size={11} strokeWidth={2.4} />
       Weekly Goal

@@ -53,7 +53,7 @@ const antiHarassmentPolicy: PolicyDoc = {
         "This Anti-Harassment & Non-Discrimination Policy establishes {firm}'s uncompromising commitment to a workplace free from discrimination, harassment, microaggression and bullying in any form. It has been adopted by the Founder and the Human Resources Department and forms an integral part of the terms of engagement of every individual to whom it applies.",
       ),
       p(
-        "The objective of this Policy is to define prohibited conduct, empower every member of the organisation to report concerns safely, guarantee objective and confidential redressal, and set out the disciplinary consequences of any breach - thereby safeguarding employee dignity, sustaining an inclusive corporate culture and preserving the Firm's professional reputation.",
+        "The objective of this Policy is to define prohibited conduct, empower every member of the organisation to report concerns safely, guarantee objective and confidential redressal, and set out the disciplinary consequences of any breach — thereby safeguarding employee dignity, sustaining an inclusive corporate culture and preserving the Firm's professional reputation.",
       ),
     ),
 
@@ -217,7 +217,7 @@ const antiHarassmentPolicy: PolicyDoc = {
           note: "Inquiry completed within a 15-day ceiling",
         },
         {
-          text: "Interim Protection: During active reviews, the committee can execute immediate protective adjustments-such as separating reporting relationships, altering Teams configurations, shifting team sprints, or placing the respondent on paid administrative leaves.",
+          text: "Interim Protection: During active reviews, the committee can execute immediate protective adjustments—such as separating reporting relationships, altering Teams configurations, shifting team sprints, or placing the respondent on paid administrative leaves.",
         },
         {
           text: "Good Faith & False Complaints: Complaints raised honestly and in good faith shall not result in disciplinary action against the complainant merely because the allegation could not ultimately be substantiated. However, complaints that are knowingly malicious or intentionally false, made in bad faith to cause harm to another individual, may themselves result in disciplinary action. This clause shall not be construed to discourage genuine reporting of workplace concerns.",
@@ -230,7 +230,7 @@ const antiHarassmentPolicy: PolicyDoc = {
       "Safeguards Against Retaliation & Disciplinary Framework",
       sub("8.1 Absolute Non-Retaliation Guarantee"),
       p(
-        "{firm} maintains an uncompromising stance against career victimization. Any subtle or explicit retaliation-such as giving fabricated low appraisal metrics, withholding standard equity options, malicious shifts in team dynamics, or digital exclusion due to a filed grievance-is a direct critical policy breach.",
+        "{firm} maintains an uncompromising stance against career victimization. Any subtle or explicit retaliation—such as giving fabricated low appraisal metrics, withholding standard equity options, malicious shifts in team dynamics, or digital exclusion due to a filed grievance—is a direct critical policy breach.",
       ),
       sub("8.2 Actionable Disciplinary Matrix"),
       p(

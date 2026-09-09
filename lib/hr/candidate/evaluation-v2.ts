@@ -87,7 +87,7 @@ export const EVAL_BUCKETS: { id: EvalBucketId; title: string; blurb: string }[] 
   {
     id: "prerequisites",
     title: "Pre-Requisites",
-    blurb: "Hygiene / deal-breakers - a critical ‘No’ (without a valid exception) flags the candidate for review.",
+    blurb: "Hygiene / deal-breakers — a critical ‘No’ (without a valid exception) flags the candidate for review.",
   },
   {
     id: "mandatory",
@@ -97,7 +97,7 @@ export const EVAL_BUCKETS: { id: EvalBucketId; title: string; blurb: string }[] 
   {
     id: "evaluations",
     title: "Evaluations & Judgments",
-    blurb: "Qualitative assessment - rate 0–10 (or ‘Can’t Say’), with notes you can dictate.",
+    blurb: "Qualitative assessment — rate 0–10 (or ‘Can’t Say’), with notes you can dictate.",
   },
 ];
 
@@ -133,7 +133,7 @@ export const EVAL_SECTIONS: EvalSection[] = [
     title: "Eligibility / Non-Negotiables",
     bucket: "prerequisites",
     input: "passfail",
-    note: "Confirm each with the candidate - Yes / No / N-A. A critical ‘No’ (without a recorded exception) flags them for review. Notes can be dictated.",
+    note: "Confirm each with the candidate — Yes / No / N-A. A critical ‘No’ (without a recorded exception) flags them for review. Notes can be dictated.",
     groups: [
       gc([
         ["prq-policy-acceptance", "Company Policy Acceptance", true],
@@ -383,7 +383,7 @@ export const EVAL_SECTIONS: EvalSection[] = [
     bucket: "evaluations",
     input: "rating",
     weight: 4,
-    note: "The intangible edge - rate 0–10.",
+    note: "The intangible edge — rate 0–10.",
     groups: [
       g([
         ["xf-x-factor", "X-Factor"],
@@ -458,7 +458,7 @@ export const EVAL_SECTIONS: EvalSection[] = [
     title: "Overall Score",
     bucket: "evaluations",
     input: "overall",
-    note: "Composite scores compute automatically. Pick a recommendation - you can override it with a reason.",
+    note: "Composite scores compute automatically. Pick a recommendation — you can override it with a reason.",
     groups: [],
   },
 ];

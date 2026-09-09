@@ -56,7 +56,7 @@ export function toRichRow(t: TaskExportRow): RichRow {
     clientName: t.title,
     subject: t.subject ?? "",
     status: STATUS_LABELS_FALLBACK[t.status] ?? t.status,
-    approvalStatus: t.approvalStatus ? APPROVAL_LABEL[t.approvalStatus] : "-",
+    approvalStatus: t.approvalStatus ? APPROVAL_LABEL[t.approvalStatus] : "—",
     priority: PRIORITY_LABELS[t.priority] ?? t.priority,
     doer: t.doerName ?? "",
     initiator: t.initiatorName ?? "",

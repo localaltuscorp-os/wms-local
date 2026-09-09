@@ -46,7 +46,7 @@ function rowMap(r: {
   const overdue = !r.resolution && (now - created) / 3_600_000 > FEEDBACK_TAT_HOURS;
   return {
     id: r.id, feedbackDate: r.feedbackDate, type: r.type,
-    ratedName: r.ratedEmpName || r.ratedName || "-",
+    ratedName: r.ratedEmpName || r.ratedName || "—",
     clientName: r.clientName, service: r.service, rating: r.rating, q1: r.q1, q2: r.q2,
     escalate: r.escalate, escalatedToName: r.escalatedToName,
     resolution: r.resolution, resolutionHow: r.resolutionHow,

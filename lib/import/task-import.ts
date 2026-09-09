@@ -195,7 +195,7 @@ export async function buildImportPreview(
     const hit = byName.get(normKey(v));
     if (!hit) return { id: null, error: `no employee named "${v}"` };
     if (hit === "AMBIGUOUS")
-      return { id: null, error: `more than one employee named "${v}" - use their email` };
+      return { id: null, error: `more than one employee named "${v}" — use their email` };
     return { id: hit };
   }
 

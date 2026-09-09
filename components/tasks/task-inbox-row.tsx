@@ -154,7 +154,7 @@ export function TaskInboxRow({
           unread ? "font-black text-ink-strong" : "font-bold text-ink-subtle",
         ].join(" ")}
       >
-        {row.taskNo != null ? `#${row.taskNo}` : "-"}
+        {row.taskNo != null ? `#${row.taskNo}` : "—"}
       </span>
 
       {/* 3 · Client */}
@@ -171,7 +171,7 @@ export function TaskInboxRow({
             {row.client}
           </span>
         ) : (
-          <span className="text-[11px] text-ink-subtle/60">-</span>
+          <span className="text-[11px] text-ink-subtle/60">—</span>
         )}
       </span>
 
@@ -185,7 +185,7 @@ export function TaskInboxRow({
             {row.subject}
           </span>
         ) : (
-          <span className="text-[11px] text-ink-subtle/60">-</span>
+          <span className="text-[11px] text-ink-subtle/60">—</span>
         )}
       </span>
 
@@ -202,7 +202,7 @@ export function TaskInboxRow({
         </span>
         {row.description && (
           <span className="truncate text-[12px] font-normal text-ink-subtle">
-            - {row.description}
+            — {row.description}
           </span>
         )}
       </div>
@@ -336,7 +336,7 @@ function IconAction({
 /** Compact date: "12 Aug" in-year, "12/08/25" otherwise. */
 function formatDate(d: Date): string {
   const date = d instanceof Date ? d : new Date(d);
-  if (Number.isNaN(date.getTime())) return "-";
+  if (Number.isNaN(date.getTime())) return "—";
   const now = new Date();
   if (date.getFullYear() === now.getFullYear())
     return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });

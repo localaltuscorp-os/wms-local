@@ -170,7 +170,7 @@ export function FeedbackForm({
       }
       timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
     } catch {
-      setError("Couldn't access the microphone - you can upload an audio file instead.");
+      setError("Couldn't access the microphone — you can upload an audio file instead.");
     }
   }
   function stopRecording() {
@@ -204,7 +204,7 @@ export function FeedbackForm({
       const json = await res.json();
       if (!json.ok) return setError(json.error || "Couldn't summarize the recording.");
       const text = (json.summary?.trim() || json.transcript?.trim() || "") as string;
-      if (!text) return setError("Nothing could be transcribed - try a clearer recording.");
+      if (!text) return setError("Nothing could be transcribed — try a clearer recording.");
       setVoiceTranscript((prev) => (prev.trim() ? prev.trim() + "\n\n" : "") + text);
       fireToast({ message: "AI summary added to the transcript.", type: "success" });
     } catch (err) {

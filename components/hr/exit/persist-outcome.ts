@@ -26,7 +26,7 @@ export const SUBMIT_RETRY_DELAY_MS = 150;
 export const SUBMIT_RETRY_ATTEMPTS = Math.ceil((AUTOSAVE_INTERVAL_MS * 2) / SUBMIT_RETRY_DELAY_MS);
 
 /** The message shown when the retry budget runs out — shared so both forms agree. */
-export const SUBMIT_BUSY_MESSAGE = "Still saving - try Submit again in a moment.";
+export const SUBMIT_BUSY_MESSAGE = "Still saving — try Submit again in a moment.";
 
 /**
  * Scroll the field a failed Submit is complaining about into view and focus it.

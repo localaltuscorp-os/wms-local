@@ -35,7 +35,7 @@ export async function createHrAssignmentTask(args: {
   const created = await createTasksCore(
     { id: actor.id, name: actor.name },
     {
-      title: `Assignment - ${args.candidateName} (${args.position})`,
+      title: `Assignment — ${args.candidateName} (${args.position})`,
       description: args.brief,
       initiatorId: args.initiatorId,
       doerId: ownerId,

@@ -39,7 +39,7 @@ export async function summarizeAmbassador(id: string): Promise<Result<{ summary:
 
   const facts = [
     `Partner: ${a.name}${a.company ? ` (${a.company})` : ""}`,
-    `Tier: ${a.tier ?? "unrated"} · Partner score: ${a.partnerScore ?? "-"}/100`,
+    `Tier: ${a.tier ?? "unrated"} · Partner score: ${a.partnerScore ?? "—"}/100`,
     `Payout terms: ${a.payoutType === "flat" ? `${inr(Number(a.payoutValue))} flat per conversion` : `${Number(a.payoutValue)}% of each deal`}`,
     `Referrals sent: ${referrals.length} · Converted: ${won.length} · Conversion: ${referrals.length ? Math.round((won.length / referrals.length) * 100) : 0}%`,
     `Revenue driven: ${inr(revenue)} · Commission currently owed: ${inr(owed)}`,
@@ -49,7 +49,7 @@ export async function summarizeAmbassador(id: string): Promise<Result<{ summary:
     `Recent referrals: ${referrals.slice(0, 6).map((r) => `${r.prospectName} [${r.stage}]`).join("; ") || "none"}`,
   ].join("\n");
 
-  const prompt = `You are a sales-operations analyst writing a crisp briefing on a referral PARTNER (an "ambassador") for the team that manages the relationship. Use ONLY the facts below - do not invent numbers or names.
+  const prompt = `You are a sales-operations analyst writing a crisp briefing on a referral PARTNER (an "ambassador") for the team that manages the relationship. Use ONLY the facts below — do not invent numbers or names.
 
 ${facts}
 

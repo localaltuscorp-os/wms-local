@@ -36,7 +36,7 @@ export function NotesCell({ goalId, hasNotes, expanded, onToggle }: NotesFilesCe
   if (!hasNotes) {
     return (
       <span className="block w-full text-left text-[12px] font-semibold" style={{ color: "var(--color-ink-subtle)" }}>
-        -
+        —
       </span>
     );
   }
@@ -132,7 +132,7 @@ export function AttachmentsCell({ goalId, expanded, onToggle }: { goalId: string
         className={cn("flex w-full min-w-0 items-center gap-1.5 rounded-md py-1 text-left", FOCUS_RING)}
       >
         {atts && atts.length > 0 ? (
-          <Paperclip size={14} className="shrink-0 text-altus-red-deep" aria-label={`${atts.length} attached file${atts.length === 1 ? "" : "s"} - hover to view`} />
+          <Paperclip size={14} className="shrink-0 text-altus-red-deep" aria-label={`${atts.length} attached file${atts.length === 1 ? "" : "s"} — hover to view`} />
         ) : atts && atts.length === 0 ? (
           <Paperclip size={14} className="shrink-0 text-ink-subtle" aria-label="No files attached" />
         ) : (

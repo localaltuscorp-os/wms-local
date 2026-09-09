@@ -80,13 +80,13 @@ export async function GET(req: Request) {
   // dropped when its module kill-switch is off (the page would 404), so the app
   // never renders a tile that can't open.
   const tiles: HrTile[] = [
-    { slug: "/dossier", title: "Dossier", blurb: "Every person's complete document file - appointment, probation, CTC, increments, confidentiality & onboarding.", soon: false },
+    { slug: "/dossier", title: "Dossier", blurb: "Every person's complete document file — appointment, probation, CTC, increments, confidentiality & onboarding.", soon: false },
     { slug: "/agreements", title: "Agreements", blurb: "Issue, sign and archive employee agreements digitally.", soon: false },
-    { slug: "/policies", title: "Policies", blurb: "The company handbook - every policy in one searchable place.", soon: false },
+    { slug: "/policies", title: "Policies", blurb: "The company handbook — every policy in one searchable place.", soon: false },
     { slug: "/holidays", title: "Holiday List", blurb: "The official holiday calendar for the year, at a glance.", soon: false },
-    { slug: "/letters", title: "Letters", blurb: "HR letters - offer, confirmation, increment, experience & more.", soon: false },
+    { slug: "/letters", title: "Letters", blurb: "HR letters — offer, confirmation, increment, experience & more.", soon: false },
     { slug: "/queries", title: "Queries & Notifications", blurb: "Raise an HR query and track company notices & announcements.", soon: !supportOn },
-    { slug: "/support", title: "Support", blurb: "Get help from the HR desk - questions, requests & escalations.", soon: !supportOn },
+    { slug: "/support", title: "Support", blurb: "Get help from the HR desk — questions, requests & escalations.", soon: !supportOn },
   ].filter((t) => t.slug !== "/agreements" || agreementsOn);
 
   // HR-desk tools the page surfaces below the sections, gated the same way.

@@ -94,7 +94,7 @@ export default function TermsPage() {
       <p>
         Client communications, internal notes, and the operational task data
         captured in the dashboard are confidential business information of
-        Altus Corp. You will treat them as such - no screenshots in public
+        Altus Corp. You will treat them as such — no screenshots in public
         channels, no forwarding outside the organisation, no public
         commentary on identifiable clients.
       </p>
@@ -107,8 +107,8 @@ export default function TermsPage() {
       <p>
         The dashboard software, its design, brand marks, and all derivative
         analytics are owned by Altus Corp. The operational data you
-        generate using the dashboard - tasks, comments, status history,
-        attached notes - belongs to Altus Corp.
+        generate using the dashboard — tasks, comments, status history,
+        attached notes — belongs to Altus Corp.
       </p>
 
       <h2>7 · Service availability</h2>
@@ -117,7 +117,7 @@ export default function TermsPage() {
         the application layer, Supabase (Singapore region) for the database,
         Firebase Auth (US region) for identity, Resend for email, and
         optionally Slack / WhatsApp Cloud API / Web Push for notifications.
-        We do not guarantee uninterrupted service - providers occasionally
+        We do not guarantee uninterrupted service — providers occasionally
         have outages, and we may take the dashboard down for maintenance
         with notice in the team channel.
       </p>
@@ -125,7 +125,7 @@ export default function TermsPage() {
       <h2>8 · Termination</h2>
       <p>
         A Altus Corp administrator may deactivate your account at any time
-        - immediately on separation from the organisation, or sooner if
+        — immediately on separation from the organisation, or sooner if
         these terms are violated. Deactivation revokes your Firebase session
         and prevents further sign-in; your historical task contributions
         remain in the database for audit purposes.

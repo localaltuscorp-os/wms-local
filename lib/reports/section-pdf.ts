@@ -265,7 +265,7 @@ function footer(doc: Doc, left: number, width: number, page: number, total: numb
   const y = doc.page.height - keep - FOOTER_H + 12;
   doc.save().moveTo(left, y).lineTo(left + width, y).lineWidth(0.6).stroke(COLORS.rule).restore();
   doc.font("Helvetica").fontSize(9).fillColor(COLORS.inkFaint);
-  doc.text("Confidential - Internal Altus Corp Report", left, y + 8, {
+  doc.text("Confidential — Internal Altus Corp Report", left, y + 8, {
     width,
     align: "left",
     lineBreak: false,
@@ -345,7 +345,7 @@ export function renderSectionPdf(report: SectionReport, now: Date = new Date()):
         // A `count` column reads crimson and bold when it is carrying
         // something, and stays quiet at zero — the same emphasis the web view
         // gives it, so the two do not disagree about what matters.
-        const hot = col.tone === "count" && cell !== "0" && cell !== "" && cell !== "-";
+        const hot = col.tone === "count" && cell !== "0" && cell !== "" && cell !== "—";
         doc
           .font(hot || (depth === 0 && i === 0) ? "Helvetica-Bold" : "Helvetica")
           .fontSize(depth > 0 ? 7 : 8)

@@ -180,7 +180,7 @@ export function WeightMatrixPanel() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        aria-label="Weight Metrics - tune section weights"
+        aria-label="Weight Metrics — tune section weights"
         title="Weight Metrics"
         className="grid h-11 w-11 place-items-center rounded-xl text-white shadow-[0_10px_24px_-12px_rgba(168,4,0,0.7)] transition-transform hover:scale-[1.06] active:scale-95"
         style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
@@ -292,7 +292,7 @@ export function WeightMatrixPanel() {
 
               <p className="mb-4 flex items-start gap-2 rounded-xl bg-surface-soft px-3.5 py-2.5 text-[12.5px] leading-relaxed text-ink-muted">
                 <SlidersHorizontal size={13} className="mt-0.5 shrink-0" style={{ color: RED }} />
-                Weights are <strong className="font-bold text-ink-strong">relative</strong> - they&apos;re
+                Weights are <strong className="font-bold text-ink-strong">relative</strong> — they&apos;re
                 renormalized over the sections a candidate is actually rated on, so they need not add up to 100.
                 Sections rated higher for this rank should simply carry more weight than the rest.
               </p>

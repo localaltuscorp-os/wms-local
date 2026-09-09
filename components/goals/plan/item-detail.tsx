@@ -458,7 +458,7 @@ export function PlanItemDetailBody({ item }: { item: PlanItem }) {
           {item.timeLabel ? (
             <span className="tabular-nums">{item.timeLabel}</span>
           ) : (
-            <span className="text-ink-muted">Anytime - no time set</span>
+            <span className="text-ink-muted">Anytime — no time set</span>
           )}
         </Field>
         {item.priority ? (
@@ -496,7 +496,7 @@ export function PlanItemDetailBody({ item }: { item: PlanItem }) {
           {item.done ? (
             <span style={{ color: "var(--color-green-deep)" }}>Done</span>
           ) : item.pending ? (
-            <span style={{ color: WARN }}>Pending - moved to Unfinished</span>
+            <span style={{ color: WARN }}>Pending — moved to Unfinished</span>
           ) : (
             "To do"
           )}
@@ -733,11 +733,11 @@ export function PlanItemDetailModal({
                     Clear
                   </button>
                 ) : (
-                  <span className="text-[12.5px] text-ink-muted">Anytime - no time set</span>
+                  <span className="text-[12.5px] text-ink-muted">Anytime — no time set</span>
                 )}
               </div>
             ) : (
-              <p className="text-[13px] font-medium text-ink-strong">{item.timeLabel ?? "Anytime - no time set"}</p>
+              <p className="text-[13px] font-medium text-ink-strong">{item.timeLabel ?? "Anytime — no time set"}</p>
             )}
             {range.error ? (
               <p className="mt-1 text-[12px] font-semibold" style={{ color: RISK }}>
@@ -777,7 +777,7 @@ export function PlanItemDetailModal({
               {item.done ? (
                 <span style={{ color: "var(--color-green-deep)" }}>Done</span>
               ) : item.pending ? (
-                <span style={{ color: WARN }}>Pending - moved to Unfinished</span>
+                <span style={{ color: WARN }}>Pending — moved to Unfinished</span>
               ) : (
                 "To do"
               )}

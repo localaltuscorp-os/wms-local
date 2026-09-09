@@ -73,7 +73,7 @@ export function TicketList({
                   {handlerView && (
                     <>
                       <span aria-hidden>·</span>
-                      <span>{t.requesterName ?? "-"}</span>
+                      <span>{t.requesterName ?? "—"}</span>
                     </>
                   )}
                   <span aria-hidden>·</span>

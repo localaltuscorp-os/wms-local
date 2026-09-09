@@ -71,7 +71,7 @@ export function ModuleBar({
           return (
             <span
               key={id}
-              title={`${m.label} - you don't have access to this module`}
+              title={`${m.label} — you don't have access to this module`}
               className="inline-flex cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-[12.5px] font-semibold"
               style={{ color: "rgba(15,23,42,0.30)" }}
             >

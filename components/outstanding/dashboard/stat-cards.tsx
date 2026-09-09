@@ -107,7 +107,7 @@ function StatCard({
   return (
     <Link
       href={href}
-      aria-label={`${spec.label} - view matching entries`}
+      aria-label={`${spec.label} — view matching entries`}
       className="group relative block bg-surface-card rounded-section overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40 cursor-pointer"
       style={{
         border: "1px solid var(--color-hairline)",

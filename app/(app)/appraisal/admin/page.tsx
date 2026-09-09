@@ -110,7 +110,7 @@ export default async function AppraisalAdminPage({ searchParams }: PageProps) {
             Scorecard Configuration
           </h1>
           <p className="mt-1.5 max-w-[76ch] text-[15px] font-medium text-ink-muted">
-            Pick a person, then set their role class (Manager or Non-Manager - this selects the
+            Pick a person, then set their role class (Manager or Non-Manager — this selects the
             dimension set and weights) and the manager + management assignees. KPI targets come
             from the shared KPI dictionary; actuals and dimension scores are entered on the scorecard.
           </p>

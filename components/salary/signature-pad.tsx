@@ -133,7 +133,7 @@ export function SignaturePad() {
         setSubmitting(false);
         return;
       }
-      fireToast({ message: "Thank you - your consent has been recorded." });
+      fireToast({ message: "Thank you — your consent has been recorded." });
       router.refresh();
     } finally {
       setSubmitting(false);

@@ -86,7 +86,7 @@ export default async function SalaryAnalyticsPage({ searchParams }: PageProps) {
           </h1>
           <p className="mt-1.5 max-w-[70ch] text-[15px] font-medium text-ink-muted">
             Late / waived / early-start ratios (X of N, with %) across this month, the last three
-            months and the fiscal year - plus an AI pros-and-cons read. Read-only: nothing here
+            months and the fiscal year — plus an AI pros-and-cons read. Read-only: nothing here
             changes pay.
           </p>
         </header>

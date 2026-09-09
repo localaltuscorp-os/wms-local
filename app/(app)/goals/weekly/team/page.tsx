@@ -11,7 +11,7 @@ import { TeamPerformanceBoard, type TeamRow } from "@/components/goals/team/team
 export const dynamic = "force-dynamic";
 
 function timeLabel(d: Date | null): string {
-  if (!d) return "-";
+  if (!d) return "—";
   return new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
 }
 

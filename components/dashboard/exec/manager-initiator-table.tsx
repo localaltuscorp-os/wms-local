@@ -108,7 +108,7 @@ function ChannelCell({
           e.stopPropagation();
           onOpen();
         }}
-        aria-label={`Open tasks - ${label}`}
+        aria-label={`Open tasks — ${label}`}
         title={`Open the ${value} task${value === 1 ? "" : "s"} in this channel`}
         className="rounded-md px-1.5 py-0.5 transition-colors hover:bg-gray-100"
       >
@@ -320,27 +320,27 @@ export function ManagerInitiatorTable({
                   <ChannelCell
                     value={m.toDirectReports}
                     onOpen={() => onOpenDrilldown(m.managerId, "direct")}
-                    label={`${m.managerName} - direct`}
+                    label={`${m.managerName} — direct`}
                   />
                   <ChannelCell
                     value={m.toDownline}
                     onOpen={() => onOpenDrilldown(m.managerId, "downline")}
-                    label={`${m.managerName} - downline`}
+                    label={`${m.managerName} — downline`}
                   />
                   <ChannelCell
                     value={m.toCounterparts}
                     onOpen={() => onOpenDrilldown(m.managerId, "counterpart")}
-                    label={`${m.managerName} - counterpart`}
+                    label={`${m.managerName} — counterpart`}
                   />
                   <ChannelCell
                     value={m.toFounderMgmt}
                     onOpen={() => onOpenDrilldown(m.managerId, "founder")}
-                    label={`${m.managerName} - founder`}
+                    label={`${m.managerName} — founder`}
                   />
                   <ChannelCell
                     value={m.toSelf}
                     onOpen={() => onOpenDrilldown(m.managerId, "self")}
-                    label={`${m.managerName} - self-assigned`}
+                    label={`${m.managerName} — self-assigned`}
                   />
                   <td className="px-2 py-2.5 text-center">
                     <Num value={m.totalInitiated} hero />
@@ -365,7 +365,7 @@ export function ManagerInitiatorTable({
                       }}
                       aria-expanded={open}
                       aria-label={`${open ? "Hide" : "Show"} per-report breakdown for ${m.managerName}`}
-                      title={`${hitCount} of ${m.perReport.length} direct reports on goal - ${open ? "hide" : "show"} the per-report breakdown`}
+                      title={`${hitCount} of ${m.perReport.length} direct reports on goal — ${open ? "hide" : "show"} the per-report breakdown`}
                       className="inline-flex max-w-full items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-100"
                     >
                       <span className="truncate">Breakdown</span>

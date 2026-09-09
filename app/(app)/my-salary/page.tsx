@@ -17,11 +17,11 @@ interface PageProps {
 }
 
 /**
- * My Salary - self-service pay. Any signed-in employee sees their OWN pay; on top
+ * My Salary — self-service pay. Any signed-in employee sees their OWN pay; on top
  * of that, an admin can open ANYONE's and a manager can open anyone in their
  * team's (`?emp=<id>`), both re-checked server-side through `canViewSalaryOf` so
  * the query string can never widen access. The figures come from the SAME
- * `loadMySalaryMonths` engine for everyone - there is no second calculation path.
+ * `loadMySalaryMonths` engine for everyone — there is no second calculation path.
  * The full admin Salary module still lives in the Accounts room.
  */
 export default async function MySalaryPage({ searchParams }: PageProps) {
@@ -68,7 +68,7 @@ export default async function MySalaryPage({ searchParams }: PageProps) {
       ? "Viewing this employee's pay, deductions and attendance."
       : "Viewing your team member's pay, deductions and attendance."
     : access.scope === "self"
-      ? "Your monthly pay, deductions and attendance - visible only to you."
+      ? "Your monthly pay, deductions and attendance — visible only to you."
       : "Your monthly pay, deductions and attendance. Switch person to view others.";
 
   return (

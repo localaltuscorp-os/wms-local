@@ -79,7 +79,7 @@ function LegendEntry({
       onMouseLeave={() => onHover(null)}
       onFocus={() => onHover(segment)}
       onBlur={() => onHover(null)}
-      aria-label={`${label}: ${count} tasks, ${pct}% - view the list`}
+      aria-label={`${label}: ${count} tasks, ${pct}% — view the list`}
       className="inline-flex items-center gap-1.5 rounded-pill px-2 py-1 -mx-1 outline-none transition-colors hover:bg-surface-soft focus-visible:ring-2"
       style={{ color: text, cursor: "pointer" }}
     >
@@ -181,7 +181,7 @@ export function Gauge({ pct, onTime, late, size = 280, onSelect }: GaugeProps) {
         height={h}
         viewBox={`0 0 ${w} ${h}`}
         role="img"
-        aria-label={`On-time rate ${Math.round(clamped)} percent - ${onTime} on time, ${late} late`}
+        aria-label={`On-time rate ${Math.round(clamped)} percent — ${onTime} on time, ${late} late`}
         style={{ overflow: "visible" }}
       >
         <defs>

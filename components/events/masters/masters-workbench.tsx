@@ -129,7 +129,7 @@ function CategoryPanel({ categories }: { categories: CategoryVM[] }) {
         Icon={Palette}
         title="Event Categories"
         count={active.length}
-        note={savingOrder ? "Saving order…" : "Drag to reorder - the legend follows this order."}
+        note={savingOrder ? "Saving order…" : "Drag to reorder — the legend follows this order."}
         onAdd={() => setEditing("new")}
         addLabel="Add Category"
       />

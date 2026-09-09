@@ -45,7 +45,7 @@ export function CultureBoardCard({
   if (pool.length === 0) {
     return (
       <div className="rounded-2xl bg-surface-card p-10 text-center text-[14.5px] text-ink-muted" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}>
-        No active Constitution items yet. Add them in the Constitution (PMS) first - they feed the Culture rotation.
+        No active Constitution items yet. Add them in the Constitution (PMS) first — they feed the Culture rotation.
       </div>
     );
   }

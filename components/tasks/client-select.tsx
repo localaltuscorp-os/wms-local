@@ -329,7 +329,7 @@ export function ClientSelect({
                 setHi(0);
               }}
               onKeyDown={searchKeyDown}
-              placeholder="Local search - clients" title="Local search - filters only the list on this page" aria-label="Local search - clients - this page only"
+              placeholder="Local search — clients" title="Local search — filters only the list on this page" aria-label="Local search — clients — this page only"
               role="combobox"
               aria-expanded={open}
               aria-controls={listId}

@@ -17,13 +17,13 @@ export interface DailyDigestProps {
 
 export const previewText = (p: Pick<DailyDigestProps, "pendingTasks">) => {
   const n = p.pendingTasks.length;
-  if (n === 0) return "You're all caught up - no pending tasks";
+  if (n === 0) return "You're all caught up — no pending tasks";
   if (n === 1) return "You have 1 pending task";
   return `You have ${n} pending tasks`;
 };
 
 function formatDue(d: Date | null): string {
-  return d ? formatDate(d) : "-";
+  return d ? formatDate(d) : "—";
 }
 
 export function DailyDigestEmail(props: DailyDigestProps) {
@@ -54,7 +54,7 @@ export function DailyDigestEmail(props: DailyDigestProps) {
       <NotificationParagraph muted>Hi {props.recipientName},</NotificationParagraph>
       <NotificationHeadline>{headline}</NotificationHeadline>
       <NotificationParagraph>
-        Here's your work for today. Overdue items are flagged at the top - tap any
+        Here's your work for today. Overdue items are flagged at the top — tap any
         row to open the task.
       </NotificationParagraph>
 

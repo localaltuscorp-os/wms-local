@@ -12,13 +12,13 @@ function esc(s: string): string {
 /**
  * Mail ONE Interpersonal Balance chart as a PDF attachment.
  *
- * PDF ONLY (Sir) - never .xlsx and never .csv. A spreadsheet in an inbox is
+ * PDF ONLY (Sir) — never .xlsx and never .csv. A spreadsheet in an inbox is
  * something to open and edit; this is the reading-and-filing copy, and it keeps
  * the red/green that the figures are actually scanned by. Excel is still a
  * download and still what WhatsApp shares.
  *
  * The buffer is built by the caller (lib/accounts/vasa-pdf) so nothing is
- * re-derived here - a second grid builder is exactly how "the emailed report"
+ * re-derived here — a second grid builder is exactly how "the emailed report"
  * and "the on-screen chart" start disagreeing.
  *
  * Returns a plain ok/err rather than throwing: the chart is already saved by
@@ -41,7 +41,7 @@ export async function sendVasaReportEmail(args: {
       from: FROM,
       to: args.to,
       subject: clampSubject(
-        `Vasa Family Interpersonal Balance - ${args.snapshotLabel} (${args.quarter})`,
+        `Vasa Family Interpersonal Balance — ${args.snapshotLabel} (${args.quarter})`,
       ),
       html: `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:640px;margin:0 auto;color:#1a1a1a">
         <div style="border-bottom:3px solid ${BRAND};padding-bottom:10px;margin-bottom:16px">

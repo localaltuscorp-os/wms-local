@@ -43,7 +43,7 @@ export function TaskTimerCell({
 
   const isRunning = flip && flip.basedOn === running ? flip.value : running;
 
-  if (!canOperate) return <span className="text-ink-subtle">-</span>;
+  if (!canOperate) return <span className="text-ink-subtle">—</span>;
 
   function toggle(e: React.MouseEvent) {
     // The row itself is a click-to-open target in drawer mode; the timer must

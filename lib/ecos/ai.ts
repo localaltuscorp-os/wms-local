@@ -41,7 +41,7 @@ export type ComposeResult = { ok: true; text: string } | { ok: false; error: str
 
 function systemFor(action: ComposeAction): string {
   const base =
-    "You are an assistant that writes clear, professional INTERNAL company communications for an Indian corporate team (Altus Corp). Keep a warm but formal tone. Return ONLY the message body as plain text - no preamble, no markdown fences, no quotes around the whole thing, no sign-off unless asked.";
+    "You are an assistant that writes clear, professional INTERNAL company communications for an Indian corporate team (Altus Corp). Keep a warm but formal tone. Return ONLY the message body as plain text — no preamble, no markdown fences, no quotes around the whole thing, no sign-off unless asked.";
   switch (action) {
     case "generate":
       return `${base} Draft a complete announcement from the user's brief. Use short paragraphs; a heading is not needed.`;
@@ -81,13 +81,13 @@ export async function composeWithAI(input: ComposeInput): Promise<ComposeResult>
 
   const needsText = input.action !== "generate";
   if (needsText && !(input.text ?? "").trim()) {
-    return { ok: false, error: "There's nothing to work with yet - write some text first." };
+    return { ok: false, error: "There's nothing to work with yet — write some text first." };
   }
   if (input.action === "generate" && !(input.prompt ?? "").trim() && !(input.text ?? "").trim()) {
     return { ok: false, error: "Tell the assistant what to write about." };
   }
 
-  let lastErr = "The assistant didn't return anything - try again.";
+  let lastErr = "The assistant didn't return anything — try again.";
 
   for (const model of MODELS) {
     try {
@@ -121,7 +121,7 @@ export async function composeWithAI(input: ComposeInput): Promise<ComposeResult>
       };
       const content = (data.choices?.[0]?.message?.content ?? "").trim();
       if (!content) {
-        lastErr = "The assistant returned an empty reply - try rephrasing.";
+        lastErr = "The assistant returned an empty reply — try rephrasing.";
         continue;
       }
       // Strip stray code fences the model may wrap around prose.

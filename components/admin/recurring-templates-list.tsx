@@ -69,12 +69,12 @@ export function RecurringTemplatesList({ rows }: Props) {
                   <td className="px-4 py-3 font-mono text-[12.5px] text-ink-soft">
                     {summariseRule(r.rule)}
                   </td>
-                  <td className="px-4 py-3 text-ink-strong">{r.doerName ?? "-"}</td>
+                  <td className="px-4 py-3 text-ink-strong">{r.doerName ?? "—"}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-ink-soft">
                     {r.childCount}
                   </td>
                   <td className="px-4 py-3 text-ink-subtle tabular-nums">
-                    {r.nextChildDueAt ? `${formatDate(r.nextChildDueAt)}, ${format(r.nextChildDueAt, "EEE")}` : "-"}
+                    {r.nextChildDueAt ? `${formatDate(r.nextChildDueAt)}, ${format(r.nextChildDueAt, "EEE")}` : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link

@@ -2,9 +2,15 @@ import { desc } from "drizzle-orm";
 import { Download, Users } from "lucide-react";
 import { db } from "@/lib/db";
 import { employees, salaryProfiles } from "@/db/schema";
-import { isStaffAccount } from "@/lib/queries/employees";
+import { isCurrentStaff } from "@/lib/queries/employees";
+import {
+  listFormerEmployees,
+  getFormerEmployeeDetails,
+} from "@/lib/queries/offboarding";
+import { PreviousEmployees } from "@/components/admin/previous-employees";
 import type { SalaryProfileRates } from "@/components/admin/employee-list";
 import { requireAdmin } from "@/lib/auth/current";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
 import {
   listActiveDepartments,
   getEmployeeDepartmentMap,
@@ -24,8 +30,9 @@ export default async function EmployeesPage() {
   // Leave lives in Attendance; the Employees page only ANNOUNCES that some is
   // waiting (spec §3). One count, no queue — see LeaveRequestsCallout.
   const leaveScope = await leaveReviewScopeFor(me);
-  const [all, activeDepartments, departmentMap, profileRows, pendingLeave] = await Promise.all([
-    db.select().from(employees).where(isStaffAccount).orderBy(desc(employees.createdAt)),
+  const [all, activeDepartments, departmentMap, profileRows, pendingLeave, former] =
+    await Promise.all([
+    db.select().from(employees).where(isCurrentStaff).orderBy(desc(employees.createdAt)),
     listActiveDepartments(),
     getEmployeeDepartmentMap(),
     db
@@ -37,6 +44,7 @@ export default async function EmployeesPage() {
       })
       .from(salaryProfiles),
     countPendingLeaveForReview(leaveScope).catch(() => ({ requests: 0, employees: 0 })),
+    getFormerEmployeeDetails(),
   ]);
   const salaryProfileByEmployee: Record<string, SalaryProfileRates> =
     Object.fromEntries(
@@ -63,6 +71,12 @@ export default async function EmployeesPage() {
   // actions.ts are the real boundary — this is UX, not security — and they still
   // stop a non-super-admin from touching a super-admin's row.
   const canManageAdmins = me.isAdmin;
+
+  // Resolved HERE, not in the client component, so `SUPER_ADMIN_EMAILS` is
+  // never bundled into client JS. The list names the two accounts with the
+  // highest privilege in the app; shipping it to the browser would hand any
+  // visitor a precise target list. Ids are opaque and already on the page.
+  const superAdminIds = all.filter((e) => isSuperAdmin(e.email)).map((e) => e.id);
 
   return (
     <AdminSection
@@ -105,9 +119,26 @@ export default async function EmployeesPage() {
         salaryProfileByEmployee={salaryProfileByEmployee}
         currentEmployeeId={me.id}
         canManageAdmins={canManageAdmins}
+        superAdminIds={superAdminIds}
         departmentOptions={departmentOptions}
         managerOptions={managerOptions}
       />
+
+      {/*
+        PREVIOUS EMPLOYEES (migration 0212). Everyone here kept their record;
+        only their login and photo were destroyed. Rendered below the roster
+        rather than on a separate route so the two states of the same person
+        stay one page apart, not one navigation apart.
+      */}
+      <div className="mt-10">
+        <h2 className="font-serif text-lg text-ink-strong mb-1">Previous employees</h2>
+        <p className="text-[13px] text-ink-muted mb-3">
+          {former.length === 0
+            ? "Nobody has been offboarded yet."
+            : `${former.length} former ${former.length === 1 ? "employee" : "employees"} · records retained, logins destroyed`}
+        </p>
+        <PreviousEmployees rows={former} />
+      </div>
     </AdminSection>
   );
 }

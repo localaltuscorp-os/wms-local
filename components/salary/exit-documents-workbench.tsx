@@ -208,7 +208,7 @@ export function ExitDocumentsWorkbench({
               onChange={(e) => onPickEmployee(e.target.value)}
               className="ui-input"
             >
-              <option value="">- type manually below -</option>
+              <option value="">— type manually below —</option>
               {employees.map((e) => (
                 <option key={e.employeeId} value={e.employeeId}>
                   {e.name}

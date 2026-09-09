@@ -34,7 +34,7 @@ export interface EntityTotal {
   rows: EntityPayableRow[];
 }
 
-const UNASSIGNED = "- No entity -";
+const UNASSIGNED = "— No entity —";
 
 /**
  * Group payable rows by paying entity and total Salary Payable AFTER PT.
