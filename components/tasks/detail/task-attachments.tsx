@@ -109,6 +109,12 @@ export function TaskAttachments({
   }
 
   function handleDelete(id: string) {
+    // DROP THE PREVIEW FIRST. Deleting unmounts the card while the pointer is
+    // still resting on it, so its `onMouseLeave` — the only thing that used to
+    // clear this — never fires. The lightbox is `fixed`, so it does not go with
+    // its card: it stayed pinned mid-screen, showing an image that no longer
+    // exists, until you happened to hover another attachment.
+    setPreview((prev) => (prev?.id === id ? null : prev));
     startTransition(async () => {
       const res = await deleteTaskAttachment(id);
       if (!res.ok) {
@@ -121,23 +127,32 @@ export function TaskAttachments({
 
   const isEmpty = items.length === 0;
 
+  // A PREVIEW MAY NEVER OUTLIVE ITS ROW. The clear above handles the delete
+  // this component started, but not a row that disappears any other way — a
+  // refresh landing someone else's delete, or a re-render that drops it. Both
+  // leave the same orphaned popover, so the render reads through `items` rather
+  // than trusting the stored id, and the state can only ever paint something
+  // that is still on screen. The signed URL is dead the moment the object is,
+  // so a stale preview could not render anything but a broken image anyway.
+  const livePreview = preview && items.some((a) => a.id === preview.id) ? preview : null;
+
   return (
     <section className="rounded-2xl border border-[#EBE7E0] bg-white p-4 shadow-xs">
       {/* Hover lightbox. `pointer-events-none` so it can never sit between the
           cursor and the card that spawned it — which would flicker it on and
           off as the two fought over the pointer. */}
-      {preview && (
+      {livePreview && (
         <div
           className="pointer-events-none fixed z-[80] w-64 -translate-x-1/2 -translate-y-full rounded-xl border border-[#EBE7E0] bg-white p-1.5 shadow-2xl"
-          style={{ left: preview.left, top: preview.top - 8 }}
+          style={{ left: livePreview.left, top: livePreview.top - 8 }}
         >
           <img
-            src={preview.url}
+            src={livePreview.url}
             alt=""
             className="h-40 w-full rounded-lg bg-[#F7F4EF] object-contain"
           />
-          <p className="truncate px-1 pt-1.5 text-[11px] font-medium text-slate-500" title={preview.name}>
-            {preview.name}
+          <p className="truncate px-1 pt-1.5 text-[11px] font-medium text-slate-500" title={livePreview.name}>
+            {livePreview.name}
           </p>
         </div>
       )}
