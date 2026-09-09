@@ -132,7 +132,7 @@ export function DepartmentTable({ departments }: { departments: DepartmentRollup
 function RatePill({ value, tone }: { value: number; tone: string }) {
   return (
     <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 tabular-nums font-black"
+      className="inline-flex items-center rounded-pill px-2 py-0.5 tabular-nums font-black"
       style={{ fontSize: 12.5, color: tone, background: `color-mix(in srgb, ${tone} 12%, transparent)` }}
     >
       {value}%

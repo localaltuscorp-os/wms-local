@@ -106,7 +106,7 @@ export function GlobalSearch({
           <button
             type="button"
             aria-label="Global search"
-            title="Global search — the whole app (Ctrl+K)"
+            title="Global search - the whole app (Ctrl+K)"
             className="inline-grid place-items-center rounded-xl border border-hairline bg-surface-soft h-10 w-10 text-ink-subtle transition-colors hover:bg-surface-card hover:border-hairline-strong max-md:h-9 max-md:w-9"
           >
             <Search size={18} strokeWidth={2.3} className="shrink-0" />
@@ -131,7 +131,7 @@ export function GlobalSearch({
                 autoFocus
                 value={query}
                 onValueChange={setQuery}
-                placeholder="Global search — tasks, clients, projects, people…"
+                placeholder="Global search - tasks, clients, projects, people…"
                 className="h-14 !border-b-0 !px-0 text-[16px]"
               />
               {isFetching && <Loader2 size={16} className="shrink-0 animate-spin text-ink-subtle" />}
@@ -246,7 +246,7 @@ function Row({
           {lead && <span className="text-[12.5px] font-bold tabular-nums text-ink-subtle">{lead}</span>}
           <span className="truncate text-[15px] font-semibold text-ink-strong">{title}</span>
           {badge && (
-            <span className="shrink-0 rounded-full bg-surface-soft px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-ink-subtle">
+            <span className="shrink-0 rounded-pill bg-surface-soft px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-ink-subtle">
               {badge}
             </span>
           )}

@@ -24,7 +24,7 @@ export default async function SharesRegisterPage() {
         <Link href={"/accounts" as Route} className="mb-2.5 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-ink-soft hover:text-altus-red">
           <ArrowLeft size={14} strokeWidth={2.4} /> Accounts Index
         </Link>
-        <PageCommandBar title="Shares Register" hint="Shareholdings & transactions per entity — quantity, rate, value and folio/demat." />
+        <PageCommandBar title="Shares Register" hint="Shareholdings & transactions per entity - quantity, rate, value and folio/demat." />
         <SharesRegister rows={rows} entityOptions={entityOptions} />
       </main>
     </>

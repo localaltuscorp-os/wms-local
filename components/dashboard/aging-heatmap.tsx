@@ -40,14 +40,23 @@ import { isAppDepartment, type TeamView } from "@/lib/teams/app-team";
 import { TeamToggle } from "@/components/dashboard/team-toggle";
 
 /**
- * THE AGE RAMP — green through burgundy, oldest darkest.
+ * THE AGE RAMP - one continuous risk gradient, green through burgundy.
  *
- * THE TWO OLDEST BRACKETS ARE NOT THE SAME RED. 46-60 and 60+ once both landed
- * on the same deep red, which is the exact defect this map was rewritten once
- * before to fix — two brackets that render the same cannot show that one lane's
- * backlog is older than another's. They take the two burgundies the palette
- * offers (#7F1D1D and #450A0A), which keeps the tier reading as one family
- * while staying distinguishable.
+ * One map, read by the legend pills, the stacked bar segments and the hover
+ * popover, so a bucket is the same colour in all three. Re-mapped from the old
+ * green -> teal -> SKY BLUE -> amber ramp: a blue tier in the middle of a heat
+ * scale reads as a category, not a step, so 8-14d looked like a different KIND
+ * of thing rather than "worse than 4-7d". The ramp is now monotonic in hue AND
+ * in temperature: green -> lime -> yellow -> orange -> red -> deep red ->
+ * burgundy, so a bar gets visibly hotter left to right with no hue that breaks
+ * the sequence.
+ *
+ * 46-60 AND 60+ ARE NOT THE SAME BURGUNDY. The palette names one "deep dark
+ * burgundy" tier for both, but byte-identical fills on adjacent buckets is the
+ * exact defect this map was rewritten once before to fix - two brackets that
+ * render the same cannot show that one lane's backlog is older than another's.
+ * They take the two burgundies the palette offers (#7F1D1D and #450A0A), which
+ * keeps the tier reading as one family while staying distinguishable.
  *
  * INK FOLLOWS CONTRAST, not a blanket colour. Everything from green through
  * orange is too light to carry white: white on #16A34A measures 3.4:1 and on
@@ -55,14 +64,14 @@ import { TeamToggle } from "@/components/dashboard/team-toggle";
  * 12px. Those four take slate-900 (6:1 or better). Red and darker take white.
  */
 const BUCKET_COLOR: Record<AgeBucketId, { fill: string; ink: string; deep: string }> = {
-  "0-3":   { fill: "#16A34A", ink: "#0F172A", deep: "#15803D" }, // forest green   — freshest
-  "4-7":   { fill: "#65A30D", ink: "#0F172A", deep: "#4D7C0F" }, // lime           — early warning
-  "8-14":  { fill: "#EAB308", ink: "#0F172A", deep: "#CA8A04" }, // amber yellow   — moderate
-  "15-20": { fill: "#F97316", ink: "#0F172A", deep: "#EA580C" }, // deep orange    — late
-  "21-30": { fill: "#DC2626", ink: "#FFFFFF", deep: "#B91C1C" }, // bright red     — critical
-  "31-45": { fill: "#B91C1C", ink: "#FFFFFF", deep: "#991B1B" }, // deep red       — severe
-  "46-60": { fill: "#7F1D1D", ink: "#FFFFFF", deep: "#601717" }, // burgundy       — very severe
-  "60+":   { fill: "#450A0A", ink: "#FFFFFF", deep: "#2C0606" }, // dark burgundy  — extreme
+  "0-3":   { fill: "#16A34A", ink: "#0F172A", deep: "#15803D" }, // forest green   - freshest
+  "4-7":   { fill: "#65A30D", ink: "#0F172A", deep: "#4D7C0F" }, // lime           - early warning
+  "8-14":  { fill: "#EAB308", ink: "#0F172A", deep: "#CA8A04" }, // amber yellow   - moderate
+  "15-20": { fill: "#F97316", ink: "#0F172A", deep: "#EA580C" }, // deep orange    - late
+  "21-30": { fill: "#DC2626", ink: "#FFFFFF", deep: "#B91C1C" }, // bright red     - critical
+  "31-45": { fill: "#B91C1C", ink: "#FFFFFF", deep: "#991B1B" }, // deep red       - severe
+  "46-60": { fill: "#7F1D1D", ink: "#FFFFFF", deep: "#601717" }, // burgundy       - very severe
+  "60+":   { fill: "#450A0A", ink: "#FFFFFF", deep: "#2C0606" }, // dark burgundy  - extreme
 };
 
 const BUCKET_WEIGHT: Record<AgeBucketId, number> = {
@@ -87,7 +96,7 @@ function sortAgingRows(
 ): EnrichedAgingRow[] {
   const copy = [...rows];
   // `desc` is the resting direction and it means WORST FIRST on every numeric
-  // column — the whole point of this board. Employee is the exception: A→Z is
+  // column - the whole point of this board. Employee is the exception: A→Z is
   // what a reader means by ascending on a name, so its default flips.
   const flip = dir === "desc" ? 1 : -1;
   const critical = (r: EnrichedAgingRow) =>
@@ -104,7 +113,7 @@ function sortAgingRows(
   return copy;
 }
 
-// Horizontal display order for THIS section only — oldest first, left → right:
+// Horizontal display order for THIS section only - oldest first, left → right:
 // 60+ · 46-60 · 31-45 · 21-30 · 15-20 · 8-14 · 4-7 · 0-3.
 // The canonical AGE_BUCKETS (db/enums.ts) deliberately stays youngest-first:
 // `computeAgingByDate` maps over it to build the ordered `agingByDate` payload,
@@ -132,7 +141,7 @@ function riskScore(row: AgingRow): number {
  * That is the whole answer to "why does someone with ONE task outrank someone
  * with fifteen": one task sitting 60+ days averages weight 20 and scores 100;
  * fifteen tasks all under three days average weight 1 and score 0. The board
- * ranks how OLD a backlog is, not how big — size is what the Total column is
+ * ranks how OLD a backlog is, not how big - size is what the Total column is
  * for. A breakdown that presented the weights as points to be summed would
  * contradict the number printed on the badge, which is worse than the bare
  * tooltip it replaces.
@@ -141,7 +150,7 @@ interface RiskBreakdown {
   rows: { id: AgeBucketId; label: string; count: number; weight: number; points: number }[];
   weighted: number;
   total: number;
-  /** Mean weight per pending task — the figure the 0-100 index is scaled from. */
+  /** Mean weight per pending task - the figure the 0-100 index is scaled from. */
   average: number;
   score: number;
 }
@@ -174,7 +183,7 @@ type SortDir = "asc" | "desc";
 
 
 /**
- * TRANSPOSED VIEW — age buckets down the side, people across the top.
+ * TRANSPOSED VIEW - age buckets down the side, people across the top.
  *
  * The standard view is a LANE list (a stacked bar per person), not a grid, so
  * this is a real table rather than a re-orientation of the same markup. Risk
@@ -296,7 +305,7 @@ function TransposedAging({
             );
           })}
           {/* Risk and Total are per-person figures, so in this orientation they
-              are rows like the buckets above — not a separate summary block. */}
+              are rows like the buckets above - not a separate summary block. */}
           <tr className="border-t-2 border-gray-200">
             <td className="sticky left-0 z-10 bg-white px-3 py-2 text-[12px] font-black text-gray-900">
               Risk Score
@@ -343,7 +352,7 @@ export function AgingHeatmap({
   const [sortDir, setSortDir] = React.useState<SortDir>("desc");
   const [teamView, setTeamView] = React.useState<TeamView>("all");
   /* Re-clicking the active column flips it; a new column adopts its own natural
-     direction — names A-Z, counts worst-first. */
+     direction - names A-Z, counts worst-first. */
   const onColumnSort = React.useCallback(
     (key: SortMode) => {
       if (key === sortMode) {
@@ -357,7 +366,7 @@ export function AgingHeatmap({
   );
   const [ageFilter, setAgeFilter] = React.useState<AgeBucketId | null>(null);
   // Orientation, plus the transposed view's own sort. Both live here so
-  // flipping back and forth never discards the other view's ordering — the
+  // flipping back and forth never discards the other view's ordering - the
   // lane list keeps its risk/total/oldest mode, the grid keeps its column.
   const [isTransposed, setIsTransposed] = React.useState(false);
   const [transposedSort, setTransposedSort] = React.useState<
@@ -372,7 +381,7 @@ export function AgingHeatmap({
         : { employeeId, desc: false },
     );
   }, []);
-  // "Critical Only" — keep just the people carrying 31d+ work. Reuses
+  // "Critical Only" - keep just the people carrying 31d+ work. Reuses
   // CRITICAL_BUCKETS, the same definition the risk score and the red banner
 
   // Drill-down target. `employeeId: null` = "this bracket, everyone" (an age
@@ -388,7 +397,7 @@ export function AgingHeatmap({
     [],
   );
 
-  // Pulled straight from `cellTasks` — the very rows the lanes counted, so the
+  // Pulled straight from `cellTasks` - the very rows the lanes counted, so the
   // drawer can never disagree with the bar that opened it. Oldest first: a
   // drill-down is a triage list.
   const drillTasks = React.useMemo(() => {
@@ -412,14 +421,14 @@ export function AgingHeatmap({
     const who = drill.employeeId
       ? rows.find((r) => r.employeeId === drill.employeeId)?.employeeName ?? "Unknown"
       : null;
-    // "Proveeka Makwana · 15-20 days Aging Tasks" — the person first, because
+    // "Proveeka Makwana · 15-20 days Aging Tasks" - the person first, because
     // that is what the reader clicked and what they are triaging.
     if (who && label) return `${who} · ${label} Aging Tasks`;
     if (who) return `${who} · All Pending Tasks`;
     return `All ${label} Aging Tasks`;
   }, [drill, rows]);
 
-  /** One plain line under the title saying exactly what the list is — the count
+  /** One plain line under the title saying exactly what the list is - the count
    *  and the bracket, so the drawer states its own scope instead of leaving the
    *  reader to infer it from the cell they came from. */
   const drillSubtitle = React.useMemo(() => {
@@ -439,7 +448,7 @@ export function AgingHeatmap({
   // `sectionQuery` is the FilterBar's, shared with every view on the page.
   // `localQuery` is this card's own box, added because a reader looking at the
   // heatmap should be able to narrow it without scrolling back up to the page
-  // chrome — and because the FilterBar's box is not on every surface this
+  // chrome - and because the FilterBar's box is not on every surface this
   // section renders on. Filtering on either alone would let one silently
   // override the other; a person has to match both to appear.
   //
@@ -463,11 +472,11 @@ export function AgingHeatmap({
   );
 
   // Applied BEFORE the counts below, so the header describes what is actually
-  // on screen — the same reason the section search is applied before enrichment.
+  // on screen - the same reason the section search is applied before enrichment.
   // A lane's BARS keep their full age split: the toggle picks which PEOPLE are
   // listed, and hiding their under-31d work would misstate each person's load.
   // The "All / Critical only" toggle is gone, so there is no people-filter pass
-  // left here. CRITICAL_BUCKETS survives — it still defines the risk score, the
+  // left here. CRITICAL_BUCKETS survives - it still defines the risk score, the
   // "oldest" sort and the red banner, which is most of what the toggle was
   // shortcutting anyway: the risk sort already floats those people to the top.
   // The age filter the legend pills drive. Null = every lane.
@@ -477,7 +486,7 @@ export function AgingHeatmap({
   // per bucket does the same job at any age and needs no separate widget.
   //
   // A FILTERED LANE KEEPS ITS FULL BAR. The pill picks which PEOPLE are listed,
-  // not which of their work counts — hiding a person's under-31d segments would
+  // not which of their work counts - hiding a person's under-31d segments would
   // misstate the load the bar exists to show. Same rule the old toggle carried.
   const enriched = React.useMemo(
     () =>
@@ -489,7 +498,7 @@ export function AgingHeatmap({
 
   /* THE HEAD-COUNT BEHIND EACH AGE PILL.
 
-     Read from `enrichedAll` — the searched roster BEFORE the age filter — and
+     Read from `enrichedAll` - the searched roster BEFORE the age filter - and
      not from `enriched`. That distinction is the whole correctness of the
      feature: `enriched` has already been narrowed to the selected bucket, so
      counting it would print the chosen pill's own total and a zero on all seven
@@ -497,7 +506,7 @@ export function AgingHeatmap({
      people each bucket holds so you can decide which to click NEXT.
 
      The TEAM toggle is applied, though, because the brief asks the numbers to
-     follow it — and because a pill promising 9 people that lists 4 when opened
+     follow it - and because a pill promising 9 people that lists 4 when opened
      under App Team is worse than no number. Search is inherited from
      `enrichedAll` for the same reason.
 
@@ -544,7 +553,7 @@ export function AgingHeatmap({
      rather than a side effect.
 
      Two columns meant two column-header rows, because a header can only align
-     over the track it sits above — one full-width header over a 2-up grid lines
+     over the track it sits above - one full-width header over a 2-up grid lines
      up with the left column and misses the right. So "show the headers once"
      and "keep the columns aligned" cannot both hold for a genuine split. A
      segmented control settles it: one list at a time, one header, always
@@ -588,7 +597,7 @@ export function AgingHeatmap({
   /* Bar scale spans EVERY lane on the board, not just the twelve the transposed
      view caps at: the lane list renders everybody, so a scale taken from twelve
      would overflow the bars of everyone below them. Taking it from `enriched`
-     rather than from the filtered `teamRows` is the other half — a scale that
+     rather than from the filtered `teamRows` is the other half - a scale that
      changed with the toggle would redraw every bar on switching from App to
      Non-App, and the two views would stop being comparable. */
   const maxTotal = Math.max(...enriched.map((r) => r.total), 1);
@@ -596,7 +605,7 @@ export function AgingHeatmap({
   const totalAging = enriched.reduce((s, r) => s + r.total, 0);
 
   /* Exports the TWELVE LANES ON SCREEN, in the order they are sorted, not the
-     whole roster — `top12` is what the section renders and what the reader is
+     whole roster - `top12` is what the section renders and what the reader is
      asking to send. */
   const buildReport = React.useCallback((): SectionReport => {
     return {
@@ -648,14 +657,14 @@ export function AgingHeatmap({
          bottom of the Attention tab. */
       style={{
         opacity: 0,
-        // 900ms suited being the FOURTH section of a long scroll — you had
+        // 900ms suited being the FOURTH section of a long scroll - you had
         // scrolled to it by the time it faded in. Inside a tab it mounts the
         // instant you click Attention, so a near-second of blank read as a
         // failure to load.
         animation: "fadeUp 400ms ease-out 100ms forwards",
       }}
     >
-      {/* Section header, OUTSIDE the card — see components/dashboard/
+      {/* Section header, OUTSIDE the card - see components/dashboard/
           section-header.tsx. The sort control comes with it so the whole
           header line reads as one bar above the heat lanes. */}
       <DashboardSectionHeader
@@ -668,7 +677,7 @@ export function AgingHeatmap({
             <span className="tabular-nums font-semibold">
               {totalAging}
             </span>{" "}
-            pending {totalAging === 1 ? "task" : "tasks"} aging — click any lane to
+            pending {totalAging === 1 ? "task" : "tasks"} aging - click any lane to
             see them
           </>
         }
@@ -684,12 +693,12 @@ export function AgingHeatmap({
               onQuery={setLocalQuery}
               placeholder="Search employee..."
             />
-            {/* Sort is hidden while transposed — it orders LANES, and in that
+            {/* Sort is hidden while transposed - it orders LANES, and in that
                 orientation there are none. */}
             {!isTransposed && <SortControl value={sortMode} onChange={setSortMode} />}
             {/* Transpose sits with the collapse control: both change the
                 section's SHAPE rather than what it contains. The lane sort is
-                hidden while transposed — it orders LANES, and there are none. */}
+                hidden while transposed - it orders LANES, and there are none. */}
             <button
               type="button"
               onClick={() => setIsTransposed((v) => !v)}
@@ -713,7 +722,7 @@ export function AgingHeatmap({
 
       <div
         /* The shared dashboard card, not a hand-rolled copy of it. The classes
-           spelled out here were already identical to DASHBOARD_CARD_PADDED —
+           spelled out here were already identical to DASHBOARD_CARD_PADDED -
            which is exactly how they drift apart the next time one is edited.
            `wms-card` came off with them: that utility OWNS the border, and the
            card constant sets `border-slate-200/80` alongside it, so the two
@@ -721,7 +730,7 @@ export function AgingHeatmap({
         /* DASHBOARD_CARD without its padding, then p-8/p-10 on top. NOT
            `${DASHBOARD_CARD_PADDED} p-8`: both sets are plain utilities of
            equal specificity, so which one wins is decided by their order in
-           the GENERATED stylesheet, not by their order in this string — the
+           the GENERATED stylesheet, not by their order in this string - the
            override would be a coin flip. Taking the unpadded constant leaves
            exactly one padding rule.
            min-h gives the section a floor so it holds its presence on the
@@ -734,7 +743,7 @@ export function AgingHeatmap({
            card edge and those did not gain any space. */
         className={`aging-shell relative min-h-[600px] overflow-hidden px-8 pb-8 pt-4 md:px-10 md:pb-10 ${DASHBOARD_CARD}`}
       >
-        {/* The red/green "heat wash" backdrop was removed — it was the other
+        {/* The red/green "heat wash" backdrop was removed - it was the other
             half of the peach tint. The heat colours still live where they carry
             meaning: the cells, the legend and the severity chips below. */}
 
@@ -742,7 +751,7 @@ export function AgingHeatmap({
           {criticalTotal > 0 && <AlertBanner count={criticalTotal} />}
 
           {/* The AGE legend used to be a full row of its own here, between the
-              banner and the lane header — a band of pills with its own padding
+              banner and the lane header - a band of pills with its own padding
               above a header that then repeated the column names. It now lives
               INSIDE the lane header, over the bar track it describes. */}
 
@@ -924,7 +933,7 @@ function SortControl({
       >
         {options.map((o) => (
           <option key={o.id} value={o.id} title={o.hint}>
-            Sort by {o.label} — {o.hint}
+            Sort by {o.label} - {o.hint}
           </option>
         ))}
       </select>
@@ -951,7 +960,7 @@ function AlertBanner({ count }: { count: number }) {
         </span>
         <span className="font-semibold" style={{ color: "var(--color-ink-soft)" }}>
           {" "}
-          {count === 1 ? "task is" : "tasks are"} aging more than 30 days —
+          {count === 1 ? "task is" : "tasks are"} aging more than 30 days -
           escalate or close
         </span>
       </p>
@@ -992,14 +1001,14 @@ function Legend({
   return (
     /* LEFT-ALIGNED. This briefly used `justify-between`, which spread eight
        pills across the full table width and opened gaps wider than the pills
-       themselves — the row stopped reading as one control group and started
+       themselves - the row stopped reading as one control group and started
        reading as eight unrelated chips. A fixed `gap-2.5` keeps them a set;
        `overflow-x-auto` scrolls on a narrow viewport rather than wrapping to a
        second line, which would move every lane below it on resize. */
     /* COMPACT AGAIN. These were h-8 px-4 pills when the legend was a row of
        its own with a row's worth of space; inside the lane header they have to
        sit on a 10px caption line, so they come back to a chip. Third pass on
-       the same pills — noted because the size is a function of WHERE they live,
+       the same pills - noted because the size is a function of WHERE they live,
        not a preference, and moving them again should move the size with them. */
     <div className="no-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto">
       <span className="mr-1 shrink-0 text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -1016,13 +1025,13 @@ function Legend({
             aria-pressed={isSelected}
             title={
               isSelected
-                ? `Showing only the ${counts[b.id]} ${counts[b.id] === 1 ? "person" : "people"} with work aged ${b.label} — click to clear`
+                ? `Showing only the ${counts[b.id]} ${counts[b.id] === 1 ? "person" : "people"} with work aged ${b.label} - click to clear`
                 : `Show only the ${counts[b.id]} ${counts[b.id] === 1 ? "person" : "people"} with work aged ${b.label}`
             }
             /* The white BORDER is what makes the selected state legible on all
                eight fills at once. A ring alone would sit directly against the
-               pill's own colour — invisible on the dark tiers, muddy on the
-               light ones — whereas a white hairline separates the pill from
+               pill's own colour - invisible on the dark tiers, muddy on the
+               light ones - whereas a white hairline separates the pill from
                both its fill and the page behind it, and the ring outside that
                does the rest. Same recipe the KPI cards use for their open
                state, and for the same reason. */
@@ -1030,7 +1039,7 @@ function Legend({
                about four characters wider, and eight of those is enough to push
                the row into its own scrollbar on a laptop. Taking the padding
                back buys most of that width without touching the type size,
-               which is what keeps the pills legible at a glance — `tracking-wider`
+               which is what keeps the pills legible at a glance - `tracking-wider`
                is dropped for the same reason, since letter-spacing on a
                ten-character label is pure width. */
             className={`inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-bold tabular-nums transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${
@@ -1039,7 +1048,7 @@ function Legend({
                 : "opacity-90 hover:opacity-100"
             }`}
             /* Ink comes from BUCKET_COLOR, where it was chosen next to each
-               fill — all eight pairings clear AA. A `text-white` rule written
+               fill - all eight pairings clear AA. A `text-white` rule written
                here would be a second opinion about the same eight colours. */
             style={{ background: c.fill, color: c.ink }}
           >
@@ -1057,11 +1066,11 @@ function Legend({
   );
 }
 
-/** Column track shared by the header and every lane — one constant so the two
+/** Column track shared by the header and every lane - one constant so the two
  *  can never drift out of alignment. */
 const LANE_COLUMNS = "minmax(0, 210px) 58px 1fr 40px 18px";
 
-/** A plain, non-sortable caption — the bar track has no single value to
+/** A plain, non-sortable caption - the bar track has no single value to
  *  order by, so it gets the type treatment without the arrows. */
 function ColumnCap({ label, align }: { label: string; align: "left" | "center" | "right" }) {
   return (
@@ -1076,7 +1085,7 @@ function ColumnCap({ label, align }: { label: string; align: "left" | "center" |
 }
 
 /** A sortable caption. Both arrows are always drawn, dimmed until this column
- *  is the sorted one — an indicator that appears only on the active column
+ *  is the sorted one - an indicator that appears only on the active column
  *  gives no hint the others sort at all. */
 function SortCap({
   label,
@@ -1119,7 +1128,7 @@ function SortCap({
 /**
  * The sortable column caps for the lane list.
  *
- * Rendered once, directly above the rows it labels — a header only aligns over
+ * Rendered once, directly above the rows it labels - a header only aligns over
  * the grid track it sits on, which is the constraint that ruled out the
  * side-by-side split this replaced (see ONE LIST, THREE VIEWS above).
  */
@@ -1186,11 +1195,11 @@ function Lane({
         }
       }}
       // 56px, up from 44px: the heat bar inside is now 26px rather than 16px,
-      // and 44px would have left it 9px of air top and bottom — a bar wearing
+      // and 44px would have left it 9px of air top and bottom - a bar wearing
       // the row rather than sitting in it. The lanes are separated by space-y-4
       // now instead of a hairline rule, so the row carries no border of its own.
       //
-      // Tier-3 mobile fix — at 390px the desktop grid overflows the section, so
+      // Tier-3 mobile fix - at 390px the desktop grid overflows the section, so
       // `aging-lane-mobile` (globals.css) collapses it to 2 stacked rows on
       // max-md, where the height has to go back to auto.
       className="aging-lane aging-lane-mobile grid h-[56px] items-center gap-3 rounded-xl px-3 transition-colors hover:bg-slate-50 max-md:h-auto max-md:gap-2 max-md:px-2 max-md:py-2"
@@ -1203,7 +1212,7 @@ function Lane({
         cursor: "pointer",
       }}
     >
-      {/* Employee — avatar + name */}
+      {/* Employee - avatar + name */}
       <div className="flex items-center gap-2 min-w-0">
         <Avatar name={row.employeeName} avatarUrl={avatarUrl ?? null} size={26} />
         <span
@@ -1222,13 +1231,13 @@ function Lane({
           than eight little pills.
           26px outer (h-6 plus the hairline top and bottom), up from 16px: at
           the old height the tier colours were a stripe, and a count sitting in
-          one was squeezed against the seams. rounded-lg rather than a pill —
+          one was squeezed against the seams. rounded-lg rather than a pill -
           at this thickness a full radius eats the first and last segment. */}
       <div
         className="relative overflow-hidden rounded-lg bg-slate-100"
         style={{
           // h-7. `rounded-full` is what the brief asks for and is deliberately
-          // NOT used: the note above is a finding from an earlier pass — at this
+          // NOT used: the note above is a finding from an earlier pass - at this
           // thickness a pill radius clips the first and last tier's colour, and
           // 28px is not tall enough to change that.
           height: 28,
@@ -1274,7 +1283,7 @@ function Lane({
         {row.total}
       </span>
 
-      {/* Chevron — telegraphs click target */}
+      {/* Chevron - telegraphs click target */}
       <span
         className="aging-lane-chevron inline-flex items-center justify-center"
         aria-hidden
@@ -1287,7 +1296,7 @@ function Lane({
 }
 
 /**
- * Risk badge — a flat tinted pill.
+ * Risk badge - a flat tinted pill.
  *
  * The three-band red / amber / green semantic is unchanged; what went is the
  * decoration around it: the 135° gradient, the coloured drop-glow, the white
@@ -1333,7 +1342,7 @@ function RiskChip({ row }: { row: AgingRow & { risk: number } }) {
             side="right"
             sideOffset={8}
             collisionPadding={12}
-            /* LIGHT CARD. This was navy (bg-slate-900) with white type — the
+            /* LIGHT CARD. This was navy (bg-slate-900) with white type - the
                only dark surface left on a dashboard that is otherwise white
                cards on a white page, so it read as a different application's
                popover. Every colour below is the same information at the same
@@ -1352,7 +1361,7 @@ function RiskChip({ row }: { row: AgingRow & { risk: number } }) {
             </div>
 
             <p className="mb-2 text-[11px] leading-relaxed text-slate-700">
-              The AVERAGE age-weight of this person&apos;s pending work — not how much of
+              The AVERAGE age-weight of this person&apos;s pending work - not how much of
               it there is. One task sitting 60+ days outranks fifteen fresh ones.
             </p>
 
@@ -1425,11 +1434,11 @@ function Segment({
   // `isCritical` lived here to drive the heatPulse animation. The animation is
   // gone; CRITICAL_BUCKETS is still used by the risk score and the risk sort.
 
-  // Up to four, per spec — a hover preview is a glance, not the drill-down.
+  // Up to four, per spec - a hover preview is a glance, not the drill-down.
   const preview = tasks.slice(0, 4);
 
   return (
-    // HOVER, not click. This was a Popover, which opens on click — and the same
+    // HOVER, not click. This was a Popover, which opens on click - and the same
     // click also fired `onOpen()`, so one press produced the preview card AND
     // the full drill-down drawer at once. Splitting them by input fixes that:
     // hover previews, click drills down. Radix tooltip content is hoverable, so
@@ -1453,15 +1462,15 @@ function Segment({
           }}
           /* Flat fill, rounded-md, no gradient / glow / scale.
              What was removed and why:
-               • the 180° gradient — adjacent tiers blurred into each other at
+               • the 180° gradient - adjacent tiers blurred into each other at
                  the seam, so the bar read as a wash rather than seven steps;
-               • `heatPulse` on the three critical buckets — a permanently
+               • `heatPulse` on the three critical buckets - a permanently
                  animating bar is noise once more than one lane is overdue;
-               • `hover:brightness-110 hover:scale-y-110` — brightening shifts
+               • `hover:brightness-110 hover:scale-y-110` - brightening shifts
                  the tier off its own token, and scaling made rows jitter;
-               • the text-shadow — unnecessary now the ink is chosen per tier,
+               • the text-shadow - unnecessary now the ink is chosen per tier,
                  and it muddied dark text on amber and sky. */
-          /* `rounded-md` went with the taller bar — at 18px the radius ate the
+          /* `rounded-md` went with the taller bar - at 18px the radius ate the
              narrow segments, and the parent already clips the lane to a pill.
              Flush segments also make the eight tiers read as one measure. */
           /* `leading-none`: the lane's inner box is 14px and 11px text carries a
@@ -1495,7 +1504,7 @@ function Segment({
           sideOffset={10}
           collisionPadding={12}
           /* COMPACT. This was a 420px card with a full-bleed tier header and
-             15.5px rows — a panel, not a hover. At 280px it sits over the lane
+             15.5px rows - a panel, not a hover. At 280px it sits over the lane
              without covering the neighbouring rows you are comparing against.
              The tier colour survives as the bucket pill rather than a band. */
           className="z-50 w-[280px] max-w-[calc(100vw-24px)] rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
@@ -1526,7 +1535,7 @@ function Segment({
                 >
                   {/* DESCRIPTION, not `title`. `title` in this schema is the
                       CLIENT NAME, so this list used to read "Altus Corp / AA
-                      Tech / JMT Drive Solutions" — three rows that say nothing
+                      Tech / JMT Drive Solutions" - three rows that say nothing
                       about the work. */}
                   <span className="block line-clamp-2 break-words text-xs font-semibold leading-snug text-slate-900">
                     {t.description?.trim() || "No description provided"}
@@ -1552,7 +1561,7 @@ function Segment({
 
           {tasks.length > preview.length && (
             <p className="mt-2 text-[10.5px] font-semibold text-slate-500">
-              +{tasks.length - preview.length} more — click the segment to see all
+              +{tasks.length - preview.length} more - click the segment to see all
             </p>
           )}
           <Tooltip.Arrow style={{ fill: "#ffffff" }} width={14} height={7} />

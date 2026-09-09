@@ -873,7 +873,7 @@ function GoalRow({ row, onOpenGoal }: { row: Row; onOpenGoal?: (id: string) => v
       <StatusText band={band} />
 
       <span className="text-[11.5px] font-medium tabular-nums" style={{ color: dueTone }}>
-        {due?.label ? formatDue(g.targetDate) : "—"}
+        {due?.label ? formatDue(g.targetDate) : "-"}
       </span>
 
       {onOpenGoal ? (
@@ -910,7 +910,7 @@ function StatusText({ band }: { band: DisplayBand }) {
 
 /** "24 Aug" — the year only when it is not the current one. */
 function formatDue(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
   const sameYear = d.getFullYear() === new Date().getFullYear();
   return d.toLocaleDateString("en-GB", {
@@ -1025,7 +1025,7 @@ function Breakdown({
             <FactRow label="Delegated" value={String(a.delegated)} hint="handed to a member" tone={a.delegated > 0 ? BLUE : undefined} />
             <FactRow
               label="Team dependency"
-              value={a.depCount > 0 ? `${a.avgDep}%` : "—"}
+              value={a.depCount > 0 ? `${a.avgDep}%` : "-"}
               hint={a.depCount > 0 ? `max ${a.maxDep}%` : "no exposure"}
               tone={a.depCount > 0 && a.avgDep >= 50 ? RED : a.depCount > 0 && a.avgDep >= 25 ? AMBER : undefined}
             />
@@ -1059,7 +1059,7 @@ function Breakdown({
             </dl>
           ) : (
             <p className="mt-2 text-[12px] leading-relaxed text-ink-muted">
-              No ₹ or quantity targets on this week&apos;s goals — attainment comes from self-rated
+              No ₹ or quantity targets on this week&apos;s goals - attainment comes from self-rated
               and reviewed progress only.
             </p>
           )}
@@ -1176,7 +1176,7 @@ function WeeklyDashboardEmpty({ weekNo, weekStart }: { weekNo: number; weekStart
         Nothing to measure for W{weekNo} · {formatWeekRangeShort(weekStart)}
       </p>
       <p className="mx-auto mt-1 max-w-[46ch] text-[12.5px] text-ink-muted">
-        Add a goal for this week, or adopt one from the monthly cascade — the dashboard fills in as
+        Add a goal for this week, or adopt one from the monthly cascade - the dashboard fills in as
         soon as there is something to track.
       </p>
     </section>

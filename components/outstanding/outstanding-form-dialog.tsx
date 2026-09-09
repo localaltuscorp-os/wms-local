@@ -34,8 +34,8 @@ const totalFmt = new Intl.NumberFormat("en-IN", {
 
 // iter-2: the New Contract form offers only 0% / 18% GST.
 const GST_OPTIONS = [
-  { value: "0", label: "0 — No GST" },
-  { value: "18", label: "YES — 18%" },
+  { value: "0", label: "0 - No GST" },
+  { value: "18", label: "YES - 18%" },
 ];
 
 const CYCLE_OPTIONS = OUTSTANDING_CYCLES.map((c) => ({
@@ -306,7 +306,7 @@ export function OutstandingFormDialog({
     });
   }
 
-  const totalLabel = total === null ? "—" : totalFmt.format(total);
+  const totalLabel = total === null ? "-" : totalFmt.format(total);
 
   return (
     <Dialog.Root
@@ -337,7 +337,7 @@ export function OutstandingFormDialog({
             style={{ lineHeight: 1.5 }}
           >
             Record a receivable. Pick the payment cycle, fill its details, then
-            confirm — the schedule is generated automatically.
+            confirm - the schedule is generated automatically.
           </Dialog.Description>
 
           <form onSubmit={onSubmit} className="space-y-5">
@@ -384,7 +384,7 @@ export function OutstandingFormDialog({
                   options={products.map((p) => ({ value: p.id, label: p.name }))}
                   value={productId}
                   onValueChange={setProductId}
-                  placeholder="— Select product —"
+                  placeholder="- Select product -"
                   ariaLabel="Product"
                 />
               </Field>
@@ -397,7 +397,7 @@ export function OutstandingFormDialog({
                   options={responsibles.map((r) => ({ value: r.id, label: r.name }))}
                   value={responsibleId}
                   onValueChange={setResponsibleId}
-                  placeholder="— Select person —"
+                  placeholder="- Select person -"
                   searchable
                   ariaLabel="Responsible person"
                 />
@@ -429,7 +429,7 @@ export function OutstandingFormDialog({
                     setGst(v);
                     resetConfirm();
                   }}
-                  placeholder="— Select GST —"
+                  placeholder="- Select GST -"
                   ariaLabel="GST rate"
                 />
               </Field>
@@ -451,7 +451,7 @@ export function OutstandingFormDialog({
                     setCycle(v as OutstandingCycle);
                     setConfirmedCycle(null);
                   }}
-                  placeholder="— Select cycle —"
+                  placeholder="- Select cycle -"
                   ariaLabel="Payment cycle"
                 />
               </Field>
@@ -534,7 +534,7 @@ export function OutstandingFormDialog({
                   options={entities.map((en) => ({ value: en.id, label: en.name }))}
                   value={entityId}
                   onValueChange={setEntityId}
-                  placeholder="— Select entity —"
+                  placeholder="- Select entity -"
                   ariaLabel="Entity"
                 />
               </Field>
@@ -543,7 +543,7 @@ export function OutstandingFormDialog({
                   options={modes.map((m) => ({ value: m.id, label: m.name }))}
                   value={modeId}
                   onValueChange={setModeId}
-                  placeholder="— Select mode —"
+                  placeholder="- Select mode -"
                   ariaLabel="Payment mode"
                 />
               </Field>
@@ -552,7 +552,7 @@ export function OutstandingFormDialog({
                   options={YES_NO_OPTIONS}
                   value={pdc}
                   onValueChange={setPdc}
-                  placeholder="— Select —"
+                  placeholder="- Select -"
                   ariaLabel="PDC received"
                 />
               </Field>
@@ -688,7 +688,7 @@ function CycleSubForm(p: SubFormProps) {
               options={BILL_DATE_OPTIONS}
               value={p.billDate}
               onValueChange={p.setBillDate}
-              placeholder="— Select bill date —"
+              placeholder="- Select bill date -"
               ariaLabel="Bill date"
             />
           </Field>
@@ -754,7 +754,7 @@ function CycleSubForm(p: SubFormProps) {
               options={FREQUENCY_OPTIONS}
               value={p.frequency}
               onValueChange={p.setFrequency}
-              placeholder="— Select frequency —"
+              placeholder="- Select frequency -"
               ariaLabel="Billing frequency"
             />
           </Field>

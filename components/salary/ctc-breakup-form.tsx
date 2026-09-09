@@ -126,7 +126,7 @@ export function CtcBreakupForm({ emp }: { emp: CtcFormEmployee }) {
           className="rounded-xl px-4 py-2.5 text-[12.5px] font-semibold"
           style={{ background: "color-mix(in srgb, #f59e0b 15%, transparent)", color: "#92400e" }}
         >
-          SALARY_V2 is OFF — you can edit and save these details, but computed figures stay dark until Sir flips the flag.
+          SALARY_V2 is OFF - you can edit and save these details, but computed figures stay dark until Sir flips the flag.
         </div>
       )}
 
@@ -192,11 +192,11 @@ export function CtcBreakupForm({ emp }: { emp: CtcFormEmployee }) {
         )}
 
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[13px]">
-          <Stat label="Monthly CTC" value={emp.v2Enabled ? inr(breakup.monthlyCtc) : "—"} />
-          <Stat label="PT / month" value={emp.v2Enabled ? inr(breakup.ptMonthly) : "—"} />
+          <Stat label="Monthly CTC" value={emp.v2Enabled ? inr(breakup.monthlyCtc) : "-"} />
+          <Stat label="PT / month" value={emp.v2Enabled ? inr(breakup.ptMonthly) : "-"} />
           <Stat
             label="Salary Payable (after PT)"
-            value={emp.v2Enabled ? inr(breakup.monthlyPayableAfterPt) : "—"}
+            value={emp.v2Enabled ? inr(breakup.monthlyPayableAfterPt) : "-"}
             strong
           />
         </dl>
@@ -289,12 +289,12 @@ export function CtcBreakupForm({ emp }: { emp: CtcFormEmployee }) {
         <div className="grid grid-cols-2 gap-3">
           <Stat
             label="Amount Payable"
-            value={emp.v2Enabled ? inr(adjResult.amountPayable) : "—"}
+            value={emp.v2Enabled ? inr(adjResult.amountPayable) : "-"}
             strong
           />
           <Stat
             label="Amount Paid"
-            value={emp.v2Enabled ? inr(adjResult.amountPaid) : "—"}
+            value={emp.v2Enabled ? inr(adjResult.amountPaid) : "-"}
             strong
           />
         </div>
@@ -353,7 +353,7 @@ export function CtcBreakupForm({ emp }: { emp: CtcFormEmployee }) {
           <Field label="Reason (mandatory)">
             <input
               value={adjReason}
-              placeholder="Why? — required"
+              placeholder="Why? - required"
               onChange={(e) => setAdjReason(e.target.value)}
               className="w-full rounded-lg border border-hairline-strong bg-surface-card px-3 py-1.5 text-[13px]"
             />

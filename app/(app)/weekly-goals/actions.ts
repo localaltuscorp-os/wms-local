@@ -239,7 +239,7 @@ export async function createWeeklyGoal(
 
   // Hard cap: no more than 10 goals per person per week.
   if ((await activeGoalCount(employeeId, weekStart)) >= MAX_GOALS_PER_WEEK) {
-    return { ok: false, error: `That's the weekly maximum — up to ${MAX_GOALS_PER_WEEK} goals per week.` };
+    return { ok: false, error: `That's the weekly maximum - up to ${MAX_GOALS_PER_WEEK} goals per week.` };
   }
 
   try {
@@ -837,11 +837,11 @@ export async function importWeeklyGoals(
       if (empCell) {
         const resolved = byEmail.get(empCell.toLowerCase()) ?? byName.get(normHeader(empCell));
         if (resolved) employeeId = resolved;
-        else warnings.push(`Row ${r + 1}: employee "${empCell}" not found — skipped.`);
+        else warnings.push(`Row ${r + 1}: employee "${empCell}" not found - skipped.`);
       }
     }
     if (!employeeId || employeeId === "all") {
-      warnings.push(`Row ${r + 1}: no team member to assign — pick a person first or add an Employee column.`);
+      warnings.push(`Row ${r + 1}: no team member to assign - pick a person first or add an Employee column.`);
       continue;
     }
 
@@ -982,7 +982,7 @@ export async function setWeeklyGoalReview(
 
   // Accept % is locked once approved — reject the write rather than silently drop it.
   if (acceptPct !== undefined && goal.approvedAt) {
-    return { ok: false, error: "Accept % is locked while approved — un-approve to change it" };
+    return { ok: false, error: "Accept % is locked while approved - un-approve to change it" };
   }
 
   const patch: Record<string, unknown> = {

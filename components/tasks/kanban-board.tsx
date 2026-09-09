@@ -635,7 +635,7 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
             : res.error === "invalid"
               ? res.message ?? "That move isn't allowed from here."
               : res.error === "stale"
-                ? "Task changed elsewhere — refreshing."
+                ? "Task changed elsewhere - refreshing."
                 : "Couldn't update the task.",
       });
       router.refresh();
@@ -969,7 +969,7 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
                         style={{ border: "1.5px dashed var(--color-hairline-strong)" }}
                       >
                         <p className="text-[13.5px] font-semibold text-ink-subtle">
-                          Nothing here — drop a card to move it.
+                          Nothing here - drop a card to move it.
                         </p>
                       </div>
                     )}
@@ -1490,7 +1490,7 @@ function Meta({
     <div className="min-w-0">
       <FieldHead icon={icon}>{label}</FieldHead>
       <div className="mt-1 truncate text-ink-strong" style={{ fontSize: 14.5, fontWeight: 600 }}>
-        {value && value.trim() ? value : "—"}
+        {value && value.trim() ? value : "-"}
       </div>
     </div>
   );

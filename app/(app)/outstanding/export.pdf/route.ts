@@ -99,7 +99,7 @@ async function renderPdf(
     layout: "landscape",
     margin: 40,
     info: {
-      Title: "Altus Corp — Outstanding",
+      Title: "Altus Corp - Outstanding",
       Author: "Altus Corp Dashboard",
       Subject: "Receivables Report",
     },
@@ -533,7 +533,7 @@ function drawCell(
         .font("Helvetica")
         .fontSize(9)
         .fillColor(COLORS.inkMuted)
-        .text(text || "—", cellX, cellY, { width: cellW, lineBreak: true });
+        .text(text || "-", cellX, cellY, { width: cellW, lineBreak: true });
       break;
     }
     case "cycle": {
@@ -541,7 +541,7 @@ function drawCell(
         .font("Helvetica")
         .fontSize(9)
         .fillColor(COLORS.inkMuted)
-        .text(cycleLabel(row.cycle) || "—", cellX, cellY, {
+        .text(cycleLabel(row.cycle) || "-", cellX, cellY, {
           width: cellW,
           lineBreak: false,
           ellipsis: true,

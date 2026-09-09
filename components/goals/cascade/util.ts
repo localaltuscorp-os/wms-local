@@ -105,7 +105,7 @@ export function num(v: string | null | undefined): number | null {
 /** Compact number for a target/actual chip — "1.2k", "3.4L", "12". */
 export function fmtNum(v: string | number | null | undefined): string {
   const n = typeof v === "number" ? v : num(v ?? null);
-  if (n == null) return "—";
+  if (n == null) return "-";
   const abs = Math.abs(n);
   if (abs >= 1e7) return `${(n / 1e7).toFixed(2).replace(/\.00$/, "")}Cr`;
   if (abs >= 1e5) return `${(n / 1e5).toFixed(2).replace(/\.00$/, "")}L`;

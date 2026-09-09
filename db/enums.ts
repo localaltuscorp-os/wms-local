@@ -727,7 +727,7 @@ export const AGREEMENT_TYPE_LABELS: Record<AgreementType, string> = {
   nda: "NDA / Confidentiality",
   ctc: "CTC / Salary Letter",
   probation_confirmation: "Confirmation of Appointment (Post-Probation)",
-  training_completion: "Confirmation — End of Free Training",
+  training_completion: "Confirmation - End of Free Training",
 };
 /** Lifecycle: drafted by HR → sent to the employee → e-signed. */
 export const AGREEMENT_STATUSES = ["draft", "sent", "signed"] as const;

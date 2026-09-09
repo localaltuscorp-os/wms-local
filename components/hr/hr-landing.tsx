@@ -167,7 +167,7 @@ export function HrLanding({ isHrStaff }: { isHrStaff: boolean }) {
       {/* Back to Hub — top-left (the rail is hidden on this landing) */}
       <Link
         href={"/hub" as Route}
-        className="group absolute left-6 top-5 z-30 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold text-white transition-transform hover:-translate-x-0.5 max-md:left-4 max-md:top-4"
+        className="group absolute left-6 top-5 z-30 inline-flex items-center gap-2 rounded-pill px-4 py-2 text-[13px] font-bold text-white transition-transform hover:-translate-x-0.5 max-md:left-4 max-md:top-4"
         style={{ background: "linear-gradient(120deg, #18181b 0%, #A80400 100%)", boxShadow: "0 12px 26px -12px rgba(168,4,0,0.55)" }}
       >
         <LayoutGrid size={15} strokeWidth={2.5} className="transition-transform group-hover:-rotate-6" />
@@ -178,7 +178,7 @@ export function HrLanding({ isHrStaff }: { isHrStaff: boolean }) {
       <div className="relative z-10 mx-auto flex w-full max-w-[1180px] flex-1 flex-col items-center justify-center px-8 py-8 text-center max-md:px-5 max-md:py-10">
         {/* Hero */}
         <span
-          className="hr-in inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em]"
+          className="hr-in inline-flex items-center gap-2 rounded-pill px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em]"
           style={{ color: ACCENT_DEEP, background: "color-mix(in srgb, var(--color-altus-red) 10%, white)", boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-altus-red) 22%, transparent)" }}
         >
           <Sparkles size={13} strokeWidth={2.6} /> Altus · Human Resources
@@ -313,7 +313,7 @@ function StagePopup({ stage, onClose, onOpenChooser, onOpenPolicies }: { stage: 
             <X size={18} strokeWidth={2.4} />
           </button>
           <span
-            className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.2em] text-white"
+            className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.2em] text-white"
             style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
           >
             Altus · {stage.title}
@@ -403,7 +403,7 @@ interface HelpDeskOption {
 }
 
 const HELP_DESK_OPTIONS: HelpDeskOption[] = [
-  { slug: "raise", label: "Raise a Ticket", blurb: "Ask HR for help — a question, request or escalation.", href: "/support/new", Icon: Plus },
+  { slug: "raise", label: "Raise a Ticket", blurb: "Ask HR for help - a question, request or escalation.", href: "/support/new", Icon: Plus },
   { slug: "my-requests", label: "My Requests", blurb: "Track everything you've raised and its status.", href: "/support", Icon: Inbox },
 ];
 
@@ -437,7 +437,7 @@ function HelpDeskPopup({ onClose }: { onClose: () => void }) {
             <X size={18} strokeWidth={2.4} />
           </button>
           <span
-            className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.2em] text-white"
+            className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.2em] text-white"
             style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
           >
             <LifeBuoy size={12} strokeWidth={2.6} /> Altus · Help Desk
@@ -449,7 +449,7 @@ function HelpDeskPopup({ onClose }: { onClose: () => void }) {
             Choose a Step
           </h2>
           <p className="mt-1 max-w-[44ch] text-[13.5px] font-medium leading-snug text-ink-muted">
-            Get help from the HR desk — questions, requests and escalations, all tracked in one place.
+            Get help from the HR desk - questions, requests and escalations, all tracked in one place.
           </p>
         </div>
 

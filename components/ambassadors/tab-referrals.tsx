@@ -23,7 +23,7 @@ function StagePill({ stage }: { stage: Stage }) {
   const s = TONE_STYLE[STAGE_TONES[stage]];
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-[11.5px] font-bold"
+      className="inline-flex items-center rounded-pill px-2.5 py-1 text-[11.5px] font-bold"
       style={{ background: s.bg, color: s.ink }}
     >
       {STAGE_LABELS[stage]}
@@ -97,16 +97,16 @@ export function TabReferrals({ referrals }: { referrals: ReferralRow[] }) {
                   </td>
                   <td className="px-3 py-3"><StagePill stage={r.stage} /></td>
                   <td className="px-3 py-3 text-right text-[14px] font-bold tabular-nums text-ink-strong">
-                    {r.dealAmount != null ? inr(r.dealAmount) : <span className="text-ink-soft">—</span>}
+                    {r.dealAmount != null ? inr(r.dealAmount) : <span className="text-ink-soft">-</span>}
                   </td>
                   <td className="px-5 py-3 text-right">
                     {r.commissionAmount != null ? (
                       <div className="inline-flex flex-col items-end gap-0.5">
                         <span className="text-[14px] font-bold tabular-nums text-ink-strong">{inr(r.commissionAmount)}</span>
-                        <span className="rounded-full px-1.5 py-px text-[10px] font-bold" style={{ background: cs.bg, color: cs.ink }}>{cs.label}</span>
+                        <span className="rounded-pill px-1.5 py-px text-[10px] font-bold" style={{ background: cs.bg, color: cs.ink }}>{cs.label}</span>
                       </div>
                     ) : (
-                      <span className="text-[13px] font-medium text-ink-soft">—</span>
+                      <span className="text-[13px] font-medium text-ink-soft">-</span>
                     )}
                   </td>
                 </tr>
@@ -131,12 +131,12 @@ export function TabReferrals({ referrals }: { referrals: ReferralRow[] }) {
               </div>
               <div className="mt-2 flex items-center justify-between text-[13px]">
                 <span className="font-medium text-ink-muted">
-                  Deal <span className="font-bold tabular-nums text-ink-strong">{r.dealAmount != null ? inr(r.dealAmount) : "—"}</span>
+                  Deal <span className="font-bold tabular-nums text-ink-strong">{r.dealAmount != null ? inr(r.dealAmount) : "-"}</span>
                 </span>
                 {r.commissionAmount != null && (
                   <span className="inline-flex items-center gap-1.5 font-medium text-ink-muted">
                     <span className="font-bold tabular-nums text-ink-strong">{inr(r.commissionAmount)}</span>
-                    <span className="rounded-full px-1.5 py-px text-[10px] font-bold" style={{ background: cs.bg, color: cs.ink }}>{cs.label}</span>
+                    <span className="rounded-pill px-1.5 py-px text-[10px] font-bold" style={{ background: cs.bg, color: cs.ink }}>{cs.label}</span>
                   </span>
                 )}
               </div>

@@ -31,7 +31,7 @@ function StatusPill({ status }: { status: string }) {
   };
   const s = map[status] ?? map.revoked!;
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: s.bg, color: s.fg }}>
+    <span className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11px] font-bold" style={{ background: s.bg, color: s.fg }}>
       <span className="inline-block size-1.5 rounded-full" style={{ background: s.fg }} /> {s.label}
     </span>
   );
@@ -58,7 +58,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
     fireToast({ message: done, type: "success" });
   }
 
-  const fmt = (d: string | Date | null) => (d ? formatDate(typeof d === "string" ? d : d.toISOString()) : "—");
+  const fmt = (d: string | Date | null) => (d ? formatDate(typeof d === "string" ? d : d.toISOString()) : "-");
 
   const counts = {
     all: devices.length,
@@ -90,7 +90,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Local search — person or device" title="Local search — filters only the list on this page" aria-label="Local search — person or device — this page only"
+            placeholder="Local search - person or device" title="Local search - filters only the list on this page" aria-label="Local search - person or device - this page only"
             className="w-full rounded-xl border border-hairline-strong bg-white py-2.5 pl-9 pr-3 text-[13.5px] font-medium text-ink-strong outline-none focus:border-altus-red"
           />
         </div>
@@ -128,7 +128,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
                   <button
                     type="button"
                     disabled={busy === d.id}
-                    onClick={() => act(d.id, approveDevice, "Device approved — they can now punch from it.")}
+                    onClick={() => act(d.id, approveDevice, "Device approved - they can now punch from it.")}
                     className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-60"
                     style={{ background: "var(--color-green-deep, #15803d)" }}
                   >
@@ -139,7 +139,7 @@ export function DevicesClient({ devices, maxPerEmployee }: { devices: DeviceRow[
                   <button
                     type="button"
                     disabled={busy === d.id}
-                    onClick={() => act(d.id, revokeDevice, "Device revoked — it can no longer punch.")}
+                    onClick={() => act(d.id, revokeDevice, "Device revoked - it can no longer punch.")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:border-altus-red hover:text-[color:var(--color-altus-red)] disabled:opacity-60"
                   >
                     {busy === d.id ? <Loader2 size={14} className="animate-spin" /> : <ShieldX size={14} />} Revoke

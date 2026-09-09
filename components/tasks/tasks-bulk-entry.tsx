@@ -90,7 +90,7 @@ export function TasksBulkEntry({
   /** Grid "Proceed" → build preview rows and run the dup/anomaly evaluation. */
   function onGridProceed(gridRows: TaskGridRow[]) {
     if (gridRows.length === 0) {
-      setError("Fill at least one task — a Client Name and a Doer are required.");
+      setError("Fill at least one task - a Client Name and a Doer are required.");
       return;
     }
     setError(null);
@@ -166,16 +166,16 @@ export function TasksBulkEntry({
     return (
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-bold" style={{ background: "color-mix(in srgb, var(--color-green) 14%, transparent)", color: "var(--color-green-deep)" }}>
+          <span className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12.5px] font-bold" style={{ background: "color-mix(in srgb, var(--color-green) 14%, transparent)", color: "var(--color-green-deep)" }}>
             <CheckCircle2 size={14} /> {validCount} valid
           </span>
           {dupCount > 0 && (
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-bold" style={{ background: "color-mix(in srgb, #b45309 16%, transparent)", color: "#92400e" }}>
+            <span className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12.5px] font-bold" style={{ background: "color-mix(in srgb, #b45309 16%, transparent)", color: "#92400e" }}>
               <Copy size={13} /> {dupCount} duplicate{dupCount === 1 ? "" : "s"}
             </span>
           )}
           {invalidCount > 0 && (
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-bold" style={{ background: "color-mix(in srgb, var(--color-altus-red) 12%, transparent)", color: "var(--color-altus-red-deep)" }}>
+            <span className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12.5px] font-bold" style={{ background: "color-mix(in srgb, var(--color-altus-red) 12%, transparent)", color: "var(--color-altus-red-deep)" }}>
               <AlertTriangle size={14} /> {invalidCount} need fixing
             </span>
           )}
@@ -232,16 +232,16 @@ export function TasksBulkEntry({
                         </div>
                       )}
                     </td>
-                    <td className="px-2.5 py-2 align-top text-ink-soft">{r.subject ?? "—"}</td>
+                    <td className="px-2.5 py-2 align-top text-ink-soft">{r.subject ?? "-"}</td>
                     <td className="px-2.5 py-2 align-top text-ink-soft">{PRIORITY_LABELS[r.priority]}</td>
-                    <td className="px-2.5 py-2 align-top tabular-nums text-ink-soft">{r.dueDate || "—"}</td>
+                    <td className="px-2.5 py-2 align-top tabular-nums text-ink-soft">{r.dueDate || "-"}</td>
                     <td className="px-2.5 py-2 align-top text-ink-soft">
-                      {r.doers.length ? r.doers.map((d) => d.name.split(" ")[0]).join(", ") : <span style={{ color: "var(--color-altus-red)" }}>—</span>}
+                      {r.doers.length ? r.doers.map((d) => d.name.split(" ")[0]).join(", ") : <span style={{ color: "var(--color-altus-red)" }}>-</span>}
                     </td>
-                    <td className="px-2.5 py-2 align-top text-ink-soft">{r.initiator ? r.initiator.name.split(" ")[0] : "—"}</td>
+                    <td className="px-2.5 py-2 align-top text-ink-soft">{r.initiator ? r.initiator.name.split(" ")[0] : "-"}</td>
                     <td className="px-2.5 py-2 align-top">
                       {isDup ? (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "color-mix(in srgb, #b45309 16%, transparent)", color: "#92400e" }} title="Same Client + Subject + Doer repeated earlier in the batch">
+                        <span className="inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] font-bold" style={{ background: "color-mix(in srgb, #b45309 16%, transparent)", color: "#92400e" }} title="Same Client + Subject + Doer repeated earlier in the batch">
                           <Copy size={11} /> Repeat
                         </span>
                       ) : bad ? (
@@ -271,7 +271,7 @@ export function TasksBulkEntry({
         )}
         {(invalidCount > 0) && (
           <p className="mt-1 text-[12px] font-medium" style={{ color: "var(--color-ink-muted)" }}>
-            Rows needing fixes are excluded — go back to add a missing Doer or Due date.
+            Rows needing fixes are excluded - go back to add a missing Doer or Due date.
           </p>
         )}
 
@@ -286,7 +286,7 @@ export function TasksBulkEntry({
             type="button"
             onClick={() => { setRows(null); setError(null); }}
             disabled={pending}
-            className={`inline-flex items-center gap-1.5 rounded-full border border-hairline-strong px-4 py-2 text-[13.5px] font-semibold text-ink-soft hover:text-ink-strong hover:bg-surface-soft disabled:opacity-60 ${FOCUS_RING}`}
+            className={`inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong px-4 py-2 text-[13.5px] font-semibold text-ink-soft hover:text-ink-strong hover:bg-surface-soft disabled:opacity-60 ${FOCUS_RING}`}
           >
             <ArrowLeft size={15} /> Back to Grid
           </button>
@@ -294,7 +294,7 @@ export function TasksBulkEntry({
             type="button"
             onClick={doImport}
             disabled={pending || selectedCount === 0}
-            className={`inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-[13.5px] font-bold text-white transition-all hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${FOCUS_RING}`}
+            className={`inline-flex items-center gap-1.5 rounded-pill px-5 py-2 text-[13.5px] font-bold text-white transition-all hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${FOCUS_RING}`}
             style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
           >
             {pending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={2.8} />}

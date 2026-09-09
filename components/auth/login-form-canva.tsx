@@ -24,7 +24,7 @@ function translateFirebaseError(code: string | undefined): string {
     case "auth/user-disabled":
       return "This account has been deactivated. Reach out to your admin to reinstate access.";
     case "auth/too-many-requests":
-      return "Too many attempts in a row — give it a minute, then try again.";
+      return "Too many attempts in a row - give it a minute, then try again.";
     case "auth/wrong-password":
     case "auth/invalid-credential":
     case "auth/invalid-login-credentials":

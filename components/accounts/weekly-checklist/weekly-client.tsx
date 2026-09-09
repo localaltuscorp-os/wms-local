@@ -98,7 +98,7 @@ function ValueSelect({
 // ── Small display bits ────────────────────────────────────────────────────────
 
 function Dim() {
-  return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>;
+  return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>;
 }
 
 function MetaChip({ value, tone }: { value: string | null; tone?: "deadline" | "category" }) {
@@ -109,7 +109,7 @@ function MetaChip({ value, tone }: { value: string | null; tone?: "deadline" | "
       : { bg: "var(--color-surface-track, #eef2f7)", fg: "var(--color-ink-soft)" };
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-bold whitespace-nowrap"
+      className="inline-flex items-center rounded-pill px-2.5 py-1 text-[12px] font-bold whitespace-nowrap"
       style={{ background: palette.bg, color: palette.fg }}
     >
       {value}
@@ -148,7 +148,7 @@ function WeekCell({
           minWidth: 92,
         }}
       >
-        <option value="">—</option>
+        <option value="">-</option>
         {WEEKLY_CHECK_STATUSES.map((s) => (
           <option key={s} value={s}>
             {s === "Not Applicable" ? "N/A" : s}
@@ -398,7 +398,7 @@ export function WeeklyChecklist({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Local search — checklist, notes, responsible" title="Local search — filters only the list on this page" aria-label="Local search — checklist, notes, responsible — this page only"
+            placeholder="Local search - checklist, notes, responsible" title="Local search - filters only the list on this page" aria-label="Local search - checklist, notes, responsible - this page only"
             className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle"
           />
         </div>

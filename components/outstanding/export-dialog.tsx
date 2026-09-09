@@ -136,7 +136,7 @@ export function OutstandingExportDialog({
       .join("\n");
     try {
       await navigator.clipboard.writeText(tsv);
-      fireToast({ message: "Copied — paste into a Google Sheet." });
+      fireToast({ message: "Copied - paste into a Google Sheet." });
     } catch {
       fireToast({
         message: "Could not copy to clipboard. Try the CSV export instead.",
@@ -239,7 +239,7 @@ export function OutstandingExportDialog({
               className="mt-3 text-[12px] text-[#94A3B8]"
               style={{ lineHeight: 1.5 }}
             >
-              Templates are blank workbooks with only the header row — bulk-fill
+              Templates are blank workbooks with only the header row - bulk-fill
               them, then re-import via the Import dialog.
             </p>
           </div>

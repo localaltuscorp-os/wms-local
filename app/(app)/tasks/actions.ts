@@ -161,7 +161,7 @@ export async function archiveTask(
       await emit(tx, taskArchived(taskId, { doerId: updated[0]!.doerId }, { actorId: me.id }));
       return true;
     });
-    if (!found) return { ok: false, error: "Task not found — it may already be gone." };
+    if (!found) return { ok: false, error: "Task not found - it may already be gone." };
   } catch (err) {
     return { ok: false, error: `Could not archive: ${(err as Error).message}` };
   }
@@ -211,7 +211,7 @@ export async function deleteTask(
       return d;
     });
     if (deleted.length === 0) {
-      return { ok: false, error: "Task not found — it may already be deleted." };
+      return { ok: false, error: "Task not found - it may already be deleted." };
     }
   } catch (err) {
     return { ok: false, error: `Could not delete: ${(err as Error).message}` };
@@ -258,7 +258,7 @@ export async function unarchiveTask(
       await emit(tx, taskRestored(taskId, { doerId: updated[0]!.doerId }, { actorId: me.id }));
       return true;
     });
-    if (!found) return { ok: false, error: "Task not found — it may already be gone." };
+    if (!found) return { ok: false, error: "Task not found - it may already be gone." };
   } catch (err) {
     return { ok: false, error: `Could not restore: ${(err as Error).message}` };
   }

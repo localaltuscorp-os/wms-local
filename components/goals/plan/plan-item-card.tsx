@@ -214,7 +214,7 @@ export function PlanItemCard({
                       aria-label={`How long ${item.title} will take`}
                       className="rounded border border-transparent bg-transparent py-0 text-[10.5px] font-semibold text-ink-soft hover:border-hairline focus:border-hairline-strong focus:outline-none"
                     >
-                      <option value="">—</option>
+                      <option value="">-</option>
                       <option value="15">15 min</option>
                       <option value="30">30 min</option>
                       <option value="45">45 min</option>
@@ -290,10 +290,10 @@ export function PlanItemCard({
                was actually wrong. */
             aria-label={
               item.taskId
-                ? `Take ${item.title} off this day — the task stays in Tasks`
+                ? `Take ${item.title} off this day - the task stays in Tasks`
                 : item.origin === "goal_related" || item.kind === "weekly"
-                  ? `Take ${item.title} off this day — the goal returns to Pull Work`
-                  : `Remove ${item.title} — moves it to the Recycle Bin`
+                  ? `Take ${item.title} off this day - the goal returns to Pull Work`
+                  : `Remove ${item.title} - moves it to the Recycle Bin`
             }
             className="shrink-0 inline-flex size-5 items-center justify-center rounded-full text-ink-muted/50 opacity-0 transition-opacity hover:bg-surface-soft hover:text-ink-strong focus-visible:opacity-100 focus-visible:outline-2 group-hover:opacity-100"
             style={{ outlineColor: GOALS_ACCENT }}

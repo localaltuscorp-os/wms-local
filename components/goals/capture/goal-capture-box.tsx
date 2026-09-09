@@ -69,7 +69,7 @@ export function GoalCaptureBox(props: {
       recorderRef.current = rec;
       setRecording(true);
     } catch {
-      fireToast({ message: "Couldn't access the mic — check browser permissions.", type: "error" });
+      fireToast({ message: "Couldn't access the mic - check browser permissions.", type: "error" });
     }
   }
   function stopRecording() {

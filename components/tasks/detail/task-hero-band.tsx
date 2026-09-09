@@ -153,7 +153,7 @@ export function TaskHeroBand({
         <div className="flex items-center gap-1.5 text-[13px] font-semibold text-white/75">
           {breadcrumb}
         </div>
-        <span className="rounded-full bg-white/20 px-3 py-1 text-[11.5px] font-bold uppercase tracking-wider text-white backdrop-blur-xs">
+        <span className="rounded-pill bg-white/20 px-3 py-1 text-[11.5px] font-bold uppercase tracking-wider text-white backdrop-blur-xs">
           {statusLabel}
         </span>
         {/* REWORK CYCLES — `rejectionCount` is the number of times this task was
@@ -161,7 +161,7 @@ export function TaskHeroBand({
             a "0 REWORK CYCLES" badge is noise on the majority of tasks that
             have never bounced. */}
         {(time?.rollup.rejectionCount ?? 0) > 0 && (
-          <span className="rounded-full bg-black/25 px-3 py-1 text-[11.5px] font-bold uppercase tracking-wider text-white">
+          <span className="rounded-pill bg-black/25 px-3 py-1 text-[11.5px] font-bold uppercase tracking-wider text-white">
             {time!.rollup.rejectionCount} rework{" "}
             {time!.rollup.rejectionCount === 1 ? "cycle" : "cycles"}
           </span>

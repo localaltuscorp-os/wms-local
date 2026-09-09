@@ -24,9 +24,9 @@ function translateFirebaseError(err: unknown): string {
     case "auth/user-not-found":
       return "Current password is incorrect.";
     case "auth/weak-password":
-      return "New password is too weak — try at least 8 characters with mixed cases and a number.";
+      return "New password is too weak - try at least 8 characters with mixed cases and a number.";
     case "auth/requires-recent-login":
-      return "Sign out and back in, then try again — Firebase needs a recent sign-in.";
+      return "Sign out and back in, then try again - Firebase needs a recent sign-in.";
     case "auth/network-request-failed":
       return "Network hiccup. Try again.";
     // The sign-in fallback can hit rate limiting and disabled accounts, which

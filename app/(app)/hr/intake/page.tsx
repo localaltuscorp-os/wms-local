@@ -7,6 +7,7 @@ import { listDepartments } from "@/lib/queries/departments";
 import { IntakeFormLauncher } from "@/components/hr/candidate/intake-form-launcher";
 import { IntakeChooser } from "@/components/hr/candidate/intake-chooser";
 import type { IntakeInitial } from "@/components/hr/candidate/intake-wizard";
+import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -50,13 +51,10 @@ export default async function IntakePage({
   // ── Chooser mode (default): start new or continue an unfinished form ──
   const drafts = await listCandidateDrafts().catch(() => []);
   return (
-    <div className="min-h-dvh bg-[#faf9fb]">
-      <header className="sticky sticky-below-topbar z-20 grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-hairline bg-white/90 px-6 py-3 backdrop-blur max-md:px-4">
-        <div className="justify-self-start">
-        </div>
-        <img src="/logo.png" alt="Altus Corp" className="h-9 w-auto justify-self-center max-md:h-8" style={{ display: "block" }} />
-        <span aria-hidden className="justify-self-end" />
-      </header>
+    <div className="min-h-full bg-[#faf9fb]">
+      <HrTitleBar
+
+      />
       <PageShell width="narrow" py={false} className="pt-10 pb-20">
         <IntakeChooser drafts={drafts} />
       </PageShell>

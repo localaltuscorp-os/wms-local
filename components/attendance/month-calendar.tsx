@@ -230,7 +230,7 @@ function DayCell({
     >
       <button
         type="button"
-        aria-label={`${fmtFullDate(c.date)} — ${st.label}`}
+        aria-label={`${fmtFullDate(c.date)} - ${st.label}`}
         aria-expanded={open}
         onClick={() => setPinned((p) => !p)}
         onKeyDown={(e) => e.key === "Escape" && (setPinned(false), setHover(false))}
@@ -286,7 +286,7 @@ function DayCell({
             <span className="att-pop-status" style={{ color: st.fg, background: `color-mix(in srgb, ${st.fg} 12%, transparent)` }}>{st.label}</span>
           </div>
           {c.future ? (
-            <p className="att-pop-empty">Upcoming day — not graded yet.</p>
+            <p className="att-pop-empty">Upcoming day - not graded yet.</p>
           ) : editable && pinned ? (
             <>
               <div className="att-pop-erow">
@@ -299,22 +299,22 @@ function DayCell({
               </div>
               <div className="att-pop-row att-pop-total">
                 <span className="att-pop-k"><Clock size={12} strokeWidth={2.4} /> Total hours</span>
-                <span className="att-pop-v">{total ?? "—"}</span>
+                <span className="att-pop-v">{total ?? "-"}</span>
               </div>
             </>
           ) : (
             <>
               <div className="att-pop-row">
                 <span className="att-pop-k"><LogIn size={12} strokeWidth={2.4} style={{ color: "#15803d" }} /> Check-in</span>
-                <span className="att-pop-v">{c.inAt ?? "— no punch"}</span>
+                <span className="att-pop-v">{c.inAt ?? "- no punch"}</span>
               </div>
               <div className="att-pop-row">
                 <span className="att-pop-k"><LogOut size={12} strokeWidth={2.4} style={{ color: "#b91c1c" }} /> Check-out</span>
-                <span className="att-pop-v">{c.outAt ?? "— no punch"}</span>
+                <span className="att-pop-v">{c.outAt ?? "- no punch"}</span>
               </div>
               <div className="att-pop-row att-pop-total">
                 <span className="att-pop-k"><Clock size={12} strokeWidth={2.4} /> Total hours</span>
-                <span className="att-pop-v">{total ?? "—"}</span>
+                <span className="att-pop-v">{total ?? "-"}</span>
               </div>
               {(c.late || c.leftEarly) && (
                 <div className="att-pop-flags">

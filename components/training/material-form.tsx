@@ -82,7 +82,7 @@ export function MaterialForm({
         setFile({ path: json.path, fileName: json.fileName, fileType: json.fileType });
       }
     } catch {
-      setError("Upload failed — check your connection and try again.");
+      setError("Upload failed - check your connection and try again.");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

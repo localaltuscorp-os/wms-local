@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { GraduationCap, Loader2, CircleCheck, UserRound } from "lucide-react";
+import { Loader2, CircleCheck, UserRound } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { ONBOARDING_SECTIONS } from "@/lib/dossier/onboarding-schema";
 import {
@@ -54,24 +54,9 @@ export function InductionScreen({ people }: { people: InductionPerson[] }) {
     <>
       <style>{CSS}</style>
       <PageShell width="narrow" py={false} className="pt-7 pb-24">
-        <div className="mb-6 ind-fade">
-          <span
-            className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white"
-            style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
-          >
-            <GraduationCap size={13} strokeWidth={2.6} /> HR · Induction
-          </span>
-          <h1
-            className="mt-2 text-ink-strong"
-            style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(28px,3.4vw,44px)", letterSpacing: "-0.03em", lineHeight: 1.02 }}
-          >
-            Induction
-          </h1>
-          <p className="mt-1.5 max-w-[74ch] text-[15px] font-medium text-ink-muted">
-            Confirm a new joiner&apos;s details on day one — pre-filled straight from the
-            onboarding form they already completed. Nothing to re-type; just review and confirm.
-          </p>
-        </div>
+        {/* The "HR · Induction" eyebrow + "Induction" heading + subtitle that
+            used to open this page now live in the frozen HrTitleBar (see
+            page.tsx). */}
 
         <div className="ind-fade rounded-2xl border border-hairline bg-white p-5 shadow-[0_10px_30px_-22px_rgba(24,24,27,0.5)]">
           <label htmlFor="ind-emp" className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.16em] text-ink-soft">
@@ -85,7 +70,7 @@ export function InductionScreen({ people }: { people: InductionPerson[] }) {
               onChange={(e) => void select(e.target.value)}
               className="w-full appearance-none rounded-xl border border-hairline-strong bg-white px-3.5 py-3 pr-9 text-[14.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-altus-red"
             >
-              <option value="">— Select an employee —</option>
+              <option value="">- Select an employee -</option>
               {people.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -93,7 +78,7 @@ export function InductionScreen({ people }: { people: InductionPerson[] }) {
           </div>
           {people.length === 0 && (
             <p className="mt-2 text-[13px] font-medium text-ink-muted">
-              No submitted onboarding forms yet — once a joiner submits theirs, they appear here.
+              No submitted onboarding forms yet - once a joiner submits theirs, they appear here.
             </p>
           )}
         </div>
@@ -168,7 +153,7 @@ function InductionSummary({ data }: { data: InductionData }) {
 
       <p className="mt-4 flex items-start gap-2 text-[12px] leading-relaxed text-ink-subtle">
         <UserRound size={13} className="mt-0.5 shrink-0" />
-        Read-only — pulled live from the onboarding form. Corrections are made on the onboarding form itself, in the dossier.
+        Read-only - pulled live from the onboarding form. Corrections are made on the onboarding form itself, in the dossier.
       </p>
     </div>
   );

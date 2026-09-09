@@ -80,14 +80,14 @@ export function FormEditorDialog({
   return (
     <Dialog.Root open={open} onOpenChange={(o) => { setOpen(o); if (o) reseed(); }}>
       <Dialog.Trigger asChild>
-        <button className="bg-surface-card inline-flex items-center gap-1.5 rounded-full border border-hairline px-3.5 py-2 text-[13.5px] font-bold text-ink-soft hover:text-ink-strong transition-colors">
+        <button className="bg-surface-card inline-flex items-center gap-1.5 rounded-pill border border-hairline px-3.5 py-2 text-[13.5px] font-bold text-ink-soft hover:text-ink-strong transition-colors">
           <Pencil size={14} /> Edit Form
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
-          <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">Edit form — {formName}</Dialog.Title>
+          <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">Edit form - {formName}</Dialog.Title>
           <Dialog.Description className="text-[14px] text-[#64748B] mb-4">
             Add, reorder, rename or remove fields. For dropdowns, put one option per line.
           </Dialog.Description>
@@ -137,7 +137,7 @@ export function FormEditorDialog({
             ))}
           </div>
 
-          <button type="button" onClick={add} className="bg-surface-card mt-3 inline-flex items-center gap-1.5 rounded-full border border-solid border-hairline px-4 py-2 text-[13px] font-bold text-ink-soft hover:text-ink-strong">
+          <button type="button" onClick={add} className="bg-surface-card mt-3 inline-flex items-center gap-1.5 rounded-pill border border-solid border-hairline px-4 py-2 text-[13px] font-bold text-ink-soft hover:text-ink-strong">
             <Plus size={14} /> Add Field
           </button>
 

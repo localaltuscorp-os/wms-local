@@ -104,7 +104,7 @@ export function DccDashboard({ meId, people, items, entries, reviews, today }: P
       <div className="grid grid-cols-3 gap-6 max-lg:grid-cols-1">
         {/* Roster */}
         <div className="col-span-2 max-lg:col-span-1">
-          <h3 className="mb-2 px-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-ink-muted">Team roster — today</h3>
+          <h3 className="mb-2 px-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-ink-muted">Team roster - today</h3>
           <div className="overflow-hidden rounded-2xl border border-hairline-strong bg-white shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             {rows.length === 0 && <p className="px-5 py-10 text-center text-[14px] font-semibold text-ink-muted">No people in your scope yet.</p>}
             {rows.map((r, i) => (
@@ -119,7 +119,7 @@ export function DccDashboard({ meId, people, items, entries, reviews, today }: P
                 )}
                 <div className="w-28 max-md:w-20">
                   <Bar pct={r.todayPct} />
-                  <p className="mt-1 text-right text-[11px] font-bold text-ink-subtle tabular-nums">{r.todayPct < 0 ? "—" : `${r.doneToday}/${r.dueToday}`}</p>
+                  <p className="mt-1 text-right text-[11px] font-bold text-ink-subtle tabular-nums">{r.todayPct < 0 ? "-" : `${r.doneToday}/${r.dueToday}`}</p>
                 </div>
                 {r.review?.status === "approved" && <span className="rounded-md bg-[color:color-mix(in_srgb,var(--color-green)_16%,transparent)] px-1.5 py-0.5 text-[10px] font-extrabold" style={{ color: "var(--color-green-deep)" }}>✓</span>}
                 {r.review?.status === "needs_rework" && <AlertTriangle size={14} style={{ color: "var(--color-altus-red)" }} />}
@@ -149,7 +149,7 @@ export function DccDashboard({ meId, people, items, entries, reviews, today }: P
               <h3 className="mb-2 mt-5 px-1 text-[12px] font-extrabold uppercase tracking-[0.14em]" style={{ color: "var(--color-altus-red-deep)" }}>Yet to complete today</h3>
               <div className="flex flex-wrap gap-2">
                 {notFilled.map((r) => (
-                  <Link key={r.p.id} href={`/dcc?emp=${r.p.id}` as Route} className="flex items-center gap-1.5 rounded-full border border-hairline-strong bg-white px-2.5 py-1.5 text-[12.5px] font-bold text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red">
+                  <Link key={r.p.id} href={`/dcc?emp=${r.p.id}` as Route} className="flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-white px-2.5 py-1.5 text-[12.5px] font-bold text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red">
                     <Avatar name={r.p.name} avatarUrl={r.p.avatarUrl} size={20} /> {r.p.name.split(" ")[0]}
                   </Link>
                 ))}

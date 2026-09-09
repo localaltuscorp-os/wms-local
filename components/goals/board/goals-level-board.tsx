@@ -161,26 +161,26 @@ export function csvCell(v: string): string {
 
 
 /**
- * Goals LEVEL BOARD — the weekly-goals-board design (header + score card,
+ * Goals LEVEL BOARD - the weekly-goals-board design (header + score card,
  * filter command bar, one card list, quick-add, drawers) applied to the GOALS
  * table for one level. Period pills double as ALWAYS-ON drop targets: drag a
  * card onto Q2 to re-quarter it (moveGoalToPeriod), drag within the list to
- * reorder (reorderGoals) — both optimistic through useOptimisticGoals.
+ * reorder (reorderGoals) - both optimistic through useOptimisticGoals.
  */
 export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   const router = useRouter();
   const { goals, mutation } = useOptimisticGoals(props.goals);
   const fy = props.fyStartYear;
 
-  // PER-LEVEL layout switch. `props.level` maps 1:1 onto a route — "year" only
+  // PER-LEVEL layout switch. `props.level` maps 1:1 onto a route - "year" only
   // ever arrives from /goals/yearly, "quarter" from /goals/quarterly, "month"
-  // from /goals/monthly — so gating on it re-skins one page at a time.
+  // from /goals/monthly - so gating on it re-skins one page at a time.
   //
   // ALL THREE levels now share one shape: the band is just
   // `heading · [FY] [Viewing]`, and whatever bucket nav a level has renders on
   // its OWN row under the band (quarters for Quarterly, quarter-grouped months
   // for Monthly; Yearly has no buckets at all). That is why the former
-  // `bandOnly` switch is gone — the "pills inside the band" layout it guarded
+  // `bandOnly` switch is gone - the "pills inside the band" layout it guarded
   // was Monthly's twelve-chip row, and nothing renders it any more. The board is
   // also a growing flex column, which is what pins the footer: otherwise its
   // gradient surface stops at the last row and leaves a strip of bare page
@@ -227,7 +227,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
     // `props.periodKey` and `props.level` are READ above, so they must be
     // deps: without them the callback keeps the closure from the render that
     // first created it, and a person hop after a quarter change re-sends the
-    // PREVIOUS quarter — silently snapping the board back to it.
+    // PREVIOUS quarter - silently snapping the board back to it.
     [
       router,
       props.basePath,
@@ -311,7 +311,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   const currentQuarterKey = React.useMemo(() => quarterKey(new Date()), []);
 
   // The window normally sits on the LIVE quarter, and re-anchors only when the
-  // selection lands outside it — an FY hop, or a `?period=` deep link. So
+  // selection lands outside it - an FY hop, or a `?period=` deep link. So
   // clicking a quarter inside the window never reshuffles the row under the
   // pointer, while a quarter reached any other way is still shown and selected.
   const quarterAnchorKey = React.useMemo(
@@ -324,7 +324,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
 
   // Quarters of the LOADED FY that sit behind the window. The window only looks
   // forward, so without this the FY's earlier quarters would be unreachable
-  // except by stepping the FY — the "Show past" reveal adds them back in place.
+  // except by stepping the FY - the "Show past" reveal adds them back in place.
   const hiddenPastQuarters = React.useMemo(() => {
     if (!isQuarterly) return EMPTY_KEYS;
     const inWindow = new Set(quarterWindow(quarterAnchorKey));
@@ -332,7 +332,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   }, [isQuarterly, fy, quarterAnchorKey]);
   const revealedQuarters = showPast ? hiddenPastQuarters : EMPTY_KEYS;
 
-  // ── Month navigation: the SAME rolling-window idea one level down — the live
+  // ── Month navigation: the SAME rolling-window idea one level down - the live
   //    quarter and the next one, six months, each under the quarter that owns
   //    it. Replaces the strip of twelve identical chips, where the month you
   //    actually work in had to be found by reading every label and half the row
@@ -345,7 +345,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   const currentMonthKey = React.useMemo(() => monthKey(new Date()), []);
 
   // Anchored on the LIVE quarter, re-anchored only when the selected month sits
-  // outside the window (an FY hop or a `?m=`/`?period=` deep link) — so clicking
+  // outside the window (an FY hop or a `?m=`/`?period=` deep link) - so clicking
   // a month inside the window never reshuffles the row under the pointer.
   const monthAnchorQuarterKey = React.useMemo(() => {
     if (!isMonthly) return currentQuarterKey;
@@ -355,7 +355,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
       : selectedQuarter;
   }, [isMonthly, currentQuarterKey, props.periodKey]);
 
-  // The single quarter behind the window — what "Show past" reveals. Unlike the
+  // The single quarter behind the window - what "Show past" reveals. Unlike the
   // quarterly row this isn't clipped to the loaded FY: stepping back from April
   // is a legitimate look at the closing year, and picking one of its months hops
   // the FY with it.
@@ -395,7 +395,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   }, [levelGoals]);
 
   // The board loads ONE FY of goals, so a quarter from the window's other FY has
-  // no count here — report `null` (unknown) rather than a confident 0, which the
+  // no count here - report `null` (unknown) rather than a confident 0, which the
   // pill would otherwise announce as "0 goals" for a quarter that may be full.
   const quarterCountOf = React.useCallback(
     (periodKey: string): number | null =>
@@ -403,7 +403,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
     [countByBucket, fy],
   );
 
-  /** Same rule for the month window, which straddles FYs the same way — a month
+  /** Same rule for the month window, which straddles FYs the same way - a month
    *  the loader never fetched reports `null` (unknown), not 0. */
   const monthCountOf = React.useCallback(
     (monthKeyStr: string): number | null =>
@@ -411,7 +411,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
     [countByBucket, fy],
   );
 
-  /** This bucket's goals in Sr.-No. order — the list the board renders. */
+  /** This bucket's goals in Sr.-No. order - the list the board renders. */
   const inBucket = React.useMemo(
     () =>
       levelGoals
@@ -421,7 +421,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   );
 
   // ── View: classic list ⇄ HIERARCHICAL Kanban (persisted). EVERY level now
-  //    gets a Kanban — including Yearly (Year → Quarter). SSR renders "list";
+  //    gets a Kanban - including Yearly (Year → Quarter). SSR renders "list";
   //    the stored preference applies after mount so hydration stays clean. ──
   const [view, setView] = React.useState<"list" | "kanban" | "dashboard">("list");
   React.useEffect(() => {
@@ -429,7 +429,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
       const stored = window.localStorage.getItem(VIEW_STORE_KEY);
       if (stored === "kanban" || stored === "dashboard") setView(stored);
     } catch {
-      /* storage unavailable — stay on list */
+      /* storage unavailable - stay on list */
     }
   }, []);
   const pickView = React.useCallback((v: "list" | "kanban" | "dashboard") => {
@@ -458,7 +458,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
     }
   }, [pendingCompose, view]);
   const openComposer = React.useCallback(() => {
-    // The board-level quick-add is only mounted in List view — hop there first
+    // The board-level quick-add is only mounted in List view - hop there first
     // from Kanban/Dashboard, then open once it commits (pendingCompose effect).
     if (view !== "list") {
       pickView("list");
@@ -469,9 +469,9 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   }, [view, pickView]);
 
   // ── Hotkey: press "G" anywhere on a Goals board to open "+ New goal". Never
-  //    hijacks real typing — bails inside form fields, the spreadsheet grid
+  //    hijacks real typing - bails inside form fields, the spreadsheet grid
   //    (where a letter seeds an inline cell edit), contenteditable, or any open
-  //    dialog/drawer — and ignores modifier combos (⌘G / Ctrl-G stay native). ─
+  //    dialog/drawer - and ignores modifier combos (⌘G / Ctrl-G stay native). ─
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.defaultPrevented || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -497,7 +497,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   const deferredSearch = React.useDeferredValue(search);
   const [completion, setCompletion] = React.useState<ProgressFilter>("all");
   const [sortKey, setSortKey] = React.useState<SortKey>("position");
-  // Area / Type filters — empty set = no restriction (matches every goal).
+  // Area / Type filters - empty set = no restriction (matches every goal).
   const [areaFilter, setAreaFilter] = React.useState<Set<string>>(new Set());
   const [typeFilter, setTypeFilter] = React.useState<Set<string>>(new Set());
   const [visibleCols, setVisibleCols] = React.useState<Set<string>>(() => new Set(ALL_VISIBLE_COLS));
@@ -505,7 +505,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   const [rowsPerPage, setRowsPerPage] = React.useState<number | "all">(25);
   const [fullscreen, setFullscreen] = React.useState(false);
 
-  // ── Dashboard view's OWN filter set (Area/Type/Owner/Delegate/Status) —
+  // ── Dashboard view's OWN filter set (Area/Type/Owner/Delegate/Status) -
   //    separate from the List view's search/quick-chip filters above; drives
   //    every chart on the Dashboard tab.
   const [dashboardFilters, setDashboardFilters] = React.useState<DashboardFilters>(DEFAULT_DASHBOARD_FILTERS);
@@ -521,7 +521,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   }, [fullscreen]);
 
   /** A goal's Type as it reads in the simplified table's own fixed list
-   *  (built-in code → its label; admin-added custom type → its raw value) —
+   *  (built-in code → its label; admin-added custom type → its raw value) -
    *  the same resolution goal-table-view.tsx's Type column already uses. */
   const goalTypeLabel = React.useCallback(
     (g: GoalDTO) => (g.goalType ? GOAL_TYPE_LABELS[g.goalType as GoalType] ?? g.goalType : ""),
@@ -551,7 +551,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
     [deferredSearch, completion, areaFilter, typeFilter, goalTypeLabel],
   );
 
-  // Sort comparator — Sr. No. keeps the position order (drag stays live); every
+  // Sort comparator - Sr. No. keeps the position order (drag stays live); every
   // other key sorts a COPY (drag paused). Ties fall back to Sr. No. for stability.
   const sortCmp = React.useCallback(
     (a: GoalDTO, b: GoalDTO): number => {
@@ -570,7 +570,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
         case "az":
           return a.title.localeCompare(b.title) || posTie;
         default:
-          return 0; // "position" — inBucket is already Sr.-No. ordered
+          return 0; // "position" - inBucket is already Sr.-No. ordered
       }
     },
     [sortKey],
@@ -595,7 +595,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   }, [buckets, levelGoals, filterGoal]);
 
   // The hierarchy Kanban's lane cards live at the CHILD level (Year→Quarter,
-  // Quarter→Month, Month→Week) under the selected parent bucket — scope the
+  // Quarter→Month, Month→Week) under the selected parent bucket - scope the
   // quick-chips to exactly those so the counts match the cards on screen.
   const kanbanChildScope = React.useMemo(() => {
     if (!kanban) return EMPTY_CHILDREN;
@@ -650,7 +650,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
     setTypeFilter(new Set());
   };
 
-  // Rows-per-page — a plain slice of the already-filtered/sorted list view;
+  // Rows-per-page - a plain slice of the already-filtered/sorted list view;
   // Kanban and Dashboard show every matching goal, unpaged (they lay out by
   // bucket/lane, not a scrolling row list).
   const pagedGoals = React.useMemo(
@@ -726,7 +726,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   const goaltypeOptions = props.goaltypeOptions;
   const customLookups = props.customLookups;
 
-  /** Direct children of every goal (the payload holds ALL levels) — feeds the
+  /** Direct children of every goal (the payload holds ALL levels) - feeds the
    *  drawer's allocation strip + Rebalance without any extra fetch. */
   const childrenByParent = React.useMemo(() => {
     const m = new Map<string, GoalDTO[]>();
@@ -744,7 +744,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  // Drag-reorder is only coherent in Sr.-No. order — a custom sort would fight
+  // Drag-reorder is only coherent in Sr.-No. order - a custom sort would fight
   // the persisted position, so pause drag whenever a sort (or filter) is active.
   const dragDisabled =
     !canWrite || !policy.canReorder || activeFilterCount > 0 || sortKey !== "position";
@@ -759,7 +759,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   /** POINTER-FIRST collision detection. The board rows are full-width, so any
    *  rect-based algorithm (closestCorners/-Center) lets a sibling ROW out-score
    *  a small period pill or a Kanban column even when the cursor is dead-centre
-   *  on it — drops silently no-op'd ("DnD feels absent"). Whatever droppable is
+   *  on it - drops silently no-op'd ("DnD feels absent"). Whatever droppable is
    *  actually UNDER the cursor wins; the rect math stays as the fallback for
    *  the keyboard sensor (which has no pointer). */
   const collisionDetection = React.useCallback<CollisionDetection>((args) => {
@@ -775,7 +775,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   );
 
   /** Same-level re-bucket (pill drop, Kanban column drop, cross-column card
-   *  drop) — the owner-open `canReQuarter` line, optimistic, with live Undo.
+   *  drop) - the owner-open `canReQuarter` line, optimistic, with live Undo.
    *  Cross-LEVEL moves stay in the "Move to…" drawer (canRehomeLevel). */
   const moveToBucket = React.useCallback(
     (g: GoalDTO, key: string) => {
@@ -813,7 +813,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   /** Cross-LEVEL drag re-home (roll-up → any quarter / any month). Same-level
    *  targets fall through to `moveToBucket`; a different level re-parents via
    *  moveGoalToLevel (server handles parent re-linking + orphan detach), fully
-   *  optimistic with an Undo toast — the same recipe as the "Move to…" drawer. */
+   *  optimistic with an Undo toast - the same recipe as the "Move to…" drawer. */
   const rehomeToLevel = React.useCallback(
     (g: GoalDTO, targetPeriod: GoalPeriod, targetPeriodKey: string) => {
       if (targetPeriod === g.period) return moveToBucket(g, targetPeriodKey);
@@ -880,7 +880,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   );
 
   /** Re-home a WEEK-lane card (weekly_goals row) to another week on the Monthly
-   *  board — writes `week_start` via moveWeeklyToWeek. Optimistic + Undo, then
+   *  board - writes `week_start` via moveWeeklyToWeek. Optimistic + Undo, then
    *  router.refresh reconciles the re-fetched week cards from the server. */
   const rehomeWeekCard = React.useCallback(
     (g: GoalDTO, weekStart: string) => {
@@ -962,7 +962,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
 
   // ── ARIA-LIVE narration for the drag (screen-reader parity) ─────────
   // dnd-kit renders these through its own hidden aria-live region; the
-  // keyboard path is the SAME DndContext — space lifts, arrows walk sibling
+  // keyboard path is the SAME DndContext - space lifts, arrows walk sibling
   // cards AND the period pills (droppables count as targets), space drops.
   const nameDropTarget = React.useCallback(
     (id: string | number | undefined): string | null => {
@@ -992,7 +992,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
         if (!target) return `Dropped ${name}. No changes made.`;
         const overId = String(over?.id ?? "");
         if (overId.startsWith(BUCKET_DROP_PREFIX)) return `Moved ${name} to ${target}.`;
-        // Kanban cross-column drop ON a card actually re-buckets — say so.
+        // Kanban cross-column drop ON a card actually re-buckets - say so.
         const a = levelGoals.find((x) => x.id === String(active.id));
         const o = levelGoals.find((x) => x.id === overId);
         if (a && o && a.periodKey !== o.periodKey)
@@ -1000,7 +1000,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
         return `Dropped ${name} next to ${target}.`;
       },
       onDragCancel({ active }) {
-        return `Cancelled — ${nameDropTarget(active.id) ?? "the goal"} returned to its place.`;
+        return `Cancelled - ${nameDropTarget(active.id) ?? "the goal"} returned to its place.`;
       },
     }),
     [nameDropTarget, levelGoals],
@@ -1017,10 +1017,10 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   const [archiveTarget, setArchiveTarget] = React.useState<GoalDTO | null>(null);
   const requestArchive = React.useCallback((g: GoalDTO) => setArchiveTarget(g), []);
 
-  // ── Stable DENSE goal numbering — ONE source for every view ──────────
+  // ── Stable DENSE goal numbering - ONE source for every view ──────────
   // The code (Y1 / AQ1 / AprM1) and Sr. No. come from the goal's RANK within
   // its bucket (goals sorted by stored position → 1..N), never the raw stored
-  // `position` (which goes sparse after reorders/deletes — the "16,17,18" and
+  // `position` (which goes sparse after reorders/deletes - the "16,17,18" and
   // duplicate-"AQ1" bugs). Computed once over ALL goals so the list, Kanban and
   // cards always agree, stay sequential, and never gap or collide.
   const rankById = React.useMemo(() => {
@@ -1043,7 +1043,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   }, [goals]);
   const rankOf = React.useCallback((g: GoalDTO) => rankById.get(g.id) ?? g.position, [rankById]);
   /** Owner display name for the shared goal-details view. Reads the roster the
-   *  board already loaded — no extra query, and null when the owner is off it. */
+   *  board already loaded - no extra query, and null when the owner is off it. */
   const ownerNameOf = React.useCallback(
     (g: GoalDTO) => props.roster.find((r) => r.id === g.employeeId)?.name ?? null,
     [props.roster],
@@ -1083,7 +1083,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
       style={{ color: "var(--color-ink-strong)" }}
     >
       <div className="relative flex flex-col">
-        {/* ── HEADER — ONE unified command bar: identity + tabs · overview
+        {/* ── HEADER - ONE unified command bar: identity + tabs · overview
             (dial + donut) · person + FY, all in a single creative band. ── */}
         {/* ── Every level (Yearly / Quarterly / Monthly) gets the SAME
             Tasks-page treatment: a slim title+stat-chip header, then a
@@ -1208,9 +1208,9 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Local search — goals, areas, notes"
-              title="Local search — filters only the list on this page"
-              aria-label="Local search — goals, areas, notes — this page only"
+              placeholder="Local search - goals, areas, notes"
+              title="Local search - filters only the list on this page"
+              aria-label="Local search - goals, areas, notes - this page only"
               className={`w-full h-9 rounded-pill border border-hairline bg-surface-card pl-9 pr-9 text-[13.5px] font-medium text-ink-strong transition-colors focus:border-altus-red ${FOCUS_RING}`}
             />
             {search && (
@@ -1237,7 +1237,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
               <button
                 type="button"
                 onClick={openComposer}
-                title="New Goal — press G"
+                title="New Goal - press G"
                 aria-keyshortcuts="G"
                 className={`pastel-cta wg-btn inline-flex shrink-0 items-center gap-1.5 h-9 rounded-pill px-3.5 text-[13px] font-bold transition-all hover:-translate-y-px cursor-pointer ${FOCUS_RING}`}
               >
@@ -1431,7 +1431,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
           )}
         </div>
 
-        {/* ── Feature toolbar — Sort · Export · Bulk upload · filters ·
+        {/* ── Feature toolbar - Sort · Export · Bulk upload · filters ·
             Columns · Full screen · view toggle, all in one glass instrument
             strip (matches the Tasks table's own toolbar). New Goal now lives
             in the row above, right after the FY stepper. Search sits on its
@@ -1449,7 +1449,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
               "0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 26px -20px rgba(15, 23, 42, 0.18)",
           }}
         >
-          {/* View toggle — List | Kanban. Now on EVERY level: the Yearly board
+          {/* View toggle - List | Kanban. Now on EVERY level: the Yearly board
               gets a Year→Quarter hierarchical Kanban too. */}
           <div
             role="group"
@@ -1476,7 +1476,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
             />
           </div>
 
-          {/* Sort — premium Select inside a pill shell (matches the toolbar row). */}
+          {/* Sort - premium Select inside a pill shell (matches the toolbar row). */}
           <div className="relative inline-flex h-9 shrink-0 items-center rounded-pill border border-hairline bg-surface-card pl-7 pr-3 transition-colors focus-within:border-altus-red hover:border-hairline-strong">
             <ArrowUpDown size={13} strokeWidth={2.4} className="pointer-events-none absolute left-2.5 text-ink-subtle" />
             <Select
@@ -1489,7 +1489,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
             />
           </div>
 
-          {/* Area / Type filters — Goals' own dimensions (no Client/Department
+          {/* Area / Type filters - Goals' own dimensions (no Client/Department
               concept here), same checklist-popover pattern as the rest of the
               toolbar. */}
           {!kanban && !dashboard && (
@@ -1520,7 +1520,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                 />
               </div>
 
-              {/* Columns — show/hide the optional columns; Area, Goal, Target,
+              {/* Columns - show/hide the optional columns; Area, Goal, Target,
                   % Done stay structural and are never in this list. */}
               <ColumnsPicker
                 visibleCols={visibleCols}
@@ -1559,10 +1559,10 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
           )}
         </div>
 
-        {/* Sort pauses drag-reorder — tell the user how to get it back. */}
+        {/* Sort pauses drag-reorder - tell the user how to get it back. */}
         {canWrite && policy.canReorder && sortKey !== "position" && view === "list" && (
           <p className="wg-rise -mt-3 mb-4 text-[12px] font-semibold" style={{ color: "var(--color-ink-subtle)" }}>
-            Sorted by {SORT_OPTIONS.find((o) => o.value === sortKey)?.label} — drag-to-reorder is paused.
+            Sorted by {SORT_OPTIONS.find((o) => o.value === sortKey)?.label} - drag-to-reorder is paused.
             Switch back to <button type="button" onClick={() => setSortKey("position")} className="cursor-pointer font-bold text-altus-red underline underline-offset-2">Sr. No.</button> to reorder.
           </p>
         )}
@@ -1570,7 +1570,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
         {/* First-run: empty PERSONAL space → offer to copy from Professional. */}
         {props.space === "personal" && goals.length === 0 && <PersonalStartPrompt />}
 
-        {/* ── The board body — HIERARCHICAL frozen-parent Kanban, or the
+        {/* ── The board body - HIERARCHICAL frozen-parent Kanban, or the
             classic inline-editable list. The Kanban owns its OWN DndContext
             (its draggables are CHILD-level cards, re-homed via the shared
             moveToBucket); the list keeps the board's period-pill DndContext. ── */}
@@ -1721,9 +1721,9 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
               </div>
             </div>
 
-            {/* Drag ghost — a lean copy of the row being carried. The overlay
+            {/* Drag ghost - a lean copy of the row being carried. The overlay
                 wrapper defaults to the ACTIVE node's size (a full-width row!),
-                which looked like a giant white bar sweeping the page — size it
+                which looked like a giant white bar sweeping the page - size it
                 to the ghost's own content instead. */}
             <DragOverlay
               dropAnimation={{ duration: 220, easing: "cubic-bezier(0.2,0,0,1)" }}
@@ -1770,7 +1770,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
 }
 
 /* ------------------------------------------------------------------ */
-/* View toggle — List ⇄ Kanban segmented control                       */
+/* View toggle - List ⇄ Kanban segmented control                       */
 /* ------------------------------------------------------------------ */
 
 function ViewToggleButton({
@@ -1808,7 +1808,7 @@ function ViewToggleButton({
 }
 
 /* ------------------------------------------------------------------ */
-/* GoalStatChip — a light, flat stat chip for the Quarterly header,     */
+/* GoalStatChip - a light, flat stat chip for the Quarterly header,     */
 /* modeled 1:1 on the Tasks page's own StatChip (task-list-page.tsx):   */
 /* tone dot · bold number · label, no shadows, no icon tiles. Clicking  */
 /* toggles the board's existing `completion` quick-chip filter.         */
@@ -1886,7 +1886,7 @@ export function GoalStatChip({
 }
 
 /* ------------------------------------------------------------------ */
-/* MultiPickFilter — a checklist popover pill, shared by the toolbar's   */
+/* MultiPickFilter - a checklist popover pill, shared by the toolbar's   */
 /* Area / Type filters. Empty selection reads as "All <noun>".          */
 /* ------------------------------------------------------------------ */
 
@@ -1901,7 +1901,7 @@ export function MultiPickFilter({
   options: string[];
   selected: Set<string>;
   onChange: (next: Set<string>) => void;
-  /** Tighter pill — for toolbars with many controls (e.g. Weekly's, which
+  /** Tighter pill - for toolbars with many controls (e.g. Weekly's, which
    *  also carries the ritual chips + bulk upload on the same line). */
   compact?: boolean;
 }) {
@@ -1994,7 +1994,7 @@ export function MultiPickFilter({
 }
 
 /* ------------------------------------------------------------------ */
-/* ColumnsPicker — show/hide + drag-reorder the table's columns.        */
+/* ColumnsPicker - show/hide + drag-reorder the table's columns.        */
 /* ------------------------------------------------------------------ */
 
 export function ColumnsPicker({
@@ -2006,12 +2006,12 @@ export function ColumnsPicker({
 }: {
   visibleCols: Set<string>;
   onChange: (next: Set<string>) => void;
-  /** Left-to-right column order (Target/% Done included — they can move,
+  /** Left-to-right column order (Target/% Done included - they can move,
    *  just never hide). Omitted → REORDERABLE_COLUMNS' declared order and the
    *  list renders without drag handles (order becomes fixed). */
   colOrder?: string[];
   onReorder?: (next: string[]) => void;
-  /** Tighter pill — for toolbars with many controls (e.g. Weekly's). */
+  /** Tighter pill - for toolbars with many controls (e.g. Weekly's). */
   compact?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -2021,7 +2021,7 @@ export function ColumnsPicker({
   const byKey = React.useMemo(() => new Map(REORDERABLE_COLUMNS.map((c) => [c.key, c])), []);
   const draggable = !!onReorder;
 
-  // Pointer-based reorder, NOT the native HTML5 draggable attribute — native
+  // Pointer-based reorder, NOT the native HTML5 draggable attribute - native
   // drag-start never reliably fires from inside a Radix Popover's portal
   // (its pointer-down handling swallows the gesture before dragstart can
   // begin), so a plain draggable/onDragStart version silently did nothing.
@@ -2107,7 +2107,7 @@ export function ColumnsPicker({
                 type="button"
                 disabled={!c.pickable}
                 onClick={() => {
-                  if (!c.pickable) return; // structural — position moves, visibility doesn't
+                  if (!c.pickable) return; // structural - position moves, visibility doesn't
                   const next = new Set(visibleCols);
                   if (checked) next.delete(key);
                   else next.add(key);
@@ -2161,7 +2161,7 @@ function EmptyState({ periodLabel }: { periodLabel: string }) {
         No goals in {periodLabel} yet
       </h3>
       <p className="mx-auto mt-2 max-w-[46ch] font-medium" style={{ fontSize: 14.5, lineHeight: 1.5, color: "var(--color-ink-muted)" }}>
-        Add the first goal below — or drag a card here from another period. Goals added
+        Add the first goal below - or drag a card here from another period. Goals added
         here land in this exact bucket.
       </p>
     </div>
@@ -2203,7 +2203,7 @@ function ArchiveGoalDialog({
                 Move to the Recycle Bin?
               </Dialog.Title>
               <Dialog.Description className="text-[14px] text-ink-subtle mt-1" style={{ lineHeight: 1.5 }}>
-                “{goal?.title ?? ""}” is archived, not deleted — restore it any time from
+                “{goal?.title ?? ""}” is archived, not deleted - restore it any time from
                 Goals → Recycle Bin.
               </Dialog.Description>
             </div>

@@ -64,6 +64,7 @@ import {
   type BroadcastAuthorIdentity,
   type BroadcastRecipientStatus,
   type BroadcastRecurrence,
+  type TaskPriority,
 } from "./enums";
 import type { DocKind, SignatureStatus } from "@/lib/documents/signing";
 
@@ -822,8 +823,17 @@ export const projectNodes = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    // 'sub_sub_action' added by migration 0203 (Project Plan). `kind` is plain
+    // text with no check constraint, so widening this union needed no DDL.
     kind: text("kind")
-      .$type<"project" | "milestone" | "result" | "action" | "sub_action">()
+      .$type<
+        | "project"
+        | "milestone"
+        | "result"
+        | "action"
+        | "sub_action"
+        | "sub_sub_action"
+      >()
       .notNull(),
     parentId: uuid("parent_id"),
     sortOrder: integer("sort_order").notNull().default(100),
@@ -843,6 +853,67 @@ export const projectNodes = pgTable(
     // owner_id + project_members. ON DELETE SET NULL — retiring a vendor must
     // never delete project work.
     vendorId: uuid("vendor_id").references(() => vendors.id, { onDelete: "set null" }),
+    // ── Project Plan hierarchy columns (migration 0203) ──────────────────────
+    // The plan of record for the hierarchy table. On an executable row
+    // (action / sub_action / sub_sub_action) these are mirrored onto the linked
+    // task (tasks.project_node_id) on every write, so WMS and Google Calendar
+    // read ONE task record rather than a second copy of the work.
+    category: text("category"),
+    purpose: text("purpose"),
+    /** Whole minutes ("2 h 30 m" → 150) — same unit as tasks.estimatedMinutes. */
+    durationMinutes: integer("duration_minutes"),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    // ── Project status + partial progress (migration 0204) ───────────────────
+    // ⚠ Migration 0204 may be UNAPPLIED in prod. Reads of these three go
+    // through `loadPlanMeta()` in lib/queries/project-plan.ts, which catches an
+    // undefined-column error and degrades to defaults — never add them to an
+    // unguarded `.select()` or a bare `.returning()`, which would 500 the whole
+    // Project screen against a database without 0204.
+    //
+    // These describe CONTAINER rows (project / milestone / result). An
+    // executable row's status of record stays on its linked task
+    // (tasks.status): that row IS one shared record with WMS and the calendar,
+    // and a second status here would be a copy free to disagree with it.
+    /** Working flow — the same six values as DOER_TASK_STATUSES. */
+    status: text("status").$type<
+      "dont_know" | "not_started" | "initiated" | "follow_up" | "need_info" | "done"
+    >(),
+    /** Restricted flow — an owner/admin verdict layered on top of `status`. */
+    approvalStatus: text("approval_status").$type<
+      "not_approved" | "approved" | "on_hold" | "cancelled"
+    >(),
+    /** Recorded partial completion 0–100. NULL = derive it from the work below. */
+    progressPercent: integer("progress_percent"),
+    // ── Container intake fields (migration 0213) ─────────────────────────────
+    // ⚠ Migration 0213 may be UNAPPLIED in prod. These five are written only by
+    // `createPlanContainer`, which retries without them when Postgres reports an
+    // undefined column — never add them to an unguarded `.select()` or a bare
+    // `.returning()`, which would 500 the whole Project screen against a
+    // database without 0213. Same rule as the 0204 columns above.
+    //
+    // All five come from the ONE new-item form the four create buttons share —
+    // the real WMS task form. On an executable row they live on the linked task
+    // instead (tasks.title / .subject / .priority / .initiatorId / .tags), which
+    // stays the single execution record; these columns exist because a
+    // container row has no task to carry them.
+    /** "Client Name" — the form's first field, mirroring tasks.title. */
+    clientName: text("client_name"),
+    subject: text("subject"),
+    /** One of TASK_PRIORITIES (db/enums.ts). Text, like `kind` and `status`. */
+    priority: text("priority").$type<TaskPriority>(),
+    initiatorId: uuid("initiator_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    tags: text("tags").array(),
+    /**
+     * Reference links (migration 0214) — the form's Links section, kept as a
+     * list rather than folded into `notes` the way the WMS task form folds
+     * them, because the register renders them as a COLUMN and a column must not
+     * be parsed out of prose. Same ⚠ as the columns above: read through
+     * `loadPlanLinks`, never in an unguarded select.
+     */
+    links: text("links").array(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -850,6 +921,8 @@ export const projectNodes = pgTable(
     index("project_nodes_parent_idx").on(t.parentId),
     index("project_nodes_kind_idx").on(t.kind, t.isArchived),
     index("project_nodes_vendor_idx").on(t.vendorId),
+    index("project_nodes_parent_sort_idx").on(t.parentId, t.sortOrder),
+    index("project_nodes_kind_sort_idx").on(t.kind, t.isArchived, t.sortOrder),
   ],
 );
 
@@ -1317,6 +1390,33 @@ export const taskAttachments = pgTable(
   (t) => [index("task_attachments_task_idx").on(t.taskId, t.createdAt)],
 );
 export type TaskAttachment = typeof taskAttachments.$inferSelect;
+
+/**
+ * Attachments on a PLAN row — Milestone, Result, or any project_node
+ * (migration 0212).
+ *
+ * Same shape and same storage as `taskAttachments` above (the private Supabase
+ * `documents` bucket), deliberately: a container level has no task to hang a
+ * file off, and minting a placeholder task per milestone would push phantom
+ * work into WMS and onto calendars. See the migration for the full note.
+ */
+export const projectNodeAttachments = pgTable(
+  "project_node_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nodeId: uuid("node_id")
+      .notNull()
+      .references(() => projectNodes.id, { onDelete: "cascade" }),
+    storagePath: text("storage_path").notNull(),
+    fileName: text("file_name").notNull(),
+    mime: text("mime"),
+    sizeBytes: integer("size_bytes"),
+    uploadedById: uuid("uploaded_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("project_node_attachments_node_idx").on(t.nodeId, t.createdAt)],
+);
+export type ProjectNodeAttachment = typeof projectNodeAttachments.$inferSelect;
 
 /**
  * M2.3 — frozen contract for the `kind` column on notifications.

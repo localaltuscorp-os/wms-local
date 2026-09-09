@@ -16,7 +16,7 @@ export function LetterBackButton() {
     <button
       type="button"
       onClick={() => router.back()}
-      className="inline-flex items-center gap-1.5 rounded-full border border-hairline-strong bg-white px-3.5 py-2 text-[13px] font-bold text-ink-strong transition-colors hover:border-ink-muted max-md:px-2.5"
+      className="inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-white px-3.5 py-2 text-[13px] font-bold text-ink-strong transition-colors hover:border-ink-muted max-md:px-2.5"
       title="Back to the previous page"
     >
       <ArrowLeft size={15} strokeWidth={2.4} />

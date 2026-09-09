@@ -146,13 +146,13 @@ export const TASK_TEMPLATE_COLUMNS: readonly TaskTemplateColumn[] = [
     field: "taskId", header: "Task ID", schemaField: "id",
     writable: false, persisted: false, locked: true, source: null, width: 20,
     aliases: ["id", "taskid", "uuid"],
-    help: "System UUID. Read-only — leave blank for new tasks; present on exports for reference.",
+    help: "System UUID. Read-only - leave blank for new tasks; present on exports for reference.",
   },
   {
     field: "taskNo", header: "Task No.", schemaField: "taskNo",
     writable: false, persisted: false, locked: true, source: null, width: 10,
     aliases: ["taskno", "no", "number", "ref"],
-    help: "Friendly sequential number (#1042). Auto-assigned by the system — read-only.",
+    help: "Friendly sequential number (#1042). Auto-assigned by the system - read-only.",
   },
   {
     field: "client", header: "Client", schemaField: "client",
@@ -179,7 +179,7 @@ export const TASK_TEMPLATE_COLUMNS: readonly TaskTemplateColumn[] = [
     writable: true, persisted: true, locked: false, source: null, width: 44,
     aliases: ["description", "task", "details", "work", "taskdescription", "what"],
     examples: ["File Q1 GST return", "Complete statutory audit"],
-    help: "REQUIRED. What needs to be done — the task statement.",
+    help: "REQUIRED. What needs to be done - the task statement.",
   },
   {
     field: "notes", header: "Notes", schemaField: "notes",
@@ -223,7 +223,7 @@ export const TASK_TEMPLATE_COLUMNS: readonly TaskTemplateColumn[] = [
     writable: true, persisted: true, locked: false, source: null, width: 14,
     aliases: ["due", "duedate", "deadline", "targetdate", "date", "dueat"],
     examples: ["2026-08-15", "2026-08-20"],
-    help: "REQUIRED. Deadline — ISO YYYY-MM-DD or dd/mm/yyyy. This is the ORIGINAL commitment (permanent).",
+    help: "REQUIRED. Deadline - ISO YYYY-MM-DD or dd/mm/yyyy. This is the ORIGINAL commitment (permanent).",
   },
   {
     field: "revisedTargetDate", header: "Revised Due Date", schemaField: "revisedTargetDate",
@@ -250,7 +250,7 @@ export const TASK_TEMPLATE_COLUMNS: readonly TaskTemplateColumn[] = [
     field: "allDay", header: "All Day?", schemaField: "allDay",
     writable: true, persisted: true, locked: false, source: "yesno", width: 10,
     aliases: ["allday", "fullday"],
-    help: "Yes/No — when Yes, the Starts/Ends times are decorative (shown as 'All day').",
+    help: "Yes/No - when Yes, the Starts/Ends times are decorative (shown as 'All day').",
   },
   {
     field: "recurrence", header: "Recurrence", schemaField: "recurrence",
@@ -271,7 +271,7 @@ export const TASK_TEMPLATE_COLUMNS: readonly TaskTemplateColumn[] = [
     field: "createdBy", header: "Created By", schemaField: "createdById",
     writable: false, persisted: true, locked: true, source: null, width: 20,
     aliases: ["createdby", "creator", "importedby"],
-    help: "Creator — set to the importer on new rows. Read-only.",
+    help: "Creator - set to the importer on new rows. Read-only.",
   },
 ] as const;
 

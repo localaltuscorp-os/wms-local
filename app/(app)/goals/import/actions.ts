@@ -154,7 +154,7 @@ function resolveRowPeriod(get: (f: Field) => unknown): PeriodResolution {
 
   // Week / Day rows are managed on the Weekly board — skip cleanly.
   if (level === "week" || level === "day") {
-    return { skip: true, reason: `${level} goals import from the Weekly board — skipped.` };
+    return { skip: true, reason: `${level} goals import from the Weekly board - skipped.` };
   }
 
   // Explicit legacy period key wins when present.
@@ -162,7 +162,7 @@ function resolveRowPeriod(get: (f: Field) => unknown): PeriodResolution {
     const legacy = resolvePeriodLegacy(levelRaw, keyRaw);
     if (legacy) {
       if (legacy.period === "week" || legacy.period === "day") {
-        return { skip: true, reason: `${legacy.period} goals import from the Weekly board — skipped.` };
+        return { skip: true, reason: `${legacy.period} goals import from the Weekly board - skipped.` };
       }
       return { ok: true, period: legacy.period, periodKey: legacy.periodKey };
     }
@@ -289,12 +289,12 @@ export async function importGoals(
       const resolved = resolvePerson(ownerCell);
       if (resolved) employeeId = resolved;
       else {
-        warnings.push(`Row ${r + 1}: owner "${ownerCell}" not found — skipped.`);
+        warnings.push(`Row ${r + 1}: owner "${ownerCell}" not found - skipped.`);
         continue;
       }
     }
     if (!canManageGoalFor(scope, employeeId)) {
-      warnings.push(`Row ${r + 1}: you can't add goals for that person — skipped.`);
+      warnings.push(`Row ${r + 1}: you can't add goals for that person - skipped.`);
       continue;
     }
 
@@ -317,7 +317,7 @@ export async function importGoals(
     const reviewerCell = String(get("reviewer") ?? "").trim();
     if (reviewerCell) {
       reviewedById = resolvePerson(reviewerCell);
-      if (!reviewedById) warnings.push(`Row ${r + 1}: reviewer "${reviewerCell}" not found — left blank.`);
+      if (!reviewedById) warnings.push(`Row ${r + 1}: reviewer "${reviewerCell}" not found - left blank.`);
     }
 
     // Numbers + auto progress.

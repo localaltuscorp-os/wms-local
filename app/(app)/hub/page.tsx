@@ -74,6 +74,9 @@ const HUB_PASTEL: Record<WorkspaceId, { from: string; to: string; ink: string; i
   accounts:     { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B", inkSoft: "#315A9B" },
   // Hand-holding — orange, the module's own accent (lib/module-theme).
   "people-allocation": { from: "#FBE7D6", to: "#FBE7D6", ink: "#C2410C", inkSoft: "#C2410C" },
+  // Project — the WMS red, matching the wms card above: the plan and the task
+  // list are two windows onto the same records.
+  "project-plan": { from: "#FEE2E2", to: "#FECACA", ink: "#B91C1C", inkSoft: "#DC2626" },
 };
 
 /**
@@ -232,7 +235,7 @@ export default async function HubPage() {
               href="https://altuscorp.in"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Altus Corp — altuscorp.in"
+              aria-label="Altus Corp - altuscorp.in"
               className="shrink-0 rounded-lg outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
             >
               <Image

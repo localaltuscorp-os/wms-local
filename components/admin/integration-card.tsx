@@ -38,7 +38,7 @@ export function IntegrationCard({ status }: { status: IntegrationStatus }) {
       <div className="flex items-center justify-between">
         <h3 className="text-display-2xs">{TITLES[status.channel]}</h3>
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+          className={`inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-xs font-semibold ${
             status.connected
               ? "bg-emerald-100 text-emerald-700"
               : "bg-zinc-100 text-zinc-600"
@@ -56,7 +56,7 @@ export function IntegrationCard({ status }: { status: IntegrationStatus }) {
       <dl className="mt-4 space-y-1 text-sm">
         <div className="flex justify-between">
           <dt className="text-ink-subtle">Credential</dt>
-          <dd className="font-mono">{status.maskedKey ?? "—"}</dd>
+          <dd className="font-mono">{status.maskedKey ?? "-"}</dd>
         </div>
         <div className="flex justify-between">
           <dt className="text-ink-subtle">Last 24h Success</dt>
@@ -78,7 +78,7 @@ export function IntegrationCard({ status }: { status: IntegrationStatus }) {
                     hour12: true,
                   },
                 ).format(new Date(status.lastSuccessAt))}`
-              : "—"}
+              : "-"}
           </dd>
         </div>
       </dl>

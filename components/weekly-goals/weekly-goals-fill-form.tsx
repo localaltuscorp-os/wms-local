@@ -73,7 +73,7 @@ export function WeeklyGoalsFillForm({ goals, weekLabel, greetingName }: Props) {
           }
         }
       }
-      fireToast({ message: "Weekly goals filled — welcome back.", type: "success" });
+      fireToast({ message: "Weekly goals filled - welcome back.", type: "success" });
       router.replace("/dashboard" as Route);
       router.refresh();
     });
@@ -289,7 +289,7 @@ export function WeeklyGoalsFillForm({ goals, weekLabel, greetingName }: Props) {
             className="mt-2 text-center text-ink-muted font-medium"
             style={{ fontSize: 13 }}
           >
-            {goals.length} goal{goals.length === 1 ? "" : "s"} to fill — required
+            {goals.length} goal{goals.length === 1 ? "" : "s"} to fill - required
             before you can continue.
           </p>
         </div>

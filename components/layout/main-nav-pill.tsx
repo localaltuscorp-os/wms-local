@@ -34,7 +34,7 @@ export function MainNavPill({ href, label, Icon, active, count, badge, grow, var
       }
       aria-label={
         showBadge
-          ? `${label} — ${badge} new ${badge === 1 ? "event" : "events"}`
+          ? `${label} - ${badge} new ${badge === 1 ? "event" : "events"}`
           : label
       }
     >

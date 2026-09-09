@@ -25,7 +25,7 @@ export function TaskSearchBar({ initial }: { initial: string }) {
       className="flex items-center gap-2"
     >
       <div
-        className="flex items-center gap-2 rounded-full px-4 py-2.5 w-full max-w-[440px]"
+        className="flex items-center gap-2 rounded-pill px-4 py-2.5 w-full max-w-[440px]"
         style={{ background: "rgba(255,255,255,0.85)", border: "1px solid var(--color-hairline)" }}
       >
         <Search size={16} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} aria-hidden />
@@ -41,7 +41,7 @@ export function TaskSearchBar({ initial }: { initial: string }) {
               submit("");
             }
           }}
-          placeholder="Local search — tasks by title, number, client or subject" title="Local search — filters only the list on this page" aria-label="Local search — tasks by title, number, client or subject — this page only"
+          placeholder="Local search - tasks by title, number, client or subject" title="Local search - filters only the list on this page" aria-label="Local search - tasks by title, number, client or subject - this page only"
           className="w-full bg-transparent outline-none text-ink-strong"
           style={{ fontSize: 14, fontWeight: 600 }}
         />
@@ -61,7 +61,7 @@ export function TaskSearchBar({ initial }: { initial: string }) {
       </div>
       <button
         type="submit"
-        className="wg-btn inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 font-bold text-white transition-transform active:scale-[0.98]"
+        className="wg-btn inline-flex items-center gap-1.5 rounded-pill px-4 py-2.5 font-bold text-white transition-transform active:scale-[0.98]"
         style={{ background: "var(--color-altus-red)", fontSize: 13.5 }}
       >
         Search

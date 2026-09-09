@@ -103,7 +103,7 @@ export async function GET(request: Request): Promise<Response> {
   };
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Altus Corp — Monthly Events Master";
+  wb.creator = "Altus Corp - Monthly Events Master";
   wb.created = new Date();
 
   // ── Sheet 1: Month Grid ────────────────────────────────────────────────
@@ -121,7 +121,7 @@ export async function GET(request: Request): Promise<Response> {
   };
 
   // Title row
-  const titleRow = grid.addRow([`Monthly Events Master — ${format(anchor, "MMMM yyyy")}`]);
+  const titleRow = grid.addRow([`Monthly Events Master - ${format(anchor, "MMMM yyyy")}`]);
   grid.mergeCells(titleRow.number, 1, titleRow.number, 8);
   titleRow.getCell(1).font = { bold: true, size: 15, color: { argb: "FF0E7490" } };
   titleRow.height = 22;

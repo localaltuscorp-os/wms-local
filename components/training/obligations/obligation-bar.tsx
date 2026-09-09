@@ -58,7 +58,7 @@ export function ObligationBar({
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[12px] font-semibold text-ink-muted">{label}</span>
         <span className="tabular-nums text-[12.5px] font-bold" style={{ color: target <= 0 ? "var(--color-ink-subtle)" : color }}>
-          {target <= 0 ? "—" : <>{fmt(actual)}<span className="text-ink-subtle font-medium">/{fmt(target)} {unit}</span></>}
+          {target <= 0 ? "-" : <>{fmt(actual)}<span className="text-ink-subtle font-medium">/{fmt(target)} {unit}</span></>}
         </span>
       </div>
       <div className="mt-1 h-2 w-full overflow-hidden rounded-pill bg-surface-soft">

@@ -702,7 +702,7 @@ export async function startMyDay(): Promise<ActionResult> {
     const short = MIN_ATTENDANCE_ITEMS - committed;
     return {
       ok: false,
-      error: `Plan at least ${MIN_ATTENDANCE_ITEMS} things before you start your day — you have ${committed}, add ${short} more.`,
+      error: `Plan at least ${MIN_ATTENDANCE_ITEMS} things before you start your day - you have ${committed}, add ${short} more.`,
     };
   }
 

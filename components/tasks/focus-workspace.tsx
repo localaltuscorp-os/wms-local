@@ -178,7 +178,7 @@ export function FocusWorkspace({
       <button
         type="button"
         onClick={() => setShowShortcuts(true)}
-        className="brand-btn fixed bottom-5 right-5 z-30 inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-semibold backdrop-blur transition-all hover:-translate-y-px"
+        className="brand-btn fixed bottom-5 right-5 z-30 inline-flex items-center gap-1.5 rounded-pill px-3.5 py-2 text-[12px] font-semibold backdrop-blur transition-all hover:-translate-y-px"
         style={{
           background: "rgba(255,255,255,0.06)",
           border: "1px solid rgba(255,255,255,0.14)",
@@ -313,7 +313,7 @@ function TopBar({
       <div className="flex items-center gap-3">
         <Link
           href={`/tasks/${taskId}` as Route}
-          className="brand-btn inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-semibold backdrop-blur transition-all hover:-translate-y-px"
+          className="brand-btn inline-flex items-center gap-2 rounded-pill px-3.5 py-2 text-[13px] font-semibold backdrop-blur transition-all hover:-translate-y-px"
           style={{
             background: "rgba(255,255,255,0.06)",
             border: "1px solid rgba(255,255,255,0.14)",
@@ -516,7 +516,7 @@ function Chip({
 }) {
   return (
     <span
-      className="inline-flex items-center rounded-full px-3 py-1.5"
+      className="inline-flex items-center rounded-pill px-3 py-1.5"
       style={{
         background: muted ? "rgba(255,255,255,0.05)" : "rgba(225, 6, 0, 0.12)",
         color: muted ? "rgba(255,255,255,0.78)" : "rgba(255, 184, 184, 0.95)",
@@ -625,7 +625,7 @@ function FocusTimer() {
           if (typeof window !== "undefined" && "Notification" in window) {
             try {
               new Notification(`${preset.label} session complete`, {
-                body: "Time's up — take a moment.",
+                body: "Time's up - take a moment.",
               });
             } catch {
               /* ignore */
@@ -876,7 +876,7 @@ function QuickActions({
       );
       if (!res.ok) {
         fireToast({
-          message: res.error === "stale" ? "Task was updated elsewhere — refreshing." : res.message ?? "Could not update status.",
+          message: res.error === "stale" ? "Task was updated elsewhere - refreshing." : res.message ?? "Could not update status.",
         });
         if (res.error === "stale") router.refresh();
         return;

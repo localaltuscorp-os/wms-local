@@ -24,7 +24,7 @@ function csvCell(v: string): string {
 }
 
 /** Build + download a ready-to-fill CSV template (opens cleanly in Excel /
- *  Google Sheets). Client-side only — no server round-trip. */
+ *  Google Sheets). Client-side only - no server round-trip. */
 function downloadTemplate(): void {
   const rows = [TEMPLATE_HEADERS, TEMPLATE_EXAMPLE];
   const csv = rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
@@ -143,7 +143,7 @@ export function WeeklyGoalsImport(props: Props) {
               <button
                 type="button"
                 onClick={downloadTemplate}
-                className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-hairline bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-all hover:brightness-95 active:scale-[0.98]"
+                className="mt-2.5 inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-all hover:brightness-95 active:scale-[0.98]"
               >
                 <Download size={14} strokeWidth={2.4} />
                 Download template (.csv)
@@ -152,7 +152,7 @@ export function WeeklyGoalsImport(props: Props) {
 
             {needsEmployeeColumn && (
               <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[13px] font-bold text-amber-700">
-                You&apos;re viewing all team members — include an <strong>Employee</strong> column
+                You&apos;re viewing all team members - include an <strong>Employee</strong> column
                 (name or email) in the file, or pick one person first.
               </p>
             )}
@@ -189,7 +189,7 @@ export function WeeklyGoalsImport(props: Props) {
               <button
                 type="button"
                 onClick={() => !pending && setOpen(false)}
-                className="px-4 py-2 rounded-full border border-hairline bg-surface-card font-bold text-[14px] text-ink-soft hover:text-ink-strong transition-colors"
+                className="px-4 py-2 rounded-pill border border-hairline bg-surface-card font-bold text-[14px] text-ink-soft hover:text-ink-strong transition-colors"
               >
                 {result ? "Done" : "Cancel"}
               </button>
@@ -197,7 +197,7 @@ export function WeeklyGoalsImport(props: Props) {
                 type="button"
                 onClick={() => inputRef.current?.click()}
                 disabled={pending}
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-[14px] font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-pill text-[14px] font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
                 style={{
                   background:
                     "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",

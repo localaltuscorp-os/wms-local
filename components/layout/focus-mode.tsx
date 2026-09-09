@@ -95,7 +95,7 @@ export function FocusMode() {
     <button
       type="button"
       onClick={() => setFocusMode(false)}
-      className="fixed left-1/2 top-3 z-[100] inline-flex -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-full border border-slate-700/80 bg-slate-900/90 px-4 py-1.5 text-xs font-semibold text-white shadow-lg backdrop-blur-md transition-all hover:bg-red-600 print:hidden"
+      className="fixed left-1/2 top-3 z-[100] inline-flex -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-pill border border-slate-700/80 bg-slate-900/90 px-4 py-1.5 text-xs font-semibold text-white shadow-lg backdrop-blur-md transition-all hover:bg-red-600 print:hidden"
       title="Exit full screen (Esc)"
     >
       <X size={13} strokeWidth={2.8} /> Exit Full Screen

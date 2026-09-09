@@ -67,7 +67,7 @@ export function IncEmployeeTable({
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Local search — employee" title="Local search — filters only the list on this page" aria-label="Local search — employee — this page only"
+            placeholder="Local search - employee" title="Local search - filters only the list on this page" aria-label="Local search - employee - this page only"
             className="w-full bg-transparent text-[14px] font-semibold text-ink-strong outline-none placeholder:text-ink-subtle"
           />
         </label>

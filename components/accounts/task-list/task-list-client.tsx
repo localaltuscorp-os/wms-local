@@ -43,7 +43,7 @@ const CHIP =
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const [y, m, d] = iso.split("-");
   if (!y || !m || !d) return iso;
   const mi = parseInt(m, 10) - 1;
@@ -78,7 +78,7 @@ function GearChip({ value }: { value: string | null }) {
   if (!value) return <Dim />;
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-[12.5px] font-bold whitespace-nowrap"
+      className="inline-flex items-center rounded-pill px-2.5 py-1 text-[12.5px] font-bold whitespace-nowrap"
       style={{ background: "var(--color-surface-track, #eef2f7)", color: "var(--color-ink-soft)" }}
     >
       {value}
@@ -87,7 +87,7 @@ function GearChip({ value }: { value: string | null }) {
 }
 
 function Dim() {
-  return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>;
+  return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>;
 }
 
 /** Inline, colored Status dropdown — change status straight from the table. */
@@ -100,7 +100,7 @@ function InlineStatusSelect({ value, options, onChange, busy }: { value: string;
       disabled={busy}
       onChange={(e) => onChange(e.target.value)}
       aria-label="Status"
-      className="cursor-pointer appearance-none rounded-full px-2.5 py-1 text-[12.5px] font-bold outline-none transition-colors focus:ring-2 focus:ring-[color:var(--color-altus-red)] disabled:opacity-60"
+      className="cursor-pointer appearance-none rounded-pill px-2.5 py-1 text-[12.5px] font-bold outline-none transition-colors focus:ring-2 focus:ring-[color:var(--color-altus-red)] disabled:opacity-60"
       style={{ background: t.bg, color: t.fg, border: "1px solid transparent", minWidth: 116 }}
     >
       {opts.map((o) => (<option key={o} value={o}>{o}</option>))}
@@ -117,10 +117,10 @@ function InlineGearSelect({ value, options, onChange, busy }: { value: string | 
       disabled={busy}
       onChange={(e) => onChange(e.target.value)}
       aria-label="Gear"
-      className="cursor-pointer appearance-none rounded-full px-2.5 py-1 text-[12.5px] font-bold text-ink-soft outline-none transition-colors focus:ring-2 focus:ring-[color:var(--color-altus-red)] disabled:opacity-60"
+      className="cursor-pointer appearance-none rounded-pill px-2.5 py-1 text-[12.5px] font-bold text-ink-soft outline-none transition-colors focus:ring-2 focus:ring-[color:var(--color-altus-red)] disabled:opacity-60"
       style={{ background: value ? "var(--color-surface-track, #eef2f7)" : "transparent", border: value ? "1px solid transparent" : "1px solid var(--color-hairline)", minWidth: 108 }}
     >
-      <option value="">—</option>
+      <option value="">-</option>
       {opts.map((o) => (<option key={o} value={o}>{o}</option>))}
     </select>
   );
@@ -523,7 +523,7 @@ export function TaskListTable({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Local search — area, description, links, notes" title="Local search — filters only the list on this page" aria-label="Local search — area, description, links, notes — this page only"
+            placeholder="Local search - area, description, links, notes" title="Local search - filters only the list on this page" aria-label="Local search - area, description, links, notes - this page only"
             className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle"
           />
         </div>
@@ -540,8 +540,8 @@ export function TaskListTable({
             <option key={g} value={g}>{g}</option>
           ))}
         </select>
-        <input type="date" className={CHIP} value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Target date from" title="Target date — from" />
-        <input type="date" className={CHIP} value={to} onChange={(e) => setTo(e.target.value)} aria-label="Target date to" title="Target date — to" />
+        <input type="date" className={CHIP} value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Target date from" title="Target date - from" />
+        <input type="date" className={CHIP} value={to} onChange={(e) => setTo(e.target.value)} aria-label="Target date to" title="Target date - to" />
         {hasFilters && (
           <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red">
             <X size={15} strokeWidth={2.4} /> Clear
@@ -720,7 +720,7 @@ function TaskEditRow({
       </Td>
       <Td>
         <div className="flex flex-col gap-1.5" style={{ minWidth: 220 }}>
-          <textarea value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} className={INPUT + " min-h-[64px] resize-y"} placeholder="Notes — type or use the mic" aria-label="Notes" />
+          <textarea value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} className={INPUT + " min-h-[64px] resize-y"} placeholder="Notes - type or use the mic" aria-label="Notes" />
           <VoiceNoteButton
             label="Voice note → transcript"
             onText={(text) => setDraft((d) => ({ ...d, notes: d.notes.trim() ? d.notes.trim() + "\n" + text : text }))}
@@ -865,7 +865,7 @@ export function ScreenshotsTable({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Local search — project, details, notes" title="Local search — filters only the list on this page" aria-label="Local search — project, details, notes — this page only"
+            placeholder="Local search - project, details, notes" title="Local search - filters only the list on this page" aria-label="Local search - project, details, notes - this page only"
             className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle"
           />
         </div>

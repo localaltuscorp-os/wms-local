@@ -99,7 +99,7 @@ export default async function AttendanceDashboardPage({ searchParams }: PageProp
   const monthTitle = `${MONTH_NAMES[month - 1] ?? ""} ${year}`;
 
   const exportBtnCls =
-    "wg-btn inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white/75 py-2 px-4 text-[13.5px] font-bold text-ink-strong hover:border-hairline-strong hover:text-[var(--color-altus-red-deep)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 focus-visible:ring-offset-1";
+    "wg-btn inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white/75 py-2 px-4 text-[13.5px] font-bold text-ink-strong hover:border-hairline-strong hover:text-[var(--color-altus-red-deep)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 focus-visible:ring-offset-1";
 
   return (
     <>

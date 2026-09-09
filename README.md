@@ -1,7 +1,7 @@
 # Altus Corp Dashboard
 
 Internal work-management dashboard for the Altus Corp team. Tracks tasks, status, performance, and accountability across the team in one editorial, status-coded surface. 
- 
+  
 ## Quickstart 
  
 ```bash 
@@ -9,7 +9,7 @@ pnpm install
 cp .env.local.example .env.local   # fill in Supabase / Firebase / Resend values
 pnpm db:generate                    # generate first migration
 pnpm db:migrate                     # apply schema to your dev Supabase
-pnpm seed                           # populate fake data (~20 emp, ~1200 tasks)
+pnpm seed                           # populate fake data (~20 emp, ~1200 tasks) 
 pnpm dev                            # http://localhost:3000
 ```
 

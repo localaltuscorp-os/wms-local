@@ -379,7 +379,7 @@ export function AIInsightsCard({
       <div className="flex items-center gap-2">
         <Sparkles size={16} className="text-altus-red" />
         <h2 className="text-[14px] font-black text-ink-strong">AI Insights</h2>
-        <span className="ml-auto rounded-full bg-[color-mix(in_srgb,var(--color-altus-red)_10%,white)] px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-altus-red-deep">
+        <span className="ml-auto rounded-pill bg-[color-mix(in_srgb,var(--color-altus-red)_10%,white)] px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-altus-red-deep">
           Analysis
         </span>
       </div>
@@ -389,7 +389,7 @@ export function AIInsightsCard({
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
           <span>
             {rejectionCount} rework {rejectionCount === 1 ? "loop" : "loops"} detected. Approval
-            bounced back {rejectionCount === 1 ? "once" : `${rejectionCount} times`} — align
+            bounced back {rejectionCount === 1 ? "once" : `${rejectionCount} times`} - align
             acceptance criteria before resubmitting.
           </span>
         </p>
@@ -474,7 +474,7 @@ export function TeamMembersCard({
           <TeamMember name={approverName} avatarUrl={approverAvatarUrl} role="Approver" />
         ) : (
           <li className="text-[11.5px] font-medium text-slate-400">
-            No approver — the assignee has no manager on file.
+            No approver - the assignee has no manager on file.
           </li>
         )}
       </ul>

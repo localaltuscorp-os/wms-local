@@ -81,7 +81,7 @@ export const ENTITIES: Record<EntityId, Entity> = {
   gainmakers: {
     id: "gainmakers",
     displayName: "The Gainmakers (MJV HUF)",
-    legalName: "The Gainmakers — MJV HUF",
+    legalName: "The Gainmakers - MJV HUF",
     logo: "/logos/gainmakers.jpg",
     contactLine: DEFAULT_CONTACT_LINE,
     addressLine: DEFAULT_ADDRESS_LINE,
@@ -89,7 +89,7 @@ export const ENTITIES: Record<EntityId, Entity> = {
   "legacy-creators": {
     id: "legacy-creators",
     displayName: "Legacy Creators (JSV HUF)",
-    legalName: "Legacy Creators — JSV HUF",
+    legalName: "Legacy Creators - JSV HUF",
     logo: "/logos/legacy-creators.jpg",
     contactLine: DEFAULT_CONTACT_LINE,
     addressLine: DEFAULT_ADDRESS_LINE,
@@ -97,7 +97,7 @@ export const ENTITIES: Record<EntityId, Entity> = {
   "perfect-blend": {
     id: "perfect-blend",
     displayName: "The Perfect Blend (Khushboo Shah)",
-    legalName: "The Perfect Blend — Khushboo Shah",
+    legalName: "The Perfect Blend - Khushboo Shah",
     logo: "/logos/perfect-blend.jpg",
     contactLine: DEFAULT_CONTACT_LINE,
     addressLine: DEFAULT_ADDRESS_LINE,

@@ -237,7 +237,7 @@ function NumBox({
       max={max}
       disabled={disabled}
       aria-label={ariaLabel}
-      placeholder={placeholder ?? "—"}
+      placeholder={placeholder ?? "-"}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
@@ -553,7 +553,7 @@ function PctCell({
         className="w-[46px]"
       />
       <span
-        className="inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[12px] font-bold tabular-nums"
+        className="inline-flex h-5 min-w-5 items-center justify-center rounded-pill px-1 text-[12px] font-bold tabular-nums"
         style={{ color: tone.color, background: tone.bg }}
       >
         %
@@ -667,7 +667,7 @@ function TeamMembersCell({
         <span
           key={memberKey(m)}
           title={`${m.name}${m.weight != null ? ` · weight ${m.weight}` : ""}`}
-          className="inline-flex max-w-[112px] items-center gap-1 truncate rounded-full border px-1.5 py-0.5 text-[11px] font-semibold text-ink-strong"
+          className="inline-flex max-w-[112px] items-center gap-1 truncate rounded-pill border px-1.5 py-0.5 text-[11px] font-semibold text-ink-strong"
           style={{ borderColor: "var(--color-hairline)", background: "var(--color-surface-soft)" }}
         >
           <span
@@ -677,7 +677,7 @@ function TeamMembersCell({
           >
             {(m.name ?? "?").trim().charAt(0).toUpperCase()}
           </span>
-          <span className="truncate">{m.name ?? "—"}</span>
+          <span className="truncate">{m.name ?? "-"}</span>
           {m.weight != null && (
             <span className="tabular-nums font-bold text-altus-red-deep">·{m.weight}</span>
           )}
@@ -685,9 +685,9 @@ function TeamMembersCell({
       ))}
       {extra > 0 && (
         <span
-          className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-altus-red-deep"
+          className="inline-flex items-center rounded-pill px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-altus-red-deep"
           style={{ background: redTint(10) }}
-          title={list.slice(2).map((m) => `${m.name} (wt ${m.weight ?? "—"})`).join(", ")}
+          title={list.slice(2).map((m) => `${m.name} (wt ${m.weight ?? "-"})`).join(", ")}
         >
           +{extra}
         </span>
@@ -701,7 +701,7 @@ function TeamMembersCell({
             disabled={disabled}
             aria-label="Edit team members + weights"
             className={cn(
-              "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[11px] font-bold text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red",
+              "inline-flex h-6 items-center gap-1 rounded-pill border px-2 text-[11px] font-bold text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red",
               "disabled:cursor-not-allowed disabled:opacity-60",
               FOCUS_RING,
             )}
@@ -729,7 +729,7 @@ function TeamMembersCell({
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setActive(0); }}
                 onKeyDown={onSearchKeyDown}
-                placeholder="Local search — people" title="Local search — filters only the list on this page" aria-label="Local search — people — this page only"
+                placeholder="Local search - people" title="Local search - filters only the list on this page" aria-label="Local search - people - this page only"
                 className="h-8 w-full bg-transparent text-[13px] font-medium text-ink-strong outline-none placeholder:text-ink-subtle"
               />
             </div>
@@ -1040,7 +1040,7 @@ function DelegatesCell({
             ref={triggerRef}
             type="button"
             disabled={disabled}
-            aria-label={list.length > 0 ? `${list.length} delegate${list.length === 1 ? "" : "s"} — click to edit` : "Delegate to team"}
+            aria-label={list.length > 0 ? `${list.length} delegate${list.length === 1 ? "" : "s"} - click to edit` : "Delegate to team"}
             className={cn(
               "inline-flex items-center justify-center rounded-md p-0.5 transition-colors hover:text-altus-red",
               "disabled:cursor-not-allowed disabled:opacity-60",
@@ -1070,7 +1070,7 @@ function DelegatesCell({
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setActive(0); }}
                 onKeyDown={onSearchKeyDown}
-                placeholder="Local search — people" title="Local search — filters only the list on this page" aria-label="Local search — people — this page only"
+                placeholder="Local search - people" title="Local search - filters only the list on this page" aria-label="Local search - people - this page only"
                 className="h-8 w-full bg-transparent text-[13px] font-medium text-ink-strong outline-none placeholder:text-ink-subtle"
               />
             </div>
@@ -1172,7 +1172,7 @@ function DelegatesCell({
                       {(d.name ?? "?").trim().charAt(0).toUpperCase()}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-ink-strong">
-                      {d.name ?? "—"}
+                      {d.name ?? "-"}
                     </span>
                     <span className="shrink-0 text-[11.5px] font-bold tabular-nums text-altus-red-deep">{d.pct}%</span>
                     {!disabled && (
@@ -1379,13 +1379,13 @@ function TargetDateStatusCell({ iso }: { iso: string | null }) {
   if (st.daysLeft == null) {
     return (
       <span className="text-[12px] font-semibold" style={{ color: "var(--color-ink-subtle)" }}>
-        —
+        -
       </span>
     );
   }
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-1.5 py-[1px] text-[11px] font-bold tabular-nums"
+      className="inline-flex items-center gap-1 rounded-pill px-1.5 py-[1px] text-[11px] font-bold tabular-nums"
       style={{ background: `color-mix(in srgb, ${st.color} 12%, transparent)`, color: st.color }}
       title={st.label}
     >
@@ -2333,7 +2333,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         parse: (raw, g) => {
           const s = raw.trim();
           const low = s.toLowerCase();
-          if (s === "" || low === "no" || low === "-" || low === "—") {
+          if (s === "" || low === "no" || low === "-" || low === "-") {
             return {
               partial: { isProject: false, projectNodeId: null, vendorId: null },
               run: () => A.editGoal({ id: g.id, isProject: false }),
@@ -2507,7 +2507,7 @@ export function GoalTableView(props: GoalTableViewProps) {
                       setPreviewGoal(g);
                     }
                   }}
-                  aria-label={`Goal: ${g.title || "Untitled goal"} — view details`}
+                  aria-label={`Goal: ${g.title || "Untitled goal"} - view details`}
                   className="whitespace-nowrap text-[13px] font-bold text-ink-soft tabular-nums underline decoration-transparent underline-offset-2 transition-colors hover:text-altus-red hover:decoration-current outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/50 rounded-md"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
@@ -2853,7 +2853,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         // than the outcome here.
         if (copied === 0) {
           fireToast({
-            message: `Already in ${dest} — nothing to copy.`,
+            message: `Already in ${dest} - nothing to copy.`,
             type: "info",
           });
           clearSelection();
@@ -2994,9 +2994,9 @@ export function GoalTableView(props: GoalTableViewProps) {
     <div className="relative">
       {/* scoped slider chrome */}
       <style>{`
-        /* No vertical dividers — a clean list feel with only horizontal rules. */
+        /* No vertical dividers - a clean list feel with only horizontal rules. */
         .gtv-table th, .gtv-table td { border-right: none; }
-        /* Frozen header — the same crisp glass strip as the Tasks table, at a
+        /* Frozen header - the same crisp glass strip as the Tasks table, at a
            smaller size than the shared text-table-head utility (dense table). */
         .gtv-table thead th {
           position: sticky;
@@ -3032,7 +3032,7 @@ export function GoalTableView(props: GoalTableViewProps) {
           />
           <span className="inline-flex items-center gap-2 text-[14px] font-bold text-ink-strong">
             <span
-              className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full text-white tabular-nums text-[12.5px] font-black"
+              className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-pill text-white tabular-nums text-[12.5px] font-black"
               style={{
                 background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
                 boxShadow: "0 3px 8px -3px rgba(225, 6, 0, 0.5)",

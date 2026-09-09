@@ -137,7 +137,7 @@ export function EnablePushButton() {
         disabled={pending}
         className="brand-btn rounded-md border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] hover:bg-[#F5F5F7] disabled:opacity-50"
       >
-        ✓ Push enabled — turn off
+        ✓ Push enabled - turn off
       </button>
     );
   }

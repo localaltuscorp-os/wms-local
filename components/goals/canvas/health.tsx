@@ -128,7 +128,7 @@ export function ProgressDelta({ pct, lastPct, className }: ProgressDeltaProps) {
           {safePct}%
         </span>
         {delta == null ? (
-          <span className="text-[11px] font-semibold text-ink-subtle">— no prior period</span>
+          <span className="text-[11px] font-semibold text-ink-subtle">- no prior period</span>
         ) : delta === 0 ? (
           <span className="text-[11px] font-bold tabular-nums text-ink-subtle">＝ level vs last period</span>
         ) : (
@@ -190,7 +190,7 @@ export function TargetVsActual({ target, actual, uom, className }: TargetVsActua
   if (max <= 0) {
     return (
       <div className={className}>
-        <span className="text-[12px] font-semibold text-ink-subtle">— no target set</span>
+        <span className="text-[12px] font-semibold text-ink-subtle">- no target set</span>
       </div>
     );
   }
@@ -228,7 +228,7 @@ export function TargetVsActual({ target, actual, uom, className }: TargetVsActua
                   {row.label}
                 </span>
                 <span className="text-[12px] font-bold tabular-nums" style={{ color: row.ink }}>
-                  {row.value == null ? "—" : `${fmtNum(row.value)}${suffix}`}
+                  {row.value == null ? "-" : `${fmtNum(row.value)}${suffix}`}
                 </span>
               </div>
               <div

@@ -205,7 +205,7 @@ export function RbClaimsList({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Local search — claims, person, head, amount" title="Local search — filters only the list on this page" aria-label="Local search — claims — expense, person, head, amount — this page only"
+            placeholder="Local search - claims, person, head, amount" title="Local search - filters only the list on this page" aria-label="Local search - claims - expense, person, head, amount - this page only"
             className="w-full rounded-pill border border-hairline bg-white py-2 pl-9 pr-4 text-[13.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle focus:border-[#16a34a99]"
           />
         </label>
@@ -235,7 +235,7 @@ export function RbClaimsList({
       </p>
 
       {shown.length === 0 ? (
-        <p className="px-1 py-6 text-[14.5px] font-medium text-ink-subtle">No claims match — clear the search or filters.</p>
+        <p className="px-1 py-6 text-[14.5px] font-medium text-ink-subtle">No claims match - clear the search or filters.</p>
       ) : (
         <ul className="space-y-3">
           {shown.map((r, i) => (

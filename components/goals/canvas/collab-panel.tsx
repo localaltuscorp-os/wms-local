@@ -205,7 +205,7 @@ function MigrationNote() {
       className="mt-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-semibold"
       style={{ color: "#9a3412", background: "rgba(154,52,29,0.08)" }}
     >
-      Collaboration data isn&apos;t provisioned yet — migration 0142 must be applied
+      Collaboration data isn&apos;t provisioned yet - migration 0142 must be applied
       before links, comments and the gallery go live.
     </p>
   );
@@ -221,7 +221,7 @@ function ScoreBar({ label, pct, color }: { label: string; pct: number | null; co
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">{label}</span>
         <span className="text-[13px] font-black tabular-nums" style={{ color: pct == null ? "var(--color-ink-faint, #94a3b8)" : color }}>
-          {pct == null ? "—" : `${pct}%`}
+          {pct == null ? "-" : `${pct}%`}
         </span>
       </div>
       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full" style={{ background: accentMix(10) }}>
@@ -305,7 +305,7 @@ function ReviewScorecard({ g, bundle, node }: { g: GoalDTO; bundle: GoalDetailBu
       )}
       {!canReview && g.acceptPct == null && (
         <p className="mt-2 text-[11.5px] font-semibold text-ink-faint">
-          Awaiting a manager review — the accept % is manager-owned.
+          Awaiting a manager review - the accept % is manager-owned.
         </p>
       )}
 
@@ -321,7 +321,7 @@ function ReviewScorecard({ g, bundle, node }: { g: GoalDTO; bundle: GoalDetailBu
                 if (e.key === "Enter") commit();
                 if (e.key === "Escape") setOpen(false);
               }}
-              placeholder="—"
+              placeholder="-"
               aria-label="Accept percent"
               className="w-16 rounded-md border px-2 py-1.5 text-center text-[14px] font-black tabular-nums outline-none focus:ring-2"
               style={{ borderColor: "var(--color-hairline-strong)" }}
@@ -388,9 +388,9 @@ function ReviewScorecard({ g, bundle, node }: { g: GoalDTO; bundle: GoalDetailBu
             {reviews.map((r) => (
               <li key={r.id} className="flex items-baseline gap-2 text-[12px] font-semibold text-ink-muted">
                 <span className="tabular-nums font-black text-ink-strong">
-                  {r.selfPct ?? "—"}% → {r.managerPct == null ? "—" : `${r.managerPct}%`}
+                  {r.selfPct ?? "-"}% → {r.managerPct == null ? "-" : `${r.managerPct}%`}
                 </span>
-                <span className="truncate">{r.reviewerName ?? "Someone"}{r.note ? ` — ${r.note}` : ""}</span>
+                <span className="truncate">{r.reviewerName ?? "Someone"}{r.note ? ` - ${r.note}` : ""}</span>
                 <span className="ml-auto shrink-0 text-[10.5px] tabular-nums text-ink-faint">{timeAgo(r.createdAt)}</span>
               </li>
             ))}
@@ -484,7 +484,7 @@ function LinksSection({ node, bundle, loading }: { node: CollabNode; bundle: Goa
 
       {!loading && links.length === 0 && bundle?.collabReady !== false && !adding && (
         <p className="mt-1.5 text-[12px] font-semibold text-ink-faint">
-          Nothing linked yet — connect the tasks, KPIs or incentives this objective drives.
+          Nothing linked yet - connect the tasks, KPIs or incentives this objective drives.
         </p>
       )}
 
@@ -694,7 +694,7 @@ function DependenciesSection({ node, bundle, loading }: { node: CollabNode; bund
         Dependencies · blockers
         {openBlockers > 0 && (
           <span
-            className="ml-1 rounded-full px-1.5 py-0.5 text-[9.5px] font-black tabular-nums text-white"
+            className="ml-1 rounded-pill px-1.5 py-0.5 text-[9.5px] font-black tabular-nums text-white"
             style={{ background: "#b91c1c" }}
             title={`${openBlockers} open blocker${openBlockers === 1 ? "" : "s"}`}
           >
@@ -706,7 +706,7 @@ function DependenciesSection({ node, bundle, loading }: { node: CollabNode; bund
       {loading && <SkeletonRows n={1} />}
 
       {!loading && deps.length === 0 && bundle?.collabReady !== false && !adding && (
-        <p className="mt-1.5 text-[12px] font-semibold text-ink-faint">No dependencies — this objective stands alone.</p>
+        <p className="mt-1.5 text-[12px] font-semibold text-ink-faint">No dependencies - this objective stands alone.</p>
       )}
 
       {deps.length > 0 && (
@@ -905,7 +905,7 @@ function EvidenceSection({ node, bundle, loading }: { node: CollabNode; bundle: 
 
       {!loading && attachments.length === 0 && !bundle?.legacyEvidenceUrl && bundle?.collabReady !== false && (
         <p className="mt-1.5 text-[12px] font-semibold text-ink-faint">
-          No evidence yet — attach screenshots, sheets or documents that prove the work.
+          No evidence yet - attach screenshots, sheets or documents that prove the work.
         </p>
       )}
 
@@ -938,7 +938,7 @@ function EvidenceSection({ node, bundle, loading }: { node: CollabNode; bundle: 
                   {a.title}
                 </a>
               ) : (
-                <span className="min-w-0 truncate text-[12.5px] font-bold text-ink-muted" title="Couldn't sign a download URL — retry later">
+                <span className="min-w-0 truncate text-[12.5px] font-bold text-ink-muted" title="Couldn't sign a download URL - retry later">
                   {a.title}
                 </span>
               )}
@@ -1149,7 +1149,7 @@ function CommentsSection({ node, bundle, loading }: { node: CollabNode; bundle: 
       {!loading && bundle?.collabReady === false && <MigrationNote />}
 
       {!loading && roots.length === 0 && bundle?.collabReady !== false && (
-        <p className="mt-1.5 text-[12px] font-semibold text-ink-faint">Start the thread — decisions live better next to the goal.</p>
+        <p className="mt-1.5 text-[12px] font-semibold text-ink-faint">Start the thread - decisions live better next to the goal.</p>
       )}
 
       {roots.length > 0 && (
@@ -1235,7 +1235,7 @@ function activitySentence(a: DetailActivity): string {
     case "GoalCascadeEdited":
       return d ? `updated ${d}` : "updated the goal";
     case "GoalCascadeProgressSet":
-      return `set progress ${from ?? "—"}% → ${to ?? "—"}%`;
+      return `set progress ${from ?? "-"}% → ${to ?? "-"}%`;
     case "GoalCascadeAdopted":
       return `marked it ${to ?? "adopted"}`;
     case "GoalCascadeArchived":
@@ -1243,7 +1243,7 @@ function activitySentence(a: DetailActivity): string {
     case "GoalCascadeRebalanced":
       return d ?? "rebalanced the child targets";
     case "GoalCommented":
-      return d ? `commented — “${d}”` : "commented";
+      return d ? `commented - “${d}”` : "commented";
     case "GoalLinked":
       return d ? `linked ${d}` : "linked an item";
     case "GoalUnlinked":
@@ -1258,7 +1258,7 @@ function activitySentence(a: DetailActivity): string {
       return d ? `removed ${d}` : "removed an attachment";
     case "GoalReviewed": {
       const pct = a.payload.acceptPct;
-      return pct == null ? "reviewed the goal" : `reviewed — accepted ${pct}%`;
+      return pct == null ? "reviewed the goal" : `reviewed - accepted ${pct}%`;
     }
     case "GoalProgressLogged":
       return "logged weekly progress";
@@ -1277,7 +1277,7 @@ function ActivitySection({ bundle, loading }: { bundle: GoalDetailBundle | undef
 
       {!loading && activity.length === 0 && (
         <p className="mt-1.5 text-[12px] font-semibold text-ink-faint">
-          No activity recorded yet — changes from here on land in this timeline.
+          No activity recorded yet - changes from here on land in this timeline.
         </p>
       )}
 

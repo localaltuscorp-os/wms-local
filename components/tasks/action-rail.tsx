@@ -482,7 +482,7 @@ function RoleBanner({
               >
                 You're the {l.label.toLowerCase()}
               </span>
-              <span className="text-ink-soft"> — {l.detail}</span>
+              <span className="text-ink-soft"> - {l.detail}</span>
             </span>
           </div>
         );

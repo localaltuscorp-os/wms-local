@@ -175,7 +175,7 @@ export default async function TrainingObligationsPage() {
                           </span>
                         )}
                       </div>
-                      <span className="text-[13px] text-ink-subtle">{person.department || "—"}</span>
+                      <span className="text-[13px] text-ink-subtle">{person.department || "-"}</span>
                     </div>
                   </div>
 
@@ -219,7 +219,7 @@ export default async function TrainingObligationsPage() {
         )}
 
         <p className="mt-6 text-[12.5px] text-ink-subtle">
-          Bars are pro-rated to the {Math.round(expectedPct * 100)}% of {monthLabel(period.period)} elapsed —
+          Bars are pro-rated to the {Math.round(expectedPct * 100)}% of {monthLabel(period.period)} elapsed -
           green is on or ahead of target, amber is on pace, red is behind. Give applies to managers only.
         </p>
       </main>

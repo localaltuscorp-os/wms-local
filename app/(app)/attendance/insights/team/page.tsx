@@ -120,7 +120,7 @@ function NoReportsState() {
       </div>
       <Link
         href={"/attendance" as Route}
-        className="pastel-cta inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[14px] font-bold"
+        className="pastel-cta inline-flex items-center gap-1.5 rounded-pill px-5 py-2.5 text-[14px] font-bold"
       >
         Go to My Attendance
       </Link>

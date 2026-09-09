@@ -54,7 +54,7 @@ export function AccountsIndex({ sections }: { sections: AccountsSection[] }) {
                   </h2>
                   {s.sensitive && (
                     <span
-                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.1em]"
+                      className="inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.1em]"
                       style={{
                         color: "var(--color-altus-red-deep)",
                         background: "rgba(225,6,0,0.08)",
@@ -71,7 +71,7 @@ export function AccountsIndex({ sections }: { sections: AccountsSection[] }) {
               </div>
 
               <span
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.08em]"
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.08em]"
                 style={
                   built || linked
                     ? { color: "var(--color-green-deep)", background: "rgba(16,122,87,0.10)", border: "1px solid rgba(16,122,87,0.25)" }

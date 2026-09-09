@@ -107,7 +107,7 @@ function snapshot(input: InterviewInsightInput): Snapshot {
 
 /** Format a 0..10 score for the prompt/heuristic, "—" when unrated. */
 function fmt(n: number | null): string {
-  return n === null ? "—" : n.toFixed(1);
+  return n === null ? "-" : n.toFixed(1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -140,19 +140,19 @@ function buildPrompt(input: InterviewInsightInput): string {
 
   const elig = s.eligibility;
   const eligLine = elig.dealbreaker
-    ? `DEAL-BREAKER: un-excepted critical "No" on — ${s.criticalNoLabels.join(", ")}`
+    ? `DEAL-BREAKER: un-excepted critical "No" on - ${s.criticalNoLabels.join(", ")}`
     : elig.flaggedForReview
       ? `Flagged for review (critical "No" but an exception was recorded): ${s.criticalNoLabels.join(", ")}`
       : `Pre-requisites clean (${elig.answered}/${elig.total} answered, no critical blocks)`;
 
-  return `You are a senior HR interviewer writing a fair, evidence-based read-out of a candidate's structured interview scorecard. Base EVERY statement ONLY on the numbers and facts given below — never invent scores, never moralize, be specific and concrete. All sub-scores are 0–10 unless a percentage is stated.
+  return `You are a senior HR interviewer writing a fair, evidence-based read-out of a candidate's structured interview scorecard. Base EVERY statement ONLY on the numbers and facts given below - never invent scores, never moralize, be specific and concrete. All sub-scores are 0–10 unless a percentage is stated.
 
-Role applied for: ${input.positionApplied || "—"}
-Resolved designation: ${input.designation || "—"}
+Role applied for: ${input.positionApplied || "-"}
+Resolved designation: ${input.designation || "-"}
 Sales / customer-facing role: ${input.isSalesRole ? "yes" : "no"}
 
-Weighted Overall Interview Score: ${s.interviewScore === null ? "—" : `${s.interviewScore}/100`}
-Interviewer's manual gut score: ${s.gut === null ? "—" : `${s.gut}/10`}
+Weighted Overall Interview Score: ${s.interviewScore === null ? "-" : `${s.interviewScore}/100`}
+Interviewer's manual gut score: ${s.gut === null ? "-" : `${s.gut}/10`}
 Eligibility: ${eligLine}
 
 Headline scorecard (0–10):
@@ -249,16 +249,16 @@ function parseModelJson(
 /** Placeholder CTC band by designation rank — explainable, not authoritative. */
 function salaryBandFor(designation: string): string {
   const d = designation.toLowerCase();
-  if (d.includes("sr vp") || d.includes("senior vp")) return "INR 2,00,000-3,50,000/month (indicative — confirm with CTC workbench)";
-  if (d.includes("vp")) return "INR 1,50,000-2,50,000/month (indicative — confirm with CTC workbench)";
-  if (d.includes("avp")) return "INR 1,10,000-1,60,000/month (indicative — confirm with CTC workbench)";
-  if (d.includes("sr manager") || d.includes("senior manager")) return "INR 90,000-1,30,000/month (indicative — confirm with CTC workbench)";
-  if (d.includes("manager")) return "INR 60,000-90,000/month (indicative — confirm with CTC workbench)";
-  if (d.includes("sr executive") || d.includes("senior executive")) return "INR 40,000-60,000/month (indicative — confirm with CTC workbench)";
-  if (d.includes("executive")) return "INR 25,000-40,000/month (indicative — confirm with CTC workbench)";
-  if (d.includes("trainee")) return "INR 18,000-28,000/month (indicative — confirm with CTC workbench)";
-  if (d.includes("intern")) return "INR 10,000-18,000/month (indicative — confirm with CTC workbench)";
-  return "INR 25,000-40,000/month (indicative — set against the CTC workbench)";
+  if (d.includes("sr vp") || d.includes("senior vp")) return "INR 2,00,000-3,50,000/month (indicative - confirm with CTC workbench)";
+  if (d.includes("vp")) return "INR 1,50,000-2,50,000/month (indicative - confirm with CTC workbench)";
+  if (d.includes("avp")) return "INR 1,10,000-1,60,000/month (indicative - confirm with CTC workbench)";
+  if (d.includes("sr manager") || d.includes("senior manager")) return "INR 90,000-1,30,000/month (indicative - confirm with CTC workbench)";
+  if (d.includes("manager")) return "INR 60,000-90,000/month (indicative - confirm with CTC workbench)";
+  if (d.includes("sr executive") || d.includes("senior executive")) return "INR 40,000-60,000/month (indicative - confirm with CTC workbench)";
+  if (d.includes("executive")) return "INR 25,000-40,000/month (indicative - confirm with CTC workbench)";
+  if (d.includes("trainee")) return "INR 18,000-28,000/month (indicative - confirm with CTC workbench)";
+  if (d.includes("intern")) return "INR 10,000-18,000/month (indicative - confirm with CTC workbench)";
+  return "INR 25,000-40,000/month (indicative - set against the CTC workbench)";
 }
 
 interface NamedScore {
@@ -330,15 +330,15 @@ export function heuristicInterviewInsights(
   const score = s.interviewScore;
   let roleSuitability: string;
   if (s.eligibility.dealbreaker) {
-    roleSuitability = `Not recommended as-is — a critical pre-requisite is a "No" without an exception${score === null ? "" : ` (interview score ${score}/100)`}.`;
+    roleSuitability = `Not recommended as-is - a critical pre-requisite is a "No" without an exception${score === null ? "" : ` (interview score ${score}/100)`}.`;
   } else if (score === null) {
-    roleSuitability = "Insufficient ratings to judge role suitability — complete the scorecard.";
+    roleSuitability = "Insufficient ratings to judge role suitability - complete the scorecard.";
   } else if (score >= 75) {
-    roleSuitability = `Strong fit for ${input.positionApplied || "the role"} — interview score ${score}/100.`;
+    roleSuitability = `Strong fit for ${input.positionApplied || "the role"} - interview score ${score}/100.`;
   } else if (score >= 60) {
     roleSuitability = `Workable fit for ${input.positionApplied || "the role"} (${score}/100); shore up the weak areas.`;
   } else if (score >= 45) {
-    roleSuitability = `Borderline for ${input.positionApplied || "the role"} (${score}/100) — a second round is advisable.`;
+    roleSuitability = `Borderline for ${input.positionApplied || "the role"} (${score}/100) - a second round is advisable.`;
   } else {
     roleSuitability = `Weak fit for ${input.positionApplied || "the role"} at ${score}/100.`;
   }
@@ -370,7 +370,7 @@ export function heuristicInterviewInsights(
 
   const summary =
     score === null
-      ? "Scorecard is only partly filled — complete the ratings for a reliable read."
+      ? "Scorecard is only partly filled - complete the ratings for a reliable read."
       : `${input.positionApplied || "Candidate"}: weighted interview score ${score}/100 with ${strengths.length} clear strength(s) and ${concerns.length} concern(s).${s.eligibility.dealbreaker ? " A critical pre-requisite is unmet." : ""}`;
 
   const recommendedDepartment = input.isSalesRole
@@ -379,8 +379,8 @@ export function heuristicInterviewInsights(
 
   return {
     summary,
-    strengths: strengths.length ? strengths : ["No composite scored 7.5+ yet — no standout strengths."],
-    concerns: concerns.length ? concerns : ["No composite scored 5 or below — no major concerns flagged."],
+    strengths: strengths.length ? strengths : ["No composite scored 7.5+ yet - no standout strengths."],
+    concerns: concerns.length ? concerns : ["No composite scored 5 or below - no major concerns flagged."],
     behavioural,
     technical,
     learningPotential,

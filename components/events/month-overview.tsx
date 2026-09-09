@@ -99,7 +99,7 @@ export function MonthOverview({
               <div className="mb-1 flex items-center justify-between">
                 <span
                   className={cn(
-                    "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11.5px] font-bold",
+                    "inline-flex h-5 min-w-5 items-center justify-center rounded-pill px-1 text-[11.5px] font-bold",
                     isToday ? "text-white" : outside ? "text-ink-soft" : "text-ink-strong",
                   )}
                   style={isToday ? { background: "var(--color-altus-red, #c8102e)" } : undefined}

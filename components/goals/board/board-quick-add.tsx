@@ -326,7 +326,7 @@ export const BoardQuickAdd = React.forwardRef<BoardQuickAddHandle, Props>(
                   reset();
                   setAddedCount(0);
                 }}
-                className={`inline-flex items-center whitespace-nowrap rounded-full border px-5 py-2.5 text-[14px] font-bold text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong ${FOCUS_RING}`}
+                className={`inline-flex items-center whitespace-nowrap rounded-pill border px-5 py-2.5 text-[14px] font-bold text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong ${FOCUS_RING}`}
                 style={{ borderColor: "var(--color-hairline-strong)" }}
               >
                 End
@@ -335,7 +335,7 @@ export const BoardQuickAdd = React.forwardRef<BoardQuickAddHandle, Props>(
                 type="button"
                 onClick={submit}
                 disabled={saving}
-                className={`pastel-cta wg-btn inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-6 py-2.5 text-[14px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${FOCUS_RING}`}
+                className={`pastel-cta wg-btn inline-flex items-center gap-1.5 whitespace-nowrap rounded-pill px-6 py-2.5 text-[14px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${FOCUS_RING}`}
               >
                 {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={2.8} />}
                 Add Goal

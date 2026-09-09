@@ -76,7 +76,7 @@ export default async function ProjectNodePage({ params }: PageProps) {
                     )}
                   </span>
                   <span
-                    className="shrink-0 inline-flex items-center rounded-full px-2.5 py-1 text-[11.5px] font-bold"
+                    className="shrink-0 inline-flex items-center rounded-pill px-2.5 py-1 text-[11.5px] font-bold"
                     style={{
                       background: `var(--color-${sd.color}-bg)`,
                       color: `var(--color-${sd.color}-deep)`,

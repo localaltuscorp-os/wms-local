@@ -33,7 +33,7 @@ function PctPill({ pct, label }: { pct: number; label?: string }) {
   const t = pctTone(pct);
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-black tabular-nums"
+      className="inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[12px] font-black tabular-nums"
       style={{ color: t.color, background: t.bg }}
     >
       {pct}%{label ? <span className="text-[9px] font-bold uppercase opacity-70">{label}</span> : null}
@@ -167,10 +167,10 @@ function ReviewRow({
               onChange={changeCategory}
             />
           ) : (
-            <span className="text-[13px] font-semibold text-ink-soft">{item.category || "—"}</span>
+            <span className="text-[13px] font-semibold text-ink-soft">{item.category || "-"}</span>
           )
         ) : (
-          <span className="text-[12px] text-ink-subtle">—</span>
+          <span className="text-[12px] text-ink-subtle">-</span>
         )}
       </td>
 
@@ -250,7 +250,7 @@ function ReviewRow({
         ) : item.reviewNotes ? (
           <p className="max-w-[280px] text-[12.5px] text-ink-soft">{item.reviewNotes}</p>
         ) : (
-          <span className="text-[12px] text-ink-subtle">—</span>
+          <span className="text-[12px] text-ink-subtle">-</span>
         )}
       </td>
 
@@ -304,7 +304,7 @@ export function ReviewTable({
       }}
     >
       <style>{`
-        /* Frozen header — stays put while the rows scroll. */
+        /* Frozen header - stays put while the rows scroll. */
         .rvw-table thead th {
           position: sticky; top: 0; z-index: 6;
           background-image: linear-gradient(120deg,

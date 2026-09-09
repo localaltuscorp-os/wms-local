@@ -50,7 +50,7 @@ function fmtDay(ymd: string | null | undefined): string | null {
 }
 
 function Dash() {
-  return <span className="text-ink-subtle">—</span>;
+  return <span className="text-ink-subtle">-</span>;
 }
 
 export function PlanTaskTable({
@@ -164,7 +164,7 @@ export function PlanTaskTable({
                 </td>
                 <td className="px-3 py-2">
                   <span
-                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold"
+                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-pill px-2 py-0.5 text-[11px] font-bold"
                     style={{
                       background: "var(--color-surface-soft)",
                       color: CATEGORY_ACCENT[category],
@@ -196,7 +196,7 @@ export function PlanTaskTable({
                 <td className="px-3 py-2">
                   {it.priority ? (
                     <span
-                      className="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold"
+                      className="inline-flex whitespace-nowrap rounded-pill px-2 py-0.5 text-[11px] font-bold"
                       style={PRIORITY_TONE[it.priority] && {
                         background: PRIORITY_TONE[it.priority].bg,
                         color: PRIORITY_TONE[it.priority].fg,
@@ -217,7 +217,7 @@ export function PlanTaskTable({
                 <td className="px-3 py-2">
                   {it.ageDays != null ? (
                     <span
-                      className="inline-flex min-w-[34px] justify-center rounded-full px-2 py-0.5 text-[11.5px] font-bold tabular-nums"
+                      className="inline-flex min-w-[34px] justify-center rounded-pill px-2 py-0.5 text-[11.5px] font-bold tabular-nums"
                       style={{
                         background: ageTone(it.ageDays).bg,
                         color: ageTone(it.ageDays).fg,
@@ -306,7 +306,7 @@ function RowActions({
   // A done commitment is history — moving or removing it would rewrite the
   // record of what was delivered. Mirrors the `!it.done` guard the old list had.
   if (item.done) {
-    return <span className="block text-right text-[11.5px] font-semibold text-ink-subtle">—</span>;
+    return <span className="block text-right text-[11.5px] font-semibold text-ink-subtle">-</span>;
   }
 
   return (
@@ -332,7 +332,7 @@ function RowActions({
             type="button"
             onClick={() => onRemove(item.id)}
             disabled={busy}
-            title="Remove from today's plan — the task itself is untouched"
+            title="Remove from today's plan - the task itself is untouched"
             className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-bold text-white disabled:opacity-50"
             style={{ background: "var(--color-altus-red)" }}
           >
@@ -345,7 +345,7 @@ function RowActions({
             onClick={() => setConfirming(true)}
             disabled={busy}
             aria-label="Remove from today's plan"
-            title="Remove from today's plan — the task itself is untouched"
+            title="Remove from today's plan - the task itself is untouched"
             className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[color:color-mix(in_srgb,var(--color-altus-red)_10%,transparent)] hover:text-altus-red disabled:opacity-50"
           >
             <Trash2 size={15} strokeWidth={2.2} />
@@ -388,7 +388,7 @@ function HoverPreview({
     >
       <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
         <span
-          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold"
+          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-pill px-2 py-0.5 text-[11px] font-bold"
           style={{
             background: "var(--color-surface-soft)",
             color: CATEGORY_ACCENT[category],

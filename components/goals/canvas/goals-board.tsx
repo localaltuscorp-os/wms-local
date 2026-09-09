@@ -126,7 +126,7 @@ const HEALTH_ORDER: HealthBand[] = ["at-risk", "spillover", "on-track", "ahead",
 /** Ritual-lock bounce copy (Phase 6, Option B light) — one sentence, same
  *  spirit as POLICY_REASONS: says who CAN still edit. */
 const RITUAL_LOCK_MSG =
-  "This week is committed — only an admin or the owner's manager can move its goals.";
+  "This week is committed - only an admin or the owner's manager can move its goals.";
 
 /* ------------------------------------------------------------------ */
 /* Board model                                                         */
@@ -759,13 +759,13 @@ export function GoalsBoard(): React.JSX.Element {
           {cardKind === "goal" && focus && (
             <span className="normal-case tracking-normal">
               {" "}
-              — under {periodKeyShort(focus.periodKey)}
+              - under {periodKeyShort(focus.periodKey)}
             </span>
           )}
           {/* bug #9 — the weekly header names the boarded calendar month, which
               exists even when no month GOAL row does. */}
           {cardKind === "weekly" && boardMonthKey && (
-            <span className="normal-case tracking-normal"> — {monthNameOf(boardMonthKey)}</span>
+            <span className="normal-case tracking-normal"> - {monthNameOf(boardMonthKey)}</span>
           )}
         </h3>
         <div
@@ -785,8 +785,8 @@ export function GoalsBoard(): React.JSX.Element {
                 onClick={() => void setLaneRaw(m)}
                 title={
                   meta.writable
-                    ? `Lane by ${meta.label.toLowerCase()} — drop a card to move it`
-                    : `Lane by ${meta.label.toLowerCase()} — derived grouping (drag disabled)`
+                    ? `Lane by ${meta.label.toLowerCase()} - drop a card to move it`
+                    : `Lane by ${meta.label.toLowerCase()} - derived grouping (drag disabled)`
                 }
                 className="inline-flex h-6.5 items-center gap-1 rounded-[8px] px-2 text-[11px] font-bold transition-colors"
                 style={
@@ -806,8 +806,8 @@ export function GoalsBoard(): React.JSX.Element {
           {dragEnabled
             ? "drag cards between lanes · hold Space to pan · wheel scrolls"
             : modeWritable
-              ? "view-only — hold Space to pan"
-              : "auto-grouped (derived) — hold Space to pan"}
+              ? "view-only - hold Space to pan"
+              : "auto-grouped (derived) - hold Space to pan"}
         </span>
       </div>
 
@@ -865,7 +865,7 @@ export function GoalsBoard(): React.JSX.Element {
                 style={{ borderColor: accentMix(40), background: accentMix(5) }}
               >
                 <p className="text-[15px] italic text-ink-muted" style={{ fontFamily: "var(--font-serif), Georgia, serif" }}>
-                  Nothing to board at this level yet — add goals from the toolbar or the List view.
+                  Nothing to board at this level yet - add goals from the toolbar or the List view.
                 </p>
               </div>
             ) : (
@@ -987,7 +987,7 @@ function BoardLaneCol(props: {
       ref={setNodeRef}
       data-lane-key={lane.key} /* ?q deep-link scroll target */
       role="group"
-      aria-label={`${lane.label} column — ${lane.cards.length} ${lane.cards.length === 1 ? "card" : "cards"}${lane.locked ? " · committed (frozen)" : ""}`}
+      aria-label={`${lane.label} column - ${lane.cards.length} ${lane.cards.length === 1 ? "card" : "cards"}${lane.locked ? " · committed (frozen)" : ""}`}
       tabIndex={props.tabbable ? 0 : -1}
       onFocus={(e) => {
         if (e.target === e.currentTarget) props.onRove();
@@ -1044,7 +1044,7 @@ function BoardLaneCol(props: {
             lane bounce (admin / the owner's manager keep editing). */}
         {lane.locked && (
           <span
-            title="Committed — the Saturday freeze stamped this week. Drops bounce; an admin or the owner's manager can still edit."
+            title="Committed - the Saturday freeze stamped this week. Drops bounce; an admin or the owner's manager can still edit."
             className="inline-flex shrink-0 items-center gap-1 rounded-pill px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em]"
             style={{
               color: ACCENT_DEEP,
@@ -1402,10 +1402,10 @@ function measureLine(card: BoardCard): string | null {
   const aa = asNum(src.actualAmount);
   if (tq != null || aq != null) {
     const uom = src.uom ? ` ${src.uom}` : "";
-    return `Tgt ${tq != null ? fmtNum(tq) : "—"}${uom} · Act ${aq != null ? fmtNum(aq) : "—"}${uom}`;
+    return `Tgt ${tq != null ? fmtNum(tq) : "-"}${uom} · Act ${aq != null ? fmtNum(aq) : "-"}${uom}`;
   }
   if (ta != null || aa != null)
-    return `Tgt ₹${ta != null ? fmtNum(ta) : "—"} · Act ₹${aa != null ? fmtNum(aa) : "—"}`;
+    return `Tgt ₹${ta != null ? fmtNum(ta) : "-"} · Act ₹${aa != null ? fmtNum(aa) : "-"}`;
   return null;
 }
 
@@ -1592,7 +1592,7 @@ function GoalPeekCard(props: {
 
         <div className="hc-item grid grid-cols-2 gap-x-4 gap-y-3" style={{ animationDelay: DELAY[4] }}>
           <PeekMeta label="Measure" value={measure ?? "unmeasured"} />
-          <PeekMeta label="Area" value={area?.trim() || "—"} />
+          <PeekMeta label="Area" value={area?.trim() || "-"} />
           <PeekMeta
             label="Contribution"
             value={contributionLabel(card, props)}

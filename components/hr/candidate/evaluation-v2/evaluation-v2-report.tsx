@@ -135,7 +135,7 @@ export function EvaluationV2Report({
           column above). Custom weight tuning is DEFERRED — scoring uses the default
           section weights until the Dept → Role → Designation hierarchy exists. */}
       <p className="mt-3 text-[11.5px] font-medium leading-snug text-ink-subtle">
-        Management can override the recommendation with a reason. Custom weight tuning is temporarily disabled — every score uses the default section weights.
+        Management can override the recommendation with a reason. Custom weight tuning is temporarily disabled - every score uses the default section weights.
       </p>
     </div>
   );
@@ -220,7 +220,7 @@ function RoleColumn({
                     <div key={c.key} className="rounded-lg border border-hairline bg-surface-soft px-2 py-2 text-center">
                       <p className="truncate text-[10px] font-bold uppercase tracking-[0.05em] text-ink-soft">{c.label}</p>
                       <p className="text-[16px] font-black tabular-nums leading-none" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", color: c.score === null ? "var(--color-ink-subtle)" : band.tone }}>
-                        {c.score === null ? "—" : fmt(c.score)}
+                        {c.score === null ? "-" : fmt(c.score)}
                       </p>
                     </div>
                   );
@@ -320,7 +320,7 @@ function SectionComparisonTable({
                         <ArrowLeftRight size={10} strokeWidth={2.6} /> {fmt(delta!)}
                       </span>
                     ) : (
-                      <span className="text-[12px] font-semibold text-ink-subtle">—</span>
+                      <span className="text-[12px] font-semibold text-ink-subtle">-</span>
                     )}
                   </td>
                 </tr>
@@ -337,7 +337,7 @@ function ScoreCell({ s }: { s: SectionScore | null }) {
   if (!s) {
     return (
       <td className="px-3 py-2.5 text-right">
-        <span className="text-[12px] font-semibold text-ink-subtle">—</span>
+        <span className="text-[12px] font-semibold text-ink-subtle">-</span>
       </td>
     );
   }
@@ -354,7 +354,7 @@ function ScoreCell({ s }: { s: SectionScore | null }) {
     <td className="px-3 py-2.5 text-right">
       <span className="inline-flex items-baseline gap-1 tabular-nums">
         <span className="text-[14px] font-black" style={{ color: rated ? tone.fg : "var(--color-ink-subtle)" }}>
-          {rated ? fmt(s.micro!) : "—"}
+          {rated ? fmt(s.micro!) : "-"}
         </span>
         <span className="text-[10.5px] font-bold text-ink-subtle">/10</span>
       </span>
@@ -399,7 +399,7 @@ function OverallDial({ instance, ctx, interviewScore }: { instance: EvaluationIn
             className="text-[27px] font-black leading-none tabular-nums text-ink-strong"
             style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}
           >
-            {value === null ? "—" : fmt(value)}
+            {value === null ? "-" : fmt(value)}
             <span className="text-[14px] font-bold text-ink-subtle">/10</span>
           </span>
           <span className="mt-1 text-[9.5px] font-bold uppercase tracking-[0.14em] text-ink-soft">Weighted</span>
@@ -440,7 +440,7 @@ function StatTile({
       <div className="rounded-lg border border-hairline bg-surface-soft px-2 py-2 text-center" title={hint}>
         <p className="truncate text-[10px] font-bold uppercase tracking-[0.05em] text-ink-soft">{label}</p>
         <p className="text-[16px] font-black tabular-nums leading-none" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", color: value === null ? "var(--color-ink-subtle)" : tone.fg }}>
-          {value === null ? "—" : fmt(value)}
+          {value === null ? "-" : fmt(value)}
         </p>
       </div>
     );
@@ -451,7 +451,7 @@ function StatTile({
         <span style={{ color: RED }}>{icon}</span> {label}
       </div>
       <p className="mt-1.5 text-[22px] font-black leading-none tabular-nums" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", color: value === null ? "var(--color-ink-subtle)" : tone.fg }}>
-        {value === null ? "—" : fmt(value)}
+        {value === null ? "-" : fmt(value)}
         <span className="text-[13px] font-bold text-ink-subtle">/10</span>
       </p>
       <p className="mt-1 text-[11px] font-medium leading-snug text-ink-subtle">{hint}</p>

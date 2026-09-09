@@ -122,7 +122,7 @@ export function DisciplineNote({
         onBlur={save}
         maxLength={2000}
         rows={3}
-        placeholder={`Notes / reasons about ${name}'s attendance this month — type or tap Dictate. (Read-only page · never changes pay.)`}
+        placeholder={`Notes / reasons about ${name}'s attendance this month - type or tap Dictate. (Read-only page · never changes pay.)`}
         className="w-full resize-y rounded-xl px-3.5 py-2.5 text-[14.5px] font-medium text-ink-strong bg-white outline-none transition-colors focus:border-[color:var(--color-altus-red)]"
         style={{ border: "2px solid var(--color-hairline-strong)", boxShadow: "inset 0 1px 3px rgba(15,23,42,0.05)" }}
       />

@@ -896,8 +896,8 @@ export function ManagerActivityTable({
       columns: [
         { label: "Manager / Member", weight: 3, align: "left" },
         ...WORKLOAD_FAMILIES.flatMap((f) => [
-          { label: `${f.label} — Self`, weight: 1.4, align: "right" as const },
-          { label: `${f.label} — Out`, weight: 1.4, align: "right" as const },
+          { label: `${f.label} - Self`, weight: 1.4, align: "right" as const },
+          { label: `${f.label} - Out`, weight: 1.4, align: "right" as const },
           { label: f.totalLabel, weight: 1.3, align: "right" as const },
         ]),
         { label: "Grand Total", weight: 1.2, align: "right" },
@@ -912,7 +912,7 @@ export function ManagerActivityTable({
     for (const row of rows) {
       const line = WORKLOAD_FAMILIES.flatMap((f) => {
         const { actual, headcount } = rosterTotals(row, f.key);
-        return ["—", "—", `${actual} / ${targets ? targets[f.key] * headcount : 0}`];
+        return ["-", "-", `${actual} / ${targets ? targets[f.key] * headcount : 0}`];
       });
       push(
         [
@@ -928,7 +928,7 @@ export function ManagerActivityTable({
       for (const mem of row.members) {
         push(
           [
-            mem.isSelf ? `Self — ${mem.employeeName}` : mem.employeeName,
+            mem.isSelf ? `Self - ${mem.employeeName}` : mem.employeeName,
             ...WORKLOAD_FAMILIES.flatMap((f) => {
               const split = mem.created[f.key];
               const selfT = cellTarget(targets!, f.key, "self", mem.directReports);

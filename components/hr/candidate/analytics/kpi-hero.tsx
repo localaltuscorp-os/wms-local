@@ -26,7 +26,12 @@ export interface HeroStat {
 export function KpiHero({ stats }: { stats: HeroStat[] }) {
   return (
     <section aria-label="Hiring headline metrics">
-      <CardGrid min={180} gap="1rem">
+      {/* Exactly six stats, so cap the row at 3 and the grid is always a clean
+          3 + 3 — never the 5 + 1 or 4 + 2 an uncapped auto-fit produced as the
+          sidebars opened and closed. The cap also does the widening: each tile
+          is now a third of the row rather than a 180px minimum. 180 stays as
+          the floor so narrow containers still fall back to 2-up, then 1-up. */}
+      <CardGrid min={180} gap="1rem" maxCols={3}>
         {stats.map((s, i) => (
           <HeroTile key={s.key} stat={s} index={i} />
         ))}
@@ -39,7 +44,7 @@ function HeroTile({ stat, index }: { stat: HeroStat; index: number }) {
   const accent = stat.accent ?? "var(--color-ink-strong)";
   const accentDeep = stat.accentDeep ?? accent;
   const animated = useAnimCount(stat.value ?? 0, 1100, stat.decimals ?? 0);
-  const shown = stat.value == null ? "—" : stat.decimals ? animated.toFixed(stat.decimals) : Math.round(animated).toLocaleString();
+  const shown = stat.value == null ? "-" : stat.decimals ? animated.toFixed(stat.decimals) : Math.round(animated).toLocaleString();
 
   return (
     <div

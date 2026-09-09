@@ -105,7 +105,7 @@ export default async function RecycleBinPage() {
     area: g.area,
     code: goalCode({ period: g.period as GoalPeriod, periodKey: g.periodKey, position: g.position, id: g.id }),
     periodLabel: periodKeyLabel(g.periodKey),
-    ownerName: g.ownerName ?? "—",
+    ownerName: g.ownerName ?? "-",
     deletedAt: g.updatedAt ? g.updatedAt.toISOString() : null,
   }));
 
@@ -149,7 +149,7 @@ export default async function RecycleBinPage() {
       <PageShell width="full" py={false} className={COMMAND_PAGE_CLASS}>
         <PageCommandBar
           title="Recycle Bin"
-          hint="Deleted goals and abandoned tasks — restore, or delete for good."
+          hint="Deleted goals and abandoned tasks - restore, or delete for good."
         />
 
         {/* Deleted GOALS — restore or permanently delete (select-all + confirm). */}

@@ -56,7 +56,7 @@ export function DoneAgingSection({
         >
           <div className="min-w-0">
             <h2 className="text-display-lg text-ink-strong">
-              <span aria-hidden className="mr-2">📦</span>Done — On Time &amp; Aging
+              <span aria-hidden className="mr-2">📦</span>Done - On Time &amp; Aging
             </h2>
             <p className="text-body-lg text-ink-subtle mt-1">
               On-time delivery and how early/late, by original or revised due date.{" "}
@@ -205,7 +205,7 @@ function BasisView({
 
           {undated > 0 && (
             <p className="mt-2.5 text-[12px] font-semibold text-ink-subtle">
-              {undated} done without a completion date — not counted.
+              {undated} done without a completion date - not counted.
             </p>
           )}
         </div>

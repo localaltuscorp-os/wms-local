@@ -743,7 +743,7 @@ export function WeeklyCascadeBoard({
             <button
               type="button"
               onClick={() => setRowsPerPage("all")}
-              className={`self-start cursor-pointer rounded-full border border-hairline-strong bg-surface-card px-4 py-2 text-[13px] font-bold text-ink-soft transition-colors hover:text-ink-strong ${FOCUS_RING}`}
+              className={`self-start cursor-pointer rounded-pill border border-hairline-strong bg-surface-card px-4 py-2 text-[13px] font-bold text-ink-soft transition-colors hover:text-ink-strong ${FOCUS_RING}`}
             >
               Show all ({displayed.length - pagedGoals.length} more)
             </button>
@@ -1034,7 +1034,7 @@ const WeeklyQuickAdd = React.forwardRef<
           setOpen(true);
           requestAnimationFrame(() => titleRef.current?.focus());
         }}
-        className={`wg-btn group inline-flex w-auto cursor-pointer items-center justify-center gap-2 self-start rounded-full border px-4 py-2.5 text-[13.5px] font-bold transition-colors hover:bg-surface-soft ${QUICK_ADD_FOCUS_RING}`}
+        className={`wg-btn group inline-flex w-auto cursor-pointer items-center justify-center gap-2 self-start rounded-pill border px-4 py-2.5 text-[13.5px] font-bold transition-colors hover:bg-surface-soft ${QUICK_ADD_FOCUS_RING}`}
         style={{
           borderColor: "var(--color-hairline-strong)",
           color: "var(--color-ink-soft)",
@@ -1081,7 +1081,7 @@ const WeeklyQuickAdd = React.forwardRef<
               <button
                 type="button"
                 onClick={closeAll}
-                className={`inline-flex items-center rounded-full border px-5 py-2.5 text-[14px] font-bold text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong ${QUICK_ADD_FOCUS_RING}`}
+                className={`inline-flex items-center rounded-pill border px-5 py-2.5 text-[14px] font-bold text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong ${QUICK_ADD_FOCUS_RING}`}
                 style={{ borderColor: "var(--color-hairline-strong)" }}
               >
                 End
@@ -1090,7 +1090,7 @@ const WeeklyQuickAdd = React.forwardRef<
                 type="button"
                 onClick={submit}
                 disabled={saving}
-                className={`wg-btn inline-flex items-center gap-1.5 rounded-full px-6 py-2.5 text-[14px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${QUICK_ADD_FOCUS_RING}`}
+                className={`wg-btn inline-flex items-center gap-1.5 rounded-pill px-6 py-2.5 text-[14px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${QUICK_ADD_FOCUS_RING}`}
                 style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
               >
                 {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={2.8} />}
@@ -1219,7 +1219,7 @@ const WeeklyQuickAdd = React.forwardRef<
             <span className="mb-1 block text-[12px] font-bold text-ink-soft">Team Members</span>
             <TeamWeightsField value={team} roster={props.roster} onChange={setTeam} />
             <span className="mt-1 block text-[11.5px] font-medium text-ink-subtle">
-              Add the people on this goal — each gets their own weight (share).
+              Add the people on this goal - each gets their own weight (share).
             </span>
           </div>
 

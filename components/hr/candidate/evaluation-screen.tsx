@@ -103,7 +103,7 @@ export function CandidateEvaluationScreen({
           Candidate Evaluation Checklist
         </h1>
         <p className="mt-1.5 max-w-[74ch] text-[15px] font-medium text-ink-muted">
-          Rate each criterion out of 10 as you speak with the candidate — section scores, the overall score and the Quick Summary fill in automatically.
+          Rate each criterion out of 10 as you speak with the candidate - section scores, the overall score and the Quick Summary fill in automatically.
         </p>
       </div>
 
@@ -114,7 +114,7 @@ export function CandidateEvaluationScreen({
           onChange={(e) => selectCandidate(e.target.value)}
           className="min-w-[220px] flex-1 rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14px] font-medium text-ink-strong outline-none focus:border-altus-red"
         >
-          <option value="">— Select candidate —</option>
+          <option value="">- Select candidate -</option>
           {candidates.map((c) => (
             <option key={c.id} value={c.id}>
               {c.fullName || "Unnamed"}{c.positionApplied ? ` · ${c.positionApplied}` : ""}
@@ -156,7 +156,7 @@ export function CandidateEvaluationScreen({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION WEIGHTS EDITOR — super-admin only
+// SECTION WEIGHTS EDITOR - super-admin only
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SectionWeightsEditor({
@@ -191,7 +191,7 @@ function SectionWeightsEditor({
       const res = await setEvaluationWeights(payload);
       if (!res.ok) { fireToast({ message: res.error, type: "error" }); return; }
       onApplied(payload);
-      fireToast({ message: "Section weights saved — the overall score is now weighted." });
+      fireToast({ message: "Section weights saved - the overall score is now weighted." });
     } finally {
       setSaving(false);
     }
@@ -256,7 +256,7 @@ function SectionWeightsEditor({
               </span>
               {!valid && (
                 <span className="text-[12.5px] font-semibold text-altus-red">
-                  Must total exactly 100 — {total < 100 ? `add ${(100 - total).toFixed(total % 1 ? 1 : 0)}` : `remove ${(total - 100).toFixed(total % 1 ? 1 : 0)}`}.
+                  Must total exactly 100 - {total < 100 ? `add ${(100 - total).toFixed(total % 1 ? 1 : 0)}` : `remove ${(total - 100).toFixed(total % 1 ? 1 : 0)}`}.
                 </span>
               )}
             </div>
@@ -299,7 +299,7 @@ function ScorePill({ label, score, big }: { label: string; score: Score; big?: b
       style={{ background: tone.bg, color: tone.fg }}
     >
       <span className="text-[10.5px] uppercase tracking-wide opacity-80">{label}</span>
-      {rated ? `${fmt(score.avg)} / 10` : "— / 10"}
+      {rated ? `${fmt(score.avg)} / 10` : "- / 10"}
     </span>
   );
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { ArrowLeft, ShieldCheck, Clock, PencilLine } from "lucide-react";
+import { ShieldCheck, Clock, PencilLine } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { getPolicyCard, isComingSoon } from "@/lib/hr/policies/registry";
@@ -8,6 +8,7 @@ import { loadPublishedPolicy } from "@/lib/hr/policies/load-db";
 import { PageShell } from "@/components/layout/page-shell";
 import { PolicyView } from "@/components/hr/policies/policy-view";
 import { getMyPolicySignStatus, type MyPolicySignStatus } from "@/app/(app)/hr/policies/sign-status";
+import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -45,40 +46,29 @@ export default async function PolicyPage({
   const outdated = Boolean(signStatus.outdated?.[key]);
 
   return (
-    <div className="min-h-dvh bg-[#faf9fb]">
-      <header className="sticky sticky-below-topbar z-30 grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-hairline bg-white/90 px-6 py-3 backdrop-blur max-md:px-4 print:hidden">
-        <div className="justify-self-start">
-          <Link
-            href={"/hr" as Route}
-            className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold text-white transition-transform hover:-translate-x-0.5 max-md:px-3"
-            style={{
-              background: "linear-gradient(120deg, #18181b 0%, #A80400 100%)",
-              boxShadow: "0 12px 26px -12px rgba(168,4,0,0.55)",
-            }}
-          >
-            <ArrowLeft size={15} strokeWidth={2.6} className="transition-transform group-hover:-translate-x-0.5" />
-            <span className="max-md:hidden">All Policies</span>
-            <span className="md:hidden">Back</span>
-          </Link>
-        </div>
-        <span className="justify-self-center inline-flex items-center gap-1.5 truncate text-[15px] font-extrabold tracking-tight text-ink-strong">
-          <ShieldCheck size={15} strokeWidth={2.4} style={{ color: "#A80400" }} aria-hidden />
-          <span className="truncate">{title}</span>
-        </span>
-        <div className="justify-self-end">
-          {isAdmin && showDoc && (
+    <div className="min-h-full bg-[#faf9fb]">
+      <HrTitleBar
+        title={
+          <span className="inline-flex items-center gap-1.5">
+            <ShieldCheck size={17} strokeWidth={2.4} style={{ color: "#A80400" }} aria-hidden />
+            {title}
+          </span>
+        }
+        right={
+          isAdmin &&
+          showDoc && (
             <Link
               href={`/hr/policies/${key}/edit` as Route}
-              className="group inline-flex items-center gap-2 rounded-full border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-transform hover:-translate-y-0.5 max-md:px-3"
+              className="group inline-flex items-center gap-2 rounded-pill border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-transform hover:-translate-y-0.5 max-md:px-3"
               style={{ boxShadow: "0 10px 24px -16px rgba(24,24,27,0.55)" }}
             >
               <PencilLine size={15} strokeWidth={2.4} style={{ color: "#A80400" }} />
               <span className="max-md:hidden">Edit Policy</span>
               <span className="md:hidden">Edit</span>
             </Link>
-          )}
-        </div>
-      </header>
+          )
+        }
+      />
 
       <PageShell width="narrow" py={false} className="pt-8 pb-24" style={{ maxWidth: "900px" }}>
         {showDoc && policy ? (
@@ -104,7 +94,7 @@ function ComingSoon({ title }: { title?: string }) {
         className="text-ink-strong"
         style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 800, fontSize: 22 }}
       >
-        {title ? `${title} — coming soon` : "This policy is coming soon"}
+        {title ? `${title} - coming soon` : "This policy is coming soon"}
       </h1>
       <p className="mt-2 text-[14px] font-medium leading-relaxed text-ink-muted">
         This policy is being drafted. It will appear here as a fully readable,

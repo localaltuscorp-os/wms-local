@@ -20,7 +20,7 @@ export function LockedFieldsCard({ email, role, department, isAdmin }: Props) {
   const rows: { label: string; value: string }[] = [
     { label: "Work email", value: email },
     { label: "Role", value: roleLabel },
-    { label: "Department", value: department ?? "—" },
+    { label: "Department", value: department ?? "-" },
     { label: "Admin", value: isAdmin ? "Yes" : "No" },
   ];
 

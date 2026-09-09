@@ -12,13 +12,13 @@ const PAGE_SIZE = 20;
 
 // Guard invalid dates so one bad row degrades to "—" instead of blanking.
 function fmtDue(iso: string): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(`${iso}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? "—" : formatDate(d);
+  return Number.isNaN(d.getTime()) ? "-" : formatDate(d);
 }
 
 function cycleLabel(cycle: string | undefined): string {
-  if (!cycle) return "—";
+  if (!cycle) return "-";
   return OUTSTANDING_CYCLE_LABELS[cycle as OutstandingCycle] ?? cycle;
 }
 
@@ -104,7 +104,7 @@ export function OutstandingEntriesTable({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Local search — client, product, entity, responsible" title="Local search — filters only the list on this page" aria-label="Local search — client, product, entity, responsible — this page only"
+            placeholder="Local search - client, product, entity, responsible" title="Local search - filters only the list on this page" aria-label="Local search - client, product, entity, responsible - this page only"
             className="w-full h-11 pl-10 pr-9 rounded-pill border border-hairline bg-surface-card text-[15px] text-ink-strong placeholder:text-ink-subtle outline-none transition-all focus:border-altus-red focus:ring-2 focus:ring-altus-red/25"
           />
           {query && (
@@ -186,7 +186,7 @@ export function OutstandingEntriesTable({
                       >
                         {e.clientName}
                       </td>
-                      <Cell>{e.productName ?? "—"}</Cell>
+                      <Cell>{e.productName ?? "-"}</Cell>
                       <Cell>{cycleLabel(e.cycle)}</Cell>
                       <Cell nowrap>{fmtDue(e.dueDate)}</Cell>
                       <Td
@@ -204,10 +204,10 @@ export function OutstandingEntriesTable({
                           overdue ? { color: "var(--color-red-deep)" } : undefined
                         }
                       >
-                        {overdue ? `${e.daysOverdue}d` : "—"}
+                        {overdue ? `${e.daysOverdue}d` : "-"}
                       </Td>
-                      <Cell>{e.entityName ?? "—"}</Cell>
-                      <Cell>{e.responsibleName ?? "—"}</Cell>
+                      <Cell>{e.entityName ?? "-"}</Cell>
+                      <Cell>{e.responsibleName ?? "-"}</Cell>
                       <td className="px-3 py-2.5">
                         <StatePill state={e.state} />
                       </td>
@@ -295,7 +295,7 @@ function StatePill({ state }: { state: string }) {
   const p = PILL[state] ?? PILL.not_due!;
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 font-bold tracking-[0.02em] whitespace-nowrap"
+      className="inline-flex items-center rounded-pill px-2.5 py-1 font-bold tracking-[0.02em] whitespace-nowrap"
       style={{ fontSize: 12, background: p.bg, color: p.fg }}
     >
       {p.label}

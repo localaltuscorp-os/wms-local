@@ -2,7 +2,7 @@ import {
   FINE_BUCKET_OFFSETS,
   type FineBucketKey,
 } from "@/lib/transforms/aging-buckets-fine";
-import { and, eq, gte, inArray, lt, or, asc, desc, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, lt, or, asc, desc, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { unstable_cache } from "next/cache";
 import { db, employees, tasks, taskTimeRollup } from "@/lib/db";
@@ -634,6 +634,9 @@ export async function listBoardTasks(filters?: TaskListFilters): Promise<BoardTa
 async function listBoardTasksUncached(filters?: TaskListFilters): Promise<BoardTask[]> {
   const conditions = [];
   if (filters) {
+    // Project Plan's board reuses this query wholesale so its cards are the
+    // SAME records, rendered by the same component, as the WMS board's.
+    if (filters.projectOnly) conditions.push(isNotNull(tasks.projectNodeId));
     if (filters.startDate) conditions.push(gte(tasks.createdAt, filters.startDate));
     if (filters.endDate)
       conditions.push(lt(tasks.createdAt, new Date(filters.endDate.getTime() + MS_PER_DAY)));

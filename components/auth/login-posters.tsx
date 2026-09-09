@@ -372,7 +372,7 @@ function QuoteTile() {
   return (
     <Tile h={215} bg={`linear-gradient(155deg, ${RED_DEEP}, #2a0907)`} pad={18}>
       <div style={{ fontFamily: DISPLAY, fontStyle: "italic", color: "#fff", fontSize: 21, lineHeight: 1.3 }}>
-        “Scale ethically &amp; sustainably — in a time-bound manner.”
+        “Scale ethically &amp; sustainably - in a time-bound manner.”
       </div>
       <div style={{ marginTop: 16, fontFamily: MONO, fontSize: 10, letterSpacing: "0.16em", color: "rgba(255,255,255,0.7)" }}>CA MANAN VASA</div>
     </Tile>

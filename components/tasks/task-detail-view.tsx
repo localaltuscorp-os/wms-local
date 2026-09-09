@@ -397,7 +397,7 @@ export function TaskDetailView({
                     Edit Task
                   </h1>
                   <span
-                    className="text-[11.5px] uppercase tracking-[0.14em] font-bold px-2.5 py-1 rounded-full"
+                    className="text-[11.5px] uppercase tracking-[0.14em] font-bold px-2.5 py-1 rounded-pill"
                     style={{
                       background:
                         "color-mix(in srgb, var(--color-altus-red) 8%, #ffffff)",
@@ -542,7 +542,7 @@ export function TaskDetailView({
                 <MetaRow
                   icon={<CheckCircle2 size={13} strokeWidth={2.4} />}
                   label="Approved"
-                  value={approvedRelative ?? "—"}
+                  value={approvedRelative ?? "-"}
                   emphasized={!!approvedRelative}
                 />
                 {me?.department && (
@@ -729,7 +729,7 @@ function InteractiveStatusPill({
           res.error === "forbidden"
             ? "You can't make that transition from your role."
             : res.error === "stale"
-              ? "Task changed by someone else — refreshing."
+              ? "Task changed by someone else - refreshing."
               : res.message ?? "Could not update status.";
         fireToast({ message: msg });
         if (res.error === "stale") router.refresh();
@@ -786,7 +786,7 @@ function InteractiveStatusPill({
     return (
       <div
         key={shown}
-        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full"
+        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-pill"
         style={pillStyle}
       >
         {pillContents}
@@ -811,7 +811,7 @@ function InteractiveStatusPill({
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-label={`Status: ${labels?.[shown] ?? t.label}. Click to change.`}
-        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full"
+        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-pill"
         style={pillStyle}
       >
         {pillContents}
@@ -1090,7 +1090,7 @@ function TopHeaderStrip({
 
         {task.taskNo != null && (
           <span
-            className="inline-flex items-center px-3 py-1.5 rounded-full font-mono text-[13px] font-bold tabular-nums border"
+            className="inline-flex items-center px-3 py-1.5 rounded-pill font-mono text-[13px] font-bold tabular-nums border"
             style={{
               background:
                 "color-mix(in srgb, var(--color-altus-red) 6%, #ffffff)",
@@ -1105,7 +1105,7 @@ function TopHeaderStrip({
         )}
 
         <span
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[12.5px] font-bold border"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-pill text-[12.5px] font-bold border"
           style={{
             background: `rgba(${tone.rgb}, 0.08)`,
             color: tone.ink,
@@ -1134,7 +1134,7 @@ function TopHeaderStrip({
         )}
 
         <span
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11.5px] font-bold uppercase tracking-[0.06em] border text-ink-muted"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[11.5px] font-bold uppercase tracking-[0.06em] border text-ink-muted"
           style={{
             background: "rgba(255, 255, 255, 0.75)",
             borderColor: "var(--color-hairline)",
@@ -1151,7 +1151,7 @@ function TopHeaderStrip({
           (task.recurrenceParentId ? (
             <Link
               href={`/tasks/${task.recurrenceParentId}` as Route}
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold border transition-colors hover:brightness-95"
+              className="inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12px] font-semibold border transition-colors hover:brightness-95"
               style={{
                 background: "var(--color-purple-bg)",
                 color: "var(--color-purple-deep)",
@@ -1170,7 +1170,7 @@ function TopHeaderStrip({
             </Link>
           ) : (
             <span
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold border"
+              className="inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12px] font-semibold border"
               style={{
                 background: "var(--color-purple-bg)",
                 color: "var(--color-purple-deep)",
@@ -1189,7 +1189,7 @@ function TopHeaderStrip({
       <div className="flex items-center gap-2 shrink-0">
         <Link
           href={`/tasks/${task.id}/focus` as Route}
-          className="wg-btn inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold text-ink-soft border border-hairline bg-white/85 hover:bg-white hover:border-hairline-strong transition-all"
+          className="wg-btn inline-flex items-center gap-1.5 px-3.5 py-2 rounded-pill text-[13px] font-semibold text-ink-soft border border-hairline bg-white/85 hover:bg-white hover:border-hairline-strong transition-all"
           style={{ boxShadow: "0 1px 2px rgba(15, 23, 42, 0.05)" }}
         >
           <Maximize2 size={14} strokeWidth={2.4} />
@@ -1197,7 +1197,7 @@ function TopHeaderStrip({
         </Link>
         <Link
           href={`/tasks/new?from=${task.id}` as Route}
-          className="wg-btn inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold text-ink-soft border border-hairline bg-white/85 hover:bg-white hover:border-hairline-strong transition-all"
+          className="wg-btn inline-flex items-center gap-1.5 px-3.5 py-2 rounded-pill text-[13px] font-semibold text-ink-soft border border-hairline bg-white/85 hover:bg-white hover:border-hairline-strong transition-all"
           style={{ boxShadow: "0 1px 2px rgba(15, 23, 42, 0.05)" }}
         >
           <Copy size={14} strokeWidth={2.4} />
@@ -1207,7 +1207,7 @@ function TopHeaderStrip({
           <button
             type="button"
             onClick={onStartEdit}
-            className="wg-btn wg-sheen inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold text-white transition-all"
+            className="wg-btn wg-sheen inline-flex items-center gap-1.5 px-4 py-2 rounded-pill text-[13px] font-bold text-white transition-all"
             style={{
               background:
                 "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",

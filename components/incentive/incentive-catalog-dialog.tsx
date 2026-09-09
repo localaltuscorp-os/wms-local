@@ -74,7 +74,7 @@ export function IncentiveCatalogDialog({ rows, isAdmin }: { rows: CatalogRow[]; 
       <Dialog.Trigger asChild>
         <button
           type="button"
-          className="wg-btn cursor-pointer inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-bold bg-surface-card text-ink-strong"
+          className="wg-btn cursor-pointer inline-flex items-center gap-2 rounded-pill px-4 py-2 text-[13.5px] font-bold bg-surface-card text-ink-strong"
           style={{
             boxShadow:
               "inset 0 0 0 1px var(--color-hairline-strong), 0 6px 16px -12px rgba(15,23,42,0.35)",
@@ -104,7 +104,7 @@ export function IncentiveCatalogDialog({ rows, isAdmin }: { rows: CatalogRow[]; 
                 <button
                   type="button"
                   onClick={() => setEditing(blank())}
-                  className="wg-btn wg-sheen cursor-pointer inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13.5px] font-bold text-white"
+                  className="wg-btn wg-sheen cursor-pointer inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13.5px] font-bold text-white"
                   style={{
                     background: "linear-gradient(135deg, #E10600, #A80400)",
                     boxShadow:
@@ -156,7 +156,7 @@ export function IncentiveCatalogDialog({ rows, isAdmin }: { rows: CatalogRow[]; 
                         <div className="flex flex-wrap gap-1.5">
                           {r.salesEligible && <Tag tone="red">Sales</Tag>}
                           {r.internsEligible && <Tag tone="blue">Interns</Tag>}
-                          {!r.salesEligible && !r.internsEligible && <span className="text-ink-subtle" style={{ fontSize: 12 }}>—</span>}
+                          {!r.salesEligible && !r.internsEligible && <span className="text-ink-subtle" style={{ fontSize: 12 }}>-</span>}
                         </div>
                       </td>
                       {isAdmin && (
@@ -182,7 +182,7 @@ export function IncentiveCatalogDialog({ rows, isAdmin }: { rows: CatalogRow[]; 
 function Tag({ children, tone }: { children: React.ReactNode; tone: "red" | "blue" }) {
   return (
     <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold"
+      className="inline-flex items-center rounded-pill px-2 py-0.5 text-[11px] font-bold"
       style={{ background: `color-mix(in srgb, var(--color-${tone}) 12%, transparent)`, color: `var(--color-${tone}-deep)` }}
     >
       {children}
@@ -231,12 +231,12 @@ function CatalogEditor({
           </label>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={onCancel} disabled={saving} className="bg-surface-card cursor-pointer rounded-full px-4 py-2 text-[13.5px] font-bold text-ink-soft hover:text-ink-strong">Cancel</button>
+          <button type="button" onClick={onCancel} disabled={saving} className="bg-surface-card cursor-pointer rounded-pill px-4 py-2 text-[13.5px] font-bold text-ink-soft hover:text-ink-strong">Cancel</button>
           <button
             type="button"
             onClick={onSave}
             disabled={saving}
-            className="wg-btn cursor-pointer inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-[13.5px] font-bold text-white disabled:opacity-60"
+            className="wg-btn cursor-pointer inline-flex items-center gap-1.5 rounded-pill px-5 py-2 text-[13.5px] font-bold text-white disabled:opacity-60"
             style={{
               background: "linear-gradient(135deg, #E10600, #A80400)",
               boxShadow:

@@ -165,7 +165,7 @@ export function TopPerformersSection({
       rows: visible.map((p) => [
         `#${p.rank}`,
         p.employeeName,
-        p.department ?? "—",
+        p.department ?? "-",
         String(p.doneCount),
         `${p.completedOnTime} / ${p.datedCompletions}`,
       ]),
@@ -301,7 +301,7 @@ function PodiumCard({
     <button
       type="button"
       onClick={onOpen}
-      aria-label={`View ${performer.employeeName}'s completed tasks — rank ${performer.rank}, ${performer.doneCount} completed`}
+      aria-label={`View ${performer.employeeName}'s completed tasks - rank ${performer.rank}, ${performer.doneCount} completed`}
       className={`group relative block w-full border border-slate-200 bg-white p-4 text-left ${ROW_HOVER}`}
     >
       {/* THE POSITION, IN THE CORNER, ON EVERY CARD.
@@ -348,14 +348,14 @@ function PodiumCard({
           <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
             {medal && (
               <span
-                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${medal.chip}`}
+                className={`inline-flex items-center gap-1 rounded-pill border px-2 py-0.5 text-[10px] font-bold ${medal.chip}`}
               >
                 <span aria-hidden>{medal.medal}</span>
                 {medal.label}
               </span>
             )}
             {performer.department && (
-              <span className="inline-block max-w-[16ch] truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+              <span className="inline-block max-w-[16ch] truncate rounded-pill border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                 {performer.department}
               </span>
             )}
@@ -413,7 +413,7 @@ function LeaderRow({
       <button
         type="button"
         onClick={onOpen}
-        aria-label={`View ${performer.employeeName}'s completed tasks — rank ${performer.rank}, ${performer.doneCount} completed`}
+        aria-label={`View ${performer.employeeName}'s completed tasks - rank ${performer.rank}, ${performer.doneCount} completed`}
         /* py-1.5 px-3 — a second pass on the same problem. p-4 -> py-2.5 took
            12px a row; this takes another 8px, 56px more over seven rows. The
            floor is the 28px avatar: below py-1.5 the padding stops setting the
@@ -439,7 +439,7 @@ function LeaderRow({
               {performer.employeeName}
             </span>
             {performer.department && (
-              <span className="mt-0.5 inline-block max-w-[16ch] truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+              <span className="mt-0.5 inline-block max-w-[16ch] truncate rounded-pill border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                 {performer.department}
               </span>
             )}

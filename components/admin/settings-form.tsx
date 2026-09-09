@@ -55,7 +55,7 @@ export function SettingsForm({ current }: Props) {
         setLocating(false);
       },
       () => {
-        setError("Couldn't read your location — allow location access and retry.");
+        setError("Couldn't read your location - allow location access and retry.");
         setLocating(false);
       },
       { enableHighAccuracy: true, timeout: 12_000 },
@@ -192,7 +192,7 @@ export function SettingsForm({ current }: Props) {
           </Field>
           <Field
             label="Logo URL"
-            hint="Optional. Absolute URL — shown in email headers and the dashboard."
+            hint="Optional. Absolute URL - shown in email headers and the dashboard."
           >
             <Input
               type="url"
@@ -210,7 +210,7 @@ export function SettingsForm({ current }: Props) {
         >
           <Field
             label="Digest Hour (IST)"
-            hint="Hour of day (0–23 IST) when the overdue digest is intended to fire. The Vercel cron schedule lives in vercel.json — change this value here AND there if you want a different time."
+            hint="Hour of day (0–23 IST) when the overdue digest is intended to fire. The Vercel cron schedule lives in vercel.json - change this value here AND there if you want a different time."
           >
             <Input
               type="number"
@@ -329,7 +329,7 @@ export function SettingsForm({ current }: Props) {
           </Field>
           <Field
             label="Allowed Radius (metres)"
-            hint="How far from the office point a punch is accepted. 100m recommended — GPS itself wobbles 10–30m."
+            hint="How far from the office point a punch is accepted. 100m recommended - GPS itself wobbles 10–30m."
           >
             <Input
               type="number"

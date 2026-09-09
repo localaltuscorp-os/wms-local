@@ -85,7 +85,7 @@ export function HrRecordSelectors({ employees, selectedEmp, months, selectedMont
             type="button"
             className={stepBtn}
             disabled={!older}
-            aria-label={older ? `Older month — ${hrMonthLabel(older)}` : "No older month"}
+            aria-label={older ? `Older month - ${hrMonthLabel(older)}` : "No older month"}
             onClick={() => older && navigate(selectedEmp, older)}
           >
             <ChevronLeft size={18} strokeWidth={2.4} />
@@ -114,7 +114,7 @@ export function HrRecordSelectors({ employees, selectedEmp, months, selectedMont
             type="button"
             className={stepBtn}
             disabled={!newer}
-            aria-label={newer ? `Newer month — ${hrMonthLabel(newer)}` : "No newer month"}
+            aria-label={newer ? `Newer month - ${hrMonthLabel(newer)}` : "No newer month"}
             onClick={() => newer && navigate(selectedEmp, newer)}
           >
             <ChevronRight size={18} strokeWidth={2.4} />

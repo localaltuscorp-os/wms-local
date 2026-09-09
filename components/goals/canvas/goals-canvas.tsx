@@ -179,7 +179,7 @@ function useWeeklyOverlay(propsWeekly: WeeklyDTO[]): {
         fireToast({
           message:
             typeof navigator !== "undefined" && !navigator.onLine
-              ? "You may be offline — nothing was saved."
+              ? "You may be offline - nothing was saved."
               : "Something went wrong.",
           type: "error",
         });

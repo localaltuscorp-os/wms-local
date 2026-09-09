@@ -11,6 +11,7 @@ import {
   type LucideIcon,
   Gauge,
   Users2,
+  FolderTree,
 } from "lucide-react";
 import type { Route } from "next";
 import type { WorkspaceId } from "@/lib/workspaces";
@@ -44,7 +45,7 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
   wms: {
     id: "wms",
     label: "WMS",
-    tagline: "The work dashboard — tasks, goals & the daily loop.",
+    tagline: "The work dashboard - tasks, goals & the daily loop.",
     href: "/ws/wms" as Route,
     Icon: LayoutGrid,
     accent: "#E10600",
@@ -123,7 +124,7 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
   events: {
     id: "events",
     label: "Monthly Events Master",
-    tagline: "The company calendar — batches, holidays & obligations in one grid.",
+    tagline: "The company calendar - batches, holidays & obligations in one grid.",
     href: "/ws/events" as Route,
     Icon: CalendarDays,
     accent: "#0891b2",
@@ -149,7 +150,7 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
   productivity: {
     id: "productivity",
     label: "Team Productivity",
-    tagline: "One cockpit per person — incentive, goals, tasks, training at a glance.",
+    tagline: "One cockpit per person - incentive, goals, tasks, training at a glance.",
     href: "/ws/productivity" as Route,
     Icon: Gauge,
     accent: "#4338ca",
@@ -181,6 +182,20 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
     accentDeep: "#c2410c",
     image: null,
   },
+  // Project — the planning hierarchy (Project → Milestone → Result → Action).
+  // The WMS red on purpose: its executable rows ARE WMS tasks (one `tasks`
+  // record, shown from a second angle), so the two rooms are meant to read as
+  // one family rather than as neighbours.
+  "project-plan": {
+    id: "project-plan",
+    label: "Project",
+    tagline: "Projects, milestones, results & the actions under them.",
+    href: "/project-plan" as Route,
+    Icon: FolderTree,
+    accent: "#E10600",
+    accentDeep: "#A80400",
+    image: null,
+  },
 };
 
 /** Hub display order. */
@@ -201,6 +216,7 @@ export const MODULE_ORDER: WorkspaceId[] = [
   "events",       // 0  — "Monthly Events Master"
   // Past the tenth there is no digit left, so this one renders unnumbered.
   "people-allocation", // 11 — "HandHolding"
+  "project-plan",      // 12 — "Project" (sits beside HandHolding)
 ];
 
 /**

@@ -192,7 +192,7 @@ function InnerWorkspace({ initial, todayIso }: CalendarWorkspaceProps) {
 
   const onLockedInteract = (ev: CalendarEvent) => {
     if (window.confirm("This event is locked (batch schedule). Unlock it to override?")) {
-      void run(unlockEvent(ev.id), { success: "Unlocked — you can now edit it." });
+      void run(unlockEvent(ev.id), { success: "Unlocked - you can now edit it." });
     }
   };
 

@@ -95,7 +95,7 @@ const IW_CSS = `
 }
 .iwf--area .iwf-control { min-height: 132px; padding-top: 26px; resize: vertical; line-height: 1.55; }
 .iwf select.iwf-control { -webkit-appearance: none; appearance: none; cursor: pointer; padding-right: 42px; }
-/* Searchable combobox trigger inside the floating box — value left, chevron right. */
+/* Searchable combobox trigger inside the floating box - value left, chevron right. */
 .iwf .iwf-lookup { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; text-align: left; }
 .iwf .iwf-lookup[aria-expanded="true"] { border-color: var(--color-altus-red); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-altus-red) 13%, transparent); }
 .iwf.is-readonly .iwf-control { background: var(--color-surface-soft, #f5f5f7); color: var(--color-ink-strong); cursor: default; }
@@ -322,7 +322,7 @@ export function IntakeWizard({
     const firstBad = sections.findIndex((s) => missingKeys(s).length > 0);
     if (firstBad >= 0) {
       setAttempted(new Set(sections.map((s) => s.id)));
-      fireToast({ message: "Some required fields are still missing — jumping you there.", type: "error" });
+      fireToast({ message: "Some required fields are still missing - jumping you there.", type: "error" });
       go(firstBad);
       requestAnimationFrame(focusFirstInvalid);
       return;

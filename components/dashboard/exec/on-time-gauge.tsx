@@ -84,9 +84,9 @@ export function OnTimeGauge({ data }: { data: DoneOnTime }) {
       ],
       rows: [
         ["On time", String(active.onTime), `${rate}%`],
-        ["Late", String(active.late), active.dated > 0 ? `${100 - rate}%` : "—"],
+        ["Late", String(active.late), active.dated > 0 ? `${100 - rate}%` : "-"],
         ["Dated completions", String(active.dated), "100%"],
-        ["Undated (no due date)", String(active.undated), "—"],
+        ["Undated (no due date)", String(active.undated), "-"],
       ],
     };
   }, [active]);

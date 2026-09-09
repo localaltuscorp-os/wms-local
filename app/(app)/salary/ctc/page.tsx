@@ -130,7 +130,7 @@ export default async function SalaryCtcPage({ searchParams }: PageProps) {
               lineHeight: 1.02,
             }}
           >
-            {monthLabel(month)} — CTC & entity payable
+            {monthLabel(month)} - CTC & entity payable
           </h1>
           <p className="mt-1.5 max-w-[80ch] text-[15px] font-medium text-ink-muted">
             Entity-wise Salary Payable after Professional Tax, plus the per-person CTC breakup form,
@@ -142,7 +142,7 @@ export default async function SalaryCtcPage({ searchParams }: PageProps) {
         {!v2 && (
           <Banner tone="warn">
             <strong>SALARY_V2 is OFF.</strong> This screen is live and editable, but the money math is
-            dark — figures show as “—”. Existing salary numbers are untouched. Set{" "}
+            dark - figures show as “-”. Existing salary numbers are untouched. Set{" "}
             <code>SALARY_V2=&quot;true&quot;</code> to reveal v2 figures.
           </Banner>
         )}
@@ -162,13 +162,13 @@ export default async function SalaryCtcPage({ searchParams }: PageProps) {
             icon={<Landmark size={17} />}
             accent={GREEN_DEEP}
             label="Total payable after PT"
-            value={v2 ? inr(grand) : "—"}
+            value={v2 ? inr(grand) : "-"}
           />
           <Kpi
             icon={<ScrollText size={17} />}
             accent="var(--color-altus-red)"
             label="PT collected"
-            value={v2 ? inr(payableRows.reduce((s, r) => s + r.pt, 0)) : "—"}
+            value={v2 ? inr(payableRows.reduce((s, r) => s + r.pt, 0)) : "-"}
           />
         </section>
 
@@ -194,11 +194,11 @@ export default async function SalaryCtcPage({ searchParams }: PageProps) {
                   <tr key={t.payingEntityId ?? "none"} className="border-t border-hairline">
                     <td className="px-4 py-2.5 font-semibold text-ink-strong">{t.payingEntityName}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{t.headcount}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{v2 ? inr(t.payableBeforePt) : "—"}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{v2 ? inr(t.pt) : "—"}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{v2 ? inr(t.retentionBonus) : "—"}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{v2 ? inr(t.payableBeforePt) : "-"}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{v2 ? inr(t.pt) : "-"}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{v2 ? inr(t.retentionBonus) : "-"}</td>
                     <td className="px-4 py-2.5 text-right font-bold tabular-nums" style={{ color: GREEN_DEEP }}>
-                      {v2 ? inr(t.payableAfterPt) : "—"}
+                      {v2 ? inr(t.payableAfterPt) : "-"}
                     </td>
                   </tr>
                 ))}
@@ -239,7 +239,7 @@ export default async function SalaryCtcPage({ searchParams }: PageProps) {
                     >
                       <span className="truncate">{p.name}</span>
                       <span className="tabular-nums text-[11px] text-ink-subtle">
-                        {p.monthlyCtc > 0 ? inr(p.monthlyCtc) : "—"}
+                        {p.monthlyCtc > 0 ? inr(p.monthlyCtc) : "-"}
                       </span>
                     </Link>
                   </li>

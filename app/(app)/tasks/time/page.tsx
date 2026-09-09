@@ -18,7 +18,7 @@ export default async function TimeIntelligenceHubPage() {
   return (
     <TimeReportFrame
       title="Time Intelligence"
-      subtitle="Real, session-level effort across every task — from first Start Work to final Approval, including every revision cycle."
+      subtitle="Real, session-level effort across every task - from first Start Work to final Approval, including every revision cycle."
     >
       <DashboardWidgets w={widgets} />
     </TimeReportFrame>

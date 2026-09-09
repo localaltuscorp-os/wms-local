@@ -48,7 +48,7 @@ const MONTH_FMT = new Intl.DateTimeFormat("en-IN", {
   year: "numeric",
 });
 function monthLabel(ymd: string | null): string {
-  if (!ymd) return "—";
+  if (!ymd) return "-";
   const d = new Date(`${ymd}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return ymd;
   return MONTH_FMT.format(d);

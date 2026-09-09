@@ -469,8 +469,8 @@ export function SectionSearchBox({
           if (e.key === "Escape" && text) clearNow();
         }}
         placeholder={placeholder}
-        title="Local search — filters only the list on this page"
-        aria-label={`${placeholder} — filters only this section`}
+        title="Local search - filters only the list on this page"
+        aria-label={`${placeholder} - filters only this section`}
         className="min-w-0 flex-1 border-0 bg-transparent px-2 text-xs text-ink outline-none placeholder:text-slate-400"
       />
       {text && (

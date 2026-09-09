@@ -269,7 +269,7 @@ export function KpiTrendSparkline({
           disagree with the lines. Reachable by screen readers and by anyone who
           cannot read the plot. */}
       <table className="sr-only">
-        <caption>{label} — daily task volume, last 14 days</caption>
+        <caption>{label} - daily task volume, last 14 days</caption>
         <thead>
           <tr>
             <th scope="col">Date</th>

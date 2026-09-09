@@ -20,12 +20,12 @@ export function RevisionHistory({ revisions }: { revisions: RevisionSummary[] })
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-[13.5px] font-black text-ink-strong">Version {r.revision}</span>
-                <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[11px] font-bold text-ink-muted tabular-nums">
+                <span className="rounded-pill bg-surface-soft px-2 py-0.5 text-[11px] font-bold text-ink-muted tabular-nums">
                   {formatMinutesLabel(r.totalSeconds)}
                 </span>
               </div>
               <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold ${
+                className={`inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11.5px] font-bold ${
                   approved
                     ? "bg-emerald-50 text-emerald-700"
                     : rejected

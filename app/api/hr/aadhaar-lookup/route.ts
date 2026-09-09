@@ -89,7 +89,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       configured: false,
-      message: "Aadhaar auto-fill isn't connected yet — enter the details manually.",
+      message: "Aadhaar auto-fill isn't connected yet - enter the details manually.",
     });
   }
 
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
       ok: true,
       configured: true,
       found: false,
-      message: "Aadhaar lookup timed out — enter the details manually.",
+      message: "Aadhaar lookup timed out - enter the details manually.",
     });
   } finally {
     clearTimeout(timer);
@@ -140,7 +140,7 @@ export async function POST(req: Request) {
       message:
         res.status === 404
           ? "No details found for this Aadhaar."
-          : "Aadhaar lookup failed — enter the details manually.",
+          : "Aadhaar lookup failed - enter the details manually.",
     });
   }
 
@@ -152,7 +152,7 @@ export async function POST(req: Request) {
       ok: true,
       configured: true,
       found: false,
-      message: "Aadhaar lookup returned an unexpected response — enter the details manually.",
+      message: "Aadhaar lookup returned an unexpected response - enter the details manually.",
     });
   }
 

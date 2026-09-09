@@ -75,7 +75,7 @@ export async function sendOnboardingInviteEmail(args: {
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.recipient.email,
-      subject: clampSubject("Complete your Onboarding Form — Altus Corp"),
+      subject: clampSubject("Complete your Onboarding Form - Altus Corp"),
       html: onboardingInviteHtml(args.recipient.name),
       ...companyBcc(),
     });

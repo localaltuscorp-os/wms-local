@@ -27,7 +27,7 @@ function distinct(rows: PgIntroductionRow[], pick: (r: PgIntroductionRow) => str
 }
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const [y, m, d] = iso.split("-");
   if (!y || !m || !d) return iso;
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -124,7 +124,7 @@ export function IntroductionsTable({ rows }: { rows: PgIntroductionRow[] }) {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Local search — introducer, company, prospect, notes" title="Local search — filters only the list on this page" aria-label="Local search — introducer, company, prospect, notes — this page only"
+            placeholder="Local search - introducer, company, prospect, notes" title="Local search - filters only the list on this page" aria-label="Local search - introducer, company, prospect, notes - this page only"
             className="w-full bg-transparent py-2.5 outline-none text-[15px] font-medium text-ink-strong placeholder:text-ink-subtle placeholder:font-normal"
           />
         </div>
@@ -141,8 +141,8 @@ export function IntroductionsTable({ rows }: { rows: PgIntroductionRow[] }) {
           <option value="">All Salespeople</option>
           {salesPeople.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
-        <input type="date" className={CHIP} value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Received from" title="Received on — from" />
-        <input type="date" className={CHIP} value={to} onChange={(e) => setTo(e.target.value)} aria-label="Received to" title="Received on — to" />
+        <input type="date" className={CHIP} value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Received from" title="Received on - from" />
+        <input type="date" className={CHIP} value={to} onChange={(e) => setTo(e.target.value)} aria-label="Received to" title="Received on - to" />
         {hasFilters && (
           <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red">
             <X size={15} strokeWidth={2.4} /> Clear
@@ -251,7 +251,7 @@ function Td({ children }: { children: React.ReactNode }) {
 }
 
 function Dim() {
-  return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>;
+  return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>;
 }
 
 function Badge({ children, tone = "red" }: { children: React.ReactNode; tone?: "red" | "slate" | "green" }) {
@@ -261,7 +261,7 @@ function Badge({ children, tone = "red" }: { children: React.ReactNode; tone?: "
     green: { bg: "color-mix(in srgb, var(--color-green) 14%, transparent)", fg: "var(--color-green-deep)" },
   }[tone];
   return (
-    <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[12.5px] font-bold" style={{ background: map.bg, color: map.fg }}>
+    <span className="inline-flex items-center rounded-pill px-2.5 py-1 text-[12.5px] font-bold" style={{ background: map.bg, color: map.fg }}>
       {children}
     </span>
   );

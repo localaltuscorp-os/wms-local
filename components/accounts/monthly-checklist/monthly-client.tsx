@@ -100,7 +100,7 @@ function ValueSelect({
 // ── Small display bits ────────────────────────────────────────────────────────
 
 function Dim() {
-  return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>;
+  return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>;
 }
 
 function MetaChip({ value, tone }: { value: string | null; tone?: "deadline" | "type" }) {
@@ -111,7 +111,7 @@ function MetaChip({ value, tone }: { value: string | null; tone?: "deadline" | "
       : { bg: "var(--color-surface-track, #eef2f7)", fg: "var(--color-ink-soft)" };
   return (
     <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap"
+      className="inline-flex items-center rounded-pill px-2 py-0.5 text-[11px] font-bold whitespace-nowrap"
       style={{ background: palette.bg, color: palette.fg }}
     >
       {value}
@@ -156,7 +156,7 @@ function MonthCell({
         minWidth: 62,
       }}
     >
-      <option value="">{expected ? "—" : "·"}</option>
+      <option value="">{expected ? "-" : "·"}</option>
       {MONTHLY_CHECK_STATUSES.map((s) => (
         <option key={s} value={s}>
           {s === "Not Applicable" ? "N/A" : s}
@@ -407,7 +407,7 @@ export function MonthlyChecklist({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Local search — checklist, notes, responsible" title="Local search — filters only the list on this page" aria-label="Local search — checklist, notes, responsible — this page only"
+            placeholder="Local search - checklist, notes, responsible" title="Local search - filters only the list on this page" aria-label="Local search - checklist, notes, responsible - this page only"
             className="w-full bg-transparent py-1.5 text-[13px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle"
           />
         </div>
@@ -704,7 +704,7 @@ function EditorRow({
               className={INPUT}
               aria-label="Due month"
             >
-              <option value="">— auto —</option>
+              <option value="">- auto -</option>
               {MONTH_SHORT.map((m, i) => (
                 <option key={m} value={i + 1}>{m}</option>
               ))}

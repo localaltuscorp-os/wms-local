@@ -100,7 +100,7 @@ export function IncentiveStatusTab({
                 type="search"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Local search — incentive or person" title="Local search — filters only the list on this page" aria-label="Local search — incentive or person — this page only"
+                placeholder="Local search - incentive or person" title="Local search - filters only the list on this page" aria-label="Local search - incentive or person - this page only"
                 className="w-full bg-transparent text-[14px] font-semibold text-ink-strong outline-none placeholder:text-ink-subtle"
               />
             </label>
@@ -144,7 +144,7 @@ export function IncentiveStatusTab({
                           <span className="font-bold text-ink-strong">{r.empName}</span>
                           {r.participantCount > 0 && (
                             <span
-                              className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold"
+                              className="inline-flex items-center gap-1 rounded-pill px-1.5 py-0.5 text-[10.5px] font-bold"
                               style={{ background: `color-mix(in srgb, #E10600 12%, transparent)`, color: "#A80400" }}
                             >
                               <Users size={10} strokeWidth={2.6} />
@@ -164,7 +164,7 @@ export function IncentiveStatusTab({
                           <button
                             type="button"
                             onClick={() => setStatusRow(r)}
-                            className="bg-surface-card wg-btn inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-ink-soft transition-colors hover:text-ink-strong"
+                            className="bg-surface-card wg-btn inline-flex cursor-pointer items-center gap-1.5 rounded-pill px-2.5 py-1 text-ink-soft transition-colors hover:text-ink-strong"
                             style={{ fontSize: 12, fontWeight: 700, boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
                           >
                             <SlidersHorizontal size={12} strokeWidth={2.4} />
@@ -173,7 +173,7 @@ export function IncentiveStatusTab({
                           <button
                             type="button"
                             onClick={() => setSplitRow(r)}
-                            className="bg-surface-card wg-btn inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-ink-soft transition-colors hover:text-ink-strong"
+                            className="bg-surface-card wg-btn inline-flex cursor-pointer items-center gap-1.5 rounded-pill px-2.5 py-1 text-ink-soft transition-colors hover:text-ink-strong"
                             style={{ fontSize: 12, fontWeight: 700, boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
                           >
                             <Users size={12} strokeWidth={2.4} />

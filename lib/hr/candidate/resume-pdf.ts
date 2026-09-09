@@ -56,7 +56,7 @@ export async function renderCandidateResumePdf(input: RenderInput): Promise<Buff
     layout: "portrait",
     margin: 48,
     info: {
-      Title: `${header.name} — Candidate Profile`,
+      Title: `${header.name} - Candidate Profile`,
       Author: "Altus Corp Dashboard",
       Subject: `Altus Corp · ${SUBTITLE}`,
     },

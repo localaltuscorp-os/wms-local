@@ -172,14 +172,14 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     field: "goalId", header: "Goal ID", schemaField: "id",
     writable: false, persisted: true, locked: true, source: null, width: 20,
     aliases: ["id", "goalid", "uuid"],
-    help: "System UUID. Read-only — leave blank for new goals; present on exports for reference.",
+    help: "System UUID. Read-only - leave blank for new goals; present on exports for reference.",
   },
   {
     field: "level", header: "Goal Level", schemaField: "period",
     writable: true, persisted: true, locked: false, source: "level", width: 12,
     aliases: ["level", "period", "goallevel"],
     examples: ["Quarter", "Month"],
-    help: "Year / Quarter / Month. (Week & Day goals are managed from the Weekly board — those rows are skipped on import.)",
+    help: "Year / Quarter / Month. (Week & Day goals are managed from the Weekly board - those rows are skipped on import.)",
   },
   {
     field: "title", header: "Goal Title", schemaField: "title",
@@ -202,7 +202,7 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     levels: ["quarter"],
     aliases: ["quarter", "q"],
     examples: ["Q1", ""],
-    help: "Quarter goals only — Q1 (Apr–Jun) … Q4 (Jan–Mar).",
+    help: "Quarter goals only - Q1 (Apr–Jun) … Q4 (Jan–Mar).",
   },
   {
     field: "month", header: "Month", schemaField: "periodKey",
@@ -210,14 +210,14 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     levels: ["month"],
     aliases: ["month", "mon"],
     examples: ["", "07 Jul"],
-    help: "Month goals only — pick the calendar month.",
+    help: "Month goals only - pick the calendar month.",
   },
   {
     field: "week", header: "Week (Mon date)", schemaField: null,
     writable: false, persisted: false, locked: false, source: null, width: 14,
     levels: ["week"],
     aliases: ["week", "weekstart", "weekof"],
-    help: "Week goals live on the Weekly board (weekly_goals) — informational here; week rows are not imported through this file.",
+    help: "Week goals live on the Weekly board (weekly_goals) - informational here; week rows are not imported through this file.",
   },
   // ── Descriptors ────────────────────────────────────────────────────
   {
@@ -239,7 +239,7 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     writable: true, persisted: true, locked: false, source: "category", width: 16, entry: 6,
     aliases: ["category", "goalcategory", "tag", "kind"],
     examples: ["Target", "Operational"],
-    help: "Kanban tag — Goal · Target · Milestone · Operational (plus any admin-added Types).",
+    help: "Kanban tag - Goal · Target · Milestone · Operational (plus any admin-added Types).",
   },
   {
     field: "area", header: "Area", schemaField: "area",
@@ -304,7 +304,7 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     field: "progress", header: "Progress %", schemaField: "pctDone",
     writable: false, persisted: true, locked: true, source: null, width: 11,
     aliases: ["progress", "pctdone", "percent", "pct", "done%"],
-    help: "Auto-computed from Actual ÷ Target on import — read-only.",
+    help: "Auto-computed from Actual ÷ Target on import - read-only.",
   },
   {
     field: "targetDate", header: "Target Date", schemaField: "targetDate",
@@ -312,7 +312,7 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     levels: ["month", "week"],
     aliases: ["targetdate", "deadline", "duedate", "due"],
     examples: ["", "2026-07-31"],
-    help: "Deadline (YYYY-MM-DD) — MONTH goals only (year/quarter roll up from children).",
+    help: "Deadline (YYYY-MM-DD) - MONTH goals only (year/quarter roll up from children).",
   },
   // ── People ─────────────────────────────────────────────────────────
   {
@@ -326,7 +326,7 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     field: "department", header: "Department", schemaField: null,
     writable: false, persisted: false, locked: false, source: "department", width: 16,
     aliases: ["department", "dept"],
-    help: "Owner's department — reference/filter only (derived from the owner; not written).",
+    help: "Owner's department - reference/filter only (derived from the owner; not written).",
   },
   {
     field: "team", header: "Team Member(s)", schemaField: "teamInvolved",
@@ -353,19 +353,19 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     field: "assignmentType", header: "Assignment Type", schemaField: null,
     writable: false, persisted: false, locked: true, source: "assignmentType", width: 14,
     aliases: ["assignmenttype", "selfassigned"],
-    help: "Self vs Assigned — DERIVED from creator vs owner. Read-only (export reference).",
+    help: "Self vs Assigned - DERIVED from creator vs owner. Read-only (export reference).",
   },
   {
     field: "assignedBy", header: "Assigned By", schemaField: "createdById",
     writable: false, persisted: true, locked: true, source: null, width: 20,
     aliases: ["assignedby"],
-    help: "Who created/assigned the goal — set to the importer on new rows. Read-only.",
+    help: "Who created/assigned the goal - set to the importer on new rows. Read-only.",
   },
   {
     field: "priority", header: "Priority", schemaField: null,
     writable: false, persisted: false, locked: false, source: "priority", width: 12,
     aliases: ["priority", "prio"],
-    help: "NOT stored by the goals engine yet — informational placeholder; leave blank.",
+    help: "NOT stored by the goals engine yet - informational placeholder; leave blank.",
   },
   {
     field: "status", header: "Status", schemaField: "status",
@@ -386,7 +386,7 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     field: "incentiveEnabled", header: "Incentive?", schemaField: "incentiveEnabled",
     writable: true, persisted: true, locked: false, source: "yesno", width: 11,
     aliases: ["incentive", "incentiveenabled", "hasincentive"],
-    help: "Yes/No — attach an incentive to the goal.",
+    help: "Yes/No - attach an incentive to the goal.",
   },
   {
     field: "incentiveAmount", header: "Incentive Amount (₹)", schemaField: "incentiveAmount",
@@ -405,19 +405,19 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     field: "parentGoalId", header: "Parent Goal ID", schemaField: "parentGoalId",
     writable: true, persisted: true, locked: false, source: null, width: 20,
     aliases: ["parent", "parentgoalid", "parentid"],
-    help: "Advanced — link this goal under a parent (paste the parent's Goal ID for the same owner).",
+    help: "Advanced - link this goal under a parent (paste the parent's Goal ID for the same owner).",
   },
   {
     field: "createdBy", header: "Created By", schemaField: "createdById",
     writable: false, persisted: true, locked: true, source: null, width: 20,
     aliases: ["createdby", "creator"],
-    help: "Creator — set to the importer on new rows. Read-only.",
+    help: "Creator - set to the importer on new rows. Read-only.",
   },
   {
     field: "updatedBy", header: "Last Updated By", schemaField: "updatedById",
     writable: false, persisted: true, locked: true, source: null, width: 20,
     aliases: ["updatedby", "lastupdatedby", "modifiedby"],
-    help: "Last editor — read-only.",
+    help: "Last editor - read-only.",
   },
 ] as const;
 

@@ -157,14 +157,14 @@ export const INTAKE_SECTIONS: IntakeSection[] = [
   {
     id: "education",
     title: "Education",
-    subtitle: "Add each qualification — 10th, 12th and beyond.",
+    subtitle: "Add each qualification - 10th, 12th and beyond.",
     repeat: { min: 1, max: 5, seed: 2, itemLabel: "Qualification" },
     fields: EDU_FIELDS,
   },
   {
     id: "currentWork",
     title: "Latest Work Experience",
-    subtitle: "Every field is required — capture the candidate's most recent role in full.",
+    subtitle: "Every field is required - capture the candidate's most recent role in full.",
     fields: [
       { key: "org", label: "Organisation Name", type: "text" },
       { key: "designation", label: "Designation", type: "text" },
@@ -190,7 +190,7 @@ export const INTAKE_SECTIONS: IntakeSection[] = [
   {
     id: "prevWork",
     title: "Previous Work Experience",
-    subtitle: "Add each past employer — at least one entry is required.",
+    subtitle: "Add each past employer - at least one entry is required.",
     repeat: { min: 1, max: 3, seed: 1, itemLabel: "Previous" },
     fields: PREV_WORK_FIELDS,
   },
@@ -204,7 +204,7 @@ export const INTAKE_SECTIONS: IntakeSection[] = [
   {
     id: "notes",
     title: "Anything you wish to tell us about yourself",
-    subtitle: "Free-form — type it, or use Dictate to capture it by voice.",
+    subtitle: "Free-form - type it, or use Dictate to capture it by voice.",
     notes: true,
     fields: [
       { key: "notes", label: "Anything you wish to tell us about yourself", type: "textarea", required: true },

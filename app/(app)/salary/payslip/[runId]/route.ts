@@ -137,7 +137,7 @@ async function renderPayslip(
     layout: "portrait",
     margin: 48,
     info: {
-      Title: `Salary Slip — ${run.employeeName} — ${run.month}`,
+      Title: `Salary Slip - ${run.employeeName} - ${run.month}`,
       Author: "Altus Corp Dashboard",
       Subject: "Salary Slip",
     },
@@ -230,7 +230,7 @@ async function renderPayslip(
     .fontSize(13)
     .fillColor("#FFFFFF")
     .text(
-      `SALARY SLIP  —  ${monthLabel(run.month)}`,
+      `SALARY SLIP  -  ${monthLabel(run.month)}`,
       left + 12,
       titleY + 8.5,
       { characterSpacing: 1.2, lineBreak: false },
@@ -252,7 +252,7 @@ async function renderPayslip(
     ["Employee Name", run.employeeName, "Employee ID", idShort],
     [
       "Designation",
-      run.designationName || "—",
+      run.designationName || "-",
       "Pay Period",
       monthLabel(run.month),
     ],

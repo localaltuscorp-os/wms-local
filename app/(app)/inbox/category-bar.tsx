@@ -81,8 +81,8 @@ function Tab({
       aria-current={active ? "page" : undefined}
       title={
         empty
-          ? `${label} — nothing here`
-          : `${label} — ${total} notification${total === 1 ? "" : "s"}${unread > 0 ? `, ${unread} unread` : ""}`
+          ? `${label} - nothing here`
+          : `${label} - ${total} notification${total === 1 ? "" : "s"}${unread > 0 ? `, ${unread} unread` : ""}`
       }
       className="group inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold outline-none transition-colors hover:bg-[color-mix(in_srgb,var(--color-altus-red)_9%,transparent)] hover:text-[var(--color-altus-red)] focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/45"
       style={{

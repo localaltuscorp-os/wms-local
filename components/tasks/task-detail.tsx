@@ -65,7 +65,7 @@ export function TaskDetail({ task }: { task: TaskDetailModel }) {
         </span>
         {subjectChip && (
           <span
-            className="inline-flex items-center px-2.5 py-1 rounded-full text-[12.5px] font-bold uppercase tracking-[0.08em] border"
+            className="inline-flex items-center px-2.5 py-1 rounded-pill text-[12.5px] font-bold uppercase tracking-[0.08em] border"
             style={{
               background: "var(--color-surface-soft)",
               color: "var(--color-ink-muted)",
@@ -76,7 +76,7 @@ export function TaskDetail({ task }: { task: TaskDetailModel }) {
           </span>
         )}
         <span
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12.5px] font-bold tracking-[0.08em] uppercase"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[12.5px] font-bold tracking-[0.08em] uppercase"
           style={{
             background: `rgba(${eyebrow.rgb}, 0.10)`,
             color: eyebrow.toneVar,
@@ -199,7 +199,7 @@ function DuePill({ dueAt, overdue }: { dueAt: Date; overdue: boolean }) {
   const rgb = overdue ? "225, 6, 0" : "100, 116, 139";
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[14px] tabular-nums"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[14px] tabular-nums"
       style={{
         background: `rgba(${rgb}, 0.08)`,
         color: overdue ? "var(--color-red-deep)" : "var(--color-ink-soft)",
@@ -257,13 +257,13 @@ function RolePair({
 }) {
   return (
     <span className="inline-flex items-center gap-2.5">
-      <Avatar name={fromName ?? "?"} size={28} title={`${fromLabel}: ${fromName ?? "—"}`} />
+      <Avatar name={fromName ?? "?"} size={28} title={`${fromLabel}: ${fromName ?? "-"}`} />
       <span className="leading-tight">
         <span className="block text-[12px] uppercase tracking-[0.10em] text-ink-subtle font-bold">
           {fromLabel}
         </span>
         <span className="block text-ink-strong font-semibold mt-0.5" style={{ fontSize: 15.5 }}>
-          {fromName ?? "—"}
+          {fromName ?? "-"}
         </span>
       </span>
       <ArrowRight
@@ -271,13 +271,13 @@ function RolePair({
         strokeWidth={2.4}
         className="text-ink-subtle mx-1.5"
       />
-      <Avatar name={toName ?? "?"} size={28} title={`${toLabel}: ${toName ?? "—"}`} />
+      <Avatar name={toName ?? "?"} size={28} title={`${toLabel}: ${toName ?? "-"}`} />
       <span className="leading-tight">
         <span className="block text-[12px] uppercase tracking-[0.10em] text-ink-subtle font-bold">
           {toLabel}
         </span>
         <span className="block text-ink-strong font-semibold mt-0.5" style={{ fontSize: 15.5 }}>
-          {toName ?? "—"}
+          {toName ?? "-"}
         </span>
       </span>
     </span>

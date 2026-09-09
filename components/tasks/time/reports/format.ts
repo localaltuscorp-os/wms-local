@@ -11,12 +11,12 @@ const IST = "Asia/Kolkata";
 
 /** Canonical "03 Aug 2026". */
 export function fmtDate(iso: string | null | undefined): string {
-  return iso ? formatDate(iso) : "—";
+  return iso ? formatDate(iso) : "-";
 }
 
 /** "03 Aug 2026, 4:12 PM" — canonical date + time, IST. */
 export function fmtDateTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const time = new Date(iso).toLocaleTimeString("en-IN", {
     timeZone: IST,
     hour: "numeric",

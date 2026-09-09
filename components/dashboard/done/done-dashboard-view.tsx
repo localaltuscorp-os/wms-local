@@ -281,7 +281,7 @@ export function DoneDashboardView({
                     </Td>
                     <Td align="right">
                       <span className="text-[13px] font-medium tabular-nums text-ink-soft">
-                        {p.lastCompletedAt ? formatDate(p.lastCompletedAt) : "—"}
+                        {p.lastCompletedAt ? formatDate(p.lastCompletedAt) : "-"}
                       </span>
                     </Td>
                   </tr>

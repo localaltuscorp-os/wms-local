@@ -22,7 +22,7 @@ export function DashboardWidgets({ w }: { w: TimeDashboardWidgets }) {
       <EmptyState
         Icon={Clock}
         title="No time recorded yet"
-        hint="Start the timer on a task from its detail panel — total effort, revision time and approval cycles will roll up here automatically."
+        hint="Start the timer on a task from its detail panel - total effort, revision time and approval cycles will roll up here automatically."
       />
     );
   }
@@ -55,7 +55,7 @@ export function DashboardWidgets({ w }: { w: TimeDashboardWidgets }) {
           value={
             w.avgApprovalCycleSeconds > 0
               ? formatMinutesLabel(w.avgApprovalCycleSeconds)
-              : "—"
+              : "-"
           }
           sub={`${w.approvedCount.toLocaleString("en-IN")} approved`}
           Icon={CheckCircle2}

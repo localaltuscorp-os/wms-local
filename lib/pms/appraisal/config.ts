@@ -116,5 +116,5 @@ export function ratingTermFor(
   for (const band of config.ratingTerms) {
     if (finalPct >= band.min) return band.label;
   }
-  return config.ratingTerms[config.ratingTerms.length - 1]?.label ?? "—";
+  return config.ratingTerms[config.ratingTerms.length - 1]?.label ?? "-";
 }

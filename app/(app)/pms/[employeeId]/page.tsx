@@ -65,7 +65,7 @@ const RELATION_LABEL: Record<ReviewRelation, string> = {
 };
 
 function fmtDate(d: Date | null): string {
-  if (!d) return "—";
+  if (!d) return "-";
   return formatDate(d);
 }
 
@@ -131,7 +131,7 @@ export default async function PmsDetailPage({
     hint?: string;
   }[] = [
     { key: "kpi", name: "KPI", icon: <Target size={16} strokeWidth={2.6} />, hint: "Weekly Goals achievement + Incentive target-vs-actual." },
-    { key: "skillUpgrade", name: "Skill Upgrade", icon: <GraduationCap size={16} strokeWidth={2.4} />, hint: "Training attended & given, self-learning and the weekly Share — pro-rated to this month." },
+    { key: "skillUpgrade", name: "Skill Upgrade", icon: <GraduationCap size={16} strokeWidth={2.4} />, hint: "Training attended & given, self-learning and the weekly Share - pro-rated to this month." },
     { key: "compliance", name: "Compliance", icon: <ShieldCheck size={16} strokeWidth={2.4} />, hint: "DCC compliance and Daily-Checklist completion." },
     { key: "attitude", name: "Attitude & Mindset", icon: <Smile size={16} strokeWidth={2.4} /> },
     { key: "teamwork", name: "Team Work", icon: <Users size={16} strokeWidth={2.4} /> },
@@ -208,7 +208,7 @@ export default async function PmsDetailPage({
               <div
                 className="relative h-[136px] w-[136px] shrink-0"
                 role="img"
-                aria-label={`Performance score ${score} out of 100 — ${b.label}`}
+                aria-label={`Performance score ${score} out of 100 - ${b.label}`}
               >
                 <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
                   <circle cx="60" cy="60" r="52" fill="none" stroke="var(--color-surface-soft)" strokeWidth="12" />

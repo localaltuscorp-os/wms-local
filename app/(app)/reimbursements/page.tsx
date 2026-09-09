@@ -90,7 +90,7 @@ export default async function ReimbursementsPage({ searchParams }: PageProps) {
           title="Reimbursements"
           hint={
             view === "archived"
-              ? "Archived claims — restore or delete from the ⋯ menu."
+              ? "Archived claims - restore or delete from the ⋯ menu."
               : me.isAdmin
                 ? `${formatCount(pendingRows.length)} ${pendingRows.length === 1 ? "claim" : "claims"} pending review.`
                 : def.subtitle
@@ -106,8 +106,8 @@ export default async function ReimbursementsPage({ searchParams }: PageProps) {
               </Link>
               {me.isAdmin && (
                 <>
-                  <FormEditorDialog formKey={requestKey("reimbursement")} formName={`${def.title} — request`} fields={requestFieldsRaw} />
-                  <FormEditorDialog formKey={adminKey("reimbursement")} formName={`${def.title} — admin fields`} fields={adminFieldsRaw} />
+                  <FormEditorDialog formKey={requestKey("reimbursement")} formName={`${def.title} - request`} fields={requestFieldsRaw} />
+                  <FormEditorDialog formKey={adminKey("reimbursement")} formName={`${def.title} - admin fields`} fields={adminFieldsRaw} />
                 </>
               )}
               <RbClaimDialog fields={requestFields} productOptions={products} isAdmin={me.isAdmin} />

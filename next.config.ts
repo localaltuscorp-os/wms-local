@@ -132,6 +132,14 @@ const nextConfig: NextConfig = {
   // isn't wrapped with withSentryConfig), so externalizing the runtime SDK is safe.
   serverExternalPackages: [
     "firebase-admin",
+    // DUMMY MODE's fixture database (lib/db/index.ts). PGlite ships PostgreSQL
+    // as a WASM blob plus a `.data` file it locates RELATIVE TO ITS OWN MODULE
+    // URL. Bundled, that URL becomes the bundler's placeholder root and loading
+    // dies with `ERR_INVALID_FILE_URL_PATH: file:///ROOT/.../pglite.data`.
+    // Externalizing keeps it a plain runtime require out of node_modules, where
+    // the path resolves. It is a devDependency and only reached when
+    // DUMMY_MODE=true, so production route graphs never see it.
+    "@electric-sql/pglite",
     "pdfkit",
     // Server-only headless-Chromium PDF renderer for rich ("Google Docs") HR
     // letters. Externalized like pdfkit so their large native/binary trees are

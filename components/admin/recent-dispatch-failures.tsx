@@ -77,7 +77,7 @@ export function RecentDispatchFailures({ rows, totals }: Props) {
                   >
                     <td className="px-4 py-3 font-semibold">
                       <span
-                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-bold"
+                        className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-0.5 text-[11.5px] font-bold"
                         style={{
                           background: terminal
                             ? "var(--color-red-bg)"
@@ -145,7 +145,7 @@ function Stat({
 }) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1"
+      className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1"
       style={{
         background: `var(--color-${tone}-bg)`,
         color: `var(--color-${tone}-deep)`,

@@ -96,7 +96,7 @@ function EmptyState() {
         Structure is ready
       </p>
       <p className="text-ink-muted font-medium" style={{ fontSize: 14, maxWidth: "42ch", lineHeight: 1.5 }}>
-        The detailed spec for this section is being wired — the columns above
+        The detailed spec for this section is being wired - the columns above
         capture the intended shape from the master sheet.
       </p>
     </div>

@@ -93,7 +93,7 @@ async function renderPdf(
     layout: "landscape",
     margin: 40,
     info: {
-      Title: `Altus Corp — Attendance ${meta.title}`,
+      Title: `Altus Corp - Attendance ${meta.title}`,
       Author: "Altus Corp Dashboard",
       Subject: "Monthly Attendance Report",
     },

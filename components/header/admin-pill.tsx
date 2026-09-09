@@ -17,7 +17,7 @@ export function AdminPill() {
         <Tooltip.Trigger asChild>
           <Link
             href={"/admin" as Route}
-            aria-label="Admin — open admin panel"
+            aria-label="Admin - open admin panel"
             className="inline-flex items-center gap-1 rounded-full text-white outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             style={{
               padding: "5px 10px",
@@ -62,7 +62,7 @@ export function AdminPill() {
               maxWidth: 260,
             }}
           >
-            You&rsquo;re an administrator — manage the team in Admin Panel
+            You&rsquo;re an administrator - manage the team in Admin Panel
             <Tooltip.Arrow style={{ fill: "#0F172A" }} />
           </Tooltip.Content>
         </Tooltip.Portal>

@@ -32,11 +32,11 @@ function toNum(s: string | null): number | null {
 }
 function fmtQty(s: string | null): string {
   const n = toNum(s);
-  return n == null ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  return n == null ? "-" : n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 function fmtMoney(s: string | null): string {
   const n = toNum(s);
-  return n == null ? "—" : `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  return n == null ? "-" : `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
 
 export function CascadeGoalCard({
@@ -149,7 +149,7 @@ export function CascadeGoalCard({
             <Stat label="Target amount" value={fmtMoney(goal.targetAmount)} sub={`Actual ${fmtMoney(goal.actualAmount)}`} />
             <Stat
               label="Dependency"
-              value={goal.teamDependencyPct == null ? "—" : `${goal.teamDependencyPct}%`}
+              value={goal.teamDependencyPct == null ? "-" : `${goal.teamDependencyPct}%`}
               sub="on team"
             />
           </div>
@@ -234,7 +234,7 @@ function ScoreBadge({ label, pct, muted }: { label: string; pct: number | null; 
         className="text-[13px] font-bold tabular-nums"
         style={{ color, fontFamily: "var(--font-display), system-ui, sans-serif" }}
       >
-        {pct == null ? "—" : `${pct}%`}
+        {pct == null ? "-" : `${pct}%`}
       </span>
     </span>
   );

@@ -20,6 +20,12 @@ import { employees, type Employee } from "@/db/schema";
  */
 export function localSessionEnabled(): boolean {
   if (process.env.VERCEL || process.env.VERCEL_ENV) return false;
+  // The NODE_ENV floor, added when this landed on main beside the two other
+  // local-dev hatches (DUMMY_MODE, DEV_AUTH_BYPASS): those are both hard-false
+  // under a production build, and a rule that only holds on Vercel is weaker
+  // than its neighbours anywhere the app is served from somewhere else.
+  // `next build` sets NODE_ENV=production, so no real deployment reaches this.
+  if (process.env.NODE_ENV === "production") return false;
   return process.env.DISABLE_AUTH === "true";
 }
 
