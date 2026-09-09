@@ -733,15 +733,24 @@ export function AgingHeatmap({
            the GENERATED stylesheet, not by their order in this string - the
            override would be a coin flip. Taking the unpadded constant leaves
            exactly one padding rule.
-           min-h gives the section a floor so it holds its presence on the
-           page even with three lanes in it. */
+           NO FIXED FLOOR. This carried `min-h-[600px]`, on the reasoning that
+           a floor kept the section's "presence on the page even with three
+           lanes in it". With one lane that presence is 350px of blank card
+           under a single 56px row — the card stopped describing its contents
+           and started describing the number someone picked.
+
+           It cannot collapse to nothing: the filter row renders on every path
+           (empty or not), the empty branch carries its own `py-6` message, and
+           the card's own `pt-4 pb-8` sits around both. Growth is still capped —
+           the lane list is `max-h-[520px]` and scrolls — so this now sizes to
+           its records in both directions instead of only upward. */
         /* TOP PADDING COMES DOWN, the sides stay. Removing the standalone
            legend row took a band out of the top of this card, and 32-40px of
            padding above what is now immediately the lane header left the
            header floating. `pt-4` closes that; the horizontal and bottom
            padding are unchanged, because they are what keeps the lanes off the
            card edge and those did not gain any space. */
-        className={`aging-shell relative min-h-[600px] overflow-hidden px-8 pb-8 pt-4 md:px-10 md:pb-10 ${DASHBOARD_CARD}`}
+        className={`aging-shell relative overflow-hidden px-8 pb-8 pt-4 md:px-10 md:pb-10 ${DASHBOARD_CARD}`}
       >
         {/* The red/green "heat wash" backdrop was removed - it was the other
             half of the peach tint. The heat colours still live where they carry
