@@ -29,16 +29,16 @@ import { MAX_DEVICES_PER_EMPLOYEE, type DeviceRejectReason } from "./mobile-devi
  * from a colleague's laptop, because their browser carries their cookie, and a
  * cookie already bound to another employee is refused outright.
  *
- * ── GRANDFATHERING, AND WHY IT CLOSES ──────────────────────────────────────
- * Enforcing on day one would lock out every employee at once, since nobody has a
- * registered laptop yet. So the FIRST browser each person punches from is
- * adopted as their approved laptop — exactly how the phone allowlist rolled out
- * (its migration grandfathered every existing device to 'approved'). The window
- * closes per-person the moment the slots fill: once someone holds their two
- * approved devices, a further browser lands 'pending' and is refused until an
- * attendance administrator approves it. Clearing cookies after that point does
- * NOT hand out a fresh device — it produces a pending registration, which is the
- * same answer a colleague's browser gets.
+ * ── SELF-ADOPTION, AND WHERE IT STOPS ──────────────────────────────────────
+ * A browser this employee punches from is adopted as their own device, usable
+ * immediately (admin approval was removed 2026-09-09). What still stops it is
+ * the CAP: once someone holds MAX_DEVICES_PER_EMPLOYEE devices, a further
+ * browser is refused outright with `device_limit` and NO row is written.
+ *
+ * That refusal is deliberate and is the anti-proxy rule, not a leftover of
+ * approval: without it, clearing cookies would mint an unlimited supply of
+ * devices and the two-device limit would mean nothing. An administrator removing
+ * a device frees the slot.
  */
 
 /** Long-lived, httpOnly. Names a device; never authenticates a person. */
@@ -91,17 +91,29 @@ export async function resolveWebDevice(employeeId: string): Promise<WebDeviceRes
           error: "This device was removed. Ask an attendance administrator to register it again.",
         };
       }
-      if (row.status !== "approved") {
-        return {
-          ok: false,
-          reason: "pending",
-          error: "This device is waiting for approval before you can punch from it.",
-        };
+      // Legacy 'pending' row from before approval was removed: heal it in place
+      // rather than refusing, so nobody is stranded with no admin to unblock
+      // them. Promotion can breach the 0214 two-approved cap (this path used to
+      // write pending rows once the approved slots were full), so report the cap
+      // instead of leaking the trigger's error.
+      if (row.status === "approved") {
+        await db.update(mobileDevices).set({ lastUsedAt: new Date() }).where(eq(mobileDevices.id, row.id));
+      } else {
+        try {
+          await db
+            .update(mobileDevices)
+            .set({ status: "approved", approvedAt: new Date(), lastUsedAt: new Date() })
+            .where(eq(mobileDevices.id, row.id));
+        } catch {
+          return {
+            ok: false,
+            reason: "device_limit",
+            error:
+              `You already have ${MAX_DEVICES_PER_EMPLOYEE} active devices, so this browser can't be activated. ` +
+              "Ask an attendance administrator to remove one, then punch again.",
+          };
+        }
       }
-      await db
-        .update(mobileDevices)
-        .set({ lastUsedAt: new Date() })
-        .where(eq(mobileDevices.id, row.id));
       return { ok: true, rowId: row.id, grandfathered: false };
     }
     // A cookie naming a device that no longer exists (revoked and purged, or a
@@ -123,15 +135,29 @@ export async function resolveWebDevice(employeeId: string): Promise<WebDeviceRes
       and(eq(mobileDevices.employeeId, employeeId), eq(mobileDevices.status, "approved")),
     );
 
-  const grandfathered = (approvedNow?.n ?? 0) < MAX_DEVICES_PER_EMPLOYEE;
+  // No free slot ⇒ refuse WITHOUT writing anything. Under the old flow this
+  // wrote a 'pending' row for an admin to approve; with approval gone such a row
+  // could never become usable, would occupy a cap slot, and would pile up one
+  // duplicate per cookie clear. Refusing outright is the honest answer.
+  if ((approvedNow?.n ?? 0) >= MAX_DEVICES_PER_EMPLOYEE) {
+    return {
+      ok: false,
+      reason: "device_limit",
+      error:
+        `You already have ${MAX_DEVICES_PER_EMPLOYEE} registered devices. ` +
+        "Ask an attendance administrator to remove one, then punch from this browser again.",
+    };
+  }
+
   try {
     await db.insert(mobileDevices).values({
       employeeId,
       deviceId,
       kind,
-      label: grandfathered ? `${kindLabel} (auto-registered)` : kindLabel,
+      label: `${kindLabel} (self-registered)`,
       platform: "web",
-      status: grandfathered ? "approved" : "pending",
+      status: "approved",
+      approvedAt: new Date(),
       lastUsedAt: new Date(),
     });
   } catch (err) {
@@ -150,20 +176,7 @@ export async function resolveWebDevice(employeeId: string): Promise<WebDeviceRes
     return { ok: false, reason: "other", error: `Could not register this device: ${msg}` };
   }
 
-  // Set the cookie EITHER WAY. A pending device still needs a stable id, or the
-  // employee generates a fresh pending row on every attempt and the approval
-  // queue fills with duplicates of one laptop.
   await setCookie(deviceId);
-
-  if (!grandfathered) {
-    return {
-      ok: false,
-      reason: "pending",
-      error:
-        "This browser isn't a registered device yet. It's been sent for approval — " +
-        "punch from a registered device in the meantime.",
-    };
-  }
 
   const row = await db.query.mobileDevices.findFirst({
     where: eq(mobileDevices.deviceId, deviceId),

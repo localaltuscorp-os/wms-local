@@ -23,24 +23,15 @@ import { withRetry } from "@/lib/db/with-timeout";
 import { insertPunchRow, resolvePunchGeofence } from "@/lib/attendance/record-punch";
 import { evaluateOfficeIp } from "@/lib/attendance/office-ip";
 import { isDccFilledFor } from "@/lib/dcc/gate";
-import {
-  needsDailyPlan,
-  dailyPlanShortfall,
-  MIN_ATTENDANCE_ITEMS,
-} from "@/lib/daily-checklist/gate";
-import { needsGoalActuals, unloggedGoalLabels } from "@/lib/weekly-goals/actuals";
+
 import { isManagerWithReports, isMondayIST, managerMondayGoalState } from "@/lib/manager-gates";
 import {
   satCommitGateOn,
   monApproveGateOn,
-  checkoutCloseoutGateOn,
-  punchPlanGateOn,
   weekLossAckGateOn,
 } from "@/lib/goals/flag";
 import { acknowledgeWeek, getWeekReportState } from "@/lib/attendance/week-report";
 import { reportedWeekFor, weekLabel } from "@/lib/attendance/week-loss";
-import { isDayClosedOut } from "@/lib/queries/daily-checklist";
-import { hasCheckedOutOn } from "@/lib/queries/attendance";
 import { assertMonthEditable } from "@/lib/reports/attendance-freeze";
 import { weekCommitSatisfied, managerApproveSatisfied } from "@/lib/goals/gates-predicates";
 import { isSaturdayIST, isWeekdayIST } from "@/lib/goals/gate-day";
@@ -58,7 +49,6 @@ import {
 } from "@/lib/validators/attendance";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { withTimeout } from "@/lib/db/with-timeout";
-import { CLOSEOUT_BLOCK_MESSAGE, CLOSEOUT_REDIRECT_TO } from "@/lib/attendance/closeout-gate";
 import { assertRemoteWorkApproved } from "@/lib/attendance/remote-work";
 
 type ActionResult<T = unknown> =
@@ -66,20 +56,16 @@ type ActionResult<T = unknown> =
   | { ok: false; error: string };
 
 /**
- * The close-out redirect contract now lives in `lib/attendance/closeout-gate`
- * — a `"use server"` module may export ONLY async functions, so declaring these
- * two constants here was a hard build failure. See that file for why the gate
- * returns a destination rather than relying on the message text.
+ * `punchAttendance`'s result.
  *
- * `redirectTo` is OPTIONAL on the failure branch — every other refusal in this
- * file keeps returning a plain `{ ok: false, error }` and every existing caller
- * that only reads `.ok` / `.error` is unaffected.
+ * `redirectTo` was dropped 2026-09-09 with the close-out gate - it existed only
+ * to send a refused check-out to /my-day. No refusal in this file names a
+ * destination any more, so the field is gone rather than left as a hook a future
+ * gate could quietly re-use.
  */
-
-/** `punchAttendance`'s result: the shared shape plus the optional redirect hint. */
 type PunchActionResult =
   | { ok: true; date: string }
-  | { ok: false; error: string; redirectTo?: string };
+  | { ok: false; error: string };
 
 const PunchSchema = z
   .object({
@@ -197,44 +183,16 @@ export async function punchAttendance(input: {
     }
   }
 
-  // ── Close-out gate — Sir's checkout ORDER ────────────────────────────
-  // At clock-OUT you first close out today's commitments (mark done / 0-100%),
-  // THEN DCC (below), THEN the punch writes. Sits ABOVE the DCC block so the
-  // order is enforced.
+  // ── Close-out gate — REMOVED 2026-09-09 ──────────────────────────────
+  // Clock-OUT used to require today's commitments to be closed out first (mark
+  // done / 0-100% on each of the MIN_ATTENDANCE_ITEMS things), bouncing the
+  // employee to /my-day when they had not been. That prerequisite is gone: an
+  // employee checks out immediately.
   //
-  // ON BY DEFAULT, killed with CHECKOUT_CLOSEOUT_GATE_OFF=true — see
-  // checkoutCloseoutGateOn(). (The old "(NEW, default OFF)" note here was left
-  // over from when the gate shipped dark; it has been live since the daily loop
-  // was restored, and the env var is the recovery path if checkout ever jams.)
-  //
-  // Refusing here sends the employee to Daily Goals & Commitments (/my-day)
-  // rather than leaving them stuck on a button that will not work: "Finish My
-  // Day" there closes the day and fires the SAME check-out automatically
-  // (autoPunch("out") → syncDayPunch → this action, with the day now closed).
-  // That ordering is what makes the gate a detour and not a dead end.
-  if (kind === "out" && checkoutCloseoutGateOn()) {
-    // ALREADY CHECKED OUT ⇒ nothing left to gate. Someone who has clocked out
-    // must never be bounced to the planner again, whatever state their plan is
-    // in: there is no checkout left to permit, and the duplicate punch is
-    // refused a few lines down with the honest "You already checked out today."
-    // Without this guard, a second click on a day that was never closed out
-    // would redirect them into a ritual that cannot change the outcome.
-    // FAIL-OPEN like every other read on this path: on error we assume NOT
-    // checked out, which leaves the gate below to make the decision exactly as
-    // it did before — a read hiccup can never skip the rule.
-    const alreadyOut = await hasCheckedOutOn(me.id, today).catch(() => false);
-    const closed = alreadyOut ? true : await isDayClosedOut(me.id, today).catch(() => true);
-    if (!closed) {
-      // The refusal now carries WHERE to send them. The Attendance page's punch
-      // card navigates to it; the mobile route and any other caller that only
-      // reads `.error` behave exactly as before.
-      return {
-        ok: false,
-        error: CLOSEOUT_BLOCK_MESSAGE,
-        redirectTo: CLOSEOUT_REDIRECT_TO,
-      };
-    }
-  }
+  // The daily planner itself is UNTOUCHED — /my-day, "Finish My Day" and
+  // isDayClosedOut() all still work. Only the punch's dependency on them is
+  // removed. Do not reinstate a close-out check here; the requirement was
+  // withdrawn, not switched off, so there is no flag to flip back.
 
   // ── DCC punch-out block ──────────────────────────────────────────────
   // You can't clock OUT for the day until today's DCC is filled. FAIL-OPEN:
@@ -250,53 +208,15 @@ export async function punchAttendance(input: {
     }
   }
 
-  // ── Clock-IN planning gate ───────────────────────────────────────────
-  // Nobody marks themselves present without a plan: MIN_ATTENDANCE_ITEMS things
-  // on today's plan AND today's progress logged on each open weekly goal.
+  // ── Clock-IN planning gate — REMOVED 2026-09-09 ──────────────────────
+  // Clocking IN used to require MIN_ATTENDANCE_ITEMS (5) things on today's plan
+  // AND today's progress logged on every open weekly goal. Both prerequisites
+  // are gone: an employee clocks in immediately, with no plan of any size.
   //
-  // NO ROLE EXEMPTIONS (Sir). The old `exempt` branch let super-admins, admins
-  // and anyone with a direct report punch in unplanned; the rule now applies to
-  // everyone, which means PUNCH_PLAN_GATE_OFF is the only way to unblock a bad
-  // state — see punchPlanGateOn.
-  //
-  // FAIL-OPEN, deliberately: any error in the checks allows the punch. A
-  // database hiccup must never stop the workforce clocking in. Mirrors the
-  // mobile punch so the app can't skip it.
-  if (kind === "in" && punchPlanGateOn()) {
-    const planned = !(await needsDailyPlan(me.id).catch(() => false));
-    const actuals = !(await needsGoalActuals(me.id).catch(() => false));
-    if (!planned || !actuals) {
-      // Make the block SPECIFIC — say how far off they are rather than just
-      // refusing, so nobody has to guess what "plan your day" means today.
-      let error = "Plan your day first, then clock in.";
-      if (!planned) {
-        const { have, need, started } = await dailyPlanShortfall(me.id).catch(() => ({
-          have: 0,
-          need: MIN_ATTENDANCE_ITEMS,
-          started: false,
-        }));
-        // Two different failures with two different fixes — name the right one.
-        // "Add 2 more" is useless advice to someone who has ten items and simply
-        // never hit Start My Day.
-        if (have < need) {
-          const short = Math.max(1, need - have);
-          error = `You have ${have} of ${need} things planned for today. Add ${short} more on Daily Goals, then clock in.`;
-        } else if (!started) {
-          error = `Hit “Start My Day” on WMS › Daily Goals to begin your day, then clock in.`;
-        }
-      } else {
-        // Goals are the blocker: name the exact ones still unlogged + point at
-        // the one-tap "Log all" fix.
-        const names = await unloggedGoalLabels(me.id).catch(() => [] as string[]);
-        if (names.length > 0) {
-          const shown = names.slice(0, 4).join(", ");
-          const more = names.length > 4 ? ` +${names.length - 4} more` : "";
-          error = `Log today's progress on ${names.length} weekly goal${names.length === 1 ? "" : "s"} before clocking in: ${shown}${more}. Tip: use “Log all at current %” on the Daily Checklist.`;
-        }
-      }
-      return { ok: false, error };
-    }
-  }
+  // Planning is still available and still useful — /my-day, "Start My Day",
+  // needsDailyPlan() and the weekly-goal actuals all remain. What was deleted is
+  // the punch's dependency on them, here and in the mobile punch route, so the
+  // rule cannot survive in one path after being dropped from the other.
 
   // ── WEEK-LOSS ACKNOWLEDGEMENT (Sir) ──────────────────────────────────
   // On the first punch of a NEW WEEK, the employee must have seen last week's

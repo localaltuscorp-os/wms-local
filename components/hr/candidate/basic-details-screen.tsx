@@ -67,10 +67,18 @@ const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
   hired: { bg: "color-mix(in srgb, var(--color-green) 22%, white)", fg: "#166534" },
 };
 
-// Sized by their own text — the row they sit in is what the search bar above
-// then matches, rather than the other way round.
+/* ONE SHAPE FOR THE WHOLE STRIP. The three controls used to disagree: the
+ * selects were h-10/rounded-lg, "New candidate" was rounded-xl px-4 py-2.5 and
+ * "Candidate login" rounded-xl px-4 py-2 - three heights and two radii in a row
+ * that reads as one control group. Height and radius are now stated once here
+ * and every control opts in, so they cannot drift apart again. */
+const CONTROL_H = "h-10 shrink-0 rounded-lg";
+
 const SELECT_CLS =
-  "h-10 shrink-0 rounded-lg border border-hairline-strong bg-white px-3 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-altus-red";
+  `${CONTROL_H} border border-hairline-strong bg-white px-3 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-altus-red`;
+
+const ACTION_CLS =
+  `${CONTROL_H} inline-flex items-center gap-2 px-4 text-[13.5px] font-bold text-white transition-transform hover:-translate-y-0.5`;
 
 export function BasicDetailsScreen({
   candidates,
@@ -125,50 +133,59 @@ export function BasicDetailsScreen({
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <CollapsibleSearch scope="candidates">
-        <div className="relative max-w-[320px] flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Local search - candidates" title="Local search - filters only the list on this page" aria-label="Local search - candidates - this page only"
-            className="h-10 w-full rounded-lg border border-hairline-strong bg-white pl-9 pr-3 text-[14px] text-ink-strong outline-none focus:border-altus-red"
-          />
-        </div>
-        </CollapsibleSearch>
-        <div className="flex flex-wrap items-center gap-2">
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLS} aria-label="Filter by status">
-            <option value="all">All statuses</option>
-            <option value="new">New</option>
-            <option value="shortlisted">Shortlisted</option>
-            <option value="hired">Hired</option>
-            <option value="rejected">Rejected</option>
+      {/* FILTERS LEFT, ACTIONS + SEARCH RIGHT.
+          `ml-auto` on the actions group is what pins everything after it to the
+          right edge, so the filters keep the left and the gap between the two
+          halves absorbs the width instead of a control stretching.
+          The search rests as its magnifier and opens to a fixed 280px, which
+          PUSHES the two buttons left rather than stretching anything - a
+          `flex-1` field here would have eaten the `ml-auto` free space and left
+          the buttons stranded mid-row. */}
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLS} aria-label="Filter by status">
+          <option value="all">All statuses</option>
+          <option value="new">New</option>
+          <option value="shortlisted">Shortlisted</option>
+          <option value="hired">Hired</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <select value={form} onChange={(e) => setForm(e.target.value)} className={SELECT_CLS} aria-label="Filter by form state">
+          <option value="all">All forms</option>
+          <option value="complete">Complete</option>
+          <option value="draft">Draft</option>
+        </select>
+        {positions.length > 0 && (
+          <select value={position} onChange={(e) => setPosition(e.target.value)} className={SELECT_CLS} aria-label="Filter by position">
+            <option value="all">All positions</option>
+            {positions.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
           </select>
-          <select value={form} onChange={(e) => setForm(e.target.value)} className={SELECT_CLS} aria-label="Filter by form state">
-            <option value="all">All forms</option>
-            <option value="complete">Complete</option>
-            <option value="draft">Draft</option>
-          </select>
-          {positions.length > 0 && (
-            <select value={position} onChange={(e) => setPosition(e.target.value)} className={SELECT_CLS} aria-label="Filter by position">
-              <option value="all">All positions</option>
-              {positions.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
+        )}
+
+        {/* The child button is w-full, so the wrapper sets its width; the
+            arbitrary variants give it the shared height and radius. */}
+        <div className="ml-auto w-[176px] shrink-0 [&>button]:h-10 [&>button]:rounded-lg">
           <CreateCandidateLogin />
-          <Link
-            href={"/hr/intake?new=1" as Route}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-bold text-white transition-transform hover:-translate-y-0.5"
-            style={{ background: `linear-gradient(135deg, ${RED}, var(--color-altus-red-deep))` }}
-          >
-            <UserPlus size={16} strokeWidth={2.4} /> New candidate
-          </Link>
         </div>
+        <Link
+          href={"/hr/intake?new=1" as Route}
+          className={ACTION_CLS}
+          style={{ background: `linear-gradient(135deg, ${RED}, var(--color-altus-red-deep))` }}
+        >
+          <UserPlus size={16} strokeWidth={2.4} /> New candidate
+        </Link>
+        <CollapsibleSearch scope="candidates">
+          <div className="relative w-[280px] max-w-[52vw]">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Local search - candidates" title="Local search - filters only the list on this page" aria-label="Local search - candidates - this page only"
+              className={`${CONTROL_H} w-full border border-hairline-strong bg-white pl-9 pr-3 text-[14px] text-ink-strong outline-none focus:border-altus-red`}
+            />
+          </div>
+        </CollapsibleSearch>
       </div>
 
       {rows.length === 0 ? (
@@ -185,14 +202,20 @@ export function BasicDetailsScreen({
           )}
         </div>
       ) : (
-        /* The table sizes to its CONTENT, and the card to the table. Stretching
-           it to the full page width meant the leftover had to go somewhere: it
-           landed in Contact as a gap mid-row, and before that in the actions
-           column, pushing the menu button away from Status. With no slack to
-           distribute, neither happens. max-w-full keeps a wide table scrollable
-           rather than overflowing the page. */
-        <div className="mx-auto w-fit max-w-full overflow-x-auto rounded-2xl border border-hairline bg-surface-card">
-          <table className="text-left">
+        /* FULL WIDTH, like every other module. This was `mx-auto w-fit`, which
+           shrink-wrapped the card to its content and left the page gutter
+           uneven against the strip above it.
+           
+           THE OLD WARNING STILL APPLIES, AND IS HANDLED. Stretching the table
+           means the leftover width has to land somewhere: it used to open as a
+           gap mid-row in Contact, and before that pushed the row menu away from
+           Status. The fix is to name ONE column as the one that absorbs slack -
+           Contact carries `w-full` below, every other cell is nowrap - so the
+           surplus goes somewhere chosen rather than wherever the layout
+           algorithm felt like. The wrapper still scrolls on narrow screens
+           rather than forcing the page to. */
+        <div className="w-full overflow-x-auto rounded-2xl border border-hairline bg-surface-card">
+          <table className="w-full text-left">
             <thead>
               <tr className="border-b border-hairline text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
                 {/* The photo lives INSIDE the Candidate cell — they are one unit
@@ -202,7 +225,8 @@ export function BasicDetailsScreen({
                     unlabelled: a header there would only name the obvious. */}
                 <th className="whitespace-nowrap py-3 pl-4 pr-5">Candidate</th>
                 <th className="whitespace-nowrap px-5 py-3 max-md:hidden">Position</th>
-                <th className="py-3 pl-5 pr-4 max-md:hidden">Contact</th>
+                {/* THE SLACK COLUMN - see the note above the table. */}
+                <th className="w-full py-3 pl-5 pr-4 max-md:hidden">Contact</th>
                 <th className="whitespace-nowrap py-3 pl-4 pr-5">Form</th>
                 <th className="whitespace-nowrap py-3 pl-5 pr-2 max-md:hidden">Status</th>
                 <th className="w-px py-3 pl-2 pr-4"><span className="sr-only">Actions</span></th>

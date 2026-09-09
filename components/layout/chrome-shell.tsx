@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { workspaceForPath } from "@/lib/workspaces";
+import { PageChromeSlotsProvider } from "@/components/layout/page-chrome-slots";
 
 /**
  * Decides the app chrome CLIENT-side so it stays correct across SOFT navigations.
@@ -105,12 +106,20 @@ export function ChromeShell({
       <div
         className={
           isHrFullBleed
-            ? "flex h-dvh flex-col overflow-hidden"
+            // `hr-shell-frame` is a PRINT HOOK: this h-dvh/overflow-hidden
+            // frame is the OUTERMOST clip on a printed HR page, and
+            // app/globals.css undoes it under @media print. Keep the name.
+            ? "hr-shell-frame flex h-dvh flex-col overflow-hidden"
             : `flex min-h-dvh flex-col ${bottomPad}`
         }
       >
-        {bar}
-        {children}
+        {/* The provider wraps BAR + CHILDREN together: a page portals its title
+            and its own controls up into the bar, and the two are siblings, so a
+            context above both is their only meeting point. */}
+        <PageChromeSlotsProvider>
+          {bar}
+          {children}
+        </PageChromeSlotsProvider>
         {dock}
       </div>
     );
@@ -120,8 +129,10 @@ export function ChromeShell({
     <div className="flex min-h-dvh">
       {sidebar}
       <div className={`flex min-w-0 flex-1 flex-col max-md:pt-14 ${bottomPad}`}>
-        {bar}
-        {children}
+        <PageChromeSlotsProvider>
+          {bar}
+          {children}
+        </PageChromeSlotsProvider>
         {dock}
       </div>
     </div>

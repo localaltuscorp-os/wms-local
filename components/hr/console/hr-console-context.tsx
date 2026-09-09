@@ -10,27 +10,10 @@ import type { HrConsoleModule } from "@/lib/hr/console-nav";
  * piece below reaches those descendants regardless of how they got there.
  */
 type HrConsoleContextValue = {
-  /** The module previewed in the rail (column 2's source) — set the instant
-   *  someone clicks a module with steps, before any navigation happens. Read
-   *  by HrConsoleHome so the /hr front door reacts to a rail click. */
+  /** The module previewed in the rail (the step nav's source) — set the
+   *  instant someone clicks a module with steps, before any navigation
+   *  happens. Read by HrConsoleHome so /hr reacts to a rail click. */
   selectedModule: HrConsoleModule | null;
-
-  /** Whether the current selection has a steps column to collapse at all. */
-  hasSteps: boolean;
-  stepsCollapsed: boolean;
-  toggleSteps: () => void;
-
-  /** The sticky DOM node HrConsoleShell renders at the top of the content
-   *  column, that a page's own HrTitleBar portals its header into. Null
-   *  until the shell has mounted it. */
-  titleBarSlot: HTMLDivElement | null;
-
-  /** True while some page's HrTitleBar is mounted and has portaled content
-   *  into titleBarSlot — so the shell knows not to also render its OWN
-   *  fallback collapse-button bar (pages that haven't been migrated to
-   *  HrTitleBar yet still get that fallback). */
-  hasCustomTitleBar: boolean;
-  setHasCustomTitleBar: (present: boolean) => void;
 
   /** What the RAIL calls the current route — the open step's name, else the
    *  module's. HrTitleBar shows this by default so a surface is labelled the
@@ -68,23 +51,8 @@ export function useHrConsolePreviewedModule(): HrConsoleModule | null {
   return useHrConsoleContext().selectedModule;
 }
 
-/** The shared steps-column collapse control — same state either the shell's
- *  own fallback bar or a page's HrTitleBar renders the button from. */
-export function useHrStepsToggle() {
-  const { hasSteps, stepsCollapsed, toggleSteps } = useHrConsoleContext();
-  return { hasSteps, stepsCollapsed, toggleSteps };
-}
-
 /** The rail's name for the current route — see the field doc above. */
 export function useHrRouteTitle(): string | null {
   return useHrConsoleContext().routeTitle;
-}
-
-export function useHrTitleBarSlot(): HTMLDivElement | null {
-  return useHrConsoleContext().titleBarSlot;
-}
-
-export function useHrCustomTitleBarRegistration(): (present: boolean) => void {
-  return useHrConsoleContext().setHasCustomTitleBar;
 }
 

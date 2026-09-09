@@ -18,7 +18,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { ENTITY_LIST, getEntity, type EntityId } from "@/lib/hr/entities";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import { LookupSelect } from "@/components/ui/lookup-select";
 import {
   CTC_REASONS,
@@ -53,8 +53,8 @@ const RED_DEEP = "#A80400";
 
 const LETTER_LINKS = [
   { key: "ctc-breakup", label: "CTC Breakup Letter" },
-  { key: "appraisal-revised-ctc", label: "Appraisal — Revised CTC" },
-  { key: "promotion-revised-ctc", label: "Promotion — Revised CTC" },
+  { key: "appraisal-revised-ctc", label: "Appraisal - Revised CTC" },
+  { key: "promotion-revised-ctc", label: "Promotion - Revised CTC" },
 ] as const;
 
 /* ------------------------------------------------------------------ */
@@ -352,7 +352,7 @@ export function CtcWorkbench({ roster, isAdmin }: { roster: CtcRosterOption[]; i
               id: r.id,
               name: r.designation ? `${r.name} · ${r.designation}` : r.name,
             }))}
-            placeholder="— Select an employee —"
+            placeholder="- Select an employee -"
             className="ctcw-lookup-trigger"
           />
         </div>
@@ -636,7 +636,7 @@ function EmptyState() {
       </span>
       <h2 className="ctcw-empty-title">Build a Structured CTC</h2>
       <p className="ctcw-empty-text">
-        Pick an employee to open their compensation. Enter the earnings, deductions and employer contributions —
+        Pick an employee to open their compensation. Enter the earnings, deductions and employer contributions -
         the gross, net take-home and total Cost to Firm recompute live. Every save adds a version to their
         Growth Journey.
       </p>
@@ -647,7 +647,7 @@ function EmptyState() {
 function fmtDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return formatDate(d);
+  return formatDateHr(d);
 }
 
 const WORKBENCH_CSS = `
@@ -679,7 +679,7 @@ const WORKBENCH_CSS = `
   background-repeat:no-repeat;background-position:right 9px center;}
 .ctcw-pick select:focus,.ctcw-pick input:focus{outline:none;border-color:${RED};box-shadow:0 0 0 3px rgba(225,6,0,.14);}
 .ctcw-pick select:disabled,.ctcw-pick input:disabled{background:var(--color-surface-soft, #f1f5f9);color:var(--color-ink-muted, #94a3b8);cursor:default;}
-/* The searchable employee combobox trigger — matched to the native selects. */
+/* The searchable employee combobox trigger - matched to the native selects. */
 .ctcw-pick .ctcw-lookup-trigger{
   width:100%;padding:9px 12px;border-radius:10px;
   font-size:14px;font-weight:600;color:var(--color-ink-strong, #0f172a);

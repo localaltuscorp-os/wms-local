@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { candidateIntake, interviewPositions } from "@/db/schema";
 import { requireWorkspaceAdmin } from "@/lib/auth/workspace-access";
 import { requireHrStaff } from "@/lib/hr/access";
+import { requireHrIntake } from "@/lib/hr/intake-access";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { ALL_CRITERION_IDS } from "@/lib/hr/candidate/evaluation-checklist";
@@ -411,7 +412,12 @@ export interface CandidateRow {
 
 /** Recent candidate records for the list view (drafts + completed). */
 export async function listCandidateIntakes(): Promise<CandidateRow[]> {
-  await requireHrStaff();
+  // requireHrIntake, not requireHrStaff: the candidate PICKER on /hr/evaluation
+  // is the narrow grantees' only route to the checklist, and it is built from
+  // this list. Gating it at HR-staff level would hand them a permanently empty
+  // picker (every caller swallows the throw into `[]`). The records TABLE at
+  // /hr/candidates keeps its own requireHrStaff, so this does not open it.
+  await requireHrIntake();
   const rows = await db
     .select({
       id: candidateIntake.id,

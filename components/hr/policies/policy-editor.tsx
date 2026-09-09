@@ -25,7 +25,7 @@ import {
   Blocks,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import {
   loadPolicyEditor,
   publishPolicy,
@@ -348,7 +348,7 @@ export function PolicyEditor({ policyKey, isSuperAdmin }: { policyKey: string; i
                       <li key={v.version} className={v.version === data.currentVersion ? "is-current" : ""}>
                         <span className="pce-vnum">v{v.version}</span>
                         <span className="min-w-0 flex-1 truncate">{v.title}</span>
-                        <span className="pce-vdate">{formatDate(v.publishedAt)}</span>
+                        <span className="pce-vdate">{formatDateHr(v.publishedAt)}</span>
                         {v.version === data.currentVersion && <span className="pce-vlive">live</span>}
                       </li>
                     ))}

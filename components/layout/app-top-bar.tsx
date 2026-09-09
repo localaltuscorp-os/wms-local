@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 import { GlobalSearch } from "@/components/header/global-search";
 import { navTitleFor } from "@/components/layout/main-nav";
+import { locateHrRoute } from "@/lib/hr/console-nav";
 import { MODULE_THEME } from "@/lib/module-theme";
 import { NewTaskQuickAction } from "@/components/header/new-task-quick-action";
 import { FocusModeToggle } from "@/components/layout/focus-mode-toggle";
 import { workspaceForPath } from "@/lib/workspaces";
+import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
 
 /**
  * The app-wide TOP BAR — one persistent strip across the content column on every
@@ -53,7 +55,27 @@ export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
      Never a raw slug — a header that reads "people-allocation" is worse than
      no header. */
   const moduleLabel = ws ? MODULE_THEME[ws].label : undefined;
-  const title = navTitleFor(pathname) ?? moduleLabel ?? "Altus";
+  /* THE TOP BAR NAMES THE PAGE YOU ARE ON, not the room you are in.
+     Every /hr/* route used to resolve to "HR Home" here, because navTitleFor
+     does longest-prefix matching over the sidebar entries and `/hr` was the
+     only one that matched - so the bar said "HR Home" on Salary Slip, on
+     Holiday List, on all of them, and each page then had to repeat its real
+     name in a title band underneath. locateHrRoute is the HR console's own
+     lookup and knows the sub-module, so asking it first gives the bar the
+     specific name and lets the band go. */
+  const hrTitle = React.useMemo(() => {
+    if (!pathname.startsWith("/hr")) return null;
+    const at = locateHrRoute(pathname);
+    return at.subModule?.title ?? at.module?.title ?? null;
+  }, [pathname]);
+  const title = hrTitle ?? navTitleFor(pathname) ?? moduleLabel ?? "Altus";
+
+  // A page may name ITSELF, more precisely than its route can be read - one
+  // candidate, a named letter, a named policy. HrTitleBar portals such a title
+  // into `slots.title` and registers `hasPageTitle`, which is what suppresses
+  // the derived name below. Without that flag the two would both render and the
+  // bar would say the page's name twice.
+  const slots = usePageChromeSlots();
 
   return (
     <div
@@ -75,7 +97,18 @@ export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
           and the rail's module mark are the two fixed things on every screen in
           every module, they sit ~200px apart, and until now one was a brand
           mark and the other was 17px of grey-black UI text. */}
-      <h1 className="topbar-heading min-w-0 truncate">{title}</h1>
+      {/* A page's OWN title, portaled in. `empty:hidden` so the div takes no
+          space on the pages that set none. */}
+      <div ref={slots?.setTitle} className="flex min-w-0 flex-1 items-center empty:hidden" />
+      {/* The route-derived name - the default, shown only while no page has
+          claimed the slot above. */}
+      {!slots?.hasPageTitle && <h1 className="topbar-heading min-w-0 flex-1 truncate">{title}</h1>}
+
+      {/* A page's OWN controls (a print button, an edit link), immediately left
+          of the global cluster. These used to ride in a per-page TITLE BAND - a
+          second full-width strip under this bar - which is gone; they would
+          have been lost with it. */}
+      <div ref={slots?.setActions} className="flex shrink-0 items-center gap-2 empty:hidden" />
 
       {/* FAR RIGHT — search, create, focus, notifications. `ml-auto` pins the
           cluster to the edge; the rest of the bar is deliberately empty.

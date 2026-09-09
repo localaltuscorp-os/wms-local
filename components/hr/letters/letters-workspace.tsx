@@ -7,7 +7,7 @@ import { fireToast } from "@/lib/toast";
 import { LETTER_TYPES } from "@/lib/hr/letter-types";
 import { uploadLetter, deleteLetter } from "@/app/(app)/letters/actions";
 import { SignatureStatusPill } from "@/components/documents/signature-status-pill";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import type { SignatureStatus } from "@/lib/documents/signing";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
@@ -37,7 +37,7 @@ function fmtSize(n: number | null): string {
 }
 function fmtDate(iso: string | null): string {
   if (!iso) return "";
-  return formatDate(iso);
+  return formatDateHr(iso);
 }
 
 interface SignatureLite {

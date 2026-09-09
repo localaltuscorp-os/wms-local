@@ -28,7 +28,7 @@ import {
   type KpiCatalogEntry,
 } from "@/lib/hr/kpi/catalog";
 import { LookupSelect } from "@/components/ui/lookup-select";
-import { formatDate, localDateString } from "@/lib/format";
+import { formatDateHr, localDateString } from "@/lib/format";
 import { quarterWindow } from "@/lib/hr/kpi/quarter";
 
 /** Options for the searchable KPI picker: "Manual entry" + every dictionary KPI. */
@@ -86,7 +86,7 @@ function fmtWhen(iso: string): string {
     minute: "2-digit",
     hour12: true,
   }).format(d);
-  return `${formatDate(localDateString("Asia/Kolkata", d))}, ${time}`;
+  return `${formatDateHr(localDateString("Asia/Kolkata", d))}, ${time}`;
 }
 
 /* ------------------------------------------------------------------ */

@@ -70,7 +70,7 @@ export function SalarySlipList({
           No salary slips yet
         </p>
         <p className="mt-2 text-[14px] text-ink-subtle">
-          A slip appears here for every month your salary has been processed.
+          A slip appears here once a month's salary has been marked paid.
         </p>
       </section>
     );
@@ -214,7 +214,7 @@ function SlipRow({
             )}
             <iframe
               src={viewHref}
-              title={`Salary slip — ${slip.label}`}
+              title={`Salary slip - ${slip.label}`}
               onLoad={() => setLoaded(true)}
               className="h-[70vh] min-h-[420px] w-full"
               style={{ border: 0, opacity: loaded ? 1 : 0 }}
