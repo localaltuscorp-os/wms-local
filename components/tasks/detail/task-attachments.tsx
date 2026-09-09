@@ -63,20 +63,48 @@ export function TaskAttachments({
 
   function handleFiles(fileList: FileList | null) {
     const file = fileList?.[0];
+    // CLEAR THE PICKER NOW, before any await — not on the way out.
+    //
+    // A file input fires `change` only when its value actually CHANGES, so
+    // leaving the last pick sitting in it makes re-selecting the SAME file a
+    // silent no-op: the dialog opens, you choose the file, and literally
+    // nothing happens. That is what a failed first attempt looked like from
+    // the outside, because the old reset ran only on paths that returned —
+    // never on the ones that threw. Resetting up front means every path,
+    // including the ones that blow up, leaves the control ready for the next
+    // pick.
+    if (fileRef.current) fileRef.current.value = "";
     if (!file) return;
     const fd = new FormData();
     fd.set("taskId", taskId);
     fd.set("file", file);
     setUploading(true);
     startTransition(async () => {
-      const res = await uploadTaskAttachment(fd);
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
-      if (!res.ok) {
-        fireToast({ message: res.error, type: "error" });
-        return;
+      try {
+        const res = await uploadTaskAttachment(fd);
+        if (!res.ok) {
+          fireToast({ message: res.error, type: "error" });
+          return;
+        }
+        router.refresh();
+      } catch {
+        // A THROW IS NOT A RETURNED ERROR, and this call site only handled the
+        // second kind. The action REJECTS when the request never reaches it at
+        // all — the host's own request-body cap (Vercel rejects around 4.5 MB,
+        // far below the 20 MB the action itself allows), a dropped connection,
+        // a 500 from the framework. Unhandled, that left `uploading` stuck true
+        // forever: the tile read "Uploading…", stayed `disabled` so it could not
+        // even be clicked again, and explained nothing. The only way out was a
+        // page reload, which is why this reads as "I can't attach files" rather
+        // than as one upload that failed.
+        fireToast({
+          message: `Could not upload "${file.name}" — the server did not accept the request. If it is a large file, try one under 4 MB.`,
+          type: "error",
+        });
+      } finally {
+        // Whatever happened, the tile goes back to being a button.
+        setUploading(false);
       }
-      router.refresh();
     });
   }
 
