@@ -1,16 +1,28 @@
 import { notFound } from "next/navigation";
-import { DashboardHeader } from "@/components/layout/header";
-import { PageShell } from "@/components/layout/page-shell";
 import { requireHrStaff } from "@/lib/hr/access";
-import { getHrStage, hrItemHref } from "@/lib/hr/lifecycle";
-import { HrPageHeader, HrCard, type HrCardDef } from "@/components/hr/hr-chrome";
+import { getHrStage } from "@/lib/hr/lifecycle";
+import { HrStageGhost } from "@/components/hr/console/hr-stage-ghost";
 
 export const dynamic = "force-dynamic";
 
 /**
- * A lifecycle stage sub-hub — its own sidebar (main-nav HR_SECTION_NAV) plus a
- * card grid of the stage's surfaces. Every card + rail item is driven by the
- * single lifecycle source (lib/hr/lifecycle.ts).
+ * A lifecycle stage's front door - and deliberately EMPTY.
+ *
+ * This used to be a sub-hub: a card grid repeating every step in the stage.
+ * That made sense before the HR console, when the grid was the only way to
+ * reach a step. It isn't any more - the rail (column 1) and the step list
+ * (column 2) are the navigation, so a grid here just restated column 2 as
+ * clickable cards and put a second, competing set of controls on screen.
+ *
+ * So picking a module now does what picking a module should: it opens that
+ * module's steps beside you and leaves this column blank until you choose one.
+ * Same pane HrConsoleHome shows at /hr and HrConsoleShell shows while you
+ * preview another module - one component (HrModuleGhost), so the three states
+ * cannot drift apart.
+ *
+ * The route still exists because the rail links here: /hr/<stage> is what the
+ * URL must say once you've clicked a module, and losing that was the bug where
+ * the address bar and the screen disagreed.
  */
 export default async function HrStagePage({
   params,
@@ -19,31 +31,7 @@ export default async function HrStagePage({
 }) {
   await requireHrStaff();
   const { stage } = await params;
-  const st = getHrStage(stage);
-  if (!st) notFound();
+  if (!getHrStage(stage)) notFound();
 
-  const cards: HrCardDef[] = st.items.map((it) => ({
-    slug: hrItemHref(st.slug, it),
-    title: it.label,
-    blurb: it.blurb,
-    Icon: it.Icon,
-    soon: it.kind === "screen",
-  }));
-
-  return (
-    <>
-      <DashboardHeader generatedAt={new Date()} />
-      <PageShell width="full">
-        <HrPageHeader title={st.title} subtitle={st.blurb} showBack={false} />
-        <section
-          className="grid gap-4 max-md:gap-3"
-          style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}
-        >
-          {cards.map((c, i) => (
-            <HrCard key={c.slug} card={c} delay={i * 40} />
-          ))}
-        </section>
-      </PageShell>
-    </>
-  );
+  return <HrStageGhost stage={stage} />;
 }

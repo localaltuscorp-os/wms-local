@@ -3847,5 +3847,71 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .plan-shine-live::after {
     animation: none;
+
+/* ──────────────────────────────────────────────────────────────────────────
+   PRINT — UNCLIP THE APP SHELL
+   The HR console pins itself to the viewport (height: calc(100dvh - topbar))
+   and scrolls its content in an inner pane. On screen that is what keeps the
+   rail and title bar still while the page moves. On PAPER it was silently
+   fatal: the printed document was clipped to that pane's ~848px box, so a
+   six-page letter came out as "1 sheet of paper" with the letterhead art laid
+   over the body text, the holiday calendar lost every quarter below the fold,
+   and the pane's SCROLLBAR was painted down the side of the printout.
+
+   Nothing page-specific can fix this - the clip is an ANCESTOR of whatever is
+   being printed - so it is undone once, here, for every module.
+
+   `height: auto` is the part that restores pagination; `overflow: visible`
+   is what drops the scrollbar. Both are needed.
+   ────────────────────────────────────────────────────────────────────────── */
+@media print {
+  html,
+  body {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .hr-shell-frame,
+  .hr-shell,
+  .hr-shell-scroll {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   PRINT — UNCLIP THE APP SHELL
+   The HR console pins itself to the viewport (height: calc(100dvh - topbar))
+   and scrolls its content in an inner pane. On screen that is what keeps the
+   rail and title bar still while the page moves. On PAPER it was silently
+   fatal: the printed document was clipped to that pane's ~848px box, so a
+   six-page letter came out as "1 sheet of paper" with the letterhead art laid
+   over the body text, the holiday calendar lost every quarter below the fold,
+   and the pane's SCROLLBAR was painted down the side of the printout.
+
+   Nothing page-specific can fix this - the clip is an ANCESTOR of whatever is
+   being printed - so it is undone once, here, for every module.
+
+   `height: auto` is the part that restores pagination; `overflow: visible`
+   is what drops the scrollbar. Both are needed.
+   ────────────────────────────────────────────────────────────────────────── */
+@media print {
+  html,
+  body {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .hr-shell-frame,
+  .hr-shell,
+  .hr-shell-scroll {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    display: block !important;
   }
 }

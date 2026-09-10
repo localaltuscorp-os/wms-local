@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { hrFormSubmissions, asHrFormStatus } from "@/lib/hr/forms/schema";
 import { hrSectionLabel } from "@/lib/hr/forms/registry";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import {
   FilledFormsTable,
   type FilledFormRow,
@@ -73,7 +73,7 @@ export default async function AllFilledFormsPage() {
     section: r.section,
     sectionLabel: hrSectionLabel(r.section),
     employeeName: r.employeeName,
-    submittedOn: r.submittedAt ? formatDate(r.submittedAt) : r.updatedAt ? formatDate(r.updatedAt) : "",
+    submittedOn: r.submittedAt ? formatDateHr(r.submittedAt) : r.updatedAt ? formatDateHr(r.updatedAt) : "",
     submittedTs: r.submittedAt ? new Date(r.submittedAt).getTime() : 0,
     status: asHrFormStatus(r.status),
   }));

@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/auth/current";
 import { db } from "@/lib/db";
 import { hrFormSubmissions, asHrFormStatus } from "@/lib/hr/forms/schema";
 import { hrSectionLabel } from "@/lib/hr/forms/registry";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import {
   FilledFormsTable,
   type FilledFormRow,
@@ -74,7 +74,7 @@ export default async function MyFilledFormsPage({
     sectionLabel: hrSectionLabel(r.section),
     // A draft has no submission date — show its last-saved date instead of an
     // empty cell, since "when did I last touch this?" is the useful fact there.
-    submittedOn: r.submittedAt ? formatDate(r.submittedAt) : r.updatedAt ? formatDate(r.updatedAt) : "",
+    submittedOn: r.submittedAt ? formatDateHr(r.submittedAt) : r.updatedAt ? formatDateHr(r.updatedAt) : "",
     submittedTs: r.submittedAt ? new Date(r.submittedAt).getTime() : 0,
     status: asHrFormStatus(r.status),
   }));

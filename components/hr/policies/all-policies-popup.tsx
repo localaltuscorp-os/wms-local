@@ -6,7 +6,7 @@ import type { Route } from "next";
 import { ShieldCheck, X, ArrowUpRight, Clock, Check } from "lucide-react";
 import { POLICY_CARDS, type PolicyCard } from "@/lib/hr/policies/registry";
 import { getMyPolicySignStatus } from "@/app/(app)/hr/policies/sign-status";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
@@ -197,7 +197,7 @@ function CardTile({
       <span className="app-card-blurb">{card.blurb}</span>
       {isSigned ? (
         <span className="app-chip app-chip-signed">
-          <Check size={12} strokeWidth={3} aria-hidden /> Signed · {formatDate(signedAt!)}
+          <Check size={12} strokeWidth={3} aria-hidden /> Signed · {formatDateHr(signedAt!)}
         </span>
       ) : (
         <span className="app-chip app-chip-ready">
@@ -298,7 +298,7 @@ const POPUP_CSS = `
 .app-chip-ready{color:${RED_DEEP};}
 .app-chip-soon{color:var(--color-ink-muted, #94a3b8);}
 .app-chip-signed{color:var(--color-green-deep, #15803d);}
-/* A signed policy reads as "done" — a soft green edge + tint instead of the red
+/* A signed policy reads as "done" - a soft green edge + tint instead of the red
    call-to-action, so the eye skips straight to the ones still to sign. */
 .app-card-signed{
   border-color:color-mix(in srgb, var(--color-green-deep, #15803d) 40%, transparent) !important;

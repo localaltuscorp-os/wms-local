@@ -38,7 +38,7 @@ import {
 import { templateToRichHtml } from "@/lib/hr/letters/rich";
 import { applyPronouns, normalizeGender, type Gender } from "@/lib/hr/pronouns";
 import { applyFirm, HR_SIGNATORY } from "@/lib/hr/firm";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import {
   readCtcLetterPrefill,
   clearCtcLetterPrefill,
@@ -387,7 +387,7 @@ export function LetterEditor({
     richGetHtmlRef.current = getHtml;
   }, []);
 
-  const today = useMemo(() => formatDate(new Date()), []);
+  const today = useMemo(() => formatDateHr(new Date()), []);
 
   // Letters that carry their own editable `Date:` row in the body (Intern
   // Appointment, Confirmation, F&F…) must NOT also get the chrome's top-right
@@ -1548,7 +1548,7 @@ function Spans({ spans, ctx }: { spans: Span[]; ctx: RenderCtx }) {
  *  no input chrome, and an empty field simply disappears — the finished letter. */
 /** ISO "2026-08-15" → "15 August 2026" (what the letter body shows). */
 function isoToDisplayDate(iso: string): string {
-  return formatDate(iso); // canonical "07 AUG 2026" — stored + printed on the letter
+  return formatDateHr(iso); // canonical "07 AUG 2026" — stored + printed on the letter
 }
 
 /** "15 August 2026" (or any parseable date) → ISO "2026-08-15" for <input type=date>. */

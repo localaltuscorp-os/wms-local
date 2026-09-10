@@ -10,7 +10,7 @@ import {
   type InductionPerson,
 } from "@/app/(app)/hr/induction/actions";
 import { fireToast } from "@/lib/toast";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
@@ -98,7 +98,7 @@ export function InductionScreen({ people }: { people: InductionPerson[] }) {
 
 function InductionSummary({ data }: { data: InductionData }) {
   const submittedLabel = data.submittedAt
-    ? formatDate(data.submittedAt)
+    ? formatDateHr(data.submittedAt)
     : null;
 
   return (

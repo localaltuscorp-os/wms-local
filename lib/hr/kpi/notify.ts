@@ -4,7 +4,7 @@ import { notifications, type NotificationKind } from "@/db/schema";
 import { getResend, FROM, companyBcc, clampSubject } from "@/lib/email/resend";
 import { sendFcmToEmployee } from "@/lib/push/fcm";
 import { KPI_CHANGE_TYPE_LABELS, type KpiChangeType } from "@/db/enums";
-import { formatDate, localDateString } from "@/lib/format";
+import { formatDateHr, localDateString } from "@/lib/format";
 import { kpiNotificationsOn, KPI_NOTIFICATIONS_FLAG } from "./flag";
 
 /**
@@ -105,12 +105,12 @@ function fmtWhen(d: Date): string {
     minute: "2-digit",
     hour12: true,
   }).format(d);
-  return `${formatDate(localDateString("Asia/Kolkata", d))}, ${time}`;
+  return `${formatDateHr(localDateString("Asia/Kolkata", d))}, ${time}`;
 }
 
 /**
  * PURE + channel-agnostic. Turns an event into a subject + field pairs + HTML
- * body. No I/O — safe to call regardless of the gate (used by both the live send
+ * body. No I/O - safe to call regardless of the gate (used by both the live send
  * and the "would notify" log so the two never drift).
  */
 export function composeKpiMessage(event: KpiNotifyEvent): KpiComposedMessage {
@@ -124,20 +124,20 @@ export function composeKpiMessage(event: KpiNotifyEvent): KpiComposedMessage {
   const fields: Array<[string, string]> = [
     ["KPI", event.kpiName],
     ["Change", changeLabel],
-    ["Effective Quarter", event.effectiveQuarter || "—"],
+    ["Effective Quarter", event.effectiveQuarter || "-"],
     ["Weightage", `${event.weightage}`],
-    ["Target", event.target || "—"],
+    ["Target", event.target || "-"],
   ];
   if (isValueChange) {
-    fields.push(["Previous value", (event.previousValue ?? "").trim() || "—"]);
-    fields.push(["New value", (event.newValue ?? "").trim() || "—"]);
+    fields.push(["Previous value", (event.previousValue ?? "").trim() || "-"]);
+    fields.push(["New value", (event.newValue ?? "").trim() || "-"]);
   }
   fields.push(["Changed by", event.changedByName]);
   fields.push(["Date & time", fmtWhen(when)]);
   if (event.reason?.trim()) fields.push(["Reason", event.reason.trim()]);
 
   const subject = clampSubject(
-    `Your KPI "${event.kpiName}" was ${changeLabel.toLowerCase()} — Altus Corp`,
+    `Your KPI "${event.kpiName}" was ${changeLabel.toLowerCase()} - Altus Corp`,
   );
 
   // Compact, channel-agnostic strings for the in-app inbox row + push. Plain
@@ -145,7 +145,7 @@ export function composeKpiMessage(event: KpiNotifyEvent): KpiComposedMessage {
   const title = `Your KPI "${event.kpiName}" was ${changeLabel.toLowerCase()}`;
   const summaryBits = isValueChange
     ? [
-        `${(event.previousValue ?? "").trim() || "—"} → ${(event.newValue ?? "").trim() || "—"}`,
+        `${(event.previousValue ?? "").trim() || "-"} → ${(event.newValue ?? "").trim() || "-"}`,
         event.effectiveQuarter || null,
       ]
     : [
@@ -188,7 +188,7 @@ export function composeKpiMessage(event: KpiNotifyEvent): KpiComposedMessage {
 export interface KpiNotifyResult {
   /** Whether a live email actually went out. */
   sent: boolean;
-  /** Present when nothing was sent — why. */
+  /** Present when nothing was sent - why. */
   skipped?: "gated" | "no_recipient" | "resend_unconfigured" | "error";
   /** The recipient addresses the message targeted (office + personal if present). */
   recipients: string[];
@@ -197,13 +197,13 @@ export interface KpiNotifyResult {
 /**
  * Compose + (conditionally) dispatch a KPI change notification.
  *
- * GATED: when {@link kpiNotificationsOn} is false (default), NO email is sent —
+ * GATED: when {@link kpiNotificationsOn} is false (default), NO email is sent -
  * the engine composes the message and logs a "would notify" line so intent is
  * observable, then returns `{ sent:false, skipped:"gated" }`. The caller has
  * ALREADY recorded the append-only history row by the time this runs, so the
  * audit trail is complete whether or not mail is live.
  *
- * Never throws — a Resend outage must never fail the KPI mutation.
+ * Never throws - a Resend outage must never fail the KPI mutation.
  */
 export async function notifyKpiChange(event: KpiNotifyEvent): Promise<KpiNotifyResult> {
   const message = composeKpiMessage(event);
@@ -213,14 +213,14 @@ export async function notifyKpiChange(event: KpiNotifyEvent): Promise<KpiNotifyR
     .filter((e) => e.length > 0);
 
   if (recipients.length === 0) {
-    console.warn(`[kpi-notify] no recipient email for "${event.kpiName}" — skipped.`);
+    console.warn(`[kpi-notify] no recipient email for "${event.kpiName}" - skipped.`);
     return { sent: false, skipped: "no_recipient", recipients };
   }
 
   // GATE: default OFF. Record intent, do NOT send.
   if (!kpiNotificationsOn()) {
     console.info(
-      `[kpi-notify] GATED (${KPI_NOTIFICATIONS_FLAG}!=="true") — would notify ${recipients.join(", ")}: ${message.subject}`,
+      `[kpi-notify] GATED (${KPI_NOTIFICATIONS_FLAG}!=="true") - would notify ${recipients.join(", ")}: ${message.subject}`,
     );
     return { sent: false, skipped: "gated", recipients };
   }
@@ -228,7 +228,7 @@ export async function notifyKpiChange(event: KpiNotifyEvent): Promise<KpiNotifyR
   try {
     const resend = getResend();
     if (!resend) {
-      console.info(`[kpi-notify] RESEND unconfigured — would notify ${recipients.join(", ")}: ${message.subject}`);
+      console.info(`[kpi-notify] RESEND unconfigured - would notify ${recipients.join(", ")}: ${message.subject}`);
       return { sent: false, skipped: "resend_unconfigured", recipients };
     }
     const { error } = await resend.emails.send({
@@ -250,12 +250,12 @@ export async function notifyKpiChange(event: KpiNotifyEvent): Promise<KpiNotifyR
 }
 
 /* ------------------------------------------------------------------ */
-/* IN-APP channel — ON by default (non-intrusive inbox row)            */
+/* IN-APP channel - ON by default (non-intrusive inbox row)            */
 /* ------------------------------------------------------------------ */
 
 /**
  * Write the KPI change to the affected employee's in-app inbox by inserting a
- * row into the shared `notifications` table — the SAME path every other module
+ * row into the shared `notifications` table - the SAME path every other module
  * surfaces through (see lib/notifications/dispatch.ts). We insert directly
  * (rather than via `notify()`) precisely BECAUSE the KPI engine owns its own
  * per-channel gating: `notify()` would additionally route email/push through

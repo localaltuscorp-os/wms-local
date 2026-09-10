@@ -219,15 +219,32 @@ export function HrModuleRail({
                     {inner}
                   </Link>
                 ) : (
-                  <button
-                    type="button"
+                  /* A LIFECYCLE MODULE NAVIGATES TO ITS STAGE HUB.
+                     This was a <button> that only "previewed": it swapped
+                     column 2 and replaced the page with the ghost pane while
+                     leaving the URL on the page you came from. The result was a
+                     screen and an address bar that disagreed - standing on
+                     /hr/holidays and clicking Post-Interview showed the whole
+                     Post-Interview console under the holidays URL, and a
+                     refresh or a shared link then went somewhere else entirely.
+
+                     `/hr/<module.id>` IS the stage hub (module.id is the stage
+                     slug) and it renders exactly what the preview rendered - the
+                     step list plus the "choose a step" pane - so nothing about
+                     the view changes. Only the URL now tells the truth.
+
+                     onSelect still runs, so column 2 expands on click as before
+                     rather than waiting for the navigation to land. */
+                  <Link
+                    href={`/hr/${mod.id}` as Route}
                     onClick={() => onSelect(mod.id)}
+                    aria-current={onRoute ? "page" : undefined}
                     aria-expanded={selected}
                     title={mod.title}
                     className={className}
                   >
                     {inner}
-                  </button>
+                  </Link>
                 )}
               </li>
             );

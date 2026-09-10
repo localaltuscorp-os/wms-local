@@ -50,8 +50,8 @@ export type HrStageKey =
   | "pre-interview"
   | "post-interview"
   | "pre-joining"
-  | "post-joining"
   | "during"
+  | "appraisal"
   | "exit";
 
 export type HrItemKind = "doc" | "screen" | "link";
@@ -82,20 +82,20 @@ export const HR_STAGES: HrStage[] = [
     key: "pre-interview",
     slug: "pre-interview",
     title: "Pre-Interview",
-    blurb: "Everything before a candidate walks in — details and assessments.",
+    blurb: "Everything before a candidate walks in - details and assessments.",
     Icon: UserSearch,
     items: [
       { slug: "basic-details", label: "Candidate Interview Form", Icon: ContactRound, kind: "link", href: "/hr/intake", blurb: "Fill the candidate's interview details." },
       { slug: "first-assessment", label: "Candidate Evaluation Checklist", Icon: ClipboardList, kind: "link", href: "/hr/evaluation", blurb: "The interactive interview evaluation checklist." },
-      { slug: "management-assessment", label: "Management Assessment", Icon: Gauge, kind: "link", href: "/hr/management-assessment", blurb: "The management-round evaluation — notes, voice notes & attachments." },
-      { slug: "hiring-analytics", label: "Hiring Analytics", Icon: BarChart3, kind: "link", href: "/hr/hiring-analytics", blurb: "The executive read-out — pipeline, hire rate, scores & interview trends." },
+      { slug: "management-assessment", label: "Management Assessment", Icon: Gauge, kind: "link", href: "/hr/management-assessment", blurb: "The management-round evaluation - notes, voice notes & attachments." },
+      { slug: "hiring-analytics", label: "Hiring Analytics", Icon: BarChart3, kind: "link", href: "/hr/hiring-analytics", blurb: "The executive read-out - pipeline, hire rate, scores & interview trends." },
     ],
   },
   {
     key: "post-interview",
     slug: "post-interview",
     title: "Post-Interview",
-    blurb: "After the conversation — the decision and the letter that follows.",
+    blurb: "After the conversation - the decision and the letter that follows.",
     Icon: ClipboardCheck,
     items: [
       { slug: "candidate-records", label: "Candidate Records", Icon: Users, kind: "link", href: "/hr/candidates", blurb: "Every candidate whose interview form was filled." },
@@ -103,65 +103,75 @@ export const HR_STAGES: HrStage[] = [
       { slug: "reject-letter", label: "Rejection Letter", Icon: FileX2, kind: "doc", typeKey: "rejection", blurb: "A considerate decline." },
       { slug: "assignment-letter", label: "Assignment Needed Letter", Icon: FileText, kind: "doc", typeKey: "assignment", blurb: "Send a pre-hire assignment." },
       { slug: "next-round", label: "One More Interview Needed Letter", Icon: Repeat, kind: "doc", typeKey: "next-round", blurb: "Invite the candidate to another round." },
+      { slug: "acceptance-letter", label: "Acceptance Letter", Icon: Handshake, kind: "doc", typeKey: "acceptance", blurb: "The candidate's written acceptance of the offer." },
+      { slug: "free-training", label: "Free Training Letter", Icon: Award, kind: "doc", typeKey: "free-training", blurb: "Pre-employment training & evaluation letter." },
     ],
   },
   {
     key: "pre-joining",
     slug: "pre-joining",
     title: "Pre-Joining",
-    blurb: "Between offer and day one — appointment, CTC, policies and forms.",
+    blurb: "Between offer and day one - appointment, CTC, policies and forms.",
     Icon: DoorOpen,
     items: [
-      { slug: "acceptance-letter", label: "Acceptance Letter", Icon: Handshake, kind: "doc", typeKey: "acceptance", blurb: "The candidate's written acceptance of the offer." },
       { slug: "appointment-letter", label: "Appointment Letter", Icon: FileSignature, kind: "doc", typeKey: "appointment", blurb: "The formal appointment letter." },
       { slug: "intern-appointment", label: "Intern Appointment Letter", Icon: UserPlus, kind: "doc", typeKey: "intern-appointment", blurb: "The internship offer & appointment letter." },
-      { slug: "minor-intern-undertaking", label: "Undertaking — Minor Intern", Icon: ShieldCheck, kind: "doc", typeKey: "minor-internship-undertaking", blurb: "Parental-consent undertaking for a minor intern." },
+      { slug: "minor-intern-undertaking", label: "Undertaking - Minor Intern", Icon: ShieldCheck, kind: "doc", typeKey: "minor-internship-undertaking", blurb: "Parental-consent undertaking for a minor intern." },
       { slug: "ctc-breakup", label: "CTC Breakup", Icon: IndianRupee, kind: "link", href: "/hr/ctc", blurb: "Build the structured CTC breakup & compensation letters." },
       { slug: "all-policies-signatory", label: "Policy Signatures", Icon: ScrollText, kind: "link", href: "/hr?policies=1", blurb: "Every firm policy to acknowledge and sign." },
-      { slug: "employment-form", label: "Employment Form", Icon: ClipboardList, kind: "link", href: "/dossier/onboarding", blurb: "The joining data form — the full onboarding intake." },
-    ],
-  },
-  {
-    key: "post-joining",
-    slug: "post-joining",
-    title: "Post-Joining",
-    blurb: "The settled employee — induction, training, confirmation and appraisal.",
-    Icon: Briefcase,
-    items: [
-      { slug: "induction", label: "Induction", Icon: GraduationCap, kind: "link", href: "/hr/induction", blurb: "Confirm the new joiner's details — auto-filled from their onboarding form." },
-      { slug: "free-training", label: "Free Training Letter", Icon: Award, kind: "doc", typeKey: "free-training", blurb: "Pre-employment training & evaluation letter." },
-      { slug: "birthday-wishes", label: "Birthday Wishes", Icon: Cake, kind: "doc", typeKey: "birthday", blurb: "A warm birthday note from the team." },
-      { slug: "appraisal", label: "Appraisal Letter", Icon: Target, kind: "link", href: "/appraisal", blurb: "The live rolling scorecard & appraisal outcome." },
+      { slug: "employment-form", label: "Employment Form", Icon: ClipboardList, kind: "link", href: "/dossier/onboarding", blurb: "The joining data form - the full onboarding intake." },
     ],
   },
   {
     key: "during",
     slug: "during",
-    title: "During",
-    blurb: "The growing employee — increments, promotions, recognition and certificates during their tenure.",
+    title: "During Employment",
+    blurb: "The settled employee - induction, recognition and the day-to-day of a tenure.",
     Icon: Milestone,
     items: [
-      { slug: "increment", label: "Increment Letter", Icon: TrendingUp, kind: "doc", typeKey: "increment", blurb: "Revise compensation with a salary increment." },
-      { slug: "promotion", label: "Promotion Letter", Icon: Rocket, kind: "doc", typeKey: "promotion", blurb: "Elevate the employee to a new role." },
+      { slug: "induction", label: "Induction", Icon: GraduationCap, kind: "link", href: "/hr/induction", blurb: "Confirm the new joiner's details - auto-filled from their onboarding form." },
       { slug: "employee-of-the-month", label: "Employee of the Month", Icon: Trophy, kind: "doc", typeKey: "employee-of-the-month", blurb: "Recognise a standout performer." },
-      { slug: "end-of-probation", label: "End of Probation", Icon: BadgeCheck, kind: "doc", typeKey: "confirmation", blurb: "Confirm the employee on successful completion of probation." },
-      { slug: "letter-of-recommendation", label: "Letter of Recommendation", Icon: Star, kind: "doc", typeKey: "letter-of-recommendation", blurb: "A strong recommendation for the employee." },
+      { slug: "birthday-wishes", label: "Birthday Wishes", Icon: Cake, kind: "doc", typeKey: "birthday", blurb: "A warm birthday note from the team." },
       { slug: "resignation-rejection", label: "Resignation Rejection Letter", Icon: FileX2, kind: "doc", typeKey: "resignation-rejection", blurb: "Decline a resignation and retain the employee." },
-      { slug: "experience-letter", label: "Experience Letter", Icon: Award, kind: "doc", typeKey: "experience-letter", blurb: "Certify the employee's tenure & contribution." },
+    ],
+  },
+  {
+    key: "appraisal",
+    slug: "appraisal",
+    title: "Appraisal",
+    blurb: "Reward and progression - the appraisal outcome and every letter that follows it.",
+    Icon: Target,
+    items: [
+      { slug: "appraisal", label: "Appraisal Letter", Icon: Target, kind: "link", href: "/appraisal", blurb: "The live rolling scorecard & appraisal outcome." },
+      { slug: "increment", label: "Increment Letter", Icon: TrendingUp, kind: "doc", typeKey: "increment", blurb: "Revise compensation with a salary increment." },
+      // Both revised-CTC templates existed in the registry but were reachable
+      // from nowhere in the nav until this section gave them a home.
+      { slug: "appraisal-revised-ctc", label: "New CTC - Appraisal", Icon: IndianRupee, kind: "doc", typeKey: "appraisal-revised-ctc", blurb: "The revised CTC that follows an appraisal." },
+      { slug: "promotion-revised-ctc", label: "New CTC - Promotion", Icon: IndianRupee, kind: "doc", typeKey: "promotion-revised-ctc", blurb: "The revised CTC that follows a promotion." },
+      { slug: "end-of-probation", label: "End of Probation", Icon: BadgeCheck, kind: "doc", typeKey: "confirmation", blurb: "Confirm the employee on successful completion of probation." },
+      { slug: "promotion", label: "Promotion Letter", Icon: Rocket, kind: "doc", typeKey: "promotion", blurb: "Elevate the employee to a new role." },
     ],
   },
   {
     key: "exit",
     slug: "exit",
     title: "Exit",
-    blurb: "A clean separation — interview, settlement and closing documents.",
+    blurb: "A clean separation - interview, settlement and closing documents.",
     Icon: LogOut,
     items: [
-      { slug: "exit-interview", label: "Exit Interview & Handover", Icon: MessagesSquare, kind: "link", href: "/hr/exit", blurb: "The exit interview questionnaire & handover clearance checklist." },
+      { slug: "exit-interview", label: "Exit Interview & Handover", Icon: MessagesSquare, kind: "link", href: "/hr/exit/interview", blurb: "The exit interview questionnaire & handover clearance checklist." },
       { slug: "full-and-final", label: "Full & Final Settlement", Icon: Banknote, kind: "doc", typeKey: "ffs", blurb: "The full & final settlement letter." },
       { slug: "ffs-acknowledgement", label: "FFS Acknowledgement", Icon: FileSignature, kind: "doc", typeKey: "ffs-acknowledgement", blurb: "The employee's acknowledgement of the settlement." },
-      { slug: "relieving-letter", label: "Relieving Letter", Icon: FileText, kind: "doc", typeKey: "relieving", blurb: "Relieve the employee on their last day." },
-      { slug: "completion-certificate", label: "Certificate", Icon: BadgeCheck, kind: "screen", blurb: "Certificate of completion — to be authored." },
+      // The Relieving Letter IS the resignation acceptance - it is the written
+      // acceptance + Last Working Day confirmation that exit-policy §4.4
+      // describes. No separate "Resignation Acceptance" letter exists, by design.
+      { slug: "relieving-letter", label: "Relieving Letter", Icon: FileText, kind: "doc", typeKey: "relieving", blurb: "Accept the resignation and relieve the employee on their last day." },
+      { slug: "letter-of-recommendation", label: "Letter of Recommendation", Icon: Star, kind: "doc", typeKey: "letter-of-recommendation", blurb: "A strong recommendation for the employee." },
+      { slug: "experience-letter", label: "Experience Letter", Icon: Award, kind: "doc", typeKey: "experience-letter", blurb: "Certify the employee's tenure & contribution." },
+      // ⚠ Employee Certificate: the artwork/content is coming from Shreya Randhe
+      // (already built for the PS App, Consultant module). Until it lands this
+      // stays the placeholder screen it has always been - it is NOT authored.
+      { slug: "completion-certificate", label: "Employee Certificate", Icon: BadgeCheck, kind: "screen", blurb: "Certificate of completion - awaiting the PS App version." },
     ],
   },
 ];
