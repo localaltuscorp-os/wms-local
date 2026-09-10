@@ -14,6 +14,7 @@ import {
   Save,
   Undo2,
   ShieldCheck,
+  PenLine,
   Eye,
   EyeOff,
   Mail,
@@ -21,7 +22,6 @@ import {
   Calculator,
 } from "lucide-react";
 import { Letterhead } from "@/components/hr/letterhead/letterhead";
-import { FitToWidth } from "./fit-to-width";
 import { ENTITY_LIST, getEntity, type EntityId } from "@/lib/hr/entities";
 import {
   type LetterTemplate,
@@ -32,12 +32,18 @@ import {
   collectFields,
   hasBodyDateField,
   initialValues,
+  resolveSpans,
   signatoryOf,
   tableRowVisible,
 } from "@/lib/hr/letters/types";
 import { templateToRichHtml } from "@/lib/hr/letters/rich";
 import { applyPronouns, normalizeGender, type Gender } from "@/lib/hr/pronouns";
-import { applyFirm, HR_SIGNATORY } from "@/lib/hr/firm";
+import {
+  applyFirm,
+  HR_SIGNATORY,
+  HR_SIGNATURE_IMAGE,
+  PROPRIETOR_SIGNATURE_IMAGE,
+} from "@/lib/hr/firm";
 import { formatDateHr } from "@/lib/format";
 import {
   readCtcLetterPrefill,
@@ -81,6 +87,63 @@ const SIGNING_MODELS: { value: LetterSignature; label: string }[] = [
   { value: "esign", label: "E-Sign (DigiLocker)" },
 ];
 
+/** WHO signs the letter. "director" prints the proprietor's block + signature,
+ *  "hr" prints the HR desk's — see SignatureView and lib/hr/letters/pdf.ts. */
+const SIGNATORIES: { value: LetterSignatory; label: string }[] = [
+  { value: "director", label: "CA Manan Vasa" },
+  { value: "hr", label: "HR Team" },
+];
+
+/**
+ * Re-sign an already-ejected "Edit freely" document.
+ *
+ * In field mode the sign-off re-renders from state, so switching signatory is
+ * free. Once ejected, the sign-off is ordinary editable HTML — regenerating the
+ * whole document would throw away the user's edits. So swap ONLY the three
+ * things that identify the signatory, in place: the signature image, the
+ * printed name and the designation.
+ *
+ * Every old/new value is a known constant (HR_SIGNATORY / the template's own
+ * signature block), so the matching is exact rather than heuristic. If the user
+ * has hand-edited their sign-off, nothing matches and the document is returned
+ * untouched — better a no-op than mangling text they wrote themselves.
+ */
+function swapSignatoryInRichHtml(
+  html: string,
+  to: LetterSignatory,
+  directorName: string,
+  directorDesignation: string,
+): string {
+  if (!html || typeof window === "undefined" || typeof DOMParser === "undefined") return html;
+  const toHr = to === "hr";
+  const fromImg = toHr ? PROPRIETOR_SIGNATURE_IMAGE : HR_SIGNATURE_IMAGE;
+  const toImg = toHr ? HR_SIGNATURE_IMAGE : PROPRIETOR_SIGNATURE_IMAGE;
+  const fromName = toHr ? directorName : HR_SIGNATORY.name;
+  const toName = toHr ? HR_SIGNATORY.name : directorName;
+  const fromDesig = toHr ? directorDesignation : HR_SIGNATORY.designation;
+  const toDesig = toHr ? HR_SIGNATORY.designation : directorDesignation;
+
+  const doc = new DOMParser().parseFromString(html, "text/html");
+
+  for (const img of Array.from(doc.querySelectorAll("img"))) {
+    const src = img.getAttribute("src") ?? "";
+    if (src === fromImg || src.endsWith(fromImg)) img.setAttribute("src", toImg);
+  }
+  // The name prints inside a <strong>; set the TEXT rather than replacing the
+  // element, so its formatting survives.
+  if (fromName && toName) {
+    for (const el of Array.from(doc.querySelectorAll("strong"))) {
+      if ((el.textContent ?? "").trim() === fromName) el.textContent = toName;
+    }
+  }
+  if (fromDesig && toDesig) {
+    for (const el of Array.from(doc.querySelectorAll("p"))) {
+      if ((el.textContent ?? "").trim() === fromDesig) el.textContent = toDesig;
+    }
+  }
+  return doc.body.innerHTML;
+}
+
 export interface LetterRosterOption {
   id: string;
   name: string;
@@ -90,6 +153,65 @@ export interface LetterRosterOption {
   /** The employee's paying entity (from their salary profile) as an EntityId —
    *  picking them auto-selects the matching letterhead. Null → keep the default. */
   payingEntity?: EntityId | null;
+  /** Their department (legacy free-text column on `employees`). */
+  department?: string;
+  /** Number to call, falling back to WhatsApp. Empty when neither is recorded. */
+  phone?: string;
+  /** Postal address as a ready-made multi-line block, from their onboarding
+   *  submission. Empty when they have not submitted the form. */
+  addressBlock?: string;
+  /** Joining date already in the canonical letter format ("25 Jul 2026"). */
+  joiningDate?: string;
+}
+
+/**
+ * Map ONE employee onto the letter field ids they can answer.
+ *
+ * The picker used to fill a single name field — the first of `employeeName` /
+ * `name` / `candidateName` that a template happened to declare — so a letter
+ * naming its recipient anything else (the Relieving and Appointment letters use
+ * `recipientName`, the intern letters `internName`) got nothing, and address,
+ * phone, department and joining date were never filled at all.
+ *
+ * Every id here is a real field id in lib/hr/letters/templates (verified against
+ * the full set). The caller writes a value ONLY when the template declares that
+ * id AND the value is non-empty, so a template without the field is untouched
+ * and an employee missing a detail leaves that field blank for HR to type — it
+ * never writes an empty string over something, and never invents a value.
+ *
+ * DELIBERATELY NOT MAPPED, because these are decisions rather than facts about
+ * the person, and auto-filling them would put a wrong figure on a signed letter:
+ * `newDesignation`, `revisedCtc`, `previousCtc`, `effectiveDate`,
+ * `lastWorkingDate`, `salaryProbation`, `salaryConfirmed`, `stipend`.
+ */
+function employeeFieldValues(
+  emp: LetterRosterOption,
+  entityDisplayName: string,
+): Record<string, string> {
+  const name = (emp.name ?? "").trim();
+  const designation = (emp.designation ?? "").trim();
+  return {
+    // Who the letter is addressed to — every spelling used across the templates.
+    employeeName: name,
+    recipientName: name,
+    candidateName: name,
+    internName: name,
+    // Their role TODAY. `position` and `jobTitle` read as the current role on an
+    // employee letter; `newDesignation` is excluded on purpose (see above).
+    designation,
+    currentDesignation: designation,
+    jobTitle: designation,
+    position: designation,
+    department: (emp.department ?? "").trim(),
+    addressBlock: (emp.addressBlock ?? "").trim(),
+    contactNumber: (emp.phone ?? "").trim(),
+    phone: (emp.phone ?? "").trim(),
+    email: (emp.email ?? "").trim(),
+    joiningDate: (emp.joiningDate ?? "").trim(),
+    // The paying entity's display name, so "…at <company>" matches the
+    // letterhead the picker just selected.
+    company: entityDisplayName,
+  };
 }
 
 /** A submitted candidate the editor can quick-pick to seed the recipient name +
@@ -158,9 +280,17 @@ export function LetterEditor({
   const [sigImage, setSigImage] = useState<string | null>(null);
   const sigInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Who signs this letter (Director vs HR desk) + whether it's the CTC letter
-  // (which gets the percentage calculator panel).
-  const signatory = useMemo(() => signatoryOf(template), [template]);
+  // WHO SIGNS — seeded from the template's own rule (Director on the CTC
+  // Breakdown + Appointment letter, the HR desk elsewhere) but overridable from
+  // the toolbar, because the same letter is legitimately signed by either
+  // depending on who is issuing it. The choice is threaded all the way to the
+  // export + issue payloads: the PDF must never recompute a different signatory
+  // from the one HR approved on screen.
+  const [signatory, setSignatory] = useState<LetterSignatory>(() => signatoryOf(template));
+  // Re-seed when the template changes (navigating between letters).
+  useEffect(() => {
+    setSignatory(signatoryOf(template));
+  }, [template]);
   // The percentage calculator drives the structured CTC table — shown for every
   // letter that embeds it: CTC Breakup + Appraisal/Promotion revised-CTC.
   const isCtc =
@@ -276,18 +406,18 @@ export function LetterEditor({
       const emp = roster.find((r) => r.id === id);
       if (!emp) return;
       setEmployeeId(id);
-      const nameId =
-        fields.find((fl) => fl.id === "employeeName")?.id ??
-        fields.find((fl) => fl.id === "name")?.id ??
-        fields.find((fl) => fl.id === "candidateName")?.id;
-      const hasDesignation = fields.some((fl) => fl.id === "designation");
       const prefill = readCtcLetterPrefill();
       const applyPrefill = prefill && prefill.employeeId === id;
       const compValues = applyPrefill ? ctcComponentsToLetterValues(prefill.components) : {};
+      const autoFill = employeeFieldValues(emp, getEntity(emp.payingEntity ?? entity).displayName);
       setValues((prev) => {
         const next = { ...prev };
-        if (nameId && emp.name) next[nameId] = emp.name;
-        if (hasDesignation && emp.designation) next.designation = emp.designation;
+        // Fill EVERY field the employee can answer, not just the first name-ish
+        // one. Only ids the template actually declares are written, and only
+        // when the employee has a value — see employeeFieldValues.
+        for (const [k, v] of Object.entries(autoFill)) {
+          if (v && fields.some((fl) => fl.id === k)) next[k] = v;
+        }
         for (const [k, v] of Object.entries(compValues)) {
           if (fields.some((fl) => fl.id === k)) next[k] = v;
         }
@@ -302,7 +432,9 @@ export function LetterEditor({
       }
       setIssued(false);
     },
-    [roster, fields],
+    // `entity` is read only as the fallback for the "company" field when the
+    // employee has no paying entity of their own.
+    [roster, fields, entity],
   );
 
   // Pre-select from `?employee=<id>` exactly once, when the roster is loaded.
@@ -328,8 +460,35 @@ export function LetterEditor({
 
   /** Enter "Edit freely": resume from the saved override if there is one, else
    *  seed the TipTap editor fresh from the current fields. */
+  /** Re-sign the live "Edit freely" document when the signatory changes.
+   *  Swaps the mark, name and designation in the CURRENT html (keeping every
+   *  edit the user has made) and pushes it back as the editor's seed. */
+  const applyRichSignatory = useCallback(
+    (next: LetterSignatory) => {
+      const sigBlock = template.blocks.find((b) => b.kind === "signature");
+      // The Director side of the swap comes from the template's own signature
+      // block — that is where "CA Manan Vasa" / "Proprietor" are authored.
+      const directorName = sigBlock ? resolveSpans(sigBlock.name, values).trim() : "";
+      const directorDesignation = sigBlock?.designation
+        ? resolveSpans(sigBlock.designation, values).trim()
+        : "Proprietor";
+      const current = richGetHtmlRef.current?.() ?? richHtmlRef.current;
+      const swapped = swapSignatoryInRichHtml(
+        current,
+        next,
+        directorName,
+        directorDesignation,
+      );
+      if (swapped === current) return; // nothing matched — leave the doc alone
+      richHtmlRef.current = swapped;
+      setRichSeed(swapped);
+      setRichDirty(swapped !== richSavedRef.current);
+    },
+    [template, values],
+  );
+
   const enterRichMode = useCallback(() => {
-    const seed = savedRichHtml ?? templateToRichHtml(template, values, entity, gender);
+    const seed = savedRichHtml ?? templateToRichHtml(template, values, entity, gender, signatory);
     setRichSeed(seed);
     richHtmlRef.current = seed;
     richSavedRef.current = seed;
@@ -338,7 +497,7 @@ export function LetterEditor({
     setSigningModel(template.signature ?? "none");
     setIssued(false);
     setRichMode(true);
-  }, [template, values, entity, gender, savedRichHtml]);
+  }, [template, values, entity, gender, savedRichHtml, signatory]);
 
   /** Save the current free-edit as this letter's override (does NOT touch the
    *  shared template / main content). Keeps you in the editor. */
@@ -421,6 +580,7 @@ export function LetterEditor({
             gender,
             bodyHtml: currentRichHtml(),
             signingModel,
+            signatory,
             employeeId: employeeId || undefined,
             candidateName: employeeId ? undefined : recipientName || undefined,
             candidateEmail: employeeId ? undefined : recipientEmail || undefined,
@@ -434,6 +594,7 @@ export function LetterEditor({
             candidateName: employeeId ? undefined : recipientName || undefined,
             candidateEmail: employeeId ? undefined : recipientEmail || undefined,
             signatureImage: sigImage ?? undefined,
+            signatory,
           };
       const r = await fetch(url, {
         method: "POST",
@@ -491,6 +652,7 @@ export function LetterEditor({
             candidateName: employeeId ? undefined : recipientName || undefined,
             candidateEmail: employeeId ? undefined : recipientEmail || undefined,
             signatureImage: sigImage ?? undefined,
+            signatory,
           };
       const r = await fetch("/api/hr/letters/email-pdf", {
         method: "POST",
@@ -569,6 +731,7 @@ export function LetterEditor({
             employeeId: employeeId || undefined,
             candidateName: employeeId ? undefined : recipientName || undefined,
             signatureImage: sigImage ?? undefined,
+            signatory,
           };
       const r = await fetch("/api/hr/send-letter-email", {
         method: "POST",
@@ -673,6 +836,34 @@ export function LetterEditor({
             </select>
           </label>
         )}
+
+        {/* WHO SIGNS — on every letter, in BOTH modes.
+            In field mode the sign-off re-renders from this value. In free-edit
+            the sign-off is already baked into the editable HTML, so changing it
+            here swaps the signature image, name and designation IN PLACE
+            (swapSignatoryInRichHtml) instead of regenerating the document and
+            discarding the user's edits. */}
+        <label className="alw-pick">
+          <PenLine size={15} strokeWidth={2.2} aria-hidden />
+          <span className="alw-pick-label">Signed by</span>
+          <select
+            value={signatory}
+            onChange={(e) => {
+              const next = e.target.value as LetterSignatory;
+              setSignatory(next);
+              // Already ejected? Re-sign the live document in place.
+              if (richMode) applyRichSignatory(next);
+              setIssued(false);
+            }}
+            aria-label="Who signs this letter"
+          >
+            {SIGNATORIES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
         {richMode && isAdmin && (
           <label className="alw-pick">
@@ -822,20 +1013,20 @@ export function LetterEditor({
             ✎ Showing your saved free-edit for this letter. The field version (main content) is untouched - use
             &ldquo;Resume free edit&rdquo; to keep editing, or &ldquo;Discard free edit&rdquo; to revert.
           </div>
-          <FitToWidth className="alw-stage">
+          <div className="alw-stage">
             <Letterhead entity={entity}>
               {showHeaderDate && <div className="alw-date">{today}</div>}
               <div className="alw-rich-preview" dangerouslySetInnerHTML={{ __html: savedRichHtml }} />
             </Letterhead>
-          </FitToWidth>
+          </div>
         </>
       ) : (
-        <FitToWidth className="alw-stage">
+        <div className="alw-stage">
           <Letterhead entity={entity}>
             {showHeaderDate && <div className="alw-date">{today}</div>}
             {renderBlocks(template.blocks, ctx)}
           </Letterhead>
-        </FitToWidth>
+        </div>
       )}
 
       {/* ── "Send Email" composer ────────────────────────────────────── */}
@@ -1471,27 +1662,39 @@ function SignatureView({
 }) {
   const e = getEntity(ctx.entity);
   const isHr = ctx.signatory === "hr";
-  // A block that carries its OWN baked signature (e.g. the Selection letter's
-  // founder sign-off) prints its own name + designation, never the HR-desk block.
-  const baked = block.imageSrc;
-  const ownSignatory = Boolean(baked) || !isHr;
+  // A block may carry its OWN baked signature (the Selection letter's founder
+  // sign-off). That is a DIRECTOR-side signature, so it applies only when the
+  // Director signs: picking "HR Team" in the toolbar must win over it, or the
+  // choice would silently do nothing on exactly those templates.
+  const baked = isHr ? undefined : block.imageSrc;
+  // Whose NAME prints. HR always prints the HR desk's block; anything else
+  // prints the template's own name. (This used to be `Boolean(baked) || !isHr`,
+  // which kept the founder's name on screen even after switching to HR.)
+  const ownSignatory = !isHr;
   return (
     <div className="alw-sign">
       {block.forEntity && <p className="alw-sign-for">For {e.displayName}</p>}
-      {/* Signature image: an uploaded scanned signature wins; else a per-letter
-          baked signature; else the proprietor signature for Director letters. HR
-          letters with none leave a blank signing space. */}
+      {/* Signature image, in the SAME precedence the PDF renderers use (see
+          public/signatures/README.txt): an uploaded scan wins, then a
+          per-template baked signature, then the standing signature for whoever
+          signs — the proprietor for Director letters, the HR desk otherwise.
+          Only if that file is missing is a blank strip reserved.
+          HR letters used to fall straight through to the blank strip HERE while
+          pdf.ts and rich.ts both stamped HR_SIGNATURE_IMAGE, so the preview
+          showed an unsigned letter and the issued PDF came out signed. */}
       {ctx.signatureImage ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img className="alw-sign-img" src={ctx.signatureImage} alt="Signature" />
       ) : baked ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img className="alw-sign-img" src={baked} alt="Signature" />
-      ) : !isHr ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img className="alw-sign-img" src="/signatures/proprietor-signature.jpg" alt="Signature" />
       ) : (
-        <div className="alw-sign-space" aria-hidden />
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          className="alw-sign-img"
+          src={isHr ? HR_SIGNATURE_IMAGE : "/signatures/proprietor-signature.jpg"}
+          alt="Signature"
+        />
       )}
       <p className="alw-sign-name">
         {ownSignatory ? <Spans spans={block.name} ctx={ctx} /> : HR_SIGNATORY.name}
@@ -1742,7 +1945,26 @@ const EDITOR_CSS = `
   cursor:pointer;
 }
 .alw-pick select:focus{outline:none;border-color:${RED};box-shadow:0 0 0 3px rgba(225,6,0,.14);}
-.alw-actions{margin-left:8px;display:flex;flex-wrap:nowrap;flex-shrink:0;gap:5px;align-items:center;}
+/* Buttons line up with the SELECT BOXES, not with the whole picker.
+   Each .alw-pick is a column — a small uppercase caption above its select — so
+   centring the actions against the pair floated them roughly half the caption's
+   height too high, and the row read as misaligned. 'align-self:flex-end' drops
+   them to the row's baseline, which is the selects' bottom edge, and keeps
+   matching if the caption's size ever changes. */
+/* The ACTION cluster, held clearly apart from the pickers to its left.
+   8px of margin was not enough separation once a third picker appeared: the
+   buttons ran straight on from the last select and the whole bar read as one
+   cramped row. A wider gap plus a hairline rule groups it as "settings on the
+   left, actions on the right" at a glance. The rule is drawn on the padding
+   edge so it spans the selects' height, not the buttons'. */
+.alw-actions{
+  margin-left:14px;padding-left:14px;
+  border-left:1px solid var(--color-hairline, #e2e8f0);
+  /* stretch = the rule spans the row's full height; flex-end = the BUTTONS
+     still sit on the selects' baseline rather than centred against the
+     caption+select pair, which is what read as misaligned. */
+  display:flex;flex-wrap:nowrap;flex-shrink:0;gap:5px;align-items:flex-end;align-self:stretch;
+}
 .alw-btn{
   display:inline-flex;align-items:center;gap:4px;white-space:nowrap;
   padding:6px 8px;border-radius:9px;
@@ -1773,12 +1995,20 @@ const EDITOR_CSS = `
 }
 .alw-rich-loading svg{color:${RED};}
 
-/* Stage - centres the A4 page */
-/* The measuring host for <FitToWidth>. BLOCK, not a centring flex row: the
-   sheet now fills this box exactly, and a flex row would let the scaled
-   child influence the width we measure. */
-.alw-stage{display:block;padding-bottom:40px;}
-.alw-fit{transform-origin:top left;}
+/* Stage - centres the A4 page.
+   ── ALWAYS A4, NEVER SCALED ─────────────────────────────────────────────
+   The sheet used to be wrapped in <FitToWidth>, which measured this box and
+   applied a 'zoom' so the page exactly filled the available width. That made
+   the letter grow and shrink with the window, the rail and the sidebars, so
+   what HR saw was never the size it printed at. The wrapper is gone: the sheet
+   renders at its true 794px (210mm at 96dpi) and simply centres via its own
+   'margin:0 auto'. When the pane is narrower than the sheet, scroll it - do
+   NOT shrink it, or the preview stops matching the paper again.
+   'max-width:none' overrides the 'max-width:100%' on .alh-page, which is right
+   for a policy that reflows but would squash a letter below A4 here. Scoped to
+   the letter stage so the shared letterhead frame is untouched elsewhere. */
+.alw-stage{display:block;padding-bottom:40px;overflow-x:auto;}
+.alw-stage .alh-page{max-width:none;}
 
 /* Body typography inside the letterhead */
 .alw-date{
@@ -2056,9 +2286,8 @@ const EDITOR_CSS = `
 /* Print - only the paper */
 @media print{
   .no-print{display:none !important;}
-  .alw-stage{padding:0;}
-  /* A true A4 page on paper, whatever the screen was scaled to. */
-  .alw-fit{zoom:1 !important;}
+  /* No scroll box on paper — the stage must not clip the sheet it contains. */
+  .alw-stage{padding:0;overflow:visible;}
   .alw-input{border-bottom:none;background:transparent;color:var(--color-ink-strong,#0f172a);}
   /* Never print the grey "fill this in" placeholders - an unfilled field is blank. */
   .alw-input::placeholder{color:transparent !important;}
@@ -2069,6 +2298,30 @@ const EDITOR_CSS = `
   }
   /* Don't split a table row across a page break. */
   .alw-table tr{break-inside:avoid;}
+  /* Repeat the column headers when a long table continues onto the next page. */
+  .alw-table thead{display:table-header-group;}
+  /* ── Keep-together rules for the structured letter ──────────────────────
+     The letter body is one continuous flow; the browser cuts it wherever the
+     content crosses the page box unless told otherwise. Without these, the
+     sign-off tore in half — "For <entity>" and the blank signing space stayed
+     on page 1 while the name, designation, Date and Place fell to page 2.
+     Mirrors the semantic rules in letterhead.tsx for the rich/PDF path; these
+     are the class-level equivalents for the block renderers above. */
+  /* The sign-off is ONE unit — never cut it. */
+  .alw-sign{break-inside:avoid;}
+  /* "Warm regards," belongs with the sign-off it introduces. */
+  .alw-p:has(+ .alw-sign){break-after:avoid;}
+  /* A heading is worthless at the foot of a page — keep it with its text. */
+  .alw-heading{break-after:avoid;break-inside:avoid;}
+  /* Never strand a single line of a paragraph at a page edge. */
+  .alw-p{orphans:3;widows:3;}
+  /* A term row (Label : value) is a unit, as is a bullet. A run of terms is
+     rendered by TermTable as a real 2-column table, so the row is its <tr> —
+     the table itself may still span pages, one whole row at a time. */
+  .alw-termtable tr,.alw-ul li{break-inside:avoid;}
+  /* The wrapper must not become a break boundary of its own — a long table
+     still needs to flow across pages, row by row. */
+  .alw-tablewrap{break-inside:auto;}
 }
 `;
 

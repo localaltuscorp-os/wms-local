@@ -84,7 +84,6 @@ import {
 } from "lucide-react";
 
 import { Letterhead } from "@/components/hr/letterhead/letterhead";
-import { FitToWidth } from "./fit-to-width";
 import { uploadLetterImage } from "@/app/(app)/hr/candidate-actions";
 import { fireToast } from "@/lib/toast";
 import { letterFontGroups, letterFontStack } from "@/lib/hr/letters/fonts";
@@ -1111,7 +1110,7 @@ export function RichLetterEditor({
         <div className="rle-pagecount no-print" aria-live="polite">
           {breakYs.length + 1} {breakYs.length + 1 === 1 ? "page" : "pages"}
         </div>
-        <FitToWidth className="rle-stage">
+        <div className="rle-stage">
           <Letterhead entity={entity}>
             {/* Continuous body + overlaid page-break guides. The guides bleed to
                 the sheet edges (−70px cancels the body's side padding) and sit on
@@ -1130,7 +1129,7 @@ export function RichLetterEditor({
               ))}
             </div>
           </Letterhead>
-        </FitToWidth>
+        </div>
       </div>
     </div>
   );
@@ -1317,9 +1316,17 @@ const RLE_CSS = `
 /* Page scroller - a block container; the A4 sheet centres itself via its own
    margin:0 auto, which lets the page-count badge sticky-float at the top-right. */
 .rle-page-scroll{position:relative;overflow:auto;padding:4px 0 40px;}
-/* Measuring host for <FitToWidth> - see components/hr/letters/fit-to-width.tsx. */
+/* ── ALWAYS A4, NEVER SCALED ───────────────────────────────────────────────
+   The sheet was wrapped in <FitToWidth>, which 'zoom'ed it to fill whatever
+   width this pane happened to have, so the letter resized with the window and
+   the preview never matched the printed page. That wrapper is gone: the sheet
+   renders at its true 794px and centres on its own 'margin:0 auto', and
+   .rle-page-scroll above already scrolls when the pane is narrower than the
+   sheet. 'max-width:none' beats the 'max-width:100%' on .alh-page, which suits
+   a reflowing policy but would squash a letter below A4; scoped here so the
+   shared letterhead frame is unchanged for every other surface. */
 .rle-stage{display:block;}
-.alw-fit{transform-origin:top left;}
+.rle-stage .alh-page{max-width:none;}
 .rle-pagecount{
   position:sticky;top:8px;z-index:6;width:max-content;margin:0 16px 2px auto;
   padding:3px 11px;border-radius:999px;background:rgba(15,23,42,.74);color:#fff;
@@ -1430,7 +1437,5 @@ const RLE_CSS = `
   .no-print{display:none !important;}
   .rle-root{gap:0;}
   .rle-page-scroll{overflow:visible;padding:0;display:block;}
-  /* A true A4 page on paper, whatever the screen was scaled to. */
-  .alw-fit{zoom:1 !important;}
 }
 `;

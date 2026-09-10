@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { workspaceForPath } from "@/lib/workspaces";
 import { PageChromeSlotsProvider } from "@/components/layout/page-chrome-slots";
+import { InsetTopBarProvider } from "@/components/layout/inset-top-bar";
 
 /**
  * Decides the app chrome CLIENT-side so it stays correct across SOFT navigations.
@@ -117,8 +118,22 @@ export function ChromeShell({
             and its own controls up into the bar, and the two are siblings, so a
             context above both is their only meeting point. */}
         <PageChromeSlotsProvider>
-          {bar}
-          {children}
+          {isHrFullBleed ? (
+            /* The HR console carries its OWN left rail inside `children`, so a
+               bar rendered here would sit ON TOP of that rail — a full-width
+               strip across the screen, the rail's controls pushed down below
+               it, and the page's title floating above the rail instead of
+               above the page. Hand the bar down instead: HrConsoleShell drops
+               it at the top of its CONTENT column, which is where every other
+               module's bar starts, and the rail then runs the full height of
+               the viewport like every other module's rail. */
+            <InsetTopBarProvider bar={bar}>{children}</InsetTopBarProvider>
+          ) : (
+            <>
+              {bar}
+              {children}
+            </>
+          )}
         </PageChromeSlotsProvider>
         {dock}
       </div>

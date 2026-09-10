@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import {
@@ -12,6 +12,7 @@ import type { Route } from "next";
 import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/firebase/client";
 import { wasPasswordResetByAdmin } from "@/app/(auth)/login/actions";
+import { resetBrowserSessionId } from "@/lib/ecos/browser-session";
 
 /**
  * Canva-style login: a compact dark card form. Same Firebase email/password +
@@ -76,6 +77,15 @@ export function LoginFormCanva() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Broadcasts (0215): closing a broadcast popup with its X snoozes it "until
+  // next login", and the marker for a login is this browser-session id. Being
+  // on the sign-in screen IS the next login, so clearing it here is what makes
+  // a snoozed announcement come back — including for someone who signs out and
+  // straight back in without ever closing the tab.
+  useEffect(() => {
+    resetBrowserSessionId();
+  }, []);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();

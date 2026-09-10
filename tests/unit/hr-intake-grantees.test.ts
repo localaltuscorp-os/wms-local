@@ -50,8 +50,31 @@ describe("HR intake grantees", () => {
     expect(isHrIntakeGrantee("rutvishamehta.altuscorp@gmail.com")).toBe(false);
   });
 
-  it("does not silently overlap the super-admin list", () => {
-    for (const e of SUPER_ADMIN_EMAILS) expect(isHrIntakeGrantee(e)).toBe(false);
+  it("is a grant in its OWN right, never inherited from super-admin", () => {
+    // OVERLAP IS ALLOWED, and one person really is on both lists: Rohan
+    // Choudhary is a super-admin AND named here. This test used to assert the
+    // two lists were disjoint, which was never a decision anyone made - it was
+    // an assumption that happened to hold in the repo the list was first
+    // written in, and it broke the moment the real roster arrived.
+    //
+    // What actually matters is the direction of the grant: HR intake is granted
+    // by BEING ON THIS LIST, never by holding some other power. So a super-admin
+    // who is NOT named here must still be refused - otherwise the list stops
+    // describing who can fill these forms, and removing someone from it would
+    // silently do nothing.
+    const named = new Set<string>(HR_INTAKE_EMAILS);
+    const unnamedSuperAdmins = SUPER_ADMIN_EMAILS.filter((e) => !named.has(e.toLowerCase()));
+    expect(unnamedSuperAdmins.length).toBeGreaterThan(0); // guard: not a vacuous pass
+    for (const e of unnamedSuperAdmins) {
+      expect(isHrIntakeGrantee(e), `${e} is a super-admin but not on the HR list`).toBe(false);
+    }
+  });
+
+  it("keeps the overlap explicit, so it survives losing super-admin", () => {
+    // Rohan's HR access stands on this list alone. If his super-admin status is
+    // ever revoked he keeps it - which is the point of naming him here rather
+    // than relying on the broader power.
+    expect(isHrIntakeGrantee("rohanchoudhary.altuscorp@gmail.com")).toBe(true);
   });
 
   it("uses addresses that match the roster, so a grant can't point at nobody", () => {
