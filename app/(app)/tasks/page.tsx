@@ -64,9 +64,24 @@ export default async function TasksPage({ searchParams }: PageProps) {
   // Everything else — date window, assignee, department, subject, client,
   // archived — is deliberately KEPT, because those are the scope the pills are
   // meant to describe.
-  const scopeFilters: TaskListFilters = { ...filters, statuses: [], priorities: [] };
+  // `unread` IS ONE OF THE STRIPPED DIMENSIONS. It was added later, as the
+  // third thing a summary pill can select ("Not Read" is "pending AND never
+  // opened", which no status enum value expresses), and this pair was never
+  // taught about it. The consequence was the whole bug this strip exists to
+  // prevent, reappearing on exactly one pill: clicking Not Read leaves
+  // `statuses` and `priorities` EMPTY, so `sameScope` read true, the second
+  // query was skipped as redundant, and every pill was counted over the
+  // unread-filtered rows — Done, Approved and Not Approved all dropping to 0
+  // while Pending and Critical collapsed onto Not Read's own total. Every other
+  // pill was fine, because every other pill sets a status or a priority.
+  const scopeFilters: TaskListFilters = {
+    ...filters,
+    statuses: [],
+    priorities: [],
+    unread: false,
+  };
   const sameScope =
-    filters.statuses.length === 0 && filters.priorities.length === 0;
+    filters.statuses.length === 0 && filters.priorities.length === 0 && !filters.unread;
 
   const [allEmployees, rows, scopeRows, subjects, clients, statusDisplay, weeklyGoals] =
     await Promise.all([

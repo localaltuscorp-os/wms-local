@@ -366,9 +366,18 @@ function HoverPreview({
   const WIDTH = 460;
   const GAP = 16; // clearance so the card never sits under the pointer
 
-  // Sits ABOVE the cursor by default and flips below only when there isn't room
-  // — near the top of the viewport an always-above card would be clipped.
-  const above = cursor.y > 240;
+  // BELOW THE CURSOR BY DEFAULT. It was above whenever the pointer sat more
+  // than 240px down the page — which is most of the time — so the card covered
+  // the rows you had just scanned to reach this one. Preview what you are
+  // pointing at, not what is above it.
+  //
+  // Flips up only for a pointer near the bottom of the window, where a card
+  // below would be cut off AND there is genuinely more room the other way.
+  // RESERVE is a reserve, not a measurement: the card wraps to its content and
+  // is not in the DOM when this runs.
+  const RESERVE = 260;
+  const spaceBelow = window.innerHeight - cursor.y;
+  const above = spaceBelow < RESERVE && cursor.y > spaceBelow;
   const left = Math.max(12, Math.min(cursor.x - WIDTH / 2, window.innerWidth - WIDTH - 12));
 
   return createPortal(

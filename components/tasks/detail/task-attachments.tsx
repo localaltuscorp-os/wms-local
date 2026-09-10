@@ -44,7 +44,7 @@ function FileTypeIcon({ mime }: { mime: string | null }) {
 }
 
 /** The hovered image and where on screen to hang its preview. */
-type Preview = { id: string; url: string; name: string; left: number; top: number };
+type Preview = { id: string; url: string; name: string; left: number; top: number; below: boolean };
 
 export function TaskAttachments({
   taskId,
@@ -63,24 +63,58 @@ export function TaskAttachments({
 
   function handleFiles(fileList: FileList | null) {
     const file = fileList?.[0];
+    // CLEAR THE PICKER NOW, before any await — not on the way out.
+    //
+    // A file input fires `change` only when its value actually CHANGES, so
+    // leaving the last pick sitting in it makes re-selecting the SAME file a
+    // silent no-op: the dialog opens, you choose the file, and literally
+    // nothing happens. That is what a failed first attempt looked like from
+    // the outside, because the old reset ran only on paths that returned —
+    // never on the ones that threw. Resetting up front means every path,
+    // including the ones that blow up, leaves the control ready for the next
+    // pick.
+    if (fileRef.current) fileRef.current.value = "";
     if (!file) return;
     const fd = new FormData();
     fd.set("taskId", taskId);
     fd.set("file", file);
     setUploading(true);
     startTransition(async () => {
-      const res = await uploadTaskAttachment(fd);
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
-      if (!res.ok) {
-        fireToast({ message: res.error, type: "error" });
-        return;
+      try {
+        const res = await uploadTaskAttachment(fd);
+        if (!res.ok) {
+          fireToast({ message: res.error, type: "error" });
+          return;
+        }
+        router.refresh();
+      } catch {
+        // A THROW IS NOT A RETURNED ERROR, and this call site only handled the
+        // second kind. The action REJECTS when the request never reaches it at
+        // all — the host's own request-body cap (Vercel rejects around 4.5 MB,
+        // far below the 20 MB the action itself allows), a dropped connection,
+        // a 500 from the framework. Unhandled, that left `uploading` stuck true
+        // forever: the tile read "Uploading…", stayed `disabled` so it could not
+        // even be clicked again, and explained nothing. The only way out was a
+        // page reload, which is why this reads as "I can't attach files" rather
+        // than as one upload that failed.
+        fireToast({
+          message: `Could not upload "${file.name}" — the server did not accept the request. If it is a large file, try one under 4 MB.`,
+          type: "error",
+        });
+      } finally {
+        // Whatever happened, the tile goes back to being a button.
+        setUploading(false);
       }
-      router.refresh();
     });
   }
 
   function handleDelete(id: string) {
+    // DROP THE PREVIEW FIRST. Deleting unmounts the card while the pointer is
+    // still resting on it, so its `onMouseLeave` — the only thing that used to
+    // clear this — never fires. The lightbox is `fixed`, so it does not go with
+    // its card: it stayed pinned mid-screen, showing an image that no longer
+    // exists, until you happened to hover another attachment.
+    setPreview((prev) => (prev?.id === id ? null : prev));
     startTransition(async () => {
       const res = await deleteTaskAttachment(id);
       if (!res.ok) {
@@ -93,23 +127,34 @@ export function TaskAttachments({
 
   const isEmpty = items.length === 0;
 
+  // A PREVIEW MAY NEVER OUTLIVE ITS ROW. The clear above handles the delete
+  // this component started, but not a row that disappears any other way — a
+  // refresh landing someone else's delete, or a re-render that drops it. Both
+  // leave the same orphaned popover, so the render reads through `items` rather
+  // than trusting the stored id, and the state can only ever paint something
+  // that is still on screen. The signed URL is dead the moment the object is,
+  // so a stale preview could not render anything but a broken image anyway.
+  const livePreview = preview && items.some((a) => a.id === preview.id) ? preview : null;
+
   return (
     <section className="rounded-2xl border border-[#EBE7E0] bg-white p-4 shadow-xs">
       {/* Hover lightbox. `pointer-events-none` so it can never sit between the
           cursor and the card that spawned it — which would flicker it on and
           off as the two fought over the pointer. */}
-      {preview && (
+      {livePreview && (
         <div
-          className="pointer-events-none fixed z-[80] w-64 -translate-x-1/2 -translate-y-full rounded-xl border border-[#EBE7E0] bg-white p-1.5 shadow-2xl"
-          style={{ left: preview.left, top: preview.top - 8 }}
+          className={`pointer-events-none fixed z-[80] w-64 -translate-x-1/2 rounded-xl border border-[#EBE7E0] bg-white p-1.5 shadow-2xl${
+            livePreview.below ? "" : " -translate-y-full"
+          }`}
+          style={{ left: livePreview.left, top: livePreview.top + (livePreview.below ? 8 : -8) }}
         >
           <img
-            src={preview.url}
+            src={livePreview.url}
             alt=""
             className="h-40 w-full rounded-lg bg-[#F7F4EF] object-contain"
           />
-          <p className="truncate px-1 pt-1.5 text-[11px] font-medium text-slate-500" title={preview.name}>
-            {preview.name}
+          <p className="truncate px-1 pt-1.5 text-[11px] font-medium text-slate-500" title={livePreview.name}>
+            {livePreview.name}
           </p>
         </div>
       )}
@@ -140,12 +185,18 @@ export function TaskAttachments({
               onMouseEnter={(e) => {
                 if (!att.mime?.startsWith("image/") || !att.url) return;
                 const r = e.currentTarget.getBoundingClientRect();
+                // BELOW THE CARD by default, like every other hover in the
+                // app. Flips up only when the ~220px bubble would run past the
+                // bottom of the window and there is more room above.
+                const TIP_H = 220;
+                const below = window.innerHeight - r.bottom >= TIP_H || r.top < TIP_H;
                 setPreview({
                   id: att.id,
                   url: att.url,
                   name: att.fileName,
                   left: r.left + r.width / 2,
-                  top: r.top,
+                  top: below ? r.bottom : r.top,
+                  below,
                 });
               }}
               onMouseLeave={() => setPreview((prev) => (prev?.id === att.id ? null : prev))}

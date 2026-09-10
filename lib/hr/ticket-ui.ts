@@ -4,7 +4,7 @@
  * in db/enums.ts (pure constants, safe to import on the client).
  */
 import type { HrTicketPriority, HrTicketStatus, HrTicketCategory } from "@/db/enums";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 
 export const STATUS_TONE: Record<HrTicketStatus, { bg: string; fg: string; dot: string }> = {
   new: { bg: "#E106061a", fg: "#A80400", dot: "#E10600" },
@@ -44,7 +44,7 @@ export function relTime(d: Date | string): string {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.round(hrs / 24);
   if (days < 30) return `${days}d ago`;
-  return formatDate(t);
+  return formatDateHr(t);
 }
 
 /** SLA countdown label for an open ticket, or null when not applicable. */

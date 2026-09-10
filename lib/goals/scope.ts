@@ -72,3 +72,47 @@ export async function loadManageableGoalRow(
   if (!isManager) return { ok: false, error: "Only a manager or admin can do that" };
   return { ok: true, row };
 }
+
+/**
+ * Load a cascade goal and require the signed-in user may APPROVE it — set the
+ * Approved % and the approver notes.
+ *
+ * WIDER THAN `loadManageableGoalRow` BY EXACTLY ONE PERSON: whoever RAISED the
+ * goal (`created_by_id`). The manager tier alone could not express the ordinary
+ * case where someone sets a goal for themselves — `canReview` is false when you
+ * are looking at your own board, so a self-raised goal had a Self % you could
+ * fill in and an Approved % that nobody on earth could, and it sat unreviewed
+ * for good.
+ *
+ * The initiator is the right second key because it is the same person the
+ * approval is FOR: they asked for the work, so they are the one entitled to say
+ * how much of it they accept. When initiator and owner are the same human that
+ * hands the owner their own approval, which is the intent. When someone else
+ * raised it, the owner is NOT the initiator and this returns false for them —
+ * a doer still cannot approve work that was assigned to them.
+ *
+ * Managers keep their authority regardless; this is additive, so nothing that
+ * could be approved before stops being approvable.
+ */
+export async function loadApprovableGoalRow(
+  id: string,
+  me: { id: string; isAdmin: boolean; email: string },
+): Promise<LoadResult> {
+  const [row] = await db.select().from(goals).where(eq(goals.id, id)).limit(1);
+  if (!row) return { ok: false, error: "Goal not found" };
+  const scope = await goalScopeFor(me);
+  const isManager =
+    me.isAdmin ||
+    isSuperAdmin(me.email) ||
+    (row.employeeId !== me.id && scope.ids.includes(row.employeeId));
+  // `created_by_id` is nullable — rows predating it, or seeded ones, have no
+  // initiator on record, and a null must never match a null.
+  const isInitiator = row.createdById != null && row.createdById === me.id;
+  if (!isManager && !isInitiator) {
+    return {
+      ok: false,
+      error: "Only the goal's initiator, their manager or an admin can approve that",
+    };
+  }
+  return { ok: true, row };
+}

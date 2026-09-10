@@ -759,7 +759,7 @@ function SectionHeader({
   icon,
   title,
   subtitle,
-  accent = "var(--color-altus-red-deep)",
+  accent = "var(--color-altus-red)",
   trailing,
 }: {
   icon: React.ReactNode;
@@ -1137,7 +1137,6 @@ function QuarterPanel({
           icon={<LineChart size={17} strokeWidth={2.2} />}
           title="Goals by quarter"
           subtitle="Adopted goal count, quarter by quarter"
-          accent={BLUE}
         />
         {!hasAny ? (
           <p className="py-6 text-center text-[13px] font-semibold text-ink-subtle">
@@ -1207,7 +1206,6 @@ function AtRiskList({ rows, total }: { rows: Row[]; total: number }) {
           icon={<AlertTriangle size={17} strokeWidth={2.2} />}
           title="Needs attention"
           subtitle="Worst pace gap first"
-          accent={RED}
           trailing={
             <span
               className="rounded-pill px-2 py-0.5 text-[11.5px] font-black tabular-nums text-white"
@@ -1326,7 +1324,6 @@ function CoveragePanel({
         icon={<GitBranch size={17} strokeWidth={2.2} />}
         title="Cascade coverage"
         subtitle={`Which goals are broken down into ${child} goals`}
-        accent={BLUE}
       />
 
       <div className="grid grid-cols-[auto_1fr] items-center gap-6 max-sm:grid-cols-1 max-sm:justify-items-center">
@@ -1505,7 +1502,6 @@ function OwnershipPanel({ model }: { model: Model }) {
         icon={<Users size={17} strokeWidth={2.2} />}
         title="Ownership"
         subtitle="Who owns, delegates, and reviews these goals"
-        accent={BLUE}
       />
 
       <div className="grid grid-cols-3 gap-2">
@@ -1532,7 +1528,7 @@ function DelegatedByPersonPanel({ delegation }: { delegation: DelegationStats })
   const bars: HBarRow[] = delegation.byPerson.slice(0, 8).map((p) => ({ label: p.name, value: p.goalCount, color: BLUE }));
   return (
     <section className="wg-rise rounded-2xl px-5 py-4" style={PANEL}>
-      <SectionHeader icon={<Users size={17} strokeWidth={2.2} />} title="Delegated by person" subtitle="Who's carrying delegated goals" accent={BLUE} />
+      <SectionHeader icon={<Users size={17} strokeWidth={2.2} />} title="Delegated by person" subtitle="Who's carrying delegated goals" />
       <HBars data={bars} height={Math.max(60, bars.length * 36)} rightLabel={(row) => `${row.value} goal${row.value === 1 ? "" : "s"}`} />
     </section>
   );
@@ -1545,7 +1541,7 @@ function DelegateSharePanel({ delegation }: { delegation: DelegationStats }) {
     .map((p) => ({ label: p.name, value: p.avgSharePct, color: ORANGE }));
   return (
     <section className="wg-rise rounded-2xl px-5 py-4" style={PANEL}>
-      <SectionHeader icon={<Share2 size={17} strokeWidth={2.2} />} title="Delegate share %" subtitle="Average share held per delegate" accent={ORANGE} />
+      <SectionHeader icon={<Share2 size={17} strokeWidth={2.2} />} title="Delegate share %" subtitle="Average share held per delegate" />
       <HBars data={bars} height={Math.max(60, bars.length * 36)} maxValue={100} rightLabel={(row) => `${row.value}%`} />
     </section>
   );

@@ -50,8 +50,12 @@ export async function GET(req: Request) {
   // route serves dossier DOCUMENTS, which stay admin-managed. Mirroring isAdmin
   // here keeps the literal honest without granting the mobile client anything
   // new — every check below still reads `canAccessEmployeeDossier`.
+  // `isIntake` is false for the same reason: the narrow HR-intake grant covers
+  // the onboarding FORM, which this route does not serve. Setting it true would
+  // change nothing (canAccessEmployeeDossier ignores it) but would misdescribe
+  // what the caller is allowed to do here.
   const admin = me.isAdmin || isSuperAdmin(me.email);
-  const access: DossierAccess = { me, isAdmin: admin, isHr: admin };
+  const access: DossierAccess = { me, isAdmin: admin, isHr: admin, isIntake: false };
 
   const url = new URL(req.url);
   const employeeId = url.searchParams.get("employeeId");

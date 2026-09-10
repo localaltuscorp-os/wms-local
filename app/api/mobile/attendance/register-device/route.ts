@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: res.error }, { status: 409, headers: MOBILE_CORS });
   }
 
-  if (res.isNew && res.status === "pending") {
+  if (res.isNew) {
     await alertAdminsNewAttendanceDevice(me, body.deviceLabel ?? null, res.deviceCount).catch(() => {});
   }
 

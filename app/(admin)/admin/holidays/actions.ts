@@ -5,7 +5,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { holidays, employeeEvents } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth/current";
+import { requireUser } from "@/lib/auth/current";
+import { canManageHolidays } from "@/lib/hr/holiday-admins";
 import { rateLimitOrError } from "@/lib/rate-limit";
 
 type ActionResult<T = unknown> =
@@ -32,7 +33,12 @@ export async function addHoliday(input: {
   holidayDate: string;
   label: string;
 }): Promise<ActionResult<{ id: string }>> {
-  const me = await requireAdmin();
+  const me = await requireUser();
+  // NARROWED from requireAdmin() - the holiday calendar drives attendance for
+  // everyone, so it is held by two named people. See lib/hr/holiday-admins.ts.
+  if (!canManageHolidays(me.email)) {
+    return { ok: false, error: "Only Ruchita and Rutvisha can change the holiday calendar." };
+  }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -104,7 +110,12 @@ export async function updateHoliday(input: {
   label?: string;
   isActive?: boolean;
 }): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const me = await requireUser();
+  // NARROWED from requireAdmin() - the holiday calendar drives attendance for
+  // everyone, so it is held by two named people. See lib/hr/holiday-admins.ts.
+  if (!canManageHolidays(me.email)) {
+    return { ok: false, error: "Only Ruchita and Rutvisha can change the holiday calendar." };
+  }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -153,7 +164,12 @@ const RemoveSchema = z.object({ id: z.string().uuid() }).strict();
 export async function removeHoliday(input: {
   id: string;
 }): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const me = await requireUser();
+  // NARROWED from requireAdmin() - the holiday calendar drives attendance for
+  // everyone, so it is held by two named people. See lib/hr/holiday-admins.ts.
+  if (!canManageHolidays(me.email)) {
+    return { ok: false, error: "Only Ruchita and Rutvisha can change the holiday calendar." };
+  }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 

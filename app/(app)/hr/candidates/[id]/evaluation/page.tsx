@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { requireHrStaff } from "@/lib/hr/access";
+import { requireHrIntake } from "@/lib/hr/intake-access";
 import { PageShell } from "@/components/layout/page-shell";
 import { getCandidateBasics, getCandidateEvaluation } from "@/app/(app)/hr/candidate-actions";
 import { EvaluationRecord } from "@/components/hr/candidate/evaluation-record";
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * stars + Quick Summary). Opened from the Candidate Records list.
  */
 export default async function EvaluationRecordPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireHrStaff();
+  await requireHrIntake();
   const { id } = await params;
   const [basics, ratings] = await Promise.all([getCandidateBasics(id), getCandidateEvaluation(id)]);
   if (!basics) notFound();

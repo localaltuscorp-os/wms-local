@@ -97,7 +97,7 @@ export function PlanLinksCell({
    * window for the panel to fit above it, which is the same prefer-one-side-
    * then-flip rule `HoverTip` uses.
    */
-  const [below, setBelow] = React.useState(false);
+  const [below, setBelow] = React.useState(true);
   const btnRef = React.useRef<HTMLButtonElement>(null);
 
   /** Measured at OPEN time, not on every render: the answer only changes when
@@ -105,7 +105,10 @@ export function PlanLinksCell({
   const place = React.useCallback(() => {
     const r = btnRef.current?.getBoundingClientRect();
     if (!r) return;
-    setBelow(r.top < PANEL_MAX_H + 12);
+    // Below by default; up only when the panel genuinely cannot fit down
+    // there AND can fit up here.
+    const roomBelow = window.innerHeight - r.bottom;
+    setBelow(roomBelow >= PANEL_MAX_H + 12 || r.top < PANEL_MAX_H + 12);
   }, []);
 
   /** Hover opens — mouse only, so a tap on a phone does not open it in passing. */

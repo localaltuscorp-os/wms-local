@@ -7,7 +7,7 @@ import {
   statusCardTokens,
   type StatusCardKey,
 } from "@/lib/status-palette";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, LayoutGrid } from "lucide-react";
 import type { NeonKey } from "./kpi-card";
 import { KpiDetailPanel } from "./kpi-detail-panel";
 import type { KpiSet, WmsSummary } from "@/lib/types";
@@ -19,6 +19,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { CardGrid } from "@/components/layout/card-grid";
 import { CollapseToggle, CollapsibleBody } from "./section-chrome";
 import { DashboardSectionHeader } from "./section-header";
+import { SectionIcon } from "./section-icon";
 
 interface Entry {
   /** Also the key the rest of the dashboard focuses on — see lib/client/kpi-focus. */
@@ -134,6 +135,18 @@ export function KpiStrip({
           already outside the cards here; this just puts it on the shared
           typography so it reads as a peer of the headings below. */}
       <DashboardSectionHeader
+        /* THE ONE HEADER THAT HAD NO BADGE, which is why this title started a
+           clear 48px left of every other title on the page — the icon is what
+           sets the text's left edge, and with no icon the title fell back to
+           the bare inset. As the FIRST heading down the page it was the one
+           establishing where the column ought to be, so every section under it
+           read as indented rather than this one as outdented.
+
+           Red, like every other section badge. This was slate on the reasoning
+           that a neutral rollup should not wear the alert colour — true in
+           isolation, but it made the first heading on the page the odd one out
+           of a set of six. */
+        icon={<SectionIcon icon={LayoutGrid} tone="red" />}
         title="Task Summary"
         subtitle={
           <>

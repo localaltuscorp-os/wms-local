@@ -187,10 +187,24 @@ export function WeeklyGoalTaskGroup({
                   </span>
                 </HoverTip>
 
+                {/* ONE WIDTH FOR ALL FOUR PRIORITIES. The pill used to size to
+                    its text, so "Normal", "Important" and "Urgent" were three
+                    different widths and every row started its progress bar at a
+                    different x — the bar and the % are both fixed width, so the
+                    pill was the only thing breaking the column.
+
+                    82px fits "Important", the longest of the four (Critical ·
+                    Important · Urgent · Normal), with the padding still on it.
+                    `justify-center` because a left-aligned label inside a
+                    fixed-width pill just moves the ragged edge inside the chip
+                    instead of removing it. min-width rather than width so a
+                    longer label added later grows the pill instead of spilling
+                    out of it. */}
                 <span
-                  className="shrink-0 hidden sm:inline-flex items-center rounded-pill px-2.5 py-1 font-bold whitespace-nowrap"
+                  className="shrink-0 hidden sm:inline-flex items-center justify-center rounded-pill px-2.5 py-1 font-bold whitespace-nowrap"
                   style={{
                     fontSize: 12,
+                    minWidth: 82,
                     color: `var(--color-${prioTone}-deep)`,
                     background: `color-mix(in srgb, var(--color-${prioTone}) 14%, transparent)`,
                   }}

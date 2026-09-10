@@ -195,7 +195,7 @@ const HR_SECTION_NAV: Record<HrSection, WorkspaceNav> = {
 /** Which HR card a path belongs to — a stage under `/hr/<stage>`, the holiday
  *  or help-desk surfaces, else the hub switcher rail (front door + Overview). */
 function hrSectionForPath(p: string): HrSection {
-  const m = p.match(/^\/hr\/(pre-interview|post-interview|pre-joining|post-joining|exit)(\/|$)/);
+  const m = p.match(/^\/hr\/(pre-interview|post-interview|pre-joining|during|appraisal|exit)(\/|$)/);
   if (m) return m[1] as HrStageKey;
   if (p.startsWith("/hr/candidates")) return "pre-interview"; // Basic Details lives here
 
@@ -362,6 +362,12 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // Payroll — the admin Salary module + Overtime, re-parented from Employees
       // (2026-07). Gated by the Accounts room + each page's own finance guard.
       { href: "/salary" as Route, label: "Salary", Icon: IndianRupee },
+      // Deliberately the SAME page the HR rail opens, not a copy. Slips are
+      // self-scoped by construction (see that page's own note), so there is
+      // nothing here for Accounts to see that HR doesn't - only a second door
+      // to it, because payroll is run from this room. The HR workspace is open
+      // to every employee, so this link can never dead-end.
+      { href: "/hr/salary-slip" as Route, label: "Salary Slip", Icon: Receipt },
       { href: "/overtime" as Route, label: "Overtime", Icon: Timer, not: ["/overtime/dashboard"] },
     ],
     groups: [],

@@ -1,5 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+/**
+ * ⚠ THESE HELPERS NO LONGER GATE THE PUNCH (2026-09-09).
+ *
+ * needsDailyPlan / dailyPlanShortfall / isDayClosedOut once decided whether an
+ * employee could clock in or out. That prerequisite was removed - see
+ * tests/unit/punch-no-task-prerequisite.test.ts, which pins that neither punch
+ * path consults them any more.
+ *
+ * They are still live and still tested here because the DAILY PLANNER uses
+ * them: /my-day, "Start My Day" and "Finish My Day" all read exactly these, and
+ * the five-item target still shapes that screen. What changed is who asks, not
+ * what the answer means - so the behaviour below is unchanged on purpose.
+ */
+
 vi.mock("server-only", () => ({}));
 
 /* The two reads countPlannedWork makes, in order:
@@ -73,7 +87,7 @@ beforeEach(() => {
   notInArrayMock.mockClear();
 });
 
-describe("countPlannedWork — what the clock-in gate measures", () => {
+describe("countPlannedWork — what the planner counts as a day's work", () => {
   it("does NOT double-count a task that is both assigned and pulled onto the plan", async () => {
     // 3 checklist rows, all of them pulled tasks. The DB excludes those 3 from
     // the assigned count (notInArray), so it returns 0 more.
@@ -107,6 +121,7 @@ describe("countPlannedWork — what the clock-in gate measures", () => {
 });
 
 describe("hasStartedDay / isDayClosedOut — the two daily_plan_day stamps", () => {
+  // Both still drive the planner UI. isDayClosedOut no longer blocks check-out.
   it("is started once started_at is stamped", async () => {
     queue.push([{ startedAt: new Date("2026-08-18T04:00:00Z") }]);
     expect(await hasStartedDay("emp-1", "2026-08-18")).toBe(true);
@@ -129,7 +144,8 @@ describe("hasStartedDay / isDayClosedOut — the two daily_plan_day stamps", () 
 
   it("an EMPTY plan no longer counts as closed out — that was the bypass", async () => {
     // Old behaviour returned true here ("nothing to close out"), which let
-    // someone clear their plan after clocking in and walk straight out.
+    // someone clear their plan after clocking in and walk straight out. The
+    // punch no longer consults this at all, but the planner still does.
     queue.push([{ closedAt: null }]);
     expect(await isDayClosedOut("emp-1", "2026-08-18")).toBe(false);
   });
@@ -139,23 +155,23 @@ describe("hasStartedDay / isDayClosedOut — the two daily_plan_day stamps", () 
  *   1. daily_plan_day row      -> [{ startedAt }]
  *   2. daily_checklist rows    -> [{ taskId }]
  *   3. assigned-task count     -> [{ n }]                                    */
-describe("needsDailyPlan — clock-in needs Start My Day AND five things", () => {
-  it("blocks a full plan that was never started", async () => {
+describe("needsDailyPlan — 'is today planned?', for the planner to answer", () => {
+  it("reports a full plan that was never started as unplanned", async () => {
     queue.push([{ startedAt: null }], [], [{ n: 8 }]);
     expect(await needsDailyPlan("emp-1")).toBe(true);
   });
 
-  it("blocks a started day that is one item short", async () => {
+  it("reports a started day that is one item short as unplanned", async () => {
     queue.push([{ startedAt: new Date() }], [], [{ n: 4 }]);
     expect(await needsDailyPlan("emp-1")).toBe(true);
   });
 
-  it("allows a started day with exactly five", async () => {
+  it("reports a started day with exactly five as planned", async () => {
     queue.push([{ startedAt: new Date() }], [], [{ n: 5 }]);
     expect(await needsDailyPlan("emp-1")).toBe(false);
   });
 
-  it("still dedupes: 3 pulled tasks + the same 3 assigned is 3, not 6 — so it blocks", async () => {
+  it("still dedupes: 3 pulled tasks + the same 3 assigned is 3, not 6", async () => {
     queue.push(
       [{ startedAt: new Date() }],
       [{ taskId: "t1" }, { taskId: "t2" }, { taskId: "t3" }],
@@ -164,7 +180,7 @@ describe("needsDailyPlan — clock-in needs Start My Day AND five things", () =>
     expect(await needsDailyPlan("emp-1")).toBe(true);
   });
 
-  it("reports WHICH condition failed, so the punch can say the right thing", async () => {
+  it("reports WHICH condition failed, so the planner can say the right thing", async () => {
     queue.push([{ startedAt: null }], [], [{ n: 7 }]);
     expect(await dailyPlanShortfall("emp-1")).toEqual({ have: 7, need: 5, started: false });
 

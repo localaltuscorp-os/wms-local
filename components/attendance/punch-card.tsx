@@ -205,28 +205,6 @@ export function PunchCard({
           }),
         );
         if (!res.ok) {
-          // ── CLOSE-OUT GATE: Check Out before Finish My Day ───────────────
-          // The server refuses the punch and names the destination. We show the
-          // reason and take them straight to Daily Goals & Commitments, where
-          // "Finish My Day" fires the auto check-out (autoPunch("out")) — so the
-          // checkout completes there instead of here. Navigation is driven by
-          // the server's `redirectTo`, never by matching the message text, so
-          // rewording the copy cannot break the redirect.
-          //
-          // The server only sets `redirectTo` when the day is genuinely open AND
-          // they are not already checked out, so a finished-and-clocked-out
-          // employee is never bounced here a second time.
-          if (res.redirectTo) {
-            fireToast({
-              message: res.error,
-              type: "error",
-              // Longer than the default: they are being navigated away, and the
-              // message has to survive the route change to still be read.
-              duration: 8000,
-            });
-            router.push(res.redirectTo as Parameters<typeof router.push>[0]);
-            return;
-          }
           // Goals ritual gate blocks deep-link into the EXACT ritual state so
           // the user completes it inline (Phase 6, design §2.6): the routes
           // alias into the canvas's ?ritual=commit / ?ritual=approve states

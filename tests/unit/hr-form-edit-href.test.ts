@@ -51,7 +51,10 @@ describe("employeeFormEditHref", () => {
 describe("hrFormModuleHref", () => {
   it("resolves a registered form to its module", () => {
     expect(hrFormModuleHref("onboarding")).toBe("/dossier/onboarding");
-    expect(hrFormModuleHref("exit-interview")).toBe("/hr/exit");
+    // /hr/exit is the Exit MODULE's own route now (it shows the blank "pick a
+    // step" pane); the workspace that answers this form moved a level down so
+    // the module row and its step stopped pointing at the same page.
+    expect(hrFormModuleHref("exit-interview")).toBe("/hr/exit/interview");
   });
 
   it("is null for an unknown key", () => {

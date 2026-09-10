@@ -86,7 +86,7 @@
     },
     {
       "path": "/api/cron/attendance-autoout",
-      "schedule": "29 18 * * *"
+      "schedule": "0 18 * * *"
     },
     {
       "path": "/api/cron/attendance-weekly",

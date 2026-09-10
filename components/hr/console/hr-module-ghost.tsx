@@ -31,8 +31,18 @@ export function HrModuleGhost({ module }: { module: HrConsoleModule | null }) {
   );
 
   return (
-    <div className="px-6 pb-10 pt-4">
-      <div className="mx-auto max-w-3xl">
+    // VERTICALLY CENTRED in the content column, not parked at the top.
+    //
+    // `min-h-full` resolves against HrConsoleShell's scroll container, which has
+    // a definite height (flex-1 inside a `100dvh - topbar` column) - so the
+    // percentage has something to resolve against and this block fills whatever
+    // room is left beside the rail. The card then sits in the middle of that
+    // space instead of hugging the step nav with the rest of the column empty
+    // below it. `py-10` keeps it off both edges if the viewport is short enough
+    // that the content stops fitting, at which point the column scrolls
+    // normally rather than clipping the card.
+    <div className="flex min-h-full items-center justify-center px-6 py-10">
+      <div className="w-full max-w-3xl">
         <div className="rounded-2xl border border-dashed border-hairline bg-surface-card px-6 py-14 text-center">
           <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-altus-red-wash text-altus-red">
             <Icon size={26} strokeWidth={2.1} />

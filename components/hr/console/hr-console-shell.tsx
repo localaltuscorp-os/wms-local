@@ -6,32 +6,32 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { HR_CONSOLE_MODULES, locateHrRoute } from "@/lib/hr/console-nav";
 import { cn } from "@/lib/utils";
 import { HrModuleRail } from "./hr-module-rail";
-import { HrStepList } from "./hr-step-list";
+import { HrStepNav } from "./hr-step-nav";
 import { HrConsoleContextProvider } from "./hr-console-context";
-import { HrTitleBarFallback } from "./hr-title-bar-fallback";
 import { HrModuleGhost } from "./hr-module-ghost";
 
 /**
- * The HR workspace — a three-column console wrapping every /hr surface:
+ * The HR workspace — a two-column console wrapping every /hr surface:
  *
- *   module rail (256px) │ step list (320px) │ the page itself
+ *   module rail (256px) │ the page itself
+ *
+ * The module's steps used to be a third column, a 320px sidebar between the
+ * two. They are now a horizontal QUICK-ACCESS NAV (HrStepNav) pinned at the top
+ * of the content column instead — same links, one row, and no column of its own
+ * to collapse, which is why the collapse control and its shared state are gone.
  *
  * Applied from app/(app)/hr/layout.tsx, so `children` is the real Next.js page
  * for the current route and the console never renders placeholder content. The
  * global search + notification bar is NOT repeated here — the app's own
  * AppTopBar already sits above this shell on every route.
  *
- * Column 2 is driven by a SELECTED module, seeded from (and re-synced to) the
- * current route: browsing the rail previews another module's steps without
- * navigating, but landing on a new route always re-points it at that route's
- * own module.
+ * The step nav is driven by a SELECTED module, seeded from (and re-synced to)
+ * the current route: browsing the rail previews another module's steps, but
+ * landing on a new route always re-points it at that route's own module.
  *
- * The content column's own top strip is a STICKY SLOT (`titleBarSlot`) that a
- * migrated page fills by rendering <HrTitleBar> — that page's own header
- * (back-link / logo-or-title / action, plus its eyebrow/heading/subtitle "title
- * block"), portaled up here so it freezes at the top instead of scrolling away.
- * A page that hasn't been migrated yet renders nothing into the slot, so
- * HrTitleBarFallback (just the steps-collapse button) shows there instead.
+ * A page's TITLE no longer lives in this column at all — <HrTitleBar> portals it
+ * into the app's global top bar (see page-chrome-slots.tsx). What stays pinned
+ * here is the step nav alone.
  */
 export function HrConsoleShell({
   user,
@@ -42,17 +42,10 @@ export function HrConsoleShell({
 }) {
   const pathname = usePathname() ?? "/hr";
   const searchParams = useSearchParams();
-  // Two INDEPENDENT toggles — the rail's own button (in HrModuleRail) collapses
-  // only column 1; the title bar's button collapses only column 2. They used
-  // to share one `collapsed` flag, which meant either button closed both.
+  // Only the rail collapses now. The steps had a second, independent toggle
+  // while they were a column; as a row of buttons there is nothing to collapse.
   const [railCollapsed, setRailCollapsed] = React.useState(false);
-  const [stepsCollapsed, setStepsCollapsed] = React.useState(false);
-  const toggleSteps = React.useCallback(() => setStepsCollapsed((v) => !v), []);
 
-  // The sticky portal target at the top of the content column, and whether a
-  // page has claimed it (see HrTitleBar / HrTitleBarFallback below).
-  const [titleBarSlot, setTitleBarSlot] = React.useState<HTMLDivElement | null>(null);
-  const [hasCustomTitleBar, setHasCustomTitleBar] = React.useState(false);
 
 
   const located = React.useMemo(() => locateHrRoute(pathname), [pathname]);
@@ -64,18 +57,10 @@ export function HrConsoleShell({
     if (activeModuleId) setSelectedModuleId(activeModuleId);
   }, [activeModuleId]);
 
-  // Picking a module in the rail always returns column 2 to its DEFAULT
-  // (expanded) state. That covers both halves of the same rule:
-  //   • the module you're already on — so the rail row itself is a way back
-  //     from a collapsed step list, not just the title bar's chevron;
-  //   • a different module — which starts fresh rather than inheriting the
-  //     previous module's collapsed state (its content resets to the ghost
-  //     pane too, see `previewingOtherModule` below).
-  // Only ever EXPANDS: collapsing stays the chevron's job, so clicking an
-  // already-expanded module is a no-op rather than a toggle.
+  // Picking a module in the rail points the step nav at it immediately, ahead
+  // of the navigation that the rail row (a real link) also kicks off.
   const selectModule = React.useCallback((id: string) => {
     setSelectedModuleId(id);
-    setStepsCollapsed(false);
   }, []);
 
   // /hr?open=<stage> preselects that module without navigating into a step —
@@ -92,7 +77,6 @@ export function HrConsoleShell({
     () => HR_CONSOLE_MODULES.find((m) => m.id === selectedModuleId) ?? null,
     [selectedModuleId],
   );
-  const hasSteps = (selectedModule?.subModules.length ?? 0) > 0;
 
   // Picked a module in the rail while a page from a DIFFERENT module is still
   // the routed one (clicking a module only previews its steps — it doesn't
@@ -113,28 +97,19 @@ export function HrConsoleShell({
   const consoleContext = React.useMemo(
     () => ({
       selectedModule,
-      hasSteps,
-      stepsCollapsed,
-      toggleSteps,
-      titleBarSlot,
-      hasCustomTitleBar,
-      setHasCustomTitleBar,
       routeTitle,
     }),
-    [
-      selectedModule,
-      hasSteps,
-      stepsCollapsed,
-      toggleSteps,
-      titleBarSlot,
-      hasCustomTitleBar,
-      routeTitle,
-    ],
+    [selectedModule, routeTitle],
   );
 
   return (
     <div
-      className="flex overflow-hidden bg-canvas-base"
+      // `hr-shell` / `hr-shell-scroll` are PRINT HOOKS, not styling. This shell
+      // pins itself to the viewport and scrolls internally, which is right on
+      // screen and fatal on paper: the printed document was clipped to a single
+      // ~848px page with this pane's scrollbar painted down its side.
+      // globals.css unclips both under @media print. Keep the class names.
+      className="hr-shell flex overflow-hidden bg-canvas-base"
       style={{ height: "calc(100dvh - var(--app-topbar-h))" }}
     >
       <div
@@ -167,27 +142,9 @@ export function HrConsoleShell({
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1">
-          {/* Column 2 exists only for a module that actually has an option
-              list. A leaf module (Holiday List, Policies, …) has nothing to
-              choose between — its content opens straight on the right — and
-              the nothing-selected home state has no list either, so both
-              skip this column entirely rather than showing an empty shell. */}
-          {hasSteps && (
-            <div
-              className={cn(
-                "shrink-0 overflow-hidden transition-all duration-300 ease-in-out max-lg:hidden",
-                stepsCollapsed ? "w-0" : "w-[320px]",
-              )}
-            >
-              <HrStepList
-                module={selectedModule}
-                activeHref={previewingOtherModule ? null : (located.subModule?.href ?? null)}
-                onCollapse={toggleSteps}
-              />
-            </div>
-          )}
-
+        {/* flex-col: the step-nav row stacks ABOVE the scrolling content column
+            (it was a single row holding the old steps sidebar + the scroller). */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* --app-topbar-h is a body-scoped CSS var (see globals.css) that
               individual /hr pages use via the `.sticky-below-topbar` utility
               so their OWN internal header sticks just under the real global
@@ -200,42 +157,36 @@ export function HrConsoleShell({
               correctly for every such page without touching each one
               (matters for pages not yet migrated to HrTitleBar, which still
               use that utility for their own inline sticky header). */}
-          <div
-            className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-canvas-base"
-            style={{ "--app-topbar-h": "0px" } as React.CSSProperties}
-          >
-            <HrConsoleContextProvider value={consoleContext}>
-              {/* The portal target every migrated page's <HrTitleBar> fills.
-                  Sticky so it - and whatever a page portals into it - stays
-                  pinned at the top of THIS scroll container as the page
-                  scrolls beneath it.
+          <HrConsoleContextProvider value={consoleContext}>
+            {/* THE STEP NAV SITS OUTSIDE THE SCROLLER, as its own row.
+                It used to be `sticky top-0` INSIDE the scroll container, which
+                looked the same but measured differently: the nav then occupied
+                the top of the scrolling flow, so a page asking for `min-h-full`
+                got the FULL container height starting BELOW the nav and
+                overflowed by exactly the nav's height. That is what pushed the
+                module's centred pane down by ~45px while the same pane sat dead
+                centre on /hr, where there is no nav. As a flex row above the
+                scroller it is still permanently visible, and the space below it
+                is now honestly 100% of what a page can use.
 
-                  Z-INDEX BAND - the bar sits in a deliberate gap between two
-                  ranges, and page code must respect both sides of it:
-
-                    <= z-40   in-flow page content. Cards that need to beat a
-                              later sibling (every .rec-fade keeps a transform,
-                              so each is its own stacking context) and the
-                              dropdown panels inside them. These scroll with the
-                              page and MUST pass under the bar.
-                    z-45      this bar.
-                    >= z-50   `fixed inset-0` overlays - the letter, policy and
-                              assessment modals. These cover the whole console
-                              and MUST paint over the bar.
-
-                  It was z-30, the SAME value HR Record's person-picker card
-                  uses. Equal z-index falls back to DOM order, and `children`
-                  comes after this slot, so the page's content won and scrolled
-                  over the frozen bar. Isolating the content column instead
-                  (isolation:isolate) would have fixed that too, but it would
-                  also trap those fixed overlays underneath the bar - they are
-                  rendered in place, not portaled to <body>. */}
-              <div ref={setTitleBarSlot} className="sticky top-0 z-[45]">
-                {!hasCustomTitleBar && <HrTitleBarFallback />}
-              </div>
+                Z-INDEX BAND - page code must respect both sides of it:
+                  <= z-40   in-flow page content (cards, their dropdowns).
+                  z-45      this row.
+                  >= z-50   `fixed inset-0` overlays - the letter, policy and
+                            assessment modals, which MUST paint over it. */}
+            <div className="z-[45] shrink-0">
+              <HrStepNav
+                module={selectedModule}
+                activeHref={previewingOtherModule ? null : (located.subModule?.href ?? null)}
+              />
+            </div>
+            <div
+              className="hr-shell-scroll min-h-0 min-w-0 flex-1 overflow-y-auto bg-canvas-base"
+              style={{ "--app-topbar-h": "0px" } as React.CSSProperties}
+            >
               {previewingOtherModule ? <HrModuleGhost module={selectedModule} /> : children}
-            </HrConsoleContextProvider>
-          </div>
+            </div>
+          </HrConsoleContextProvider>
         </div>
       </div>
     </div>

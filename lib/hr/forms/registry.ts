@@ -28,8 +28,8 @@ export const HR_SECTIONS = [
   "pre-interview",
   "post-interview",
   "pre-joining",
-  "post-joining",
   "during",
+  "appraisal",
   "exit",
 ] as const satisfies readonly HrStageKey[];
 
@@ -39,8 +39,8 @@ export const HR_SECTION_LABEL: Record<HrSectionKey, string> = {
   "pre-interview": "Pre-Interview",
   "post-interview": "Post-Interview",
   "pre-joining": "Pre-Joining",
-  "post-joining": "Post-Joining",
-  during: "During",
+  during: "During Employment",
+  appraisal: "Appraisal",
   exit: "Exit",
 };
 
@@ -133,7 +133,7 @@ export const HR_FORMS: HrFormDef[] = [
     key: "exit-interview",
     name: "Exit Interview",
     section: "exit",
-    href: "/hr/exit",
+    href: "/hr/exit/interview",
     sourceTable: "exit_records",
     subject: "employee",
   },
@@ -141,7 +141,7 @@ export const HR_FORMS: HrFormDef[] = [
     key: "exit-handover",
     name: "Handover & Clearance Checklist",
     section: "exit",
-    href: "/hr/exit",
+    href: "/hr/exit/interview",
     sourceTable: "exit_records",
     subject: "employee",
   },

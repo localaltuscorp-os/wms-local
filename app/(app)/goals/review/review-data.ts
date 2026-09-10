@@ -55,6 +55,20 @@ export interface ReviewItem {
   team: Array<{ employeeId?: string; name?: string }> | null;
   /** Whether a manager/management approve-tier applies (false for daily). */
   approvable: boolean;
+  /**
+   * The signed-in viewer RAISED this row (`created_by_id` is them), which
+   * entitles them to set its Approved % even when they are not a manager of
+   * the owner — see loadApprovableGoalRow.
+   *
+   * PER-ROW, unlike `canReview`, which is one flag for the whole board. That is
+   * the entire reason it exists: on your own board `canReview` is false, yet
+   * the goals you raised for yourself are yours to approve while the ones your
+   * manager set for you are not. One page-level boolean cannot say that.
+   *
+   * Only `goals` rows can be true — `weekly_goals` has no creator column, and
+   * daily rows have no approve tier at all.
+   */
+  initiatedByMe: boolean;
   /** Daily only — the completion checkbox state. */
   done?: boolean;
 }
@@ -195,6 +209,7 @@ export async function loadReviewData(sp: { emp?: string; fy?: string }): Promise
       actualAmount: num(g.actualAmount),
       team: g.teamInvolved ?? null,
       approvable: true,
+      initiatedByMe: g.createdById != null && g.createdById === me.id,
     });
   }
 
@@ -218,6 +233,9 @@ export async function loadReviewData(sp: { emp?: string; fy?: string }): Promise
       actualAmount: num(w.actualAmount),
       team: w.teamInvolved ?? null,
       approvable: true,
+      // `weekly_goals` has no created_by_id, so a weekly row has no initiator
+      // on record and keeps the manager-only rule.
+      initiatedByMe: false,
     });
   }
 
@@ -242,6 +260,7 @@ export async function loadReviewData(sp: { emp?: string; fy?: string }): Promise
       actualAmount: null,
       team: null,
       approvable: false,
+      initiatedByMe: false,
       done: d.done,
     });
   }
