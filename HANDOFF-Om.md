@@ -12,6 +12,12 @@ not exist in Supabase today.
 
 ## 1. Run this SQL in Supabase — the short version
 
+> **Just want to paste it and go?** Everything below is bundled, in order, wrapped in a
+> single transaction, in **[`db/RUN-IN-SUPABASE-0216-0220.sql`](./db/RUN-IN-SUPABASE-0216-0220.sql)**.
+> Open Supabase → SQL Editor → New query → paste the file → Run. It includes `0216`, so
+> the by-hand step below is not needed if you use it. Verification queries are at the
+> bottom of that file, commented out.
+
 **Nothing here is destructive.** All five migrations are additive (`CREATE TABLE IF NOT
 EXISTS`, `CREATE INDEX IF NOT EXISTS`, additive `ALTER TABLE`). There are zero `DROP TABLE`,
 `TRUNCATE` or `DELETE FROM` statements, so the runner's destructive guard will not fire and
