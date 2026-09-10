@@ -42,6 +42,11 @@ revoke (`/login` 200, `/api/health` 200, leaked `service_role` 401).
    whole incident, and its Supabase values are now dead but its **other** six
    secrets are still live (item 5). Back up the values, then delete.
 
+2. 🔴 **The 2026-09-09 sequence repair may not have reached the database that
+   serves users** — see the 2026-09-09 changelog entry. Until the two `setval`
+   statements run there, task status changes, reassignment and deletion fail
+   with a duplicate-key error and roll back silently.
+
 Several other secrets from the same file remain unrotated (item 5). Read the
 section below the table before doing anything else.
 
@@ -454,6 +459,90 @@ throughout; her Firebase UID is new.
 ---
 
 ## Changelog
+
+### 2026-09-09 — Task writes were failing on broken sequences; 13 fixes on `Vinal`
+
+**What changed**
+
+*Database — two statements, both `setval`, no row data touched:*
+
+- `event_log_seq_seq` advanced 3 → 10,071 and `tasks_task_no_seq` 1,000 → 2,965,
+  past the data already in their tables. The two insert probes either side ran
+  inside deliberately rolled-back transactions.
+
+*Application — 13 commits on branch `Vinal`, pushed as `cf058fdb`:*
+
+- `components/tasks/detail/task-attachments.tsx` — a failed upload no longer
+  leaves the button disabled; deleting a file also clears its hover preview.
+- `app/(app)/tasks/actions.ts` — 14 call sites moved to `dbErrorMessage` +
+  `logDbError`, so a failure names its cause instead of tipping the SQL and its
+  bound parameters into a toast.
+- `app/(app)/tasks/page.tsx` — "Not Read" no longer zeroes every other summary
+  pill: `unread` joins the stripped filter set and the `sameScope` test.
+- `lib/goals/scope.ts`, `app/(app)/goals/review/*`,
+  `app/(app)/weekly-goals/actions.ts` — whoever raised a goal can approve it,
+  and an approval under 100% now requires a note.
+- `components/ui/hover-tip.tsx` + 12 callers — every hover surface opens
+  downward instead of over the row just read.
+- `components/dashboard/*`, `components/goals/*` — one badge colour (brand red)
+  on every section heading; Task Summary gained the badge it never had; the
+  Goals board's own header stopped defaulting to `--color-altus-red-deep`.
+- `components/layout/filter-bar.tsx` — the active-filter row no longer appears
+  for the default self scope, where it read "1 active · <your name>" on an
+  untouched page.
+- `components/dashboard/aging-heatmap.tsx` — sizes to its lanes, not to 600px.
+- `components/dashboard/exec/{creator-workload,manager-activity}-table.tsx` —
+  collapsed delegation sections leave no empty outlined box.
+- `components/weekly-goals/weekly-goal-task-group.tsx` — one width for all four
+  priority pills.
+- `scripts/apply-one-migration.ts` — `--force`, for when a restored
+  `__schema_applied` ledger claims files it never ran against this database.
+
+**Why**
+
+Status changes, doer reassignment and task deletion all failed with
+`23505 duplicate key value violates unique constraint "event_log_pkey"`,
+`Key (seq)=(3) already exists`. The restore loaded rows with their original ids
+but left the sequences near 1, so every insert collided: `event_log.seq` next 4
+against max 10,071, and `tasks.task_no` next 1,001 against max 2,965 with a
+UNIQUE index. Events are written inside the caller's transaction by design
+(ARCHITECTURE.md Law 2), so the failing event rolled the operational row back
+with it — the status simply never changed, with nothing in the UI to say why.
+`tasks.task_no` was the same fault not yet reached; task creation would have
+started failing at 1001.
+
+**How to verify**
+
+```bash
+pnpm typecheck        # clean
+pnpm build            # exits 0 (next build --webpack)
+pnpm test -- --no-file-parallelism   # 9 pre-existing failures, unchanged
+```
+
+Sequence health — run this after ANY restore, for every serial column, not just
+these two. `next` must exceed `max`:
+
+```sql
+select (select last_value from public.event_log_seq_seq) as seq_last,
+       (select max(seq) from public.event_log)           as col_max;
+```
+
+In the app: change a task status. It commits.
+
+**Breaking / migration notes**
+
+- No new env vars, no new migrations.
+- ⚠️ **The sequence repair was applied only to the database in `.env.local`.**
+  Four task titles on screen at the time were absent from it (1,027 tasks, none
+  matching), so if a different database serves users, run the same two `setval`
+  statements there or the failures recur. They are safe to re-run.
+- ⚠️ This work sits on branch **`Vinal`** at `cf058fdb` — **not** `main`, and
+  not deployed.
+- Data gap, not a defect: `employees` names only 4 managers and 13 of 23 active
+  rows have no `manager_id`, so the manager board is rendering correctly over
+  incomplete data. Needs completing in Admin → Employees.
+
+**Author:** Vinal Patil
 
 ### 2026-09-08 (late) — WMS team's work merged; four silent reverts caught
 
