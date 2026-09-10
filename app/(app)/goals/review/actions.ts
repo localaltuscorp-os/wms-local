@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { goals, goalReviews } from "@/db/schema";
 import { requireGoalsAccess } from "@/lib/goals/access";
 import { rateLimitOrError } from "@/lib/rate-limit";
-import { loadWritableGoalRow, loadManageableGoalRow } from "@/lib/goals/scope";
+import { loadWritableGoalRow, loadApprovableGoalRow } from "@/lib/goals/scope";
 import { logGoalActivity } from "@/lib/goals/activity";
 import { GoalEventTypes } from "@/lib/events/types";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
@@ -58,8 +58,26 @@ export async function reviewGoal(
   if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
   const d = parsed.data;
 
-  // Reviewing someone else's goal requires manager/admin authority over them.
-  const loaded = await loadManageableGoalRow(d.id, {
+  // ANYTHING SHORT OF 100 HAS TO BE EXPLAINED.
+  //
+  // Enforced HERE and not only in the form, because the form is not the only
+  // way in — this is a Server Action, callable directly. A markdown with no
+  // stated reason is the one outcome this table exists to prevent: the owner
+  // sees a number lower than the one they claimed and has nothing to read.
+  //
+  // A full 100 needs no note (there is no disagreement to explain), and
+  // clearing the score back to null is not a ruling at all, so neither is
+  // caught by this.
+  if (d.acceptPct != null && d.acceptPct < 100 && !d.reviewNotes?.trim()) {
+    return {
+      ok: false,
+      error: "Add an approver note explaining why this is under 100%.",
+    };
+  }
+
+  // Approving requires manager/admin authority over the owner — OR being the
+  // person who raised the goal. See loadApprovableGoalRow.
+  const loaded = await loadApprovableGoalRow(d.id, {
     id: me.id,
     isAdmin,
     email: me.email,

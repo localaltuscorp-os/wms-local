@@ -2,9 +2,10 @@ import "server-only";
 import { and, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, remoteWorkRequests, salaryBreakup, salaryProfiles } from "@/db/schema";
-import { weekKeyOf } from "@/lib/attendance/hours-rule";
+import { expectsScheduledHours } from "@/lib/attendance/hours-rule";
 import { resolveEffectiveConfig } from "@/lib/attendance/effective-config";
-import { reconcileMonth, monthKeyOf, payableHoursForMonth } from "@/lib/attendance/hour-balance";
+import { monthKeyOf } from "@/lib/attendance/hour-balance";
+import { PAYROLL_HOURS_FROM, payrollMonthFor } from "@/lib/attendance/payroll-month";
 import { getOrgSettings } from "@/lib/queries/org-settings";
 import {
   getEmployeeMonthStatus,
@@ -17,7 +18,8 @@ import {
   type SummaryDay,
 } from "@/lib/attendance/summary";
 import { mondayOf, currentWeekStart, istYmd } from "@/lib/weekly-goals/week";
-import { computeScheduleHourlySalary } from "@/lib/salary/compute";
+import { computeDailySalary } from "@/lib/salary/compute";
+import { daysInMonth } from "@/lib/salary/period";
 import { asWorkerType, payBasisFor, earnsOvertime } from "@/lib/attendance/worker-type";
 
 /**
@@ -143,11 +145,24 @@ function perDayRateFor(days: DayRow[], monthlyGross: number): number {
   return monthlyGross / workingDays;
 }
 
-/** A day the employee is EXPECTED to work: not a weekly off, not a holiday,
- *  not leave, not before joining. This is the denominator that makes "Effective
- *  Days Worked" and the hours target exclude holidays and weekly offs. */
+/**
+ * A day the employee's SCHEDULE required hours on: not a weekly off, not a
+ * holiday, not approved leave, not before joining. The denominator behind
+ * "Required Hours" on the KPI bar.
+ *
+ * `expectsScheduledHours` rather than `OFF_CODES`, and the difference is one
+ * case: a WORKED holiday (HP / H-H/D). `OFF_CODES` does not list those because
+ * they are days worked and belong in "Effective Days Worked" — but a holiday
+ * somebody chose to work is still a holiday, and it must not raise the hours
+ * they were required to work. Counting it did exactly that, and left the KPI's
+ * target bigger than the one the payslip measured against.
+ */
 function isRequiredDay(row: DayRow): boolean {
-  return !row.isWeeklyOff && !OFF_CODES.has(row.code) && row.code !== NOT_JOINED_CODE;
+  return (
+    !row.isWeeklyOff &&
+    row.code !== NOT_JOINED_CODE &&
+    expectsScheduledHours(row.code)
+  );
 }
 
 /** Approved remote-work days in [from,to], counted per mode. */
@@ -356,44 +371,41 @@ export async function getSelfAttendanceSummary(
     payBasis === "monthly_ctc" && profile ? Number(profile.annualCtc) / 12 : 0;
 
   const salaryLostForMonth = (rows: DayRow[], monthKey: string): number => {
-    if (monthKey < "2026-08") return 0; // frozen/legacy months keep their paid figure
+    // Frozen/legacy months keep the figure they were paid — see
+    // PAYROLL_HOURS_FROM for why re-deriving them would rewrite history.
+    if (monthKey < PAYROLL_HOURS_FROM) return 0;
     if (payBasis !== "monthly_ctc" || !(monthlySalary > 0)) return 0; // hourly/retainer never "lose"
-    const graded = rows
-      .filter((d) => d.code !== NOT_JOINED_CODE)
-      .map((d) => ({
-        date: d.logDate,
-        weekKey: weekKeyOf(d.logDate),
-        code: d.code,
-        dayValue: d.dayValue,
-        workedMinutes: d.workedMinutes,
-        late: d.late,
-        leftEarly: d.leftEarly,
-      }));
+    // The SAME reconcile → payable-hours sequence the dashboard feeds the
+    // payslip, through the one module that owns it.
+    const { graded, payroll } = payrollMonthFor(rows, {
+      month: monthKey,
+      cfg,
+      refTodayISO: todayIso,
+    });
     if (!graded.length) return 0;
 
-    const recon = reconcileMonth(graded, {
-      month: monthKey,
-      weeklyTargetMinutes: cfg.weeklyTargetMinutes,
-      waiverThresholdMinutes: cfg.waiverThresholdMinutes,
-      workingDaysPerWeek: cfg.workingDaysPerWeek,
-    });
-    const hours = payableHoursForMonth(graded, recon, cfg.dailyTargetMinutes);
-    if (!(hours.targetHours > 0)) return 0;
-    const bd = computeScheduleHourlySalary({
+    // THE PAYSLIP'S OWN FUNCTION, on the payslip's own input (spec §12). A
+    // full-timer is paid `monthlySalary ÷ calendarDays × Σ day-values`, so the
+    // loss is what the elapsed days did NOT earn — measured against the same
+    // elapsed span, or every future day of an open month would read as lost.
+    const dim = daysInMonth(monthKey);
+    if (!(dim > 0)) return 0;
+    const bd = computeDailySalary({
       monthlySalary,
-      monthlyTargetHours: hours.targetHours,
-      payableHoursRaw: hours.payableMinutesRaw / 60,
-      dailyTargetHours: cfg.dailyTargetMinutes / 60,
-      chargeableHalfDays: recon.chargeableHalfDays,
-      overtimeHours: earnsOvertime(workerType) ? hours.netSurplusMinutes / 60 : 0,
+      daysInMonth: dim,
+      payableDayValue: payroll.payableDayValue,
       // PT / TDS / advances change only the net, never the base — pass none.
       ptExempt: true,
       tdsMonthly: 0,
       advances: 0,
       pendingBalanceIn: 0,
     });
-    const base = bd.gross - (bd.overtimeAmount ?? 0);
-    return Math.max(0, Math.round(monthlySalary - base));
+    // What the elapsed days COULD have earned had none been missed: one full
+    // day-value for each day that has happened. Comparing against the whole
+    // month instead would report the rest of the month as already lost.
+    const elapsedDays = graded.length;
+    const earnable = (monthlySalary / dim) * elapsedDays;
+    return Math.max(0, Math.round(earnable - bd.gross));
   };
 
   const curMonthKey = `${curYear}-${String(curMonth).padStart(2, "0")}`;
@@ -413,24 +425,20 @@ export async function getSelfAttendanceSummary(
    * half-day that cost them nothing.
    */
   const graceForMonth = (rows: DayRow[], monthKey: string): number => {
-    const graded = rows
-      .filter((d) => monthKeyOf(d.logDate) === monthKey && d.logDate <= todayIso)
-      .map((d) => ({
-        date: d.logDate,
-        weekKey: weekKeyOf(d.logDate),
-        code: d.code,
-        dayValue: d.dayValue,
-        workedMinutes: d.workedMinutes,
-        late: d.late,
-        leftEarly: d.leftEarly,
-      }));
-    if (!graded.length) return 0;
-    const r = reconcileMonth(graded, {
+    // ELAPSED days only — deliberately narrower than the payroll view above.
+    // Grace is a statement about the month SO FAR ("you have 2 of your 3 left"),
+    // and counting a half-day the calendar has not reached yet would spend a
+    // slot nobody has used. The filtering is the caller's, which is exactly why
+    // `payrollMonthFor` takes the day list rather than choosing it.
+    const elapsed = rows.filter(
+      (d) => monthKeyOf(d.logDate) === monthKey && d.logDate <= todayIso,
+    );
+    const { graded, recon: r } = payrollMonthFor(elapsed, {
       month: monthKey,
-      weeklyTargetMinutes: cfg.weeklyTargetMinutes,
-      waiverThresholdMinutes: cfg.waiverThresholdMinutes,
-      workingDaysPerWeek: cfg.workingDaysPerWeek,
+      cfg,
+      refTodayISO: todayIso,
     });
+    if (!graded.length) return 0;
     return r.warnedHalfDays + r.waiverAbsorbedHalfDays;
   };
 
@@ -463,7 +471,7 @@ export async function getSelfAttendanceSummary(
 
   // ── This month ──
   const thisMonth = enrich(
-    summarize(thisMonthStatus.days.map((d) => toSummaryDay(d, todayIso)), thisMonthRate),
+    summarize(thisMonthStatus.days.map((d) => toSummaryDay(d, todayIso)), thisMonthRate, cfg.dailyTargetMinutes),
     thisMonthStatus.days,
     todayIso,
     dailyTargetHours,
@@ -476,7 +484,7 @@ export async function getSelfAttendanceSummary(
 
   // ── Last month ──
   const lastMonth = enrich(
-    summarize(lastMonthStatus.days.map((d) => toSummaryDay(d, todayIso)), lastMonthRate),
+    summarize(lastMonthStatus.days.map((d) => toSummaryDay(d, todayIso)), lastMonthRate, cfg.dailyTargetMinutes),
     lastMonthStatus.days,
     todayIso,
     dailyTargetHours,
@@ -498,7 +506,7 @@ export async function getSelfAttendanceSummary(
   );
   const weekRows = allWeekRows.filter((d) => d.logDate <= todayIso);
   const thisWeek = enrich(
-    summarize(weekRows.map((d) => toSummaryDay(d, todayIso)), thisMonthRate),
+    summarize(weekRows.map((d) => toSummaryDay(d, todayIso)), thisMonthRate, cfg.dailyTargetMinutes),
     allWeekRows,
     todayIso,
     dailyTargetHours,
@@ -517,7 +525,7 @@ export async function getSelfAttendanceSummary(
   //    per-day divisor barely moves month to month). ──
   const last3Rows = [...m2Status.days, ...lastMonthStatus.days, ...thisMonthStatus.days];
   const last3Months = enrich(
-    summarize(last3Rows.map((d) => toSummaryDay(d, todayIso)), thisMonthRate),
+    summarize(last3Rows.map((d) => toSummaryDay(d, todayIso)), thisMonthRate, cfg.dailyTargetMinutes),
     last3Rows,
     todayIso,
     dailyTargetHours,

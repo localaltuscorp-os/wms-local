@@ -8,17 +8,17 @@ import { computeDayCode, type DayCodeResult } from "@/lib/attendance/status";
 import { isSystemAutoPunchOut } from "@/lib/attendance/auto-punch-out";
 import { payableDaysByHours, weekKeyOf } from "@/lib/attendance/hours-rule";
 import {
-  reconcileMonth,
-  payableHoursForMonth,
-  monthKeyOf,
-  type PayableHoursResult,
-} from "@/lib/attendance/hour-balance";
+  payrollMonthFor,
+  type EmployeePayrollMonth,
+} from "@/lib/attendance/payroll-month";
 import {
   resolveEffectiveConfig,
   toAttendanceSchedule,
   type EffectiveAttendanceConfig,
 } from "@/lib/attendance/effective-config";
 import { listHolidayDateSet } from "@/lib/queries/holidays";
+import { approvedRemoteWorkMapForRange } from "@/lib/attendance/remote-work";
+import type { RemoteWorkMode } from "@/db/enums";
 import { listEmployeeLeaveForRange, type LeaveRow } from "@/lib/queries/leave";
 import { isHalfLeaveDay } from "@/lib/attendance/leave-cycle";
 import {
@@ -61,6 +61,17 @@ export interface DayRow {
   leftEarly: boolean;
   lateWaived: boolean;
   workedMinutes: number;
+  /**
+   * The APPROVED remote-work mode for this day (wfh / field / client_site), or
+   * null for an ordinary office day.
+   *
+   * Presentation only — it never touches the code, the day value or the worked
+   * minutes. An approved remote day is a normal working day that happens to be
+   * worked elsewhere: it owes the same hours, earns them the same way, and is
+   * paid the same. All this carries is the fact that being away was sanctioned,
+   * so the calendar can say so instead of showing an unexplained day.
+   */
+  remoteMode: RemoteWorkMode | null;
 }
 
 export interface MonthSummary {
@@ -356,6 +367,8 @@ interface DayContextInputs {
   converted: Set<string>;
   /** Redeemed dates for this employee (grade CO). */
   redeemed: Set<string>;
+  /** Approved remote-work dates for this employee → mode. Display only. */
+  remote: Map<string, RemoteWorkMode>;
 }
 
 /** What an approved leave says about one date: the kind, and whether it covers
@@ -451,6 +464,7 @@ function gradeMonth(
         leftEarly: false,
         lateWaived: false,
         workedMinutes: 0,
+        remoteMode: null,
       });
       continue;
     }
@@ -512,6 +526,7 @@ function gradeMonth(
       leftEarly: graded.leftEarly,
       lateWaived: graded.lateWaived,
       workedMinutes: graded.workedMinutes,
+      remoteMode: dayCtx.remote.get(ymd) ?? null,
     });
   }
 
@@ -604,10 +619,15 @@ export async function getEmployeeMonthStatus(
 
   // Phase-B calendar/leave/comp-off context. `listHolidayDateSet` is per
   // calendar year; a month is always within one year so `year` is correct.
-  const [holidaySet, leaves, compOff] = await Promise.all([
+  const [holidaySet, leaves, compOff, remoteByEmp] = await Promise.all([
     listHolidayDateSet(year),
     listEmployeeLeaveForRange([employeeId], first, last),
     getCompOffMapForRange([employeeId], first, last),
+    // Display only, and fail-soft: a remote-work read that hiccups costs the
+    // calendar a badge, never the month's grading or anybody's pay.
+    approvedRemoteWorkMapForRange([employeeId], first, last).catch(
+      () => new Map<string, Map<string, RemoteWorkMode>>(),
+    ),
   ]);
 
   const defaults = companyDefaults(org);
@@ -618,6 +638,7 @@ export async function getEmployeeMonthStatus(
     leaves,
     converted: compOff.convertedByEmp.get(employeeId) ?? new Set<string>(),
     redeemed: compOff.redeemedByEmp.get(employeeId) ?? new Set<string>(),
+    remote: remoteByEmp.get(employeeId) ?? new Map<string, RemoteWorkMode>(),
   });
 }
 
@@ -646,19 +667,16 @@ export interface DashboardRow {
   payroll?: EmployeePayrollMonth;
 }
 
-/** The payroll-facing slice of a graded month, per employee. */
-export interface EmployeePayrollMonth extends PayableHoursResult {
-  /** One scheduled day in minutes (9h full-time, 5h part-time). */
-  dailyTargetMinutes: number;
-  /** Hours REQUIRED so far = elapsed working days × daily target (holidays/offs
-   *  excluded) — the self-view's requiredElapsedHours. Overtime is worked beyond
-   *  this, so My Salary and the Attendance page report one overtime figure. */
-  requiredElapsedMinutes: number;
-  /** Half-days charged at 50% — the 4th onward; the first three are waived. */
-  chargeableHalfDays: number;
-  /** Surplus/deficit carried inside this calendar month only. */
-  monthlyHourBalanceMinutes: number;
-}
+/**
+ * The payroll-facing slice of a graded month, per employee.
+ *
+ * The type and the sequence that builds it now live in
+ * lib/attendance/payroll-month.ts, so the three surfaces that derived it
+ * independently (this dashboard, the Attendance KPI's "salary lost", the
+ * half-day grace) read one implementation. Re-exported here because this is
+ * where every caller already imports it from.
+ */
+export type { EmployeePayrollMonth };
 
 export interface MonthDashboardFilters {
   /** Restrict to a single weekly-off cohort, if set. */
@@ -724,9 +742,16 @@ export async function getMonthDashboard(
   // query each across ALL employees (still no N+1) — the result maps are then
   // sliced per employee in the grade loop below.
   const allEmpIds = people.map((p) => p.id);
-  const [allLeaves, compOff]: [LeaveRow[], CompOffRangeMaps] = await Promise.all([
+  const [allLeaves, compOff, remoteByEmp]: [
+    LeaveRow[],
+    CompOffRangeMaps,
+    Map<string, Map<string, RemoteWorkMode>>,
+  ] = await Promise.all([
     listEmployeeLeaveForRange(allEmpIds, first, last),
     getCompOffMapForRange(allEmpIds, first, last),
+    approvedRemoteWorkMapForRange(allEmpIds, first, last).catch(
+      () => new Map<string, Map<string, RemoteWorkMode>>(),
+    ),
   ]);
 
   // Group approved leaves by employee once.
@@ -772,6 +797,7 @@ export async function getMonthDashboard(
       leaves: leavesByEmp.get(p.id) ?? [],
       converted: compOff.convertedByEmp.get(p.id) ?? new Set<string>(),
       redeemed: compOff.redeemedByEmp.get(p.id) ?? new Set<string>(),
+      remote: remoteByEmp.get(p.id) ?? new Map<string, RemoteWorkMode>(),
     });
 
     // ── PAYROLL VIEW (spec §13) ──────────────────────────────────────────
@@ -779,44 +805,17 @@ export async function getMonthDashboard(
     // them. Declared holidays and weekly offs are already excluded because
     // neither grades as an ordinary attendance day, so the target falls
     // automatically in a month that contains one.
-    const cfg = employeeEffectiveConfig(p, org);
-    const monthKey = monthKeyOf(`${year}-${String(month).padStart(2, "0")}-01`);
-    const gradedForPayroll = days
-      .filter((d) => d.code !== NOT_JOINED_CODE)
-      .map((d) => ({
-        date: d.logDate,
-        weekKey: weekKeyOf(d.logDate),
-        code: d.code,
-        dayValue: d.dayValue,
-        workedMinutes: d.workedMinutes,
-        late: d.late,
-        leftEarly: d.leftEarly,
-      }));
-    const recon = reconcileMonth(gradedForPayroll, {
-      month: monthKey,
-      weeklyTargetMinutes: cfg.weeklyTargetMinutes,
-      waiverThresholdMinutes: cfg.waiverThresholdMinutes,
-      workingDaysPerWeek: cfg.workingDaysPerWeek,
+    //
+    // The sequence lives in lib/attendance/payroll-month.ts. It used to be
+    // written out here and twice more in attendance-summary.ts, against the
+    // same functions in the same order — and the order is load-bearing, so
+    // three copies were three chances for a surface to price a different month
+    // than the payslip.
+    const { payroll } = payrollMonthFor(days, {
+      month: `${year}-${String(month).padStart(2, "0")}`,
+      cfg: employeeEffectiveConfig(p, org),
+      refTodayISO,
     });
-    const hours = payableHoursForMonth(gradedForPayroll, recon, cfg.dailyTargetMinutes);
-
-    // Hours the employee was REQUIRED to work so far — elapsed working days ×
-    // daily target — computed with the SAME predicate the self-view uses
-    // (attendance-summary.isRequiredDay): not a weekly-off, not an off-code
-    // (W/O / H / PL / CO / LWP), joined, and on or before today. Overtime pay is
-    // measured against this, so My Salary and the Attendance page agree.
-    const requiredElapsedMinutes =
-      days.filter(
-        (d) =>
-          !d.isWeeklyOff &&
-          d.code !== NOT_JOINED_CODE &&
-          d.code !== "W/O" &&
-          d.code !== "H" &&
-          d.code !== "PL" &&
-          d.code !== "CO" &&
-          d.code !== "LWP" &&
-          d.logDate <= refTodayISO,
-      ).length * cfg.dailyTargetMinutes;
 
     out.push({
       employeeId: p.id,
@@ -825,13 +824,7 @@ export async function getMonthDashboard(
       department: p.department ?? null,
       managerId: p.managerId ?? null,
       summary,
-      payroll: {
-        ...hours,
-        dailyTargetMinutes: cfg.dailyTargetMinutes,
-        requiredElapsedMinutes,
-        chargeableHalfDays: recon.chargeableHalfDays,
-        monthlyHourBalanceMinutes: recon.monthlyHourBalanceMinutes,
-      },
+      payroll,
     });
   }
   return out;

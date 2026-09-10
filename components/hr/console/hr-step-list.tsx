@@ -30,10 +30,10 @@ export function HrStepList({
     <div className="flex h-full w-[320px] shrink-0 flex-col border-r border-hairline bg-surface-card">
       {/* title -- count | collapse. The collapse control lives HERE while
           this column is open, so it reads as the column's own chrome.
-          Once collapsed the whole column is 0-wide, so the control has to
-          move out to the content column's title bar, the only place left
-          that can still reach it (HrTitleBar / HrTitleBarFallback render
-          it only while collapsed). */}
+          Once collapsed the whole column is 0-wide, so the control moves out
+          to the shell, which renders it beside the rail (the per-page title
+          bar no longer exists — a page's title and controls now portal into
+          the global top bar via components/layout/page-chrome-slots). */}
       <div className="flex items-center gap-2 border-b border-hairline px-4 py-3">
         <p className="min-w-0 flex-1 truncate text-[10px] font-bold uppercase tracking-[0.18em] text-ink-muted">
           {module ? module.title : "Steps"}

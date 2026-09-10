@@ -24,7 +24,7 @@ export default async function OnboardingPage({ searchParams }: PageProps) {
   if (!canManageEmployeeOnboarding(access, targetId)) redirect("/dossier");
 
   const data = await getOnboarding(targetId);
-  if (!data) redirect(access.isAdmin || access.isHr ? "/dossier" : "/hub");
+  if (!data) redirect(access.isAdmin || access.isHr || access.isIntake ? "/dossier" : "/hub");
 
   const onBehalf = targetId !== access.me.id;
   const backHref = onBehalf ? `/dossier?emp=${targetId}` : "/dossier";

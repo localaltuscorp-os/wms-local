@@ -8,6 +8,7 @@ import {
   resolveDeviceContext,
   deviceIdFromRequest,
   touchLastSeen,
+  mobileHeaderGraceActive,
 } from "@/lib/security/device-access";
 
 /**
@@ -41,12 +42,16 @@ export interface MobileAuthOptions {
  * always used, so a phone already approved for attendance is already approved
  * here — nobody re-enrolls.
  *
- * A build that predates the header sends no id and is refused as
- * `device-unidentified`. That is the correct answer to "an unidentified device
- * is asking for WMS data", and it is why `DEVICE_ACCESS_ENFORCEMENT=off` exists:
- * an operator rolling out the new app build turns enforcement off for the
- * length of that rollout, deliberately and visibly, rather than the server
- * quietly trusting whoever omits the header.
+ * A build that predates the header sends no id. By default that is refused as
+ * `device-unidentified` — the correct answer to "an unidentified device is
+ * asking for WMS data".
+ *
+ * Because deploying that on day one would break every phone that has not yet
+ * received the new APK, `DEVICE_ACCESS_MOBILE_GRACE_UNTIL` opens a DATED window
+ * in which an unidentified NATIVE request is allowed through. It is a deadline
+ * rather than a flag so it closes itself, and it covers only the "no id at all"
+ * case — a phone that names a revoked or pending device is still refused during
+ * the grace. See `mobileHeaderGraceActive` for the full reasoning.
  */
 export async function authenticateMobileRequest(
   req: Request,
@@ -75,7 +80,28 @@ export async function authenticateMobileRequest(
 
   if (options.skipDeviceCheck) return { ok: true, employee, deviceRowId: null };
 
-  const ctx = await resolveDeviceContext(employee, deviceIdFromRequest(req));
+  const presentedId = deviceIdFromRequest(req);
+
+  // OLD APP BUILD, DURING THE ROLLOUT WINDOW ONLY.
+  //
+  // A native request carrying NO device id is a build that predates the header.
+  // While `DEVICE_ACCESS_MOBILE_GRACE_UNTIL` is in the future, let it through so
+  // an un-updated phone keeps working until the new APK reaches it; after that
+  // date it is refused like any other unidentified device.
+  //
+  // Scoped as tightly as it can be: it fires ONLY when no id is presented at
+  // all. A request that names a device falls through to the full check below,
+  // so revoked, pending and other-employee devices are refused throughout the
+  // grace. Logged on every use, because a security check being skipped should
+  // be visible in the logs rather than inferred from an environment variable.
+  if (!presentedId && mobileHeaderGraceActive()) {
+    console.warn(
+      `[device-access] native request with no device id allowed under rollout grace — employee=${employee.id}`,
+    );
+    return { ok: true, employee, deviceRowId: null };
+  }
+
+  const ctx = await resolveDeviceContext(employee, presentedId);
   if (!ctx.allowed) {
     // 403 with a machine-readable reason so the app can route the person to the
     // right screen ("Register this device" vs "Waiting for approval") instead of

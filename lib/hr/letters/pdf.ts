@@ -3,7 +3,7 @@ import "server-only";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import PDFDocument from "pdfkit";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import { getEntity, type EntityId, type Entity } from "@/lib/hr/entities";
 import { applyPronouns, type Gender } from "@/lib/hr/pronouns";
 import { applyFirm, HR_SIGNATORY, HR_SIGNATURE_IMAGE } from "@/lib/hr/firm";
@@ -92,7 +92,7 @@ export async function renderLetterPdf(input: RenderLetterInput): Promise<Buffer>
   const entity = getEntity(input.entity ?? input.template.entityDefault ?? null);
   const values = input.values ?? {};
   const gender: Gender = input.gender ?? "neutral";
-  const letterDate = input.date?.trim() || formatDate(new Date());
+  const letterDate = input.date?.trim() || formatDateHr(new Date());
 
   const doc = new PDFDocument({
     size: "A4",

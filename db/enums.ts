@@ -642,7 +642,12 @@ export const SEED_RESPONSIBLES = [
 export const SEED_ENTITIES = [
   "Altus Corp",
   "Unleashed",
-  "IGV",
+  // Renamed from "IGV" by migration 0217. The ENTITY is renamed alongside the
+  // payment mode because 0070 created both from "Cash" as one counterparty, and
+  // leaving the entity as "IGV" would put two spellings of one company on
+  // adjacent dropdowns. Historical rows follow the rename automatically —
+  // `outstanding_contracts.entity_id` is a uuid, so nothing was repointed.
+  "IJV",
   "Khushboo",
   "MJV HUF",
   "JSV HUF",
@@ -651,29 +656,76 @@ export const SEED_ENTITIES = [
   "Smita Raut",
   "Sunil Raut",
 ] as const;
+/**
+ * The PRODUCT master's fresh-seed list.
+ *
+ * Kept in step with migration 0217, which is what actually populates a live
+ * database — this constant only seeds an empty one. `code` lives with the
+ * migration and with the admin screen rather than here: a product's code is
+ * editable data, and duplicating it into a `as const` array would create a
+ * second answer that drifts the first time somebody edits one on
+ * /admin/products.
+ *
+ * "Consulting" stays: it is referenced by existing contracts and is retired by
+ * an admin flipping `is_active`, never by being dropped from a list.
+ */
 export const SEED_PRODUCTS = [
-  "BSS",
+  "Altus Conclave",
   "Billing",
+  "BSS",
+  "BSSO",
   "Commission",
   "Consulting",
+  "Graduate Programs",
+  "OS",
   "PS",
+  "PSO",
   "Rent",
   "Retainer",
 ] as const;
+
+/**
+ * The PAYMENT MODE master's fresh-seed list.
+ *
+ * "IJV" replaces "IGV" (migration 0217 renames the live row, so historical
+ * `payment_mode_id` / `expected_mode_id` references follow it). The bank and
+ * wallet accounts below were added by the same migration.
+ *
+ * The older "Kotak - X" / "Gpay - X" spellings are KEPT alongside the new
+ * "X Kotak" / "X G Pay" ones rather than being rewritten into them. They are
+ * not obviously the same accounts — "Kotak - Khushboo" has no counterpart in
+ * the new list, and "Altus Kotak" is not certainly "Kotak - Altus" — and
+ * guessing at a merge would silently relabel historical collections. Retiring a
+ * superseded spelling is one click on /admin/outstanding-payment-modes, where
+ * the person doing it knows which account is which.
+ */
 export const SEED_PAYMENT_MODES = [
-  "Kotak - Altus",
-  "Pay U",
-  "Jodo",
-  "IGV",
-  "Kotak - Unleashed",
-  "Kotak - Khushboo",
-  "Kotak - MJV HUF",
-  "Kotak - JSV HUF",
+  "Altus Kotak",
+  "Barter",
+  "CMV G Pay",
+  "Dattaram Kotak",
+  "Gpay - CMV",
   "Gpay - JSV HUF",
   "Gpay - MJV",
-  "Gpay - CMV",
+  "IJV",
+  "Jodo",
+  "JSV HUF ICICI",
+  "JSV HUF Kotak",
+  "KAS Kotak",
+  "Kotak - Altus",
+  "Kotak - JSV HUF",
+  "Kotak - Khushboo",
+  "Kotak - MJV HUF",
+  "Kotak - Unleashed",
+  "MJV G Pay",
+  "MJV HUF Kotak",
+  "Parvez Kotak",
+  "Pay U",
   "PDC",
-  "Barter",
+  "Razorpay",
+  "Smita",
+  "Sunil Kotak",
+  "Unleashed Kotak",
 ] as const;
 
 // ── Monthly Events Master (migration 0130) ─────────────────────────────────

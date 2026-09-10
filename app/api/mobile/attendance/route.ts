@@ -43,9 +43,11 @@ export async function GET(req: Request) {
     deviceId ? getDeviceStatusFor(me.id, deviceId) : Promise.resolve(null),
   ]);
 
-  // Registered = already submitted (approved OR pending) → no need to register
-  // again. Null (no deviceId sent) → "unknown", app keeps its safe default.
-  const deviceRegistered = deviceStatus === "approved" || deviceStatus === "pending";
+  // Registered = usable now. Since admin approval was removed there is no
+  // in-between state to account for: a device is approved, revoked, someone
+  // else's, or unknown to us. Null (no deviceId sent) → "unknown", app keeps
+  // its safe default.
+  const deviceRegistered = deviceStatus === "approved";
 
   const todayRow = days.find((d) => d.date === today);
 

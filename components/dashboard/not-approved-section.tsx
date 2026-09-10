@@ -215,7 +215,7 @@ function PersonRow({ person }: { person: NotApprovedPerson }) {
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Content
-            side="top"
+            side="bottom"
             align="center"
             sideOffset={10}
             collisionPadding={12}

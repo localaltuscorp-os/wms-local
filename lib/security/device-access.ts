@@ -141,6 +141,53 @@ export function deviceAutoAdoptEnabled(): boolean {
   return process.env.DEVICE_AUTO_ADOPT !== "off";
 }
 
+/**
+ * THE NATIVE-APP ROLLOUT GRACE, AND WHY IT IS A DATE AND NOT A FLAG.
+ *
+ * The Android app only started sending {@link DEVICE_ID_HEADER} in the build
+ * that shipped with this work. Every phone still running an older build sends
+ * no device id at all, so the gate cannot identify it and refuses it — which
+ * means the day this deploys, every un-updated phone loses the app entirely.
+ * An app store rollout takes days and cannot be made instant.
+ *
+ * The blunt instrument for that is `DEVICE_ACCESS_ENFORCEMENT=off`, but it
+ * disables the gate for the WEB too, and — the real problem — a boolean has no
+ * reason to ever become true again. "Turn it back on once the app is out" is
+ * the kind of task that is genuinely forgotten, and the failure is silent: the
+ * control is simply off, forever, and nothing says so.
+ *
+ * So the grace is a DEADLINE. `DEVICE_ACCESS_MOBILE_GRACE_UNTIL=2026-10-01`
+ * closes itself on that date whether or not anyone remembers. It cannot decay
+ * into a permanent hole.
+ *
+ * ── WHAT IT DOES AND DOES NOT COVER ────────────────────────────────────────
+ * It applies to exactly ONE case: a native request presenting NO device id.
+ * That is the old-build signature. It does NOT relax anything else — a request
+ * that DOES name a device gets the full check, so a revoked phone stays
+ * revoked, a pending phone stays pending, and another employee's phone is still
+ * refused, throughout the grace. The hole is "unidentified", not "unchecked",
+ * and it is the narrowest one that lets the old build keep working.
+ *
+ * Unset (the default) means NO grace: an unidentified native request is
+ * refused. That keeps the safe behaviour the default and makes the exception
+ * something an operator opts into, with an end date, on purpose.
+ */
+export function mobileHeaderGraceActive(now: Date = new Date()): boolean {
+  const raw = process.env.DEVICE_ACCESS_MOBILE_GRACE_UNTIL?.trim();
+  if (!raw) return false;
+  const until = new Date(raw);
+  // An unparseable date is NOT treated as "grace forever" — it is treated as no
+  // grace at all. A typo in this variable should fail closed and be noticed,
+  // not quietly disable the gate for the native surface indefinitely.
+  if (Number.isNaN(until.getTime())) {
+    console.warn(
+      `[device-access] DEVICE_ACCESS_MOBILE_GRACE_UNTIL is not a valid date ("${raw}") — grace treated as OFF.`,
+    );
+    return false;
+  }
+  return now.getTime() < until.getTime();
+}
+
 /* ── Read-only resolution (safe in Server Components) ─────────────────────── */
 
 /**
@@ -451,9 +498,46 @@ async function enroll(
   });
   if (!row) return { ok: false, reason: "unregistered", error: DENY_MESSAGES.unregistered };
   if (row.status !== "approved") {
+    await alertManagersPending(employee, label, kind);
     return { ok: false, reason: "pending", error: DENY_MESSAGES.pending };
   }
   return { ok: true, device: row, adopted: true, deviceId };
+}
+
+/**
+ * Tell the device managers somebody is waiting, WITHOUT pulling the
+ * notification stack into this module's import graph.
+ *
+ * `device-access` is imported by `requireUser()`, so it is on the module graph
+ * of literally every request. `punch-notify` reaches email, Slack and web-push
+ * from its own imports; a static import here would drag all of that into every
+ * page render to serve a path that runs at most once per new device. The
+ * dynamic import keeps it out until the moment it is genuinely needed.
+ *
+ * Deliberately awaited rather than fired-and-forgotten: this runs inside the
+ * sign-in route, and on a serverless platform an un-awaited promise can be
+ * killed when the response is returned — which is exactly the case where the
+ * person is locked out and the alert is the thing that unlocks them. It is
+ * wrapped so a notification failure can never turn a refusal into a crash.
+ */
+async function alertManagersPending(
+  employee: Employee,
+  label: string,
+  kind: DeviceKind,
+): Promise<void> {
+  try {
+    const { alertDeviceManagersPendingDevice } = await import(
+      "@/lib/attendance/punch-notify"
+    );
+    await alertDeviceManagersPendingDevice({
+      employeeId: employee.id,
+      employeeName: employee.name,
+      deviceLabel: label,
+      deviceKind: kind,
+    });
+  } catch (err) {
+    console.warn("[device-access] could not alert device managers", err);
+  }
 }
 
 /** Does this employee already hold an approved device of this kind? The

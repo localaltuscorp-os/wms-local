@@ -18,6 +18,7 @@ import {
   Keyboard,
   FileText,
   Archive,
+  ShieldCheck,
   ChevronUp,
 } from "lucide-react";
 
@@ -25,6 +26,9 @@ type Props = {
   name: string;
   email: string;
   isAdmin: boolean;
+  /** Holds the `master_admin.manage` capability. Resolved server-side in
+   *  UserMenuServer; this only decides whether the link is drawn. */
+  isMasterAdmin: boolean;
   avatarUrl: string | null;
   inboxUnread: number;
   archivedTasks: number;
@@ -37,6 +41,7 @@ export function UserMenu({
   name,
   email,
   isAdmin,
+  isMasterAdmin,
   avatarUrl,
   inboxUnread,
   archivedTasks,
@@ -210,6 +215,34 @@ export function UserMenu({
                   strokeWidth={2.2}
                   style={{ color: "#64748B" }}
                 />
+              </Link>
+            </DropdownMenu.Item>
+          )}
+
+          {/*
+            MASTER ADMIN — the permission matrix. Two people see this.
+
+            `isMasterAdmin` is resolved SERVER-SIDE in UserMenuServer, from the
+            capability registry, and threaded down as a boolean. Hiding the link
+            is presentation only: /master-admin has its own layout gate and every
+            one of its server actions re-checks the capability, so typing the URL
+            or POSTing to an action gets the same refusal as not seeing the link.
+          */}
+          {isMasterAdmin && (
+            <DropdownMenu.Item asChild>
+              <Link
+                href={"/master-admin" as Route}
+                className="mt-1 flex items-center justify-between gap-2.5 px-3.5 py-2.5 text-[15px] rounded-lg cursor-pointer outline-none"
+                style={{
+                  background: "linear-gradient(135deg, rgba(67,56,202,0.07), rgba(99,102,241,0.04))",
+                  color: "#0F172A",
+                }}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <ShieldCheck size={14} strokeWidth={2.2} style={{ color: "#4338CA" }} />
+                  <span className="font-medium">Master Admin</span>
+                </span>
+                <ChevronRight size={14} strokeWidth={2.2} style={{ color: "#64748B" }} />
               </Link>
             </DropdownMenu.Item>
           )}

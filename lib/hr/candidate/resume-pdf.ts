@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import PDFDocument from "pdfkit";
 import { format } from "date-fns";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import { resumeHeader, resumeGroups } from "./resume-model";
 import type { ResumeData, ResumeInstances, ResumeGroup, ResumeRow } from "./resume-model";
 
@@ -37,7 +37,7 @@ const COMPANY = "Altus Corp";
 const SUBTITLE = "Candidate Interview Form";
 
 function fmtStamp(d: Date): string {
-  return `${formatDate(d)} · ${format(d, "HH:mm")}`;
+  return `${formatDateHr(d)} · ${format(d, "HH:mm")}`;
 }
 
 interface RenderInput {
@@ -56,7 +56,7 @@ export async function renderCandidateResumePdf(input: RenderInput): Promise<Buff
     layout: "portrait",
     margin: 48,
     info: {
-      Title: `${header.name} — Candidate Profile`,
+      Title: `${header.name} - Candidate Profile`,
       Author: "Altus Corp Dashboard",
       Subject: `Altus Corp · ${SUBTITLE}`,
     },

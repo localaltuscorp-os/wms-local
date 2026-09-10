@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth/current";
+import { requireUser, getDelegation } from "@/lib/auth/current";
+import { DelegationBanner } from "@/components/auth/delegation-banner";
 import { accessFor } from "@/lib/auth/workspace-access";
+import { requirePathView } from "@/lib/permissions/resolve";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { gateSkipActive } from "@/lib/auth/gate-skip";
 import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
@@ -52,6 +54,24 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   if (ws && !canAccessWorkspace(ws, access)) {
     redirect("/hub");
   }
+
+  // ── THE PERMISSION MATRIX, ENFORCED FOR EVERY ROUTE IN THE ROOM ──────────
+  //
+  // Resolved from `x-pathname` and applied HERE, beside the workspace gate,
+  // rather than page by page. That is the whole difference between a permission
+  // system and a decorative one: there are ~200 routes under `(app)`, and a
+  // matrix enforced only on the pages somebody remembered to annotate is a
+  // matrix that lets a denied module through by direct URL.
+  //
+  // `requirePathView` is a no-op for a path the catalogue does not claim, so
+  // nothing that has not been deliberately classified starts refusing people.
+  // It redirects to the hub, matching the workspace gate above — the person is
+  // properly signed in and has done nothing wrong.
+  //
+  // It does NOT cover server actions; those are POSTs that never render a
+  // layout. EDIT is therefore enforced inside the actions themselves
+  // (`requireModuleEdit`), which is the only place that can.
+  await requirePathView(pathname);
 
   // The daily ritual gate chain. Policy: a COMPULSORY post-login wall — the daily
   // rituals (plan-your-day / DCC / manager duties) must be done before ANY app
@@ -196,8 +216,22 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // Soft onboarding nudge — fixed-position + session-dismissible, fetches its own
   // status CLIENT-SIDE after mount (never a query on this SSR/dashboard load
   // path). Floats over any route without touching the chrome/layout branching.
+  // TEMPORARY DELEGATED ACCESS — is this request acting as somebody else?
+  //
+  // Resolved here, in the one layout every (app) route passes through, so the
+  // "acting as" banner cannot be missing from a screen. It is a cache hit:
+  // `requireUser()` above already resolved the delegation on this request.
+  const delegation = await getDelegation();
+
   return (
     <>
+      {delegation && (
+        <DelegationBanner
+          targetName={delegation.target.name}
+          delegateName={delegation.delegateName}
+          expiresAtIso={delegation.expiresAt.toISOString()}
+        />
+      )}
       <KeyboardShortcuts />
       <FocusMode />
       {/* Number-row module shortcuts (1–9, 0), the keyboard half of the module

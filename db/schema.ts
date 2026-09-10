@@ -2552,11 +2552,30 @@ export type NewOutstandingFollowup = typeof outstandingFollowups.$inferInsert;
  * one-off receivables not tied to a contract.
  */
 // ── Outstanding tracker v2 (native rebuild, migration 0055) ────────────────
+/**
+ * THE PRODUCT MASTER (migration 0055; `code` added by 0217).
+ *
+ * Named `outstanding_products` because Outstanding was the module that first
+ * needed it, but it is the company's ONE product roster — `/admin/products`
+ * manages it and every product dropdown reads it. The physical name is kept
+ * rather than renamed because `outstanding_contracts.product_id` and
+ * `outstanding_collections` reference it, and a table rename buys a tidier name
+ * at the cost of churning every reader of a live financial table.
+ *
+ * `code` is NULLABLE on purpose. A product whose name is already a code (BSS,
+ * PSO) was backfilled by 0217; a multi-word one (Altus Conclave, Retainer) was
+ * deliberately left blank for an admin to fill in, rather than given a code
+ * invented by a migration. The IDENTIFIER is and always was `id` — neither
+ * `name` nor `code` is a foreign key anywhere.
+ */
 export const outstandingProducts = pgTable(
   "outstanding_products",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull().unique(),
+    /** Short product code, e.g. "BSS" / "GP". Unique case-insensitively among
+     *  the rows that have one (partial unique index in 0217). */
+    code: text("code"),
     isActive: boolean("is_active").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(100),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -4532,6 +4551,58 @@ export type FormConfig = typeof formConfigs.$inferSelect;
 export type NewFormConfig = typeof formConfigs.$inferInsert;
 export type ProductOption = typeof productOptions.$inferSelect;
 export type NewProductOption = typeof productOptions.$inferInsert;
+
+/**
+ * Files attached to a module submission — reimbursement receipts, above all
+ * (migration 0216).
+ *
+ * ── WHY THIS REPLACES A DRIVE LINK ─────────────────────────────────────────
+ * The reimbursement request form used to carry `bill_url`, a free-text link to
+ * something in someone's Drive. That is not a receipt the firm holds: it lives
+ * in a personal account, its sharing can be revoked, and it breaks silently
+ * years later when an audit needs it. These rows point at objects in the app's
+ * OWN private Supabase `documents` bucket instead.
+ *
+ * ── NOT ON VERCEL, AND NOT IN POSTGRES EITHER ──────────────────────────────
+ * `storage_path` addresses the object in Supabase Storage, exactly as
+ * `task_attachments` and `project_node_attachments` already do. The bytes never
+ * touch the Next.js server: the browser PUTs them straight to a signed upload
+ * URL (see app/(app)/reimbursements/attachment-actions.ts), so neither Vercel's
+ * request-body ceiling nor its ephemeral filesystem is in the path at all. The
+ * app server only ever handles this row.
+ *
+ * ── GENERIC ON PURPOSE ─────────────────────────────────────────────────────
+ * It hangs off `module_submissions`, which is the shared table behind
+ * Reimbursements, Record Reference and Participant Breakthrough, so the column
+ * is `submission_id` and the name says "module submission" rather than
+ * "reimbursement". Naming it for one module would have misdescribed the foreign
+ * key. Only the reimbursement UI attaches files today.
+ */
+export const moduleSubmissionAttachments = pgTable(
+  "module_submission_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    submissionId: uuid("submission_id")
+      .notNull()
+      .references(() => moduleSubmissions.id, { onDelete: "cascade" }),
+    storagePath: text("storage_path").notNull(),
+    /** The name the uploader's own file had. Never overwritten — see 0216. */
+    fileName: text("file_name").notNull(),
+    mime: text("mime"),
+    sizeBytes: integer("size_bytes"),
+    uploadedById: uuid("uploaded_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("module_submission_attachments_submission_idx").on(t.submissionId, t.createdAt),
+  ],
+);
+
+export type ModuleSubmissionAttachment = typeof moduleSubmissionAttachments.$inferSelect;
+export type NewModuleSubmissionAttachment =
+  typeof moduleSubmissionAttachments.$inferInsert;
 
 /**
  * Overtime entries (migration 0077) — "Parvez overtime + dashboard in WMS".
@@ -7463,3 +7534,219 @@ export const dataRetentionPolicies = pgTable("data_retention_policies", {
 });
 
 export type DataRetentionPolicy = typeof dataRetentionPolicies.$inferSelect;
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * TEMPORARY DELEGATED ACCESS (migration 0218)
+ *
+ * "Rudra needs to test Rutvisha's account." One opaque token, hashed here,
+ * carried in its own cookie beside the delegate's REAL session. While it
+ * resolves to a live row the server answers "who is the current employee" with
+ * the target's row — see lib/auth/delegated-access.ts and lib/auth/current.ts.
+ *
+ * No credential of any kind is stored, copied or changed by any of this.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export const delegatedAccessGrants = pgTable(
+  "delegated_access_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Whose account is being accessed. */
+    targetEmployeeId: uuid("target_employee_id")
+      .notNull()
+      .references((): AnyPgColumn => employees.id, { onDelete: "cascade" }),
+    /** Who receives the access. Must be signed in as themselves for the token
+     *  to resolve, so a leaked token is useless to anybody else. */
+    delegateEmployeeId: uuid("delegate_employee_id")
+      .notNull()
+      .references((): AnyPgColumn => employees.id, { onDelete: "cascade" }),
+    grantedById: uuid("granted_by_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    reason: text("reason"),
+    /** What the manager PICKED — kept beside the computed expiry so the audit
+     *  screen can show that the 20:30 floor extended a 1-hour grant. */
+    durationMinutes: integer("duration_minutes").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * THE ONE AUTHORITY ON EXPIRY: `max(startsAt + duration, 20:30 IST)`,
+     * computed server-side at grant time by `delegatedExpiry`. Stored rather
+     * than recomputed so a later change to the rule cannot extend a grant that
+     * is already running.
+     */
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedById: uuid("revoked_by_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    /** SHA-256 (hex) of the opaque token. The token itself is never stored. */
+    tokenHash: text("token_hash").notNull().unique(),
+    firstUsedAt: timestamp("first_used_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    useCount: integer("use_count").notNull().default(0),
+    /** Recorded for the audit trail, NOT used as an authorization input — the
+     *  device restriction is applied to the delegate's own identity before the
+     *  swap, so a grant can never lend out the target's registered devices. */
+    deviceId: text("device_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("delegated_access_token_idx").on(t.tokenHash),
+    index("delegated_access_target_idx").on(t.targetEmployeeId, t.startsAt),
+    index("delegated_access_delegate_idx").on(t.delegateEmployeeId, t.startsAt),
+  ],
+);
+
+export const delegatedAccessEvents = pgTable(
+  "delegated_access_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** SET NULL, not cascade: an audit row outlives what it describes. */
+    grantId: uuid("grant_id").references((): AnyPgColumn => delegatedAccessGrants.id, {
+      onDelete: "set null",
+    }),
+    kind: text("kind")
+      .$type<
+        | "granted"
+        | "started"
+        | "expired"
+        | "revoked"
+        | "denied_after_expiry"
+        | "denied"
+      >()
+      .notNull(),
+    /** Denormalised so the row still reads after an employee is anonymised. */
+    targetEmployeeId: uuid("target_employee_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    delegateEmployeeId: uuid("delegate_employee_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    actorEmployeeId: uuid("actor_employee_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    detail: text("detail"),
+    deviceId: text("device_id"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("delegated_access_events_grant_idx").on(t.grantId, t.occurredAt),
+    index("delegated_access_events_recent_idx").on(t.occurredAt),
+    index("delegated_access_events_target_idx").on(t.targetEmployeeId, t.occurredAt),
+  ],
+);
+
+export type DelegatedAccessGrant = typeof delegatedAccessGrants.$inferSelect;
+export type NewDelegatedAccessGrant = typeof delegatedAccessGrants.$inferInsert;
+export type DelegatedAccessEvent = typeof delegatedAccessEvents.$inferSelect;
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * THE PERMISSION MATRIX (migration 0219)
+ *
+ * Only the GRANTS are stored. The module → sub-module → sub-sub-module TREE is
+ * code (lib/permissions/catalog.ts), derived from the real routes, because a
+ * node is only meaningful if something enforces it and what enforces it is
+ * code. See the migration header for the full reasoning.
+ *
+ * A missing row means "fall back to the authorization the app already has", not
+ * "denied" — and an override can only NARROW that, never widen it.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export const modulePermissions = pgTable(
+  "module_permissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references((): AnyPgColumn => employees.id, { onDelete: "cascade" }),
+    /** Dotted catalogue path: "wms", "wms.tasks", "wms.tasks.report". */
+    nodeKey: text("node_key").notNull(),
+    canShow: boolean("can_show").notNull().default(true),
+    canView: boolean("can_view").notNull().default(true),
+    canEdit: boolean("can_edit").notNull().default(true),
+    updatedById: uuid("updated_by_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("module_permissions_employee_node_uniq").on(t.employeeId, t.nodeKey),
+    index("module_permissions_employee_idx").on(t.employeeId),
+    index("module_permissions_node_idx").on(t.nodeKey),
+  ],
+);
+
+export const modulePermissionEvents = pgTable(
+  "module_permission_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    nodeKey: text("node_key").notNull(),
+    /** NULL = there was no override before/after. Distinct from false, which is
+     *  an explicit deny — that distinction IS the default-open rule. */
+    prevShow: boolean("prev_show"),
+    prevView: boolean("prev_view"),
+    prevEdit: boolean("prev_edit"),
+    nextShow: boolean("next_show"),
+    nextView: boolean("next_view"),
+    nextEdit: boolean("next_edit"),
+    actorEmployeeId: uuid("actor_employee_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("module_permission_events_employee_idx").on(t.employeeId, t.occurredAt),
+    index("module_permission_events_recent_idx").on(t.occurredAt),
+  ],
+);
+
+export type ModulePermission = typeof modulePermissions.$inferSelect;
+export type NewModulePermission = typeof modulePermissions.$inferInsert;
+export type ModulePermissionEvent = typeof modulePermissionEvents.$inferSelect;
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * REPORTING-MANAGER HISTORY (migration 0220)
+ *
+ * `employees.managerId` stays THE reporting relationship — ~20 modules resolve
+ * it live from that column, so a change already propagates everywhere with no
+ * fan-out writes. This table remembers what it USED to be, so a report about
+ * August does not silently re-read September's manager.
+ *
+ * Intervals, not events: "who managed X on date D" is the only question anyone
+ * asks, and this stores the answer directly. Exactly one open row per employee.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export const employeeManagerHistory = pgTable(
+  "employee_manager_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references((): AnyPgColumn => employees.id, { onDelete: "cascade" }),
+    /** Null is MEANINGFUL: a period during which they reported to nobody. */
+    managerId: uuid("manager_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    /** Dates, not timestamps — every consumer works in whole days or months. */
+    effectiveFrom: date("effective_from").notNull(),
+    /** Null = the CURRENT period, and the one that must agree with
+     *  `employees.managerId`. */
+    effectiveTo: date("effective_to"),
+    changedById: uuid("changed_by_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("employee_manager_history_lookup_idx").on(t.employeeId, t.effectiveFrom),
+    index("employee_manager_history_manager_idx").on(t.managerId, t.effectiveFrom),
+  ],
+);
+
+export type EmployeeManagerHistory = typeof employeeManagerHistory.$inferSelect;
+export type NewEmployeeManagerHistory = typeof employeeManagerHistory.$inferInsert;

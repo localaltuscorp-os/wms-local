@@ -35,9 +35,7 @@ import {
   canViewAttendanceAuditLog,
 } from "@/lib/security/capabilities";
 import { isManagerWithReports } from "@/lib/manager-gates";
-import { hasStartedDay } from "@/lib/queries/daily-checklist";
-import { punchPlanGateOn, goalsCascadeEnabled } from "@/lib/goals/flag";
-import { asWorkerType } from "@/lib/attendance/worker-type";
+import { goalsCascadeEnabled } from "@/lib/goals/flag";
 import { employeeEffectiveConfig } from "@/lib/queries/attendance-status";
 import {
   listMyAttendance,
@@ -108,43 +106,15 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   const tz = me.timezone || "Asia/Kolkata";
   const today = localDateString(tz);
 
-  // ── PAGE LOCK — no Start My Day, no Attendance page (Sir) ──────────────
-  // Attendance follows the daily loop rather than running beside it: until the
-  // day is STARTED on WMS › Plan My Day (with ≥ MIN_ATTENDANCE_ITEMS planned,
-  // enforced by startMyDay itself), this page does not open at all. Sending
-  // them to the planner is both the block and the instruction — there is no
-  // second screen to build, and nothing here changes visually for anyone who
-  // has planned their day.
+  // ── PAGE LOCK — REMOVED 2026-09-09 ───────────────────────────────────
+  // This page used to refuse to open until the day was STARTED on Plan My
+  // Day, redirecting anyone who had not planned MIN_ATTENDANCE_ITEMS things
+  // to /my-day. With the plan prerequisite withdrawn from the punch itself,
+  // the detour had nothing left to enforce - it would only stand between an
+  // employee and the clock-in button.
   //
-  // NO ROLE EXEMPTIONS. Same rule for super-admins, admins and managers.
-  //
-  // …OR they are already clocked in today. `reopenPlan` sets started_at back to
-  // NULL, and re-opening the plan to change tasks is expressly allowed (Sir), so
-  // keying the page on that stamp alone would slam the door on someone
-  // mid-shift and leave them no way to reach the clock-OUT button. A check-in
-  // row is durable proof the day WAS started properly — it cannot exist unless
-  // this same gate passed. Clocking out still requires "Finish Day"; this
-  // governs only whether the page opens.
-  //
-  // FAIL-OPEN (`.catch(() => true)`): a database hiccup must never lock the
-  // workforce out of attendance. That is precisely what happened on 2026-07-27
-  // and it is why every gate in this app spent a month switched off.
-  //
-  // SCOPE: this page only. /attendance/leave, /insights, /devices, /dashboard
-  // and /hr-record stay reachable — the punch actions are themselves gated, so
-  // the rule cannot be evaded by walking around this redirect.
-  //
-  // `goalsCascadeEnabled()` is checked FIRST and is not optional: /my-day 404s
-  // when the cascade is off, so locking attendance behind a page that cannot
-  // render would leave no way to start the day and no way in — a dead end no
-  // env var could unpick from the user's side.
-  if (punchPlanGateOn() && goalsCascadeEnabled()) {
-    const [started, clockedIn] = await Promise.all([
-      hasStartedDay(me.id).catch(() => true),
-      hasCheckedInOn(me.id, today).catch(() => true),
-    ]);
-    if (!started && !clockedIn) redirect("/my-day");
-  }
+  // /my-day is untouched and still reachable; it is simply no longer
+  // compulsory, and reaching Attendance no longer depends on it.
   // The Team roster + attendance editing are SUPER-ADMIN only. Admins keep the
   // report buttons but no longer see the (editable) Team box.
   const isSA = isSuperAdmin(me.email);
@@ -153,9 +123,6 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   // a DB hiccup hides the button, never breaks this hot page. Admins who manage
   // see it beside their admin buttons; a non-admin manager sees only this one.
   const isManager = await isManagerWithReports(me.id).catch(() => false);
-  // Project / remote staff clock in by starting a screen-share Work Session
-  // (session grading) instead of a punch — surface it as their headline action.
-  const isProjectRemote = asWorkerType(me.workerType) === "project_remote";
   // Part-timers are paid hourly against a WEEKLY target (27h by default), so
   // their hours are their pay — surface the week's progress while it can still
   // be acted on, instead of only as a smaller payslip at month end.
@@ -241,6 +208,9 @@ export default async function AttendancePage({ searchParams }: PageProps) {
     outAt: d.outAt,
     workedMinutes: d.workedMinutes,
     future: d.logDate > today,
+    // Approved WFH / On Field / Client Site — a marker on the day, never a
+    // grade. The hours still have to be punched.
+    remoteMode: d.remoteMode,
   }));
 
   const todayRow = myDays.find((d) => d.date === today);
@@ -395,14 +365,18 @@ export default async function AttendancePage({ searchParams }: PageProps) {
         {/* ── Page header ── */}
         <header className="mb-4 wg-rise flex items-center justify-between gap-4 flex-wrap">
           <div className="min-w-0">
+            {/* A greeting, not a headline. It was 900-weight at up to 32px,
+                which made hello the loudest thing on a page whose job is the
+                clock and the KPI bar. Kept as the page heading — same element,
+                same words — just no longer competing with them. */}
             <h1
               className="text-ink-strong"
               style={{
                 fontFamily: "var(--font-display), system-ui, sans-serif",
-                fontWeight: 900,
-                fontSize: "clamp(22px,2.6vw,32px)",
-                letterSpacing: "-0.03em",
-                lineHeight: 1.02,
+                fontWeight: 600,
+                fontSize: "clamp(15px,1.4vw,18px)",
+                letterSpacing: "-0.01em",
+                lineHeight: 1.2,
               }}
             >
               Good to see you, {firstName}
@@ -411,11 +385,15 @@ export default async function AttendancePage({ searchParams }: PageProps) {
           {(me.isAdmin || isSA || isManager) && (
             <div className="flex shrink-0 items-center gap-2 flex-wrap">
               {(isManager || me.isAdmin) && (
+                // Smaller and quieter than the admin report buttons beside
+                // it: it is a link into a secondary view, not the page's
+                // action. Unchanged in every other respect — same href, same
+                // gate, same behaviour.
                 <a
                   href="/attendance/insights/team"
-                  className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
+                  className="pastel-cta wg-btn inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1.5 text-[12px] font-semibold"
                 >
-                  <Users size={15} strokeWidth={2.4} /> My Team
+                  <Users size={13} strokeWidth={2.2} /> My Team
                 </a>
               )}
               {(me.isAdmin || isSA) && (
@@ -472,49 +450,12 @@ export default async function AttendancePage({ searchParams }: PageProps) {
           employees={pendingLeave.employees}
         />
 
-        {/* ── Project / remote staff: starting a screen-share Work Session IS
-             their check-in (session grading), so make it the headline action. ── */}
-        {isProjectRemote && (
-          <a
-            href="/attendance/work-session"
-            className="wg-rise wg-btn group mb-5 flex items-center gap-4 rounded-[22px] px-6 py-5 text-white max-sm:flex-col max-sm:items-start max-sm:gap-3"
-            style={{
-              background: "linear-gradient(135deg, #E10600, #A80400)",
-              boxShadow: "0 14px 34px -16px color-mix(in srgb, #A80400 75%, transparent)",
-            }}
-          >
-            <span
-              className="inline-grid size-12 shrink-0 place-items-center rounded-2xl"
-              style={{ background: "rgba(255,255,255,0.16)" }}
-            >
-              <MonitorPlay size={24} strokeWidth={2.2} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div
-                style={{
-                  fontFamily: "var(--font-display), system-ui, sans-serif",
-                  fontWeight: 900,
-                  fontSize: 20,
-                  letterSpacing: "-0.02em",
-                  lineHeight: 1.1,
-                }}
-              >
-                Start Work Session
-              </div>
-              <p className="mt-0.5 text-[13.5px] font-medium text-white/85">
-                Share your screen so your work time is captured and reviewed — this is how you check in.
-              </p>
-            </div>
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-pill bg-white/15 px-4 py-2 text-[13.5px] font-bold max-sm:w-full max-sm:justify-center">
-              Begin
-              <MoveRight
-                size={16}
-                strokeWidth={2.4}
-                className="transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
-              />
-            </span>
-          </a>
-        )}
+        {/* ── THE "START WORK SESSION" BANNER WAS REMOVED HERE ──────────────
+             A full-width red hero, shown to project/remote staff, that pushed
+             the punch clock and the KPI bar below the fold on the one page
+             whose job is both. Work Sessions are unchanged and still reachable
+             at /attendance/work-session (and from the admin Work Sessions
+             button above); only the banner is gone. */}
 
         {/* ── How am I doing — THE KPI bar. One bar, one period toggle, every
             number. The part-time week card used to sit above this saying the

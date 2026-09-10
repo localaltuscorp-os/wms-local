@@ -54,7 +54,33 @@ export type SecurityCapability =
    */
   | "attendance.manage_others"
   /** May read the attendance change log (the immutable audit trail). */
-  | "attendance.view_audit_log";
+  | "attendance.view_audit_log"
+  /**
+   * MASTER ADMIN — may open the permission-management module and change who can
+   * see, read and edit any module, sub-module or sub-sub-module.
+   *
+   * The most powerful capability in the application, because it is the one that
+   * decides all the others. Held by exactly two people (the brief: "initially
+   * available ONLY to Manan and Rohan").
+   *
+   * Deliberately SEPARATE from `isSuperAdmin`, even though the two lists happen
+   * to hold the same addresses today. Super-admin means "may promote and demote
+   * admins"; this means "may rewrite the permission matrix". They coincide now
+   * and will not always, and collapsing them would mean a third super-admin
+   * silently acquires the permission matrix as a side effect of an unrelated
+   * grant.
+   */
+  | "master_admin.manage"
+  /**
+   * May grant TEMPORARY DELEGATED ACCESS to any employee's account, regardless
+   * of the reporting hierarchy.
+   *
+   * A manager does not need this: they may already grant access to their own
+   * reports (see `canGrantDelegatedAccessTo`, which reads the org chart). This
+   * covers the cases the hierarchy cannot express — a founder testing across
+   * teams, or someone standing in while a manager is away.
+   */
+  | "delegated_access.grant_any";
 
 /**
  * WHO HOLDS WHAT. The single source of truth.
@@ -84,6 +110,23 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
     "device.manage",
     "attendance.manage_others",
     "attendance.view_audit_log",
+    "master_admin.manage",
+    "delegated_access.grant_any",
+  ],
+
+  /**
+   * Rohan Choudhary — MASTER ADMIN.
+   *
+   * The second of the two people the brief names for the permission matrix. He
+   * is already a super-admin (lib/auth/super-admin.ts); this entry adds the
+   * matrix and nothing else — no device administration, no attendance override.
+   * Grants stay itemised per person rather than bundled into a "master admin
+   * role", so adding somebody to the matrix cannot hand them the device system
+   * by accident.
+   */
+  "rohanchoudhary.altuscorp@gmail.com": [
+    "master_admin.manage",
+    "delegated_access.grant_any",
   ],
 
   /** Ruchita Ambre — device administrator + privileged attendance manager. */
@@ -111,6 +154,24 @@ export function hasCapability(
 }
 
 /**
+ * Every address holding a capability — the REVERSE lookup.
+ *
+ * Exists so a notification can reach "whoever can approve a device" without
+ * naming anybody. The alternative is a second hand-maintained list of
+ * recipients, which is the same drift this file exists to prevent: someone
+ * granted `device.manage` above would silently not be told about the approvals
+ * they are now responsible for.
+ *
+ * Returns EMAILS, not employee ids, because the grants table is keyed on email
+ * for the reasons in this file's header. Callers resolve them to employee rows.
+ */
+export function emailsWithCapability(capability: SecurityCapability): string[] {
+  return Object.entries(GRANTS)
+    .filter(([, caps]) => caps.includes(capability))
+    .map(([email]) => email);
+}
+
+/**
  * Is this person subject to the registered-device restriction?
  *
  * The brief's `device_restriction_required` flag, expressed as the absence of an
@@ -135,6 +196,38 @@ export function canManageOthersAttendance(email: string | null | undefined): boo
 export function canViewAttendanceAuditLog(email: string | null | undefined): boolean {
   return hasCapability(email, "attendance.view_audit_log");
 }
+
+/**
+ * MAY OPEN THE MASTER ADMIN PERMISSION MATRIX.
+ *
+ * ── THIS IS THE WHOLE ANSWER TO "ONLY MANAN AND ROHAN" ─────────────────────
+ * Read server-side by the /master-admin layout, by every one of its server
+ * actions, and by the permission resolver. There is no client-side branch that
+ * decides it: hiding the nav entry is presentation, and the entry is hidden
+ * because this predicate said no, never the other way round.
+ *
+ * Environment-independent by construction. It matches on `employees.email`,
+ * which is the same value in local development and on os.altuscorp.com, so the
+ * rule cannot differ between the two — there is no env var, no host check and no
+ * `NODE_ENV` branch anywhere in this decision. Typing the URL or POSTing to the
+ * action reaches the same predicate as clicking the link.
+ */
+export function isMasterAdmin(email: string | null | undefined): boolean {
+  return hasCapability(email, "master_admin.manage");
+}
+
+/** May grant temporary delegated access to ANYONE, bypassing the hierarchy.
+ *  Managers get a narrower version from the org chart — see
+ *  lib/auth/delegation-permission.ts. */
+export function canGrantAnyDelegatedAccess(email: string | null | undefined): boolean {
+  return hasCapability(email, "delegated_access.grant_any");
+}
+
+export const MASTER_ADMIN_REFUSAL =
+  "Only the master administrators can change module permissions.";
+
+export const DELEGATED_ACCESS_REFUSAL =
+  "You are not authorized to grant temporary access to that account.";
 
 /* ── Refusal messages. Name the CAPABILITY, never the people who hold it. ─── */
 

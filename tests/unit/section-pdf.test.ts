@@ -233,6 +233,23 @@ describe("nothing overlaps anything", () => {
  * quietly becomes two pages and nobody notices until it is in an inbox.
  */
 describe("one page holds 25 rows", () => {
+  /**
+   * These two render several full PDFs each, sequentially — pdfkit work
+   * measured in seconds, not milliseconds.
+   *
+   * They therefore need an explicit timeout. Vitest's 5s default fitted them
+   * only while the suite was small enough to leave a core free: under full
+   * parallel load the same renders take 3-4x longer and both tests began
+   * timing out at 5.3-5.7s the moment more compute-heavy test files were added
+   * (the incentive / CC-master export suites). The tests were never wrong and
+   * nothing about the renderer changed — the budget was simply never safe for
+   * seven PDF renders, and any new test file would have exposed that.
+   *
+   * 30s is deliberately generous: it costs nothing when the tests pass, and a
+   * slower CI box should not turn a correct renderer into a red build.
+   */
+  const PDF_RENDER_TIMEOUT_MS = 30_000;
+
   const pageCount = (pdf: Buffer) =>
     (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
 
@@ -250,18 +267,26 @@ describe("one page holds 25 rows", () => {
     rows: Array.from({ length: n }, (_, i) => [`Person ${i + 1}`, "80%", String(i % 4), String(i)]),
   });
 
-  it("fits 25 and only spills at 26", async () => {
-    expect(pageCount(await renderSectionPdf(sized(25), AT))).toBe(1);
-    expect(pageCount(await renderSectionPdf(sized(26), AT))).toBe(2);
-  });
+  it(
+    "fits 25 and only spills at 26",
+    async () => {
+      expect(pageCount(await renderSectionPdf(sized(25), AT))).toBe(1);
+      expect(pageCount(await renderSectionPdf(sized(26), AT))).toBe(2);
+    },
+    PDF_RENDER_TIMEOUT_MS,
+  );
 
-  it("adds no trailing blank page — every sheet carries rows", async () => {
-    // The old footer wrote past `page.maxY()`, and pdfkit answers that by
-    // silently starting a new page. Three writes per page meant 2-3 blank
-    // sheets trailing every export. A page count that tracks the row count
-    // exactly is what proves they are gone.
-    for (const [rows, pages] of [[5, 1], [25, 1], [26, 2], [50, 2], [51, 3]] as const) {
-      expect(pageCount(await renderSectionPdf(sized(rows), AT))).toBe(pages);
-    }
-  });
+  it(
+    "adds no trailing blank page — every sheet carries rows",
+    async () => {
+      // The old footer wrote past `page.maxY()`, and pdfkit answers that by
+      // silently starting a new page. Three writes per page meant 2-3 blank
+      // sheets trailing every export. A page count that tracks the row count
+      // exactly is what proves they are gone.
+      for (const [rows, pages] of [[5, 1], [25, 1], [26, 2], [50, 2], [51, 3]] as const) {
+        expect(pageCount(await renderSectionPdf(sized(rows), AT))).toBe(pages);
+      }
+    },
+    PDF_RENDER_TIMEOUT_MS,
+  );
 });

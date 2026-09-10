@@ -43,8 +43,14 @@ export const MAX_DEVICES_PER_EMPLOYEE = MAX_APPROVED_PER_KIND * DEVICE_KINDS.len
 export type DeviceRejectReason =
   | "invalid"
   | "unregistered"
-  | "pending"
+  // "pending" retired 2026-09-09 with admin approval - a registered device is
+  // usable at once, so the punch never answers "waiting for approval" again.
   | "revoked"
+  // Cap reached: this employee already holds MAX_DEVICES_PER_EMPLOYEE devices.
+  // Distinct from "other" (a failure to check) and from the retired "pending"
+  // (a device awaiting a human) - nobody is coming to approve it, so the app
+  // must tell the employee to get a slot freed rather than to wait.
+  | "device_limit"
   | "other_employee"
   // The registration itself failed — a DB error, not a verdict about the device.
   // Distinct from "invalid" so a caller can tell "we could not check" apart from
@@ -62,10 +68,14 @@ function cleanDeviceId(raw: string): string | null {
 }
 
 /**
- * PUNCH-TIME gate. STRICT: only a device that is registered to THIS employee AND
- * approved may punch. Anything else is refused with a typed reason — the app
- * shows "Register this device" (unregistered), "Waiting for approval" (pending),
- * or "Incorrect device" (someone else's / revoked). No auto-enrollment here.
+ * PUNCH-TIME gate. Only a device registered to THIS employee may punch, and it
+ * must not have been revoked. Anything else is refused with a typed reason — the
+ * app shows "Register this device" (unregistered) or "Incorrect device"
+ * (someone else's / revoked). No auto-enrollment here.
+ *
+ * ADMIN APPROVAL REMOVED 2026-09-09: a registered device is usable at once. The
+ * per-employee cap and the revoked/other-employee checks are untouched — they
+ * are anti-proxy rules, not part of the approval step.
  */
 export async function resolveMobileDevice(
   employeeId: string,
@@ -82,34 +92,65 @@ export async function resolveMobileDevice(
     return {
       ok: false,
       reason: "unregistered",
-      error: "This device isn't registered. Tap “Register this device”, then ask HR to approve it.",
+      error: "This device isn't registered. Tap “Register this device” to start punching from it.",
     };
   }
   if (existing.employeeId !== employeeId) {
     return { ok: false, reason: "other_employee", error: "Incorrect device - this phone is registered to another employee." };
   }
   if (existing.status === "revoked") {
-    return { ok: false, reason: "revoked", error: "This device was removed. Register it again and ask HR to approve it." };
-  }
-  if (existing.status !== "approved") {
-    return { ok: false, reason: "pending", error: "This device is waiting for HR approval before you can punch from it." };
+    return { ok: false, reason: "revoked", error: "This device was removed. Register it again to punch from it." };
   }
 
-  await db.update(mobileDevices).set({ lastUsedAt: new Date() }).where(eq(mobileDevices.id, existing.id));
+  if (existing.status === "approved") {
+    await db.update(mobileDevices).set({ lastUsedAt: new Date() }).where(eq(mobileDevices.id, existing.id));
+    return { ok: true, rowId: existing.id };
+  }
+
+  // LEGACY 'pending' ROW: enrolled before approval was removed and never
+  // approved. Heal it in place on first use rather than shipping a migration -
+  // otherwise everyone left in the old queue stays locked out with no approver.
+  //
+  // This CAN legitimately fail. The 0214 trigger caps approved rows at two per
+  // employee, and the old web path counted only APPROVED rows before writing a
+  // pending one, so "2 approved + a pending third" is a real shape in existing
+  // data. Promoting that third would breach the cap, so the DB refuses - and the
+  // honest answer is the cap, not a raw SQL error surfaced at the punch.
+  try {
+    await db
+      .update(mobileDevices)
+      .set({ status: "approved", approvedAt: new Date(), lastUsedAt: new Date() })
+      .where(eq(mobileDevices.id, existing.id));
+  } catch {
+    return {
+      ok: false,
+      reason: "device_limit",
+      error:
+        `You already have ${MAX_DEVICES_PER_EMPLOYEE} active devices, so this one can't be activated. ` +
+        "Ask an attendance administrator to remove one, then punch from this device again.",
+    };
+  }
   return { ok: true, rowId: existing.id };
 }
 
 export type RegisterDeviceResult =
-  | { ok: true; status: "approved" | "pending"; isNew: boolean; deviceCount: number }
+  | { ok: true; status: "approved"; isNew: boolean; deviceCount: number }
   | { ok: false; error: string };
 
 /**
  * The one-time "Register this device" action the app button calls. Idempotent:
- *  - already registered to THIS employee → returns its current status.
+ *  - already registered to THIS employee → returns 'approved'.
  *  - registered to ANOTHER employee → rejected (a phone can't be shared).
- *  - new → enrolled as 'pending' if under the {@link MAX_DEVICES_PER_EMPLOYEE}
- *    cap (approved + pending, all kinds), else rejected. Caller alerts admins
- *    when isNew.
+ *  - new → enrolled as 'approved' and usable IMMEDIATELY when this employee's
+ *    slot FOR THIS KIND is free (0215: one approved laptop AND one approved
+ *    phone), else rejected. Caller alerts admins when isNew.
+ *
+ * ADMIN APPROVAL WAS REMOVED 2026-09-09, so there is no pending step on this
+ * path any more — the insert below writes `approved` directly. What survives is
+ * the CAP, which is the anti-proxy rule rather than the approval step, and the
+ * admin alert: administrators lose the veto but keep the visibility, and can
+ * still revoke. Legacy 'pending' rows are promoted in place above so nobody is
+ * stranded mid-changeover.
  */
 export async function registerMobileDevice(
   employeeId: string,
@@ -133,16 +174,33 @@ export async function registerMobileDevice(
     if (existing.employeeId !== employeeId) {
       return { ok: false, error: "This phone is already registered to another employee." };
     }
-    // Re-registering a previously revoked own device → back to pending.
+    // Re-registering a previously revoked own device → straight back to usable.
     if (existing.status === "revoked") {
       await db.update(mobileDevices)
-        .set({ status: "pending", revokedAt: null, lastUsedAt: new Date(), label: input.label?.slice(0, 120) ?? existing.label })
+        .set({ status: "approved", approvedAt: new Date(), revokedAt: null, lastUsedAt: new Date(), label: input.label?.slice(0, 120) ?? existing.label })
         .where(eq(mobileDevices.id, existing.id));
-      return { ok: true, status: "pending", isNew: true, deviceCount: await activeCount(employeeId) };
+      return { ok: true, status: "approved", isNew: true, deviceCount: await activeCount(employeeId) };
+    }
+    // A legacy 'pending' row is promoted here too, so re-tapping Register is a
+    // working fix for anyone stranded mid-changeover. Same cap caveat as
+    // resolveMobileDevice: report the cap rather than leaking a DB error.
+    if (existing.status !== "approved") {
+      try {
+        await db.update(mobileDevices)
+          .set({ status: "approved", approvedAt: new Date(), lastUsedAt: new Date() })
+          .where(eq(mobileDevices.id, existing.id));
+      } catch {
+        return {
+          ok: false,
+          error:
+            `You already have ${MAX_DEVICES_PER_EMPLOYEE} active devices. ` +
+            "Ask an attendance administrator to remove one first.",
+        };
+      }
     }
     return {
       ok: true,
-      status: existing.status === "approved" ? "approved" : "pending",
+      status: "approved",
       isNew: false,
       deviceCount: await activeCount(employeeId),
     };
@@ -167,10 +225,11 @@ export async function registerMobileDevice(
       kind,
       label: input.label?.slice(0, 120) ?? null,
       platform: input.platform?.slice(0, 20) ?? null,
-      status: "pending",
+      status: "approved",
+      approvedAt: new Date(),
       lastUsedAt: new Date(),
     });
-    return { ok: true, status: "pending", isNew: true, deviceCount: await activeCount(employeeId) };
+    return { ok: true, status: "approved", isNew: true, deviceCount: await activeCount(employeeId) };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("mobile_devices_device_id_uq")) return registerMobileDevice(employeeId, input);
@@ -208,15 +267,17 @@ export async function countMobileDevices(employeeId: string): Promise<number> {
 }
 
 /** The registration status of ONE device for an employee. */
-export type DeviceRegStatus = "approved" | "pending" | "revoked" | "unregistered" | "other";
+export type DeviceRegStatus = "approved" | "revoked" | "unregistered" | "other";
 
 /**
  * Read-only status of a specific device id for an employee — NO side effects
  * (unlike {@link resolveMobileDevice}, which stamps lastUsedAt on the punch
  * path). Powers the app's one-time "Register this device" button: the button
- * hides once this phone is `approved` or `pending` (already submitted), and
- * shows for `unregistered` / `revoked`. `other` = the phone belongs to someone
- * else.
+ * hides once this phone is `approved`, and shows for `unregistered` /
+ * `revoked`. `other` = the phone belongs to someone else.
+ *
+ * A legacy 'pending' row reports `approved`: it IS usable now, and telling the
+ * app otherwise would show a Register button for a device already registered.
  */
 export async function getDeviceStatusFor(
   employeeId: string,
@@ -230,8 +291,7 @@ export async function getDeviceStatusFor(
   if (!existing) return "unregistered";
   if (existing.employeeId !== employeeId) return "other";
   if (existing.status === "revoked") return "revoked";
-  if (existing.status === "approved") return "approved";
-  return "pending";
+  return "approved";
 }
 
 /* ── Admin surface (approve / revoke / list) — used by the web admin UI ───── */
@@ -322,7 +382,6 @@ export async function setDeviceStatus(
       .where(
         and(
           eq(mobileDevices.employeeId, row.employeeId),
-          eq(mobileDevices.kind, row.kind),
           eq(mobileDevices.status, "approved"),
         ),
       );

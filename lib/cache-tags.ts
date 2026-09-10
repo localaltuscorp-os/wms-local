@@ -25,6 +25,15 @@ export const CACHE_TAGS = {
   statusSettings: "status-settings",
   /** Client roster used by the task "Client Name" picker. */
   clients: "clients",
+  /**
+   * THE PRODUCT MASTER (`outstanding_products`) — every product dropdown in the
+   * application, not just Outstanding's. Busted by the /admin/products write
+   * paths, so a code or name edit reaches Billing, the contract form and the
+   * `product` form-field MCQ together rather than one screen at a time.
+   */
+  products: "products",
+  /** Payment-mode master (`outstanding_payment_modes`). */
+  paymentModes: "payment-modes",
   /** Project tree nodes (Project / Milestone / Result / Action / Sub-Action). */
   projectNodes: "project-nodes",
   /** Weekly Goals planner rows (board + dashboard reads). */

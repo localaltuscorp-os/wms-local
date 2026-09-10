@@ -11,7 +11,7 @@ import {
   type RecommendationValue,
 } from "@/lib/hr/candidate/evaluation-v2";
 import { overallScore, eligibilityVerdict, type ScoreContext, type WeightProfile } from "@/lib/hr/candidate/evaluation-v2-scoring";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import { computeComposites, scoreBand } from "@/lib/hr/candidate/evaluation-v2-composites";
 import { RatingControl } from "./controls";
 import { VoiceTextbox } from "./voice";
@@ -409,7 +409,7 @@ export function RecommendationPicker({ ctrl, auto }: { ctrl: EvalController; aut
               return (
                 <li key={`${ev.at}-${i}`} className="rounded-lg border border-hairline bg-surface-soft px-3 py-2 text-[12.5px]">
                   <span className="font-bold text-ink-strong">{fromL} → {toL}</span>
-                  <span className="ml-2 text-ink-subtle">{formatDate(ev.at)}, {new Date(ev.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+                  <span className="ml-2 text-ink-subtle">{formatDateHr(ev.at)}, {new Date(ev.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
                   <p className="mt-0.5 font-medium text-ink-muted">{ev.reason}</p>
                 </li>
               );

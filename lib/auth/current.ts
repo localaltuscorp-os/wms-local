@@ -12,6 +12,7 @@ import { devAuthBypassEnabled, DEV_BYPASS_EMPLOYEE } from "@/lib/auth/dev-bypass
 import { isAttendanceAdmin } from "@/lib/auth/attendance-permissions";
 import { resolveDeviceContext, touchLastSeen } from "@/lib/security/device-access";
 import { canManageDevices } from "@/lib/security/capabilities";
+import { resolveDelegation, type DelegationContext } from "@/lib/auth/delegated-access";
 import { FORBIDDEN_DIGEST as FORBIDDEN_DIGEST_VALUE } from "./forbidden";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 
@@ -30,7 +31,7 @@ const DUMMY_USER_EMAIL = "dummy.admin@example.invalid";
  * and completes - wrapping it in a hard timeout turned slow-but-fine reads into
  * thrown errors under load, which surfaced as "We hit a snag" / failed actions.
  */
-export const getCurrentEmployee = cache(async (): Promise<Employee | null> => {
+export const getSignedInEmployee = cache(async (): Promise<Employee | null> => {
   // DUMMY MODE — Firebase is not contacted and no session cookie is read; you
   // are simply signed in as the seeded dummy admin. Because a REAL row is
   // returned (not a fabricated object), its id is a real foreign key, so every
@@ -69,6 +70,56 @@ export const getCurrentEmployee = cache(async (): Promise<Employee | null> => {
     where: eq(employees.firebaseUid, claims.uid),
   });
   return row ?? null;
+});
+
+/**
+ * TEMPORARY DELEGATED ACCESS — the live grant on this request, or null.
+ *
+ * Resolved from the REAL signed-in person, never from the effective one, so
+ * delegation can never chain: an account being tested cannot itself be holding a
+ * grant that forwards to a third person.
+ *
+ * Skipped entirely under the three no-login development modes. Each replaces
+ * authentication wholesale and reads no cookies, so there is no delegate
+ * identity for a grant to belong to; each is also hard-disabled under
+ * NODE_ENV=production, so no deployment takes this branch.
+ */
+export const getDelegation = cache(async (): Promise<DelegationContext | null> => {
+  if (DUMMY_MODE || devAuthBypassEnabled() || localSessionEnabled()) return null;
+  const real = await getSignedInEmployee();
+  if (!real) return null;
+  // A candidate guest-account may neither delegate nor be delegated to. They can
+  // reach exactly one page, and impersonation has no meaning there.
+  if (isCandidateAccount(real)) return null;
+  return await resolveDelegation(real.id);
+});
+
+/**
+ * THE EFFECTIVE IDENTITY — who this request is acting as.
+ *
+ * Normally the signed-in employee. When a live temporary-access grant is
+ * presented, the TARGET of that grant instead, so that every query, every
+ * ownership filter and every existing authorization guard downstream sees the
+ * account being tested — which is what "the temporary user only receives the
+ * permissions of the account being tested" has to mean in practice. There is no
+ * second authorization model for a delegated session; there is one model, asked
+ * about a different person.
+ *
+ * ── WHY THE SWAP IS HERE AND NOT IN A MIDDLEWARE OR A LAYOUT ───────────────
+ * Same reasoning as the device check below. This is the one function a page
+ * render AND a server action AND a route handler all pass through. Putting the
+ * swap anywhere shallower would leave surfaces that resolve identity by another
+ * route — and an impersonation that applies to some requests and not others is
+ * worse than none, because the two halves would write data as different people.
+ *
+ * Callers that need the REAL person — the audit log, the "acting as" banner, the
+ * Admin Panel's own grant screen — use `getSignedInEmployee()`.
+ */
+export const getCurrentEmployee = cache(async (): Promise<Employee | null> => {
+  const real = await getSignedInEmployee();
+  if (!real) return null;
+  const delegation = await getDelegation();
+  return delegation ? delegation.target : real;
 });
 
 /**
@@ -154,7 +205,24 @@ export async function requireSessionSkippingDeviceCheck(): Promise<Employee> {
 export async function requireUser(): Promise<Employee> {
   const e = await requireSession();
   if (isCandidateAccount(e)) redirect("/candidate/form" as Route);
-  await enforceWmsDeviceAccess(e);
+
+  // ── THE DEVICE CHECK RUNS ON THE REAL PERSON, NOT THE ONE BEING TESTED ───
+  //
+  // The brief's own scenario is "Rudra can log into Rutvisha's account FROM
+  // RUDRA'S LAPTOP". Rudra's laptop is registered to Rudra, not to Rutvisha, so
+  // checking the effective identity here would refuse the very case temporary
+  // access exists for.
+  //
+  // Checking the real identity is also the STRICTER reading, which is why it is
+  // the right one rather than merely the convenient one: Rudra remains confined
+  // to Rudra's own approved devices for the whole delegated session, and a grant
+  // can never lend out Rutvisha's registered devices to anybody. An
+  // unregistered laptop gains nothing from holding a grant.
+  //
+  // `getSignedInEmployee` is the pre-swap resolution and is cached per request,
+  // so this is a cache hit, not a second lookup.
+  const real = (await getSignedInEmployee()) ?? e;
+  await enforceWmsDeviceAccess(real);
   return e;
 }
 

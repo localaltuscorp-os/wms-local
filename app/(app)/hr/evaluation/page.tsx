@@ -1,4 +1,5 @@
 import { requireHrStaff } from "@/lib/hr/access";
+import { requireHrIntake } from "@/lib/hr/intake-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { listCandidateIntakes } from "@/app/(app)/hr/candidate-actions";
 import { EvaluationV2Screen } from "@/components/hr/candidate/evaluation-v2/evaluation-v2-screen";
@@ -24,7 +25,7 @@ export default async function EvaluationPage({
 }: {
   searchParams: Promise<{ role?: string; candidate?: string }>;
 }) {
-  const me = await requireHrStaff();
+  const me = await requireHrIntake();
   const superAdmin = isSuperAdmin(me.email);
   const { role: roleParam, candidate } = await searchParams;
   const role: EvaluatorRole = roleParam === "management" ? "management" : "interviewer";

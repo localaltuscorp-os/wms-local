@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronDown, ClipboardCheck, MessagesSquare, Loader2, ChevronRight } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { getExitRecord, type ExitRecordRow } from "@/app/(app)/hr/exit/exit-actions";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import type { ExitRosterEmployee } from "@/lib/hr/exit/schema";
 import { ExitStyle } from "./exit-fields";
 import { ExitInterviewForm } from "./exit-interview-form";
@@ -234,7 +234,7 @@ function PickScreen({
                   </span>
                 </span>
                 <span className="flex items-center gap-2 text-[12px] text-ink-subtle">
-                  {formatDate(r.updatedAt)}
+                  {formatDateHr(r.updatedAt)}
                   <ChevronRight size={15} />
                 </span>
               </button>

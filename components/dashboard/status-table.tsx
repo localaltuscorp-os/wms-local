@@ -630,7 +630,7 @@ export function StatusTable({
       }}
     >
       <DashboardSectionHeader
-        icon={<SectionIcon icon={Users} tone="slate" />}
+        icon={<SectionIcon icon={Users} tone="red" />}
         title={`Status by ${view === "doer" ? "Doer" : "Initiator"}`}
         subtitle={
           hasActiveFilter ? (

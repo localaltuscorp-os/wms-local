@@ -43,6 +43,24 @@ export function formatDate(input: Date | string | number | null | undefined): st
 }
 
 /**
+ * HR MODULE date format — `DD-MMM-YYYY`, e.g. `21-Jan-1984`. Identical to
+ * {@link formatDate} in every respect except the separator, so the parsing
+ * rules above (local calendar day for `YYYY-MM-DD`, "" for empty, the original
+ * string for unparseable input) all still hold.
+ *
+ * Deliberately a SEPARATE function rather than a change to `formatDate`: the
+ * hyphenated form was asked for across the HR module specifically, and
+ * `formatDate` is the canonical app-wide format used by ~90 files outside HR
+ * that must keep rendering `21 Jan 1984`.
+ */
+export function formatDateHr(input: Date | string | number | null | undefined): string {
+  const spaced = formatDate(input);
+  // Only rewrite our own `dd MMM yyyy` output; a passed-through unparseable
+  // string must survive untouched rather than have its spaces mangled.
+  return /^\d{2} [A-Z][a-z]{2} -?\d+$/.test(spaced) ? spaced.replace(/ /g, "-") : spaced;
+}
+
+/**
  * Calendar day (YYYY-MM-DD) of `d` in the given IANA timezone. Used by
  * attendance to pin a punch to the employee's own "today" regardless of
  * the server's timezone (Vercel runs UTC).

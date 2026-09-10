@@ -192,7 +192,7 @@ export function TopPerformersSection({
       style={{ opacity: 0, animation: "fadeUp 400ms ease-out 100ms forwards" }}
     >
       <DashboardSectionHeader
-        icon={<SectionIcon icon={Trophy} tone="amber" />}
+        icon={<SectionIcon icon={Trophy} tone="red" />}
         title="Top Performers"
         subtitle={`The team’s top ${TOP_PERFORMER_RANKS} by completed tasks — click any member to view their completed task list. Rank ${TOP_PERFORMER_RANKS + 1} and below is People To Pull Up.`}
         actions={

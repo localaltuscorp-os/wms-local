@@ -179,9 +179,26 @@ export async function loadFinanceAttendanceAnalytics(
     const annualCtc = ctcByEmp.get(r.employeeId);
     const hasSalaryProfile = annualCtc != null;
     const monthlyCtc = hasSalaryProfile ? rupees(annualCtc / 12) : 0;
-    // Payroll-engine convention (see file header): perDay = monthlyCtc / daysInMonth.
+    // THE PAYSLIP'S OWN DIVISOR (spec §4): the month's real calendar length.
     const perDayExact =
       hasSalaryProfile && daysInMonth > 0 ? annualCtc / 12 / daysInMonth : 0;
+
+    // ── THE BUCKETS NOW *ARE* THE PAY MODEL ──────────────────────────────
+    // A full-timer earns `perDay × dayValue`, and the day-value table makes an
+    // absence worth 0, a half day 0.5 and unpaid leave 0 — so these three
+    // buckets are exactly the shortfall the payslip charges, at exactly the
+    // rate it charges it. Under the retired hourly engine they were a
+    // DIFFERENT model (a day-count against an hour-priced payslip) and this
+    // dashboard could not be reconciled with anyone's pay; it now can.
+    //
+    // ELAPSED ONLY. `payableDayValue` is the engine's own elapsed-bounded
+    // figure, so the loss is measured over the same span rather than counting
+    // every future working day of an open month as already missed.
+    const elapsedDays = r.payroll?.elapsedGradedDays ?? 0;
+    const earnableDayValue = r.payroll ? elapsedDays : 0;
+    const missedDayValue = r.payroll
+      ? Math.max(0, earnableDayValue - r.payroll.payableDayValue)
+      : absentDays + halfDays * 0.5 + unpaidLeaveDays;
 
     const absenceLoss = hasSalaryProfile ? rupees(absentDays * perDayExact) : 0;
     const halfDayLoss = hasSalaryProfile ? rupees(halfDays * 0.5 * perDayExact) : 0;
@@ -191,7 +208,10 @@ export async function loadFinanceAttendanceAnalytics(
     const latePenaltyLoss = hasSalaryProfile
       ? rupees(latePenaltyDays * perDayExact)
       : 0;
-    const totalLoss = absenceLoss + halfDayLoss + unpaidLeaveLoss + latePenaltyLoss;
+    // The TOTAL is the engine's figure, not the sum of the display buckets: the
+    // buckets count the whole month's codes while the engine counts elapsed
+    // days, and on an open month the two differ by the days still to come.
+    const totalLoss = hasSalaryProfile ? rupees(missedDayValue * perDayExact) : 0;
     const projectedPay = hasSalaryProfile ? Math.max(0, monthlyCtc - totalLoss) : 0;
 
     if (hasSalaryProfile) {

@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { candidateIntake, evaluationWeightProfiles } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
-import { requireHrStaff } from "@/lib/hr/access";
+import { requireHrIntake } from "@/lib/hr/intake-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import {
@@ -49,7 +49,7 @@ export async function getEvaluationV2(
   role: EvaluatorRole,
 ): Promise<Result<{ load: EvaluationV2Load }>> {
   try {
-    await requireHrStaff();
+    await requireHrIntake();
   } catch {
     return { ok: false, error: "Not authorised." };
   }
@@ -111,7 +111,7 @@ export async function saveEvaluationV2(
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
   try {
-    await requireHrStaff();
+    await requireHrIntake();
   } catch {
     return { ok: false, error: "Not authorised." };
   }

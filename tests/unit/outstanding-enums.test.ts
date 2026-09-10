@@ -26,7 +26,10 @@ describe("outstanding enums", () => {
     // outstanding-enums-iter2.test.ts for the updated rosters).
     expect(SEED_ENTITIES).toContain("Altus Corp");
     expect(SEED_PRODUCTS).toContain("BSS");
-    expect(SEED_PAYMENT_MODES).toContain("IGV");
+    // Was "IGV" until migration 0217 renamed it. The rename is asserted in
+    // tests/unit/payment-mode-master.test.ts, which also checks that no seed
+    // list still carries the old spelling.
+    expect(SEED_PAYMENT_MODES).toContain("IJV");
   });
   it("installment states", () => {
     // iter-2 added due_soon.
