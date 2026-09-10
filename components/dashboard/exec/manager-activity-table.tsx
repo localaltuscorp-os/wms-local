@@ -1123,7 +1123,7 @@ export function ManagerActivityTable({
   return (
     <section className="relative min-w-0" aria-label="Manager activity board">
       <DashboardSectionHeader
-        icon={<SectionIcon icon={Users} tone="blue" />}
+        icon={<SectionIcon icon={Users} tone="red" />}
         title="Who is Delegating, and How Much"
         subtitle={
           targets
@@ -1132,12 +1132,20 @@ export function ManagerActivityTable({
         }
         actions={controls}
       />
-      <div className={`w-full max-w-none overflow-hidden ${DASHBOARD_CARD_PADDED}`}>
-        {/* Card OUTSIDE, body inside: collapsed, this leaves the card shell as a
-            thin empty bar under the header rather than removing it outright,
-            which is how every other fold on this dashboard behaves. */}
-        <CollapsibleBody expanded={open}>{body}</CollapsibleBody>
-      </div>
+      {/* CARD INSIDE THE FOLD, not around it.
+
+          It was the other way round, under a comment claiming that was "how
+          every other fold on this dashboard behaves". It is not: six of the
+          nine sections put CollapsibleBody outermost, so collapsing takes the
+          section down to its header. Here the padded, bordered card stayed
+          mounted with nothing in it — an empty outlined strip under the title,
+          on this section and two others. That is the box that made a collapsed
+          dashboard look ragged. */}
+      <CollapsibleBody expanded={open}>
+        <div className={`w-full max-w-none overflow-hidden ${DASHBOARD_CARD_PADDED}`}>
+          {body}
+        </div>
+      </CollapsibleBody>
     </section>
   );
 }

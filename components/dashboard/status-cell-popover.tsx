@@ -122,7 +122,7 @@ export function StatusCellPopover({
         </Tooltip.Trigger>
         <Tooltip.Portal>
           <Tooltip.Content
-            side="top"
+            side="bottom"
             align="center"
             sideOffset={8}
             collisionPadding={16}

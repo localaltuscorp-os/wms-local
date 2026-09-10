@@ -380,7 +380,7 @@ export function WorkloadCountCell({
         {/* Portalled: both tables are `overflow-auto` scroll boxes, which would
             clip an in-flow tooltip on every edge that matters. */}
         <Tooltip.Content
-          side="top"
+          side="bottom"
           sideOffset={6}
           collisionPadding={8}
           className="z-50 max-w-[280px] rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11.5px] font-semibold leading-snug text-white shadow-xl"

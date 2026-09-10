@@ -88,7 +88,7 @@ const LEVELS = [
     label: "Yearly Goals",
     href: "/goals/yearly",
     Icon: Trophy,
-    tone: "amber" as SectionIconTone,
+    tone: "red" as SectionIconTone,
     color: "#8a3d06",
     blurb: "The financial year's objectives — everything below cascades from these.",
   },
@@ -108,7 +108,7 @@ const LEVELS = [
     label: "Monthly Goals",
     href: "/goals/monthly",
     Icon: CalendarRange,
-    tone: "violet" as SectionIconTone,
+    tone: "red" as SectionIconTone,
     color: "#5b21b6",
     blurb: "The month-by-month breakdown that the weekly plan is drawn from.",
   },
@@ -118,7 +118,7 @@ const LEVELS = [
     label: "Weekly Goals",
     href: "/goals/weekly",
     Icon: CalendarCheck,
-    tone: "blue" as SectionIconTone,
+    tone: "red" as SectionIconTone,
     color: "#174ea6",
     blurb: "The committed week — the last level with a target before it becomes a day's work.",
   },
@@ -408,7 +408,7 @@ export function GoalsOverviewDashboard({
         {/* ── DAILY COMMITMENTS ─────────────────────────────────────────── */}
         <Section
           id="daily-commitments"
-          icon={<SectionIcon icon={CalendarDays} tone="slate" />}
+          icon={<SectionIcon icon={CalendarDays} tone="red" />}
           title="Daily Commitments"
           subtitle={`What was committed each morning and closed out done — the last ${data.daily.length} days of the selected window.`}
           label="daily commitments"

@@ -15,6 +15,19 @@ import postgres from "postgres";
 
 const args = process.argv.slice(2);
 const APPLY = args.includes("--apply");
+// --force: apply even though the ledger already names this file.
+//
+// THE LEDGER CAN BE WRONG. A database restored from a backup imports
+// __schema_applied as DATA, so it inherits the SOURCE database's history and
+// claims files that were never run against this one. Not hypothetical: this
+// project's `employees` table had no `performance_criteria` and no `kra`
+// while the ledger listed both their migrations as applied, so every page
+// died on the missing column and there was no way to apply the fix.
+//
+// Only use it on a file you have checked is RE-RUNNABLE (add column if not
+// exists / create table if not exists). With --force you are asserting the
+// ledger is lying, not that the SQL has never run.
+const FORCE = args.includes("--force");
 const file = args.find((a) => a.endsWith(".sql"));
 if (!file) throw new Error("Pass a migration file path, e.g. db/migrations/0105_incentive_config.sql");
 
@@ -47,9 +60,12 @@ async function main() {
       `select 1 from __schema_applied where filename = $1`,
       [filename],
     )) as unknown as unknown[];
-    if (already.length > 0) {
+    if (already.length > 0 && !FORCE) {
       console.log(`⊘ ${filename} is already recorded as applied — no-op.`);
       return;
+    }
+    if (already.length > 0) {
+      console.log(`⚠ ${filename} is recorded as applied, but --force was given — re-running it.`);
     }
     await sql.unsafe(contents);
     await sql.unsafe(

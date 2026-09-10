@@ -34,7 +34,30 @@ export function HoverTip({
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
     const vw = typeof window !== "undefined" ? window.innerWidth : 1280;
-    const below = r.top < 150; // not enough room above → drop below the trigger
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+
+    /**
+     * BELOW THE TRIGGER BY DEFAULT.
+     *
+     * This was the other way round — above unless the trigger sat within 150px
+     * of the viewport top. On a dashboard section header that put the bubble
+     * over the KPI strip and the section-nav bar directly above it: hovering a
+     * heading to find out what it means covered the numbers you were reading.
+     * A tooltip should explain the thing you are pointing at, not hide what you
+     * already looked at to get there.
+     *
+     * Flipping up is kept as the fallback for the one case that needs it — a
+     * trigger near the bottom of the window, where a bubble below would be cut
+     * off by the viewport edge — and only when there is more room up there than
+     * down here. `ESTIMATED_TIP_H` is a reserve, not a measurement: the bubble
+     * is not in the DOM yet at this point, and it wraps to its text, so the
+     * exact height is unknowable until after it is placed. 120px covers the
+     * two- to three-line descriptions these carry.
+     */
+    const ESTIMATED_TIP_H = 120;
+    const roomBelow = vh - r.bottom;
+    const below = roomBelow >= ESTIMATED_TIP_H || r.top < ESTIMATED_TIP_H;
+
     setPos({
       left: Math.min(Math.max(12, r.left), vw - 372),
       top: below ? r.bottom + 8 : r.top - 8,
