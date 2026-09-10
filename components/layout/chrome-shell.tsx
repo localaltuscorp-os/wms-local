@@ -87,11 +87,16 @@ export function ChromeShell({
   const dock = isHub || isHrFullBleed ? null : footer;
   // The dock sits IN FLOW at the end of the page and reserves its own height
   // (it used to be fixed, then sticky — both of which rode over whatever a page
-  // ended with). So this padding only has to supply the gap BELOW it. The hub
-  // has no dock but still wants breathing room under the grid.
+  // ended with). So this padding only has to supply the gap BELOW it.
   // The HR console already fills the viewport exactly; trailing padding would
   // re-introduce the same overflow the dock did.
-  const bottomPad = isHrFullBleed ? "" : isHub ? "pb-10" : "pb-5";
+  //
+  // THE HUB TAKES NONE EITHER, and for the same reason. It has no dock, and it
+  // now CENTRES its card grid in the space under the hero — a trailing 40px
+  // here is 40px the grid cannot see, so the gap above the cards came out 40px
+  // larger than the gap below and the "centred" row sat visibly low. The hub
+  // supplies its own breathing room with its py-6.
+  const bottomPad = isHrFullBleed || isHub ? "" : "pb-5";
 
   // The hub is the module switchboard and renders the full DashboardHeader —
   // which already carries its own search — so a second bar there would stack two

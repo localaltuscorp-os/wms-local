@@ -58,13 +58,54 @@ function ReviewRow({
 }) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
-  const [self, setSelf] = React.useState(item.pctDone);
-  const [accept, setAccept] = React.useState<number>(item.acceptPct ?? item.pctDone);
+  /* PERCENT FIELDS HOLD TEXT, NOT A NUMBER — and that is the fix for typing
+     "100" into a field showing 0 and getting "0100".
+
+     The old shape was `value={self}` (a number) with
+     `onChange={(e) => setSelf(Number(e.target.value) || 0)}`. Two things went
+     wrong together:
+
+       · `|| 0` meant an empty field snapped straight back to 0, so the leading
+         zero could never be deleted — every entry was typed in FRONT of it.
+       · React skips writing back to an `<input type="number">` when the new
+         value is only LOOSELY unequal to what the DOM holds. Typing 1-0-0 in
+         front of the 0 gives "0100", `"0100" == 100` is true, so React saw
+         nothing to correct and left the text on screen — while state said 100.
+         The field disagreed with the value it would save.
+
+     Holding the raw string keeps the field honest: it can be emptied, it shows
+     exactly what was typed, and it is normalised to a clamped number on blur —
+     which is also when it commits. */
+  const [selfText, setSelfText] = React.useState(String(item.pctDone));
+  const [acceptText, setAcceptText] = React.useState(String(item.acceptPct ?? item.pctDone));
   const [notes, setNotes] = React.useState(item.reviewNotes ?? "");
 
-  React.useEffect(() => setSelf(item.pctDone), [item.pctDone]);
-  React.useEffect(() => setAccept(item.acceptPct ?? item.pctDone), [item.acceptPct, item.pctDone]);
+  // The numbers the rest of the row reasons about. An empty field reads as 0
+  // for validation and saving, without forcing a "0" back into the box.
+  const self = clampPct(Number(selfText) || 0);
+  const accept = clampPct(Number(acceptText) || 0);
+
+  React.useEffect(() => setSelfText(String(item.pctDone)), [item.pctDone]);
+  React.useEffect(
+    () => setAcceptText(String(item.acceptPct ?? item.pctDone)),
+    [item.acceptPct, item.pctDone],
+  );
   React.useEffect(() => setNotes(item.reviewNotes ?? ""), [item.reviewNotes]);
+
+  /**
+   * Digits only, at most 3, "" allowed so the field can be cleared — and any
+   * LEADING ZERO dropped as soon as a real digit follows it.
+   *
+   * That last part is the actual "0100" fix. Selecting on focus handles the
+   * common case, but someone who clicks to the right of the standing 0 and
+   * types 1-0-0 still produces "0100"; stripping turns that into 100 keystroke
+   * by keystroke. A lone "0" is left alone — it is a legitimate value.
+   */
+  const onPctText = (set: (v: string) => void) => (raw: string) => {
+    set(raw.replace(/\D/g, "").replace(/^0+(?=\d)/, "").slice(0, 3));
+  };
+  /** On blur the text becomes the clamped number it will actually save as. */
+  const normalise = (set: (v: string) => void, n: number) => set(String(n));
 
   const run = (input: Parameters<typeof submitReview>[0], okMsg: string) =>
     start(async () => {
@@ -178,13 +219,21 @@ function ReviewRow({
       <td className="px-3 py-3.5">
         {canWrite ? (
           <input
-            type="number"
-            min={0}
-            max={100}
-            value={self}
+            // `inputMode="numeric"` rather than `type="number"`: the number
+            // input is what let the DOM and React disagree about "0100", and
+            // its spinners were already being hidden by the class list below.
+            // This keeps the phone keypad without the reconciliation quirk.
+            type="text"
+            inputMode="numeric"
+            maxLength={3}
+            value={selfText}
             disabled={pending}
-            onChange={(e) => setSelf(clampPct(Number(e.target.value) || 0))}
-            onBlur={() => commitSelf(self)}
+            onChange={(e) => onPctText(setSelfText)(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
+            onBlur={() => {
+              normalise(setSelfText, self);
+              commitSelf(self);
+            }}
             aria-label="Self percent done"
             className={cn(
               "h-9 w-[64px] rounded-md border bg-white px-2 text-right text-[13.5px] font-bold tabular-nums text-ink-strong focus:border-altus-red",
@@ -204,12 +253,14 @@ function ReviewRow({
           <span className="text-[12px] font-semibold text-ink-subtle">self-completed</span>
         ) : canApprove ? (
           <input
-            type="number"
-            min={0}
-            max={100}
-            value={accept}
+            type="text"
+            inputMode="numeric"
+            maxLength={3}
+            value={acceptText}
             disabled={pending}
-            onChange={(e) => setAccept(clampPct(Number(e.target.value) || 0))}
+            onChange={(e) => onPctText(setAcceptText)(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
+            onBlur={() => normalise(setAcceptText, accept)}
             aria-label="Approved percent"
             className={cn(
               "h-9 w-[64px] rounded-md border bg-white px-2 text-right text-[13.5px] font-black tabular-nums text-ink-strong focus:border-altus-red",

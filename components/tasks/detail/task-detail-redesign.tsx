@@ -46,6 +46,7 @@ import { TaskEditForm } from "@/components/tasks/task-edit-form";
 import { TaskTimePanel, type TaskTimePanelData } from "@/components/tasks/time/task-time-panel";
 import { TaskChecklist } from "@/components/tasks/detail/task-checklist";
 import { TaskHeroBand } from "@/components/tasks/detail/task-hero-band";
+import { TaskTimerProvider } from "@/components/tasks/time/task-timer-store";
 import { TaskAttachments } from "@/components/tasks/detail/task-attachments";
 import {
   TaskTimelineRail,
@@ -167,6 +168,21 @@ export function TaskDetailRedesign(props: Props) {
   }
 
   return (
+    /* ONE TIMER FOR THE WHOLE SCREEN. The hero band and the Time Spent rail
+       card are two views of the same running session; each used to call the
+       Server Actions itself and hold its own "is it running", so a Start in one
+       left the other reading Start Work until a refresh landed. Both now read
+       this provider, and it is what makes the click land instantly instead of
+       waiting on a /tasks re-render.
+
+       `baseSeconds` is the total MINUS the open session, because the store adds
+       the live seconds itself — the rollup only counts a session once it
+       closes, so `totalActiveSeconds` is already exactly the banked figure. */
+    <TaskTimerProvider
+      taskId={task.id}
+      live={timePanel?.state.live ?? null}
+      baseSeconds={timePanel?.state.rollup.totalActiveSeconds ?? 0}
+    >
     <div className="relative">
       {/* ── CRIMSON HERO BAND ──
       
@@ -176,7 +192,6 @@ export function TaskDetailRedesign(props: Props) {
           permission checks (`canEdit`, `me.isAdmin`) and server actions, and a
           copy of them made to change their colour is a copy that drifts. */}
       <TaskHeroBand
-        taskId={task.id}
         title={task.title}
         /* `DONE · AWAITING APPROVAL` — two facts the reader needs together.
            The status alone says "Done", which is exactly the moment someone
@@ -434,7 +449,7 @@ export function TaskDetailRedesign(props: Props) {
           {timePanel && (
             <>
               <TaskTimelineRail entries={timePanel.state.timeline} />
-              <TimeSpentCard taskId={task.id} state={timePanel.state} canOperate={timePanel.canOperate} locked={locked} onViewHistory={() => setTab("timeline")} />
+              <TimeSpentCard state={timePanel.state} canOperate={timePanel.canOperate} locked={locked} onViewHistory={() => setTab("timeline")} />
             </>
           )}
         </aside>
@@ -449,6 +464,7 @@ export function TaskDetailRedesign(props: Props) {
         <CommentInput taskId={task.id} me={{ name: me.name, avatarUrl: me.avatarUrl }} compact />
       </div>
     </div>
+    </TaskTimerProvider>
   );
 }
 

@@ -249,6 +249,9 @@ function HeroHeader({
        band's actions slot. */
     <PageCommandBar
       title="Projects"
+      // The top bar on this route already reads "Projects" — this bar was
+      // printing the same word again, larger, 40px below it.
+      titleInTopBar
       hint={
         totals.projects > 0
           ? `${totals.projects} projects · ${totals.milestones} milestones · ${totals.results} results · ${totals.tasks} linked tasks`
