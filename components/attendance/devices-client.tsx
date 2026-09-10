@@ -39,10 +39,7 @@ const RED = "var(--color-altus-red)";
 
 function StatusPill({ status }: { status: string }) {
   const map: Record<string, { bg: string; fg: string; label: string }> = {
-    // Approval was removed 2026-09-09; a row can only still say "pending" if
-    // it predates the change and has not been used since, at which point it
-    // heals to approved. Label it for what it is, not as a queue to work.
-    pending: { bg: "var(--color-amber-bg, #fef3e2)", fg: "var(--color-amber-deep, #b45309)", label: "Legacy - usable" },
+    pending: { bg: "var(--color-amber-bg, #fef3e2)", fg: "var(--color-amber-deep, #b45309)", label: "Pending approval" },
     approved: { bg: "var(--color-green-bg, #e9f7ef)", fg: "var(--color-green-deep, #15803d)", label: "Approved" },
     revoked: { bg: "#f1f2f4", fg: "#6b7280", label: "Revoked" },
   };
@@ -72,8 +69,7 @@ export function DevicesClient({
   const [showRegister, setShowRegister] = React.useState(false);
 
   const filtered = devices.filter((d) => {
-    if (filter === "approved" && d.status === "revoked") return false;
-    if (filter === "revoked" && d.status !== "revoked") return false;
+    if (filter !== "all" && d.status !== filter) return false;
     if (!q.trim()) return true;
     const hay = `${d.employeeName} ${d.kind} ${d.label ?? ""} ${d.platform ?? ""}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
@@ -92,8 +88,8 @@ export function DevicesClient({
 
   const counts = {
     all: devices.length,
-    // No "pending" tab: there is no approval queue left to work through.
-    approved: devices.filter((d) => d.status !== "revoked").length,
+    pending: devices.filter((d) => d.status === "pending").length,
+    approved: devices.filter((d) => d.status === "approved").length,
     revoked: devices.filter((d) => d.status === "revoked").length,
   };
 
@@ -102,7 +98,7 @@ export function DevicesClient({
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-1 rounded-xl border border-hairline bg-white p-1">
-          {(["all", "approved", "revoked"] as const).map((f) => (
+          {(["all", "pending", "approved", "revoked"] as const).map((f) => (
             <button
               key={f}
               type="button"
@@ -156,10 +152,10 @@ export function DevicesClient({
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[14px] font-bold text-ink-strong">{d.employeeName}</div>
                 <div className="truncate text-[12.5px] text-ink-muted">
-                  {/* TYPE LEADS. Which slot this fills - Web (Desktop) vs Web
+                  {/* TYPE LEADS. Which slot this fills — Web (Desktop) vs Web
                       (Android) for a browser, or Laptop/Phone for the native app
-                      - is the first thing an admin needs, because it says which
-                      of the employee's capped slots this row is occupying. */}
+                      — is the first thing an approver needs, because the cap is
+                      one per slot: it decides what approving this row displaces. */}
                   <span className="font-bold text-ink-strong">{deviceTypeName(d)}</span>
                   {d.platform ? ` · ${d.platform}` : ""} · last seen{" "}
                   {fmt(d.lastSeenAt ?? d.lastUsedAt)}
