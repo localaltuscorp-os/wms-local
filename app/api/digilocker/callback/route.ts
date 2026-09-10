@@ -10,6 +10,8 @@ import {
   exchangeCodeForKyc,
 } from "@/lib/digilocker/config";
 import { PKCE_COOKIE, parsePkceCookie } from "@/lib/digilocker/pkce-cookie";
+import { isIntakeKycState } from "@/lib/hr/candidate/digilocker-intake";
+import { handleIntakeKycCallback } from "@/lib/hr/candidate/intake-kyc-callback";
 
 /**
  * GET /api/digilocker/callback — DigiLocker OAuth2 redirect target.
@@ -65,6 +67,14 @@ export async function GET(request: Request): Promise<Response> {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const providerError = url.searchParams.get("error");
+
+  // TWO FLOWS SHARE THIS ROUTE. DigiLocker validates `redirect_uri` against the
+  // one URL registered for the client, so the Candidate Interview Form's Aadhaar
+  // consent cannot have a callback of its own - it marks its `state` with a
+  // prefix instead (signing states are bare UUIDs, which cannot collide).
+  if (isIntakeKycState(state)) {
+    return handleIntakeKycCallback(request, url, state as string, code, providerError);
+  }
 
   // No state → we can't key the row; send somewhere safe.
   if (!state) {

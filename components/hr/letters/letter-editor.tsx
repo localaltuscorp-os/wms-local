@@ -1708,7 +1708,14 @@ const EDITOR_CSS = `
 .alw-wrap{width:100%;}
 /* Toolbar */
 .alw-toolbar{
-  position:sticky;top:60px;z-index:20;
+  /* top:0, NOT 60px. The 60px cleared a sticky TITLE BAND that used to pin at
+     the top of this same scroll container; that band is gone (its title moved
+     into the global top bar), so the offset became a 60px dead lane the letter
+     scrolled up into - the sheet's red letterhead appeared ABOVE the bar and
+     read as overlapping it. Pinned flush, nothing passes over the bar, and at
+     rest the toolbar sits 60px higher. If a pinned strip is ever added back
+     inside .hr-shell-scroll, this has to match its height again. */
+  position:sticky;top:0;z-index:20;
   display:flex;flex-wrap:nowrap;overflow-x:auto;align-items:center;justify-content:safe center;gap:5px 7px;
   padding:9px 12px;margin-bottom:20px;
   background:color-mix(in srgb, var(--color-surface-soft, #f8fafc) 92%, transparent);
