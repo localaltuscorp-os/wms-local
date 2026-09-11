@@ -2038,11 +2038,12 @@ export const mobileDevices = pgTable(
     label: text("label"),
     platform: text("platform"),
     /**
-     * 'laptop' | 'phone' (0206). DESCRIPTIVE ONLY since 0214 — it names the
-     * device on the admin screen and nothing else. An employee holds two device
-     * slots and either kind may fill either one, so two laptops is as valid as a
-     * laptop and a phone. Rows predating 0206 are phones: the table was populated
-     * exclusively by the mobile app's keystore id.
+     * 'laptop' | 'phone' (0206). LOAD-BEARING again since 0215: the rule is one
+     * approved laptop AND one approved phone, so `kind` decides which slot a row
+     * occupies. (0214 had briefly made it descriptive-only, two of any kind; that
+     * is retired — this comment described 0214 and was left behind by 0215.)
+     * Rows predating 0206 are phones: the table was populated exclusively by the
+     * mobile app's keystore id.
      */
     kind: text("kind").notNull().default("phone").$type<DeviceKind>(),
     // Device-allowlist lifecycle (Phase 1 anti-proxy, 2026-08). A device must be
@@ -2070,6 +2071,32 @@ export const mobileDevices = pgTable(
      *  now asked of the whole application: collapsing the two would make a
      *  device that browses daily but never punches look abandoned. */
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    /**
+     * BIOS serial, typed in by the employee at first-login registration (0222).
+     *
+     * NOT the device identity — `deviceId` remains that. This is an attribute
+     * used to stop ONE physical laptop being registered under two accounts,
+     * which a server-minted cookie id cannot detect. Phase 1 accepts it by hand:
+     * a browser cannot read it, and every "automatic" route (WMI via an
+     * extension, a helper agent) is either unavailable or a bigger change than
+     * the problem warrants. Normalised (trimmed, upper-cased) before storage so
+     * the uniqueness check is not defeated by casing.
+     */
+    deviceName: text("device_name"),
+    /** Optional, self-declared at registration. Descriptive only — shown on the
+     *  admin screen so a serial can be matched to a machine by eye. */
+    manufacturer: text("manufacturer"),
+    model: text("model"),
+    /**
+     * When a HUMAN completed the registration form (0222).
+     *
+     * Distinct from `createdAt`, which `enroll()` stamps the first time a
+     * browser is seen, and from `approvedAt`, which auto-adoption can set with
+     * nobody present. This is the one column that answers "must we show the
+     * registration modal?", and rows predating 0222 were backfilled so devices
+     * already in use are never asked again.
+     */
+    registeredAt: timestamp("registered_at", { withTimezone: true }),
   },
   (t) => [
     uniqueIndex("mobile_devices_device_id_uq").on(t.deviceId),
@@ -2087,9 +2114,64 @@ export const mobileDevices = pgTable(
       .where(sql`${t.status} = 'approved'`),
     index("mobile_devices_employee_status_idx").on(t.employeeId, t.status),
     check("mobile_devices_kind_chk", sql`${t.kind} in ('laptop', 'phone')`),
+    // One physical laptop, one registration (0222). Partial and lower-cased:
+    // phones never carry a serial, and the employee types the value so casing
+    // cannot be trusted to be stable.
+    uniqueIndex("mobile_devices_device_name_uq")
+      .on(sql`lower(${t.deviceName})`)
+      .where(sql`${t.deviceName} is not null and ${t.kind} = 'laptop'`),
   ],
 );
 export type MobileDevice = typeof mobileDevices.$inferSelect;
+
+/**
+ * Device-registration consent, one row per act of consent (0222).
+ *
+ * APPEND-ONLY. Never updated, never deleted: the value of the record is that it
+ * states what was agreed to, when, and under which wording. Re-consent writes a
+ * NEW row rather than overwriting the old one, so the history of what each
+ * person accepted survives a change of terms.
+ *
+ * `consentVersion` is the mechanism for that change. Ship different wording as
+ * 'device-registration-v2' and every employee whose newest row still reads v1 is
+ * due to re-consent — no schema change, no backfill, no flag.
+ *
+ * `deviceId` duplicates the text id alongside `deviceRowId` deliberately: the
+ * reference goes NULL if a device row is ever removed, and an audit entry that
+ * can no longer name its device is not much of an audit entry.
+ *
+ * Deliberately NOT stored: user agent, IP, screen metrics, fonts, timezone, or
+ * anything else that would constitute a fingerprint. This table proves consent;
+ * it is not a profile of the person giving it.
+ */
+export const deviceConsentEvents = pgTable(
+  "device_consent_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    deviceRowId: uuid("device_row_id").references(() => mobileDevices.id, { onDelete: "set null" }),
+    /** The technical device id, kept as text so the record stays legible if the
+     *  device row is ever removed. */
+    deviceId: text("device_id"),
+    /** e.g. 'device-registration-v1'. Bump to require re-consent. */
+    consentVersion: text("consent_version").notNull(),
+    /** What was consented to. One value today; named rather than assumed so a
+     *  second kind of consent does not need a second table. */
+    consentType: text("consent_type").notNull().default("device-registration"),
+    /** Who performed the act. Normally the employee themselves; differs when a
+     *  device administrator registers a device on somebody's behalf. */
+    actorEmployeeId: uuid("actor_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    consentedAt: timestamp("consented_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("device_consent_events_employee_idx").on(t.employeeId, t.consentedAt),
+    index("device_consent_events_device_idx").on(t.deviceRowId),
+    index("device_consent_events_version_idx").on(t.consentVersion),
+  ],
+);
+export type DeviceConsentEvent = typeof deviceConsentEvents.$inferSelect;
 
 /**
  * One-time punch nonces (anti-proxy Phase 2, 2026-08). The server issues a short-
@@ -2390,6 +2472,14 @@ export const holidays = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     holidayDate: date("holiday_date").notNull().unique(),
     label: text("label").notNull(),
+    /**
+     * HR's own optional record of WHY the day was declared (migration 0222).
+     *
+     * Not shown on the company-facing Holiday List — employees are told the
+     * holiday's NAME; the note is context for whoever declared it. NULL, never
+     * an empty string, so there is one representation of "no note".
+     */
+    note: text("note"),
     isActive: boolean("is_active").notNull().default(true),
     createdById: uuid("created_by_id").references(() => employees.id, {
       onDelete: "set null",
@@ -2397,6 +2487,12 @@ export const holidays = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /** Who last edited it, and when (0222). Null = never edited — deliberately
+     *  not defaulted, so a row cannot claim an edit that never happened. */
+    updatedById: uuid("updated_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
   },
   (t) => [index("holidays_date_idx").on(t.holidayDate)],
 );

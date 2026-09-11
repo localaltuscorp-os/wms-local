@@ -4,7 +4,13 @@ import { ArrowRight, Lock } from "lucide-react";
 import { requireUser } from "@/lib/auth/current";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { canAccessWorkspace, WORKSPACE_LANDING, type WorkspaceId } from "@/lib/workspaces";
-import { MODULE_THEME, MODULE_ORDER, moduleShortcut, type ModuleTheme } from "@/lib/module-theme";
+import {
+  ADMIN_PANEL_ENTRY,
+  MODULE_THEME,
+  MODULE_ORDER,
+  moduleShortcut,
+  type ModuleTheme,
+} from "@/lib/module-theme";
 import { EnterWorkspaceLink } from "@/components/hub/enter-workspace-link";
 import { UserMenuServer } from "@/components/header/user-menu-server";
 import { ModuleLogo } from "@/components/hub/module-logos";
@@ -181,6 +187,95 @@ function WorkspaceCard({ m, locked, i }: { m: ModuleTheme; locked: boolean; i: n
   );
 }
 
+/**
+ * THE ADMIN PANEL CARD — the standalone entry (2026-09-11).
+ *
+ * A thirteenth tile in the same grid, deliberately built to read as one of the
+ * cards rather than as an afterthought pinned somewhere else. It opens `/admin`
+ * — the SAME route the user-menu "Admin panel" link has always opened, rendered
+ * by the same `app/(admin)/admin/layout.tsx` and the same AdminShell. There is
+ * no second panel and nothing here to keep in sync with anything.
+ *
+ * ── WHY NOT `WorkspaceCard` ───────────────────────────────────────────────
+ * That component is keyed on `ModuleTheme.id`, a WorkspaceId, and uses it to
+ * look up a bespoke `ModuleLogo` glyph and a `HUB_PASTEL` row. The Admin Panel
+ * is not a workspace (see ADMIN_PANEL_ENTRY), so it has neither. Everything
+ * else — the geometry, the badge, the Enter pill, the hover lift — is copied
+ * verbatim so the two are indistinguishable on screen.
+ *
+ * ── NO `EnterWorkspaceLink` ───────────────────────────────────────────────
+ * That link's whole job is to stamp the `aw` cookie with the room you are
+ * entering. `/admin` belongs to no room — `workspaceForPath` returns null for
+ * it on purpose — so writing a workspace there would swap the sidebar out from
+ * under whatever room the admin came from. A plain <Link> is the correct one.
+ */
+function AdminPanelCard({ i }: { i: number }) {
+  const p = { from: "#FEE2E2", to: "#FECACA", ink: "#B91C1C" };
+  const delay = { animationDelay: `${i * 70}ms` } as const;
+  const Icon = ADMIN_PANEL_ENTRY.Icon;
+
+  return (
+    <Link
+      href={ADMIN_PANEL_ENTRY.href}
+      aria-label={`Open ${ADMIN_PANEL_ENTRY.label} — shortcut ${ADMIN_PANEL_ENTRY.shortcut}`}
+      className="wg-rise group relative block h-full min-h-[176px] overflow-hidden rounded-[28px] shadow-md transition duration-200 hover:-translate-y-1.5 hover:shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 max-md:min-h-[156px]"
+      style={{
+        background: `linear-gradient(145deg, ${p.from}, ${p.to})`,
+        ...delay,
+        "--tw-ring-color": p.ink,
+      } as React.CSSProperties}
+    >
+      <Icon
+        size={104}
+        strokeWidth={1.6}
+        aria-hidden
+        className="pointer-events-none absolute -bottom-5 -right-5 opacity-[0.07]"
+        style={{ color: p.ink }}
+      />
+
+      {/* The bare letter, exactly as the module cards badge theirs — and it is
+          accurate here for the same reason: HubLetterShortcuts makes an
+          unmodified A work on this page. Inside a module it needs Alt, and the
+          footer dock badges it "⌥A" there. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute left-3 top-3 z-10 inline-flex size-[22px] items-center justify-center rounded-md text-[12px] font-bold"
+        style={{ background: "rgba(255,255,255,0.55)", color: p.ink }}
+      >
+        {ADMIN_PANEL_ENTRY.shortcut}
+      </span>
+
+      <div className="relative z-10 flex h-full flex-col items-center justify-center gap-3 p-5 text-center max-md:p-4">
+        <span
+          className="inline-flex size-[56px] items-center justify-center rounded-[16px] drop-shadow-[0_7px_16px_rgba(15,23,42,0.22)]"
+          style={{ background: `linear-gradient(145deg, #FFC9C6, #FFA9A5)`, border: `2.4px solid ${p.ink}` }}
+        >
+          <Icon size={30} strokeWidth={2.4} style={{ color: p.ink }} aria-hidden />
+        </span>
+        <div className="w-full">
+          <h3
+            className="text-[22px] font-extrabold leading-none tracking-tight max-md:text-[20px]"
+            style={{ color: p.ink }}
+          >
+            {ADMIN_PANEL_ENTRY.label}
+          </h3>
+          <span
+            className="mt-2.5 inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-[13px] font-bold text-white"
+            style={{ background: p.ink }}
+          >
+            Enter
+            <ArrowRight
+              size={14}
+              strokeWidth={2.8}
+              className="transition-transform duration-200 group-hover:translate-x-1"
+            />
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 export default async function HubPage() {
   const me = await requireUser();
   const firstName = me.name.split(" ")[0] ?? me.name;
@@ -199,7 +294,7 @@ export default async function HubPage() {
     // / DCC_REVIEW_GATE_ON. Kept in lock-step with app/(app)/layout.tsx.
     const isManager = await isManagerWithReports(me.id).catch(() => false);
     if (loginPlanGateOn() && !isManager) {
-      const mustPlan = await needsDailyChecklistPlan(me.id).catch(() => false);
+      const mustPlan = await needsDailyChecklistPlan(me).catch(() => false);
       if (mustPlan) return <DailyChecklistView employeeId={me.id} greetingName={firstName} mode="gate" />;
     }
     if (loginDccGateOn()) {
@@ -324,6 +419,17 @@ export default async function HubPage() {
           {MODULE_ORDER.filter((id) => canAccessWorkspace(id, access)).map((id) => (
             <WorkspaceCard key={id} m={MODULE_THEME[id]} locked={false} i={MODULE_ORDER.indexOf(id)} />
           ))}
+
+          {/* THE ADMIN PANEL, for admins only — the same test the user-menu
+              entry uses (`isAdmin &&`) and the same one `/admin`'s layout
+              enforces server-side. Hidden rather than shown locked, matching
+              how an unreachable room is treated two lines above: a doer sees
+              only the places that are actually theirs.
+
+              This is PRESENTATION. `app/(admin)/admin/layout.tsx` redirects a
+              non-admin to /hub whether or not a card was drawn, so nothing here
+              is load-bearing for authorization. */}
+          {me.isAdmin && <AdminPanelCard i={MODULE_ORDER.length} />}
         </section>
 
         {/* BARE-LETTER shortcuts, hub only — pressing Q opens WMS. This is the
@@ -335,7 +441,10 @@ export default async function HubPage() {
             working once you are inside a room (where a bare letter is typing
             and must not navigate). The two split cleanly on the modifier — see
             the note in components/hub/module-shortcuts.tsx. */}
-        <HubLetterShortcuts allowed={MODULE_ORDER.filter((id) => canAccessWorkspace(id, access))} />
+        <HubLetterShortcuts
+          allowed={MODULE_ORDER.filter((id) => canAccessWorkspace(id, access))}
+          adminAllowed={me.isAdmin}
+        />
       </div>
     </main>
   );

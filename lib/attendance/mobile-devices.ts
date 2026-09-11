@@ -314,6 +314,14 @@ export interface AdminDeviceRow {
   revokedAt: Date | null;
   revokedByName: string | null;
   revokeReason: string | null;
+  /** 0222. Null on every row enrolled before first-login registration existed,
+   *  and on phones, which are never asked for one. */
+  deviceName: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  /** When a human completed the registration form (0222). Rows predating it
+   *  were backfilled, so this is "registered", not "registered by the modal". */
+  registeredAt: Date | null;
 }
 
 /**
@@ -345,6 +353,10 @@ export async function listAllDevices(): Promise<AdminDeviceRow[]> {
       revokedAt: mobileDevices.revokedAt,
       revokedByName: sql<string | null>`revoker.name`,
       revokeReason: mobileDevices.revokeReason,
+      deviceName: mobileDevices.deviceName,
+      manufacturer: mobileDevices.manufacturer,
+      model: mobileDevices.model,
+      registeredAt: mobileDevices.registeredAt,
     })
     .from(mobileDevices)
     .leftJoin(employees, eq(employees.id, mobileDevices.employeeId))
@@ -383,6 +395,20 @@ export async function setDeviceStatus(
         and(
           eq(mobileDevices.employeeId, row.employeeId),
           eq(mobileDevices.status, "approved"),
+          // SCOPED TO THE KIND BEING APPROVED (fixed 0222).
+          //
+          // This filter was missing: the count ran across ALL kinds and was then
+          // compared against MAX_APPROVED_PER_KIND, so an employee holding one
+          // approved phone could not have a pending LAPTOP approved — the
+          // administrator got "already has an approved laptop" while the laptop
+          // slot sat empty. The documented remedy (revoke the phone, approve the
+          // laptop, re-register the phone) is what produced the repeat-approval
+          // loop this was reported as.
+          //
+          // The database was never wrong: mobile_devices_employee_kind_approved_uq
+          // and mobile_devices_cap_approved_trg have both been scoped to
+          // (employee_id, kind) since 0215. Only this count disagreed with them.
+          eq(mobileDevices.kind, row.kind),
         ),
       );
     if ((c?.n ?? 0) >= MAX_APPROVED_PER_KIND && row.status !== "approved") {

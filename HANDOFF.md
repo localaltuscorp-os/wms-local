@@ -13,38 +13,41 @@ broken, what changed and why.
 
 ---
 
-## ⚠️ Pending database migrations — 0216 to 0220 (added 2026-09-10)
+## ⚠️ Pending database migrations — 0216 to 0224 (updated 2026-09-11)
 
-The `Om` branch ships code that **assumes five tables which do not exist in Supabase
-yet**. Nobody has run these. Until they are applied, master-admin, the permission
-matrix, delegated access, manager history and reimbursement attachments will fail at
+The `Om` branch ships code that **assumes tables and columns which do not exist
+in Supabase yet**. Nobody has run these. Until they are applied, master-admin,
+the permission matrix, delegated access, manager history, reimbursement
+attachments, holiday notes and first-login device registration all fail at
 runtime.
 
-| File | Creates |
-|------|---------|
-| `db/migrations/0216_module_submission_attachments.sql` | `module_submission_attachments` |
-| `db/migrations/0217_masters_payment_modes_and_products.sql` | `ALTER TABLE outstanding_products` |
-| `db/migrations/0218_delegated_access.sql` | `delegated_access_grants`, `delegated_access_events` |
-| `db/migrations/0219_permission_matrix.sql` | `module_permissions`, `module_permission_events` |
-| `db/migrations/0220_manager_hierarchy_history.sql` | `employee_manager_history` |
-
-All five are additive — no `DROP`, `TRUNCATE` or `DELETE`. Validate first (runs inside a
-transaction, then rolls back), then apply:
+**The safe batch — paste and go.** Everything additive, in order, in one
+transaction:
 
 ```bash
-npx tsx --env-file=.env.local scripts/validate-migrations-0217-0220.ts
-npx tsx --env-file=.env.local scripts/apply-migrations-0217-0220.ts
+# Supabase Dashboard -> SQL Editor -> New query -> paste -> Run
+#   or:
+psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0216-0224.sql
 ```
 
-`0216` is **not** covered by those scripts — apply it by hand, first:
+No `DROP TABLE`, no `TRUNCATE`, no `DELETE`. Idempotent, so re-running changes
+nothing. Covers `0216`–`0222` and `0224`.
+
+**`0223` is excluded, deliberately.** It runs `DELETE FROM mobile_devices` and
+destroys device history. Run it alone, only when you mean to, after reading its
+header:
 
 ```bash
-psql "$DATABASE_URL" -f db/migrations/0216_module_submission_attachments.sql
+pnpm db:migrate -- --allow-destructive=0223_clear_registered_devices.sql
 ```
 
-Do **not** reach for `npm run db:migrate` here: the drizzle journal is stale at `0019`, so
-it would also apply two dozen unrelated pending migrations. Full detail, verification
-steps and the merge decisions that need review are in [`HANDOFF-Om.md`](./HANDOFF-Om.md).
+Order: the batch first (adds the columns), then decide about `0223` (clears the
+rows).
+
+Do **not** reach for `npm run db:migrate`: the drizzle journal is stale at
+`0019`, so it would also apply two dozen unrelated pending migrations. Full
+detail, per-file notes and the known limitations are in
+[`HANDOFF-Om.md`](./HANDOFF-Om.md).
 
 ---
 
