@@ -10,13 +10,15 @@ import type { IntakeInitial } from "@/components/hr/candidate/intake-wizard";
 export const dynamic = "force-dynamic";
 
 /**
- * The candidate's own interview form. `requireCandidateOwner` resolves THEIR row
- * (via the server-side account link) — the candidate can only ever load and edit
- * that one row. Positions/departments are read directly (the HR-gated helpers
- * would redirect a candidate).
+ * The candidate's own interview form, served to BOTH candidate routes:
+ * `/candidate/form` (signed in) and `/c/form` (an access link, which re-exports
+ * this component — see app/c/form/page.tsx). `requireCandidateOwner` resolves
+ * THEIR row for either path, so the candidate can only ever load and edit that
+ * one row, and reports which path it was as `viaLink`. Positions/departments are
+ * read directly (the HR-gated helpers would redirect a candidate).
  */
 export default async function CandidateFormPage() {
-  const { rowId } = await requireCandidateOwner();
+  const { rowId, submitted, viaLink } = await requireCandidateOwner();
 
   const [posRows, depts, rowArr] = await Promise.all([
     db
@@ -48,8 +50,20 @@ export default async function CandidateFormPage() {
     draftId: rowId,
     values,
     instances: (row?.instances ?? {}) as Record<string, string[]>,
-    startAtReview: false,
+    // A link candidate coming back to a form they already submitted wants the
+    // review step: that is the one screen showing every answer at once, and
+    // correcting an answer is the only reason to return.
+    startAtReview: viaLink && submitted,
   };
 
-  return <CandidateFormLauncher positions={positions} departments={departments} initial={initial} />;
+  return (
+    <CandidateFormLauncher
+      positions={positions}
+      departments={departments}
+      initial={initial}
+      // Only the link path stays open after submit — see candidate-self-actions.
+      canEditAfterSubmit={viaLink}
+      alreadySubmitted={viaLink && submitted}
+    />
+  );
 }

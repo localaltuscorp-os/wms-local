@@ -94,7 +94,7 @@ section below the table before doing anything else.
 | **Database** | Supabase Postgres `mwaijzxuyicysvimzspx`, `ap-south-1` (Mumbai) |
 | **Auth** | Firebase `altuscorp-e7140` — **29 users**, rebuilt 2026-09-04 evening from `employees.firebase_uid`, plus Rashmi's created by hand 2026-09-08. 20 active / 9 deactivated. Everyone except Rohan and Rashmi has **no password set** and must use Forgot Password. |
 | **Email** | Resend, `mananvasa.com` verified |
-| **Scale** | 216 pages · 145 API routes · 240 tables · 212 migrations · 35 crons |
+| **Scale** | 216 pages · 145 API routes · 240 tables · 234 migrations · 35 crons |
 
 ### Deploys — `git push` works again as of 2026-09-08
 
@@ -496,6 +496,155 @@ throughout; her Firebase UID is new.
 
 ## Changelog
 
+### 2026-09-10 — ECOS broadcast popup + snooze, HR letters overhaul, HR console chrome
+
+Commit `5e3d2fd` on branch `Rudra` (pushed to `origin/Rudra`; **`main` untouched
+at `ea0a8bf`, so none of this is on the live site**). 47 files, +3,966 / −404.
+
+#### 🗄️ DATABASE CHANGES — READ BEFORE DEPLOYING
+
+**One migration must be applied to the target Supabase database BEFORE the code
+from this branch is deployed, or broadcast queries fail at runtime.**
+
+`db/migrations/0215_broadcast_popup_snooze.sql` — additive and idempotent
+(`IF NOT EXISTS` on every statement, safe to re-run; no existing data is read,
+modified or deleted):
+
+```sql
+ALTER TABLE broadcast_recipients ADD COLUMN IF NOT EXISTS snoozed_at timestamptz;
+ALTER TABLE broadcast_recipients ADD COLUMN IF NOT EXISTS snooze_session text;
+ALTER TABLE broadcast_recipients ADD COLUMN IF NOT EXISTS snooze_count integer NOT NULL DEFAULT 0;
+ALTER TABLE broadcast_recipients ADD COLUMN IF NOT EXISTS popup_seen_at timestamptz;
+
+ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS popup boolean NOT NULL DEFAULT true;
+
+CREATE INDEX IF NOT EXISTS broadcast_recipient_popup_idx
+  ON broadcast_recipients(employee_id, status, snoozed_at);
+```
+
+Verification queries and a copy-paste version for the Supabase SQL Editor:
+[`docs/SQL_QUERIES_FOR_DEPLOY.md`](./docs/SQL_QUERIES_FOR_DEPLOY.md).
+
+Two notes for whoever runs it. `ADD COLUMN ... NOT NULL DEFAULT true` does not
+rewrite the table on PG 11+, so it is fast. `CREATE INDEX` is **not**
+`CONCURRENTLY`, so it takes a brief write lock on `broadcast_recipients` —
+negligible at current row counts, but use `CONCURRENTLY` if that table has grown.
+
+`db/schema.ts` declares the same five columns and one index. Schema and database
+must match: applying 0215 is what makes them agree.
+
+**Database impact by work area:**
+
+| Area | DB impact |
+|---|---|
+| ECOS broadcast popup + snooze | **YES — migration 0215 required** |
+| HR letters overhaul | None — code only |
+| Communications, login UI, layout shell, `next.config.ts` | None — code only |
+
+New queries worth knowing about, all in `lib/ecos/queries.ts`:
+
+- `nextPopupBroadcastForEmployee()` — **polled every ~5 seconds on every
+  authenticated page** by `<BroadcastPopup>`, which is mounted app-wide in
+  `app/(app)/layout.tsx`. Joins `broadcast_recipients` to `broadcasts` and reads
+  `snooze_session`, `snoozed_at` and `popup`. This is now the highest-frequency
+  query in the app — the index above exists for it. It is fail-closed (returns
+  null on error) so a failure is a missing popup, not a broken page.
+- `getBroadcastAnalytics()` — aggregates `snooze_count` for the dashboard.
+- The snooze / read paths write `snooze_session`, `snoozed_at`, `snooze_count`
+  and `popup_seen_at`.
+
+#### What changed
+
+- **ECOS broadcast popup + snooze.** A published broadcast now flashes as a
+  centre-screen modal within ~5s. "Read" settles the receipt for good; the "✕"
+  snoozes it until the recipient's next login, tracked by an opaque
+  browser-session id. Deliberately distinct from the full-screen app-lock gate
+  (`broadcast-lock-gate.tsx`), which the popup skips entirely so the two can
+  never fight over the same screen.
+- **HR letters overhaul** — editor, rich rendering, PDF pipeline, letterhead,
+  fit-to-width, plus `scripts/letter-page-estimate.ts`.
+- **HR console chrome.** The app top bar was a full-width strip sitting *on top
+  of* the HR console's own left rail — the one module that did not match the
+  rest. It now renders inside the console's **content column**
+  (`components/layout/inset-top-bar.tsx` hands it down; `chrome-shell.tsx`
+  routes it there for HR full-bleed routes), so the rail runs the full height of
+  the viewport like every other module's rail and the page title starts where
+  the page starts.
+  - Gotcha for anyone editing `hr-console-shell.tsx`: the shell must **not**
+    carry `flex-1`. `flex-basis: 0%` replaces the main-size property on a flex
+    item, so `height: 100dvh` is silently ignored and the shell sizes to its
+    content — it grew ~160px past the frame, and since the frame is
+    `overflow-hidden` the rail's footer fell off-screen with nothing able to
+    scroll to it. The comment in the file says so; keep it.
+- **Turbopack workspace root pinned** in `next.config.ts`. A stray empty
+  `package-lock.json` in the Windows home folder was out-ranking this repo's
+  `pnpm-lock.yaml`, so Turbopack rooted the module graph at the home directory
+  and watched the whole user profile. That watch tree invalidates unreliably and
+  produced phantom "export doesn't exist" build errors for exports that plainly
+  did. Affects `next dev` only — the production build uses webpack.
+
+#### Caveats — read before merging to `main`
+
+1. **Everything was verified against `DUMMY_MODE` and the rebuilt PGlite fixture
+   DB.** There has been no pass against the real database with real auth.
+2. **9 unit tests fail** across `super-admin`, `roster-permission`,
+   `done-on-time`, `task-actions`, `global-search-provider` and
+   `task-stat-counts`. These are **pre-existing** — verified by running the same
+   files at `bd20607`, before this work, where they fail identically. Not caused
+   by this branch, but they are red and someone should own them.
+3. **Any signed-in employee can publish a company-wide broadcast.** The gate on
+   authoring is `requireAuthor()`, which is just `requireUser()`. Managing an
+   *existing* broadcast correctly requires author-or-admin (`requireManager`),
+   but creation is open to all staff — and broadcasts support Critical /
+   Emergency priority with app-lock mode. Confirm this is the intended policy.
+4. `pnpm build` uses `rm -rf`, which fails on Windows. The build was verified
+   with `npx next build --webpack` directly.
+
+#### ⚠️ Incident: local dev ran against the production database
+
+For several hours a dev server was running on **port 3000** via plain `pnpm dev`
+instead of `pnpm dev:dummy` (port 3002). Plain `dev` does not set `DUMMY_MODE`,
+so the app used the real `DATABASE_URL` from `.env.local` — the live Supabase
+project — with `DISABLE_AUTH="true"` and
+`DEV_USER_EMAIL="vinalpatil.altuscorp@gmail.com"` resolving every request to
+Vinal Patil's **real** employee row, as Administrator. Sign Out appears broken in
+that mode because identity is recomputed from an environment variable on every
+request, so there is no session to clear.
+
+Any row written while browsing that server is real production data attributed to
+Vinal. `event_log` (`actor_id`, `event_type`, `occurred_at`) can be queried to
+list exactly what was written. `.env.local` is gitignored and has never been
+committed, so no credentials were exposed.
+
+**Rule of thumb: port 3002 is the sandbox, port 3000 is production data.**
+
+#### ⚠️ `.gitignore` swallowed a source file — third occurrence
+
+`components/ecos/whatsapp-panel.tsx` was written and imported by
+`app/(app)/communications/[id]/page.tsx`, but `git add -A` skipped it silently
+and the branch shipped an import of a file that was never pushed. It failed to
+resolve at build time.
+
+Cause: line 58 of `.gitignore` is `WhatsApp*`, intended for media exports. On
+Windows and macOS the filesystem is case-insensitive, so it also matches
+`whatsapp-panel.tsx`. The override list already carried `!lib/**/whatsapp*`,
+`!app/api/whatsapp/` and `!tests/unit/whatsapp-*.test.ts` — each added after this
+same trap bit — but never `components/`. Now fixed with `!components/**/whatsapp*`.
+
+**If you add a `whatsapp*` source file anywhere new, check `git check-ignore -v`
+on it before you commit.** A silent skip here does not fail locally; it fails in
+the deploy build, long after the push.
+
+To audit a branch for this class of bug, resolve every `@/` import against
+`git ls-files` rather than against the working tree — the working tree still has
+the file, which is exactly why it looks fine locally.
+
+#### Also
+
+- The PGlite fixture DB corrupts when the dev server is force-killed — it
+  happened twice today. Symptom is every query failing, including trivial ones
+  like `select distinct "subject" from "tasks"`. Fix is
+  `pnpm dummy:setup --reset`, then restart. Rebuilt clean at 234 migrations.
 ### 2026-09-10 — Task timer repaired, Bulk Add, hub letter shortcuts, template dropdowns
 
 **What changed**

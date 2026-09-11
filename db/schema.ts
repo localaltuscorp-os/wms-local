@@ -7019,6 +7019,86 @@ export const candidateIntake = pgTable(
 export type CandidateIntake = typeof candidateIntake.$inferSelect;
 
 /**
+ * Candidate ACCESS LINKS (migration 0221) — the HR forms without a login.
+ *
+ * Replaces the SIGN-IN step only, never the identity: a candidate still has a
+ * real `employees` row (account_type 'candidate', linked by candidateIntakeId),
+ * and every downstream write still targets it — `documentSignatures
+ * .signerEmployeeId`, the intake row, the policy compliance rows. Ownership and
+ * audit are unchanged; only the proof-of-identity differs.
+ *
+ * Only the SHA-256 of the token is stored, so this table leaking lets nobody in
+ * — the same shape as `delegatedAccessGrants`, for the same reason. See
+ * lib/hr/candidate/access-link.ts.
+ */
+export const candidateAccessLinks = pgTable(
+  "candidate_access_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The one intake row this link opens. Dies with it. */
+    intakeId: uuid("intake_id")
+      .notNull()
+      .references(() => candidateIntake.id, { onDelete: "cascade" }),
+    /** SHA-256 of the token, hex. The plaintext is never stored or logged. */
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    /** Set instead of deleting, so a revoked link stays auditable. */
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /** Throttled — tells HR whether the candidate ever actually opened it. */
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    /** SET NULL, not CASCADE: an HR person leaving must not delete their links. */
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    /**
+     * What this link was issued FOR (0222) — 'form' (the interview form) or
+     * 'policies' (the acknowledgements). A LANDING decision only: both surfaces
+     * belong to the same candidate and the token proves identity for both.
+     */
+    purpose: text("purpose").notNull().default("form").$type<CandidateLinkPurpose>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("candidate_access_links_intake_idx").on(t.intakeId, t.createdAt)],
+);
+export type CandidateAccessLink = typeof candidateAccessLinks.$inferSelect;
+
+/** Where `/c/<token>` puts the candidate down (0222). */
+export type CandidateLinkPurpose = "form" | "policies";
+
+/**
+ * A candidate's typed acceptance of one policy (0222).
+ *
+ * Deliberately NOT `document_signatures`: that table holds DigiLocker-verified,
+ * Aadhaar-backed signatures with an archived signed PDF. A candidate has no
+ * account and no DigiLocker session, so their acceptance is a different — and
+ * weaker — kind of evidence, and it is recorded somewhere that says so rather
+ * than sitting alongside verified signatures where the two could be confused.
+ */
+export const candidatePolicySignatures = pgTable(
+  "candidate_policy_signatures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    intakeId: uuid("intake_id")
+      .notNull()
+      .references(() => candidateIntake.id, { onDelete: "cascade" }),
+    /** The candidate's own employees row — the subject every other write targets. */
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    policyKey: text("policy_key").notNull(),
+    /** The published version that was on screen when they accepted. */
+    version: integer("version").notNull().default(1),
+    /** What they typed, verbatim. */
+    signedName: text("signed_name").notNull(),
+    signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("candidate_policy_signature_uq").on(t.intakeId, t.policyKey),
+    index("candidate_policy_signatures_intake_idx").on(t.intakeId),
+  ],
+);
+export type CandidatePolicySignature = typeof candidatePolicySignatures.$inferSelect;
+
+/**
  * Per-designation weight profiles for Candidate Evaluation v2. One row per
  * designation (Intern → Sr VP) plus a `default` pseudo-row that seeds the base
  * profile. `weights` = { [sectionId]: number } (relative macro weights).
