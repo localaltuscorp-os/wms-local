@@ -72,6 +72,26 @@ export type SecurityCapability =
    */
   | "master_admin.manage"
   /**
+   * EXEMPT FROM THE COMPULSORY DAILY-START GATES.
+   *
+   * The holder is never blocked from using the WMS by the post-login walls:
+   * Start My Day, the committed-items minimum (3 for an individual contributor,
+   * 5 for a manager), or the daily-checklist plan gate.
+   *
+   * ── AN EXCEPTION TO ENFORCEMENT, NOT A REMOVAL OF THE FEATURE ────────────
+   * The gates stay exactly as they are for everybody else. This is one
+   * predicate consulted inside the gate functions themselves
+   * (lib/daily-checklist/gate.ts), so it applies to every caller — the `(app)`
+   * layout, the hub, and anything added later — rather than being re-stated at
+   * each call site where one copy would eventually be forgotten.
+   *
+   * It does NOT touch attendance grading. The holder's days are still graded by
+   * the same rules as everyone's: not punching still reads as an absence. This
+   * capability is about whether the application refuses to open, which is what
+   * "must not be required to Start My Day in order to proceed" asks for.
+   */
+  | "daily_start.exempt"
+  /**
    * May grant TEMPORARY DELEGATED ACCESS to any employee's account, regardless
    * of the reporting hierarchy.
    *
@@ -112,6 +132,18 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
     "attendance.view_audit_log",
     "master_admin.manage",
     "delegated_access.grant_any",
+    /**
+     * The daily-start exemption. Manan does not check in, does not run Start My
+     * Day, and is not held at the 5-commitment wall — he uses the WMS without
+     * being stopped by the post-login rituals.
+     *
+     * Granted here, to one address, rather than derived from "is the founder"
+     * (lib/auth/founder.ts) or from super-admin: both would make the exemption
+     * a side effect of an unrelated fact, so a second founder or a third
+     * super-admin would silently acquire it. Adding somebody is one line, in
+     * this table, visible in review.
+     */
+    "daily_start.exempt",
   ],
 
   /**
@@ -221,6 +253,21 @@ export function isMasterAdmin(email: string | null | undefined): boolean {
  *  lib/auth/delegation-permission.ts. */
 export function canGrantAnyDelegatedAccess(email: string | null | undefined): boolean {
   return hasCapability(email, "delegated_access.grant_any");
+}
+
+/**
+ * IS THIS PERSON EXEMPT FROM THE COMPULSORY DAILY-START GATES?
+ *
+ * Read inside the gate functions in lib/daily-checklist/gate.ts, which is the
+ * single place the answer is applied — so the `(app)` layout, the hub and any
+ * future caller all inherit it, and the front end cannot disagree with the back
+ * end about who is exempt.
+ *
+ * Fails CLOSED: an unknown or absent address is NOT exempt, so a typo in the
+ * grants table leaves the gates fully enforced rather than quietly open.
+ */
+export function isExemptFromDailyStart(email: string | null | undefined): boolean {
+  return hasCapability(email, "daily_start.exempt");
 }
 
 export const MASTER_ADMIN_REFUSAL =

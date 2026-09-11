@@ -339,12 +339,22 @@ export async function adoptDeviceOnLogin(employee: Employee): Promise<AdoptResul
         // replaced with a new identity below rather than reused.
         return await enroll(employee, `web_${randomUUID()}`, kind, label);
       }
-      if (row.status === "approved") {
-        await touchLastSeen(row.id);
-        return { ok: true, device: row, adopted: false, deviceId: existingId };
-      }
-      const reason: DeviceDenyReason = row.status === "revoked" ? "revoked" : "pending";
-      return { ok: false, reason, error: DENY_MESSAGES[reason] };
+      await touchLastSeen(row.id);
+      // SIGN-IN NO LONGER REFUSES ON DEVICE STATUS (0222).
+      //
+      // It used to return `pending` or `revoked` here, which stopped the person
+      // AT THE LOGIN FORM — before any session existed and therefore before any
+      // screen could explain why or offer a way forward. First-login device
+      // registration made that untenable: the modal that collects the serial
+      // lives INSIDE the application, so refusing at the door meant a new
+      // employee could never reach the form that would have registered them.
+      //
+      // The restriction is not lost, it has MOVED one step later. Every request
+      // after this still passes `resolveDeviceContext` via `requireUser()`, so a
+      // pending or revoked device gets the same refusal it always did — except
+      // now as /device-blocked, a page that names the reason and the remedy,
+      // instead of a dead end on the sign-in screen.
+      return { ok: true, device: row, adopted: false, deviceId: existingId };
     }
     // A cookie naming a device that no longer exists (revoked and purged, or a
     // restored database). Fall through and let it be enrolled or refused on the
@@ -480,13 +490,33 @@ async function enroll(
     });
     if (existing && existing.employeeId === employee.id) {
       await setDeviceCookie(deviceId);
-      if (existing.status === "approved")
-        return { ok: true, device: existing, adopted: false, deviceId };
-      const reason: DeviceDenyReason = existing.status === "revoked" ? "revoked" : "pending";
-      return { ok: false, reason, error: DENY_MESSAGES[reason] };
+      // Whatever its status, the person signs in — see the note in
+      // adoptDeviceOnLogin. `resolveDeviceContext` refuses afterwards if it must.
+      return { ok: true, device: existing, adopted: false, deviceId };
     }
     if (msg.includes("mobile_devices_employee_kind_approved_uq")) {
-      return { ok: false, reason: "pending", error: DENY_MESSAGES.pending };
+      // Another transaction took the free slot between the check and the insert.
+      // `pending` is the correct answer, so write the row as pending rather than
+      // turning a lost race into a refused sign-in.
+      try {
+        await db.insert(mobileDevices).values({
+          employeeId: employee.id,
+          deviceId,
+          kind,
+          label,
+          platform: "web",
+          status: "pending",
+          lastSeenAt: new Date(),
+        });
+      } catch {
+        /* still could not write a row — sign-in proceeds without one, and the
+           gate decides on the next request. */
+      }
+      await setDeviceCookie(deviceId);
+      const written = await db.query.mobileDevices.findFirst({
+        where: eq(mobileDevices.deviceId, deviceId),
+      });
+      return { ok: true, device: written ?? null, adopted: false, deviceId };
     }
     throw err;
   }
@@ -496,12 +526,13 @@ async function enroll(
   const row = await db.query.mobileDevices.findFirst({
     where: eq(mobileDevices.deviceId, deviceId),
   });
-  if (!row) return { ok: false, reason: "unregistered", error: DENY_MESSAGES.unregistered };
-  if (row.status !== "approved") {
+  // Sign-in proceeds either way (0222). The admin alert still fires for a
+  // pending device — administrators keep the visibility they had — but the
+  // person is no longer held at the login form waiting for it to be actioned.
+  if (row && row.status !== "approved") {
     await alertManagersPending(employee, label, kind);
-    return { ok: false, reason: "pending", error: DENY_MESSAGES.pending };
   }
-  return { ok: true, device: row, adopted: true, deviceId };
+  return { ok: true, device: row ?? null, adopted: Boolean(row), deviceId };
 }
 
 /**
@@ -592,7 +623,16 @@ async function setDeviceCookie(deviceId: string): Promise<void> {
  * is deliberately NOT stored: it is a lasting record of what someone runs, and
  * it answers no question this feature asks.
  */
-async function describeRequestDevice(): Promise<{ kind: DeviceKind; label: string }> {
+/**
+ * Classify the browser this request came from.
+ *
+ * EXPORTED (0222) so first-login registration asks the SAME question the gate
+ * asks. `lib/attendance/web-device.ts` is a retired stub precisely because a
+ * second device classifier drifts from the first; registration deciding "phone"
+ * where the gate decides "laptop" would put a device in one slot and check it
+ * against the other.
+ */
+export async function describeRequestDevice(): Promise<{ kind: DeviceKind; label: string }> {
   let ua = "";
   try {
     ua = (await headers()).get("user-agent") ?? "";

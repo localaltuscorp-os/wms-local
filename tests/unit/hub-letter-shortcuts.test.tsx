@@ -7,7 +7,12 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 import { ModuleShortcuts as HubLetterShortcuts } from "@/components/hub/module-shortcuts";
 import { ModuleShortcuts as AppAltShortcuts } from "@/components/layout/module-shortcuts";
-import { MODULE_THEME, MODULE_ORDER } from "@/lib/module-theme";
+import {
+  ADMIN_PANEL_ENTRY,
+  MODULE_THEME,
+  MODULE_ORDER,
+  moduleShortcut,
+} from "@/lib/module-theme";
 import type { WorkspaceId } from "@/lib/workspaces";
 
 /** Everything but Sales, so the "no access" branch has something to refuse. */
@@ -38,9 +43,15 @@ describe("hub bare-letter shortcuts", () => {
     expect(push).toHaveBeenCalledWith(MODULE_THEME["project-plan"].href);
   });
 
+  // DERIVED from `moduleShortcut`, not spelled out. It used to hardcode
+  // "QWERTYUIOPAS", which is a second copy of the alphabet — and it went stale
+  // the moment A was vacated for the Admin Panel, failing on two modules whose
+  // behaviour had not changed at all. Reading the same function the component
+  // reads means a re-lettering updates this table by itself and only a real
+  // regression can fail it.
   it.each(
     MODULE_ORDER.filter((id) => id !== "sales").map(
-      (id, _i) => [id, "QWERTYUIOPAS"[MODULE_ORDER.indexOf(id)]] as const,
+      (id) => [id, moduleShortcut(MODULE_ORDER.indexOf(id))!] as const,
     ),
   )("bare %s letter opens it", (id, letter) => {
     render(<HubLetterShortcuts allowed={ALLOWED} />);
@@ -113,5 +124,139 @@ describe("hub bare-letter shortcuts", () => {
     key("KeyN"); // the new-task key
     key("KeyG"); // the sequence leader
     expect(push).not.toHaveBeenCalled();
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE STANDALONE ADMIN PANEL ENTRY — bare A on the hub, Alt+A everywhere
+   ══════════════════════════════════════════════════════════════════════════
+
+   A is not a module letter (see module-shortcut-letters.test.ts, which pins
+   that), so these cases exercise the branch the two listeners carry for the
+   panel. What matters is that it behaves EXACTLY like a module key — same
+   typing guard, same dialog guard, same allow-list discipline — because an
+   admin surface that is easier to trigger by accident than a normal one is the
+   wrong way round. */
+
+describe("Admin Panel shortcut", () => {
+  beforeEach(() => {
+    push.mockReset();
+    document.body.innerHTML = "";
+  });
+  afterEach(cleanup);
+
+  it("opens the EXISTING /admin route on a bare A, for an admin", () => {
+    render(<HubLetterShortcuts allowed={ALLOWED} adminAllowed />);
+    key("KeyA");
+    expect(push).toHaveBeenCalledWith("/admin");
+    expect(push).toHaveBeenCalledWith(ADMIN_PANEL_ENTRY.href);
+  });
+
+  it("opens it on Alt+A from anywhere, through the app-wide listener", () => {
+    render(<AppAltShortcuts allowed={ALLOWED} adminAllowed />);
+    key("KeyA", { altKey: true });
+    expect(push).toHaveBeenCalledWith(ADMIN_PANEL_ENTRY.href);
+  });
+
+  it("does NOTHING for a non-admin, on either listener", () => {
+    // Presentation parity with the hidden hub card. The real refusal is
+    // `app/(admin)/admin/layout.tsx`, which redirects a non-admin to /hub
+    // whether or not this listener fired.
+    render(
+      <>
+        <HubLetterShortcuts allowed={ALLOWED} />
+        <AppAltShortcuts allowed={ALLOWED} />
+      </>,
+    );
+    key("KeyA");
+    key("KeyA", { altKey: true });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("does not fire while typing — input, textarea, select, contenteditable", () => {
+    render(<HubLetterShortcuts allowed={ALLOWED} adminAllowed />);
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    for (const el of [
+      document.createElement("input"),
+      document.createElement("textarea"),
+      document.createElement("select"),
+      editable,
+    ]) {
+      document.body.appendChild(el);
+      el.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyA", key: "a", bubbles: true }));
+    }
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("does not fire inside a combobox, searchbox or editable table cell", () => {
+    // The brief names dropdowns and editable table cells specifically. Each is
+    // a div in this codebase, not an <input>, so the role/closest test is what
+    // catches them rather than the tagName test above.
+    render(<HubLetterShortcuts allowed={ALLOWED} adminAllowed />);
+    for (const role of ["combobox", "searchbox", "textbox"]) {
+      const host = document.createElement("div");
+      host.setAttribute("role", role);
+      const inner = document.createElement("span"); // the event target is a child
+      host.appendChild(inner);
+      document.body.appendChild(host);
+      inner.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyA", key: "a", bubbles: true }));
+    }
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("does not fire while a dialog is open", () => {
+    render(<HubLetterShortcuts allowed={ALLOWED} adminAllowed />);
+    const modal = document.createElement("div");
+    modal.setAttribute("aria-modal", "true");
+    document.body.appendChild(modal);
+    key("KeyA");
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("yields to the G-A sequence, which owns Attendance", () => {
+    render(<HubLetterShortcuts allowed={ALLOWED} adminAllowed />);
+    document.addEventListener("keydown", (e) => e.preventDefault(), { once: true });
+    key("KeyA");
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("ignores Ctrl and Shift", () => {
+    render(
+      <>
+        <HubLetterShortcuts allowed={ALLOWED} adminAllowed />
+        <AppAltShortcuts allowed={ALLOWED} adminAllowed />
+      </>,
+    );
+    key("KeyA", { ctrlKey: true });
+    key("KeyA", { shiftKey: true });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("mounted together, exactly one listener answers each A", () => {
+    // Both are mounted on the hub. A bare A must be the hub listener's alone and
+    // Alt+A the layout's alone, or one press navigates twice.
+    render(
+      <>
+        <HubLetterShortcuts allowed={ALLOWED} adminAllowed />
+        <AppAltShortcuts allowed={ALLOWED} adminAllowed />
+      </>,
+    );
+    key("KeyA");
+    expect(push).toHaveBeenCalledTimes(1);
+    push.mockReset();
+    key("KeyA", { altKey: true });
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not disturb the module letters that share the row", () => {
+    // D and F are Events and HandHolding since A was vacated. The panel must
+    // not have swallowed them on its way in.
+    render(<HubLetterShortcuts allowed={ALLOWED} adminAllowed />);
+    key("KeyD");
+    expect(push).toHaveBeenCalledWith(MODULE_THEME["events"].href);
+    push.mockReset();
+    key("KeyF");
+    expect(push).toHaveBeenCalledWith(MODULE_THEME["people-allocation"].href);
   });
 });

@@ -3,7 +3,12 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { MODULE_THEME, moduleForShortcut } from "@/lib/module-theme";
+import {
+  ADMIN_PANEL_ENTRY,
+  isAdminPanelShortcut,
+  MODULE_THEME,
+  moduleForShortcut,
+} from "@/lib/module-theme";
 import type { WorkspaceId } from "@/lib/workspaces";
 
 /**
@@ -31,8 +36,21 @@ import type { WorkspaceId } from "@/lib/workspaces";
  * NOTE it is mounted BELOW the daily-ritual gates in the layout, which return
  * early. A shortcut therefore cannot be used to walk out of a gate — the
  * listener does not exist while one is on screen.
+ *
+ * ALT+A OPENS THE ADMIN PANEL. It rides here rather than in its own listener
+ * because the rules are identical — same modifier, same dialog guard, same
+ * server-resolved allow-list — and a second window-level keydown listener for
+ * one key is exactly how two handlers come to disagree about what Alt means.
+ * The panel is not a workspace, so it arrives as its own flag rather than as a
+ * member of `allowed`; see ADMIN_PANEL_ENTRY in lib/module-theme.ts.
  */
-export function ModuleShortcuts({ allowed }: { allowed: WorkspaceId[] }) {
+export function ModuleShortcuts({
+  allowed,
+  adminAllowed = false,
+}: {
+  allowed: WorkspaceId[];
+  adminAllowed?: boolean;
+}) {
   const router = useRouter();
 
   React.useEffect(() => {
@@ -76,6 +94,22 @@ export function ModuleShortcuts({ allowed }: { allowed: WorkspaceId[] }) {
       // symbol ("œ" for Alt+Q) rather than the letter, and a non-Latin layout
       // can do the same to `e.key`. The physical key is what the footer labels.
       const letter = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3) : e.key;
+
+      // THE ADMIN PANEL (Alt+A). Checked ahead of the module alphabet for the
+      // same reason as the hub listener: the two cannot both match today, and
+      // ordering them means a future edit that put A back into SHORTCUT_KEYS
+      // would break visibly here rather than quietly shadowing the panel.
+      //
+      // NO TYPING GUARD, and none is needed: this whole handler already requires
+      // Alt or Meta, which is what makes it safe inside a text field — the same
+      // reasoning the removed guard note above records for every other letter.
+      if (isAdminPanelShortcut(letter)) {
+        if (!adminAllowed) return;
+        e.preventDefault();
+        router.push(ADMIN_PANEL_ENTRY.href);
+        return;
+      }
+
       const id = moduleForShortcut(letter);
       if (!id || !allow.has(id)) return;
       e.preventDefault();
@@ -84,7 +118,7 @@ export function ModuleShortcuts({ allowed }: { allowed: WorkspaceId[] }) {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [router, allowed]);
+  }, [router, allowed, adminAllowed]);
 
   return null;
 }

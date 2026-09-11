@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Search, ShieldCheck, ShieldX, Smartphone, Plus } from "lucide-react";
+import { Loader2, Search, ShieldCheck, ShieldX, Smartphone, Plus, Copy, Check } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { formatDate } from "@/lib/format";
 import {
@@ -15,7 +15,9 @@ interface DeviceRow {
   id: string;
   employeeId: string;
   employeeName: string;
-  /** 'laptop' | 'phone'. Descriptive only — either kind may fill either slot. */
+  /** 'laptop' | 'phone'. Since 0215 this DECIDES the slot: one approved laptop
+   *  AND one approved phone per person. (The "descriptive only" note here
+   *  described 0214 and was left behind by 0215.) */
   kind: string;
   label: string | null;
   platform: string | null;
@@ -28,6 +30,10 @@ interface DeviceRow {
   revokedAt: string | Date | null;
   revokedByName: string | null;
   revokeReason: string | null;
+  deviceName: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  registeredAt: string | Date | null;
 }
 
 interface EmployeeOption {
@@ -62,6 +68,22 @@ export function DevicesClient({
 }) {
   const [q, setQ] = React.useState("");
   const [busy, setBusy] = React.useState<string | null>(null);
+  /** Which row's serial was just copied, so the tick replaces the icon on that
+   *  row only. Cleared on a timer — a permanent tick would read as a state the
+   *  row is in rather than something that just happened. */
+  const [copied, setCopied] = React.useState<string | null>(null);
+
+  async function copyDeviceName(rowId: string, name: string) {
+    try {
+      await navigator.clipboard.writeText(name);
+      setCopied(rowId);
+      window.setTimeout(() => setCopied((c) => (c === rowId ? null : c)), 1500);
+    } catch {
+      // Clipboard refused (insecure origin, or permission denied). The name is
+      // on screen and selectable, so this is a lost convenience, not a failure
+      // worth a toast.
+    }
+  }
   // Defaults to the LIVE devices. Revoked rows are history and are kept
   // forever, so after a year of replacements they would otherwise dominate the
   // default view and bury the pending approvals that need acting on.
@@ -160,6 +182,43 @@ export function DevicesClient({
                   {d.platform ? ` · ${d.platform}` : ""} · last seen{" "}
                   {fmt(d.lastSeenAt ?? d.lastUsedAt)}
                 </div>
+                {/* THE HARDWARE LINE (0222, device name since 0224). The name
+                    is the one value an administrator reads off this screen and
+                    types somewhere else — into an asset register, a support
+                    ticket, a reply to "is this the laptop we issued?" — so it is
+                    monospaced for transcription and has its own copy button.
+                    Manufacturer and model are self-declared and shown only to
+                    make the name recognisable as a machine.
+
+                    Nothing else about the device is surfaced: no user agent, no
+                    screen, no fingerprint. There is none to surface. */}
+                {(d.deviceName || d.manufacturer || d.model) && (
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-ink-subtle">
+                    {d.deviceName && (
+                      <span className="inline-flex items-center gap-1">
+                        <span>Device</span>
+                        <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11.5px] text-[#334155]">
+                          {d.deviceName}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => copyDeviceName(d.id, d.deviceName!)}
+                          title="Copy device name"
+                          aria-label={`Copy device name for ${d.employeeName}`}
+                          className="inline-flex items-center rounded p-0.5 text-ink-subtle hover:text-ink"
+                        >
+                          {copied === d.id ? <Check size={12} /> : <Copy size={12} />}
+                        </button>
+                      </span>
+                    )}
+                    {(d.manufacturer || d.model) && (
+                      <span className="truncate">
+                        {[d.manufacturer, d.model].filter(Boolean).join(" ")}
+                      </span>
+                    )}
+                    {!d.registeredAt && <span className="text-[#B45309]">not self-registered</span>}
+                  </div>
+                )}
                 {/* THE HISTORY LINE. A revoked row is kept forever precisely so
                     this can be read later; showing the status without who did it
                     or why would make the retention pointless. */}

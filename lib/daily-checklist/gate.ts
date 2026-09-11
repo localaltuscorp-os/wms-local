@@ -5,11 +5,47 @@ import {
   countPlannedWork,
   hasStartedDay,
 } from "@/lib/queries/daily-checklist";
+import { isExemptFromDailyStart } from "@/lib/security/capabilities";
 import { MIN_DAILY_ITEMS, MIN_ATTENDANCE_ITEMS } from "./constants";
 // Re-export so existing server-side callers can still import it from here.
 // CLIENT components must import from "@/lib/daily-checklist/constants" instead
 // (this module is server-only — importing it from "use client" breaks the build).
 export { MIN_DAILY_ITEMS, MIN_ATTENDANCE_ITEMS } from "./constants";
+
+/**
+ * WHO THE GATE IS BEING ASKED ABOUT.
+ *
+ * The gates used to take a bare `employeeId`. They now take the identity,
+ * because the daily-start EXEMPTION is keyed on `employees.email` — the same
+ * key every other per-person rule in this codebase uses (the capability
+ * registry, the holiday admins, the super-admins), since a uuid differs between
+ * environments and fails silently when it is stale.
+ *
+ * Making it a required parameter is the point. A future caller cannot resolve
+ * the gate without supplying who it is about, so it cannot accidentally ask the
+ * un-exempted question — which is exactly how an exception ends up applying on
+ * one surface and not another.
+ */
+export interface GateSubject {
+  id: string;
+  email: string;
+}
+
+/**
+ * THE DAILY-START EXEMPTION, applied in ONE place.
+ *
+ * Every gate below short-circuits through this, so the exemption holds for the
+ * `(app)` layout, the hub, and anything added later. There is no second copy to
+ * keep in step, and no client-side branch that could disagree: the gate
+ * components only render because a server gate decided to render them.
+ *
+ * This is an exception to ENFORCEMENT. The gates are unchanged for everybody
+ * else, and the planner itself (/my-day, Start My Day, Finish My Day) still
+ * works for the exempt person — they simply are not stopped by it.
+ */
+function exempt(who: GateSubject): boolean {
+  return isExemptFromDailyStart(who.email);
+}
 
 /**
  * Daily-checklist gate for the compulsory post-login wall: the day is planned
@@ -23,10 +59,11 @@ export { MIN_DAILY_ITEMS, MIN_ATTENDANCE_ITEMS } from "./constants";
  * (they show up as a pull-pool, not as pre-filled plan).
  */
 export async function needsDailyChecklistPlan(
-  employeeId: string,
+  who: GateSubject,
   now: Date = new Date(),
 ): Promise<boolean> {
-  return (await countPlannedItems(employeeId, todayYmd(now))) < MIN_DAILY_ITEMS;
+  if (exempt(who)) return false;
+  return (await countPlannedItems(who.id, todayYmd(now))) < MIN_DAILY_ITEMS;
 }
 
 /**
@@ -38,11 +75,12 @@ export async function needsDailyChecklistPlan(
  * behind `planGateOn()`; the legacy `needsDailyChecklistPlan` is untouched.
  */
 export async function needsGoalsPlanCommit(
-  employeeId: string,
+  who: GateSubject,
   minItems: number,
   now: Date = new Date(),
 ): Promise<boolean> {
-  return (await countPlannedItems(employeeId, todayYmd(now))) < minItems;
+  if (exempt(who)) return false;
+  return (await countPlannedItems(who.id, todayYmd(now))) < minItems;
 }
 
 /**
@@ -66,17 +104,21 @@ export async function needsGoalsPlanCommit(
  * item (`hasPlannedWork`) and advertised that nobody who could clock in before
  * would be newly blocked. That is no longer true, and is not meant to be.
  *
- * NO ROLE EXEMPTIONS. See punchPlanGateOn — PUNCH_PLAN_GATE_OFF is the only way
- * out if this ever needs unblocking in production.
+ * NO ROLE EXEMPTIONS — with ONE named exception, the `daily_start.exempt`
+ * capability (see `exempt` above and lib/security/capabilities.ts). That is a
+ * per-person grant, not a role: being a super-admin or a manager still earns
+ * nothing here. PUNCH_PLAN_GATE_OFF remains the way to unblock this for
+ * everyone at once if it ever needs to be.
  */
 export async function needsDailyPlan(
-  employeeId: string,
+  who: GateSubject,
   now: Date = new Date(),
 ): Promise<boolean> {
+  if (exempt(who)) return false;
   const ymd = todayYmd(now);
   const [started, count] = await Promise.all([
-    hasStartedDay(employeeId, ymd),
-    countPlannedWork(employeeId, ymd),
+    hasStartedDay(who.id, ymd),
+    countPlannedWork(who.id, ymd),
   ]);
   return !started || count < MIN_ATTENDANCE_ITEMS;
 }
@@ -88,13 +130,18 @@ export async function needsDailyPlan(
  * makes people guess, and the two failures have different fixes.
  */
 export async function dailyPlanShortfall(
-  employeeId: string,
+  who: GateSubject,
   now: Date = new Date(),
 ): Promise<{ have: number; need: number; started: boolean }> {
+  // An exempt person has no shortfall to report: the requirement does not apply
+  // to them, so "0 of 5" would be a message about a rule they are outside of.
+  if (exempt(who)) {
+    return { have: MIN_ATTENDANCE_ITEMS, need: MIN_ATTENDANCE_ITEMS, started: true };
+  }
   const ymd = todayYmd(now);
   const [started, have] = await Promise.all([
-    hasStartedDay(employeeId, ymd),
-    countPlannedWork(employeeId, ymd),
+    hasStartedDay(who.id, ymd),
+    countPlannedWork(who.id, ymd),
   ]);
   return { have, need: MIN_ATTENDANCE_ITEMS, started };
 }
