@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HR_INTAKE_EMAILS, isHrIntakeGrantee } from "@/lib/hr/intake-grantees";
 import { TEAM_ROSTER } from "@/lib/teams/roster";
-import { SUPER_ADMIN_EMAILS } from "@/lib/auth/super-admin";
+import { isSuperAdmin, SUPER_ADMIN_EMAILS } from "@/lib/auth/super-admin";
 
 /**
  * This list is an ACCESS-CONTROL key, so the tests below are deliberately about
@@ -70,11 +70,30 @@ describe("HR intake grantees", () => {
     }
   });
 
-  it("keeps the overlap explicit, so it survives losing super-admin", () => {
-    // Rohan's HR access stands on this list alone. If his super-admin status is
-    // ever revoked he keeps it - which is the point of naming him here rather
-    // than relying on the broader power.
+  it("is not a route to super-admin — the grant is strictly narrower", () => {
+    // The mirror of the test above. The two directions are separate claims and
+    // both are worth pinning: that one says holding super-admin does not grant
+    // HR intake, this one says being granted HR intake does not confer
+    // super-admin. It does not — `isSuperAdmin` reads its own list and nothing
+    // here feeds it.
+    for (const e of HR_INTAKE_EMAILS) {
+      if (e === "rohanchoudhary.altuscorp@gmail.com") continue; // see below
+      expect(isSuperAdmin(e)).toBe(false);
+    }
+  });
+
+  it("documents the one person who holds BOTH grants", () => {
+    // Rohan was granted HR intake first and became a super-admin afterwards
+    // (see the 2026-09-04 note in lib/auth/super-admin.ts). The overlap is
+    // redundant rather than dangerous — a super-admin already has everything
+    // this list grants — but it IS an overlap, and it is pinned here so that it
+    // stays a recorded decision rather than a thing nobody noticed.
+    //
+    // It also means his HR access stands on THIS list alone: if his super-admin
+    // status is ever revoked he keeps it, which is the point of naming him here
+    // rather than relying on the broader power.
     expect(isHrIntakeGrantee("rohanchoudhary.altuscorp@gmail.com")).toBe(true);
+    expect(isSuperAdmin("rohanchoudhary.altuscorp@gmail.com")).toBe(true);
   });
 
   it("uses addresses that match the roster, so a grant can't point at nobody", () => {

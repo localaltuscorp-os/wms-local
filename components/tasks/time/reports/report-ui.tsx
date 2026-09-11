@@ -180,14 +180,71 @@ export function EmptyState({
   );
 }
 
-/** A rounded, hairline-bordered card wrapping a report table (with x-overflow). */
-export function TableShell({ children }: { children: ReactNode }) {
+/**
+ * A rounded, hairline-bordered card wrapping a report table — and the table's
+ * own SCROLL REGION, vertical as well as horizontal.
+ *
+ * Every Time Intelligence tab renders through here: Employees, Goals, Tasks,
+ * and Manager (which reuses TaskReportTable), so the behaviour is defined once
+ * rather than four times.
+ *
+ * WHY THE CARD SCROLLS RATHER THAN THE PAGE. These tables are unbounded — a
+ * report over a wide date range returns every person, every task. The card grew
+ * to whatever height that came to and the PAGE scrolled instead, which takes
+ * the column headers off the top of the screen: by row 30 you are reading a
+ * grid of numbers with nothing left to say which column is Approval and which
+ * is Rejection. It also scrolls the tab row away, so switching reports means
+ * scrolling back up first.
+ *
+ * Three things make the inner scroll behave:
+ *   · a HEIGHT CAP that tracks the viewport, with a 320px floor so a short
+ *     window still shows a usable number of rows rather than a sliver;
+ *   · a STICKY HEADER, so the column names stay put while the rows move;
+ *   · `overscroll-contain`, so hitting the end of the table stops there instead
+ *     of handing the momentum to the page and jumping the whole report.
+ *
+ * `slim-scroll` (app/globals.css) is the app's own bar, darkened a step here —
+ * see the note at the class list.
+ */
+export function TableShell({
+  children,
+  /** Override the height cap for a table that wants a different bound. */
+  maxHeight = "max(320px, calc(100dvh - 260px))",
+}: {
+  children: ReactNode;
+  maxHeight?: string;
+}) {
   return (
     <div
       className="rounded-section bg-surface-card border border-hairline overflow-hidden"
       style={{ boxShadow: CARD_SHADOW }}
     >
-      <div className="overflow-x-auto">{children}</div>
+      <div
+        className={
+          "slim-scroll overflow-auto overscroll-contain " +
+          // A DATA TABLE'S BAR HAS TO BE SEEN. `slim-scroll` alone is 6px with
+          // an #e2e8f0 thumb — tuned for short side-lists, and on a white card
+          // the size of this one it is close to invisible, so nothing tells you
+          // there are 40 more rows below the fold. 8px and a slate-300 thumb
+          // (slate-400 on hover) reads as a scrollbar at a glance without
+          // becoming the loudest thing on the card.
+          "[scrollbar-color:#cbd5e1_transparent] " +
+          "[&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 " +
+          "[&::-webkit-scrollbar-thumb]:bg-slate-300 " +
+          "hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 " +
+          // Sticky header. `position:sticky` goes on the `th`, not the
+          // `<thead>` — a thead in a border-collapse table cannot be stuck as a
+          // block. The collapsed bottom border does not paint on a stuck cell,
+          // so it is redrawn as an inset shadow, and the cells need an opaque
+          // background or the rows scroll visibly underneath them.
+          "[&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 " +
+          "[&_thead_th]:bg-surface-card " +
+          "[&_thead_th]:shadow-[inset_0_-1px_0_var(--color-hairline)]"
+        }
+        style={{ maxHeight }}
+      >
+        {children}
+      </div>
     </div>
   );
 }

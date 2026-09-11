@@ -6,7 +6,6 @@ import type { Route } from "next";
 import { ArrowUpRight } from "lucide-react";
 import type { VirtualTaskRow } from "@/lib/weekly-goals/as-task-row";
 import { PRIORITY_LABELS, type TaskPriority } from "@/db/enums";
-import { WeeklyGoalBadge } from "@/components/weekly-goals/weekly-goal-badge";
 import { CollapseToggle, CollapsibleBody } from "@/components/dashboard/section-chrome";
 import { HoverTip } from "@/components/ui/hover-tip";
 
@@ -82,8 +81,15 @@ export function WeeklyGoalTaskGroup({
       }}
     >
       <header className={`flex items-center justify-between gap-3 py-3 ${inset}`}>
+        {/* NO "WEEKLY GOAL" CHIP HERE. It sat immediately left of a heading
+            reading "This Week's Goals", so the block announced itself twice in
+            the same breath — and the chip is the weaker of the two, being an
+            11px abbreviation of the sentence beside it. The section already
+            reads as goals rather than tasks from its crimson border and tint.
+            The chip still earns its place on a kanban GOAL CARD, where goal
+            cards sit interleaved with task cards in the same status column and
+            nothing else tells them apart. */}
         <div className="flex items-center gap-2.5 min-w-0">
-          <WeeklyGoalBadge />
           <h2
             className="font-bold text-ink-strong truncate"
             style={{ fontSize: 16 }}

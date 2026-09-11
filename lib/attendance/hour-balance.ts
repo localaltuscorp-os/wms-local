@@ -119,11 +119,50 @@ export function monthKeyOf(ymd: string): string {
 }
 
 /**
+ * THE weekly worked-hours figure — the number printed under "WK" in the
+ * Attendance calendar, and the number salary reconciles against.
+ *
+ * Σ of every worked minute in the set, on ANY kind of day. A day the employee
+ * turned up on is a day they worked, whatever the grader called it: a holiday
+ * they chose to come in on, a weekly off, the worked half of a half-day leave.
+ *
+ * ── WHY IT IS A NAMED FUNCTION AND NOT AN INLINE REDUCE ────────────────────
+ * It had been written twice — once here (filtered to ordinary days) and once in
+ * `components/attendance/month-calendar.tsx` (unfiltered) — and the two
+ * disagreed for anyone who worked an off day. The employee then read one
+ * weekly total on Attendance and the payslip was measured against another.
+ * Spec §2 makes Attendance the source of truth for actual worked hours, so this
+ * is that definition, in one place, for both callers.
+ *
+ * FUTURE DAYS: the caller excludes them (see `reconcileMonth`'s `refTodayISO`
+ * and the calendar's `!c.future`). They contribute zero worked minutes anyway,
+ * so the two agree either way — but the filter belongs to "which days are we
+ * talking about", not to "how do we add up hours".
+ */
+export function weeklyWorkedMinutes(
+  days: readonly { workedMinutes: number }[],
+): number {
+  return days.reduce((sum, d) => sum + Math.max(0, d.workedMinutes), 0);
+}
+
+/**
  * Reconcile one employee's month.
  *
  * `weeklyTargetMinutes` and `waiverThresholdMinutes` come from that employee's
  * resolved config (lib/attendance/effective-config.ts) — a part-timer is
- * measured against 27h and waived at 27h, never at 54h.
+ * measured against 30h and waived at 30h, never at 54h.
+ *
+ * ── FUTURE DAYS ARE NOT PART OF THE MONTH SO FAR (spec §3) ────────────────
+ * `refTodayISO` bounds BOTH sides of the comparison. The grader walks every
+ * calendar day of the month and marks an un-punched future working day "A",
+ * because it has no punches yet — read straight, that day owed nine hours the
+ * employee has not been asked for. On the 10th of a 31-day month that invented
+ * a three-week deficit, and the salary engine priced it.
+ *
+ * The bound is inclusive of today and applies to target, actual and the
+ * half-day grace alike, so "the month so far" is one consistent statement.
+ * A CLOSED month needs no special case: its last day is already in the past, so
+ * nothing is excluded and the full month reconciles exactly as before.
  */
 export function reconcileMonth(
   days: GradedDayInput[],
@@ -132,13 +171,19 @@ export function reconcileMonth(
     weeklyTargetMinutes: number;
     waiverThresholdMinutes: number;
     workingDaysPerWeek: number;
+    /** "Today" (yyyy-mm-dd). Days AFTER it are excluded entirely. Omit to
+     *  reconcile the whole month regardless of the calendar — the frozen
+     *  historical path, and what every caller did before this existed. */
+    refTodayISO?: string;
   },
 ): MonthReconciliation {
   const { month, weeklyTargetMinutes, waiverThresholdMinutes, workingDaysPerWeek } = opts;
+  const refToday = opts.refTodayISO;
 
-  // Only this month's days. A straddling week contributes just its in-month part.
+  // Only this month's days, and only the ones that have HAPPENED.
+  // A straddling week contributes just its in-month part.
   const inMonth = days
-    .filter((d) => monthKeyOf(d.date) === month)
+    .filter((d) => monthKeyOf(d.date) === month && (!refToday || d.date <= refToday))
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // Group by week, preserving chronological order of first appearance.
@@ -165,12 +210,27 @@ export function reconcileMonth(
   for (const weekKey of weekOrder) {
     const week = byWeek.get(weekKey)!;
 
-    // Only ORDINARY days (P / H/D / A) carry an hour expectation. Paid leave,
-    // comp-off, holidays and weekly offs expect no hours, so counting them
-    // would invent a deficit the employee could never have worked off.
+    // ── THE TWO SIDES ARE ASKED DIFFERENT QUESTIONS, DELIBERATELY ────────
+    //
+    // TARGET counts only ORDINARY days (P / H/D / A) — the days the schedule
+    // asked hours of. Paid leave, comp-off, holidays and weekly offs expect no
+    // hours, so counting them would invent a deficit the employee could never
+    // have worked off.
+    //
+    // ACTUAL counts EVERY minute worked in the week, on any kind of day. This
+    // is the number the Attendance calendar prints under "WK", and it must be
+    // the same number salary reconciles against (spec §2) — one canonical
+    // worked-hours figure, not two.
+    //
+    // The asymmetry is the point, and it is the honest direction: someone who
+    // came in on a declared holiday worked those hours, and they now count
+    // toward the week they were worked in. Previously they were discarded here
+    // while the calendar showed them, so Attendance and the payslip printed
+    // different weekly hours for the same week. Holiday work still owes no
+    // TARGET, so it can only ever help.
     const ordinary = week.filter((d) => isOrdinaryAttendanceDay(d.code));
     const expectedDays = ordinary.length;
-    const actualMinutes = ordinary.reduce((s, d) => s + d.workedMinutes, 0);
+    const actualMinutes = weeklyWorkedMinutes(week);
 
     // Prorate: a partial week (month boundary, mid-month joiner, a week full of
     // holidays) is measured only against the days it actually owed.
@@ -292,6 +352,34 @@ export function halfDayDeductionDays(m: MonthReconciliation): number {
 /** Day codes that are PAID but expect no hours — credited at the daily target. */
 const PAID_CREDITED_CODES = new Set(["PL", "CO", "HP", "H-H/D"]);
 
+/**
+ * Is this a day that is PAID at the daily target without owing any hours?
+ *
+ * Exported because the per-day salary ledger has to attribute the very same
+ * credit to the very same dates (Employee -> My Salary -> Daily Salary Report).
+ * A second copy of this four-code list is a second answer to "was this day
+ * paid", and the two would be read side by side on one screen.
+ */
+export function isPaidCreditedDay(code: string): boolean {
+  return PAID_CREDITED_CODES.has(code);
+}
+
+/**
+ * APPROVED UNPAID LEAVE. Not an ordinary day (no hours are expected, so it must
+ * not create a deficit the employee is asked to work off) and not a credited day
+ * (it is unpaid, by definition). It therefore falls through BOTH sets — which is
+ * exactly the hole this constant closes.
+ *
+ * Left to itself, an LWP day simply shrank the month's target: a full-timer on a
+ * 26-day month with one unpaid leave was measured against 25 days, worked 25,
+ * and was paid the FULL monthly salary. The day off cost them nothing, and the
+ * only surface that noticed was the Monday week-loss report (lib/attendance/
+ * week-loss.ts), which has always priced it. Counting it here is what lets the
+ * payroll engine charge it once, through the same hourly rate everything else
+ * in this pipeline uses.
+ */
+export const UNPAID_LEAVE_CODE = "LWP";
+
 export interface PayableHoursResult {
   /** Hours the employee was actually required to work this month. */
   targetMinutes: number;
@@ -305,6 +393,17 @@ export interface PayableHoursResult {
   targetHours: number;
   /** Minutes credited for paid-but-not-worked days. */
   creditedMinutes: number;
+  /**
+   * Whole days of APPROVED UNPAID LEAVE in the month.
+   *
+   * Reported, never applied here: this module deliberately does not know about
+   * money (spec §11). The salary engine multiplies it by the daily target and
+   * prices those hours at the same rate it prices everything else — see
+   * `computeScheduleHourlySalary`. A half-day of unpaid leave is NOT counted
+   * here: the grader splits that day into H/D or A, which are ordinary days, so
+   * the hours rule has already charged for the half that was not worked.
+   */
+  unpaidLeaveDays: number;
   /**
    * Hours worked BEYOND everything the month required, netted across the whole
    * month — `max(0, totalActual − totalTarget)`, i.e. the positive side of the
@@ -341,9 +440,11 @@ export function payableHoursForMonth(
   // BOTH sides. Without that a month spent entirely on approved paid leave
   // would have a zero target, zero payable, and pay nothing.
   let creditedMinutes = 0;
+  let unpaidLeaveDays = 0;
   for (const d of days) {
     if (monthKeyOf(d.date) !== recon.month) continue;
     if (PAID_CREDITED_CODES.has(d.code)) creditedMinutes += dailyTargetMinutes;
+    else if (d.code === UNPAID_LEAVE_CODE) unpaidLeaveDays += 1;
   }
 
   const targetMinutes = recon.totalTargetMinutes + creditedMinutes;
@@ -366,5 +467,6 @@ export function payableHoursForMonth(
     payableHours: Math.floor(payableMinutesRaw / 60),
     targetHours: targetMinutes / 60,
     creditedMinutes,
+    unpaidLeaveDays,
   };
 }

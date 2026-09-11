@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { moduleSubmissions, formConfigs, productOptions } from "@/db/schema";
+import { moduleSubmissions, moduleSubmissionAttachments, formConfigs, productOptions } from "@/db/schema";
 import { requireUser, requireAdmin } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { validateFields, type FormFieldDef, type FormFieldType } from "@/lib/forms/field-types";
@@ -14,6 +14,10 @@ import {
   resolveAdminFields,
   getProductOptions,
 } from "@/lib/forms/server";
+import {
+  buildClaimAttachmentRows,
+  type ClaimUploadRef,
+} from "@/lib/reimbursements/attachment-rows";
 
 type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -27,10 +31,26 @@ function revalidateModule(m: ModuleKey) {
 /* Submissions                                                        */
 /* ----------------------------------------------------------------- */
 
-/** File a request to a module (any signed-in employee, for themselves). */
+/**
+ * File a request to a module (any signed-in employee, for themselves).
+ *
+ * ── `attachments` ──────────────────────────────────────────────────────────
+ * References to documents the BROWSER has already uploaded straight to storage
+ * (reimbursement receipts — see app/(app)/reimbursements/attachment-actions.ts
+ * for why the bytes do not come through here). Only refs, never file content, so
+ * this action's body stays small enough for a serverless request whatever the
+ * receipt weighs.
+ *
+ * They are recorded in the SAME transaction as the submission: a claim that
+ * saved without its receipt, or a receipt row orphaned by a failed insert, would
+ * both need someone to notice and fix them by hand. Every ref is re-validated
+ * by `buildClaimAttachmentRows`, which re-checks the object path against the caller's
+ * own prefix — the path travelled through the client, so it is not trusted.
+ */
 export async function submitModule(input: {
   module: string;
   fields: Record<string, string>;
+  attachments?: ClaimUploadRef[];
 }): Promise<ActionResult<{ id: string }>> {
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
@@ -45,16 +65,40 @@ export async function submitModule(input: {
   if (!validated.ok) return validated;
 
   try {
-    const [row] = await db
-      .insert(moduleSubmissions)
-      .values({ module: input.module, employeeId: me.id, fields: validated.values })
-      .returning({ id: moduleSubmissions.id });
+    const id = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(moduleSubmissions)
+        .values({ module: input.module, employeeId: me.id, fields: validated.values })
+        .returning({ id: moduleSubmissions.id });
+      const submissionId = row!.id;
+
+      // Attachments are a REIMBURSEMENT concept — the object prefix, the type
+      // allow-list and the size cap are all that module's rules. The other two
+      // modules have no file surface, so refs sent for them are ignored rather
+      // than stored somewhere nothing will ever read them.
+      const refs = input.module === "reimbursement" ? (input.attachments ?? []) : [];
+      if (refs.length > 0) {
+        const built = buildClaimAttachmentRows(refs, me, submissionId);
+        // Throwing rolls the submission back — a claim must not be created
+        // without the documents the employee attached to it.
+        if (!built.ok) throw new AttachmentError(built.error);
+        if (built.rows.length > 0) {
+          await tx.insert(moduleSubmissionAttachments).values(built.rows);
+        }
+      }
+      return submissionId;
+    });
+
     revalidateModule(input.module);
-    return { ok: true, id: row!.id };
+    return { ok: true, id };
   } catch (err) {
+    if (err instanceof AttachmentError) return { ok: false, error: err.message };
     return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
   }
 }
+
+/** Carries an attachment rejection out of the transaction as a clean message. */
+class AttachmentError extends Error {}
 
 /** Admin saves the manual (admin) fields on a submission. */
 export async function setModuleAdminFields(input: {

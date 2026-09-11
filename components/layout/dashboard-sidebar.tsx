@@ -9,6 +9,7 @@ import { UserMenuServer } from "@/components/header/user-menu-server";
 import { NewTaskRailButton } from "@/components/tasks/new-task-rail-button";
 import { NotificationBell } from "@/components/header/notification-bell";
 import { NewTaskQuickAction } from "@/components/header/new-task-quick-action";
+import { BulkAddQuickAction } from "@/components/header/bulk-add-quick-action";
 import { getCurrentEmployee } from "@/lib/auth/current";
 
 /**
@@ -57,10 +58,17 @@ export async function DashboardSidebar() {
       {/* Far right on phones too. The desktop AppTopBar is `max-md:hidden` — a
           second 56px strip would eat a third of a small screen — so the bell
           rides in this bar instead. */}
-      {/* Same create-then-notify pair as the desktop AppTopBar. That bar is
-          `max-md:hidden`, so without this the global + would simply not exist
-          on a phone. */}
+      {/* Same cluster ORDER as the desktop AppTopBar — bulk add · create ·
+          notify. That bar is `max-md:hidden`, so without this the global + and
+          the bulk uploader would simply not exist on a phone. Search lives in
+          the rail drawer here and focus mode is desktop-only, so this is the
+          middle of that five-control sequence, not a different one.
+          BulkAddQuickAction renders nothing outside WMS, and decides that from
+          `usePathname` — this file is a server component that renders ONCE for
+          the whole shell, so a check made here would freeze on the first route
+          the user landed on (bug #24). */}
       <div className="ml-auto flex shrink-0 items-center gap-2">
+        <BulkAddQuickAction />
         <NewTaskQuickAction />
         <NotificationBell />
       </div>

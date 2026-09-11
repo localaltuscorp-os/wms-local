@@ -1,4 +1,5 @@
 "use client";
+import { useMemo } from "react";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -63,6 +64,7 @@ import type { LucideIcon } from "lucide-react";
 import { MainNavPill } from "./main-nav-pill";
 import { MainNavGroup } from "./main-nav-group";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
+import { nodeKeyForPath } from "@/lib/permissions/catalog";
 import { HR_STAGES, hrItemHref, type HrStage, type HrStageKey } from "@/lib/hr/lifecycle";
 
 interface Props {
@@ -85,6 +87,21 @@ interface Props {
   isManager?: boolean;
   /** May see Hand-holding's Access Panel — HR, admin or a roster owner. */
   canSeeHhAccess?: boolean;
+  /**
+   * PERMISSION-MATRIX node keys whose SHOW is switched off for this user
+   * (lib/permissions). Server-resolved in MainNavServer — the matrix is a
+   * database read, so the client cannot compute it.
+   *
+   * `undefined` means "the matrix does not govern this person" (a master admin,
+   * or nobody signed in) and is deliberately DIFFERENT from `[]`, which means
+   * "governed, nothing hidden". Collapsing the two would work today and break
+   * the moment the default changes.
+   *
+   * Hiding a rail entry is presentation only. Every page behind these entries
+   * calls `requireModuleView` itself, so a hidden module is also refused by
+   * direct URL — this just stops the rail advertising a door that is shut.
+   */
+  hiddenNodeKeys?: readonly string[];
 }
 
 /**
@@ -583,8 +600,16 @@ export function MainNav({
   goalsSpace,
   isManager = false,
   canSeeHhAccess = false,
+  hiddenNodeKeys,
 }: Props) {
   const pathname = usePathname();
+
+  // A Set once per render rather than an `includes` per nav item. Undefined when
+  // the matrix does not govern this viewer, in which case nothing is filtered.
+  const hidden = useMemo(
+    () => (hiddenNodeKeys ? new Set(hiddenNodeKeys) : null),
+    [hiddenNodeKeys],
+  );
 
   // Path wins (keeps the bar in sync with the page you're actually on); the
   // cookie covers shared surfaces; WMS is the floor.
@@ -622,12 +647,28 @@ export function MainNav({
     return true;
   }
 
+  /**
+   * Is this destination hidden by the permission matrix?
+   *
+   * `nodeKeyForPath` is the same longest-prefix resolver the server guards use,
+   * so the rail and the route agree about which node an href belongs to. A path
+   * the catalogue does not claim returns null and is never hidden — the matrix
+   * has no opinion about it, and inventing one would blank rail entries at
+   * random as routes are added.
+   */
+  function hiddenByMatrix(item: NavItem): boolean {
+    if (!hidden || hidden.size === 0) return false;
+    const key = nodeKeyForPath(item.href);
+    return key != null && hidden.has(key);
+  }
+
   function visible(items: NavItem[]): NavItem[] {
     return resolveCanvasItems(items).filter(
       (it) =>
         (!it.adminOnly || isAdmin) &&
         (!it.managerOnly || isManager || isAdmin) &&
-        (!it.hhAccessOnly || canSeeHhAccess),
+        (!it.hhAccessOnly || canSeeHhAccess) &&
+        !hiddenByMatrix(it),
     );
   }
 

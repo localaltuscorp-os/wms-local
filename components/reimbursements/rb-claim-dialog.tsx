@@ -7,12 +7,17 @@ import { fireToast } from "@/lib/toast";
 import { submitModule } from "@/app/(app)/forms/actions";
 import { visibleFields, type FormFieldDef } from "@/lib/forms/field-types";
 import { Field, FieldInput } from "@/components/forms/form-fields";
+import { RbFilePicker, RbFilePickerLabel } from "./rb-file-picker";
+import { uploadClaimFiles } from "./upload-claim-files";
 
 const GREEN = "#16a34a";
 const GREEN_DEEP = "#15803d";
 
 /** Field types that comfortably share a row in the claim form. */
 const HALF_WIDTH = new Set(["number", "date", "select", "email", "tel"]);
+
+/** The pre-upload bill reference. Still a live field — just not shown here. */
+const LEGACY_BILL_FIELD = "bill_url";
 
 /**
  * Premium "Request Reimbursement" dialog — presentation-only re-skin of the
@@ -32,26 +37,55 @@ export function RbClaimDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
+  // Picked locally; uploaded on submit (see uploadClaimFiles for why not on pick).
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   const setValue = (key: string, v: string) => setValues((p) => ({ ...p, [key]: v }));
-  const visible = visibleFields(fields, values);
+  // `bill_url` is HIDDEN here, not removed from the form definition. It has to
+  // stay in the definition because the Android app posts its bill through it
+  // (see lib/forms/modules.ts) — but on the web the uploader below replaces it,
+  // and offering both a "paste a Drive link" box and a file picker for the same
+  // receipt would be two ways to do one thing.
+  const visible = visibleFields(fields, values).filter((f) => f.key !== LEGACY_BILL_FIELD);
+  const busy = pending || uploading;
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     start(async () => {
-      const res = await submitModule({ module: "reimbursement", fields: values });
+      // Receipts go STRAIGHT to storage first, then the claim is filed with
+      // only their references — the file bytes never pass through the Server
+      // Action, so a large photo of a bill is not capped by the request body.
+      let attachments;
+      try {
+        setUploading(files.length > 0);
+        attachments = await uploadClaimFiles(files);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Upload failed.");
+        return;
+      } finally {
+        setUploading(false);
+      }
+
+      const res = await submitModule({ module: "reimbursement", fields: values, attachments });
       if (!res.ok) { setError(res.error); return; }
-      fireToast({ message: "Reimbursement claim submitted." });
+      fireToast({
+        message:
+          attachments.length > 0
+            ? `Claim submitted with ${attachments.length} ${attachments.length === 1 ? "document" : "documents"}.`
+            : "Reimbursement claim submitted.",
+      });
       setValues({});
+      setFiles([]);
       setOpen(false);
     });
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setValues({}); setError(null); } }}>
+    <Dialog.Root open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setValues({}); setFiles([]); setError(null); } }}>
       <Dialog.Trigger asChild>
         <button
           className="wg-btn wg-sheen inline-flex items-center gap-1.5 rounded-pill px-5 py-2.5 text-[14px] font-bold text-white"
@@ -99,7 +133,7 @@ export function RbClaimDialog({
               Request Reimbursement
             </Dialog.Title>
             <Dialog.Description className="mt-1.5 text-[14.5px] font-medium text-ink-subtle" style={{ lineHeight: 1.5 }}>
-              Raise an expense with its receipt — an admin reviews and settles every claim.
+              Raise an expense, attach the bill, and an admin reviews and settles it.
             </Dialog.Description>
             <Dialog.Close asChild>
               <button
@@ -122,6 +156,20 @@ export function RbClaimDialog({
                 </div>
               ))}
             </div>
+
+            {/* ── BILL / RECEIPT ─────────────────────────────────────────
+                A real upload, replacing the old "Bill / Receipt Link" Drive
+                URL field (see lib/forms/modules.ts). Rendered outside the
+                dynamic field loop on purpose: files are not
+                `Record<string, string>` values, so they cannot travel through
+                the admin-editable form-field machinery. */}
+            <div className="mt-4">
+              <label className="mb-1.5 block text-[14px] font-semibold text-[#0F172A]">
+                <RbFilePickerLabel count={files.length} />
+              </label>
+              <RbFilePicker files={files} onChange={setFiles} disabled={busy} />
+            </div>
+
             {error && (
               <div role="alert" className="mt-4 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3.5 py-2.5 text-[14px] font-medium text-[#A80400]">
                 {error}
@@ -131,7 +179,7 @@ export function RbClaimDialog({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  disabled={pending}
+                  disabled={busy}
                   className="bg-surface-card rounded-pill px-4 py-2.5 text-[14px] font-bold text-ink-soft transition-colors hover:text-ink-strong"
                 >
                   Cancel
@@ -139,14 +187,14 @@ export function RbClaimDialog({
               </Dialog.Close>
               <button
                 type="submit"
-                disabled={pending}
+                disabled={busy}
                 className="wg-btn rounded-pill px-6 py-2.5 text-[14px] font-bold text-white disabled:opacity-50"
                 style={{
                   background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DEEP})`,
                   boxShadow: `0 10px 24px -12px color-mix(in srgb, ${GREEN_DEEP} 75%, transparent), inset 0 1px 0 rgba(255,255,255,0.25)`,
                 }}
               >
-                {pending ? "Submitting…" : "Submit Claim"}
+                {uploading ? "Uploading…" : pending ? "Submitting…" : "Submit Claim"}
               </button>
             </div>
           </form>

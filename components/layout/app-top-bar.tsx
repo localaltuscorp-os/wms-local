@@ -8,6 +8,7 @@ import { navTitleFor } from "@/components/layout/main-nav";
 import { locateHrRoute } from "@/lib/hr/console-nav";
 import { MODULE_THEME } from "@/lib/module-theme";
 import { NewTaskQuickAction } from "@/components/header/new-task-quick-action";
+import { BulkAddQuickAction } from "@/components/header/bulk-add-quick-action";
 import { FocusModeToggle } from "@/components/layout/focus-mode-toggle";
 import { workspaceForPath } from "@/lib/workspaces";
 import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
@@ -19,7 +20,9 @@ import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
  * Why it exists: search used to be an icon button tucked into the left rail's
  * top row, and the unread count lived only inside the user-menu dropdown.
  * Neither read as a permanent, findable place. This bar gives both a fixed
- * home, in one right-hand cluster: search · create · focus · bell.
+ * home, in one right-hand cluster, in this order on every screen in every
+ * module: search · bulk add · create · bell · focus. Bulk add is the one
+ * member that is not app-wide — it is WMS-only, and gates itself.
  *
  * SEARCH IS AN ICON, not a field. It spent a while as a wide labelled box here
  * — the label existed to separate it from the page-level "Local search" boxes,
@@ -110,7 +113,7 @@ export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
           have been lost with it. */}
       <div ref={slots?.setActions} className="flex shrink-0 items-center gap-2 empty:hidden" />
 
-      {/* FAR RIGHT — search, create, focus, notifications. `ml-auto` pins the
+      {/* FAR RIGHT — search, bulk add, create, notifications, focus. `ml-auto` pins the
           cluster to the edge; the rest of the bar is deliberately empty.
 
           SEARCH IS AN ICON NOW, sitting immediately left of the +. It used to
@@ -141,13 +144,20 @@ export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
             </button>
           }
         />
+        {/* Bulk Add — WMS only; the component gates itself on the path so the
+            phone bar, whose server render never re-runs, gets the same rule.
+            Immediately left of the +: both create tasks, so they belong
+            together, and the many-at-once path reads before the single one the
+            way "open a file" reads before "type a row". */}
+        <BulkAddQuickAction />
         <NewTaskQuickAction />
-        {/* Focus mode sits between the + and the bell. The + is the action the
-            user came to take and keeps its place; this changes how the whole
-            surface is PRESENTED, which is chrome — so it belongs with the
-            chrome, not ahead of the primary action. */}
-        <FocusModeToggle />
         {bell}
+        {/* Focus mode is LAST in the cluster. The + is the action the user came
+            to take, the bell is the thing that interrupts them; this changes
+            how the whole surface is PRESENTED, which is the outermost concern
+            of the three — so it sits at the outer edge rather than cutting
+            between the two. */}
+        <FocusModeToggle />
       </div>
     </div>
   );

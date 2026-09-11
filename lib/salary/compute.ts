@@ -207,7 +207,131 @@ export function computeFixedFeeSalary(i: FixedFeeSalaryInput): SalaryBreakdown {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
-   SCHEDULE-BASED HOURLY PAY (spec §1/§2/§14)
+   DAILY SALARY — THE FULL-TIME PAY MODEL (spec §4)
+
+   A salaried full-timer is paid by the DAY, and the day is a calendar day:
+
+       dailyRate = monthlySalary ÷ CALENDAR DAYS IN THAT MONTH
+       gross     = dailyRate × Σ (each elapsed day's value)
+
+   The divisor is 31 in August, 30 in September, 28 or 29 in February. It is
+   never a universal 30 and never a universal 31 — a month is what the calendar
+   says it is, and `daysInMonth` is passed in rather than assumed.
+
+   ── WHY Σ DAY-VALUES IS THE WHOLE RULE ────────────────────────────────────
+   The grader already assigns every day a value, and that table IS the pay
+   policy (db/enums.ts ATTENDANCE_CODE_VALUES):
+
+       P    1.0   full day worked          W/O   1.0   weekly off
+       H/D  0.5   half day                 H     1.0   declared holiday
+       A    0     absent                   PL    1.0   approved paid leave
+       CO   1.0   comp-off redeemed        LWP   0     approved unpaid leave
+       HP   2.0   worked a holiday/off     H-H/D 1.5   worked part of one
+
+   So a complete 31-day month sums to exactly 31 day-values and pays exactly the
+   monthly salary — weekly offs and holidays included, because those are paid
+   days that simply owe no work. An absence removes one whole day's pay; a half
+   day removes half. Nothing else has to be said.
+
+   ── HOURS ARE NOT PAY, AND PAY IS NOT HOURS (spec §4) ─────────────────────
+   Worked hours decide the day's CODE (via computeDayCode's three-tier rule) and
+   they drive the weekly surplus/deficit reconciliation. They do not multiply
+   the money — this function never sees an hour. That separation is what lets
+   "Attendance says 27h 42m this week" and "salary paid six days this week" both
+   be true and neither contradict the other.
+
+   ── AND WHY THERE IS NO OVERTIME INPUT ────────────────────────────────────
+   Deliberately absent, not forgotten. A full-timer's surplus hours are a TARGET
+   RECONCILIATION device — they lower next week's target inside the same month
+   (see reconcileMonth) — and are never cash. Giving this function an overtime
+   parameter would make paying them a one-line change by someone who did not
+   read this comment. Intern/hourly-shift overtime is real money and is computed
+   by `computeHourlySalary`, a different function for a different contract.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+export interface DailySalaryInput {
+  /** Monthly salary at full attendance — CTC/12 for a full-timer. */
+  monthlySalary: number;
+  /** CALENDAR days in this month: 28 | 29 | 30 | 31. Never assumed. */
+  daysInMonth: number;
+  /**
+   * Σ of the day-values that have actually ELAPSED this month.
+   *
+   * The caller sums the grader's own `dayValue` per day, over days that have
+   * happened — see `payableDayValue`. For an open month this is "earned so
+   * far"; for a closed month it is the whole month.
+   */
+  payableDayValue: number;
+  ptExempt: boolean;
+  tdsMonthly: number;
+  advances: number;
+  pendingBalanceIn: number;
+  /** Reported, never priced — the hours engine's figures, carried onto the
+   *  breakdown so the payslip can show them beside the money. */
+  workedHours?: number;
+  targetHours?: number;
+}
+
+export function computeDailySalary(i: DailySalaryInput): SalaryBreakdown {
+  const monthlyCtc = round2(i.monthlySalary);
+  // THE DIVISOR IS THE MONTH'S OWN LENGTH. Guarded only against a nonsense 0,
+  // which would otherwise make every day worth Infinity.
+  const perDayExact = i.daysInMonth > 0 ? i.monthlySalary / i.daysInMonth : 0;
+  const payableDays = Math.max(0, i.payableDayValue);
+  const gross = round2(perDayExact * payableDays);
+  const pt = i.ptExempt ? 0 : PT_AMOUNT;
+  const net = round2(gross - pt - i.tdsMonthly - i.advances + i.pendingBalanceIn);
+
+  return {
+    monthlyCtc,
+    perDay: round2(perDayExact),
+    payableDays,
+    // Late marks no longer cut pay (the day code already reflects a short day),
+    // so there is no late deduction to report and `effectiveDays` is simply the
+    // payable count. Kept on the shape because the payslip renders both.
+    lateDeductionDays: 0,
+    effectiveDays: payableDays,
+    gross,
+    pt,
+    tds: i.tdsMonthly,
+    advances: i.advances,
+    pendingBalanceIn: i.pendingBalanceIn,
+    net,
+    basis: "monthly_ctc",
+    workedHours: i.workedHours,
+    targetHours: i.targetHours,
+    // Structurally zero for this basis — see the note above.
+    overtimeHours: 0,
+    overtimeAmount: 0,
+  };
+}
+
+/**
+ * Σ day-values over the days that have ELAPSED — the one input
+ * `computeDailySalary` needs from attendance.
+ *
+ * Pure and tiny on purpose: it is the single place that decides which days
+ * count toward pay, so "future days are not earned yet" (spec §3) is stated
+ * once. Days before joining carry the sentinel code and a 0 value, so they
+ * contribute nothing whether or not the caller filtered them.
+ */
+export function payableDayValue(
+  days: readonly { logDate: string; dayValue: number }[],
+  refTodayISO: string,
+): number {
+  const total = days
+    .filter((d) => d.logDate <= refTodayISO)
+    .reduce((sum, d) => sum + (Number.isFinite(d.dayValue) ? d.dayValue : 0), 0);
+  // Day values are halves; keep the arithmetic clean of float drift.
+  return Math.round(total * 2) / 2;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   SCHEDULE-BASED HOURLY PAY (spec §1/§2/§14) — RETIRED FOR FULL-TIMERS.
+
+   Kept because months before the daily model still read it, and because the
+   Attendance KPI's "salary lost" projection reuses it. New full-time months go
+   through `computeDailySalary` above.
 
    Replaces "full-day deduction × absent days" as the primary payroll method:
 
@@ -238,6 +362,25 @@ export interface ScheduleHourlyInput {
   chargeableHalfDays: number;
   /** One scheduled day in hours, for pricing a chargeable half-day. */
   dailyTargetHours: number;
+  /**
+   * Days of APPROVED UNPAID LEAVE this month (spec §3B).
+   *
+   * WHY IT NEEDS ITS OWN INPUT rather than falling out of the hours: an LWP day
+   * expects no hours, so it leaves `monthlyTargetHours` — and therefore
+   * `payableHoursRaw` — smaller by exactly a day at BOTH ends. The two cancel,
+   * the month reads as complete, and unpaid leave costs nothing. That is right
+   * for the ATTENDANCE side (the employee is not asked to work the day back, and
+   * is not marked absent) and wrong for the PAY side, which is the whole
+   * distinction between paid and unpaid leave.
+   *
+   * So the day is removed from the requirement AND charged once, here, at the
+   * same hourly rate as everything else in this function — the identical shape
+   * as `chargeableHalfDays`. No second deduction path, no per-day rate revived.
+   *
+   * OPTIONAL, defaulting to none, so a caller with no view of leave keeps
+   * computing exactly the pay it computed before.
+   */
+  unpaidLeaveDays?: number;
   /**
    * Hours to pay ON TOP of the target — the month-end surplus that survived
    * covering every short week (`MonthReconciliation.monthlyHourBalanceMinutes`).
@@ -270,7 +413,11 @@ export function computeScheduleHourlySalary(i: ScheduleHourlyInput): SalaryBreak
   // Each chargeable half-day costs half a scheduled day, priced at the same
   // hourly rate so one rule governs all money in this function.
   const halfDayPenaltyHours = i.chargeableHalfDays * (i.dailyTargetHours / 2);
-  const paidHours = Math.max(0, payableHours - halfDayPenaltyHours);
+  // Approved UNPAID leave costs a whole scheduled day each, by the same rule.
+  // Paid leave reaches this function as CREDITED hours inside `payableHoursRaw`
+  // and so never lands here — which is the entire difference between the two.
+  const unpaidLeaveHours = Math.max(0, i.unpaidLeaveDays ?? 0) * i.dailyTargetHours;
+  const paidHours = Math.max(0, payableHours - halfDayPenaltyHours - unpaidLeaveHours);
 
   // The BASE is capped at the monthly salary: hours banked beyond target are
   // already capped per-week upstream, so nobody drifts above their salary just

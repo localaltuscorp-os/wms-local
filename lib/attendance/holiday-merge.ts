@@ -55,18 +55,26 @@ export function isSunday(ymd: string): boolean {
  * Everything before `today` is dropped, Sundays are dropped, duplicate dates
  * collapse, and the result is date-sorted and cut to `limit`. There is
  * deliberately no upper bound on how far ahead a holiday may be.
+ *
+ * `suppressed` is the WITHDRAWAL list — dates an admin has explicitly marked
+ * "not a holiday" (an inactive `holidays` row). It is the only way to cancel a
+ * day the PUBLISHED calendar declares, since that calendar lives in code, and it
+ * has to be applied here so this panel and the attendance grader
+ * (lib/queries/holidays.listHolidayDateSet) can never show different calendars.
  */
 export function mergeUpcomingHolidays(
   preferred: readonly MergeableHoliday[],
   fallback: readonly MergeableHoliday[],
   today: string,
   limit: number,
+  suppressed: ReadonlySet<string> = new Set(),
 ): UpcomingHoliday[] {
   const byDate = new Map<string, UpcomingHoliday>();
 
   for (const source of [preferred, fallback]) {
     for (const h of source) {
       if (!h?.date || h.date < today) continue;
+      if (suppressed.has(h.date)) continue;
       // Rule 2 — see the header. Applied to both calendars, before the
       // first-wins de-duplication, so a Sunday in one cannot mask a real
       // holiday in the other on the same date.

@@ -21,7 +21,13 @@ type Body = { deviceId?: string; deviceLabel?: string; platform?: string };
  * genuinely new registration so they can approve promptly.
  */
 export async function POST(req: Request) {
-  const auth = await authenticateMobileRequest(req);
+  // THE ONE ENDPOINT THAT SKIPS THE DEVICE GATE. Enrolling a phone that is by
+  // definition not yet registered cannot itself require a registered phone, or
+  // enrollment is impossible. Everything the endpoint can do is bounded by
+  // `registerMobileDevice`: it creates a PENDING row for the authenticated
+  // employee and nothing else, so reaching it from an unknown device grants no
+  // access — it only asks an administrator for some.
+  const auth = await authenticateMobileRequest(req, { skipDeviceCheck: true });
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status, headers: MOBILE_CORS });
   }

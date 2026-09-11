@@ -891,6 +891,12 @@ export function TaskTable({
     autoResetPageIndex: false,
   });
 
+  /* How many columns a full-width `<td>` has to span. Declared ONCE here
+     rather than inside the row map, where it used to be recomputed for every
+     row on every render — and where the empty-state row below the map could
+     not see it at all. */
+  const visibleCols = table.getVisibleLeafColumns().length;
+
   // Push both halves of the local pagination state into the table.
   React.useEffect(() => {
     table.setPageSize(pageSize);
@@ -1316,6 +1322,41 @@ export function TaskTable({
           ))}
         </thead>
         <tbody>
+          {/* SEARCH CAME BACK EMPTY — and it has to say why.
+              Both search boxes filter rows the page has ALREADY LOADED, and
+              what got loaded is decided by the date range, the scope (My Tasks
+              / All Tasks), the view (Doer / Initiator) and the pills above. So
+              searching for a task that is real, but sits outside those filters,
+              returned a bare "No tasks" and read as a broken search. It is not:
+              the row was never on the client to be matched. */}
+          {table.getRowModel().rows.length === 0 && (query.trim() || sectionQuery) ? (
+            <tr>
+              <td colSpan={visibleCols} className="px-6 py-12 text-center">
+                <p className="text-[15px] font-bold text-ink-strong">
+                  Nothing in this view matches your search.
+                </p>
+                <p className="mx-auto mt-1.5 max-w-[62ch] text-[13.5px] font-medium text-ink-muted">
+                  Search looks only at the{" "}
+                  <span className="font-bold text-ink-soft tabular-nums">
+                    {rows.length.toLocaleString("en-IN")}
+                  </span>{" "}
+                  {rows.length === 1 ? "task" : "tasks"} loaded for the filters above — the date
+                  range, the scope and the Doer/Initiator view decide which those are. Widen them
+                  to look further.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    setSectionSearch("");
+                  }}
+                  className="mt-3 inline-flex items-center rounded-pill border border-hairline-strong bg-surface-card px-4 py-1.5 text-[13px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+                >
+                  Clear search
+                </button>
+              </td>
+            </tr>
+          ) : null}
           {table.getRowModel().rows.map((row, i, arr) => {
           // Group mode: render a section header whenever the group label
           // changes from the previous row — and always at the top of a page
@@ -1325,7 +1366,6 @@ export function TaskTable({
           const prevLabel =
             groupBy === "none" || !prev ? null : groupValue(prev.original, groupBy, resolvedLabels);
           const showHeader = label !== null && (i === 0 || label !== prevLabel);
-          const visibleCols = table.getVisibleLeafColumns().length;
           // Left accent stripe for at-risk rows so overdue/today work is
           // impossible to miss without reading the date column.
           const rowUrgency = taskUrgency(row.original.dueAt, row.original.status);

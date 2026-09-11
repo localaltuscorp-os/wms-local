@@ -60,7 +60,14 @@ export default async function MySalaryPage({ searchParams }: PageProps) {
   // The open month is computed live from the payroll engine; closed months come
   // from their stored run; anything older falls back to the legacy breakup rows.
   // See lib/salary/my-salary.ts for why the page no longer reads one table.
-  const months = await loadMySalaryMonths(targetId, targetWorkerType);
+  // `ledgerMonths: "first"` attaches the Daily Salary Report to the month the
+  // page opens on, and only that one. The rest arrive through
+  // `fetchMonthLedger` when the employee picks them — a month of day rows is
+  // ~30KB serialised, and inlining a whole history would be most of a
+  // megabyte for months nobody has asked to see.
+  const months = await loadMySalaryMonths(targetId, targetWorkerType, new Date(), {
+    ledgerMonths: "first",
+  });
 
   const viewingOther = targetId !== me.id;
   const hint = viewingOther
@@ -90,7 +97,7 @@ export default async function MySalaryPage({ searchParams }: PageProps) {
           }
         />
 
-        <MySalaryView months={months} />
+        <MySalaryView months={months} employeeId={targetId} />
       </main>
     </>
   );

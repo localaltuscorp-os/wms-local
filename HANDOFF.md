@@ -5,10 +5,46 @@ broken, what changed and why.
 
 - Setup instructions → [`SETUP.md`](./SETUP.md)
 - Replicating this system for a new client → [`docs/WMS_BLUEPRINT.md`](./docs/WMS_BLUEPRINT.md)
+- **`Om` branch handoff + unrun SQL migrations** → [`HANDOFF-Om.md`](./HANDOFF-Om.md)
 
 > **Every developer and intern must append to the changelog below before their
 > work is considered done.** A PR without a changelog entry is incomplete. See
 > [How to update this file](#how-to-update-this-file).
+
+---
+
+## ⚠️ Pending database migrations — 0216 to 0220 (added 2026-09-10)
+
+The `Om` branch ships code that **assumes five tables which do not exist in Supabase
+yet**. Nobody has run these. Until they are applied, master-admin, the permission
+matrix, delegated access, manager history and reimbursement attachments will fail at
+runtime.
+
+| File | Creates |
+|------|---------|
+| `db/migrations/0216_module_submission_attachments.sql` | `module_submission_attachments` |
+| `db/migrations/0217_masters_payment_modes_and_products.sql` | `ALTER TABLE outstanding_products` |
+| `db/migrations/0218_delegated_access.sql` | `delegated_access_grants`, `delegated_access_events` |
+| `db/migrations/0219_permission_matrix.sql` | `module_permissions`, `module_permission_events` |
+| `db/migrations/0220_manager_hierarchy_history.sql` | `employee_manager_history` |
+
+All five are additive — no `DROP`, `TRUNCATE` or `DELETE`. Validate first (runs inside a
+transaction, then rolls back), then apply:
+
+```bash
+npx tsx --env-file=.env.local scripts/validate-migrations-0217-0220.ts
+npx tsx --env-file=.env.local scripts/apply-migrations-0217-0220.ts
+```
+
+`0216` is **not** covered by those scripts — apply it by hand, first:
+
+```bash
+psql "$DATABASE_URL" -f db/migrations/0216_module_submission_attachments.sql
+```
+
+Do **not** reach for `npm run db:migrate` here: the drizzle journal is stale at `0019`, so
+it would also apply two dozen unrelated pending migrations. Full detail, verification
+steps and the merge decisions that need review are in [`HANDOFF-Om.md`](./HANDOFF-Om.md).
 
 ---
 
@@ -41,6 +77,11 @@ revoke (`/login` 200, `/api/health` 200, leaked `service_role` 401).
    6 previously recorded it as deleted; that was wrong. It is the origin of the
    whole incident, and its Supabase values are now dead but its **other** six
    secrets are still live (item 5). Back up the values, then delete.
+
+2. 🔴 **The 2026-09-09 sequence repair may not have reached the database that
+   serves users** — see the 2026-09-09 changelog entry. Until the two `setval`
+   statements run there, task status changes, reassignment and deletion fail
+   with a duplicate-key error and roll back silently.
 
 Several other secrets from the same file remain unrotated (item 5). Read the
 section below the table before doing anything else.
@@ -454,6 +495,279 @@ throughout; her Firebase UID is new.
 ---
 
 ## Changelog
+
+### 2026-09-10 — Task timer repaired, Bulk Add, hub letter shortcuts, template dropdowns
+
+**What changed**
+
+*Task timer — it was writing to the database and saying nothing (the day's main fix):*
+
+- `components/tasks/time/task-timer-store.tsx` (**new**) — one timer per task
+  detail screen, shared by the crimson hero band, the Time Spent rail card and
+  the Time Log tab. Each of the three used to call the Server Actions itself and
+  hold its own idea of "running". Optimistic: the label and the clock move in
+  the same frame as the click, and the flip retires itself when the server value
+  changes.
+- `components/tasks/time/use-elapsed.ts` — rewritten on `useSyncExternalStore`
+  with a server snapshot of `0`, and one shared 1s ticker for every clock on the
+  page instead of an interval per component. Adds `useNowMs()` for relative
+  stamps.
+- `components/tasks/detail/task-hero-band.tsx`,
+  `components/tasks/detail/detail-rail.tsx`,
+  `components/tasks/time/task-time-panel.tsx` — all three now read the store.
+  Dead local state, `useRouter` and action imports removed; unused `taskId`
+  props dropped.
+- `components/tasks/detail/task-detail-redesign.tsx` — mounts
+  `TaskTimerProvider` around the detail subtree.
+- `components/tasks/detail/detail-rail.tsx` — the Task Timeline's relative
+  stamps ("43m ago") are hydration-safe.
+- Restart's confirmation text corrected: it claimed to archive the session and
+  reset to `00:00:00`; the engine rewinds only the session in progress and keeps
+  every banked minute.
+
+*Tasks:*
+
+- `components/header/bulk-add-quick-action.tsx` (**new**) — Bulk Add button and
+  dialog (upload an `.xlsx`, or download a blank template). WMS only; the gate
+  is inside the component because `dashboard-sidebar.tsx` is a server component
+  that renders once. Top-bar order is now Global Search · Bulk Add · Add ·
+  Notification Bell · Maximize, in `components/layout/app-top-bar.tsx` and the
+  phone bar in `components/layout/dashboard-sidebar.tsx`.
+- `components/tasks/tasks-bulk-entry.tsx` — the grid is hidden, not unmounted,
+  when you go to Review, so going back keeps every row you typed.
+- `components/tasks/task-table.tsx` — an empty search now explains itself
+  ("Search looks only at the N tasks loaded for the filters above…") with a
+  Clear search button. `visibleCols` hoisted out of the row map: it was declared
+  per-row and the new empty-state row could not see it — `tsc` caught it,
+  Turbopack does not typecheck, so a production build would have failed.
+
+*Excel templates:*
+
+- `lib/goals/template-workbook.ts` (**new**, extracted from the route so it is
+  testable) — Goals template gains a Client column beside Area with a real
+  dropdown, all validations rebuilt by header name after the column insert,
+  gridlines on, and a filled-in Client example.
+- `app/(app)/goals/template.xlsx/route.ts` — slimmed to 84 lines.
+- `lib/tasks/template-columns.ts`, `app/(app)/tasks/template.xlsx/route.ts` —
+  the Tasks template's Client column gets its dropdown and the live client list;
+  examples fall back to a real option rather than rendering blank.
+
+*Hub and navigation:*
+
+- `lib/module-theme.ts` — `MODULE_ORDER` re-sequenced (WMS, Goals, Project, Team
+  Productivity, Billing, HR, Sales, Accounts, Training, Employees, Monthly
+  Events, HandHolding) and letter shortcuts `qwertyuiopas` assigned by position.
+- `components/layout/module-shortcuts.tsx` — Alt/Meta only, never Ctrl; reads
+  `e.code` so the layout does not matter.
+- `components/hub/module-shortcuts.tsx` — bare-letter shortcuts on the hub, with
+  a typing guard, a modal guard and a `defaultPrevented` guard so it yields to
+  the `G`-sequences bound on `document`.
+- `app/(app)/hub/page.tsx` — taglines removed, letter badge on each card, six
+  cards per row on `xl` so all twelve fit in two rows with no scrolling, wrapper
+  widened 1140 → 1440px, and the grid pinned 80px under the hero (was `my-auto`,
+  which left 173px of dead space above the first row).
+- `components/layout/chrome-shell.tsx` — no bottom padding on the hub, so the
+  centring is symmetric.
+- `components/layout/module-bar.tsx`, `components/layout/module-footer.tsx`,
+  `lib/shortcuts.ts` — badges and the help sheet show the new letters.
+
+*Goals:*
+
+- `components/goals/plan/duplicate-date-dialog.tsx` (**new**) — Duplicate now
+  asks which day. Extracted from `plan-item-card.tsx` so `day-review.tsx` uses
+  the same one; the × moves a row to Unfinished and says so.
+- `components/goals/review/review-table.tsx`,
+  `components/goals/review/review-workbench.tsx` — percent fields hold TEXT, so
+  typing `100` into a field showing `0` gives `100`, not `0100`. Approved % is
+  an editable input on rows the viewer can approve.
+
+*Layout sweep (one heading per page):*
+
+- `app/(app)/review/page.tsx`, `app/(app)/dashboard/done/page.tsx`,
+  `app/(app)/tasks/kanban/page.tsx`, `components/index-hub/index-hub-board.tsx`,
+  `components/projects/projects-workspace.tsx`,
+  `components/tasks/time/reports/report-frame.tsx` — the page's own big black
+  heading is gone where the top bar already said the same word. The top-bar
+  title stays. `components/layout/page-command-bar.tsx` gained an opt-in
+  `titleInTopBar` (default `false`; 70 call sites unchanged), and
+  `components/layout/page-title.tsx` (**new**) portals a title into the bar.
+- `components/tasks/time/reports/report-ui.tsx` — every Time Intelligence table
+  scrolls inside its own card with a sticky header and a visible bar, instead of
+  scrolling the page and taking the column names off screen.
+- `components/weekly-goals/weekly-goal-task-group.tsx` — the "WEEKLY GOAL" chip
+  next to the heading "This Week's Goals" is gone; it stated the same fact
+  twice. The chip stays on the kanban goal card, where goal cards sit
+  interleaved with task cards and nothing else tells them apart.
+
+*Tests — 11 new files, ~90 cases:*
+
+`task-timer-store`, `elapsed-hydration`, `bulk-add-quick-action`,
+`module-shortcut-letters`, `module-shortcuts-handler`, `hub-letter-shortcuts`,
+`bulk-entry-keeps-drafts`, `goals-template-workbook`, `task-template-dropdowns`,
+`review-pct-input`, `day-review-row-actions`, `weekly-goal-group-header`.
+
+**Why**
+
+The timer looked completely dead: click Start Work and the button kept its
+label, the clock stayed at `00:00:00`, so you clicked again. The Server Actions
+were succeeding the whole time — the ledger showed `work_started` /
+`work_paused` / `work_resumed` rows landing correctly. Two things hid that.
+First, every control awaited the action and then `router.refresh()`, which on
+the task drawer re-renders `/tasks` — 868 rows against a remote database,
+measured at **22 seconds** — with no local state to cover the wait. Second, the
+clock was server-rendered from the wall clock, so React compared the server's
+`00:02:58` against the browser's `00:03:01`, threw `Hydration failed`, and
+**discarded the entire task-detail subtree** on every open of a task with a
+running timer. A third, quieter fault: none of the three `run()` helpers had a
+`.catch()`, so a Server Action that *threw* rejected into nothing — no toast, no
+rollback, a button stuck mid-flip.
+
+The rest of the day was the account holder working through the WMS surfaces:
+bulk upload from a spreadsheet, letter shortcuts that actually fire, twelve
+modules visible without scrolling, one heading per page, tables that scroll
+where the data is, and drafts that survive a round trip.
+
+**How to verify**
+
+```bash
+pnpm typecheck                        # clean
+pnpm test -- --no-file-parallelism    # 10 pre-existing failures, unchanged
+```
+
+In the app, on a task detail (`/tasks/<id>` or `/tasks?task=<id>`):
+
+- Start Work → the button becomes Pause and the clock starts inside 600ms, not
+  20 seconds. The Time Spent card flips with it.
+- Reload while it runs → no `Hydration failed` in the console.
+- Pause → the readout keeps the seconds it just banked instead of jumping back.
+
+Measured live, 600ms after each click:
+
+```
+INITIAL              00:23:40   ["Start Work","Restart","Resume","Restart"]
+0.6s after Start     00:23:40   ["Pause","Restart","Stop","Restart"]
++6s ticking          00:23:45   ["Pause","Restart","Stop","Restart"]
+0.6s after Pause     00:23:47   ["Start Work","Restart","Resume","Restart"]
+```
+
+Hub: every card's letter badge fires with **Alt+letter** from anywhere, and the
+bare letter on `/hub` itself. Twelve cards, two rows, no scrollbar at 1920×1080,
+1536×880, 1440×900 or 1280×800.
+
+**Breaking / migration notes**
+
+- No new env vars, no new migrations, no schema changes.
+- ⚠️ This work sits **uncommitted on branch `Vinal`** — 36 modified files and 17
+  new ones. `origin/main` is at `ea0a8bf7` and contains none of it.
+- ⚠️ **Approved % on Daily rows is NOT done.** Goal-tier rows behave as asked;
+  daily rows cannot, because `daily_checklist` has no initiator column and no
+  `accept_pct`, and `daily_checklist_reviews` is per-day rather than per-item.
+  Needs a schema decision before it can be built.
+- ⚠️ **The Accounts hub card is reachable but bounces.** `canAccessWorkspace
+  ("admin")` allows any admin; `requireAccountsAccess()` wants super-admin or the
+  Accounts department, so a plain admin lands on `/accounts` and is sent back to
+  `/hub`. Pre-existing, unchanged — clicking the card did the same before. Someone
+  has to decide whether to hide the card or widen the route.
+- Duplicate headings remain on `/goals/yearly`, `/goals/dashboard`, `/billing`
+  and `/training` — the same sweep, not yet applied there.
+- The Sales module is hidden locally because Vinal Patil is in Operations/Apps,
+  not Sales. Set `DEV_ALL_WORKSPACES="true"` in `.env.local` to see it.
+- **Dropdowns missing on another deployment?** The New Task pickers show only
+  rows with `is_active = true` (`lib/queries/clients.ts`,
+  `lib/queries/subjects.ts`); the Admin panel shows every row. That is the whole
+  difference. `UPDATE clients SET is_active = true WHERE is_active = false;` and
+  the same for `subjects`. Two caveats: the list is cached for 10 minutes and a
+  raw SQL write does not clear that cache, and `WMS` / `WMS App` stay hidden
+  regardless because they are retired in code (`lib/tasks/subject-options.ts`),
+  replaced by the pinned `Altus Ecosystem`.
+- The dev server wedged three times under sustained browser automation and had
+  to be killed and restarted. Root cause is the same 22-second `/tasks` render.
+
+**Author:** Vinal Patil
+
+### 2026-09-09 — Task writes were failing on broken sequences; 13 fixes on `Vinal`
+
+**What changed**
+
+*Database — two statements, both `setval`, no row data touched:*
+
+- `event_log_seq_seq` advanced 3 → 10,071 and `tasks_task_no_seq` 1,000 → 2,965,
+  past the data already in their tables. The two insert probes either side ran
+  inside deliberately rolled-back transactions.
+
+*Application — 13 commits on branch `Vinal`, pushed as `cf058fdb`:*
+
+- `components/tasks/detail/task-attachments.tsx` — a failed upload no longer
+  leaves the button disabled; deleting a file also clears its hover preview.
+- `app/(app)/tasks/actions.ts` — 14 call sites moved to `dbErrorMessage` +
+  `logDbError`, so a failure names its cause instead of tipping the SQL and its
+  bound parameters into a toast.
+- `app/(app)/tasks/page.tsx` — "Not Read" no longer zeroes every other summary
+  pill: `unread` joins the stripped filter set and the `sameScope` test.
+- `lib/goals/scope.ts`, `app/(app)/goals/review/*`,
+  `app/(app)/weekly-goals/actions.ts` — whoever raised a goal can approve it,
+  and an approval under 100% now requires a note.
+- `components/ui/hover-tip.tsx` + 12 callers — every hover surface opens
+  downward instead of over the row just read.
+- `components/dashboard/*`, `components/goals/*` — one badge colour (brand red)
+  on every section heading; Task Summary gained the badge it never had; the
+  Goals board's own header stopped defaulting to `--color-altus-red-deep`.
+- `components/layout/filter-bar.tsx` — the active-filter row no longer appears
+  for the default self scope, where it read "1 active · <your name>" on an
+  untouched page.
+- `components/dashboard/aging-heatmap.tsx` — sizes to its lanes, not to 600px.
+- `components/dashboard/exec/{creator-workload,manager-activity}-table.tsx` —
+  collapsed delegation sections leave no empty outlined box.
+- `components/weekly-goals/weekly-goal-task-group.tsx` — one width for all four
+  priority pills.
+- `scripts/apply-one-migration.ts` — `--force`, for when a restored
+  `__schema_applied` ledger claims files it never ran against this database.
+
+**Why**
+
+Status changes, doer reassignment and task deletion all failed with
+`23505 duplicate key value violates unique constraint "event_log_pkey"`,
+`Key (seq)=(3) already exists`. The restore loaded rows with their original ids
+but left the sequences near 1, so every insert collided: `event_log.seq` next 4
+against max 10,071, and `tasks.task_no` next 1,001 against max 2,965 with a
+UNIQUE index. Events are written inside the caller's transaction by design
+(ARCHITECTURE.md Law 2), so the failing event rolled the operational row back
+with it — the status simply never changed, with nothing in the UI to say why.
+`tasks.task_no` was the same fault not yet reached; task creation would have
+started failing at 1001.
+
+**How to verify**
+
+```bash
+pnpm typecheck        # clean
+pnpm build            # exits 0 (next build --webpack)
+pnpm test -- --no-file-parallelism   # 9 pre-existing failures, unchanged
+```
+
+Sequence health — run this after ANY restore, for every serial column, not just
+these two. `next` must exceed `max`:
+
+```sql
+select (select last_value from public.event_log_seq_seq) as seq_last,
+       (select max(seq) from public.event_log)           as col_max;
+```
+
+In the app: change a task status. It commits.
+
+**Breaking / migration notes**
+
+- No new env vars, no new migrations.
+- ⚠️ **The sequence repair was applied only to the database in `.env.local`.**
+  Four task titles on screen at the time were absent from it (1,027 tasks, none
+  matching), so if a different database serves users, run the same two `setval`
+  statements there or the failures recur. They are safe to re-run.
+- ⚠️ This work sits on branch **`Vinal`** at `cf058fdb` — **not** `main`, and
+  not deployed.
+- Data gap, not a defect: `employees` names only 4 managers and 13 of 23 active
+  rows have no `manager_id`, so the manager board is rendering correctly over
+  incomplete data. Needs completing in Admin → Employees.
+
+**Author:** Vinal Patil
 
 ### 2026-09-08 (late) — WMS team's work merged; four silent reverts caught
 
