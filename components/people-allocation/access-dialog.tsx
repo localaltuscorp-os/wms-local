@@ -39,12 +39,12 @@ import type { AccessActivity } from "@/lib/queries/people-allocation";
 /** How long a deleted entry can be taken back. */
 const UNDO_WINDOW_MS = 10_000;
 
-const ORANGE = "#ea580c";
-const ORANGE_DEEP = "#c2410c";
+const ACCENT = "#E10600";
+const ACCENT_DEEP = "#A80400";
 const RED = "var(--color-altus-red)";
 
 const inputCls =
-  "w-full rounded-xl border border-hairline-strong bg-surface-card px-3 py-2.5 text-[14px] text-ink-strong outline-none transition placeholder:text-ink-subtle focus:border-transparent focus:ring-2 focus:ring-[#ea580c]/40";
+  "w-full rounded-xl border border-hairline-strong bg-surface-card px-3 py-2.5 text-[14px] text-ink-strong outline-none transition placeholder:text-ink-subtle focus:border-transparent focus:ring-2 focus:ring-[#E10600]/40";
 
 const labelCls = "mb-1.5 block text-[12.5px] font-bold text-ink-strong";
 
@@ -148,7 +148,7 @@ function RowSelect({
   return (
     <span className="relative block">
       <select
-        className="w-full appearance-none rounded-lg border border-hairline-strong bg-surface-card px-2.5 py-1.5 pr-7 text-[13px] text-ink-strong outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#ea580c]/40 disabled:opacity-60"
+        className="w-full appearance-none rounded-lg border border-hairline-strong bg-surface-card px-2.5 py-1.5 pr-7 text-[13px] text-ink-strong outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#E10600]/40 disabled:opacity-60"
         value={value}
         disabled={disabled}
         aria-label={ariaLabel}
@@ -193,7 +193,7 @@ function RowDescription({
   return (
     <input
       type="text"
-      className="w-full rounded-lg border border-hairline-strong bg-surface-card px-2.5 py-1.5 text-[13px] text-ink-strong outline-none transition placeholder:text-ink-subtle focus:border-transparent focus:ring-2 focus:ring-[#ea580c]/40 disabled:opacity-60"
+      className="w-full rounded-lg border border-hairline-strong bg-surface-card px-2.5 py-1.5 text-[13px] text-ink-strong outline-none transition placeholder:text-ink-subtle focus:border-transparent focus:ring-2 focus:ring-[#E10600]/40 disabled:opacity-60"
       value={draft}
       disabled={disabled}
       placeholder="Add a description"
@@ -496,9 +496,9 @@ export function AccessDialog({
                 style={
                   on
                     ? {
-                        background: `color-mix(in srgb, ${ORANGE} 9%, white)`,
-                        color: ORANGE_DEEP,
-                        boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${ORANGE} 50%, transparent)`,
+                        background: `color-mix(in srgb, ${ACCENT} 9%, white)`,
+                        color: ACCENT_DEEP,
+                        boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${ACCENT} 50%, transparent)`,
                       }
                     : { color: "var(--color-ink-strong)", boxShadow: "inset 0 0 0 1px var(--color-hairline)" }
                 }
@@ -514,12 +514,12 @@ export function AccessDialog({
         <div
           className="mt-4 flex items-start gap-2.5 rounded-xl px-4 py-3.5"
           style={{
-            background: `color-mix(in srgb, ${ORANGE} 6%, transparent)`,
-            boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ORANGE} 26%, transparent)`,
+            background: `color-mix(in srgb, ${ACCENT} 6%, transparent)`,
+            boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ACCENT} 26%, transparent)`,
           }}
         >
-          <Info size={17} strokeWidth={2.4} className="mt-px shrink-0" style={{ color: ORANGE }} />
-          <p className="text-[14px] font-bold" style={{ color: ORANGE }}>
+          <Info size={17} strokeWidth={2.4} className="mt-px shrink-0" style={{ color: ACCENT }} />
+          <p className="text-[14px] font-bold" style={{ color: ACCENT }}>
             {current.note}
           </p>
         </div>
@@ -545,7 +545,7 @@ export function AccessDialog({
                     className="rounded-pill px-3.5 py-2 text-[13px] font-bold transition-colors"
                     style={
                       on
-                        ? { background: `linear-gradient(135deg, ${ORANGE}, ${ORANGE_DEEP})`, color: "#fff" }
+                        ? { background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})`, color: "#fff" }
                         : {
                             color: "var(--color-ink-soft)",
                             boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)",
@@ -586,9 +586,9 @@ export function AccessDialog({
                     style={
                       on
                         ? {
-                            background: `color-mix(in srgb, ${ORANGE} 12%, white)`,
-                            color: ORANGE_DEEP,
-                            boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ORANGE} 45%, transparent)`,
+                            background: `color-mix(in srgb, ${ACCENT} 12%, white)`,
+                            color: ACCENT_DEEP,
+                            boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ACCENT} 45%, transparent)`,
                           }
                         : { color: "var(--color-ink-strong)" }
                     }
@@ -651,7 +651,7 @@ export function AccessDialog({
         </label>
 
         <div className="mb-3 mt-6 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-[16px] font-extrabold" style={{ color: ORANGE }}>
+          <h3 className="text-[16px] font-extrabold" style={{ color: ACCENT }}>
             Access Activity
           </h3>
           {/* Right-aligned so they land over the table's last column, Manage. */}
@@ -681,11 +681,11 @@ export function AccessDialog({
             role="status"
             className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-2.5"
             style={{
-              background: `color-mix(in srgb, ${ORANGE} 7%, transparent)`,
-              boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ORANGE} 28%, transparent)`,
+              background: `color-mix(in srgb, ${ACCENT} 7%, transparent)`,
+              boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ACCENT} 28%, transparent)`,
             }}
           >
-            <span className="text-[13px] font-bold" style={{ color: ORANGE_DEEP }}>
+            <span className="text-[13px] font-bold" style={{ color: ACCENT_DEEP }}>
               Deleted “{p.row.personName}”. Undoable for {secondsLeft(p.at)}s.
             </span>
             <button
@@ -693,8 +693,8 @@ export function AccessDialog({
               onClick={() => undoDelete(p.row.id)}
               className="wg-btn inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-bold"
               style={{
-                color: ORANGE_DEEP,
-                boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ORANGE} 45%, transparent)`,
+                color: ACCENT_DEEP,
+                boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ACCENT} 45%, transparent)`,
               }}
             >
               <Undo2 size={14} strokeWidth={2.6} /> Undo
@@ -860,7 +860,7 @@ export function AccessDialog({
             onClick={save}
             disabled={pending || !canEdit}
             className="wg-btn rounded-xl px-10 py-2.5 text-[14px] font-bold text-white disabled:opacity-50"
-            style={{ background: `linear-gradient(135deg, ${ORANGE}, ${ORANGE_DEEP})` }}
+            style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
           >
             Save
           </button>

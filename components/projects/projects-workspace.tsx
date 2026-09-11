@@ -1802,7 +1802,7 @@ function OwnerPicker({
               placeholder="Search people…"
               className="w-full rounded-md border border-hairline px-2.5 py-1.5 text-[14.5px] outline-none focus:border-altus-red mb-1"
             />
-            <div className="max-h-[240px] overflow-y-auto">
+            <div className="slim-scroll max-h-[240px] overflow-y-auto">
               <PickerRow
                 label="No owner"
                 muted
@@ -1938,7 +1938,7 @@ function MembersPicker({ node }: { node: ProjectTreeNode }) {
                 placeholder="Search people…"
                 className="w-full rounded-md border border-hairline px-2.5 py-1.5 text-[14.5px] outline-none focus:border-altus-red mb-1"
               />
-              <div className="max-h-[240px] overflow-y-auto">
+              <div className="slim-scroll max-h-[240px] overflow-y-auto">
                 {matches.map((e) => (
                   <PickerRow
                     key={e.id}

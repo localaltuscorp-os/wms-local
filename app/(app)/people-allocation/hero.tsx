@@ -4,8 +4,8 @@ import { Users2 } from "lucide-react";
  * Shared hero for the People Allocation room, so its two pages carry one
  * identity. Orange, matching the module's hub card.
  */
-const ORANGE = "#ea580c";
-const ORANGE_DEEP = "#c2410c";
+const ACCENT = "#E10600";
+const ACCENT_DEEP = "#A80400";
 
 export function AllocationHero({ title, blurb }: { title: string; blurb: string }) {
   return (
@@ -13,8 +13,8 @@ export function AllocationHero({ title, blurb }: { title: string; blurb: string 
       className="wg-rise relative mb-6 overflow-hidden rounded-[26px] px-7 py-6 max-md:px-4 max-md:py-5"
       style={{
         background: [
-          `radial-gradient(120% 190% at 100% 0%, color-mix(in srgb, ${ORANGE} 9%, transparent), transparent 55%)`,
-          `radial-gradient(80% 160% at 0% 100%, color-mix(in srgb, ${ORANGE} 5%, transparent), transparent 52%)`,
+          `radial-gradient(120% 190% at 100% 0%, color-mix(in srgb, ${ACCENT} 9%, transparent), transparent 55%)`,
+          `radial-gradient(80% 160% at 0% 100%, color-mix(in srgb, ${ACCENT} 5%, transparent), transparent 52%)`,
           "rgba(255, 255, 255, 0.72)",
         ].join(", "),
         backdropFilter: "blur(14px) saturate(140%)",
@@ -24,7 +24,7 @@ export function AllocationHero({ title, blurb }: { title: string; blurb: string 
     >
       <span
         className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white"
-        style={{ background: `linear-gradient(135deg, ${ORANGE}, ${ORANGE_DEEP})` }}
+        style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
       >
         <Users2 size={13} strokeWidth={2.6} /> Hand-holding
       </span>

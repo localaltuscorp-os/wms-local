@@ -126,7 +126,7 @@ export function TeamInvolvedEditor({
               <Users size={14} className="text-ink-soft" />
               <span className="text-[12px] font-semibold text-ink-strong">Team Involved</span>
             </div>
-            <div className="max-h-64 overflow-y-auto py-1">
+            <div className="slim-scroll max-h-64 overflow-y-auto py-1">
               {roster.filter((r) => r.isActive).length === 0 && (
                 <p className="px-3 py-4 text-[12px] text-ink-soft">No people in scope.</p>
               )}

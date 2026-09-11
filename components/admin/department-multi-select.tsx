@@ -55,7 +55,7 @@ export function DepartmentMultiSelect({
   }
 
   return (
-    <div className="rounded-md border border-[#CBD5E1] divide-y divide-[#EEF2F6] max-h-56 overflow-y-auto">
+    <div className="slim-scroll rounded-md border border-[#CBD5E1] divide-y divide-[#EEF2F6] max-h-56 overflow-y-auto">
       {options.map((opt) => {
         const checked = selectedIds.includes(opt.id);
         const isPrimary = primaryId === opt.id;

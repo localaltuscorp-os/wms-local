@@ -112,7 +112,7 @@ export function GoalDetails({ goal, ownerName, onClose }: GoalDetailsProps) {
         aria-modal="true"
         aria-label={`${GOAL_LEVEL_LABEL[goal.period]} — ${goal.title}`}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[86vh] w-full max-w-[620px] overflow-auto rounded-2xl border border-hairline bg-surface-card shadow-2xl"
+        className="slim-scroll max-h-[86vh] w-full max-w-[620px] overflow-auto rounded-2xl border border-hairline bg-surface-card shadow-2xl"
       >
         <header className="sticky top-0 flex items-start gap-3 border-b border-hairline bg-surface-card px-5 py-4">
           <div className="min-w-0 flex-1">

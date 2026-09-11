@@ -140,7 +140,7 @@ export function CommitDialog({
         </div>
 
         {/* Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="slim-scroll min-h-0 flex-1 overflow-y-auto px-6 py-5">
           <p className="mb-3 text-[13px] font-medium text-ink-muted">
             Adopt the goals you&apos;re committing to next week (add any extras), then freeze.
           </p>

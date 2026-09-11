@@ -132,7 +132,7 @@ export function WeeklyGoalDrawer({
         </div>
 
         {/* Scrollable body */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 max-md:px-5">{children}</div>
+        <div className="slim-scroll min-h-0 flex-1 overflow-y-auto px-6 py-5 max-md:px-5">{children}</div>
 
         {/* Sticky footer */}
         {footer && (

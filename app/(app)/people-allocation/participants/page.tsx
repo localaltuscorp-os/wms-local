@@ -18,7 +18,7 @@ import { AllocationHero } from "../hero";
  */
 export const dynamic = "force-dynamic";
 
-const ORANGE = "#ea580c";
+const ACCENT = "#E10600";
 
 export default async function AllParticipantsPage() {
   const me = await requireUser();
@@ -65,8 +65,8 @@ export default async function AllParticipantsPage() {
             style={
               c.accent
                 ? {
-                    background: `color-mix(in srgb, ${ORANGE} 8%, transparent)`,
-                    boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ORANGE} 28%, transparent)`,
+                    background: `color-mix(in srgb, ${ACCENT} 8%, transparent)`,
+                    boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ACCENT} 28%, transparent)`,
                   }
                 : { boxShadow: "inset 0 0 0 1px var(--color-hairline)" }
             }
@@ -74,7 +74,7 @@ export default async function AllParticipantsPage() {
             <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-subtle">{c.label}</div>
             <div
               className="mt-0.5 text-[26px] font-extrabold leading-none tracking-tight"
-              style={{ color: c.accent ? "#c2410c" : "var(--color-ink-strong)" }}
+              style={{ color: c.accent ? "#A80400" : "var(--color-ink-strong)" }}
             >
               {c.value}
             </div>

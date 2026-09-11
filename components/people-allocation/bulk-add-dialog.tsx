@@ -18,7 +18,7 @@ import { bulkAddParticipants } from "@/app/(app)/people-allocation/actions";
  */
 
 const RED = "var(--color-altus-red)";
-const ORANGE = "#ea580c";
+const ACCENT = "#E10600";
 
 interface Choice {
   name: string;
@@ -139,7 +139,7 @@ export function BulkAddDialog({
               type="button"
               onClick={() => setPicked(new Set(selectable.map(key)))}
               className="text-[13px] font-bold"
-              style={{ color: ORANGE }}
+              style={{ color: ACCENT }}
             >
               Select all
             </button>
@@ -171,11 +171,11 @@ export function BulkAddDialog({
                       className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-[13.5px] ${
                         taken ? "opacity-50" : "cursor-pointer hover:bg-black/[0.03]"
                       }`}
-                      style={on ? { background: `color-mix(in srgb, ${ORANGE} 9%, transparent)` } : undefined}
+                      style={on ? { background: `color-mix(in srgb, ${ACCENT} 9%, transparent)` } : undefined}
                     >
                       <input
                         type="checkbox"
-                        className="h-4 w-4 accent-[#ea580c]"
+                        className="h-4 w-4 accent-[#E10600]"
                         checked={on}
                         disabled={taken || pending}
                         aria-label={c.name}
