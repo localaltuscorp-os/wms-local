@@ -57,12 +57,38 @@ Then open a pull request:
 `main` in one deliberate step by the owner. Pull requests opened directly
 against `main` will be re-pointed.
 
+## Keep your own handoff file
+
+**Do not edit [`HANDOFF.md`](./HANDOFF.md).** Write to your own file instead:
+
+```
+docs/handoffs/<your-name>.md        e.g. docs/handoffs/om.md
+```
+
+Keep adding to it as you work — not once at the end. Each entry needs the date,
+what changed, why, and **any SQL that has to be run before the code is
+deployed**. That last part is not optional: code arriving before its migrations
+is what took Daily Goals, attendance punch-in and sign-in down on 8 and 9
+September.
+
+`HANDOFF.md` is the owner's file. Your notes are read from `docs/handoffs/` and
+folded into its changelog after your work merges, so nothing is lost — it just
+gets merged in one direction rather than two.
+
+**Why not edit `HANDOFF.md` directly:** both sides would be appending to the
+same lines of the same file, so every pull request would conflict there, every
+time. One file per person merges cleanly no matter how many people are working
+at once. Files already written as `HANDOFF-Om.md` or `handoff_rudra.md` should
+move to the path above so they are all in one place.
+
 ## Before a pull request is considered complete
 
-- Append an entry to the changelog in [`HANDOFF.md`](./HANDOFF.md). A pull
-  request without one is incomplete — see *How to update this file* in that
-  document.
+- Your `docs/handoffs/<your-name>.md` is up to date, including any SQL to run.
 - `pnpm lint` and `pnpm typecheck` pass locally.
+- **Your branch is not stale.** `git fetch upstream && git merge upstream/main`
+  before you open it. A fork does not update itself: on 8 September a branch cut
+  six days earlier merged with zero conflicts and silently reverted four days of
+  fixes, including the password-reset repair.
 - No secrets, `.env` files, or database dumps in the diff. Check `git diff
   --stat` before pushing.
 

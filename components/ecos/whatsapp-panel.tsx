@@ -1,32 +1,64 @@
 "use client";
 
 import * as React from "react";
-import { MessageCircle, Copy, Check, ExternalLink } from "lucide-react";
-import { fireToast } from "@/lib/toast";
+import { Check, Copy, MessageCircle, PhoneOff } from "lucide-react";
+import { whatsappShareUrl } from "@/lib/reports/section-report";
 
 /**
- * MANUAL WHATSAPP — send this broadcast on WhatsApp, by hand, in one tap each.
+ * MANUAL WHATSAPP — one send link per recipient.
  *
- * WHY MANUAL AND NOT AUTOMATIC. The org's WhatsApp sending goes through the
- * Business API, where every outbound message must match a pre-registered
- * template (lib/whatsapp/templates.ts). A broadcast is free text written five
- * seconds ago, so it can never be one — there is no template to approve it
- * against, and inventing one per announcement is not a thing the API allows.
+ * "WhatsApp" is a DELIVERY CHANNEL the sender can tick on a broadcast, but the
+ * app has no automated WhatsApp transport for broadcasts: `whatsapp_manual` is
+ * exactly what its name says, a channel that a human completes. This panel is
+ * that human's tool — it turns the recipient list into pre-filled
+ * `api.whatsapp.com/send` links so the sender does not retype the message once
+ * per person, or worse, paste a different wording each time.
  *
- * So this does the honest version: it builds the message once, and gives the
- * sender a `wa.me` deep link per recipient that opens WhatsApp with the text
- * already typed. The sender presses send. Nothing is delivered without a human
- * doing it, which is also exactly what "manual WhatsApp" was asked for.
+ * ── WHY IT IS NOT A BULK SEND ──────────────────────────────────────────────
+ * There is no "send to everyone" button, because there is nothing to press it
+ * against: each link opens WhatsApp with the message pre-filled and the SENDER
+ * still presses send. That is a deliberate limit of the manual channel, not a
+ * missing feature — the app never holds a WhatsApp session and so can never
+ * claim a message was delivered when it was not. `deliveredChannels` is stamped
+ * elsewhere, by the sender marking it, for the same reason.
  *
- * People with no number on file are listed separately rather than silently
- * dropped — "I messaged everyone" should not quietly mean "everyone with a
- * phone number in the HR record".
+ * ── PHONE NUMBERS ──────────────────────────────────────────────────────────
+ * `phone` is already resolved upstream (lib/ecos/queries.ts) to the opted-in
+ * WhatsApp number, falling back to the employee's phone, and is null when
+ * neither exists. People without a number are listed SEPARATELY rather than
+ * hidden: a sender who thinks the panel covers the whole audience would other-
+ * wise quietly miss them. The parent only renders this panel when the sender
+ * actually ticked the channel, so the roster of numbers is never on screen by
+ * default.
  */
 
 export interface WhatsappTarget {
   employeeId: string;
   name: string;
   phone: string | null;
+}
+
+/**
+ * The one wording every link carries. Kept in a single function so the copy
+ * button and the per-person links can never drift apart — the failure mode
+ * being a sender who copies one text and sends another.
+ *
+ * `link` arrives as an app-relative path; it is made absolute against the
+ * CURRENT origin at click time rather than from an env var, so a message sent
+ * from staging points at staging and one sent from production points at
+ * production.
+ */
+function composeMessage(args: {
+  subject: string;
+  from: string;
+  bodyText: string;
+  link: string;
+}): string {
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const url = args.link.startsWith("http") ? args.link : `${origin}${args.link}`;
+  return [`*${args.subject}*`, "", args.bodyText.trim(), "", `From: ${args.from}`, url]
+    .join("\n")
+    .trim();
 }
 
 export function WhatsappPanel({
@@ -40,88 +72,80 @@ export function WhatsappPanel({
   subject: string;
   from: string;
   bodyText: string;
-  /** Absolute path to the broadcast, appended so they can open the full thing. */
   link: string;
 }) {
   const [copied, setCopied] = React.useState(false);
-  const [sent, setSent] = React.useState<Set<string>>(new Set());
 
-  const message = React.useMemo(() => {
-    const body = bodyText.trim().replace(/\n{3,}/g, "\n\n");
-    return [`*${subject}*`, `From: ${from}`, "", body, "", `Full message: ${link}`]
-      .join("\n")
-      .trim();
-  }, [subject, from, bodyText, link]);
+  const withPhone = React.useMemo(
+    () => targets.filter((t) => (t.phone ?? "").trim().length > 0),
+    [targets],
+  );
+  const withoutPhone = React.useMemo(
+    () => targets.filter((t) => (t.phone ?? "").trim().length === 0),
+    [targets],
+  );
 
-  const withPhone = targets.filter((t) => t.phone);
-  const withoutPhone = targets.filter((t) => !t.phone);
+  // Built on demand, not in render: `composeMessage` reads window.location, and
+  // doing that during render would differ between the server pass and hydration.
+  const message = React.useCallback(
+    () => composeMessage({ subject, from, bodyText, link }),
+    [subject, from, bodyText, link],
+  );
 
-  const copy = async () => {
+  async function copyMessage() {
     try {
-      await navigator.clipboard.writeText(message);
+      await navigator.clipboard.writeText(message());
       setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      fireToast({ message: "Couldn't copy — select the text and copy it manually.", type: "error" });
+      // Clipboard is permission-gated and fails on insecure origins. The links
+      // below still work, so a failed copy is not worth an error dialog.
+      setCopied(false);
     }
-  };
-
-  // wa.me wants digits only. A stored number may carry +, spaces or dashes.
-  const waHref = (phone: string) =>
-    `https://wa.me/${phone.replace(/[^\d]/g, "")}?text=${encodeURIComponent(message)}`;
+  }
 
   return (
-    <section className="rounded-2xl border border-hairline bg-surface-card p-5">
-      <div className="flex items-center gap-2">
-        <span
-          className="inline-flex size-8 items-center justify-center rounded-lg"
-          style={{ background: "color-mix(in srgb, #25D366 14%, white)", color: "#128C7E" }}
-        >
-          <MessageCircle size={16} strokeWidth={2.4} />
-        </span>
-        <h2 className="text-[15px] font-bold text-ink-strong">Send on WhatsApp</h2>
-      </div>
-      <p className="mt-1.5 text-[12.5px] font-medium text-ink-muted">
-        Opens WhatsApp with this message already written. You press send — nothing goes
-        out on its own.
-      </p>
-
-      <div className="mt-3 rounded-xl border border-hairline bg-surface-muted p-3">
-        <pre className="max-h-[130px] overflow-auto whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-ink-strong">
-          {message}
-        </pre>
+    <section className="rounded-card border border-line bg-surface p-4">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-[13px] font-bold uppercase tracking-[0.1em] text-ink-strong">
+            WhatsApp — send manually
+          </h3>
+          <p className="mt-0.5 text-[12px] text-ink-soft">
+            {withPhone.length} of {targets.length} recipients have a number. Each link opens
+            WhatsApp with the message ready; you still press send.
+          </p>
+        </div>
         <button
           type="button"
-          onClick={() => void copy()}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-[12px] font-bold text-ink-strong transition hover:border-hairline-strong"
+          onClick={copyMessage}
+          className="inline-flex items-center gap-1.5 rounded-pill border border-line px-3 py-1.5 text-[12px] font-bold text-ink-strong hover:bg-surface-soft"
         >
-          {copied ? <Check size={13} strokeWidth={3} className="text-emerald-600" /> : <Copy size={13} />}
+          {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
           {copied ? "Copied" : "Copy message"}
         </button>
-      </div>
+      </header>
 
       {withPhone.length > 0 && (
-        <ul className="mt-3 max-h-[260px] space-y-1 overflow-y-auto pr-1">
+        <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
           {withPhone.map((t) => (
-            <li
-              key={t.employeeId}
-              className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 odd:bg-surface-muted"
-            >
-              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink-strong" title={t.name}>
-                {t.name}
-                {sent.has(t.employeeId) && (
-                  <span className="ml-1.5 text-[11px] font-bold text-emerald-600">opened</span>
-                )}
-              </span>
+            <li key={t.employeeId}>
               <a
-                href={waHref(t.phone!)}
+                href={whatsappShareUrl(t.phone as string, message())}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => setSent((s) => new Set(s).add(t.employeeId))}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-bold text-white transition hover:brightness-110"
-                style={{ background: "#25D366" }}
+                className="flex items-center justify-between gap-3 rounded-input border border-line px-3 py-2 hover:bg-surface-soft"
               >
-                <ExternalLink size={12} strokeWidth={2.6} /> Send
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-semibold text-ink-strong">
+                    {t.name}
+                  </span>
+                  <span className="block truncate text-[11px] tabular-nums text-ink-soft">
+                    {t.phone}
+                  </span>
+                </span>
+                <MessageCircle size={16} className="shrink-0 text-ink-soft" aria-hidden />
+                <span className="sr-only">Send to {t.name} on WhatsApp</span>
               </a>
             </li>
           ))}
@@ -129,16 +153,15 @@ export function WhatsappPanel({
       )}
 
       {withoutPhone.length > 0 && (
-        <p className="mt-3 rounded-lg border border-hairline bg-surface-muted px-3 py-2 text-[12px] font-medium text-ink-muted">
-          <strong className="text-ink-strong">{withoutPhone.length}</strong>{" "}
-          {withoutPhone.length === 1 ? "recipient has" : "recipients have"} no phone number on
-          file, so there is nobody to open WhatsApp to:{" "}
-          {withoutPhone
-            .slice(0, 6)
-            .map((t) => t.name)
-            .join(", ")}
-          {withoutPhone.length > 6 ? `, +${withoutPhone.length - 6} more` : ""}.
-        </p>
+        <div className="mt-3 rounded-input border border-line bg-surface-soft px-3 py-2">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-soft">
+            <PhoneOff size={13} aria-hidden />
+            No number on file — reach these {withoutPhone.length} another way
+          </p>
+          <p className="mt-1 text-[12px] text-ink-soft">
+            {withoutPhone.map((t) => t.name).join(", ")}
+          </p>
+        </div>
       )}
     </section>
   );
