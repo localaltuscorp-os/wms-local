@@ -133,22 +133,18 @@ export default async function KanbanPage({ searchParams }: PageProps) {
                 "linear-gradient(90deg, var(--color-altus-red), var(--color-altus-red-deep) 55%, transparent)",
             }}
           />
-          <header className="wg-rise relative mb-4 flex items-center justify-center">
-            <h1
-              className="text-ink-strong"
-              style={{
-                fontFamily: "var(--font-display), system-ui, sans-serif",
-                fontWeight: 900,
-                fontSize: "clamp(24px, 2.6vw, 32px)",
-                letterSpacing: "-0.025em",
-                lineHeight: 1,
-              }}
-            >
-              Kanban View
-            </h1>
+          {/* The "Kanban View" heading that used to be centred here is gone —
+              the top bar already says "Kanban" on this route.
+
+              With it gone the row is `justify-end` and the link is IN FLOW.
+              It was absolutely positioned only to escape the centred heading;
+              left as-is it would have been a floating button over an empty
+              header, and `absolute` inside a row with nothing else in it has no
+              height to be centred against. */}
+          <header className="wg-rise relative mb-4 flex items-center justify-end">
             <Link
               href={"/tasks" as Route}
-              className="wg-btn absolute right-0 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-4 h-9 text-[13.5px] font-bold text-ink-soft hover:text-ink-strong hover:border-hairline-strong transition-colors"
+              className="wg-btn inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-4 h-9 text-[13.5px] font-bold text-ink-soft hover:text-ink-strong hover:border-hairline-strong transition-colors"
               style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04)" }}
             >
               List View →

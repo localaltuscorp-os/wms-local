@@ -930,6 +930,9 @@ export function PlanBoard({ target, payload, dashboardHref, quickDock }: Props) 
     <DayReview
           phase={phase}
           items={days.find((d) => d.offset === 0)?.items ?? []}
+          // The day being reviewed — the duplicate picker opens on it, the same
+          // way the planner card's picker opens on the day its card sits in.
+          dayYmd={days.find((d) => d.offset === 0)?.ymd ?? ""}
           onBackToPlan={() => {
             setAdjusting(false);
             setPhase("plan");
@@ -942,7 +945,10 @@ export function PlanBoard({ target, payload, dashboardHref, quickDock }: Props) 
           onPending={onPending}
           onTransfer={onTransfer}
           onDuplicate={onDuplicate}
-          onRemove={onRemove}
+          // The review row's × means "not today", so it parks the row in
+          // UNFINISHED rather than sending it to the Recycle Bin. Same handler
+          // the Pending button uses; the board's own × (onRemove) is unchanged.
+          onRemove={onPending}
       onAddCommitment={(title, time) => void onAddCommitment(0, title, time)}
       busyId={busyId}
     />
@@ -1115,21 +1121,12 @@ function PlannerBar({
   const reportsTo = [hierarchy.manager, hierarchy.managerManager].filter(Boolean) as string[];
   return (
     <div className="mb-2 flex flex-nowrap items-center gap-x-3">
-      {/* The page title lives HERE, not on a row of its own: the eyebrow badge +
-          title + controls used to cost three stacked rows before any work was
-          visible. One bar carries all of it now. */}
-      <h1
-        className="shrink-0 text-ink-strong"
-        style={{
-          fontFamily: "var(--font-display), system-ui, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(17px, 1.5vw, 20px)",
-          letterSpacing: "-0.025em",
-          lineHeight: 1.1,
-        }}
-      >
-        Daily Goals &amp; Commitments
-      </h1>
+      {/* NO TITLE HERE. The global top bar already names this page — it said
+          "Daily Goals" while this row said "Daily Goals & Commitments" directly
+          underneath, which is the same page named twice. The bar's name is the
+          one that is on every screen in every module, so it is the one that
+          stays; this row is now controls only, and they start at the left edge
+          instead of after a heading. */}
       {/* WHOSE day. The caption is gone — the selected name says it, and the
           "Reports to …" line beside it gives the org context (rule 9). */}
       {target.roster.length > 1 ? (

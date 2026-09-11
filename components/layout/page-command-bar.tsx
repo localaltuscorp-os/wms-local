@@ -27,12 +27,28 @@ import type { ReactNode } from "react";
  */
 export function PageCommandBar({
   title,
+  titleInTopBar = false,
   hint,
   actions,
   toolbar,
   className = "",
 }: {
   title: string;
+  /**
+   * Drop the title from the bar because the app's TOP BAR already says it.
+   *
+   * OPT-IN, not the default, and deliberately so. This component is on ~70
+   * pages across every module, and plenty of them sit on routes the rail has no
+   * entry for — `navTitleFor` returns null there and the top bar falls back to
+   * the module label, so silently hiding every title would replace a page's real
+   * name with "Accounts" or "HR" on all of them. A page passes this when its
+   * own title genuinely is the word already in the bar above it.
+   *
+   * `hint` and `actions` are unaffected: with the title gone the hint takes the
+   * flex space and the row still reads left-to-right as helper text then
+   * controls, rather than leaving a hole where the heading was.
+   */
+  titleInTopBar?: boolean;
   /** Compact helper text, inline to the RIGHT of the title. Keep it to a line. */
   hint?: ReactNode;
   /** Right-aligned controls on the HEADER row: pickers, steppers, primary buttons. */
@@ -65,18 +81,20 @@ export function PageCommandBar({
             the hint read as a trailing clause of the title rather than a second
             heading parked beside it. */}
         <div className="flex min-w-[200px] flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-          <h1
-            style={{
-              fontFamily: "var(--font-display), system-ui, sans-serif",
-              fontWeight: 800,
-              color: "var(--color-ink-strong)",
-              fontSize: "clamp(22px, 2vw, 32px)",
-              letterSpacing: "-0.03em",
-              lineHeight: 1.02,
-            }}
-          >
-            {title}
-          </h1>
+          {!titleInTopBar && (
+            <h1
+              style={{
+                fontFamily: "var(--font-display), system-ui, sans-serif",
+                fontWeight: 800,
+                color: "var(--color-ink-strong)",
+                fontSize: "clamp(22px, 2vw, 32px)",
+                letterSpacing: "-0.03em",
+                lineHeight: 1.02,
+              }}
+            >
+              {title}
+            </h1>
+          )}
           {hint && (
             <p className="text-[12.5px] font-medium leading-snug text-ink-muted">
               {hint}

@@ -8,6 +8,7 @@ import { MODULE_THEME, MODULE_ORDER, moduleShortcut, type ModuleTheme } from "@/
 import { EnterWorkspaceLink } from "@/components/hub/enter-workspace-link";
 import { UserMenuServer } from "@/components/header/user-menu-server";
 import { ModuleLogo } from "@/components/hub/module-logos";
+import { ModuleShortcuts as HubLetterShortcuts } from "@/components/hub/module-shortcuts";
 import { GlobalSearch } from "@/components/header/global-search";
 import type { ReactNode } from "react";
 import { isManagerWithReports, managerDailyTaskGate } from "@/lib/manager-gates";
@@ -45,18 +46,18 @@ export const dynamic = "force-dynamic";
  * in-module accent exactly as they were.
  *
  * TWO COLOURS PER MODULE, and no more (Sir, 2026-08): one light BACKGROUND and
- * one PRIMARY. Primary carries the title, tagline, glyph, shortcut badge and the
- * Enter button; background fills the card. `from`/`to` are held at the same value
+ * one PRIMARY. Primary carries the title, glyph, shortcut badge and the Enter
+ * button; background fills the card. `from`/`to` are held at the same value
  * so the card renders FLAT — the gradient stops are identical, which keeps the
  * existing `linear-gradient` code path without producing a gradient.
  *
  * `inkSoft` is deliberately equal to `ink` rather than a lighter step. A third
  * tone per module is exactly the "additional decorative colour" the brief rules
- * out, and the primaries are dark enough to stay readable at the tagline's
- * 12.5px on these backgrounds.
+ * out. It is now unused on the card itself (the tagline it coloured is gone) and
+ * is kept only so the two-value shape of this table stays uniform.
  *
- * WMS IS UNTOUCHED — the brand's own card keeps its red, its two-stop gradient
- * and its softer tagline tone. It is the one module whose entry must not change.
+ * WMS IS UNTOUCHED — the brand's own card keeps its red and its two-stop
+ * gradient. It is the one module whose entry must not change.
  */
 const HUB_PASTEL: Record<WorkspaceId, { from: string; to: string; ink: string; inkSoft: string }> = {
   wms:       { from: "#FEE2E2", to: "#FECACA", ink: "#B91C1C", inkSoft: "#DC2626" }, // red (unchanged)
@@ -69,7 +70,7 @@ const HUB_PASTEL: Record<WorkspaceId, { from: string; to: string; ink: string; i
   training:     { from: "#F5E0E9", to: "#F5E0E9", ink: "#C32968", inkSoft: "#C32968" }, // 8 · berry
   employees:    { from: "#DDF1E2", to: "#DDF1E2", ink: "#16803C", inkSoft: "#16803C" }, // 9 · forest green
   events:       { from: "#D9F1F5", to: "#D9F1F5", ink: "#167C91", inkSoft: "#167C91" }, // 0 · cyan/teal
-  // Not rendered on the hub (MODULE_ORDER carries `admin` at position 7), but it
+  // Not rendered on the hub (MODULE_ORDER carries `admin`, at Alt+I), but it
   // shadows that card's identity so the pair never disagrees if it is ever shown.
   accounts:     { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B", inkSoft: "#315A9B" },
   // Hand-holding — orange, the module's own accent (lib/module-theme).
@@ -104,13 +105,18 @@ function WorkspaceCard({ m, locked, i }: { m: ModuleTheme; locked: boolean; i: n
 
       {/* Keyboard-shortcut badge — deliberately quiet: it is a hint, not a
           heading, so it sits in the corner at a fraction of the title's weight
-          and never competes with the module name. `aria-hidden` because the
-          number is announced once, in the link's own label, rather than as a
-          stray digit before every card. */}
+          and never competes with the module name. `aria-hidden` because the key
+          is announced once, in the link's own label, rather than as a stray
+          letter before every card.
+
+          A BARE letter, with no "Alt+" in front, and that is accurate rather
+          than shorthand: HubLetterShortcuts below makes the unmodified key work
+          on this page. Inside a module the same shortcut needs Alt, and the
+          footer dock badges it as "⌥Q" there for exactly that reason. */}
       {shortcut && (
         <span
           aria-hidden
-          className="pointer-events-none absolute left-3 top-3 z-10 inline-flex size-[22px] items-center justify-center rounded-md text-[12px] font-bold tabular-nums"
+          className="pointer-events-none absolute left-3 top-3 z-10 inline-flex size-[22px] items-center justify-center rounded-md text-[12px] font-bold"
           style={{ background: "rgba(255,255,255,0.55)", color: p.ink }}
         >
           {shortcut}
@@ -124,17 +130,15 @@ function WorkspaceCard({ m, locked, i }: { m: ModuleTheme; locked: boolean; i: n
           <h3 className="text-[22px] font-extrabold leading-none tracking-tight max-md:text-[20px]" style={{ color: p.ink }}>
             {m.label}
           </h3>
-          {/* Cards grow to fit (min-h + grid stretch equalises the row), so the
-              full tagline shows without ever being clipped mid-line.
-
-              The WMS branch removed this on 2026-09-08 to fit the grid on one
-              screen; restored 2026-09-09 at the account holder's request. The
-              tagline is what tells someone which workspace they want before
-              they have learned the eleven glyphs, so a hub that scrolls is the
-              cheaper cost. */}
-          <p className="mt-1.5 line-clamp-3 text-[12.5px] font-medium leading-snug" style={{ color: p.inkSoft }}>
-            {m.tagline}
-          </p>
+          {/* NO TAGLINE. The one-line description under each title was removed
+              at the account holder's request (2026-09-10) — the third such
+              round trip on this element, so the reasoning is worth writing
+              down rather than re-litigating: the glyph, the colour and the name
+              are what people navigate by once they know the place, and twelve
+              paragraphs of prose is what was making the hub scroll. The copy
+              itself still lives on `ModuleTheme.tagline`, which the module
+              landings read, so nothing had to be deleted to take it off this
+              card. */}
           {locked ? (
             <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-pill bg-black/10 px-3 py-1 text-[12.5px] font-bold" style={{ color: p.ink }}>
               <Lock size={13} strokeWidth={2.5} /> No Access
@@ -151,9 +155,10 @@ function WorkspaceCard({ m, locked, i }: { m: ModuleTheme; locked: boolean; i: n
   );
 
   const base =
-    // Back to 236px alongside the restored tagline: 176px was sized for a card
-    // with no prose under the title, and it clips the third line.
-    "wg-rise group relative block h-full min-h-[236px] overflow-hidden rounded-[28px] shadow-md max-md:min-h-[204px]";
+    // 176px is the height for a card with no prose under the title — it was
+    // 236px only to fit the three-line tagline that is now gone, and leaving it
+    // there would have left every card two-thirds empty.
+    "wg-rise group relative block h-full min-h-[176px] overflow-hidden rounded-[28px] shadow-md max-md:min-h-[156px]";
   const bg = { background: `linear-gradient(145deg, ${p.from}, ${p.to})` };
 
   if (locked) {
@@ -220,10 +225,21 @@ export default async function HubPage() {
 
   return (
     <main
-      className="flex min-h-[100dvh] w-full flex-col"
+      // `flex-1`, NOT `min-h-[100dvh]`. ChromeShell already wraps this in a
+      // `flex min-h-dvh flex-col pb-10` column, so a full viewport height
+      // demanded HERE stacked on top of that padding and made the page
+      // 100dvh + 40px — every hub had a scrollbar with 40px of nothing under
+      // it, whatever the grid did. Growing to fill the column instead lets the
+      // gradient still reach the bottom of the screen with no overflow.
+      className="flex w-full flex-1 flex-col"
       style={{ background: "linear-gradient(180deg, #f6f7f9 0%, #fbfbfc 38%, #ffffff 100%)" }}
     >
-      <div className="mx-auto flex w-full max-w-[1140px] flex-col px-8 py-6 max-md:px-5 max-md:py-5">
+      {/* `flex-1` so this column owns the whole viewport height. The HERO
+          STAYS PUT at the top of it — logo, welcome, search and avatar are the
+          page's identity band and the account holder asked for them left
+          exactly where they are — and the CARD GRID below takes all the slack
+          and centres itself in it (see the `my-auto` on the section). */}
+      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col px-8 py-6 max-md:px-5 max-md:py-5">
         {/* ONE BAND — logo (extreme left) · welcome hero (page-centered) · Hi over
             Sign out (right). Both side clusters are flex-1 so the centre block is
             truly centered on the page regardless of their differing widths. */}
@@ -265,31 +281,61 @@ export default async function HubPage() {
           </div>
         </header>
 
-        {/* Workspace grid. On xl the 5-wide grid fills the viewport; below xl it
-            flows into fewer columns (3s on lg, so a row never ends in a single
-            orphan card) and the page scrolls.
+        {/* Workspace grid — SIX ACROSS on xl, which is the whole point of the
+            column count: there are exactly twelve modules, so six per row is
+            2 × 6 and the entire hub is on screen with nothing to scroll to.
+            Five gave 5 · 5 · 2 and pushed the last row below the fold on a
+            laptop; four (the WMS branch's) was worse again.
 
-            Restored 2026-09-09 from the WMS branch's four-per-row. The reason
-            given for four was that five left HandHolding alone on the last row
-            — with Project added there are twelve modules, so five now reads
-            5 · 5 · 2 and the orphan that motivated the change is gone. */}
+            The wrapper above widened from 1140px to 1440px in the same change.
+            Six cards inside 1140 are ~173px wide, which is too narrow for
+            "Monthly Events Master" — and that cap was leaving a quarter of a
+            wide screen empty on either side anyway.
+
+            Below xl it steps down 4 → 3 → 2 → 1 rather than jumping, so a row
+            never ends in a single orphan card at any width. Those narrower
+            layouts do scroll; that is the correct trade at a size where six
+            cards cannot be read. */}
+        {/* THE GRID STARTS DIRECTLY UNDER THE HERO, at a fixed 80px.
+
+            It was `my-auto`, which split the leftover height evenly above and
+            below — measured at 1536x880 that put 173px of nothing between
+            "Choose your workspace to get started" and the first row of cards,
+            so the two halves of the page read as unrelated. The account holder
+            marked the line the modules should begin on; 80px under a header
+            that ends at y=125 puts the first card there.
+
+            A plain top margin, not `justify-start` on the parent: when the grid
+            is TALLER than the space (a narrow window, where it steps down to
+            one or two columns) this simply scrolls from the top, which is the
+            correct behaviour at a size where six cards cannot be read.
+
+            The slack now pools BELOW the cards instead of being split. That is
+            the deliberate trade for a hero and a grid that sit together. */}
         <section
-          className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+          className="mt-20 grid grid-cols-1 gap-5 max-md:mt-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
           aria-label="Workspaces"
         >
           {/* A workspace you can't enter is HIDDEN, not shown greyed as "No
               Access" (Sir 2026-08) — a normal doer only sees the modules that are
-              actually theirs. The card keeps its CANONICAL index so its number
-              badge still matches the global 1–9/0 keyboard shortcut (which is
-              stable per module in the layout), even with some cards hidden. */}
+              actually theirs. The card keeps its CANONICAL index so its letter
+              badge still matches the global Alt+letter shortcut (which is stable
+              per module in the layout), even with some cards hidden. */}
           {MODULE_ORDER.filter((id) => canAccessWorkspace(id, access)).map((id) => (
             <WorkspaceCard key={id} m={MODULE_THEME[id]} locked={false} i={MODULE_ORDER.indexOf(id)} />
           ))}
         </section>
 
-        {/* The number-row shortcuts (1–9, 0) that these cards badge are no
-            longer mounted here — they live in `(app)/layout.tsx` so the same
-            digits work from inside a module, not only on this page. */}
+        {/* BARE-LETTER shortcuts, hub only — pressing Q opens WMS. This is the
+            listener that makes the corner badges above true: they show "Q", not
+            "Alt+Q", because on this page a bare Q is what works.
+
+            The layout ALSO mounts its own Alt+letter listener, on every route
+            including this one, so Alt+Q works here too and the same keys keep
+            working once you are inside a room (where a bare letter is typing
+            and must not navigate). The two split cleanly on the modifier — see
+            the note in components/hub/module-shortcuts.tsx. */}
+        <HubLetterShortcuts allowed={MODULE_ORDER.filter((id) => canAccessWorkspace(id, access))} />
       </div>
     </main>
   );

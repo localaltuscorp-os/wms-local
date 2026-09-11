@@ -6,7 +6,7 @@
  *   - ⌘K command palette         → components/header/global-search.tsx
  *   - N new task                 → components/tasks/new-task-dialog.tsx
  *   - J/K/Enter/F task-list nav  → components/tasks/task-table.tsx
- *   - 1–9 / 0 module switching   → components/layout/module-shortcuts.tsx
+ *   - Alt+Q…Alt+S module switch  → components/layout/module-shortcuts.tsx
  */
 import { MODULE_ORDER, MODULE_THEME, moduleShortcut } from "@/lib/module-theme";
 
@@ -60,13 +60,17 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   },
   {
     title: "Modules",
-    // DERIVED from MODULE_ORDER, not typed out: the digits, the hub card
+    // DERIVED from MODULE_ORDER, not typed out: the letters, the hub card
     // badges, the footer prefixes and the key handler all read that one list,
     // so re-ordering the modules updates this sheet in the same commit instead
     // of leaving it describing last month's arrangement.
+    //
+    // Two <kbd>s rather than the "Alt+Q" string the footer shows: this sheet
+    // renders each entry as its own key cap, which is what a chord looks like
+    // here (see ["⌘","K"] above).
     rows: MODULE_ORDER.flatMap((id, i) => {
       const key = moduleShortcut(i);
-      return key ? [{ keys: [key], description: `Open ${MODULE_THEME[id].label}` }] : [];
+      return key ? [{ keys: ["Alt", key], description: `Open ${MODULE_THEME[id].label}` }] : [];
     }),
   },
 ];

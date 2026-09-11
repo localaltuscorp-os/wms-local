@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { LayoutGrid, CheckCircle2, X } from "lucide-react";
+import { PageTitle } from "@/components/layout/page-title";
 import { TaskTable } from "./task-table";
 import { SectionErrorBoundary } from "@/components/ui/section-error-boundary";
 import { TaskDetailDrawer } from "./task-detail-drawer";
@@ -331,16 +332,15 @@ export function TaskListPage({
 
       <header className="wg-rise relative mb-3 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-x-4 gap-y-2 flex-wrap min-w-0">
-          <h1
-            /* `page-heading` (app/globals.css) — the display face at 900 and
-               the shared size ramp, black. The ramp that used to sit inline
-               here travelled into that class unchanged; the brand red and
-               the sheen belong to the chrome (the rail's wordmark and the
-               top bar), not to the page body. */
-            className="page-heading shrink-0"
-          >
-            {title}
-          </h1>
+          {/* THE NAME GOES TO THE TOP BAR, not here. It used to be a black
+              `page-heading` at the head of this row, directly under a top bar
+              already showing the same word — "Tasks" over "Tasks".
+
+              Portaled rather than simply deleted because this component also
+              serves `/archived`, which has no rail entry: `navTitleFor` returns
+              null there and the bar falls back to the module label, so deleting
+              the heading outright would have turned "Archived" into "WMS". */}
+          <PageTitle title={title} />
           {/* KPI stat chips — inline. Clickable ones toggle the matching
               status/priority filter; `notRead` is display-only. */}
           <div className="flex flex-wrap items-center gap-1.5">

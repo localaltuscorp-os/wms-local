@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
-import { MODULE_ORDER, MODULE_THEME, moduleShortcut } from "@/lib/module-theme";
+import { MODULE_ORDER, MODULE_THEME, moduleShortcutHint, moduleShortcutLabel } from "@/lib/module-theme";
 import { canAccessWorkspace, workspaceForPath } from "@/lib/workspaces";
 
 /**
@@ -139,24 +139,23 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
           const m = MODULE_THEME[id];
           const allowed = canAccessWorkspace(id, access);
           const Icon = m.Icon;
-          const shortcut = moduleShortcut(i);
+          const shortcut = moduleShortcutHint(i);
+          // The badge is the compact "⌥Q"; the hover says it in words.
+          const shortcutLabel = moduleShortcutLabel(i);
           const active = activeWs === id;
 
           const inner = (
             <>
               <Icon size={15} strokeWidth={2.3} aria-hidden />
-              {/* The same digit the hub badges show, so the shortcut is learnable
-                  from whichever surface you happen to be looking at. Dimmer than
-                  the label — a hint, not a heading — and aria-hidden so the row
-                  does not read as "one W M S two Goals".
-                  The ⌃ prefix is not decoration: the digit alone no longer
-                  navigates (it was colliding with typing), so a bare "1" here
-                  would now be advertising a shortcut that does nothing. */}
-              {shortcut && (
-                <span aria-hidden className="tabular-nums opacity-55">
-                  ⌃{shortcut}
-                </span>
-              )}
+              {/* The same letter the hub badges show, so the shortcut is
+                  learnable from whichever surface you happen to be looking at.
+                  Dimmer than the label — a hint, not a heading — and aria-hidden
+                  so the row does not read as "Alt Q W M S Alt W Goals".
+                  The ⌥ prefix is not decoration: the letter alone does not
+                  navigate (it would collide with typing), so a bare "Q" here
+                  would be advertising a shortcut that does nothing. The glyph
+                  is spelled out as "Alt+Q" in this entry's hover title. */}
+              {shortcut && <span aria-hidden className="opacity-55">{shortcut}</span>}
               <span className="whitespace-nowrap">{m.label}</span>
             </>
           );
@@ -181,7 +180,7 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
             <Link
               key={id}
               href={m.href}
-              title={shortcut ? `${m.label} — Ctrl+${shortcut} (or Alt+${shortcut})` : m.label}
+              title={shortcutLabel ? `${m.label} — ${shortcutLabel}` : m.label}
               aria-current={active ? "page" : undefined}
               // Resting state is a dark neutral so ten labels do not glare on the
               // light glass; the module's own accent appears on hover/focus, and
