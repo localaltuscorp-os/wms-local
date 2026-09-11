@@ -2,19 +2,26 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Send, Archive, PauseCircle, Loader2, type LucideIcon } from "lucide-react";
+import type { Route } from "next";
+import { Send, Archive, ArchiveRestore, PauseCircle, Copy, Loader2, type LucideIcon } from "lucide-react";
 import {
   resendToUnread,
   archiveBroadcast,
+  unarchiveBroadcast,
   pauseBroadcast,
+  duplicateBroadcast,
 } from "@/app/(app)/hr/communications/actions";
 import { fireToast } from "@/lib/toast";
 
 /**
- * Author lifecycle controls on the read view's analytics panel: Resend to
- * unread, Pause, Archive. Each is HR-gated inside its server action; this is a
- * thin, keyboard-accessible client wrapper (transition spinner + toast +
- * refresh). Archive/Pause confirm first — they change what recipients see.
+ * Author lifecycle controls on the read view's analytics panel: Duplicate,
+ * Resend to unread, Pause, and Archive (or Restore, once archived).
+ *
+ * Each is authorised inside its server action against the broadcast's AUTHOR
+ * (or a broadcast admin) — this is a thin, keyboard-accessible client wrapper
+ * around them: transition spinner, toast, refresh. Archive and Pause confirm
+ * first, because they change what recipients see; Duplicate and Restore do not,
+ * because neither takes anything away.
  */
 export function AdminActions({
   broadcastId,
@@ -26,11 +33,13 @@ export function AdminActions({
   pendingCount: number;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = React.useState<null | "resend" | "pause" | "archive">(null);
+  const [busy, setBusy] = React.useState<
+    null | "resend" | "pause" | "archive" | "duplicate"
+  >(null);
 
+  const archived = status === "archived";
   const canPause = status === "published";
   const canResend = status === "published" && pendingCount > 0;
-  const canArchive = status !== "archived";
 
   const doResend = () => {
     if (busy) return;
@@ -54,18 +63,58 @@ export function AdminActions({
     })();
   };
 
+  const doDuplicate = () => {
+    if (busy) return;
+    setBusy("duplicate");
+    void (async () => {
+      try {
+        const res = await duplicateBroadcast(broadcastId);
+        if (!res.ok) {
+          fireToast({ message: res.error, type: "error" });
+          return;
+        }
+        fireToast({ message: "Copied to a new draft.", type: "success" });
+        router.push(`/communications/compose?draft=${res.id}` as Route);
+      } catch {
+        fireToast({ message: "Couldn't duplicate.", type: "error" });
+      } finally {
+        setBusy(null);
+      }
+    })();
+  };
+
   const doLifecycle = (kind: "pause" | "archive") => {
     if (busy) return;
-    const label = kind === "pause" ? "Pause this broadcast?" : "Archive this broadcast?";
-    if (!window.confirm(label)) return;
+    // Restoring gives something back, so it needs no confirmation; pausing and
+    // archiving take a live message away from people, so they do.
+    const restoring = kind === "archive" && archived;
+    if (!restoring) {
+      const label =
+        kind === "pause"
+          ? "Pause this broadcast?"
+          : "Archive this broadcast? Read receipts are kept.";
+      if (!window.confirm(label)) return;
+    }
     setBusy(kind);
     void (async () => {
       try {
-        const res = kind === "pause" ? await pauseBroadcast(broadcastId) : await archiveBroadcast(broadcastId);
+        const res =
+          kind === "pause"
+            ? await pauseBroadcast(broadcastId)
+            : restoring
+              ? await unarchiveBroadcast(broadcastId)
+              : await archiveBroadcast(broadcastId);
         if (!res.ok) {
           fireToast({ message: res.error ?? `Couldn't ${kind}.`, type: "error" });
         } else {
-          fireToast({ message: kind === "pause" ? "Broadcast paused." : "Broadcast archived.", type: "success" });
+          fireToast({
+            message: kind === "pause"
+              ? "Broadcast paused."
+              : restoring
+                ? "Broadcast restored."
+                : "Broadcast archived.",
+            type: "success",
+          });
         }
         router.refresh();
       } catch {
@@ -94,11 +143,18 @@ export function AdminActions({
         disabled={!canPause || busy !== null}
       />
       <ActionBtn
-        Icon={Archive}
-        label="Archive"
+        Icon={Copy}
+        label="Duplicate"
+        onClick={doDuplicate}
+        loading={busy === "duplicate"}
+        disabled={busy !== null}
+      />
+      <ActionBtn
+        Icon={archived ? ArchiveRestore : Archive}
+        label={archived ? "Restore" : "Archive"}
         onClick={() => doLifecycle("archive")}
         loading={busy === "archive"}
-        disabled={!canArchive || busy !== null}
+        disabled={busy !== null}
       />
     </div>
   );

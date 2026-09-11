@@ -5810,6 +5810,10 @@ export const broadcasts = pgTable(
     escalateToManager: boolean("escalate_to_manager").notNull().default(false),
     // Optional inline poll / quiz (0180). See BroadcastPoll.
     poll: jsonb("poll").$type<BroadcastPoll | null>(),
+    // Flash this as a centre-screen modal in the app (0215). Default ON — a
+    // broadcast is meant to be seen; turn it off for a low-priority FYI that
+    // should only land in the inbox + email.
+    popup: boolean("popup").notNull().default(true),
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -5842,11 +5846,20 @@ export const broadcastRecipients = pgTable(
     // Reminder / escalation tracking (0180).
     lastRemindedAt: timestamp("last_reminded_at", { withTimezone: true }),
     reminderCount: integer("reminder_count").notNull().default(0),
+    // Popup snooze (0215). Closing the centre-screen popup with its X snoozes
+    // it: `snoozeSession` holds the browser-session id it was dismissed in, and
+    // the popup returns the moment the current session id differs — i.e. at the
+    // recipient's next login. `snoozeCount` is how many times they waved it away.
+    snoozedAt: timestamp("snoozed_at", { withTimezone: true }),
+    snoozeSession: text("snooze_session"),
+    snoozeCount: integer("snooze_count").notNull().default(0),
+    popupSeenAt: timestamp("popup_seen_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex("broadcast_recipient_uq").on(t.broadcastId, t.employeeId),
     index("broadcast_recipient_emp_idx").on(t.employeeId, t.status),
+    index("broadcast_recipient_popup_idx").on(t.employeeId, t.status, t.snoozedAt),
   ],
 );
 export type BroadcastRecipient = typeof broadcastRecipients.$inferSelect;

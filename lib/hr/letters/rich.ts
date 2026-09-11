@@ -29,7 +29,7 @@
 import { formatDateHr } from "@/lib/format";
 import { getEntity, type Entity, type EntityId } from "@/lib/hr/entities";
 import { applyPronouns, type Gender } from "@/lib/hr/pronouns";
-import { applyFirm, HR_CONTACT, HR_SIGNATORY, HR_SIGNATURE_IMAGE } from "@/lib/hr/firm";
+import { applyFirm, HR_CONTACT, HR_SIGNATORY, HR_SIGNATURE_IMAGE, PROPRIETOR_SIGNATURE_IMAGE } from "@/lib/hr/firm";
 import {
   type LetterTemplate,
   type Block,
@@ -186,7 +186,10 @@ function blockToHtml(
       // applied - the letter went out with a typed placeholder where a mark
       // belonged. Now the mark is real, and the placeholder is only a fallback
       // for non-HR blocks that have no image of their own.
-      const mark = baked ?? (isHr ? HR_SIGNATURE_IMAGE : null);
+      // The standing signature for whoever signs. The Director branch used to
+      // be `null`, so opening a Director letter in "Edit freely" dropped Manan's
+      // signature and left "(E-Sign)" or a blank line where the mark belonged.
+      const mark = baked ?? (isHr ? HR_SIGNATURE_IMAGE : PROPRIETOR_SIGNATURE_IMAGE);
       if (mark) lines.push(`<p><img src="${esc(mark)}" alt="Signature" style="height:46px" /></p>`);
       else if (block.esign) lines.push(`<p>(E-Sign)</p>`);
       else lines.push("<p><br></p>");
@@ -239,9 +242,13 @@ export function templateToRichHtml(
   values: Record<string, string>,
   entity?: EntityId | Entity | string | null,
   gender: Gender = "neutral",
+  /** WHO signs, when HR picked explicitly in the editor. Omitted → the
+   *  template's own rule via {@link signatoryOf}. Threaded so a free-edit seed
+   *  carries the same sign-off the structured preview showed. */
+  signatoryOverride?: LetterSignatory,
 ): string {
   const resolved = getEntity(entity ?? template.entityDefault ?? null);
-  const signatory = signatoryOf(template);
+  const signatory = signatoryOverride ?? signatoryOf(template);
   const vals = values ?? {};
   const blocks = template.blocks;
 

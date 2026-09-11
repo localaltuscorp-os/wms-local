@@ -32,6 +32,7 @@ import { dccGateTarget, dccManagerReviewState } from "@/lib/dcc/gate";
 import { DccGateView } from "@/components/dcc/dcc-gate-view";
 import { DccManagerReviewGate } from "@/components/dcc/dcc-manager-review-gate";
 import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
+import { BroadcastPopup } from "@/components/ecos/broadcast-popup";
 import { pendingLockBroadcastForEmployee } from "@/lib/ecos/queries";
 import { BroadcastLockGate } from "@/components/communications/broadcast-lock-gate";
 
@@ -280,6 +281,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           complete. See lib/auth/dev-bypass.ts. */}
       {devAuthBypassEnabled() ? null : <IdleTimerClient timeoutMinutes={15} />}
       <OnboardingNudge />
+      {/* Broadcasts (0215) — a published broadcast flashes as a centre-screen
+          popup within ~5s of being sent, on whatever page the recipient is on.
+          Mounted here, AFTER the gate chain's early returns, so it can never
+          appear stacked on top of a daily ritual or the app-lock takeover; it
+          polls client-side and draws nothing until there is one to show. */}
+      <BroadcastPopup />
       {/* The app's ONE New Task dialog, mounted above ChromeShell so it exists
           on every (app) route — including the hub and the full-screen HR
           surfaces, neither of which renders a sidebar. It draws nothing; the

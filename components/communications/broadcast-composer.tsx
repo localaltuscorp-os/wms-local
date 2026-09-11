@@ -46,6 +46,9 @@ import {
   FileText,
   Search,
   Check,
+  MessageCircle,
+  ImagePlus,
+  Film,
 } from "lucide-react";
 import {
   BROADCAST_CATEGORIES,
@@ -182,6 +185,7 @@ export interface ComposerDraft {
   poll?: BroadcastPoll | null;
   reminderAfterDays?: number | null;
   escalateToManager?: boolean;
+  popup?: boolean;
 }
 
 export interface BroadcastComposerProps {
@@ -191,6 +195,18 @@ export interface BroadcastComposerProps {
   draft?: ComposerDraft | null;
   segments?: SegmentRow[];
   templates?: BroadcastTemplate[];
+  /**
+   * The signed-in person's own name — the default value of the FROM field, so a
+   * broadcast says who actually sent it instead of defaulting every message in
+   * the company to "Altus HR".
+   */
+  myName?: string;
+  /**
+   * Whether this sender may raise the app-lock gate (broadcast admins only —
+   * see lib/ecos/permissions.ts). The server refuses it either way; hiding the
+   * switch is so nobody sets it, saves, and is told no.
+   */
+  canAppLock?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -208,6 +224,36 @@ function escapeHtml(s: string): string {
 function toLocalInput(d: Date): string {
   const off = d.getTimezoneOffset() * 60000;
   return new Date(d.getTime() - off).toISOString().slice(0, 16);
+}
+
+/**
+ * Does this attachment play INSIDE the broadcast (image / video) rather than
+ * hang off it as a download? Mirrors `mediaKind` in lib/ecos/labels.ts — kept
+ * as a tiny local copy because that module is server-side and this file is a
+ * client component.
+ */
+function isInlineMedia(a: BroadcastAttachment): boolean {
+  const mime = (a.mime ?? "").toLowerCase();
+  if (mime.startsWith("image/") || mime.startsWith("video/")) return true;
+  return /\.(png|jpe?g|gif|webp|avif|bmp|svg|mp4|webm|ogg|ogv|mov|m4v)(\?|#|$)/i.test(a.path);
+}
+
+/** Is this an image (as opposed to a video), for choosing the preview element? */
+function isImageAttachment(a: BroadcastAttachment): boolean {
+  const mime = (a.mime ?? "").toLowerCase();
+  if (mime.startsWith("image/")) return true;
+  if (mime.startsWith("video/")) return false;
+  return /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|#|$)/i.test(a.path);
+}
+
+/**
+ * Can the composer show this image right now? Only a pasted http(s) link can be
+ * previewed before the broadcast is saved — an uploaded object lives in a
+ * private bucket and has no URL until the server signs one, so it shows its
+ * name and type instead of a broken image.
+ */
+function isPreviewableImage(a: BroadcastAttachment): boolean {
+  return /^https?:\/\//i.test(a.path) && isImageAttachment(a);
 }
 
 /** Convert a plain-text AI reply into simple paragraph HTML for the editor. */
@@ -235,6 +281,8 @@ export function BroadcastComposer({
   draft,
   segments = [],
   templates = [],
+  myName = "",
+  canAppLock = false,
 }: BroadcastComposerProps) {
   const router = useRouter();
 
@@ -254,13 +302,26 @@ export function BroadcastComposer({
   const [authorIdentity, setAuthorIdentity] = useState<BroadcastAuthorIdentity>(
     draft?.authorIdentity ?? "hr",
   );
-  const [senderName, setSenderName] = useState(draft?.senderName ?? "");
+  // FROM. Free text, and it starts as the sender's own name: "everyone can
+  // broadcast" only reads right if a broadcast says who it is from.
+  const [senderName, setSenderName] = useState(draft?.senderName ?? myName ?? "");
   const [emailChannel, setEmailChannel] = useState(
     draft ? draft.channels.includes("email") : true,
   );
   const [pushChannel, setPushChannel] = useState(
     draft ? draft.channels.includes("push") : false,
   );
+  // WhatsApp is a MANUAL channel: nothing is sent automatically. Turning it on
+  // flags the broadcast so its read view offers a one-tap "send this on
+  // WhatsApp" list of the recipients, pre-filled — the sender still presses
+  // send in WhatsApp themselves. Deliberately not automated: the org's
+  // WhatsApp sending goes through approved Business templates, and a free-text
+  // announcement is not one.
+  const [whatsappChannel, setWhatsappChannel] = useState(
+    draft ? draft.channels.includes("whatsapp_manual") : false,
+  );
+  // Flash it as a centre-screen popup in the app (default on).
+  const [popup, setPopup] = useState(draft?.popup ?? true);
   const [segName, setSegName] = useState("");
   const [savingSeg, setSavingSeg] = useState(false);
   const [tplName, setTplName] = useState("");
@@ -286,6 +347,11 @@ export function BroadcastComposer({
   const [attachments, setAttachments] = useState<BroadcastAttachment[]>(draft?.attachments ?? []);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Media shares the `attachments` array with files — the MIME type is what
+  // separates "plays inside the message" from "download it later" (see
+  // splitAttachments in lib/ecos/labels.ts). Its own input so the OS file
+  // picker offers pictures and video rather than everything.
+  const mediaRef = useRef<HTMLInputElement>(null);
   const [linkName, setLinkName] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
 
@@ -313,12 +379,23 @@ export function BroadcastComposer({
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiLang, setAiLang] = useState("Hindi");
 
-  const lockAllowed = LOCK_PRIORITIES.has(priority);
+  const lockAllowed = canAppLock && LOCK_PRIORITIES.has(priority);
 
-  // Force app-lock off whenever the priority leaves critical/emergency.
+  // Force app-lock off whenever the priority leaves critical/emergency (or the
+  // sender isn't entitled to it at all).
   useEffect(() => {
     if (!lockAllowed && requireLock) setRequireLock(false);
   }, [lockAllowed, requireLock]);
+
+  // The same list, split for display: media previews above, file chips below.
+  const mediaItems = useMemo(
+    () => attachments.filter((a) => isInlineMedia(a)),
+    [attachments],
+  );
+  const fileItems = useMemo(
+    () => attachments.filter((a) => !isInlineMedia(a)),
+    [attachments],
+  );
 
   const employeeById = useMemo(() => {
     const m = new Map<string, ComposerEmployee>();
@@ -454,14 +531,18 @@ export function BroadcastComposer({
       ackMode,
       requireLock: requireLock && lockAllowed,
       authorIdentity,
-      senderName: authorIdentity === "hr" ? undefined : senderName.trim() || undefined,
+      // Always sent now that FROM is its own first-class field. Blank falls back
+      // to the identity default ("Altus HR" / "The CEO" / "The Founder").
+      senderName: senderName.trim() || undefined,
       attachments,
       audience,
       channels: [
         "in_app",
         ...(emailChannel ? ["email"] : []),
         ...(pushChannel ? ["push"] : []),
+        ...(whatsappChannel ? ["whatsapp_manual"] : []),
       ],
+      popup,
       // datetime-local is client-local; toISOString normalises to UTC for the server.
       scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : null,
       recurrence,
@@ -494,6 +575,8 @@ export function BroadcastComposer({
       audience,
       emailChannel,
       pushChannel,
+      whatsappChannel,
+      popup,
       scheduledFor,
       recurrence,
       recurrenceUntil,
@@ -553,8 +636,13 @@ export function BroadcastComposer({
 
   /* ---- Templates ---- */
   const curChannels = useCallback(
-    () => ["in_app", ...(emailChannel ? ["email"] : []), ...(pushChannel ? ["push"] : [])],
-    [emailChannel, pushChannel],
+    () => [
+      "in_app",
+      ...(emailChannel ? ["email"] : []),
+      ...(pushChannel ? ["push"] : []),
+      ...(whatsappChannel ? ["whatsapp_manual"] : []),
+    ],
+    [emailChannel, pushChannel, whatsappChannel],
   );
 
   const applyTemplate = useCallback((t: BroadcastTemplate) => {
@@ -568,6 +656,7 @@ export function BroadcastComposer({
     const ch = Array.isArray(t.channels) ? (t.channels as string[]) : [];
     setEmailChannel(ch.includes("email"));
     setPushChannel(ch.includes("push"));
+    setWhatsappChannel(ch.includes("whatsapp_manual"));
     fireToast({ message: `Loaded template "${t.name}".`, type: "success" });
   }, []);
 
@@ -634,14 +723,15 @@ export function BroadcastComposer({
   }, [title, buildInput]);
 
   const validatePublish = useCallback((): string | null => {
-    if (!title.trim()) return "Give the broadcast a title.";
+    if (uploading) return "Wait for the upload to finish — it isn't attached yet.";
+    if (!title.trim()) return "Give the broadcast a subject.";
     if (!bodyText.trim()) return "Write the message body.";
     if (scope === "custom" &&
       departmentIds.length + designationIds.length + workerTypes.length + roles.length + employeeIds.length === 0)
       return "Pick at least one audience filter, or switch to Whole Organization.";
     if (!recipientCount || recipientCount === 0) return "This audience reaches nobody.";
     return null;
-  }, [title, bodyText, scope, departmentIds, designationIds, workerTypes, roles, employeeIds, recipientCount]);
+  }, [uploading, title, bodyText, scope, departmentIds, designationIds, workerTypes, roles, employeeIds, recipientCount]);
 
   const onPublishClick = useCallback(() => {
     const err = validatePublish();
@@ -763,27 +853,129 @@ export function BroadcastComposer({
         {/* ── LEFT: compose ─────────────────────────────────────── */}
         <div className="flex flex-col gap-6">
           <section className={`${CARD} wg-rise`}>
+            {/* The three fields a broadcast actually is: Subject, From, Message. */}
             <label htmlFor="bc-title" className={LABEL}>
-              Title
+              Subject
             </label>
             <input
               id="bc-title"
               autoFocus
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Diwali holiday schedule 2026"
+              placeholder="e.g. HR Records offline for maintenance, 2-4pm today"
               className={`${FIELD} !text-[18px] !font-semibold`}
               maxLength={200}
             />
 
+            <div className="mt-4">
+              <label htmlFor="bc-from" className={LABEL}>
+                From
+              </label>
+              <input
+                id="bc-from"
+                value={senderName}
+                onChange={(e) => setSenderName(e.target.value)}
+                placeholder="Who this is from — your name, a team, or Altus HR"
+                className={FIELD}
+                maxLength={120}
+              />
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[12px] font-semibold text-ink-subtle">Quick pick:</span>
+                {[myName, "Altus HR", "The CEO", "The Founder", "App Team"]
+                  .filter((n): n is string => Boolean(n && n.trim()))
+                  .map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setSenderName(n)}
+                      className={`rounded-full border px-2.5 py-1 text-[12px] font-semibold transition ${
+                        senderName.trim() === n
+                          ? "border-[color:var(--color-altus-red)] bg-[color:color-mix(in_srgb,var(--color-altus-red)_10%,transparent)] text-[color:var(--color-altus-red-deep)]"
+                          : "border-hairline text-ink-strong hover:border-hairline-strong"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+              </div>
+            </div>
+
             <div className="mt-5">
-              <span className={LABEL}>Message</span>
+              <span className={LABEL}>Broadcast message</span>
               <RichBodyEditor
                 initialHtml={seed.html}
                 seedKey={seed.key}
                 onChange={onBodyChange}
                 onReady={() => {}}
               />
+            </div>
+          </section>
+
+          {/* Image / video — shown INSIDE the message, not as a download */}
+          <section className={`${CARD} wg-rise`}>
+            <div className="mb-1 flex items-center gap-2">
+              <ImagePlus size={16} className="text-ink-subtle" />
+              <span className={`${LABEL} !mb-0`}>Image or video</span>
+            </div>
+            <p className="mb-3 text-[12px] text-ink-subtle">
+              Plays inside the broadcast — in the popup, the inbox and the full message.
+            </p>
+
+            {mediaItems.length > 0 && (
+              <ul className="mb-3 grid gap-2 sm:grid-cols-2">
+                {mediaItems.map((a) => (
+                  <li
+                    key={a.path}
+                    className="relative overflow-hidden rounded-xl border border-hairline bg-[#0b0b0d]"
+                  >
+                    {/* A freshly-picked local file has no readable URL until it
+                        is saved and signed, so an external link previews and an
+                        uploaded object shows its name + type instead of a
+                        broken image. */}
+                    {isPreviewableImage(a) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={a.path} alt={a.name} className="h-32 w-full object-cover" />
+                    ) : (
+                      <div className="flex h-32 flex-col items-center justify-center gap-1.5 text-white/80">
+                        {isImageAttachment(a) ? <ImagePlus size={22} /> : <Film size={22} />}
+                        <span className="max-w-[85%] truncate text-[12px] font-semibold">{a.name}</span>
+                        <span className="text-[11px] text-white/50">
+                          {isImageAttachment(a) ? "Image" : "Video"}
+                          {a.size > 0 ? ` · ${(a.size / (1024 * 1024)).toFixed(1)} MB` : ""}
+                        </span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${a.name}`}
+                      onClick={() => removeAttachment(a.path)}
+                      className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white transition hover:bg-black/75"
+                    >
+                      <X size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => mediaRef.current?.click()}
+                disabled={uploading}
+                className="inline-flex items-center gap-2 rounded-xl border border-hairline bg-white px-3.5 py-2 text-[13px] font-semibold text-ink-strong transition hover:border-hairline-strong disabled:opacity-60"
+              >
+                {uploading ? <Loader2 size={15} className="animate-spin" /> : <ImagePlus size={15} />}
+                Add image / video
+              </button>
+              <input
+                ref={mediaRef}
+                type="file"
+                accept="image/*,video/*"
+                className="sr-only"
+                onChange={onPickFile}
+              />
+              <span className="text-[12px] text-ink-subtle">up to 60 MB</span>
             </div>
           </section>
 
@@ -794,9 +986,9 @@ export function BroadcastComposer({
               <span className={`${LABEL} !mb-0`}>Attachments</span>
             </div>
 
-            {attachments.length > 0 && (
+            {fileItems.length > 0 && (
               <ul className="mb-3 flex flex-col gap-2">
-                {attachments.map((a) => (
+                {fileItems.map((a) => (
                   <li
                     key={a.path}
                     className="flex items-center justify-between gap-3 rounded-xl border border-hairline bg-[color:color-mix(in_srgb,var(--color-altus-red)_3%,#fff)] px-3 py-2"
@@ -1007,8 +1199,8 @@ export function BroadcastComposer({
               </select>
             </div>
 
-            {/* App-lock */}
-            <div className="mt-4">
+            {/* App-lock — broadcast admins only (it freezes the app for everyone). */}
+            <div className="mt-4" hidden={!canAppLock}>
               <button
                 type="button"
                 role="switch"
@@ -1054,9 +1246,9 @@ export function BroadcastComposer({
               </button>
             </div>
 
-            {/* Author identity */}
+            {/* Author identity — the fallback behind the FROM field. */}
             <div className="mt-4">
-              <span className={LABEL}>Send as</span>
+              <span className={LABEL}>Letterhead</span>
               <div className="flex flex-wrap gap-2">
                 {BROADCAST_AUTHOR_IDENTITIES.map((id) => (
                   <button
@@ -1074,14 +1266,9 @@ export function BroadcastComposer({
                   </button>
                 ))}
               </div>
-              {authorIdentity !== "hr" && (
-                <input
-                  value={senderName}
-                  onChange={(e) => setSenderName(e.target.value)}
-                  placeholder={`Display name for the ${IDENTITY_LABELS[authorIdentity]} (optional)`}
-                  className={`${FIELD} mt-2`}
-                />
-              )}
+              <p className="mt-1.5 text-[12px] text-ink-subtle">
+                Used only if you clear the <strong>From</strong> field above.
+              </p>
             </div>
 
             {/* Channels */}
@@ -1119,7 +1306,69 @@ export function BroadcastComposer({
                   <Smartphone size={15} /> Push
                   {pushChannel && <Check size={14} className="opacity-70" />}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setWhatsappChannel((v) => !v)}
+                  aria-pressed={whatsappChannel}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-[13px] font-semibold transition ${
+                    whatsappChannel
+                      ? "border-[color:var(--color-altus-red)] bg-[color:color-mix(in_srgb,var(--color-altus-red)_10%,transparent)] text-[color:var(--color-altus-red-deep)]"
+                      : "border-hairline text-ink-strong hover:border-hairline-strong"
+                  }`}
+                  title="Opens a pre-filled WhatsApp list after sending — you press send in WhatsApp"
+                >
+                  <MessageCircle size={15} /> WhatsApp (manual)
+                  {whatsappChannel && <Check size={14} className="opacity-70" />}
+                </button>
               </div>
+              <p className="mt-1.5 text-[12px] text-ink-subtle">
+                {emailChannel
+                  ? "Email goes to each recipient's official work address. "
+                  : "Email is off — this stays inside the app. "}
+                {whatsappChannel
+                  ? "After sending, the broadcast page gives you a pre-filled WhatsApp message per recipient to send by hand."
+                  : ""}
+              </p>
+            </div>
+
+            {/* Centre-screen popup */}
+            <div className="mt-4">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={popup}
+                onClick={() => setPopup((v) => !v)}
+                className="flex w-full items-center justify-between gap-3 rounded-xl border border-hairline px-3.5 py-3 text-left transition hover:border-hairline-strong"
+              >
+                <span className="flex items-center gap-2.5">
+                  <MonitorSmartphone
+                    size={17}
+                    className={popup ? "text-[color:var(--color-altus-red)]" : "text-ink-subtle"}
+                  />
+                  <span>
+                    <span className="block text-[13.5px] font-bold text-ink-strong">
+                      Pop up on screen
+                    </span>
+                    <span className="block text-[12px] text-ink-subtle">
+                      Flashes in the middle of the app within ~5 seconds of sending
+                    </span>
+                  </span>
+                </span>
+                <span
+                  aria-hidden
+                  className="relative h-6 w-11 shrink-0 rounded-full transition"
+                  style={{
+                    background: popup
+                      ? "var(--color-altus-red)"
+                      : "color-mix(in srgb, var(--color-ink-subtle, #64748b) 34%, transparent)",
+                  }}
+                >
+                  <span
+                    className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all"
+                    style={{ left: popup ? "22px" : "2px" }}
+                  />
+                </span>
+              </button>
             </div>
 
             {/* Schedule */}
@@ -1511,13 +1760,22 @@ export function BroadcastComposer({
       {/* ── Sticky footer ─────────────────────────────────────── */}
       <div className="sticky bottom-4 z-30 flex items-center justify-between gap-4 rounded-2xl border border-hairline bg-white/95 px-5 py-3 shadow-[0_20px_44px_-24px_rgba(15,23,42,0.5)] backdrop-blur">
         <span className="text-[13px] font-medium text-ink-subtle">
-          {draftId ? "Draft saved · edits are unsaved until you save again" : "Not saved yet"}
+          {/* An upload in flight is not attached yet: the file lands in storage
+              first and only joins the draft when the action returns. Publishing
+              during that window used to succeed and quietly send the broadcast
+              WITHOUT the picture — the upload finished, the message just no
+              longer wanted it. Both buttons wait it out, and say why. */}
+          {uploading
+            ? "Uploading… publish once it finishes, or the file won't be attached"
+            : draftId
+              ? "Draft saved · edits are unsaved until you save again"
+              : "Not saved yet"}
         </span>
         <div className="flex items-center gap-2.5">
           <button
             type="button"
             onClick={onSaveDraft}
-            disabled={savingDraft || publishing}
+            disabled={savingDraft || publishing || uploading}
             className="inline-flex items-center gap-2 rounded-xl border border-hairline bg-white px-4 py-2.5 text-[14px] font-bold text-ink-strong transition hover:border-hairline-strong disabled:opacity-60"
           >
             {savingDraft ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
@@ -1526,7 +1784,7 @@ export function BroadcastComposer({
           <button
             type="button"
             onClick={onPublishClick}
-            disabled={publishing || savingDraft}
+            disabled={publishing || savingDraft || uploading}
             className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[14px] font-bold text-white transition hover:-translate-y-0.5 disabled:opacity-60"
             style={{
               background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
