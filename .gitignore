@@ -65,6 +65,12 @@ WhatsApp*
 # lib/goals/whatsapp-dispatch.ts) — else ship.sh's `git add -A` silently skips
 # it and prod fails to resolve the module at build time.
 !lib/**/whatsapp*
+# …and under components/. `components/ecos/whatsapp-panel.tsx` was imported by
+# app/(app)/communications/[id]/page.tsx on 2026-09-10 but never committed,
+# because this very rule skipped it — the production build then died with
+# "Module not found". Exactly the failure the note above predicted, one
+# directory over.
+!components/**/whatsapp*
 !app/api/whatsapp/
 !app/api/whatsapp/**
 !tests/unit/whatsapp-*.test.ts
