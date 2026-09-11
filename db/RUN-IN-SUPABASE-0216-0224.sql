@@ -1,53 +1,56 @@
 -- ===========================================================================
---  RUN IN SUPABASE — migrations 0216 to 0224 (additive)
---  Altus WMS · branch `Om` · regenerated 2026-09-11
+--  RUN IN SUPABASE - EVERY pending migration, 0216 through 0224
+--  Altus WMS | branch Om | generated 2026-09-11
 -- ===========================================================================
 --
---  WHAT THIS IS
---    Every pending migration that is SAFE TO APPLY UNATTENDED, bundled in
---    filename order inside one transaction. Generated verbatim from
---    db/migrations/*.sql — every statement is byte-identical to the repo.
+--  This is the COMPLETE set. Paste the whole file into the Supabase SQL editor
+--  and Run, or:   psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0216-0224.sql
 --
---  HOW TO RUN
---    Supabase Dashboard -> SQL Editor -> New query -> paste this file -> Run.
---    It is one transaction: it all applies, or nothing does.
---      or:  psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0216-0224.sql
+--  Every statement is copied verbatim from db/migrations/*.sql. Nothing was
+--  retyped, so nothing can have drifted from the repo.
 --
---  IS IT SAFE
---    Yes. No DROP TABLE, no TRUNCATE, no DELETE anywhere in this file. Every
---    statement is additive and idempotent (IF NOT EXISTS / ON CONFLICT DO
---    NOTHING / NOT EXISTS), so a second run changes nothing.
---    (0224 contains DROP INDEX, which replaces an index and destroys no row.)
+--  -- IT IS IN TWO PARTS, AND THE SECOND ONE DELETES DATA -------------------
 --
---    Two sections write ROWS — 0217 (master data) and 0220 (backfill). Both are
---    called out below and both are idempotent. Read them before running.
+--  PART 1 (0216-0222, 0224) is additive and idempotent. No DROP TABLE, no
+--  TRUNCATE, no DELETE. Running it twice changes nothing.
 --
---  ⚠️  0223 IS NOT IN THIS FILE, DELIBERATELY.
---    db/migrations/0223_clear_registered_devices.sql DELETEs every row from
---    mobile_devices. It is a real decision with a real cost (device history is
---    lost), so it must not ride along inside a paste-and-go bundle. Run it on
---    its own, only when you mean to, and read its header first:
+--  PART 2 (0223) CLEARS EVERY ROW FROM mobile_devices, so the roster
+--  re-registers deliberately instead of inheriting rows that enroll() wrote on
+--  first sight of any browser. That wipe is intended - it is the point of
+--  first-login registration - but it destroys device history, so here it:
 --
---      pnpm db:migrate -- --allow-destructive=0223_clear_registered_devices.sql
+--    * copies mobile_devices to mobile_devices_pre_0223 FIRST, in the same
+--      transaction, so the history stays recoverable; and
+--    * does nothing at all if that backup table already exists, so running
+--      this file a second time cannot wipe devices people just registered.
 --
---    ORDER: 0222 and 0224 add the columns; 0223 clears the rows. Apply this
---    file FIRST, then decide about 0223.
+--  If you want Part 1 only, stop at the line that says END OF PART 1.
 --
---  PREREQUISITES (all already exist in production)
---    employees, mobile_devices, holidays, module_submissions, product_options,
---    outstanding_products, outstanding_payment_modes, outstanding_entities
+--  -- ORDER MATTERS ---------------------------------------------------------
+--  0222 adds the registration columns, 0224 renames one of them, 0223 clears
+--  the rows. Running this file top to bottom gets that right.
 --
---  DO NOT use `npm run db:migrate` to achieve this — the drizzle journal is
---  stale at 0019, so it would also apply two dozen unrelated pending files.
+--  -- DO NOT USE `npm run db:migrate` FOR THIS ------------------------------
+--  The drizzle journal is stale at 0019, so it would also apply two dozen
+--  unrelated pending migrations.
+--
+--  PREREQUISITES, all already in production: employees, mobile_devices,
+--  holidays, module_submissions, product_options, outstanding_products,
+--  outstanding_payment_modes, outstanding_entities.
 -- ===========================================================================
+
+
+-- ###########################################################################
+-- #  PART 1 - ADDITIVE. Safe, idempotent, no data destroyed.
+-- ###########################################################################
 
 BEGIN;
 
--- -------------------------------------------------------------------------
+-- ------------------------------------------------------------------------
 --  0216_module_submission_attachments.sql
---  Reimbursement receipts become files the firm holds, replacing a free-text Drive link.
---  STRUCTURE ONLY — 1 table, 1 index.
--- -------------------------------------------------------------------------
+--  Reimbursement receipts become files the firm holds, not Drive links.
+--  ADDITIVE - 1 table, 1 index.
+-- ------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS module_submission_attachments (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -62,11 +65,11 @@ CREATE TABLE IF NOT EXISTS module_submission_attachments (
 CREATE INDEX IF NOT EXISTS module_submission_attachments_submission_idx
   ON module_submission_attachments (submission_id, created_at);
 
--- -------------------------------------------------------------------------
+-- ------------------------------------------------------------------------
 --  0217_masters_payment_modes_and_products.sql
 --  Master data: payment modes (IGV to IJV, plus new accounts) and a product code.
---  WRITES BUSINESS DATA — renames IGV to IJV, inserts 15 payment modes, 11 products, 7 options. REVIEW THE VALUES.
--- -------------------------------------------------------------------------
+--  WRITES ROWS - renames IGV to IJV, inserts 15 payment modes, 11 products, 7 options. Idempotent. REVIEW THE VALUES.
+-- ------------------------------------------------------------------------
 
 UPDATE outstanding_payment_modes
    SET name = 'IJV', updated_at = now()
@@ -128,11 +131,11 @@ VALUES
   ('Consulting',    110)
 ON CONFLICT (label) DO NOTHING;
 
--- -------------------------------------------------------------------------
+-- ------------------------------------------------------------------------
 --  0218_delegated_access.sql
 --  Temporary delegated access. No credential is stored in these tables.
---  STRUCTURE ONLY — 2 tables, 6 indexes.
--- -------------------------------------------------------------------------
+--  ADDITIVE - 2 tables, 6 indexes.
+-- ------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS delegated_access_grants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -193,11 +196,11 @@ CREATE INDEX IF NOT EXISTS delegated_access_events_recent_idx
 CREATE INDEX IF NOT EXISTS delegated_access_events_target_idx
   ON delegated_access_events (target_employee_id, occurred_at DESC);
 
--- -------------------------------------------------------------------------
+-- ------------------------------------------------------------------------
 --  0219_permission_matrix.sql
 --  Permission matrix: module tree with SHOW/VIEW/EDIT per employee.
---  STRUCTURE ONLY — 2 tables, 4 indexes. Columns default TRUE, so this grants nothing new by itself.
--- -------------------------------------------------------------------------
+--  ADDITIVE - 2 tables, 4 indexes. Columns default TRUE, so this grants nothing new by itself.
+-- ------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS module_permissions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -233,11 +236,11 @@ CREATE INDEX IF NOT EXISTS module_permission_events_employee_idx
 CREATE INDEX IF NOT EXISTS module_permission_events_recent_idx
   ON module_permission_events (occurred_at DESC);
 
--- -------------------------------------------------------------------------
+-- ------------------------------------------------------------------------
 --  0220_manager_hierarchy_history.sql
 --  Reporting-manager history. employees.manager_id stays canonical.
---  WRITES DATA — backfills one row per employee. Guarded by NOT EXISTS, safe to re-run.
--- -------------------------------------------------------------------------
+--  WRITES ROWS - backfills one per employee. Guarded by NOT EXISTS.
+-- ------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS employee_manager_history (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -276,11 +279,11 @@ WHERE NOT EXISTS (
      AND h.effective_to IS NULL
 );
 
--- -------------------------------------------------------------------------
+-- ------------------------------------------------------------------------
 --  0221_holiday_note.sql
---  An optional note on a holiday, and a record of who last changed it.
---  STRUCTURE ONLY — additive columns.
--- -------------------------------------------------------------------------
+--  An optional note on a holiday, and who last changed it.
+--  ADDITIVE - columns only.
+-- ------------------------------------------------------------------------
 
 ALTER TABLE holidays
   ADD COLUMN IF NOT EXISTS note text;
@@ -289,11 +292,11 @@ ALTER TABLE holidays
 ALTER TABLE holidays
   ADD COLUMN IF NOT EXISTS updated_at timestamptz;
 
--- -------------------------------------------------------------------------
+-- ------------------------------------------------------------------------
 --  0222_device_registration_consent.sql
---  First-login device registration: registration columns + the consent audit table.
---  STRUCTURE ONLY — adds columns to mobile_devices, creates device_consent_events.
--- -------------------------------------------------------------------------
+--  First-login device registration: columns on mobile_devices + the consent audit table.
+--  ADDITIVE - columns + device_consent_events.
+-- ------------------------------------------------------------------------
 
 ALTER TABLE mobile_devices
   ADD COLUMN IF NOT EXISTS bios_serial_number text;
@@ -326,11 +329,11 @@ CREATE INDEX IF NOT EXISTS device_consent_events_device_idx
 CREATE INDEX IF NOT EXISTS device_consent_events_version_idx
   ON device_consent_events (consent_version);
 
--- -------------------------------------------------------------------------
+-- ------------------------------------------------------------------------
 --  0224_device_name_replaces_bios_serial.sql
---  Renames the registration field to device_name. MUST run after 0222.
---  STRUCTURE ONLY — renames a column, swaps one index. wmic is absent on Windows 11 26100+, so the BIOS-serial ask was undoable for the roster.
--- -------------------------------------------------------------------------
+--  Renames the registration field to device_name. MUST follow 0222.
+--  ADDITIVE - renames a column, swaps an index. DROP INDEX destroys no row.
+-- ------------------------------------------------------------------------
 
 DO $$
 BEGIN
@@ -355,20 +358,72 @@ CREATE UNIQUE INDEX IF NOT EXISTS mobile_devices_device_name_uq
 
 COMMIT;
 
+-- ===========================  END OF PART 1  ==============================
+-- Everything above is additive. If you do not want the device wipe, stop here.
+
+
+-- ###########################################################################
+-- #  PART 2 - 0223_clear_registered_devices.sql
+-- #
+-- #  WARNING: THIS DELETES EVERY ROW FROM mobile_devices.
+-- #
+-- #  Why: "approved" currently means "this browser turned up once", not "this
+-- #  person registered this machine" - enroll() has written a row on first
+-- #  sight of any browser since the device gate shipped, and auto-adopt marked
+-- #  them approved with no human involved. Carrying those forward would mark
+-- #  the whole roster already-registered and defeat first-login registration.
+-- #
+-- #  Nobody is locked out by this: sign-in stopped refusing on device status,
+-- #  and the next login enrols a fresh row into a now-empty slot.
+-- #
+-- #  Consent records survive - device_consent_events.device_row_id is
+-- #  ON DELETE SET NULL and each row also stores the device id as text.
+-- ###########################################################################
+
+BEGIN;
+
+DO $wipe$
+BEGIN
+  -- Only ever runs once. If mobile_devices_pre_0223 exists, this file has
+  -- already been applied, and a second run must NOT wipe the devices people
+  -- have registered since.
+  IF to_regclass('public.mobile_devices_pre_0223') IS NULL THEN
+    CREATE TABLE mobile_devices_pre_0223 AS SELECT * FROM mobile_devices;
+    DELETE FROM mobile_devices;
+    RAISE NOTICE 'mobile_devices cleared; previous rows kept in mobile_devices_pre_0223';
+  ELSE
+    RAISE NOTICE 'mobile_devices_pre_0223 already exists - skipping the wipe';
+  END IF;
+END
+$wipe$;
+
+COMMIT;
+
+
 -- ===========================================================================
---  VERIFY (run after COMMIT)
+--  VERIFY  (run these after the file completes)
 -- ===========================================================================
+-- New tables exist:
 -- SELECT to_regclass('module_submission_attachments') AS t_0216,
 --        to_regclass('delegated_access_grants')       AS t_0218,
 --        to_regclass('module_permissions')            AS t_0219,
 --        to_regclass('employee_manager_history')      AS t_0220,
 --        to_regclass('device_consent_events')         AS t_0222;
 --
--- 0224 landed? device_name should exist and bios_serial_number should NOT.
+-- 0224 landed? device_name present, bios_serial_number absent:
 -- SELECT column_name FROM information_schema.columns
 --  WHERE table_name = 'mobile_devices'
---    AND column_name IN ('device_name','bios_serial_number','registered_at');
+--    AND column_name IN ('device_name','bios_serial_number','registered_at','manufacturer','model');
 --
 -- 0217 landed?
--- SELECT count(*) FILTER (WHERE name='IJV') AS ijv, count(*) AS modes
+-- SELECT count(*) FILTER (WHERE name = 'IJV') AS ijv, count(*) AS modes
 --   FROM outstanding_payment_modes;
+-- SELECT count(*) AS products_with_code FROM outstanding_products WHERE code IS NOT NULL;
+--
+-- 0220 backfill covered everyone?
+-- SELECT (SELECT count(*) FROM employees) AS employees,
+--        (SELECT count(*) FROM employee_manager_history WHERE effective_to IS NULL) AS open_rows;
+--
+-- 0223 ran? (0 live rows, and the backup holds what was there)
+-- SELECT (SELECT count(*) FROM mobile_devices)          AS live_devices,
+--        (SELECT count(*) FROM mobile_devices_pre_0223) AS backed_up;
