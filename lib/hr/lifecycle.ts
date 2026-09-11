@@ -99,7 +99,6 @@ export const HR_STAGES: HrStage[] = [
     Icon: ClipboardCheck,
     items: [
       { slug: "candidate-records", label: "Candidate Records", Icon: Users, kind: "link", href: "/hr/candidates", blurb: "Every candidate whose interview form was filled." },
-      { slug: "candidate-policies", label: "Send Policies to the Candidate", Icon: ScrollText, kind: "link", href: "/hr/candidates", blurb: "Email an outsider every policy to read and sign - no login needed." },
       { slug: "offer-letter", label: "Selection Letter", Icon: FileCheck2, kind: "doc", typeKey: "selection", blurb: "Extend the role to the selected candidate." },
       { slug: "reject-letter", label: "Rejection Letter", Icon: FileX2, kind: "doc", typeKey: "rejection", blurb: "A considerate decline." },
       { slug: "assignment-letter", label: "Assignment Needed Letter", Icon: FileText, kind: "doc", typeKey: "assignment", blurb: "Send a pre-hire assignment." },

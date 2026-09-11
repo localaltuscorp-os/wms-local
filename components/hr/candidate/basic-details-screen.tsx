@@ -199,23 +199,11 @@ export function BasicDetailsScreen({
 
         {/* The child button is w-full, so the wrapper sets its width; the
             arbitrary variants give it the shared height and radius. */}
-        {/* NO-LOGIN INVITE, sitting before the login control on purpose: this is
-            now the ordinary way an outsider fills their own form, and the
-            credentialed one is the exception. */}
-        <div className="ml-auto shrink-0">
-          <InviteCandidateDialog
-            trigger={(open) => (
-              <button
-                type="button"
-                onClick={open}
-                className={`${ACTION_CLS} border border-hairline-strong !text-ink-strong`}
-                style={{ background: "#fff" }}
-              >
-                <Send size={16} strokeWidth={2.4} /> Send form link
-              </button>
-            )}
-          />
-        </div>
+        {/* "Share Interview Form Link" is NOT here: sending a candidate their
+            interview form is a Pre-Interview act, and it now lives on that
+            screen (components/hr/candidate/intake-chooser.tsx). What stays is
+            the policies invite, which is Post-Interview's own errand. */}
+        <div className="ml-auto shrink-0" />
         {/* POST-INTERVIEW: the same four fields, but the link lands the
             candidate on the policies instead of the form. Sending this does NOT
             revoke a form link they may still be filling in. */}
