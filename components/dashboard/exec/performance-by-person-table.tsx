@@ -24,8 +24,8 @@ import {
   DASHBOARD_TABLE_HEAD,
 } from "@/components/dashboard/section-chrome";
 import type { PunctualityPerson } from "@/lib/types";
-import { isAppDepartment, type TeamView } from "@/lib/teams/app-team";
-import { TeamToggle } from "@/components/dashboard/team-toggle";
+import { inFunctionView, FUNCTION_LABELS, FUNCTION_VIEWS, type FunctionView } from "@/lib/org/functions";
+import { FunctionToggle } from "@/components/dashboard/function-toggle";
 import Link from "next/link";
 import type { Route } from "next";
 import { formatDate } from "@/lib/format";
@@ -238,7 +238,7 @@ export function PerformanceByPersonTable({
   // Which slice of the roster the table is showing. Same three views, same
   // control, same "all" default as the aging heatmap — a reader who learns the
   // split in one section does not relearn it in the other.
-  const [teamView, setTeamView] = React.useState<TeamView>("all");
+  const [functionView, setFunctionView] = React.useState<FunctionView>("all");
   // Lazy, once, shared by every spread cell in the table.
   const preview = useLateSpreadPreview();
 
@@ -260,31 +260,35 @@ export function PerformanceByPersonTable({
     return allScoped.filter((p) => p.employeeName.toLowerCase().includes(q));
   }, [allScoped, query]);
 
-  /* The App / Non-App split, partitioned AFTER the privacy scope and the
-     search so both sides honour exactly the filters the single list did —
-     the same order the aging heatmap uses.
+  /* The function split, partitioned AFTER the privacy scope and the search so
+     every tab honours exactly the filters the single list did — the same order
+     the aging heatmap uses.
 
-     isAppDepartment is imported, not re-written here: it is a word-match on
-     "app" rather than an equality test against one literal department name,
-     because the departments that actually exist are "App Devp" and "BSS App".
-     A second copy of the predicate is how two sections start disagreeing
-     about who is on which team while both look right. */
-  const appRows = React.useMemo(
-    () => scoped.filter((p) => isAppDepartment(p.department)),
+     inFunctionView is imported, not re-written here: it pattern-matches the
+     department name rather than testing equality against one literal, because
+     the names that actually exist include "App Devp" and "BSS App". A second
+     copy of the predicate is how two sections start disagreeing about who is
+     in which function while both look right. */
+  const functionCounts = React.useMemo(
+    () =>
+      Object.fromEntries(
+        FUNCTION_VIEWS.map((v) => [
+          v,
+          v === "all" ? scoped.length : scoped.filter((p) => inFunctionView(p.department, v)).length,
+        ]),
+      ) as Record<FunctionView, number>,
     [scoped],
   );
-  const nonAppRows = React.useMemo(
-    () => scoped.filter((p) => !isAppDepartment(p.department)),
-    [scoped],
+  const functionScoped = React.useMemo(
+    () => (functionView === "all" ? scoped : scoped.filter((p) => inFunctionView(p.department, functionView))),
+    [scoped, functionView],
   );
-  const teamScoped =
-    teamView === "app" ? appRows : teamView === "nonApp" ? nonAppRows : scoped;
   // HEAVIEST OVERDUE BURDEN FIRST — this section is read as "who is behind",
   // so the count of late deliveries leads, not raw throughput. Ties break on the
   // worse on-time rate, then on volume, so of two people with 4 late each the
   // one who is late a larger share of the time surfaces first.
   const rows = React.useMemo(() => {
-    const base = [...teamScoped].sort(
+    const base = [...functionScoped].sort(
       (a, b) => b.late - a.late || a.rate - b.rate || b.done - a.done,
     );
     if (!sort) return base;
@@ -303,7 +307,7 @@ export function PerformanceByPersonTable({
           : (av as number) - (bv as number);
       return cmp * dir;
     });
-  }, [teamScoped, sort]);
+  }, [functionScoped, sort]);
 
   /* ── ONE GROWING SLICE, NOT PAGES ────────────────────────────────────────
      This replaces usePagedRows and the header's prev/next pager, and the
@@ -312,9 +316,9 @@ export function PerformanceByPersonTable({
      and a reader has no way to tell which one the table is obeying. A batch
      that only ever grows has no such second state to fall out of sync.
 
-     THE SLICE APPLIES TO "All Employees" ONLY. A team tab is already a filter —
+     THE SLICE APPLIES TO "All Employees" ONLY. A function tab is already a filter —
      it is the reader saying "just this side of the roster" — and answering that
-     with a second, hidden limit means the honest answer to "how many App-team
+     with a second, hidden limit means the honest answer to "how many Sales
      people are behind?" is a number you have to click to finish reading. All
      Employees is the only view long enough to need the cut. */
   const [visibleCount, setVisibleCount] = React.useState(BATCH);
@@ -329,24 +333,24 @@ export function PerformanceByPersonTable({
      documented pattern for resetting state when an input changes: the effect
      version renders the stale slice first and the corrected one immediately
      after, which is the cascading render `react-hooks/set-state-in-effect`
-     flags — and on a tab switch it is a visible flash of the previous team's
+     flags — and on a tab switch it is a visible flash of the previous function's
      rows. Here the discarded pass never reaches the DOM. */
-  const listKey = `${teamView}|${query.trim()}|${sort ? `${sort.key}:${sort.dir}` : ""}`;
+  const listKey = `${functionView}|${query.trim()}|${sort ? `${sort.key}:${sort.dir}` : ""}`;
   const [seenListKey, setSeenListKey] = React.useState(listKey);
   if (listKey !== seenListKey) {
     setSeenListKey(listKey);
     setVisibleCount(BATCH);
   }
 
-  const isAllTeams = teamView === "all";
+  const isAllFunctions = functionView === "all";
   const visible = React.useMemo(
-    () => (isAllTeams ? rows.slice(0, visibleCount) : rows),
-    [rows, isAllTeams, visibleCount],
+    () => (isAllFunctions ? rows.slice(0, visibleCount) : rows),
+    [rows, isAllFunctions, visibleCount],
   );
   /* `visible.length`, not `visibleCount`: the count is a ceiling that can sit
      above a list the search just shortened, and "Showing 16 of 11" is worse
      than no footer at all. */
-  const hasMore = isAllTeams && visible.length < rows.length;
+  const hasMore = isAllFunctions && visible.length < rows.length;
 
   /* `rows`, not `people`: the search and the sort the reader applied are what
      this section is showing, and the export has to be that — not the roster it
@@ -357,13 +361,13 @@ export function PerformanceByPersonTable({
       title: "Overdue Tasks by Person",
       subtitle: "On-time rate and late spread · heaviest overdue burden first",
       /* The tab goes in the meta line for the same reason the search term
-         does: the export is the filtered list, and a sheet of App-team rows
+         does: the export is the filtered list, and a sheet of Sales-only rows
          headed only "Overdue Tasks by Person" reads as the whole roster. */
       meta: [
         ...(query.trim() ? [{ label: "Search", value: query.trim() }] : []),
-        ...(teamView === "all"
+        ...(functionView === "all"
           ? []
-          : [{ label: "Team", value: teamView === "app" ? "App Team" : "Non-App Team" }]),
+          : [{ label: "Function", value: FUNCTION_LABELS[functionView] }]),
       ],
       summary: `${rows.length} ${rows.length === 1 ? "person" : "people"}`,
       columns: [
@@ -387,7 +391,7 @@ export function PerformanceByPersonTable({
         String(p.late),
       ]),
     };
-  }, [rows, query, teamView]);
+  }, [rows, query, functionView]);
   // Header ABOVE the card — see components/dashboard/section-header.tsx. The
   // pager rides along in the actions slot because its page state lives here,
   // with the rows it pages; the fold control sits to its right.
@@ -454,27 +458,21 @@ export function PerformanceByPersonTable({
             Gated on `allScoped`, not `rows`: the whole point of a segmented
             control is that an empty view is still one you can leave. Keyed on
             the privacy-scoped roster so a non-admin — who only ever sees their
-            own row — is not shown a team switcher that can do nothing. */}
+            own row — is not shown a function switcher that can do nothing. */}
         {allScoped.length > 0 && (
           <div className="mb-4 border-b border-slate-100 pb-4">
-            <TeamToggle
-              view={teamView}
-              onChange={setTeamView}
-              counts={{
-                all: scoped.length,
-                app: appRows.length,
-                nonApp: nonAppRows.length,
-              }}
+            <FunctionToggle
+              view={functionView}
+              onChange={setFunctionView}
+              counts={functionCounts}
             />
           </div>
         )}
         {rows.length === 0 ? (
           <p className="text-[13.5px] font-semibold text-ink-subtle">
-            {teamView === "app"
-              ? "No App-team member has delivered tasks to break down in this range."
-              : teamView === "nonApp"
-                ? "No Non-App member has delivered tasks to break down in this range."
-                : "No delivered tasks to break down in this range."}
+            {functionView === "all"
+              ? "No delivered tasks to break down in this range."
+              : `Nobody in ${FUNCTION_LABELS[functionView]} has delivered tasks to break down in this range.`}
           </p>
         ) : (
           <>
@@ -545,7 +543,7 @@ export function PerformanceByPersonTable({
 
                 It renders only while there is genuinely more to show, so it
                 disappears on the last batch instead of sitting there inert —
-                and never appears at all on a team tab, which shows everyone it
+                and never appears at all on a function tab, which shows everyone it
                 matched the moment it is clicked. */}
             {hasMore && (
               <div className="mt-5 flex items-center justify-center gap-3 border-t border-slate-100 pt-4">
@@ -916,7 +914,7 @@ function SpreadCell({
             </span>
           </p>
 
-          <div className="mt-2 max-h-[132px] overflow-y-auto">
+          <div className="slim-scroll mt-2 max-h-[132px] overflow-y-auto">
             {preview.status === "loading" && (
               <p className="text-[12px] font-semibold text-slate-500">Loading…</p>
             )}
