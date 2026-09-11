@@ -47,8 +47,29 @@ describe("device restriction exemption (the Manan exception)", () => {
     expect(deviceRestrictionRequired(RUTVISHA)).toBe(true);
   });
 
-  it("restricts a super-admin who was not granted the exemption", () => {
-    expect(deviceRestrictionRequired(SUPER_ADMIN_ONLY)).toBe(true);
+  it("exempts Rohan too — the exception is now held by two people", () => {
+    // He was granted this on 2026-09-11 because `device.manage` alone did not
+    // let him in: the device gate runs before capabilities are read, so his
+    // browser sat at `pending` and he could not reach the screen where he would
+    // have approved it.
+    expect(deviceRestrictionRequired(SUPER_ADMIN_ONLY)).toBe(false);
+    expect(hasCapability(SUPER_ADMIN_ONLY, "device.exempt_from_restriction")).toBe(true);
+  });
+
+  it("keeps the exemption to exactly those two, and no one else", () => {
+    // THIS REPLACES "restricts a super-admin who was not granted the exemption",
+    // which named Rohan and is no longer expressible: there are two super-admins
+    // and both now hold the exemption, so no real person can stand for "super-
+    // admin without it".
+    //
+    // The guarantee that test defended — that the exemption is an explicit
+    // per-person grant and not something a role confers — is what these
+    // assertions carry instead. Ruchita and Rutvisha are the sharpest evidence:
+    // they administer the device system and are still bound by it.
+    expect(deviceRestrictionRequired(RUCHITA)).toBe(true);
+    expect(deviceRestrictionRequired(RUTVISHA)).toBe(true);
+    expect(deviceRestrictionRequired(ATTENDANCE_ADMIN_ONLY)).toBe(true);
+    expect(deviceRestrictionRequired(EMPLOYEE)).toBe(true);
   });
 
   it("FAILS CLOSED for an unknown, empty or null address", () => {

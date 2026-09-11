@@ -128,6 +128,18 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
    * operator instruction, making him the fourth device administrator alongside
    * Manan, Ruchita and Rutvisha.
    *
+   * `device.exempt_from_restriction` followed on the same day, for a concrete
+   * reason: `device.manage` alone did not let him in. The device gate runs
+   * BEFORE capabilities are consulted, so his second browser landed `pending`
+   * and he could not reach the screen on which he would have approved it — the
+   * deadlock the "Manan exception" exists to avoid, reached by the second
+   * person to need it. He is now the second holder of that exception.
+   *
+   * WHAT IT COSTS, stated plainly: he no longer has to register a device, so a
+   * stolen password for this account works from any laptop or phone in the
+   * world, with no second factor and no device row to revoke. That is the whole
+   * protection the device system provides, waived for this account.
+   *
    * NOT granted: `attendance.manage_others` and `attendance.view_audit_log`,
    * which Ruchita and Rutvisha hold. Those are a separate power — editing other
    * people's attendance past the lock — and nothing about administering devices
@@ -136,6 +148,7 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
    * following by accident.
    */
   "rohanchoudhary.altuscorp@gmail.com": [
+    "device.exempt_from_restriction",
     "device.manage",
     "master_admin.manage",
     "delegated_access.grant_any",
