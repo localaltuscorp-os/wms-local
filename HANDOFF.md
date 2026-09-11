@@ -21,8 +21,8 @@ the permission matrix, delegated access, manager history, reimbursement
 attachments, holiday notes and first-login device registration all fail at
 runtime.
 
-**The safe batch — paste and go.** Everything additive, in order, in one
-transaction:
+**One file, everything.** Every pending migration, `0216` through `0224`, in
+order:
 
 ```bash
 # Supabase Dashboard -> SQL Editor -> New query -> paste -> Run
@@ -30,19 +30,18 @@ transaction:
 psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0216-0224.sql
 ```
 
-No `DROP TABLE`, no `TRUNCATE`, no `DELETE`. Idempotent, so re-running changes
-nothing. Covers `0216`–`0222` and `0224`.
+It is in **two parts**. **Part 1** (`0216`–`0222`, `0224`) is additive and
+idempotent — no `DROP TABLE`, no `TRUNCATE`, no `DELETE`, so re-running changes
+nothing.
 
-**`0223` is excluded, deliberately.** It runs `DELETE FROM mobile_devices` and
-destroys device history. Run it alone, only when you mean to, after reading its
-header:
+**Part 2** is `0223`, which **clears every row from `mobile_devices`** so the
+roster re-registers deliberately. That wipe is intended, but it destroys device
+history — so in this file it copies the table to `mobile_devices_pre_0223`
+first, in the same transaction, and skips itself entirely if that backup already
+exists. Running the file twice therefore cannot wipe devices people have just
+registered.
 
-```bash
-pnpm db:migrate -- --allow-destructive=0223_clear_registered_devices.sql
-```
-
-Order: the batch first (adds the columns), then decide about `0223` (clears the
-rows).
+**To stop before the wipe, end at the line marked `END OF PART 1`.**
 
 Do **not** reach for `npm run db:migrate`: the drizzle journal is stale at
 `0019`, so it would also apply two dozen unrelated pending migrations. Full

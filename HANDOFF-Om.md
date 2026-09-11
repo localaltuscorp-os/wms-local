@@ -12,11 +12,10 @@ deploying anything.
 
 ## 1. Run this SQL in Supabase
 
-### 1a. The safe batch — paste and go
+### 1a. One file, everything
 
-Everything additive, in filename order, in one transaction:
-
-**`db/RUN-IN-SUPABASE-0216-0224.sql`**
+**`db/RUN-IN-SUPABASE-0216-0224.sql`** — every pending migration, `0216`
+through `0224`, in order.
 
 Supabase Dashboard → SQL Editor → New query → paste the file → Run. Or:
 
@@ -24,44 +23,50 @@ Supabase Dashboard → SQL Editor → New query → paste the file → Run. Or:
 psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0216-0224.sql
 ```
 
-No `DROP TABLE`, no `TRUNCATE`, no `DELETE` anywhere in it. Every statement is
-idempotent, so a second run changes nothing. Two sections write rows — `0217`
-(master data) and `0220` (backfill) — both flagged inline, both safe to re-run.
-
-Generated verbatim from `db/migrations/*.sql`: all 254 SQL lines are
+Generated verbatim from `db/migrations/*.sql`: all 254 additive SQL lines are
 byte-identical to the repo, checked line by line rather than retyped.
 
-### 1b. `0223` — destructive, run it on its own
+It is in **two parts**, and the second one deletes data.
 
-**`db/migrations/0223_clear_registered_devices.sql`** is deliberately **NOT** in
-the batch above. It runs `DELETE FROM mobile_devices`.
+### 1b. Part 1 — additive (`0216`–`0222`, `0224`)
 
-```bash
-pnpm db:migrate -- --allow-destructive=0223_clear_registered_devices.sql
-```
+No `DROP TABLE`, no `TRUNCATE`, no `DELETE`. Every statement idempotent, so a
+second run changes nothing. Two sections write rows — `0217` (master data) and
+`0220` (backfill) — both flagged inline, both safe to re-run.
 
-The runner refuses it unless you name the file — that guard is the point.
+**If you do not want the device wipe, stop at the line marked `END OF PART 1`.**
 
-**What it costs:** device *history*. Revoked rows were kept forever so an admin
-could read who revoked what and why. This deletes that, and it is not
-recoverable. Back it up first if that matters:
+### 1c. Part 2 — `0223`, which clears `mobile_devices`
 
-```sql
-CREATE TABLE mobile_devices_pre_0223 AS SELECT * FROM mobile_devices;
-```
+This wipe is *intended*: it is the point of first-login registration. But it
+destroys device history, so in this file it is made safe in two ways the raw
+migration does not provide:
 
-**What it does not cost:** consent records survive
-(`device_consent_events.device_row_id` is `ON DELETE SET NULL`, and each row also
-carries the device id as text).
+- it copies `mobile_devices` → `mobile_devices_pre_0223` **first, in the same
+  transaction**, so the history stays recoverable; and
+- it does **nothing at all** if that backup table already exists — so running
+  the file twice cannot wipe the devices people have just registered.
 
 **Why wipe at all:** `enroll()` has written a row on first sight of any browser
 since the device gate shipped, and auto-adopt marked them `approved` with no
 human involved. So "approved" currently means "this browser turned up once", not
 "this person registered this machine" — plus the duplicates the device audit
-documents. Carrying those forward marks everyone already-registered, which
-defeats first-login registration entirely.
+documents. Carrying those forward marks the whole roster already-registered,
+which defeats first-login registration entirely.
 
-**Order:** §1a first (adds the columns), then decide about `0223` (clears the rows).
+**Nobody is locked out by it.** Sign-in stopped refusing on device status, so the
+next login enrols a fresh row into a now-empty slot. Consent records survive
+(`device_consent_events.device_row_id` is `ON DELETE SET NULL`, and each row also
+carries the device id as text).
+
+To run `0223` through the migration runner instead of this file:
+
+```bash
+pnpm db:migrate -- --allow-destructive=0223_clear_registered_devices.sql
+```
+
+Note the raw migration is a bare `DELETE` with **no** backup and **no** re-run
+guard — those exist only in the sheet.
 
 ### 1c. Do NOT use `npm run db:migrate` for this
 
