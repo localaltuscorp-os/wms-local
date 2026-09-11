@@ -1,7 +1,8 @@
 import "server-only";
-import { and, asc, eq, gte } from "drizzle-orm";
+import { and, asc, gte } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { eventHolidays, holidays } from "@/db/schema";
+import { publishedHolidaysFrom } from "@/lib/hr/holidays-2026";
 import { isHolidayForReligion } from "@/components/events/holidays/personalise";
 import type { ReligionCode } from "@/lib/monthly-events/types";
 import {
@@ -69,10 +70,17 @@ export async function listUpcomingHolidays(opts: {
   // Both reads are independently caught: if one calendar is unavailable the
   // panel still shows the other, rather than the page failing over a sidebar.
   const [adminRows, masterRows] = await Promise.all([
+    // ACTIVE and INACTIVE both: an inactive row is how a PUBLISHED holiday gets
+    // withdrawn, and this panel has to honour the same suppression the grader
+    // does (lib/queries/holidays.listHolidayDateSet) or the two disagree.
     db
-      .select({ date: holidays.holidayDate, label: holidays.label })
+      .select({
+        date: holidays.holidayDate,
+        label: holidays.label,
+        isActive: holidays.isActive,
+      })
       .from(holidays)
-      .where(and(eq(holidays.isActive, true), gte(holidays.holidayDate, today)))
+      .where(gte(holidays.holidayDate, today))
       .orderBy(asc(holidays.holidayDate))
       .limit(take)
       .catch(() => []),
@@ -110,9 +118,21 @@ export async function listUpcomingHolidays(opts: {
     )
     .map((r) => ({ date: r.date, label: r.label, optional: r.isOptional }));
 
-  const admin: MergeableHoliday[] = adminRows.map((r) => ({ date: r.date, label: r.label }));
+  const suppressed = new Set(
+    adminRows.filter((r) => !r.isActive).map((r) => String(r.date)),
+  );
+  const admin: MergeableHoliday[] = adminRows
+    .filter((r) => r.isActive)
+    .map((r) => ({ date: String(r.date), label: r.label }));
+
+  // THE PUBLISHED CALENDAR — the firm's own list, the one the HR Holiday List
+  // page renders. It lives in code rather than in a table, so it reaches neither
+  // query above; without it this panel could say "no holidays coming up" with
+  // Diwali a fortnight away. Lowest priority of the three: a row somebody
+  // actually typed for that date describes it better than the standing list.
+  const published: MergeableHoliday[] = publishedHolidaysFrom(today);
 
   // Sunday-dropping, de-duplication, sorting and the cut all live in the pure
   // core so they are unit-tested — see lib/attendance/holiday-merge.ts.
-  return mergeUpcomingHolidays(master, admin, today, limit);
+  return mergeUpcomingHolidays(master, [...admin, ...published], today, limit, suppressed);
 }

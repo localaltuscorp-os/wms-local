@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Check } from "lucide-react";
+import { Plus, Check, Mic } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { fireToast } from "@/lib/toast";
 import { addProductOption } from "@/app/(app)/forms/actions";
+import { useDictation } from "@/components/ui/use-dictation";
 import type { FormFieldDef } from "@/lib/forms/field-types";
 
 const inputClass =
@@ -93,16 +94,7 @@ export function FieldInput({
     );
   }
   if (field.type === "textarea") {
-    return (
-      <textarea
-        value={value}
-        onChange={(e) => onChange(field.key, e.target.value)}
-        placeholder={field.placeholder}
-        maxLength={2000}
-        rows={3}
-        className={inputClass}
-      />
-    );
+    return <DictatableTextarea field={field} value={value} onChange={onChange} />;
   }
   return (
     <input
@@ -114,6 +106,87 @@ export function FieldInput({
       min={field.type === "number" ? 0 : undefined}
       className={inputClass}
     />
+  );
+}
+
+/**
+ * A paragraph field you can DICTATE into — the reimbursement Notes field, above
+ * all, but every module textarea gets it since they all render through here.
+ *
+ * ── ONE IMPLEMENTATION, NOT A NEW ONE ──────────────────────────────────────
+ * `useDictation` (components/ui/use-dictation.ts) already backs the leave
+ * reason, the remote-work note, the goal detail and the HR forms. It uses the
+ * browser's own Web Speech API — nothing is recorded and no audio is uploaded
+ * or stored; only text arrives — and it already handles every failure this
+ * field needs to survive: an unsupported browser (the mic is not rendered at
+ * all), a denied or missing microphone, an insecure origin, and a lost network,
+ * each with its own message.
+ *
+ * ── IT APPENDS, IT NEVER REPLACES ──────────────────────────────────────────
+ * Finalised phrases are appended to whatever is already in the field, with a
+ * space inserted only when one is missing, so dictating after typing extends
+ * the note instead of overwriting it. Typing and dictating can be mixed freely,
+ * and the result stays editable — dictation cannot submit the form, which is
+ * why the mic is a `type="button"`.
+ */
+function DictatableTextarea({
+  field,
+  value,
+  onChange,
+}: {
+  field: FormFieldDef;
+  value: string;
+  onChange: (key: string, v: string) => void;
+}) {
+  const dictation = useDictation({
+    value,
+    // The same 2000-char ceiling typing is held to, so a long dictation cannot
+    // quietly overflow what the field will store.
+    onChange: (v) => onChange(field.key, v.slice(0, 2000)),
+  });
+
+  return (
+    <div>
+      <div className="relative">
+        <textarea
+          value={value}
+          onChange={(e) => onChange(field.key, e.target.value)}
+          placeholder={field.placeholder}
+          maxLength={2000}
+          rows={3}
+          /* pr-10 reserves the 40px the app's other dictatable fields do, so a
+             long line never runs under the mic. */
+          className={`${inputClass}${dictation.supported ? " pr-10" : ""}`}
+        />
+        {dictation.supported && (
+          <button
+            type="button"
+            onClick={dictation.toggle}
+            aria-pressed={dictation.recording}
+            aria-label={dictation.recording ? "Stop dictation" : `Dictate ${field.label}`}
+            title={dictation.recording ? "Stop dictation" : "Dictate"}
+            /* Top-right, not bottom-right: the browser draws the resize grip in
+               the bottom corner. Matches the app's other dictatable textareas. */
+            className={`absolute right-1.5 top-1.5 grid size-7 place-items-center rounded-md transition-colors ${
+              dictation.recording
+                ? "animate-pulse text-white"
+                : "text-ink-muted hover:bg-surface-soft hover:text-ink-strong"
+            }`}
+            style={dictation.recording ? { background: "var(--color-altus-red)" } : undefined}
+          >
+            <Mic size={14} strokeWidth={2.3} aria-hidden />
+          </button>
+        )}
+      </div>
+      {dictation.recording && (
+        <p className="mt-1 text-[12px] font-bold text-altus-red" aria-live="polite">
+          Listening…{" "}
+          {dictation.interim && (
+            <span className="font-normal italic text-ink-muted">“{dictation.interim}”</span>
+          )}
+        </p>
+      )}
+    </div>
   );
 }
 

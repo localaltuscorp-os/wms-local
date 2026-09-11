@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
-import { BookOpen, Plus, Pencil, Trash2, Check, X, Loader2 } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, Check, X, Loader2, FileText, Sheet } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { formatInr } from "@/lib/format";
 import { upsertCatalogEntry, deleteCatalogEntry } from "@/app/(app)/incentive/catalog-actions";
@@ -100,6 +100,25 @@ export function IncentiveCatalogDialog({ rows, isAdmin }: { rows: CatalogRow[]; 
               </Dialog.Description>
             </div>
             <div className="flex items-center gap-2">
+              {/* ── EXPORT THE WHOLE TABLE ────────────────────────────────
+                  Plain links to two server routes, NOT a print dialog and not
+                  a render of `rows`. Each route re-reads the full catalog from
+                  the database and writes the file there, so what downloads is
+                  every incentive on record — not the subset this dialog has
+                  scrolled into view. `download` keeps the browser from opening
+                  the PDF in a tab instead of saving it. */}
+              <ExportLink
+                href="/incentive/export.pdf"
+                icon={<FileText size={14} strokeWidth={2.5} />}
+                label="PDF"
+                title="Download the full incentive table as a PDF"
+              />
+              <ExportLink
+                href="/incentive/export.xlsx"
+                icon={<Sheet size={14} strokeWidth={2.5} />}
+                label="Excel"
+                title="Download the full incentive table as an Excel workbook"
+              />
               {isAdmin && (
                 <button
                   type="button"
@@ -176,6 +195,37 @@ export function IncentiveCatalogDialog({ rows, isAdmin }: { rows: CatalogRow[]; 
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+/**
+ * One compact download button. Deliberately an anchor rather than a fetch +
+ * blob: the browser's own download machinery handles a streamed attachment,
+ * the Content-Disposition filename from the route is honoured, and a slow
+ * export cannot leave this dialog stuck in a spinner it has to own.
+ */
+function ExportLink({
+  href,
+  icon,
+  label,
+  title,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  title: string;
+}) {
+  return (
+    <a
+      href={href}
+      download
+      title={title}
+      className="wg-btn inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12.5px] font-bold text-ink-soft transition-colors hover:text-ink-strong"
+      style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
+    >
+      {icon}
+      {label}
+    </a>
   );
 }
 

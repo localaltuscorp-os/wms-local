@@ -1,9 +1,10 @@
 import "server-only";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { CACHE_TAGS, type CacheTag } from "@/lib/cache-tags";
 import {
   outstandingProducts,
   outstandingEntitiesTbl,
@@ -59,6 +60,31 @@ export type CreateRosterInput = z.infer<typeof CreateSchema>;
 export type UpdateRosterInput = z.infer<typeof UpdateSchema>;
 
 /**
+ * WHICH CACHE TAG A ROSTER FEEDS.
+ *
+ * Derived from the TABLE rather than passed in by each caller. Two of these
+ * rosters are now read through `unstable_cache` by surfaces far away from the
+ * Outstanding module — the product master feeds Billing and the intake forms,
+ * the payment modes feed the collection form — so an edit here has to bust
+ * those entries or the change appears on this admin screen and nowhere else for
+ * up to ten minutes.
+ *
+ * Keyed on the table so it cannot be forgotten at a call site. A roster with no
+ * cached reader simply has no entry, and revalidating its paths is enough.
+ */
+const ROSTER_CACHE_TAGS: readonly { table: RosterTable; tag: CacheTag }[] = [
+  { table: outstandingProducts, tag: CACHE_TAGS.products },
+  { table: outstandingPaymentModes, tag: CACHE_TAGS.paymentModes },
+];
+
+function bustRoster(table: RosterTable, revalidatePaths: string[]): void {
+  for (const p of revalidatePaths) revalidatePath(p);
+  for (const entry of ROSTER_CACHE_TAGS) {
+    if (entry.table === table) updateTag(entry.tag);
+  }
+}
+
+/**
  * Create a roster row (admin). Rejects case-insensitive duplicates up
  * front so the unique constraint never surfaces as a raw DB error.
  * NOTE: no settingsEvents audit row — these rosters are low-stakes
@@ -102,7 +128,7 @@ export async function createRosterItem(
   }
   if (!inserted) return { ok: false, error: "DB: insert returned no row" };
 
-  for (const p of revalidatePaths) revalidatePath(p);
+  bustRoster(table, revalidatePaths);
   return { ok: true, id: inserted.id };
 }
 
@@ -160,6 +186,6 @@ export async function updateRosterItem(
     return { ok: false, error: `DB: ${msg}` };
   }
 
-  for (const p of revalidatePaths) revalidatePath(p);
+  bustRoster(table, revalidatePaths);
   return { ok: true };
 }

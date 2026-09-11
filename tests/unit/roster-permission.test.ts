@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SUPER_ADMIN_EMAILS } from "@/lib/auth/super-admin";
 import { canAddTaskRoster } from "@/lib/auth/roster-permission";
 
 /**
@@ -13,7 +14,9 @@ describe("canAddTaskRoster", () => {
 
   it("allows a super-admin who is NOT flagged admin in the database", () => {
     expect(
-      canAddTaskRoster({ isAdmin: false, email: "heteshvichare.altuscorp@gmail.com" }),
+      // A CURRENT super-admin, read from the list rather than named, so this
+      // test cannot go stale again the next time the roster changes.
+      canAddTaskRoster({ isAdmin: false, email: SUPER_ADMIN_EMAILS[0] }),
     ).toBe(true);
   });
 

@@ -7,6 +7,8 @@ import { db } from "@/lib/db";
 import { holidays, employeeEvents } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { canManageHolidays } from "@/lib/hr/holiday-admins";
+import { refreshMonthAfterCalendarChange } from "@/lib/salary/refresh-run";
+import { publishedHolidaysForYear } from "@/lib/hr/holidays-2026";
 import { rateLimitOrError } from "@/lib/rate-limit";
 
 /**
@@ -38,6 +40,14 @@ const AFFECTED_PATHS = [
   "/attendance",
   "/attendance/dashboard",
   "/admin/holidays",
+  // Declaring or withdrawing a holiday moves the month's TARGET HOURS, and the
+  // target hours are the denominator of the hourly rate every payslip is built
+  // from (lib/salary/compute.computeScheduleHourlySalary). Pay changes with the
+  // calendar, so the pay pages have to be invalidated with it.
+  "/my-salary",
+  "/salary",
+  // The company Holiday List reads the same merged calendar.
+  "/holidays",
 ];
 
 const AddSchema = z
@@ -67,13 +77,35 @@ export async function addAdHocHoliday(input: {
   }
   const { holidayDate, label } = parsed.data;
 
+  // The PUBLISHED calendar is not in this table and now feeds attendance too
+  // (lib/queries/holidays.listHolidayDateSet), so a date it already covers would
+  // otherwise be accepted here and then appear twice on this very page.
+  const published = publishedHolidaysForYear(Number(holidayDate.slice(0, 4))).find(
+    (h) => h.date === holidayDate,
+  );
+  if (published) {
+    return {
+      ok: false,
+      error: `${holidayDate} is already on the published calendar (${published.label}).`,
+    };
+  }
+
   const [clash] = await db
-    .select({ id: holidays.id, label: holidays.label })
+    .select({ id: holidays.id, label: holidays.label, isActive: holidays.isActive })
     .from(holidays)
     .where(eq(holidays.holidayDate, holidayDate))
     .limit(1);
   if (clash) {
-    return { ok: false, error: `${holidayDate} is already a holiday (${clash.label}).` };
+    // An INACTIVE row is a deliberate "this date is NOT a holiday" (see
+    // listHolidayDateSet). Saying "already a holiday" about one would be the
+    // opposite of what it means, and would leave the admin with no idea why the
+    // date is refused.
+    return clash.isActive
+      ? { ok: false, error: `${holidayDate} is already a holiday (${clash.label}).` }
+      : {
+          ok: false,
+          error: `${holidayDate} was withdrawn as a holiday (${clash.label}). Re-activate it in the Admin Panel instead of adding it again.`,
+        };
   }
 
   let inserted;
@@ -104,6 +136,9 @@ export async function addAdHocHoliday(input: {
     console.error("[addAdHocHoliday] audit write failed", err);
   }
 
+  // Recompute the month the holiday lands in, for everyone (spec §11) — a
+  // revalidate only clears a render cache, it does not rewrite the stored runs.
+  await refreshMonthAfterCalendarChange(holidayDate.slice(0, 7));
   for (const p of AFFECTED_PATHS) revalidatePath(p);
   return { ok: true, id: inserted.id };
 }
@@ -145,6 +180,9 @@ export async function removeAdHocHoliday(input: { id: string }): Promise<ActionR
     console.error("[removeAdHocHoliday] audit write failed", err);
   }
 
+  // The day reverts to a normal working day, so the month is repriced for
+  // everyone — the month the HOLIDAY was in, which need not be this one.
+  await refreshMonthAfterCalendarChange(String(row.holidayDate).slice(0, 7));
   for (const p of AFFECTED_PATHS) revalidatePath(p);
   return { ok: true };
 }

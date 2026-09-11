@@ -24,22 +24,15 @@ import { formatInr, formatCount } from "@/lib/format";
 import { FormEditorDialog } from "@/components/forms/form-editor-dialog";
 import { RbClaimDialog } from "@/components/reimbursements/rb-claim-dialog";
 import { RbClaimsList } from "@/components/reimbursements/rb-claims-list";
+import { RbFilterProvider } from "@/components/reimbursements/rb-filter-context";
+import { RbKpiStrip, type RbKpi } from "@/components/reimbursements/rb-kpi-strip";
+import { isPaid, sumClaims } from "@/lib/reimbursements/claim-status";
+import { attachmentCountsBySubmission } from "@/lib/queries/reimbursement-attachments";
 
 export const dynamic = "force-dynamic";
 
 const GREEN = "#16a34a";
 const GREEN_DEEP = "#15803d";
-
-/** Claim ₹ as a number — module fields are stored as strings. */
-function claimAmount(r: ModuleSubmissionRow): number {
-  const n = Number(String(r.fields.amount ?? "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : 0;
-}
-
-/** Approved AND admin logged a payment date ⇒ settled ("paid"). */
-function isPaid(r: ModuleSubmissionRow): boolean {
-  return r.status === "approved" && (r.adminFields?.payment_date ?? "") !== "";
-}
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -61,16 +54,84 @@ export default async function ReimbursementsPage({ searchParams }: PageProps) {
     resolveFields(adminKey("reimbursement"), def.adminFields),
   ]);
 
+  // Document counts for the badges — ONE grouped query for the whole page, not
+  // one per card. The files' signed URLs are minted only when a card is opened
+  // (see RbClaimAttachments); a count needs no round-trip to storage.
+  // Fail-soft: a bad read costs the badges, never the page.
+  const attachmentCounts = Object.fromEntries(
+    await attachmentCountsBySubmission(rows.map((r) => r.id)).catch(() => new Map<string, number>()),
+  );
+
   // ── KPIs folded over the already-loaded rows (zero extra queries) ──
-  const sum = (rs: ModuleSubmissionRow[]) => rs.reduce((s, r) => s + claimAmount(r), 0);
-  const totalClaimed = sum(rows);
+  // Computed over EVERY row, and they stay that way when a filter is active:
+  // a strip that recomputed itself against the selection would zero every card
+  // but the chosen one. The amount rule comes from the shared module the list
+  // filters with, so a card's total and its filtered list always agree.
+  const totalClaimed = sumClaims(rows);
   const pendingRows = rows.filter((r) => r.status === "pending");
   const approvedRows = rows.filter((r) => r.status === "approved");
   const rejectedRows = rows.filter((r) => r.status === "rejected");
-  const pendingAmount = sum(pendingRows);
-  const approvedAmount = sum(approvedRows);
+  const pendingAmount = sumClaims(pendingRows);
+  const approvedAmount = sumClaims(approvedRows);
   const paidCount = approvedRows.filter(isPaid).length;
   const approvedShare = totalClaimed > 0 ? approvedAmount / totalClaimed : null;
+
+  /**
+   * The KPI cards, each paired with the filter it selects.
+   *
+   * `filter` is read off what the card TOTALS, never off its title — see
+   * components/reimbursements/rb-kpi-strip.tsx for why "Approved · paid" maps
+   * to `approvedAll` (approved, settled or not) rather than the narrower
+   * "approved but unpaid" the toolbar chip means.
+   */
+  const kpis: RbKpi[] = [
+    {
+      key: "total",
+      filter: "all",
+      icon: <Wallet size={17} strokeWidth={2.4} />,
+      accent: GREEN,
+      label: "Total claimed",
+      value: formatInr(totalClaimed),
+      caption: `across ${formatCount(rows.length)} ${rows.length === 1 ? "claim" : "claims"}${view === "archived" ? " (archived)" : ""}`,
+    },
+    {
+      key: "pending",
+      filter: "pending",
+      icon: <Hourglass size={17} strokeWidth={2.4} />,
+      accent: pendingRows.length > 0 ? "#d97706" : "#334155",
+      label: "Pending",
+      value: formatInr(pendingAmount),
+      caption:
+        pendingRows.length > 0
+          ? `${formatCount(pendingRows.length)} awaiting review`
+          : "all reviewed",
+    },
+    {
+      key: "approved",
+      filter: "approvedAll",
+      icon: <CheckCircle2 size={17} strokeWidth={2.4} />,
+      accent: GREEN_DEEP,
+      label: "Approved · paid",
+      value: formatInr(approvedAmount),
+      caption:
+        approvedRows.length > 0
+          ? `${formatCount(paidCount)} of ${formatCount(approvedRows.length)} settled`
+          : "nothing approved yet",
+      progress: approvedShare,
+    },
+    {
+      key: "claims",
+      filter: "all",
+      icon: <Layers size={17} strokeWidth={2.4} />,
+      accent: "#334155",
+      label: "Claims",
+      value: formatCount(rows.length),
+      caption:
+        rejectedRows.length > 0
+          ? `${formatCount(rejectedRows.length)} rejected`
+          : "none rejected",
+    },
+  ];
 
   const tabStyle = (active: boolean) =>
     active
@@ -115,163 +176,51 @@ export default async function ReimbursementsPage({ searchParams }: PageProps) {
           }
         />
 
-        {/* ── KPI strip (folded over the loaded rows — zero extra queries) ── */}
-        <section
-          aria-label="Reimbursement totals"
-          className="mb-6 grid grid-cols-4 gap-3.5 max-lg:grid-cols-2 max-sm:grid-cols-1"
-        >
-          <KpiCard
-            icon={<Wallet size={17} strokeWidth={2.4} />}
-            accent={GREEN}
-            label="Total claimed"
-            value={formatInr(totalClaimed)}
-            caption={`across ${formatCount(rows.length)} ${rows.length === 1 ? "claim" : "claims"}${view === "archived" ? " (archived)" : ""}`}
-            delay={0}
-          />
-          <KpiCard
-            icon={<Hourglass size={17} strokeWidth={2.4} />}
-            accent={pendingRows.length > 0 ? "#d97706" : "#334155"}
-            label="Pending"
-            value={formatInr(pendingAmount)}
-            caption={
-              pendingRows.length > 0
-                ? `${formatCount(pendingRows.length)} awaiting review`
-                : "all reviewed"
-            }
-            delay={50}
-          />
-          <KpiCard
-            icon={<CheckCircle2 size={17} strokeWidth={2.4} />}
-            accent={GREEN_DEEP}
-            label="Approved · paid"
-            value={formatInr(approvedAmount)}
-            caption={
-              approvedRows.length > 0
-                ? `${formatCount(paidCount)} of ${formatCount(approvedRows.length)} settled`
-                : "nothing approved yet"
-            }
-            progress={approvedShare}
-            delay={100}
-          />
-          <KpiCard
-            icon={<Layers size={17} strokeWidth={2.4} />}
-            accent="#334155"
-            label="Claims"
-            value={formatCount(rows.length)}
-            caption={
-              rejectedRows.length > 0
-                ? `${formatCount(rejectedRows.length)} rejected`
-                : "none rejected"
-            }
-            delay={150}
-          />
-        </section>
+        {/*
+          THE KPI STRIP AND THE LIST SHARE ONE FILTER.
 
-        {/* ── Active / Archived tabs ── */}
-        <div
-          className="mb-5 inline-flex overflow-hidden rounded-pill bg-surface-card"
-          style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}
-        >
-          <Link
-            href={def.path as Route}
-            className="px-4 py-2 text-[13.5px] font-bold transition-colors"
-            style={tabStyle(view === "active")}
-          >
-            Active
-          </Link>
-          <Link
-            href={`${def.path}?view=archived` as Route}
-            className="px-4 py-2 text-[13.5px] font-bold transition-colors"
-            style={tabStyle(view === "archived")}
-          >
-            Archived
-          </Link>
-        </div>
+          `RbFilterProvider` owns it, so clicking a KPI card and clicking a
+          toolbar chip drive the same state — no second filtering mechanism, and
+          no way for a card's total to describe a different set from the rows
+          below it. The tabs sit inside too, purely so the provider can wrap the
+          whole block; they are unchanged server links.
+        */}
+        <RbFilterProvider>
+          <RbKpiStrip kpis={kpis} />
 
-        <RbClaimsList
-          rows={rows}
-          isAdmin={me.isAdmin}
-          requestFields={requestFields}
-          adminFields={adminFieldsLive}
-          productOptions={products}
-          view={view}
-        />
+          {/* ── Active / Archived tabs ── */}
+          <div
+            className="mb-5 inline-flex overflow-hidden rounded-pill bg-surface-card"
+            style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}
+          >
+            <Link
+              href={def.path as Route}
+              className="px-4 py-2 text-[13.5px] font-bold transition-colors"
+              style={tabStyle(view === "active")}
+            >
+              Active
+            </Link>
+            <Link
+              href={`${def.path}?view=archived` as Route}
+              className="px-4 py-2 text-[13.5px] font-bold transition-colors"
+              style={tabStyle(view === "archived")}
+            >
+              Archived
+            </Link>
+          </div>
+
+          <RbClaimsList
+            rows={rows}
+            isAdmin={me.isAdmin}
+            requestFields={requestFields}
+            adminFields={adminFieldsLive}
+            productOptions={products}
+            view={view}
+            attachmentCounts={attachmentCounts}
+            myEmployeeId={me.id}
+          />
+        </RbFilterProvider>
       </main>
     </>
-  );
-}
-
-/* ── KPI card — same construction as the Attendance / Salary / Overtime stat cards ── */
-
-function KpiCard({
-  icon,
-  accent,
-  label,
-  value,
-  caption,
-  progress,
-  delay,
-}: {
-  icon: React.ReactNode;
-  accent: string;
-  label: string;
-  value: string;
-  caption: string;
-  /** 0–1 fill for the thin bar; omit/null to hide it. */
-  progress?: number | null;
-  delay: number;
-}) {
-  return (
-    <div
-      className="wg-rise wg-btn rounded-2xl bg-surface-card px-4.5 py-4 max-md:px-4"
-      style={{
-        boxShadow:
-          "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.7), 0 10px 28px -20px rgba(15,23,42,0.35)",
-        animationDelay: `${delay}ms`,
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <span
-          className="inline-grid size-8 shrink-0 place-items-center rounded-[10px]"
-          style={{
-            background: `color-mix(in srgb, ${accent} 10%, transparent)`,
-            color: accent,
-          }}
-        >
-          {icon}
-        </span>
-        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-subtle">
-          {label}
-        </span>
-      </div>
-      <div
-        className="mt-2 tabular-nums text-ink-strong"
-        style={{
-          fontFamily: "var(--font-display), system-ui, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(21px, 1.7vw, 27px)",
-          letterSpacing: "-0.02em",
-          lineHeight: 1,
-        }}
-      >
-        {value}
-      </div>
-      <div className="mt-1 text-[12px] font-medium text-ink-subtle">{caption}</div>
-      {progress != null && (
-        <div
-          className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full"
-          style={{ background: "var(--color-hairline)" }}
-          aria-hidden
-        >
-          <span
-            className="block h-full rounded-full"
-            style={{
-              width: `${Math.max(2, progress * 100)}%`,
-              background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 75%, #fff), ${accent})`,
-            }}
-          />
-        </div>
-      )}
-    </div>
   );
 }

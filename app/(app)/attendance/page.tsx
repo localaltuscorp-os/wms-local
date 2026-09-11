@@ -10,10 +10,12 @@ import {
   BarChart3,
   MonitorPlay,
   Smartphone,
+  ScrollText,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
 import { PageShell } from "@/components/layout/page-shell";
 import { PunchCard } from "@/components/attendance/punch-card";
+import { PunchCorrection } from "@/components/attendance/punch-correction";
 import { AttendanceKpiStrip } from "@/components/attendance/attendance-kpi-strip";
 import { MonthCalendar } from "@/components/attendance/month-calendar";
 import { RemoteCheckInTrigger } from "@/components/attendance/remote-checkin-trigger";
@@ -28,9 +30,12 @@ import {
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import {
+  canManageDevices,
+  canViewAttendanceAuditLog,
+} from "@/lib/security/capabilities";
 import { isManagerWithReports } from "@/lib/manager-gates";
 import { goalsCascadeEnabled } from "@/lib/goals/flag";
-import { asWorkerType } from "@/lib/attendance/worker-type";
 import { employeeEffectiveConfig } from "@/lib/queries/attendance-status";
 import {
   listMyAttendance,
@@ -118,9 +123,6 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   // a DB hiccup hides the button, never breaks this hot page. Admins who manage
   // see it beside their admin buttons; a non-admin manager sees only this one.
   const isManager = await isManagerWithReports(me.id).catch(() => false);
-  // Project / remote staff clock in by starting a screen-share Work Session
-  // (session grading) instead of a punch — surface it as their headline action.
-  const isProjectRemote = asWorkerType(me.workerType) === "project_remote";
   // Part-timers are paid hourly against a WEEKLY target (27h by default), so
   // their hours are their pay — surface the week's progress while it can still
   // be acted on, instead of only as a smaller payslip at month end.
@@ -206,6 +208,9 @@ export default async function AttendancePage({ searchParams }: PageProps) {
     outAt: d.outAt,
     workedMinutes: d.workedMinutes,
     future: d.logDate > today,
+    // Approved WFH / On Field / Client Site — a marker on the day, never a
+    // grade. The hours still have to be punched.
+    remoteMode: d.remoteMode,
   }));
 
   const todayRow = myDays.find((d) => d.date === today);
@@ -285,7 +290,29 @@ export default async function AttendancePage({ searchParams }: PageProps) {
       lastPunchLabel={lastPunchLabel}
     />
   );
-  const wfhBox = <RemoteCheckInTrigger hasCheckedIn={!!todayRow?.in} hasCheckedOut={!!todayRow?.out} />;
+
+  // ── THE 15-MINUTE SELF-CORRECTION CONTROLS ───────────────────────────────
+  // One per punch on file today. Each renders only while ITS OWN window is
+  // open, which each control asks the SERVER — the countdown is presentation,
+  // and `correctOwnPunch` re-derives the same window on every call, so a
+  // control that lingers past its deadline is refused rather than obeyed.
+  const correctionControls =
+    todayRow?.in || todayRow?.out ? (
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {todayRow?.in && (
+          <PunchCorrection logDate={today} kind="in" label={formatTimeInTz(todayRow.in.at, tz)} />
+        )}
+        {todayRow?.out && (
+          <PunchCorrection logDate={today} kind="out" label={formatTimeInTz(todayRow.out.at, tz)} />
+        )}
+      </div>
+    ) : null;
+  const wfhBox = (
+    <>
+      {correctionControls}
+      <RemoteCheckInTrigger hasCheckedIn={!!todayRow?.in} hasCheckedOut={!!todayRow?.out} />
+    </>
+  );
   // ── MY EFFECTIVE CONFIGURATION (spec §10) ────────────────────────────────
   // Resolved from this employee's own row through the SAME resolver the grader
   // and the salary engine use, so what is displayed cannot drift from what is
@@ -338,14 +365,18 @@ export default async function AttendancePage({ searchParams }: PageProps) {
         {/* ── Page header ── */}
         <header className="mb-4 wg-rise flex items-center justify-between gap-4 flex-wrap">
           <div className="min-w-0">
+            {/* A greeting, not a headline. It was 900-weight at up to 32px,
+                which made hello the loudest thing on a page whose job is the
+                clock and the KPI bar. Kept as the page heading — same element,
+                same words — just no longer competing with them. */}
             <h1
               className="text-ink-strong"
               style={{
                 fontFamily: "var(--font-display), system-ui, sans-serif",
-                fontWeight: 900,
-                fontSize: "clamp(22px,2.6vw,32px)",
-                letterSpacing: "-0.03em",
-                lineHeight: 1.02,
+                fontWeight: 600,
+                fontSize: "clamp(15px,1.4vw,18px)",
+                letterSpacing: "-0.01em",
+                lineHeight: 1.2,
               }}
             >
               Good to see you, {firstName}
@@ -354,11 +385,15 @@ export default async function AttendancePage({ searchParams }: PageProps) {
           {(me.isAdmin || isSA || isManager) && (
             <div className="flex shrink-0 items-center gap-2 flex-wrap">
               {(isManager || me.isAdmin) && (
+                // Smaller and quieter than the admin report buttons beside
+                // it: it is a link into a secondary view, not the page's
+                // action. Unchanged in every other respect — same href, same
+                // gate, same behaviour.
                 <a
                   href="/attendance/insights/team"
-                  className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
+                  className="pastel-cta wg-btn inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1.5 text-[12px] font-semibold"
                 >
-                  <Users size={15} strokeWidth={2.4} /> My Team
+                  <Users size={13} strokeWidth={2.2} /> My Team
                 </a>
               )}
               {(me.isAdmin || isSA) && (
@@ -369,14 +404,28 @@ export default async function AttendancePage({ searchParams }: PageProps) {
                   <MonitorPlay size={15} strokeWidth={2.4} /> Work Sessions
                 </a>
               )}
+              {/* DEVICES + CHANGE LOG are gated on CAPABILITIES, not on
+                  `isAdmin`: both pages refuse an ordinary admin server-side, so
+                  showing them to every admin would advertise a door that does
+                  not open. Hiding is presentation — the pages guard themselves. */}
+              {canManageDevices(me.email) && (
+                <a
+                  href="/attendance/devices"
+                  className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
+                >
+                  <Smartphone size={15} strokeWidth={2.4} /> Devices
+                </a>
+              )}
+              {canViewAttendanceAuditLog(me.email) && (
+                <a
+                  href="/attendance/change-log"
+                  className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
+                >
+                  <ScrollText size={15} strokeWidth={2.4} /> Change Log
+                </a>
+              )}
               {me.isAdmin && (
                 <>
-                  <a
-                    href="/attendance/devices"
-                    className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
-                  >
-                    <Smartphone size={15} strokeWidth={2.4} /> Devices
-                  </a>
                   <a
                     href="/attendance/insights"
                     className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
@@ -401,49 +450,12 @@ export default async function AttendancePage({ searchParams }: PageProps) {
           employees={pendingLeave.employees}
         />
 
-        {/* ── Project / remote staff: starting a screen-share Work Session IS
-             their check-in (session grading), so make it the headline action. ── */}
-        {isProjectRemote && (
-          <a
-            href="/attendance/work-session"
-            className="wg-rise wg-btn group mb-5 flex items-center gap-4 rounded-[22px] px-6 py-5 text-white max-sm:flex-col max-sm:items-start max-sm:gap-3"
-            style={{
-              background: "linear-gradient(135deg, #E10600, #A80400)",
-              boxShadow: "0 14px 34px -16px color-mix(in srgb, #A80400 75%, transparent)",
-            }}
-          >
-            <span
-              className="inline-grid size-12 shrink-0 place-items-center rounded-2xl"
-              style={{ background: "rgba(255,255,255,0.16)" }}
-            >
-              <MonitorPlay size={24} strokeWidth={2.2} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div
-                style={{
-                  fontFamily: "var(--font-display), system-ui, sans-serif",
-                  fontWeight: 900,
-                  fontSize: 20,
-                  letterSpacing: "-0.02em",
-                  lineHeight: 1.1,
-                }}
-              >
-                Start Work Session
-              </div>
-              <p className="mt-0.5 text-[13.5px] font-medium text-white/85">
-                Share your screen so your work time is captured and reviewed — this is how you check in.
-              </p>
-            </div>
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-pill bg-white/15 px-4 py-2 text-[13.5px] font-bold max-sm:w-full max-sm:justify-center">
-              Begin
-              <MoveRight
-                size={16}
-                strokeWidth={2.4}
-                className="transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
-              />
-            </span>
-          </a>
-        )}
+        {/* ── THE "START WORK SESSION" BANNER WAS REMOVED HERE ──────────────
+             A full-width red hero, shown to project/remote staff, that pushed
+             the punch clock and the KPI bar below the fold on the one page
+             whose job is both. Work Sessions are unchanged and still reachable
+             at /attendance/work-session (and from the admin Work Sessions
+             button above); only the banner is gone. */}
 
         {/* ── How am I doing — THE KPI bar. One bar, one period toggle, every
             number. The part-time week card used to sit above this saying the

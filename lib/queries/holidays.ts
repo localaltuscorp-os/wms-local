@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, gte, inArray, lte, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { eventHolidays, holidays } from "@/db/schema";
+import { publishedHolidayDates } from "@/lib/hr/holidays-2026";
 
 export interface HolidayRow {
   id: string;
@@ -45,17 +46,32 @@ export async function listHolidays(year?: number): Promise<HolidayRow[]> {
  * Set of company holiday dates (YYYY-MM-DD) for a calendar year — the days the
  * attendance grader marks off in the monthly grid instead of expecting a punch.
  *
- * ── READS BOTH CALENDARS ───────────────────────────────────────────────────
- * The app keeps holidays in two places and an admin may legitimately use either:
+ * ── READS ALL THREE CALENDARS ──────────────────────────────────────────────
+ * The app keeps holidays in three places and HR may legitimately use any of them:
  *
- *   · `holidays`       — the Admin Panel list (/admin/holidays).
+ *   · the PUBLISHED calendar (lib/hr/holidays-2026.ts) — the firm's own 15-day
+ *                        list per year, which is what the HR Holiday List at
+ *                        /hr/holidays renders and therefore the calendar
+ *                        employees are actually told to plan around.
+ *   · `holidays`       — the Admin Panel list (/admin/holidays) and the HR
+ *                        page's AD-HOC additions.
  *   · `event_holidays` — the Monthly Events Master, which is what the company
  *                        Holiday List at /holidays renders.
  *
- * Only the first was read here, so a holiday entered in the Events Master was
- * invisible to grading: the day was expected as a working day, graded ABSENT,
- * and the lost day flowed straight through payable days into salary. Reading
- * both closes that.
+ * Only `holidays` was read here originally, so a holiday entered in the Events
+ * Master was invisible to grading. The PUBLISHED list was invisible too, and
+ * that was the worse half: it is the main calendar, it lives in code rather than
+ * in any table, and every one of its days — Republic Day, Independence Day,
+ * Diwali — was graded as an ordinary working day. Nobody punched, the grader
+ * wrote "A", and the day flowed through target hours, the hours balance and into
+ * a salary deduction. Reading all three closes that.
+ *
+ * ── SUPPRESSION: how a published holiday gets CANCELLED ────────────────────
+ * The published list is code, so it cannot be edited from the app. An INACTIVE
+ * `holidays` row is therefore read as an explicit "this date is NOT a holiday",
+ * whichever calendar proposed it — which is what `is_active` already meant on
+ * that table, now applied to the merged answer rather than to one source. To
+ * withdraw a published day: add it in the Admin Panel and toggle it Inactive.
  *
  * ── WHICH EVENT-MASTER ROWS COUNT, AND WHY THE BAR IS HIGH ─────────────────
  * This set is applied to EVERYONE, so only an unambiguous company-wide day off
@@ -80,16 +96,13 @@ export async function listHolidayDateSet(year: number): Promise<Set<string>> {
   const to = `${year}-12-31`;
 
   const [adminRows, masterRows] = await Promise.all([
+    // ACTIVE and INACTIVE both, because an inactive row is not "nothing" — it is
+    // the only way to say "not a holiday" about a date the published calendar or
+    // the Events Master claims. Split below.
     db
-      .select({ holidayDate: holidays.holidayDate })
+      .select({ holidayDate: holidays.holidayDate, isActive: holidays.isActive })
       .from(holidays)
-      .where(
-        and(
-          eq(holidays.isActive, true),
-          gte(holidays.holidayDate, from),
-          lte(holidays.holidayDate, to),
-        ),
-      ),
+      .where(and(gte(holidays.holidayDate, from), lte(holidays.holidayDate, to))),
     db
       .select({ holidayDate: eventHolidays.holidayDate })
       .from(eventHolidays)
@@ -107,5 +120,16 @@ export async function listHolidayDateSet(year: number): Promise<Set<string>> {
       .catch(() => []),
   ]);
 
-  return new Set([...adminRows, ...masterRows].map((r) => r.holidayDate));
+  const suppressed = new Set(
+    adminRows.filter((r) => !r.isActive).map((r) => String(r.holidayDate)),
+  );
+
+  const dates = [
+    // The published calendar first — it is the one employees are shown.
+    ...publishedHolidayDates(year),
+    ...adminRows.filter((r) => r.isActive).map((r) => String(r.holidayDate)),
+    ...masterRows.map((r) => String(r.holidayDate)),
+  ];
+
+  return new Set(dates.filter((d) => !suppressed.has(d)));
 }

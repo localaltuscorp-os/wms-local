@@ -35,6 +35,53 @@ export function isOrdinaryAttendanceDay(code: string): boolean {
 }
 
 /**
+ * Codes that carry NO SCHEDULED-HOUR EXPECTATION — the days that must not
+ * appear in an employee's "required hours".
+ *
+ * Weekly off, declared holiday, approved paid leave, comp-off and approved
+ * unpaid leave are the obvious five. The two HOLIDAY-WORKING codes are the
+ * load-bearing additions:
+ *
+ *   HP     — worked a holiday or weekly off (credited 2×)
+ *   H-H/D  — worked part of one           (credited 1.5×)
+ *
+ * A holiday is a holiday whether or not somebody chose to come in, so turning
+ * up on one must not RAISE the hours that person was required to work. It used
+ * to: `reconcileMonth` correctly excluded HP from the salary target (it is not
+ * an ordinary attendance day), while the Attendance KPI's "required hours" and
+ * the overtime threshold counted it — so an employee who worked a holiday was
+ * shown a bigger target on Attendance than the payslip was measuring them
+ * against, and their Hrs Balance quietly lost a day. Two surfaces, one fact,
+ * two numbers.
+ *
+ * Deliberately SEPARATE from `OFF_CODES` (lib/queries/attendance-summary.ts),
+ * which answers a different question: whether the day counts toward "Effective
+ * Days Worked". A worked holiday IS a day worked and belongs in that count; it
+ * is simply not a day whose hours were ever required.
+ */
+const NO_HOUR_EXPECTATION = new Set([
+  "W/O",
+  "H",
+  "PL",
+  "CO",
+  "LWP",
+  "HP",
+  "H-H/D",
+]);
+
+/**
+ * Was this day one the employee's SCHEDULE required hours on?
+ *
+ * The single definition behind every "target / required hours" figure in the
+ * app — the Attendance KPI bar, the overtime threshold the salary engine
+ * measures surplus against, and the monthly payroll view. THE one place to add
+ * a new kind of exempt day.
+ */
+export function expectsScheduledHours(code: string): boolean {
+  return !NO_HOUR_EXPECTATION.has(code);
+}
+
+/**
  * Worked minutes → attendance days, rounded to the nearest HALF day (the
  * granularity the rest of the system already uses) and never exceeding the
  * number of days the person was actually expected in.

@@ -5,10 +5,46 @@ broken, what changed and why.
 
 - Setup instructions → [`SETUP.md`](./SETUP.md)
 - Replicating this system for a new client → [`docs/WMS_BLUEPRINT.md`](./docs/WMS_BLUEPRINT.md)
+- **`Om` branch handoff + unrun SQL migrations** → [`HANDOFF-Om.md`](./HANDOFF-Om.md)
 
 > **Every developer and intern must append to the changelog below before their
 > work is considered done.** A PR without a changelog entry is incomplete. See
 > [How to update this file](#how-to-update-this-file).
+
+---
+
+## ⚠️ Pending database migrations — 0216 to 0220 (added 2026-09-10)
+
+The `Om` branch ships code that **assumes five tables which do not exist in Supabase
+yet**. Nobody has run these. Until they are applied, master-admin, the permission
+matrix, delegated access, manager history and reimbursement attachments will fail at
+runtime.
+
+| File | Creates |
+|------|---------|
+| `db/migrations/0216_module_submission_attachments.sql` | `module_submission_attachments` |
+| `db/migrations/0217_masters_payment_modes_and_products.sql` | `ALTER TABLE outstanding_products` |
+| `db/migrations/0218_delegated_access.sql` | `delegated_access_grants`, `delegated_access_events` |
+| `db/migrations/0219_permission_matrix.sql` | `module_permissions`, `module_permission_events` |
+| `db/migrations/0220_manager_hierarchy_history.sql` | `employee_manager_history` |
+
+All five are additive — no `DROP`, `TRUNCATE` or `DELETE`. Validate first (runs inside a
+transaction, then rolls back), then apply:
+
+```bash
+npx tsx --env-file=.env.local scripts/validate-migrations-0217-0220.ts
+npx tsx --env-file=.env.local scripts/apply-migrations-0217-0220.ts
+```
+
+`0216` is **not** covered by those scripts — apply it by hand, first:
+
+```bash
+psql "$DATABASE_URL" -f db/migrations/0216_module_submission_attachments.sql
+```
+
+Do **not** reach for `npm run db:migrate` here: the drizzle journal is stale at `0019`, so
+it would also apply two dozen unrelated pending migrations. Full detail, verification
+steps and the merge decisions that need review are in [`HANDOFF-Om.md`](./HANDOFF-Om.md).
 
 ---
 

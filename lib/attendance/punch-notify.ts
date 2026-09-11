@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { attendanceLogs, employees, type NotificationKind } from "@/db/schema";
 import { notify } from "@/lib/notifications/dispatch";
@@ -207,5 +207,73 @@ export async function alertAdminsNewAttendanceDevice(
     );
   } catch (err) {
     console.warn("[attendance] admin new-device alert failed (non-fatal)", err);
+  }
+}
+
+/**
+ * Tell the DEVICE MANAGERS that somebody is locked out waiting for approval.
+ *
+ * ── WHY THIS EXISTS ────────────────────────────────────────────────────────
+ * Before device access gated the whole WMS, an unrecognised browser cost you
+ * the ability to punch. Now it costs you the application, so the gap between
+ * "my device landed pending" and "somebody approved it" is time the person
+ * cannot work at all. Clearing cookies, a reinstalled laptop or a new browser
+ * profile all land here, and none of them is misconduct.
+ *
+ * Nothing about the RULE is relaxed — a pending device stays refused. What this
+ * removes is the silence: the three people who can approve it are told the
+ * moment it happens, so the wait is a minute rather than however long it takes
+ * the locked-out person to find someone.
+ *
+ * ── AIMED AT THE CAPABILITY, NOT AT A LIST OF PEOPLE ───────────────────────
+ * Recipients are resolved from whoever holds `device.manage`, so granting that
+ * capability automatically starts routing these alerts. The sibling
+ * `alertAdminsNewAttendanceDevice` above deliberately notifies EVERY admin,
+ * because it is a review hook for a different question ("should this person
+ * have enrolled a device at all?"). This one is an action item, and it goes
+ * only to the people who can act on it.
+ *
+ * Best-effort and never awaited by the gate: a notification failure must not
+ * turn a refusal into a crash.
+ */
+export async function alertDeviceManagersPendingDevice(input: {
+  employeeId: string;
+  employeeName: string;
+  deviceLabel: string | null;
+  deviceKind: string;
+}): Promise<void> {
+  try {
+    const { emailsWithCapability } = await import("@/lib/security/capabilities");
+    const emails = emailsWithCapability("device.manage");
+    if (emails.length === 0) return;
+
+    const managers = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(and(inArray(employees.email, emails), eq(employees.isActive, true)));
+
+    const label = input.deviceLabel?.trim() || `a new ${input.deviceKind}`;
+    const title = `${input.employeeName} is locked out — device needs approval`;
+    const body =
+      `${input.employeeName} signed in from ${label}, which is not one of their ` +
+      `registered devices. They cannot use the WMS until it is approved. ` +
+      `Approve or refuse it in Attendance → Registered Devices.`;
+
+    await Promise.all(
+      managers
+        .filter((m) => m.id !== input.employeeId)
+        .map((m) =>
+          notify({
+            userId: m.id,
+            kind: "attendance_device" as NotificationKind,
+            title,
+            body,
+            actorId: input.employeeId,
+            forceChannels: [],
+          }),
+        ),
+    );
+  } catch (err) {
+    console.warn("[device-access] pending-device manager alert failed (non-fatal)", err);
   }
 }
