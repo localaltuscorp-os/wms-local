@@ -177,7 +177,7 @@ export function AgingTaskDrawer({
         </div>
 
         {/* ── Task table ── */}
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+        <div className="table-scroll min-h-0 flex-1 overflow-auto overscroll-contain">
           {tasks.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-gray-500">
               <Inbox size={26} strokeWidth={2} />

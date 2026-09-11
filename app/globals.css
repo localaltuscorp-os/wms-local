@@ -2723,6 +2723,40 @@ html {
   display: none;
 }
 
+/* A DATA TABLE'S scrollbar. `slim-scroll` above is 6px with an #e2e8f0 thumb —
+   tuned for short side-lists, and on a white card the size of a full data table
+   it is close to invisible, so nothing tells you there are 40 more rows below
+   the fold or three more columns to the right.
+
+   8px with a slate-300 thumb (slate-400 on hover) reads as a scrollbar at a
+   glance without becoming the loudest thing on the card. These exact values
+   were already proven inline on the time-report tables
+   (components/tasks/time/reports/report-ui.tsx, `TableShell`); this is that
+   same treatment as one named class, so a table does not have to carry six
+   arbitrary variants to get a bar people can see.
+
+   Firefox gets `scrollbar-width: thin` — it has no ::-webkit pseudo-elements,
+   and leaving it out is how a "custom scrollbar" ends up custom in Chrome and
+   chunky grey everywhere else. */
+.table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.table-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.table-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+.table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 /* Premium, slim scrollbar for the kanban board — smooth horizontal scroll
    with a subtle pill thumb instead of the chunky native bar (sir's #1). */
 /* ── Trackpad / touch panning, applied to every scroll container ────────────

@@ -734,7 +734,7 @@ function TeamMembersCell({
               />
             </div>
           </div>
-          <div ref={listRef} className="max-h-64 overflow-auto" role="listbox">
+          <div ref={listRef} className="slim-scroll max-h-64 overflow-auto" role="listbox">
             {filtered.map((r, i) => {
               const isSel = isPicked(r);
               const isActive = i === active;
@@ -856,7 +856,7 @@ function BulkMembers({
         <p className="flex items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
           <Users size={12} /> Members &amp; weights · {count} selected
         </p>
-        <div className="max-h-64 overflow-auto">
+        <div className="slim-scroll max-h-64 overflow-auto">
           {roster.map((r) => {
             const sel = isPicked(r);
             const mine = list.find((m) => matches(m, r));
@@ -1075,7 +1075,7 @@ function DelegatesCell({
               />
             </div>
           </div>
-          <div ref={listRef} className="max-h-64 overflow-auto" role="listbox">
+          <div ref={listRef} className="slim-scroll max-h-64 overflow-auto" role="listbox">
             {filtered.map((r, i) => {
               const isSel = picked.has(r.id);
               const isActive = i === active;
@@ -1261,7 +1261,7 @@ function BulkDelegate({
         <p className="flex items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
           <UserPlus size={12} /> Delegate to · {count} selected
         </p>
-        <div className="max-h-64 overflow-auto">
+        <div className="slim-scroll max-h-64 overflow-auto">
           {roster.map((r) => {
             const sel = isPicked(r);
             const mine = list.find((d) => d.employeeId === r.id);
@@ -1539,7 +1539,7 @@ function CopyToMenu({
         <p className="flex items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
           <Copy size={12} /> Copy {count} goal{count === 1 ? "" : "s"} to…
         </p>
-        <div className="max-h-64 overflow-auto">
+        <div className="slim-scroll max-h-64 overflow-auto">
           {childMap.targets.map((t) => {
             const on = picked.has(t.key);
             return (
@@ -1607,7 +1607,7 @@ function MoveToMenu({
         <p className="flex items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
           <ArrowRightLeft size={12} /> Move to another {noun}
         </p>
-        <div className="max-h-64 overflow-auto">
+        <div className="slim-scroll max-h-64 overflow-auto">
           {siblings.map((t) => (
             <button
               key={t.key}
@@ -1771,7 +1771,7 @@ function DupCollisionDialog({
           </div>
 
           <div
-            className="mb-4 max-h-40 overflow-auto rounded-lg border p-2 text-[12.5px]"
+            className="slim-scroll mb-4 max-h-40 overflow-auto rounded-lg border p-2 text-[12.5px]"
             style={{ borderColor: "var(--color-hairline)", background: "var(--color-surface-soft)" }}
           >
             {entries.map(([key, list]) => (
@@ -3139,7 +3139,7 @@ export function GoalTableView(props: GoalTableViewProps) {
 
       {/* ---------- the table ---------- */}
       <div
-        className="wg-rise bg-surface-card rounded-section border border-hairline overflow-x-auto overflow-y-auto overscroll-x-contain max-h-[calc(100vh-260px)]"
+        className="table-scroll wg-rise bg-surface-card rounded-section border border-hairline overflow-x-auto overflow-y-auto overscroll-x-contain max-h-[calc(100vh-260px)]"
         onKeyDown={grid.onKeyDown}
         onBlur={(e) => {
           // Clear the active-cell highlight when focus leaves the table entirely
