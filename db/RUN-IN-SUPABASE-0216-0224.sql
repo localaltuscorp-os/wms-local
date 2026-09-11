@@ -1,53 +1,52 @@
 -- ===========================================================================
---  RUN IN SUPABASE — migrations 0216 to 0220
---  Altus WMS · branch `Om` · generated 2026-09-10
+--  RUN IN SUPABASE — migrations 0216 to 0224 (additive)
+--  Altus WMS · branch `Om` · regenerated 2026-09-11
 -- ===========================================================================
 --
 --  WHAT THIS IS
---    The five migrations the `Om` branch needs which have NOT been applied to
---    Supabase yet. Until they run, master-admin, the permission matrix,
---    delegated access, manager history and reimbursement attachments all fail
---    at runtime because their tables do not exist.
---
---    Generated verbatim from db/migrations/*.sql — the prose headers are
---    stripped, every SQL statement is byte-identical to the repo.
+--    Every pending migration that is SAFE TO APPLY UNATTENDED, bundled in
+--    filename order inside one transaction. Generated verbatim from
+--    db/migrations/*.sql — every statement is byte-identical to the repo.
 --
 --  HOW TO RUN
---    Supabase Dashboard -> SQL Editor -> New query -> paste this whole file
---    -> Run. It is wrapped in a single transaction: it all applies, or
---    nothing does.
---
---    Or from a terminal:
---      psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0216-0220.sql
+--    Supabase Dashboard -> SQL Editor -> New query -> paste this file -> Run.
+--    It is one transaction: it all applies, or nothing does.
+--      or:  psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0216-0224.sql
 --
 --  IS IT SAFE
---    Yes. There is no DROP TABLE, no TRUNCATE, no DELETE anywhere in this file.
---    Every statement is additive and idempotent (IF NOT EXISTS / ON CONFLICT
---    DO NOTHING / NOT EXISTS), so running it twice changes nothing the second
---    time. No existing row is at risk.
+--    Yes. No DROP TABLE, no TRUNCATE, no DELETE anywhere in this file. Every
+--    statement is additive and idempotent (IF NOT EXISTS / ON CONFLICT DO
+--    NOTHING / NOT EXISTS), so a second run changes nothing.
+--    (0224 contains DROP INDEX, which replaces an index and destroys no row.)
 --
---    Two sections DO write rows — 0217 (master data) and 0220 (backfill).
---    Both are called out below. Read them before running.
+--    Two sections write ROWS — 0217 (master data) and 0220 (backfill). Both are
+--    called out below and both are idempotent. Read them before running.
 --
---  PREREQUISITES  (all already exist in production)
---    employees                   base schema
---    module_submissions          0063_form_modules.sql
---    product_options             0063_form_modules.sql
---    outstanding_products        0055_outstanding_rebuild.sql
---    outstanding_payment_modes   0055_outstanding_rebuild.sql
---    outstanding_entities        0055_outstanding_rebuild.sql
+--  ⚠️  0223 IS NOT IN THIS FILE, DELIBERATELY.
+--    db/migrations/0223_clear_registered_devices.sql DELETEs every row from
+--    mobile_devices. It is a real decision with a real cost (device history is
+--    lost), so it must not ride along inside a paste-and-go bundle. Run it on
+--    its own, only when you mean to, and read its header first:
 --
---  DO NOT run `npm run db:migrate` to achieve this. The drizzle journal is
---  stale at 0019, so that command would also apply two dozen unrelated
---  pending migrations.
+--      pnpm db:migrate -- --allow-destructive=0223_clear_registered_devices.sql
+--
+--    ORDER: 0222 and 0224 add the columns; 0223 clears the rows. Apply this
+--    file FIRST, then decide about 0223.
+--
+--  PREREQUISITES (all already exist in production)
+--    employees, mobile_devices, holidays, module_submissions, product_options,
+--    outstanding_products, outstanding_payment_modes, outstanding_entities
+--
+--  DO NOT use `npm run db:migrate` to achieve this — the drizzle journal is
+--  stale at 0019, so it would also apply two dozen unrelated pending files.
 -- ===========================================================================
 
 BEGIN;
 
 -- -------------------------------------------------------------------------
 --  0216_module_submission_attachments.sql
---  Reimbursement receipts become files the firm holds (replaces the free-text bill_url Drive link).
---  STRUCTURE ONLY - creates 1 table + 1 index. No data written.
+--  Reimbursement receipts become files the firm holds, replacing a free-text Drive link.
+--  STRUCTURE ONLY — 1 table, 1 index.
 -- -------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS module_submission_attachments (
@@ -65,8 +64,8 @@ CREATE INDEX IF NOT EXISTS module_submission_attachments_submission_idx
 
 -- -------------------------------------------------------------------------
 --  0217_masters_payment_modes_and_products.sql
---  Master data: payment modes (IGV -> IJV + new accounts) and the product master gaining a code.
---  WRITES BUSINESS DATA - renames IGV to IJV, inserts 15 payment modes, 11 products, 7 product options. REVIEW THE VALUES.
+--  Master data: payment modes (IGV to IJV, plus new accounts) and a product code.
+--  WRITES BUSINESS DATA — renames IGV to IJV, inserts 15 payment modes, 11 products, 7 options. REVIEW THE VALUES.
 -- -------------------------------------------------------------------------
 
 UPDATE outstanding_payment_modes
@@ -131,8 +130,8 @@ ON CONFLICT (label) DO NOTHING;
 
 -- -------------------------------------------------------------------------
 --  0218_delegated_access.sql
---  Temporary delegated access. No credential is stored anywhere in these tables.
---  STRUCTURE ONLY - creates 2 tables + 6 indexes. No data written.
+--  Temporary delegated access. No credential is stored in these tables.
+--  STRUCTURE ONLY — 2 tables, 6 indexes.
 -- -------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS delegated_access_grants (
@@ -196,8 +195,8 @@ CREATE INDEX IF NOT EXISTS delegated_access_events_target_idx
 
 -- -------------------------------------------------------------------------
 --  0219_permission_matrix.sql
---  Permission matrix: module -> sub-module -> sub-sub-module, SHOW/VIEW/EDIT per employee.
---  STRUCTURE ONLY - creates 2 tables + 4 indexes. Columns default to TRUE, so an absent row means full access; this grants nothing new by itself.
+--  Permission matrix: module tree with SHOW/VIEW/EDIT per employee.
+--  STRUCTURE ONLY — 2 tables, 4 indexes. Columns default TRUE, so this grants nothing new by itself.
 -- -------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS module_permissions (
@@ -236,8 +235,8 @@ CREATE INDEX IF NOT EXISTS module_permission_events_recent_idx
 
 -- -------------------------------------------------------------------------
 --  0220_manager_hierarchy_history.sql
---  Reporting-manager history. employees.manager_id stays canonical and is not touched.
---  WRITES DATA - backfills ONE ROW PER EMPLOYEE from employees.manager_id. Guarded by NOT EXISTS, so re-running is safe.
+--  Reporting-manager history. employees.manager_id stays canonical.
+--  WRITES DATA — backfills one row per employee. Guarded by NOT EXISTS, safe to re-run.
 -- -------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS employee_manager_history (
@@ -277,24 +276,99 @@ WHERE NOT EXISTS (
      AND h.effective_to IS NULL
 );
 
+-- -------------------------------------------------------------------------
+--  0221_holiday_note.sql
+--  An optional note on a holiday, and a record of who last changed it.
+--  STRUCTURE ONLY — additive columns.
+-- -------------------------------------------------------------------------
+
+ALTER TABLE holidays
+  ADD COLUMN IF NOT EXISTS note text;
+ALTER TABLE holidays
+  ADD COLUMN IF NOT EXISTS updated_by_id uuid REFERENCES employees(id) ON DELETE SET NULL;
+ALTER TABLE holidays
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz;
+
+-- -------------------------------------------------------------------------
+--  0222_device_registration_consent.sql
+--  First-login device registration: registration columns + the consent audit table.
+--  STRUCTURE ONLY — adds columns to mobile_devices, creates device_consent_events.
+-- -------------------------------------------------------------------------
+
+ALTER TABLE mobile_devices
+  ADD COLUMN IF NOT EXISTS bios_serial_number text;
+ALTER TABLE mobile_devices
+  ADD COLUMN IF NOT EXISTS manufacturer text;
+ALTER TABLE mobile_devices
+  ADD COLUMN IF NOT EXISTS model text;
+ALTER TABLE mobile_devices
+  ADD COLUMN IF NOT EXISTS registered_at timestamptz;
+CREATE UNIQUE INDEX IF NOT EXISTS mobile_devices_bios_serial_uq
+  ON mobile_devices (lower(bios_serial_number))
+  WHERE bios_serial_number IS NOT NULL AND kind = 'laptop';
+UPDATE mobile_devices
+   SET registered_at = COALESCE(approved_at, created_at, now())
+ WHERE registered_at IS NULL;
+CREATE TABLE IF NOT EXISTS device_consent_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid NOT NULL REFERENCES employees (id) ON DELETE CASCADE,
+  device_row_id uuid REFERENCES mobile_devices (id) ON DELETE SET NULL,
+  device_id text,
+  consent_version text NOT NULL,
+  consent_type text NOT NULL DEFAULT 'device-registration',
+  actor_employee_id uuid REFERENCES employees (id) ON DELETE SET NULL,
+  consented_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS device_consent_events_employee_idx
+  ON device_consent_events (employee_id, consented_at DESC);
+CREATE INDEX IF NOT EXISTS device_consent_events_device_idx
+  ON device_consent_events (device_row_id);
+CREATE INDEX IF NOT EXISTS device_consent_events_version_idx
+  ON device_consent_events (consent_version);
+
+-- -------------------------------------------------------------------------
+--  0224_device_name_replaces_bios_serial.sql
+--  Renames the registration field to device_name. MUST run after 0222.
+--  STRUCTURE ONLY — renames a column, swaps one index. wmic is absent on Windows 11 26100+, so the BIOS-serial ask was undoable for the roster.
+-- -------------------------------------------------------------------------
+
+DO $$
+BEGIN
+  IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'mobile_devices' AND column_name = 'bios_serial_number'
+     )
+     AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'mobile_devices' AND column_name = 'device_name'
+     )
+  THEN
+    ALTER TABLE mobile_devices RENAME COLUMN bios_serial_number TO device_name;
+  END IF;
+END $$;
+ALTER TABLE mobile_devices
+  ADD COLUMN IF NOT EXISTS device_name text;
+DROP INDEX IF EXISTS mobile_devices_bios_serial_uq;
+CREATE UNIQUE INDEX IF NOT EXISTS mobile_devices_device_name_uq
+  ON mobile_devices (lower(device_name))
+  WHERE device_name IS NOT NULL AND kind = 'laptop';
+
 COMMIT;
 
 -- ===========================================================================
---  VERIFY  (run after COMMIT — each should return one row)
+--  VERIFY (run after COMMIT)
 -- ===========================================================================
--- SELECT to_regclass('module_submission_attachments') AS t_0216;
--- SELECT to_regclass('delegated_access_grants')       AS t_0218a;
--- SELECT to_regclass('delegated_access_events')       AS t_0218b;
--- SELECT to_regclass('module_permissions')            AS t_0219a;
--- SELECT to_regclass('module_permission_events')      AS t_0219b;
--- SELECT to_regclass('employee_manager_history')      AS t_0220;
+-- SELECT to_regclass('module_submission_attachments') AS t_0216,
+--        to_regclass('delegated_access_grants')       AS t_0218,
+--        to_regclass('module_permissions')            AS t_0219,
+--        to_regclass('employee_manager_history')      AS t_0220,
+--        to_regclass('device_consent_events')         AS t_0222;
+--
+-- 0224 landed? device_name should exist and bios_serial_number should NOT.
+-- SELECT column_name FROM information_schema.columns
+--  WHERE table_name = 'mobile_devices'
+--    AND column_name IN ('device_name','bios_serial_number','registered_at');
 --
 -- 0217 landed?
--- SELECT count(*) FILTER (WHERE name = 'IJV') AS ijv_renamed,
---        count(*)                             AS payment_modes
+-- SELECT count(*) FILTER (WHERE name='IJV') AS ijv, count(*) AS modes
 --   FROM outstanding_payment_modes;
--- SELECT count(*) AS products_with_code FROM outstanding_products WHERE code IS NOT NULL;
---
--- 0220 backfill covered everyone?
--- SELECT (SELECT count(*) FROM employees)                                    AS employees,
---        (SELECT count(*) FROM employee_manager_history WHERE effective_to IS NULL) AS open_rows;

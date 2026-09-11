@@ -4,7 +4,13 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
-import { MODULE_ORDER, MODULE_THEME, moduleShortcutHint, moduleShortcutLabel } from "@/lib/module-theme";
+import {
+  ADMIN_PANEL_ENTRY,
+  MODULE_ORDER,
+  MODULE_THEME,
+  moduleShortcutHint,
+  moduleShortcutLabel,
+} from "@/lib/module-theme";
 import { canAccessWorkspace, workspaceForPath } from "@/lib/workspaces";
 
 /**
@@ -201,6 +207,29 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
             </Link>
           );
         })}
+
+        {/* THE ADMIN PANEL — the standalone entry, admins only.
+            Last in the row and after the modules, because it is not one of them:
+            `/admin` belongs to no workspace, so it is never `active` here and
+            never tints the dock. Same href, same guard, same panel as the
+            user-menu link — see ADMIN_PANEL_ENTRY in lib/module-theme.ts.
+            "⌥A" rather than a bare "A": inside a room the letter alone is
+            typing, exactly as for every other entry on this dock. */}
+        {access.isAdmin && (
+          <Link
+            href={ADMIN_PANEL_ENTRY.href}
+            title={`${ADMIN_PANEL_ENTRY.label} — Alt+${ADMIN_PANEL_ENTRY.shortcut}`}
+            className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
+            style={{
+              ["--mod-accent" as string]: ADMIN_PANEL_ENTRY.accent,
+              color: "rgba(15,23,42,0.62)",
+            }}
+          >
+            <ADMIN_PANEL_ENTRY.Icon size={15} strokeWidth={2.3} aria-hidden />
+            <span aria-hidden className="opacity-55">{`⌥${ADMIN_PANEL_ENTRY.shortcut}`}</span>
+            <span className="whitespace-nowrap">{ADMIN_PANEL_ENTRY.label}</span>
+          </Link>
+        )}
 
         {/* Dismiss. Separated by a hairline so it reads as a control on the dock
             rather than an eleventh module. The dock can always be summoned again

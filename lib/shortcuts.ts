@@ -8,7 +8,13 @@
  *   - J/K/Enter/F task-list nav  → components/tasks/task-table.tsx
  *   - Alt+Q…Alt+S module switch  → components/layout/module-shortcuts.tsx
  */
-import { MODULE_ORDER, MODULE_THEME, moduleShortcut } from "@/lib/module-theme";
+import {
+  ADMIN_PANEL_ENTRY,
+  ADMIN_PANEL_SHORTCUT,
+  MODULE_ORDER,
+  MODULE_THEME,
+  moduleShortcut,
+} from "@/lib/module-theme";
 
 export interface Shortcut {
   /** Each entry renders as one <kbd>. A two-key entry like ["G","D"] reads as
@@ -68,9 +74,20 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     // Two <kbd>s rather than the "Alt+Q" string the footer shows: this sheet
     // renders each entry as its own key cap, which is what a chord looks like
     // here (see ["⌘","K"] above).
-    rows: MODULE_ORDER.flatMap((id, i) => {
-      const key = moduleShortcut(i);
-      return key ? [{ keys: ["Alt", key], description: `Open ${MODULE_THEME[id].label}` }] : [];
-    }),
+    rows: [
+      ...MODULE_ORDER.flatMap((id, i) => {
+        const key = moduleShortcut(i);
+        return key ? [{ keys: ["Alt", key], description: `Open ${MODULE_THEME[id].label}` }] : [];
+      }),
+      // THE ADMIN PANEL — listed last because it is not one of the modules.
+      // Shown to everyone rather than gated on `isAdmin`: this sheet is a static
+      // list with no access context, and it already advertises rooms a given
+      // reader cannot enter (every module row does). The key simply does nothing
+      // for a non-admin, and `/admin` refuses them regardless.
+      {
+        keys: ["Alt", ADMIN_PANEL_SHORTCUT],
+        description: `Open ${ADMIN_PANEL_ENTRY.label} Panel`,
+      },
+    ],
   },
 ];

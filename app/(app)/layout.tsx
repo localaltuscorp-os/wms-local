@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireUser, getDelegation } from "@/lib/auth/current";
+import { DeviceRegistrationGate } from "@/components/security/device-registration-gate";
+import { isExemptFromDailyStart } from "@/lib/security/capabilities";
 import { DelegationBanner } from "@/components/auth/delegation-banner";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { requirePathView } from "@/lib/permissions/resolve";
@@ -91,7 +93,18 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // "me and manan get a skip button on the review and assigning page only, NOT
   // on the daily checklist page". A super-admin's "Skip for today" (sa_gate_skip
   // cookie) bypasses ONLY those two. Day-scoped + FAIL-OPEN.
-  {
+  //
+  // ── ONE EXEMPTION, APPLIED TO THE WHOLE CHAIN (0222) ──────────────────────
+  // `daily_start.exempt` holders skip every gate below: plan, own-DCC, manager
+  // assign, DCC review. `needsDailyChecklistPlan` and `needsGoalsPlanCommit`
+  // already honoured it inside lib/daily-checklist/gate.ts, but the DCC and
+  // manager gates live in other modules and did not — so the exemption held for
+  // some of the chain and not the rest, which is not an exemption.
+  //
+  // Applied HERE, where the chain is enforced, rather than by editing four gate
+  // modules: one place to read, one place to change, and no way for the gates to
+  // disagree about who is exempt.
+  if (!isExemptFromDailyStart(me.email)) {
     const firstName = me.name.split(" ")[0] ?? me.name;
     const isManager = await isManagerWithReports(me.id).catch(() => false);
 
@@ -114,12 +127,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         pathname.startsWith("/my-day") || pathname.startsWith("/goals/plan");
       if (!onPlanRoute) {
         const minItems = isManager ? 5 : 3;
-        const underMin = await needsGoalsPlanCommit(me.id, minItems).catch(() => false);
+        const underMin = await needsGoalsPlanCommit(me, minItems).catch(() => false);
         if (underMin) redirect("/my-day");
       }
     } else if (loginPlanGateOn() && !isManager) {
       // Legacy "commit your day" wall — now OFF by default (Sir). LOGIN_PLAN_GATE_ON=true restores.
-      const mustPlan = await needsDailyChecklistPlan(me.id).catch(() => false);
+      const mustPlan = await needsDailyChecklistPlan(me).catch(() => false);
       if (mustPlan) {
         return <DailyChecklistView employeeId={me.id} greetingName={firstName} mode="gate" />;
       }
@@ -181,7 +194,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   //      gates use (sa_gate_skip cookie), so a super-admin is never locked out.
   //   3. `pendingLockBroadcastForEmployee` is itself fail-open (returns null on
   //      any error), and we .catch(() => null) on top for a second guarantee.
-  if (process.env.ECOS_LOCK_OFF !== "true" && !(await gateSkipActive(me).catch(() => false))) {
+  //   4. daily-start exemption — the same capability that clears the chain above
+  //      clears this. "Not stopped by the post-login rituals" cannot mean
+  //      "except the one that replaces the entire app with a lock screen".
+  if (
+    process.env.ECOS_LOCK_OFF !== "true" &&
+    !isExemptFromDailyStart(me.email) &&
+    !(await gateSkipActive(me).catch(() => false))
+  ) {
     const lock = await pendingLockBroadcastForEmployee(me.id).catch(() => null);
     if (lock) {
       return (
@@ -226,6 +246,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <>
+      {/* FIRST-LOGIN DEVICE REGISTRATION (0222). Mounted first and outside
+          ChromeShell so it covers the whole shell, not a pane of it. Renders
+          nothing for an already-registered device, an exempt actor, or with
+          enforcement off — see pendingDeviceRegistration. */}
+      <DeviceRegistrationGate employee={me} />
       {delegation && (
         <DelegationBanner
           targetName={delegation.target.name}
@@ -241,7 +266,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           opens the third module. Placed after the gate chain's early returns, so
           a digit can never be used to walk out of a daily ritual. The allow-list
           reuses the layout's single `accessFor` result — no extra query. */}
-      <ModuleShortcuts allowed={MODULE_ORDER.filter((id) => canAccessWorkspace(id, access))} />
+      {/* `adminAllowed` carries the standalone ADMIN PANEL entry (Alt+A). It is
+          not a workspace, so it cannot travel in `allowed`; `access.isAdmin` is
+          the same test the hub card and `/admin`'s own layout guard read. */}
+      <ModuleShortcuts
+        allowed={MODULE_ORDER.filter((id) => canAccessWorkspace(id, access))}
+        adminAllowed={access.isAdmin}
+      />
       {/* DEV_AUTH_BYPASS=true (.env.local, non-production only) — the idle
           timer is the ONE piece of auth that still bites while the bypass is
           on: the server never redirects, but after 15 idle minutes this client

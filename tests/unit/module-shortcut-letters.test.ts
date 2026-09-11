@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  ADMIN_PANEL_ENTRY,
+  ADMIN_PANEL_SHORTCUT,
+  isAdminPanelShortcut,
   MODULE_ORDER,
   MODULE_THEME,
   moduleShortcut,
@@ -26,11 +29,15 @@ const EXPECTED: [string, string][] = [
   ["admin", "I"],
   ["training", "O"],
   ["employees", "P"],
-  ["events", "A"],
-  ["people-allocation", "S"],
+  // A AND S VACATED (2026-09-11). The standalone Admin Panel entry was given
+  // the letter A, and A was this row's eleventh key. Both surfaces are
+  // admin-only, so that was a collision for exactly the people who would press
+  // it. The two tail modules moved right by one pair of home-row keys.
+  ["events", "D"],
+  ["people-allocation", "F"],
 ];
 
-describe("module shortcuts — qwertyuiopas", () => {
+describe("module shortcuts — qwertyuiopdf", () => {
   it("orders the hub exactly as specified", () => {
     expect(MODULE_ORDER).toEqual(EXPECTED.map(([id]) => id));
   });
@@ -67,9 +74,9 @@ describe("module shortcuts — qwertyuiopas", () => {
     // line, where "⌥Q" costs the same two characters the old "⌃1" did and
     // "Alt+Q" costs five. The long form is for tooltips and the cheatsheet.
     expect(moduleShortcutHint(0)).toBe("⌥Q");
-    expect(moduleShortcutHint(11)).toBe("⌥S");
+    expect(moduleShortcutHint(11)).toBe("⌥F");
     expect(moduleShortcutLabel(0)).toBe("Alt+Q");
-    expect(moduleShortcutLabel(11)).toBe("Alt+S");
+    expect(moduleShortcutLabel(11)).toBe("Alt+F");
     for (let i = 0; i < MODULE_ORDER.length; i++) {
       expect(moduleShortcutHint(i)).toHaveLength(2);
     }
@@ -79,6 +86,47 @@ describe("module shortcuts — qwertyuiopas", () => {
     for (const k of ["z", "n", "1", "0", "", "Enter", "ArrowLeft"]) {
       expect(moduleForShortcut(k)).toBeUndefined();
     }
+  });
+
+  /**
+   * THE ADMIN PANEL'S LETTER MUST NOT BE IN THE MODULE ALPHABET.
+   *
+   * This is the invariant the whole arrangement rests on. Both key listeners
+   * test `isAdminPanelShortcut` first and then fall through to
+   * `moduleForShortcut`; if A were ever handed back to a module, the panel
+   * would silently shadow it and the module's own badge would be a lie. Put
+   * A back into SHORTCUT_KEYS and this fails immediately, which is the point.
+   */
+  it("keeps A out of the module alphabet, for the Admin Panel", () => {
+    expect(moduleForShortcut("A")).toBeUndefined();
+    expect(moduleForShortcut("a")).toBeUndefined();
+    expect(MODULE_ORDER.map((_, i) => moduleShortcut(i))).not.toContain(
+      ADMIN_PANEL_SHORTCUT,
+    );
+  });
+
+  it("recognises the Admin Panel key in either case", () => {
+    expect(isAdminPanelShortcut("A")).toBe(true);
+    expect(isAdminPanelShortcut("a")).toBe(true);
+    // And nothing else — a near miss must not open the control room.
+    for (const k of ["b", "q", "s", "", "Alt", "ArrowLeft"]) {
+      expect(isAdminPanelShortcut(k)).toBe(false);
+    }
+  });
+
+  it("points the Admin Panel at the EXISTING route, not a new one", () => {
+    // The single fact that makes this a second door rather than a second
+    // implementation. `/admin` is the path the user-menu entry has always used
+    // and the one `app/(admin)/admin/layout.tsx` guards.
+    expect(ADMIN_PANEL_ENTRY.href).toBe("/admin");
+    expect(ADMIN_PANEL_ENTRY.shortcut).toBe("A");
+  });
+
+  it("does not make the Admin Panel a workspace", () => {
+    // It has no id, and it is not in the hub order — so it consumes no letter
+    // by position and cannot re-letter anything.
+    expect(MODULE_ORDER).not.toContain("admin-panel" as never);
+    expect("id" in ADMIN_PANEL_ENTRY).toBe(false);
   });
 
   it("keeps a theme entry for every module on the hub", () => {

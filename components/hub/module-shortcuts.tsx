@@ -3,7 +3,12 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { MODULE_THEME, moduleForShortcut } from "@/lib/module-theme";
+import {
+  ADMIN_PANEL_ENTRY,
+  isAdminPanelShortcut,
+  MODULE_THEME,
+  moduleForShortcut,
+} from "@/lib/module-theme";
 import type { WorkspaceId } from "@/lib/workspaces";
 
 /**
@@ -35,8 +40,20 @@ import type { WorkspaceId } from "@/lib/workspaces";
  * `allowed` is resolved on the server and passed in, so a letter for a room you
  * cannot enter does nothing instead of bouncing you off the layout gate. That is
  * presentation parity with the hidden cards, not the security boundary.
+ *
+ * `adminAllowed` is the same arrangement for the standalone ADMIN PANEL entry
+ * (A), which is not a workspace and so is not in `allowed` — see
+ * ADMIN_PANEL_ENTRY in lib/module-theme.ts. A non-admin pressing A does nothing
+ * rather than being bounced off `/admin`'s own guard, which is what actually
+ * refuses them.
  */
-export function ModuleShortcuts({ allowed }: { allowed: WorkspaceId[] }) {
+export function ModuleShortcuts({
+  allowed,
+  adminAllowed = false,
+}: {
+  allowed: WorkspaceId[];
+  adminAllowed?: boolean;
+}) {
   const router = useRouter();
 
   React.useEffect(() => {
@@ -83,6 +100,19 @@ export function ModuleShortcuts({ allowed }: { allowed: WorkspaceId[] }) {
       // `e.code` ("KeyQ") ahead of `e.key`, so a non-Latin layout still matches
       // the physical key the badge names.
       const letter = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3) : e.key;
+
+      // THE ADMIN PANEL (A) — checked before the module alphabet, though the two
+      // cannot both match: A was taken out of SHORTCUT_KEYS when this entry was
+      // given the letter, so `moduleForShortcut("a")` is undefined. Ordered this
+      // way anyway so a future re-lettering that put A back cannot silently
+      // shadow the panel; it would fail loudly here instead.
+      if (isAdminPanelShortcut(letter)) {
+        if (!adminAllowed) return;
+        e.preventDefault();
+        router.push(ADMIN_PANEL_ENTRY.href);
+        return;
+      }
+
       const id = moduleForShortcut(letter);
       if (!id || !allow.has(id)) return;
       e.preventDefault();
@@ -91,7 +121,7 @@ export function ModuleShortcuts({ allowed }: { allowed: WorkspaceId[] }) {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [router, allowed]);
+  }, [router, allowed, adminAllowed]);
 
   return null;
 }

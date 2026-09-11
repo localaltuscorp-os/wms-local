@@ -1,149 +1,239 @@
 # HANDOFF — `Om` branch
 
-**Date:** 2026-09-10
-**Branch:** `Om` → `https://github.com/localaltuscorp-os/wms-local`
-**Audience:** whoever picks this up next, and the Supabase owner who has to run the SQL.
+**Updated:** 2026-09-11
+**Repo:** `https://github.com/localaltuscorp-os/wms-local` · branch `Om`
+**Audience:** whoever picks this up, and whoever runs the SQL in Supabase.
 
-This branch carries a day of feature work plus **five new migrations that nobody has run
-yet**. Read the SQL section before deploying, because the app code assumes tables that do
-not exist in Supabase today.
+Three streams of work landed today. **None of the SQL has been run yet** — the
+code assumes tables and columns that do not exist in Supabase, so read §1 before
+deploying anything.
 
 ---
 
-## 1. Run this SQL in Supabase — the short version
+## 1. Run this SQL in Supabase
 
-> **Just want to paste it and go?** Everything below is bundled, in order, wrapped in a
-> single transaction, in **[`db/RUN-IN-SUPABASE-0216-0220.sql`](./db/RUN-IN-SUPABASE-0216-0220.sql)**.
-> Open Supabase → SQL Editor → New query → paste the file → Run. It includes `0216`, so
-> the by-hand step below is not needed if you use it. Verification queries are at the
-> bottom of that file, commented out.
+### 1a. The safe batch — paste and go
 
-**Nothing here is destructive.** All five migrations are additive (`CREATE TABLE IF NOT
-EXISTS`, `CREATE INDEX IF NOT EXISTS`, additive `ALTER TABLE`). There are zero `DROP TABLE`,
-`TRUNCATE` or `DELETE FROM` statements, so the runner's destructive guard will not fire and
-no existing row is at risk.
+Everything additive, in filename order, in one transaction:
 
-**Prerequisite:** `DATABASE_URL` set in `.env.local`, pointing at the Supabase Postgres
-connection string (session pooler or direct — not the transaction pooler; DDL needs
-transactions).
+**`db/RUN-IN-SUPABASE-0216-0224.sql`**
+
+Supabase Dashboard → SQL Editor → New query → paste the file → Run. Or:
 
 ```bash
-# 1. VALIDATE FIRST. Runs 0217-0220 against the real schema inside a transaction,
-#    then ROLLS BACK. Changes nothing. A broken migration fails here, loudly.
-npx tsx --env-file=.env.local scripts/validate-migrations-0217-0220.ts
-
-# 2. APPLY. Only these four files, in order.
-npx tsx --env-file=.env.local scripts/apply-migrations-0217-0220.ts
+psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0216-0224.sql
 ```
 
-### ⚠️ `0216` is NOT covered by those scripts
+No `DROP TABLE`, no `TRUNCATE`, no `DELETE` anywhere in it. Every statement is
+idempotent, so a second run changes nothing. Two sections write rows — `0217`
+(master data) and `0220` (backfill) — both flagged inline, both safe to re-run.
 
-`scripts/apply-migrations-0217-0220.ts` hard-codes only `0217`–`0220`. Migration
-`0216_module_submission_attachments.sql` is asserted by a unit test but has **no apply
-script**. Run it by hand:
+Generated verbatim from `db/migrations/*.sql`: all 254 SQL lines are
+byte-identical to the repo, checked line by line rather than retyped.
+
+### 1b. `0223` — destructive, run it on its own
+
+**`db/migrations/0223_clear_registered_devices.sql`** is deliberately **NOT** in
+the batch above. It runs `DELETE FROM mobile_devices`.
 
 ```bash
-psql "$DATABASE_URL" -f db/migrations/0216_module_submission_attachments.sql
+pnpm db:migrate -- --allow-destructive=0223_clear_registered_devices.sql
 ```
 
-Do `0216` **before** `0217`–`0220` to keep filename order.
+The runner refuses it unless you name the file — that guard is the point.
+
+**What it costs:** device *history*. Revoked rows were kept forever so an admin
+could read who revoked what and why. This deletes that, and it is not
+recoverable. Back it up first if that matters:
+
+```sql
+CREATE TABLE mobile_devices_pre_0223 AS SELECT * FROM mobile_devices;
+```
+
+**What it does not cost:** consent records survive
+(`device_consent_events.device_row_id` is `ON DELETE SET NULL`, and each row also
+carries the device id as text).
+
+**Why wipe at all:** `enroll()` has written a row on first sight of any browser
+since the device gate shipped, and auto-adopt marked them `approved` with no
+human involved. So "approved" currently means "this browser turned up once", not
+"this person registered this machine" — plus the duplicates the device audit
+documents. Carrying those forward marks everyone already-registered, which
+defeats first-login registration entirely.
+
+**Order:** §1a first (adds the columns), then decide about `0223` (clears the rows).
+
+### 1c. Do NOT use `npm run db:migrate` for this
+
+The drizzle journal is stale at `0019`, so it would also apply two dozen
+unrelated pending migrations. Use the file in §1a.
 
 ---
 
-## 2. The five migrations, by file
+## 2. The migrations, by file
 
-| # | File | Creates | Why |
-|---|------|---------|-----|
-| 0216 | `db/migrations/0216_module_submission_attachments.sql` | `module_submission_attachments` + index | Reimbursement receipts become files the firm holds, replacing the free-text `bill_url` Drive link that silently 404s at audit time |
-| 0217 | `db/migrations/0217_masters_payment_modes_and_products.sql` | `ALTER TABLE outstanding_products` (adds product code) | Master data: payment modes (IGV → IJV + new accounts) and a real product code. Tables already exist since 0055 — nothing new is created |
-| 0218 | `db/migrations/0218_delegated_access.sql` | `delegated_access_grants`, `delegated_access_events` + 6 indexes | Temporary delegated access. No credential is stored; the employee's Firebase account and password are untouched |
-| 0219 | `db/migrations/0219_permission_matrix.sql` | `module_permissions`, `module_permission_events` + 4 indexes | Permission matrix: module → sub-module → sub-sub-module with SHOW/VIEW/EDIT. Only the *grants* live in the DB; the tree is code in `lib/permissions/catalog.ts` |
-| 0220 | `db/migrations/0220_manager_hierarchy_history.sql` | `employee_manager_history` + 2 indexes | Reporting-manager history. `employees.manager_id` stays canonical and is untouched |
+| # | File | What it does |
+|---|------|--------------|
+| 0216 | `db/migrations/0216_module_submission_attachments.sql` | `module_submission_attachments` — receipts become files the firm holds, not Drive links |
+| 0217 | `db/migrations/0217_masters_payment_modes_and_products.sql` | Master data: IGV→IJV, 15 payment modes, 11 products, 7 options. **Review the values** |
+| 0218 | `db/migrations/0218_delegated_access.sql` | `delegated_access_grants` + `_events`. No credential stored |
+| 0219 | `db/migrations/0219_permission_matrix.sql` | `module_permissions` + `_events`. Defaults TRUE, grants nothing by itself |
+| 0220 | `db/migrations/0220_manager_hierarchy_history.sql` | `employee_manager_history`, backfilled one row per employee |
+| 0221 | `db/migrations/0221_holiday_note.sql` | Optional note on a holiday + who last changed it |
+| 0222 | `db/migrations/0222_device_registration_consent.sql` | Registration columns on `mobile_devices` + `device_consent_events` |
+| 0223 | `db/migrations/0223_clear_registered_devices.sql` | **DESTRUCTIVE** — clears `mobile_devices`. See §1b |
+| 0224 | `db/migrations/0224_device_name_replaces_bios_serial.sql` | Renames the registration field to `device_name`. **Must run after 0222** |
 
 ---
 
-## 3. Why not just `npm run db:migrate`
+## 3. First-login device registration
 
-You can, but understand what it does first. There are **239 `.sql` files** in
-`db/migrations/`, and the drizzle journal (`db/migrations/meta/_journal.json`) is stale —
-its last entry is `0019`. Everything from `0020` on is applied by
-`scripts/apply-all-migrations.ts` against its own by-filename ledger.
+An employee signing in from an unregistered machine meets a **blocking modal**:
+no close button, no Escape, no click-outside. It collects a **device name** and a
+**consent tick**, then lets them through.
 
-So on a database whose ledger has not been backfilled, `db:migrate` will try to apply **two
-dozen-plus older pending migrations that have nothing to do with this work**. That is
-precisely why the targeted `0217-0220` scripts exist.
+### Why device name and not BIOS serial
+
+The first cut asked for the BIOS serial with `wmic bios get serialnumber` as the
+primary instruction. **`wmic.exe` does not exist on Windows 11 build 26100+** —
+verified absent on build 26200. The PowerShell fallback works, but it was printed
+second and most people stop at the first line that fails. And even working, it is
+a command: most of this roster is non-technical, so that is a support ticket per
+employee.
+
+The device name is visible with no command at all — Settings › System › About, or
+Win+Pause, first row.
+
+**What that trades away, honestly:** a BIOS serial is unique and unchangeable; a
+device name is neither. Anyone can rename their PC, and corporately imaged
+machines routinely share one. The unique index refuses the second person carrying
+a duplicate, which is why the collision message names the remedy rather than just
+saying no.
+
+### Who sees it
+
+| Situation | Modal? |
+|---|---|
+| First login, unregistered device | **Yes** |
+| Device already registered (`registered_at` set) | No |
+| Device-exempt actor (Manan, Rohan) | No |
+| Already has an approved device of that kind on another machine | No — the gate handles it |
+| Revoked device | No — a form cannot lift a revocation |
+| `DEVICE_ACCESS_ENFORCEMENT=off` | No |
+| Native Android app | No — keystore flow untouched |
+
+iPhone/iPad/Safari land in the **phone** slot and are never asked for a name.
+
+---
+
+## 4. Sign-in no longer refuses on device status
+
+This was the bug that made registration impossible. `adoptDeviceOnLogin` used to
+answer `pending`/`revoked` **before the session cookie was minted**, so a new
+employee was stopped at the login form and could never reach the modal that would
+have registered them. Registered to get in, in to register.
+
+All three refusal points are gone (the status check, and two in `enroll()`).
+
+**The restriction moved, it did not disappear.** Every request still passes
+`resolveDeviceContext` via `requireUser()`, so a pending or revoked device gets
+the same refusal — now as `/device-blocked`, a page that names the reason and the
+remedy, instead of a dead end on the sign-in screen. Admins still get the
+"device pending" alert.
+
+---
+
+## 5. The approval bug (fixed)
+
+`setDeviceStatus()` counted approved devices across **all kinds** and compared
+that against a **per-kind** cap of 1. An employee holding an approved phone could
+not have a pending laptop approved — the admin saw *"already has an approved
+laptop"* while the laptop slot sat empty. The documented workaround (revoke the
+phone, approve the laptop, re-register the phone) is exactly the revoke/approve
+loop this was reported as.
+
+The database was never wrong: `mobile_devices_employee_kind_approved_uq` and
+`mobile_devices_cap_approved_trg` have been scoped to `(employee_id, kind)` since
+0215. Only the count disagreed. One `eq(mobileDevices.kind, row.kind)` fixes it.
+
+---
+
+## 6. Exemptions
+
+- **`device.exempt_from_restriction`** — Manan and (new today, from main) Rohan.
+  Signs in from any machine, never meets the registration modal.
+- **`daily_start.exempt`** — Manan. Now clears the **whole** post-login chain:
+  plan, own-DCC, manager-assign, DCC-review **and the ECOS broadcast lock**. It
+  was honoured by two gates and not the other four, which is not an exemption.
+  Applied once in `app/(app)/layout.tsx` where the chain runs, rather than in
+  four separate gate modules.
+
+---
+
+## 7. Consent audit
+
+`device_consent_events`, append-only. Stores employee, device row id + text
+device id, timestamp, version (`device-registration-v1`), type, actor.
+
+Consent is checked **before** anything else is written, so a consent record can
+never exist for a registration that did not happen. Bump the version string to
+require re-consent — no schema change, no backfill.
+
+**Not stored:** user agent, IP, screen metrics, fonts, timezone, or any other
+fingerprint. A test asserts the row's exact key set, so adding one fails the build.
+
+---
+
+## 8. Files, for handing to a terminal Claude
+
+```
+db/RUN-IN-SUPABASE-0216-0224.sql            ← paste this into Supabase
+db/migrations/0222_device_registration_consent.sql
+db/migrations/0223_clear_registered_devices.sql   ← destructive, read first
+db/migrations/0224_device_name_replaces_bios_serial.sql
+lib/security/device-registration.ts          ← decides + writes the registration
+lib/security/device-registration-rules.ts    ← pure validation, no DB
+lib/security/device-registration-actions.ts  ← the server action
+components/security/device-registration-modal.tsx
+components/security/device-registration-gate.tsx
+lib/security/device-access.ts                ← sign-in + the gate
+lib/attendance/mobile-devices.ts             ← the per-kind cap fix
+DEVICE_LOCK_AUDIT.md                         ← the read-only audit behind all of this
+```
+
+---
+
+## 9. Tests
 
 ```bash
-npm run db:migrate:dry   # list what is pending — ALWAYS run this first
-npm run db:migrate       # apply everything pending
+npx vitest run tests/unit/device-registration-rules.test.ts \
+  tests/unit/device-registration-flow.test.ts \
+  tests/unit/device-approval-per-kind.test.ts \
+  tests/unit/device-exemption-login.test.ts \
+  tests/unit/daily-start-exemption.test.ts \
+  tests/unit/adhoc-holiday.test.ts
 ```
 
-Use the targeted scripts for this handoff. Use `db:migrate` only when you actually intend
-to bring the whole schema forward.
+122 passing. The per-kind fix was verified by reverting it: 3 tests fail against
+the broken code, so the test catches the bug rather than merely describing it.
+
+**Pre-existing failures, not from this work:** `done-on-time`, `task-actions`,
+`task-stat-counts`, `global-search-provider`, `bulk-entry-keeps-drafts`,
+`daily-salary-report-render`. Confirmed by running them on a clean baseline with
+none of this code present. `device-exemption-login` passes 17/17 alone and fails
+only under parallel load — suite pollution.
 
 ---
 
-## 4. Verify it worked
+## 10. Known limitations
 
-```bash
-# tables exist
-psql "$DATABASE_URL" -c "\dt module_permissions|delegated_access_grants|employee_manager_history|module_submission_attachments"
-
-# the unit tests covering this work
-npx vitest run tests/unit/master-data.test.ts \
-  tests/unit/permission-catalog.test.ts tests/unit/permission-effective.test.ts \
-  tests/unit/delegated-access-authorization.test.ts tests/unit/delegated-expiry.test.ts \
-  tests/unit/manager-hierarchy.test.ts \
-  tests/unit/reimbursement-attachments.test.ts \
-  tests/unit/reimbursement-attachments-migration.test.ts
-```
-
----
-
-## 5. What shipped on this branch
-
-- **master-admin** module — `app/master-admin/`
-- **Permission matrix** — `lib/permissions/{catalog,effective,resolve}.ts`, `components/admin/permission-matrix.tsx`
-- **Delegated access** — `lib/auth/delegated-{access,expiry,permission}.ts`, `components/auth/delegation-banner.tsx`
-- **Manager hierarchy** — `lib/employees/manager-history.ts`, `lib/queries/hierarchy.ts`, `components/admin/hierarchy-board.tsx`
-- **Product / payment-mode masters** — `lib/products/label.ts`, `lib/queries/products.ts`, `components/admin/product-master-list.tsx`
-- **Reimbursement attachments** — `lib/reimbursements/attachment-{rows,rules}.ts`, `components/reimbursements/rb-claim-attachments.tsx`
-- **Daily salary report + salary refresh** — `lib/salary/{day-ledger,refresh-run}.ts`, `components/salary/daily-salary-report.tsx`
-- **Incentive catalog exports** — `lib/exports/incentive-catalog{,-pdf,-xlsx}.ts`
-- ~20 new unit tests, including `tests/unit/no-merge-conflicts.test.ts`
-
----
-
-## 6. Decisions made during the merge — please sanity-check
-
-Three conflicts were resolved in favour of `Om` (`HEAD`) when merging `origin/Om`. Two are
-mechanical; **the third is a product-behaviour decision and deserves a second pair of eyes.**
-
-1. **`app/globals.css`** — kept the two closing braces on the
-   `@media (prefers-reduced-motion: reduce)` block. The other side left it unclosed, which
-   is the exact Vercel build break that main fixed in `ea0a8bf`.
-2. **`vercel.json`** — kept `"29 18 * * *"` for `/api/cron/attendance-autoout`
-   (the other side had `"0 18 * * *"`). This matches the earlier resolution against main.
-3. **`lib/attendance/mobile-devices.ts` — ⚠️ REAL BEHAVIOUR FORK.** The two branches
-   implemented opposite flows:
-   - **Kept (this branch):** admin approval was removed 2026-09-09; a registered device is
-     `approved` immediately and usable at once, capped per kind by `0214`/`0215`.
-     `"pending"` is retired; over-cap registration returns `device_limit`.
-   - **Discarded (`origin/Om`):** devices enrol as `pending` and wait for HR approval.
-
-   The whole file was taken from this branch, because a partial merge left the comment
-   claiming approval was removed while the code still wrote `pending` — incoherent either
-   way. **If HR is still meant to approve devices, this needs reverting.**
-
----
-
-## 7. Known issue: duplicate migration prefixes
-
-These share a numeric prefix:
-
-- `0212_employee_offboarding.sql`, `0212_goals_client.sql`, `0212_project_node_attachments.sql`
-- `0213_dont_know_label_not_read.sql`, `0213_project_node_intake.sql`
-- `0214_project_node_links.sql`, `0214_two_approved_devices_any_kind.sql`
-
-The runner orders by filename, so ordering is deterministic but alphabetical within a
-prefix. None of them depend on each other today. Worth renumbering before the next batch.
+1. **The device name is typed in by hand.** Nothing verifies the machine reports
+   it. It stops honest double-registration, not a determined employee.
+2. **Device names are not guaranteed unique.** Imaged fleets share them; anyone
+   can rename their PC. The unique index refuses the second person, and the
+   message tells them who to contact.
+3. **No fingerprinting, no WebAuthn, no background agent.** Deliberately out of
+   scope.
+4. **Duplicate migration prefixes exist further back** — three `0212_`, two
+   `0213_`, two `0214_`. Ordering is deterministic (alphabetical within a prefix)
+   and none depend on each other, but worth renumbering before the next batch.

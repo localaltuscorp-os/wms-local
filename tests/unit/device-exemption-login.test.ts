@@ -172,45 +172,82 @@ describe("Manan signing in from an unregistered device", () => {
 });
 
 describe("the exemption does not leak to anyone else", () => {
-  it("REFUSES a normal employee whose slot is full (unregistered device)", async () => {
-    // The same situation that lets Manan in must stop an ordinary employee.
-    // Without this assertion the tests above would also pass if the gate were
-    // simply switched off for everybody.
+  /**
+   * ── WHAT CHANGED IN 0222, AND WHY THESE ASSERTIONS MOVED ──────────────────
+   * Sign-in no longer refuses ANYONE on device status. It used to answer
+   * `pending` / `revoked` here, which stopped the person at the login form —
+   * before a session existed, so before any screen could explain it or offer a
+   * way forward. First-login device registration made that impossible to keep:
+   * the modal that collects the BIOS serial lives inside the application, so
+   * refusing at the door meant a new employee could never reach the form that
+   * would have registered them.
+   *
+   * The restriction did not go away, it moved one step later — to
+   * `resolveDeviceContext`, which every request passes through via
+   * `requireUser()`. So "does this exemption leak?" is no longer asked of
+   * `r.ok`, which is now true for everybody. It is asked of the SLOT: an exempt
+   * actor consumes nothing, while an ordinary employee on an unrecognised
+   * device is written `pending` and is refused by the gate on the very next
+   * request. Approved is still the thing nobody gets by simply turning up.
+   */
+
+  it("signs a normal employee in, but gives them only a PENDING slot", async () => {
+    // The same situation that lets Manan in must NOT hand an ordinary employee
+    // a usable device. Without this, the tests above would also pass if the
+    // device rule had simply been switched off for everybody.
     deviceRow = approvedLaptopFor(OM);
     const r = await adoptDeviceOnLogin(om);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe("pending");
+    expect(r.ok).toBe(true);
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).toMatchObject({ status: "pending" });
+    expect(inserted[0]?.status).not.toBe("approved");
   });
 
-  it("REFUSES a normal employee once auto-adoption is closed", async () => {
+  it("does not quietly approve a normal employee once auto-adoption is closed", async () => {
     process.env.DEVICE_AUTO_ADOPT = "off";
     deviceRow = null;
     const r = await adoptDeviceOnLogin(om);
-    expect(r.ok).toBe(false);
+    expect(r.ok).toBe(true);
+    expect(inserted[0]).toMatchObject({ status: "pending" });
   });
 
-  it("REFUSES a normal employee on a revoked device", async () => {
+  it("leaves a revoked device revoked — sign-in does not lift a revocation", async () => {
     cookieValue = "dev-1";
     deviceValue({ ...approvedLaptopFor(OM), status: "revoked" });
     const r = await adoptDeviceOnLogin(om);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe("revoked");
+    expect(r.ok).toBe(true);
+    // Nothing was written, and the row handed back is still revoked, so
+    // resolveDeviceContext refuses it on the next request.
+    expect(inserted).toHaveLength(0);
+    if (r.ok) expect(r.device).toMatchObject({ status: "revoked" });
   });
 
   it("is decided by CAPABILITY, not by name or id", async () => {
-    // Same person, same device situation — only the email differs, and it is
-    // the capability registry that reads it. A lookalike address gets nothing.
+    // Same person, same device situation — only the email differs, and it is the
+    // capability registry that reads it. A lookalike address earns no slot.
     deviceRow = approvedLaptopFor(OM);
     const impostor = { id: OM, email: "manan@unleashed.in.attacker.test" } as never;
     const r = await adoptDeviceOnLogin(impostor);
-    expect(r.ok).toBe(false);
+    expect(r.ok).toBe(true);
+    expect(inserted[0]).toMatchObject({ status: "pending" });
   });
 
   it("does not exempt someone merely NAMED Manan", async () => {
     deviceRow = approvedLaptopFor(OM);
     const namesake = { id: OM, name: "Manan", email: "manan.other@example.invalid" } as never;
     const r = await adoptDeviceOnLogin(namesake);
-    expect(r.ok).toBe(false);
+    expect(r.ok).toBe(true);
+    expect(inserted[0]).toMatchObject({ status: "pending" });
+  });
+
+  it("an EXEMPT actor with both slots full consumes no slot at all", async () => {
+    // The contrast that makes the assertions above mean something: same full
+    // slots, and the exempt actor writes nothing rather than queuing a pending
+    // row. "You need not register your devices" is not "you take a slot anyway".
+    deviceRow = approvedLaptopFor(MANAN);
+    const r = await adoptDeviceOnLogin(manan);
+    expect(r.ok).toBe(true);
+    expect(inserted).toHaveLength(0);
   });
 });
 

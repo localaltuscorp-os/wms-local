@@ -5,7 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { WorkspaceId } from "@/lib/workspaces";
 import { canAccessWorkspace, workspaceForPath } from "@/lib/workspaces";
-import { MODULE_ORDER, MODULE_THEME, moduleShortcutHint, moduleShortcutLabel } from "@/lib/module-theme";
+import {
+  ADMIN_PANEL_ENTRY,
+  MODULE_ORDER,
+  MODULE_THEME,
+  moduleShortcutHint,
+  moduleShortcutLabel,
+} from "@/lib/module-theme";
 
 /**
  * The 10 modules as a horizontal shortcut row — the module FOOTER's logic and
@@ -101,6 +107,28 @@ export function ModuleBar({
           </Link>
         );
       })}
+
+      {/* THE ADMIN PANEL — the standalone entry, admins only. After the modules
+          and never `active`, because `/admin` belongs to no workspace by design
+          (`workspaceForPath` returns null for it). One href, one guard, one
+          panel — the user-menu link, the hub card and Alt+A all land here. */}
+      {access.isAdmin && (
+        <Link
+          href={ADMIN_PANEL_ENTRY.href}
+          title={`${ADMIN_PANEL_ENTRY.label} — Alt+${ADMIN_PANEL_ENTRY.shortcut}`}
+          className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-[12.5px] font-semibold outline-none transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
+          style={{
+            ["--mod-accent" as string]: ADMIN_PANEL_ENTRY.accent,
+            color: "rgba(15,23,42,0.62)",
+          }}
+        >
+          <ADMIN_PANEL_ENTRY.Icon size={14} strokeWidth={2.3} aria-hidden />
+          <span aria-hidden className="opacity-55 max-xl:hidden">
+            {`⌥${ADMIN_PANEL_ENTRY.shortcut}`}
+          </span>
+          <span className="whitespace-nowrap">{ADMIN_PANEL_ENTRY.label}</span>
+        </Link>
+      )}
     </nav>
   );
 }
