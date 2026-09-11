@@ -12,6 +12,7 @@ import {
   Gauge,
   Users2,
   FolderTree,
+  Cog,
 } from "lucide-react";
 import type { Route } from "next";
 import type { WorkspaceId } from "@/lib/workspaces";
@@ -149,7 +150,7 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
   // separate room, not a Goals sub-surface.
   productivity: {
     id: "productivity",
-    label: "Team Productivity",
+    label: "Performance",
     tagline: "One cockpit per person - incentive, goals, tasks, training at a glance.",
     href: "/ws/productivity" as Route,
     Icon: Gauge,
@@ -172,6 +173,36 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
   },
   // Hand-holding — who is staffed on which client. Orange, its own identity:
   // it left Billing and should not read as a purple annex of it.
+  // OPERATIONS — the two-tier room holding Hand-holding, Monthly Events Master,
+  // Checklist and Guidelines.
+  //
+  // IT WEARS THE WMS RED (account holder, 2026-09-11), the same accent pair
+  // `wms` carries above — not a hue of its own, and not the orange Hand-holding
+  // brought with it.
+  //
+  // This is the ONE place that decides it. Every surface inside the room reads
+  // the same two values: the hub card and the footer glyph take them from here,
+  // and the pages inside (Hand-holding, Monthly Events Master, Checklist) each
+  // declare them as their local ACCENT / ACCENT_DEEP constants — Tailwind
+  // arbitrary values like `ring-[#E10600]/40` have to be literal strings, so
+  // they cannot import a constant. Change the room's colour and those literals
+  // have to move with it; they are listed in the Operations section of the
+  // theme notes for exactly that reason.
+  //
+  // The two absorbed entries below keep their OWN themes, unchanged: they are
+  // still valid WorkspaceIds (old /ws/<id> links resolve) but no longer appear
+  // in MODULE_ORDER, so nothing renders them — they are history, not live
+  // identity.
+  operations: {
+    id: "operations",
+    label: "Operations",
+    tagline: "Hand-holding, the events calendar, checklists & guidelines in one room.",
+    href: "/ws/operations" as Route,
+    Icon: Cog,
+    accent: "#E10600",
+    accentDeep: "#A80400",
+    image: null,
+  },
   "people-allocation": {
     id: "people-allocation",
     label: "HandHolding",
@@ -214,15 +245,21 @@ export const MODULE_ORDER: WorkspaceId[] = [
   "wms",               // q
   "goals",             // w
   "project-plan",      // e  — "Project"
-  "productivity",      // r  — "Team Productivity"
+  "productivity",      // r  — "Performance"
   "billing",           // t
   "hr",                // y
   "sales",             // u
   "admin",             // i  — the card labelled "Accounts"
   "training",          // o
   "employees",         // p
-  "events",            // a  — "Monthly Events Master"
-  "people-allocation", // s  — "HandHolding"
+  // Monthly Events Master and HandHolding are NOT here any more (2026-09-11):
+  // both moved inside Operations, so they are reached from its front door
+  // rather than from a hub card of their own.
+  //
+  // Operations is APPENDED rather than slotted in beside them, which is what
+  // keeps "q" through "p" pointing at the same ten modules they always have.
+  // Inserting it mid-list would have re-lettered every module after it.
+  "operations",        // a  — "Operations"
 ];
 
 /**

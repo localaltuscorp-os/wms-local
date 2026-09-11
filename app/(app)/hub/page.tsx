@@ -73,11 +73,38 @@ const HUB_PASTEL: Record<WorkspaceId, { from: string; to: string; ink: string; i
   // Not rendered on the hub (MODULE_ORDER carries `admin`, at Alt+I), but it
   // shadows that card's identity so the pair never disagrees if it is ever shown.
   accounts:     { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B", inkSoft: "#315A9B" },
-  // Hand-holding — orange, the module's own accent (lib/module-theme).
+  // Hand-holding — orange, the module's own accent (lib/module-theme). No longer
+  // rendered on the hub (it is an area inside Operations), kept so the pair
+  // never disagrees if it is ever shown again.
   "people-allocation": { from: "#FBE7D6", to: "#FBE7D6", ink: "#C2410C", inkSoft: "#C2410C" },
-  // Project — the WMS red, matching the wms card above: the plan and the task
-  // list are two windows onto the same records.
-  "project-plan": { from: "#FEE2E2", to: "#FECACA", ink: "#B91C1C", inkSoft: "#DC2626" },
+  // Operations — GOLD, and its own hue (2026-09-11). It used to carry the WMS
+  // red because the room wears the WMS theme INSIDE; on the hub that produced
+  // three byte-identical cards — WMS, Project and Operations — which is the one
+  // thing the card palette exists to prevent. The room's interior is unchanged
+  // and still red: this is a hub-card identity, deliberately, so the account
+  // holder can tell the three apart at the front door.
+  //
+  // Gold rather than a second red: the nearest hue already on the hub is Goals'
+  // terracotta (#A85432), which is red-brown where this is yellow-olive.
+  //
+  // MEASURED INTO THE FAMILY, not eyeballed. The first cut of this card used
+  // Tailwind's yellow-100/200 (#FEF9C3 -> #FEF08A, S97) and looked wrong beside
+  // its neighbours for a reason the eye registers before it can name: the nine
+  // established cards sit at fill S42-58 / L90-94, and a S97 fill is a bright
+  // screen yellow dropped into a set of muted pastels. This is H45 S52 L90 —
+  // inside the family's own band — with the ink at H42 S62 L33, inside the
+  // family's S39-72 / L28-47.
+  //
+  // FLAT, from === to. Eight of the nine established cards are flat; only WMS
+  // carries a gradient. A second gradient would have made this card the odd one
+  // out a second way.
+  operations:   { from: "#F3ECD8", to: "#F3ECD8", ink: "#886920", inkSoft: "#886920" }, // a · gold
+  // Project — CYAN, its own hue (2026-09-11). It used to share the WMS red on
+  // the argument that the plan and the task list are two windows onto the same
+  // records — true, and still not worth two cards a reader cannot tell apart.
+  // Blueprint blue for the planning table; the nearest hue on the hub is HR's
+  // teal (#147D73), which is green-leaning where this is blue-leaning.
+  "project-plan": { from: "#CFFAFE", to: "#A5F3FC", ink: "#0E7490", inkSoft: "#0891B2" },
 };
 
 /**

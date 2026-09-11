@@ -37,8 +37,9 @@ const PAL: Record<WorkspaceId, { from: string; to: string; ink: string }> = {
   employees: { from: "#DDF1E2", to: "#DDF1E2", ink: "#16803C" }, // 9 · forest green
   events: { from: "#D9F1F5", to: "#D9F1F5", ink: "#167C91" }, // 0 · cyan/teal
   "people-allocation": { from: "#FFDCC0", to: "#FCC79C", ink: "#C2410C" }, // 11 · orange (matches the card)
+  operations: { from: "#F3ECD8", to: "#F3ECD8", ink: "#886920" }, // a · gold, matching its card (the room is red inside)
   accounts: { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B" }, // shadows `admin`
-  "project-plan": { from: "#FFC9C6", to: "#FFA9A5", ink: "#B4160E" }, // 12 · red (matches the wms tile)
+  "project-plan": { from: "#A5F3FC", to: "#67E8F9", ink: "#0E7490" }, // 12 · cyan (its own hub identity)
 };
 
 function Glyph({ id, ink, light }: { id: WorkspaceId; ink: string; light: string }) {
@@ -212,6 +213,38 @@ function Glyph({ id, ink, light }: { id: WorkspaceId; ink: string; light: string
           {/* Child rows, drawn shorter so the indent reads at 24px. */}
           <path d="M35 30h11" />
           <path d="M42 43h7" />
+        </g>
+      );
+    // Operations — a cog, the room's own mark rather than a borrowed one.
+    // Hand-holding's three-figure glyph stays with Hand-holding: Operations is
+    // the container, and a card wearing its largest area's symbol would read as
+    // that area rather than as the room holding four of them.
+    //
+    // SIZED TO THE FAMILY, and that is the whole of it: this viewBox is 64×64,
+    // so the centre is (32,32) and every other glyph here keeps its outermost
+    // ink at a radius of about 16 — the wms grid spans 16…48, the goals disc is
+    // r=15.5. The tooth tips land at exactly 16 and the body disc at 12, which
+    // is what keeps the cog inside the card's white tile instead of filling it
+    // edge to edge.
+    //
+    // Solid ring plus eight teeth, not an outline: at the 24px footer size a
+    // toothed outline turns to mush.
+    case "operations":
+      return (
+        <g fill={ink}>
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
+            <rect
+              key={deg}
+              x="28.6"
+              y="16"
+              width="6.8"
+              height="8.6"
+              rx="2.2"
+              transform={`rotate(${deg} 32 32)`}
+            />
+          ))}
+          <circle cx="32" cy="32" r="12" />
+          <circle cx="32" cy="32" r="5" fill={light} />
         </g>
       );
     default:

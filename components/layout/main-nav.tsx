@@ -64,6 +64,7 @@ import type { LucideIcon } from "lucide-react";
 import { MainNavPill } from "./main-nav-pill";
 import { MainNavGroup } from "./main-nav-group";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
+import { OPERATIONS_AREAS } from "@/lib/operations/nav";
 import { nodeKeyForPath } from "@/lib/permissions/catalog";
 import { HR_STAGES, hrItemHref, type HrStage, type HrStageKey } from "@/lib/hr/lifecycle";
 
@@ -220,6 +221,60 @@ function hrSectionForPath(p: string): HrSection {
   if (p.startsWith("/support") || p.startsWith("/hr/routing") || p.startsWith("/hr/metrics")) return "helpdesk";
   return "hub";
 }
+
+/* ── Operations room: ONE rail of areas, pages on top ────────────────────────
+ * The rail lists the four AREAS and does NOT swap. Entering an area shows its
+ * own pages as a horizontal quick-access row above the content
+ * (components/operations/operations-quick-nav.tsx), the way the HR console
+ * does it.
+ *
+ * This replaced a rail that swapped to the area's items. Swapping cost you
+ * sight of the other three areas the moment you entered one, so moving between
+ * them meant going Home first; keeping the areas here and the pages on top
+ * leaves both axes one click away.
+ *
+ * The areas come from lib/operations/nav.ts, which the quick-access row and the
+ * front door's card deck also read — three copies of "what is in Operations" is
+ * three chances for them to disagree.                                         */
+const OPERATIONS_HOME: NavItem = {
+  href: "/operations" as Route,
+  label: "Operations Home",
+  Icon: Home,
+  exact: true,
+};
+
+const OPERATIONS_NAV: WorkspaceNav = {
+  top: [
+    OPERATIONS_HOME,
+    ...OPERATIONS_AREAS.map((a) => ({
+      href: a.href as Route,
+      label: a.label,
+      Icon: a.Icon,
+    })),
+  ],
+  groups: [],
+};
+
+/* The legacy `events` / `people-allocation` WorkspaceNav entries below are
+   unreachable (workspaceForPath sends both prefixes to `operations`) but the
+   Record must be total. They read the SAME item lists the quick-access row
+   uses, so the dead copies cannot drift from what people actually see. */
+const HANDHOLDING_ITEMS: NavItem[] = OPERATIONS_AREAS[0]!.items.map((it) => ({
+  href: it.href as Route,
+  label: it.label,
+  Icon: it.Icon,
+  exact: it.exact,
+  adminOnly: it.adminOnly,
+  hhAccessOnly: it.hhAccessOnly,
+}));
+const EVENTS_ITEMS: NavItem[] = OPERATIONS_AREAS[1]!.items.map((it) => ({
+  href: it.href as Route,
+  label: it.label,
+  Icon: it.Icon,
+  exact: it.exact,
+  adminOnly: it.adminOnly,
+  hhAccessOnly: it.hhAccessOnly,
+}));
 
 /**
  * Per-workspace navigation. Each room exposes ONLY its own modules — entering
@@ -395,23 +450,14 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
     top: [{ href: "/billing" as Route, label: "Billing", Icon: ReceiptIndianRupee, exact: true }],
     groups: [],
   },
-  "people-allocation": {
-    // Ambassadors is its OWN entry — the brief keeps it apart from the four
-    // client categories, so it gets its own rail item, not a tab.
-    top: [
-      { href: "/people-allocation" as Route, label: "Hand-holding", Icon: Users2, exact: true },
-      { href: "/people-allocation/participants" as Route, label: "All Participants", Icon: ClipboardList },
-      { href: "/people-allocation/ambassadors" as Route, label: "Ambassadors", Icon: Handshake },
-      { href: "/people-allocation/development" as Route, label: "Development", Icon: Sparkles },
-      {
-        href: "/people-allocation/access" as Route,
-        label: "Admin Panel",
-        Icon: ShieldCheck,
-        hhAccessOnly: true,
-      },
-    ],
-    groups: [],
-  },
+  // Hand-holding is an AREA INSIDE OPERATIONS now — same arrangement as `events`
+  // directly above. Ambassadors stays its OWN entry (the brief keeps it apart
+  // from the four client categories, so it is a rail item, not a tab).
+  "people-allocation": { top: HANDHOLDING_ITEMS, groups: [] },
+  // Operations itself. The rail that actually renders is chosen per PATH by
+  // OPERATIONS_SECTION_NAV — this is the front door, and the fallback for any
+  // /operations route that grows later without its own section.
+  operations: OPERATIONS_NAV,
   // Project — a single-surface room: the hierarchy planning table. The older
   // /projects board is deliberately NOT listed here; it stays a WMS rail item,
   // so neither room's sidebar changes shape.
@@ -439,18 +485,12 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
     ],
     groups: [],
   },
-  events: {
-    // Monthly Events Master — the calendar is the hero; masters/batches/
-    // obligations are admin surfaces. (Holidays moved to HR.)
-    top: [
-      { href: "/events" as Route, label: "Overview", Icon: LayoutGrid, exact: true },
-      { href: "/events/calendar" as Route, label: "Calendar", Icon: CalendarDays },
-      { href: "/events/masters" as Route, label: "Masters", Icon: Palette, adminOnly: true },
-      { href: "/events/batches" as Route, label: "Batches", Icon: CalendarClock, adminOnly: true },
-      { href: "/events/obligations" as Route, label: "Obligations", Icon: Gauge, adminOnly: true },
-    ],
-    groups: [],
-  },
+  // Monthly Events Master is an AREA INSIDE OPERATIONS now (2026-09-11) and owns
+  // no path of its own, so this entry is unreachable — workspaceForPath sends
+  // /events to `operations`. Kept because WorkspaceId still lists it (old
+  // /ws/events links resolve) and this Record must be total; it shares the live
+  // array so the dead copy cannot drift from the rail people actually see.
+  events: { top: EVENTS_ITEMS, groups: [] },
   goals: {
     // One button per planning level — each opens a dedicated level page (the
     // weekly-goals BOARD design), locked to that level; the sidebar IS the
@@ -553,6 +593,11 @@ const NAV_TITLE_ENTRIES: Array<[string, string]> = (() => {
   };
   for (const nav of Object.values(WORKSPACE_NAV)) push(nav);
   for (const nav of Object.values(HR_SECTION_NAV)) push(nav);
+  push(OPERATIONS_NAV);
+  // The area pages are not in OPERATIONS_NAV (they live on the quick-access
+  // row), so their titles are pushed from the shared list directly.
+  for (const a of OPERATIONS_AREAS)
+    for (const it of a.items) out.push([it.href, it.label]);
   push(GOALS_PERSONAL_NAV);
   return out;
 })();
@@ -616,8 +661,10 @@ export function MainNav({
   const workspace: WorkspaceId =
     workspaceForPath(pathname) ?? cookieWorkspace ?? "wms";
   // In the admin's PERSONAL goals space, the nav is the private set: the level
-  // pages + Recycle Bin (no Team / Review / Commit / Approve rituals). The HR
-  // room is two-tier: the rail swaps per lifecycle stage (hrSectionForPath).
+  // pages + Recycle Bin (no Team / Review / Commit / Approve rituals). HR is
+  // two-tier: its rail swaps per lifecycle stage. Operations is two-tier too,
+  // but the other way round — its rail is FIXED (the four areas) and the second
+  // tier is the quick-access row above the content, so nothing to swap here.
   const { top, groups } =
     workspace === "goals" && goalsSpace === "personal"
       ? GOALS_PERSONAL_NAV
