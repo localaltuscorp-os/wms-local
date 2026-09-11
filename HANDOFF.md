@@ -455,6 +455,87 @@ throughout; her Firebase UID is new.
 
 ## Changelog
 
+### 2026-09-11 — Schema drift closed, WMS team's second batch merged, id counters repaired
+
+**What changed**
+
+- **Merged the WMS team's 11 Sep work** (`dev/main`, 119 files, 17 new): HR
+  console quick-access nav and module landings, dashboard badge and hover
+  fixes, task errors that say *why* they failed, goal self-approval with a
+  reason, holidays, device self-registration. Shipped as `608a7cdb`.
+- **Applied every outstanding migration to production by hand**, in eight
+  steps, verified after each. The files are in `SQL STEPS/` under Downloads —
+  not committed, they are operational scripts replaying committed migrations.
+- **Repaired every sequence in the database.** See below; this was the day's
+  worst bug and the least visible.
+
+**Why — three failures, three different lessons**
+
+**1. Code shipped ahead of its schema (again).** The 8 Sep merge carried
+migrations nobody ran. Symptoms were maddeningly indirect: sign-in failed with
+*"Email or password didn't match"* while Firebase was actually succeeding —
+`POST /api/auth/session` was 500ing on a missing `employees.employment_status`
+and the client fell through to its generic message. Goals died on a missing
+`goals.client`. Punch-in died on a stale `0206` device index.
+**Migrations before code, always.** This time the order was respected and
+nothing broke.
+
+**2. "Success. No rows returned" is not proof.** Step 3 reported success and
+had done nothing: a partial text selection in the Supabase editor meant only
+the final two lines ran. It even inserted `__schema_applied` rows, recording
+migrations as applied that were not. The independent verify query is the only
+reason this was caught. **Always Ctrl+A before Run, and always verify by
+reading the schema, not the success banner.**
+
+**3. Restores leave id counters behind.** `event_log.seq` is a `bigserial`.
+The 4 Sep restore reinstated rows with their original ids but never moved the
+counters, so the counter sat at **208** while the table had reached **10008**.
+Every write to `event_log` failed with a duplicate-key error on a column the
+application never sets. It had been latent for a week and only fired when
+somebody wrote.
+
+> **Any future restore MUST be followed by a counter resync.**
+> `SQL STEPS/STEP-8-fix-sequences.sql` does the whole database and is safe to
+> re-run — it touches no rows, only moves counters forward.
+
+**Also worth knowing**
+
+- **0215 supersedes 0214.** Two approved devices of any kind is retired; the
+  rule is one laptop AND one phone. Applying it revoked three superseded
+  laptop registrations (Mansi Medhekar, Mishtie Kanani, Shreya Randhe); each
+  kept the machine they had used that morning.
+- **The team's `PART 3b` (RLS on `attendance_audit_log`) ships commented out**,
+  because their database lacks the `app` helper functions. Ours has both
+  (`is_admin`, `current_employee_id`), so it was uncommented and applied. Check
+  before assuming their scripts are complete for this database — their project
+  is `fjopgyqytfvbudkwhdto`, ours is `mwaijzxuyicysvimzspx`, and row counts in
+  their files are theirs, not ours.
+- **Migration numbers collide, 28 of them**, back to `0019`. `0185`, `0186` and
+  `0212` have three files each; `0215` has two. Nothing is broken — the runner
+  tracks by filename — but the number no longer tells you the order anything
+  ran, which is exactly what you want when diagnosing drift. Worth moving new
+  migrations to a timestamp prefix.
+- **This merge reverted nothing.** Unlike 8 Sep, their branch was cut from
+  current `main`. Verified by hashing every file against the last 120 commits.
+
+**How to verify**
+
+```bash
+pnpm typecheck        # clean, needs NODE_OPTIONS=--max-old-space-size=6144
+```
+
+In Supabase, `SQL STEPS/STEP-7-verify.sql` must read 5, 4, 4, 1, 1.
+
+**Breaking / migration notes**
+
+- The eight SQL steps were run **by hand against production** and are not in
+  the migration chain's normal flow, though `__schema_applied` records them.
+- 🔴 **Supabase quota exceeded.** Projects are restricted from **20 Sep 2026**
+  if the organisation stays over. Payment method to be added 18 Sep — two days
+  of margin, and quota lifts are not always instant.
+
+**Author:** Rohan Choudhary (with Claude)
+
 ### 2026-09-08 (late) — WMS team's work merged; four silent reverts caught
 
 **What changed**
