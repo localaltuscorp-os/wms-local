@@ -62,10 +62,14 @@ describe("device restriction exemption (the Manan exception)", () => {
 });
 
 describe("device management (approve / register / revoke)", () => {
-  it("grants exactly the three named people", () => {
+  it("grants exactly the four named people", () => {
     expect(canManageDevices(MANAN)).toBe(true);
     expect(canManageDevices(RUCHITA)).toBe(true);
     expect(canManageDevices(RUTVISHA)).toBe(true);
+    // Added 2026-09-11 on an explicit operator instruction. He is a super-admin
+    // AND a device manager now, which is exactly why the test below had to
+    // change shape — see the comment there.
+    expect(canManageDevices(SUPER_ADMIN_ONLY)).toBe(true);
   });
 
   it("refuses an ordinary employee", () => {
@@ -79,8 +83,20 @@ describe("device management (approve / register / revoke)", () => {
     expect(canManageDevices(ATTENDANCE_ADMIN_ONLY)).toBe(false);
   });
 
-  it("refuses a super-admin without the capability", () => {
-    expect(canManageDevices(SUPER_ADMIN_ONLY)).toBe(false);
+  it("reads its own grant list, not super-admin status", () => {
+    // THIS TEST USED TO NAME ROHAN and assert `false` — he was a super-admin
+    // holding no device capability, which proved that super-admin does not
+    // imply device management.
+    //
+    // He was granted `device.manage` on 2026-09-11, and there are only two
+    // super-admins, so BOTH now hold it and no real person can express that
+    // assertion any more. The guarantee has not changed, but the evidence for
+    // it has moved: it now rests on people who are NOT super-admins being
+    // refused, which is what these two assertions are. If a third super-admin
+    // is ever added without `device.manage`, name them here and restore the
+    // direct form — it is the stronger test.
+    expect(canManageDevices(ATTENDANCE_ADMIN_ONLY)).toBe(false);
+    expect(canManageDevices(EMPLOYEE)).toBe(false);
   });
 
   it("refuses a missing address", () => {

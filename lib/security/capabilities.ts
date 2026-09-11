@@ -115,16 +115,28 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
   ],
 
   /**
-   * Rohan Choudhary — MASTER ADMIN.
+   * Rohan Choudhary — MASTER ADMIN + device administrator.
    *
    * The second of the two people the brief names for the permission matrix. He
-   * is already a super-admin (lib/auth/super-admin.ts); this entry adds the
-   * matrix and nothing else — no device administration, no attendance override.
-   * Grants stay itemised per person rather than bundled into a "master admin
-   * role", so adding somebody to the matrix cannot hand them the device system
-   * by accident.
+   * is already a super-admin (lib/auth/super-admin.ts).
+   *
+   * `device.manage` was DELIBERATELY WITHHELD here until 2026-09-11, and the
+   * reason it was withheld still stands, so it is recorded rather than deleted:
+   * whoever can register a device against a person can then sign in as that
+   * person from it, which makes this grant the hinge the device guarantee turns
+   * on (see the `device.manage` docstring above). It was added on an explicit
+   * operator instruction, making him the fourth device administrator alongside
+   * Manan, Ruchita and Rutvisha.
+   *
+   * NOT granted: `attendance.manage_others` and `attendance.view_audit_log`,
+   * which Ruchita and Rutvisha hold. Those are a separate power — editing other
+   * people's attendance past the lock — and nothing about administering devices
+   * requires them. Grants stay itemised per person rather than bundled into a
+   * "master admin role" precisely so one can be added without the others
+   * following by accident.
    */
   "rohanchoudhary.altuscorp@gmail.com": [
+    "device.manage",
     "master_admin.manage",
     "delegated_access.grant_any",
   ],
