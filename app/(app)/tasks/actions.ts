@@ -92,6 +92,7 @@ import {
 import { addTaskComment } from "@/lib/tasks/add-comment";
 import { createTasksCore } from "@/lib/tasks/create-task";
 import { nudgeTaskCore } from "@/lib/tasks/nudge";
+import { dbErrorMessage, logDbError } from "@/lib/db/error";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -163,7 +164,8 @@ export async function archiveTask(
     });
     if (!found) return { ok: false, error: "Task not found — it may already be gone." };
   } catch (err) {
-    return { ok: false, error: `Could not archive: ${(err as Error).message}` };
+    logDbError("tasks:archive", err);
+    return { ok: false, error: `Could not archive: ${dbErrorMessage(err)}` };
   }
   nudgeRelay();
   // Deferred (persist-then-return): calendar teardown runs after the response.
@@ -214,7 +216,8 @@ export async function deleteTask(
       return { ok: false, error: "Task not found — it may already be deleted." };
     }
   } catch (err) {
-    return { ok: false, error: `Could not delete: ${(err as Error).message}` };
+    logDbError("tasks:delete", err);
+    return { ok: false, error: `Could not delete: ${dbErrorMessage(err)}` };
   }
   nudgeRelay();
 
@@ -260,7 +263,8 @@ export async function unarchiveTask(
     });
     if (!found) return { ok: false, error: "Task not found — it may already be gone." };
   } catch (err) {
-    return { ok: false, error: `Could not restore: ${(err as Error).message}` };
+    logDbError("tasks:restore", err);
+    return { ok: false, error: `Could not restore: ${dbErrorMessage(err)}` };
   }
   nudgeRelay();
   // Deferred (persist-then-return) — see archiveTask. Safe via retry state + cron.
@@ -377,7 +381,8 @@ export async function setTaskPriority(
     if (outcome === "forbidden")
       return { ok: false, error: "You don't have permission to change this task's priority." };
   } catch (err) {
-    return { ok: false, error: `Could not change priority: ${(err as Error).message}` };
+    logDbError("tasks:change-priority", err);
+    return { ok: false, error: `Could not change priority: ${dbErrorMessage(err)}` };
   }
   revalidateTaskRoutes();
   return { ok: true };
@@ -415,7 +420,8 @@ export async function rescheduleTask(
       .returning({ id: tasks.id });
     if (updated.length === 0) return { ok: false, error: "Task not found." };
   } catch (err) {
-    return { ok: false, error: `Could not reschedule: ${(err as Error).message}` };
+    logDbError("tasks:reschedule", err);
+    return { ok: false, error: `Could not reschedule: ${dbErrorMessage(err)}` };
   }
 
   revalidateTaskRoutes();
@@ -498,7 +504,8 @@ export async function reassignDoer(
     if (outcome === "forbidden")
       return { ok: false, error: "You don't have permission to reassign this task." };
   } catch (err) {
-    return { ok: false, error: `Could not reassign: ${(err as Error).message}` };
+    logDbError("tasks:reassign", err);
+    return { ok: false, error: `Could not reassign: ${dbErrorMessage(err)}` };
   }
   nudgeRelay();
   // Move the event off the old doer's calendar and onto the new doer's.
@@ -613,7 +620,13 @@ export async function bulkSetStatus(
       );
     });
   } catch (err) {
-    return { ok: false, error: `Could not update: ${(err as Error).message}` };
+    // `(err as Error).message` on a drizzle failure is ONLY ever "Failed query:
+    // <sql> params: <values>" — the table named, the problem withheld, and the
+    // bound parameters (names, salaries) dumped into a toast. The actual reason
+    // hangs on `.cause`. dbErrorMessage digs it out and drops the parameters;
+    // logDbError puts the stack somewhere an incident can be read from.
+    logDbError("tasks:update", err);
+    return { ok: false, error: `Could not update: ${dbErrorMessage(err)}` };
   }
   nudgeRelay();
   for (const id of allowed) afterResponse(() => reconcileTaskEvent(id));
@@ -680,7 +693,13 @@ export async function bulkSetApprovalStatus(
       );
     });
   } catch (err) {
-    return { ok: false, error: `Could not update: ${(err as Error).message}` };
+    // `(err as Error).message` on a drizzle failure is ONLY ever "Failed query:
+    // <sql> params: <values>" — the table named, the problem withheld, and the
+    // bound parameters (names, salaries) dumped into a toast. The actual reason
+    // hangs on `.cause`. dbErrorMessage digs it out and drops the parameters;
+    // logDbError puts the stack somewhere an incident can be read from.
+    logDbError("tasks:update", err);
+    return { ok: false, error: `Could not update: ${dbErrorMessage(err)}` };
   }
   revalidateTaskRoutes();
   return { ok: true, updated: allowed.length, skipped: ids.length - allowed.length };
@@ -720,7 +739,13 @@ export async function bulkSetPriority(
       );
     });
   } catch (err) {
-    return { ok: false, error: `Could not update: ${(err as Error).message}` };
+    // `(err as Error).message` on a drizzle failure is ONLY ever "Failed query:
+    // <sql> params: <values>" — the table named, the problem withheld, and the
+    // bound parameters (names, salaries) dumped into a toast. The actual reason
+    // hangs on `.cause`. dbErrorMessage digs it out and drops the parameters;
+    // logDbError puts the stack somewhere an incident can be read from.
+    logDbError("tasks:update", err);
+    return { ok: false, error: `Could not update: ${dbErrorMessage(err)}` };
   }
   revalidateTaskRoutes();
   return { ok: true, updated: changed.length, skipped: ids.length - changed.length };
@@ -773,7 +798,8 @@ export async function bulkReassignDoer(
       );
     });
   } catch (err) {
-    return { ok: false, error: `Could not reassign: ${(err as Error).message}` };
+    logDbError("tasks:reassign", err);
+    return { ok: false, error: `Could not reassign: ${dbErrorMessage(err)}` };
   }
   for (const id of changed) afterResponse(() => reconcileTaskEvent(id));
   revalidateTaskRoutes();
@@ -836,7 +862,13 @@ export async function bulkSetSubject(
       );
     });
   } catch (err) {
-    return { ok: false, error: `Could not update: ${(err as Error).message}` };
+    // `(err as Error).message` on a drizzle failure is ONLY ever "Failed query:
+    // <sql> params: <values>" — the table named, the problem withheld, and the
+    // bound parameters (names, salaries) dumped into a toast. The actual reason
+    // hangs on `.cause`. dbErrorMessage digs it out and drops the parameters;
+    // logDbError puts the stack somewhere an incident can be read from.
+    logDbError("tasks:update", err);
+    return { ok: false, error: `Could not update: ${dbErrorMessage(err)}` };
   }
   revalidateTaskRoutes();
   return { ok: true, updated: changed.length, skipped: ids.length - changed.length };
@@ -896,7 +928,13 @@ export async function bulkSetClient(
       );
     });
   } catch (err) {
-    return { ok: false, error: `Could not update: ${(err as Error).message}` };
+    // `(err as Error).message` on a drizzle failure is ONLY ever "Failed query:
+    // <sql> params: <values>" — the table named, the problem withheld, and the
+    // bound parameters (names, salaries) dumped into a toast. The actual reason
+    // hangs on `.cause`. dbErrorMessage digs it out and drops the parameters;
+    // logDbError puts the stack somewhere an incident can be read from.
+    logDbError("tasks:update", err);
+    return { ok: false, error: `Could not update: ${dbErrorMessage(err)}` };
   }
   revalidateTaskRoutes();
   return { ok: true, updated: changed.length, skipped: ids.length - changed.length };
@@ -931,7 +969,8 @@ export async function bulkArchive(taskIds: string[]): Promise<BulkResult> {
       );
     });
   } catch (err) {
-    return { ok: false, error: `Could not archive: ${(err as Error).message}` };
+    logDbError("tasks:archive", err);
+    return { ok: false, error: `Could not archive: ${dbErrorMessage(err)}` };
   }
   for (const id of toArchive) afterResponse(() => reconcileTaskEvent(id));
   revalidateTaskRoutes();
@@ -960,7 +999,8 @@ export async function bulkDelete(taskIds: string[]): Promise<BulkResult> {
   try {
     await db.delete(tasks).where(inArray(tasks.id, doomed.map((d) => d.id)));
   } catch (err) {
-    return { ok: false, error: `Could not delete: ${(err as Error).message}` };
+    logDbError("tasks:delete", err);
+    return { ok: false, error: `Could not delete: ${dbErrorMessage(err)}` };
   }
   for (const d of doomed) {
     if (d.googleEventId) {

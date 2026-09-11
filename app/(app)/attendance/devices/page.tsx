@@ -18,17 +18,18 @@ const RED = "#E10600";
 const RED_DEEP = "#A80400";
 
 /**
- * Attendance · Registered Devices (admin). The device-allowlist control room:
- * every device employees registered from the app or the web punch, newest/pending
- * first. Admins approve a pending device (cap MAX_DEVICES_PER_EMPLOYEE per
- * person, any mix of kinds) so its owner
- * can punch, or revoke a lost/replaced/suspicious one. Only APPROVED devices can
- * mark attendance - everything else gets "Incorrect device" at the punch.
+ * Attendance · Registered Devices (admin). The device register: every device
+ * employees registered from the app or the web punch, newest first.
+ *
+ * Admin APPROVAL was removed 2026-09-09 - employees register their own devices
+ * and punch from them at once. What admins keep here is oversight and the power
+ * to REVOKE a lost, replaced or suspicious device, which is also how a capped
+ * slot is freed (MAX_DEVICES_PER_EMPLOYEE per person, any mix of kinds). A
+ * revoked or someone-else's device still gets "Incorrect device" at the punch.
  */
 export default async function AttendanceDevicesPage() {
   const me = await requireAttendanceAdmin();
   const devices = await listAllDevices();
-  const pending = devices.filter((d) => d.status === "pending").length;
   const anomalies = await listAttendanceAnomalies();
   const mode = attendanceIntegrityMode();
   // Everyone who can reach this page is an attendance administrator - the page
@@ -62,10 +63,11 @@ export default async function AttendanceDevicesPage() {
             Device allowlist
           </h1>
           <p className="mt-1.5 max-w-[70ch] text-[13.5px] font-medium text-ink-muted">
-            Each employee registers up to {MAX_DEVICES_PER_EMPLOYEE} devices of any kind — two laptops, two
-            phones or one of each — adopted the first time they punch in from that browser. Approve a pending device
-            so they can punch from it; only <strong>approved</strong> devices can mark attendance — any
-            other is refused with “Incorrect device”. {pending > 0 ? `${pending} waiting for approval.` : "Nothing waiting for approval."}
+            Each employee registers up to {MAX_DEVICES_PER_EMPLOYEE} devices of any kind - two laptops, two
+            phones or one of each - adopted the first time they punch in from that browser.
+            No approval is needed: a registered device works <strong>immediately</strong>. Revoke one to
+            retire it and free a slot; a revoked device, or someone else&rsquo;s, is refused with
+            &ldquo;Incorrect device&rdquo;.
           </p>
         </header>
 

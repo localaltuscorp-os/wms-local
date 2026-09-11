@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { Plus, ArrowRight, UserPlus, History } from "lucide-react";
 import type { CandidateDraft } from "@/app/(app)/hr/candidate-actions";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
@@ -62,7 +62,7 @@ export function IntakeChooser({ drafts }: { drafts: CandidateDraft[] }) {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[15.5px] font-bold text-ink-strong">{d.name}</span>
                   <span className="mt-0.5 block text-[12.5px] font-medium text-ink-muted">
-                    {d.pct}% complete · last edited {formatDate(d.updatedAt)}, {new Date(d.updatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                    {d.pct}% complete · last edited {formatDateHr(d.updatedAt)}, {new Date(d.updatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </span>
                 <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-bold text-white" style={{ background: "#18181b" }}>

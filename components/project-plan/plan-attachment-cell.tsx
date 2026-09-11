@@ -104,16 +104,15 @@ export function PlanAttachmentCell({
   }
 
   /**
-   * Which way the panel opens. ABOVE the trigger by default — these cells sit
-   * near the right-hand end of a long register, where the rows people actually
-   * click are far more often down the page than at the top of it, and a panel
-   * dropped downward from there falls off the bottom of the window.
+   * Which way the panel opens. BELOW the trigger by default, like every other
+   * hover surface in the app — opening upward covered the rows you had just
+   * read on the way down to this one.
    *
-   * Flipped back to below only when the trigger is too close to the top of the
-   * window for the panel to fit above it — the same rule, and the same
-   * constant, as the Links cell beside this one.
+   * Flipped up only when the panel genuinely cannot fit below (a trigger near
+   * the bottom of the window) and can fit above — the same rule, and the same
+   * constant, as the cell beside this one.
    */
-  const [below, setBelow] = React.useState(false);
+  const [below, setBelow] = React.useState(true);
   const btnRef = React.useRef<HTMLButtonElement>(null);
 
   /** Measured at OPEN time, not on every render: the answer only changes when
@@ -121,7 +120,10 @@ export function PlanAttachmentCell({
   const place = React.useCallback(() => {
     const r = btnRef.current?.getBoundingClientRect();
     if (!r) return;
-    setBelow(r.top < PANEL_MAX_H + 12);
+    // Below by default; up only when the panel genuinely cannot fit down
+    // there AND can fit up here.
+    const roomBelow = window.innerHeight - r.bottom;
+    setBelow(roomBelow >= PANEL_MAX_H + 12 || r.top < PANEL_MAX_H + 12);
   }, []);
 
   /** Hover opens — mouse only. A touch fires `pointerenter` too, and on a phone

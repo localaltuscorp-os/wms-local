@@ -8,24 +8,16 @@ import { attendanceIntegrityMode } from "@/lib/attendance/integrity-mode";
 import { consumePunchNonce } from "@/lib/attendance/punch-nonce";
 import { verifyPlayIntegrity } from "@/lib/attendance/play-integrity";
 import { isDccFilledFor } from "@/lib/dcc/gate";
-import {
-  needsDailyPlan,
-  dailyPlanShortfall,
-  MIN_ATTENDANCE_ITEMS,
-} from "@/lib/daily-checklist/gate";
-import { needsGoalActuals } from "@/lib/weekly-goals/actuals";
+
 import { isManagerWithReports, isMondayIST, managerMondayGoalState } from "@/lib/manager-gates";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import {
   satCommitGateOn,
   monApproveGateOn,
-  checkoutCloseoutGateOn,
-  punchPlanGateOn,
   weekLossAckGateOn,
   weekLossAckMobileGateOn,
 } from "@/lib/goals/flag";
 import { getWeekReportState } from "@/lib/attendance/week-report";
-import { isDayClosedOut } from "@/lib/queries/daily-checklist";
 import { weekCommitSatisfied, managerApproveSatisfied } from "@/lib/goals/gates-predicates";
 import { isSaturdayIST, isWeekdayIST } from "@/lib/goals/gate-day";
 import { currentWeekStart } from "@/lib/weekly-goals/week";
@@ -168,18 +160,9 @@ export async function POST(req: Request) {
     }
   }
 
-  // ── Close-out gate (NEW, default OFF; mirrors the web punch) — checkout ORDER:
-  // close out today's commitments, THEN DCC, THEN the punch. Sits above DCC.
-  if (body.kind === "out" && checkoutCloseoutGateOn()) {
-    const today = localDateString(tz);
-    const closed = await isDayClosedOut(me.id, today).catch(() => true);
-    if (!closed) {
-      return NextResponse.json(
-        { ok: false, error: "Mark your today's commitment before you clock out — open Plan my day, then Finish day.", needsCloseout: true },
-        { status: 409, headers: MOBILE_CORS },
-      );
-    }
-  }
+  // ── Close-out gate — REMOVED 2026-09-09 (mirrors the web punch) ──────
+  // Clocking out no longer requires today's commitments to be closed out, so
+  // `needsCloseout` is never returned either.
 
   // ── DCC punch-out block (fail-open; honors DCC_GATE_OFF) ──
   // With the Sat commit gate live, DCC is enforced Mon–Fri only (Sat's ritual is
@@ -196,39 +179,11 @@ export async function POST(req: Request) {
     }
   }
 
-  // ── Clock-IN planning gate (fail-open; PUNCH_PLAN_GATE_OFF) ──
-  // Mirrors the web punch: Start My Day clicked + MIN_ATTENDANCE_ITEMS planned.
-  // NO ROLE EXEMPTIONS — managers, admins and super-admins are gated too, same
-  // as the web. Returns needsPlan so the app can route the user to the plan.
-  if (body.kind === "in" && punchPlanGateOn()) {
-    {
-      const planned = !(await needsDailyPlan(me.id).catch(() => false));
-      const actuals = !(await needsGoalActuals(me.id).catch(() => false));
-      if (!planned || !actuals) {
-        // Same shortfall wording as the web punch — the app shows this string
-        // verbatim, so a vaguer message here would make the two surfaces
-        // disagree about what is being asked.
-        let error = "Plan your day first, then clock in.";
-        if (!planned) {
-          const { have, need, started } = await dailyPlanShortfall(me.id).catch(() => ({
-            have: 0,
-            need: MIN_ATTENDANCE_ITEMS,
-            started: false,
-          }));
-          if (have < need) {
-            const short = Math.max(1, need - have);
-            error = `You have ${have} of ${need} things planned for today. Add ${short} more on Daily Goals, then clock in.`;
-          } else if (!started) {
-            error = `Hit “Start My Day” on Daily Goals to begin your day, then clock in.`;
-          }
-        }
-        return NextResponse.json(
-          { ok: false, error, needsPlan: true },
-          { status: 409, headers: MOBILE_CORS },
-        );
-      }
-    }
-  }
+  // ── Clock-IN planning gate — REMOVED 2026-09-09 ──────────────────────
+  // Mirrored the web punch: Start My Day + MIN_ATTENDANCE_ITEMS planned +
+  // weekly-goal actuals logged. All of it is gone; clocking in needs no plan.
+  // The `needsPlan` flag is no longer ever returned, so the app's plan-detour
+  // screen is unreachable by design rather than merely unused.
 
   // ── WEEK-LOSS ACKNOWLEDGEMENT (mirrors the web punch) ──────────────────
   // Last week's attendance-lost + money-lost report must be read before the

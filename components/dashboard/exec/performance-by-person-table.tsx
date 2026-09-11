@@ -763,7 +763,7 @@ function OnTimeRateTooltip({
         <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
         <Tooltip.Portal>
           <Tooltip.Content
-            side="top"
+            side="bottom"
             align="center"
             sideOffset={8}
             collisionPadding={12}
@@ -905,7 +905,7 @@ function SpreadCell({
       </Tooltip.Trigger>
       <Tooltip.Portal>
         <Tooltip.Content
-          side="top"
+          side="bottom"
           sideOffset={6}
           className="z-50 w-[300px] rounded-xl border border-slate-200 bg-white p-3 shadow-lg"
         >

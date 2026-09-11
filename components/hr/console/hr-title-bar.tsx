@@ -2,125 +2,97 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight } from "lucide-react";
-import {
-  useHrTitleBarSlot,
-  useHrStepsToggle,
-  useHrCustomTitleBarRegistration,
-  useHrRouteTitle,
-} from "./hr-console-context";
-import { cn } from "@/lib/utils";
+import { useHrRouteTitle } from "./hr-console-context";
+import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
 
 /**
- * A page's own frozen title bar. Rendered inline in the page's JSX like any
- * other component, but PORTALED into the sticky slot HrConsoleShell owns at
- * the top of the content column — so it's the page's own header content
- * (the same back-link / logo-or-title / action markup that page already
- * had), just relocated out of the scrolling body and pinned in place,
- * alongside the shared steps-collapse control.
+ * A page's title (and its own controls), rendered into the app's GLOBAL TOP BAR.
  *
- * `left` / `title` / `right` mirror the sticky 3-column header shape most
- * /hr pages already used (back-link · title · action). The grid math
- * (`1fr auto 1fr`) keeps `title` mathematically centered regardless of how
- * much `left`/`right` content there is.
+ * Called inline from a page's JSX like any other component; it draws nothing
+ * where it sits. Both halves are PORTALED into slots AppTopBar owns - the title
+ * to the far left, the controls immediately left of the search/create/bell
+ * cluster.
  *
- * `title` is deliberately the ONLY way to put a title in this bar, and it
- * takes the TEXT (or an icon + text fragment) — never a pre-styled node.
- * Pages used to hand the bar their own heading markup through three
- * different props, which is how one console ended up with titles at 15px,
- * 17px, 20px and clamp(28-44px), in two fonts, some centered and some shoved
- * against the right edge by being passed as `right`. Owning the typography
- * here is what keeps every module’s bar identical.
+ * ── WHY THERE IS NO BAND ANY MORE ───────────────────────────────────────────
+ * This used to render a full-width strip pinned under the top bar, with the
+ * title centered in it. Every module then named itself twice: once in the top
+ * bar and again, larger, in the band directly beneath - roughly 56px of vertical
+ * room on every screen spent restating something the bar above already had room
+ * for. The strip is gone and the title moved up into that bar.
  *
- * There is deliberately NO subtitle slot. The bar carried one that showed
- * only while a page happened to fit without scrolling, which meant the same
- * module looked different depending on how much data it held. The bar is now
- * a fixed-height strip on every surface: title, and the page's own actions.
+ * `title` is still the ONLY way to set one, and it takes the TEXT (or an icon +
+ * text fragment) - never pre-styled markup. This component owns the size,
+ * weight, font and colour, which is what keeps every module's title identical;
+ * pages used to pass their own heading markup through three different props and
+ * the console ended up with titles at 15px, 17px, 20px and clamp(28-44px), in
+ * two fonts. Omit it and the rail's name for the route is used.
  */
 export function HrTitleBar({
   left,
   title,
   right,
-  className,
-  printHidden = true,
 }: {
+  /** Page controls shown BEFORE `right` in the top bar's action slot. */
   left?: React.ReactNode;
-  /** The page's title — the TEXT, or an icon + text fragment. This bar owns
-   *  its size, weight, font, colour and alignment; pass none of your own. */
+  /** The page's title — the TEXT, or an icon + text fragment. This component
+   *  owns its typography; pass none of your own. */
   title?: React.ReactNode;
+  /** Page controls — a print button, an edit link. */
   right?: React.ReactNode;
-  /** Override/extend the bar's own background + border, for a page whose
-   *  header carried different styling than the shared default. */
+  /** Ignored. Both styled the BAND, which no longer exists; still accepted so
+   *  the ~40 call sites did not all have to change at once, and so a page that
+   *  passes them is not a type error. The top bar is already print-hidden
+   *  chrome, which is what `printHidden` used to arrange. */
   className?: string;
-  /** Matches every migrated page's own header, which was `no-print` /
-   *  `print:hidden` — chrome, not content, so it shouldn't print. */
   printHidden?: boolean;
 }) {
-  const slot = useHrTitleBarSlot();
-  const { hasSteps, stepsCollapsed, toggleSteps } = useHrStepsToggle();
-  const registerCustomTitleBar = useHrCustomTitleBarRegistration();
+  const slots = usePageChromeSlots();
   // Default to the rail's name for this route; `title` is an override for the
-  // pages that are more specific than their nav label.
+  // pages that are more specific than their nav label (a named letter, a named
+  // policy, one candidate).
   const routeTitle = useHrRouteTitle();
   const shownTitle = title ?? routeTitle;
 
-  // Tell the shell a page has taken over the slot, so it doesn't ALSO render
-  // its own fallback collapse-button bar on top of/alongside this one.
-  React.useLayoutEffect(() => {
-    registerCustomTitleBar(true);
-    return () => registerCustomTitleBar(false);
-  }, [registerCustomTitleBar]);
+  // Tell the bar a page has named itself, so it stops ALSO drawing the
+  // route-derived name. Cleared on unmount, which returns a page with no title
+  // of its own to the derived one.
+  const setHasPageTitle = slots?.setHasPageTitle;
+  const claims = Boolean(slots && shownTitle);
+  React.useEffect(() => {
+    if (!setHasPageTitle || !claims) return;
+    setHasPageTitle(true);
+    return () => setHasPageTitle(false);
+  }, [setHasPageTitle, claims]);
 
-  if (!slot) return null;
+  // No chrome around this tree (the hub renders no top bar) - render nothing
+  // rather than blanking the page over a missing heading.
+  if (!slots) return null;
 
-  return createPortal(
-    <div
-      className={cn(
-        "border-b border-hairline bg-white/90 backdrop-blur",
-        printHidden && "print:hidden",
-        className,
-      )}
-    >
-      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4 px-6 py-3 max-md:px-4">
-        <div className="flex items-start gap-3 justify-self-start">
-          {/* Only while collapsed: expanded, this control lives in the
-              step list's own header instead. */}
-          {hasSteps && stepsCollapsed && (
-            <button
-              type="button"
-              onClick={toggleSteps}
-              aria-label="Expand steps list"
-              title="Expand steps list"
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-hairline bg-surface-card text-ink-muted shadow-sm transition-colors hover:bg-surface-soft hover:text-ink"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          )}
-          {left}
-        </div>
-        {/* The title rides the SAME row as the button, in the actual CENTER
-            grid column — that `1fr auto 1fr` math is what keeps it centered
-            across the FULL bar regardless of how wide `left`/`right` are.
-            Nesting it in the left column instead (an earlier attempt) only
-            centered it within that column's own slice of the bar.
+  const hasActions = left != null || right != null;
 
-            min-w-0 + truncate so a long title ellipses instead of forcing
-            the bar wider than the content column. */}
-        <div className="flex min-w-0 flex-col items-center justify-self-center pt-1.5 text-center">
-          {shownTitle && (
-            <h1
-              className="max-w-full truncate text-[20px] font-black tracking-[-0.02em] text-ink-strong max-md:text-[16px]"
-              style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}
-            >
-              {shownTitle}
-            </h1>
-          )}
-        </div>
-        <div className="justify-self-end">{right}</div>
-      </div>
+  return (
+    <>
+      {slots.title && shownTitle
+        ? createPortal(
+            // `topbar-heading` (app/globals.css) is the same type the bar's own
+            // derived title uses, so a page that names itself looks identical to
+            // one that does not rather than introducing a second heading style
+            // into the same strip. truncate + min-w-0 so a long title ellipses
+            // instead of pushing the clusters off the right edge.
+            <h1 className="topbar-heading min-w-0 truncate">{shownTitle}</h1>,
+            slots.title,
+          )
+        : null}
 
-
-    </div>,
-    slot,
+      {slots.actions && hasActions
+        ? createPortal(
+            <>
+              {left}
+              {right}
+            </>,
+            slots.actions,
+          )
+        : null}
+    </>
   );
 }

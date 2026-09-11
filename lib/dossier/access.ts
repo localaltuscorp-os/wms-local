@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { isHrStaff } from "@/lib/hr/access";
+import { isHrIntakeGrantee } from "@/lib/hr/intake-grantees";
 import type { Employee } from "@/db/schema";
 
 /**
@@ -23,6 +24,10 @@ export interface DossierAccess {
   /** In the HR department (or a super-admin). Grants onboarding-form reach only
    *  — NOT the wider dossier, which stays admin-managed. */
   isHr: boolean;
+  /** On the narrow HR-intake allow-list (lib/hr/intake-access.ts). Grants the
+   *  SAME onboarding-form reach as `isHr` and nothing else — kept as its own
+   *  flag so a future reader can't widen HR by widening this. */
+  isIntake: boolean;
 }
 
 /** House kill-switch convention: DOSSIER_OFF === "true" hides the module. */
@@ -37,7 +42,7 @@ export async function dossierAccess(): Promise<DossierAccess> {
   // department join, and an unavailable one must not silently widen who can read
   // a colleague's bank details.
   const hr = admin || (await isHrStaff(me).catch(() => false));
-  return { me, isAdmin: admin, isHr: hr };
+  return { me, isAdmin: admin, isHr: hr, isIntake: isHrIntakeGrantee(me.email) };
 }
 
 /** For pages: resolves access or bounces to /hub when the module is off. */
@@ -64,5 +69,5 @@ export function canManageEmployeeOnboarding(
   access: DossierAccess,
   employeeId: string,
 ): boolean {
-  return access.isAdmin || access.isHr || access.me.id === employeeId;
+  return access.isAdmin || access.isHr || access.isIntake || access.me.id === employeeId;
 }

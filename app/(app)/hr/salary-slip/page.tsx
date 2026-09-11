@@ -49,7 +49,20 @@ export default async function SalarySlipPage() {
 
   const rows = await mySalaryBreakup(me.id);
 
-  const months: SalarySlipMonth[] = rows.map((r) => {
+  // PAID MONTHS ONLY. A breakup row exists from the moment payroll starts
+  // preparing the month, well before anyone is paid, and this page used to list
+  // those too with a "Pending" badge. A slip is a record of money that has
+  // ACTUALLY been released, so an unpaid month showing here reads as a payment
+  // that already happened. `setSalaryPaid` flipping the flag is what publishes
+  // the month, and it is the same edge that emails the slip
+  // (lib/salary/notify-paid.ts) - so the row appearing here and the mail
+  // arriving are one event rather than two that can disagree.
+  //
+  // The admin Salary module still lists every month, paid or not; that surface
+  // is the one that is SUPPOSED to show work in progress.
+  const months: SalarySlipMonth[] = rows
+    .filter((r) => r.paid)
+    .map((r) => {
     const ym = String(r.month).slice(0, 7);
     return {
       month: ym,

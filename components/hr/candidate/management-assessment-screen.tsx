@@ -38,7 +38,7 @@ import {
   Scale,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import { PageShell } from "@/components/layout/page-shell";
 import type { CandidateRow } from "@/app/(app)/hr/candidate-actions";
 import {
@@ -414,7 +414,7 @@ export function ManagementAssessmentScreen({
                     onChange={(e) => selectCandidate(e.target.value)}
                     className="w-full appearance-none rounded-xl border border-hairline-strong bg-white px-3.5 py-3 pr-9 text-[14.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-altus-red"
                   >
-                    <option value="">— Select candidate —</option>
+                    <option value="">- Select candidate -</option>
                     {candidates.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.fullName || "Unnamed"}{c.positionApplied ? ` · ${c.positionApplied}` : ""}
@@ -615,7 +615,7 @@ function NotesCard({ value, onChange }: { value: string; onChange: (v: string) =
         n={7}
         icon={<StickyNote size={17} />}
         title="Assessment Notes"
-        sub="The management round in your words — type it, or press Dictate to speak."
+        sub="The management round in your words - type it, or press Dictate to speak."
         action={
           <button
             type="button"
@@ -650,7 +650,7 @@ function NotesCard({ value, onChange }: { value: string; onChange: (v: string) =
         </p>
       )}
       {!supported && (
-        <p className="mt-2 text-[12.5px] text-ink-subtle">Voice dictation isn&apos;t available in this browser — you can still type. For dictation, try Chrome or Edge.</p>
+        <p className="mt-2 text-[12.5px] text-ink-subtle">Voice dictation isn&apos;t available in this browser - you can still type. For dictation, try Chrome or Edge.</p>
       )}
     </Card>
   );
@@ -798,7 +798,7 @@ function RecordingsCard({
 
   return (
     <Card>
-      <CardHead n={8} icon={<AudioLines size={17} />} title="Voice Recordings" sub="Record the round in-browser — pause, resume, and keep as many takes as you need." />
+      <CardHead n={8} icon={<AudioLines size={17} />} title="Voice Recordings" sub="Record the round in-browser - pause, resume, and keep as many takes as you need." />
 
       {/* Recorder console */}
       <div
@@ -857,7 +857,7 @@ function RecordingsCard({
               <div className="min-w-0 flex-1">
                 <p className="text-[13.5px] font-bold text-ink-strong">Recording {i + 1}</p>
                 <p className="text-[12px] font-medium text-ink-muted tabular-nums">
-                  {mmss(r.durationSec)} · {formatDate(r.createdAt)}, {new Date(r.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                  {mmss(r.durationSec)} · {formatDateHr(r.createdAt)}, {new Date(r.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                 </p>
               </div>
               {r.url ? (
@@ -872,7 +872,7 @@ function RecordingsCard({
           ))}
         </ul>
       ) : (
-        <p className="mt-4 text-[13px] text-ink-subtle">No recordings yet — press <span className="font-semibold text-ink-muted">Start Recording</span> to capture the conversation.</p>
+        <p className="mt-4 text-[13px] text-ink-subtle">No recordings yet - press <span className="font-semibold text-ink-muted">Start Recording</span> to capture the conversation.</p>
       )}
     </Card>
   );
@@ -928,7 +928,7 @@ function AttachmentsCard({
         n={9}
         icon={<Paperclip size={17} />}
         title="Attachments"
-        sub="Resumes, assignments, screenshots, or a short video — drop them here."
+        sub="Resumes, assignments, screenshots, or a short video - drop them here."
         action={
           <button type="button" onClick={() => inputRef.current?.click()} className="inline-flex shrink-0 items-center gap-2 rounded-pill border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-colors hover:bg-surface-soft">
             <UploadCloud size={15} /> Add files
@@ -1045,8 +1045,8 @@ function RoleDesignationCard({
     <Card>
       <CardHead n={1} icon={<IdCard size={17} />} title="Role & Designation" sub="Confirm the offered designation and joining date." />
       <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-        <ReadField label="Role (applied)" value={role || "—"} />
-        <ReadField label="Department" value={department || "—"} />
+        <ReadField label="Role (applied)" value={role || "-"} />
+        <ReadField label="Department" value={department || "-"} />
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
         <FieldLabel label="Designation">
@@ -1088,7 +1088,7 @@ function OutcomeCard({
   const active = outcome ? OUTCOME_MAP[outcome] : null;
   return (
     <Card>
-      <CardHead n={10} icon={<Trophy size={17} />} title="Outcome" sub="The final step — record the management verdict; it updates the candidate's pipeline status." />
+      <CardHead n={10} icon={<Trophy size={17} />} title="Outcome" sub="The final step - record the management verdict; it updates the candidate's pipeline status." />
       <div className="grid grid-cols-3 gap-2 max-sm:grid-cols-1">
         {OUTCOME_ORDER.map((o) => {
           const on = outcome === o;
@@ -1131,7 +1131,7 @@ function OutcomeCard({
               />
             </div>
           </FieldLabel>
-          <p className="mt-1.5 text-[12px] text-ink-subtle">The compensation offered — carried into the selection/offer paperwork.</p>
+          <p className="mt-1.5 text-[12px] text-ink-subtle">The compensation offered - carried into the selection/offer paperwork.</p>
         </div>
       )}
 
@@ -1165,7 +1165,7 @@ function EvaluationCard({ candidateId }: { candidateId: string }) {
         n={2}
         icon={<ClipboardCheck size={17} />}
         title="Evaluation"
-        sub="The structured, weighted A–N instrument — filled on the dedicated Interview Intelligence screen."
+        sub="The structured, weighted A–N instrument - filled on the dedicated Interview Intelligence screen."
       />
 
       {/* Full structured Management Evaluation — the weighted A–N instrument. */}
@@ -1227,7 +1227,7 @@ function ScoresCard({
             <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-ink-soft">HR Evaluation</span>
           </div>
           <p className="mt-2.5 tabular-nums text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 34, lineHeight: 1 }}>
-            {hrScore != null ? (Number.isInteger(hrScore) ? hrScore : hrScore.toFixed(1)) : "—"}
+            {hrScore != null ? (Number.isInteger(hrScore) ? hrScore : hrScore.toFixed(1)) : "-"}
             <span className="text-[16px] font-bold text-ink-subtle"> / 10</span>
           </p>
           <p className="mt-1 text-[12px] font-medium text-ink-muted">
@@ -1252,7 +1252,7 @@ function ScoresCard({
               inputMode="decimal"
               value={managementScore != null ? String(managementScore) : ""}
               onChange={(e) => onInput(e.target.value)}
-              placeholder="—"
+              placeholder="-"
               aria-label="Management round score out of 10"
               className="w-[110px] rounded-xl border border-hairline-strong bg-white px-3 py-2 text-[28px] font-black tabular-nums text-ink-strong outline-none focus:border-altus-red"
               style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}
@@ -1283,7 +1283,7 @@ function SkillsSummaryCard({ value }: { value: SkillSelection }) {
         n={4}
         icon={<Sparkles size={17} />}
         title="Skills"
-        sub="The bare-minimum skills requirement — now edited in the HR Record."
+        sub="The bare-minimum skills requirement - now edited in the HR Record."
         action={
           <Link
             href={"/hr/record" as Route}
@@ -1295,7 +1295,7 @@ function SkillsSummaryCard({ value }: { value: SkillSelection }) {
       />
       {count === 0 ? (
         <p className="text-[13px] text-ink-subtle">
-          No skills ticked yet — open this person&apos;s <span className="font-semibold text-ink-muted">HR Record</span> to set the requirement checklist.
+          No skills ticked yet - open this person&apos;s <span className="font-semibold text-ink-muted">HR Record</span> to set the requirement checklist.
         </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">

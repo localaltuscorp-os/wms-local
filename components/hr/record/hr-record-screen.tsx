@@ -72,7 +72,7 @@ import {
 } from "@/app/(app)/hr/record/person-files-types";
 import { SkillMultiSelect, type SkillSelection } from "@/components/hr/candidate/skill-multiselect";
 import type { SkillLookupOptions } from "@/lib/hr/skills";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const EMPTY_SKILLS: SkillSelection = { technical: [], nonTechnical: [] };
@@ -621,7 +621,7 @@ export function HrRecordScreen({
                 sub="This person's exit interview and handover clearance - populated once their separation begins."
                 right={
                   <Link
-                    href={"/hr/exit" as Route}
+                    href={"/hr/exit/interview" as Route}
                     className="inline-flex items-center gap-1 rounded-pill border border-hairline-strong bg-white px-3 py-1 text-[12px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
                   >
                     Open Exit <ArrowUpRight size={13} />
@@ -856,7 +856,7 @@ function ExitHandover({ status, loading }: { status: ExitSummary | null; loading
       </p>
     );
   }
-  const fmtDate = (iso: string) => formatDate(iso);
+  const fmtDate = (iso: string) => formatDateHr(iso);
   const pct = status.handoverTotal > 0 ? Math.round((status.handoverCleared / status.handoverTotal) * 100) : 0;
   const handoverDone = status.handoverTotal > 0 && status.handoverCleared === status.handoverTotal;
   return (
@@ -1213,7 +1213,7 @@ function UnlinkedNote({ what }: { what: string }) {
 
 /** Friendly "12 Aug 2026" for an ISO string. */
 function fmtDay(iso: string): string {
-  return formatDate(iso); // canonical "01 Jan 2026"
+  return formatDateHr(iso); // canonical "01 Jan 2026"
 }
 
 /**

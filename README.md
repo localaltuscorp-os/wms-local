@@ -5,7 +5,7 @@ Internal work-management dashboard for the Altus Corp team. Tracks tasks, status
 ## Documentation
 
 | Read this | When |
-|---|---|
+|---|---| 
 | **[HANDOFF.md](./HANDOFF.md)** | **Start here.** Current state, known issues, changelog. Update it with every PR. |
 | **[SETUP.md](./SETUP.md)** | Running it locally or deploying. Covers the known migration failures. |
 | **[docs/WMS_BLUEPRINT.md](./docs/WMS_BLUEPRINT.md)** | Full system spec — architecture, data model, modules. Use to launch this for a new client. |
@@ -21,7 +21,7 @@ pnpm install
 cp .env.example .env.local   # fill in Supabase / Firebase / Resend values
 pnpm db:generate                    # generate first migration
 pnpm db:migrate                     # apply schema to your dev Supabase
-pnpm seed                           # populate fake data (~20 emp, ~1200 tasks)
+pnpm seed                           # populate fake data (~20 emp, ~1200 tasks) 
 pnpm dev                            # http://localhost:3000
 ```
 

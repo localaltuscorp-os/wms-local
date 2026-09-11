@@ -6,7 +6,7 @@ import { PolicyDocument } from "@/components/hr/policies/policy-document";
 import { ENTITY_LIST, type EntityId } from "@/lib/hr/entities";
 import type { PolicyDoc } from "@/lib/hr/policies/types";
 import { fireToast } from "@/lib/toast";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
@@ -97,7 +97,7 @@ export function PolicyView({
               {/* Already signed — show it clearly so no one signs twice just to
                   check. Re-signing stays possible but is demoted to a ghost. */}
               <span className="apv-signed" role="status">
-                <CheckCircle2 size={16} strokeWidth={2.4} aria-hidden /> Signed · {formatDate(signedAt!)}
+                <CheckCircle2 size={16} strokeWidth={2.4} aria-hidden /> Signed · {formatDateHr(signedAt!)}
               </span>
               <button
                 type="button"
@@ -117,9 +117,9 @@ export function PolicyView({
                   className="apv-signed"
                   role="status"
                   style={{ background: "color-mix(in srgb, #f59e0b 14%, white)", color: "#b45309" }}
-                  title={`You signed version ${formatDate(signedAt)} — a newer version has been published.`}
+                  title={`You signed version ${formatDateHr(signedAt)} - a newer version has been published.`}
                 >
-                  <PenLine size={15} strokeWidth={2.4} aria-hidden /> New version · last signed {formatDate(signedAt)}
+                  <PenLine size={15} strokeWidth={2.4} aria-hidden /> New version · last signed {formatDateHr(signedAt)}
                 </span>
               )}
               <button
