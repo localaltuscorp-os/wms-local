@@ -92,7 +92,7 @@ export default async function TeamAppraisalPage({
             className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white"
             style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
           >
-            <Award size={13} strokeWidth={2.6} /> Team Productivity · Appraisal
+            <Award size={13} strokeWidth={2.6} /> Performance · Appraisal
           </span>
           <h1
             className="mt-3 text-ink-strong"

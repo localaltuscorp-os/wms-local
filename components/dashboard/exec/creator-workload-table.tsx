@@ -214,7 +214,7 @@ function TransposedTable({
   resolveAvatar: (id: string) => string | null;
 }) {
   return (
-    <div className="max-h-[600px] overflow-auto rounded-xl border border-slate-200/70">
+    <div className="table-scroll max-h-[600px] overflow-auto rounded-xl border border-slate-200/70">
       <table className="min-w-full border-collapse">
         <thead className="sticky top-0 z-10" style={{ background: "#f9fafb" }}>
           <tr>
@@ -507,7 +507,7 @@ export function CreatorWorkloadTable({
           {isTransposed ? (
             <TransposedTable rows={rows} targets={targets} resolveAvatar={resolveAvatar} />
           ) : (
-            <div className="max-h-[600px] overflow-auto rounded-xl border border-slate-200/70">
+            <div className="table-scroll max-h-[600px] overflow-auto rounded-xl border border-slate-200/70">
               <table className="min-w-full border-collapse">
                 <thead className="sticky top-0 z-10" style={{ background: "#f9fafb" }}>
                   <tr>

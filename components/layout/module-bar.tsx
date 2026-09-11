@@ -30,12 +30,11 @@ import {
  * accent-tinted hover/active treatment, and the same 1-9/0 shortcut digits that
  * `ModuleShortcuts` binds globally.
  *
- * SHORT labels: "Monthly Events Master" and "Team Productivity" are fine
- * stacked in a footer dock but blow out a single row at ten across. The full
- * label stays in `title`, so nothing is lost.
+ * SHORT labels: "Monthly Events Master" is fine stacked in a footer dock but
+ * blows out a single row at ten across. The full label stays in `title`, so
+ * nothing is lost. Performance needs no override — it already fits.
  */
 const SHORT_LABEL: Partial<Record<WorkspaceId, string>> = {
-  productivity: "Productivity",
   events: "Events",
   admin: "Accounts",
 };

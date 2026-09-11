@@ -369,7 +369,7 @@ export const BoardQuickAdd = React.forwardRef<BoardQuickAddHandle, Props>(
                   Lands in
                 </p>
                 <div
-                  className="wg-scroll flex max-h-[460px] w-[98px] flex-col gap-1 overflow-y-auto rounded-xl border p-1.5"
+                  className="slim-scroll flex max-h-[460px] w-[98px] flex-col gap-1 overflow-y-auto rounded-xl border p-1.5"
                   style={{ borderColor: "var(--color-hairline)", background: "var(--color-surface-soft)" }}
                 >
                   {periodChoices.map((p) => {

@@ -347,7 +347,7 @@ export function ReviewTable({
 }) {
   return (
     <div
-      className="wg-rise max-h-[72vh] overflow-auto rounded-2xl border"
+      className="table-scroll wg-rise max-h-[72vh] overflow-auto rounded-2xl border"
       style={{
         borderColor: "var(--color-hairline-strong)",
         background: "var(--color-surface-card)",

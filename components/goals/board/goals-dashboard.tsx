@@ -615,7 +615,7 @@ function MultiPick({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[220px] p-1.5">
-        <div className="max-h-[280px] overflow-auto">
+        <div className="slim-scroll max-h-[280px] overflow-auto">
           {options.length === 0 && <p className="px-2 py-2 text-[12.5px] text-ink-subtle">No {label.toLowerCase()} yet.</p>}
           {options.map((o) => {
             const checked = selected.has(o);
@@ -688,7 +688,7 @@ function SinglePick({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[240px] p-1.5">
-        <div className="max-h-[280px] overflow-auto">
+        <div className="slim-scroll max-h-[280px] overflow-auto">
           {options.length === 0 && <p className="px-2 py-2 text-[12.5px] text-ink-subtle">No delegated goals yet.</p>}
           {options.map((o) => {
             const checked = selected === o.value;
@@ -1231,7 +1231,7 @@ function AtRiskList({ rows, total }: { rows: Row[]; total: number }) {
           </p>
         </div>
       ) : (
-        <div className="max-h-[420px] overflow-y-auto overflow-x-auto">
+        <div className="table-scroll max-h-[420px] overflow-y-auto overflow-x-auto">
           <table className="w-full border-collapse text-left">
             <thead>
               <tr style={{ background: "var(--color-surface-soft)" }}>

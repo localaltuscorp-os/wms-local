@@ -259,7 +259,7 @@ export function InlineStatusCell({
           sideOffset={6}
           collisionPadding={12}
           onOpenAutoFocus={(e) => e.preventDefault()}
-          className="z-[60] min-w-[200px] max-md:min-w-[170px] max-h-[280px] overflow-y-auto rounded-chip border bg-surface-card"
+          className="slim-scroll z-[60] min-w-[200px] max-md:min-w-[170px] max-h-[280px] overflow-y-auto rounded-chip border bg-surface-card"
           style={{
             borderColor: "var(--color-hairline-strong)",
             boxShadow: "0 16px 40px rgba(15, 23, 42, 0.18)",

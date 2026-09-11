@@ -334,7 +334,7 @@ export function TaskInbox({
         {/* ── RIGHT: the record ── */}
         {selectedId && (
           <div
-            className="min-w-0 flex-1 overflow-y-auto"
+            className="slim-scroll min-w-0 flex-1 overflow-y-auto"
             style={{ maxHeight: "calc(100vh - 230px)" }}
           >
             <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-hairline bg-surface-card/95 px-4 py-2 backdrop-blur">

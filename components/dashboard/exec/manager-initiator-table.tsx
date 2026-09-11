@@ -416,7 +416,8 @@ export function ManagerInitiatorTable({
                             No direct reports in this window.
                           </p>
                         ) : (
-                          <table className="w-full border-collapse">
+                          <div className="table-scroll -mx-1 overflow-x-auto px-1">
+                          <table className="w-full min-w-[560px] border-collapse">
                             <thead>
                               <tr style={{ color: "var(--color-ink-subtle)" }}>
                                 <th className={`${HEAD_CELL} text-left`}>Report</th>
@@ -488,6 +489,7 @@ export function ManagerInitiatorTable({
                               })}
                             </tbody>
                           </table>
+                          </div>
                         )}
                       </motion.div>
                     </td>

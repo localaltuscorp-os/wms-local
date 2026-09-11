@@ -77,7 +77,7 @@ export function TeamPicker({
         }
       }}
     >
-      <div className="max-h-[180px] overflow-y-auto">
+      <div className="slim-scroll max-h-[180px] overflow-y-auto">
         {roster.map((r) => (
           <label
             key={r.id}

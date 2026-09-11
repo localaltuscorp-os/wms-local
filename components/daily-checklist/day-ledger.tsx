@@ -300,7 +300,7 @@ export function DayLedger({ today, items: pItems, overdue: pOverdue, pullable: p
                 </p>
                 {/* Capped + scrollable: a long goal list must NOT stretch the page
                     tall (leaving the short ledger column with a big empty gap). */}
-                <ul className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                <ul className="slim-scroll space-y-2 max-h-[420px] overflow-y-auto pr-1">
                   {pullable.map((g) => (
                     <li
                       key={g.id}

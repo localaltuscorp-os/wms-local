@@ -251,7 +251,7 @@ export function PermissionMatrix({ people, initialPersonId, initialOverrides }: 
         </div>
       ) : (
         <div className={`${CARD} overflow-hidden`}>
-          <div className="overflow-x-auto">
+          <div className="table-scroll overflow-x-auto">
             <table className="w-full min-w-[640px] border-collapse text-[13px]">
               <thead>
                 <tr className="bg-[#F8FAFC] text-left text-[11.5px] font-semibold uppercase tracking-wide text-[#94A3B8]">

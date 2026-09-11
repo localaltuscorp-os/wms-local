@@ -50,10 +50,10 @@ export function RecentDispatchFailures({ rows, totals }: Props) {
         </div>
       ) : (
         <div
-          className="overflow-hidden rounded-section border border-hairline bg-surface-card"
+          className="table-scroll overflow-x-auto rounded-section border border-hairline bg-surface-card"
           style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
         >
-          <table className="w-full text-[14px]">
+          <table className="w-full min-w-[880px] text-[14px]">
             <thead>
               <tr
                 className="text-left text-[11.5px] uppercase tracking-[0.08em] text-ink-subtle font-bold border-b border-hairline"

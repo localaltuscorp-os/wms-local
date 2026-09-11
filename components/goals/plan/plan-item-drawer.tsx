@@ -145,7 +145,7 @@ export function PlanItemDrawer({
         </header>
 
         {/* ── 2 · Hero context ───────────────────────────────────────────── */}
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="slim-scroll min-h-0 flex-1 overflow-y-auto">
           <div className="border-b border-hairline px-5 py-4">
             <div className="flex flex-wrap items-center gap-2">
               <span

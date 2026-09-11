@@ -28,13 +28,13 @@ import type { Ambassador, HhCall } from "@/lib/queries/people-allocation";
  * for: Product Name is a multi-select, because an ambassador may carry several.
  */
 
-const ORANGE = "#ea580c";
-const ORANGE_DEEP = "#c2410c";
+const ACCENT = "#E10600";
+const ACCENT_DEEP = "#A80400";
 
 const DELETE_CONFIRM = "Are you sure you want to delete? This cannot be undone.";
 
 const inputCls =
-  "w-full rounded-xl border border-hairline-strong bg-surface-card px-3 py-2 text-[14px] text-ink-strong outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#ea580c]/40";
+  "w-full rounded-xl border border-hairline-strong bg-surface-card px-3 py-2 text-[14px] text-ink-strong outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#E10600]/40";
 
 type Run = (fn: () => void) => void;
 
@@ -171,7 +171,7 @@ function AmbassadorList({
             type="button"
             onClick={() => setOpen(!open)}
             className="wg-btn inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[13px] font-bold text-white"
-            style={{ background: `linear-gradient(135deg, ${ORANGE}, ${ORANGE_DEEP})` }}
+            style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
           >
             <Plus size={14} strokeWidth={2.8} /> Add
           </button>
@@ -216,7 +216,7 @@ function AmbassadorList({
                       className="rounded-pill px-3.5 py-2 text-[13px] font-bold transition-colors"
                       style={
                         on
-                          ? { background: `linear-gradient(135deg, ${ORANGE}, ${ORANGE_DEEP})`, color: "#fff" }
+                          ? { background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})`, color: "#fff" }
                           : {
                               color: "var(--color-ink-soft)",
                               boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)",
@@ -345,7 +345,7 @@ function AmbassadorList({
               type="button"
               onClick={() => setWeekly([...weekly, blankCall()])}
               className="inline-flex w-fit items-center gap-1.5 text-[13px] font-bold"
-              style={{ color: ORANGE }}
+              style={{ color: ACCENT }}
             >
               <Plus size={14} strokeWidth={2.8} /> Add more weekly calls
             </button>
@@ -357,7 +357,7 @@ function AmbassadorList({
               onClick={save}
               disabled={pending || !name.trim()}
               className="wg-btn rounded-pill px-4 py-2 text-[13px] font-bold text-white disabled:opacity-50"
-              style={{ background: `linear-gradient(135deg, ${ORANGE}, ${ORANGE_DEEP})` }}
+              style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
             >
               Save
             </button>

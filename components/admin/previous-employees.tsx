@@ -185,8 +185,8 @@ export function PreviousEmployees({ rows }: { rows: FormerEmployeeView[] }) {
         </a>
       </div>
 
-      <div className="rounded-xl border border-[#E2E8F0] bg-white overflow-hidden">
-        <table className="w-full text-left">
+      <div className="table-scroll rounded-xl border border-[#E2E8F0] bg-white overflow-x-auto">
+        <table className="w-full min-w-[760px] text-left">
           <thead>
             <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
               <th className="px-4 py-2.5 text-[11px] uppercase tracking-wider font-bold text-[#94A3B8]">Name</th>
@@ -376,7 +376,7 @@ export function PreviousEmployees({ rows }: { rows: FormerEmployeeView[] }) {
                       No recorded activity in this window.
                     </p>
                   ) : (
-                    <ul className="space-y-1.5 max-h-56 overflow-y-auto">
+                    <ul className="slim-scroll space-y-1.5 max-h-56 overflow-y-auto">
                       {activity.entries.map((e, i) => (
                         <li
                           key={`${e.at}-${i}`}

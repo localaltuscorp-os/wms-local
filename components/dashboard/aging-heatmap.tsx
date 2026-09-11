@@ -36,8 +36,8 @@ import { SectionDispatch } from "@/components/dashboard/section-dispatch";
 import type { SectionReport } from "@/lib/reports/section-report";
 import { SectionIcon } from "@/components/dashboard/section-icon";
 import { DASHBOARD_TABLE_HEAD } from "@/components/dashboard/section-chrome";
-import { isAppDepartment, type TeamView } from "@/lib/teams/app-team";
-import { TeamToggle } from "@/components/dashboard/team-toggle";
+import { inFunctionView, FUNCTION_LABELS, FUNCTION_VIEWS, type FunctionView } from "@/lib/org/functions";
+import { FunctionToggle } from "@/components/dashboard/function-toggle";
 
 /**
  * THE AGE RAMP - one continuous risk gradient, green through burgundy.
@@ -350,7 +350,7 @@ export function AgingHeatmap({
      caps, and it still orders the transposed view and the exported report. */
   const [sortMode, setSortMode] = React.useState<SortMode>("risk");
   const [sortDir, setSortDir] = React.useState<SortDir>("desc");
-  const [teamView, setTeamView] = React.useState<TeamView>("all");
+  const [functionView, setFunctionView] = React.useState<FunctionView>("all");
   /* Re-clicking the active column flips it; a new column adopts its own natural
      direction - names A-Z, counts worst-first. */
   const onColumnSort = React.useCallback(
@@ -507,7 +507,7 @@ export function AgingHeatmap({
 
      The TEAM toggle is applied, though, because the brief asks the numbers to
      follow it - and because a pill promising 9 people that lists 4 when opened
-     under App Team is worse than no number. Search is inherited from
+     under Sales is worse than no number. Search is inherited from
      `enrichedAll` for the same reason.
 
      A person counts once per bucket they hold work in, so the eight figures sum
@@ -515,11 +515,9 @@ export function AgingHeatmap({
      both 4-7d and 60+d work genuinely belongs in both pills. */
   const ageCounts = React.useMemo(() => {
     const scoped =
-      teamView === "app"
-        ? enrichedAll.filter((r) => isAppDepartment(r.department))
-        : teamView === "nonApp"
-          ? enrichedAll.filter((r) => !isAppDepartment(r.department))
-          : enrichedAll;
+      functionView === "all"
+        ? enrichedAll
+        : enrichedAll.filter((r) => inFunctionView(r.department, functionView));
     const counts = {} as Record<AgeBucketId, number>;
     for (const b of AGE_BUCKETS) counts[b.id] = 0;
     for (const r of scoped) {
@@ -528,7 +526,7 @@ export function AgingHeatmap({
       }
     }
     return counts;
-  }, [enrichedAll, teamView]);
+  }, [enrichedAll, functionView]);
 
   const sorted = React.useMemo(
     () => sortAgingRows(enriched, sortMode, sortDir),
@@ -537,14 +535,16 @@ export function AgingHeatmap({
 
   const top12 = sorted.slice(0, 12);
 
-  /* The App / Non-App split, partitioned AFTER search and age filtering so both
-     columns honour exactly the filters the single list did. */
-  const appRows = React.useMemo(
-    () => enriched.filter((r) => isAppDepartment(r.department)),
-    [enriched],
-  );
-  const nonAppRows = React.useMemo(
-    () => enriched.filter((r) => !isAppDepartment(r.department)),
+  /* The per-function counts, taken AFTER search and age filtering so every tab
+     honours exactly the filters the single list did. */
+  const functionCounts = React.useMemo(
+    () =>
+      Object.fromEntries(
+        FUNCTION_VIEWS.map((v) => [
+          v,
+          v === "all" ? enriched.length : enriched.filter((r) => inFunctionView(r.department, v)).length,
+        ]),
+      ) as Record<FunctionView, number>,
     [enriched],
   );
 
@@ -557,8 +557,8 @@ export function AgingHeatmap({
      up with the left column and misses the right. So "show the headers once"
      and "keep the columns aligned" cannot both hold for a genuine split. A
      segmented control settles it: one list at a time, one header, always
-     aligned, and the counts on the tabs give the App-vs-Non-App comparison the
-     split was there to provide.
+     aligned, and the counts on the tabs give the function-by-function
+     comparison the split was there to provide.
 
      Independent per-column sorting goes with it. That was only ever needed
      because there were two headers to click. */
@@ -572,14 +572,14 @@ export function AgingHeatmap({
      BOTH states (below), and any active filter gets an explicit Clear. */
   const filtersActive =
     ageFilter !== null ||
-    teamView !== "all" ||
+    functionView !== "all" ||
     localQuery.trim().length > 0 ||
     // The PAGE search counts too: it can empty this card just as completely,
     // and a Clear that left it running would look broken.
     sectionQuery.trim().length > 0;
   const clearFilters = React.useCallback(() => {
     setAgeFilter(null);
-    setTeamView("all");
+    setFunctionView("all");
     setLocalQuery("");
     // Page-wide, and deliberately so — it is the only way this card can get
     // back to showing everyone. The search box empties visibly, so nothing
@@ -587,19 +587,21 @@ export function AgingHeatmap({
     setSectionSearch("");
   }, []);
 
-  const teamRows =
-    teamView === "app" ? appRows : teamView === "nonApp" ? nonAppRows : enriched;
-  const teamSorted = React.useMemo(
-    () => sortAgingRows(teamRows, sortMode, sortDir),
-    [teamRows, sortMode, sortDir],
+  const functionRows = React.useMemo(
+    () => (functionView === "all" ? enriched : enriched.filter((r) => inFunctionView(r.department, functionView))),
+    [enriched, functionView],
+  );
+  const functionSorted = React.useMemo(
+    () => sortAgingRows(functionRows, sortMode, sortDir),
+    [functionRows, sortMode, sortDir],
   );
 
   /* Bar scale spans EVERY lane on the board, not just the twelve the transposed
      view caps at: the lane list renders everybody, so a scale taken from twelve
      would overflow the bars of everyone below them. Taking it from `enriched`
-     rather than from the filtered `teamRows` is the other half - a scale that
-     changed with the toggle would redraw every bar on switching from App to
-     Non-App, and the two views would stop being comparable. */
+     rather than from the filtered `functionRows` is the other half - a scale that
+     changed with the toggle would redraw every bar on switching from Sales to
+     Operations, and the views would stop being comparable. */
   const maxTotal = Math.max(...enriched.map((r) => r.total), 1);
 
   const totalAging = enriched.reduce((s, r) => s + r.total, 0);
@@ -771,14 +773,10 @@ export function AgingHeatmap({
               list, so they belong on the same line. */}
           {!isTransposed && (
             <div className="mb-4 mt-3 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4 max-md:hidden">
-              <TeamToggle
-                view={teamView}
-                onChange={setTeamView}
-                counts={{
-                  all: enriched.length,
-                  app: appRows.length,
-                  nonApp: nonAppRows.length,
-                }}
+              <FunctionToggle
+                view={functionView}
+                onChange={setFunctionView}
+                counts={functionCounts}
               />
               <div className="flex min-w-0 items-center gap-2">
                 <Legend
@@ -845,16 +843,14 @@ export function AgingHeatmap({
                       the heaviest thing on it. 520px so a full list scrolls
                       rather than pushing every section below it off screen. */}
                   <div className="slim-scroll max-h-[520px] space-y-2 overflow-y-auto overscroll-contain pr-2 pt-2">
-                    {teamSorted.length === 0 ? (
+                    {functionSorted.length === 0 ? (
                       <p className="px-3 py-6 text-[13px] font-semibold text-ink-subtle">
-                        {teamView === "app"
-                          ? "No App-team member is carrying pending work here."
-                          : teamView === "nonApp"
-                            ? "No Operations member is carrying pending work here."
-                            : "Nobody is carrying pending work here."}
+                        {functionView === "all"
+                          ? "Nobody is carrying pending work here."
+                          : `Nobody in ${FUNCTION_LABELS[functionView]} is carrying pending work here.`}
                       </p>
                     ) : (
-                      teamSorted.map((r, i) => (
+                      functionSorted.map((r, i) => (
                         <Lane
                           key={r.employeeId}
                           row={r}

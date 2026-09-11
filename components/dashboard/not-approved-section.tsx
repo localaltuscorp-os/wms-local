@@ -261,7 +261,7 @@ function PersonRow({ person }: { person: NotApprovedPerson }) {
             </div>
 
             {/* Task list — oldest first, each links to the task */}
-            <ul className="flex flex-col flex-1 min-h-0 p-2 overflow-y-auto bg-surface-card">
+            <ul className="slim-scroll flex flex-col flex-1 min-h-0 p-2 overflow-y-auto bg-surface-card">
               {person.tasks.length === 0 && (
                 <li
                   className="py-4 px-3 font-semibold"
