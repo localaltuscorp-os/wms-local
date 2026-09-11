@@ -49,6 +49,10 @@ const IssueSchema = z.object({
   candidateEmail: z.string().trim().email().max(200).optional(),
   /** optional uploaded scanned-signature image (data URL) for the sign-off */
   signatureImage: z.string().max(3_000_000).optional(),
+  /** WHO signs, when HR picked explicitly in the editor ("director" = the
+   *  proprietor's block, "hr" = the HR desk's). Omitted → the template's own
+   *  rule. Threaded so the issued PDF carries the sign-off HR saw on screen. */
+  signatory: z.enum(["director", "hr"]).optional(),
 });
 
 export type IssueLetterInput = z.infer<typeof IssueSchema>;
@@ -73,7 +77,7 @@ export async function issueLetter(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { key, entity, values, gender, employeeId, candidateName, candidateEmail, signatureImage } =
+  const { key, entity, values, gender, employeeId, candidateName, candidateEmail, signatureImage, signatory } =
     parsed.data;
 
   const template = getLetter(key);
@@ -104,6 +108,7 @@ export async function issueLetter(
       date,
       gender: normalizeGender(gender),
       signatureImage,
+      signatory,
     });
   } catch (err) {
     return { ok: false, error: `Could not render the PDF: ${errorMessage(err)}` };

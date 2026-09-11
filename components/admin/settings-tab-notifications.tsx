@@ -55,7 +55,7 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   appraisal_management_pending: "Appraisal — management review pending",
   appraisal_finalized:          "Appraisal — finalized",
   // Enterprise Communications (mig 0179) — delivered by the ECOS publish flow.
-  broadcast:                    "Communications — broadcast",
+  broadcast:                    "Broadcasts — broadcast",
 };
 
 const CHANNEL_LABEL: Record<NotificationChannel, string> = {
