@@ -16,9 +16,15 @@ import { disableCandidateAccountByIntakeId } from "@/lib/hr/candidate/account-li
  * `requireCandidateOwner()` (which resolves the caller's OWN intake row) and
  * targets that `rowId` alone — the incoming form id is DISCARDED, so a candidate
  * can never write another row. Recruiter-only fields are stripped + rehydrated,
- * uploads are pinned under the caller's own storage prefix, and a submitted form
- * is locked. These mirror the HR actions' shapes so they drop into the wizard's
- * injected `actions`.
+ * uploads are pinned under the caller's own storage prefix. These mirror the HR
+ * actions' shapes so they drop into the wizard's injected `actions`.
+ *
+ * A SUBMITTED FORM IS LOCKED ONLY ON THE SIGNED-IN PATH. An access-link
+ * candidate (`viaLink`) keeps writing after submit, because their link stays
+ * live for its full term so they can correct what they sent without ever
+ * creating an account — the reason the no-login flow exists at all. The two
+ * paths share this one guard rather than growing a second set of ownership
+ * checks; only the lock differs, and it differs in exactly one place per action.
  */
 
 type R<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -38,10 +44,10 @@ function ownsPath(path: string | null | undefined, prefix: string): boolean {
 
 /** Save the caller's own draft (id-less; recruiter fields stripped + rehydrated). */
 export async function saveOwnCandidateDraft(input: DraftInput): Promise<R<{ id: string }>> {
-  const { me, rowId, submitted } = await requireCandidateOwner();
+  const { me, rowId, submitted, viaLink } = await requireCandidateOwner();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
-  if (submitted) return { ok: false, error: "Your form is already submitted." };
+  if (submitted && !viaLink) return { ok: false, error: "Your form is already submitted." };
 
   const prefix = `candidate-intake/${me.id}/`;
   if (!ownsPath(input.photoPath, prefix) || !ownsPath(input.signaturePath, prefix)) {
@@ -87,10 +93,10 @@ export async function saveOwnCandidateDraft(input: DraftInput): Promise<R<{ id: 
 
 /** Upload the caller's own photo/signature under their OWN storage prefix. */
 export async function uploadOwnCandidateFile(fd: FormData): Promise<R<{ path: string }>> {
-  const { me, submitted } = await requireCandidateOwner();
+  const { me, submitted, viaLink } = await requireCandidateOwner();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
-  if (submitted) return { ok: false, error: "Your form is already submitted." };
+  if (submitted && !viaLink) return { ok: false, error: "Your form is already submitted." };
 
   const file = fd.get("file");
   if (!(file instanceof File)) return { ok: false, error: "No file provided." };
@@ -110,22 +116,36 @@ export async function uploadOwnCandidateFile(fd: FormData): Promise<R<{ path: st
   return { ok: true, path };
 }
 
-/** Submit the caller's own form → locks it AND deactivates the guest account. */
+/**
+ * Submit the caller's own form.
+ *
+ * SIGNED-IN PATH: locks the form and deactivates the guest account — the
+ * credentials were minted for this one form and have no further purpose.
+ *
+ * ACCESS-LINK PATH: stamps `submitted_at` and stops there. The link is NOT
+ * revoked and the candidate row is NOT closed, so re-submitting after an edit is
+ * a normal, repeatable action rather than a one-shot. Closing the candidate here
+ * would take their own record away from them the instant they finished it, which
+ * is the behaviour HR asked to be rid of.
+ */
 export async function submitOwnCandidateForm(
   _id?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { me, rowId, submitted } = await requireCandidateOwner();
+  const { me, rowId, submitted, viaLink } = await requireCandidateOwner();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
-  if (submitted) return { ok: true }; // already done — idempotent
+  if (submitted && !viaLink) return { ok: true }; // already sealed — idempotent
 
   await db
     .update(candidateIntake)
     .set({ submittedAt: new Date(), updatedAt: new Date() })
     .where(eq(candidateIntake.id, rowId));
 
-  // Close the guest login for good (Firebase disabled + tokens revoked).
-  await disableCandidateAccountByIntakeId(rowId, "submitted").catch(() => {});
+  if (!viaLink) {
+    // Close the guest login for good (Firebase disabled + tokens revoked).
+    await disableCandidateAccountByIntakeId(rowId, "submitted").catch(() => {});
+  }
   revalidatePath("/candidate/form");
+  revalidatePath("/c/form");
   return { ok: true };
 }

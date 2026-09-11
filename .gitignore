@@ -74,6 +74,11 @@ WhatsApp*
 !app/api/whatsapp/
 !app/api/whatsapp/**
 !tests/unit/whatsapp-*.test.ts
+# …and COMPONENTS too. Same trap, third time: `components/ecos/whatsapp-panel.tsx`
+# was written, imported by app/(app)/communications/[id]/page.tsx, and then
+# silently skipped by `git add -A` — so the branch carried an import of a file
+# that was never pushed and failed to resolve at build time.
+!components/**/whatsapp*
 ddd.py
 *.jpeg
 # …but letter signature assets under public/signatures/ MUST ship (else ship.sh's

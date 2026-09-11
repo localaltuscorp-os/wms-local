@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { UserPlus, ClipboardList, Phone, Mail, Search, PenLine, PlayCircle, ClipboardCheck, Trash2, Loader2, MoreVertical } from "lucide-react";
+import { UserPlus, ClipboardList, Phone, Mail, Search, PenLine, PlayCircle, ClipboardCheck, Trash2, Loader2, MoreVertical, Send, Link2Off, ScrollText } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +15,11 @@ import {
 import type { CandidateRow } from "@/app/(app)/hr/candidate-actions";
 import { deleteCandidateIntake } from "@/app/(app)/hr/candidate-actions";
 import { CreateCandidateLogin } from "@/components/hr/candidate/create-candidate-login";
+import { InviteCandidateDialog } from "@/components/hr/candidate/invite-candidate-dialog";
+import {
+  resendCandidateFormLink,
+  revokeCandidateFormLink,
+} from "@/app/(app)/hr/candidate-invite-actions";
 import { fireToast } from "@/lib/toast";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
@@ -94,6 +99,8 @@ export function BasicDetailsScreen({
   const [form, setForm] = React.useState("all");
   const [deleted, setDeleted] = React.useState<Set<string>>(() => new Set());
   const [busyId, setBusyId] = React.useState<string | null>(null);
+  // The show-once URL from the last "Send form link" — see the panel below.
+  const [linkSent, setLinkSent] = React.useState<string | null>(null);
 
   // Distinct positions for the filter dropdown (from the loaded rows — no query).
   const positions = React.useMemo(
@@ -113,6 +120,33 @@ export function BasicDetailsScreen({
     }
     return true;
   });
+
+  /**
+   * Send this candidate a fresh no-login link to their own form. Always a NEW
+   * link — the plaintext of the old one no longer exists anywhere, so "copy the
+   * link again" is not a thing that can be offered. Minting one revokes the
+   * previous, so a candidate never holds two working URLs.
+   */
+  function onSendLink(c: CandidateRow) {
+    if (busyId) return;
+    setBusyId(c.id);
+    void resendCandidateFormLink(c.id)
+      .then((r) => {
+        if (!r.ok) { fireToast({ message: r.error, type: "error" }); return; }
+        setLinkSent(r.url);
+        fireToast({ message: r.warning ?? `Form link emailed to ${c.email ?? "the candidate"}.`, type: r.warning ? "error" : "success" });
+      })
+      .finally(() => setBusyId(null));
+  }
+
+  function onRevokeLink(c: CandidateRow) {
+    if (busyId) return;
+    if (!window.confirm(`Cancel ${c.fullName || "this candidate"}'s form link? They won't be able to open or edit their form until you send a new one.`)) return;
+    setBusyId(c.id);
+    void revokeCandidateFormLink(c.id)
+      .then((r) => fireToast(r.ok ? { message: "Link cancelled." } : { message: r.error, type: "error" }))
+      .finally(() => setBusyId(null));
+  }
 
   function onDelete(c: CandidateRow) {
     if (busyId) return;
@@ -165,7 +199,42 @@ export function BasicDetailsScreen({
 
         {/* The child button is w-full, so the wrapper sets its width; the
             arbitrary variants give it the shared height and radius. */}
-        <div className="ml-auto w-[176px] shrink-0 [&>button]:h-10 [&>button]:rounded-lg">
+        {/* NO-LOGIN INVITE, sitting before the login control on purpose: this is
+            now the ordinary way an outsider fills their own form, and the
+            credentialed one is the exception. */}
+        <div className="ml-auto shrink-0">
+          <InviteCandidateDialog
+            trigger={(open) => (
+              <button
+                type="button"
+                onClick={open}
+                className={`${ACTION_CLS} border border-hairline-strong !text-ink-strong`}
+                style={{ background: "#fff" }}
+              >
+                <Send size={16} strokeWidth={2.4} /> Send form link
+              </button>
+            )}
+          />
+        </div>
+        {/* POST-INTERVIEW: the same four fields, but the link lands the
+            candidate on the policies instead of the form. Sending this does NOT
+            revoke a form link they may still be filling in. */}
+        <div className="shrink-0">
+          <InviteCandidateDialog
+            purpose="policies"
+            trigger={(open) => (
+              <button
+                type="button"
+                onClick={open}
+                className={`${ACTION_CLS} border border-hairline-strong !text-ink-strong`}
+                style={{ background: "#fff" }}
+              >
+                <ScrollText size={16} strokeWidth={2.4} /> Send policies
+              </button>
+            )}
+          />
+        </div>
+        <div className="w-[176px] shrink-0 [&>button]:h-10 [&>button]:rounded-lg">
           <CreateCandidateLogin />
         </div>
         <Link
@@ -187,6 +256,47 @@ export function BasicDetailsScreen({
           </div>
         </CollapsibleSearch>
       </div>
+
+      {/* SHOW-ONCE LINK. The row menu's "Send form link" mails the candidate, but
+          HR often needs to paste it into WhatsApp as well — and the plaintext
+          token is never stored, so this render is the only chance to copy it.
+          Dismissing it is final, which the copy says out loud. */}
+      {linkSent && (
+        <div
+          className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border p-3.5"
+          style={{
+            background: "color-mix(in srgb, var(--color-green) 8%, white)",
+            borderColor: "color-mix(in srgb, var(--color-green) 28%, white)",
+          }}
+        >
+          <span className="text-[13px] font-bold text-ink-strong">Form link sent — copy it now if you need it:</span>
+          <input
+            readOnly
+            value={linkSent}
+            onFocus={(e) => e.currentTarget.select()}
+            className="min-w-[240px] flex-1 rounded-lg border border-hairline-strong bg-white px-3 py-1.5 font-mono text-[12px] text-ink-strong outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard.writeText(linkSent).then(
+                () => fireToast({ message: "Link copied." }),
+                () => fireToast({ message: "Couldn't copy — select it and copy manually.", type: "error" }),
+              );
+            }}
+            className="rounded-lg border border-hairline-strong bg-white px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:border-ink-soft"
+          >
+            Copy
+          </button>
+          <button
+            type="button"
+            onClick={() => setLinkSent(null)}
+            className="text-[12.5px] font-bold text-ink-muted hover:text-ink-strong"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-solid border-hairline-strong bg-surface-card px-6 py-16 text-center">
@@ -294,6 +404,13 @@ export function BasicDetailsScreen({
                                 <><PlayCircle size={14} style={{ color: RED }} /> Resume</>
                               )}
                             </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onSelect={() => onSendLink(c)}>
+                            <Send size={14} style={{ color: RED }} /> Send form link
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => onRevokeLink(c)}>
+                            <Link2Off size={14} style={{ color: RED }} /> Cancel form link
                           </DropdownMenuItem>
                           {canDelete && (
                             <>

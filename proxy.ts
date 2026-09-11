@@ -5,6 +5,14 @@ import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 
 const PUBLIC_PATHS = [
   "/ctest",
+  // Candidate no-login forms (migration 0221). `/c/<token>` lets someone who is
+  // not an employee yet fill in their own details and sign the policies without
+  // creating an account on os.altuscorp.in, and `/c/resume` mails them a fresh
+  // link. Public HERE only in the sense that the cookie middleware must not
+  // bounce them to /login — the pages themselves are NOT unguarded: every one of
+  // them resolves the token through resolveAccessLink() and renders nothing
+  // without a live, unrevoked, unexpired link. See lib/hr/candidate/access-link.ts.
+  "/c",
   "/login",
   "/forgot-password",
   "/set-password",
