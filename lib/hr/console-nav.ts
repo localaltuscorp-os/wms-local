@@ -106,7 +106,7 @@ const standalone: Array<{ id: string; title: string; Icon: LucideIcon; href: str
   { id: "help-desk", title: "Help Desk", Icon: LifeBuoy, href: "/support" },
   { id: "hr-record", title: "HR Record", Icon: FolderOpen, href: "/hr/record" },
   { id: "kpi-management", title: "KPI Management", Icon: Target, href: "/hr/kpi" },
-  { id: "enterprise-communications", title: "Enterprise Communications", Icon: Megaphone, href: "/communications" },
+  { id: "enterprise-communications", title: "Broadcasts", Icon: Megaphone, href: "/communications" },
   { id: "all-filled-forms", title: "All Filled Forms", Icon: Files, href: "/hr/all-forms" },
   { id: "salary-slip", title: "Salary Slip", Icon: Receipt, href: "/hr/salary-slip" },
 ];
