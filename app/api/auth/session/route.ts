@@ -162,16 +162,29 @@ export async function POST(req: Request) {
     // object a library built is the kind of assumption that works until it quietly
     // does not — and if this cookie is dropped, the next request is "unidentified"
     // and the person is bounced to /device-blocked one redirect after signing in.
+    //
+    // ── APPENDED AS A RAW HEADER, NEVER res.cookies.set() ────────────────────
+    //
+    // THIS IS WHAT BROKE LOGIN ON 2026-09-12. `res.cookies.set()` re-serializes
+    // the response's whole cookie store from Next's own parsed view of it, and
+    // that view does not round-trip the Set-Cookie headers `setAuthCookies`
+    // wrote — so setting the device cookie this way CLOBBERED `__session`
+    // entirely. Sign-in returned 200, the device cookie arrived, the session
+    // cookie did not, and the middleware then bounced every request to
+    // /login?next=… with `cookiePresent: false`.
+    //
+    // The sign-out route already records the identical trap from the other
+    // direction: `res.cookies.set()` there clobbered removeAuthCookies'
+    // __session CLEARING. Same cause, same fix — an additive Set-Cookie header
+    // cannot disturb headers another writer already appended.
     if (deviceCookieId) {
-      res.cookies.set(DEVICE_COOKIE, deviceCookieId, {
-        httpOnly: true,
-        sameSite: "lax",
-        secure:
-          process.env.NODE_ENV === "production" &&
-          process.env.ALLOW_INSECURE_COOKIES !== "true",
-        path: "/",
-        maxAge: DEVICE_COOKIE_MAX_AGE_SECONDS,
-      });
+      const secure =
+        process.env.NODE_ENV === "production" &&
+        process.env.ALLOW_INSECURE_COOKIES !== "true";
+      res.headers.append(
+        "Set-Cookie",
+        `${DEVICE_COOKIE}=${deviceCookieId}; Path=/; Max-Age=${DEVICE_COOKIE_MAX_AGE_SECONDS}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`,
+      );
     }
     return res;
   } catch (err) {
