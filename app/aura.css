@@ -185,19 +185,31 @@
 
 /* Chrome — bars and rails are MORE transparent than panes and never lift.
    They are the window, not the content. */
+/* THE TOP BAR IS THE ONE OPAQUE SURFACE IN THE SYSTEM, on purpose.
+   Everything else here is glass, but this strip sits over a whole scrolling
+   page and a translucent one is unreadable the moment anything passes under it
+   — which is exactly what happened: dashboard cards, faces and numbers came
+   straight through the bar. Chrome you cannot read is worse than chrome with no
+   material. It keeps the specular top edge and the drop shadow, so it still
+   reads as an Aura surface; it simply does not let anything through.
+
+   z-index 60 for the same reason. At the old 20 (and even at the previous
+   bar's 40) page content at z-50 painted OVER the strip, so opacity alone would
+   not have fixed it. 60 clears every in-page layer and still sits under the
+   app's dialogs and drawers (70, 90, 100, 120). */
 .aura-topbar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 60;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   padding: 10px 20px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.2));
-  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 10px 30px -18px rgba(22, 32, 68, 0.5);
-  backdrop-filter: blur(44px) saturate(200%);
-  -webkit-backdrop-filter: blur(44px) saturate(200%);
+  background: linear-gradient(180deg, #fdfdff, #f3f5fc);
+  border-bottom: 1px solid rgba(22, 32, 68, 0.1);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 8px 24px -18px rgba(22, 32, 68, 0.55);
 }
 .aura-topbar {
   color: var(--aura-ink);
@@ -369,8 +381,18 @@
 .aura-searchbox:hover { background: rgba(255, 255, 255, 0.5); border-color: rgba(255, 255, 255, 0.75); }
 .aura-searchbox > span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aura-searchbox .aura-kbd { margin-left: auto; flex: none; }
-/* The bar's own search slot: wide, but it yields to the tabs before they wrap. */
-.aura-search-slot { flex: 1 1 320px; min-width: 0; max-width: 420px; }
+/* SEARCH AND IDENTITY BOTH LIVE ON THE RIGHT. The search used to grow into the
+   middle of the bar, which put it between the tabs and the controls and left
+   the account menu stranded on its own. One right-hand cluster reads as one
+   thing: find something, make something, then who you are. */
+.aura-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.aura-search-slot { flex: 0 1 360px; width: 360px; min-width: 0; }
 
 .aura-bell { position: relative; }
 .aura-bell-dot {
@@ -384,11 +406,13 @@
   border: 1.5px solid #fff;
 }
 
-@media (max-width: 1480px) { .aura-tab:nth-of-type(n + 5) { display: none; } }
-@media (max-width: 1320px) { .aura-tab:nth-of-type(n + 4) { display: none; } }
-@media (max-width: 1180px) { .aura-tab:nth-of-type(n + 3) { display: none; } }
-@media (max-width: 1024px) { .aura-tab { display: none; } }
-@media (max-width: 860px) { .aura-search-slot { flex-basis: 180px; } }
+/* NOTE: which tabs show is decided in JS (see `useTabCount` in aura-top-bar),
+   NOT by hiding them here. It has to be: "More" now lists exactly the rooms
+   that did NOT get a tab, so the two have to be computed from the same number.
+   A CSS rule that hid a tab would drop it out of the bar without putting it in
+   the menu, and that room would be unreachable. */
+@media (max-width: 860px) { .aura-search-slot { flex-basis: 190px; width: 190px; } }
+@media (max-width: 560px) { .aura-search-slot { display: none; } }
 
 .aura-rail {
   /* Sticky under the 57px bar (56px + its hairline) and scrollable on its own,
@@ -415,7 +439,7 @@
 .aura-layout {
   position: relative;
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-columns: 252px minmax(0, 1fr);
   min-height: calc(100dvh - 57px);
   transition: grid-template-columns 0.26s var(--aura-ease);
 }
@@ -1105,23 +1129,6 @@
   color: var(--aura-ink);
   box-shadow: 0 6px 16px -10px rgba(22, 32, 68, 0.5);
 }
-/* The one spot of colour: a red bar down the selected item's left edge. One
-   red thing per surface — the language's rule, and it is this. */
-.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-active {
-  position: relative;
-}
-.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 18px;
-  border-radius: 999px;
-  background: var(--aura-accent);
-}
-.sidebar-rail.aura-rail-skin[data-collapsed="true"] .sidebar-nav .nav-pill-active::before { display: none; }
 
 /* Counts are numerals, so they take the display face like every other number
    in the language. */
@@ -1135,4 +1142,224 @@
 .sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-active .nav-pill-count {
   background: rgba(216, 31, 18, 0.16);
   color: #8f1109;
+}
+
+/* ── 15. THE GLASS RAIL ───────────────────────────────────────────────────
+   `.claude/skills/aura/reference/aura-glass-rail.html` + `RAIL-SPEC.md`, ported.
+
+   A numbered index on a floating glass pane, with ONE travelling indicator
+   instead of a background per row, and a red light that flows across a row
+   while it is hovered. Three parts:
+
+     .aura-grail        the pane — sticky, 22px radius, inset 14px from the edge
+     .aura-grail-inner  the scroll container; the lens is positioned against it
+     .aura-grail-lens   the single indicator, driven by --lens-y/-h/-o from JS
+
+   EVERY CLASS IS `aura-grail-`-PREFIXED. The spec warns about this from its own
+   experience ("a generic `.lens` collided with another rule and silently
+   blanked the component") and it matters more here: this codebase already owns
+   `.nav` in 46 rules and `.rail-label`, `.count` and `.no` are all far too
+   common to claim.
+   ──────────────────────────────────────────────────────────────────────── */
+.aura-grail {
+  position: sticky;
+  top: 71px;
+  align-self: start;
+  max-height: calc(100dvh - 85px);
+  display: flex;
+  flex-direction: column;
+  margin: 14px 0 14px 14px;
+  padding: 16px 8px;
+  border-radius: 22px;
+  background: linear-gradient(168deg, rgba(255, 255, 255, 0.44), rgba(255, 255, 255, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(40px) saturate(190%);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 26px 50px -26px rgba(22, 32, 68, 0.5);
+  transition: opacity 0.2s, transform 0.26s var(--aura-ease);
+}
+.aura-grail-inner {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 2px;
+}
+.aura-grail-inner::-webkit-scrollbar { width: 6px; }
+.aura-grail-inner::-webkit-scrollbar-thumb { background: rgba(22, 32, 68, 0.16); border-radius: 3px; }
+
+/* THE TRAVELLING INDICATOR. It ships with `transition: none` and only gains one
+   once `.is-ready` lands, 60ms after the first successful placement — without
+   that it can stay pinned at height 0 in frames where the transition timeline
+   is not ticking. The overshoot in the curve is the character of the thing. */
+.aura-grail-lens {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 0;
+  border-radius: 13px;
+  pointer-events: none;
+  height: var(--lens-h, 0px);
+  opacity: var(--lens-o, 0);
+  transform: translateY(var(--lens-y, 0px));
+  background: linear-gradient(168deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.6));
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 0 0 1px rgba(255, 255, 255, 0.85),
+    0 14px 26px -16px rgba(22, 32, 68, 0.6);
+  transition: none;
+  will-change: transform;
+}
+.aura-grail-lens.is-ready {
+  transition:
+    transform 0.42s cubic-bezier(0.22, 1.3, 0.32, 1),
+    height 0.28s cubic-bezier(0.22, 1.3, 0.32, 1),
+    opacity 0.2s;
+}
+
+.aura-grail-label {
+  font-family: var(--aura-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--aura-ink-2);
+  opacity: 0.72;
+  padding: 0 12px 9px;
+}
+.aura-grail-label.aura-spaced { padding-top: 20px; }
+.aura-grail-group { display: flex; flex-direction: column; }
+
+.aura-grail-nav {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 13px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--aura-ink-2);
+  transition: color 0.18s;
+  isolation: isolate;
+}
+.aura-grail-no {
+  flex: none;
+  width: 16px;
+  font-family: var(--aura-display);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--aura-ink-2);
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.18s, opacity 0.18s;
+}
+.aura-grail-roll { position: relative; display: block; flex: 1; min-width: 0; }
+.aura-grail-roll > span {
+  display: block;
+  font-family: var(--aura-body);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.32, 1);
+}
+.aura-grail-nav:hover .aura-grail-roll > span { transform: translateX(4px); }
+
+/* THE RED FLOW. A 220%-wide gradient scrolled by background-position while the
+   row is hovered; the selected row holds it steady at centre. `isolation` on
+   the row is what lets a z-index:-1 wash sit behind the label but still above
+   the pane. */
+.aura-grail-nav::before,
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 13px;
+  pointer-events: none;
+  z-index: -1;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.22s;
+  background: linear-gradient(
+    100deg,
+    rgba(216, 31, 18, 0) 0%,
+    rgba(216, 31, 18, 0.07) 22%,
+    rgba(216, 31, 18, 0.17) 50%,
+    rgba(216, 31, 18, 0.07) 78%,
+    rgba(216, 31, 18, 0) 100%
+  );
+  background-size: 220% 100%;
+  background-position: -60% 0;
+}
+.aura-grail-nav:hover::before,
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill:hover::before {
+  opacity: 1;
+  animation: aura-rail-flow 1.9s linear infinite;
+}
+.aura-grail-nav.is-active::before,
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-active::before {
+  opacity: 1;
+  background-position: 50% 0;
+  animation: none;
+}
+@keyframes aura-rail-flow {
+  from { background-position: -60% 0; }
+  to { background-position: 160% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aura-grail-nav:hover::before,
+  .sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill:hover::before {
+    animation: none;
+    background-position: 50% 0;
+  }
+  .aura-grail-lens.is-ready { transition: opacity 0.2s; }
+}
+
+.aura-grail-nav:hover,
+.aura-grail-nav.is-active { color: var(--aura-ink); }
+.aura-grail-nav.is-active .aura-grail-no { color: var(--aura-accent); opacity: 1; }
+.aura-grail-nav:active { transform: scale(0.994); }
+.aura-grail-count {
+  font-family: var(--aura-display);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--aura-ink-2);
+  opacity: 0.75;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.aura-grail-nav.is-active .aura-grail-count { color: var(--aura-accent); opacity: 1; font-weight: 700; }
+
+/* THE SAME VOCABULARY ON THE MODULE RAIL. The rows there are the app's existing
+   `.nav-pill`s, so they cannot take the markup above — but they can take the
+   material: the travelling lens replaces the per-row selected background (which
+   is why it is cleared here), and the red flow above is already wired to them.
+   `position: relative` on the scroll container is what the lens measures
+   `offsetTop` against. */
+.sidebar-rail.aura-rail-skin .sidebar-nav { position: relative; }
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+}
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill:hover { background: none; }
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-active,
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-active:hover {
+  background: none;
+  box-shadow: none;
+}
+
+/* Rail widths, from the spec. */
+@media (max-width: 1080px) { .aura-layout { grid-template-columns: 212px minmax(0, 1fr); } }
+@media (max-width: 820px) {
+  .aura-layout,
+  .aura-layout.aura-rail-hidden { grid-template-columns: minmax(0, 1fr); }
+  .aura-grail { display: none; }
 }

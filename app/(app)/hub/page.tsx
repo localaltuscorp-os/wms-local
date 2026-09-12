@@ -9,6 +9,7 @@ import { AuraSheen, AURA_LAYOUT_ID } from "@/components/hub/aura-chrome";
 import { AuraTopBar } from "@/components/layout/aura-top-bar";
 import { roomsFor } from "@/lib/aura-rooms";
 import { AuraDonut, AuraBloom } from "@/components/hub/aura-charts";
+import { AuraGlassRail } from "@/components/hub/aura-glass-rail";
 import { UserMenuServer } from "@/components/header/user-menu-server";
 import { NotificationBell } from "@/components/header/notification-bell";
 import { getMyDayCounts, getMyTodayTasks, type MyTodayTask } from "@/lib/queries/my-day";
@@ -180,28 +181,6 @@ function WorkspaceTile({
   );
 }
 
-/** One line in the rail: the module's colour, its name, its shortcut digit. */
-function RailItem({ id, index }: { id: WorkspaceId; index: number }) {
-  const m = MODULE_THEME[id];
-  const shortcut = moduleShortcut(index);
-  return (
-    <EnterWorkspaceLink
-      id={id}
-      href={WORKSPACE_LANDING[id]}
-      ariaLabel={`Open ${m.label}`}
-      className="aura-nav"
-    >
-      <span className="aura-nav-dot" style={{ background: m.accent }} aria-hidden />
-      <span className="min-w-0 truncate">{m.label}</span>
-      {shortcut && (
-        <span className="aura-nav-key" aria-hidden>
-          {shortcut}
-        </span>
-      )}
-    </EnterWorkspaceLink>
-  );
-}
-
 /** A row in the open-items table. */
 function ItemRow({ item }: { item: OpenItem }) {
   const state = item.overdue
@@ -341,18 +320,11 @@ export default async function HubPage() {
       />
 
       <div className="aura-layout" id={AURA_LAYOUT_ID}>
-        {/* The rail is the room switcher that stays put while a long dashboard
-            scrolls. Only rooms the viewer can actually enter are listed. */}
-        <aside className="aura-rail">
-          <div className="aura-rail-label" style={{ paddingTop: 2 }}>
-            WORKSPACES
-          </div>
-          <nav aria-label="Workspaces">
-            {visible.map((id) => (
-              <RailItem key={id} id={id} index={MODULE_ORDER.indexOf(id)} />
-            ))}
-          </nav>
-        </aside>
+        {/* The room switcher that stays put while a long dashboard scrolls.
+            Only rooms the viewer can actually enter are listed, and the badges
+            are the same live counts the tiles carry — one source, so the rail
+            and the grid can never disagree. */}
+        <AuraGlassRail rooms={roomsFor(visible)} badges={badges} />
 
         <main className="aura-main">
           <div className="aura-top">

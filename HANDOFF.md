@@ -455,6 +455,47 @@ throughout; her Firebase UID is new.
 
 ## Changelog
 
+### 2026-09-12 (late) — Opaque top bar, overflow-only "More", the glass rail
+
+Four corrections to the morning's Aura work, all reported from production.
+
+- **THE TOP BAR IS NOW OPAQUE.** It was glass, and glass over a whole scrolling
+  page is unreadable the moment anything passes under it — dashboard cards,
+  faces and numbers came straight through the strip. It keeps the specular
+  edge and the drop shadow, so it still reads as an Aura surface; it simply
+  does not let anything through. **This was two bugs, not one:** the z-index
+  was 20 (the reference page's value), and page content at z-50 was painting
+  OVER the bar, so opacity alone would not have fixed it. The bar is z-60 now
+  — clear of every in-page layer, still under the app's dialogs and drawers
+  (70, 90, 100, 120).
+- **"More" holds only the rooms that did NOT get a tab.** It used to list every
+  room. The catch is that which tabs fit is width-dependent, so the count is
+  now measured in JS (`useTabCount`, via `useSyncExternalStore` so the server
+  and client snapshots agree) instead of hiding tabs with CSS media queries. A
+  CSS-hidden tab would have left its room in neither the bar nor the menu.
+- **Search and identity are one right-hand cluster.** Search used to grow into
+  the middle of the bar, which stranded the account menu at the far end. The
+  avatar also now shows on EVERY screen — it used to be suppressed on module
+  pages because the rail's foot carried one. That foot profile bar is gone;
+  identity lives in the bar, once.
+- **The left rail is the new glass-rail design** (`RAIL-SPEC.md` +
+  `aura-glass-rail.html`, both now under `.claude/skills/aura/reference/`): a
+  floating glass pane, a numbered index, and ONE travelling indicator instead
+  of a background per row, with a red light that flows across a row on hover.
+  The dashboard gets it in full (`AuraGlassRail`, PINNED + ALL WORKSPACES);
+  the module rail gets the same material and the same lens applied to its
+  existing pills.
+
+The lens (`components/layout/aura-rail-lens.tsx`) keeps the two traps the spec
+warns about — no transition on the first placement, and measurement on a timer
+rather than `requestAnimationFrame`, which is paused in background frames — and
+adds a third we hit here: **the rows may not exist yet.** The module rail's nav
+is an async server component behind a Suspense boundary, so on a slow read the
+real rows land long after a 2s retry window closes. A `MutationObserver` on the
+container is the only placement that cannot be outrun.
+
+No SQL.
+
 ### 2026-09-12 — Aura: the dashboard, the app-wide top bar, and the rail
 
 **What changed**

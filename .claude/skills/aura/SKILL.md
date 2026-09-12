@@ -72,8 +72,14 @@ A pane is `.aura-glass`; a pane you can click is `.aura-glass.aura-interactive`.
   custom properties straight onto the hovered pane. It renders nothing and never re-renders
   the tree — re-rendering a twelve-card grid on every pointer move is exactly what it avoids.
 
-Chrome (top bar, side rail) is **more** transparent than panes and never lifts — it is the
-window, not the content.
+Side rails are **more** transparent than panes and never lift — they are the window, not the
+content.
+
+**The top bar is the exception, and it is not optional.** It is the one OPAQUE surface in the
+system. A translucent strip over a whole scrolling page is unreadable the moment anything
+passes under it; chrome you cannot read is worse than chrome with no material. It keeps the
+specular top edge and the drop shadow so it still reads as an Aura surface. It also sits at
+`z-index: 60` — the reference page's 20 let page content paint straight over it.
 
 ## 3. Contrast is the counterweight
 
@@ -181,5 +187,6 @@ count. If a pane's data is not there, either write the query or leave the pane o
 | File | What it is |
 | --- | --- |
 | `reference/altus-home-heros.html` | The full workspace dashboard in this language, self-contained: top nav, collapsible rail, status panes, attendance block, two donuts, a work-shape bloom, a status table. Copy patterns from it rather than inventing parallel ones. |
+| `reference/aura-glass-rail.html` + `reference/RAIL-SPEC.md` | The glass rail: a numbered index on a floating pane, ONE travelling indicator instead of a background per row, and a red light that flows across a row on hover. Shipped as `components/hub/aura-glass-rail.tsx` and `components/layout/aura-rail-lens.tsx`. |
 | `reference/aura.css` | The upstream single stylesheet, unprefixed. `app/aura.css` is this file ported: same values, `aura-`-prefixed, scoped to `.aura-app`. |
 | `reference/SKILL-original.md` | The language as delivered, before it was adapted to this repo. |

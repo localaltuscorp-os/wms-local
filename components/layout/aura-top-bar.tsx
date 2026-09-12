@@ -10,7 +10,6 @@ import { NewTaskQuickAction } from "@/components/header/new-task-quick-action";
 import { FocusModeToggle } from "@/components/layout/focus-mode-toggle";
 import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
 import { AuraRailToggle } from "@/components/hub/aura-chrome";
-import { showsModuleRail } from "@/components/layout/chrome-shell";
 import { MODULE_THEME } from "@/lib/module-theme";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
 import type { AuraRoom } from "@/lib/aura-rooms";
@@ -27,11 +26,11 @@ import type { AuraRoom } from "@/lib/aura-rooms";
  *
  *   [rail toggle] [Altus] [module tabs · More ▾] [———— search ————] [+ ◑ 🔔 ●]
  *
- * TABS AND "MORE". The tabs are quick access to the first few rooms and drop
- * out one at a time as the bar narrows (see the media queries in aura.css).
- * That is safe only because "More" lists EVERY room the viewer can enter, not
- * just the overflow — an overflow-only menu derived from a width measurement
- * leaves a module unreachable at whatever width the measurement gets wrong.
+ * TABS AND "MORE" ARE EXACT COMPLEMENTS. The tabs are the first few rooms and
+ * drop out one at a time as the bar narrows; "More" holds precisely the ones
+ * that did not get a tab, and nothing else. Both are computed from the same
+ * `useTabCount()`, which is why the count is measured in JS rather than faked
+ * by hiding tabs in CSS — a hidden tab would leave its room in neither place.
  * The menu opens on hover, on click and on keyboard focus; hover alone is
  * unusable on a touch screen and unreachable from a keyboard.
  *
@@ -46,8 +45,50 @@ import type { AuraRoom } from "@/lib/aura-rooms";
  * them had to change.
  */
 
-/** How many rooms get a tab. The rest are reachable from "More", as are these. */
-const TAB_COUNT = 5;
+/**
+ * How many rooms get a tab, by viewport width.
+ *
+ * This used to be a constant with CSS media queries hiding the overflow, and
+ * that combination is now impossible: "More" lists exactly the rooms that did
+ * NOT get a tab, so the bar and the menu have to be computed from the SAME
+ * number. A CSS rule that hid a tab would drop it out of the bar without
+ * putting it in the menu, and that room would be unreachable at that width.
+ */
+const TAB_BREAKPOINTS: readonly { min: number; tabs: number }[] = [
+  { min: 1480, tabs: 5 },
+  { min: 1320, tabs: 4 },
+  { min: 1180, tabs: 3 },
+  { min: 1024, tabs: 2 },
+  { min: 0, tabs: 0 },
+];
+
+/** The widest breakpoint, used for the server render and the first paint. */
+const TAB_COUNT_SSR = 5;
+
+/**
+ * Subscribes to the breakpoints above.
+ *
+ * `useSyncExternalStore` rather than state-in-an-effect: it takes a dedicated
+ * server snapshot, so the markup React renders on the server and the markup it
+ * hydrates with agree by construction instead of by luck.
+ */
+function useTabCount(): number {
+  return React.useSyncExternalStore(
+    (onChange) => {
+      if (typeof window === "undefined" || !window.matchMedia) return () => {};
+      const lists = TAB_BREAKPOINTS.filter((b) => b.min > 0).map((b) =>
+        window.matchMedia(`(min-width: ${b.min}px)`),
+      );
+      lists.forEach((m) => m.addEventListener("change", onChange));
+      return () => lists.forEach((m) => m.removeEventListener("change", onChange));
+    },
+    () => {
+      const w = window.innerWidth;
+      return TAB_BREAKPOINTS.find((b) => w >= b.min)?.tabs ?? 0;
+    },
+    () => TAB_COUNT_SSR,
+  );
+}
 
 export function AuraTopBar({
   rooms,
@@ -71,22 +112,24 @@ export function AuraTopBar({
      navigation: a prop decided up there would freeze on the first page landed. */
   const onDashboard = pathname === "/hub";
 
-  /* The module rail carries the account menu in its foot. Where the rail is
-     showing, the bar leaves identity to it rather than putting a second copy
-     200px away; where it is not — the dashboard, the HR console — the bar is
-     the only place identity can live, so it shows it. One predicate, shared
-     with ChromeShell, so the two can never disagree about which is which. */
-  const railHasIdentity = showsModuleRail(pathname);
+  const tabCount = useTabCount();
 
-  /* The first TAB_COUNT rooms get tabs — except that the room you are IN always
+  /* The first `tabCount` rooms get tabs — except that the room you are IN always
      does, even when it sits past the cut. A bar whose active tab is invisible
-     tells you less than no tabs at all. */
-  const tabs = React.useMemo(() => {
-    const head = rooms.slice(0, TAB_COUNT);
-    if (!ws || head.some((r) => r.id === ws)) return head;
-    const current = rooms.find((r) => r.id === ws);
-    return current ? [...head.slice(0, TAB_COUNT - 1), current] : head;
-  }, [rooms, ws]);
+     tells you less than no tabs at all.
+
+     `overflow` is the exact complement: every room that did NOT get a tab, and
+     nothing else. That is what "More" holds. Because both come from the same
+     `tabCount`, every room is in exactly one of the two at every width. */
+  const { tabs, overflow } = React.useMemo(() => {
+    let shown = rooms.slice(0, tabCount);
+    if (ws && tabCount > 0 && !shown.some((r) => r.id === ws)) {
+      const current = rooms.find((r) => r.id === ws);
+      if (current) shown = [...shown.slice(0, tabCount - 1), current];
+    }
+    const ids = new Set(shown.map((r) => r.id));
+    return { tabs: shown, overflow: rooms.filter((r) => !ids.has(r.id)) };
+  }, [rooms, ws, tabCount]);
 
   return (
     // Phones already carry a fixed 56px bar from DashboardSidebar, so off the
@@ -121,33 +164,37 @@ export function AuraTopBar({
             {r.label}
           </a>
         ))}
-        <MoreMenu rooms={rooms} current={ws} />
+        <MoreMenu rooms={overflow} current={ws} />
       </nav>
 
-      <div className="aura-search-slot">
-        <GlobalSearch
-          workspace={ws}
-          trigger={
-            <button type="button" className="aura-searchbox" aria-label="Search the whole app">
-              <Search size={15} strokeWidth={2.2} aria-hidden />
-              <span>Search tasks, clients, people, documents</span>
-              <span className="aura-kbd" aria-hidden>
-                ⌘K
-              </span>
-            </button>
-          }
-        />
-      </div>
+      {/* ONE RIGHT-HAND CLUSTER: search, then the page's own controls, then the
+          global ones, then who you are. Search used to grow into the middle of
+          the bar, which left the account menu stranded on its own at the end. */}
+      <div className="aura-right">
+        <div className="aura-search-slot">
+          <GlobalSearch
+            workspace={ws}
+            trigger={
+              <button type="button" className="aura-searchbox" aria-label="Search the whole app">
+                <Search size={15} strokeWidth={2.2} aria-hidden />
+                <span>Search tasks, clients, people, documents</span>
+                <span className="aura-kbd" aria-hidden>
+                  ⌘K
+                </span>
+              </button>
+            }
+          />
+        </div>
 
-      {/* A page's OWN controls (a print button, an edit link), immediately left
-          of the global cluster — the same slot the previous bar published. */}
-      <div ref={slots?.setActions} className="flex shrink-0 items-center gap-2 empty:hidden" />
+        {/* A page's OWN controls (a print button, an edit link) — the same slot
+            the previous bar published, so nothing that portals here had to
+            change. */}
+        <div ref={slots?.setActions} className="flex shrink-0 items-center gap-2 empty:hidden" />
 
-      <div className="flex shrink-0 items-center gap-2">
         <NewTaskQuickAction />
         <FocusModeToggle />
         {bell}
-        {!railHasIdentity && userMenu}
+        {userMenu}
       </div>
     </header>
   );
@@ -163,8 +210,8 @@ function setActiveWorkspaceCookie(id: WorkspaceId): void {
 }
 
 /**
- * The "More" menu — every room, with its colour, its tagline and the digit that
- * opens it.
+ * The "More" menu — the rooms that did NOT get a tab, with their colour, their
+ * tagline and the digit that opens them.
  *
  * Open on hover, on click, and whenever anything inside has keyboard focus.
  * The close is delayed ~120ms so the diagonal mouse path from the button to the
@@ -231,8 +278,8 @@ function MoreMenu({ rooms, current }: { rooms: AuraRoom[]; current: WorkspaceId 
         <ChevronDown size={13} strokeWidth={2.4} aria-hidden />
       </button>
 
-      <div className="aura-glass aura-more-panel" role="menu" aria-label="All workspaces">
-        <div className="aura-more-label">ALL WORKSPACES</div>
+      <div className="aura-glass aura-more-panel" role="menu" aria-label="More workspaces">
+        <div className="aura-more-label">MORE WORKSPACES</div>
         {rooms.map((r) => {
           const Icon = MODULE_THEME[r.id].Icon;
           return (
