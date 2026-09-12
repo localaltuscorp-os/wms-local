@@ -118,7 +118,7 @@ export function InviteCandidateDialog({
           >
             <div className="mb-3 flex items-start justify-between gap-3">
               <h2 className="text-[16px] font-black text-ink-strong">
-                {policies ? "Send the policies to sign" : "Send the interview form"}
+                {policies ? "Send the policies to sign" : "Share Interview Form Link"}
               </h2>
               <button type="button" onClick={close} aria-label="Close" className="text-ink-muted hover:text-ink-strong">
                 <X size={18} />
@@ -187,7 +187,7 @@ export function InviteCandidateDialog({
                   style={{ background: `linear-gradient(135deg, ${RED}, var(--color-altus-red-deep))` }}
                 >
                   {busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}{" "}
-                  {policies ? "Send the policies" : "Send the form"}
+                  {policies ? "Send the policies" : "Share the link"}
                 </button>
               </form>
             )}

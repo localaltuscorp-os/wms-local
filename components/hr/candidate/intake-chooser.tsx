@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { Plus, ArrowRight, UserPlus, History } from "lucide-react";
+import { Plus, ArrowRight, UserPlus, History, Send } from "lucide-react";
 import type { CandidateDraft } from "@/app/(app)/hr/candidate-actions";
+import { InviteCandidateDialog } from "@/components/hr/candidate/invite-candidate-dialog";
 import { formatDateHr } from "@/lib/format";
 
 const RED = "#E10600";
@@ -27,6 +28,32 @@ export function IntakeChooser({ drafts }: { drafts: CandidateDraft[] }) {
       {/* The eyebrow/heading/subtitle that used to open this page now lives in
           the frozen HrTitleBar (see page.tsx) instead of scrolling with the
           rest of the chooser. */}
+      {/* SHARE THE FORM, ABOVE "start a new candidate", and built as the same
+          card on purpose: handing an outsider their own link is now the
+          ordinary way this form gets filled, and HR typing it on their behalf
+          is the exception. Two equal-weight choices should look equal. */}
+      <InviteCandidateDialog
+        trigger={(open) => (
+          <button
+            type="button"
+            onClick={open}
+            className="group mb-3 flex w-full items-center gap-4 rounded-2xl border-2 p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg"
+            style={{ borderColor: `color-mix(in srgb, ${RED} 45%, white)`, background: `color-mix(in srgb, ${RED} 4%, white)` }}
+          >
+            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white" style={{ background: `linear-gradient(135deg,${RED},${RED_DEEP})` }}>
+              <Send size={26} strokeWidth={2.2} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[18px] font-bold text-ink-strong">Share Interview Form Link</span>
+              <span className="mt-0.5 block text-[14px] text-ink-muted">
+                Enter a candidate&apos;s basic info to share the interview form link with them
+              </span>
+            </span>
+            <ArrowRight size={20} className="shrink-0 transition-transform group-hover:translate-x-1" style={{ color: RED_DEEP }} />
+          </button>
+        )}
+      />
+
       <button
         type="button"
         onClick={startNew}
