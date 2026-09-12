@@ -13,10 +13,8 @@ import {
   IdCard,
   Inbox,
   ClipboardList,
-  FileText,
   Plus,
   Target,
-  Megaphone,
   ScrollText,
   type LucideIcon,
 } from "lucide-react";
@@ -60,9 +58,14 @@ interface Card {
 }
 
 // Every card shares the Altus red + black identity (no rainbow of hues).
-// The employee lifecycle stages, then the utility cards. "Help Desk" opens a
+// The employee lifecycle stages, then the utility cards. "HR Help Desk" opens a
 // quick-popup (matching the stage pop-ups) and "HR Record" — the per-person hub
 // and the home for the Letters library — sits right beside it.
+//
+// BROADCASTS AND SALARY SLIP LEFT THIS DECK ON 2026-09-12 — Broadcasts to the
+// Operations rail, Salary Slip to the Employees rail, beside My Salary. Both
+// are now reached from the room that owns them; leaving a card here as well
+// would be the second, inconsistent door this file warns about below.
 const CARDS: Card[] = [
   ...HR_STAGES.map((s) => ({ slug: `/hr/${s.slug}`, title: s.title, Icon: s.Icon, stage: s })),
   { slug: "/hr/holidays", title: "Holiday List", Icon: PartyPopper },
@@ -70,20 +73,14 @@ const CARDS: Card[] = [
   // can read AND sign each firm policy themselves (self-attested e-sign today,
   // DigiLocker once keyed). Visible to EVERY employee, not just HR staff.
   { slug: "/policies", title: "Policies", Icon: ScrollText, popup: "policies" as const },
-  { slug: "/support", title: "Help Desk", Icon: LifeBuoy, popup: "help-desk" as const },
+  { slug: "/support", title: "HR Help Desk", Icon: LifeBuoy, popup: "help-desk" as const },
   { slug: "/hr/record", title: "HR Record", Icon: IdCard },
   { slug: "/hr/kpi", title: "KPI Management", Icon: Target },
-  { slug: "/communications", title: "Broadcasts", Icon: Megaphone },
   // Saved form submissions (staff-only view of everyone's). This MUST live on
   // this deck: the HR module is rail-less (see the Help Desk note below), so a
   // sidebar entry is never shown and this grid is the only way into the surface.
   // ("My Filled Forms" was removed from the HR home per Sir.)
   { slug: "/hr/all-forms", title: "All Filled Forms", Icon: ClipboardList },
-  // The viewer's OWN payslips. Staff see the same self-scoped page as everyone
-  // else — it reads the signed-in employee's rows and takes no employee
-  // parameter, so this is never a door into someone else's pay. The admin
-  // Salary module lives in the Accounts room and stays finance-gated.
-  { slug: "/hr/salary-slip", title: "Salary Slip", Icon: FileText },
 ];
 
 // The limited deck a NORMAL employee sees: only their own HR record (the /portal
@@ -95,14 +92,10 @@ const LIMITED_CARDS: Card[] = [
   // Policies are for EVERYONE — a normal employee must be able to read + sign
   // every firm policy. Same "All Policies" popup as the staff deck.
   { slug: "/policies", title: "Policies", Icon: ScrollText, popup: "policies" as const },
-  { slug: "/support", title: "Help Desk", Icon: LifeBuoy, popup: "help-desk" as const },
+  { slug: "/support", title: "HR Help Desk", Icon: LifeBuoy, popup: "help-desk" as const },
   { slug: "/portal", title: "My HR Record", Icon: IdCard },
   // ("My Filled Forms" was removed from this deck per Sir; the staff-only
   // "All Filled Forms" was already deliberately absent here.)
-  // Their own payslips — the surface this deck most needs to offer a normal
-  // employee. Self-scoped by construction: the page reads the signed-in
-  // employee's own rows and takes no employee parameter.
-  { slug: "/hr/salary-slip", title: "Salary Slip", Icon: FileText },
 ];
 
 const ACCENT = "#E10600";

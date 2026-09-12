@@ -155,7 +155,11 @@ export const HR_STAGES: HrStage[] = [
   {
     key: "exit",
     slug: "exit",
-    title: "Exit",
+    // "Exit Process", not "Exit" (2026-09-12): the rail row sat directly under
+    // "During Employment" and read as a verb — a button that ends someone's
+    // employment — rather than as the name of the paperwork trail below it.
+    // The SLUG is untouched, so /hr/exit and every link into it still resolve.
+    title: "Exit Process",
     blurb: "A clean separation - interview, settlement and closing documents.",
     Icon: LogOut,
     items: [

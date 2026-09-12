@@ -21,20 +21,89 @@ import {
  * the four, and the projection back down.
  */
 
-describe("the ten options", () => {
-  it("offers exactly the ten the business named, in order", () => {
+describe("the frequency menu", () => {
+  it("offers Google Calendar's seven, in order", () => {
+    /* Changed 2026-09-12 on the account holder's instruction, from a ten-option
+       list of the firm's own patterns to the vocabulary people already know
+       from their calendar. */
     expect(FREQUENCY_OPTIONS.map((o) => o.label)).toEqual([
+      "Does not repeat",
       "Daily",
-      "Every Monday",
-      "Mon-Wed-Fri",
-      "Tue-Sat",
       "Weekly on Saturday",
-      "Once in 15 Days",
-      "Once in 30 Days",
-      "Monthly on 2nd Saturday",
-      "First Monday of Month",
-      "Custom",
+      "Monthly on the second Saturday",
+      "Annually on [Date]",
+      "Every weekday (Monday to Friday)",
+      "Custom…",
     ]);
+  });
+
+  it("still UNDERSTANDS the five patterns that left the menu", () => {
+    /* Mon-Wed-Fri, Tue-Sat, Once in 15/30 Days and First Monday of Month were
+       offered until this change and are STORED on live rows. They are shapes,
+       not menu entries — dropping the shapes as well would have turned every one
+       of those job descriptions into "Unknown" the day this shipped. */
+    const mwf: Recurrence = { kind: "weekdays", days: [0, 2, 4] };
+    expect(describeRecurrence(mwf)).toBe("Mon-Wed-Fri");
+    expect(isDueOn(mwf, "2026-03-09")).toBe(true); // a Monday
+
+    const d15: Recurrence = { kind: "interval", everyDays: 15, anchor: "2026-03-01" };
+    expect(describeRecurrence(d15)).toContain("Once in 15 days");
+    expect(isDueOn(d15, "2026-03-16")).toBe(true);
+
+    const firstMonday: Recurrence = { kind: "monthly_ordinal", ordinal: 1, weekday: 0 };
+    expect(isDueOn(firstMonday, "2026-03-02")).toBe(true);
+  });
+});
+
+describe("Does not repeat", () => {
+  it("fires on its one day and never again", () => {
+    const r: Recurrence = { kind: "once", date: "2026-03-12" };
+    expect(isDueOn(r, "2026-03-12")).toBe(true);
+    expect(isDueOn(r, "2026-03-13")).toBe(false);
+    expect(isDueOn(r, "2027-03-12")).toBe(false);
+  });
+
+  it("is never due while its date is missing", () => {
+    // A half-filled form must not fire daily. The action rejects it too; this is
+    // the second line of defence, for a row written before that rule existed.
+    expect(isDueOn({ kind: "once", date: "" }, "2026-03-12")).toBe(false);
+  });
+
+  it("reads as the date, not as a rule", () => {
+    expect(describeRecurrence({ kind: "once", date: "2026-03-12" })).toBe(
+      "Does not repeat — 12/03/2026",
+    );
+  });
+});
+
+describe("Annually on [Date]", () => {
+  it("fires on the same day and month every year", () => {
+    const r: Recurrence = { kind: "yearly", month: 9, day: 12 };
+    expect(isDueOn(r, "2026-09-12")).toBe(true);
+    expect(isDueOn(r, "2027-09-12")).toBe(true);
+    expect(isDueOn(r, "2026-09-11")).toBe(false);
+    expect(isDueOn(r, "2026-10-12")).toBe(false);
+  });
+
+  it("falls back to 28 February for a 29th in a common year", () => {
+    /* The alternative is skipping three years in four, which is never what
+       anybody setting an annual job meant. */
+    const leapDay: Recurrence = { kind: "yearly", month: 2, day: 29 };
+    expect(isDueOn(leapDay, "2028-02-29")).toBe(true); // a leap year
+    expect(isDueOn(leapDay, "2027-02-28")).toBe(true); // falls back
+    expect(isDueOn(leapDay, "2027-03-01")).toBe(false);
+    expect(isDueOn(leapDay, "2028-02-28")).toBe(false); // the 29th exists
+  });
+
+  it("reads in words", () => {
+    expect(describeRecurrence({ kind: "yearly", month: 9, day: 12 })).toBe(
+      "Annually on 12 September",
+    );
+  });
+
+  it("is pushed to the DCC as ad-hoc — its mask cannot hold a yearly rule", () => {
+    expect(toDccSchedule({ kind: "yearly", month: 9, day: 12 }).scheduleKind).toBe("adhoc");
+    expect(toDccSchedule({ kind: "once", date: "2026-09-12" }).scheduleKind).toBe("adhoc");
   });
 });
 

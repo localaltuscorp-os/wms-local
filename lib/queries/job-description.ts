@@ -10,6 +10,7 @@ import {
   employees,
 } from "@/db/schema";
 import { readRecurrence, type Recurrence } from "@/lib/jd/recurrence";
+import type { TargetPeople } from "@/lib/jd/assignment-targets";
 import type { BusinessFunction } from "@/lib/org/functions";
 
 /**
@@ -56,6 +57,9 @@ export interface JdEntryRow {
   positionTitle: string;
   functionKey: string;
   task: string;
+  /** The Notes column. Written by the form since day one and, until now, never
+   *  read back — so every note anyone typed was invisible everywhere. */
+  notesHtml: string | null;
   recurrence: Recurrence;
   estimatedMinutes: number;
   videoUrl: string | null;
@@ -65,8 +69,13 @@ export interface JdEntryRow {
   pushWms: boolean;
   pushEvent: boolean;
   isActive: boolean;
-  /** Names of the people this JD is explicitly assigned to. */
+  /** Names of the people this JD is explicitly assigned to, across every
+   *  destination, once each — what the Bank's Add To Person column shows. */
   assignees: string[];
+  /** Employee IDS per destination — what the three assignment boxes hold.
+   *  Names are for reading, ids are for editing, and the two are kept apart so
+   *  a rename cannot silently unassign somebody. */
+  targetPeople: TargetPeople;
 }
 
 /** The ladder, lowest rank first. */
@@ -134,6 +143,7 @@ export async function listJdEntries(opts?: {
       positionTitle: jdPositions.title,
       functionKey: jdEntries.functionKey,
       task: jdEntries.task,
+      notesHtml: jdEntries.notesHtml,
       recurrence: jdEntries.recurrence,
       estimatedMinutes: jdEntries.estimatedMinutes,
       videoUrl: jdEntries.videoUrl,
@@ -150,18 +160,49 @@ export async function listJdEntries(opts?: {
         where ${jdAssignments.jdId} = ${jdEntries.id}
           and ${jdAssignments.isActive} = true
       ), '{}')`,
+      /* One sub-select per destination. Ordered by NAME so the three boxes read
+         the way the roster does, even though what comes back is ids. */
+      dccIds: sql<string[]>`coalesce((
+        select array_agg(${jdAssignments.employeeId} order by ${employees.name})
+        from ${jdAssignments}
+        join ${employees} on ${employees.id} = ${jdAssignments.employeeId}
+        where ${jdAssignments.jdId} = ${jdEntries.id}
+          and ${jdAssignments.isActive} = true
+          and ${jdAssignments.forDcc} = true
+      ), '{}')`,
+      wmsIds: sql<string[]>`coalesce((
+        select array_agg(${jdAssignments.employeeId} order by ${employees.name})
+        from ${jdAssignments}
+        join ${employees} on ${employees.id} = ${jdAssignments.employeeId}
+        where ${jdAssignments.jdId} = ${jdEntries.id}
+          and ${jdAssignments.isActive} = true
+          and ${jdAssignments.forWms} = true
+      ), '{}')`,
+      eventIds: sql<string[]>`coalesce((
+        select array_agg(${jdAssignments.employeeId} order by ${employees.name})
+        from ${jdAssignments}
+        join ${employees} on ${employees.id} = ${jdAssignments.employeeId}
+        where ${jdAssignments.jdId} = ${jdEntries.id}
+          and ${jdAssignments.isActive} = true
+          and ${jdAssignments.forEvent} = true
+      ), '{}')`,
     })
     .from(jdEntries)
     .innerJoin(jdPositions, eq(jdPositions.id, jdEntries.positionId))
     .where(where.length > 0 ? and(...where) : undefined)
     .orderBy(asc(jdEntries.serialNo));
 
-  return rows.map((r) => ({
+  return rows.map(({ dccIds, wmsIds, eventIds, ...r }) => ({
     ...r,
     // The jsonb column is free-form to Postgres, so a row written by a future
     // version must not crash the Bank — fall back rather than throw.
     recurrence: readRecurrence(r.recurrence),
     assignees: r.assignees ?? [],
+    targetPeople: {
+      dcc: dccIds ?? [],
+      wms: wmsIds ?? [],
+      event: eventIds ?? [],
+    },
   }));
 }
 

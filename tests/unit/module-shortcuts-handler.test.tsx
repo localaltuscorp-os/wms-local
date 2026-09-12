@@ -6,7 +6,13 @@ const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 import { ModuleShortcuts } from "@/components/layout/module-shortcuts";
-import { MODULE_THEME } from "@/lib/module-theme";
+import { MODULE_ORDER, MODULE_THEME, moduleShortcut } from "@/lib/module-theme";
+
+/* The key a module answers to, read from the source. The letters became
+   MNEMONIC on 2026-09-12 (W for WMS, G for Goals) and every one of them
+   changed at once; spelling them out here again would only queue up the same
+   edit for the next time. */
+const keyFor = (id: WorkspaceId) => `Key${moduleShortcut(MODULE_ORDER.indexOf(id))!}`;
 import type { WorkspaceId } from "@/lib/workspaces";
 
 /** Everything except Sales, so the "no access" branch has something to refuse. */
@@ -29,12 +35,12 @@ describe("ModuleShortcuts — Alt+letter", () => {
   afterEach(cleanup);
 
   it("opens the module for its letter", () => {
-    key("KeyE", { altKey: true });
+    key(keyFor("project-plan"), { altKey: true });
     expect(push).toHaveBeenCalledWith(MODULE_THEME["project-plan"].href);
   });
 
   it("accepts Cmd on macOS", () => {
-    key("KeyY", { metaKey: true });
+    key(keyFor("hr"), { metaKey: true });
     expect(push).toHaveBeenCalledWith(MODULE_THEME.hr.href);
   });
 
@@ -43,28 +49,28 @@ describe("ModuleShortcuts — Alt+letter", () => {
     // navigation on the way out would be strictly worse than doing nothing.
     key("KeyW", { ctrlKey: true });
     key("KeyT", { ctrlKey: true });
-    key("KeyE", { ctrlKey: true });
+    key(keyFor("project-plan"), { ctrlKey: true });
     expect(push).not.toHaveBeenCalled();
   });
 
   it("ignores a bare letter, so typing is never stolen", () => {
-    key("KeyE");
+    key(keyFor("project-plan"));
     expect(push).not.toHaveBeenCalled();
   });
 
   it("ignores the shortcut with Shift held", () => {
-    key("KeyE", { altKey: true, shiftKey: true });
+    key(keyFor("project-plan"), { altKey: true, shiftKey: true });
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("does nothing for a letter outside the alphabet", () => {
+  it("does nothing for a letter no module claims", () => {
     key("KeyZ", { altKey: true });
     key("KeyN", { altKey: true }); // N is the new-task key — must stay untouched
     expect(push).not.toHaveBeenCalled();
   });
 
   it("does nothing for a module the user cannot enter", () => {
-    key("KeyU", { altKey: true }); // Sales, absent from ALLOWED
+    key(keyFor("sales"), { altKey: true }); // Sales, absent from ALLOWED
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -81,7 +87,7 @@ describe("ModuleShortcuts — Alt+letter", () => {
     modal.setAttribute("role", "dialog");
     modal.setAttribute("data-state", "open");
     document.body.appendChild(modal);
-    key("KeyE", { altKey: true });
+    key(keyFor("project-plan"), { altKey: true });
     expect(push).not.toHaveBeenCalled();
     modal.remove();
   });

@@ -3,13 +3,10 @@
 import * as React from "react";
 import {
   Clock,
-  Play,
-  Pause,
   CheckCircle2,
   Sparkles,
   AlertTriangle,
   XCircle,
-  RotateCcw,
   Users2,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
@@ -17,6 +14,7 @@ import type { TaskTimeState, TimelineEntry } from "@/lib/queries/task-time";
 import type { TaskInsight } from "@/lib/tasks/insight";
 import { formatMinutesLabel } from "@/lib/tasks/time/types";
 import { useTaskTimer } from "@/components/tasks/time/task-timer-store";
+import { TimerControls, phaseCaption } from "@/components/tasks/time/timer-controls";
 import { useNowMs } from "@/components/tasks/time/use-elapsed";
 
 function initials(name: string): string {
@@ -43,7 +41,14 @@ const TL: Record<TimelineEntry["kind"], { label: string; dot: string }> = {
   work_started: { label: "Started Work", dot: "#3b82f6" },
   work_resumed: { label: "Resumed", dot: "#3b82f6" },
   work_paused: { label: "Paused", dot: "#f59e0b" },
+  work_stopped: { label: "Stopped", dot: "#B80D22" },
+  /* Two kinds, one word on screen. `timer_restarted` is the OLD rewind-the-
+     session behaviour and still appears on tasks restarted before 2026-09-12;
+     `timer_reset` is the restart-from-zero the button does now. Spelling them
+     differently in the timeline would be asking the reader to care about a
+     migration. */
   timer_restarted: { label: "Timer Restarted", dot: "#f59e0b" },
+  timer_reset: { label: "Timer Restarted", dot: "#f59e0b" },
   revision_started: { label: "Reopened", dot: "#3b82f6" },
   work_done: { label: "Task Done", dot: "#16a34a" },
   sent_back: { label: "Not Approved", dot: "#e10600" },
@@ -122,13 +127,15 @@ export function TaskTimelineRail({ entries }: { entries: TimelineEntry[] }) {
  * Time Intelligence control centre — live total, session bar, Start/Stop/
  * Restart, and the most recent session stamps.
  *
- * IT NO LONGER OWNS THE TIMER. Start/Stop/Restart and "is it running" come
- * from `useTaskTimer`, the one store the crimson hero band at the top of the
- * same screen also reads — the two controls used to hold separate optimistic
- * state and separate `busy` flags, so driving the timer from one of them left
- * the other showing the opposite label until a server refresh landed. What is
- * left here is the presentation: the segmented bar, the session stamps, and
- * the inline restart confirmation.
+ * IT OWNS NEITHER THE TIMER NOR ITS BUTTONS. The state comes from
+ * `useTaskTimer` and the buttons from <TimerControls>, both shared with the
+ * crimson hero band at the top of the same screen. This card used to hold its
+ * own optimistic state AND its own cluster, which is how the screen came to
+ * show Pause at the top and Start Work down the side at the same instant, and
+ * to call one action Stop here and Pause there.
+ *
+ * What is left here is presentation: the readout, the segmented bar and the
+ * session stamps.
  */
 export function TimeSpentCard({
   state,
@@ -144,11 +151,15 @@ export function TimeSpentCard({
   const timer = useTaskTimer();
   const r = state.rollup;
 
-  const isRunning = timer?.running ?? Boolean(state.live);
-  const busy = timer?.busy ?? false;
-  const [confirmRestart, setConfirmRestart] = React.useState(false);
+  /* ONE source for the phase: the store when there is one (it carries the
+     optimistic flip), the server's own answer otherwise. Never re-derived from
+     `live` or `sessionCount` here — that second derivation is exactly what used
+     to disagree with the hero band. */
+  const phase = timer?.phase ?? state.phase;
 
-  const done = state.sessions.filter((s) => !s.live && s.durationSeconds != null);
+  /* Sessions a Restart threw away are still listed in the Start/Stop history,
+     but they are not in the total and must not be in the bar either. */
+  const done = state.sessions.filter((s) => !s.live && !s.discarded && s.durationSeconds != null);
   const totalForBar = done.reduce((n, s) => n + (s.durationSeconds ?? 0), 0) || 1;
   const seg = ["#8b5cf6", "#6366f1", "#3b82f6", "#16a34a", "#f59e0b"];
   // Newest three stamped sessions. The full list lives behind View History —
@@ -175,7 +186,7 @@ export function TimeSpentCard({
         {formatMinutesLabel(timer ? timer.totalSeconds : r.totalActiveSeconds)}
       </div>
       <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-subtle">
-        {isRunning ? "Running…" : "Total active time"}
+        {phaseCaption(phase)}
       </div>
       {/* Segmented session bar */}
       <div className="mt-3 flex h-2 gap-0.5 overflow-hidden rounded-full bg-surface-soft">
@@ -191,70 +202,10 @@ export function TimeSpentCard({
         <span>Auto calculated</span>
       </div>
 
-      {!locked && canOperate && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {isRunning ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => timer?.pause()}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#B80D22] px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-red-700"
-            >
-              <Pause size={14} /> Stop
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => timer?.start()}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-emerald-700"
-            >
-              <Play size={14} /> {r.sessionCount > 0 ? "Resume" : "Start Work"}
-            </button>
-          )}
-          {(isRunning || r.sessionCount > 0) && (
-            <button
-              type="button"
-              onClick={() => setConfirmRestart(true)}
-              title="Reset this session's elapsed time to zero"
-              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-[12.5px] font-semibold text-ink-strong transition-colors hover:bg-surface-soft"
-            >
-              <RotateCcw size={14} /> Restart
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Inline confirmation, not a modal: this is a narrow rail panel, and a
-          full-screen overlay for a one-session reset is a heavier interruption
-          than the action deserves. */}
-      {confirmRestart && (
-        <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
-          <p className="text-[12.5px] font-bold text-amber-900">Reset this session to 00:00?</p>
-          <p className="mt-0.5 text-[11.5px] font-medium text-amber-800">
-            Completed sessions and the activity log are not affected.
-          </p>
-          <div className="mt-2.5 flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setConfirmRestart(false);
-                timer?.restart();
-              }}
-              className="rounded-md bg-amber-500 px-3 py-1.5 text-[12px] font-bold text-white transition-colors hover:bg-amber-600"
-            >
-              Restart
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmRestart(false)}
-              className="rounded-md border border-hairline bg-white px-3 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+      {/* The SAME cluster the hero band renders. It used to be a hand-written
+          Stop / Resume / Restart here and a hand-written Pause / Restart up
+          there, with an inline amber confirmation panel this one alone had. */}
+      <TimerControls tone="onSurface" canOperate={canOperate} locked={locked} className="mt-4" />
 
       {/* Session stamps — start, end, duration. */}
       {recent.length > 0 && (

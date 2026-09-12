@@ -1324,8 +1324,9 @@ export function TaskTable({
         <tbody>
           {/* SEARCH CAME BACK EMPTY — and it has to say why.
               Both search boxes filter rows the page has ALREADY LOADED, and
-              what got loaded is decided by the date range, the scope (My Tasks
-              / All Tasks), the view (Doer / Initiator) and the pills above. So
+              what got loaded is decided by the date range, the Assignee
+              dropdown (where "all employees" lives now that the Scope toggle is
+              gone), the view (Doer / Initiator) and the pills above. So
               searching for a task that is real, but sits outside those filters,
               returned a bare "No tasks" and read as a broken search. It is not:
               the row was never on the client to be matched. */}

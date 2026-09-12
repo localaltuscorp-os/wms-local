@@ -51,8 +51,21 @@ export function useHrConsolePreviewedModule(): HrConsoleModule | null {
   return useHrConsoleContext().selectedModule;
 }
 
-/** The rail's name for the current route — see the field doc above. */
+/**
+ * The rail's name for the current route — see the field doc above.
+ *
+ * NON-THROWING, unlike its siblings, and deliberately so: HrTitleBar is not an
+ * HR-console component. Its job is portaling a title and controls into the
+ * GLOBAL top bar, and the console context supplies only the DEFAULT title. Two
+ * pages outside the console already use it — /communications since Broadcasts
+ * moved to Operations on 2026-09-12 — and the strict version crashed them at
+ * render with "This hook must be used inside the HR console".
+ *
+ * Outside the console there is simply no rail-derived name, which is a null,
+ * not an error: a page there passes its own `title`, and one that passes none
+ * gets no title rather than a blank screen.
+ */
 export function useHrRouteTitle(): string | null {
-  return useHrConsoleContext().routeTitle;
+  return React.useContext(HrConsoleContext)?.routeTitle ?? null;
 }
 

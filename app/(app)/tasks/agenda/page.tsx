@@ -10,6 +10,7 @@ import { parseTaskFilters } from "@/lib/task-filters";
 import { isDoneLate } from "@/lib/task-late";
 import { requireUser } from "@/lib/auth/current";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
+import { defaultScopeId, opensOnEveryone } from "@/lib/auth/default-scope";
 import { TASK_STATUSES, isDeprecatedStatus } from "@/db/enums";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 
@@ -31,7 +32,12 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   const me = await requireUser();
   // "My Day" scopes to the signed-in user by default (admins too); the same
   // FilterBar as the Tasks tab can widen/redirect it from there.
-  const filters = parseTaskFilters(sp, /*archived*/ false, { defaultDoerId: me.id });
+  /* Was a hardcoded `me.id`, so a super-admin's agenda opened on themselves
+     while their /tasks opened on the company. Same helper as every other
+     surface now. */
+  const filters = parseTaskFilters(sp, /*archived*/ false, {
+    defaultDoerId: defaultScopeId(me),
+  });
 
   const [allEmployees, rows, subjects, clients, statusDisplay] = await Promise.all([
     listEmployeeOptions(),
@@ -88,7 +94,8 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         subjects={subjects}
         statusOptions={statusOptions}
         clients={clients}
-        me={{ id: me.id, isAdmin: me.isAdmin }}
+        me={{ id: me.id, isAdmin: me.isAdmin, isSuperAdmin: opensOnEveryone(me) }}
+        offersScopeChoice
         assigneeMode={filters.assigneeMode}
         initial={{
           start:  isoDay(filters.startDate),

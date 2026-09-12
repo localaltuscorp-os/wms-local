@@ -7,6 +7,7 @@ import { parseTaskFilters } from "@/lib/task-filters";
 import { requireUser } from "@/lib/auth/current";
 import { canChangeDoerFor } from "@/lib/auth/doer-permission";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
+import { defaultScopeId, opensOnEveryone } from "@/lib/auth/default-scope";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 import { redirect } from "next/navigation";
 import type { Route } from "next";
@@ -27,9 +28,10 @@ export default async function ArchivedPage({ searchParams }: PageProps) {
   // Archiving is admin-only, so the archive view is too — a doer who types the
   // URL is sent back to their task list.
   if (!me.isAdmin) redirect("/tasks" as Route);
-  // Non-admins default to "assigned to me" when no explicit ?emp= is set.
+  // Same default as /tasks, from the same helper: the archive is that list
+  // with one flag flipped, and the two must not disagree about scope.
   const filters = parseTaskFilters(sp, /*archived*/ true, {
-    defaultDoerId: me.isAdmin ? undefined : me.id,
+    defaultDoerId: defaultScopeId(me),
   });
 
   const [allEmployees, rows, subjects, statusDisplay] = await Promise.all([
@@ -60,7 +62,8 @@ export default async function ArchivedPage({ searchParams }: PageProps) {
       <FilterBar
         employees={employeeOptions}
         subjects={subjects}
-        me={{ id: me.id, isAdmin: me.isAdmin }}
+        me={{ id: me.id, isAdmin: me.isAdmin, isSuperAdmin: opensOnEveryone(me) }}
+        offersScopeChoice
         assigneeMode={filters.assigneeMode}
         initial={{
           start: isoDay(filters.startDate),

@@ -11,10 +11,7 @@ import {
   LifeBuoy,
   FolderOpen,
   Target,
-  Megaphone,
   Files,
-  Receipt,
-  ClipboardList,
 } from "lucide-react";
 
 import { HR_STAGES, hrItemHref } from "@/lib/hr/lifecycle";
@@ -26,9 +23,9 @@ import { HR_STAGES, hrItemHref } from "@/lib/hr/lifecycle";
  * This is a VIEW over lib/hr/lifecycle.ts, never a second source of truth: the
  * six lifecycle stages and every step inside them are read straight from
  * HR_STAGES, so a change there flows into the console with no edit here. What
- * this file adds is the console's own taxonomy — the eight standalone HR
- * surfaces (Holiday List, Policies, Help Desk, …) that sit alongside the
- * lifecycle in the rail but aren't part of the employee journey.
+ * this file adds is the console's own taxonomy — the standalone HR surfaces
+ * (Holiday List, Policies, HR Help Desk, …) that sit alongside the lifecycle in
+ * the rail but aren't part of the employee journey.
  */
 
 export type HrConsoleSubModule = {
@@ -102,19 +99,22 @@ const lifecycleModules: HrConsoleModule[] = HR_STAGES.map((stage) => ({
 
 /** The standalone HR surfaces — no inner steps, the rail row IS the link. */
 const standalone: Array<{ id: string; title: string; Icon: LucideIcon; href: string }> = [
-  // Job Description (0222) — a STANDALONE module, not a lifecycle stage: the
-  // stages describe an employee's journey, and a JD outlives every employee who
-  // ever holds it. Placed first because it is the register the other HR
-  // surfaces refer back to.
-  { id: "job-description", title: "Job Description", Icon: ClipboardList, href: "/hr/job-description" },
+  /* THREE SURFACES LEFT THIS RAIL ON 2026-09-12.
+       Job Description → Operations  (/operations/job-description)
+       Broadcasts      → Operations  (/communications)
+       Salary Slip     → Employees   (/salary-slip)
+     Their routes moved too where they had to: anything under app/(app)/hr/ is
+     wrapped in the HR console shell, so a rail row elsewhere would have opened a
+     page still wearing HR's chrome. The old paths redirect. */
   { id: "holiday-list", title: "Holiday List", Icon: CalendarDays, href: "/hr/holidays" },
   { id: "policies", title: "Policies", Icon: ScrollText, href: "/policies" },
-  { id: "help-desk", title: "Help Desk", Icon: LifeBuoy, href: "/support" },
+  // "HR Help Desk", not "Help Desk" (2026-09-12): there is more than one help
+  // desk in the company's vocabulary, and a rail row inside HR that claims the
+  // generic name is the one people raise IT tickets on.
+  { id: "help-desk", title: "HR Help Desk", Icon: LifeBuoy, href: "/support" },
   { id: "hr-record", title: "HR Record", Icon: FolderOpen, href: "/hr/record" },
   { id: "kpi-management", title: "KPI Management", Icon: Target, href: "/hr/kpi" },
-  { id: "enterprise-communications", title: "Broadcasts", Icon: Megaphone, href: "/communications" },
   { id: "all-filled-forms", title: "All Filled Forms", Icon: Files, href: "/hr/all-forms" },
-  { id: "salary-slip", title: "Salary Slip", Icon: Receipt, href: "/hr/salary-slip" },
 ];
 
 export const HR_CONSOLE_MODULES: HrConsoleModule[] = [

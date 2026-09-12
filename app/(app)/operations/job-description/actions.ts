@@ -5,11 +5,23 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { jdAssignments, jdEntries, jdPositions, jdRanks } from "@/db/schema";
+/* AUTHORING STAYS WITH HR (2026-09-12). The Bank moved to the Operations room,
+   which is OPEN to every employee — so switching these to the room's own gate
+   would have handed "create, edit and retire a job description" to the whole
+   company as a side effect of a nav change. Reading moved; writing did not. */
 import { requireHrStaff } from "@/lib/hr/access";
+import { toAssignmentRows } from "@/lib/jd/assignment-targets";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { BUSINESS_FUNCTIONS, FUNCTION_LABELS } from "@/lib/org/functions";
+import {
+  demoCreateEntry,
+  demoCreatePosition,
+  demoSetEntryActive,
+  demoUpdateEntry,
+  jdDemoActive,
+} from "@/lib/demo/jd-demo";
 
-const PATH = "/hr/job-description";
+const PATH = "/operations/job-description";
 
 export type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 function fail(error: string): { ok: false; error: string } {
@@ -34,6 +46,21 @@ const optUrl = z
 const functionKey = z.enum(BUSINESS_FUNCTIONS as unknown as [string, ...string[]]);
 
 /**
+ * A uuid — or one of the demo dataset's readable ids while 0222 is unapplied.
+ *
+ * `jdDemoActive()` cannot be true unless a read has already failed with 42P01,
+ * so this never widens what a real table would accept.
+ */
+const idText = z
+  .string()
+  .min(1)
+  .max(64)
+  .refine(
+    (v) => z.string().uuid().safeParse(v).success || (jdDemoActive() && v.startsWith("demo-")),
+    "Invalid id.",
+  );
+
+/**
  * The recurrence shape, validated rather than trusted.
  *
  * A jsonb column accepts anything Postgres can parse, so the guard has to be
@@ -41,6 +68,19 @@ const functionKey = z.enum(BUSINESS_FUNCTIONS as unknown as [string, ...string[]
  * later inside the push job, at 00:15, with nobody watching.
  */
 const Recurrence = z.discriminatedUnion("kind", [
+  /* "Does not repeat" and "Annually on" both REQUIRE their date. A rule with no
+     date can never come due, so a half-filled form would save a job description
+     that quietly never happens — the failure that looks like the push job
+     losing work months later. */
+  z.object({
+    kind: z.literal("once"),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick the date this happens on."),
+  }),
+  z.object({
+    kind: z.literal("yearly"),
+    month: z.number().int().min(1).max(12),
+    day: z.number().int().min(1).max(31),
+  }),
   z.object({ kind: z.literal("daily") }),
   z.object({ kind: z.literal("weekdays"), days: z.array(z.number().int().min(0).max(6)).min(1) }),
   z.object({
@@ -60,7 +100,7 @@ const Recurrence = z.discriminatedUnion("kind", [
 
 const CreatePosition = z.object({
   functionKey,
-  rankId: z.string().uuid(),
+  rankId: idText,
   variant: optText,
 });
 
@@ -79,6 +119,12 @@ export async function createJdPosition(input: unknown): Promise<ActionResult<{ i
   const parsed = CreatePosition.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid position.");
   const v = parsed.data;
+
+  if (jdDemoActive()) {
+    const id = demoCreatePosition(v);
+    revalidatePath(PATH);
+    return { ok: true, id };
+  }
 
   try {
     const rank = await db
@@ -115,7 +161,7 @@ export async function createJdPosition(input: unknown): Promise<ActionResult<{ i
 /* ── The JD Bank ──────────────────────────────────────────────────────────── */
 
 const EntryFields = z.object({
-  positionId: z.string().uuid({ message: "Pick the position this job belongs to." }),
+  positionId: idText.describe("Pick the position this job belongs to."),
   task: z.string().trim().min(1, "Describe the task.").max(2000),
   notesHtml: optText,
   recurrence: Recurrence,
@@ -130,7 +176,16 @@ const EntryFields = z.object({
   pushDcc: z.boolean().default(false),
   pushWms: z.boolean().default(false),
   pushEvent: z.boolean().default(false),
-  assigneeIds: z.array(z.string().uuid()).default([]),
+  /* WHO, PER DESTINATION — one list per box on the form. A person may appear in
+     more than one and becomes a single assignment row with several flags. See
+     lib/jd/assignment-targets.ts for why it is one row and not three. */
+  targetPeople: z
+    .object({
+      dcc: z.array(idText).default([]),
+      wms: z.array(idText).default([]),
+      event: z.array(idText).default([]),
+    })
+    .default({ dcc: [], wms: [], event: [] }),
 });
 
 export async function createJdEntry(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -141,6 +196,13 @@ export async function createJdEntry(input: unknown): Promise<ActionResult<{ id: 
   const parsed = EntryFields.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid job description.");
   const v = parsed.data;
+
+  if (jdDemoActive()) {
+    const id = demoCreateEntry(v);
+    if (!id) return fail("That position no longer exists.");
+    revalidatePath(PATH);
+    return { ok: true, id };
+  }
 
   try {
     const pos = await db
@@ -173,12 +235,24 @@ export async function createJdEntry(input: unknown): Promise<ActionResult<{ id: 
         })
         .returning({ id: jdEntries.id });
 
-      if (v.assigneeIds.length > 0) {
+      /* Destinations that are switched OFF contribute nobody. A JD that does
+         not push to the WMS cannot meaningfully have WMS people, and storing
+         them anyway leaves assignments that do nothing until somebody ticks a
+         box months later and is surprised by who receives the work. */
+      const rows = toAssignmentRows(v.targetPeople, {
+        dcc: v.pushDcc,
+        wms: v.pushWms,
+        event: v.pushEvent,
+      });
+      if (rows.length > 0) {
         await tx.insert(jdAssignments).values(
-          v.assigneeIds.map((employeeId) => ({
+          rows.map((r) => ({
             jdId: row!.id,
-            employeeId,
+            employeeId: r.employeeId,
             source: "manual",
+            forDcc: r.forDcc,
+            forWms: r.forWms,
+            forEvent: r.forEvent,
             assignedById: me.id,
           })),
         );
@@ -194,14 +268,14 @@ export async function createJdEntry(input: unknown): Promise<ActionResult<{ id: 
   }
 }
 
-const UpdateEntry = EntryFields.partial().extend({ id: z.string().uuid() });
+const UpdateEntry = EntryFields.partial().extend({ id: idText });
 
 export async function updateJdEntry(input: unknown): Promise<ActionResult> {
   const me = await requireHrStaff();
 
   const parsed = UpdateEntry.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid change.");
-  const { id, assigneeIds, ...rest } = parsed.data;
+  const { id, targetPeople, ...rest } = parsed.data;
 
   const patch: Record<string, unknown> = { updatedById: me.id, updatedAt: new Date() };
   for (const k of [
@@ -217,6 +291,13 @@ export async function updateJdEntry(input: unknown): Promise<ActionResult> {
     "pushEvent",
   ] as const) {
     if (rest[k] !== undefined) patch[k] = rest[k];
+  }
+
+  if (jdDemoActive()) {
+    if (!demoUpdateEntry({ id, targetPeople, ...rest }))
+      return fail("That job description is gone.");
+    revalidatePath(PATH);
+    return { ok: true };
   }
 
   try {
@@ -235,7 +316,7 @@ export async function updateJdEntry(input: unknown): Promise<ActionResult> {
 
       await tx.update(jdEntries).set(patch).where(eq(jdEntries.id, id));
 
-      if (assigneeIds !== undefined) {
+      if (targetPeople !== undefined) {
         // Retire every live assignment, then re-create the chosen set. The
         // history stays readable because retiring is a flag, not a delete.
         await tx
@@ -243,17 +324,45 @@ export async function updateJdEntry(input: unknown): Promise<ActionResult> {
           .set({ isActive: false, updatedAt: new Date() })
           .where(and(eq(jdAssignments.jdId, id), eq(jdAssignments.isActive, true)));
 
-        if (assigneeIds.length > 0) {
+        /* The destination switches as they will be AFTER this save — from the
+           form when it sent them, from the stored row otherwise. Reading only
+           the stored row would drop the people for a destination being switched
+           on in the same submission, which is the ordinary case: you tick WMS
+           and pick the people in one go. */
+        const [stored] = await tx
+          .select({
+            pushDcc: jdEntries.pushDcc,
+            pushWms: jdEntries.pushWms,
+            pushEvent: jdEntries.pushEvent,
+          })
+          .from(jdEntries)
+          .where(eq(jdEntries.id, id))
+          .limit(1);
+        const enabled = {
+          dcc: rest.pushDcc ?? stored?.pushDcc ?? false,
+          wms: rest.pushWms ?? stored?.pushWms ?? false,
+          event: rest.pushEvent ?? stored?.pushEvent ?? false,
+        };
+
+        const rows = toAssignmentRows(targetPeople, enabled);
+        if (rows.length > 0) {
           await tx
             .insert(jdAssignments)
             .values(
-              assigneeIds.map((employeeId) => ({
+              rows.map((r) => ({
                 jdId: id,
-                employeeId,
+                employeeId: r.employeeId,
                 source: "manual",
+                forDcc: r.forDcc,
+                forWms: r.forWms,
+                forEvent: r.forEvent,
                 assignedById: me.id,
               })),
             )
+            // A retired row for the same person still occupies the partial
+            // unique index only while it is active, so this collides with
+            // nothing — but the guard costs nothing and a re-submitted form
+            // must never fail on a duplicate.
             .onConflictDoNothing();
         }
       }
@@ -271,9 +380,16 @@ export async function setJdEntryActive(input: unknown): Promise<ActionResult> {
   const me = await requireHrStaff();
 
   const parsed = z
-    .object({ id: z.string().uuid(), isActive: z.boolean() })
+    .object({ id: idText, isActive: z.boolean() })
     .safeParse(input);
   if (!parsed.success) return fail("Invalid request.");
+
+  if (jdDemoActive()) {
+    if (!demoSetEntryActive(parsed.data.id, parsed.data.isActive))
+      return fail("That job description is gone.");
+    revalidatePath(PATH);
+    return { ok: true };
+  }
 
   try {
     await db

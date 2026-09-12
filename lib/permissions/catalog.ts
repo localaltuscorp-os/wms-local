@@ -231,7 +231,13 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "hr.record", label: "HR Record", routes: ["/hr/record"] },
       { key: "hr.kpi", label: "HR KPI", routes: ["/hr/kpi"] },
       { key: "hr.ctc", label: "CTC", routes: ["/hr/ctc"] },
-      { key: "hr.salary-slip", label: "Salary Slip", routes: ["/hr/salary-slip"] },
+            /* MOVED TO THE EMPLOYEES ROOM (2026-09-12). Both paths are listed: the
+         new one is where the page lives, the old one still resolves as a
+         redirect and must stay governed by the same node rather than becoming
+         an ungoverned door. The KEY keeps its `hr.` prefix deliberately —
+         permission keys are persisted grants, so renaming it would revoke every
+         grant already written against it. */
+      { key: "hr.salary-slip", label: "Salary Slip", routes: ["/salary-slip", "/hr/salary-slip"] },
       { key: "hr.letters", label: "Letters", routes: ["/hr/letters"] },
       // These three have NO page at the bare segment — only children. Naming
       // the real paths keeps the catalogue test honest: a route listed here that
@@ -244,11 +250,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "Forms",
         routes: ["/hr/forms/[id]", "/hr/all-forms", "/hr/my-forms"],
       },
-      { key: "hr.exit", label: "Exit", routes: ["/hr/exit/interview"] },
+      { key: "hr.exit", label: "Exit Process", routes: ["/hr/exit/interview"] },
       { key: "hr.holidays", label: "Holiday List", routes: ["/hr/holidays", "/holidays"] },
       {
         key: "hr.helpdesk",
-        label: "Help Desk",
+        label: "HR Help Desk",
         routes: ["/support"],
         children: [
           { key: "hr.helpdesk.routing", label: "Ticket Routing", routes: ["/hr/routing"] },

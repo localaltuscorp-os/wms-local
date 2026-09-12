@@ -1,0 +1,113 @@
+import { notFound, redirect } from "next/navigation";
+import type { Route } from "next";
+import { PageShell } from "@/components/layout/page-shell";
+import { getCurrentEmployee } from "@/lib/auth/current";
+import { mySalaryBreakup } from "@/lib/queries/salary-breakup";
+import { netAfterWaiveOff } from "@/lib/salary/waive-off";
+import { fyForMonth } from "@/lib/salary/period";
+import { SalarySlipList, type SalarySlipMonth } from "@/components/salary/salary-slip-list";
+
+export const dynamic = "force-dynamic";
+
+const ACCENT_DEEP = "#A80400";
+
+function monthLabel(ymd: string): string {
+  // `month` is a DATE column → "YYYY-MM-DD"; label the month it falls in.
+  const [y, m] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, 1)).toLocaleDateString("en-GB", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
+ * SALARY SLIP — the employee's own slips, one per month, view or download.
+ *
+ * SELF-SCOPED BY CONSTRUCTION. It reads `mySalaryBreakup(me.id)` for the signed-in
+ * employee and nothing else — there is no employee parameter to tamper with, so
+ * this page cannot be pointed at someone else's pay. The PDF route it links to
+ * re-checks the same boundary on its own (admin, or the employee themselves),
+ * which is what keeps the document safe even if someone hand-crafts the URL.
+ *
+ * It is open to EVERY signed-in employee, deliberately: these are their own
+ * payslips. The admin Salary module in the Accounts room stays finance-gated.
+ *
+ * ── IT LIVES IN THE EMPLOYEES ROOM NOW (2026-09-12) ──────────────────────────
+ * Moved out of /hr/salary-slip, and the route moved with it rather than the nav
+ * entry alone: everything under app/(app)/hr/ is wrapped in the HR console
+ * shell, so a rail row in another room would have opened a page still wearing
+ * HR's three-column chrome. `/hr/salary-slip` now redirects here.
+ *
+ * This is the right room for it on the merits, not just because it was asked
+ * for: Employees is the self-service room, and a payslip sits beside My Salary,
+ * Incentive and Reimbursements — every other surface that answers "what am I
+ * owed?". Access is UNCHANGED. The page was already open to every signed-in
+ * employee and is self-scoped by construction (see above), and the Employees
+ * room is open too, so nobody gained sight of anybody else's pay.
+ *
+ * HrTitleBar is gone with the move: it reads the HR console's React context and
+ * THROWS outside it, so it could not have come along.
+ */
+export default async function SalarySlipPage() {
+  // Killed with the rest of the statement documents — the slips this page lists
+  // ARE those documents, so a page that renders rows whose every action 404s
+  // would be worse than not offering it.
+  if (process.env.SALARY_STATEMENTS === "false") notFound();
+
+  const me = await getCurrentEmployee();
+  if (!me) redirect("/login" as Route);
+
+  const rows = await mySalaryBreakup(me.id);
+
+  // PAID MONTHS ONLY. A breakup row exists from the moment payroll starts
+  // preparing the month, well before anyone is paid, and this page used to list
+  // those too with a "Pending" badge. A slip is a record of money that has
+  // ACTUALLY been released, so an unpaid month showing here reads as a payment
+  // that already happened. `setSalaryPaid` flipping the flag is what publishes
+  // the month, and it is the same edge that emails the slip
+  // (lib/salary/notify-paid.ts) - so the row appearing here and the mail
+  // arriving are one event rather than two that can disagree.
+  //
+  // The admin Salary module still lists every month, paid or not; that surface
+  // is the one that is SUPPOSED to show work in progress.
+  const months: SalarySlipMonth[] = rows
+    .filter((r) => r.paid)
+    .map((r) => {
+    const ym = String(r.month).slice(0, 7);
+    return {
+      month: ym,
+      label: monthLabel(String(r.month)),
+      fy: fyForMonth(ym),
+      designation: r.designation ?? null,
+      companyName: r.companyName ?? null,
+      // The EFFECTIVE net — base + condoned wave-off days + signed adjustment —
+      // so the figure on the row is the one that was actually paid, matching
+      // what the admin table and the slip itself show.
+      finalPayment: netAfterWaiveOff(r),
+      paid: r.paid,
+    };
+  });
+
+  return (
+    <>
+      {/* PageShell rather than a hand-rolled `max-w-[900px]`: the 900px cap
+          froze this page at one size, so collapsing either sidebar just added
+          empty margin instead of giving the content the room. PageShell's cap
+          is the shared `wide` token and its gutter is fluid, so the card tracks
+          the column it actually sits in - the same behaviour the letters have.
+          The list inside is a full-width flex column with no fixed widths of
+          its own, so it reflows cleanly at every size. */}
+      <PageShell width="wide" py={false} className="pt-8 pb-20">
+        <SalarySlipList employeeId={me.id} months={months} />
+
+        {/* Centered under the card it describes, rather than ragged against
+            the left edge of a now-variable-width column. */}
+        <p className="mt-6 text-center text-[12.5px] text-ink-subtle">
+          A slip covers salary, attendance and incentives for the month - the same
+          document that is emailed to you when the month is marked paid.
+        </p>
+      </PageShell>
+    </>
+  );
+}

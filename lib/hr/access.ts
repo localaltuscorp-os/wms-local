@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { employees, type Employee } from "@/db/schema";
 import { isSuperAdmin, SUPER_ADMIN_EMAILS } from "@/lib/auth/super-admin";
 import { requireUser } from "@/lib/auth/current";
+import { localAllWorkspaces } from "@/lib/auth/local-session";
 import { employeeDepartmentNames } from "@/lib/queries/departments";
 import { matchesDepartment } from "@/lib/workspaces";
 
@@ -59,6 +60,13 @@ export async function isHrStaff(me: Employee): Promise<boolean> {
  */
 export async function requireHrStaff(): Promise<Employee> {
   const me = await requireUser();
+  /* DEV_ALL_WORKSPACES already reopens every workspace ROOM on a dev machine,
+     but the HR module sits behind a SECOND, separate gate — so a local session
+     could not open an HR page at all unless the dev user happened to be in the
+     HR department, which made the module unreviewable on most machines.
+     Same knob, same scope: localAllWorkspaces() requires DISABLE_AUTH and is
+     dead under NODE_ENV=production, so no deployment can reach this branch. */
+  if (localAllWorkspaces()) return me;
   if (!(await isHrStaff(me))) redirect("/hr");
   return me;
 }

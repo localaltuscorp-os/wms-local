@@ -17,6 +17,7 @@ import { goalScopeFor } from "@/lib/weekly-goals/hierarchy";
 import { parseTaskFilters } from "@/lib/task-filters";
 import { requireUser } from "@/lib/auth/current";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
+import { defaultScopeId, opensOnEveryone } from "@/lib/auth/default-scope";
 import { TASK_STATUSES, isDeprecatedStatus } from "@/db/enums";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 
@@ -40,9 +41,10 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const mayChangeDoer = await canChangeDoerFor(me);
   const rawTask = Array.isArray(sp.task) ? sp.task[0] : sp.task;
   const selectedTaskId = rawTask && TASK_ID.test(rawTask) ? rawTask : null;
-  // Non-admins default to "assigned to me" when no explicit ?emp= is set.
+  // Everyone opens on their OWN tasks; only a super-admin opens on the
+  // company. See lib/auth/default-scope.ts — one rule, seven call sites.
   const filters = parseTaskFilters(sp, /*archived*/ false, {
-    defaultDoerId: me.isAdmin ? undefined : me.id,
+    defaultDoerId: defaultScopeId(me),
   });
 
   // This week's goals for the view's scope, surfaced as a pinned group above
@@ -146,7 +148,8 @@ export default async function TasksPage({ searchParams }: PageProps) {
         subjects={subjects}
         statusOptions={statusOptions}
         clients={clients}
-        me={{ id: me.id, isAdmin: me.isAdmin }}
+        me={{ id: me.id, isAdmin: me.isAdmin, isSuperAdmin: opensOnEveryone(me) }}
+        offersScopeChoice
         assigneeMode={filters.assigneeMode}
         taskCount={rows.length}
         initial={{

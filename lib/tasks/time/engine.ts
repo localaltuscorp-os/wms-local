@@ -119,11 +119,23 @@ async function appendEvent(
  *  the projection can always be rebuilt from source. */
 async function recomputeRollup(tx: Tx, taskId: string) {
   const [agg] = (await tx.execute(sql`
-    with s as (
+    with reset as (
+      -- Restart draws a line under everything before it. The rows survive for
+      -- the audit trail (and the Start/Stop history still lists them, greyed);
+      -- what changes is that the TOTAL counts from the line forward, which is
+      -- the whole point of a button that says the timer goes back to 00:00.
+      select max(at) as at from task_time_events
+      where task_id = ${taskId} and kind = 'timer_reset'
+    ),
+    s as (
       select revision, started_at, ended_at, duration_seconds, end_reason
-      from task_work_sessions where task_id = ${taskId}
+      from task_work_sessions
+      where task_id = ${taskId}
+        and started_at >= coalesce((select at from reset), '-infinity'::timestamptz)
     ),
     ev as (
+      -- NOT cut off at the reset: rejections decide the revision number, and a
+      -- rework round is not undone by someone rewinding their stopwatch.
       select kind, at from task_time_events where task_id = ${taskId}
     )
     select
@@ -325,24 +337,76 @@ export async function pauseWork(actor: TimeActor, taskId: string): Promise<TimeR
   return { ok: true };
 }
 
+// ── Stop ─────────────────────────────────────────────────────────────────────
+
+/**
+ * End the run. The banked total is kept, exactly as Pause keeps it — what
+ * differs is what the screen says afterwards.
+ *
+ * WHY A SEPARATE VERB AT ALL, when both close the open session. Pause reads as
+ * "I am coming back in a minute" and offers one way forward; Stop reads as "this
+ * sitting is over" and is where the screen then offers BOTH Resume and Restart.
+ * The account holder asked for the two to behave differently, and a difference
+ * that lived only in the button's colour would be a difference that vanished on
+ * the next refresh — so it is written to the log, and the phase is derived from
+ * the log.
+ *
+ * Idempotent on a timer that is already stopped, and legal on a PAUSED timer:
+ * there is nothing to close in that case, and the event alone moves the phase.
+ */
+export async function stopWork(actor: TimeActor, taskId: string): Promise<TimeResult> {
+  const loaded = await loadCtx(taskId, actor);
+  if (!loaded.ok) return loaded;
+  if (!loaded.canOperate) return { ok: false, error: "forbidden" };
+
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    const open = await liveSession(tx, taskId);
+    // Already stopped and nothing running: say yes and write nothing. A second
+    // Stop is a double-click or a stale tab, and an append-only log that
+    // collects one row per impatient click is a log nobody reads.
+    if (!open) {
+      const [last] = (await tx.execute(
+        sql`select kind from task_time_events where task_id = ${taskId}
+            order by at desc limit 1`,
+      )) as unknown as Array<{ kind: string }>;
+      if (last?.kind === "work_stopped") return;
+    }
+    const revision = open ? open.revision : await currentRevisionOf(tx, taskId);
+    if (open) await closeSession(tx, open, now, "stopped");
+    await appendEvent(tx, {
+      taskId,
+      actorId: actor.id,
+      doerId: loaded.ctx.doerId,
+      kind: "work_stopped",
+      revision,
+      at: now,
+      sessionId: open?.id ?? null,
+    });
+    await recomputeRollup(tx, taskId);
+  });
+  return { ok: true };
+}
+
 // ── Restart timer ────────────────────────────────────────────────────────────
 
 /**
- * Reset the CURRENT session's clock to 00:00:00.
+ * RESTART — the whole task timer goes back to 00:00:00 and starts counting again.
  *
- * Deliberately narrow: it rewinds the session in progress and nothing else. No
- * event row is ever deleted and no banked time is touched, because a session's
- * `duration_seconds` is only written when it CLOSES — so the time being
- * discarded here was never in the rollup to begin with, and every completed
- * session from earlier rounds is left exactly as it was. That is what keeps this
- * safe to expose next to Pause: the worst case is losing the minutes since the
- * last Start, never the audit trail.
+ * This is the tenth report on these three buttons, and the standing complaint
+ * was this one: Restart did not restart. It used to rewind only the session in
+ * progress and KEEP every banked minute, so a task with 40 minutes on it read
+ * 40:00 the instant after you pressed a button promising zero. That is now what
+ * it says: zero, ticking.
  *
- * Running  → rewind the open session's started_at to now; it keeps running.
- * Paused   → nothing is running to rewind, so open a fresh session at zero,
- *            which is the only reading of "restart" that leaves a timer at
- *            00:00:00. Revision is inherited, so a rework round stays a rework
- *            round.
+ * NOTHING IS DELETED. The sessions before the reset keep their rows, their
+ * durations and their place in the Start/Stop history — they are closed with
+ * `end_reason: 'reset'` and the rollup simply counts from the `timer_reset`
+ * event forward (see recomputeRollup). An immutable ledger stays immutable; a
+ * projection is allowed to have an opinion about which rows are current.
+ *
+ * It always ends RUNNING. "Start all over" is the request, and leaving the
+ * screen at 00:00:00 stopped would need a second click to mean anything.
  */
 export async function restartTimer(actor: TimeActor, taskId: string): Promise<TimeResult> {
   const loaded = await loadCtx(taskId, actor);
@@ -353,48 +417,60 @@ export async function restartTimer(actor: TimeActor, taskId: string): Promise<Ti
 
   const now = new Date();
   const doerId = loaded.ctx.doerId;
-  let restarted = false;
 
   await db.transaction(async (tx) => {
     const open = await liveSession(tx, taskId);
     const revision = open ? open.revision : await currentRevisionOf(tx, taskId);
-    let sessionId: string | null = open?.id ?? null;
 
-    if (open) {
-      // Guarded on `ended_at is null` so a session auto-closed by the cron
-      // between our read and this write is never resurrected.
-      await tx
-        .update(taskWorkSessions)
-        .set({ startedAt: now })
-        .where(and(eq(taskWorkSessions.id, open.id), isNull(taskWorkSessions.endedAt)));
-    } else {
-      sessionId = randomUUID();
-      await tx.insert(taskWorkSessions).values({
-        id: sessionId,
-        taskId,
-        doerId,
-        revision,
-        startedAt: now,
-      });
-    }
+    // Close whatever was running as DISCARDED rather than rewinding it: the
+    // minutes it holds really were worked, and the audit trail is the one place
+    // that should still be able to say so.
+    if (open) await closeSession(tx, open, now, "reset");
 
+    /* The line the rollup counts from, stamped ONE MILLISECOND EARLY.
+       It is the same instant as the new session for every human purpose, but
+       the timeline orders events by `at` and the reset must land before the
+       `work_started` it causes — with identical stamps the order is whatever
+       the index returns, and "Started Work" above "Timer Restarted" reads like
+       the restart undid the start. The `started_at >= reset` filter is
+       unaffected: the new session is a millisecond the RIGHT side of it. */
+    const resetAt = new Date(now.getTime() - 1);
     await appendEvent(tx, {
       taskId,
       actorId: actor.id,
       doerId,
-      kind: "timer_restarted",
+      kind: "timer_reset",
       revision,
-      at: now,
-      sessionId,
-      // The timeline renders "restarted by {name}" from the actor join, but the
-      // name is stamped here too so the row survives an employee rename.
+      at: resetAt,
+      sessionId: open?.id ?? null,
+      // The timeline renders "restarted by {name}" from the actor join; the name
+      // is stamped here too so the row survives an employee rename.
       meta: { actorName: actor.name },
     });
+
+    const sessionId = randomUUID();
+    await tx.insert(taskWorkSessions).values({
+      id: sessionId,
+      taskId,
+      doerId,
+      revision,
+      startedAt: now,
+    });
+    await appendEvent(tx, {
+      taskId, actorId: actor.id, doerId, kind: "work_started", revision, at: now, sessionId,
+    });
+
+    // A restart is work resuming, so a done/rejected task reopens — the same
+    // rule startWork applies, for the same reason.
+    if (loaded.ctx.status === "done" || loaded.ctx.approvalStatus === "not_approved") {
+      await tx.update(tasks).set({ status: "initiated", completedAt: null, updatedAt: now }).where(eq(tasks.id, taskId));
+    } else if (loaded.ctx.status === "not_started" || loaded.ctx.status === "dont_know") {
+      await tx.update(tasks).set({ status: "initiated", updatedAt: now }).where(eq(tasks.id, taskId));
+    }
+
     await recomputeRollup(tx, taskId);
-    restarted = true;
   });
 
-  if (!restarted) return { ok: false, error: "conflict", message: "Couldn't restart the timer." };
   return { ok: true };
 }
 

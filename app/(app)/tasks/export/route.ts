@@ -6,6 +6,7 @@ import {
   exportFilename,
   MAX_EXPORT_ROWS,
 } from "@/lib/exports/csv";
+import { defaultScopeId } from "@/lib/auth/default-scope";
 
 /**
  * GET /tasks/export
@@ -59,8 +60,9 @@ export async function GET(request: Request): Promise<Response> {
   for (const [k, v] of url.searchParams.entries()) sp[k] = v;
 
   const archived = sp.archived === "1" || sp.archived === "true";
+  // The export must match the list it was taken from, to the row.
   const filters = parseTaskFilters(sp, archived, {
-    defaultDoerId: me.isAdmin ? undefined : me.id,
+    defaultDoerId: defaultScopeId(me),
   });
 
   // Read one above the cap so csvResponse can detect overrun and return 422.

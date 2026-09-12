@@ -8264,6 +8264,15 @@ export const jdAssignments = pgTable(
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
     source: text("source").notNull().default("position"),
+    /* WHICH DESTINATIONS this person is assigned for (migration 0225).
+       Three flags on ONE row rather than one row per destination: a person who
+       does the job for both the DCC and the WMS is one assignment with two
+       boxes ticked, which keeps the (jd_id, employee_id) unique index — and
+       that index is what stops the same person being assigned twice and
+       receiving the task twice. */
+    forDcc: boolean("for_dcc").notNull().default(false),
+    forWms: boolean("for_wms").notNull().default(false),
+    forEvent: boolean("for_event").notNull().default(false),
     assignedById: uuid("assigned_by_id").references(() => employees.id, { onDelete: "set null" }),
     effectiveFrom: date("effective_from").notNull().default(sql`CURRENT_DATE`),
     effectiveTo: date("effective_to"),

@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import {
   startWorkAction,
   pauseWorkAction,
+  stopWorkAction,
   restartTimerAction,
 } from "@/app/(app)/tasks/time-actions";
 import { fireToast } from "@/lib/toast";
 import { useElapsedSeconds } from "@/components/tasks/time/use-elapsed";
+import type { TimerPhase } from "@/lib/tasks/time/types";
 
 /**
  * ONE timer per task detail screen, shared by every control that drives it.
@@ -19,6 +21,12 @@ import { useElapsedSeconds } from "@/components/tasks/time/use-elapsed";
  * hero and the rail still said Start Work; the two clocks disagreed until a
  * refresh landed. Both now read this store, so a click anywhere moves both.
  *
+ * IT CARRIES THE PHASE, NOT A BOOLEAN. `running` was never enough to tell
+ * PAUSED from STOPPED, so each surface guessed from whatever else it had to
+ * hand — one looked at `live`, the other at `rollup.sessionCount` — and they
+ * guessed differently. The phase is decided once, on the server, from the event
+ * log (lib/queries/task-time.ts), and every button is a function of it.
+ *
  * WHY IT IS OPTIMISTIC. Every control here calls a Server Action and then
  * `router.refresh()`. On the detail drawer that refresh re-renders /tasks —
  * the whole 800-row table plus the drawer — against a remote database, which
@@ -28,20 +36,25 @@ import { useElapsedSeconds } from "@/components/tasks/time/use-elapsed";
  * moves, you click again, and the ledger quietly collects a second session.
  * The flip makes the label and the clock change in the same frame as the click.
  *
- * HOW THE FLIP RETIRES ITSELF. It records `basedOn` — the server's live-session
+ * HOW THE FLIP RETIRES ITSELF. It records `basedOn` — the server's newest event
  * stamp at the moment it was made — and is honoured only while the server still
- * says that. Every one of these actions changes that stamp (start and restart
- * mint a new one, pause clears it), so the first refresh that lands makes
- * `basedOn` stale and the server value takes over by itself. No effect
- * reconciles anything, and there is no window where both are believed.
+ * reports that stamp. Every action here appends an event, so the first refresh
+ * that lands makes `basedOn` stale and the server value takes over by itself.
+ * No effect reconciles anything, and there is no window where both are believed.
+ *
+ * (The stamp used to be the live session's `startedAt`, which does not change
+ * when you STOP a timer that was already paused — nothing opens or closes — so
+ * that flip would have been believed forever.)
  */
 
 export interface TaskTimerState {
-  /** Is the clock running right now (optimistic value included)? */
+  /** idle · running · paused · stopped, optimistic value included. */
+  phase: TimerPhase;
+  /** Convenience for the many places that only care whether it ticks. */
   running: boolean;
-  /** ISO stamp the running clock counts up from; null when stopped. */
+  /** ISO stamp the running clock counts up from; null when not running. */
   since: string | null;
-  /** Banked seconds from sessions that have already closed. */
+  /** Banked seconds from sessions that have already closed (since the last reset). */
   baseSeconds: number;
   /** Banked + the live session's seconds, ticking. Render this. */
   totalSeconds: number;
@@ -49,14 +62,15 @@ export interface TaskTimerState {
   busy: boolean;
   start: () => void;
   pause: () => void;
+  stop: () => void;
   restart: () => void;
 }
 
 type Flip = {
-  running: boolean;
+  phase: TimerPhase;
   since: string | null;
   base: number;
-  /** The server's live stamp when this flip was made. */
+  /** The server's newest event stamp when this flip was made. */
   basedOn: string | null;
 };
 
@@ -66,22 +80,32 @@ export function TaskTimerProvider({
   taskId,
   /** The server's view: the open session, if there is one. */
   live,
-  /** The server's view: seconds banked by CLOSED sessions. */
+  /** The server's view: seconds banked by CLOSED sessions since the last reset. */
   baseSeconds,
+  /** The server's view: which phase the timer is in. */
+  phase: serverPhase,
+  /** The server's newest event stamp — the flip's staleness token. */
+  stamp: serverStamp = null,
   children,
 }: {
   taskId: string;
   live: { startedAt: string } | null;
   baseSeconds: number;
+  phase: TimerPhase;
+  stamp?: string | null;
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const serverSince = live?.startedAt ?? null;
+  // Falls back to the live stamp so a server that predates `lastEventAt` still
+  // retires flips on start/pause rather than never.
+  const token = serverStamp ?? serverSince;
   const [flip, setFlip] = React.useState<Flip | null>(null);
   const [busy, setBusy] = React.useState(false);
 
-  const current = flip !== null && flip.basedOn === serverSince ? flip : null;
-  const running = current ? current.running : Boolean(serverSince);
+  const current = flip !== null && flip.basedOn === token ? flip : null;
+  const phase = current ? current.phase : serverPhase;
+  const running = phase === "running";
   const since = current ? current.since : serverSince;
   const base = current ? current.base : baseSeconds;
 
@@ -91,7 +115,7 @@ export function TaskTimerProvider({
   const totalSeconds = base + (running ? liveSeconds : 0);
 
   /** Seconds the open session has run, measured against the server's stamp —
-   *  what Pause is about to bank. */
+   *  what Pause and Stop are about to bank. */
   const elapsedNow = React.useCallback(() => {
     if (!since) return 0;
     return Math.max(0, Math.floor((Date.now() - new Date(since).getTime()) / 1000));
@@ -136,31 +160,42 @@ export function TaskTimerProvider({
      observed live as 23:34 dropping back to 03:45 on the resume. */
   const start = React.useCallback(() => {
     run(
-      { running: true, since: new Date().toISOString(), base, basedOn: serverSince },
+      { phase: "running", since: new Date().toISOString(), base, basedOn: token },
       () => startWorkAction(taskId),
     );
-  }, [run, base, serverSince, taskId]);
+  }, [run, base, token, taskId]);
 
   const pause = React.useCallback(() => {
     // Pause BANKS the seconds it just stopped counting. Showing `baseSeconds`
     // alone here would drop them from the readout until the refresh landed —
     // the clock visibly jumping backwards on the click that saved the time.
     run(
-      { running: false, since: null, base: base + elapsedNow(), basedOn: serverSince },
+      { phase: "paused", since: null, base: base + elapsedNow(), basedOn: token },
       () => pauseWorkAction(taskId),
     );
-  }, [run, base, elapsedNow, serverSince, taskId]);
+  }, [run, base, elapsedNow, token, taskId]);
+
+  const stop = React.useCallback(() => {
+    // Banks exactly like Pause — the difference is the phase it leaves behind,
+    // which is what decides whether the screen offers Restart next to Resume.
+    run(
+      { phase: "stopped", since: null, base: base + elapsedNow(), basedOn: token },
+      () => stopWorkAction(taskId),
+    );
+  }, [run, base, elapsedNow, token, taskId]);
 
   const restart = React.useCallback(() => {
-    // Restart rewinds the OPEN session to zero and leaves every closed session
-    // alone, so the banked total is deliberately unchanged here.
+    // BACK TO ZERO, ticking. `base: 0` is the fix for the complaint that
+    // Restart did not restart: it used to keep every banked minute, so the
+    // clock read 40:00 the instant after a button promising 00:00.
     run(
-      { running: true, since: new Date().toISOString(), base, basedOn: serverSince },
+      { phase: "running", since: new Date().toISOString(), base: 0, basedOn: token },
       () => restartTimerAction(taskId),
     );
-  }, [run, base, serverSince, taskId]);
+  }, [run, token, taskId]);
 
   const value: TaskTimerState = {
+    phase,
     running,
     since,
     baseSeconds: base,
@@ -168,6 +203,7 @@ export function TaskTimerProvider({
     busy,
     start,
     pause,
+    stop,
     restart,
   };
 

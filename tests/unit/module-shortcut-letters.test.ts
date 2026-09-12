@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   ADMIN_PANEL_ENTRY,
   ADMIN_PANEL_SHORTCUT,
+  MODULE_SHORTCUT_COLLISIONS,
   isAdminPanelShortcut,
   MODULE_ORDER,
   MODULE_THEME,
@@ -12,37 +13,39 @@ import {
 } from "@/lib/module-theme";
 
 /**
- * The account holder dictated BOTH the hub order and the letter row on
- * 2026-09-10, and the two are one thing: the letters are handed out by position,
- * so re-ordering MODULE_ORDER silently re-letters every module after the change.
- * This table is the spec — if it fails, either the order moved or the alphabet
- * did, and both are decisions someone has to make on purpose.
+ * The letters are MNEMONIC as of 2026-09-12 (account holder): each comes from
+ * the module's own name and is stored on MODULE_THEME[id].shortcut.
+ *
+ * THE ORDER AND THE LETTERS ARE NOW INDEPENDENT — which is the point of the
+ * change. Under the old positional scheme this table was one spec covering
+ * both, and every hub re-order or removal re-lettered everything behind it;
+ * three modules moved into Operations in two days and did exactly that. Today
+ * MODULE_ORDER decides layout only, so the first assertion below pins the order
+ * and the rest pin the letters, and a change to one need not touch the other.
+ *
+ * This table is still the spec: if it fails, someone changed a letter or the
+ * hub order, and both are decisions to make on purpose.
  */
 const EXPECTED: [string, string][] = [
-  ["wms", "Q"],
-  ["goals", "W"],
-  ["project-plan", "E"],
+  ["wms", "W"],
+  ["goals", "G"],
+  ["project-plan", "P"],
+  // R, not P — Project has that. R is in "peRformance", AND it is the key this
+  // module already carried under the positional scheme, so the people using it
+  // relearned nothing.
   ["productivity", "R"],
-  ["billing", "T"],
-  ["hr", "Y"],
-  ["sales", "U"],
-  ["admin", "I"],
-  ["training", "O"],
-  ["employees", "P"],
-  // OPERATIONS, appended 2026-09-11, is the eleventh module and so takes the
-  // eleventh key. Monthly Events Master and HandHolding left the hub the same
-  // day — both became areas inside Operations rather than hub cards.
-  //
-  // THE KEY IS "D", NOT "A". A and S were vacated earlier that same day so the
-  // standalone Admin Panel entry could hold A without colliding with a module
-  // (both are admin-only, so it would have collided for exactly the people who
-  // press it). The alphabet is therefore "qwertyuiopdf" and index 10 is D.
-  // Two branches each wrote a different answer here; this is what the merged
-  // MODULE_ORDER and SHORTCUT_KEYS actually produce.
-  ["operations", "D"],
+  ["billing", "B"],
+  ["hr", "H"],
+  ["sales", "S"],
+  // The card is labelled "Accounts"; the workspace id is `admin`. A is the
+  // label's letter, which is what the user sees on the card and presses.
+  ["admin", "A"],
+  ["employees", "E"],
+  ["operations", "O"],
 ];
 
-describe("module shortcuts — qwertyuiopdf", () => {
+
+describe("module shortcuts — mnemonic, one per module", () => {
   it("orders the hub exactly as specified", () => {
     expect(MODULE_ORDER).toEqual(EXPECTED.map(([id]) => id));
   });
@@ -60,13 +63,26 @@ describe("module shortcuts — qwertyuiopdf", () => {
 
   it("leaves EVERY module with a shortcut", () => {
     // The old 1-9/0 row ran out at ten and left HandHolding and Project with
-    // none; a letter for every module is the point of the change, and the
-    // alphabet has room to spare now the hub holds eleven.
+    // none. A letter for every module was the point of that change and is still
+    // the rule; a module added with no `shortcut` renders unlettered, which is
+    // silent, so it is caught here instead.
     const missing = MODULE_ORDER.filter((_, i) => moduleShortcut(i) === null);
     expect(missing).toEqual([]);
   });
 
-  it("hands out no letter twice", () => {
+  it("hands out no letter twice — the Admin Panel's included", () => {
+    /* THE INVARIANT THE WHOLE ARRANGEMENT RESTS ON, and the one the mnemonic
+       scheme made easy to break: under the positional alphabet a duplicate was
+       impossible by construction, but a letter taken from a NAME can collide
+       the moment somebody adds a module — Marketing would want M, Projects
+       would want P.
+
+       A duplicate does not throw and does not fail typecheck. Two listeners
+       answer one keystroke, whichever runs first wins, and the losing module's
+       own badge promises a key that opens something else. Invisible until
+       pressed, so it is computed in lib/module-theme.ts and asserted here. */
+    expect(MODULE_SHORTCUT_COLLISIONS).toEqual([]);
+
     const letters = MODULE_ORDER.map((_, i) => moduleShortcut(i));
     expect(new Set(letters).size).toBe(letters.length);
   });
@@ -83,46 +99,52 @@ describe("module shortcuts — qwertyuiopdf", () => {
     // Indexed off the LAST module rather than a hardcoded 11, so adding a
     // twelfth does not fail this on a number that was never the point.
     const last = MODULE_ORDER.length - 1;
-    expect(moduleShortcutHint(0)).toBe("⌥Q");
-    expect(moduleShortcutHint(last)).toBe("⌥D");
-    expect(moduleShortcutLabel(0)).toBe("Alt+Q");
-    expect(moduleShortcutLabel(last)).toBe("Alt+D");
+    expect(moduleShortcutHint(0)).toBe("⌥W");
+    expect(moduleShortcutHint(last)).toBe("⌥O");
+    expect(moduleShortcutLabel(0)).toBe("Alt+W");
+    expect(moduleShortcutLabel(last)).toBe("Alt+O");
     for (let i = 0; i < MODULE_ORDER.length; i++) {
       expect(moduleShortcutHint(i)).toHaveLength(2);
     }
   });
 
-  it("ignores keys outside the alphabet", () => {
-    // "s" is in the alphabet but past the end of an eleven-module hub, so it
-    // resolves to nothing — exactly like a letter that was never in it.
-    for (const k of ["z", "n", "s", "1", "0", "", "Enter", "ArrowLeft"]) {
-      expect(moduleForShortcut(k)).toBeUndefined();
+  it("ignores letters no module claims", () => {
+    /* The empty string is in here deliberately. Four themed rooms have no hub
+       card and carry `shortcut: ""` — empty is falsy, not a letter, and a naive
+       comparison would match ALL of them and open whichever came first. */
+    for (const k of ["z", "n", "q", "1", "0", "", "  ", "Enter", "ArrowLeft"]) {
+      expect(moduleForShortcut(k), k + " must open nothing").toBeUndefined();
     }
   });
 
   /**
-   * THE ADMIN PANEL'S LETTER MUST NOT BE IN THE MODULE ALPHABET.
+   * NO MODULE MAY CLAIM THE ADMIN PANEL'S LETTER.
    *
-   * This is the invariant the whole arrangement rests on. Both key listeners
-   * test `isAdminPanelShortcut` first and then fall through to
-   * `moduleForShortcut`; if A were ever handed back to a module, the panel
-   * would silently shadow it and the module's own badge would be a lie. Put
-   * A back into SHORTCUT_KEYS and this fails immediately, which is the point.
+   * Both key listeners test `isAdminPanelShortcut` first and then fall through
+   * to `moduleForShortcut`, so a module holding the panel's letter would be
+   * silently shadowed and its own badge would be a lie.
+   *
+   * The letter is D since 2026-09-12 — it was A until Accounts took its own
+   * first letter. Asserted through ADMIN_PANEL_SHORTCUT rather than the literal,
+   * so moving it again is one edit rather than a hunt through the tests.
    */
-  it("keeps A out of the module alphabet, for the Admin Panel", () => {
-    expect(moduleForShortcut("A")).toBeUndefined();
-    expect(moduleForShortcut("a")).toBeUndefined();
+  it("keeps the Admin Panel's letter out of the modules", () => {
+    expect(moduleForShortcut(ADMIN_PANEL_SHORTCUT)).toBeUndefined();
+    expect(moduleForShortcut(ADMIN_PANEL_SHORTCUT.toLowerCase())).toBeUndefined();
     expect(MODULE_ORDER.map((_, i) => moduleShortcut(i))).not.toContain(
       ADMIN_PANEL_SHORTCUT,
     );
   });
 
   it("recognises the Admin Panel key in either case", () => {
-    expect(isAdminPanelShortcut("A")).toBe(true);
-    expect(isAdminPanelShortcut("a")).toBe(true);
-    // And nothing else — a near miss must not open the control room.
-    for (const k of ["b", "q", "s", "", "Alt", "ArrowLeft"]) {
-      expect(isAdminPanelShortcut(k)).toBe(false);
+    expect(isAdminPanelShortcut(ADMIN_PANEL_SHORTCUT)).toBe(true);
+    expect(isAdminPanelShortcut(ADMIN_PANEL_SHORTCUT.toLowerCase())).toBe(true);
+    // And nothing else — a near miss must not open the control room. "a" and
+    // "A" are in this list ON PURPOSE: the panel answered to them until
+    // 2026-09-12, and A now belongs to Accounts, so the old habit must open
+    // Accounts rather than quietly still reaching the control room.
+    for (const k of ["a", "A", "b", "q", "s", "", "Alt", "ArrowLeft"]) {
+      expect(isAdminPanelShortcut(k), k).toBe(false);
     }
   });
 
@@ -131,12 +153,12 @@ describe("module shortcuts — qwertyuiopdf", () => {
     // implementation. `/admin` is the path the user-menu entry has always used
     // and the one `app/(admin)/admin/layout.tsx` guards.
     expect(ADMIN_PANEL_ENTRY.href).toBe("/admin");
-    expect(ADMIN_PANEL_ENTRY.shortcut).toBe("A");
+    expect(ADMIN_PANEL_ENTRY.shortcut).toBe(ADMIN_PANEL_SHORTCUT);
   });
 
   it("does not make the Admin Panel a workspace", () => {
-    // It has no id, and it is not in the hub order — so it consumes no letter
-    // by position and cannot re-letter anything.
+    // It has no id and is not in the hub order, so `moduleForShortcut` can
+    // never resolve its letter and the two listeners cannot both fire.
     expect(MODULE_ORDER).not.toContain("admin-panel" as never);
     expect("id" in ADMIN_PANEL_ENTRY).toBe(false);
   });

@@ -15,6 +15,18 @@ import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { CHECK_STATUSES } from "@/lib/operations/checklist";
+import {
+  checklistDemoActive,
+  demoCreateItem,
+  demoChecklistSnapshot,
+  demoCreateEvent,
+  demoCreateRun,
+  demoRemoveItem,
+  demoSaveRunAsTemplate,
+  demoSetCheck,
+  demoUpdateItem,
+  demoUpdateRun,
+} from "@/lib/demo/ops-checklist-demo";
 import { OFFSET_MAX, OFFSET_MIN } from "@/lib/operations/checklist-dates";
 
 const PATH = "/operations/checklist";
@@ -31,8 +43,25 @@ const optText = z
   )
   .transform((s) => (s ? s : null));
 
+/**
+ * A uuid — or one of the demo dataset's readable ids while 0221 is unapplied.
+ *
+ * The demo store hands out `demo-run-1` rather than a uuid on purpose: an id
+ * you can match by eye is worth a great deal when you are looking at a grid
+ * full of sample rows. `checklistDemoActive()` cannot be true unless a read has
+ * already failed with 42P01, so this can never widen what a real table accepts.
+ */
+const idText = z
+  .string()
+  .min(1)
+  .max(64)
+  .refine(
+    (v) => z.string().uuid().safeParse(v).success || (checklistDemoActive() && v.startsWith("demo-")),
+    "Invalid id.",
+  );
+
 const optUuid = z
-  .preprocess((v) => (v === "" ? null : v), z.string().uuid().nullable().optional())
+  .preprocess((v) => (v === "" ? null : v), idText.nullable().optional())
   .transform((v) => v ?? null);
 
 const optOffset = z
@@ -63,6 +92,85 @@ async function requireEditor() {
 
 /* ── Runs ─────────────────────────────────────────────────────────────────── */
 
+/* ── Events ─────────────────────────────────────────────────────── */
+
+const CreateEvent = z.object({
+  title: z.string().trim().min(1, "Give the event a name.").max(200),
+  eventDate: ymd,
+});
+
+/**
+ * Add an event from inside the checklist screen.
+ *
+ * WHY THIS WRITES TO THE COMPANY CALENDAR rather than to a private list of
+ * names. The event picker reads `calendar_events`, which is the firm's single
+ * record of what is happening and when; a second list owned by this screen
+ * would drift from it within a week, and the checklist would start planning
+ * around a date the calendar disagrees with. So "Add event" is a real event,
+ * created all-day and unconfirmed of time, and the Monthly Events Master shows
+ * it like any other — including the "this event moved" banner if somebody
+ * later changes its date there.
+ *
+ * ADMIN-ONLY, via the same `requireEditor` that gates creating a checklist:
+ * anyone who may build the plan may name the occasion it is built for, and
+ * nobody else can write to the calendar through this door.
+ *
+ * A name and date that already exist RETURN THE EXISTING EVENT instead of a
+ * duplicate. Two "Annual Day 2026" rows on the same date are never what
+ * somebody meant, and the second one silently splits the checklists between
+ * them.
+ */
+export async function createChecklistEvent(
+  input: unknown,
+): Promise<ActionResult<{ id: string; title: string; eventDate: string }>> {
+  const { me, denied } = await requireEditor();
+  if (denied) return denied;
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = CreateEvent.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid event.");
+  const v = parsed.data;
+
+  if (checklistDemoActive()) {
+    const row = demoCreateEvent(v);
+    revalidatePath(PATH);
+    return { ok: true, ...row };
+  }
+
+  try {
+    const [dupe] = await db
+      .select({ id: calendarEvents.id, title: calendarEvents.title, eventDate: calendarEvents.eventDate })
+      .from(calendarEvents)
+      .where(and(eq(calendarEvents.title, v.title), eq(calendarEvents.eventDate, v.eventDate)))
+      .limit(1);
+    if (dupe) {
+      revalidatePath(PATH);
+      return { ok: true, id: dupe.id, title: dupe.title, eventDate: dupe.eventDate };
+    }
+
+    const [row] = await db
+      .insert(calendarEvents)
+      .values({
+        title: v.title,
+        eventDate: v.eventDate,
+        // All-day: this door collects a name and a date, and inventing a start
+        // time would put a wrong one on the company calendar.
+        allDay: true,
+        createdById: me.id,
+        updatedById: me.id,
+      })
+      .returning({ id: calendarEvents.id });
+
+    revalidatePath(PATH);
+    // The calendar renders this event too, and it is cached per route.
+    revalidatePath("/events/calendar");
+    return { ok: true, id: row!.id, title: v.title, eventDate: v.eventDate };
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "Could not add the event.");
+  }
+}
+
 const CreateRun = z.object({
   title: z.string().trim().min(1, "Give the checklist a name.").max(300),
   isEvent: z.boolean(),
@@ -90,6 +198,17 @@ export async function createChecklistRun(
   const parsed = CreateRun.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid checklist.");
   const v = parsed.data;
+
+  /* Demo data has its own events, and its ids are not uuids — so the
+     calendar_events lookup below must not run against them. */
+  if (checklistDemoActive()) {
+    const ev = demoChecklistSnapshot().events.find((e) => e.id === v.eventId);
+    const date = v.eventDate ?? ev?.eventDate ?? null;
+    if (v.isEvent && !date) return fail("Pick the event, or set the event date.");
+    const id = demoCreateRun({ ...v, eventDate: v.isEvent ? date : null });
+    revalidatePath(PATH);
+    return { ok: true, id };
+  }
 
   // An event run needs a date: without one no target date can be computed, and
   // the grid would render a column of blanks. The DB enforces this too; failing
@@ -171,7 +290,7 @@ export async function createChecklistRun(
 }
 
 const UpdateRun = z.object({
-  id: z.string().uuid(),
+  id: idText,
   title: z.string().trim().min(1).max(300).optional(),
   eventDate: ymd.optional(),
   status: z.enum(["active", "completed", "cancelled"]).optional(),
@@ -197,6 +316,12 @@ export async function updateChecklistRun(input: unknown): Promise<ActionResult> 
   if (rest.status !== undefined) patch.status = rest.status;
   if (rest.notes !== undefined) patch.notes = rest.notes;
 
+  if (checklistDemoActive()) {
+    if (!demoUpdateRun({ id, ...rest })) return fail("That checklist is gone.");
+    revalidatePath(PATH);
+    return { ok: true };
+  }
+
   try {
     await db.update(opsChecklistRuns).set(patch).where(eq(opsChecklistRuns.id, id));
     revalidatePath(PATH);
@@ -219,7 +344,7 @@ const ItemFields = z.object({
   fileLink: optText,
 });
 
-const CreateItem = ItemFields.extend({ runId: z.string().uuid() });
+const CreateItem = ItemFields.extend({ runId: idText });
 
 export async function createChecklistItem(
   input: unknown,
@@ -235,6 +360,20 @@ export async function createChecklistItem(
 
   if (v.backupId && v.backupId === v.doerId) {
     return fail("The backup must be someone other than the doer.");
+  }
+
+  if (checklistDemoActive()) {
+    const id = demoCreateItem({
+      runId: v.runId,
+      title: v.title,
+      offsetDays: v.offsetDays,
+      targetDate: v.targetDate ?? null,
+      doerId: v.doerId,
+      backupId: v.backupId,
+    });
+    if (!id) return fail("That checklist is gone.");
+    revalidatePath(PATH);
+    return { ok: true, id };
   }
 
   try {
@@ -271,7 +410,7 @@ export async function createChecklistItem(
   }
 }
 
-const UpdateItem = ItemFields.partial().extend({ id: z.string().uuid() });
+const UpdateItem = ItemFields.partial().extend({ id: idText });
 
 /** Inline cell edit. Every field is optional — one cell saves one column. */
 export async function updateChecklistItem(input: unknown): Promise<ActionResult> {
@@ -296,6 +435,12 @@ export async function updateChecklistItem(input: unknown): Promise<ActionResult>
     if (rest[k] !== undefined) patch[k] = rest[k];
   }
 
+  if (checklistDemoActive()) {
+    if (!demoUpdateItem({ id, ...rest })) return fail("That row is gone.");
+    revalidatePath(PATH);
+    return { ok: true };
+  }
+
   try {
     await db.update(opsChecklistItems).set(patch).where(eq(opsChecklistItems.id, id));
     revalidatePath(PATH);
@@ -312,8 +457,14 @@ export async function removeChecklistItem(input: unknown): Promise<ActionResult>
   const { me, denied } = await requireEditor();
   if (denied) return denied;
 
-  const parsed = z.object({ id: z.string().uuid() }).safeParse(input);
+  const parsed = z.object({ id: idText }).safeParse(input);
   if (!parsed.success) return fail("Invalid row.");
+
+  if (checklistDemoActive()) {
+    if (!demoRemoveItem(parsed.data.id)) return fail("That row is gone.");
+    revalidatePath(PATH);
+    return { ok: true };
+  }
 
   try {
     await db
@@ -330,8 +481,8 @@ export async function removeChecklistItem(input: unknown): Promise<ActionResult>
 /* ── Ticks ────────────────────────────────────────────────────────────────── */
 
 const SetCheck = z.object({
-  runId: z.string().uuid(),
-  itemId: z.string().uuid(),
+  runId: idText,
+  itemId: idText,
   status: z.enum(CHECK_STATUSES),
   notes: optText.optional(),
 });
@@ -354,6 +505,13 @@ export async function setChecklistCheck(input: unknown): Promise<ActionResult> {
   const v = parsed.data;
 
   const doneAt = v.status === "Done" ? new Date() : null;
+
+  if (checklistDemoActive()) {
+    if (!demoSetCheck({ itemId: v.itemId, status: v.status, notes: v.notes }))
+      return fail("That row is gone.");
+    revalidatePath(PATH);
+    return { ok: true };
+  }
 
   try {
     await db
@@ -387,7 +545,7 @@ export async function setChecklistCheck(input: unknown): Promise<ActionResult> {
 /* ── Templates ────────────────────────────────────────────────────────────── */
 
 const SaveTemplate = z.object({
-  runId: z.string().uuid(),
+  runId: idText,
   name: z.string().trim().min(1, "Give the master checklist a name.").max(200),
   description: optText.optional(),
 });
@@ -410,6 +568,13 @@ export async function saveRunAsTemplate(
   const parsed = SaveTemplate.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid template.");
   const v = parsed.data;
+
+  if (checklistDemoActive()) {
+    const id = demoSaveRunAsTemplate(v.runId, v.name);
+    if (!id) return fail("That checklist is gone.");
+    revalidatePath(PATH);
+    return { ok: true, id };
+  }
 
   try {
     const id = await db.transaction(async (tx) => {

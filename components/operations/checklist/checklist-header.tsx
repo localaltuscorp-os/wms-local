@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Loader2, Plus, Save } from "lucide-react";
+import { CalendarPlus, Loader2, Plus, Save } from "lucide-react";
 import type {
   ChecklistEventRow,
   ChecklistRunRow,
@@ -10,6 +10,7 @@ import type {
 } from "@/lib/operations/checklist";
 import { formatDMY } from "@/lib/operations/checklist-dates";
 import {
+  createChecklistEvent,
   createChecklistRun,
   saveRunAsTemplate,
 } from "@/app/(app)/operations/checklist/actions";
@@ -30,6 +31,14 @@ const ACCENT_DEEP = "#A80400";
  * Picking the event supplies the date. Offering a second, freely-typed date
  * beside it invites a checklist dated 14/03 for an event held on the 12th, with
  * nothing anywhere to flag the divergence.
+ *
+ * ── ADD EVENT SITS AT THE BOTTOM OF THE PICKER ───────────────────────────
+ * "The event I need is not in this list" is the first wall anybody hits, and
+ * the way out used to be: leave this screen, find the Monthly Events Master,
+ * add it there, come back, and rebuild the form from memory. The last row of
+ * the dropdown now opens a two-field form in place. It writes a real calendar
+ * event (see createChecklistEvent) rather than a name local to this screen —
+ * a second list of event names drifts from the calendar within a week.
  */
 export function NewChecklistPanel({
   events,
@@ -46,7 +55,69 @@ export function NewChecklistPanel({
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const chosen = events.find((e) => e.id === eventId) ?? null;
+  /* Events created here, held locally until the server render catches up.
+     Without this the new event is selected but its <option> does not exist for
+     the second the refresh takes, and the picker blinks back to "Select an
+     event…" — which reads as the save having failed. */
+  const [added, setAdded] = React.useState<ChecklistEventRow[]>([]);
+  const [adding, setAdding] = React.useState(false);
+  const [newName, setNewName] = React.useState("");
+  const [newDate, setNewDate] = React.useState("");
+  const [addError, setAddError] = React.useState<string | null>(null);
+  const [addBusy, setAddBusy] = React.useState(false);
+
+  const allEvents = React.useMemo(() => {
+    const seen = new Set(events.map((e) => e.id));
+    return [...events, ...added.filter((e) => !seen.has(e.id))].sort((a, b) =>
+      a.eventDate.localeCompare(b.eventDate),
+    );
+  }, [events, added]);
+
+  const chosen = allEvents.find((e) => e.id === eventId) ?? null;
+
+  /* A sentinel option value, not a real id. It is intercepted in onChange and
+     never reaches `eventId`, so nothing downstream has to know it exists. */
+  const ADD_NEW = "__add_event__";
+
+  async function addEvent() {
+    setAddError(null);
+    const name = newName.trim();
+    if (!name) {
+      setAddError("Give the event a name.");
+      return;
+    }
+    if (!newDate) {
+      setAddError("Pick the date it happens on.");
+      return;
+    }
+    setAddBusy(true);
+    try {
+      const res = await createChecklistEvent({ title: name, eventDate: newDate });
+      if (!res.ok) {
+        setAddError(res.error);
+        return;
+      }
+      const row: ChecklistEventRow = {
+        id: res.id,
+        title: res.title,
+        eventDate: res.eventDate,
+        categoryName: null,
+      };
+      setAdded((prev) => [...prev, row]);
+      setEventId(row.id);
+      // Same rule as picking an existing event: name the checklist after it,
+      // but never over something already typed.
+      if (!title.trim()) setTitle(row.title);
+      setAdding(false);
+      setNewName("");
+      setNewDate("");
+      // Bring the server's own list up to date in the background; `added`
+      // covers the gap and de-duplicates when it lands.
+      router.refresh();
+    } finally {
+      setAddBusy(false);
+    }
+  }
 
   async function submit() {
     setError(null);
@@ -113,24 +184,38 @@ export function NewChecklistPanel({
                 id="ck-event"
                 value={eventId}
                 onChange={(e) => {
-                  setEventId(e.target.value);
+                  const v = e.target.value;
+                  if (v === ADD_NEW) {
+                    // The sentinel is a command, not a value: open the form and
+                    // leave the selection exactly as it was, so cancelling
+                    // costs nothing.
+                    setAdding(true);
+                    setAddError(null);
+                    return;
+                  }
+                  setEventId(v);
                   // Naming the checklist after the event is right almost every
                   // time, so it is filled in HERE rather than by an effect
                   // watching the selection — and only while the field is
                   // untouched, so it never overwrites a name somebody typed.
                   if (!title.trim()) {
-                    const ev = events.find((x) => x.id === e.target.value);
+                    const ev = allEvents.find((x) => x.id === v);
                     if (ev) setTitle(ev.title);
                   }
                 }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] text-slate-800"
               >
                 <option value="">Select an event…</option>
-                {events.map((e) => (
+                {allEvents.map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.title} — {formatDMY(e.eventDate)}
                   </option>
                 ))}
+                {/* LAST, under a rule: it is an action among nouns, and a
+                    reader scanning for their event should reach the end of the
+                    real ones before meeting it. */}
+                <option disabled>──────────</option>
+                <option value={ADD_NEW}>＋ Add event…</option>
               </select>
             </div>
 
@@ -187,6 +272,89 @@ export function NewChecklistPanel({
         </button>
       </div>
 
+      {/* ── Add event, in place ─────────────────────────────────────────────
+          Two fields and nothing else. Everything the calendar can hold — time,
+          location, category, notes — is left to the Monthly Events Master; what
+          a checklist needs from an event is its name and the day it falls on. */}
+      {isEvent && adding && (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <CalendarPlus className="h-4 w-4" style={{ color: ACCENT_DEEP }} />
+            <h3 className="text-[13px] font-bold text-slate-900">Add an event</h3>
+            <span className="text-[12px] text-slate-500">
+              It joins the company calendar, so everyone sees the same date.
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[240px] flex-1">
+              <Label htmlFor="ck-new-event">Event name</Label>
+              <input
+                id="ck-new-event"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g. Vendor Audit — Nashik"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void addEvent();
+                  }
+                  if (e.key === "Escape") setAdding(false);
+                }}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] text-slate-800"
+              />
+            </div>
+
+            <div className="w-44">
+              <Label htmlFor="ck-new-date">Event date</Label>
+              <input
+                id="ck-new-date"
+                type="date"
+                value={newDate}
+                onChange={(e) => setNewDate(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void addEvent();
+                  }
+                  if (e.key === "Escape") setAdding(false);
+                }}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] tabular-nums text-slate-800"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={addEvent}
+              disabled={addBusy}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
+              style={{ background: ACCENT_DEEP }}
+            >
+              {addBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              Add event
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAdding(false);
+                setAddError(null);
+              }}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+          </div>
+
+          {addError && <p className="mt-2.5 text-[13px] text-red-700">{addError}</p>}
+        </div>
+      )}
+
       {error && <p className="mt-3 text-[13px] text-red-700">{error}</p>}
     </div>
   );
@@ -225,31 +393,6 @@ export function SaveAsMasterButton({ run }: { run: ChecklistRunRow }) {
       </button>
       {msg && <span className="text-[12px] text-slate-500">{msg}</span>}
     </div>
-  );
-}
-
-/**
- * Import from Job Description.
- *
- * Disabled until the JD Bank has rows. Shipped visible rather than hidden: a
- * disabled control tells the next person the integration is planned, where a
- * missing one gets re-specified from scratch in three months.
- */
-export function ImportFromJdButton({ available }: { available: boolean }) {
-  return (
-    <button
-      type="button"
-      disabled={!available}
-      title={
-        available
-          ? "Pull tasks from the HR Job Description Bank"
-          : "Available once the Job Description Bank has entries flagged for Event Checklist"
-      }
-      className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
-    >
-      <Copy className="h-3.5 w-3.5" />
-      Import from Job Description
-    </button>
   );
 }
 

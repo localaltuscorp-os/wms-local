@@ -3,12 +3,17 @@ import { ListChecks } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { PageShell } from "@/components/layout/page-shell";
+import { DemoBanner } from "@/components/layout/demo-banner";
 import { ChecklistGrid } from "@/components/operations/checklist/checklist-grid";
 import {
-  ImportFromJdButton,
   NewChecklistPanel,
   SaveAsMasterButton,
 } from "@/components/operations/checklist/checklist-header";
+import {
+  demoChecklistSnapshot,
+  demoGetRun,
+  demoRunItems,
+} from "@/lib/demo/ops-checklist-demo";
 import { formatDMY } from "@/lib/operations/checklist-dates";
 import {
   getChecklistRun,
@@ -45,9 +50,13 @@ export default async function OperationsChecklistPage({
 
   /* THE MIGRATION MAY NOT HAVE RUN YET. This repo applies migrations by hand in
      Supabase, so there is a real window where this page is deployed and its
-     tables do not exist — or exist in the pre-offset shape. Without this the
-     window looks like a 500 with a stack trace; with it, it says what to do. */
-  let runs, events, templates, people;
+     tables do not exist — or exist in the pre-offset shape.
+
+     That window used to render a "run migration 0221" card, which is accurate
+     and completely unreviewable: nobody can judge a screen they cannot open. So
+     it now falls back to a seeded in-memory dataset and stays fully usable,
+     with a banner saying so. See lib/demo/store.ts. */
+  let runs, events, templates, people, demo = false;
   try {
     [runs, events, templates, people] = await Promise.all([
       listChecklistRuns(),
@@ -57,14 +66,20 @@ export default async function OperationsChecklistPage({
     ]);
   } catch (e) {
     if (!isMissingChecklistTable(e)) throw e;
-    return <ChecklistSetupNeeded />;
+    demo = true;
+    ({ runs, events, templates, people } = demoChecklistSnapshot());
   }
 
-  const openRun = sp.run ? await getChecklistRun(sp.run) : null;
-  const items = openRun ? await listRunItems(openRun.id) : [];
+  const openRun = sp.run
+    ? demo
+      ? demoGetRun(sp.run)
+      : await getChecklistRun(sp.run)
+    : null;
+  const items = openRun ? (demo ? demoRunItems(openRun.id) : await listRunItems(openRun.id)) : [];
 
   return (
     <PageShell>
+      {demo && <DemoBanner migration="0221" what="Event Checklist" />}
       <header className="mb-6 flex flex-wrap items-center gap-3">
         <span
           className="grid h-10 w-10 place-items-center rounded-xl"
@@ -80,12 +95,7 @@ export default async function OperationsChecklistPage({
             Dates driven by an offset from the event — change the date, the whole plan moves.
           </p>
         </div>
-        {openRun && canEdit && (
-          <div className="flex flex-wrap items-center gap-2">
-            <SaveAsMasterButton run={openRun} />
-            <ImportFromJdButton available={false} />
-          </div>
-        )}
+        {openRun && canEdit && <SaveAsMasterButton run={openRun} />}
       </header>
 
       {openRun ? (
@@ -152,33 +162,6 @@ export default async function OperationsChecklistPage({
           </section>
         </div>
       )}
-    </PageShell>
-  );
-}
-
-/** Shown when 0221 has not been applied — actionable, not a stack trace. */
-function ChecklistSetupNeeded() {
-  return (
-    <PageShell>
-      <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white px-8 py-12 text-center">
-        <span
-          className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-2xl"
-          style={{ background: "#FEE2E2", color: ACCENT_DEEP }}
-        >
-          <ListChecks className="h-7 w-7" />
-        </span>
-        <h1 className="text-[20px] font-bold text-slate-900">
-          The checklist needs its database tables
-        </h1>
-        <p className="mt-3 text-[14px] leading-relaxed text-slate-600">
-          Migration 0221 has not been applied yet. Open Supabase → SQL Editor and run{" "}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[13px]">
-            db/RUN-IN-SUPABASE-0221-0222.sql
-          </code>{" "}
-          from the repo. Select nothing before pressing Run — a partial selection reports
-          success having done nothing. This page works as soon as it completes.
-        </p>
-      </div>
     </PageShell>
   );
 }

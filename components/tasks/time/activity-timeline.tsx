@@ -6,6 +6,7 @@ import {
   Play,
   Pause,
   RotateCcw,
+  Square,
   CheckCircle2,
   XCircle,
   BadgeCheck,
@@ -23,7 +24,12 @@ const META: Record<
   work_started: { label: "Started Work", icon: Play, tone: "text-emerald-600" },
   work_resumed: { label: "Resumed Work", icon: Play, tone: "text-emerald-600" },
   work_paused: { label: "Paused", icon: Pause, tone: "text-amber-500" },
+  work_stopped: { label: "Stopped", icon: Square, tone: "text-altus-red" },
   timer_restarted: { label: "Task Timer Restarted", icon: RotateCcw, tone: "text-amber-500" },
+  /* The restart-from-zero introduced 2026-09-12. Named differently from
+     `timer_restarted` in the log so old events keep their old meaning; named
+     the SAME on screen, because the distinction is ours, not the reader's. */
+  timer_reset: { label: "Task Timer Restarted", icon: RotateCcw, tone: "text-amber-500" },
   revision_started: { label: "Started Revision", icon: RotateCcw, tone: "text-altus-red" },
   work_done: { label: "Marked Done", icon: CheckCircle2, tone: "text-emerald-600" },
   sent_back: { label: "Not Approved - Sent Back", icon: XCircle, tone: "text-altus-red" },

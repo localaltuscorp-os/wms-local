@@ -17,29 +17,62 @@ export interface Rank {
 }
 
 /**
- * The fourteen, in business order, with their seeded `rank_order` values.
+ * THE TWENTY-SIX RANKS, in the order the account holder gave them (2026-09-12),
+ * numbered in tens so a rank can be inserted later without renumbering its
+ * neighbours.
  *
- * NOTE Consultant sits BELOW Assistant Manager here. The candidate-facing list
- * in `interview_positions` (lib/hr/candidate/intake-schema.ts) puts it ABOVE
- * Deputy Manager, and the two are deliberately not merged: that one describes
- * seats we hire into, this one decides who covers a vacancy. Merging them would
- * change who gets the work.
+ * ── `order` IS BEHAVIOUR, NOT PRESENTATION ───────────────────────────────
+ * The vacancy resolver climbs this list: a job description on an empty seat
+ * goes to the next FILLED rung above it in the same function. So the sequence
+ * below decides who covers for whom, and changing a number reroutes live work
+ * without anything appearing on screen to say so.
+ *
+ * Two consequences of this particular sequence, stated plainly because they are
+ * the kind of thing that is noticed months later:
+ *
+ *  · The VP grades sit BELOW the GM grades — a vacant Manager seat escalates to
+ *    Associate Vice President, and only reaches Assistant General Manager after
+ *    passing President. Moving the three GM rows above Associate Vice President
+ *    is a two-minute edit here plus migration 0226 if that is not intended.
+ *  · Consultant and Sr. Consultant sit between Sr. Executive and Assistant
+ *    Manager. The candidate-facing list in `interview_positions`
+ *    (lib/hr/candidate/intake-schema.ts) places Consultant differently, and the
+ *    two are deliberately NOT merged: that one describes seats we hire into,
+ *    this one decides who covers a vacancy.
+ *
+ * ── THE FOURTEEN THAT CAME BEFORE ────────────────────────────────────────
+ * This replaced a fourteen-rung ladder on 2026-09-12. Twelve ranks are new; one
+ * — DGM — has no equivalent in the new list and is NOT silently dropped:
+ * migration 0226 leaves any seat still pointing at it alone and reports it, so
+ * a human decides whether it becomes Deputy Director or General Manager.
  */
 export const RANK_LADDER: readonly { name: string; order: number; band: string }[] = [
-  { name: "Intern (2nd Yr)", order: 10, band: "Trainee" },
-  { name: "Intern (3rd Yr)", order: 20, band: "Trainee" },
-  { name: "Executive", order: 30, band: "Individual" },
-  { name: "Sr. Executive", order: 40, band: "Individual" },
-  { name: "Consultant", order: 50, band: "Individual" },
-  { name: "Assistant Manager", order: 60, band: "Management" },
-  { name: "Deputy Manager", order: 70, band: "Management" },
-  { name: "Manager", order: 80, band: "Management" },
-  { name: "Sr. Manager", order: 90, band: "Management" },
-  { name: "DGM", order: 100, band: "Senior" },
-  { name: "GM", order: 110, band: "Senior" },
-  { name: "AVP", order: 120, band: "Executive" },
-  { name: "VP", order: 130, band: "Executive" },
-  { name: "President", order: 140, band: "Executive" },
+  { name: "Intern - First Year", order: 10, band: "Trainee" },
+  { name: "Intern - Second Year", order: 20, band: "Trainee" },
+  { name: "Intern - Third Year", order: 30, band: "Trainee" },
+  { name: "Executive", order: 40, band: "Individual" },
+  { name: "Sr. Executive", order: 50, band: "Individual" },
+  { name: "Consultant", order: 60, band: "Individual" },
+  { name: "Sr. Consultant", order: 70, band: "Individual" },
+  { name: "Assistant Manager", order: 80, band: "Management" },
+  { name: "Deputy Manager", order: 90, band: "Management" },
+  { name: "Manager", order: 100, band: "Management" },
+  { name: "Associate Vice President", order: 110, band: "Leadership" },
+  { name: "Deputy Vice President", order: 120, band: "Leadership" },
+  { name: "Vice President", order: 130, band: "Leadership" },
+  { name: "Senior Vice President", order: 140, band: "Leadership" },
+  { name: "President", order: 150, band: "Leadership" },
+  { name: "Sr President", order: 160, band: "Leadership" },
+  { name: "Assistant General Manager", order: 170, band: "General Management" },
+  { name: "General Manager", order: 180, band: "General Management" },
+  { name: "Sr. General Manager", order: 190, band: "General Management" },
+  { name: "Associate Director", order: 200, band: "Director" },
+  { name: "Deputy Director", order: 210, band: "Director" },
+  { name: "Director", order: 220, band: "Director" },
+  { name: "Senior Director", order: 230, band: "Director" },
+  { name: "CEO", order: 240, band: "Board" },
+  { name: "Managing Director", order: 250, band: "Board" },
+  { name: "Chairman", order: 260, band: "Board" },
 ] as const;
 
 /** One seat. */

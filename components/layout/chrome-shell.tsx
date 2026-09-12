@@ -52,17 +52,20 @@ export function ChromeShell({
   // stage pop-ups and in-page back buttons. Every /hr surface is full-bleed. The
   // Help Desk (`/support`) is part of the HR room too — reached from the HR-home
   // quick-popup — so it is rail-less as well, matching the rest of the module.
-  // `/policies` and `/communications` are HR surfaces at their own top-level
-  // routes. Both now render the HR console shell too (their own layout.tsx),
-  // so they must suppress the global sidebar the same way /hr does — otherwise
-  // the console's module rail and this sidebar would stack side by side.
+  // `/policies` is an HR surface at its own top-level route and renders the HR
+  // console shell too (its own layout.tsx), so it must suppress the global
+  // sidebar the same way /hr does — otherwise the console's module rail and this
+  // sidebar would stack side by side.
+  //
+  // `/communications` (Broadcasts) is NOT in this list any more: it moved to the
+  // Operations room on 2026-09-12 and dropped the console shell with it, so it
+  // WANTS the global sidebar — that is where its Operations rail comes from.
+  // Leaving it here would have given it no sidebar at all.
   const isHrFullBleed =
     pathname === "/hr" ||
     (pathname?.startsWith("/hr/") ?? false) ||
     pathname === "/policies" ||
     (pathname?.startsWith("/policies/") ?? false) ||
-    pathname === "/communications" ||
-    (pathname?.startsWith("/communications/") ?? false) ||
     pathname === "/dossier" ||
     (pathname?.startsWith("/dossier/") ?? false) ||
     pathname === "/support" ||

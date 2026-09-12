@@ -24,35 +24,67 @@
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export type Recurrence =
+  /** "Does not repeat" — one day, then never again. */
+  | { kind: "once"; date: string }
   | { kind: "daily" }
   | { kind: "weekdays"; days: Weekday[] }
   | { kind: "interval"; everyDays: number; anchor: string }
   | { kind: "monthly_ordinal"; ordinal: 1 | 2 | 3 | 4 | -1; weekday: Weekday }
+  /** "Annually on [date]" — the same calendar date each year. */
+  | { kind: "yearly"; month: number; day: number }
   | { kind: "custom"; label: string };
 
-/** The ten options the dropdown offers, in the order it offers them. */
+/**
+ * The dropdown, in Google Calendar's vocabulary (account holder, 2026-09-12).
+ *
+ * ── THE FIVE PATTERNS THAT LEFT THE LIST STILL WORK ──────────────────────
+ * Mon-Wed-Fri, Tue-Sat, Once in 15 Days, Once in 30 Days and First Monday of
+ * Month were offered here until this change, and rows are stored holding them.
+ * They are SHAPES, not list entries — `describeRecurrence`, `isDueOn` and
+ * `toDccSchedule` all still handle them, so an existing job description keeps
+ * working and keeps reading correctly. What changed is only what a NEW one can
+ * be set to from this menu; anything else goes through Custom.
+ *
+ * Removing the shapes as well would have turned every one of those rows into
+ * "Unknown" the day this shipped.
+ */
 export const FREQUENCY_OPTIONS: readonly { id: string; label: string; value: Recurrence }[] = [
+  { id: "once", label: "Does not repeat", value: { kind: "once", date: "" } },
   { id: "daily", label: "Daily", value: { kind: "daily" } },
-  { id: "mon", label: "Every Monday", value: { kind: "weekdays", days: [0] } },
-  { id: "mwf", label: "Mon-Wed-Fri", value: { kind: "weekdays", days: [0, 2, 4] } },
-  { id: "tue-sat", label: "Tue-Sat", value: { kind: "weekdays", days: [1, 2, 3, 4, 5] } },
   { id: "sat", label: "Weekly on Saturday", value: { kind: "weekdays", days: [5] } },
-  { id: "d15", label: "Once in 15 Days", value: { kind: "interval", everyDays: 15, anchor: "" } },
-  { id: "d30", label: "Once in 30 Days", value: { kind: "interval", everyDays: 30, anchor: "" } },
   {
     id: "sat2",
-    label: "Monthly on 2nd Saturday",
+    label: "Monthly on the second Saturday",
     value: { kind: "monthly_ordinal", ordinal: 2, weekday: 5 },
   },
+  { id: "yearly", label: "Annually on [Date]", value: { kind: "yearly", month: 1, day: 1 } },
   {
-    id: "mon1",
-    label: "First Monday of Month",
-    value: { kind: "monthly_ordinal", ordinal: 1, weekday: 0 },
+    id: "weekday",
+    label: "Every weekday (Monday to Friday)",
+    value: { kind: "weekdays", days: [0, 1, 2, 3, 4] },
   },
-  { id: "custom", label: "Custom", value: { kind: "custom", label: "" } },
+  { id: "custom", label: "Custom…", value: { kind: "custom", label: "" } },
 ] as const;
 
+/** Which options need a date field revealed beside them. */
+export const FREQUENCY_NEEDS_DATE = new Set(["once", "yearly"]);
+
 const WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function isLeapYear(y: number): boolean {
+  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+}
+
+/** `2026-09-12` → `12/09/2026`, the way the business writes dates. */
+function dmy(ymd: string): string {
+  const p = parts(ymd);
+  if (!p) return ymd;
+  return `${String(p.d).padStart(2, "0")}/${String(p.m).padStart(2, "0")}/${p.y}`;
+}
 const ORDINAL_NAMES: Record<string, string> = {
   "1": "First",
   "2": "2nd",
@@ -133,6 +165,19 @@ export function isDueOn(rec: Recurrence, ymd: string): boolean {
   if (!p) return false;
 
   switch (rec.kind) {
+    case "once":
+      // The one day it happens, and never again. No date stored means it can
+      // never be due, which is what stops a half-filled form firing daily.
+      return rec.date === ymd;
+    case "yearly": {
+      /* 29 February falls back to the 28th in a common year: a job set for the
+         29th must still happen every year, and the alternative — skipping three
+         years in four — is never what anybody meant. */
+      if (rec.month === 2 && rec.day === 29 && !isLeapYear(p.y)) {
+        return p.m === 2 && p.d === 28;
+      }
+      return p.m === rec.month && p.d === rec.day;
+    }
     case "daily": {
       // Mon–Sat. Sunday is the org's default weekly off, and a "daily" task
       // that fires on the rest day produces an overdue row nobody can clear.
@@ -163,6 +208,10 @@ export function isDueOn(rec: Recurrence, ymd: string): boolean {
 /** A human sentence for the Bank list and the form's summary line. */
 export function describeRecurrence(rec: Recurrence): string {
   switch (rec.kind) {
+    case "once":
+      return rec.date ? `Does not repeat — ${dmy(rec.date)}` : "Does not repeat";
+    case "yearly":
+      return `Annually on ${rec.day} ${MONTH_NAMES[rec.month - 1] ?? ""}`.trim();
     case "daily":
       return "Daily (Mon–Sat)";
     case "weekdays": {
@@ -208,7 +257,12 @@ export function toDccSchedule(rec: Recurrence): {
     case "monthly_ordinal":
       return { scheduleKind: "monthly", weekdays: 0, frequency };
     case "interval":
+    case "once":
+    case "yearly":
     case "custom":
+      // The DCC model is a 7-bit weekday mask; none of these can be expressed
+      // in it, so the JD cron supplies the date instead. Honest, where forcing
+      // them into a weekday pattern would be a lie the gate enforces daily.
       return { scheduleKind: "adhoc", weekdays: null, frequency };
   }
 }
@@ -218,10 +272,12 @@ export function isRecurrence(v: unknown): v is Recurrence {
   if (typeof v !== "object" || v === null) return false;
   const k = (v as { kind?: unknown }).kind;
   return (
+    k === "once" ||
     k === "daily" ||
     k === "weekdays" ||
     k === "interval" ||
     k === "monthly_ordinal" ||
+    k === "yearly" ||
     k === "custom"
   );
 }

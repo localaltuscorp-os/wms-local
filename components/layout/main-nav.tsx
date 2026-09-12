@@ -49,6 +49,7 @@ import {
   Palette,
   PartyPopper,
   FileSignature,
+  FileText,
   Trash2,
   Trophy,
   ScrollText,
@@ -64,7 +65,7 @@ import type { LucideIcon } from "lucide-react";
 import { MainNavPill } from "./main-nav-pill";
 import { MainNavGroup } from "./main-nav-group";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
-import { OPERATIONS_AREAS } from "@/lib/operations/nav";
+import { OPERATIONS_AREAS, type OperationsAreaId } from "@/lib/operations/nav";
 import { nodeKeyForPath } from "@/lib/permissions/catalog";
 import { HR_STAGES, hrItemHref, type HrStage, type HrStageKey } from "@/lib/hr/lifecycle";
 
@@ -172,7 +173,7 @@ const HR_HUB_NAV: WorkspaceNav = {
     // only create a second, inconsistent door.
     { href: "/hr/my-forms" as Route, label: "My Filled Forms", Icon: ClipboardList },
     { href: "/holidays" as Route, label: "Holiday List", Icon: PartyPopper },
-    { href: "/support" as Route, label: "Help Desk", Icon: LifeBuoy },
+    { href: "/support" as Route, label: "HR Help Desk", Icon: LifeBuoy },
   ],
   groups: [],
 };
@@ -223,58 +224,57 @@ function hrSectionForPath(p: string): HrSection {
 }
 
 /* ── Operations room: ONE rail of areas, pages on top ────────────────────────
- * The rail lists the four AREAS and does NOT swap. Entering an area shows its
- * own pages as a horizontal quick-access row above the content
+ * The rail lists the AREAS and does NOT swap. Entering an area shows its own
+ * pages as a horizontal quick-access row above the content
  * (components/operations/operations-quick-nav.tsx), the way the HR console
  * does it.
  *
  * This replaced a rail that swapped to the area's items. Swapping cost you
- * sight of the other three areas the moment you entered one, so moving between
- * them meant going Home first; keeping the areas here and the pages on top
+ * sight of the other areas the moment you entered one, so moving between them
+ * meant going back out first; keeping the areas here and the pages on top
  * leaves both axes one click away.
  *
- * The areas come from lib/operations/nav.ts, which the quick-access row and the
- * front door's card deck also read — three copies of "what is in Operations" is
- * three chances for them to disagree.                                         */
-const OPERATIONS_HOME: NavItem = {
-  href: "/operations" as Route,
-  label: "Operations Home",
-  Icon: Home,
-  exact: true,
-};
-
+ * THE RAIL IS THE AREAS AND NOTHING ELSE (2026-09-12). It used to open with an
+ * "Operations Home" row pointing at a deck of area cards. The deck is gone — it
+ * was a menu repeating this rail, so it cost a click to say what the rail was
+ * already saying — and the row that led to it went with it. The rail now starts
+ * at Hand-holding and `/operations` forwards there (app/(app)/operations/page.tsx).
+ *
+ * The areas come from lib/operations/nav.ts, which the quick-access row reads
+ * too — two copies of "what is in Operations" is two chances for them to
+ * disagree.                                                                   */
 const OPERATIONS_NAV: WorkspaceNav = {
-  top: [
-    OPERATIONS_HOME,
-    ...OPERATIONS_AREAS.map((a) => ({
-      href: a.href as Route,
-      label: a.label,
-      Icon: a.Icon,
-    })),
-  ],
+  top: OPERATIONS_AREAS.map((a) => ({
+    href: a.href as Route,
+    label: a.label,
+    Icon: a.Icon,
+  })),
   groups: [],
 };
 
-/* The legacy `events` / `people-allocation` WorkspaceNav entries below are
-   unreachable (workspaceForPath sends both prefixes to `operations`) but the
-   Record must be total. They read the SAME item lists the quick-access row
-   uses, so the dead copies cannot drift from what people actually see. */
-const HANDHOLDING_ITEMS: NavItem[] = OPERATIONS_AREAS[0]!.items.map((it) => ({
-  href: it.href as Route,
-  label: it.label,
-  Icon: it.Icon,
-  exact: it.exact,
-  adminOnly: it.adminOnly,
-  hhAccessOnly: it.hhAccessOnly,
-}));
-const EVENTS_ITEMS: NavItem[] = OPERATIONS_AREAS[1]!.items.map((it) => ({
-  href: it.href as Route,
-  label: it.label,
-  Icon: it.Icon,
-  exact: it.exact,
-  adminOnly: it.adminOnly,
-  hhAccessOnly: it.hhAccessOnly,
-}));
+/* The legacy `events` / `people-allocation` / `training` WorkspaceNav entries
+   below are unreachable (workspaceForPath sends all three prefixes to
+   `operations`) but the Record must be total. They read the SAME item lists the
+   quick-access row uses, so the dead copies cannot drift from what people
+   actually see.
+
+   BY ID, NOT BY INDEX. These were `OPERATIONS_AREAS[0]` and `[1]`; inserting
+   Training third happened not to disturb them, but the next insert need not be
+   so lucky, and the failure mode is a rail quietly serving another area's
+   pages rather than anything that throws. */
+const areaItems = (id: OperationsAreaId): NavItem[] =>
+  (OPERATIONS_AREAS.find((a) => a.id === id)?.items ?? []).map((it) => ({
+    href: it.href as Route,
+    label: it.label,
+    Icon: it.Icon,
+    exact: it.exact,
+    adminOnly: it.adminOnly,
+    hhAccessOnly: it.hhAccessOnly,
+  }));
+
+const HANDHOLDING_ITEMS = areaItems("handholding");
+const EVENTS_ITEMS = areaItems("events");
+const TRAINING_ITEMS = areaItems("training");
 
 /**
  * Per-workspace navigation. Each room exposes ONLY its own modules — entering
@@ -358,6 +358,13 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       },
       { href: "/incentive" as Route, label: "Incentive", Icon: Award },
       { href: "/my-salary" as Route, label: "My Salary", Icon: Wallet },
+      /* Salary Slip came across from the HR rail on 2026-09-12 and sits next to
+         My Salary on purpose: the two answer the same question, one as a figure
+         and one as the document behind it. Self-scoped by construction — the
+         page reads the signed-in employee's own rows and takes no employee
+         parameter — so this room being open to everyone exposes nobody's pay
+         but your own. */
+      { href: "/salary-slip" as Route, label: "Salary Slip", Icon: FileText },
       { href: "/reimbursements" as Route, label: "Reimbursements", Icon: Receipt },
       // Queries & Notifications — re-parented here from the HR room (2026-07):
       // it's an employee-facing surface (raise a query, track company notices).
@@ -383,34 +390,11 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
     top: [{ href: "/admin" as Route, label: "Admin Panel", Icon: ShieldCheck }],
     groups: [],
   },
-  training: {
-    top: [
-      {
-        href: "/training" as Route,
-        label: "Library",
-        Icon: GraduationCap,
-        not: [
-          "/training/feedback", "/training/induction", "/training/dashboard",
-          "/training/calendar", "/training/self-learning", "/training/share", "/training/obligations",
-        ],
-      },
-      { href: "/training/calendar" as Route, label: "Calendar", Icon: CalendarClock },
-      { href: "/training/self-learning" as Route, label: "Self-Learning", Icon: BookMarked },
-      { href: "/training/share" as Route, label: "Share", Icon: Share2 },
-      { href: "/training/obligations" as Route, label: "Obligations", Icon: Gauge },
-    ],
-    groups: [
-      {
-        label: "More",
-        Icon: LayoutGrid,
-        items: [
-          { href: "/training/induction" as Route, label: "Induction", Icon: ListChecks },
-          { href: "/training/feedback" as Route, label: "Feedback", Icon: MessageSquareHeart },
-          { href: "/training/dashboard" as Route, label: "Dashboard", Icon: LayoutDashboard },
-        ],
-      },
-    ],
-  },
+  // Unreachable since 2026-09-12 — see the note above HANDHOLDING_ITEMS. The
+  // "More" group that used to hold Induction, Feedback and Dashboard is gone
+  // with it: the quick-access row is one flat strip, so all eight pages now sit
+  // at the same level instead of three of them hiding behind a disclosure.
+  training: { top: TRAINING_ITEMS, groups: [] },
   accounts: {
     // The Accounts module owns its own bar — never the WMS pills. "Index" is the
     // full section directory; the live sections sit beside it. New sections join
@@ -439,7 +423,6 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // nothing here for Accounts to see that HR doesn't - only a second door
       // to it, because payroll is run from this room. The HR workspace is open
       // to every employee, so this link can never dead-end.
-      { href: "/hr/salary-slip" as Route, label: "Salary Slip", Icon: Receipt },
       { href: "/overtime" as Route, label: "Overtime", Icon: Timer, not: ["/overtime/dashboard"] },
     ],
     groups: [],

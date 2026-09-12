@@ -97,15 +97,17 @@ export function ModuleShortcuts({
         return;
       }
 
-      // `e.code` ("KeyQ") ahead of `e.key`, so a non-Latin layout still matches
+      // `e.code` ("KeyW") ahead of `e.key`, so a non-Latin layout still matches
       // the physical key the badge names.
       const letter = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3) : e.key;
 
-      // THE ADMIN PANEL (A) — checked before the module alphabet, though the two
-      // cannot both match: A was taken out of SHORTCUT_KEYS when this entry was
-      // given the letter, so `moduleForShortcut("a")` is undefined. Ordered this
-      // way anyway so a future re-lettering that put A back cannot silently
-      // shadow the panel; it would fail loudly here instead.
+      // THE ADMIN PANEL (D) — checked before the modules, though the two cannot
+      // both match: no module claims D, so `moduleForShortcut("d")` is
+      // undefined. Ordered this way anyway so a future re-lettering that handed
+      // D to a module cannot silently shadow the panel; it would fail loudly
+      // here instead. MODULE_SHORTCUT_COLLISIONS catches that case outright.
+      // (The panel held A until 2026-09-12, when Accounts took its own first
+      // letter and the panel moved to D, for aDmin.)
       if (isAdminPanelShortcut(letter)) {
         if (!adminAllowed) return;
         e.preventDefault();

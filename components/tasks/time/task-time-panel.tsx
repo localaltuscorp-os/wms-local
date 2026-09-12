@@ -6,6 +6,7 @@ import {
   Play,
   Pause,
   RotateCcw,
+  Square,
   CheckCircle2,
   Lock,
   Loader2,
@@ -30,6 +31,7 @@ import {
 } from "@/app/(app)/tasks/time-actions";
 import { useElapsedSeconds } from "./use-elapsed";
 import { useTaskTimer } from "./task-timer-store";
+import { phaseCaption } from "./timer-controls";
 import { WorkSessions } from "./work-sessions";
 import { ActivityTimeline } from "./activity-timeline";
 import { RevisionHistory } from "./revision-history";
@@ -80,7 +82,10 @@ export function TaskTimePanel(props: Props) {
   // so a Start on one tab and a glance at another showed opposite labels.
   // Null only outside the provider, where the server value is used as before.
   const timer = useTaskTimer();
-  const running = timer?.running ?? Boolean(state.live);
+  /* The phase, from the same place the hero band and the rail card read it —
+     not re-derived from `state.live`, which cannot tell PAUSED from STOPPED. */
+  const phase = timer?.phase ?? state.phase;
+  const running = phase === "running";
   const busy = (timer?.busy ?? false) || pending;
 
   const live = state.live;
@@ -103,7 +108,8 @@ export function TaskTimePanel(props: Props) {
   // without a live session is paused. `awaitingReview` is excluded: a task
   // marked done and sitting with a reviewer is neither running nor paused, and
   // restarting a timer there would silently reopen finished work.
-  const canRestart = !locked && canOperate && (running || (hasWork && !awaitingReview));
+  const canRestart =
+    !locked && canOperate && (running || phase === "stopped" || (hasWork && !awaitingReview));
   const [confirmRestart, setConfirmRestart] = React.useState(false);
 
   function act(fn: () => Promise<{ ok: boolean; error?: string; message?: string }>) {
@@ -133,7 +139,7 @@ export function TaskTimePanel(props: Props) {
       <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-hairline bg-white px-5 py-4">
         <div className="min-w-0">
           <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-subtle">
-            {running ? "Session running" : "Total active time"}
+            {running ? "Session running" : phaseCaption(phase)}
           </div>
           <div className="text-[34px] font-black leading-none text-ink-strong max-md:text-[28px]">
             {running && (timer?.since ?? live?.startedAt) ? (
@@ -193,12 +199,27 @@ export function TaskTimePanel(props: Props) {
                   {startLabel}
                 </button>
               )}
+              {/* STOP — ends the run without marking the work done. It used to
+                  exist here only as Pause, so this tab could not reach the
+                  stopped state the other two surfaces show, and a timer stopped
+                  from the hero band still read "paused" here. */}
+              {!locked && canOperate && (running || phase === "paused") && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => timer?.stop()}
+                  title="End this run. The time is kept; Restart starts again from 00:00."
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-white px-4 py-2.5 text-[13px] font-bold text-ink-strong transition-colors hover:bg-surface-soft disabled:opacity-50"
+                >
+                  <Square size={14} strokeWidth={2.8} /> Stop
+                </button>
+              )}
               {canRestart && (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => setConfirmRestart(true)}
-                  title="Reset this session's elapsed time to 00:00:00"
+                  title="Clear the recorded time and count again from 00:00"
                   className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-[13px] font-bold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
                 >
                   <RotateCcw size={15} /> Restart Task
@@ -337,12 +358,13 @@ export function TaskTimePanel(props: Props) {
               Restart this timer session?
             </Dialog.Title>
             <Dialog.Description className="mt-2 text-[13.5px] font-medium leading-relaxed text-ink-muted">
-              Are you sure you want to restart the current timer session? This will
-              reset the elapsed time for this session.
+              Restart the timer? The time recorded so far is cleared and the
+              clock counts again from 00:00:00.
             </Dialog.Description>
             <p className="mt-2 text-[12.5px] font-medium text-ink-subtle">
-              Sessions you already completed are not affected, and nothing is
-              removed from the activity log.
+              Earlier sessions stay in the Start/Stop history and the activity
+              log, marked as discarded — nothing is deleted. They stop counting
+              towards this task's total.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <Dialog.Close asChild>

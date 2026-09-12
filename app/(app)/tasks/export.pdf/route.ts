@@ -6,6 +6,7 @@ import { parseTaskFilters } from "@/lib/task-filters";
 import { listTasksForExport, type TaskExportRow } from "@/lib/queries/tasks";
 import { MAX_EXPORT_ROWS, EXPORT_TOO_LARGE } from "@/lib/exports/csv";
 import { richExportFilename } from "@/lib/exports/tasks-rich";
+import { defaultScopeId } from "@/lib/auth/default-scope";
 import type { TaskStatus, TaskPriority, ApprovalStatus } from "@/db/enums";
 
 /**
@@ -37,8 +38,9 @@ export async function GET(request: Request): Promise<Response> {
   for (const [k, v] of url.searchParams.entries()) sp[k] = v;
 
   const archived = sp.archived === "1" || sp.archived === "true";
+  // The export must match the list it was taken from, to the row.
   const filters = parseTaskFilters(sp, archived, {
-    defaultDoerId: me.isAdmin ? undefined : me.id,
+    defaultDoerId: defaultScopeId(me),
   });
 
   const rows = await listTasksForExport(filters, {

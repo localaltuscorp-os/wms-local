@@ -14,6 +14,7 @@ import { timeIntelEnabled } from "@/lib/tasks/time/flags";
 import {
   startWork,
   pauseWork,
+  stopWork,
   markDone,
   decideApproval,
   restartTimer,
@@ -51,6 +52,16 @@ export async function pauseWorkAction(taskId: string): Promise<TimeResult> {
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: "invalid", message: limited.error };
   const res = await pauseWork({ id: me.id, name: me.name, isAdmin: me.isAdmin }, taskId);
+  if (res.ok) revalidate(taskId);
+  return res;
+}
+
+export async function stopWorkAction(taskId: string): Promise<TimeResult> {
+  if (!timeIntelEnabled()) return OFF;
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return { ok: false, error: "invalid", message: limited.error };
+  const res = await stopWork({ id: me.id, name: me.name, isAdmin: me.isAdmin }, taskId);
   if (res.ok) revalidate(taskId);
   return res;
 }
