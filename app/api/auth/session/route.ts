@@ -125,6 +125,19 @@ export async function POST(req: Request) {
     const res = await setAuthCookies(forwardedHeaders, {
       apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
       cookieName: "__session",
+      // SPLIT ACROSS SEVERAL COOKIES. A Firebase session cookie carries both the
+      // ID token and the refresh token, and Chrome SILENTLY DISCARDS any single
+      // cookie over 4 KB - no error, the Set-Cookie simply does not stick. The
+      // symptom is login appearing to succeed (the mint route returns 200, the
+      // 50-byte att_device cookie lands) and then every page bouncing to
+      // /login?next=... because __session was never stored.
+      //
+      // THIS MUST STAY IDENTICAL IN ALL THREE PLACES that touch the cookie -
+      // setAuthCookies (app/api/auth/session/route.ts), authMiddleware (proxy.ts)
+      // and getTokens (lib/auth/session.ts). They agree on the cookie NAMES, so
+      // changing it in one place alone makes the other two unable to read what it
+      // wrote - which fails exactly like this bug.
+      enableMultipleCookies: true,
       cookieSignatureKeys: [
         process.env.COOKIE_SECRET_CURRENT!,
         process.env.COOKIE_SECRET_PREVIOUS!,
