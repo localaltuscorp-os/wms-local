@@ -455,6 +455,56 @@ throughout; her Firebase UID is new.
 
 ## Changelog
 
+### 2026-09-12 (night) — The home screen is a dashboard you arrange yourself
+
+**The launcher grid is gone.** Twelve tiles under "Jump into a workspace" were
+a second copy of the twelve links the rail already carries — permanently, two
+clicks closer — and they took the bottom half of the screen to say it.
+
+**In its place, eleven widgets, and the user arranges them.** Every one can be
+one of three widths, pushed up or down, removed, or added back:
+
+| widget | what it shows |
+| --- | --- |
+| WMS · daily loop | due/overdue today, the next three by name |
+| Goals · this week | week score, weekly + cascade counts, FY average |
+| Quick actions | new task, plan my day, attendance, goals, inbox |
+| Hours | this week vs your target, plus/minus, the month so far |
+| What's coming | the next company holidays |
+| Attendance | your punch and your week; roster counters for admins |
+| Where your work sits | everything open on you, by priority |
+| This month's outcomes | what was due, and how it went |
+| Your work shape | a petal per day sized by hours actually worked |
+| Your team | each direct report's open/overdue count (managers only) |
+| Open on you | every open task, soonest first, with who gave it to you |
+
+**HOW IT IS BUILT, and the one thing to understand before touching it:** the
+SERVER renders every widget body and hands `DashboardGrid` a map of finished
+nodes; the client component only decides ORDER, SIZE and PRESENCE. So none of
+the dashboard's data crosses to the browser and a widget stays an async Server
+Component while still being furniture the user moves.
+
+**Three new queries**, all in `lib/queries/aura-dashboard.ts`: upcoming
+holidays, the manager's team load, and the month's punches — the last folded
+into `myWorkShape`, so the hours ledger and the bloom come from ONE read and
+can never disagree about how long you worked.
+
+**THE LAYOUT IS IN `localStorage`, NOT ON THE EMPLOYEE ROW.** That is a trade,
+not an oversight: a column means a migration, and migrations here are applied
+to production by hand. The cost is real — the arrangement does not follow you
+to another device, and clearing site data resets it. Moving it to the database
+is a small change (`lib/dashboard/widgets.ts` already has the serialised
+shape); it just needs a migration run.
+
+`reconcileLayout` is the only thing between a browser-written string and the
+dashboard, so it is covered by `tests/unit/dashboard-layout.test.ts` (15 cases:
+corrupt storage, unknown ids, duplicates, illegal sizes, a widget that stops
+being available, and the one that matters — **a removed widget must not come
+back** when the catalogue later gains an entry, which is why `StoredLayout`
+records `removed` instead of inferring it from absence).
+
+No SQL.
+
 ### 2026-09-12 (late) — Opaque top bar, overflow-only "More", the glass rail
 
 Four corrections to the morning's Aura work, all reported from production.

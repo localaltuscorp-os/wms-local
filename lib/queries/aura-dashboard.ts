@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, gte, inArray, lt, lte, ne, desc } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { attendanceLogs, employees, leaveRequests, tasks } from "@/db/schema";
+import { attendanceLogs, employees, holidays, leaveRequests, tasks } from "@/db/schema";
 import { PENDING_STATUSES, PRIORITY_LABELS, TASK_PRIORITIES } from "@/db/enums";
 import type { TaskPriority, TaskStatus } from "@/db/enums";
 import { withRetry } from "@/lib/db/with-timeout";
@@ -119,6 +119,12 @@ export interface MyWorkShape {
   /** Monday → Saturday of the current local week. Always six entries. */
   days: WorkDay[];
   totalMinutes: number;
+  /** Every minute punched since the 1st of the local month. */
+  monthMinutes: number;
+  /** Days this month with at least one closed punch pair. */
+  monthDaysPresent: number;
+  /** The employee's own weekly target, or a derived one. Minutes. */
+  weeklyTargetMinutes: number;
   /** Fourteen buckets, 7 AM → 8 PM, each 0…1 — the intensity strip. */
   hourLoad: number[];
   /** Today's first punch-in, last punch-out and minutes so far. */
@@ -151,10 +157,18 @@ export async function myWorkShape(
   employeeId: string,
   tz: string,
   now: Date = new Date(),
+  target?: { weeklyTargetMinutes: number | null; fullDayMinutes: number | null; workingDays: number[] | null },
 ): Promise<MyWorkShape> {
   const from = weekStartYmd(now, tz);
   const to = addDays(from, 6); // exclusive — Monday…Saturday
   const today = ymd(now, tz);
+
+  /* ONE READ COVERS BOTH the bloom and the hours ledger. The span is the whole
+     local month OR this week, whichever starts earlier — on the 1st of a month
+     that falls mid-week, the week reaches back into the previous one. */
+  const monthFrom = `${today.slice(0, 7)}-01`;
+  const spanFrom = monthFrom < from ? monthFrom : from;
+  const spanTo = addDays(today, 1) > to ? addDays(today, 1) : to;
 
   const rows = await withRetry(
     () =>
@@ -168,8 +182,8 @@ export async function myWorkShape(
         .where(
           and(
             eq(attendanceLogs.employeeId, employeeId),
-            gte(attendanceLogs.logDate, from),
-            lt(attendanceLogs.logDate, to),
+            gte(attendanceLogs.logDate, spanFrom),
+            lt(attendanceLogs.logDate, spanTo),
           ),
         )
         .orderBy(attendanceLogs.loggedAt),
@@ -231,6 +245,37 @@ export async function myWorkShape(
     }
   }
 
+  /* THE MONTH, from the same rows. Days are walked independently of the week
+     above because a month and a week are different slices of one query, and
+     double-counting the overlap would inflate both. */
+  let monthMinutes = 0;
+  let monthDaysPresent = 0;
+  for (const [day, punches] of byDay) {
+    if (day < monthFrom || day > today) continue;
+    let minutes = 0;
+    let open: Date | null = null;
+    for (const p of punches) {
+      if (p.kind === "in") {
+        if (!open) open = p.at;
+      } else if (open) {
+        minutes += Math.max(0, (p.at.getTime() - open.getTime()) / 60000);
+        open = null;
+      }
+    }
+    if (open && day === today) minutes += Math.max(0, (now.getTime() - open.getTime()) / 60000);
+    if (minutes > 0) {
+      monthMinutes += minutes;
+      monthDaysPresent++;
+    }
+  }
+
+  /* The weekly target: the employee's own figure when they have one, otherwise
+     their working days times their full-day length. Both columns are nullable,
+     so the last fallback is a six-day 8-hour week — this company's default. */
+  const fullDay = target?.fullDayMinutes ?? 480;
+  const workDays = target?.workingDays?.length ?? 6;
+  const weeklyTargetMinutes = target?.weeklyTargetMinutes ?? fullDay * workDays;
+
   // Normalise the strip to its own peak — it reads "when", not "how much".
   const peak = Math.max(...hourLoad, 1);
   const normalised = hourLoad.map((v) => v / peak);
@@ -238,6 +283,9 @@ export async function myWorkShape(
   return {
     days,
     totalMinutes,
+    monthMinutes: Math.round(monthMinutes),
+    monthDaysPresent,
+    weeklyTargetMinutes,
     hourLoad: normalised,
     today:
       todayIn || todayMinutes > 0
@@ -607,6 +655,111 @@ export async function openItems(employeeId: string, limit = 6): Promise<OpenItem
     .slice(0, limit);
 }
 
+/* ───────────────────────────── 5. what's next ───────────────────────────── */
+
+export interface UpcomingDay {
+  ymd: string;
+  label: string;
+  /** "in 3 days", "tomorrow", "today". */
+  when: string;
+}
+
+/**
+ * The next few company holidays.
+ *
+ * `holidays` is the one calendar every employee shares, it is admin-maintained,
+ * and it is the thing people actually plan around — so it is the honest
+ * "what's coming" widget. One indexed read on `holidays_date_idx`.
+ */
+export async function upcomingHolidays(
+  tz: string,
+  now: Date = new Date(),
+  limit = 4,
+): Promise<UpcomingDay[]> {
+  const today = ymd(now, tz);
+  const rows = await withRetry(
+    () =>
+      db
+        .select({ holidayDate: holidays.holidayDate, label: holidays.label })
+        .from(holidays)
+        .where(and(eq(holidays.isActive, true), gte(holidays.holidayDate, today)))
+        .orderBy(holidays.holidayDate)
+        .limit(limit),
+    { timeoutMs: [...READ_BUDGET], label: "aura.upcomingHolidays" },
+  );
+
+  return rows.map((r) => {
+    const days = Math.round(
+      (Date.parse(`${r.holidayDate}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000,
+    );
+    return {
+      ymd: r.holidayDate,
+      label: r.label,
+      when: days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`,
+    };
+  });
+}
+
+/* ──────────────────────────── 6. your reports ───────────────────────────── */
+
+export interface TeamMemberLoad {
+  id: string;
+  name: string;
+  open: number;
+  overdue: number;
+}
+
+/**
+ * What is on each of your direct reports right now.
+ *
+ * MANAGERS ONLY, and scoped to `manager_id = you` — this is not a roster view,
+ * it is the handful of people you are answerable for. Two indexed reads: the
+ * reports, then their pending tasks in one pass.
+ */
+export async function teamLoad(managerId: string, now: Date = new Date()): Promise<TeamMemberLoad[]> {
+  const reports = await withRetry(
+    () =>
+      db
+        .select({ id: employees.id, name: employees.name })
+        .from(employees)
+        .where(and(eq(employees.managerId, managerId), eq(employees.isActive, true)))
+        .orderBy(employees.name),
+    { timeoutMs: [...READ_BUDGET], label: "aura.teamLoad.reports" },
+  );
+  if (reports.length === 0) return [];
+
+  const ids = reports.map((r) => r.id);
+  const rows = await withRetry(
+    () =>
+      db
+        .select({ doerId: tasks.doerId, dueAt: tasks.dueAt })
+        .from(tasks)
+        .where(
+          and(
+            inArray(tasks.doerId, ids),
+            eq(tasks.archived, false),
+            inArray(tasks.status, [...PENDING_STATUSES]),
+          ),
+        ),
+    { timeoutMs: [...READ_BUDGET], label: "aura.teamLoad.tasks" },
+  );
+
+  const byDoer = new Map<string, { open: number; overdue: number }>();
+  for (const r of rows) {
+    const slot = byDoer.get(r.doerId) ?? { open: 0, overdue: 0 };
+    slot.open++;
+    if (r.dueAt && r.dueAt.getTime() < now.getTime()) slot.overdue++;
+    byDoer.set(r.doerId, slot);
+  }
+
+  return reports
+    .map((r) => ({ id: r.id, name: r.name, ...(byDoer.get(r.id) ?? { open: 0, overdue: 0 }) }))
+    // Heaviest first: a manager scanning this wants the person in trouble, not
+    // the alphabet.
+    .sort((a, b) => b.overdue - a.overdue || b.open - a.open);
+}
+
+
 /* ───────────────────────────── the one entry ────────────────────────────── */
 
 export interface AuraDashboard {
@@ -615,6 +768,8 @@ export interface AuraDashboard {
   openWork: Donut | null;
   outcomes: Donut | null;
   items: OpenItem[];
+  upcoming: UpcomingDay[];
+  team: TeamMemberLoad[];
 }
 
 /**
@@ -626,21 +781,33 @@ export interface AuraDashboard {
 export async function loadAuraDashboard(opts: {
   employeeId: string;
   isAdmin: boolean;
+  /** Only a manager with reports gets the team widget's two queries run at all. */
+  isManager: boolean;
   tz: string;
   lateAfterMinutes: number;
+  /** The employee's own attendance targets, for the hours ledger. */
+  target?: {
+    weeklyTargetMinutes: number | null;
+    fullDayMinutes: number | null;
+    workingDays: number[] | null;
+  };
   now?: Date;
 }): Promise<AuraDashboard> {
   const now = opts.now ?? new Date();
-  const [shape, attendance, openWork, outcomes, items] = await Promise.all([
-    myWorkShape(opts.employeeId, opts.tz, now).catch(() => null),
+  const [shape, attendance, openWork, outcomes, items, upcoming, team] = await Promise.all([
+    myWorkShape(opts.employeeId, opts.tz, now, opts.target).catch(() => null),
     opts.isAdmin
       ? attendanceToday(opts.tz, opts.lateAfterMinutes, now).catch(() => null)
       : Promise.resolve(null),
     openWorkByPriority(opts.employeeId).catch(() => null),
     monthOutcomes(opts.employeeId, opts.tz, now).catch(() => null),
     openItems(opts.employeeId).catch((): OpenItem[] => []),
+    upcomingHolidays(opts.tz, now).catch((): UpcomingDay[] => []),
+    opts.isManager
+      ? teamLoad(opts.employeeId, now).catch((): TeamMemberLoad[] => [])
+      : Promise.resolve<TeamMemberLoad[]>([]),
   ]);
-  return { shape, attendance, openWork, outcomes, items };
+  return { shape, attendance, openWork, outcomes, items, upcoming, team };
 }
 
 /** "10:50" → 650. Exported so the page can turn the org threshold into minutes. */

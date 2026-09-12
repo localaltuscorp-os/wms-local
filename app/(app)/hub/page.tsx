@@ -3,13 +3,16 @@ import type { Route } from "next";
 import { requireUser } from "@/lib/auth/current";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { canAccessWorkspace, WORKSPACE_LANDING, type WorkspaceId } from "@/lib/workspaces";
-import { MODULE_THEME, MODULE_ORDER, moduleShortcut, type ModuleTheme } from "@/lib/module-theme";
+import { MODULE_ORDER } from "@/lib/module-theme";
 import { EnterWorkspaceLink } from "@/components/hub/enter-workspace-link";
 import { AuraSheen, AURA_LAYOUT_ID } from "@/components/hub/aura-chrome";
 import { AuraTopBar } from "@/components/layout/aura-top-bar";
 import { roomsFor } from "@/lib/aura-rooms";
 import { AuraDonut, AuraBloom } from "@/components/hub/aura-charts";
 import { AuraGlassRail } from "@/components/hub/aura-glass-rail";
+import { DashboardGrid } from "@/components/hub/dashboard-grid";
+import { HoursWidget, QuickActionsWidget, TeamWidget, UpcomingWidget } from "@/components/hub/aura-widgets";
+import type { WidgetId } from "@/lib/dashboard/widgets";
 import { UserMenuServer } from "@/components/header/user-menu-server";
 import { NotificationBell } from "@/components/header/notification-bell";
 import { getMyDayCounts, getMyTodayTasks, type MyTodayTask } from "@/lib/queries/my-day";
@@ -45,15 +48,29 @@ export const dynamic = "force-dynamic";
  * screen from `.claude/skills/aura/reference/altus-home-heros.html` — your day,
  * your week and your open work, with the launcher kept at the bottom.
  *
+ * IT IS ARRANGED BY THE PERSON LOOKING AT IT. Every widget can be one of three
+ * widths, pushed up or down, removed or added back; `DashboardGrid` owns that
+ * and `lib/dashboard/widgets.ts` is the catalogue. This file's job is to fetch
+ * the data and render each widget's BODY on the server, then hand the grid a
+ * map of finished nodes — so none of the dashboard's data crosses to the
+ * client and a widget can stay an async Server Component.
+ *
+ * THE LAUNCHER GRID IS GONE. Twelve tiles under "Jump into a workspace" were a
+ * second copy of the twelve links the rail already carries, permanently, two
+ * clicks closer — and they took the bottom half of the screen to say it.
+ *
  *   greeting            what today is and how much is on you
- *   two panes           the WMS daily loop · this week's goals
+ *   wms-loop            what is due or overdue on you today
+ *   goals-week          this week's score and the FY average
+ *   quick-actions       the five things people come here to do
+ *   hours-ledger        this week against your target, and the month
+ *   upcoming            the next company holidays
  *   attendance          your punch, your week, and the roster (admins only)
- *   three charts        open work by priority · this month's outcomes · your
- *                       WORK SHAPE, a petal per day sized by hours actually
- *                       worked, which is the design language's own idea and
- *                       the reason it is worth drawing
- *   the table           what is open on you, soonest first
- *   the grid            jump into a workspace
+ *   open-work           everything still on you, by priority
+ *   outcomes            what was due this month, and how it went
+ *   work-shape          a petal per day sized by hours actually worked
+ *   team                each direct report's load (managers only)
+ *   open-table          every open task, soonest first
  *
  * EVERY NUMBER IS REAL, and where the mock's dimension does not exist in this
  * schema the panel is re-cut onto one that does rather than filled in with
@@ -132,53 +149,6 @@ function tintFor(name: string): string {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return AVATAR_TINTS[h % AVATAR_TINTS.length]!;
-}
-
-/**
- * A workspace tile: glass pane, the module's own glyph, its tagline, and either
- * a live count or the keyboard shortcut that opens it.
- *
- * The badge slot is deliberately two different things. WMS and Goals have real
- * numbers behind them, so they show those; no other module has a per-module
- * count anywhere in the codebase, so rather than invent one the slot falls back
- * to the digit that opens the room. The two are told apart by shape — a count
- * is plain text, a shortcut wears the `.aura-kbd` border.
- */
-function WorkspaceTile({
-  m,
-  index,
-  badge,
-}: {
-  m: ModuleTheme;
-  index: number;
-  badge: string | null;
-}) {
-  const shortcut = moduleShortcut(index);
-  const Icon = m.Icon;
-
-  return (
-    <EnterWorkspaceLink
-      id={m.id}
-      href={WORKSPACE_LANDING[m.id]}
-      ariaLabel={shortcut ? `Open ${m.label} (shortcut ${shortcut})` : `Open ${m.label}`}
-      className="aura-glass aura-interactive aura-tile"
-    >
-      <div className="aura-tile-top">
-        <span className="aura-tile-icon">
-          <Icon size={19} strokeWidth={1.9} style={{ color: m.accentDeep }} aria-hidden />
-        </span>
-        {badge ? (
-          <span className="aura-tile-badge">{badge}</span>
-        ) : shortcut ? (
-          <span className="aura-kbd" aria-hidden>
-            {shortcut}
-          </span>
-        ) : null}
-      </div>
-      <div className="aura-tile-name">{m.label}</div>
-      <div className="aura-tile-desc">{m.tagline}</div>
-    </EnterWorkspaceLink>
-  );
 }
 
 /** A row in the open-items table. */
@@ -279,14 +249,28 @@ export default async function HubPage() {
   const board = await loadAuraDashboard({
     employeeId: me.id,
     isAdmin: me.isAdmin,
+    isManager: await isManagerWithReports(me.id).catch(() => false),
     tz,
     lateAfterMinutes: hhmmToMinutes(org?.attLateAfter ?? me.attLateAfter),
+    target: {
+      weeklyTargetMinutes: me.weeklyTargetMinutes,
+      fullDayMinutes: me.attFullDayMinutes,
+      workingDays: me.workingDays,
+    },
     now,
-  }).catch(() => ({ shape: null, attendance: null, openWork: null, outcomes: null, items: [] }));
+  }).catch(() => ({
+    shape: null,
+    attendance: null,
+    openWork: null,
+    outcomes: null,
+    items: [],
+    upcoming: [],
+    team: [],
+  }));
 
   const open = (counts?.dueToday ?? 0) + (counts?.overdue ?? 0);
 
-  // Badges: only where a real number exists. See WorkspaceTile.
+  // Rail badges: only where a real number exists.
   const badges: Partial<Record<WorkspaceId, string>> = {};
   if (counts && open > 0) badges.wms = `${open} due`;
   if (goals) badges.goals = `${goals.weekScore}%`;
@@ -296,6 +280,235 @@ export default async function HubPage() {
   // proportion to it, so a light week is visibly light rather than rescaled to
   // look full.
   const peakMinutes = Math.max(...(shape?.days ?? []).map((d) => d.minutes), 1);
+
+  /* EVERY WIDGET BODY, RENDERED HERE ON THE SERVER, handed to the grid as a map
+     of finished nodes. The grid only decides order, size and presence — so the
+     dashboard's data never crosses to the client, and a widget can go on being
+     an async Server Component while still being furniture the user moves.
+
+     A widget with no data is simply absent from both maps. `available` is what
+     the viewer may ever see; the grid uses it for the "add a widget" list and
+     to discard a stored layout entry that no longer applies. */
+  const nodes: Partial<Record<WidgetId, ReactNode>> = {};
+
+  if (counts) {
+    nodes["wms-loop"] = (
+      <EnterWorkspaceLink
+        id="wms"
+        href={WORKSPACE_LANDING.wms}
+        ariaLabel="Open WMS"
+        className="aura-glass aura-interactive aura-pane"
+      >
+        <div className="aura-pane-head">
+          <span className="aura-pill" style={{ background: "rgba(216,31,18,.16)", color: "#8f1109" }}>
+            WMS · DAILY LOOP
+          </span>
+          <span className="aura-go" style={{ color: "#b5170e" }}>
+            Open →
+          </span>
+        </div>
+        <div className="aura-bigrow">
+          <b className="aura-big">{open}</b>
+          <span>
+            {open === 1 ? "task" : "tasks"} due or overdue
+            {counts.doneToday > 0 ? ` · ${counts.doneToday} done today` : ""}
+          </span>
+        </div>
+        <div className="aura-tasks">
+          {todayTasks.slice(0, 3).map((t) => (
+            <div className="aura-task" key={t.id}>
+              <i className={t.overdue ? "aura-dot aura-dot-hot" : "aura-dot"} aria-hidden />
+              <span className="aura-task-title">
+                {t.title || t.subject || t.client || `Task ${t.taskNo ?? ""}`.trim()}
+              </span>
+              <time>{t.overdue ? "Overdue" : t.dueAt ? istTimeLabel(t.dueAt) : "Today"}</time>
+            </div>
+          ))}
+          {todayTasks.length === 0 && (
+            <div className="aura-task">
+              <i className="aura-dot" aria-hidden />
+              <span className="aura-task-title">Nothing due today — the loop is clear.</span>
+            </div>
+          )}
+        </div>
+      </EnterWorkspaceLink>
+    );
+  }
+
+  if (goals) {
+    nodes["goals-week"] = (
+      <EnterWorkspaceLink
+        id="goals"
+        href={WORKSPACE_LANDING.goals}
+        ariaLabel="Open Goals"
+        className="aura-glass aura-interactive aura-pane"
+      >
+        <div className="aura-pane-head">
+          <span className="aura-pill" style={{ background: "rgba(22,74,143,.16)", color: "#0f3569" }}>
+            GOALS · THIS WEEK
+          </span>
+          <span className="aura-go" style={{ color: "#164a8f" }}>
+            Open →
+          </span>
+        </div>
+        <div className="aura-bigrow">
+          <b className="aura-big">{goals.weekScore}%</b>
+          <span>of this week&rsquo;s goals delivered</span>
+        </div>
+        <div className="aura-bar">
+          <i style={{ width: `${Math.min(100, Math.max(0, goals.weekScore))}%` }} />
+        </div>
+        <div className="aura-stats">
+          <div>
+            <b>{goals.weeklyGoalCount}</b>
+            <em>this week</em>
+          </div>
+          <div>
+            <b>{goals.cascadeGoalCount}</b>
+            <em>cascade goals</em>
+          </div>
+          <div>
+            <b>{goals.ytdWeeklyAvg}%</b>
+            <em>FY average</em>
+          </div>
+        </div>
+      </EnterWorkspaceLink>
+    );
+  }
+
+  // No data behind it at all — it is five links — so it is always offerable.
+  nodes["quick-actions"] = <QuickActionsWidget />;
+
+  if (shape) {
+    nodes["hours-ledger"] = <HoursWidget shape={shape} />;
+    nodes["work-shape"] = <AuraBloom shape={shape} />;
+
+    nodes.attendance = (
+      <section className="aura-glass aura-att">
+        <div className="aura-att-head">
+          <h2 className="aura-h2">Attendance — today</h2>
+          <span>
+            {board.attendance ? `${board.attendance.total} on roll` : "Your punches, this week"}
+          </span>
+        </div>
+
+        {/* The roster counters are ADMIN-ONLY: they span every employee, which
+            is exactly why /attendance/live-status is behind requireAdmin.
+            Everyone else gets their own week, full width. */}
+        <div className={board.attendance ? "aura-att-body" : "aura-att-body aura-att-mine-only"}>
+          {board.attendance && (
+            <>
+              <div className="aura-att-stat">
+                <b>{board.attendance.present}</b>
+                <em>
+                  <i style={{ background: "#2fa36b" }} />
+                  Present
+                </em>
+              </div>
+              <div className="aura-att-stat">
+                <b>{board.attendance.late}</b>
+                <em>
+                  <i style={{ background: "#e8a11a" }} />
+                  Late
+                </em>
+              </div>
+              <div className="aura-att-stat">
+                <b>{board.attendance.onLeave}</b>
+                <em>
+                  <i style={{ background: "#4f7cf7" }} />
+                  On leave
+                </em>
+              </div>
+              <div className="aura-att-stat">
+                <b>{board.attendance.unmarked}</b>
+                <em>
+                  <i style={{ background: "#d81f12" }} />
+                  Unmarked
+                </em>
+              </div>
+            </>
+          )}
+
+          <div className="aura-att-week">
+            <div className="aura-row">
+              {shape.days.map((d) => {
+                const height = Math.max(6, Math.round((d.minutes / peakMinutes) * 34));
+                const tint =
+                  d.minutes === 0
+                    ? "rgba(20,26,46,.08)"
+                    : d.open
+                      ? "linear-gradient(180deg,rgba(232,161,26,.25),rgba(232,161,26,.55))"
+                      : "linear-gradient(180deg,rgba(47,163,107,.25),rgba(47,163,107,.5))";
+                return (
+                  <div className="aura-day" key={d.ymd} title={`${d.letter} — ${hm(d.minutes)}`}>
+                    <span>{d.letter}</span>
+                    <i style={{ height, background: tint }} />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="aura-cap">
+              {shape.totalMinutes > 0
+                ? `${hm(shape.totalMinutes)} logged this week.`
+                : "No punches recorded this week yet."}
+            </div>
+          </div>
+        </div>
+
+        <div className="aura-att-mine">
+          <i
+            className="aura-dot"
+            style={{ background: shape.today ? "#2fa36b" : "#94a0c8" }}
+            aria-hidden
+          />
+          {shape.today?.inLabel
+            ? `You clocked in at ${shape.today.inLabel}` +
+              (shape.today.outLabel ? ` and out at ${shape.today.outLabel}` : "") +
+              ` · ${hm(shape.today.minutes)} logged`
+            : "You have not clocked in today."}
+          <Link href={"/attendance" as Route} className="aura-btn-mini">
+            {shape.today?.inLabel && !shape.today.outLabel ? "Clock out" : "Attendance"}
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  if (board.openWork) nodes["open-work"] = <AuraDonut data={board.openWork} title="Where your work sits" />;
+  if (board.outcomes) nodes.outcomes = <AuraDonut data={board.outcomes} title="This month's outcomes" />;
+  if (board.upcoming.length > 0) nodes.upcoming = <UpcomingWidget days={board.upcoming} />;
+  if (board.team.length > 0) nodes.team = <TeamWidget team={board.team} />;
+
+  nodes["open-table"] = (
+    <section className="aura-glass aura-tbl-card">
+      <div className="aura-tbl-head">
+        <h2 className="aura-h2">Open on you</h2>
+        <Link href={"/tasks" as Route}>View all →</Link>
+      </div>
+      {board.items.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Client</th>
+              <th>Given by</th>
+              <th>Due</th>
+              <th>Priority</th>
+            </tr>
+          </thead>
+          <tbody>
+            {board.items.map((item) => (
+              <ItemRow key={item.id} item={item} />
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <div className="aura-empty">Nothing is open on you right now.</div>
+      )}
+    </section>
+  );
+
+  const available = Object.keys(nodes) as WidgetId[];
 
   return (
     <div className="aura-app">
@@ -338,245 +551,7 @@ export default async function HubPage() {
             <div className="aura-glass aura-chip">Today</div>
           </div>
 
-          {/* ── the two status panes ─────────────────────────────────────── */}
-          {(counts || goals) && (
-            <section className="aura-panes">
-              {counts && (
-                <EnterWorkspaceLink
-                  id="wms"
-                  href={WORKSPACE_LANDING.wms}
-                  ariaLabel="Open WMS"
-                  className="aura-glass aura-interactive aura-pane"
-                >
-                  <div className="aura-pane-head">
-                    <span className="aura-pill" style={{ background: "rgba(216,31,18,.16)", color: "#8f1109" }}>
-                      WMS · DAILY LOOP
-                    </span>
-                    <span className="aura-go" style={{ color: "#b5170e" }}>
-                      Open →
-                    </span>
-                  </div>
-                  <div className="aura-bigrow">
-                    <b className="aura-big">{open}</b>
-                    <span>
-                      {open === 1 ? "task" : "tasks"} due or overdue
-                      {counts.doneToday > 0 ? ` · ${counts.doneToday} done today` : ""}
-                    </span>
-                  </div>
-                  <div className="aura-tasks">
-                    {todayTasks.slice(0, 3).map((t) => (
-                      <div className="aura-task" key={t.id}>
-                        <i className={t.overdue ? "aura-dot aura-dot-hot" : "aura-dot"} aria-hidden />
-                        <span className="aura-task-title">
-                          {t.title || t.subject || t.client || `Task ${t.taskNo ?? ""}`.trim()}
-                        </span>
-                        <time>{t.overdue ? "Overdue" : t.dueAt ? istTimeLabel(t.dueAt) : "Today"}</time>
-                      </div>
-                    ))}
-                    {todayTasks.length === 0 && (
-                      <div className="aura-task">
-                        <i className="aura-dot" aria-hidden />
-                        <span className="aura-task-title">Nothing due today — the loop is clear.</span>
-                      </div>
-                    )}
-                  </div>
-                </EnterWorkspaceLink>
-              )}
-
-              {goals && (
-                <EnterWorkspaceLink
-                  id="goals"
-                  href={WORKSPACE_LANDING.goals}
-                  ariaLabel="Open Goals"
-                  className="aura-glass aura-interactive aura-pane"
-                >
-                  <div className="aura-pane-head">
-                    <span className="aura-pill" style={{ background: "rgba(22,74,143,.16)", color: "#0f3569" }}>
-                      GOALS · THIS WEEK
-                    </span>
-                    <span className="aura-go" style={{ color: "#164a8f" }}>
-                      Open →
-                    </span>
-                  </div>
-                  <div className="aura-bigrow">
-                    <b className="aura-big">{goals.weekScore}%</b>
-                    <span>of this week&rsquo;s goals delivered</span>
-                  </div>
-                  <div className="aura-bar">
-                    <i style={{ width: `${Math.min(100, Math.max(0, goals.weekScore))}%` }} />
-                  </div>
-                  <div className="aura-stats">
-                    <div>
-                      <b>{goals.weeklyGoalCount}</b>
-                      <em>this week</em>
-                    </div>
-                    <div>
-                      <b>{goals.cascadeGoalCount}</b>
-                      <em>cascade goals</em>
-                    </div>
-                    <div>
-                      <b>{goals.ytdWeeklyAvg}%</b>
-                      <em>FY average</em>
-                    </div>
-                  </div>
-                </EnterWorkspaceLink>
-              )}
-            </section>
-          )}
-
-          {/* ── attendance ───────────────────────────────────────────────── */}
-          {shape && (
-            <section className="aura-glass aura-att">
-              <div className="aura-att-head">
-                <h2 className="aura-h2">Attendance — today</h2>
-                <span>
-                  {board.attendance
-                    ? `${board.attendance.total} on roll`
-                    : "Your punches, this week"}
-                </span>
-              </div>
-
-              {/* The roster counters are ADMIN-ONLY: they span every employee,
-                  which is exactly why /attendance/live-status is behind
-                  requireAdmin. Everyone else gets their own week, full width. */}
-              <div className={board.attendance ? "aura-att-body" : "aura-att-body aura-att-mine-only"}>
-                {board.attendance && (
-                  <>
-                    <div className="aura-att-stat">
-                      <b>{board.attendance.present}</b>
-                      <em>
-                        <i style={{ background: "#2fa36b" }} />
-                        Present
-                      </em>
-                    </div>
-                    <div className="aura-att-stat">
-                      <b>{board.attendance.late}</b>
-                      <em>
-                        <i style={{ background: "#e8a11a" }} />
-                        Late
-                      </em>
-                    </div>
-                    <div className="aura-att-stat">
-                      <b>{board.attendance.onLeave}</b>
-                      <em>
-                        <i style={{ background: "#4f7cf7" }} />
-                        On leave
-                      </em>
-                    </div>
-                    <div className="aura-att-stat">
-                      <b>{board.attendance.unmarked}</b>
-                      <em>
-                        <i style={{ background: "#d81f12" }} />
-                        Unmarked
-                      </em>
-                    </div>
-                  </>
-                )}
-
-                <div className="aura-att-week">
-                  <div className="aura-row">
-                    {shape.days.map((d) => {
-                      const height = Math.max(6, Math.round((d.minutes / peakMinutes) * 34));
-                      const tint =
-                        d.minutes === 0
-                          ? "rgba(20,26,46,.08)"
-                          : d.open
-                            ? "linear-gradient(180deg,rgba(232,161,26,.25),rgba(232,161,26,.55))"
-                            : "linear-gradient(180deg,rgba(47,163,107,.25),rgba(47,163,107,.5))";
-                      return (
-                        <div className="aura-day" key={d.ymd} title={`${d.letter} — ${hm(d.minutes)}`}>
-                          <span>{d.letter}</span>
-                          <i style={{ height, background: tint }} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="aura-cap">
-                    {shape.totalMinutes > 0
-                      ? `${hm(shape.totalMinutes)} logged this week.`
-                      : "No punches recorded this week yet."}
-                  </div>
-                </div>
-              </div>
-
-              <div className="aura-att-mine">
-                <i
-                  className="aura-dot"
-                  style={{ background: shape.today ? "#2fa36b" : "#94a0c8" }}
-                  aria-hidden
-                />
-                {shape.today?.inLabel
-                  ? `You clocked in at ${shape.today.inLabel}` +
-                    (shape.today.outLabel ? ` and out at ${shape.today.outLabel}` : "") +
-                    ` · ${hm(shape.today.minutes)} logged`
-                  : "You have not clocked in today."}
-                <Link href={"/attendance" as Route} className="aura-btn-mini">
-                  {shape.today?.inLabel && !shape.today.outLabel ? "Clock out" : "Attendance"}
-                </Link>
-              </div>
-            </section>
-          )}
-
-          {/* ── the three charts ─────────────────────────────────────────── */}
-          {(board.openWork || board.outcomes || shape) && (
-            <section className="aura-trio">
-              {board.openWork && <AuraDonut data={board.openWork} title="Where your work sits" />}
-              {board.outcomes && <AuraDonut data={board.outcomes} title="This month's outcomes" />}
-              {shape && <AuraBloom shape={shape} />}
-            </section>
-          )}
-
-          {/* ── the open table ───────────────────────────────────────────── */}
-          <section className="aura-glass aura-tbl-card">
-            <div className="aura-tbl-head">
-              <h2 className="aura-h2">Open on you</h2>
-              <Link href={"/tasks" as Route}>View all →</Link>
-            </div>
-            {board.items.length > 0 ? (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Task</th>
-                    <th>Client</th>
-                    <th>Given by</th>
-                    <th>Due</th>
-                    <th>Priority</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {board.items.map((item) => (
-                    <ItemRow key={item.id} item={item} />
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="aura-empty">Nothing is open on you right now.</div>
-            )}
-          </section>
-
-          {/* ── the launcher ─────────────────────────────────────────────── */}
-          <div className="aura-grid-head">
-            <h2 className="aura-h2">Jump into a workspace</h2>
-            <span>
-              {visible.length} {visible.length === 1 ? "room" : "rooms"}
-            </span>
-          </div>
-
-          {/* A workspace you can't enter is HIDDEN, not shown greyed as "No
-              Access" (Sir 2026-08) — a normal doer only sees the modules that are
-              actually theirs. The tile keeps its CANONICAL index so its shortcut
-              still matches the global 1–9/0 handler in `(app)/layout.tsx`, even
-              with some rooms hidden. */}
-          <div className="aura-grid">
-            {visible.map((id) => (
-              <WorkspaceTile
-                key={id}
-                m={MODULE_THEME[id]}
-                index={MODULE_ORDER.indexOf(id)}
-                badge={badges[id] ?? null}
-              />
-            ))}
-          </div>
+          <DashboardGrid nodes={nodes} available={available} />
         </main>
       </div>
     </div>
