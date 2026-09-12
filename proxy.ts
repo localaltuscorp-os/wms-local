@@ -267,6 +267,42 @@ export async function proxy(request: NextRequest) {
       return NextResponse.next({ request: { headers } });
     },
     handleInvalidToken: async () => {
+      // ── WHY THIS LOGS AT ALL ─────────────────────────────────────────────
+      //
+      // This branch is the one place that produces `/login?next=<path>`, and it
+      // used to be SILENT — which is what made the 2026-09-12 login loop cost a
+      // day. Sign-in returned 200, the cookie was minted, and then every page
+      // bounced here with nothing in the logs to say whether the cookie had
+      // arrived and failed to verify, or had never reached the browser at all.
+      // Those two have completely different causes and the redirect looks
+      // identical for both.
+      //
+      // So: log the FACTS that separate them, permanently. This is not
+      // temporary instrumentation — being unable to tell "signed out" from
+      // "misconfigured" is the actual defect.
+      //
+      //   cookiePresent false → the browser never stored it: Secure over plain
+      //                         http, over the 4 KB cap, wrong host scope, or a
+      //                         proxy stripping Set-Cookie
+      //   cookiePresent true  → it is there and will not verify: mismatched
+      //                         COOKIE_SECRET_*, clock skew, or a Firebase
+      //                         project mismatch
+      //
+      // NEVER log the cookie VALUE — it is a live session credential. Length
+      // and presence are enough to choose a branch.
+      const rawSingle = request.cookies.get("__session")?.value;
+      const rawSplit = ["id", "refresh", "custom", "sig"]
+        .map((p) => request.cookies.get(`__session.${p}`)?.value)
+        .filter(Boolean);
+      console.error("[auth] invalid session, redirecting to /login", {
+        path: request.nextUrl.pathname,
+        cookiePresent: Boolean(rawSingle) || rawSplit.length > 0,
+        singleCookieLength: rawSingle?.length ?? 0,
+        splitCookieCount: rawSplit.length,
+        splitCookieTotalLength: rawSplit.reduce((n, v) => n + (v?.length ?? 0), 0),
+        proto: request.headers.get("x-forwarded-proto"),
+        host: request.headers.get("host"),
+      });
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("next", request.nextUrl.pathname);
