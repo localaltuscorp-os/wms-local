@@ -1,0 +1,560 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   AURA — liquid glass
+   ════════════════════════════════════════════════════════════════════════════
+   The design language in `.claude/skills/aura/SKILL.md`, ported to this app.
+   Imported from globals.css; the tokens below are the same values the skill's
+   own `aura.css` carries, so a screen built from either matches the other.
+
+   Three layers, back to front, on every Aura screen:
+
+     FIELD   three slowly drifting colour blobs — the thing the glass refracts
+     GRAIN   fine noise at 32% overlay, so glass reads as material, not plastic
+     GLASS   panes, bars and rails: translucent, blurred, edge-lit
+
+   Glass over a flat white page is just a border. If there is no field, there
+   is no system.
+
+   EVERY CLASS IS `aura-`-PREFIXED. That is not decoration: globals.css already
+   owns `.nav` (46 rules) and `.topbar` (7), and the design language's own names
+   collide with both. The prefix is what lets Aura live alongside the warm-paper
+   pastel dashboard without either one bleeding into the other.
+
+   Used by: app/(app)/hub/page.tsx (the front door).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.aura-app {
+  /* Tokens are scoped to the Aura subtree rather than :root — the rest of the
+     app is a warm-paper pastel system and must not inherit a cool glass one. */
+  --aura-ink: #0a0f22;
+  --aura-ink-2: #39415f;
+  --aura-ink-3: #565f7d;
+  --aura-accent: #d81f12;
+  --aura-accent-warm: #ff6a3d;
+  --aura-accent-2: #164a8f;
+  --aura-ok: #2fa36b;
+  --aura-ground: #eef2fb;
+  --aura-r-pane: 20px;
+  --aura-r-control: 12px;
+  --aura-ease: cubic-bezier(0.2, 0.8, 0.3, 1);
+  --aura-display: var(--font-heros), "TeX Gyre Heros", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --aura-body: var(--font-inter), "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: var(--aura-ground);
+  color: var(--aura-ink);
+  font-family: var(--aura-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 1. THE FIELD ─────────────────────────────────────────────────────────── */
+.aura-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.aura-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  will-change: transform;
+}
+.aura-b1 {
+  width: 900px;
+  height: 620px;
+  left: -12%;
+  top: -24%;
+  background: radial-gradient(circle, rgba(120, 150, 255, 0.62), transparent 68%);
+  animation: aura-drift1 26s ease-in-out infinite;
+}
+.aura-b2 {
+  width: 760px;
+  height: 560px;
+  right: -10%;
+  top: -18%;
+  background: radial-gradient(circle, rgba(255, 150, 190, 0.55), transparent 68%);
+  animation: aura-drift2 32s ease-in-out infinite;
+}
+.aura-b3 {
+  width: 980px;
+  height: 640px;
+  left: 34%;
+  bottom: -30%;
+  background: radial-gradient(circle, rgba(120, 225, 225, 0.5), transparent 68%);
+  animation: aura-drift3 29s ease-in-out infinite;
+}
+@keyframes aura-drift1 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(80px, 50px, 0) scale(1.12); }
+}
+@keyframes aura-drift2 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+  50% { transform: translate3d(-70px, 70px, 0) scale(0.94); }
+}
+@keyframes aura-drift3 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-90px, -60px, 0) scale(1.1); }
+}
+
+.aura-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='160' height='160' filter='url(%23n)' opacity='.5'/></svg>");
+}
+
+/* ── 2. THE MATERIAL ──────────────────────────────────────────────────────── */
+.aura-glass {
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--aura-r-pane);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.16));
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,       /* top specular edge */
+    0 -1px 0 rgba(255, 255, 255, 0.35) inset,      /* bottom bounce */
+    0 0 0 0.5px rgba(120, 150, 255, 0.18),         /* chromatic rim */
+    0 12px 32px -12px rgba(22, 32, 68, 0.3),
+    0 2px 6px -2px rgba(22, 32, 68, 0.14);
+  backdrop-filter: blur(40px) saturate(200%) brightness(1.08);
+  -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.08);
+  transition: transform 0.24s var(--aura-ease), box-shadow 0.24s, background 0.24s;
+}
+.aura-glass::before {
+  /* curved light running along the top edge */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.8;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 42%);
+}
+.aura-glass::after {
+  /* sheen that follows the pointer — --mx/--my are set by AuraSheen */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.3s;
+  background: radial-gradient(
+    220px 160px at var(--mx, 50%) var(--my, 0%),
+    rgba(255, 255, 255, 0.55),
+    transparent 65%
+  );
+}
+.aura-interactive { cursor: pointer; }
+.aura-interactive:hover {
+  transform: translateY(-3px);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.26));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 1) inset,
+    0 -1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 0 0 0.5px rgba(120, 150, 255, 0.3),
+    0 26px 50px -16px rgba(22, 32, 68, 0.38),
+    0 3px 10px -3px rgba(22, 32, 68, 0.18);
+}
+.aura-interactive:hover::after { opacity: 1; }
+.aura-interactive:active { transform: translateY(-1px) scale(0.996); }
+.aura-app :focus-visible {
+  outline: 2px solid var(--aura-accent);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* Chrome — bars and rails are MORE transparent than panes and never lift.
+   They are the window, not the content. */
+.aura-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.2));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 10px 30px -18px rgba(22, 32, 68, 0.5);
+  backdrop-filter: blur(44px) saturate(200%);
+  -webkit-backdrop-filter: blur(44px) saturate(200%);
+}
+.aura-rail {
+  padding: 20px 14px;
+  border-right: 1px solid rgba(255, 255, 255, 0.55);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.14));
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.55) inset;
+  backdrop-filter: blur(40px) saturate(190%);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  overflow: hidden;
+  transition: opacity 0.2s, transform 0.26s var(--aura-ease);
+}
+
+/* ── 3. LAYOUT ────────────────────────────────────────────────────────────── */
+.aura-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  min-height: calc(100dvh - 57px);
+  transition: grid-template-columns 0.26s var(--aura-ease);
+}
+.aura-layout.aura-rail-hidden { grid-template-columns: 0 minmax(0, 1fr); }
+.aura-layout.aura-rail-hidden .aura-rail {
+  opacity: 0;
+  transform: translateX(-14px);
+  pointer-events: none;
+}
+.aura-main { padding: 26px 30px 32px; }
+.aura-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+/* ── 4. TYPE ──────────────────────────────────────────────────────────────── */
+/* TeX Gyre Heros carries every load-bearing string; Inter does the reading.
+   Secondary text runs 500–600, never 400 — light type dissolves into a blurred
+   background. Numbers are the loudest thing on the screen. */
+.aura-h1 {
+  font-family: var(--aura-display);
+  font-weight: 700;
+  font-size: 35px;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin: 6px 0 0;
+}
+.aura-h2 {
+  font-family: var(--aura-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.aura-date {
+  font-family: var(--aura-display);
+  font-size: 12px;
+  color: var(--aura-ink-2);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.aura-sub {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--aura-ink-2);
+  font-weight: 500;
+}
+.aura-num {
+  font-family: var(--aura-display);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+.aura-brand {
+  font-family: var(--aura-display);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+/* ── 5. CONTROLS ──────────────────────────────────────────────────────────── */
+.aura-icon-btn {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: var(--aura-r-control);
+  color: var(--aura-ink);
+  cursor: pointer;
+  font-family: inherit;
+}
+.aura-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: var(--aura-r-control);
+  background: none;
+  font-family: var(--aura-body);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--aura-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s;
+}
+.aura-nav:hover { background: rgba(255, 255, 255, 0.38); }
+.aura-nav[aria-current] {
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 6px 16px -10px rgba(22, 32, 68, 0.5);
+}
+.aura-nav-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: none;
+}
+.aura-nav-key {
+  margin-left: auto;
+  font-family: var(--aura-display);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--aura-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.aura-rail-label {
+  font-family: var(--aura-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--aura-ink-2);
+  padding: 0 11px 7px;
+}
+.aura-rail-label + .aura-rail-label,
+.aura-rail-label.aura-spaced { padding-top: 16px; }
+.aura-chip {
+  padding: 8px 14px;
+  border-radius: 14px;
+  font-family: var(--aura-display);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--aura-ink);
+}
+.aura-kbd {
+  font-family: var(--aura-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--aura-ink-2);
+  border: 1px solid rgba(10, 15, 34, 0.22);
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+
+/* ── 6. STATUS ────────────────────────────────────────────────────────────── */
+/* Every status colour is a deep ramp step on a light tint, never a pastel on a
+   pastel — transparency costs legibility and ink is how Aura pays it back. */
+.aura-pill {
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-family: var(--aura-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.aura-state {
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-family: var(--aura-display);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.aura-state-ok { background: rgba(47, 163, 107, 0.18); color: #1c6b45; }
+.aura-state-warn { background: rgba(232, 161, 26, 0.22); color: #7a5305; }
+.aura-state-hot { background: rgba(216, 31, 18, 0.16); color: #8f1109; }
+.aura-state-idle { background: rgba(10, 15, 34, 0.1); color: var(--aura-ink-2); }
+
+/* ── 7. PANES ─────────────────────────────────────────────────────────────── */
+/* Whitespace is the only separator — no dividers between panes. */
+.aura-panes {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 16px;
+  margin-top: 22px;
+}
+.aura-pane { padding: 20px 22px; }
+/* Either pane can be absent — WMS and Goals are each access-gated, and either
+   query can fail soft. A lone pane spans the row rather than sitting stranded
+   at 1.25fr with dead space beside it. */
+.aura-panes > :only-child { grid-column: 1 / -1; }
+.aura-pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+/* A stat is 22–38px Heros 700 with its unit BESIDE it, never above it. */
+.aura-big {
+  font-family: var(--aura-display);
+  font-size: 38px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.aura-bigrow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 14px;
+}
+.aura-bigrow span { font-size: 13.5px; color: var(--aura-ink-2); font-weight: 500; }
+.aura-tasks { margin-top: 16px; display: grid; gap: 9px; }
+.aura-task {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 0;
+}
+.aura-task-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aura-task time {
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--aura-ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.aura-dot { width: 7px; height: 7px; border-radius: 50%; background: #94a0c8; flex: none; }
+.aura-dot-hot { background: var(--aura-accent); }
+.aura-bar {
+  margin-top: 16px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(10, 15, 34, 0.16);
+  overflow: hidden;
+}
+.aura-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4f7cf7, #7ad8d0);
+}
+.aura-stats { display: flex; gap: 22px; margin-top: 14px; flex-wrap: wrap; }
+.aura-stats b {
+  display: block;
+  font-family: var(--aura-display);
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.aura-stats em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--aura-ink-2);
+  font-weight: 500;
+}
+@media (max-width: 1080px) { .aura-panes { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── 8. WORKSPACE TILES ───────────────────────────────────────────────────── */
+.aura-grid-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 26px 0 12px;
+}
+.aura-grid-head span { font-size: 12px; color: var(--aura-ink-2); font-weight: 500; }
+.aura-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.aura-tile {
+  display: block;
+  padding: 14px 15px 13px;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+}
+.aura-tile-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.aura-tile-icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.24));
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+.aura-tile-badge {
+  font-family: var(--aura-display);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--aura-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.aura-tile-name {
+  font-family: var(--aura-display);
+  font-weight: 700;
+  font-size: 14.5px;
+  letter-spacing: -0.01em;
+  margin-top: 12px;
+}
+.aura-tile-desc {
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--aura-ink-2);
+  margin-top: 3px;
+  min-height: 34px;
+  letter-spacing: -0.002em;
+  text-wrap: pretty;
+}
+.aura-tile-locked {
+  filter: grayscale(1);
+  opacity: 0.6;
+  cursor: default;
+}
+.aura-go {
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.22s, transform 0.22s;
+  font-family: var(--aura-display);
+  font-size: 12px;
+  font-weight: 700;
+}
+.aura-interactive:hover .aura-go { opacity: 1; transform: translateX(0); }
+
+/* ── 9. RESPONSIVE ────────────────────────────────────────────────────────── */
+/* Cards rebalance rather than orphaning: four across is the reference grid,
+   and every step down keeps the last row full for the module counts we ship. */
+@media (max-width: 1240px) {
+  .aura-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1080px) {
+  .aura-layout,
+  .aura-layout.aura-rail-hidden { grid-template-columns: minmax(0, 1fr); }
+  .aura-rail { display: none; }
+  .aura-main { padding: 20px 18px 26px; }
+  .aura-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .aura-grid { grid-template-columns: minmax(0, 1fr); }
+  .aura-h1 { font-size: 28px; }
+  .aura-topbar { padding: 10px 14px; gap: 10px; }
+}
+
+/* ── 10. MOTION ────────────────────────────────────────────────────────────── */
+/* All field motion stops under prefers-reduced-motion; the glass stays. */
+@media (prefers-reduced-motion: reduce) {
+  .aura-blob { animation: none; }
+  .aura-glass,
+  .aura-layout,
+  .aura-rail { transition: none; }
+}

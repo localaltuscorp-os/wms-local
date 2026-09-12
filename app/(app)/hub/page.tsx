@@ -1,14 +1,16 @@
 import Image from "next/image";
-import Link from "next/link";
-import { ArrowRight, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { requireUser } from "@/lib/auth/current";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { canAccessWorkspace, WORKSPACE_LANDING, type WorkspaceId } from "@/lib/workspaces";
 import { MODULE_THEME, MODULE_ORDER, moduleShortcut, type ModuleTheme } from "@/lib/module-theme";
 import { EnterWorkspaceLink } from "@/components/hub/enter-workspace-link";
+import { AuraSheen, AuraRailToggle, AURA_LAYOUT_ID } from "@/components/hub/aura-chrome";
 import { UserMenuServer } from "@/components/header/user-menu-server";
-import { ModuleLogo } from "@/components/hub/module-logos";
 import { GlobalSearch } from "@/components/header/global-search";
+import { getMyDayCounts, getMyTodayTasks, type MyTodayTask } from "@/lib/queries/my-day";
+import { getDashboard } from "@/lib/goals/queries";
+import { fyStartYearOf } from "@/lib/goals/types";
 import type { ReactNode } from "react";
 import { isManagerWithReports, managerDailyTaskGate } from "@/lib/manager-gates";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
@@ -28,150 +30,159 @@ import { DccManagerReviewGate } from "@/components/dcc/dcc-manager-review-gate";
 export const dynamic = "force-dynamic";
 
 /**
- * THE FRONT DOOR — post-login Hub launcher.
+ * THE FRONT DOOR — post-login Hub launcher, in the AURA liquid-glass language.
  *
- * Each workspace is a SOLID module-colour card with that module's cut-out
- * artwork (background removed) sitting on the right, fully visible — NO colour
- * scrim over the image. Text lives on the left so it never overlaps the art.
- * Colour, image and copy come from the single MODULE_THEME source of truth.
- * WMS has no art (the founder is designing its logo) → its icon stands in.
- * Server Component; the only interactive islands are sign-out + ⌘K search.
+ * The design language lives in `.claude/skills/aura/SKILL.md` and its tokens in
+ * `app/aura.css`; the reference screen it replicates is
+ * `.claude/skills/aura/reference/altus-home-heros.html`. Three layers, back to
+ * front: a drifting colour FIELD, a noise GRAIN, and translucent GLASS on top.
+ *
+ * WHAT REPLACED WHAT (2026-09-12). The previous front door was twelve solid
+ * pastel cards on a near-white page — one flat colour per module, no shell.
+ * Aura keeps every module's identity (the tile glyph is still drawn in the
+ * module's own `accentDeep`) but moves the colour into the GLYPH and lets the
+ * glass carry the surface. That is the language's central move: colour is
+ * redistributed from the fill to the mark, so the page reads as one material
+ * instead of twelve competing ones.
+ *
+ * EVERY NUMBER ON THIS PAGE IS REAL. The reference mock also carries an
+ * attendance block, two donuts, a work-shape bloom and a cross-workspace table.
+ * Those are NOT here, because the queries behind them do not exist: nothing in
+ * the codebase tags a record with a workspace, the task-time rollup has no
+ * module dimension, and there is no "unmarked today" count anywhere. A front
+ * door showing invented numbers is worse than one showing fewer, so the panes
+ * that ship are the two whose data was already there — `getMyDayCounts` /
+ * `getMyTodayTasks` (cached 15s, busted by the `tasks` tag) and `getDashboard`
+ * (three indexed counts behind `withRetry`).
+ *
+ * Server Component. The only client leaves are the pointer sheen, the rail
+ * toggle, ⌘K search and the account menu.
  */
+
+const TZ = "Asia/Kolkata";
+
+/** "Friday, 12 September" in IST, wherever the server happens to be. */
+function istDateLabel(now: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZ,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(now);
+}
+
+/** Morning / afternoon / evening by the user's working day, not the server's. */
+function istGreeting(now: Date): string {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", hour12: false }).format(now),
+  );
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+/** "2:00 PM" in IST. */
+function istTimeLabel(d: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
+}
+
+/** The one line under the greeting, built from what is actually waiting. */
+function needsYouLine(open: number): string {
+  if (open === 0) return "Nothing is due on you today.";
+  if (open === 1) return "One thing needs you today.";
+  return `${open} things need you today.`;
+}
 
 /**
- * HUB-ONLY palette. Scoped to the front-door cards so each module's own strong
- * identity colour (MODULE_THEME) stays intact everywhere inside it — recolouring
- * the hub therefore leaves the module footer dock, every room's chrome and every
- * in-module accent exactly as they were.
+ * A workspace tile: glass pane, the module's own glyph, its tagline, and either
+ * a live count or the keyboard shortcut that opens it.
  *
- * TWO COLOURS PER MODULE, and no more (Sir, 2026-08): one light BACKGROUND and
- * one PRIMARY. Primary carries the title, tagline, glyph, shortcut badge and the
- * Enter button; background fills the card. `from`/`to` are held at the same value
- * so the card renders FLAT — the gradient stops are identical, which keeps the
- * existing `linear-gradient` code path without producing a gradient.
- *
- * `inkSoft` is deliberately equal to `ink` rather than a lighter step. A third
- * tone per module is exactly the "additional decorative colour" the brief rules
- * out, and the primaries are dark enough to stay readable at the tagline's
- * 12.5px on these backgrounds.
- *
- * WMS IS UNTOUCHED — the brand's own card keeps its red, its two-stop gradient
- * and its softer tagline tone. It is the one module whose entry must not change.
+ * The badge slot is deliberately two different things. WMS and Goals have real
+ * numbers behind them, so they show those; no other module has a per-module
+ * count anywhere in the codebase, so rather than invent one the slot falls back
+ * to the digit that opens the room. The two are told apart by shape — a count
+ * is plain text, a shortcut wears the `.aura-kbd` border — so neither is ever
+ * read as the other.
  */
-const HUB_PASTEL: Record<WorkspaceId, { from: string; to: string; ink: string; inkSoft: string }> = {
-  wms:       { from: "#FEE2E2", to: "#FECACA", ink: "#B91C1C", inkSoft: "#DC2626" }, // red (unchanged)
-  goals:        { from: "#F4E1D5", to: "#F4E1D5", ink: "#A85432", inkSoft: "#A85432" }, // 2 · terracotta
-  productivity: { from: "#E5E4F7", to: "#E5E4F7", ink: "#5148A3", inkSoft: "#5148A3" }, // 3 · deep indigo
-  billing:      { from: "#ECECEA", to: "#ECECEA", ink: "#5F5E59", inkSoft: "#5F5E59" }, // 4 · platinum grey
-  hr:           { from: "#DDF1EC", to: "#DDF1EC", ink: "#147D73", inkSoft: "#147D73" }, // 5 · teal
-  sales:        { from: "#EAE1F7", to: "#EAE1F7", ink: "#6838B8", inkSoft: "#6838B8" }, // 6 · royal purple
-  admin:        { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B", inkSoft: "#315A9B" }, // 7 · slate blue (the "Accounts" card)
-  training:     { from: "#F5E0E9", to: "#F5E0E9", ink: "#C32968", inkSoft: "#C32968" }, // 8 · berry
-  employees:    { from: "#DDF1E2", to: "#DDF1E2", ink: "#16803C", inkSoft: "#16803C" }, // 9 · forest green
-  events:       { from: "#D9F1F5", to: "#D9F1F5", ink: "#167C91", inkSoft: "#167C91" }, // 0 · cyan/teal
-  // Not rendered on the hub (MODULE_ORDER carries `admin` at position 7), but it
-  // shadows that card's identity so the pair never disagrees if it is ever shown.
-  accounts:     { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B", inkSoft: "#315A9B" },
-  // Hand-holding — orange, the module's own accent (lib/module-theme).
-  "people-allocation": { from: "#FBE7D6", to: "#FBE7D6", ink: "#C2410C", inkSoft: "#C2410C" },
-  // Project — the WMS red, matching the wms card above: the plan and the task
-  // list are two windows onto the same records.
-  "project-plan": { from: "#FEE2E2", to: "#FECACA", ink: "#B91C1C", inkSoft: "#DC2626" },
-};
-
-/**
- * A card whose module has no palette must not take the whole hub down with it —
- * MODULE_ORDER and HUB_PASTEL are two lists that have to be kept in step by
- * hand, and one of them WILL be forgotten again. Neutral grey, card still
- * clickable.
- */
-const PASTEL_FALLBACK = { from: "#ECECEA", to: "#ECECEA", ink: "#5F5E59", inkSoft: "#5F5E59" };
-
-function WorkspaceCard({ m, locked, i }: { m: ModuleTheme; locked: boolean; i: number }) {
-  const p = HUB_PASTEL[m.id] ?? PASTEL_FALLBACK;
-  const delay = { animationDelay: `${i * 70}ms` } as const;
-
-  const shortcut = moduleShortcut(i);
+function WorkspaceTile({
+  m,
+  locked,
+  index,
+  badge,
+}: {
+  m: ModuleTheme;
+  locked: boolean;
+  index: number;
+  badge: string | null;
+}) {
+  const shortcut = moduleShortcut(index);
+  const Icon = m.Icon;
 
   const inner = (
     <>
-      {/* Faint oversized logo bottom-right for depth/texture. */}
-      <ModuleLogo
-        id={m.id}
-        size={104}
-        className="pointer-events-none absolute -bottom-5 -right-5 opacity-[0.07]"
-      />
-
-      {/* Keyboard-shortcut badge — deliberately quiet: it is a hint, not a
-          heading, so it sits in the corner at a fraction of the title's weight
-          and never competes with the module name. `aria-hidden` because the
-          number is announced once, in the link's own label, rather than as a
-          stray digit before every card. */}
-      {shortcut && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute left-3 top-3 z-10 inline-flex size-[22px] items-center justify-center rounded-md text-[12px] font-bold tabular-nums"
-          style={{ background: "rgba(255,255,255,0.55)", color: p.ink }}
-        >
-          {shortcut}
+      <div className="aura-tile-top">
+        <span className="aura-tile-icon">
+          <Icon size={19} strokeWidth={1.9} style={{ color: m.accentDeep }} aria-hidden />
         </span>
-      )}
-
-      {/* Content — fully centred (logo + text) with no wasted middle gap. */}
-      <div className="relative z-10 flex h-full flex-col items-center justify-center gap-3 p-5 text-center max-md:p-4">
-        <ModuleLogo id={m.id} size={56} className="drop-shadow-[0_7px_16px_rgba(15,23,42,0.22)]" />
-        <div className="w-full">
-          <h3 className="text-[22px] font-extrabold leading-none tracking-tight max-md:text-[20px]" style={{ color: p.ink }}>
-            {m.label}
-          </h3>
-          {/* Cards grow to fit (min-h + grid stretch equalises the row), so the
-              full tagline shows without ever being clipped mid-line.
-
-              The WMS branch removed this on 2026-09-08 to fit the grid on one
-              screen; restored 2026-09-09 at the account holder's request. The
-              tagline is what tells someone which workspace they want before
-              they have learned the eleven glyphs, so a hub that scrolls is the
-              cheaper cost. */}
-          <p className="mt-1.5 line-clamp-3 text-[12.5px] font-medium leading-snug" style={{ color: p.inkSoft }}>
-            {m.tagline}
-          </p>
-          {locked ? (
-            <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-pill bg-black/10 px-3 py-1 text-[12.5px] font-bold" style={{ color: p.ink }}>
-              <Lock size={13} strokeWidth={2.5} /> No Access
-            </span>
-          ) : (
-            <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-[13px] font-bold text-white" style={{ background: p.ink }}>
-              Enter
-              <ArrowRight size={14} strokeWidth={2.8} className="transition-transform duration-200 group-hover:translate-x-1" />
-            </span>
-          )}
-        </div>
+        {locked ? (
+          <span className="aura-state aura-state-idle inline-flex items-center gap-1">
+            <Lock size={11} strokeWidth={2.6} aria-hidden /> No access
+          </span>
+        ) : badge ? (
+          <span className="aura-tile-badge">{badge}</span>
+        ) : shortcut ? (
+          <span className="aura-kbd" aria-hidden>
+            {shortcut}
+          </span>
+        ) : null}
       </div>
+      <div className="aura-tile-name">{m.label}</div>
+      <div className="aura-tile-desc">{m.tagline}</div>
     </>
   );
 
-  const base =
-    // Back to 236px alongside the restored tagline: 176px was sized for a card
-    // with no prose under the title, and it clips the third line.
-    "wg-rise group relative block h-full min-h-[236px] overflow-hidden rounded-[28px] shadow-md max-md:min-h-[204px]";
-  const bg = { background: `linear-gradient(145deg, ${p.from}, ${p.to})` };
-
   if (locked) {
     return (
-      <div className={`${base} grayscale`} style={{ ...bg, ...delay }} aria-disabled="true">
+      <div className="aura-glass aura-tile aura-tile-locked" aria-disabled="true">
         {inner}
       </div>
     );
   }
+
   return (
     <EnterWorkspaceLink
       id={m.id}
       href={WORKSPACE_LANDING[m.id]}
-      ariaLabel={`Open ${m.label}`}
-      className={`${base} transition duration-200 hover:-translate-y-1.5 hover:shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2`}
-      style={{ ...bg, ...delay, "--tw-ring-color": p.ink } as React.CSSProperties}
+      ariaLabel={shortcut ? `Open ${m.label} (shortcut ${shortcut})` : `Open ${m.label}`}
+      className="aura-glass aura-interactive aura-tile"
     >
       {inner}
+    </EnterWorkspaceLink>
+  );
+}
+
+/** One line in the rail: the module's colour, its name, its shortcut digit. */
+function RailItem({ id, index }: { id: WorkspaceId; index: number }) {
+  const m = MODULE_THEME[id];
+  const shortcut = moduleShortcut(index);
+  return (
+    <EnterWorkspaceLink
+      id={id}
+      href={WORKSPACE_LANDING[id]}
+      ariaLabel={`Open ${m.label}`}
+      className="aura-nav"
+    >
+      <span className="aura-nav-dot" style={{ background: m.accent }} aria-hidden />
+      <span className="min-w-0 truncate">{m.label}</span>
+      {shortcut && (
+        <span className="aura-nav-key" aria-hidden>
+          {shortcut}
+        </span>
+      )}
     </EnterWorkspaceLink>
   );
 }
@@ -216,81 +227,200 @@ export default async function HubPage() {
     }
   }
 
+  const now = new Date();
+
+  // Access first — it decides which panes are even allowed to be fetched.
   const access = await accessFor(me);
+  const visible = MODULE_ORDER.filter((id) => canAccessWorkspace(id, access));
+  const canSeeWms = canAccessWorkspace("wms", access);
+  const canSeeGoals = canAccessWorkspace("goals", access);
+
+  // The hub is the post-login landing, so everything here is on the critical
+  // path and EVERY call fails soft. A dead pane costs a panel; a thrown one
+  // costs the front door — which is how Daily Goals took attendance punch-in
+  // down on 8 September.
+  const [counts, todayTasks, goals] = await Promise.all([
+    canSeeWms ? getMyDayCounts(me.id).catch(() => null) : null,
+    canSeeWms ? getMyTodayTasks(me.id).catch((): MyTodayTask[] => []) : [],
+    canSeeGoals ? getDashboard(me.id, fyStartYearOf(now)).catch(() => null) : null,
+  ]);
+
+  const open = (counts?.dueToday ?? 0) + (counts?.overdue ?? 0);
+
+  // Badges: only where a real number exists. See WorkspaceTile.
+  const badges: Partial<Record<WorkspaceId, string>> = {};
+  if (counts && open > 0) badges.wms = `${open} due`;
+  if (goals) badges.goals = `${goals.weekScore}%`;
 
   return (
-    <main
-      className="flex min-h-[100dvh] w-full flex-col"
-      style={{ background: "linear-gradient(180deg, #f6f7f9 0%, #fbfbfc 38%, #ffffff 100%)" }}
-    >
-      <div className="mx-auto flex w-full max-w-[1140px] flex-col px-8 py-6 max-md:px-5 max-md:py-5">
-        {/* ONE BAND — logo (extreme left) · welcome hero (page-centered) · Hi over
-            Sign out (right). Both side clusters are flex-1 so the centre block is
-            truly centered on the page regardless of their differing widths. */}
-        <header className="flex shrink-0 items-center gap-6 max-md:flex-col max-md:gap-4 max-md:text-center">
-          <div className="flex flex-1 justify-start max-md:justify-center">
-            <a
-              href="https://altuscorp.in"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Altus Corp — altuscorp.in"
-              className="shrink-0 rounded-lg outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
-            >
-              <Image
-                src="/logo.png"
-                alt="Altus Corp"
-                width={170}
-                height={188}
-                priority
-                className="h-[84px] w-auto shrink-0 max-md:h-[64px]"
-              />
-            </a>
-          </div>
+    <div className="aura-app">
+      {/* 1 — THE FIELD: the thing the glass refracts. */}
+      <div className="aura-field" aria-hidden>
+        <div className="aura-blob aura-b1" />
+        <div className="aura-blob aura-b2" />
+        <div className="aura-blob aura-b3" />
+      </div>
+      {/* 2 — THE GRAIN: so the glass reads as material, not white plastic. */}
+      <div className="aura-grain" aria-hidden />
+      <AuraSheen />
 
-          <div className="shrink-0 text-center">
-            <span className="text-[12px] font-bold uppercase tracking-[0.22em]" style={{ color: "var(--color-altus-red)" }}>
-              Altus&nbsp;/&nbsp;Workspaces
-            </span>
-            <h1 className="mt-1 font-extrabold tracking-tight text-ink-strong" style={{ fontSize: "clamp(30px, 3.4vw, 46px)", lineHeight: 1.02 }}>
-              Welcome back, {firstName}
-            </h1>
-            <p className="mt-1 text-[15px] text-ink-muted">Choose your workspace to get started</p>
-          </div>
-
-          <div className="flex flex-1 items-center justify-end gap-3 max-md:justify-center">
-            <GlobalSearch />
-            {/* Profile avatar → the full account/workspace menu (Admin Panel,
-                Profile & Preferences, Documents, Inbox, Archived, Sign Out). */}
-            <UserMenuServer />
-          </div>
-        </header>
-
-        {/* Workspace grid. On xl the 5-wide grid fills the viewport; below xl it
-            flows into fewer columns (3s on lg, so a row never ends in a single
-            orphan card) and the page scrolls.
-
-            Restored 2026-09-09 from the WMS branch's four-per-row. The reason
-            given for four was that five left HandHolding alone on the last row
-            — with Project added there are twelve modules, so five now reads
-            5 · 5 · 2 and the orphan that motivated the change is gone. */}
-        <section
-          className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
-          aria-label="Workspaces"
+      {/* 3 — THE GLASS. Chrome first: more transparent than a pane, never lifts. */}
+      <header className="aura-topbar">
+        <AuraRailToggle />
+        <a
+          href="https://altuscorp.in"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Altus Corp — altuscorp.in"
+          className="flex shrink-0 items-center gap-2.5 rounded-lg outline-none transition-opacity hover:opacity-80"
         >
+          <Image src="/logo.png" alt="" width={170} height={188} priority className="h-8 w-auto" />
+          <span className="aura-brand max-sm:hidden">Altus</span>
+        </a>
+
+        <div className="ml-auto flex items-center gap-2">
+          <GlobalSearch />
+          <UserMenuServer />
+        </div>
+      </header>
+
+      <div className="aura-layout" id={AURA_LAYOUT_ID}>
+        {/* The rail repeats the grid on purpose: it stays put while the page
+            scrolls, so the twelfth room is one click away from the bottom of a
+            long screen. Only rooms the viewer can actually enter are listed. */}
+        <aside className="aura-rail">
+          <div className="aura-rail-label" style={{ paddingTop: 2 }}>
+            WORKSPACES
+          </div>
+          <nav aria-label="Workspaces">
+            {visible.map((id) => (
+              <RailItem key={id} id={id} index={MODULE_ORDER.indexOf(id)} />
+            ))}
+          </nav>
+        </aside>
+
+        <main className="aura-main">
+          <div className="aura-top">
+            <div>
+              <div className="aura-date">{istDateLabel(now)}</div>
+              <h1 className="aura-h1">
+                {istGreeting(now)}, {firstName}
+              </h1>
+              <p className="aura-sub">{needsYouLine(open)}</p>
+            </div>
+            <div className="aura-glass aura-chip">Today</div>
+          </div>
+
+          {(counts || goals) && (
+            <section className="aura-panes">
+              {counts && (
+                <EnterWorkspaceLink
+                  id="wms"
+                  href={WORKSPACE_LANDING.wms}
+                  ariaLabel="Open WMS"
+                  className="aura-glass aura-interactive aura-pane"
+                >
+                  <div className="aura-pane-head">
+                    <span className="aura-pill" style={{ background: "rgba(216,31,18,.16)", color: "#8f1109" }}>
+                      WMS · DAILY LOOP
+                    </span>
+                    <span className="aura-go" style={{ color: "#b5170e" }}>
+                      Open →
+                    </span>
+                  </div>
+                  <div className="aura-bigrow">
+                    <b className="aura-big">{open}</b>
+                    <span>
+                      {open === 1 ? "task" : "tasks"} due or overdue
+                      {counts.doneToday > 0 ? ` · ${counts.doneToday} done today` : ""}
+                    </span>
+                  </div>
+                  <div className="aura-tasks">
+                    {todayTasks.slice(0, 3).map((t) => (
+                      <div className="aura-task" key={t.id}>
+                        <i className={t.overdue ? "aura-dot aura-dot-hot" : "aura-dot"} aria-hidden />
+                        <span className="aura-task-title">
+                          {t.title || t.subject || t.client || `Task ${t.taskNo ?? ""}`.trim()}
+                        </span>
+                        <time>{t.overdue ? "Overdue" : t.dueAt ? istTimeLabel(t.dueAt) : "Today"}</time>
+                      </div>
+                    ))}
+                    {todayTasks.length === 0 && (
+                      <div className="aura-task">
+                        <i className="aura-dot" aria-hidden />
+                        <span className="aura-task-title">Nothing due today — the loop is clear.</span>
+                      </div>
+                    )}
+                  </div>
+                </EnterWorkspaceLink>
+              )}
+
+              {goals && (
+                <EnterWorkspaceLink
+                  id="goals"
+                  href={WORKSPACE_LANDING.goals}
+                  ariaLabel="Open Goals"
+                  className="aura-glass aura-interactive aura-pane"
+                >
+                  <div className="aura-pane-head">
+                    <span className="aura-pill" style={{ background: "rgba(22,74,143,.16)", color: "#0f3569" }}>
+                      GOALS · THIS WEEK
+                    </span>
+                    <span className="aura-go" style={{ color: "#164a8f" }}>
+                      Open →
+                    </span>
+                  </div>
+                  <div className="aura-bigrow">
+                    <b className="aura-big">{goals.weekScore}%</b>
+                    <span>of this week&rsquo;s goals delivered</span>
+                  </div>
+                  <div className="aura-bar">
+                    <i style={{ width: `${Math.min(100, Math.max(0, goals.weekScore))}%` }} />
+                  </div>
+                  <div className="aura-stats">
+                    <div>
+                      <b>{goals.weeklyGoalCount}</b>
+                      <em>this week</em>
+                    </div>
+                    <div>
+                      <b>{goals.cascadeGoalCount}</b>
+                      <em>cascade goals</em>
+                    </div>
+                    <div>
+                      <b>{goals.ytdWeeklyAvg}%</b>
+                      <em>FY average</em>
+                    </div>
+                  </div>
+                </EnterWorkspaceLink>
+              )}
+            </section>
+          )}
+
+          <div className="aura-grid-head">
+            <h2 className="aura-h2">Jump into a workspace</h2>
+            <span>
+              {visible.length} {visible.length === 1 ? "room" : "rooms"}
+            </span>
+          </div>
+
           {/* A workspace you can't enter is HIDDEN, not shown greyed as "No
               Access" (Sir 2026-08) — a normal doer only sees the modules that are
-              actually theirs. The card keeps its CANONICAL index so its number
-              badge still matches the global 1–9/0 keyboard shortcut (which is
-              stable per module in the layout), even with some cards hidden. */}
-          {MODULE_ORDER.filter((id) => canAccessWorkspace(id, access)).map((id) => (
-            <WorkspaceCard key={id} m={MODULE_THEME[id]} locked={false} i={MODULE_ORDER.indexOf(id)} />
-          ))}
-        </section>
-
-        {/* The number-row shortcuts (1–9, 0) that these cards badge are no
-            longer mounted here — they live in `(app)/layout.tsx` so the same
-            digits work from inside a module, not only on this page. */}
+              actually theirs. The tile keeps its CANONICAL index so its shortcut
+              still matches the global 1–9/0 handler in `(app)/layout.tsx`, even
+              with some rooms hidden. */}
+          <div className="aura-grid">
+            {visible.map((id) => (
+              <WorkspaceTile
+                key={id}
+                m={MODULE_THEME[id]}
+                locked={false}
+                index={MODULE_ORDER.indexOf(id)}
+                badge={badges[id] ?? null}
+              />
+            ))}
+          </div>
+        </main>
       </div>
-    </main>
+    </div>
   );
 }
