@@ -41,7 +41,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { unaccent } from "@electric-sql/pglite/contrib/unaccent";
 import { DUMMY_DB_DIR } from "../lib/db/dummy-dir";
-import { seedDummyData } from "./dummy-db-seed";
+import { seedDummyData, DUMMY_TOKENS } from "./dummy-db-seed";
 
 const RESET = process.argv.includes("--reset");
 
@@ -200,6 +200,20 @@ async function main() {
   }
 
   await pg.close();
+
+  // THE SEEDED CANDIDATE LINKS, printed because they cannot be recovered any
+  // other way: the app stores only a token's SHA-256, so there is no query that
+  // gets a working URL back. These four come from fixed dev-only strings in
+  // dummy-db-seed.ts, so they survive every rebuild and can be pasted straight
+  // into a browser to open the flow as an outside candidate would see it.
+  const port = process.env.PORT ?? "3002";
+  const base = `http://localhost:${port}`;
+  console.log(`\nCandidate links (open in a browser — no login needed):`);
+  console.log(`  form, not started   ${base}/c/${DUMMY_TOKENS.fresh}`);
+  console.log(`  form, part-filled   ${base}/c/${DUMMY_TOKENS.partial}`);
+  console.log(`  form, submitted     ${base}/c/${DUMMY_TOKENS.submitted}`);
+  console.log(`  policies, 2 signed  ${base}/c/${DUMMY_TOKENS.policies}`);
+
   console.log(`\nDone. Start the app with DUMMY_MODE=true (see pnpm dev:dummy).`);
 }
 

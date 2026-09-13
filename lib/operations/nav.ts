@@ -7,6 +7,7 @@ import {
   Handshake,
   LayoutGrid,
   ListChecks,
+  Network,
   Palette,
   ScrollText,
   ShieldCheck,
@@ -38,7 +39,12 @@ import {
  * PURE and free of `server-only`: the quick nav is a client component.
  */
 
-export type OperationsAreaId = "handholding" | "events" | "checklist" | "guidelines";
+export type OperationsAreaId =
+  | "handholding"
+  | "events"
+  | "checklist"
+  | "guidelines"
+  | "team-reporting";
 
 export interface OperationsSubItem {
   href: string;
@@ -121,6 +127,20 @@ export const OPERATIONS_AREAS: OperationsArea[] = [
     // inside it as component state, so there is nothing here to link to. An
     // area with a single item renders no quick-access row at all (see
     // OperationsQuickNav): a bar with one button is a label, not a control.
+    items: [],
+  },
+  {
+    // WHO REPORTS TO WHOM. The board itself already existed, under Admin >
+    // Reporting Hierarchy, where only admins ever saw it. Operations is where
+    // the question actually gets asked, so the area points at the same board
+    // rather than a second copy of the org chart that could disagree with it.
+    id: "team-reporting",
+    label: "Team Reporting",
+    href: "/operations/team-reporting",
+    Icon: Network,
+    tagline: "Every team member and their direct reporting manager, in one board.",
+    prefixes: ["/operations/team-reporting"],
+    // One board, no sub-pages - so no quick-access row (see OperationsQuickNav).
     items: [],
   },
   {

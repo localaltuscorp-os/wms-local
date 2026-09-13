@@ -67,6 +67,19 @@ interface Props {
   /** Everyone who could be a manager — the "Move to…" options. */
   people: BoardPerson[];
   canEdit: boolean;
+  /** False when the PAGE renders <HierarchyNote> itself, so it appears once. */
+  showNote?: boolean;
+  /**
+   * COMPACT: cards carry no per-card controls and no email addresses.
+   *
+   * Operations > Team Reporting reads the chart and moves people through its
+   * own Transfer panel, so the per-card "Move to..." select and the reporting
+   * history button were a second way to do the same thing sitting in every
+   * card, and the email under each name repeated what the column header
+   * already said. Admin > Reporting Hierarchy keeps both - it has no Transfer
+   * panel, so there the select IS the only non-drag way to move somebody.
+   */
+  compact?: boolean;
 }
 
 /** dnd-kit ids must be strings; the unassigned column has no uuid. */
@@ -74,7 +87,46 @@ const UNASSIGNED = "__unassigned__";
 const colId = (managerId: string | null) => managerId ?? UNASSIGNED;
 const fromColId = (id: string) => (id === UNASSIGNED ? null : id);
 
-export function HierarchyBoard({ columns, people, canEdit }: Props) {
+/**
+ * THE BOARD'S STANDING NOTE — what a move actually does.
+ *
+ * Exported, and rendered by the board only when it is not placed by the page.
+ * Team Reporting wants it centred above its own stats row rather than directly
+ * over the columns, and the alternative was a second copy of the sentence in
+ * that page — two copies of a claim about what the application does is how one
+ * of them ends up wrong.
+ */
+export function HierarchyNote({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`rounded-lg px-3.5 py-3 text-[13px] text-[#334155] ${className}`}
+      style={{ background: "rgba(15,23,42,0.035)", lineHeight: 1.6 }}
+    >
+      {/* TWO PARAGRAPHS, not one wrapped block. As a single sentence-stream
+          the second sentence began wherever the first happened to end, which
+          at this width left the word "Reports" stranded alone at the end of
+          line one. Each statement now starts its own line, which is also how
+          they read: what a move does, then what it does not do. */}
+      <p>
+        Moving someone changes their reporting manager everywhere at once — tasks,
+        goals, DCC, KPI, approvals, manager and team dashboards all read this one
+        relationship live.
+      </p>
+      <p className="mt-1">
+        Reports about <strong>past</strong> months keep the manager who was in
+        place then; the change applies from today forward.
+      </p>
+    </div>
+  );
+}
+
+export function HierarchyBoard({
+  columns,
+  people,
+  canEdit,
+  showNote = true,
+  compact = false,
+}: Props) {
   const router = useRouter();
   const [dragging, setDragging] = useState<BoardPerson | null>(null);
   const [historyFor, setHistoryFor] = useState<BoardPerson | null>(null);
@@ -143,15 +195,7 @@ export function HierarchyBoard({ columns, people, canEdit }: Props) {
 
   return (
     <>
-      <div
-        className="mb-4 rounded-lg px-3.5 py-3 text-[13px] text-[#334155]"
-        style={{ background: "rgba(15,23,42,0.035)", lineHeight: 1.6 }}
-      >
-        Moving someone changes their reporting manager everywhere at once — tasks,
-        goals, DCC, KPI, approvals, manager and team dashboards all read this one
-        relationship live. Reports about <strong>past</strong> months keep the
-        manager who was in place then; the change applies from today forward.
-      </div>
+      {showNote ? <HierarchyNote className="mb-4" /> : null}
 
       <DndContext
         sensors={sensors}
@@ -160,13 +204,34 @@ export function HierarchyBoard({ columns, people, canEdit }: Props) {
         onDragEnd={onDragEnd}
         onDragCancel={() => setDragging(null)}
       >
-        <div className="flex gap-4 overflow-x-auto pb-3">
+        {/* THE INLINE STYLE IS THE FIX, AND IT HAS TO BE INLINE.
+            `overflow-x-auto` makes this a scroll container on BOTH axes — per
+            CSS, `overflow-y: visible` computes to `auto` once the other axis is
+            not visible — so it is a vertical scroll container with nothing to
+            scroll. globals.css then applies `overscroll-behavior: contain` to
+            every `.overflow-x-auto`, and `contain` on an axis that cannot
+            scroll does not fall through: it SWALLOWS the wheel rather than
+            passing it to the page, so the page stopped scrolling wherever the
+            cursor was over the board.
+
+            A Tailwind `overscroll-y-auto` class does NOT beat it, which is the
+            trap: Tailwind emits utilities inside `@layer`, that global rule is
+            unlayered, and an unlayered declaration wins over a layered one no
+            matter how specific the layered one is — `:where()`'s zero
+            specificity is irrelevant. An inline style sits above every
+            stylesheet rule, layered or not, so it is the one place this can be
+            said and be true. */}
+        <div
+          className="flex gap-4 overflow-x-auto pb-3"
+          style={{ overscrollBehaviorY: "auto" }}
+        >
           {columns.map((c) => (
             <Column
               key={colId(c.managerId)}
               column={c}
               people={people}
               canEdit={canEdit}
+              compact={compact}
               onMove={move}
               onHistory={openHistory}
             />
@@ -197,12 +262,14 @@ function Column({
   column,
   people,
   canEdit,
+  compact,
   onMove,
   onHistory,
 }: {
   column: BoardColumn;
   people: BoardPerson[];
   canEdit: boolean;
+  compact: boolean;
   onMove: (p: BoardPerson, managerId: string | null) => void;
   onHistory: (p: BoardPerson) => void;
 }) {
@@ -228,7 +295,7 @@ function Column({
             {column.reports.length}
           </span>
         </div>
-        {column.managerEmail && (
+        {!compact && column.managerEmail && (
           <p className="truncate text-[12px] text-[#94A3B8]">{column.managerEmail}</p>
         )}
         {isUnassigned && (
@@ -250,6 +317,7 @@ function Column({
               person={p}
               people={people}
               canEdit={canEdit}
+              compact={compact}
               onMove={onMove}
               onHistory={onHistory}
             />
@@ -264,12 +332,14 @@ function Card({
   person,
   people,
   canEdit,
+  compact,
   onMove,
   onHistory,
 }: {
   person: BoardPerson;
   people: BoardPerson[];
   canEdit: boolean;
+  compact: boolean;
   onMove: (p: BoardPerson, managerId: string | null) => void;
   onHistory: (p: BoardPerson) => void;
 }) {
@@ -302,9 +372,12 @@ function Card({
         {...(canEdit ? { ...attributes, ...listeners } : {})}
         className={canEdit ? "cursor-grab active:cursor-grabbing" : undefined}
       >
-        <CardBody person={person} />
+        <CardBody person={person} compact={compact} />
       </div>
 
+      {/* Compact hides the controls row entirely - both the select and the
+          history button, since a row holding only one of them looked broken. */}
+      {compact ? null : (
       <div className="mt-2 flex items-center gap-1.5">
         {canEdit && (
           <label className="min-w-0 flex-1">
@@ -339,19 +412,21 @@ function Card({
           <History size={13} strokeWidth={2.2} />
         </button>
       </div>
+      )}
     </article>
   );
 }
 
-function CardBody({ person }: { person: BoardPerson }) {
+function CardBody({ person, compact = false }: { person: BoardPerson; compact?: boolean }) {
+  // In compact mode the email is dropped rather than swapped for a blank line:
+  // department still shows when there is one, and nothing shows when there isn't.
+  const sub = compact ? person.department : (person.department ?? person.email);
   return (
     <div className="flex items-center gap-2.5">
       <Avatar name={person.name} avatarUrl={person.avatarUrl} size={30} />
       <div className="min-w-0">
         <p className="truncate text-[13px] font-semibold text-[#0F172A]">{person.name}</p>
-        <p className="truncate text-[11.5px] text-[#94A3B8]">
-          {person.department ?? person.email}
-        </p>
+        {sub ? <p className="truncate text-[11.5px] text-[#94A3B8]">{sub}</p> : null}
       </div>
       {person.reportCount > 0 && (
         <span

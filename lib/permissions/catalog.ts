@@ -227,6 +227,8 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         routes: ["/hr/management-assessment"],
       },
       { key: "hr.hiring-analytics", label: "Hiring Analytics", routes: ["/hr/hiring-analytics"] },
+      { key: "hr.selected-candidates", label: "Selected Candidates", routes: ["/hr/selected-candidates"] },
+      { key: "hr.rejected-candidates", label: "Rejected Candidates", routes: ["/hr/rejected-candidates"] },
       { key: "hr.induction", label: "Induction", routes: ["/hr/induction"] },
       { key: "hr.record", label: "HR Record", routes: ["/hr/record"] },
       { key: "hr.kpi", label: "HR KPI", routes: ["/hr/kpi"] },

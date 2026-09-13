@@ -1387,7 +1387,17 @@ export function TaskTable({
                         "linear-gradient(90deg, color-mix(in srgb, var(--color-altus-red) 4.5%, var(--color-surface-soft)), var(--color-surface-soft) 40%)",
                     }}
                   >
-                    <span className="inline-flex items-center gap-2.5">
+                    {/* STICKY AT THE LEFT EDGE.
+                        The header is one `colSpan` cell as wide as the table,
+                        so its label used to sit at the far left and slide out
+                        of sight the moment the table was scrolled sideways -
+                        which is precisely when you need to know which group
+                        you are reading. `sticky left-0` pins the label inside
+                        that cell instead: it travels with the horizontal
+                        scroll and stops at the cell's left padding. The cell's
+                        own background does not scroll, so nothing shows
+                        through behind it. */}
+                    <span className="sticky left-0 inline-flex items-center gap-2.5">
                       <span
                         aria-hidden
                         className="inline-block h-4 w-[3px] rounded-full"

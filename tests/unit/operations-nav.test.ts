@@ -6,16 +6,17 @@ import {
 } from "@/lib/operations/nav";
 
 /**
- * The room's shape: a FIXED rail of four areas, and the current area's pages as
+ * The room's shape: a FIXED rail of five areas, and the current area's pages as
  * a quick-access row on top. These pin the matching, which is what decides
  * which row appears and which button in it reads active.
  */
 describe("OPERATIONS_AREAS", () => {
-  it("holds the four areas in rail order", () => {
+  it("holds the five areas in rail order", () => {
     expect(OPERATIONS_AREAS.map((a) => a.id)).toEqual([
       "handholding",
       "events",
       "checklist",
+      "team-reporting",
       "guidelines",
     ]);
   });

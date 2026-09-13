@@ -32,6 +32,8 @@ import {
   UserPlus,
   ShieldCheck,
   BarChart3,
+  UserRoundCheck,
+  UserRoundX,
 } from "lucide-react";
 
 /**
@@ -89,6 +91,11 @@ export const HR_STAGES: HrStage[] = [
       { slug: "first-assessment", label: "Candidate Evaluation Checklist", Icon: ClipboardList, kind: "link", href: "/hr/evaluation", blurb: "The interactive interview evaluation checklist." },
       { slug: "management-assessment", label: "Management Assessment", Icon: Gauge, kind: "link", href: "/hr/management-assessment", blurb: "The management-round evaluation - notes, voice notes & attachments." },
       { slug: "hiring-analytics", label: "Hiring Analytics", Icon: BarChart3, kind: "link", href: "/hr/hiring-analytics", blurb: "The executive read-out - pipeline, hire rate, scores & interview trends." },
+      // The candidate records table pinned to one outcome. Their own routes
+      // rather than a query param on /hr/candidates, because these are steps in
+      // the rail and the console builds the rail from this list.
+      { slug: "selected-candidates", label: "Selected Candidates", Icon: UserRoundCheck, kind: "link", href: "/hr/selected-candidates", blurb: "Everyone the management assessment selected." },
+      { slug: "rejected-candidates", label: "Rejected Candidates", Icon: UserRoundX, kind: "link", href: "/hr/rejected-candidates", blurb: "Everyone who was turned down - their form links are closed." },
     ],
   },
   {
@@ -100,7 +107,7 @@ export const HR_STAGES: HrStage[] = [
     items: [
       { slug: "candidate-records", label: "Candidate Records", Icon: Users, kind: "link", href: "/hr/candidates", blurb: "Every candidate whose interview form was filled." },
       { slug: "offer-letter", label: "Selection Letter", Icon: FileCheck2, kind: "doc", typeKey: "selection", blurb: "Extend the role to the selected candidate." },
-      { slug: "reject-letter", label: "Rejection Letter", Icon: FileX2, kind: "doc", typeKey: "rejection", blurb: "A considerate decline." },
+      { slug: "reject-letter", label: "Regret Letter", Icon: FileX2, kind: "doc", typeKey: "rejection", blurb: "A considerate decline." },
       { slug: "assignment-letter", label: "Assignment Needed Letter", Icon: FileText, kind: "doc", typeKey: "assignment", blurb: "Send a pre-hire assignment." },
       { slug: "next-round", label: "One More Interview Needed Letter", Icon: Repeat, kind: "doc", typeKey: "next-round", blurb: "Invite the candidate to another round." },
       { slug: "acceptance-letter", label: "Acceptance Letter", Icon: Handshake, kind: "doc", typeKey: "acceptance", blurb: "The candidate's written acceptance of the offer." },
@@ -110,7 +117,7 @@ export const HR_STAGES: HrStage[] = [
   {
     key: "pre-joining",
     slug: "pre-joining",
-    title: "Pre-Joining",
+    title: "Post-Appointment",
     blurb: "Between offer and day one - appointment, CTC, policies and forms.",
     Icon: DoorOpen,
     items: [
@@ -119,7 +126,7 @@ export const HR_STAGES: HrStage[] = [
       { slug: "minor-intern-undertaking", label: "Undertaking - Minor Intern", Icon: ShieldCheck, kind: "doc", typeKey: "minor-internship-undertaking", blurb: "Parental-consent undertaking for a minor intern." },
       { slug: "ctc-breakup", label: "CTC Breakup", Icon: IndianRupee, kind: "link", href: "/hr/ctc", blurb: "Build the structured CTC breakup & compensation letters." },
       { slug: "all-policies-signatory", label: "Policy Signatures", Icon: ScrollText, kind: "link", href: "/hr?policies=1", blurb: "Every firm policy to acknowledge and sign." },
-      { slug: "employment-form", label: "Employment Form", Icon: ClipboardList, kind: "link", href: "/dossier/onboarding", blurb: "The joining data form - the full onboarding intake." },
+      { slug: "employment-form", label: "Employee Onboarding Form", Icon: ClipboardList, kind: "link", href: "/dossier/onboarding", blurb: "The joining data form - the full onboarding intake." },
     ],
   },
   {
@@ -129,7 +136,14 @@ export const HR_STAGES: HrStage[] = [
     blurb: "The settled employee - induction, recognition and the day-to-day of a tenure.",
     Icon: Milestone,
     items: [
+      // Declaration comes BEFORE Induction: it is what the joiner signs on
+      // arrival, and the induction record is the step that follows it.
+      { slug: "declaration", label: "Declaration Letter", Icon: FileSignature, kind: "doc", typeKey: "declaration", blurb: "The employee's own declaration - information given is true, and confidentiality." },
       { slug: "induction", label: "Induction", Icon: GraduationCap, kind: "link", href: "/hr/induction", blurb: "Confirm the new joiner's details - auto-filled from their onboarding form." },
+      // And AFTER it, the outcome of the pre-employment programme. The letter
+      // the candidate signs before that programme is the Free Training Letter
+      // in Post-Interview; this is the one the firm issues when it ends.
+      { slug: "after-free-training", label: "After Free Training", Icon: Award, kind: "doc", typeKey: "after-free-training", blurb: "The outcome of the 15-day pre-employment training & evaluation." },
       { slug: "employee-of-the-month", label: "Employee of the Month", Icon: Trophy, kind: "doc", typeKey: "employee-of-the-month", blurb: "Recognise a standout performer." },
       { slug: "birthday-wishes", label: "Birthday Wishes", Icon: Cake, kind: "doc", typeKey: "birthday", blurb: "A warm birthday note from the team." },
       { slug: "resignation-rejection", label: "Resignation Rejection Letter", Icon: FileX2, kind: "doc", typeKey: "resignation-rejection", blurb: "Decline a resignation and retain the employee." },
@@ -142,13 +156,13 @@ export const HR_STAGES: HrStage[] = [
     blurb: "Reward and progression - the appraisal outcome and every letter that follows it.",
     Icon: Target,
     items: [
+      { slug: "end-of-probation", label: "End of Probation", Icon: BadgeCheck, kind: "doc", typeKey: "confirmation", blurb: "Confirm the employee on successful completion of probation." },
       { slug: "appraisal", label: "Appraisal Letter", Icon: Target, kind: "link", href: "/appraisal", blurb: "The live rolling scorecard & appraisal outcome." },
       { slug: "increment", label: "Increment Letter", Icon: TrendingUp, kind: "doc", typeKey: "increment", blurb: "Revise compensation with a salary increment." },
       // Both revised-CTC templates existed in the registry but were reachable
       // from nowhere in the nav until this section gave them a home.
       { slug: "appraisal-revised-ctc", label: "New CTC - Appraisal", Icon: IndianRupee, kind: "doc", typeKey: "appraisal-revised-ctc", blurb: "The revised CTC that follows an appraisal." },
       { slug: "promotion-revised-ctc", label: "New CTC - Promotion", Icon: IndianRupee, kind: "doc", typeKey: "promotion-revised-ctc", blurb: "The revised CTC that follows a promotion." },
-      { slug: "end-of-probation", label: "End of Probation", Icon: BadgeCheck, kind: "doc", typeKey: "confirmation", blurb: "Confirm the employee on successful completion of probation." },
       { slug: "promotion", label: "Promotion Letter", Icon: Rocket, kind: "doc", typeKey: "promotion", blurb: "Elevate the employee to a new role." },
     ],
   },

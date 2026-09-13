@@ -59,6 +59,7 @@ import { type SkillSelection } from "@/components/hr/candidate/skill-multiselect
 import type { SkillLookupOptions } from "@/lib/hr/skills";
 import { type Ratings } from "@/lib/hr/candidate/evaluation-checklist";
 import { weightedOverall, type EvaluationWeights } from "@/lib/hr/candidate/evaluation-weights";
+import { DateField } from "@/components/ui/date-field";
 
 const UPLOAD_URL = "/api/hr/management-assessment/upload";
 
@@ -69,7 +70,7 @@ const OUTCOME_MAP: Record<
 > = {
   selected: { status: "hired", letterKey: "selection", letterLabel: "Selection letter", label: "Selected" },
   shortlisted: { status: "shortlisted", letterKey: "next-round", letterLabel: "Next-round letter", label: "Shortlisted" },
-  rejected: { status: "rejected", letterKey: "rejection", letterLabel: "Rejection letter", label: "Rejected" },
+  rejected: { status: "rejected", letterKey: "rejection", letterLabel: "Regret letter", label: "Rejected" },
 };
 const OUTCOME_ORDER: Exclude<MgmtOutcome, null>[] = ["selected", "shortlisted", "rejected"];
 
@@ -397,88 +398,106 @@ export function ManagementAssessmentScreen({
       <style>{CSS}</style>
 
       <PageShell width="standard" py={false} className="pt-6 pb-24">
-        {/* Two-pane */}
-        <div className="grid grid-cols-[340px_1fr] gap-6 max-lg:grid-cols-1">
-          {/* LEFT — candidate context */}
-          <aside className="max-lg:order-1">
-            <div className="lg:sticky lg:top-[76px] space-y-4">
-              <div className="rounded-2xl border border-hairline bg-white p-5">
-                <label htmlFor="ma-candidate" className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.16em] text-ink-soft">
-                  Candidate
-                </label>
-                <div className="ma-select-wrap">
-                  <select
-                    id="ma-candidate"
-                    data-autofocus
-                    value={candidateId}
-                    onChange={(e) => selectCandidate(e.target.value)}
-                    className="w-full appearance-none rounded-xl border border-hairline-strong bg-white px-3.5 py-3 pr-9 text-[14.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-altus-red"
+        {/* ── THE CANDIDATE BAR — HORIZONTAL, FULL WIDTH, FROZEN ──────────
+            Was a 340px card in the left column, stacked vertically. Three
+            problems with that: it held the one control the whole screen depends
+            on (which candidate) a scroll away from the assessment, it spent a
+            third of the page width on eight short facts, and the left column is
+            the natural home of an INDEX on a ten-section form.
+
+            `sticky` at the same 76px the old rail used, so the candidate you are
+            assessing and the Save button stay on screen through all ten
+            sections - on a form this long, "who is this for?" and "is it saved?"
+            are exactly the two questions you cannot afford to scroll for.
+
+            The opaque background and the ring are load-bearing, not decoration:
+            cards scroll UNDER this, and a translucent bar would show them
+            through the candidate name. */}
+        <div className="sticky top-[76px] z-30 mb-5 rounded-2xl border border-hairline bg-white px-4 py-3 shadow-[0_10px_24px_-20px_rgba(15,23,42,0.5)]">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            <label htmlFor="ma-candidate" className="sr-only">
+              Candidate
+            </label>
+            <div className="ma-select-wrap w-[260px] max-w-full shrink-0">
+              <select
+                id="ma-candidate"
+                data-autofocus
+                value={candidateId}
+                onChange={(e) => selectCandidate(e.target.value)}
+                className="w-full appearance-none rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 pr-9 text-[13.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-altus-red"
+              >
+                <option value="">- Select candidate -</option>
+                {candidates.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.fullName || "Unnamed"}{c.positionApplied ? ` · ${c.positionApplied}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selected ? (
+              <>
+                <div className="ma-fade flex min-w-0 items-center gap-2.5">
+                  <span
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[13px] font-black text-white"
+                    style={{ background: "linear-gradient(135deg,#E10600,#A80400)" }}
                   >
-                    <option value="">- Select candidate -</option>
-                    {candidates.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.fullName || "Unnamed"}{c.positionApplied ? ` · ${c.positionApplied}` : ""}
-                      </option>
-                    ))}
-                  </select>
+                    {initials(selected.fullName)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-[14.5px] font-black leading-tight text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>
+                      {selected.fullName || "Unnamed"}
+                    </p>
+                    <p className="truncate text-[12px] font-medium text-ink-muted">{selected.positionApplied || "Position not set"}</p>
+                  </div>
                 </div>
 
-                {selected ? (
-                  <div className="mt-4 ma-fade">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-[16px] font-black text-white"
-                        style={{ background: "linear-gradient(135deg,#E10600,#A80400)", boxShadow: "0 10px 22px -12px rgba(168,4,0,0.7)" }}
-                      >
-                        {initials(selected.fullName)}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-[16px] font-black leading-tight text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>
-                          {selected.fullName || "Unnamed"}
-                        </p>
-                        <p className="truncate text-[13px] font-medium text-ink-muted">{selected.positionApplied || "Position not set"}</p>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <StatusPill status={liveStatus} />
-                      {selected.mobile && <MetaChip>{selected.mobile}</MetaChip>}
-                    </div>
-                    <div className="mt-4 grid grid-cols-3 gap-2">
-                      <StatTile icon={<AudioLines size={15} />} n={recordings.length} label="Recordings" />
-                      <StatTile icon={<Paperclip size={15} />} n={attachments.length} label="Files" />
-                      <StatTile icon={<StickyNote size={15} />} n={words} label="Words" />
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-3 text-[13px] leading-relaxed text-ink-subtle">
-                    Choose who you assessed to begin. The workspace unlocks on the right.
-                  </p>
-                )}
-              </div>
+                <StatusPill status={liveStatus} />
+                {selected.mobile && <MetaChip>{selected.mobile}</MetaChip>}
 
-              {/* Save status card */}
-              <div className="flex items-center justify-between gap-3 rounded-2xl border border-hairline bg-white px-4 py-3">
-                <span className="flex items-center gap-2 text-[13px] font-semibold text-ink-muted">
-                  {saving ? (
-                    <><Loader2 size={14} className="animate-spin" style={{ color: "var(--color-altus-red)" }} /> Saving…</>
-                  ) : dirty ? (
-                    <><span className="ma-dot inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-altus-red)" }} /> Unsaved Changes</>
-                  ) : candidateId ? (
-                    <><Check size={14} strokeWidth={3} style={{ color: "#15803d" }} /> All Changes Saved</>
-                  ) : (
-                    <>Nothing to Save Yet</>
-                  )}
+                {/* The three counts, inline - a number and its word, which is
+                    all the old tiles said in three boxes. */}
+                <span className="flex items-center gap-3 text-[12.5px] font-semibold text-ink-muted">
+                  <InlineStat icon={<AudioLines size={14} />} n={recordings.length} label="recordings" />
+                  <InlineStat icon={<Paperclip size={14} />} n={attachments.length} label="files" />
+                  <InlineStat icon={<StickyNote size={14} />} n={words} label="words" />
                 </span>
-                <button
-                  type="button"
-                  onClick={() => void saveNow()}
-                  disabled={saving || !candidateId}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#18181b] px-4 py-2 text-[12.5px] font-bold text-white transition-colors hover:bg-black disabled:opacity-40"
-                >
-                  <Save size={14} /> Save
-                </button>
-              </div>
-            </div>
+              </>
+            ) : (
+              <p className="text-[13px] text-ink-subtle">Choose who you assessed to begin.</p>
+            )}
+
+            {/* Save state and Save keep the right end whatever is to their
+                left, so the button never moves as a candidate is picked. */}
+            <span className="ml-auto flex shrink-0 items-center gap-3">
+              <span className="flex items-center gap-2 text-[12.5px] font-semibold text-ink-muted">
+                {saving ? (
+                  <><Loader2 size={14} className="animate-spin" style={{ color: "var(--color-altus-red)" }} /> Saving…</>
+                ) : dirty ? (
+                  <><span className="ma-dot inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-altus-red)" }} /> Unsaved Changes</>
+                ) : candidateId ? (
+                  <><Check size={14} strokeWidth={3} style={{ color: "#15803d" }} /> All Changes Saved</>
+                ) : (
+                  <>Nothing to Save Yet</>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => void saveNow()}
+                disabled={saving || !candidateId}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#18181b] px-4 py-2 text-[12.5px] font-bold text-white transition-colors hover:bg-black disabled:opacity-40"
+              >
+                <Save size={14} /> Save
+              </button>
+            </span>
+          </div>
+        </div>
+
+        {/* Two-pane: the section index, then the workspace. */}
+        <div className="grid grid-cols-[260px_1fr] gap-6 max-lg:grid-cols-1">
+          {/* LEFT — the index of the ten sections */}
+          <aside className="max-lg:order-1">
+            <SectionIndex disabled={noCandidate || loading} />
           </aside>
 
           {/* RIGHT — workspace */}
@@ -492,62 +511,102 @@ export function ManagementAssessmentScreen({
               </div>
             ) : (
               <>
-                <RoleDesignationCard
-                  role={selected?.position ?? selected?.positionApplied ?? ""}
-                  department={selected?.department ?? ""}
-                  designation={designation}
-                  dateOfJoining={dateOfJoining}
-                  onDesignation={updateDesignation}
-                  onDoj={updateDoj}
-                />
+                {/* Anchor for the section index. `scroll-mt` clears the
+                    frozen candidate bar, or a jump lands the heading behind it. */}
+                <div id={SECTION_ANCHOR(1)} className="scroll-mt-[150px]">
+                  <RoleDesignationCard
+                    role={selected?.position ?? selected?.positionApplied ?? ""}
+                    department={selected?.department ?? ""}
+                    designation={designation}
+                    dateOfJoining={dateOfJoining}
+                    onDesignation={updateDesignation}
+                    onDoj={updateDoj}
+                  />
+                </div>
 
-                <EvaluationCard candidateId={candidateId} />
+                {/* Anchor for the section index. `scroll-mt` clears the
+                    frozen candidate bar, or a jump lands the heading behind it. */}
+                <div id={SECTION_ANCHOR(2)} className="scroll-mt-[150px]">
+                  <EvaluationCard candidateId={candidateId} />
+                </div>
 
-                <ScoresCard
-                  hrScore={overall.rated ? overall.avg : null}
-                  hrRated={overall.rated}
-                  managementScore={managementScore}
-                  onManagementScore={updateManagementScore}
-                />
+                {/* Anchor for the section index. `scroll-mt` clears the
+                    frozen candidate bar, or a jump lands the heading behind it. */}
+                <div id={SECTION_ANCHOR(3)} className="scroll-mt-[150px]">
+                  <ScoresCard
+                    hrScore={overall.rated ? overall.avg : null}
+                    hrRated={overall.rated}
+                    managementScore={managementScore}
+                    onManagementScore={updateManagementScore}
+                  />
+                </div>
 
-                <SkillsSummaryCard value={skills} />
+                {/* Anchor for the section index. `scroll-mt` clears the
+                    frozen candidate bar, or a jump lands the heading behind it. */}
+                <div id={SECTION_ANCHOR(4)} className="scroll-mt-[150px]">
+                  <SkillsSummaryCard value={skills} />
+                </div>
 
-                <RecruiterCard
-                  via={recruiterVia}
-                  name={recruiterName}
-                  email={recruiterEmail}
-                  outcome={outcome}
-                  rejectionReason={rejectionReason}
-                  emailing={emailingRecruiter}
-                  onToggleVia={toggleRecruiterVia}
-                  onName={updateRecruiterName}
-                  onEmail={updateRecruiterEmail}
-                  onReason={updateRejectionReason}
-                  onEmailRecruiter={emailRecruiter}
-                />
+                {/* Anchor for the section index. `scroll-mt` clears the
+                    frozen candidate bar, or a jump lands the heading behind it. */}
+                <div id={SECTION_ANCHOR(5)} className="scroll-mt-[150px]">
+                  <RecruiterCard
+                    via={recruiterVia}
+                    name={recruiterName}
+                    email={recruiterEmail}
+                    outcome={outcome}
+                    rejectionReason={rejectionReason}
+                    emailing={emailingRecruiter}
+                    onToggleVia={toggleRecruiterVia}
+                    onName={updateRecruiterName}
+                    onEmail={updateRecruiterEmail}
+                    onReason={updateRejectionReason}
+                    onEmailRecruiter={emailRecruiter}
+                  />
+                </div>
 
-                <AssignmentCard
-                  enabled={oneMore}
-                  brief={assignmentBrief}
-                  candidateId={candidateId}
-                  creating={creatingTask}
-                  onToggle={toggleOneMore}
-                  onBrief={updateBrief}
-                  onCreateTask={createTask}
-                />
+                {/* Anchor for the section index. `scroll-mt` clears the
+                    frozen candidate bar, or a jump lands the heading behind it. */}
+                <div id={SECTION_ANCHOR(6)} className="scroll-mt-[150px]">
+                  <AssignmentCard
+                    enabled={oneMore}
+                    brief={assignmentBrief}
+                    candidateId={candidateId}
+                    creating={creatingTask}
+                    onToggle={toggleOneMore}
+                    onBrief={updateBrief}
+                    onCreateTask={createTask}
+                  />
+                </div>
 
-                <NotesCard value={notes} onChange={onNotesChange} />
-                <RecordingsCard recordings={recordings} candidateId={candidateId} onAdd={addRecording} onRemove={removeRecording} />
-                <AttachmentsCard attachments={attachments} onAdd={addAttachments} onRemove={removeAttachment} onPreview={setPreview} />
+                {/* Anchor for the section index. `scroll-mt` clears the
+                    frozen candidate bar, or a jump lands the heading behind it. */}
+                <div id={SECTION_ANCHOR(7)} className="scroll-mt-[150px]">
+                  <NotesCard value={notes} onChange={onNotesChange} />
+                </div>
+                {/* Anchor for the section index. `scroll-mt` clears the
+                    frozen candidate bar, or a jump lands the heading behind it. */}
+                <div id={SECTION_ANCHOR(8)} className="scroll-mt-[150px]">
+                  <RecordingsCard recordings={recordings} candidateId={candidateId} onAdd={addRecording} onRemove={removeRecording} />
+                </div>
+                {/* Anchor for the section index. `scroll-mt` clears the
+                    frozen candidate bar, or a jump lands the heading behind it. */}
+                <div id={SECTION_ANCHOR(9)} className="scroll-mt-[150px]">
+                  <AttachmentsCard attachments={attachments} onAdd={addAttachments} onRemove={removeAttachment} onPreview={setPreview} />
+                </div>
 
                 {/* Outcome — the management verdict is the FINAL step. */}
-                <OutcomeCard
-                  outcome={outcome}
-                  onChoose={chooseOutcome}
-                  candidateId={candidateId}
-                  proposedSalary={proposedSalary}
-                  onProposedSalary={updateProposedSalary}
-                />
+                {/* Anchor for the section index. `scroll-mt` clears the
+                    frozen candidate bar, or a jump lands the heading behind it. */}
+                <div id={SECTION_ANCHOR(10)} className="scroll-mt-[150px]">
+                  <OutcomeCard
+                    outcome={outcome}
+                    onChoose={chooseOutcome}
+                    candidateId={candidateId}
+                    proposedSalary={proposedSalary}
+                    onProposedSalary={updateProposedSalary}
+                  />
+                </div>
               </>
             )}
           </section>
@@ -1060,8 +1119,8 @@ function RoleDesignationCard({
           />
         </FieldLabel>
         <FieldLabel label="Date of Joining" icon={<CalendarDays size={13} />}>
-          <input
-            type="date"
+          <DateField
+          
             value={dateOfJoining}
             onChange={(e) => onDoj(e.target.value)}
             className="ma-inp"
@@ -1486,6 +1545,123 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
       </span>
       {label}
     </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Section index                                                       */
+/* ------------------------------------------------------------------ */
+
+/** The ten sections, in the order the workspace renders them. */
+const MA_SECTIONS: { n: number; title: string }[] = [
+  { n: 1, title: "Role & Designation" },
+  { n: 2, title: "Evaluation" },
+  { n: 3, title: "Scores" },
+  { n: 4, title: "Skills" },
+  { n: 5, title: "Recruiter" },
+  { n: 6, title: "One More Assignment" },
+  { n: 7, title: "Assessment Notes" },
+  { n: 8, title: "Voice Recordings" },
+  { n: 9, title: "Attachments" },
+  { n: 10, title: "Outcome" },
+];
+
+/** One id shape, used by both the anchor and the index that scrolls to it. */
+const SECTION_ANCHOR = (n: number) => `ma-section-${n}`;
+
+/**
+ * THE INDEX — the ten sections, with the one you are in marked.
+ *
+ * `IntersectionObserver` rather than a scroll handler: the browser reports
+ * which anchors are on screen, so this costs nothing per frame and needs no
+ * knowledge of the scroll container - which on this page is not the window.
+ *
+ * The active section is the TOPMOST one intersecting, not the last callback to
+ * fire: entries arrive in whatever order they cross the threshold, and taking
+ * the last one made the marker jump backwards when two cards were visible.
+ *
+ * `rootMargin` pulls the detection line down past the frozen candidate bar, so
+ * the marked section is the one you can actually read rather than the one
+ * hidden behind it.
+ */
+function SectionIndex({ disabled }: { disabled: boolean }) {
+  const [active, setActive] = React.useState(1);
+
+  React.useEffect(() => {
+    if (disabled) return;
+    const nodes = MA_SECTIONS.map((s) => document.getElementById(SECTION_ANCHOR(s.n))).filter(
+      (n): n is HTMLElement => n !== null,
+    );
+    if (!nodes.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (!visible.length) return;
+        const top = visible.reduce((a, b) =>
+          a.boundingClientRect.top <= b.boundingClientRect.top ? a : b,
+        );
+        const n = Number(top.target.id.replace("ma-section-", ""));
+        if (n) setActive(n);
+      },
+      { rootMargin: "-150px 0px -55% 0px", threshold: 0 },
+    );
+    nodes.forEach((n) => io.observe(n));
+    return () => io.disconnect();
+  }, [disabled]);
+
+  function jump(n: number) {
+    document.getElementById(SECTION_ANCHOR(n))?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  return (
+    <div className="lg:sticky lg:top-[164px] rounded-2xl border border-hairline bg-white p-3">
+      <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-[0.16em] text-ink-soft">
+        Sections
+      </p>
+      <nav className="flex flex-col gap-0.5">
+        {MA_SECTIONS.map((sec) => {
+          const on = !disabled && active === sec.n;
+          return (
+            <button
+              key={sec.n}
+              type="button"
+              onClick={() => jump(sec.n)}
+              disabled={disabled}
+              aria-current={on ? "true" : undefined}
+              className="flex items-center gap-2.5 rounded-xl px-2 py-2 text-left transition-colors hover:bg-surface-soft disabled:opacity-45 disabled:hover:bg-transparent"
+              style={on ? { background: "color-mix(in srgb, var(--color-altus-red) 8%, white)" } : undefined}
+            >
+              <span
+                className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-[11.5px] font-black"
+                style={
+                  on
+                    ? { background: "linear-gradient(135deg,#E10600,#A80400)", color: "#fff" }
+                    : { background: "var(--color-surface-soft)", color: "var(--color-ink-muted)" }
+                }
+              >
+                {sec.n}
+              </span>
+              <span
+                className="min-w-0 flex-1 truncate text-[13px] font-semibold"
+                style={{ color: on ? "var(--color-altus-red-deep)" : "var(--color-ink-strong)" }}
+              >
+                {sec.title}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
+/** A count and its word, for the frozen candidate bar. */
+function InlineStat({ icon, n, label }: { icon: React.ReactNode; n: number; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="text-ink-subtle">{icon}</span>
+      <span className="font-black tabular-nums text-ink-strong">{n}</span> {label}
+    </span>
   );
 }
 

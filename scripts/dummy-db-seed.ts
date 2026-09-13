@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { createHash } from "node:crypto";
 import type { PGlite } from "@electric-sql/pglite";
 
 /**
@@ -135,6 +138,185 @@ const NODES: [string, string, string, string | null, number, string | null, numb
   ["00000000-0000-4000-8003-00000000000d", "Scope signed off by both sides", "result", "00000000-0000-4000-8003-00000000000c", 0, EMP.asha, 32, null, "not_started"],
 ];
 
+/* ---------------------------------------------------------------------------
+ * CANDIDATES - the no-login interview form (0221) and policies (0222).
+ *
+ * Both screens are lists, so against an empty database they show only their
+ * empty state and neither feature can be looked at, let alone tested. These
+ * rows put one candidate in each state that behaves DIFFERENTLY:
+ *
+ *   - not started      link issued, form untouched
+ *   - part-filled      a draft mid-way, so the progress badge renders
+ *                      something other than 0% or 100%
+ *   - submitted        "Complete", and still editable over the link, which is
+ *                      the whole promise of the flow
+ *   - policies started 2 of 6 signed, so the list shows both states at once
+ *   - closed record    candidate_active false, which is what makes the
+ *                      "reopen this candidate?" confirmation appear
+ *
+ * -- THE TOKENS ARE FIXED, AND THAT IS ONLY SAFE HERE ----------------------
+ * A real link's plaintext token exists for one moment and is never stored -
+ * only its SHA-256 reaches the database - so a seeded candidate would normally
+ * be unopenable: you would have the row but no URL. These hashes are therefore
+ * derived from KNOWN strings, printed by dummy-db-setup.ts, so the sandbox
+ * hands you links that actually work.
+ *
+ * That is a deliberate hole in an otherwise unguessable credential, and it is
+ * confined to this file: it runs from `pnpm dummy:setup` / `dummy:reset`
+ * against the local PGlite fixture only, never against Supabase, and DUMMY_MODE
+ * is ignored under NODE_ENV=production. Nothing here reaches a deployed site.
+ * ------------------------------------------------------------------------- */
+
+const CAND = {
+  fresh: "00000000-0000-4000-8100-000000000001",
+  partial: "00000000-0000-4000-8100-000000000002",
+  submitted: "00000000-0000-4000-8100-000000000003",
+  policies: "00000000-0000-4000-8100-000000000004",
+  closed: "00000000-0000-4000-8100-000000000005",
+} as const;
+
+/** Each candidate's own `employees` row - the subject every write targets. */
+const CAND_EMP = {
+  fresh: "00000000-0000-4000-8101-000000000001",
+  partial: "00000000-0000-4000-8101-000000000002",
+  submitted: "00000000-0000-4000-8101-000000000003",
+  policies: "00000000-0000-4000-8101-000000000004",
+  closed: "00000000-0000-4000-8101-000000000005",
+} as const;
+
+/** Plaintext tokens. Printed on setup; only the hash is stored. DEV ONLY. */
+export const DUMMY_TOKENS = {
+  fresh: "dummy-form-link-not-started-000000000",
+  partial: "dummy-form-link-part-filled-000000000",
+  submitted: "dummy-form-link-submitted-00000000000",
+  policies: "dummy-policies-link-two-signed-000000",
+} as const;
+
+const sha256 = (v: string) => createHash("sha256").update(v, "utf8").digest("hex");
+
+/**
+ * The local org chart for Team Reporting, or none.
+ *
+ * Absent file → empty chart, not an error: the file is deliberately not in the
+ * repository, so its absence is the normal case on every machine but one.
+ */
+function loadLocalTeamTree(): { name: string; reports: string[] }[] {
+  const file = join(process.cwd(), "scripts", "dummy-team-tree.local.json");
+  if (!existsSync(file)) return [];
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8")) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (n): n is { name: string; reports: string[] } =>
+          !!n &&
+          typeof (n as { name?: unknown }).name === "string" &&
+          Array.isArray((n as { reports?: unknown }).reports),
+      )
+      .map((n) => ({ name: n.name, reports: n.reports.filter((r) => typeof r === "string") }));
+  } catch {
+    console.warn(`Ignoring ${file}: it is not valid JSON.`);
+    return [];
+  }
+}
+
+async function seedCandidates(pg: PGlite): Promise<void> {
+  const rows: [string, string, string, string, string, string, string | null, boolean][] = [
+    [CAND.fresh, CAND_EMP.fresh, "Aarav Kulkarni", "aarav.kulkarni@example.invalid", "9820011001", "Operations Executive", null, true],
+    [CAND.partial, CAND_EMP.partial, "Diya Raghunathan", "diya.raghunathan@example.invalid", "9820011002", "Finance Executive", null, true],
+    [CAND.submitted, CAND_EMP.submitted, "Kabir Sheth", "kabir.sheth@example.invalid", "9820011003", "Second-Year Intern", "2 days", true],
+    [CAND.policies, CAND_EMP.policies, "Ishaan Vora", "ishaan.vora@example.invalid", "9820011004", "Team Lead", "5 days", true],
+    [CAND.closed, CAND_EMP.closed, "Meher Bhatt", "meher.bhatt@example.invalid", "9820011005", "Operations Executive", null, false],
+  ];
+
+  for (const [intakeId, empId, name, email, mobile, position, submittedAgo, active] of rows) {
+    // The wizard reads `data` under its own `sectionId.fieldKey` keys, so the
+    // candidate opens a form already carrying what HR typed rather than a blank.
+    const data: Record<string, string> = {
+      "personal.fullName": name,
+      "personal.mobile": mobile,
+      "personal.email": email,
+      "personal.position": position,
+    };
+    // The part-filled one carries extra answers so its progress badge lands
+    // between the two extremes instead of at one of them.
+    if (intakeId === CAND.partial) {
+      Object.assign(data, {
+        "personal.dob": "1998-04-14",
+        "personal.gender": "Female",
+        "personal.address": "14, Linking Road, Bandra West, Mumbai 400050",
+        "personal.maritalStatus": "Single",
+        "education.highestQualification": "B.Com, Mumbai University",
+        "experience.totalYears": "3",
+      });
+    }
+
+    await pg.query(
+      "insert into candidate_intake" +
+        " (id, full_name, email, mobile, position_applied, data, submitted_at, created_by_id, created_at)" +
+        " values ($1,$2,$3,$4,$5,$6::jsonb," +
+        (submittedAgo ? " now() - interval '" + submittedAgo + "'," : " null,") +
+        " $7, now() - interval '6 days')" +
+        " on conflict (id) do nothing",
+      [intakeId, name, email, mobile, position, JSON.stringify(data), EMP.me],
+    );
+
+    // account_type 'candidate' with is_active false is what the DB CHECK
+    // expects; `candidate_active` is the liveness flag resolveAccessLink()
+    // re-reads on every single request.
+    await pg.query(
+      "insert into employees" +
+        " (id, name, email, role, is_admin, is_active, account_type, candidate_active," +
+        "  candidate_intake_id, personal_email, invited_at, deactivated_at)" +
+        " values ($1,$2,$3,'doer'::employee_role,false,false,'candidate',$4,$5,$3," +
+        " now() - interval '6 days'," +
+        (active ? " null)" : " now() - interval '1 day')") +
+        " on conflict (id) do nothing",
+      [empId, name, email, active, intakeId],
+    );
+  }
+
+  // One live link each. The CLOSED candidate deliberately gets none: their
+  // record is shut, so a link would resolve to nothing, and a dead link is
+  // worse than no link. Re-opening them is what the HR dialog now asks about.
+  const links: [string, string, string][] = [
+    [CAND.fresh, DUMMY_TOKENS.fresh, "form"],
+    [CAND.partial, DUMMY_TOKENS.partial, "form"],
+    [CAND.submitted, DUMMY_TOKENS.submitted, "form"],
+    [CAND.policies, DUMMY_TOKENS.policies, "policies"],
+  ];
+  for (const [intakeId, token, purpose] of links) {
+    await pg.query(
+      "insert into candidate_access_links" +
+        " (intake_id, token_hash, expires_at, purpose, created_by_id, created_at)" +
+        " values ($1,$2, now() + interval '30 days', $3, $4, now() - interval '6 days')" +
+        " on conflict (token_hash) do nothing",
+      [intakeId, sha256(token), purpose, EMP.me],
+    );
+  }
+
+  // Two of six policies already accepted, so the candidate's list shows signed
+  // AND unsigned rows on first open. `policy_compliance` is mirrored the way the
+  // real action does it, with a null doc_instance_id marking a typed candidate
+  // acceptance rather than a DigiLocker-backed signature.
+  for (const key of ["posh-policy", "exit-policy"]) {
+    await pg.query(
+      "insert into candidate_policy_signatures" +
+        " (intake_id, employee_id, policy_key, version, signed_name, signed_at, updated_at)" +
+        " values ($1,$2,$3,1,$4, now() - interval '3 days', now() - interval '3 days')" +
+        " on conflict (intake_id, policy_key) do nothing",
+      [CAND.policies, CAND_EMP.policies, key, "Ishaan Vora"],
+    );
+    await pg.query(
+      "insert into policy_compliance" +
+        " (policy_key, employee_id, version, status, signed_at)" +
+        " values ($1,$2,1,'signed', now() - interval '3 days')" +
+        " on conflict (policy_key, employee_id) do nothing",
+      [key, CAND_EMP.policies],
+    );
+  }
+}
+
 export async function seedDummyData(pg: PGlite): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
 
@@ -260,6 +442,67 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
     );
   }
   await bump("project_nodes");
+
+  // ── A LOCAL-ONLY ORG CHART, for Operations > Team Reporting ────────────
+  //
+  // Team Reporting is tested against a real org chart, and real names do not
+  // belong in the repository. So the chart is read from
+  // scripts/dummy-team-tree.local.json - git-ignored - and simply skipped when
+  // that file is absent (a fresh clone, CI, anybody else's machine).
+  //
+  // Nothing here can reach production: this seed only ever runs against the
+  // local PGlite database (`pnpm dummy:setup`), which DUMMY_MODE refuses to use
+  // outside development, and the file it reads is never pushed.
+  //
+  // SCOPED TO THE HIERARCHY. The people are plain employee rows with
+  // manager_id set - no tasks, goals, KPI or attendance - so no other module
+  // changes shape. The six fixture employees stay unattached here and are
+  // filtered off the Team Reporting board itself (see that page), while every
+  // other module still sees them.
+  //
+  // `on conflict do nothing` + `where manager_id is null`: re-runnable, and a
+  // transfer made in the UI is never undone by topping the fixture up.
+  const TREE = loadLocalTeamTree();
+
+  // One stable id per name, so re-seeding updates the same rows instead of
+  // filling the roster with duplicates. Ordered by first appearance: the head of
+  // the tree, then each manager's reports.
+  const treeNames: string[] = [];
+  for (const node of TREE) {
+    if (!treeNames.includes(node.name)) treeNames.push(node.name);
+    for (const r of node.reports) if (!treeNames.includes(r)) treeNames.push(r);
+  }
+  const treeId = (name: string) =>
+    `00000000-0000-4000-8003-${String(treeNames.indexOf(name) + 1).padStart(12, "0")}`;
+  const managerNames = new Set(TREE.filter((n) => n.reports.length > 0).map((n) => n.name));
+  const slug = (name: string) => name.toLowerCase().replace(/[^a-z]+/g, ".");
+
+  for (const name of treeNames) {
+    await pg.query(
+      `insert into employees (id, name, email, role, is_admin, is_active, department_id, designation_id, joined_at)
+       values ($1,$2,$3,'doer'::employee_role,false,true,$4,$5, now() - interval '200 days')
+       on conflict (id) do nothing`,
+      [
+        treeId(name),
+        name,
+        `${slug(name)}@example.invalid`,
+        DEPT.ops,
+        managerNames.has(name) ? DESIG.manager : DESIG.executive,
+      ],
+    );
+  }
+
+  for (const node of TREE) {
+    for (const r of node.reports) {
+      await pg.query(
+        "update employees set manager_id = $2 where id = $1 and manager_id is null",
+        [treeId(r), treeId(node.name)],
+      );
+    }
+  }
+
+  await seedCandidates(pg);
+  await bump("candidate_intake");
 
   return counts;
 }

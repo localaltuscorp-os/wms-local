@@ -586,6 +586,15 @@ export interface EvaluationInstance {
   sectionNotes: Record<string, string>;
   /** Overall manual gut 0..10. */
   overall: number | null;
+  /**
+   * Who sat in the interview, BY NAME.
+   *
+   * Names rather than employee ids: this is a record of an interview on a date,
+   * and it has to keep reading correctly after somebody leaves or the roster is
+   * renamed. Optional, so every evaluation saved before this existed still
+   * parses.
+   */
+  interviewedBy?: string[];
   /** The interviewer's final recommendation (may be an override of the auto one). */
   recommendation: RecommendationValue | null;
   /** Set when `recommendation` diverges from the auto-computed one. */

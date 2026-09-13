@@ -7,6 +7,7 @@ import { X, UploadCloud, Loader2, Paperclip } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { DOC_TYPES, docTypeMeta, type DossierDocType } from "@/lib/dossier/types";
 import { uploadEmployeeDocument } from "@/app/(app)/dossier/actions";
+import { DateField } from "@/components/ui/date-field";
 
 const RED = "var(--color-altus-red)";
 const RED_DEEP = "var(--color-altus-red-deep)";
@@ -131,7 +132,8 @@ export function UploadDialog({
             {/* effective date */}
             <label className="flex flex-col gap-1.5">
               <span className="text-[12px] font-bold uppercase tracking-[0.1em] text-ink-subtle">Letter date <span className="font-medium normal-case text-ink-subtle">(optional)</span></span>
-              <input name="effectiveDate" type="date" className="rounded-xl border border-hairline bg-surface-soft px-3.5 py-2.5 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]" />
+              <DateField name="effectiveDate"
+        className="rounded-xl border border-hairline bg-surface-soft px-3.5 py-2.5 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]" />
             </label>
             {/* file */}
             <label className="flex flex-col gap-1.5">

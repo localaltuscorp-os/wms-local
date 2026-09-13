@@ -10,6 +10,7 @@ import { SignatureStatusPill } from "@/components/documents/signature-status-pil
 import { formatDateHr } from "@/lib/format";
 import type { SignatureStatus } from "@/lib/documents/signing";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { DateField } from "@/components/ui/date-field";
 
 const RED = "var(--color-altus-red)";
 const RED_DEEP = "var(--color-altus-red-deep)";
@@ -243,7 +244,8 @@ function IssueDialog({
             <input name="title" required maxLength={200} placeholder="e.g. Offer Letter - Jul 2026" className={inputCls} />
           </Field>
           <Field label="Effective Date (optional)">
-            <input name="effectiveDate" type="date" className={inputCls} />
+            <DateField name="effectiveDate"
+        className={inputCls} />
           </Field>
           <Field label="Notes (optional)">
             <input name="notes" maxLength={2000} className={inputCls} />

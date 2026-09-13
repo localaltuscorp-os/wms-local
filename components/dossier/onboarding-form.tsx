@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
-import { Loader2, Send, Save, Paperclip, Eye, Check, ChevronLeft, Link2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Send, Save, Paperclip, Eye, Check, ChevronLeft, Plus, Trash2 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { fireToast } from "@/lib/toast";
 import {
@@ -26,7 +26,6 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
   const [busy, setBusy] = React.useState<null | "draft" | "submitted">(null);
   const [values, setValues] = React.useState<Record<string, string>>(() => ({ ...initial.fields }));
   const [picked, setPicked] = React.useState<Record<string, File>>({});
-  const [links, setLinks] = React.useState<Record<string, string>>({});
 
   // Repeater rows (e.g. Emergency Contacts) - seeded from saved JSON, else N empty rows.
   const repeaterFields = React.useMemo(() => ONB_ALL_FIELDS.filter((f) => f.type === "repeater"), []);
@@ -79,7 +78,7 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
   }
 
   /**
-   * AUTOSAVE PAYLOAD - text answers, repeater rows and pasted links only.
+   * AUTOSAVE PAYLOAD - text answers and repeater rows.
    *
    * Picked FILES are deliberately excluded. They are `File` handles, they do not
    * serialise into the change signature, and re-posting one on every debounce
@@ -90,8 +89,8 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
    * on the next explicit Save Draft or Submit.
    */
   const draft = React.useMemo(
-    () => ({ values, repeaters, links }),
-    [values, repeaters, links],
+    () => ({ values, repeaters }),
+    [values, repeaters],
   );
 
   const autosave = useAutosave({
@@ -111,10 +110,6 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
         for (const [p, c] of PERM_TO_CURR) fd.set(c, d.values[p] ?? "");
       }
       for (const f of repeaterFields) fd.set(f.key, JSON.stringify(d.repeaters[f.key] ?? []));
-      for (const key of ONB_FILE_KEYS) {
-        const link = d.links[key]?.trim();
-        if (link) fd.set(`${key}__link`, link);
-      }
       const res = await submitOnboarding(fd);
       return res.ok ? { ok: true } : { ok: false, error: res.error };
     },
@@ -135,15 +130,17 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
           return;
         }
       }
-      // Required text + attachments. An attachment is satisfied by a newly picked
-      // file, a pasted link, OR a file already stored from a previous save.
+      // Required text + attachments. An attachment is satisfied by a newly
+      // picked file OR one already stored from a previous save - including a
+      // link pasted before links were removed, which is still a stored file
+      // reference and must not suddenly make an old form incomplete.
       for (const f of ONB_ALL_FIELDS) {
         if (!f.required) continue;
         if (f.type === "repeater") continue; // handled above
         if (f.type === "file") {
-          const has = !!picked[f.key] || !!links[f.key]?.trim() || !!initial.files[f.key]?.signedUrl || !!initial.files[f.key]?.fileName;
+          const has = !!picked[f.key] || !!initial.files[f.key]?.signedUrl || !!initial.files[f.key]?.fileName;
           if (!has) {
-            fireToast({ message: `“${f.label}” is required (attach a file or paste a link).`, type: "error" });
+            fireToast({ message: `“${f.label}” is required - attach a file.`, type: "error" });
             return;
           }
           continue;
@@ -187,7 +184,6 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
     for (const f of repeaterFields) fd.set(f.key, JSON.stringify(repeaters[f.key] ?? []));
     for (const key of ONB_FILE_KEYS) {
       if (uploadedRefs[key]) fd.set(`${key}__uploaded`, JSON.stringify(uploadedRefs[key]));
-      else if (links[key]?.trim()) fd.set(`${key}__link`, links[key]!.trim());
     }
     const res = await submitOnboarding(fd);
     setBusy(null);
@@ -248,8 +244,6 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
                   existingFile={initial.files[f.key] ?? null}
                   pickedFile={picked[f.key] ?? null}
                   onPick={(file) => setPicked((p) => ({ ...p, [f.key]: file }))}
-                  linkVal={links[f.key] ?? ""}
-                  onLink={(v) => setLinks((p) => ({ ...p, [f.key]: v }))}
                   disabled={s.key === "current" && f.key !== "sameAsPermanent" && sameAsPerm}
                 />
               ),
@@ -270,7 +264,7 @@ export function OnboardingForm({ initial, backHref }: { initial: OnboardingView;
 }
 
 function Field({
-  field, value, onChange, existingFile, pickedFile, onPick, linkVal, onLink, disabled,
+  field, value, onChange, existingFile, pickedFile, onPick, disabled,
 }: {
   field: OnbField;
   value: string;
@@ -278,8 +272,6 @@ function Field({
   existingFile: OnboardingView["files"][string] | null;
   pickedFile: File | null;
   onPick: (f: File) => void;
-  linkVal: string;
-  onLink: (v: string) => void;
   disabled?: boolean;
 }) {
   const wpx = ONB_WIDTH_PX[field.w];
@@ -313,16 +305,25 @@ function Field({
         <div className="relative flex items-center gap-1.5 rounded-lg border border-solid border-hairline-strong bg-surface-soft px-2.5 py-2">
           <Paperclip size={13} className="shrink-0 text-ink-subtle" />
           <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-ink-muted">{hasPicked ? pickedFile!.name : hasExisting ? (existingFile!.isLink ? "Linked" : existingFile!.fileName) : "Choose file…"}</span>
+          {/* Says the photo came from the interview form rather than letting it
+              look like something already attached here - and the file input is
+              still live underneath, so it can be replaced. */}
+          {!hasPicked && hasExisting && existingFile!.carriedOver && (
+            <span className="relative z-10 shrink-0 rounded-pill bg-white px-2 py-0.5 text-[10.5px] font-bold" style={{ color: "#15803d" }}>From interview form</span>
+          )}
           {hasExisting && existingFile!.signedUrl && (
             <a href={existingFile!.signedUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="relative z-10 inline-flex items-center gap-1 rounded-pill bg-white px-2 py-0.5 text-[10.5px] font-bold text-ink-soft hover:text-ink-strong"><Eye size={11} /> View</a>
           )}
           <input type="file" accept={ONB_ACCEPT} onChange={(e) => e.target.files?.[0] && onPick(e.target.files[0])} className="absolute inset-0 cursor-pointer opacity-0" />
         </div>
-        {/* or paste a Drive / URL link */}
-        <div className="flex items-center gap-1.5 rounded-lg bg-surface-soft px-2.5 py-1.5" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}>
-          <Link2 size={12} className="shrink-0 text-ink-subtle" />
-          <input type="url" value={linkVal} onChange={(e) => onLink(e.target.value)} placeholder="or paste Drive / URL link" className="min-w-0 flex-1 bg-transparent text-[12px] font-medium text-ink-strong outline-none placeholder:text-ink-subtle" />
-        </div>
+        {/* NO "or paste Drive / URL link" here any more.
+            A Drive link is not an attachment: it can be moved, unshared or
+            deleted by whoever owns it, and it is not readable at all from
+            outside that Google account - so a document "collected" as a link
+            could be gone by the time HR opens the record. Every attachment is
+            now an uploaded file, which lives in our own storage.
+            Links stored before this change still render above as "Linked" —
+            nothing was deleted, it simply cannot be set from here. */}
       </label>
     );
   }

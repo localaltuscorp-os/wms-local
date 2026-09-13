@@ -293,6 +293,7 @@ export function EvaluationV2Screen({
         })),
       setAiInsights: (insights: InterviewAiInsights | null) => patch((p) => ({ ...p, aiInsights: insights })),
       setTextbox: (id: TextboxId, v) => patch((p) => ({ ...p, textboxes: { ...p.textboxes, [id]: v } })),
+      setInterviewedBy: (names: string[]) => patch((p) => ({ ...p, interviewedBy: names })),
     };
   }, [instance, profile, ctx, patch]);
 

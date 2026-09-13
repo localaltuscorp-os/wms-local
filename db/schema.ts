@@ -7184,6 +7184,15 @@ export const candidatePolicySignatures = pgTable(
     version: integer("version").notNull().default(1),
     /** What they typed, verbatim. */
     signedName: text("signed_name").notNull(),
+    /**
+     * Storage key of the signature IMAGE they uploaded (private documents
+     * bucket, under their own candidate-intake prefix).
+     *
+     * Nullable because rows written before 0225 were signed when a typed name
+     * was the whole requirement; a null says "typed-only", which is the truth
+     * about those rows rather than a blank standing in for a photo.
+     */
+    signaturePath: text("signature_path"),
     signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -7193,6 +7202,46 @@ export const candidatePolicySignatures = pgTable(
   ],
 );
 export type CandidatePolicySignature = typeof candidatePolicySignatures.$inferSelect;
+
+/**
+ * EMPLOYEE POLICY SIGN-OFF (migration 0226) — printed name + date + signature
+ * image, the second way an employee can sign a policy.
+ *
+ * DigiLocker remains: it produces Aadhaar-verified identity and an archived
+ * signed PDF, and those rows live in `document_signatures`. This table holds
+ * the typed-and-uploaded kind, separately, for the same reason
+ * `candidatePolicySignatures` is separate — the two are not equivalent
+ * evidence, and a reader of the ledger a year from now must be able to tell
+ * which one they are looking at. Both mirror into `policyCompliance`, where the
+ * null `docInstanceId` is the marker.
+ *
+ * `signaturePath` is NOT NULL here, unlike the candidate table: there was never
+ * a period when this table accepted a name alone, so nothing has to be left
+ * nullable to describe history honestly.
+ */
+export const employeePolicySignatures = pgTable(
+  "employee_policy_signatures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    policyKey: text("policy_key").notNull(),
+    /** The published version that was on screen when they signed. */
+    version: integer("version").notNull().default(1),
+    /** What they printed, verbatim. */
+    signedName: text("signed_name").notNull(),
+    /** Storage key of the signature image (private documents bucket). */
+    signaturePath: text("signature_path").notNull(),
+    signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("employee_policy_signature_uq").on(t.employeeId, t.policyKey),
+    index("employee_policy_signatures_employee_idx").on(t.employeeId),
+  ],
+);
+export type EmployeePolicySignature = typeof employeePolicySignatures.$inferSelect;
 
 /**
  * Per-designation weight profiles for Candidate Evaluation v2. One row per

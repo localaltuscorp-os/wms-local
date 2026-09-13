@@ -36,6 +36,8 @@ import assignment from "./templates/assignment";
 import appointment from "./templates/appointment";
 import confirmation from "./templates/confirmation";
 import freeTraining from "./templates/free-training";
+import declaration from "./templates/declaration";
+import afterFreeTraining from "./templates/after-free-training";
 // Compensation
 import ctcBreakup from "./templates/ctc-breakup";
 import appraisalRevisedCtc from "./templates/appraisal-revised-ctc";
@@ -78,6 +80,10 @@ export const LETTERS: Record<string, LetterTemplate> = {
   "intern-appointment": internAppointment,
   confirmation,
   "free-training": freeTraining,
+  // The joiner's own declaration, and the outcome letter that closes the
+  // pre-employment programme. Both live in During Employment in the nav.
+  declaration,
+  "after-free-training": afterFreeTraining,
   // Compensation
   "ctc-breakup": ctcBreakup,
   "appraisal-revised-ctc": appraisalRevisedCtc,

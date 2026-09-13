@@ -112,7 +112,7 @@ export function OperationsHome() {
           The operations room
         </h1>
         <p className="mt-1 text-[14px] font-medium text-ink-subtle">
-          Four areas. Pick one — the sidebar switches to it, and Operations Home
+          Five areas. Pick one — the sidebar switches to it, and Operations Home
           brings you back here.
         </p>
       </header>

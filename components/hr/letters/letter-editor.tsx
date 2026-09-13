@@ -44,6 +44,7 @@ import {
   HR_SIGNATURE_IMAGE,
   PROPRIETOR_SIGNATURE_IMAGE,
 } from "@/lib/hr/firm";
+import { DateField } from "@/components/ui/date-field";
 import { formatDateHr } from "@/lib/format";
 import {
   readCtcLetterPrefill,
@@ -1864,13 +1865,22 @@ function Field({
       />
     );
   }
-  // Date field → native calendar. Stored value is the human date ("15 August
-  // 2026"); the picker shows/edits it via an ISO shadow.
+  /**
+   * Date field → <DateField>, NOT a native `<input type="date">`.
+   *
+   * The letter stores and prints the canonical "21-Jan-1984" (isoToDisplayDate
+   * → formatDateHr), but the native input rendered that same value as
+   * `21-01-1984` because the browser formats it from the OS locale and nothing
+   * on the page can change that. So the document and the box you edited it in
+   * disagreed. DateField shows the same string the letter will print.
+   *
+   * It speaks ISO, and the letter stores human, so the conversion stays on this
+   * one line in each direction — exactly where it already was.
+   */
   if (spec.date) {
     return (
-      <input
-        type="date"
-        ref={autoFocus ? focusWithoutScroll : undefined}
+      <DateField
+        inputRef={autoFocus ? focusWithoutScroll : undefined}
         aria-label={spec.label}
         data-filled={filled || undefined}
         value={displayDateToIso(value)}

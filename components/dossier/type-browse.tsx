@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { DOC_TYPES, docTypeMeta, type DossierDocType } from "@/lib/dossier/types";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import type { DossierTypeRow } from "@/lib/queries/dossier";
 import { DocViewer, type ViewerDoc } from "./doc-viewer";
 
@@ -19,7 +19,7 @@ const ICONS: Record<string, LucideIcon> = {
 function fmtDate(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : formatDate(iso);
+  return Number.isNaN(d.getTime()) ? null : formatDateHr(iso);
 }
 
 export function TypeBrowse({

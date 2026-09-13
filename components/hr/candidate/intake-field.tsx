@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Check, Mic } from "lucide-react";
 import type { FormFieldDef } from "@/lib/forms/field-types";
+import { DateField } from "@/components/ui/date-field";
 import { isRequiredField } from "@/lib/hr/candidate/intake-schema";
 import { LookupSelect } from "@/components/ui/lookup-select";
 import { useDictation, type Dictation } from "@/components/hr/candidate/evaluation-v2/use-dictation";
@@ -118,6 +119,28 @@ export function IntakeField({
         />
         {labelEl}
         {showMic && <FieldMic dictation={dictation} area />}
+      </div>
+    );
+  }
+
+  /**
+   * DATES USE <DateField>, so every date on the candidate form reads the way
+   * every date in the HR module reads — `21-Jan-1984`. A native
+   * `<input type="date">` renders its text from the OS locale (`21-01-1984`
+   * here) and no attribute changes that, which is why this is a text control
+   * with the calendar kept beside it.
+   *
+   * It still stores ISO, which is what the whole form and its progress maths
+   * already assume.
+   */
+  if (field.type === "date") {
+    return (
+      <div className={wrapCls}>
+        <DateField
+          {...common}
+          onChange={(e) => onChange(field.key, e.target.value)}
+        />
+        {labelEl}
       </div>
     );
   }

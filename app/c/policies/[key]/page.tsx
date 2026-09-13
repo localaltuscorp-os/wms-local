@@ -45,9 +45,24 @@ export default async function CandidatePolicyPage({
 
   return (
     <main className="mx-auto w-full max-w-[900px] px-6 py-8 max-md:px-4">
+      {/* ── "ALL POLICIES" STAYS ON SCREEN ───────────────────────────────
+          A policy is several screens long and the signing box is at the
+          BOTTOM, so the one link back to the list used to scroll away the
+          moment you started reading — leaving a candidate who had just signed
+          with nothing to do but use the browser's Back button, or scroll all
+          the way up again. It is now pinned.
+
+          Two positions on purpose. On a wide screen it is `fixed` to the left
+          of the document, in the empty margin the centred page leaves, which
+          is what the space is for. Below `lg` there is no margin to sit in —
+          fixing it there would park it on top of the letterhead — so it stays
+          in the flow and `sticky`, riding the top of the viewport instead.
+
+          Given its own solid background, border and shadow because it now
+          floats over the document rather than sitting above it. */}
       <Link
         href={"/c/policies" as Route}
-        className="mb-5 inline-flex items-center gap-2 text-[13px] font-bold text-ink-muted hover:text-ink-strong"
+        className="sticky top-4 z-40 mb-5 inline-flex items-center gap-2 rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[13px] font-bold text-ink-strong shadow-[0_8px_24px_-14px_rgba(15,23,42,0.4)] transition hover:border-altus-red lg:fixed lg:left-6 lg:top-6 lg:mb-0"
       >
         <ArrowLeft size={15} />
         All policies
@@ -62,6 +77,7 @@ export default async function CandidatePolicyPage({
         title={doc.title}
         signedAt={existing ? existing.signedAt.toISOString() : null}
         signedName={existing?.signedName ?? null}
+        signaturePath={existing?.signaturePath ?? null}
         outdated={outdated}
       />
     </main>

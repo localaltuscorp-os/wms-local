@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { InterviewedByPicker } from "./interviewed-by-picker";
 import { Check, Gauge, Sparkles, TrendingUp, TrendingDown, History, AlertTriangle, X } from "lucide-react";
 import {
   RECOMMENDATIONS,
@@ -305,6 +306,15 @@ export function RecommendationPicker({ ctrl, auto }: { ctrl: EvalController; aut
             <Sparkles size={12} /> Suggested: {autoMeta.label}
           </span>
         )}
+
+        {/* WHO INTERVIEWED, on the same row as the recommendation it belongs
+            to - a recommendation is made BY somebody, and the two were being
+            recorded in different places. `ml-auto` lives on the picker so it
+            takes the right end of this row whatever else is in it. */}
+        <InterviewedByPicker
+          value={ctrl.instance.interviewedBy ?? []}
+          onChange={ctrl.setInterviewedBy}
+        />
       </div>
 
       <div className="flex flex-wrap gap-2.5">

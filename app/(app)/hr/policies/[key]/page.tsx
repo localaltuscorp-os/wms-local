@@ -7,6 +7,8 @@ import { getPolicyCard, isComingSoon } from "@/lib/hr/policies/registry";
 import { loadPublishedPolicy } from "@/lib/hr/policies/load-db";
 import { PageShell } from "@/components/layout/page-shell";
 import { PolicyView } from "@/components/hr/policies/policy-view";
+import { PolicySignOffBox } from "@/components/hr/policies/policy-sign-off-box";
+import { myPolicySignOff } from "@/app/(app)/hr/policies/sign-off-actions";
 import { getMyPolicySignStatus, type MyPolicySignStatus } from "@/app/(app)/hr/policies/sign-status";
 import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 
@@ -44,6 +46,10 @@ export default async function PolicyPage({
     : EMPTY_SIGN_STATUS;
   const signedAt = signStatus.signed[key] ?? null;
   const outdated = Boolean(signStatus.outdated?.[key]);
+  // The viewer's own printed-name + signature-image sign-off, if they used that
+  // route rather than DigiLocker. Best-effort like the status above: the policy
+  // must still render if this lookup fails.
+  const signOff = showDoc ? await myPolicySignOff(key).catch(() => null) : null;
 
   return (
     <div className="min-h-full bg-[#faf9fb]">
@@ -72,7 +78,21 @@ export default async function PolicyPage({
 
       <PageShell width="narrow" py={false} className="pt-8 pb-24" style={{ maxWidth: "900px" }}>
         {showDoc && policy ? (
-          <PolicyView doc={policy} signedAt={signedAt} outdated={outdated} />
+          <>
+            <PolicyView doc={policy} signedAt={signedAt} outdated={outdated} />
+            {/* The printed-name + date + signature-image sign-off, ALONGSIDE
+                the DigiLocker action in PolicyView's toolbar rather than
+                instead of it: DigiLocker files the stronger record (verified
+                identity, archived PDF) and this one always works. Its own
+                table, so the two kinds of signature stay distinguishable. */}
+            <PolicySignOffBox
+              policyKey={policy.key}
+              title={policy.title}
+              signedName={signOff?.signedName ?? null}
+              signedAt={signOff ? signOff.signedAt.toISOString() : null}
+              hasSignature={!!signOff?.signaturePath}
+            />
+          </>
         ) : (
           <ComingSoon title={card?.title} />
         )}

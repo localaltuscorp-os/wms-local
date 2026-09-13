@@ -10,6 +10,7 @@ import {
   type AdHocHolidayRow,
 } from "./actions";
 import { fireToast } from "@/lib/toast";
+import { DateField } from "@/components/ui/date-field";
 
 /**
  * Declare / correct / withdraw an ad-hoc holiday.
@@ -85,8 +86,8 @@ export function AdHocHolidayPanel({
       <form className="hol-adhoc-form" onSubmit={submit}>
         <label className="hol-filter">
           <span className="hol-filter-label">Date</span>
-          <input
-            type="date"
+          <DateField
+          
             required
             value={date}
             onChange={(e) => setDate(e.target.value)}
@@ -210,8 +211,8 @@ function EditRow({
 
   return (
     <li className="hol-adhoc-row hol-adhoc-row-edit">
-      <input
-        type="date"
+      <DateField
+          
         required
         value={date}
         onChange={(e) => setDate(e.target.value)}

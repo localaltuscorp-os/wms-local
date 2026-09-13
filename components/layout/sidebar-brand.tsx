@@ -60,7 +60,7 @@ export function SidebarBrand() {
           className="module-wordmark inline-flex w-full items-center justify-center gap-2.5 rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
         >
           <span
-            className="module-wordmark-icon inline-grid place-items-center rounded-2xl text-white"
+            className="module-wordmark-icon inline-grid shrink-0 place-items-center rounded-2xl text-white"
             style={{
               background: `linear-gradient(135deg, var(--color-altus-red, #E10600), var(--color-altus-red-deep, #A80400))`,
               boxShadow: `0 8px 20px -8px var(--color-altus-red-deep, #A80400)`,

@@ -13,6 +13,7 @@ import {
   type Recurrence,
 } from "@/lib/jd/recurrence";
 import type { JdEntryRow, JdPositionRow, JdRankRow } from "@/lib/queries/job-description";
+import { DateField } from "@/components/ui/date-field";
 import {
   createJdEntry,
   createJdPosition,
@@ -311,8 +312,8 @@ function JdForm({
             ))}
           </select>
           {recurrence.kind === "interval" && (
-            <input
-              type="date"
+            <DateField
+          
               value={anchor}
               onChange={(e) => setAnchor(e.target.value)}
               aria-label="Count from"
