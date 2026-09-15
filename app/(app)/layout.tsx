@@ -16,7 +16,9 @@ import { planGateOn, managerTaskGateOn, dccReviewGateOn, goalsCascadeEnabled, lo
 import { DailyChecklistView } from "@/components/daily-checklist/daily-checklist-view";
 import { DashboardSidebar } from "@/components/layout/dashboard-sidebar";
 import { ChromeShell } from "@/components/layout/chrome-shell";
-import { AppTopBar } from "@/components/layout/app-top-bar";
+import { AuraTopBar } from "@/components/layout/aura-top-bar";
+import { roomsFor } from "@/lib/aura-rooms";
+import { UserMenuServer } from "@/components/header/user-menu-server";
 import { NewTaskTrigger } from "@/components/header/new-task-trigger";
 import { NotificationBell } from "@/components/header/notification-bell";
 import { ModuleFooter } from "@/components/layout/module-footer";
@@ -297,7 +299,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <ChromeShell
         sidebar={<DashboardSidebar />}
         footer={<ModuleFooter access={access} />}
-        topBar={<AppTopBar bell={<NotificationBell />} />}
+        topBar={
+          /* The Aura bar — one glass strip on every screen in every module, and
+             the app's room switcher. `rooms` is resolved from the SAME `access`
+             the route gate and the module footer already used, so adding the bar
+             cost no extra query. */
+          <AuraTopBar
+            rooms={roomsFor(MODULE_ORDER.filter((id) => canAccessWorkspace(id, access)))}
+            bell={<NotificationBell />}
+            userMenu={<UserMenuServer />}
+          />
+        }
       >
         {children}
       </ChromeShell>

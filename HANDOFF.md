@@ -498,6 +498,162 @@ throughout; her Firebase UID is new.
 
 ## Changelog
 
+### 2026-09-12 (night) — The home screen is a dashboard you arrange yourself
+
+**The launcher grid is gone.** Twelve tiles under "Jump into a workspace" were
+a second copy of the twelve links the rail already carries — permanently, two
+clicks closer — and they took the bottom half of the screen to say it.
+
+**In its place, eleven widgets, and the user arranges them.** Every one can be
+one of three widths, pushed up or down, removed, or added back:
+
+| widget | what it shows |
+| --- | --- |
+| WMS · daily loop | due/overdue today, the next three by name |
+| Goals · this week | week score, weekly + cascade counts, FY average |
+| Quick actions | new task, plan my day, attendance, goals, inbox |
+| Hours | this week vs your target, plus/minus, the month so far |
+| What's coming | the next company holidays |
+| Attendance | your punch and your week; roster counters for admins |
+| Where your work sits | everything open on you, by priority |
+| This month's outcomes | what was due, and how it went |
+| Your work shape | a petal per day sized by hours actually worked |
+| Your team | each direct report's open/overdue count (managers only) |
+| Open on you | every open task, soonest first, with who gave it to you |
+
+**HOW IT IS BUILT, and the one thing to understand before touching it:** the
+SERVER renders every widget body and hands `DashboardGrid` a map of finished
+nodes; the client component only decides ORDER, SIZE and PRESENCE. So none of
+the dashboard's data crosses to the browser and a widget stays an async Server
+Component while still being furniture the user moves.
+
+**Three new queries**, all in `lib/queries/aura-dashboard.ts`: upcoming
+holidays, the manager's team load, and the month's punches — the last folded
+into `myWorkShape`, so the hours ledger and the bloom come from ONE read and
+can never disagree about how long you worked.
+
+**THE LAYOUT IS IN `localStorage`, NOT ON THE EMPLOYEE ROW.** That is a trade,
+not an oversight: a column means a migration, and migrations here are applied
+to production by hand. The cost is real — the arrangement does not follow you
+to another device, and clearing site data resets it. Moving it to the database
+is a small change (`lib/dashboard/widgets.ts` already has the serialised
+shape); it just needs a migration run.
+
+`reconcileLayout` is the only thing between a browser-written string and the
+dashboard, so it is covered by `tests/unit/dashboard-layout.test.ts` (15 cases:
+corrupt storage, unknown ids, duplicates, illegal sizes, a widget that stops
+being available, and the one that matters — **a removed widget must not come
+back** when the catalogue later gains an entry, which is why `StoredLayout`
+records `removed` instead of inferring it from absence).
+
+No SQL.
+
+### 2026-09-12 (late) — Opaque top bar, overflow-only "More", the glass rail
+
+Four corrections to the morning's Aura work, all reported from production.
+
+- **THE TOP BAR IS NOW OPAQUE.** It was glass, and glass over a whole scrolling
+  page is unreadable the moment anything passes under it — dashboard cards,
+  faces and numbers came straight through the strip. It keeps the specular
+  edge and the drop shadow, so it still reads as an Aura surface; it simply
+  does not let anything through. **This was two bugs, not one:** the z-index
+  was 20 (the reference page's value), and page content at z-50 was painting
+  OVER the bar, so opacity alone would not have fixed it. The bar is z-60 now
+  — clear of every in-page layer, still under the app's dialogs and drawers
+  (70, 90, 100, 120).
+- **"More" holds only the rooms that did NOT get a tab.** It used to list every
+  room. The catch is that which tabs fit is width-dependent, so the count is
+  now measured in JS (`useTabCount`, via `useSyncExternalStore` so the server
+  and client snapshots agree) instead of hiding tabs with CSS media queries. A
+  CSS-hidden tab would have left its room in neither the bar nor the menu.
+- **Search and identity are one right-hand cluster.** Search used to grow into
+  the middle of the bar, which stranded the account menu at the far end. The
+  avatar also now shows on EVERY screen — it used to be suppressed on module
+  pages because the rail's foot carried one. That foot profile bar is gone;
+  identity lives in the bar, once.
+- **The left rail is the new glass-rail design** (`RAIL-SPEC.md` +
+  `aura-glass-rail.html`, both now under `.claude/skills/aura/reference/`): a
+  floating glass pane, a numbered index, and ONE travelling indicator instead
+  of a background per row, with a red light that flows across a row on hover.
+  The dashboard gets it in full (`AuraGlassRail`, PINNED + ALL WORKSPACES);
+  the module rail gets the same material and the same lens applied to its
+  existing pills.
+
+The lens (`components/layout/aura-rail-lens.tsx`) keeps the two traps the spec
+warns about — no transition on the first placement, and measurement on a timer
+rather than `requestAnimationFrame`, which is paused in background frames — and
+adds a third we hit here: **the rows may not exist yet.** The module rail's nav
+is an async server component behind a Suspense boundary, so on a slow read the
+real rows land long after a 2s retry window closes. A `MutationObserver` on the
+container is the only placement that cannot be outrun.
+
+No SQL.
+
+### 2026-09-12 — Aura: the dashboard, the app-wide top bar, and the rail
+
+**What changed**
+
+- **The Aura design language is now a project asset**, at `.claude/skills/aura/`
+  — the language itself as a skill, plus the reference dashboard, the upstream
+  stylesheet and the original brief under `reference/`. `.gitignore` excludes
+  `.claude/*` rather than `.claude/` so it can be tracked: git never descends
+  into an excluded *directory*, so a `!` re-include underneath one never
+  matches. The stylesheet lives at `app/aura.css`, imported by `globals.css`.
+- **`/hub` is no longer a launcher, it is the dashboard.** Greeting, the WMS
+  daily loop and this week's goals, attendance, three charts, the open-work
+  table, and the twelve workspace tiles kept at the bottom.
+- **The top bar is now on every screen in every module** — brand, module tabs,
+  a "More" menu listing every room, a full-width search box on ⌘K, then create /
+  focus / notifications / identity.
+- **The module left rail keeps its job and gets the Aura material.** The top bar
+  switches ROOMS; the rail lists the SECTIONS inside the one you are in. That
+  division is why the bar no longer repeats the page's name.
+- **TeX Gyre Heros and Inter are self-hosted** in `app/fonts/` (21 KB a weight
+  and 48 KB), registered with `next/font/local`. Never `next/font/google` — a
+  deploy must not depend on fonts.gstatic.com, which is what took `b50e9e2`
+  down.
+
+**Every number on the dashboard is real**, and where the reference mock's
+dimension does not exist in this schema the panel was re-cut onto one that does
+rather than filled with something plausible. `lib/queries/aura-dashboard.ts`
+carries the reasoning per panel:
+
+- *"Where your week went, by workspace"* → **your open work by priority**.
+  Nothing in this codebase tags a record with a `WorkspaceId` and the task-time
+  rollup has no module dimension, so hours-per-workspace cannot be computed at
+  all.
+- *Timer-based hour counts* → **attendance punches**. `attendance_logs` is the
+  one place a real worked minute is recorded for everyone; the task timer is
+  opt-in and mostly empty. The work-shape bloom, the week strip and the
+  hour-of-day strip all come from there.
+
+**Permissions.** The roster-wide attendance counters (present / late / on leave
+/ unmarked) are **admin-only** — the same rule `/attendance/live-status`
+enforces, since those counts span every employee. Everyone else sees their own
+punch and their own week, full width.
+
+**Four bugs found and fixed while building it**
+
+1. `roomsFor()` was exported from a `"use client"` module and called from the
+   server, which crashed **every** route. It now lives in `lib/aura-rooms.ts`.
+   A function in a client module can be rendered, never called, from the server.
+2. `.aura-app` had `overflow: hidden` (copied from the reference page). An
+   ancestor with a non-visible overflow becomes the scroll container, so
+   `position: sticky` resolved against it and the top bar scrolled away. The
+   blobs were already clipped by `.aura-field`, so nothing needed it.
+3. The rail skin lost the cascade: `globals.css` imports `aura.css` at the TOP,
+   so an equal-specificity rule further down `globals.css` won on source order
+   and the selected item kept its old pink wash. Every skin selector now carries
+   both `.sidebar-rail` and `.aura-rail-skin`.
+4. The bar is pinned to **exactly 56px**. `body:has(.app-topbar)` publishes that
+   as `--app-topbar-h`, the HR console sizes itself to
+   `calc(100dvh - var(--app-topbar-h))`, and every `.sticky-below-topbar` header
+   pins to it — so the new bar keeps the `app-topbar` class and the height.
+
+**Still true**: no SQL to run for any of this. It is presentation plus five
+read-only queries, all caught individually — a dead panel costs a panel, a
+thrown one costs the front door.
+
 ### 2026-09-11 — Schema drift closed, WMS team's second batch merged, id counters repaired
 
 **What changed**

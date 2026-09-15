@@ -71,6 +71,35 @@ const jetbrainsMono = localFont({
 // Editorial serif for the Weekly Goals board (member names, section title,
 // goal titles only — body text stays on the existing sans). Exposed as
 // --font-editorial; consumed inline by the weekly-goals components.
+// ── Aura (liquid glass) ──────────────────────────────────────────────────────
+// The two faces the Aura design language is specified in (.claude/skills/aura).
+// Both are SELF-HOSTED here, for the same hermetic-build reason as the four
+// above: nothing in a deploy may depend on fonts.gstatic.com being reachable.
+//
+// TeX Gyre Heros carries every load-bearing string — headings, big numbers,
+// card titles, badges, counts. It is a Helvetica/Nimbus Sans revival, free
+// under the GUST Font License; the OTFs come from CTAN
+// (mirrors.ctan.org/fonts/tex-gyre/opentype) and were subset to latin +
+// ₹ + arrows with `python -m fontTools.subset --flavor=woff2`, 21 KB each.
+// It ships as two static weights because the family has no variable axis.
+const heros = localFont({
+  src: [
+    { path: "./fonts/texgyreheros-regular.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/texgyreheros-bold.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-heros",
+  display: "swap",
+});
+
+// Inter does the reading in Aura — body copy, descriptions, table cells, nav
+// labels. Latin subset of the variable font, 48 KB for the whole 100–900 range.
+const inter = localFont({
+  src: "./fonts/inter-latin.woff2",
+  variable: "--font-inter",
+  weight: "100 900",
+  display: "swap",
+});
+
 const fraunces = localFont({
   src: "./fonts/fraunces-latin.woff2",
   variable: "--font-editorial",
@@ -113,7 +142,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${roboto.variable} ${bricolage.variable} ${jetbrainsMono.variable} ${fraunces.variable}`}
+      className={`${roboto.variable} ${bricolage.variable} ${jetbrainsMono.variable} ${fraunces.variable} ${heros.variable} ${inter.variable}`}
       data-density={density}
       style={htmlStyle}
       suppressHydrationWarning
