@@ -47,6 +47,17 @@ here would have caught each of them.
 anything is selected — a partial selection reports success having done nothing.
 Press Ctrl+A before Run, then verify by reading the schema back.
 
+**The editor shows only the LAST result set.** A file of eight `SELECT`s runs
+all eight and displays the eighth; the other seven are discarded silently, and
+what you are looking at is indistinguishable from a clean full run. This hid
+six of seven checks on 15 September, including the one deciding whether the
+code could be deployed at all. **Write a verification query as ONE statement**
+returning one table of `(check_name, ok)` ordered failures-first —
+[`db/VERIFY-0215-0224.sql`](../../db/VERIFY-0215-0224.sql) is the worked
+example. Same reason a restore script should not end in `COMMIT`: a trailing
+`COMMIT` returns no rows, so it becomes the last result set and hides the
+report above it. One statement is atomic anyway.
+
 **Restores leave id counters behind.** After restoring any table from backup,
 re-sync the sequences, or the next insert fails with a duplicate-key error on a
 column the application never sets.

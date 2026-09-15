@@ -13,7 +13,15 @@ broken, what changed and why.
 
 ---
 
-## ⚠️ Pending database migrations — 0215 to 0224 (updated 2026-09-15)
+## ✅ Database migrations 0215–0224 — APPLIED 2026-09-15
+
+> **This section is now a record, not a to-do.** All 15 migrations ran against
+> production and verified clean (74/74). See the 15 September (night) changelog
+> entry for the run, the device wipe and its restore. What follows is kept
+> because every warning in it still applies to the next batch — the project
+> mix-up, the "success is not proof" traps, and why `npm run db:migrate` is not
+> the tool here. **`0216_incentive_eligibility.sql` is the one still outstanding**
+> (see below); it self-heals at runtime, but apply it properly.
 
 **Order: `db/VERIFY-0215-0224.sql`, then
 `db/RUN-IN-SUPABASE-0215-0224-ALL.sql`, then the verify file again.** Both
@@ -549,6 +557,45 @@ throughout; her Firebase UID is new.
 ---
 
 ## Changelog
+
+### 2026-09-15 (night) — Migrations 0215–0224 APPLIED; the team's merge deployed
+
+**The pending-migration section above is now history.** `0215`–`0224` ran
+against production (`mwaijzxuyicysvimzspx`, the personal-Gmail project) on
+15 September, verified by a full pass of `db/VERIFY-0215-0224.sql`: **74 checks,
+all true**, including both `0224` rows that gate the deploy. `main` and
+`dev-integration` were then pushed together; `/login` 200, `/api/health` ok
+(db 108ms, storage 603ms).
+
+**Part 2 ran too — the device wipe — and was then restored.** The paste covered
+lines 1–1994 of a 1994-line file, so Part 2 was included rather than stopped at
+`END OF PART 1`. All 66 `mobile_devices` rows were deleted, having been copied
+to `mobile_devices_pre_0223` in the same transaction first. They were put back
+within the hour by `db/RESTORE-DEVICES-FROM-0223-BACKUP.sql`: **66 restored, 66
+in backup, 0 live before, 0 skipped** — a clean full copy, and proof nobody had
+re-registered in the window.
+
+So **first-login registration is effectively not in force**: the restored rows
+carry their old `approved` status, which for the auto-adopted ones means "this
+browser turned up once", not "this person registered this machine". The wipe
+can be redone deliberately — the footer of the restore file has the three
+statements, and note that Part 2 skips itself while `mobile_devices_pre_0223`
+exists, so the old backup must be renamed and dropped first.
+
+**A verification file must be ONE statement.** The Supabase editor displays only
+the LAST result set of a multi-statement run. `VERIFY` was eight `SELECT`s, so
+running it showed check 7 and silently discarded checks 1–6 — and the output
+was indistinguishable from a clean full run. It is now a single query returning
+`(check_name, ok)` ordered failures-first. Same reason the restore script has
+no `BEGIN`/`COMMIT`: one statement is atomic already, and a trailing `COMMIT`
+returns no rows, so it would become the last result set and hide the report.
+Written up for the team in [`docs/handoffs/README.md`](./docs/handoffs/README.md).
+
+**Still unanswered, and it is a permissions decision:** broadcast authoring is
+open to every signed-in employee (`requireAuthor()` is `requireUser()`), while
+managing an existing broadcast correctly requires author-or-admin. Broadcasts
+carry Critical/Emergency priority with app-lock mode. Rudra asked for a ruling
+in `docs/handoffs/HANDOFF-Rudra.md` §6.4 and has not had one.
 
 ### 2026-09-15 (evening) — The team's fork audited against the Aura merge
 
