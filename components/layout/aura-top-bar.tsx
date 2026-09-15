@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { Route } from "next";
 import { ChevronDown, Search } from "lucide-react";
 import { GlobalSearch } from "@/components/header/global-search";
+import { BulkAddQuickAction } from "@/components/header/bulk-add-quick-action";
 import { NewTaskQuickAction } from "@/components/header/new-task-quick-action";
 import { FocusModeToggle } from "@/components/layout/focus-mode-toggle";
 import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
@@ -192,6 +193,16 @@ export function AuraTopBar({
             change. */}
         <div ref={slots?.setActions} className="flex shrink-0 items-center gap-2 empty:hidden" />
 
+        {/* BULK ADD, restored 2026-09-15. The bar this one replaced carried
+            "search · bulk add · create · bell · focus", and bulk add was the
+            single control that did not make the crossing — it is still rendered
+            in DashboardSidebar, so it survived on phones and vanished on
+            desktop, which is why it read as "it works in wms-local but not
+            here". Placed before Create, the order the old bar used.
+
+            It gates itself: BulkAddQuickAction renders nothing outside WMS, so
+            it is safe to mount unconditionally here. */}
+        <BulkAddQuickAction />
         <NewTaskQuickAction />
         <FocusModeToggle />
         {bell}

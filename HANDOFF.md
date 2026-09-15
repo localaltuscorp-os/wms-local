@@ -612,6 +612,54 @@ tool the difference between 5 and 15 seconds is unlikely to matter, but the 4s
 value is documented as deliberate, so changing it is the account holder's call
 and not a cleanup.
 
+**The SECOND Vercel alert — Function Storage 75% of 10 GB — is a different
+problem with a different cause, and it is structural.** Measured from the
+traced bundles of a real build (`.next/server/**/*.nft.json`, summing each
+function's actual files), not estimated:
+
+| | |
+|---|---|
+| Functions in one deployment | **431** |
+| Sum of all function bundles | **10.30 GB** |
+| Unique files behind them | 180 MB |
+| `/api/hr/letters/pdf` | **98.7 MB** |
+| `/api/hr/letters/email-pdf` | **98.7 MB** |
+| `/api/hr/letters/issue-rich` | **96.2 MB** |
+
+**Three routes carry three separate copies of the same 67 MB Chromium binary
+— 201 MB of pure duplication in every single deployment.** They are traced in
+by `CHROMIUM_BIN` in `next.config.ts` because `@sparticuz/chromium` unpacks its
+binary at runtime, so nothing statically imports it and Vercel's file-tracing
+would otherwise drop it. The include is correct; having three routes that each
+need it is the cost.
+
+**What to do, in order of how fast it helps:**
+
+1. **Delete old deployments** (Vercel → Deployments → ⋯ → Delete). Every past
+   deployment keeps its functions, so this reclaims storage immediately and is
+   the only lever that works without a code change. Keep the current production
+   deployment and a couple to roll back to.
+2. **Do not deploy on every push.** Each push to `main` is a full 431-function
+   deployment. Batch work onto one deploy rather than five.
+3. **Structural, and the real fix: collapse the three letter-PDF routes into
+   one.** They all render the same rich letter through headless Chromium and
+   differ only in what they do with the bytes (return / email / store). One
+   route taking a mode parameter carries the 67 MB once instead of three times
+   — roughly 200 MB off every deployment. Not attempted here: it is a genuine
+   refactor of three live endpoints and wants its own change and its own test.
+
+**Do NOT "fix" this by deleting the `outputFileTracingIncludes` entries.** They
+look like bloat and they are load-bearing: without `CHROMIUM_BIN` the rich
+letter routes fail at runtime with "input directory …/bin does not exist", and
+without the `public/letter-fonts`, `public/letterhead` and `public/logos`
+includes the PDFs render with no fonts and a code-drawn red band instead of the
+letterhead. `public/` is CDN-served and is not guaranteed to be on the function
+filesystem.
+
+**The two alerts are unrelated.** Fluid Active CPU is the broadcast poller
+(above); Function Storage is deployment artifacts. Fixing one does nothing for
+the other.
+
 **A verification file must be ONE statement.** The Supabase editor displays only
 the LAST result set of a multi-statement run. `VERIFY` was eight `SELECT`s, so
 running it showed check 7 and silently discarded checks 1–6 — and the output
@@ -620,6 +668,41 @@ was indistinguishable from a clean full run. It is now a single query returning
 no `BEGIN`/`COMMIT`: one statement is atomic already, and a trailing `COMMIT`
 returns no rows, so it would become the last result set and hide the report.
 Written up for the team in [`docs/handoffs/README.md`](./docs/handoffs/README.md).
+
+**Three defects Vinal reported, two of them fixed here.**
+
+1. **The Goals rail had no pill for the page it lands you on.**
+   `WORKSPACE_LANDING.goals` is `/goals/dashboard` and `/ws/goals` routes there
+   too, but `WORKSPACE_NAV.goals` never listed it — so entering the room opened
+   a page with nothing highlighted and no way back to it once you clicked away.
+   Added as the first item, with `canvasOnly` for the same reason the three
+   level pages carry it (the page itself redirects to `/goals` when
+   `GOALS_CANVAS_ON` is off, so without it the pill would be a dead link).
+
+2. **Bulk Add vanished from the desktop ribbon — and that one is ours, not
+   the team's.** The bar the Aura bar replaced carried "search · bulk add ·
+   create · bell · focus"; bulk add was the single control that did not make
+   the crossing. It is still rendered in `DashboardSidebar`, so it survived on
+   phones and disappeared on desktop, which is exactly why it read as "it works
+   in wms-local but not here". Restored to `aura-top-bar.tsx` before Create,
+   the order the old bar used. **The lesson: when a component is replaced,
+   diff what the old one RENDERED, not just what it looked like.**
+
+3. **The short client and subject pickers are a DATA gap, not a bug — no code
+   change would fix it.** Both lists are rows read straight out of `clients`
+   and `subjects` filtered on `is_active = true`. The only code-level filter
+   that exists is `lib/tasks/subject-options.ts`, and it retires exactly two
+   values — "WMS" and "WMS App" — neither of which is on the reported list;
+   "Altus Ecosystem" is PINNED there and is always offered. Clients have no
+   policy layer at all. So those rows are on the team's database and not on
+   this one, which is what a team working on a separate Supabase project
+   produces. `db/SEED-CLIENTS-AND-SUBJECTS.sql` diagnoses first (missing vs
+   merely switched off — different fixes) and then seeds, matching
+   case-insensitively because `name` is UNIQUE but case-SENSITIVE and a plain
+   `ON CONFLICT DO NOTHING` would put "BSS" next to "bss" in the picker.
+   **Expect up to a 10-minute lag** before the names appear: both lists are
+   `unstable_cache`d with a 600s revalidate, and a hand-written INSERT cannot
+   invalidate the tag the way the in-app write paths do. A redeploy is instant.
 
 **ANSWERED — broadcast authoring stays open to every employee.** Rudra asked
 for a ruling in `docs/handoffs/HANDOFF-Rudra.md` §6.4: `requireAuthor()` is

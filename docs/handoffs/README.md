@@ -60,4 +60,34 @@ report above it. One statement is atomic anyway.
 
 **Restores leave id counters behind.** After restoring any table from backup,
 re-sync the sequences, or the next insert fails with a duplicate-key error on a
-column the application never sets.
+column the application never sets. (Check the id type first — a `uuid` default
+has no counter and needs nothing.)
+
+## Vercel: three rules
+
+The free team plan pauses the project when a limit is hit, so these are not
+housekeeping.
+
+**1. Every push to `main` is a full 431-function deployment, and every old one
+still occupies storage.** One deployment's bundles total ~10.3 GB against a
+10 GB Function Storage allowance. Batch work onto one deploy instead of five,
+and delete old deployments (Deployments → ⋯ → Delete), keeping production plus
+one or two to roll back to.
+
+**2. Never add a client-side poller without doing the arithmetic.** A 4-second
+`setInterval` is 900 requests an hour **per open tab, per person**, and if it
+hits an authenticated endpoint each one costs a session verification (crypto,
+which is billed CPU, not cheap I/O wait) plus its queries. That is what took
+Fluid Active CPU to 75%. If you must poll: skip while
+`document.visibilityState === "hidden"`, and pick the interval from what the
+feature actually needs rather than from what feels responsive.
+
+**3. `outputFileTracingIncludes` in `next.config.ts` looks like bloat and is
+load-bearing.** The `@sparticuz/chromium` binary is unpacked at runtime, so
+nothing statically imports it and tracing drops it unless it is named; the
+`public/letter-fonts`, `public/letterhead` and `public/logos` includes are
+there because `public/` is CDN-served and is not guaranteed to be on the
+function filesystem. Delete them to save space and the letter PDFs fail at
+runtime — no fonts, no letterhead, or "input directory …/bin does not exist".
+The genuine saving is to stop **three** routes each carrying their own copy of
+that 67 MB binary, not to stop including it.
