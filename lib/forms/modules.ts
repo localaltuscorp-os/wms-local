@@ -118,6 +118,26 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
       { key: "amount", label: "Amount ₹", type: "number", required: true, placeholder: "e.g. 1500" },
       { key: "expense_date", label: "Expense Date", type: "date", required: true },
       { key: "product", label: "Product Name", type: "product" },
+      /**
+       * `bill_url` — THE LEGACY BILL REFERENCE. Superseded on the web by real
+       * file uploads (migration 0216, app/(app)/reimbursements/attachment-actions.ts),
+       * but deliberately still HERE.
+       *
+       * It cannot be deleted from this list, and that is not caution — it is a
+       * live contract. `validateFields` keeps only the values whose key is in
+       * this list, and the ANDROID APP posts its bill here: it uploads to the
+       * private `documents` bucket via /api/mobile/storage/sign and sends the
+       * resulting storage PATH as `bill_url` (see
+       * app/api/mobile/reimbursements/route.ts). Drop the field and every
+       * mobile-filed claim would silently arrive with no bill at all.
+       *
+       * So it holds two shapes in the wild — an external http(s) link from the
+       * old web form, and a `documents` storage path from the app. The claim
+       * card tells them apart (`legacyBillKind`) and renders each correctly.
+       *
+       * The WEB request dialog hides this field and shows the uploader instead;
+       * see RbClaimDialog. Everything else keeps reading it.
+       */
       { key: "bill_url", label: "Bill / Receipt Link", type: "url", placeholder: "Drive / photo link" },
       { key: "notes", label: "Notes", type: "textarea" },
     ],

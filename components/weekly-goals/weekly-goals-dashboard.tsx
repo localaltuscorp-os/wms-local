@@ -134,8 +134,8 @@ export function WeeklyGoalsDashboard(props: Props) {
             No goals recorded for this period yet.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-section border border-hairline bg-surface-card">
-            <table className="w-full border-collapse">
+          <div className="table-scroll overflow-x-auto rounded-section border border-hairline bg-surface-card">
+            <table className="w-full min-w-[720px] border-collapse">
               <thead>
                 <tr className="border-b border-hairline bg-black/[0.015]">
                   <th className="px-4 py-3 text-left text-[12px] font-black uppercase tracking-[0.05em] text-ink-muted" style={{ width: 70 }}>

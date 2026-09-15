@@ -3,16 +3,18 @@ import { Megaphone, Paperclip, Download, Users, CheckCircle2, Clock, ShieldCheck
 import { DashboardHeader } from "@/components/layout/header";
 import { PageShell } from "@/components/layout/page-shell";
 import { requireUser } from "@/lib/auth/current";
-import { isHrStaff } from "@/lib/hr/access";
 import { getBroadcastForEmployee, getBroadcastWithStats, getPollResults, getMyPollResponse } from "@/lib/ecos/queries";
 import { PollCard } from "@/components/ecos/poll-card";
 import type { BroadcastPoll } from "@/db/schema";
-import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
+import { signAttachmentUrls } from "@/lib/ecos/media";
 import { formatDate } from "@/lib/format";
 import { Pill, MiniBar } from "@/components/ecos/pills";
 import { MarkRead } from "@/components/ecos/mark-read";
 import { AcknowledgeButton } from "@/components/ecos/acknowledge-button";
 import { AdminActions } from "@/components/ecos/admin-actions";
+import { RecipientTable } from "@/components/ecos/recipient-table";
+import { WhatsappPanel } from "@/components/ecos/whatsapp-panel";
+import { normChannels } from "@/lib/ecos/publish";
 import {
   BROADCAST_CATEGORY_LABELS,
   BROADCAST_PRIORITY_LABELS,
@@ -23,8 +25,8 @@ import {
   RECEIPT_STATUS_TONE,
   senderLabel,
   readAttachments,
+  splitAttachments,
   pct,
-  type BroadcastAttachment,
 } from "@/lib/ecos/labels";
 
 export const dynamic = "force-dynamic";
@@ -36,42 +38,29 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-/** Sign a batch of attachment storage paths → path→url map (best-effort). */
-async function signAttachments(atts: BroadcastAttachment[]): Promise<Map<string, string | null>> {
-  const out = new Map<string, string | null>();
-  const paths = atts.map((a) => a.path).filter(Boolean);
-  if (paths.length === 0) return out;
-  try {
-    const admin = getSupabaseAdmin();
-    const { data } = await admin.storage.from(DOCUMENTS_BUCKET).createSignedUrls(paths, 60 * 60);
-    for (const row of data ?? []) out.set(row.path ?? "", row.signedUrl ?? null);
-  } catch {
-    // best-effort — an attachment renders as a non-link chip on signing failure
-  }
-  for (const p of paths) if (!out.has(p)) out.set(p, null);
-  return out;
-}
-
 export default async function BroadcastReadPage({ params }: PageProps) {
   const { id } = await params;
   const me = await requireUser();
 
-  const [result, viewerIsHr] = await Promise.all([
-    getBroadcastForEmployee(id, me.id),
-    isHrStaff(me),
-  ]);
+  const result = await getBroadcastForEmployee(id, me.id);
   if (!result) notFound();
 
   const { broadcast: b, receipt } = result;
   const isRecipient = receipt !== null;
-  // Not sent to me AND I'm not an author → I have no business reading it.
-  if (!isRecipient && !viewerIsHr) notFound();
+
+  // The analytics half. `getBroadcastWithStats` returns null for anyone who is
+  // neither this broadcast's author nor a broadcast admin, so this ONE call is
+  // both the data and the permission check — no second `isHrStaff` round trip
+  // that could disagree with it.
+  const stats = await getBroadcastWithStats(id);
+  const isAuthor = stats !== null;
+
+  // Not sent to me AND not mine to manage → I have no business reading it.
+  if (!isRecipient && !isAuthor) notFound();
 
   const attachments = readAttachments(b.attachments);
-  const signed = await signAttachments(attachments);
-
-  // Author analytics (HR-staff / SA only). getBroadcastWithStats is HR-gated.
-  const stats = viewerIsHr ? await getBroadcastWithStats(id) : null;
+  const { media, files } = splitAttachments(attachments);
+  const signed = await signAttachmentUrls(attachments);
 
   // Inline poll / quiz (Phase 2) — tally + this viewer's own vote.
   const poll = (b.poll ?? null) as BroadcastPoll | null;
@@ -139,8 +128,38 @@ export default async function BroadcastReadPage({ params }: PageProps) {
                 <Pill tone={sTone}>{BROADCAST_STATUS_LABELS[b.status]}</Pill>
               </div>
 
-              {/* Body — authored by HR/SA in the composer's rich editor, rendered
-                  as trusted HTML (same approach as the rich letter viewer). */}
+              {/* Image / video sent WITH the message — shown, not linked, and
+                  above the words, because that is the order it was written in. */}
+              {media.length > 0 && (
+                <div className="mt-6 grid gap-3">
+                  {media.map((m) => {
+                    const url = signed.get(m.path);
+                    if (!url) return null;
+                    return m.kind === "image" ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        key={m.path}
+                        src={url}
+                        alt={m.name}
+                        className="w-full rounded-xl object-contain"
+                        style={{ maxHeight: "60vh", background: "#0b0b0d" }}
+                      />
+                    ) : (
+                      <video
+                        key={m.path}
+                        src={url}
+                        controls
+                        playsInline
+                        className="w-full rounded-xl"
+                        style={{ maxHeight: "60vh", background: "#0b0b0d" }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Body — sanitised on save (sanitizeRichHtml), rendered as
+                  trusted HTML the same way the rich letter viewer does. */}
               <div
                 className="ecos-body mt-6 text-[15px] leading-relaxed text-ink-strong"
                 dangerouslySetInnerHTML={{ __html: b.bodyHtml || `<p>${escapeText(b.bodyText)}</p>` }}
@@ -155,18 +174,18 @@ export default async function BroadcastReadPage({ params }: PageProps) {
                   initialTotal={pollResults.total}
                   myResponse={myPollResponse}
                   canVote={isRecipient && myPollResponse === null}
-                  hrView={viewerIsHr}
+                  hrView={isAuthor}
                 />
               )}
 
-              {/* Attachments */}
-              {attachments.length > 0 && (
+              {/* Attachments — the DOWNLOAD kind only; media rendered above. */}
+              {files.length > 0 && (
                 <div className="mt-7 border-t border-hairline pt-5">
                   <h2 className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-[0.14em] text-ink-soft">
                     <Paperclip size={13} strokeWidth={2.4} /> Attachments
                   </h2>
                   <ul className="mt-2.5 grid gap-2">
-                    {attachments.map((a, i) => {
+                    {files.map((a, i) => {
                       const url = signed.get(a.path) ?? null;
                       const inner = (
                         <>
@@ -226,6 +245,41 @@ export default async function BroadcastReadPage({ params }: PageProps) {
           {/* ── Author analytics ────────────────────────────────────── */}
           {stats && <AnalyticsPanel id={b.id} status={b.status} stats={stats} />}
         </div>
+
+        {/* ── Who read it, and the manual WhatsApp send ─────────────── */}
+        {stats && (
+          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <RecipientTable
+              rows={stats.recipients.map((r) => ({
+                employeeId: r.employeeId,
+                name: r.name,
+                email: r.email,
+                department: r.department,
+                status: r.status,
+                deliveredAt: r.deliveredAt?.toISOString() ?? null,
+                readAt: r.readAt?.toISOString() ?? null,
+                acknowledgedAt: r.acknowledgedAt?.toISOString() ?? null,
+                deliveredChannels: r.deliveredChannels,
+                snoozeCount: r.snoozeCount,
+              }))}
+            />
+            {/* Only when the sender asked for it — an unwanted list of every
+                colleague's phone number is not a panel to show by default. */}
+            {normChannels(b.channels).includes("whatsapp_manual") && (
+              <WhatsappPanel
+                targets={stats.recipients.map((r) => ({
+                  employeeId: r.employeeId,
+                  name: r.name,
+                  phone: r.phone,
+                }))}
+                subject={b.title}
+                from={senderLabel(b)}
+                bodyText={b.bodyText || b.title}
+                link={`/communications/${b.id}`}
+              />
+            )}
+          </div>
+        )}
       </PageShell>
 
       {/* Scoped, safe typography for the trusted broadcast HTML. */}
@@ -253,7 +307,7 @@ function AnalyticsPanel({
   const opened = read + acknowledged;
   const readPct = pct(opened, total);
   const ackPct = pct(acknowledged, total);
-  const pendingRecipients = stats.recipients.filter((r) => r.status === "pending");
+  const snoozes = stats.recipients.reduce((n, r) => n + r.snoozeCount, 0);
 
   const tiles: Array<{ label: string; value: number; color: string }> = [
     { label: "Recipients", value: total, color: "#334155" },
@@ -320,23 +374,30 @@ function AnalyticsPanel({
         <AdminActions broadcastId={id} status={status} pendingCount={pending} />
       </div>
 
-      {/* Pending recipients */}
+      {/* Popup behaviour — the number nobody else reports. A high snooze count
+          on a message people still have not read is the signal that it is being
+          dismissed rather than missed. The full per-person breakdown is in the
+          "Who has read this" table below, so this is the headline only. */}
       <div className="border-t border-hairline pt-4">
         <h3 className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-ink-soft">
-          <Clock size={13} strokeWidth={2.4} /> Pending ({pendingRecipients.length})
+          <Clock size={13} strokeWidth={2.4} /> Popup
         </h3>
-        {pendingRecipients.length === 0 ? (
+        {pending === 0 ? (
           <p className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-medium text-emerald-700">
             <CheckCircle2 size={14} strokeWidth={2.3} /> Everyone has opened this.
           </p>
         ) : (
-          <ul className="mt-2 max-h-[280px] space-y-1 overflow-y-auto pr-1">
-            {pendingRecipients.map((r) => (
-              <li key={r.employeeId} className="truncate rounded-lg px-2 py-1.5 text-[13px] font-medium text-ink-strong odd:bg-surface-muted" title={r.name}>
-                {r.name}
-              </li>
-            ))}
-          </ul>
+          <p className="mt-2 text-[13px] font-medium text-ink-muted">
+            <strong className="text-ink-strong">{pending}</strong> still unread
+            {snoozes > 0 && (
+              <>
+                {" "}· closed{" "}
+                <strong className="text-ink-strong">{snoozes}</strong> time
+                {snoozes === 1 ? "" : "s"} without reading
+              </>
+            )}
+            .
+          </p>
         )}
       </div>
     </aside>

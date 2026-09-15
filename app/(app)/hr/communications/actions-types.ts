@@ -49,4 +49,10 @@ export interface SaveBroadcastDraftInput {
   escalateToManager?: boolean;
   /** Inline poll / quiz (Phase 2). null = none. */
   poll?: BroadcastPoll | null;
+  /**
+   * Flash this as a centre-screen popup in the app (0215). Defaults to true —
+   * a broadcast is meant to be seen. Turn it off for a low-priority FYI that
+   * should only land in the inbox + email.
+   */
+  popup?: boolean;
 }

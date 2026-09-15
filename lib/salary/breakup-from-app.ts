@@ -7,6 +7,7 @@ import { listSalaryProfiles } from "@/lib/queries/salary";
 import { getMonthDashboard } from "@/lib/queries/attendance-status";
 import { getMonthDashboardMerged, getMonthDashboardFromSheet } from "@/lib/queries/attendance-sheet-report";
 import { localDateString } from "@/lib/format";
+import { isHoursPayrollMonth } from "@/lib/attendance/payroll-month";
 
 /**
  * Populate the on-page `salary_breakup` rows for a month from the APP-computed
@@ -26,7 +27,7 @@ export async function syncBreakupFromApp(month: string): Promise<number> {
   const today = localDateString("Asia/Kolkata");
 
   const dash =
-    month >= "2026-08"
+    isHoursPayrollMonth(month)
       ? await getMonthDashboard(y, m, today)
       : month === "2026-07"
         ? await getMonthDashboardMerged(y, m, today)

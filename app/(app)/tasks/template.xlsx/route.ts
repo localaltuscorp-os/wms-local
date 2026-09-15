@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { listActiveSubjectNames } from "@/lib/queries/subjects";
+import { listActiveClientNames } from "@/lib/queries/clients";
 import {
   TASK_TEMPLATE_COLUMNS,
   TASK_STATUS_LABELS,
@@ -77,6 +78,12 @@ export async function GET(): Promise<Response> {
   // never hand someone a subject the app has retired.
   const subjectNames = await listActiveSubjectNames();
 
+  // CLIENT had `source: null` in the manifest, so this workbook shipped with a
+  // Client column and no dropdown behind it — a bare text box in a sheet where
+  // every other roster column offers its list. Same source as the New Task
+  // form's picker and as the Goals template, so all three name the same set.
+  const clientNames = await listActiveClientNames();
+
   const sourceValues: Record<Exclude<TaskColumnSource, null>, string[]> = {
     priority: [...PRIORITY_LABELS_LIST],
     status: [...TASK_STATUS_LABELS],
@@ -85,6 +92,7 @@ export async function GET(): Promise<Response> {
     recurrence: [...RECURRENCE_LABELS],
     yesno: [...YES_NO_LABELS],
     subject: subjectNames,
+    client: clientNames,
   };
 
   const cols = TASK_TEMPLATE_COLUMNS;
@@ -240,12 +248,29 @@ export async function GET(): Promise<Response> {
     cell.border = cellBorder;
   });
   ex.getRow(1).height = 24;
+
+  /* An example that is NOT one of the column's own options teaches the wrong
+     thing — and now that Client has a dropdown, the manifest's "Acme Corp" and
+     "Globex" are names the picker beside them does not offer, which reads as a
+     broken dropdown rather than as a placeholder. Where a column is backed by a
+     live roster and its written example is not in that roster, a real option
+     stands in. Columns whose examples ARE valid (Priority, Status, Recurrence)
+     keep exactly what the manifest says. */
+  const exampleFor = (c: TaskTemplateColumn, e: number): string => {
+    const written = c.examples?.[e] ?? "";
+    if (!c.source) return written;
+    const options = sourceValues[c.source] ?? [];
+    if (options.length === 0) return written;
+    if (options.some((o) => o.toLowerCase() === written.trim().toLowerCase())) return written;
+    return options[e % options.length] ?? written;
+  };
+
   for (let e = 0; e < 2; e++) {
     const row = ex.getRow(2 + e);
     row.height = 18;
     cols.forEach((c, i) => {
       const cell = row.getCell(i + 1);
-      cell.value = c.examples?.[e] ?? "";
+      cell.value = exampleFor(c, e);
       cell.font = { name: "Calibri", size: 10.5, color: { argb: INK } };
       cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
       cell.border = cellBorder;

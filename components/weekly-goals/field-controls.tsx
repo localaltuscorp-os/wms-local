@@ -141,7 +141,7 @@ export function ComboInput({
         <ul
           id={listId}
           role="listbox"
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border bg-surface-card py-1"
+          className="slim-scroll absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border bg-surface-card py-1"
           style={{
             borderColor: "var(--color-hairline-strong)",
             boxShadow: "0 16px 40px -12px rgba(15,23,42,0.28)",

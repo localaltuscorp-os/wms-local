@@ -20,6 +20,10 @@ import {
 } from "@/db/schema";
 import { payBasisFor } from "@/lib/attendance/worker-type";
 import { mergeScheduleForBulk } from "@/lib/employees/bulk-schedule-merge";
+// The reporting-line period recorder. `bulkEditEmployees` reaches it too, by
+// delegating each row to `editEmployee`, so there is one write path for a
+// manager change and not two that could disagree.
+import { recordManagerChange, wouldCreateCycle } from "@/lib/employees/manager-history";
 import { requireAdmin } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import {
@@ -407,6 +411,21 @@ export async function editEmployee(
     if (parsed.data.managerId === emp.id) {
       return { ok: false, error: "An employee can't be their own manager." };
     }
+    // A CYCLE IS WORSE THAN A WRONG MANAGER. Every downline query in the
+    // application is a recursive CTE over `manager_id`; one loop makes goals,
+    // productivity, appraisal and the delegated-access hierarchy check either
+    // hang or error for everyone in the loop. Self-assignment was already
+    // refused above; this catches the two-step version (making your own report
+    // your manager), which the old check let straight through.
+    if (parsed.data.managerId) {
+      if (await wouldCreateCycle(emp.id, parsed.data.managerId)) {
+        return {
+          ok: false,
+          error:
+            "That would create a loop in the reporting chain — the chosen manager already reports to this employee.",
+        };
+      }
+    }
     patch.managerId = parsed.data.managerId;
   }
 
@@ -449,6 +468,28 @@ export async function editEmployee(
     await db.update(employees).set(patch).where(eq(employees.id, emp.id));
   } catch (err: any) {
     return { ok: false, error: `DB: ${err.message ?? err}` };
+  }
+
+  // ── RECORD THE REPORTING-LINE PERIOD (migration 0220) ───────────────────
+  // `employees.manager_id` above is still the canonical CURRENT manager and
+  // every consumer keeps reading it live. This additionally closes the previous
+  // period and opens a new one, so a report about a PAST month is not silently
+  // rewritten by a move made today.
+  //
+  // Not fatal on failure, and deliberately so: the manager change itself has
+  // already committed and is what the admin asked for. Losing the history row
+  // costs a historical report its precision; refusing the whole edit because a
+  // second table was unavailable would cost the company a working org chart.
+  if (patch.managerId !== undefined) {
+    try {
+      await recordManagerChange({
+        employeeId: emp.id,
+        managerId: (patch.managerId as string | null) ?? null,
+        changedById: me.id,
+      });
+    } catch (err) {
+      console.error("[editEmployee] manager history write failed", err);
+    }
   }
 
   // Replace department memberships when the patch touched them.

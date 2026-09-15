@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// The action's dependency graph reaches `lib/employees/manager-history` (the
+// reporting-period recorder), which is `server-only` — as every module that
+// touches the database in this repo is. Neutralised here the same way the other
+// action tests do it, so the import graph loads under vitest.
+vi.mock("server-only", () => ({}));
+
 // Must be a strict RFC-4122 v4 UUID — the action validates the id with
 // EmployeeIdSchema (z.string().uuid()) before doing any work, and that
 // rejects non-v4 shapes (variant nibble must be 8/9/a/b).

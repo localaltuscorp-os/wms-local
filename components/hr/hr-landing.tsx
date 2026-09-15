@@ -73,7 +73,7 @@ const CARDS: Card[] = [
   { slug: "/support", title: "Help Desk", Icon: LifeBuoy, popup: "help-desk" as const },
   { slug: "/hr/record", title: "HR Record", Icon: IdCard },
   { slug: "/hr/kpi", title: "KPI Management", Icon: Target },
-  { slug: "/communications", title: "Enterprise Communications", Icon: Megaphone },
+  { slug: "/communications", title: "Broadcasts", Icon: Megaphone },
   // Saved form submissions (staff-only view of everyone's). This MUST live on
   // this deck: the HR module is rail-less (see the Help Desk note below), so a
   // sidebar entry is never shown and this grid is the only way into the surface.

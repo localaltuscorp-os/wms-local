@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import {
   Clock,
   Play,
@@ -14,25 +13,22 @@ import {
   Users2,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
-import { fireToast } from "@/lib/toast";
 import type { TaskTimeState, TimelineEntry } from "@/lib/queries/task-time";
 import type { TaskInsight } from "@/lib/tasks/insight";
 import { formatMinutesLabel } from "@/lib/tasks/time/types";
-import {
-  startWorkAction,
-  pauseWorkAction,
-  restartTimerAction,
-} from "@/app/(app)/tasks/time-actions";
-import { useElapsedSeconds } from "@/components/tasks/time/use-elapsed";
+import { useTaskTimer } from "@/components/tasks/time/task-timer-store";
+import { useNowMs } from "@/components/tasks/time/use-elapsed";
 
 function initials(name: string): string {
   const p = (name || "").trim().split(/\s+/).filter(Boolean);
   return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
-function relTime(iso: string): string {
+/** `nowMs` is 0 before hydration (see useNowMs) — fall back to the live clock
+ *  then, and let the first tick after hydration correct the text. */
+function relTime(iso: string, nowMs: number): string {
   const then = new Date(iso).getTime();
-  const diff = Date.now() - then;
+  const diff = (nowMs || Date.now()) - then;
   const day = 86400000;
   const days = Math.floor(diff / day);
   if (days >= 1) return `${days} day${days > 1 ? "s" : ""} ago`;
@@ -82,6 +78,7 @@ function RailCard({
 
 /** Vertical activity timeline (right rail) — coloured dots + who + relative time. */
 export function TaskTimelineRail({ entries }: { entries: TimelineEntry[] }) {
+  const nowMs = useNowMs();
   return (
     <RailCard icon={Clock} title="Task Timeline">
       <ol className="flex flex-col">
@@ -103,8 +100,13 @@ export function TaskTimelineRail({ entries }: { entries: TimelineEntry[] }) {
                   <span className="grid h-4 w-4 place-items-center rounded-full bg-surface-soft text-[8px] font-black text-ink-muted">
                     {initials(e.actorName)}
                   </span>
-                  <span className="text-[11.5px] text-ink-muted">
-                    {e.actorName} · {relTime(e.at)}
+                  {/* A relative stamp cannot agree across the SSR/hydration
+                      gap — the server wrote "42m ago" and the browser reads
+                      "43m ago" a minute later, which threw a hydration error
+                      and made React discard this whole task-detail subtree,
+                      timer and all. Suppressed here and corrected by the tick. */}
+                  <span className="text-[11.5px] text-ink-muted" suppressHydrationWarning>
+                    {e.actorName} · {relTime(e.at, nowMs)}
                   </span>
                 </div>
               </div>
@@ -116,57 +118,35 @@ export function TaskTimelineRail({ entries }: { entries: TimelineEntry[] }) {
   );
 }
 
-function LiveMins({ startedAt, base }: { startedAt: string; base: number }) {
-  const secs = useElapsedSeconds(startedAt);
-  return <>{formatMinutesLabel(base + secs)}</>;
-}
-
 /**
  * Time Intelligence control centre — live total, session bar, Start/Stop/
  * Restart, and the most recent session stamps.
  *
- * OPTIMISTIC, and that is the point. Every control here used to run through a
- * `startTransition` that AWAITED the server action and then `router.refresh()`,
- * holding `pending` — and therefore a spinner on the button — true for the whole
- * round trip. Against a remote database that is seconds of dead UI for a click
- * whose outcome is never in doubt.
- *
- * The flip is applied locally first, so the label changes and the clock starts
- * ticking in the same frame as the click. The action fires WITHOUT being awaited
- * inside a transition; `router.refresh()` runs only once it resolves, and a
- * failure rolls the flip back and says so.
- *
- * The flip records WHAT THE SERVER SAID when it was made, so staleness is
- * derived during render rather than reconciled in an effect: once the refreshed
- * state disagrees with `basedOn`, the server value takes over on its own.
+ * IT NO LONGER OWNS THE TIMER. Start/Stop/Restart and "is it running" come
+ * from `useTaskTimer`, the one store the crimson hero band at the top of the
+ * same screen also reads — the two controls used to hold separate optimistic
+ * state and separate `busy` flags, so driving the timer from one of them left
+ * the other showing the opposite label until a server refresh landed. What is
+ * left here is the presentation: the segmented bar, the session stamps, and
+ * the inline restart confirmation.
  */
 export function TimeSpentCard({
-  taskId,
   state,
   canOperate,
   locked,
   onViewHistory,
 }: {
-  taskId: string;
   state: TaskTimeState;
   canOperate: boolean;
   locked: boolean;
   onViewHistory?: () => void;
 }) {
-  const router = useRouter();
+  const timer = useTaskTimer();
   const r = state.rollup;
-  const live = state.live;
 
-  const serverSince = live?.startedAt ?? null;
-  const [flip, setFlip] = React.useState<
-    { running: boolean; since: string; basedOn: string | null } | null
-  >(null);
-  const [busy, setBusy] = React.useState(false);
+  const isRunning = timer?.running ?? Boolean(state.live);
+  const busy = timer?.busy ?? false;
   const [confirmRestart, setConfirmRestart] = React.useState(false);
-
-  const flipCurrent = flip !== null && flip.basedOn === serverSince;
-  const isRunning = flipCurrent ? flip.running : Boolean(live);
-  const since = flipCurrent ? flip.since : serverSince;
 
   const done = state.sessions.filter((s) => !s.live && s.durationSeconds != null);
   const totalForBar = done.reduce((n, s) => n + (s.durationSeconds ?? 0), 0) || 1;
@@ -176,28 +156,6 @@ export function TimeSpentCard({
   const recent = [...done]
     .sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1))
     .slice(0, 3);
-
-  function run(next: boolean, fn: () => Promise<{ ok: boolean; message?: string }>) {
-    if (busy) return;
-    setFlip({ running: next, since: new Date().toISOString(), basedOn: serverSince });
-    setBusy(true);
-    void fn()
-      .then((res) => {
-        if (!res.ok) {
-          setFlip(null);
-          fireToast({
-            // Says what happened rather than "Retrying…" — nothing retries on
-            // its own, and promising a retry that never comes is worse than a
-            // plain failure the user can act on.
-            message: res.message ?? "Couldn't update the timer. Try again.",
-            type: "error",
-          });
-          return;
-        }
-        router.refresh();
-      })
-      .finally(() => setBusy(false));
-  }
 
   return (
     <RailCard
@@ -214,11 +172,7 @@ export function TimeSpentCard({
       {/* Tabular mono so the digits don't jitter as the clock ticks — a
           proportional face reflows the whole number every second. */}
       <div className="font-mono text-2xl font-bold leading-none tabular-nums text-ink-strong">
-        {isRunning && since ? (
-          <LiveMins startedAt={since} base={r.totalActiveSeconds} />
-        ) : (
-          formatMinutesLabel(r.totalActiveSeconds)
-        )}
+        {formatMinutesLabel(timer ? timer.totalSeconds : r.totalActiveSeconds)}
       </div>
       <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-subtle">
         {isRunning ? "Running…" : "Total active time"}
@@ -242,7 +196,8 @@ export function TimeSpentCard({
           {isRunning ? (
             <button
               type="button"
-              onClick={() => run(false, () => pauseWorkAction(taskId))}
+              disabled={busy}
+              onClick={() => timer?.pause()}
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#B80D22] px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-red-700"
             >
               <Pause size={14} /> Stop
@@ -250,7 +205,8 @@ export function TimeSpentCard({
           ) : (
             <button
               type="button"
-              onClick={() => run(true, () => startWorkAction(taskId))}
+              disabled={busy}
+              onClick={() => timer?.start()}
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-emerald-700"
             >
               <Play size={14} /> {r.sessionCount > 0 ? "Resume" : "Start Work"}
@@ -283,7 +239,7 @@ export function TimeSpentCard({
               type="button"
               onClick={() => {
                 setConfirmRestart(false);
-                run(true, () => restartTimerAction(taskId));
+                timer?.restart();
               }}
               className="rounded-md bg-amber-500 px-3 py-1.5 text-[12px] font-bold text-white transition-colors hover:bg-amber-600"
             >

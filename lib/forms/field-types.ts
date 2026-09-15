@@ -86,18 +86,24 @@ export const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
   url: "Link / URL",
 };
 
-/** Default product-name MCQ options. Admins can extend the live list. */
-export const DEFAULT_PRODUCT_OPTIONS = [
-  "Don't Know",
-  "PSO",
-  "BSS",
-  "Consulting",
-  "Collaboration",
-  "Key Note",
-  "Inhouse PSO",
-  "Being Arjun",
-  "2 Days",
-] as const;
+/**
+ * DELETED: `DEFAULT_PRODUCT_OPTIONS`.
+ *
+ * It was a hardcoded product list — "Don't Know", "PSO", "BSS", "Consulting",
+ * "Collaboration", "Key Note", "Inhouse PSO", "Being Arjun", "2 Days" — used as
+ * the fallback whenever `product_options` was empty. A product added on the
+ * Admin Panel could not reach these forms, and a product renamed there kept its
+ * old spelling here.
+ *
+ * `product` fields now take their options from `getProductOptions()`
+ * (lib/forms/server.ts), which merges the PRODUCT MASTER with the form-specific
+ * extras in `product_options`. Migration 0217 seeded the extras above that are
+ * not products, so no form lost a choice when this constant went away.
+ *
+ * The options still arrive at `validateFields` as its `productOptions`
+ * argument, so validation is unchanged — it accepts whatever the live list
+ * offers, which is exactly what it did before.
+ */
 
 /** Which fields are visible given the values entered so far (showIf gating). */
 export function visibleFields(

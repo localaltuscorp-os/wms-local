@@ -1197,7 +1197,7 @@ function TeamPicker({
   return (
     <div className="mt-2 rounded-lg border bg-surface-card p-2 shadow-lg" style={{ borderColor: "var(--color-hairline-strong)" }}>
       <div className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wide text-ink-muted">Involve people</div>
-      <div className="max-h-[160px] overflow-y-auto">
+      <div className="slim-scroll max-h-[160px] overflow-y-auto">
         {roster.map((r) => (
           <label key={r.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-[12.5px] hover:bg-surface-soft">
             <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggle(r.id)} className="accent-[#E10600]" />

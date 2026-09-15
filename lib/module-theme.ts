@@ -12,6 +12,8 @@ import {
   Gauge,
   Users2,
   FolderTree,
+  ShieldAlert,
+  Cog,
 } from "lucide-react";
 import type { Route } from "next";
 import type { WorkspaceId } from "@/lib/workspaces";
@@ -149,7 +151,7 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
   // separate room, not a Goals sub-surface.
   productivity: {
     id: "productivity",
-    label: "Team Productivity",
+    label: "Performance",
     tagline: "One cockpit per person - incentive, goals, tasks, training at a glance.",
     href: "/ws/productivity" as Route,
     Icon: Gauge,
@@ -172,6 +174,36 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
   },
   // Hand-holding — who is staffed on which client. Orange, its own identity:
   // it left Billing and should not read as a purple annex of it.
+  // OPERATIONS — the two-tier room holding Hand-holding, Monthly Events Master,
+  // Checklist and Guidelines.
+  //
+  // IT WEARS THE WMS RED (account holder, 2026-09-11), the same accent pair
+  // `wms` carries above — not a hue of its own, and not the orange Hand-holding
+  // brought with it.
+  //
+  // This is the ONE place that decides it. Every surface inside the room reads
+  // the same two values: the hub card and the footer glyph take them from here,
+  // and the pages inside (Hand-holding, Monthly Events Master, Checklist) each
+  // declare them as their local ACCENT / ACCENT_DEEP constants — Tailwind
+  // arbitrary values like `ring-[#E10600]/40` have to be literal strings, so
+  // they cannot import a constant. Change the room's colour and those literals
+  // have to move with it; they are listed in the Operations section of the
+  // theme notes for exactly that reason.
+  //
+  // The two absorbed entries below keep their OWN themes, unchanged: they are
+  // still valid WorkspaceIds (old /ws/<id> links resolve) but no longer appear
+  // in MODULE_ORDER, so nothing renders them — they are history, not live
+  // identity.
+  operations: {
+    id: "operations",
+    label: "Operations",
+    tagline: "Hand-holding, the events calendar, checklists & guidelines in one room.",
+    href: "/ws/operations" as Route,
+    Icon: Cog,
+    accent: "#E10600",
+    accentDeep: "#A80400",
+    image: null,
+  },
   "people-allocation": {
     id: "people-allocation",
     label: "HandHolding",
@@ -203,39 +235,189 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
 // theme entry but no place here is fully configured and still invisible, which
 // is exactly how Productivity shipped without a card. Adding a room means adding
 // it in both places.
+//
+// The order below is the account holder's own (2026-09-10) and it is also what
+// hands out the keyboard letters: position 1 gets "q", position 2 "w", and so on
+// down SHORTCUT_KEYS. Re-ordering this list therefore RE-LETTERS the modules —
+// that is the intended behaviour (one list, no second mapping), but it means an
+// insert in the middle shifts every letter after it, so add to the end unless a
+// re-lettering is what you actually want.
 export const MODULE_ORDER: WorkspaceId[] = [
-  "wms",          // 1
-  "goals",        // 2
-  "productivity", // 3  — "Team Productivity"
-  "billing",      // 4
-  "hr",           // 5
-  "sales",        // 6
-  "admin",        // 7  — the card labelled "Accounts"
-  "training",     // 8
-  "employees",    // 9
-  "events",       // 0  — "Monthly Events Master"
-  // Past the tenth there is no digit left, so this one renders unnumbered.
-  "people-allocation", // 11 — "HandHolding"
-  "project-plan",      // 12 — "Project" (sits beside HandHolding)
+  "wms",               // q
+  "goals",             // w
+  "project-plan",      // e  — "Project"
+  "productivity",      // r  — "Performance"
+  "billing",           // t
+  "hr",                // y
+  "sales",             // u
+  "admin",             // i  — the card labelled "Accounts"
+  "training",          // o
+  "employees",         // p
+  // Monthly Events Master and HandHolding are NOT here any more (2026-09-11):
+  // both moved inside Operations, so they are reached from its front door
+  // rather than from a hub card of their own.
+  //
+  // Operations is APPENDED rather than slotted in beside them, which is what
+  // keeps "q" through "p" pointing at the same ten modules they always have.
+  // Inserting it mid-list would have re-lettered every module after it.
+  "operations",        // d  — "Operations" (A and S are vacated; see ADMIN_PANEL_SHORTCUT)
 ];
 
 /**
- * Keyboard shortcut for the module at `index` in MODULE_ORDER: the first nine
- * are 1–9 and the tenth is 0, matching a keyboard's number row left to right.
+ * THE SHORTCUT ALPHABET — the top keyboard row left to right, then two home-row
+ * keys that continue it. Twelve letters for twelve modules, so every room has one
+ * (the old 1–9/0 digits ran out at ten and left HandHolding and Project with no
+ * shortcut at all).
  *
- * Derived from POSITION rather than stored per module, so the order above stays
- * the only thing anyone edits — the hub badges, the footer prefixes and the
- * key handler all read the same list and cannot drift apart. Past the tenth
- * module there is no digit left, so it returns null and those render unnumbered
- * rather than repeating a shortcut.
+ * Letters rather than digits at the account holder's request (2026-09-10). They
+ * are positional, not mnemonic: "q" is WMS because WMS is first, not because of
+ * anything in the word. That is deliberate — the row reads left to right in the
+ * same order the hub cards do, so the hub itself is the legend.
+ *
+ * ── WHY THE TAIL IS "df" AND NOT "as" (2026-09-11) ─────────────────────────
+ * The ADMIN PANEL was given a standalone entry with the letter A, and A was
+ * already this list's eleventh key — Monthly Events Master. Both are admin-only
+ * surfaces, so that was a collision for exactly the people who would use either
+ * one: whichever listener answered first won, and the hub badge would have
+ * promised one of them a key that opened the other.
+ *
+ * So the two tail modules moved one pair of home-row keys to the right and A
+ * was vacated. Monthly Events Master is now D, HandHolding is F. Editing this
+ * string is all it took: the hub badges, the footer dock, the module bar, the
+ * ? cheatsheet and both key listeners derive their letters from here, which is
+ * the property this list exists to have.
+ *
+ * A is DELIBERATELY ABSENT from this alphabet rather than mapped to the Admin
+ * Panel inside it. The panel is not a workspace — `workspaceForPath` returns
+ * null for `/admin`, alongside `/inbox` and `/profile` — so it cannot sit in
+ * MODULE_ORDER without inventing a room that has no nav and no `aw` cookie
+ * value. It carries its own letter on {@link ADMIN_PANEL_ENTRY}; keeping A out
+ * of here is what stops `moduleForShortcut("a")` from resolving and lets the
+ * two listeners share one keystroke without both firing.
+ */
+const SHORTCUT_KEYS = [..."qwertyuiopdf"] as const;
+
+/**
+ * Keyboard shortcut letter for the module at `index` in MODULE_ORDER, uppercased
+ * for display ("Q", "W", …).
+ *
+ * Derived from POSITION rather than stored per module, so MODULE_ORDER stays the
+ * only thing anyone edits — the hub badges, the footer prefixes, the cheatsheet
+ * and the key handler all read the same list and cannot drift apart. A module
+ * past the alphabet's end returns null and renders unlettered rather than
+ * repeating someone else's key.
  */
 export function moduleShortcut(index: number): string | null {
-  if (index < 0 || index > 9) return null;
-  return index === 9 ? "0" : String(index + 1);
+  const key = SHORTCUT_KEYS[index];
+  return key ? key.toUpperCase() : null;
 }
 
-/** The module a pressed digit should open, or undefined if none. */
+/**
+ * The COMPACT badge for the tight rows — the module footer dock and the module
+ * bar — as "⌥Q".
+ *
+ * The modifier is part of the shortcut, not decoration: a bare letter cannot
+ * navigate (see ModuleShortcuts for why), so a dock that advertised a lone "Q"
+ * would be advertising something that does nothing.
+ *
+ * WHY THE GLYPH AND NOT "Alt+Q". Both of those rows carry all twelve modules on
+ * one line and scroll horizontally when they overrun. "⌥Q" is the same two
+ * characters the digits' "⌃1" occupied, so the dock keeps the width it was
+ * designed at; spelling out "Alt+" twelve times added roughly 200px and pushed
+ * the tail of the row off-screen. The glyph is not left to explain itself — it
+ * is the same ⌃/⌥ convention these rows already used, `moduleShortcutLabel`
+ * spells it out in each entry's hover title, and the ? cheatsheet renders real
+ * "Alt" + letter key caps.
+ */
+export function moduleShortcutHint(index: number): string | null {
+  const key = moduleShortcut(index);
+  return key ? `⌥${key}` : null;
+}
+
+/** The spelled-out form, for tooltips and anywhere with room — "Alt+Q". */
+export function moduleShortcutLabel(index: number): string | null {
+  const key = moduleShortcut(index);
+  return key ? `Alt+${key}` : null;
+}
+
+/** The module a pressed letter should open, or undefined if none. */
 export function moduleForShortcut(key: string): WorkspaceId | undefined {
-  if (!/^[0-9]$/.test(key)) return undefined;
-  return MODULE_ORDER[key === "0" ? 9 : Number(key) - 1];
+  const i = SHORTCUT_KEYS.indexOf(key.toLowerCase() as (typeof SHORTCUT_KEYS)[number]);
+  return i === -1 ? undefined : MODULE_ORDER[i];
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   THE ADMIN PANEL — a module ENTRY that is not a workspace
+   ════════════════════════════════════════════════════════════════════════════
+
+   The Admin Panel now has a standalone entry beside the twelve rooms: a hub
+   card, a place in the footer dock and the module bar, and the letter A. All of
+   them point at `/admin`, the route that has always been there.
+
+   ── NOTHING IS DUPLICATED, AND THIS IS THE FILE THAT GUARANTEES IT ─────────
+   This descriptor carries a LABEL, an ICON, a COLOUR and an HREF. It carries no
+   pages, no queries, no permission logic and no second copy of the panel. Every
+   entry point renders `app/(admin)/admin/**` through `app/(admin)/admin/layout.tsx`,
+   whose `requireUser()` + `me.isAdmin` guard is the only thing that decides who
+   gets in. The user-menu "Admin panel" link, the new hub card and the A key are
+   three doors onto one room.
+
+   ── WHY IT IS NOT A WorkspaceId ───────────────────────────────────────────
+   `/admin` is a SHARED PLATFORM SURFACE. `workspaceForPath` deliberately returns
+   null for it (see the note there, which lists it with `/inbox`, `/archived` and
+   `/profile`), so the nav keeps whatever room you came in through instead of
+   snapping to a room the panel does not have. Adding it to WORKSPACE_IDS and
+   MODULE_ORDER would mean: a landing entry, a `canAccessWorkspace` branch, an
+   `aw` cookie value naming a room with no nav, a HUB_PASTEL row, a ModuleLogo
+   glyph — and, because the alphabet above is positional, a RE-LETTERING of every
+   module after its insert point. One descriptor is the smaller and more honest
+   answer.
+
+   ── `isAdmin`, NOT a capability ───────────────────────────────────────────
+   Visibility everywhere reads `access.isAdmin`, which is exactly what the route
+   guard and the existing user-menu entry already read. Hiding a card is
+   presentation; the guard is the boundary, and it is untouched. */
+
+/** The letter that opens the Admin Panel. Bare on the hub, Alt+A everywhere. */
+export const ADMIN_PANEL_SHORTCUT = "A";
+
+export interface AdminPanelEntry {
+  label: string;
+  tagline: string;
+  href: Route;
+  Icon: LucideIcon;
+  accent: string;
+  accentDeep: string;
+  /** Uppercase, for the badges. */
+  shortcut: string;
+}
+
+/**
+ * The standalone Admin Panel entry, shaped like a {@link ModuleTheme} minus the
+ * `id` — so the hub card, the dock and the bar can render it with the code they
+ * already have instead of a parallel treatment.
+ *
+ * The red is the Altus brand red the user menu already tints its "Admin panel"
+ * row with, and it is deliberately NOT the slate blue of the `admin` workspace:
+ * that card is labelled "Accounts" and opens `/accounts`. Two different places
+ * with confusingly adjacent names is precisely why they must not share a colour.
+ */
+export const ADMIN_PANEL_ENTRY: AdminPanelEntry = {
+  label: "Admin",
+  tagline: "The control room — employees, masters, settings & activity.",
+  href: "/admin" as Route,
+  Icon: ShieldAlert,
+  accent: "#E10600",
+  accentDeep: "#A80400",
+  shortcut: ADMIN_PANEL_SHORTCUT,
+};
+
+/**
+ * Did this keystroke ask for the Admin Panel?
+ *
+ * Case-insensitive, and the ONE place the letter is compared, so the hub
+ * listener and the layout listener cannot drift from the badge.
+ */
+export function isAdminPanelShortcut(letter: string): boolean {
+  return letter.toLowerCase() === ADMIN_PANEL_SHORTCUT.toLowerCase();
 }

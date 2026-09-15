@@ -4,7 +4,8 @@ import { asc, eq } from "drizzle-orm";
 import { ArrowLeft, Megaphone } from "lucide-react";
 import { db } from "@/lib/db";
 import { employees, designations, broadcasts } from "@/db/schema";
-import { requireHrStaff } from "@/lib/hr/access";
+import { requireUser } from "@/lib/auth/current";
+import { isBroadcastAdmin, canManageBroadcast } from "@/lib/ecos/permissions";
 import { listActiveDepartments } from "@/lib/queries/departments";
 import { listBroadcastSegments, listBroadcastTemplates } from "@/lib/ecos/queries";
 import { PageShell } from "@/components/layout/page-shell";
@@ -18,16 +19,21 @@ const RED = "#E10600";
 const RED_DEEP = "#A80400";
 
 /**
- * ECOS Broadcast Composer — HR-staff-only authoring surface. Fetches the
- * audience option lists (active roster + department / designation masters) and
- * hands them to the client composer. `?draft=<id>` resumes an editable draft.
+ * Broadcast composer. Open to EVERY signed-in employee — anyone may send a
+ * broadcast to anyone (see lib/ecos/permissions.ts); the only thing this page
+ * still narrows is the app-lock switch, which stays with broadcast admins.
+ *
+ * Fetches the audience option lists (active roster + department / designation
+ * masters) and hands them to the client composer. `?draft=<id>` resumes an
+ * editable draft — yours, or anyone's if you are an admin.
  */
 export default async function ComposeBroadcastPage({
   searchParams,
 }: {
   searchParams: Promise<{ draft?: string }>;
 }) {
-  await requireHrStaff();
+  const me = await requireUser();
+  const canAppLock = await isBroadcastAdmin(me);
   const { draft: draftId } = await searchParams;
 
   const [roster, desigRows, deptRows, segments, templates] = await Promise.all([
@@ -61,7 +67,13 @@ export default async function ComposeBroadcastPage({
     const row = await db.query.broadcasts.findFirst({
       where: eq(broadcasts.id, draftId),
     });
-    if (row && (row.status === "draft" || row.status === "scheduled")) {
+    // Only an editable draft, and only one you are entitled to edit — landing
+    // on ?draft=<someone else's id> must not hand you their message.
+    if (
+      row &&
+      (row.status === "draft" || row.status === "scheduled") &&
+      (await canManageBroadcast(me, row.authorId))
+    ) {
       draft = {
         id: row.id,
         title: row.title,
@@ -82,6 +94,7 @@ export default async function ComposeBroadcastPage({
         poll: row.poll ?? null,
         reminderAfterDays: row.reminderAfterDays,
         escalateToManager: row.escalateToManager,
+        popup: row.popup,
       };
     }
   }
@@ -99,7 +112,7 @@ export default async function ComposeBroadcastPage({
             }}
           >
             <ArrowLeft size={15} strokeWidth={2.6} className="transition-transform group-hover:-translate-x-0.5" />
-            <span className="max-md:hidden">Communications</span>
+            <span className="max-md:hidden">Broadcasts</span>
             <span className="md:hidden">Back</span>
           </Link>
         </div>
@@ -113,7 +126,7 @@ export default async function ComposeBroadcastPage({
             className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white"
             style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
           >
-            <Megaphone size={13} strokeWidth={2.6} /> Communications
+            <Megaphone size={13} strokeWidth={2.6} /> Broadcasts
           </span>
           <h1
             className="mt-2 text-ink-strong"
@@ -128,9 +141,9 @@ export default async function ComposeBroadcastPage({
             {draft ? "Edit broadcast" : "New broadcast"}
           </h1>
           <p className="mt-1.5 max-w-[70ch] text-[15px] font-medium text-ink-muted">
-            Compose the message, choose who receives it, and publish. Every broadcast lands in the
-            in-app inbox; email is optional. Critical &amp; Emergency broadcasts can lock the app
-            until acknowledged.
+            Write it, choose who gets it — everyone, a department, or one person — and send.
+            It pops up on their screen within seconds, lands in their notifications, and can go
+            to their work email too.
           </p>
         </header>
 
@@ -141,6 +154,8 @@ export default async function ComposeBroadcastPage({
           draft={draft}
           segments={segments}
           templates={templates}
+          myName={me.name}
+          canAppLock={canAppLock}
         />
       </PageShell>
     </div>

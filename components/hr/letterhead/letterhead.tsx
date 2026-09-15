@@ -227,6 +227,24 @@ const LETTERHEAD_CSS = `
   .alh-art,.alh-logo-cover,.alh-logo,.alh-footer-contact{
     -webkit-print-color-adjust:exact;print-color-adjust:exact;
   }
+  /* ── Where the page may be cut ──────────────────────────────────────────
+     The body is one continuous flow, so without these rules the browser cuts
+     wherever the content happens to cross the page box — which is how a
+     sign-off ended up with "For <entity>" on page 1 and the name, date and
+     place on page 2. These say which runs are ATOMIC and which may split.
+     Shared by every document that wears this frame (letters + HR policies);
+     each surface adds its own class-level rules on top. */
+  /* Never strand one line of a paragraph on its own at a page edge. */
+  .alh-body p{orphans:3;widows:3;}
+  /* A heading is worthless at the foot of a page — keep it with what follows. */
+  .alh-body h1,.alh-body h2,.alh-body h3{break-after:avoid;break-inside:avoid;}
+  /* A bullet is a unit: split its lines and the marker is orphaned. */
+  .alh-body li{break-inside:avoid;}
+  /* Tables MAY span pages (a long CTC breakdown has to) — but a row may not,
+     and the header row repeats at the top of each page it continues onto. */
+  .alh-body tr{break-inside:avoid;}
+  .alh-body thead{display:table-header-group;}
+  .alh-body img{break-inside:avoid;}
 }
 `;
 

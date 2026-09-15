@@ -5,7 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { WorkspaceId } from "@/lib/workspaces";
 import { canAccessWorkspace, workspaceForPath } from "@/lib/workspaces";
-import { MODULE_ORDER, MODULE_THEME, moduleShortcut } from "@/lib/module-theme";
+import {
+  ADMIN_PANEL_ENTRY,
+  MODULE_ORDER,
+  MODULE_THEME,
+  moduleShortcutHint,
+  moduleShortcutLabel,
+} from "@/lib/module-theme";
 
 /**
  * The 10 modules as a horizontal shortcut row — the module FOOTER's logic and
@@ -24,12 +30,11 @@ import { MODULE_ORDER, MODULE_THEME, moduleShortcut } from "@/lib/module-theme";
  * accent-tinted hover/active treatment, and the same 1-9/0 shortcut digits that
  * `ModuleShortcuts` binds globally.
  *
- * SHORT labels: "Monthly Events Master" and "Team Productivity" are fine
- * stacked in a footer dock but blow out a single row at ten across. The full
- * label stays in `title`, so nothing is lost.
+ * SHORT labels: "Monthly Events Master" is fine stacked in a footer dock but
+ * blows out a single row at ten across. The full label stays in `title`, so
+ * nothing is lost. Performance needs no override — it already fits.
  */
 const SHORT_LABEL: Partial<Record<WorkspaceId, string>> = {
-  productivity: "Productivity",
   events: "Events",
   admin: "Accounts",
 };
@@ -51,7 +56,8 @@ export function ModuleBar({
         const m = MODULE_THEME[id];
         const allowed = canAccessWorkspace(id, access);
         const Icon = m.Icon;
-        const shortcut = moduleShortcut(i);
+        const shortcut = moduleShortcutHint(i);
+        const shortcutLabel = moduleShortcutLabel(i);
         const active = activeWs === id;
         const label = SHORT_LABEL[id] ?? m.label;
 
@@ -59,7 +65,7 @@ export function ModuleBar({
           <>
             <Icon size={14} strokeWidth={2.3} aria-hidden />
             {shortcut && (
-              <span aria-hidden className="tabular-nums opacity-55 max-xl:hidden">
+              <span aria-hidden className="opacity-55 max-xl:hidden">
                 {shortcut}
               </span>
             )}
@@ -85,7 +91,7 @@ export function ModuleBar({
           <Link
             key={id}
             href={m.href}
-            title={m.label}
+            title={shortcutLabel ? `${m.label} — ${shortcutLabel}` : m.label}
             aria-current={active ? "page" : undefined}
             className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-[12.5px] font-semibold outline-none transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
             style={{
@@ -100,6 +106,28 @@ export function ModuleBar({
           </Link>
         );
       })}
+
+      {/* THE ADMIN PANEL — the standalone entry, admins only. After the modules
+          and never `active`, because `/admin` belongs to no workspace by design
+          (`workspaceForPath` returns null for it). One href, one guard, one
+          panel — the user-menu link, the hub card and Alt+A all land here. */}
+      {access.isAdmin && (
+        <Link
+          href={ADMIN_PANEL_ENTRY.href}
+          title={`${ADMIN_PANEL_ENTRY.label} — Alt+${ADMIN_PANEL_ENTRY.shortcut}`}
+          className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-[12.5px] font-semibold outline-none transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
+          style={{
+            ["--mod-accent" as string]: ADMIN_PANEL_ENTRY.accent,
+            color: "rgba(15,23,42,0.62)",
+          }}
+        >
+          <ADMIN_PANEL_ENTRY.Icon size={14} strokeWidth={2.3} aria-hidden />
+          <span aria-hidden className="opacity-55 max-xl:hidden">
+            {`⌥${ADMIN_PANEL_ENTRY.shortcut}`}
+          </span>
+          <span className="whitespace-nowrap">{ADMIN_PANEL_ENTRY.label}</span>
+        </Link>
+      )}
     </nav>
   );
 }

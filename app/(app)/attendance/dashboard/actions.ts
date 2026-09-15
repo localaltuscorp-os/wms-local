@@ -421,6 +421,19 @@ export async function wipeAllAttendance(): Promise<
       await wipe("weekAcks", attendanceWeekAck);
       await wipe("disciplineNotes", attendanceDisciplineNotes);
       await wipe("monthFreezes", attendanceMonthFreeze);
+
+      // ⚠️ `attendance_audit_log` IS DELIBERATELY ABSENT FROM THIS LIST, and
+      // must stay absent. It is the append-only record of who changed whose
+      // attendance; a reset that also erased the trail of the edits leading up
+      // to it would destroy the evidence along with the data, which is the one
+      // outcome an audit log exists to prevent.
+      //
+      // Adding it here would not work in any case: migration 0215 installs
+      // BEFORE DELETE and BEFORE TRUNCATE triggers that raise unconditionally,
+      // so the whole transaction — every table above it included — would roll
+      // back. The audit rows survive; their `attendance_log_id` becomes NULL by
+      // the fk's ON DELETE SET NULL, and `attendance_date` + `punch_kind` keep
+      // each entry readable without it.
     });
   } catch (err: unknown) {
     // `dbErrorMessage` and not `err.message`: drizzle's wrapper message is only

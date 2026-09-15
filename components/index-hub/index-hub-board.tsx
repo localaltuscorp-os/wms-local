@@ -78,19 +78,11 @@ export function IndexHubBoard({ sections, isAdmin, canDelete }: Props) {
       {/* Header ------------------------------------------------------- */}
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1
-            className="text-ink-strong"
-            style={{
-              fontFamily: "var(--font-display), system-ui, sans-serif",
-              fontWeight: 900,
-              fontSize: "clamp(36px, 3.8vw, 52px)",
-              letterSpacing: "-0.025em",
-              lineHeight: 1,
-            }}
-          >
-            Index
-          </h1>
-          <p className="mt-2 text-ink-muted font-semibold" style={{ fontSize: 17 }}>
+          {/* The 52px "Index" heading is gone: the top bar names this route
+              "Important Links", so the page carried a second, different name for
+              itself right underneath. The sentence below survives — it says what
+              the page is FOR, which no nav label does. */}
+          <p className="text-ink-muted font-semibold" style={{ fontSize: 17 }}>
             Every sheet, folder and tool in the Altus Corp ecosystem - one click away.
           </p>
         </div>

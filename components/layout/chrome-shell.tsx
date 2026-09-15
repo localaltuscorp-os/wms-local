@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { workspaceForPath } from "@/lib/workspaces";
 import { PageChromeSlotsProvider } from "@/components/layout/page-chrome-slots";
+import { InsetTopBarProvider } from "@/components/layout/inset-top-bar";
 
 /**
  * Decides the app chrome CLIENT-side so it stays correct across SOFT navigations.
@@ -117,11 +118,16 @@ export function ChromeShell({
   const dock = isHub || isHrFullBleed ? null : footer;
   // The dock sits IN FLOW at the end of the page and reserves its own height
   // (it used to be fixed, then sticky — both of which rode over whatever a page
-  // ended with). So this padding only has to supply the gap BELOW it. The hub
-  // has no dock but still wants breathing room under the grid.
+  // ended with). So this padding only has to supply the gap BELOW it.
   // The HR console already fills the viewport exactly; trailing padding would
   // re-introduce the same overflow the dock did.
-  const bottomPad = isHrFullBleed ? "" : isHub ? "pb-10" : "pb-5";
+  //
+  // THE HUB TAKES NONE EITHER, and for the same reason. It has no dock, and it
+  // now CENTRES its card grid in the space under the hero — a trailing 40px
+  // here is 40px the grid cannot see, so the gap above the cards came out 40px
+  // larger than the gap below and the "centred" row sat visibly low. The hub
+  // supplies its own breathing room with its py-6.
+  const bottomPad = isHrFullBleed || isHub ? "" : "pb-5";
 
   // The hub is the module switchboard and renders the full DashboardHeader —
   // which already carries its own search — so a second bar there would stack two
@@ -147,8 +153,22 @@ export function ChromeShell({
             and its own controls up into the bar, and the two are siblings, so a
             context above both is their only meeting point. */}
         <PageChromeSlotsProvider>
-          {bar}
-          {children}
+          {isHrFullBleed ? (
+            /* The HR console carries its OWN left rail inside `children`, so a
+               bar rendered here would sit ON TOP of that rail — a full-width
+               strip across the screen, the rail's controls pushed down below
+               it, and the page's title floating above the rail instead of
+               above the page. Hand the bar down instead: HrConsoleShell drops
+               it at the top of its CONTENT column, which is where every other
+               module's bar starts, and the rail then runs the full height of
+               the viewport like every other module's rail. */
+            <InsetTopBarProvider bar={bar}>{children}</InsetTopBarProvider>
+          ) : (
+            <>
+              {bar}
+              {children}
+            </>
+          )}
         </PageChromeSlotsProvider>
         {dock}
       </div>

@@ -12,6 +12,9 @@ import {
   Minus,
 } from "lucide-react";
 import { MonthCalendar, type MonthCell } from "@/components/attendance/month-calendar";
+import { DailySalaryReport } from "@/components/salary/daily-salary-report";
+import { fetchMonthLedger } from "@/app/(app)/my-salary/actions";
+import type { DayLedger } from "@/lib/salary/day-ledger";
 
 /**
  * Shape assembled server-side by `lib/salary/my-salary.ts`. The money always
@@ -30,6 +33,20 @@ export interface MySalaryMonth {
   cells: MonthCell[];
   /** This employee's OWN weekly target; the calendar must not fall back to 54h. */
   weekTargetMinutes: number | null;
+  /**
+   * The month attributed day by day, for the DAILY SALARY REPORT below.
+   *
+   * Built server-side from the same graded days as `cells` and the same money
+   * as the card above (lib/salary/day-ledger.ts). Null when the month cannot
+   * be broken down at all — no punch record, or grading failed — in which case
+   * the section is simply absent rather than empty.
+   */
+  /**
+   * Present only on the month the page opened on. Every other month's is
+   * fetched by `fetchMonthLedger` when it is selected — a month of day rows is
+   * ~30KB serialised and a whole history would be most of a megabyte.
+   */
+  ledger: DayLedger | null;
   monthlyCtc: number;
   /** Earnings before overtime. `baseAmount + overtimeAmount === gross`. */
   baseAmount: number;
@@ -87,10 +104,60 @@ function fmtDays(n: number): string {
  * recomputed on the client beyond formatting and summing rows that already add
  * up, so this page and the Attendance page can never disagree.
  */
-export function MySalaryView({ months }: { months: MySalaryMonth[] }) {
+export function MySalaryView({
+  months,
+  employeeId,
+}: {
+  months: MySalaryMonth[];
+  /** Whose record this is — re-authorised server-side on every fetch. */
+  employeeId: string;
+}) {
   const [sel, setSel] = React.useState(0);
   const [showDetail, setShowDetail] = React.useState(false);
   const m = months[sel];
+
+  // ── THE DAILY REPORT, ONE MONTH AT A TIME ────────────────────────────
+  // Seeded with whatever the server sent (the month the page opened on) and
+  // filled in as the employee looks around. Cached by month, so going back to
+  // one already fetched is instant and no month is ever fetched twice.
+  //
+  // `undefined` means "not fetched"; `null` means "fetched, and this month has
+  // no report" — the two have to be distinguishable or a month with no record
+  // would be re-requested on every switch.
+  const [ledgers, setLedgers] = React.useState<Record<string, DayLedger | null>>(() => {
+    const seed: Record<string, DayLedger | null> = {};
+    for (const mo of months) if (mo.ledger) seed[mo.month] = mo.ledger;
+    return seed;
+  });
+
+  const wantMonth = m?.month;
+  // DERIVED, not stored. "Loading" is exactly "this month has no entry yet",
+  // and keeping it as state would mean a setState in the effect body — the
+  // cascading render this codebase already lints against.
+  const loading = wantMonth != null && !(wantMonth in ledgers);
+
+  React.useEffect(() => {
+    if (!wantMonth) return;
+    if (wantMonth in ledgers) return;
+    let alive = true;
+    fetchMonthLedger(employeeId, wantMonth)
+      .then((got) => {
+        if (!alive) return;
+        // Record the answer whatever it is — null included. See above.
+        setLedgers((prev) => ({ ...prev, [wantMonth]: got }));
+      })
+      .catch(() => {
+        if (alive) setLedgers((prev) => ({ ...prev, [wantMonth]: null }));
+      });
+    return () => {
+      alive = false;
+    };
+    // `ledgers` is deliberately absent: it changes as a RESULT of this effect,
+    // and depending on it would re-run the effect on its own success. The
+    // guard above reads the latest value through the closure, which is all it
+    // needs to decide whether a fetch is still wanted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId, wantMonth]);
 
   if (!m) {
     return (
@@ -293,6 +360,19 @@ export function MySalaryView({ months }: { months: MySalaryMonth[] }) {
           />
         </div>
       )}
+
+      {/* ── DAILY SALARY REPORT - the month, day by day ──────────────────
+          Below the existing salary information and the calendar, which is
+          where the detail belongs: the card above says what the month paid,
+          this says which day each part of it came from. Nothing above was
+          moved or changed (spec §18). */}
+      {ledgers[m.month] ? (
+        <DailySalaryReport key={m.month} ledger={ledgers[m.month]!} />
+      ) : loading ? (
+        <div className="rounded-3xl border border-hairline bg-surface-card px-5 py-6 text-[13px] text-ink-subtle">
+          Loading your daily salary report…
+        </div>
+      ) : null}
 
       {/* History quick list - pay per month; selecting one drives the page. */}
       {months.length > 1 && (

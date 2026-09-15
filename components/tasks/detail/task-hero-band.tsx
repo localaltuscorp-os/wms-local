@@ -1,27 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Play, Pause, RotateCcw, Loader2 } from "lucide-react";
 import type { TaskTimeState } from "@/lib/queries/task-time";
-import {
-  startWorkAction,
-  pauseWorkAction,
-  restartTimerAction,
-} from "@/app/(app)/tasks/time-actions";
-import { useElapsedSeconds } from "@/components/tasks/time/use-elapsed";
-import { fireToast } from "@/lib/toast";
+import { useTaskTimer } from "@/components/tasks/time/task-timer-store";
 
 /**
  * THE CRIMSON HERO BAND — the task's identity, its progress, and its timer, in
  * one block at the top of the detail screen.
  *
- * IT DRIVES THE EXISTING ENGINE, it does not add a second one.
- * `startWorkAction` / `pauseWorkAction` / `restartTimerAction` and the session
- * rollup already exist and are already what the Time Spent rail card and the
- * Time Log tab operate; this is a third VIEW of the same state. A timer here
- * with its own interval and its own idea of "running" would be two clocks that
- * disagree the moment one of them is paused from the other surface.
+ * IT DRIVES THE EXISTING ENGINE, it does not add a second one. The session
+ * rollup and the Server Actions already exist and are already what the Time
+ * Spent rail card and the Time Log tab operate; this is a third VIEW of the
+ * same state, and it reads that state from `useTaskTimer` — the one store the
+ * rail card reads too. It used to hold its own `busy` flag and call the actions
+ * itself, which is exactly the "two clocks that disagree the moment one of them
+ * is paused from the other surface" this comment warned about.
  *
  * #B80D22 is used as given rather than routed through --color-altus-red
  * (#E10600): the two are visibly different reds — this one is darker and
@@ -96,7 +90,6 @@ export function TaskHeroBand({
   actions,
   progressPct,
   time,
-  taskId,
   canOperate,
   locked,
 }: {
@@ -111,37 +104,18 @@ export function TaskHeroBand({
   /** Null when time tracking is off for this task; the timer half then hides
    *  rather than showing a dead 00:00:00. */
   time: TaskTimeState | null;
-  taskId: string;
   canOperate: boolean;
   locked: boolean;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  // Null only if this band is ever rendered outside the provider; the controls
+  // then simply don't appear, which is the same as `canOperate: false`.
+  const timer = useTaskTimer();
 
-  const live = time?.live ?? null;
-  const base = time?.rollup.totalActiveSeconds ?? 0;
-  // The live seconds come from the SERVER's start stamp, not from a local
-  // counter started on mount: reload the page mid-session and the clock has to
-  // resume where the session actually is, not at zero.
-  const liveSeconds = useElapsedSeconds(live?.startedAt ?? null);
-  const total = base + (live ? liveSeconds : 0);
-
-  function run(fn: () => Promise<{ ok: boolean; message?: string }>) {
-    if (busy) return;
-    setBusy(true);
-    void fn()
-      .then((res) => {
-        if (!res.ok) {
-          fireToast({ message: res.message ?? "Couldn't update the timer.", type: "error" });
-          return;
-        }
-        // Refresh rather than patching local state: the rollup, the session
-        // list and the timeline all move together on the server, and this
-        // header is only one of three surfaces showing them.
-        router.refresh();
-      })
-      .finally(() => setBusy(false));
-  }
+  // The banked total still comes from the server prop when there's no store,
+  // so the READOUT never goes blank — only the buttons depend on the store.
+  const total = timer ? timer.totalSeconds : (time?.rollup.totalActiveSeconds ?? 0);
+  const running = timer?.running ?? false;
+  const busy = timer?.busy ?? false;
 
   const btn =
     "inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[12.5px] font-bold transition-colors disabled:opacity-50";
@@ -215,9 +189,7 @@ export function TaskHeroBand({
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() =>
-                      run(() => (live ? pauseWorkAction(taskId) : startWorkAction(taskId)))
-                    }
+                    onClick={() => (running ? timer?.pause() : timer?.start())}
                     /* GREEN TO GO, WHITE TO STOP — and this one surface has to
                        break the house rule to stay legible.
 
@@ -228,32 +200,36 @@ export function TaskHeroBand({
                        is the same inversion the Mark-as-Done CTA already uses
                        two rows above it. */
                     className={`${btn} ${
-                      live
+                      running
                         ? "bg-white hover:bg-white/90"
                         : "bg-emerald-600 text-white hover:bg-emerald-700"
                     }`}
-                    style={live ? { color: CRIMSON } : undefined}
+                    style={running ? { color: CRIMSON } : undefined}
                   >
                     {busy ? (
                       <Loader2 size={14} className="animate-spin" />
-                    ) : live ? (
+                    ) : running ? (
                       <Pause size={14} strokeWidth={2.6} />
                     ) : (
                       <Play size={14} strokeWidth={2.6} />
                     )}
-                    {live ? "Pause" : "Start Work"}
+                    {running ? "Pause" : "Start Work"}
                   </button>
                   <button
                     type="button"
                     disabled={busy}
-                    // Confirmed, because it discards the running session. The
-                    // engine archives it rather than deleting it, but the
-                    // reader cannot know that from the button.
+                    /* Confirmed, because it throws away the minutes since the
+                       last Start. The old wording promised more than the engine
+                       does — it said the session was ARCHIVED and the timer
+                       reset to 00:00:00, when in fact closed sessions and the
+                       banked total are untouched and only the session in
+                       progress is rewound. Saying so is the difference between
+                       a button people use and one they avoid. */
                     onClick={() => {
-                      if (!confirm("Archive the running session and reset the timer to 00:00:00?")) return;
-                      run(() => restartTimerAction(taskId));
+                      if (!confirm("Reset the current session to 00:00? Time already banked from earlier sessions is kept.")) return;
+                      timer?.restart();
                     }}
-                    title="Archive the active session and reset to 00:00:00"
+                    title="Rewind the session in progress to zero; banked time is kept"
                     className={`${btn} bg-white/15 text-white hover:bg-white/25`}
                   >
                     <RotateCcw size={14} strokeWidth={2.6} />

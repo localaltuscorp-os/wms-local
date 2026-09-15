@@ -1,8 +1,23 @@
 import "server-only";
-import { refreshOpenMonthRun } from "./refresh-open-month";
+import { refreshSalaryRun } from "./refresh-run";
 import { myRuns } from "@/lib/queries/salary";
 import { mySalaryBreakup } from "@/lib/queries/salary-breakup";
-import { isHourlyShift, asWorkerType, type WorkerType } from "@/lib/attendance/worker-type";
+import {
+  isHourlyShift,
+  asWorkerType,
+  payBasisFor,
+  type WorkerType,
+} from "@/lib/attendance/worker-type";
+import {
+  isHoursPayrollMonth,
+  payrollMonthFor,
+} from "@/lib/attendance/payroll-month";
+import {
+  buildDayLedger,
+  ledgerReconciles,
+  type DayLedger,
+  type LedgerPay,
+} from "@/lib/salary/day-ledger";
 import { localDateString } from "@/lib/format";
 import {
   NOT_JOINED_CODE,
@@ -91,6 +106,23 @@ export interface MySalaryMonth {
    *  54h default for someone on a 27h week. */
   weekTargetMinutes: number | null;
 
+  /**
+   * THE DAILY SALARY REPORT for this month — every day, grouped into weeks,
+   * with the day's hours, its balance and its share of the month's pay.
+   *
+   * Built from the SAME grading pass that produces `cells` (see
+   * `withRealAttendance`), so it costs no extra query: the days are already in
+   * hand and the ledger is pure arithmetic over them plus the money already on
+   * this object.
+   *
+   * Null when the month cannot be attributed day by day at all — a month the
+   * punch engine has no record of, or one whose grading failed. A month whose
+   * PAY does not decompose (a retainer, a frozen pre-cutover month) still gets
+   * a ledger: it carries the real attendance with the money columns explicitly
+   * blank and a note saying why. See lib/salary/day-ledger.ts.
+   */
+  ledger: DayLedger | null;
+
   // Days — the classic view, for worker types whose pay does not track hours.
   present: number;
   absent: number;
@@ -123,10 +155,30 @@ export function currentMonthKey(now: Date = new Date()): string {
  * `workerType` decides only how the month is PRESENTED (hours vs days) — never
  * what it is worth. The money always comes from the payroll engine.
  */
+/**
+ * WHICH MONTHS COME BACK WITH A DAILY LEDGER ATTACHED.
+ *
+ * Building one is free — it is pure arithmetic over days this loader has
+ * already graded to draw the calendar. SENDING one is not: a month of rows is
+ * about 30KB of serialised payload, so a nine-month history would inline a
+ * quarter of a megabyte into the page for the eight months nobody is looking
+ * at.
+ *
+ * So the page asks for the month it is about to show, and
+ * `loadMonthLedger` fetches another when the employee picks one. The default
+ * is deliberately NONE rather than ALL: a caller that forgets to ask gets a
+ * small payload, never a silently enormous one.
+ */
+export interface MySalaryOptions {
+  /** Months (yyyy-mm) to attach a ledger to, or "first" for the newest. */
+  ledgerMonths?: readonly string[] | "first" | "none";
+}
+
 export async function loadMySalaryMonths(
   employeeId: string,
   workerType: string | null | undefined,
   now: Date = new Date(),
+  opts: MySalaryOptions = {},
 ): Promise<MySalaryMonth[]> {
   const wt: WorkerType = asWorkerType(workerType);
   const hourly = isHourlyShift(wt);
@@ -141,10 +193,71 @@ export async function loadMySalaryMonths(
   //
   // Now the computation WRITES what it derives, so reading this page refreshes
   // the row those other surfaces already read. Everything below is a plain read
-  // of stored rows. Fail-soft and throttled — see refreshOpenMonthRun; a refusal
+  // of stored rows. Fail-soft and throttled — see refreshSalaryRun; a refusal
   // (paid out, recomputed moments ago) simply leaves the stored run in place.
-  await refreshOpenMonthRun(employeeId, open, now);
+  await refreshSalaryRun(employeeId, open, now);
 
+  let months = await loadStoredMonths(employeeId, hourly);
+
+  // `months` is newest-first, so "first" is the month the page opens on. Pinned
+  // to a value rather than read through `months` on every call, because the
+  // refresh below may replace that array.
+  const want = opts.ledgerMonths ?? "none";
+  const firstMonth = months[0]?.month;
+  const ledgerFor: (month: string) => boolean =
+    want === "none"
+      ? () => false
+      : want === "first"
+        ? (m) => m === firstMonth
+        : (m) => want.includes(m);
+
+  // ── A MONTH ABOUT TO BE BROKEN DOWN DAY BY DAY MUST BE CURRENT ───────
+  // The Daily Salary Report attributes the STORED run's rupees across the days
+  // as graded RIGHT NOW. For the open month those agree, because the refresh
+  // above just recomputed it. A closed month is where they drift: attendance
+  // keeps moving underneath a run issued weeks ago — a backfilled punch, a leave
+  // approved late, a holiday declared afterwards — and when the two cannot be
+  // reconciled `buildDayLedger` correctly refuses to print per-day money and the
+  // employee gets a report with every rupee column blank. Verified in
+  // production: 23 of 25 stored August 2026 runs no longer matched the month as
+  // graded.
+  //
+  // Since closed runs are no longer frozen (spec §10), the fix is to bring the
+  // month the employee actually asked to see up to date rather than to withhold
+  // its figures. Only months a ledger was requested for — a page view still
+  // costs exactly one recompute, not one per month of history — and only rows
+  // that came from `salary_runs`, since the legacy tier has no run to refresh.
+  //
+  // `refreshSalaryRun` never touches `disbursed`, `disbursed_amount` or
+  // `approved_by_id`, so what was PAID is untouched; what changes is what was
+  // owed. Fail-soft: an outcome that is not "refreshed" simply leaves the
+  // stored run in place and the report falls back to attendance-only.
+  const restale = months
+    .filter((m) => m.source === "run" && m.month !== open && ledgerFor(m.month))
+    .map((m) => m.month);
+  if (restale.length > 0) {
+    const outcomes = await Promise.all(
+      restale.map((m) => refreshSalaryRun(employeeId, m, now)),
+    );
+    if (outcomes.includes("refreshed")) months = await loadStoredMonths(employeeId, hourly);
+  }
+
+  return withRealAttendance(employeeId, months, wt, now, ledgerFor);
+}
+
+/**
+ * THE TWO STORED TIERS, MERGED — a pure read, callable twice.
+ *
+ * Split out of `loadMySalaryMonths` for exactly that: the caller recomputes a
+ * closed run when the report is about to attribute it, and then has to read the
+ * merged months back. Doing it through one function is what keeps the money on
+ * the card and the money in the report from ever coming from two different
+ * reads.
+ */
+async function loadStoredMonths(
+  employeeId: string,
+  hourly: boolean,
+): Promise<MySalaryMonth[]> {
   // The two stored tiers load independently. If one fails — a column the DB has
   // not been migrated for yet, a stale pooled connection — it costs only its own
   // months and the remaining tiers still render. The merge below already treats
@@ -190,6 +303,7 @@ export async function loadMySalaryMonths(
       hourlyRate: null,
       cells: [],
       weekTargetMinutes: null,
+      ledger: null,
       present: num(r.present),
       absent: num(r.absent),
       halfDay: num(r.halfDay),
@@ -243,6 +357,7 @@ export async function loadMySalaryMonths(
       hourlyRate: r.hourlyRate,
       cells: [],
       weekTargetMinutes: null,
+      ledger: null,
       present: r.payableDays,
       absent: 0,
       halfDay: 0,
@@ -253,8 +368,7 @@ export async function loadMySalaryMonths(
   }
 
   // Tier 1 — the open month always wins.
-  const months = [...byMonth.values()].sort((a, b) => b.month.localeCompare(a.month));
-  return withRealAttendance(employeeId, months, now);
+  return [...byMonth.values()].sort((a, b) => b.month.localeCompare(a.month));
 }
 
 /**
@@ -284,7 +398,10 @@ export async function loadMySalaryMonths(
 async function withRealAttendance(
   employeeId: string,
   months: MySalaryMonth[],
+  wt: WorkerType,
   now: Date,
+  /** Which months should carry a daily ledger — see MySalaryOptions. */
+  wantLedger: (month: string) => boolean,
 ): Promise<MySalaryMonth[]> {
   if (months.length === 0) return months;
   const refTodayISO = localDateString("Asia/Kolkata", now);
@@ -296,7 +413,10 @@ async function withRealAttendance(
     getOrgSettings().catch(() => null),
     db.query.employees.findFirst({ where: eq(employees.id, employeeId) }).catch(() => null),
   ]);
-  const weekTargetMinutes = empRow ? employeeEffectiveConfig(empRow, org).weeklyTargetMinutes : null;
+  // The WHOLE resolved config, not just the weekly target: the daily target is
+  // what a "/ 9h" in the report means, and the reconciliation divides by it.
+  const cfg = empRow ? employeeEffectiveConfig(empRow, org) : null;
+  const weekTargetMinutes = cfg?.weeklyTargetMinutes ?? null;
 
   const graded = await Promise.allSettled(
     months.map((m) => {
@@ -353,8 +473,70 @@ async function withRealAttendance(
     // drawing 31 "not joined" squares would not be.
     if (workingDays.length === 0) return m;
 
+    // ── THE DAILY SALARY REPORT ─────────────────────────────────────────
+    // Built here because everything it needs is already here: the graded days
+    // this function just fetched, the employee's resolved schedule, and the
+    // month's authoritative money sitting on `m` (read off the stored run, the
+    // one the payslip and Accounts also read). No second query, and above all
+    // no second calculation — `buildDayLedger` ATTRIBUTES the engine's figures,
+    // it does not recompute them. See lib/salary/day-ledger.ts.
+    //
+    // Fail-soft like everything else in this function: a ledger that cannot be
+    // built costs the report, never the page or the money above it.
+    let ledger: DayLedger | null = null;
+    if (cfg && wantLedger(m.month)) {
+      try {
+        const { recon, hours } = payrollMonthFor(g.value.days, {
+          month: m.month,
+          cfg,
+          refTodayISO,
+        });
+        const base = {
+          month: m.month,
+          monthLabel: m.label,
+          days: g.value.days,
+          cfg: {
+            dailyTargetMinutes: cfg.dailyTargetMinutes,
+            weeklyTargetMinutes: cfg.weeklyTargetMinutes,
+          },
+          recon,
+          hours,
+          refTodayISO,
+        };
+        const attributed = buildDayLedger({ ...base, pay: ledgerPayFor(m, wt) });
+
+        // ── THE MONEY HAS TO ADD UP, OR IT DOES NOT GET SHOWN ─────────
+        // The rupees come from the STORED run — the figure on the payslip and
+        // in the card above this report. The hours come from grading the month
+        // right now. For the open month those agree, because
+        // `refreshSalaryRun` above recomputed the run from this very
+        // attendance moments ago.
+        //
+        // A CLOSED month is different by design: its run is frozen as it was
+        // issued, while attendance keeps moving underneath it (a backfilled
+        // punch, a leave approved later, a holiday added, a profile edited).
+        // Verified against production: 23 of 25 stored August 2026 runs no
+        // longer matched the live grading, several by thousands of rupees.
+        //
+        // When the two cannot be reconciled, showing per-day earnings would put
+        // a breakdown on screen that contradicts the payslip directly above it.
+        // So the attendance stays — it is real, and it is the current record —
+        // and the money is withheld with a reason. Self-healing: regenerate the
+        // month's run and the columns come back.
+        ledger = ledgerReconciles(attributed)
+          ? attributed
+          : buildDayLedger({
+              ...base,
+              pay: { mode: "attendance_only", note: STALE_RUN_NOTE },
+            });
+      } catch (err) {
+        console.error("[my-salary] daily ledger failed for", m.month, err);
+      }
+    }
+
     return {
       ...m,
+      ledger,
       // Same mapping the Attendance page uses, so the two calendars can never
       // disagree about what a day looked like.
       cells: g.value.days.map((d) => ({
@@ -368,6 +550,7 @@ async function withRealAttendance(
         inAt: d.inAt,
         outAt: d.outAt,
         workedMinutes: d.workedMinutes,
+        remoteMode: d.remoteMode,
         future: d.logDate > refTodayISO,
       })),
       weekTargetMinutes,
@@ -391,3 +574,138 @@ async function withRealAttendance(
 }
 
 const round1 = (n: number): number => Math.round(n * 10) / 10;
+
+/**
+ * WHICH ENGINE PAID THIS MONTH, and therefore how its rupees may be split
+ * across days.
+ *
+ * The branch mirrors `computeForRow` (lib/salary/generate.ts) exactly, and it
+ * has to: attributing a month with the wrong model would produce per-day
+ * figures that do not add up to the payslip, which is the one thing the report
+ * must never do. `payBasisFor` is the app's single "how is this person paid"
+ * branch point and is read here rather than re-derived.
+ *
+ * Anything that cannot be attributed returns `attendance_only` WITH A REASON.
+ * The attendance is still shown — it is real and it is graded — and the money
+ * columns are blank rather than zero, because "we cannot break this down" and
+ * "you earned nothing" are very different sentences to read on your own pay
+ * page.
+ */
+function ledgerPayFor(m: MySalaryMonth, wt: WorkerType): LedgerPay {
+  const basis = payBasisFor(wt);
+
+  if (basis === "fixed_fee") {
+    return {
+      mode: "attendance_only",
+      note:
+        "Your pay is a fixed monthly retainer, so attendance does not change the amount " +
+        "and there is no per-day share to show. Your hours are below for the record.",
+    };
+  }
+
+  // Months before the hours-based payroll began were priced the old day-based
+  // way from the HR sheet and have already been paid. Re-deriving them from
+  // today's grader would rewrite history — see PAYROLL_HOURS_FROM.
+  if (!isHoursPayrollMonth(m.month)) {
+    return {
+      mode: "attendance_only",
+      note:
+        "This month was finalised before pay moved to an hourly basis, so its salary " +
+        "cannot be broken down by day. The attendance below is still your graded record.",
+    };
+  }
+
+  // ── THE FULL-TIMER'S DAILY MODEL (spec §4) ───────────────────────────────
+  // Paid by the calendar day, so the per-day attribution is the engine's own
+  // arithmetic replayed term by term rather than a share worked backwards out
+  // of a monthly figure. `daysInMonth` comes off the run, which stored the
+  // month's real length — never an assumed 30.
+  if (basis === "monthly_ctc") {
+    if (!(m.monthlyCtc > 0) || !(m.daysInMonth > 0)) {
+      return {
+        mode: "attendance_only",
+        note:
+          "This month's salary record does not carry a monthly figure, so a per-day breakdown " +
+          "is not available. The attendance below is still your graded record.",
+      };
+    }
+    return {
+      mode: "daily",
+      dailyRate: m.monthlyCtc / m.daysInMonth,
+      gross: m.gross,
+    };
+  }
+
+  // No rate on the run — a row generated before the column existed (0211), or a
+  // month with no pay configuration at all. Inventing a rate to fill the
+  // columns would be the exact failure this report exists to prevent.
+  if (m.hourlyRate == null || !(m.hourlyRate > 0)) {
+    return {
+      mode: "attendance_only",
+      note:
+        "This month's salary record does not carry an hourly rate, so a per-day breakdown " +
+        "is not available. The attendance below is still your graded record.",
+    };
+  }
+
+  if (basis === "hourly") {
+    // `computeHourlySalary`: paid for hours actually worked, at one rate, with
+    // no cap — every worker on this basis is `isHourlyShift`, and therefore
+    // `earnsOvertime`, so the monthly cap in that function is unreachable for
+    // them and the anchor it would compare against is never read.
+    return {
+      mode: "hours_worked",
+      hourlyRate: m.hourlyRate,
+      gross: m.gross,
+      monthlyAnchor: 0,
+      surplusPaid: true,
+    };
+  }
+
+  // Unreachable today: `payBasisFor` returns exactly three values and all three
+  // are handled above. Kept as an honest fallback rather than a cast, so a
+  // FOURTH pay basis added later degrades to "we cannot break this down"
+  // instead of being attributed by whichever branch happened to fall through.
+  return {
+    mode: "attendance_only",
+    note:
+      "This month was paid on a basis this report does not know how to break down by day. " +
+      "The attendance below is still your graded record.",
+  };
+}
+
+/**
+ * ONE month's daily ledger, for the month picker.
+ *
+ * Goes through `loadMySalaryMonths` rather than reimplementing the tiering,
+ * the open-month refresh and the pay-basis branch. That costs a grading pass
+ * per month in the employee's history — exactly what a My Salary page view
+ * already costs, so this is not a new order of work — and it buys the one
+ * thing that matters here: the report can never be assembled from a different
+ * set of inputs than the card above it.
+ *
+ * Returns null for a month with no attributable record, which the view
+ * renders as "no report" rather than as an error.
+ */
+export async function loadMonthLedger(
+  employeeId: string,
+  workerType: string | null | undefined,
+  month: string,
+  now: Date = new Date(),
+): Promise<DayLedger | null> {
+  const months = await loadMySalaryMonths(employeeId, workerType, now, {
+    ledgerMonths: [month],
+  });
+  return months.find((m) => m.month === month)?.ledger ?? null;
+}
+
+/**
+ * Shown when the stored run cannot be reconciled against the current graded
+ * month. Deliberately factual: it explains WHY the columns are blank without
+ * suggesting the payslip is wrong, because it is not — it is the record of
+ * what was issued, and it is the authoritative figure either way.
+ */
+const STALE_RUN_NOTE =
+  "The salary recorded for this month was worked out from an earlier attendance record, so it " +
+  "cannot be broken down day by day against your current one. The attendance and hours below " +
+  "are up to date; the salary shown above is the amount on your payslip.";

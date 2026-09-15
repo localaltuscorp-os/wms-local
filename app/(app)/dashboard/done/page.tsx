@@ -53,29 +53,20 @@ export default async function DoneDashboardPage() {
             >
               <CheckCircle2 size={24} strokeWidth={2.4} />
             </span>
+            {/* The 34px "Done Dashboard" heading is gone — the top bar says
+                exactly that on this route. The green "Completed work" eyebrow
+                went with it: an eyebrow is a label FOR a heading, and on its own
+                above nothing it reads as a stray caption.
+
+                The green tick badge stays, and the sentence that was below the
+                whole block moves up beside it — so the row still opens the page,
+                in one line instead of three. */}
             <div className="min-w-0">
-              <p
-                className="text-[10.5px] font-black uppercase tracking-[0.18em]"
-                style={{ color: "#047857" }}
-              >
-                Completed work
+              <p className="text-[14.5px] font-semibold text-ink-subtle">
+                Everything delivered, who delivered it, and how much of it landed on time.
               </p>
-              <h1
-                className="leading-none text-ink-strong"
-                style={{
-                  fontFamily: "var(--font-display), system-ui, sans-serif",
-                  fontWeight: 900,
-                  fontSize: 34,
-                  letterSpacing: "-0.03em",
-                }}
-              >
-                Done Dashboard
-              </h1>
             </div>
           </div>
-          <p className="mt-3 text-[14.5px] font-semibold text-ink-subtle">
-            Everything delivered, who delivered it, and how much of it landed on time.
-          </p>
         </PageShell>
 
         <div className="mt-6">

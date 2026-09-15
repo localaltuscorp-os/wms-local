@@ -438,7 +438,7 @@ export function GoalsBulkUpload(props: Props) {
               </div>
 
               {/* Body (scrolls) */}
-              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              <div className="slim-scroll min-h-0 flex-1 overflow-y-auto px-6 py-5">
                 {/* IN-APP GRID — the primary bulk-entry (Excel, in the app). Fill
                     the boxes/dropdowns (or paste from Excel) → Proceed → review. */}
                 {!rows && (

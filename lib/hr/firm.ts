@@ -73,6 +73,16 @@ export const HR_SIGNATORY = {
  */
 export const HR_SIGNATURE_IMAGE = "/signatures/hr-signature.png";
 
+/**
+ * The Director's scanned signature — the counterpart to HR_SIGNATURE_IMAGE.
+ *
+ * The path was hardcoded at three separate call sites (the on-screen sign-off,
+ * the pdfkit renderer, and nowhere at all in the rich/"Edit freely" seed, which
+ * is why a Director letter opened in free-edit lost its signature entirely).
+ * Named here so all three read the same constant and cannot drift.
+ */
+export const PROPRIETOR_SIGNATURE_IMAGE = "/signatures/proprietor-signature.jpg";
+
 /** Resolve `{firm}` / `{firmLegal}` in `text` against the issuing entity. */
 export function applyFirm(
   text: string,

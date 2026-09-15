@@ -206,6 +206,15 @@ function PctBox({
   toneColor: string;
   ariaLabel: string;
 }) {
+  const [text, setText] = React.useState(String(value));
+  const num = clampPct(Number(text) || 0);
+  // Re-sync only when the PARENT lands on a different number than the box is
+  // showing. A blanket `setText(String(value))` would refill an emptied field
+  // with "0" the moment it was cleared, which is the bug this is fixing.
+  React.useEffect(() => {
+    setText((t) => (clampPct(Number(t) || 0) === value ? t : String(value)));
+  }, [value]);
+
   return (
     <div
       className="flex items-center gap-0.5 rounded-lg px-1.5 py-0.5"
@@ -214,15 +223,31 @@ function PctBox({
         border: `1px solid color-mix(in srgb, ${toneColor} 30%, transparent)`,
       }}
     >
+      {/* TEXT, NOT `type="number"` — see the long note in review-table.tsx.
+          Short version: with a number input React declines to correct the DOM
+          when the typed string is only loosely unequal to the value ("0100" ==
+          100), and `|| 0` made the leading zero impossible to delete, so typing
+          100 into a field showing 0 left "0100" on screen. Selecting the
+          contents on focus means typing simply replaces what is there. */}
       <input
-        type="number"
-        min={0}
-        max={100}
-        value={value}
+        type="text"
+        inputMode="numeric"
+        maxLength={3}
+        value={text}
         aria-label={ariaLabel}
         disabled={disabled}
-        onChange={(e) => onChange(clampPct(Number(e.target.value) || 0))}
-        onBlur={(e) => onCommit(clampPct(Number(e.target.value) || 0))}
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => {
+          // Leading zero dropped once a real digit follows, so typing 1-0-0
+          // in front of a standing "0" gives 100 rather than "0100".
+          const digits = e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "").slice(0, 3);
+          setText(digits);
+          onChange(clampPct(Number(digits) || 0));
+        }}
+        onBlur={() => {
+          setText(String(num));
+          onCommit(num);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         }}

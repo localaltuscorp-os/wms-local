@@ -321,7 +321,85 @@ function AadhaarField({
   const [focused, setFocused] = React.useState(false);
   const float = focused || (value ?? "").trim() !== "";
 
+  // WHICH auto-fill route is live. Asked once, so the button can say what it
+  // will actually do instead of offering a "Fetch" that always fails:
+  //   provider   - the paid licensed KYC lookup (type a number, get an answer)
+  //   digilocker - the free consent flow (the candidate authorises the share)
+  // Null until the answer lands; the button stays disabled for that moment
+  // rather than guessing and doing the wrong thing on the first click.
+  const [methods, setMethods] = React.useState<{ provider: boolean; digilocker: boolean } | null>(null);
+  React.useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await fetch("/api/hr/aadhaar/methods");
+        const d = (await r.json()) as { ok?: boolean; provider?: boolean; digilocker?: boolean };
+        if (alive && d.ok) setMethods({ provider: !!d.provider, digilocker: !!d.digilocker });
+        else if (alive) setMethods({ provider: false, digilocker: false });
+      } catch {
+        if (alive) setMethods({ provider: false, digilocker: false });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Coming back from DigiLocker: `?kyc=1` means the callback parked this
+  // person's demographics in a one-shot cookie. Read them once and fill.
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const failed = params.get("kyc_error");
+    if (failed) {
+      fireToast({ message: failed, type: "error" });
+      stripKycParams();
+      return;
+    }
+    if (params.get("kyc") !== "1") return;
+    void (async () => {
+      try {
+        const r = await fetch("/api/hr/aadhaar/digilocker/result");
+        const d = (await r.json()) as { ok?: boolean; found?: boolean; fields?: AadhaarFill };
+        if (d.ok && d.found && d.fields) {
+          onFill(d.fields);
+          const n = Object.values(d.fields).filter((v) => (v ?? "").trim() !== "").length;
+          fireToast({ message: `Auto-filled ${n} field${n === 1 ? "" : "s"} from DigiLocker.` });
+        } else {
+          fireToast({ message: "DigiLocker returned no details — enter them manually.", type: "error" });
+        }
+      } catch {
+        fireToast({ message: "Could not read the DigiLocker result.", type: "error" });
+      } finally {
+        stripKycParams();
+      }
+    })();
+    // Runs once on mount: the cookie is one-shot and the params are stripped
+    // immediately, so re-running on `onFill` identity would be a no-op at best.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Drop kyc/kyc_error from the URL so a refresh doesn't re-announce them. */
+  function stripKycParams() {
+    const u = new URL(window.location.href);
+    u.searchParams.delete("kyc");
+    u.searchParams.delete("kyc_error");
+    window.history.replaceState(null, "", u.toString());
+  }
+
+  /** Hand off to DigiLocker. A full-page redirect is safe: the form autosaves
+   *  its draft and `?draft=` brings us back to it. */
+  function startDigiLocker() {
+    const ret = window.location.pathname + window.location.search;
+    window.location.href = `/api/hr/aadhaar/digilocker/start?return=${encodeURIComponent(ret)}`;
+  }
+
   async function fetchDetails() {
+    // No paid provider, but DigiLocker is live -> use the consent flow. The
+    // Aadhaar NUMBER is not needed for it; the candidate identifies themselves.
+    if (methods && !methods.provider && methods.digilocker) {
+      startDigiLocker();
+      return;
+    }
     const a = value.replace(/\s+/g, "");
     if (!/^\d{12}$/.test(a)) {
       fireToast({ message: "Enter a valid 12-digit Aadhaar number.", type: "error" });
@@ -343,10 +421,21 @@ function AadhaarField({
         fields?: AadhaarFill;
       };
       if (!data.ok) { fireToast({ message: data.error ?? "Lookup failed.", type: "error" }); return; }
-      if (!data.configured || !data.found) { fireToast({ message: data.message ?? "Enter the details manually." }); return; }
+      // EXPLICIT type, not the heuristic. Every message that reaches here is a
+      // non-result - not configured, timed out, unexpected response, no match -
+      // and each was showing a green tick beside a statement that nothing had
+      // been filled in.
+      if (!data.configured || !data.found) {
+        fireToast({ message: data.message ?? "Enter the details manually.", type: "error" });
+        return;
+      }
       onFill(data.fields ?? {});
       const count = Object.values(data.fields ?? {}).filter((v) => (v ?? "").trim() !== "").length;
-      fireToast({ message: count > 0 ? `Auto-filled ${count} field${count === 1 ? "" : "s"} from Aadhaar.` : "No details found for this Aadhaar." });
+      fireToast(
+        count > 0
+          ? { message: `Auto-filled ${count} field${count === 1 ? "" : "s"} from Aadhaar.` }
+          : { message: "No details found for this Aadhaar.", type: "error" },
+      );
     } catch {
       fireToast({ message: "Aadhaar lookup failed — enter details manually.", type: "error" });
     } finally {
@@ -376,13 +465,27 @@ function AadhaarField({
           <span className="iwf-req" aria-hidden>*</span>
         </label>
       </div>
+      {/* The label names the ACTION, because the two routes behave differently:
+          "Fetch" reads a number you typed; "DigiLocker" hands the candidate to
+          their own login to consent. Being told which one is about to happen
+          matters more than a uniform button. */}
       <button
         type="button"
         onClick={fetchDetails}
-        disabled={busy}
+        disabled={busy || methods === null || (!methods.provider && !methods.digilocker)}
+        title={
+          methods === null
+            ? "Checking which verification is available…"
+            : methods.provider
+              ? "Look up this Aadhaar number and auto-fill the details"
+              : methods.digilocker
+                ? "Open DigiLocker so the candidate can consent to share their details"
+                : "Aadhaar auto-fill isn't connected — enter the details manually"
+        }
         className="inline-flex shrink-0 items-center gap-1.5 self-stretch rounded-[14px] border-2 border-hairline-strong bg-white px-4 text-[13.5px] font-bold text-ink-strong transition-colors hover:border-altus-red hover:text-altus-red disabled:opacity-50"
       >
-        {busy ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} strokeWidth={2.4} />} Fetch
+        {busy ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} strokeWidth={2.4} />}{" "}
+        {methods && !methods.provider && methods.digilocker ? "DigiLocker" : "Fetch"}
       </button>
     </div>
   );

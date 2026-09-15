@@ -314,7 +314,7 @@ export function InlineDoerCell({
               className="w-full h-9 pl-8 pr-2 rounded-chip border border-hairline bg-surface-soft text-[14px] outline-none focus:border-altus-red"
             />
           </div>
-          <ul role="listbox" className="max-h-[260px] overflow-y-auto">
+          <ul role="listbox" className="slim-scroll max-h-[260px] overflow-y-auto">
             {filtered.map((e) => {
               const sel = e.id === doerId;
               return (

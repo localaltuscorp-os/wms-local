@@ -137,7 +137,7 @@ export function TeamWeightsField({
               className="h-8 flex-1 border-0 bg-transparent text-[13.5px] outline-none"
             />
           </div>
-          <div className="mt-1.5 max-h-64 overflow-auto">
+          <div className="slim-scroll mt-1.5 max-h-64 overflow-auto">
             {filtered.length === 0 ? (
               <p className="px-3 py-4 text-center text-[13px] text-ink-subtle">No people found.</p>
             ) : (

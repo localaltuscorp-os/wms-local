@@ -3,17 +3,26 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 
 /**
- * ADMIN APPROVAL REMOVED (2026-09-09). These tests pin the new contract:
- * an employee registers their own device and punches from it immediately.
+ * SELF-REGISTRATION, under the 0215 per-kind cap.
  *
- * They also pin what deliberately SURVIVED - the two-device cap, the revoked
- * check and the other-employee check are anti-proxy rules, not part of the
- * approval step, and removing approval must not have loosened them.
+ * An employee registers their own device and punches from it immediately —
+ * there is no approval step on THIS path. What survives is the CAP, and since
+ * migration 0215 the cap is ONE APPROVED DEVICE PER KIND (one laptop AND one
+ * phone), not "two of any kind" as 0214 briefly had it. The revoked check and
+ * the other-employee check are anti-proxy rules and are unchanged.
+ *
+ * (A device whose kind-slot is already taken is enrolled `pending` by
+ * lib/security/device-access.ts and granted by `approveDevice`; that path is
+ * covered in punch-no-task-prerequisite.test.ts.)
  */
 
 const { state } = vi.hoisted(() => ({
   state: {
     row: null as Record<string, unknown> | null,
+    /** What `hasApprovedOfKind` sees. Non-null means this employee already
+     *  holds an approved device of the kind being registered, which is what the
+     *  0215 cap refuses. */
+    approvedOfKind: null as Record<string, unknown> | null,
     activeCount: 0,
     updates: [] as Record<string, unknown>[],
     inserts: [] as Record<string, unknown>[],
@@ -24,7 +33,18 @@ const { state } = vi.hoisted(() => ({
 
 vi.mock("@/lib/db", () => ({
   db: {
-    query: { mobileDevices: { findFirst: () => Promise.resolve(state.row) } },
+    query: {
+      mobileDevices: {
+        // TWO different lookups reach this mock, and they are told apart by the
+        // SHAPE of the predicate rather than by call order — order breaks the
+        // moment a test calls a reader twice. The device lookup filters on
+        // `deviceId` alone (a bare `eq`); the 0215 cap probe
+        // (`hasApprovedOfKind`) filters on employee + kind + status, so the
+        // drizzle mock hands it an `and(...)` marker.
+        findFirst: (args?: { where?: { __and?: unknown[] } }) =>
+          Promise.resolve(args?.where?.__and ? state.approvedOfKind : state.row),
+      },
+    },
     update: () => ({
       set: (vals: Record<string, unknown>) => {
         state.updates.push(vals);
@@ -68,6 +88,7 @@ const ME = "emp-1";
 
 beforeEach(() => {
   state.row = null;
+  state.approvedOfKind = null;
   state.activeCount = 0;
   state.updates = [];
   state.inserts = [];
@@ -105,12 +126,20 @@ describe("registerMobileDevice — no admin approval", () => {
     expect(res.ok).toBe(false);
   });
 
-  it("STILL enforces the per-employee cap — the anti-proxy rule survives", async () => {
-    state.activeCount = MAX_DEVICES_PER_EMPLOYEE;
+  it("STILL enforces the cap — now PER KIND (0215), and writes nothing when it bites", async () => {
+    // This employee already holds an approved device of the kind being
+    // registered, so the slot is taken and the registration is refused.
+    state.approvedOfKind = { id: "r-existing", employeeId: ME, status: "approved" };
     const res = await registerMobileDevice(ME, { deviceId: "dev-new" });
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.error).toContain(String(MAX_DEVICES_PER_EMPLOYEE));
+    if (!res.ok) expect(res.error.toLowerCase()).toContain("already have an approved");
     expect(state.inserts).toHaveLength(0);
+  });
+
+  it("the total cap is DERIVED from the per-kind rule, never a loose literal", () => {
+    // One laptop + one phone. If someone re-hardcodes this to 2 the two figures
+    // can drift apart again, which is exactly what 0214→0215 cost once already.
+    expect(MAX_DEVICES_PER_EMPLOYEE).toBe(2);
   });
 
   it("rejects a malformed device id", async () => {

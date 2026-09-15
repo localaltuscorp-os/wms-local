@@ -287,3 +287,61 @@ export function holidayQuartersFor(year: number): HolidayQuarter[] {
     holidays: all.filter((h) => q.months.includes(h.month)),
   })).filter((q) => q.holidays.length > 0);
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   THE PUBLISHED CALENDAR AS ATTENDANCE SEES IT
+
+   The lists above are the firm's OWN published holiday calendar and the only
+   thing the HR Holiday List page renders. They were, until this helper existed,
+   invisible to everything else: `lib/queries/holidays.listHolidayDateSet` read
+   the `holidays` table and the Monthly Events Master, neither of which carries
+   them, so Republic Day, Independence Day and Diwali were graded as ORDINARY
+   WORKING DAYS. Nobody punched in, the grader wrote "A", and the day flowed
+   through the target hours, the hours balance and into a salary deduction.
+
+   These helpers are the bridge: pure, no I/O, and derived from `month`/`dayNum`
+   rather than by parsing the display string, so a change to how a date is
+   WRITTEN can never change which day it IS.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/** One published holiday, normalised to the shape the calendars share. */
+export interface PublishedHoliday {
+  /** yyyy-mm-dd. */
+  date: string;
+  label: string;
+}
+
+/** `{ month: 1, dayNum: 26 }` + 2026 → "2026-01-26". */
+function isoOf(year: number, month: number, dayNum: number): string {
+  return `${year}-${String(month).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+}
+
+/**
+ * The published calendar for a year as `{ date, label }`, date-sorted.
+ *
+ * Empty for a year with no published list — which is the honest answer, and the
+ * reason the DB calendars are read alongside this rather than replaced by it.
+ */
+export function publishedHolidaysForYear(year: number): PublishedHoliday[] {
+  return holidaysForYear(year)
+    .map((h) => ({ date: isoOf(year, h.month, h.dayNum), label: holidayDisplayName(h.name) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Just the dates — what the attendance grader needs. */
+export function publishedHolidayDates(year: number): string[] {
+  return publishedHolidaysForYear(year).map((h) => h.date);
+}
+
+/**
+ * Every published holiday on or after `fromYmd`, across every published year.
+ *
+ * Deliberately unbounded at the far end (the "no horizon" rule the upcoming
+ * panel already follows): if the next day off is fourteen months out, that is
+ * still the next day off.
+ */
+export function publishedHolidaysFrom(fromYmd: string): PublishedHoliday[] {
+  return HOLIDAY_YEARS.flatMap((y) => publishedHolidaysForYear(y))
+    .filter((h) => h.date >= fromYmd)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}

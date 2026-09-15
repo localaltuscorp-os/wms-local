@@ -40,13 +40,10 @@ export default async function WmsReviewPage({
       <PageShell width="full">
         <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1
-              className="text-ink-strong"
-              style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 32 }}
-            >
-              Review &amp; Scores
-            </h1>
-            <p className="mt-1 text-[14.5px] text-ink-muted">
+            {/* The 32px "Review & Scores" heading that sat here is gone — the
+                top bar already says "Review" on this route. What is left is the
+                line that the bar CANNOT say: whose goals, and which FY. */}
+            <p className="text-[14.5px] text-ink-muted">
               % Done, approved score &amp; approver notes for{" "}
               <span className="font-bold text-ink-soft">{isSelf ? "your" : `${data.viewedName}'s`}</span> goals ·{" "}
               {fyLabel(data.fyStartYear)}

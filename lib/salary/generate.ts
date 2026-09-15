@@ -5,7 +5,7 @@ import {
   computeSalary,
   computeHourlySalary,
   computeFixedFeeSalary,
-  computeScheduleHourlySalary,
+  computeDailySalary,
 } from "@/lib/salary/compute";
 import {
   type WorkerType,
@@ -14,7 +14,7 @@ import {
   payBasisFor,
   hourlyMonthlyAnchor,
 } from "@/lib/attendance/worker-type";
-import { daysInMonth, fyForMonth } from "@/lib/salary/period";
+import { daysInMonth, fyForMonth, todayKeyOf } from "@/lib/salary/period";
 import {
   listSalaryProfiles,
   getAttendanceSheetPayableMap,
@@ -23,8 +23,9 @@ import {
 } from "@/lib/queries/salary";
 import { getMonthDashboard } from "@/lib/queries/attendance-status";
 import { getMonthDashboardMerged } from "@/lib/queries/attendance-sheet-report";
-import { localDateString } from "@/lib/format";
+
 import { isPtExempt } from "@/lib/salary/pt-policy";
+import { isHoursPayrollMonth } from "@/lib/attendance/payroll-month";
 
 /**
  * Attendance-source cutover. Months on/after this use the app's own PUNCH
@@ -66,10 +67,24 @@ export interface MonthInputRow {
    * months, which deliberately keep computing exactly as they were paid.
    */
   payroll?: {
+    /**
+     * Σ day-values over the ELAPSED days of the month — the full-timer's whole
+     * pay input (spec §4). `computeDailySalary` multiplies it by
+     * `monthlySalary ÷ daysInMonth`; nothing else about a full-timer's month
+     * touches the money.
+     */
+    payableDayValue: number;
     monthlyTargetHours: number;
     payableHoursRaw: number;
     dailyTargetHours: number;
     chargeableHalfDays: number;
+    /**
+     * Days of approved UNPAID leave. The target already excludes them (nobody
+     * is asked to work an approved day off back), so without this the month
+     * reads as complete and unpaid leave costs nothing — see
+     * `ScheduleHourlyInput.unpaidLeaveDays`.
+     */
+    unpaidLeaveDays: number;
     /**
      * Month-end surplus that survived covering every short week, in hours.
      * Raw and worker-type-blind: whether it becomes MONEY is decided below by
@@ -112,24 +127,27 @@ export function computeForRow(r: MonthInputRow): SalaryBreakdown {
     });
   }
 
-  // ── SCHEDULE-BASED PAY for the salaried full-timer (spec §14) ─────────────
-  // Only monthly-CTC staff reach here. Applies when the month carries a
-  // schedule-derived payroll view (app-graded months); frozen historical months
-  // fall through to the legacy day-based path below and are never re-derived.
-  if (r.payroll && r.payBasis === "monthly_ctc" && r.payroll.monthlyTargetHours > 0) {
-    return computeScheduleHourlySalary({
+  // ── DAILY PAY for the salaried full-timer (spec §4) ───────────────────────
+  // Only monthly-CTC staff reach here. Applies when the month carries a graded
+  // payroll view (app-graded months); frozen historical months fall through to
+  // the legacy path below and are never re-derived.
+  //
+  // `monthlySalary ÷ daysInMonth × Σ day-values`. The hours the month produced
+  // are carried onto the breakdown for DISPLAY, and play no part in the money —
+  // see the header of computeDailySalary. A full-timer's weekly surplus is
+  // absent from this call entirely, which is how it can never become cash.
+  if (r.payroll && r.payBasis === "monthly_ctc") {
+    return computeDailySalary({
       monthlySalary: r.annualCtc / 12,
-      monthlyTargetHours: r.payroll.monthlyTargetHours,
-      payableHoursRaw: r.payroll.payableHoursRaw,
-      chargeableHalfDays: r.payroll.chargeableHalfDays,
-      dailyTargetHours: r.payroll.dailyTargetHours,
-      // A full-timer earns no cash overtime — the surplus stays credit against a
-      // short week in the same month, so pass 0.
-      overtimeHours: earnsOvertime(r.workerType) ? r.payroll.netSurplusHours : 0,
+      daysInMonth: r.daysInMonth,
+      payableDayValue: r.payroll.payableDayValue,
       ptExempt: r.input.ptExempt,
       tdsMonthly: r.input.tdsMonthly,
       advances: r.input.advances,
       pendingBalanceIn: r.input.pendingBalanceIn,
+      // Reported beside the money, never multiplied into it.
+      workedHours: r.payroll.payableHoursRaw,
+      targetHours: r.payroll.monthlyTargetHours,
     });
   }
   if (r.payBasis === "fixed_fee") {
@@ -146,10 +164,20 @@ export function computeForRow(r: MonthInputRow): SalaryBreakdown {
 /** Assemble per-employee salary-compute inputs for a YYYY-MM month from the
  *  attendance summary + each employee's profile + advances + carry-forward.
  *  DB reads only — no writes. */
-export async function assembleMonthInputs(month: string): Promise<MonthInputRow[]> {
+export async function assembleMonthInputs(
+  month: string,
+  /**
+   * "Now", for the elapsed-day bound (spec §3). Injectable so a recalculation
+   * is DETERMINISTIC and testable rather than reading the wall clock from
+   * inside the engine — and so idempotence (spec §13) is a property that can be
+   * asserted. For a closed month every day has already elapsed, so this stops
+   * affecting the result entirely.
+   */
+  now: Date = new Date(),
+): Promise<MonthInputRow[]> {
   const dim = daysInMonth(month);
   const fy = fyForMonth(month);
-  const today = localDateString("Asia/Kolkata");
+  const today = todayKeyOf(now);
   const [y, m] = month.split("-").map(Number) as [number, number];
 
   // Resolve payableDays (+ late marks) per employee from the ACTIVE source, so
@@ -195,7 +223,7 @@ export async function assembleMonthInputs(month: string): Promise<MonthInputRow[
   // the SAME figure the Attendance page's plus-minus/overtime reads. Overtime pay
   // is worked beyond this, so My Salary and Attendance report one number.
   let otThresholdFor: (id: string) => number | undefined = () => undefined;
-  if (month >= "2026-08") {
+  if (isHoursPayrollMonth(month)) {
     const dash = await getMonthDashboard(y, m, today);
     const byId = new Map(dash.map((r) => [r.employeeId, r.summary]));
     const payrollById = new Map(dash.map((r) => [r.employeeId, r.payroll]));
@@ -209,12 +237,14 @@ export async function assembleMonthInputs(month: string): Promise<MonthInputRow[
       const pr = payrollById.get(id);
       if (!pr) return undefined;
       return {
+        // THE full-timer's pay input (spec §4) — Σ elapsed day-values.
+        payableDayValue: pr.payableDayValue,
         monthlyTargetHours: pr.targetHours,
-        // Precise hours in, rounded DOWN inside computeScheduleHourlySalary —
-        // the exact figure stays available for reporting (spec §2).
+        // Precise hours, kept for reporting beside the money (spec §2).
         payableHoursRaw: pr.payableMinutesRaw / 60,
         dailyTargetHours: pr.dailyTargetMinutes / 60,
         chargeableHalfDays: pr.chargeableHalfDays,
+        unpaidLeaveDays: pr.unpaidLeaveDays,
         // Netted across the WHOLE month by `payableHoursForMonth` — a short week
         // cancels a long one, so this is genuine extra time rather than a swing.
         netSurplusHours: pr.netSurplusMinutes / 60,

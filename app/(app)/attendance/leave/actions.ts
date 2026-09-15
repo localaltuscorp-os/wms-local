@@ -22,6 +22,7 @@ import {
   scopeCovers,
 } from "@/lib/queries/leave";
 import { localDateString } from "@/lib/format";
+import { refreshPayForRange } from "@/lib/salary/refresh-run";
 import {
   RequestLeave,
   DecideLeave,
@@ -48,6 +49,38 @@ function revalidateLeaveSurfaces(): void {
   revalidatePath("/attendance");
   revalidatePath("/attendance/dashboard");
   revalidatePath("/admin/employees");
+  // Pay too, and for the same reason: an UNPAID leave is charged by the payroll
+  // engine (lib/salary/compute.computeScheduleHourlySalary), so the moment one
+  // is approved, withdrawn or marked, My Salary and the Accounts salary module
+  // are showing a figure that has just changed.
+  revalidatePath("/my-salary");
+  revalidatePath("/salary");
+}
+
+/**
+ * Recompute the employee's pay for EVERY MONTH THE LEAVE TOUCHES.
+ *
+ * Approving an UNPAID leave is a deduction (spec §3B: "as soon as the unpaid
+ * leave is approved"), and revalidating a path only clears a cache — it does not
+ * rewrite the stored `salary_runs` row that the payslip and Accounts read. This
+ * does, through the same `assembleMonthInputs` + `computeForRow` that Generate
+ * Salary uses. Awaited so the redirect that follows a decision lands on fresh
+ * figures, and fully fail-soft inside: the decision is already committed.
+ *
+ * ── THE MONTH IS THE LEAVE'S, NOT TODAY'S (spec §11) ──────────────────────
+ * This used to reprice whatever month it happened to be when the button was
+ * pressed. A leave approved on 2 October for three days in August then left
+ * August untouched — the very month whose pay had just changed — and the
+ * deduction landed nowhere. Since closed months are recalculable
+ * (lib/salary/refresh-run.ts), the fix is simply to name the right months: the
+ * span, so a leave crossing a month boundary reprices both ends.
+ */
+async function repriceLeaveMonths(
+  employeeId: string,
+  startDate: string,
+  endDate: string,
+): Promise<void> {
+  await refreshPayForRange(employeeId, startDate, endDate);
 }
 
 /** Today (YYYY-MM-DD) in IST — the org timezone the leave cycle is reckoned in. */
@@ -279,6 +312,7 @@ export async function decideLeave(input: {
     actorId: me.id,
   });
 
+  await repriceLeaveMonths(existing.employeeId, existing.startDate, existing.endDate);
   revalidateLeaveSurfaces();
   return { ok: true };
 }
@@ -362,6 +396,13 @@ export async function adminMarkLeave(
     },
   });
 
+  // An admin-marked leave is APPROVED on arrival — so if it is unpaid, it is a
+  // deduction the moment this returns.
+  await repriceLeaveMonths(
+    parsed.data.employeeId,
+    parsed.data.startDate,
+    parsed.data.endDate,
+  );
   revalidateLeaveSurfaces();
   return { ok: true, id: inserted.id };
 }
@@ -414,6 +455,9 @@ export async function cancelLeave(input: {
     fromValue: { status: existing.status },
   });
 
+  // A cancelled leave that had been APPROVED gives the day back — including,
+  // for an unpaid one, the deduction it carried.
+  await repriceLeaveMonths(existing.employeeId, existing.startDate, existing.endDate);
   revalidateLeaveSurfaces();
   return { ok: true };
 }

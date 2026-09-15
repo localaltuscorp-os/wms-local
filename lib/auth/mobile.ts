@@ -4,6 +4,12 @@ import { db } from "@/lib/db";
 import { employees, type Employee } from "@/db/schema";
 import { getFirebaseAdminAuth } from "@/lib/firebase/admin";
 import { isLoginLive, isCandidateAccount } from "@/lib/auth/current";
+import {
+  resolveDeviceContext,
+  deviceIdFromRequest,
+  touchLastSeen,
+  mobileHeaderGraceActive,
+} from "@/lib/security/device-access";
 
 /**
  * Auth for the native app's `/api/mobile/*` endpoints. The app signs in with
@@ -13,10 +19,44 @@ import { isLoginLive, isCandidateAccount } from "@/lib/auth/current";
  * because the Firebase client SDK auto-refreshes the token on the device.
  */
 export type MobileAuth =
-  | { ok: true; employee: Employee }
+  | { ok: true; employee: Employee; deviceRowId: string | null }
   | { ok: false; status: number; error: string };
 
-export async function authenticateMobileRequest(req: Request): Promise<MobileAuth> {
+export interface MobileAuthOptions {
+  /**
+   * Skip the registered-device check.
+   *
+   * EXACTLY ONE endpoint may set this: `POST /api/mobile/attendance/register-
+   * device`, whose entire purpose is to enroll a phone that is by definition not
+   * yet registered. Gating it would make enrollment impossible — the phone could
+   * never become registered because it is not registered. Every other endpoint
+   * leaves it unset.
+   */
+  skipDeviceCheck?: boolean;
+}
+
+/**
+ * ── DEVICE ACCESS ON THE NATIVE SURFACE ────────────────────────────────────
+ * The app sends its keystore device id on the `x-altus-device-id` header (see
+ * android-app AuthInterceptor). That id is the same one the punch allowlist has
+ * always used, so a phone already approved for attendance is already approved
+ * here — nobody re-enrolls.
+ *
+ * A build that predates the header sends no id. By default that is refused as
+ * `device-unidentified` — the correct answer to "an unidentified device is
+ * asking for WMS data".
+ *
+ * Because deploying that on day one would break every phone that has not yet
+ * received the new APK, `DEVICE_ACCESS_MOBILE_GRACE_UNTIL` opens a DATED window
+ * in which an unidentified NATIVE request is allowed through. It is a deadline
+ * rather than a flag so it closes itself, and it covers only the "no id at all"
+ * case — a phone that names a revoked or pending device is still refused during
+ * the grace. See `mobileHeaderGraceActive` for the full reasoning.
+ */
+export async function authenticateMobileRequest(
+  req: Request,
+  options: MobileAuthOptions = {},
+): Promise<MobileAuth> {
   const header =
     req.headers.get("authorization") ?? req.headers.get("Authorization") ?? "";
   const token = /^bearer\s+/i.test(header) ? header.replace(/^bearer\s+/i, "").trim() : null;
@@ -37,7 +77,39 @@ export async function authenticateMobileRequest(req: Request): Promise<MobileAut
   if (!isLoginLive(employee)) return { ok: false, status: 403, error: "deactivated" };
   // A candidate guest-account has NO mobile surface — the app is web-form only.
   if (isCandidateAccount(employee)) return { ok: false, status: 403, error: "candidate" };
-  return { ok: true, employee };
+
+  if (options.skipDeviceCheck) return { ok: true, employee, deviceRowId: null };
+
+  const presentedId = deviceIdFromRequest(req);
+
+  // OLD APP BUILD, DURING THE ROLLOUT WINDOW ONLY.
+  //
+  // A native request carrying NO device id is a build that predates the header.
+  // While `DEVICE_ACCESS_MOBILE_GRACE_UNTIL` is in the future, let it through so
+  // an un-updated phone keeps working until the new APK reaches it; after that
+  // date it is refused like any other unidentified device.
+  //
+  // Scoped as tightly as it can be: it fires ONLY when no id is presented at
+  // all. A request that names a device falls through to the full check below,
+  // so revoked, pending and other-employee devices are refused throughout the
+  // grace. Logged on every use, because a security check being skipped should
+  // be visible in the logs rather than inferred from an environment variable.
+  if (!presentedId && mobileHeaderGraceActive()) {
+    console.warn(
+      `[device-access] native request with no device id allowed under rollout grace — employee=${employee.id}`,
+    );
+    return { ok: true, employee, deviceRowId: null };
+  }
+
+  const ctx = await resolveDeviceContext(employee, presentedId);
+  if (!ctx.allowed) {
+    // 403 with a machine-readable reason so the app can route the person to the
+    // right screen ("Register this device" vs "Waiting for approval") instead of
+    // showing one generic refusal for four different situations.
+    return { ok: false, status: 403, error: `device-${ctx.reason}` };
+  }
+  if (ctx.device) void touchLastSeen(ctx.device.id);
+  return { ok: true, employee, deviceRowId: ctx.device?.id ?? null };
 }
 
 /** Shared CORS headers so the Expo *web* preview (a browser on localhost) can
@@ -46,6 +118,6 @@ export async function authenticateMobileRequest(req: Request): Promise<MobileAut
 export const MOBILE_CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization,Content-Type",
+  "Access-Control-Allow-Headers": "Authorization,Content-Type,X-Altus-Device-Id",
   "Access-Control-Max-Age": "86400",
 } as const;

@@ -38,8 +38,8 @@ import type { Participant } from "@/lib/queries/people-allocation";
  * check is the rule.
  */
 
-const ORANGE = "#ea580c";
-const ORANGE_DEEP = "#c2410c";
+const ACCENT = "#E10600";
+const ACCENT_DEEP = "#A80400";
 const RED = "var(--color-altus-red)";
 
 const DELETE_CONFIRM =
@@ -91,13 +91,13 @@ function parseHhMm(raw: string): number | null | undefined {
 }
 
 const cellInput =
-  "w-full rounded-lg border border-hairline-strong bg-surface-card px-2.5 py-1.5 text-[13px] tabular-nums text-ink-strong outline-none transition placeholder:text-ink-subtle focus:border-transparent focus:ring-2 focus:ring-[#ea580c]/40";
+  "w-full rounded-lg border border-hairline-strong bg-surface-card px-2.5 py-1.5 text-[13px] tabular-nums text-ink-strong outline-none transition placeholder:text-ink-subtle focus:border-transparent focus:ring-2 focus:ring-[#E10600]/40";
 
 const cellSelect =
-  "w-full appearance-none rounded-lg border border-hairline-strong bg-surface-card px-2.5 py-1.5 pr-7 text-[13px] text-ink-strong outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#ea580c]/40";
+  "w-full appearance-none rounded-lg border border-hairline-strong bg-surface-card px-2.5 py-1.5 pr-7 text-[13px] text-ink-strong outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#E10600]/40";
 
 const filterSelect =
-  "appearance-none rounded-lg border border-hairline-strong bg-surface-card px-2.5 py-1.5 pr-7 text-[13px] text-ink-strong outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#ea580c]/40";
+  "appearance-none rounded-lg border border-hairline-strong bg-surface-card px-2.5 py-1.5 pr-7 text-[13px] text-ink-strong outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#E10600]/40";
 
 /** A native select that keeps the app's chevron rather than the OS one. */
 function Chevroned({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -206,7 +206,7 @@ function SortControl({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold transition-colors hover:bg-black/5"
-        style={{ color: active ? ORANGE_DEEP : "var(--color-ink-subtle)" }}
+        style={{ color: active ? ACCENT_DEEP : "var(--color-ink-subtle)" }}
       >
         Sort <ArrowDownUp size={12} strokeWidth={2.6} />
       </button>
@@ -239,7 +239,7 @@ function SortControl({
                 className="flex w-full items-center justify-between px-3 py-2 text-left text-[13px] font-semibold text-ink-strong transition-colors hover:bg-black/5"
               >
                 {o.label}
-                {on && <Check size={14} strokeWidth={3} style={{ color: ORANGE }} />}
+                {on && <Check size={14} strokeWidth={3} style={{ color: ACCENT }} />}
               </button>
             );
           })}
@@ -405,7 +405,7 @@ export function ParticipantsTable({
           {selected.size > 0 && (
             <span
               className="rounded-pill px-3 py-1 text-[12.5px] font-bold"
-              style={{ background: `color-mix(in srgb, ${ORANGE} 10%, transparent)`, color: ORANGE_DEEP }}
+              style={{ background: `color-mix(in srgb, ${ACCENT} 10%, transparent)`, color: ACCENT_DEEP }}
             >
               {selected.size} selected
             </span>
@@ -518,7 +518,7 @@ export function ParticipantsTable({
                 <input
                   type="checkbox"
                   aria-label="Select all participants"
-                  className="h-4 w-4 accent-[#ea580c]"
+                  className="h-4 w-4 accent-[#E10600]"
                   checked={allSelected}
                   onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((r) => r.id)) : new Set())}
                 />
@@ -568,7 +568,7 @@ export function ParticipantsTable({
                       <input
                         type="checkbox"
                         aria-label={`Select ${r.name}`}
-                        className="h-4 w-4 accent-[#ea580c]"
+                        className="h-4 w-4 accent-[#E10600]"
                         checked={ticked}
                         onChange={() => toggle(r.id)}
                       />

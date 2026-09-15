@@ -156,6 +156,40 @@ function parseMeta(body: string | null): NotificationMeta {
 /* Auth-flow senders (M2.0) — unchanged contract                       */
 /* ------------------------------------------------------------------ */
 
+/**
+ * A plain-text email. No template, no React, no BCC.
+ *
+ * NO `companyBcc()` HERE, on purpose, and it must stay that way: the one caller
+ * is the candidate access link (lib/hr/candidate/access-link-email.ts), whose
+ * body contains a bearer token. This sits with the auth-flow senders for exactly
+ * the reason given above `companyBcc` — mails that carry a secret are not
+ * archived to the company inbox, because archiving a credential is how it
+ * outlives its expiry.
+ *
+ * Plain text rather than a template because it goes to a personal address, is
+ * usually read on a phone, and must survive every mail client unstyled.
+ */
+export async function sendPlainEmail(args: {
+  to: string;
+  subject: string;
+  text: string;
+}): Promise<{ id: string | null; error: string | null }> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: "RESEND_API_KEY not set" };
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: args.to,
+      subject: clampSubject(args.subject),
+      text: args.text,
+    });
+    if (error) return { id: null, error: error.message };
+    return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}
+
 export async function sendInviteEmail(args: {
   email: string;
   inviteeName: string;

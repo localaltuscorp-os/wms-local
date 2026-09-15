@@ -6,6 +6,11 @@ import {
 } from "@/lib/queries/attendance-status";
 import { summarize, type AttendanceSummary, type SummaryDay } from "@/lib/attendance/summary";
 import { mondayOf, currentWeekStart, istYmd } from "@/lib/weekly-goals/week";
+import { db } from "@/lib/db";
+import { employees } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { getOrgSettings } from "@/lib/queries/org-settings";
+import { employeeEffectiveConfig } from "@/lib/queries/attendance-status";
 import type { DayLine, AttnTotals } from "@/lib/email/report-emails";
 
 /**
@@ -45,6 +50,28 @@ function perDayRateFor(days: DayRow[], monthlyGross: number): number {
   const workingDays = days.filter(isWorkingDay).length;
   if (monthlyGross <= 0 || workingDays <= 0) return 0;
   return monthlyGross / workingDays;
+}
+
+/**
+ * This employee's own day length in minutes, from the ONE resolver the grader
+ * and the salary engine share.
+ *
+ * `summarize` used to divide by a hard 9h here, so a part-timer's complete 27h
+ * week reported 3 days earned out of 6 in the report emails — a phantom
+ * shortfall on the very document that tells someone how their week went. The
+ * on-screen self-view already passes this; the reports were the surface still
+ * defaulting. Fail-soft to the full-time day, which is what the default was.
+ */
+async function dayMinutesFor(employeeId: string): Promise<number | undefined> {
+  try {
+    const [org, emp] = await Promise.all([
+      getOrgSettings().catch(() => null),
+      db.query.employees.findFirst({ where: eq(employees.id, employeeId) }),
+    ]);
+    return emp ? employeeEffectiveConfig(emp, org).dailyTargetMinutes : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** "2026-07-14" + weekday 1 → "Mon 14 Jul". */
@@ -89,11 +116,12 @@ export async function weekReportFor(
   const weekStart = currentWeekStart();
   const rows = [...lastMonth.days, ...thisMonth.days].filter((d) => d.logDate >= weekStart && d.logDate <= todayIso);
   const rate = perDayRateFor(thisMonth.days, monthlyGross);
+  const dayMinutes = await dayMinutesFor(employeeId);
   return {
     weekStart,
     weekEnd: todayIso,
     days: toDayLines(rows, todayIso),
-    totals: toTotals(summarize(rows.map((d) => toSummaryDay(d, todayIso)), rate)),
+    totals: toTotals(summarize(rows.map((d) => toSummaryDay(d, todayIso)), rate, dayMinutes)),
   };
 }
 
@@ -107,8 +135,9 @@ export async function monthReportFor(
 ): Promise<{ days: DayLine[]; totals: AttnTotals }> {
   const status = await getEmployeeMonthStatus(employeeId, year, month, refTodayIso);
   const rate = perDayRateFor(status.days, monthlyGross);
+  const dayMinutes = await dayMinutesFor(employeeId);
   return {
     days: toDayLines(status.days, refTodayIso),
-    totals: toTotals(summarize(status.days.map((d) => toSummaryDay(d, refTodayIso)), rate)),
+    totals: toTotals(summarize(status.days.map((d) => toSummaryDay(d, refTodayIso)), rate, dayMinutes)),
   };
 }

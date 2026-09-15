@@ -162,8 +162,13 @@ export function TasksBulkEntry({
   }
 
   /* ---------- Review step ---------- */
-  if (rows) {
-    return (
+  // A VALUE, not an early `return`. Returning here unmounted <TasksBulkGrid>,
+  // and that grid keeps every draft row in its OWN local state — so "Proceed to
+  // Review" destroyed the typed rows and "Back to Grid" remounted six blank
+  // ones. Whatever had been typed was gone and had to be re-entered by hand.
+  // Both steps are rendered now and the inactive one is hidden; see the note on
+  // the entry step below.
+  const review = rows ? (
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12.5px] font-bold" style={{ background: "color-mix(in srgb, var(--color-green) 14%, transparent)", color: "var(--color-green-deep)" }}>
@@ -302,27 +307,47 @@ export function TasksBulkEntry({
           </button>
         </div>
       </div>
-    );
-  }
+  ) : null;
 
   /* ---------- Entry step — grid (primary) + file import (secondary) ---------- */
+  // HIDDEN, NEVER UNMOUNTED, while the review is up.
+  //
+  // <TasksBulkGrid> is an uncontrolled spreadsheet: the draft rows, the row-id
+  // counter, and the per-cell picker state all live inside it. Swapping it out
+  // for the review step threw all of that away, so going Back to Grid handed
+  // the user six empty rows and their typing was unrecoverable.
+  //
+  // Hiding with `display:none` keeps the component mounted and its state
+  // untouched, which restores MORE than lifting the rows into this component
+  // would: `proceed()` only emits rows that have a Client or a Doer, so a
+  // half-filled row never reaches the review at all and could not be handed
+  // back. Those survive here too, exactly as they were left.
+  //
+  // One thing this does NOT carry across: renaming a Client in the review table
+  // edits the review's own copy, so coming back shows what the grid still holds.
+  // Re-proceeding rebuilds the review from the grid, which is the source of
+  // truth for what gets created.
   return (
-    <div>
-      <TasksBulkGrid roster={roster} clients={clients} subjects={subjects} me={me} onProceed={onGridProceed} />
+    <>
+      <div className={rows ? "hidden" : undefined}>
+        <TasksBulkGrid roster={roster} clients={clients} subjects={subjects} me={me} onProceed={onGridProceed} />
 
-      {error && (
-        <p className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-bold text-altus-red" style={{ background: "color-mix(in srgb, var(--color-altus-red) 8%, transparent)" }}>
-          <AlertTriangle size={15} /> {error}
-        </p>
-      )}
+        {error && (
+          <p className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-bold text-altus-red" style={{ background: "color-mix(in srgb, var(--color-altus-red) 8%, transparent)" }}>
+            <AlertTriangle size={15} /> {error}
+          </p>
+        )}
 
-      <div className="my-6 flex items-center gap-3 text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
-        <span className="h-px flex-1" style={{ background: "var(--color-hairline)" }} />
-        or import from a file
-        <span className="h-px flex-1" style={{ background: "var(--color-hairline)" }} />
+        <div className="my-6 flex items-center gap-3 text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
+          <span className="h-px flex-1" style={{ background: "var(--color-hairline)" }} />
+          or import from a file
+          <span className="h-px flex-1" style={{ background: "var(--color-hairline)" }} />
+        </div>
+
+        <TaskImport embedded onSuccess={onSuccess} />
       </div>
 
-      <TaskImport embedded onSuccess={onSuccess} />
-    </div>
+      {review}
+    </>
   );
 }

@@ -151,6 +151,15 @@ describe("hasStartedDay / isDayClosedOut — the two daily_plan_day stamps", () 
   });
 });
 
+/**
+ * The gates take the IDENTITY now, not a bare id — the daily-start exemption is
+ * keyed on `employees.email` (lib/security/capabilities.isExemptFromDailyStart).
+ * EMP is an ordinary employee who holds no exemption, so every assertion here
+ * asserts the same behaviour it always did. The exemption itself is covered in
+ * tests/unit/daily-start-exemption.test.ts.
+ */
+const EMP = { id: "emp-1", email: "someone.else@altuscorp.com" } as const;
+
 /* needsDailyPlan reads, in order (Promise.all, started first):
  *   1. daily_plan_day row      -> [{ startedAt }]
  *   2. daily_checklist rows    -> [{ taskId }]
@@ -158,17 +167,17 @@ describe("hasStartedDay / isDayClosedOut — the two daily_plan_day stamps", () 
 describe("needsDailyPlan — 'is today planned?', for the planner to answer", () => {
   it("reports a full plan that was never started as unplanned", async () => {
     queue.push([{ startedAt: null }], [], [{ n: 8 }]);
-    expect(await needsDailyPlan("emp-1")).toBe(true);
+    expect(await needsDailyPlan(EMP)).toBe(true);
   });
 
   it("reports a started day that is one item short as unplanned", async () => {
     queue.push([{ startedAt: new Date() }], [], [{ n: 4 }]);
-    expect(await needsDailyPlan("emp-1")).toBe(true);
+    expect(await needsDailyPlan(EMP)).toBe(true);
   });
 
   it("reports a started day with exactly five as planned", async () => {
     queue.push([{ startedAt: new Date() }], [], [{ n: 5 }]);
-    expect(await needsDailyPlan("emp-1")).toBe(false);
+    expect(await needsDailyPlan(EMP)).toBe(false);
   });
 
   it("still dedupes: 3 pulled tasks + the same 3 assigned is 3, not 6", async () => {
@@ -177,14 +186,14 @@ describe("needsDailyPlan — 'is today planned?', for the planner to answer", ()
       [{ taskId: "t1" }, { taskId: "t2" }, { taskId: "t3" }],
       [{ n: 0 }],
     );
-    expect(await needsDailyPlan("emp-1")).toBe(true);
+    expect(await needsDailyPlan(EMP)).toBe(true);
   });
 
   it("reports WHICH condition failed, so the planner can say the right thing", async () => {
     queue.push([{ startedAt: null }], [], [{ n: 7 }]);
-    expect(await dailyPlanShortfall("emp-1")).toEqual({ have: 7, need: 5, started: false });
+    expect(await dailyPlanShortfall(EMP)).toEqual({ have: 7, need: 5, started: false });
 
     queue.push([{ startedAt: new Date() }], [], [{ n: 2 }]);
-    expect(await dailyPlanShortfall("emp-1")).toEqual({ have: 2, need: 5, started: true });
+    expect(await dailyPlanShortfall(EMP)).toEqual({ have: 2, need: 5, started: true });
   });
 });

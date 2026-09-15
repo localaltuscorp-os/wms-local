@@ -26,12 +26,12 @@ import { DateField } from "@/components/ui/date-field";
  * an ambiguity the form itself should have settled.
  */
 
-const ORANGE = "#ea580c";
-const ORANGE_DEEP = "#c2410c";
+const ACCENT = "#E10600";
+const ACCENT_DEEP = "#A80400";
 const RED = "var(--color-altus-red)";
 
 const inputCls =
-  "w-full rounded-xl border border-hairline-strong bg-surface-card px-3 py-2.5 text-[14px] text-ink-strong outline-none transition placeholder:text-ink-subtle focus:border-transparent focus:ring-2 focus:ring-[#ea580c]/40";
+  "w-full rounded-xl border border-hairline-strong bg-surface-card px-3 py-2.5 text-[14px] text-ink-strong outline-none transition placeholder:text-ink-subtle focus:border-transparent focus:ring-2 focus:ring-[#E10600]/40";
 
 const labelCls = "mb-1.5 block text-[12.5px] font-bold text-ink-strong";
 
@@ -217,9 +217,9 @@ export function EntryForm({
               style={
                 on
                   ? {
-                      background: `color-mix(in srgb, ${ORANGE} 10%, white)`,
-                      color: ORANGE_DEEP,
-                      boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ORANGE} 45%, transparent)`,
+                      background: `color-mix(in srgb, ${ACCENT} 10%, white)`,
+                      color: ACCENT_DEEP,
+                      boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ACCENT} 45%, transparent)`,
                     }
                   : { color: "var(--color-ink-soft)" }
               }
@@ -369,7 +369,7 @@ export function EntryForm({
           type="button"
           onClick={() => setWeekly([...weekly, blankCall()])}
           className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl py-3 text-[13.5px] font-bold transition-colors hover:bg-black/[0.02]"
-          style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)", color: ORANGE }}
+          style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)", color: ACCENT }}
         >
           <Plus size={15} strokeWidth={2.8} /> Add More Weekly Calls
         </button>
@@ -393,7 +393,7 @@ export function EntryForm({
           onClick={submit}
           disabled={pending || !complete}
           className="wg-btn rounded-xl px-8 py-2.5 text-[13.5px] font-bold text-white disabled:opacity-50"
-          style={{ background: `linear-gradient(135deg, ${ORANGE}, ${ORANGE_DEEP})` }}
+          style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
         >
           Save
         </button>

@@ -126,3 +126,55 @@ export function pct(part: number, whole: number): number {
   if (whole <= 0) return 0;
   return Math.round((part / whole) * 100);
 }
+
+/* ------------------------------------------------------------------ */
+/* Media (0215) — images + video render INSIDE the message             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Broadcast media and broadcast FILES share one `attachments` column, and the
+ * MIME type is what separates them: an image or a video is meant to be watched
+ * where the message is (in the read view and in the centre-screen popup), while
+ * everything else is a chip you download. Deliberately one column and not two —
+ * an attachment's kind is a property of the file, not a second place to put it,
+ * and splitting them would have meant a migration whose only job was to record
+ * a fact the MIME type already carries.
+ *
+ * A pasted external URL (mime "text/uri-list") is classified by its extension,
+ * since a link carries no MIME type of its own.
+ */
+export type MediaKind = "image" | "video" | "file";
+
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|#|$)/i;
+const VIDEO_EXT = /\.(mp4|webm|ogg|ogv|mov|m4v)(\?|#|$)/i;
+
+/** Whether an attachment is an inline image, an inline video, or a plain file. */
+export function mediaKind(a: BroadcastAttachment): MediaKind {
+  const mime = (a.mime ?? "").toLowerCase();
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  // A link has no MIME of its own — fall back to what the URL ends in.
+  if (IMAGE_EXT.test(a.path)) return "image";
+  if (VIDEO_EXT.test(a.path)) return "video";
+  return "file";
+}
+
+/** Is this a bare http(s) link rather than an object in our storage bucket? */
+export function isExternalUrl(path: string): boolean {
+  return /^https?:\/\//i.test(path);
+}
+
+/** Split attachments into the media that plays inline and the files that don't. */
+export function splitAttachments(atts: BroadcastAttachment[]): {
+  media: Array<BroadcastAttachment & { kind: "image" | "video" }>;
+  files: BroadcastAttachment[];
+} {
+  const media: Array<BroadcastAttachment & { kind: "image" | "video" }> = [];
+  const files: BroadcastAttachment[] = [];
+  for (const a of atts) {
+    const kind = mediaKind(a);
+    if (kind === "file") files.push(a);
+    else media.push({ ...a, kind });
+  }
+  return { media, files };
+}

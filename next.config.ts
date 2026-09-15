@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 // The @sparticuz/chromium binary pack (pnpm-hoisted, any version) — traced into
@@ -46,6 +47,22 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // THIS DIRECTORY IS THE WORKSPACE, full stop.
+  //
+  // Turbopack infers the root by walking UP for a lockfile, and there is a stray
+  // 84-byte `package-lock.json` sitting in the Windows home folder
+  // (C:\Users\<you>\package-lock.json, no packages in it). It outranked our own
+  // pnpm-lock.yaml, so every `next dev` opened with "Next.js inferred your
+  // workspace root, but it may not be correct" and then rooted the module graph
+  // at the HOME DIRECTORY — watching the entire user profile for changes.
+  //
+  // That is not just noise: a file-watch tree that large invalidates unreliably,
+  // which is how an edit to lib/ecos/queries.ts came back as "Export
+  // nextPopupBroadcastForEmployee doesn't exist in target module" for an export
+  // that plainly does. Pinning the root keeps the graph inside the app.
+  turbopack: {
+    root: path.join(__dirname),
+  },
   // Server Actions receive multipart posts carrying file uploads (the onboarding
   // form alone requires selfie / Aadhaar / PAN / cancelled-cheque attachments). Next's
   // DEFAULT Server Action body cap is 1 MB, which silently rejected every onboarding

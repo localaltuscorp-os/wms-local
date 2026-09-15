@@ -1,6 +1,7 @@
 "use client";
 
 import { toast as sonnerToast } from "sonner";
+import { toastKind } from "./toast-severity";
 
 export interface ToastDetail {
   id: string;
@@ -12,11 +13,8 @@ export interface ToastDetail {
 const HANDLERS = new Map<string, () => void | Promise<void>>();
 const TOAST_EVENT = "vp-toast";
 
-// Heuristic: colour clearly-failure messages red and everything else green so
-// the hundreds of existing fireToast() callers get premium coloured toasts
-// without each having to pass a type. Callers can still force one.
-const ERROR_RE =
-  /\b(could ?n'?t|cannot|can'?t|fail(ed|ure)?|error|invalid|too many|denied|not allowed|no permission|unable|wrong|stale|forbidden)\b/i;
+// The colour heuristic lives in ./toast-severity so it can be tested without
+// sonner or a client boundary. An explicit `type` still overrides it.
 
 /**
  * App-wide toast — backed by sonner (premium, accessible, stacked). Signature
@@ -31,7 +29,7 @@ export function fireToast(opts: {
   /** Override the host's default lifetime (ms) — e.g. a longer-lived Undo. */
   duration?: number;
 }): void {
-  const kind = opts.type ?? (ERROR_RE.test(opts.message) ? "error" : "success");
+  const kind = toastKind(opts.message, opts.type);
   const options =
     opts.action !== undefined || opts.duration !== undefined
       ? {

@@ -73,6 +73,14 @@ export interface RenderLetterInput {
    * proprietor signature in the sign-off. Degrades gracefully when omitted.
    */
   signatureImage?: string;
+  /**
+   * WHO signs, when HR has chosen explicitly in the editor. Omitted → fall back
+   * to {@link signatoryOf}, the template's own rule. This must be threaded from
+   * the editor: if the PDF recomputed the signatory while the preview honoured a
+   * pick, the issued document would carry a different name and signature from
+   * the one HR approved on screen.
+   */
+  signatory?: LetterSignatory;
 }
 
 /** Decode a `data:image/...;base64,…` URL into a Buffer pdfkit can embed. */
@@ -163,7 +171,8 @@ export async function renderLetterPdf(input: RenderLetterInput): Promise<Buffer>
   }
 
   /* ---- Body blocks ---- */
-  const signatory = signatoryOf(input.template);
+  // An explicit pick from the editor wins; otherwise the template's own rule.
+  const signatory = input.signatory ?? signatoryOf(input.template);
   for (const block of input.template.blocks) {
     renderBlock(doc, block, {
       left,
@@ -212,7 +221,11 @@ function renderBlock(doc: PDFKit.PDFDocument, block: Block, ctx: Ctx): void {
     }
     case "heading": {
       const size = block.level === 1 ? 15 : block.level === 3 ? 11 : 12.5;
-      ctx.ensure(size + 16);
+      // Keep-with-next: reserve the heading PLUS ~2 lines of body (11pt on a
+      // 3pt lead is ~17pt each). Reserving only the heading's own height let one
+      // land as the last thing on a page with the text it introduces starting
+      // overleaf — a heading alone at the foot of a page says nothing.
+      ctx.ensure(size + 16 + 34);
       doc.y += 6;
       doc
         .font("Helvetica-Bold")
@@ -426,8 +439,6 @@ function renderSignature(
   const { left, values, entity, letterDate, gender } = ctx;
   const resolve = (spans: Span[]): string =>
     applyFirm(applyPronouns(resolveSpans(spans, values), gender), entity);
-  ctx.ensure(120);
-  doc.y += 16;
   const line = (text: string, opts: { bold?: boolean; color?: string; size?: number; gap?: number } = {}) => {
     if (!text.trim()) return;
     doc
@@ -443,8 +454,17 @@ function renderSignature(
   // sign-off) prints its own name + designation, never the generic HR-desk block.
   const bakedRel = block.imageSrc; // e.g. "/signatures/manan-sign.jpeg"
   const ownSignatory = Boolean(bakedRel) || !isHr;
+  void INK_FAINT;
 
-  if (block.forEntity) line(`For ${entity.displayName}`, { bold: true, color: RED_DEEP });
+  /* ---- Resolve every part BEFORE drawing anything ------------------------
+     The sign-off is ONE unit and must never be cut: a page break between
+     "For <entity>" and the name / date / place below it is the ugliest thing
+     this renderer can produce. The block used to reserve a flat 120pt up front
+     and then call ensure() AGAIN mid-draw for the signature image — so a
+     sign-off starting near the foot of a page had its first line painted on
+     page 1 and the rest pushed to page 2, which is exactly that tear. Resolving
+     the mark and the text lines first lets us reserve the block's TRUE height
+     in a single ensure(), after which the draw cannot break. */
   // Signature image, in precedence order: an uploaded scanned signature wins;
   // else a per-letter baked signature (the Selection letter's founder block);
   // else the standing signature for whoever signs this letter — the proprietor
@@ -453,44 +473,62 @@ function renderSignature(
   // HR letters used to fall through to a BLANK strip here, which is why e-sign
   // "wasn't automated": every HR letter needed a scan uploaded per issue or a
   // wet signature on the printout. They now carry HR_SIGNATURE_IMAGE by default.
-  void INK_FAINT;
+  let mark: Buffer | string | null = null;
+  // Height the mark occupies: 52 for a real image, 30 for the blank hand-signing
+  // strip an HR letter falls back to when the file is missing, 8 for no mark.
+  let markH = 8;
   try {
     const uploaded = dataUrlToBuffer(ctx.signatureImage);
     const standingRel = isHr ? HR_SIGNATURE_IMAGE : "/signatures/proprietor-signature.jpg";
     const rel = bakedRel ?? standingRel;
     const bakedPath = path.join(process.cwd(), "public", ...rel.replace(/^\//, "").split("/"));
     if (uploaded) {
-      ctx.ensure(62);
-      doc.image(uploaded, left, doc.y, { height: 46 });
-      doc.y += 52;
+      mark = uploaded;
+      markH = 52;
     } else if (existsSync(bakedPath)) {
-      ctx.ensure(62);
-      doc.image(bakedPath, left, doc.y, { height: 46 });
-      doc.y += 52;
+      mark = bakedPath;
+      markH = 52;
     } else if (isHr) {
       // File missing at runtime — reserve the blank strip rather than collapsing
       // the layout, so the letter can still be signed by hand.
-      doc.y += 30;
-    } else {
-      doc.y += 8;
+      markH = 30;
     }
   } catch {
-    doc.y += 8;
+    mark = null;
+    markH = 8;
   }
 
+  const forLine = block.forEntity ? `For ${entity.displayName}` : "";
   const name = ownSignatory ? resolve(block.name) : HR_SIGNATORY.name;
-  line(name, { bold: true });
   const desig = bakedRel
     ? resolve(block.designation ?? [])
     : isHr
       ? HR_SIGNATORY.designation
       : "Proprietor";
-  line(desig, { color: INK_MUTED, size: 10 });
-  if (block.showDate) line(`Date: ${letterDate}`, { color: INK_MUTED, size: 10 });
-  if (block.place) {
-    const place = resolve(block.place);
-    if (place.trim()) line(`Place: ${place}`, { color: INK_MUTED, size: 10 });
+  const dateLine = block.showDate ? `Date: ${letterDate}` : "";
+  const placeVal = block.place ? resolve(block.place) : "";
+  const placeLine = placeVal.trim() ? `Place: ${placeVal}` : "";
+
+  // 16pt lead-in + the mark + 15pt per line that will actually print (`line()`
+  // skips blank text, so count the lines the same way it draws them).
+  const textLines = [forLine, name, desig, dateLine, placeLine].filter((v) => v.trim()).length;
+  ctx.ensure(16 + markH + textLines * 15);
+
+  doc.y += 16;
+  line(forLine, { bold: true, color: RED_DEEP });
+  if (mark) {
+    try {
+      doc.image(mark, left, doc.y, { height: 46 });
+    } catch {
+      // Unreadable / corrupt image — leave the reserved strip blank rather than
+      // breaking the PDF. Its space is already accounted for in markH.
+    }
   }
+  doc.y += markH;
+  line(name, { bold: true });
+  line(desig, { color: INK_MUTED, size: 10 });
+  line(dateLine, { color: INK_MUTED, size: 10 });
+  line(placeLine, { color: INK_MUTED, size: 10 });
   // HR desk contact (email + HR Manager) already prints in the red letterhead
   // footer — no greyed duplicate under the sign-off.
 }

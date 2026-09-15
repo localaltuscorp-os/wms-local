@@ -24,6 +24,7 @@ export const WORKSPACE_IDS = [
   "billing",
   "people-allocation",
   "project-plan",
+  "operations",
 ] as const;
 
 export type WorkspaceId = (typeof WORKSPACE_IDS)[number];
@@ -42,10 +43,11 @@ export const WORKSPACE_LABEL: Record<WorkspaceId, string> = {
   accounts: "Accounts",
   events: "Monthly Events Master",
   goals: "Goals",
-  productivity: "Team Productivity",
+  productivity: "Performance",
   billing: "Billing",
   "people-allocation": "Hand-holding",
   "project-plan": "Project",
+  operations: "Operations",
 };
 
 /** Where each card drops you when you enter the workspace. */
@@ -83,6 +85,11 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   // beside Hand-holding. The older /projects board stays where it is, on the
   // WMS rail; this room is the planning table, not a replacement for it.
   "project-plan": "/project-plan",
+  // Operations — the two-tier room (2026-09-11). Its front door is a card deck,
+  // like HR's, because it holds four unrelated areas rather than one board:
+  // Hand-holding and Monthly Events Master moved INSIDE it, and Checklist and
+  // Guidelines are new and live nowhere else.
+  operations: "/operations",
 };
 
 export const ACTIVE_WORKSPACE_COOKIE = "aw";
@@ -142,6 +149,12 @@ export function canAccessWorkspace(
   // holiday-list view is a self-guarded page (`requireUser` only), reachable
   // directly without entering the room.
   if (ws === "events") return user.isAdmin;
+  // Operations is OPEN, like the HR room, because its front door holds areas at
+  // different access levels: Hand-holding is open to everyone, while Monthly
+  // Events Master stays admin-only. Gating the ROOM on admin would take
+  // Hand-holding away from the people who use it; the Monthly Events rail items
+  // carry `adminOnly` and its pages re-assert admin themselves, which is where
+  // that rule belongs.
   // Department-gated rooms (Sales).
   const required = WORKSPACE_DEPARTMENT[ws];
   if (!required) return true; // open room
@@ -285,11 +298,21 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
     return "accounts";
   }
 
-  // Monthly Events Master — the calendar/holidays/obligations room.
-  if (p.startsWith("/events")) return "events";
-
-  // Hand-holding — its own room since it moved out of Billing.
-  if (p.startsWith("/people-allocation")) return "people-allocation";
+  // OPERATIONS — the room that now OWNS three of these prefixes.
+  //
+  // `/events` and `/people-allocation` used to be rooms of their own and are now
+  // areas inside Operations (2026-09-11), so they resolve here: the path decides
+  // the rail, and pointing them at Operations is what swaps the sidebar to the
+  // Operations rail instead of a room that no longer has a hub card. Their
+  // WorkspaceIds still EXIST — `/ws/events` links and stale `aw` cookies stay
+  // valid — they simply own no path any more, so nothing routes to them.
+  if (
+    p.startsWith("/operations") ||
+    p.startsWith("/events") ||
+    p.startsWith("/people-allocation")
+  ) {
+    return "operations";
+  }
 
   // Billing — invoices, payments, billing cycles & revenue.
   if (p.startsWith("/billing")) return "billing";

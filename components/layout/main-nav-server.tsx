@@ -6,6 +6,7 @@ import { goalsSpace } from "@/lib/goals/space";
 import { directReportIds } from "@/lib/productivity/access";
 import { ACTIVE_WORKSPACE_COOKIE, isWorkspaceId } from "@/lib/workspaces";
 import { canAccessAdminPanel } from "@/lib/hh/access";
+import { hiddenModuleKeys } from "@/lib/permissions/resolve";
 import { MainNav } from "./main-nav";
 
 export async function MainNavServer({ variant }: { variant?: "drawer" } = {}) {
@@ -42,8 +43,20 @@ export async function MainNavServer({ variant }: { variant?: "drawer" } = {}) {
   // only decides whether the rail entry is worth showing.
   const canSeeHhAccess = me ? await canAccessAdminPanel(me).catch(() => false) : false;
 
+  // PERMISSION MATRIX — which nav entries this person may not even see.
+  //
+  // Resolved here for the same reason `isManager` and `goalsCanvasEnabled` are:
+  // it is a database read, and the client nav cannot do one. `null` means the
+  // matrix does not govern this viewer, and is threaded through as `undefined`
+  // so the nav filters nothing rather than filtering everything.
+  //
+  // Fails OPEN on error — a matrix that cannot be read must not empty the
+  // navigation, because the pages behind it enforce their own access anyway.
+  const hidden = await hiddenModuleKeys().catch(() => null);
+
   return (
     <MainNav
+      hiddenNodeKeys={hidden ? [...hidden] : undefined}
       activeTasks={activeTasks}
       isAdmin={Boolean(me?.isAdmin)}
       variant={variant}

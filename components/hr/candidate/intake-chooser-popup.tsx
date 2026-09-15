@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { X, UserPlus, ArrowRight, History, Loader2 } from "lucide-react";
+import { X, UserPlus, ArrowRight, History, Loader2, Send } from "lucide-react";
+import { InviteCandidateDialog } from "@/components/hr/candidate/invite-candidate-dialog";
 import { listCandidateDrafts, type CandidateDraft } from "@/app/(app)/hr/candidate-actions";
 import { formatDateHr } from "@/lib/format";
 
@@ -81,6 +82,34 @@ export function IntakeChooserPopup({ onClose }: { onClose: () => void }) {
             </span>
             <ArrowRight size={19} className="shrink-0 transition-transform group-hover:translate-x-1" style={{ color: RED_DEEP }} />
           </button>
+
+          {/* THE OUTSIDER'S ROUTE. Same form, filled by the candidate instead of
+              by whoever is sitting here: HR types four details, the candidate
+              gets their own link by email and fills it with no login — and can
+              re-open that link to correct it afterwards. Sits directly under
+              "Start a New Candidate" because it is the same decision (who is
+              typing), not a different feature. */}
+          <InviteCandidateDialog
+            trigger={(openInvite) => (
+              <button
+                type="button"
+                onClick={openInvite}
+                className="group mt-2.5 flex w-full items-center gap-3.5 rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
+                style={{ borderColor: "var(--color-hairline-strong)", background: "#fff" }}
+              >
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl" style={{ background: `color-mix(in srgb, ${RED} 11%, white)`, color: RED_DEEP }}>
+                  <Send size={20} strokeWidth={2.2} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[16px] font-bold text-ink-strong">Send the Form to the Candidate</span>
+                  <span className="mt-0.5 block text-[13px] text-ink-muted">
+                    Name, cell and email — they fill it themselves, no login needed.
+                  </span>
+                </span>
+                <ArrowRight size={19} className="shrink-0 text-ink-subtle transition-transform group-hover:translate-x-1" />
+              </button>
+            )}
+          />
 
           {drafts === null ? (
             <p className="mt-5 flex items-center justify-center gap-2 py-3 text-[13px] text-ink-subtle">

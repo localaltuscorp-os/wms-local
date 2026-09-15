@@ -228,7 +228,7 @@ export function GoalsDashboardFilters({
               align="start"
               sideOffset={10}
               collisionPadding={12}
-              className="z-[100] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto rounded-chip border border-hairline-strong bg-surface-card p-3"
+              className="slim-scroll z-[100] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto rounded-chip border border-hairline-strong bg-surface-card p-3"
               style={{ boxShadow: "0 16px 40px rgba(15, 23, 42, 0.14)" }}
             >
               <DayPicker

@@ -316,7 +316,7 @@ function DrilldownBody({
       </header>
 
       {/* ── Scroll body ── */}
-      <div className="relative z-10 flex-1 overflow-y-auto px-7 py-6 max-md:px-5 max-md:py-5">
+      <div className="slim-scroll relative z-10 flex-1 overflow-y-auto px-7 py-6 max-md:px-5 max-md:py-5">
         {error ? (
           <ErrorState error={error} onClose={onClose} />
         ) : loading || !data ? (

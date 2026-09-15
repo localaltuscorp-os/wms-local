@@ -1,9 +1,11 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { ArrowLeft, Smartphone } from "lucide-react";
-import { requireAttendanceAdmin } from "@/lib/auth/current";
+import { requireDeviceManager } from "@/lib/auth/current";
 import { DashboardHeader } from "@/components/layout/header";
-import { listAllDevices, MAX_DEVICES_PER_EMPLOYEE } from "@/lib/attendance/mobile-devices";
+import { listAllDevices, MAX_APPROVED_PER_KIND } from "@/lib/attendance/mobile-devices";
+import { deviceAutoAdoptEnabled, deviceAccessEnforced } from "@/lib/security/device-access";
+import { listEmployeeOptions } from "@/lib/queries/employees";
 import { listAttendanceAnomalies } from "@/lib/attendance/integrity-review";
 import { attendanceIntegrityMode } from "@/lib/attendance/integrity-mode";
 import { getClientIp } from "@/lib/attendance/office-ip";
@@ -18,18 +20,23 @@ const RED = "#E10600";
 const RED_DEEP = "#A80400";
 
 /**
- * Attendance · Registered Devices (admin). The device register: every device
- * employees registered from the app or the web punch, newest first.
- *
- * Admin APPROVAL was removed 2026-09-09 - employees register their own devices
- * and punch from them at once. What admins keep here is oversight and the power
- * to REVOKE a lost, replaced or suspicious device, which is also how a capped
- * slot is freed (MAX_DEVICES_PER_EMPLOYEE per person, any mix of kinds). A
- * revoked or someone-else's device still gets "Incorrect device" at the punch.
+ * Attendance · Registered Devices (admin). The device-allowlist control room:
+ * every device employees registered from the app or the web punch, newest/pending
+ * first. Admins approve a pending device (cap MAX_DEVICES_PER_EMPLOYEE per
+ * person, any mix of kinds) so its owner
+ * can punch, or revoke a lost/replaced/suspicious one. Only APPROVED devices can
+ * mark attendance - everything else gets "Incorrect device" at the punch.
  */
 export default async function AttendanceDevicesPage() {
-  const me = await requireAttendanceAdmin();
+  // DEVICE MANAGERS ONLY. Was `requireAttendanceAdmin`; narrowed to the
+  // `device.manage` capability, because approving a device is what lets someone
+  // act as another person and so cannot ride along with attendance settings.
+  const me = await requireDeviceManager();
   const devices = await listAllDevices();
+  const employeeOptions = await listEmployeeOptions();
+  const autoAdopt = deviceAutoAdoptEnabled();
+  const enforcing = deviceAccessEnforced();
+  const pending = devices.filter((d) => d.status === "pending").length;
   const anomalies = await listAttendanceAnomalies();
   const mode = attendanceIntegrityMode();
   // Everyone who can reach this page is an attendance administrator - the page
@@ -63,12 +70,42 @@ export default async function AttendanceDevicesPage() {
             Device allowlist
           </h1>
           <p className="mt-1.5 max-w-[70ch] text-[13.5px] font-medium text-ink-muted">
-            Each employee registers up to {MAX_DEVICES_PER_EMPLOYEE} devices of any kind - two laptops, two
-            phones or one of each - adopted the first time they punch in from that browser.
-            No approval is needed: a registered device works <strong>immediately</strong>. Revoke one to
-            retire it and free a slot; a revoked device, or someone else&rsquo;s, is refused with
-            &ldquo;Incorrect device&rdquo;.
+            Each employee may hold <strong>{MAX_APPROVED_PER_KIND} approved laptop and {MAX_APPROVED_PER_KIND} approved
+            phone</strong>. Only approved devices can reach the WMS at all — an unregistered laptop or phone is
+            refused at sign-in, not merely stopped from punching.{" "}
+            {pending > 0 ? `${pending} waiting for approval.` : "Nothing waiting for approval."}
           </p>
+
+          {/* The two rollout switches, stated where they are acted on. An
+              enforcement control that is off, or an enrolment window that was
+              never closed, is invisible in an environment variable and obvious
+              here. */}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span
+              className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11px] font-bold"
+              style={
+                enforcing
+                  ? { background: "var(--color-green-bg, #e9f7ef)", color: "var(--color-green-deep, #15803d)" }
+                  : { background: "var(--color-amber-bg, #fef3e2)", color: "var(--color-amber-deep, #b45309)" }
+              }
+            >
+              {enforcing
+                ? "Device access: enforced"
+                : "Device access: NOT enforced (DEVICE_ACCESS_ENFORCEMENT=off)"}
+            </span>
+            <span
+              className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11px] font-bold"
+              style={
+                autoAdopt
+                  ? { background: "var(--color-amber-bg, #fef3e2)", color: "var(--color-amber-deep, #b45309)" }
+                  : { background: "var(--color-green-bg, #e9f7ef)", color: "var(--color-green-deep, #15803d)" }
+              }
+            >
+              {autoAdopt
+                ? "Enrolment open — first device per kind self-approves"
+                : "Enrolment closed — every new device needs approval"}
+            </span>
+          </div>
         </header>
 
         {(
@@ -77,7 +114,7 @@ export default async function AttendanceDevicesPage() {
           </div>
         )}
 
-        <DevicesClient devices={devices} maxPerEmployee={MAX_DEVICES_PER_EMPLOYEE} />
+        <DevicesClient devices={devices} maxPerKind={MAX_APPROVED_PER_KIND} employees={employeeOptions} />
 
         {/* ── Attendance Integrity - flagged punches (Phase 2 L6 attribution) ── */}
         <section className="mt-10">

@@ -26,6 +26,9 @@ interface LetterPdfBody {
   bodyHtml?: string;
   /** Optional uploaded scanned-signature image (data URL) for the sign-off. */
   signatureImage?: string;
+  /** WHO signs, when HR picked explicitly in the editor. Omitted -> the
+   *  template's own rule. Threaded so an exported PDF matches the preview. */
+  signatory?: "director" | "hr";
 }
 
 /**
@@ -92,6 +95,7 @@ export async function POST(req: Request): Promise<Response> {
       date: body.date,
       gender: normalizeGender(body.gender),
       signatureImage: body.signatureImage,
+      signatory: body.signatory,
     });
     const filename = safePdfName(template.key);
     return new Response(new Uint8Array(pdf), {

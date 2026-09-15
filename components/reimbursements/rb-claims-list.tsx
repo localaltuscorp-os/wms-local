@@ -11,6 +11,7 @@ import {
   Trash2,
   Check,
   Paperclip,
+  Link2 as LinkIcon,
   Tag,
   CalendarDays,
   Wallet,
@@ -24,6 +25,18 @@ import {
   deleteModuleSubmission,
 } from "@/app/(app)/forms/actions";
 import { visibleFields, fieldPairs, type FormFieldDef } from "@/lib/forms/field-types";
+import {
+  CLAIM_FILTER_LABELS,
+  claimAmount,
+  deriveStatus,
+  matchesFilter,
+  type ClaimFilter,
+  type DerivedClaimStatus,
+} from "@/lib/reimbursements/claim-status";
+import { canChangeClaimDocuments } from "@/lib/reimbursements/claim-access";
+import { legacyBillKind } from "@/lib/reimbursements/attachment-rules";
+import { useClaimFilter } from "./rb-filter-context";
+import { RbClaimAttachments } from "./rb-claim-attachments";
 import type { ModuleSubmissionRow } from "@/lib/queries/modules";
 import { formatDate, formatInr, formatCount } from "@/lib/format";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
@@ -31,8 +44,10 @@ import { Select } from "@/components/ui/select";
 import { Field, FieldInput } from "@/components/forms/form-fields";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
+// Status + amount rules live in lib/reimbursements/claim-status.ts, shared with
+// the KPI strip so a card's total and the list it filters to cannot disagree.
 type Status = "pending" | "approved" | "rejected";
-type DerivedStatus = Status | "paid";
+type DerivedStatus = DerivedClaimStatus;
 type SortKey = "newest" | "oldest" | "amount-desc" | "amount-asc";
 
 const GREEN = "#16a34a";
@@ -73,18 +88,15 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "amount-asc", label: "Amount · Low → High" },
 ];
 
-/** Claim ₹ as a number — fields are stored as strings. */
-function claimAmount(r: ModuleSubmissionRow): number {
-  const n = Number(String(r.fields.amount ?? "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : 0;
-}
-
-/** A claim is "paid" once approved AND the admin has logged a payment date. */
-function deriveStatus(r: ModuleSubmissionRow): DerivedStatus {
-  if (r.status === "approved" && (r.adminFields?.payment_date ?? "") !== "") return "paid";
-  return (r.status as Status) ?? "pending";
-}
-
+/**
+ * An external bill LINK, ready for an anchor.
+ *
+ * Only ever called for a value `legacyBillKind` classified as "url". It used to
+ * be called for everything, which turned a mobile upload's storage path into
+ * "https://<employee-uuid>/bill.jpg" — a dead link on every claim the Android
+ * app had filed. Storage paths now go through the Documents section instead,
+ * which signs them.
+ */
 function receiptHref(v: string): string {
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
@@ -101,6 +113,8 @@ export function RbClaimsList({
   adminFields,
   productOptions,
   view,
+  attachmentCounts,
+  myEmployeeId,
 }: {
   rows: ModuleSubmissionRow[];
   isAdmin: boolean;
@@ -108,10 +122,16 @@ export function RbClaimsList({
   adminFields: FormFieldDef[];
   productOptions: string[];
   view: "active" | "archived";
+  /** submissionId → document count, from the page's single grouped query. */
+  attachmentCounts: Record<string, number>;
+  /** The viewer, so a card knows whether the claim is theirs to change. */
+  myEmployeeId: string;
 }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("newest");
-  const [statusFilter, setStatusFilter] = useState<"all" | DerivedStatus>("all");
+  // SHARED with the KPI strip above (rb-filter-context), so a KPI card and the
+  // toolbar chips drive the same one filter rather than two that can disagree.
+  const { filter: statusFilter, setFilter: setStatusFilter } = useClaimFilter();
 
   const counts = useMemo(() => {
     const c: Record<"all" | DerivedStatus, number> = { all: rows.length, pending: 0, approved: 0, paid: 0, rejected: 0 };
@@ -122,7 +142,7 @@ export function RbClaimsList({
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = rows;
-    if (statusFilter !== "all") list = list.filter((r) => deriveStatus(r) === statusFilter);
+    if (statusFilter !== "all") list = list.filter((r) => matchesFilter(r, statusFilter));
     if (q) {
       list = list.filter((r) =>
         [r.employeeName, ...Object.values(r.fields), ...Object.values(r.adminFields ?? {})]
@@ -165,7 +185,11 @@ export function RbClaimsList({
     );
   }
 
-  const chip = (key: "all" | DerivedStatus, label: string) => {
+  // The chip row offers the five states it always has. `approvedAll` is
+  // reachable only from the KPI card (it is that card's own definition — see
+  // lib/reimbursements/claim-status.ts), so it is deliberately NOT a chip: no
+  // chip lights up for it, and the count line names it instead.
+  const chip = (key: Exclude<ClaimFilter, "approvedAll">, label: string) => {
     const active = statusFilter === key;
     const meta = key !== "all" ? STATUS_META[key] : null;
     return (
@@ -231,7 +255,7 @@ export function RbClaimsList({
       <p className="mb-3 px-1 text-[12.5px] font-bold text-ink-subtle" aria-live="polite">
         {formatCount(shown.length)} {shown.length === 1 ? "claim" : "claims"}
         <span className="tabular-nums" style={{ color: GREEN_DEEP }}> · {formatInr(shownTotal)}</span>
-        {statusFilter !== "all" ? ` · ${STATUS_META[statusFilter].label.toLowerCase()}` : ""}
+        {statusFilter !== "all" ? ` · ${CLAIM_FILTER_LABELS[statusFilter].toLowerCase()}` : ""}
       </p>
 
       {shown.length === 0 ? (
@@ -248,6 +272,8 @@ export function RbClaimsList({
               adminFields={adminFields}
               productOptions={productOptions}
               view={view}
+              attachmentCount={attachmentCounts[r.id] ?? 0}
+              myEmployeeId={myEmployeeId}
             />
           ))}
         </ul>
@@ -266,6 +292,8 @@ function ClaimCard({
   adminFields,
   productOptions,
   view,
+  attachmentCount,
+  myEmployeeId,
 }: {
   row: ModuleSubmissionRow;
   index: number;
@@ -274,6 +302,8 @@ function ClaimCard({
   adminFields: FormFieldDef[];
   productOptions: string[];
   view: "active" | "archived";
+  attachmentCount: number;
+  myEmployeeId: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [pending, start] = useTransition();
@@ -285,6 +315,9 @@ function ClaimCard({
   const expenseHead = row.adminFields?.expense_head ?? "";
   const product = row.fields.product ?? "";
   const receipt = row.fields.bill_url ?? "";
+  // Two shapes in the wild: an external link (old web form) or a private
+  // storage path (Android app). Only the former can be an anchor.
+  const receiptKind = legacyBillKind(receipt);
   const expenseDate = row.fields.expense_date ?? "";
   const paidThrough = row.adminFields?.paid_through ?? "";
 
@@ -351,17 +384,33 @@ function ClaimCard({
                   <CalendarDays size={11} strokeWidth={2.6} /> {expenseDate}
                 </span>
               )}
-              {receipt && (
+              {/* UPLOADED DOCUMENTS — the count only; the files themselves (and
+                  their signed URLs) load when Details is opened. */}
+              {attachmentCount > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11.5px] font-bold"
+                  style={{ background: `color-mix(in srgb, ${GREEN} 11%, transparent)`, color: GREEN_DEEP }}
+                  title="Open Details to view the attached documents"
+                >
+                  <Paperclip size={11} strokeWidth={2.6} />
+                  {attachmentCount} {attachmentCount === 1 ? "document" : "documents"}
+                </span>
+              )}
+              {/* LEGACY EXTERNAL LINK — claims filed through the old web form,
+                  which asked for a Drive URL. Labelled "link" so it is
+                  distinguishable from a document the firm actually holds. A
+                  mobile-filed bill is a STORAGE PATH, not a URL, so it is not
+                  rendered here — it appears under Documents, signed. */}
+              {receiptKind === "url" && (
                 <a
                   href={receiptHref(receipt)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11.5px] font-bold transition-colors hover:text-white"
-                  style={{ background: `color-mix(in srgb, ${GREEN} 11%, transparent)`, color: GREEN_DEEP }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = GREEN; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = `color-mix(in srgb, ${GREEN} 11%, transparent)`; }}
+                  className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11.5px] font-bold text-ink-soft transition-colors hover:text-ink-strong"
+                  style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
+                  title="External receipt link filed with this claim"
                 >
-                  <Paperclip size={11} strokeWidth={2.6} /> Receipt
+                  <LinkIcon size={11} strokeWidth={2.6} /> Receipt link
                 </a>
               )}
             </div>
@@ -444,6 +493,20 @@ function ClaimCard({
               ))}
             </dl>
           )}
+          {/* DOCUMENTS. Only the claimant may change them, and only while the
+              claim is still pending — a receipt swapped after a verdict would
+              change the evidence behind a decision already taken. The server
+              enforces both; this only decides whether the controls are shown. */}
+          <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--color-hairline)" }}>
+            <RbClaimAttachments
+              submissionId={row.id}
+              count={attachmentCount}
+              // The SAME predicate the server enforces, so the controls appear
+              // exactly when the action would accept them. This only decides
+              // what is SHOWN — the server refuses regardless.
+              canEdit={canChangeClaimDocuments(row, { id: myEmployeeId })}
+            />
+          </div>
           {isAdmin && adminFields.length > 0 && (
             <AdminPanel row={row} adminFields={adminFields} productOptions={productOptions} />
           )}

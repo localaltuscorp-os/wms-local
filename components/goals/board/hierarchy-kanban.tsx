@@ -463,7 +463,7 @@ export function HierarchyKanban(props: HierarchyKanbanProps) {
       {/* Scroll STAGE — its own scroll region (capped height) so the lane +
           roll-up headers (sticky top) FREEZE as you scroll the cards; the frozen
           roll-up pins left, lanes scroll horizontally when they overflow. */}
-      <div className="wg-rise relative max-h-[calc(100dvh-210px)] overflow-auto pb-4" role="group" aria-label={`${parentLabel} goals with their ${childLabel} - drag a card between lanes to move it`}>
+      <div className="table-scroll wg-rise relative max-h-[calc(100dvh-210px)] overflow-auto pb-4" role="group" aria-label={`${parentLabel} goals with their ${childLabel} - drag a card between lanes to move it`}>
         {/* min-w-full = fill the page when there's room; grow past it (→ scroll)
             only when the lanes' min-widths can't all fit. */}
         <div className="flex min-w-full items-stretch gap-4">

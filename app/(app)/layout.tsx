@@ -1,8 +1,12 @@
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth/current";
+import { requireUser, getDelegation } from "@/lib/auth/current";
+import { DeviceRegistrationGate } from "@/components/security/device-registration-gate";
+import { isExemptFromDailyStart } from "@/lib/security/capabilities";
+import { DelegationBanner } from "@/components/auth/delegation-banner";
 import { accessFor } from "@/lib/auth/workspace-access";
+import { requirePathView } from "@/lib/permissions/resolve";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { gateSkipActive } from "@/lib/auth/gate-skip";
 import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
@@ -30,6 +34,7 @@ import { dccGateTarget, dccManagerReviewState } from "@/lib/dcc/gate";
 import { DccGateView } from "@/components/dcc/dcc-gate-view";
 import { DccManagerReviewGate } from "@/components/dcc/dcc-manager-review-gate";
 import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
+import { BroadcastPopup } from "@/components/ecos/broadcast-popup";
 import { pendingLockBroadcastForEmployee } from "@/lib/ecos/queries";
 import { BroadcastLockGate } from "@/components/communications/broadcast-lock-gate";
 
@@ -55,6 +60,24 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     redirect("/hub");
   }
 
+  // ── THE PERMISSION MATRIX, ENFORCED FOR EVERY ROUTE IN THE ROOM ──────────
+  //
+  // Resolved from `x-pathname` and applied HERE, beside the workspace gate,
+  // rather than page by page. That is the whole difference between a permission
+  // system and a decorative one: there are ~200 routes under `(app)`, and a
+  // matrix enforced only on the pages somebody remembered to annotate is a
+  // matrix that lets a denied module through by direct URL.
+  //
+  // `requirePathView` is a no-op for a path the catalogue does not claim, so
+  // nothing that has not been deliberately classified starts refusing people.
+  // It redirects to the hub, matching the workspace gate above — the person is
+  // properly signed in and has done nothing wrong.
+  //
+  // It does NOT cover server actions; those are POSTs that never render a
+  // layout. EDIT is therefore enforced inside the actions themselves
+  // (`requireModuleEdit`), which is the only place that can.
+  await requirePathView(pathname);
+
   // The daily ritual gate chain. Policy: a COMPULSORY post-login wall — the daily
   // rituals (plan-your-day / DCC / manager duties) must be done before ANY app
   // surface opens, INCLUDING the hub launcher. There is no ungated landing spot:
@@ -72,7 +95,18 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // "me and manan get a skip button on the review and assigning page only, NOT
   // on the daily checklist page". A super-admin's "Skip for today" (sa_gate_skip
   // cookie) bypasses ONLY those two. Day-scoped + FAIL-OPEN.
-  {
+  //
+  // ── ONE EXEMPTION, APPLIED TO THE WHOLE CHAIN (0222) ──────────────────────
+  // `daily_start.exempt` holders skip every gate below: plan, own-DCC, manager
+  // assign, DCC review. `needsDailyChecklistPlan` and `needsGoalsPlanCommit`
+  // already honoured it inside lib/daily-checklist/gate.ts, but the DCC and
+  // manager gates live in other modules and did not — so the exemption held for
+  // some of the chain and not the rest, which is not an exemption.
+  //
+  // Applied HERE, where the chain is enforced, rather than by editing four gate
+  // modules: one place to read, one place to change, and no way for the gates to
+  // disagree about who is exempt.
+  if (!isExemptFromDailyStart(me.email)) {
     const firstName = me.name.split(" ")[0] ?? me.name;
     const isManager = await isManagerWithReports(me.id).catch(() => false);
 
@@ -95,12 +129,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         pathname.startsWith("/my-day") || pathname.startsWith("/goals/plan");
       if (!onPlanRoute) {
         const minItems = isManager ? 5 : 3;
-        const underMin = await needsGoalsPlanCommit(me.id, minItems).catch(() => false);
+        const underMin = await needsGoalsPlanCommit(me, minItems).catch(() => false);
         if (underMin) redirect("/my-day");
       }
     } else if (loginPlanGateOn() && !isManager) {
       // Legacy "commit your day" wall — now OFF by default (Sir). LOGIN_PLAN_GATE_ON=true restores.
-      const mustPlan = await needsDailyChecklistPlan(me.id).catch(() => false);
+      const mustPlan = await needsDailyChecklistPlan(me).catch(() => false);
       if (mustPlan) {
         return <DailyChecklistView employeeId={me.id} greetingName={firstName} mode="gate" />;
       }
@@ -162,7 +196,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   //      gates use (sa_gate_skip cookie), so a super-admin is never locked out.
   //   3. `pendingLockBroadcastForEmployee` is itself fail-open (returns null on
   //      any error), and we .catch(() => null) on top for a second guarantee.
-  if (process.env.ECOS_LOCK_OFF !== "true" && !(await gateSkipActive(me).catch(() => false))) {
+  //   4. daily-start exemption — the same capability that clears the chain above
+  //      clears this. "Not stopped by the post-login rituals" cannot mean
+  //      "except the one that replaces the entire app with a lock screen".
+  if (
+    process.env.ECOS_LOCK_OFF !== "true" &&
+    !isExemptFromDailyStart(me.email) &&
+    !(await gateSkipActive(me).catch(() => false))
+  ) {
     const lock = await pendingLockBroadcastForEmployee(me.id).catch(() => null);
     if (lock) {
       return (
@@ -198,8 +239,27 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // Soft onboarding nudge — fixed-position + session-dismissible, fetches its own
   // status CLIENT-SIDE after mount (never a query on this SSR/dashboard load
   // path). Floats over any route without touching the chrome/layout branching.
+  // TEMPORARY DELEGATED ACCESS — is this request acting as somebody else?
+  //
+  // Resolved here, in the one layout every (app) route passes through, so the
+  // "acting as" banner cannot be missing from a screen. It is a cache hit:
+  // `requireUser()` above already resolved the delegation on this request.
+  const delegation = await getDelegation();
+
   return (
     <>
+      {/* FIRST-LOGIN DEVICE REGISTRATION (0222). Mounted first and outside
+          ChromeShell so it covers the whole shell, not a pane of it. Renders
+          nothing for an already-registered device, an exempt actor, or with
+          enforcement off — see pendingDeviceRegistration. */}
+      <DeviceRegistrationGate employee={me} />
+      {delegation && (
+        <DelegationBanner
+          targetName={delegation.target.name}
+          delegateName={delegation.delegateName}
+          expiresAtIso={delegation.expiresAt.toISOString()}
+        />
+      )}
       <KeyboardShortcuts />
       <FocusMode />
       {/* Number-row module shortcuts (1–9, 0), the keyboard half of the module
@@ -208,7 +268,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           opens the third module. Placed after the gate chain's early returns, so
           a digit can never be used to walk out of a daily ritual. The allow-list
           reuses the layout's single `accessFor` result — no extra query. */}
-      <ModuleShortcuts allowed={MODULE_ORDER.filter((id) => canAccessWorkspace(id, access))} />
+      {/* `adminAllowed` carries the standalone ADMIN PANEL entry (Alt+A). It is
+          not a workspace, so it cannot travel in `allowed`; `access.isAdmin` is
+          the same test the hub card and `/admin`'s own layout guard read. */}
+      <ModuleShortcuts
+        allowed={MODULE_ORDER.filter((id) => canAccessWorkspace(id, access))}
+        adminAllowed={access.isAdmin}
+      />
       {/* DEV_AUTH_BYPASS=true (.env.local, non-production only) — the idle
           timer is the ONE piece of auth that still bites while the bypass is
           on: the server never redirects, but after 15 idle minutes this client
@@ -217,6 +283,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           complete. See lib/auth/dev-bypass.ts. */}
       {devAuthBypassEnabled() ? null : <IdleTimerClient timeoutMinutes={15} />}
       <OnboardingNudge />
+      {/* Broadcasts (0215) — a published broadcast flashes as a centre-screen
+          popup within ~5s of being sent, on whatever page the recipient is on.
+          Mounted here, AFTER the gate chain's early returns, so it can never
+          appear stacked on top of a daily ritual or the app-lock takeover; it
+          polls client-side and draws nothing until there is one to show. */}
+      <BroadcastPopup />
       {/* The app's ONE New Task dialog, mounted above ChromeShell so it exists
           on every (app) route — including the hub and the full-screen HR
           surfaces, neither of which renders a sidebar. It draws nothing; the

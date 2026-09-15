@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { attendanceLogs, clientLocations, employees, remoteWorkRequests } from "@/db/schema";
 import {
@@ -85,6 +85,59 @@ export async function approvedRemoteWorkFor(
     )
     .limit(1);
   return row ?? null;
+}
+
+/**
+ * APPROVED remote work for a set of employees across a date range, as
+ * `employeeId → (yyyy-mm-dd → mode)`.
+ *
+ * ── WHY THE GRADER NEEDS THIS ──────────────────────────────────────────────
+ * A remote-work approval has never changed how a day is GRADED, and must not:
+ * the person still punches, and only the hours they actually record count
+ * toward Hours Worked. What was missing is that the day never SAID it was
+ * remote. An approved client-site Tuesday rendered as an ordinary Tuesday, so
+ * the one thing the approval was for — being able to see that a day away from
+ * the office was sanctioned, rather than looking like an unexplained absence
+ * with a stray punch — was invisible on the calendar the employee actually
+ * reads.
+ *
+ * ONE query for the whole roster, so the batched dashboard path keeps its
+ * no-N+1 shape. PENDING and REJECTED are excluded: an unapproved request is a
+ * wish, and showing it as a sanctioned day would be the approval.
+ */
+export async function approvedRemoteWorkMapForRange(
+  employeeIds: string[],
+  from: string,
+  to: string,
+): Promise<Map<string, Map<string, RemoteWorkMode>>> {
+  const out = new Map<string, Map<string, RemoteWorkMode>>();
+  if (employeeIds.length === 0) return out;
+
+  const rows = await db
+    .select({
+      employeeId: remoteWorkRequests.employeeId,
+      workDate: remoteWorkRequests.workDate,
+      workMode: remoteWorkRequests.workMode,
+    })
+    .from(remoteWorkRequests)
+    .where(
+      and(
+        inArray(remoteWorkRequests.employeeId, employeeIds),
+        eq(remoteWorkRequests.status, "approved"),
+        gte(remoteWorkRequests.workDate, from),
+        lte(remoteWorkRequests.workDate, to),
+      ),
+    );
+
+  for (const r of rows) {
+    let byDate = out.get(r.employeeId);
+    if (!byDate) {
+      byDate = new Map<string, RemoteWorkMode>();
+      out.set(r.employeeId, byDate);
+    }
+    byDate.set(String(r.workDate), r.workMode);
+  }
+  return out;
 }
 
 export type RemoteWorkGate =

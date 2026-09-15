@@ -33,11 +33,11 @@ import type { HhEntry, HhPerson, HhCall, AccessActivity } from "@/lib/queries/pe
  * sampled — the tables start empty and stay that way until used.
  */
 
-const ORANGE = "#ea580c";
-const ORANGE_DEEP = "#c2410c";
+const ACCENT = "#E10600";
+const ACCENT_DEEP = "#A80400";
 
 const inputCls =
-  "w-full rounded-xl border border-hairline-strong bg-surface-card px-3 py-2 text-[14px] text-ink-strong outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#ea580c]/40";
+  "w-full rounded-xl border border-hairline-strong bg-surface-card px-3 py-2 text-[14px] text-ink-strong outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#E10600]/40";
 
 /** One wording, wherever a delete is confirmed on this page. */
 const DELETE_CONFIRM = "Are you sure you want to delete? This cannot be undone.";
@@ -182,7 +182,7 @@ export function AllocationScreen({
               className="rounded-pill px-6 py-2.5 text-[14.5px] font-extrabold tracking-tight transition-colors"
               style={
                 on
-                  ? { background: `linear-gradient(135deg, ${ORANGE}, ${ORANGE_DEEP})`, color: "#fff" }
+                  ? { background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})`, color: "#fff" }
                   : { color: "var(--color-ink-soft)" }
               }
             >
@@ -201,7 +201,7 @@ export function AllocationScreen({
             setAddOpen("");
           }}
           className="wg-btn inline-flex items-center gap-1.5 rounded-pill px-4 py-2.5 text-[14px] font-extrabold text-white"
-          style={{ background: `linear-gradient(135deg, ${ORANGE}, ${ORANGE_DEEP})` }}
+          style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
         >
           <Plus size={15} strokeWidth={2.8} /> Add
         </button>
@@ -270,7 +270,7 @@ export function AllocationScreen({
                 className="inline-flex items-center rounded-pill"
                 style={
                   on
-                    ? { background: `linear-gradient(135deg, ${ORANGE}, ${ORANGE_DEEP})`, color: "#fff" }
+                    ? { background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})`, color: "#fff" }
                     : { color: "var(--color-ink-soft)", boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }
                 }
               >
@@ -311,7 +311,7 @@ export function AllocationScreen({
               onClick={insertPerson}
               disabled={pending || !newName.trim()}
               className="wg-btn rounded-pill px-4 py-2 text-[13px] font-bold text-white disabled:opacity-50"
-              style={{ background: `linear-gradient(135deg, ${ORANGE}, ${ORANGE_DEEP})` }}
+              style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
             >
               Add
             </button>
@@ -332,7 +332,7 @@ export function AllocationScreen({
             type="button"
             onClick={() => setShowInsert(true)}
             className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold"
-            style={{ color: ORANGE }}
+            style={{ color: ACCENT }}
           >
             <UserPlus size={14} strokeWidth={2.6} /> Insert Person Name
           </button>
@@ -377,16 +377,16 @@ export function AllocationScreen({
               <div
                 className="min-w-[170px] flex-1 rounded-xl px-4 py-3"
                 style={{
-                  background: `color-mix(in srgb, ${ORANGE} 10%, transparent)`,
-                  boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ORANGE} 30%, transparent)`,
+                  background: `color-mix(in srgb, ${ACCENT} 10%, transparent)`,
+                  boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ACCENT} 30%, transparent)`,
                 }}
               >
-                <div className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: ORANGE_DEEP }}>
+                <div className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: ACCENT_DEEP }}>
                   Total
                 </div>
                 <div
                   className="mt-0.5 text-[24px] font-extrabold leading-none tracking-tight"
-                  style={{ color: ORANGE_DEEP }}
+                  style={{ color: ACCENT_DEEP }}
                 >
                   {mine.length}
                 </div>
@@ -555,21 +555,21 @@ function Dashboard({
             style={
               t.accent
                 ? {
-                    background: `color-mix(in srgb, ${ORANGE} 10%, transparent)`,
-                    boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ORANGE} 30%, transparent)`,
+                    background: `color-mix(in srgb, ${ACCENT} 10%, transparent)`,
+                    boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ACCENT} 30%, transparent)`,
                   }
                 : { boxShadow: "inset 0 0 0 1px var(--color-hairline)" }
             }
           >
             <div
               className="text-[10.5px] font-bold uppercase tracking-[0.1em]"
-              style={{ color: t.accent ? ORANGE_DEEP : "var(--color-ink-subtle)" }}
+              style={{ color: t.accent ? ACCENT_DEEP : "var(--color-ink-subtle)" }}
             >
               {t.label}
             </div>
             <div
               className="mt-0.5 text-[24px] font-extrabold leading-none tracking-tight"
-              style={{ color: t.accent ? ORANGE_DEEP : "var(--color-ink-strong)" }}
+              style={{ color: t.accent ? ACCENT_DEEP : "var(--color-ink-strong)" }}
             >
               {t.value}
             </div>
@@ -632,7 +632,7 @@ function SectionCard({
             type="button"
             onClick={onAdd}
             className="wg-btn inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[13px] font-bold text-white"
-            style={{ background: `linear-gradient(135deg, ${ORANGE}, ${ORANGE_DEEP})` }}
+            style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
           >
             <Plus size={14} strokeWidth={2.8} /> Add
           </button>

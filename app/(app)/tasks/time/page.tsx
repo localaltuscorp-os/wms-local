@@ -18,6 +18,10 @@ export default async function TimeIntelligenceHubPage() {
   return (
     <TimeReportFrame
       title="Time Intelligence"
+      // The rail entry for this route is also "Time Intelligence", so the top
+      // bar already carries it — this is the one tab of the five whose own name
+      // is the word above it.
+      titleInTopBar
       subtitle="Real, session-level effort across every task — from first Start Work to final Approval, including every revision cycle."
     >
       <DashboardWidgets w={widgets} />

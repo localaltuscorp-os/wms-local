@@ -335,6 +335,21 @@ const HOL_CSS = `
     color: var(--color-ink-subtle, #64748b);
   }
   .hol-adhoc-del:hover{ color: var(--color-altus-red, #E10600); }
+  .hol-adhoc-del:disabled{ opacity:.45; cursor:default; }
+  /* "optional" beside the Note field's label — the only field that is. */
+  .hol-adhoc-opt{ font-weight:600; text-transform:none; letter-spacing:0;
+    color: var(--color-ink-subtle, #94a3b8); }
+  /* HR's reason, under the holiday name on the list row. */
+  .hol-adhoc-note{
+    display:block; margin-top:2px; font-size:12px; font-weight:500;
+    color: var(--color-ink-subtle, #64748b);
+    overflow-wrap:anywhere;
+  }
+  /* A row being edited: the three fields wrap on a narrow screen rather than
+     squeezing the date input to nothing. */
+  .hol-adhoc-row-edit{ flex-wrap:wrap; gap:8px; }
+  .hol-adhoc-row-edit .hol-select{ flex:1; min-width:150px; }
+  .hol-adhoc-row-edit .hol-adhoc-edit-date{ flex:0 0 auto; min-width:0; }
 
   /* ── Year + month filters ─────────────────────────────────────────────
      Sits above the calendar and is no-print: Print Calendar should output

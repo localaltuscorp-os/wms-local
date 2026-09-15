@@ -310,6 +310,23 @@ html,body{margin:0;padding:0;background:#ffffff;}
 .alh-body hr{border:none;border-top:1px solid #E2E8F0;margin:18px 0;}
 /* Empty-field markers survive an eject; render them subtly instead of raw. */
 .alh-body .letter-field-empty{color:#A80400;background:#FCE9E8;border-radius:3px;padding:0 3px;}
+/* ── Where the page may be cut ────────────────────────────────────────────
+   The body is one continuous flow and this document exists only to be paged,
+   so without these the renderer cuts wherever the content crosses the page
+   box — stranding a heading at the foot of a page or splitting a bullet from
+   its marker. Mirrors the @media print rules in letterhead.tsx rule for rule;
+   stated UNSCOPED here because this document is never displayed on screen (and
+   so must not depend on print-media emulation being switched on). Keep the two
+   in step: the preview quietly diverging from the issued PDF is exactly the
+   class of bug this file's own comments warn about. */
+.alh-body p{orphans:3;widows:3;}
+.alh-body h1,.alh-body h2,.alh-body h3{break-after:avoid;break-inside:avoid;}
+.alh-body li{break-inside:avoid;}
+/* Tables MAY span pages (a long CTC breakdown has to) — but a row may not, and
+   the header row repeats at the top of each page it continues onto. */
+.alh-body tr{break-inside:avoid;}
+.alh-body thead{display:table-header-group;}
+.alh-body img{break-inside:avoid;}
 `;
 
 /* ------------------------------------------------------------------ */

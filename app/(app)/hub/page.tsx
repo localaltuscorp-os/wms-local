@@ -213,7 +213,7 @@ export default async function HubPage() {
     // / DCC_REVIEW_GATE_ON. Kept in lock-step with app/(app)/layout.tsx.
     const isManager = await isManagerWithReports(me.id).catch(() => false);
     if (loginPlanGateOn() && !isManager) {
-      const mustPlan = await needsDailyChecklistPlan(me.id).catch(() => false);
+      const mustPlan = await needsDailyChecklistPlan(me).catch(() => false);
       if (mustPlan) return <DailyChecklistView employeeId={me.id} greetingName={firstName} mode="gate" />;
     }
     if (loginDccGateOn()) {

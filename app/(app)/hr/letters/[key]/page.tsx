@@ -39,7 +39,15 @@ export default async function LetterPage({
         title={template ? template.title : "Letter"}
       />
 
-      <PageShell width="wide" py={false} className="pt-8 pb-24">
+      {/* pt-2, NOT pt-8. The editing band (.alw-toolbar) is the first thing in
+          here and it sticks to top:0 of the HR console's scroller, so whatever
+          padding sits above it is a gap the band drops through the moment you
+          scroll — the letterhead then rides up under a translucent bar and
+          reads as overlapping it. 32px was left over from when a title band sat
+          above this content; that band now portals into the global top bar and
+          occupies no space here (see hr-title-bar.tsx). 8px keeps the band off
+          the step nav without giving it a lane to travel down. */}
+      <PageShell width="wide" py={false} className="pt-2 pb-24">
         {template ? (
           <LetterEditorLoader
             templateKey={key}
@@ -83,6 +91,13 @@ async function LetterEditorLoader({
       email: r.email,
       designation: r.designation,
       payingEntity: r.payingEntity,
+      // Everything the picker auto-fills into the letter's fields. Any of these
+      // can legitimately be empty (no onboarding form, no phone on file); the
+      // editor writes a field only when the value is non-empty.
+      department: r.department,
+      phone: r.phone,
+      addressBlock: r.addressBlock,
+      joiningDate: r.joiningDate,
     }));
     candidates = cands.map((c) => ({ id: c.id, name: c.name, gender: c.gender }));
     departments = depts.map((d) => d.name).filter(Boolean);

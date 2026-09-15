@@ -43,9 +43,27 @@ export function planGateOn(): boolean {
   return false;
 }
 
-/** Compulsory punch-out → missed = Half-Day reconcile (autoout cron). FORCE-OFF. */
-export function compulsoryPunchoutOn(): boolean {
-  return false;
+/**
+ * FORGOTTEN LOGOUT → automatic Half Day at 23:59 IST (the autoout cron).
+ *
+ * ── ON BY DEFAULT, WHICH IS A CHANGE ───────────────────────────────────────
+ * This replaces `compulsoryPunchoutOn()`, which was hard-coded `return false`
+ * and therefore made the whole job a no-op — the cron ran nightly and did
+ * nothing, and had done since it was written. The rule is now required
+ * behaviour, so the default flipped: a policy that only applies when somebody
+ * remembers to switch it on is not a policy.
+ *
+ * Renamed rather than flipped in place, deliberately. The old name says
+ * "compulsory punch-out", which sounds like a rule about REQUIRING people to
+ * punch out; the rule is actually about what happens when they do not. A
+ * name that mis-describes an enabled behaviour is worse than one that
+ * mis-describes a disabled one.
+ *
+ * `FORGOTTEN_LOGOUT_HALF_DAY=off` disables it — an operator escape hatch for a
+ * day when the classification needs to be paused, not a default.
+ */
+export function forgottenLogoutHalfDayOn(): boolean {
+  return process.env.FORGOTTEN_LOGOUT_HALF_DAY !== "off";
 }
 
 /** The legacy "manager must assign tasks daily" login rule. FORCE-OFF. */

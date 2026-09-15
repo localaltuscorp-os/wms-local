@@ -20,6 +20,7 @@ import type { DayCodeResult } from "./status";
 import {
   daysFromMinutes,
   isOrdinaryAttendanceDay,
+  FULL_DAY_MINUTES,
   WEEK_TARGET_MINUTES,
 } from "./hours-rule";
 
@@ -56,7 +57,19 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
-export function summarize(days: SummaryDay[], perDayRate: number): AttendanceSummary {
+/**
+ * @param dayMinutes What ONE day of attendance is worth FOR THIS EMPLOYEE.
+ *   Defaults to the full-time 9h so existing callers are unchanged, but a
+ *   part-timer must pass their own (from `resolveEffectiveConfig`): a complete
+ *   27h week divided by a full-timer's 9h reports 3 days earned out of 6, a
+ *   phantom shortfall with a rupee value on it. Same parameter, same reason, as
+ *   `daysFromMinutes` — this is simply the call site that was still defaulting.
+ */
+export function summarize(
+  days: SummaryDay[],
+  perDayRate: number,
+  dayMinutes: number = FULL_DAY_MINUTES,
+): AttendanceSummary {
   // Group the elapsed, non-off days by week so we can test the 54h target.
   const byWeek = new Map<string, SummaryDay[]>();
   for (const d of days) {
@@ -104,7 +117,7 @@ export function summarize(days: SummaryDay[], perDayRate: number): AttendanceSum
       if (d.result.leftEarly && !d.result.lateWaived) earlyDays += 1;
     }
 
-    presentDays += daysFromMinutes(ordinaryMinutes, ordinaryDays);
+    presentDays += daysFromMinutes(ordinaryMinutes, ordinaryDays, dayMinutes);
   }
 
   // The old "every 3 marks costs ½ day" cut is SUBSUMED by the hours rule: a late

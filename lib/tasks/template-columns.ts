@@ -37,6 +37,11 @@ export type TaskColumnSource =
   // lib/tasks/subject-options.ts — so the template offers exactly what the
   // New Task form offers, and the two can never drift.
   | "subject"
+  // The active client roster. Like Subject it is a SUGGESTION, not a
+  // constraint: the importer creates a client it has not seen before, which is
+  // how a new account gets onto the books, so the validation is written
+  // permissively (see the template route) and a typed-in name still imports.
+  | "client"
   | null;
 
 export interface TaskTemplateColumn {
@@ -156,7 +161,7 @@ export const TASK_TEMPLATE_COLUMNS: readonly TaskTemplateColumn[] = [
   },
   {
     field: "client", header: "Client", schemaField: "client",
-    writable: true, persisted: true, locked: false, source: null, width: 24,
+    writable: true, persisted: true, locked: false, source: "client", width: 24,
     aliases: ["client", "clientname", "customer", "customername", "account"],
     examples: ["Acme Corp", "Globex"],
     help: "REQUIRED. The client/account this task belongs to. Also seeds the task title.",

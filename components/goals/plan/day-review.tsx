@@ -21,6 +21,7 @@ import type { PlanItem, PlanPhase } from "./types";
 import { closeMyDay, reopenPlan } from "@/app/(app)/goals/plan/actions";
 import { autoPunch } from "@/components/attendance/auto-punch";
 import { SourceTag, fmtYmd } from "./source-tag";
+import { DuplicateDateDialog } from "./duplicate-date-dialog";
 import { minToClock, rangeFromHhmm } from "@/lib/goals/plan-time";
 import { PRIORITY_LABELS } from "@/db/enums";
 import { PlanItemHoverCard, TransferControl } from "./item-detail";
@@ -51,9 +52,15 @@ interface Props {
   onToggleDone: (item: PlanItem) => void;
   onPending: (item: PlanItem) => void;
   onTransfer: (id: string, off: number) => void;
-  /** Copy a row onto the same day. */
-  onDuplicate: (item: PlanItem) => void;
-  /** The × — same as on the board: off the plan and into the Recycle Bin. */
+  /** The day this review belongs to — where the duplicate picker opens. */
+  dayYmd: string;
+  /** Copy a row onto a CHOSEN day — the picker is DuplicateDateDialog. */
+  onDuplicate: (item: PlanItem, ymd?: string) => void;
+  /**
+   * The × — parks the row in UNFINISHED (the same thing the Pending button
+   * does). It used to send the work to the Recycle Bin; see the note on the
+   * button itself for why that changed and what it costs.
+   */
   onRemove: (item: PlanItem) => void;
   /** Add a DAILY COMMITMENT to today straight from the day-started screen. */
   onAddCommitment: (title: string, time?: { startMin: number | null; durationMin: number | null }) => void;
@@ -79,12 +86,15 @@ export function DayReview({
   onToggleDone,
   onPending,
   onTransfer,
+  dayYmd,
   onDuplicate,
   onRemove,
   onAddCommitment,
   busyId,
 }: Props) {
   const [busy, setBusy] = React.useState<string | null>(null);
+  /** The row whose "Duplicate to" dialog is open, or null. */
+  const [copyFor, setCopyFor] = React.useState<PlanItem | null>(null);
   // Composer for the day-started screen — something always comes up after you
   // have committed to the day, and going back to the board to type it was a
   // detour (Sir).
@@ -397,22 +407,30 @@ export function DayReview({
                     ) : null}
                     {/* Copy the row, and the same × the board carries — it sends
                         the work to the Recycle Bin rather than destroying it. */}
+                    {/* Opens the date picker rather than copying onto the
+                        same day on the spot. The planner card's copy button
+                        has always asked "which day?"; this one silently
+                        answered "today", so the same icon did two different
+                        things depending on which screen you were on. */}
                     <ReviewButton
                       label="Duplicate"
                       tone="yellow"
                       iconOnly
-                      onClick={() => onDuplicate(it)}
+                      onClick={() => setCopyFor(it)}
                       icon={<Copy size={13} />}
                     />
+                    {/* × = OFF TODAY'S PLAN, INTO UNFINISHED — not deleted.
+                        It used to send the row to the Recycle Bin, which is a
+                        destructive read of a button that people press to mean
+                        "not today". Note this now lands in the same place the
+                        Pending button does; the two are deliberately the same
+                        outcome reached from a decision button and from a
+                        dismissal. */}
                     <button
                       type="button"
                       onClick={() => onRemove(it)}
-                      aria-label={
-                        it.taskId
-                          ? `Cancel ${it.title} — moves it to the Recycle Bin`
-                          : `Cancel ${it.title}`
-                      }
-                      title="Cancel — moves it to the Recycle Bin"
+                      aria-label={`Move ${it.title} to Unfinished`}
+                      title="Not today — moves it to Unfinished"
                       className="inline-flex size-7 items-center justify-center rounded-lg border border-hairline text-ink-muted/70 transition-colors hover:border-hairline-strong hover:text-ink-strong"
                     >
                       <X size={13} />
@@ -456,6 +474,21 @@ export function DayReview({
           </motion.span>
         )}
       </div>
+
+      {/* The duplicate picker for whichever row asked for it. One dialog for the
+          whole list rather than one per row — it is a portal to <body>, so
+          mounting 20 of them would be 20 identical overlays waiting to open. */}
+      {copyFor ? (
+        <DuplicateDateDialog
+          item={copyFor}
+          defaultYmd={dayYmd}
+          onCancel={() => setCopyFor(null)}
+          onConfirm={(ymd) => {
+            onDuplicate(copyFor, ymd);
+            setCopyFor(null);
+          }}
+        />
+      ) : null}
     </section>
   );
 }

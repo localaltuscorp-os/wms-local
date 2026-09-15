@@ -13,11 +13,20 @@ import { PageCommandBar } from "@/components/layout/page-command-bar";
  */
 export function TimeReportFrame({
   title,
+  titleInTopBar = false,
   subtitle,
   actions,
   children,
 }: {
   title: string;
+  /**
+   * Pass on the HUB tab only. That tab is called "Time Intelligence" and so is
+   * the rail entry, so its bar was repeating the top bar word for word. The
+   * other four tabs name themselves something the bar does not say — "Employee
+   * Report" under a bar reading "Time Intelligence" is a section and a page,
+   * not one page named twice — so they keep their titles.
+   */
+  titleInTopBar?: boolean;
   subtitle?: string;
   actions?: ReactNode;
   children: ReactNode;
@@ -33,7 +42,7 @@ export function TimeReportFrame({
             page, started below the fold. This frame wraps EVERY Time
             Intelligence tab (Overview, Employees, Tasks, Goals, Manager), so
             the change lands on all five at once. */}
-        <PageCommandBar title={title} hint={subtitle} actions={actions} />
+        <PageCommandBar title={title} titleInTopBar={titleInTopBar} hint={subtitle} actions={actions} />
         <TimeReportTabs />
         {children}
       </PageShell>
@@ -47,7 +56,7 @@ export function TimeIntelDisabledScreen() {
     <>
       <DashboardHeader generatedAt={new Date()} />
       <PageShell width="wide">
-        <PageCommandBar title="Time Intelligence" />
+        <PageCommandBar title="Time Intelligence" titleInTopBar />
         <EmptyState
           Icon={Timer}
           title="Time Intelligence is turned off"

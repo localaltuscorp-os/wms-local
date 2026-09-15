@@ -211,7 +211,7 @@ export function PerformerTaskDrawer({
         </div>
 
         {/* ── Body ── */}
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+        <div className="table-scroll min-h-0 flex-1 overflow-auto overscroll-contain">
           {state.kind === "loading" && (
             <div className="flex h-full items-center justify-center gap-2 text-gray-500">
               <Loader2 size={18} className="animate-spin" />

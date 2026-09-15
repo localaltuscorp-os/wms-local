@@ -132,6 +132,11 @@ export async function decideRemoteWorkRequest(
 
   revalidatePath("/attendance/remote-work");
   revalidatePath("/attendance");
+  // An approved remote day is an ordinary working day worked elsewhere — same
+  // target, same hours, same pay — so nothing about the MONEY changes here. The
+  // attendance surfaces do change (the day now shows as sanctioned WFH / field /
+  // client site rather than an unexplained one), which is what these two clear.
+  revalidatePath("/attendance/dashboard");
   return { ok: true };
 }
 

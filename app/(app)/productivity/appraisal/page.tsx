@@ -46,7 +46,7 @@ export default async function ProductivityAppraisalPage({
             here should feel like a third tab of one module, not a different app. */}
         <header className="mb-6">
           <div className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-subtle">
-            <Award size={13} strokeWidth={2.6} /> Team Productivity
+            <Award size={13} strokeWidth={2.6} /> Performance
           </div>
           <h1
             className="mt-0.5 text-ink-strong"

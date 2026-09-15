@@ -66,6 +66,34 @@ export async function POST(req: Request) {
     },
   });
 
+  // ── CLEAR THE SPLIT SESSION COOKIES TOO ──────────────────────────────────
+  //
+  // The session is minted with `enableMultipleCookies: true`, so it does not
+  // live in one `__session` cookie — it is `__session.id`, `.refresh`,
+  // `.custom` and `.sig`. `removeAuthCookies` takes only a `cookieName` and has
+  // no `enableMultipleCookies` option (RemoveAuthCookiesOptions does not accept
+  // it in v1.12), so on its own it clears the bare name and leaves the four
+  // real cookies in place — sign-out would appear to work and the person would
+  // still be signed in on the next request.
+  //
+  // Appended as RAW Set-Cookie headers for the reason recorded below: calling
+  // `res.cookies.set(...)` re-serializes the store and clobbers what
+  // removeAuthCookies already wrote.
+  const secure =
+    process.env.NODE_ENV === "production" &&
+    process.env.ALLOW_INSECURE_COOKIES !== "true";
+  for (const name of [
+    "__session.id",
+    "__session.refresh",
+    "__session.custom",
+    "__session.sig",
+  ]) {
+    res.headers.append(
+      "Set-Cookie",
+      `${name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`,
+    );
+  }
+
   // Also clear the active-workspace cookie. IMPORTANT: append a raw Set-Cookie
   // rather than calling `res.cookies.set(...)` — the latter re-serialized the
   // response's cookie store and CLOBBERED removeAuthCookies' __session clearing,

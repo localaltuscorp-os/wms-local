@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { CalendarDays, LogIn, LogOut, Clock, AlertTriangle } from "lucide-react";
+import { CalendarDays, LogIn, LogOut, Clock, AlertTriangle, MapPin } from "lucide-react";
 import { PunchEditControl } from "@/components/attendance/punch-edit-control";
 import { formatDate } from "@/lib/format";
+import { dayCodeStyle, UPCOMING_STYLE } from "@/lib/attendance/day-code-view";
+import { weeklyWorkedMinutes } from "@/lib/attendance/hour-balance";
 
 /**
  * Current-month attendance calendar — one colour-coded cell per graded day
@@ -27,7 +29,23 @@ export interface MonthCell {
   outAt: string | null;
   workedMinutes: number;
   future: boolean;
+  /**
+   * APPROVED remote work for this day — "wfh" | "field" | "client_site", or
+   * null/undefined for an ordinary office day.
+   *
+   * A marker, never a grade. The day keeps whatever code the hours earned it;
+   * this only says the office absence was sanctioned, which is the difference
+   * between a Tuesday at a client site and an unexplained Tuesday.
+   */
+  remoteMode?: string | null;
 }
+
+/** Short badge letter + tooltip for an approved remote-work day. */
+const REMOTE_BADGE: Record<string, { mark: string; label: string }> = {
+  wfh: { mark: "H", label: "Approved work from home" },
+  field: { mark: "F", label: "Approved on field" },
+  client_site: { mark: "C", label: "Approved client site" },
+};
 
 /**
  * Fallback ONLY. The real figure is the viewer's own weekly target, passed in
@@ -55,49 +73,23 @@ interface CellStyle {
  */
 const NON_EVALUATED_CODES = new Set(["H", "W/O", "PL", "CO", "LWP"]);
 
+/**
+ * The tile's colours, read from the app's ONE attendance palette
+ * (lib/attendance/day-code-view.ts).
+ *
+ * This used to be a `switch` with the hex values inline. It moved out unchanged
+ * — every colour and every label here is byte-identical to what it was — when
+ * the Daily Salary Report started drawing the same graded days: two copies of
+ * the palette is how two screens showing the same August come to disagree about
+ * what orange means.
+ *
+ * The tile keeps the STRONGER fills (a weekly off is solid slate) while table
+ * rows elsewhere take the same hue as a light tint. Both come from one entry;
+ * see the TILE vs ROW note in that module for why they must differ.
+ */
 function codeStyle(c: MonthCell): CellStyle {
-  if (c.future) return { bg: "transparent", fg: "var(--color-ink-subtle)", label: "Upcoming" };
-  switch (c.code) {
-    case "P":
-      // PRESENT — deliberately unchanged (spec §7 keeps the existing green).
-      return { bg: "color-mix(in srgb, #15803d 12%, #fff)", fg: "#15803d", label: "Present" };
-    case "HP":
-      // WORKED A SUNDAY / WEEKLY OFF / HOLIDAY — GREEN. The day itself is dark
-      // grey; turning up on it is the exception worth seeing, and green is the
-      // colour this calendar already uses for "you were here". It was teal,
-      // which at tile size read as another shade of off-day rather than as
-      // attendance.
-      return { bg: "color-mix(in srgb, #15803d 24%, #fff)", fg: "#14532d", label: "Worked a holiday/off" };
-    case "H/D":
-    case "H-H/D":
-      // HALF DAY — amber/orange, "partial attendance". Stronger mix than before
-      // so it is unmistakably distinct from both green and red at tile size.
-      return { bg: "color-mix(in srgb, #d97706 22%, #fff)", fg: "#92400e", label: "Half day" };
-    case "A":
-    case "LWP":
-      // ABSENT — red, "no qualifying attendance".
-      return { bg: "color-mix(in srgb, #dc2626 20%, #fff)", fg: "#991b1b", label: c.code === "A" ? "Absent" : "Leave (unpaid)" };
-    // A DECLARED DAY OFF — SUNDAY / WEEKLY OFF / HOLIDAY — is DARK GREY.
-    //
-    // Both were pale before: the weekly off borrowed the page's own surface
-    // tint and the holiday a 16% grey, which left a month of Sundays looking
-    // like days with no record rather than days nobody was expected. Dark grey
-    // reads as "closed" at tile size and, crucially, never as a warning — a
-    // declared holiday is not a deviation and must not carry a warning colour.
-    // Same treatment for both, because they mean the same thing to the person
-    // reading the calendar; only the label distinguishes them.
-    case "W/O":
-      return { bg: "#475569", fg: "#f8fafc", label: "Weekly off" };
-    case "H":
-      return { bg: "#475569", fg: "#f8fafc", label: "Holiday" };
-    case "PL":
-    case "CO":
-      return { bg: "color-mix(in srgb, #7c3aed 12%, #fff)", fg: "#6d28d9", label: c.code === "PL" ? "Paid leave" : "Comp-off" };
-    case "incomplete":
-      return { bg: "color-mix(in srgb, #b45309 8%, #fff)", fg: "#b45309", label: "Incomplete (no check-out)" };
-    default:
-      return { bg: "transparent", fg: "var(--color-ink-subtle)", label: "No record" };
-  }
+  const st = c.future ? UPCOMING_STYLE : dayCodeStyle(c.code);
+  return { bg: st.tile, fg: st.tileInk, label: st.label };
 }
 
 function fmtHrs(min: number): string {
@@ -137,7 +129,13 @@ export function MonthCalendar({ cells, monthLabel, compact, canEdit, employeeId,
           <h2 className="text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "-0.02em", lineHeight: 1.1 }}>
             {monthLabel}
           </h2>
-          <p className="text-[11px] font-medium text-ink-subtle">Each week totals toward 54h</p>
+          {/* THIS employee's week, not a constant. The copy said "54h" for
+              everyone while the bar beside it already scored against
+              `weekTargetMin` — so a 27h part-timer was shown a full-timer's
+              target above a bar that (correctly) filled at 27h. */}
+          <p className="text-[11px] font-medium text-ink-subtle">
+            Each week totals toward {fmtHrs(weekTargetMin)}
+          </p>
         </div>
       </div>
 
@@ -151,7 +149,12 @@ export function MonthCalendar({ cells, monthLabel, compact, canEdit, employeeId,
 
       <div className="flex flex-col gap-1">
         {weeks.map((week, wi) => {
-          const worked = week.reduce((s, c) => s + (c && !c.future ? c.workedMinutes : 0), 0);
+          // THE canonical weekly figure — the same function the salary engine
+          // reconciles against (lib/attendance/hour-balance.weeklyWorkedMinutes),
+          // so this number and the one on the payslip cannot drift apart. Future
+          // cells are dropped first: they have no hours, and the week is "so
+          // far", not "eventually".
+          const worked = weeklyWorkedMinutes(week.filter((c) => c && !c.future) as MonthCell[]);
           const pct = Math.min(100, Math.round((worked / weekTargetMin) * 100));
           const hit = worked >= weekTargetMin;
           return (
@@ -223,6 +226,15 @@ function DayCell({
   const evaluated = !c.future && !NON_EVALUATED_CODES.has(c.code);
   const showLate = evaluated && c.late;
   const showEarly = evaluated && c.leftEarly;
+  // APPROVED REMOTE WORK — a corner mark, not a colour. The tile must keep the
+  // colour its attendance earned (a WFH day the person worked in full is still
+  // Present, green); all this adds is that the office absence was sanctioned.
+  // Suppressed on a future day, which has nothing to report yet, and on the
+  // declared days off, where "approved WFH" would be noise on a closed office.
+  const remote =
+    !c.future && c.remoteMode && !NON_EVALUATED_CODES.has(c.code)
+      ? REMOTE_BADGE[c.remoteMode]
+      : undefined;
 
   return (
     <div
@@ -234,7 +246,7 @@ function DayCell({
     >
       <button
         type="button"
-        aria-label={`${fmtFullDate(c.date)} — ${st.label}`}
+        aria-label={`${fmtFullDate(c.date)} — ${st.label}${remote ? ` · ${remote.label}` : ""}`}
         aria-expanded={open}
         onClick={() => setPinned((p) => !p)}
         onKeyDown={(e) => e.key === "Escape" && (setPinned(false), setHover(false))}
@@ -274,6 +286,16 @@ function DayCell({
             </span>
           )}
         </span>
+        {remote && (
+          <span
+            aria-hidden
+            title={remote.label}
+            className="absolute right-[2px] top-[2px] grid size-[11px] place-items-center rounded-[3px] text-[7px] font-black leading-none"
+            style={{ background: "color-mix(in srgb, #1d4ed8 16%, #fff)", color: "#1d4ed8" }}
+          >
+            {remote.mark}
+          </span>
+        )}
       </button>
 
       {/* click-away catcher while pinned (below the popover) */}
@@ -320,6 +342,16 @@ function DayCell({
                 <span className="att-pop-k"><Clock size={12} strokeWidth={2.4} /> Total hours</span>
                 <span className="att-pop-v">{total ?? "—"}</span>
               </div>
+              {remote && (
+                <div className="att-pop-flags">
+                  <span
+                    className="att-pop-flag"
+                    style={{ color: "#1d4ed8", background: "color-mix(in srgb,#1d4ed8 12%,transparent)" }}
+                  >
+                    <MapPin size={10} strokeWidth={2.6} /> {remote.label}
+                  </span>
+                </div>
+              )}
               {(c.late || c.leftEarly) && (
                 <div className="att-pop-flags">
                   {c.late && <span className="att-pop-flag" style={{ color: "#b45309", background: "color-mix(in srgb,#b45309 12%,transparent)" }}><AlertTriangle size={10} strokeWidth={2.6} /> Late arrival</span>}

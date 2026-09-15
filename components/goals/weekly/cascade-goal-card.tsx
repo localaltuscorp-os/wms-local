@@ -311,7 +311,7 @@ function ParentGoalPicker({
         <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
           Link to monthly goal
         </p>
-        <div className="max-h-56 overflow-y-auto">
+        <div className="slim-scroll max-h-56 overflow-y-auto">
           <button
             type="button"
             disabled={pending}

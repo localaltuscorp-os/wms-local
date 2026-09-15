@@ -328,7 +328,7 @@ export function SubjectSelect({
             />
           </div>
         </div>
-        <ul ref={listRef} id={listId} role="listbox" className="max-h-[300px] overflow-y-auto overscroll-contain py-1.5">
+        <ul ref={listRef} id={listId} role="listbox" className="slim-scroll max-h-[300px] overflow-y-auto overscroll-contain py-1.5">
           {filtered.length === 0 && (
             <li className="px-4 py-3 text-[14px] font-semibold" style={{ color: "var(--color-ink-muted)" }}>
               No match for “{query}”.

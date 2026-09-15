@@ -29,6 +29,7 @@ import {
   decideApprovalAction,
 } from "@/app/(app)/tasks/time-actions";
 import { useElapsedSeconds } from "./use-elapsed";
+import { useTaskTimer } from "./task-timer-store";
 import { WorkSessions } from "./work-sessions";
 import { ActivityTimeline } from "./activity-timeline";
 import { RevisionHistory } from "./revision-history";
@@ -73,6 +74,15 @@ export function TaskTimePanel(props: Props) {
   const [rejecting, setRejecting] = React.useState(false);
   const [comment, setComment] = React.useState("");
 
+  // The SHARED timer (see task-timer-store). This tab sits on the same screen
+  // as the hero band and the Time Spent card; before it read the store, the
+  // three of them each ran their own request and their own idea of "running",
+  // so a Start on one tab and a glance at another showed opposite labels.
+  // Null only outside the provider, where the server value is used as before.
+  const timer = useTaskTimer();
+  const running = timer?.running ?? Boolean(state.live);
+  const busy = (timer?.busy ?? false) || pending;
+
   const live = state.live;
   const locked = approvalStatus === "approved";
   const r = state.rollup;
@@ -93,7 +103,7 @@ export function TaskTimePanel(props: Props) {
   // without a live session is paused. `awaitingReview` is excluded: a task
   // marked done and sitting with a reviewer is neither running nor paused, and
   // restarting a timer there would silently reopen finished work.
-  const canRestart = !locked && canOperate && (!!live || (hasWork && !awaitingReview));
+  const canRestart = !locked && canOperate && (running || (hasWork && !awaitingReview));
   const [confirmRestart, setConfirmRestart] = React.useState(false);
 
   function act(fn: () => Promise<{ ok: boolean; error?: string; message?: string }>) {
@@ -123,14 +133,21 @@ export function TaskTimePanel(props: Props) {
       <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-hairline bg-white px-5 py-4">
         <div className="min-w-0">
           <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-subtle">
-            {live ? "Session running" : "Total active time"}
+            {running ? "Session running" : "Total active time"}
           </div>
           <div className="text-[34px] font-black leading-none text-ink-strong max-md:text-[28px]">
-            {live ? <LiveClock startedAt={live.startedAt} /> : formatDuration(r.totalActiveSeconds)}
+            {running && (timer?.since ?? live?.startedAt) ? (
+              <LiveClock startedAt={(timer?.since ?? live?.startedAt)!} />
+            ) : (
+              formatDuration(timer ? timer.totalSeconds : r.totalActiveSeconds)
+            )}
           </div>
-          {live && (
+          {running && (
             <div className="mt-1 text-[12px] font-semibold text-ink-muted">
-              Total so far: <span className="tabular-nums">{formatMinutesLabel(r.totalActiveSeconds)}</span>
+              Total so far:{" "}
+              <span className="tabular-nums">
+                {formatMinutesLabel(timer ? timer.totalSeconds : r.totalActiveSeconds)}
+              </span>
             </div>
           )}
         </div>
@@ -142,31 +159,31 @@ export function TaskTimePanel(props: Props) {
             </span>
           ) : canOperate ? (
             <>
-              {live ? (
+              {running ? (
                 <button
                   type="button"
-                  disabled={pending}
-                  onClick={() => act(() => pauseWorkAction(taskId))}
+                  disabled={busy}
+                  onClick={() => (timer ? timer.pause() : act(() => pauseWorkAction(taskId)))}
                   // RED, not amber. Amber was the running-session warning
                   // colour; now that the pair is coded by action, stop is red.
                   // The RESTART button below keeps its amber — that one is a
                   // warning about discarding a session, not a stop control.
                   className="inline-flex items-center gap-1.5 rounded-lg bg-[#B80D22] px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
                 >
-                  {pending ? <Loader2 size={15} className="animate-spin" /> : <Pause size={15} />} {pauseLabel}
+                  {busy ? <Loader2 size={15} className="animate-spin" /> : <Pause size={15} />} {pauseLabel}
                 </button>
               ) : (
                 <button
                   type="button"
-                  disabled={pending}
-                  onClick={() => act(() => startWorkAction(taskId))}
+                  disabled={busy}
+                  onClick={() => (timer ? timer.start() : act(() => startWorkAction(taskId)))}
                   // GREEN, not the brand crimson it briefly wore. Crimson was
                   // right while Start was simply "the primary CTA here"; it is
                   // wrong now that the pair is colour-coded by ACTION, because
                   // the same red would then mean both go and stop.
                   className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  {pending ? (
+                  {busy ? (
                     <Loader2 size={15} className="animate-spin" />
                   ) : reworkMode ? (
                     <RotateCcw size={15} />
@@ -179,7 +196,7 @@ export function TaskTimePanel(props: Props) {
               {canRestart && (
                 <button
                   type="button"
-                  disabled={pending}
+                  disabled={busy}
                   onClick={() => setConfirmRestart(true)}
                   title="Reset this session's elapsed time to 00:00:00"
                   className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-[13px] font-bold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
@@ -338,14 +355,15 @@ export function TaskTimePanel(props: Props) {
               </Dialog.Close>
               <button
                 type="button"
-                disabled={pending}
+                disabled={busy}
                 onClick={() => {
                   setConfirmRestart(false);
-                  act(() => restartTimerAction(taskId));
+                  if (timer) timer.restart();
+                  else act(() => restartTimerAction(taskId));
                 }}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
               >
-                {pending ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
+                {busy ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
                 Restart Task
               </button>
             </div>

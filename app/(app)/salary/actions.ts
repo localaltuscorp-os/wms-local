@@ -18,6 +18,7 @@ import {
 } from "@/lib/salary/payment";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { assembleMonthInputs, computeForRow } from "@/lib/salary/generate";
+import { refreshSalaryMonth } from "@/lib/salary/refresh-run";
 import { syncBreakupFromApp } from "@/lib/salary/breakup-from-app";
 import { getRun, listRunsForMonth } from "@/lib/queries/salary";
 import { GenerateSalarySchema, RunEditSchema } from "@/lib/validators/salary";
@@ -73,61 +74,14 @@ export async function generateSalary(input: unknown): Promise<ActionResult<{ gen
 
   let generated = 0;
   try {
-    const rows = await assembleMonthInputs(month);
-    for (const row of rows) {
-      if (!row.hasProfile) continue; // no pay config for this basis → skip (don't materialize a ₹0 run)
-      const b = computeForRow(row); // routes by pay basis (monthly_ctc | hourly | fixed_fee)
-
-      const computed = {
-        month,
-        fy: row.fy,
-        annualCtc: row.annualCtc.toFixed(2),
-        daysInMonth: row.daysInMonth,
-        payableDays: b.payableDays.toFixed(2),
-        lateMarks: row.input.lateMarksInMonth,
-        lateDeductionDays: b.lateDeductionDays.toFixed(2),
-        gross: b.gross.toFixed(2),
-        pt: b.pt.toFixed(2),
-        tds: b.tds.toFixed(2),
-        advances: b.advances.toFixed(2),
-        pendingBalanceIn: b.pendingBalanceIn.toFixed(2),
-        netPayable: b.net.toFixed(2),
-        // Worker types (0177) — pay basis + hourly figures for the payslip.
-        payType: row.payBasis,
-        workedHours: b.workedHours != null ? b.workedHours.toFixed(2) : null,
-        hourlyRate: b.hourlyRate != null ? b.hourlyRate.toFixed(2) : null,
-        // The month's required hours, frozen with the pay they measured (0211).
-        targetHours: b.targetHours != null ? b.targetHours.toFixed(2) : null,
-        // Frozen at issue time (0191). Defaults to "0" so a worker type that
-        // earns no overtime records an explicit zero rather than a null the
-        // payslip would have to interpret.
-        overtimeHours: (b.overtimeHours ?? 0).toFixed(2),
-        overtimeAmount: (b.overtimeAmount ?? 0).toFixed(2),
-      };
-
-      await db
-        .insert(salaryRuns)
-        .values({
-          employeeId: row.employeeId,
-          ...computed,
-          source: "generated",
-          generatedById: me.id,
-        })
-        .onConflictDoUpdate({
-          target: [salaryRuns.employeeId, salaryRuns.month],
-          // Re-run updates the COMPUTED columns + updated_at only. Does NOT
-          // touch disbursed / disbursed_amount / approved_by_id (preserve a
-          // recorded disbursement across regenerates).
-          //
-          // INVARIANT: this set-clause updates ONLY recomputed columns. It MUST
-          // NOT include `disbursed`, `disbursedAmount`, or `approvedById` —
-          // regenerating a month must never wipe a disbursement. setDisbursed
-          // touches only those columns, so the two writers are column-disjoint
-          // and safe under concurrency. If you ever add a disbursement column
-          // here, add a `WHERE disbursed = false` guard or wrap in a transaction.
-          set: { ...computed, updatedAt: new Date() },
-        });
-      generated += 1;
+    // ONE canonical whole-month path (spec §12). This used to carry its own
+    // copy of the assemble → compute → upsert loop, which is how it and
+    // `refreshSalaryRun` came to write subtly different rows for the same
+    // inputs. Both now go through lib/salary/refresh-run.ts.
+    const res = await refreshSalaryMonth(month, new Date(), { generatedById: me.id });
+    generated = res.written;
+    if (res.failed > 0 && res.written === 0) {
+      return { ok: false, error: res.firstError ?? "Salary generation failed." };
     }
     // Mirror the app-computed payroll into the on-page `salary_breakup` rows so
     // the salary MODULE reflects this generation (names + attendance + pay),

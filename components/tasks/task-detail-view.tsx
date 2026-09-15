@@ -825,7 +825,7 @@ function InteractiveStatusPill({
           tabIndex={-1}
           aria-activedescendant={`${listId}-opt-${activeIndex}`}
           onKeyDown={listKeyDown}
-          className="absolute left-0 mt-2 z-50 min-w-[220px] max-h-[320px] overflow-y-auto rounded-chip border bg-surface-card outline-none"
+          className="slim-scroll absolute left-0 mt-2 z-50 min-w-[220px] max-h-[320px] overflow-y-auto rounded-chip border bg-surface-card outline-none"
           style={{
             borderColor: "var(--color-hairline-strong)",
             boxShadow: "0 16px 40px rgba(15, 23, 42, 0.18)",

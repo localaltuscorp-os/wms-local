@@ -82,7 +82,11 @@ describe("what the punch deliberately still enforces", () => {
   const src = code("app/(app)/attendance/actions.ts");
 
   it("still resolves and validates the device", () => {
-    expect(src).toContain("resolveWebDevice");
+    // Through `lib/security/device-access.ts`, which gates the WHOLE app, not
+    // the retired punch-only `resolveWebDevice`. Two implementations of one
+    // rule is what that module was written to remove — see the tombstone in
+    // lib/attendance/web-device.ts.
+    expect(src).toContain("resolveDeviceContext");
   });
 
   it("still applies the office-network and geofence rules", () => {
@@ -95,9 +99,19 @@ describe("what the punch deliberately still enforces", () => {
   });
 });
 
-describe("admin approval is gone from device registration", () => {
-  it("no approveDevice server action remains", () => {
-    expect(code("app/(app)/attendance/devices/actions.ts")).not.toContain(
+/**
+ * DEVICE APPROVAL IS BACK, under migration 0215.
+ *
+ * These assertions used to state the opposite, because 0214 briefly made the
+ * cap "two approved devices of ANY kind" and removed the approval step with it.
+ * 0215 supersedes that: the rule is one approved LAPTOP and one approved PHONE,
+ * `lib/security/device-access.ts` enrols a device as `pending` once its kind's
+ * slot is taken, and something has to be able to grant it. So `approveDevice`
+ * exists again and the admin screen offers the control.
+ */
+describe("device approval under the 0215 per-kind cap", () => {
+  it("approveDevice exists — a pending device needs a way to be granted", () => {
+    expect(code("app/(app)/attendance/devices/actions.ts")).toContain(
       "export async function approveDevice",
     );
   });
@@ -108,9 +122,15 @@ describe("admin approval is gone from device registration", () => {
     );
   });
 
-  it("the admin devices screen offers no Approve control", () => {
+  it("the admin devices screen offers both controls", () => {
     const ui = code("components/attendance/devices-client.tsx");
-    expect(ui).not.toContain("approveDevice");
+    expect(ui).toContain("approveDevice");
     expect(ui).toContain("revokeDevice");
+  });
+
+  it("enrolment writes `pending` when the kind's slot is taken", () => {
+    expect(code("lib/security/device-access.ts")).toContain(
+      'status: slotFree ? "approved" : "pending"',
+    );
   });
 });
