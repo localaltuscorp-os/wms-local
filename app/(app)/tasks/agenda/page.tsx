@@ -9,6 +9,7 @@ import { listActiveClientNames } from "@/lib/queries/clients";
 import { parseTaskFilters } from "@/lib/task-filters";
 import { isDoneLate } from "@/lib/task-late";
 import { requireUser } from "@/lib/auth/current";
+import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
 import { defaultScopeId, opensOnEveryone } from "@/lib/auth/default-scope";
 import { TASK_STATUSES, isDeprecatedStatus } from "@/db/enums";
@@ -39,12 +40,14 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     defaultDoerId: defaultScopeId(me),
   });
 
-  const [allEmployees, rows, subjects, clients, statusDisplay] = await Promise.all([
+  const [allEmployees, rows, subjects, clients, statusDisplay, managedIds] = await Promise.all([
     listEmployeeOptions(),
     listTasks(filters),
     listDistinctSubjects(),
     listActiveClientNames(),
     getStatusDisplayMap(),
+    // Everyone below the viewer, for the Approver / Initiator chip.
+    getDownlineIds(me.id).catch(() => [] as string[]),
   ]);
 
   const statusLabels = Object.fromEntries(
@@ -117,7 +120,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         agendaTasks={agendaTasks}
         rows={rows}
         employees={allEmployees}
-        me={{ id: me.id, isAdmin: me.isAdmin }}
+        me={{ id: me.id, isAdmin: me.isAdmin, managedIds }}
         statusLabels={statusLabels}
         statusTones={statusTones}
       />

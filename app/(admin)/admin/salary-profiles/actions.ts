@@ -10,6 +10,7 @@ import { fyForMonth } from "@/lib/salary/period";
 import { listAdvances, type SalaryAdvanceRow } from "@/lib/queries/salary";
 import { SalaryProfileSchema, SalaryAdvanceSchema } from "@/lib/validators/salary";
 import { payBasisFor } from "@/lib/attendance/worker-type";
+import { scheduleDccMasterReconcile } from "@/lib/dcc/master-sync";
 
 export type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -118,6 +119,11 @@ export async function upsertSalaryProfile(input: unknown): Promise<ActionResult>
     });
   } catch (err) {
     console.error("[upsertSalaryProfile] audit write failed", err);
+  }
+
+  // A new designation swaps this person's DCC Master KPIs (lib/dcc/master-sync.ts).
+  if (data.designationId !== undefined && data.designationId !== emp.designationId) {
+    scheduleDccMasterReconcile();
   }
 
   revalidatePath(PATH);

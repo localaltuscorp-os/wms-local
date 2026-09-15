@@ -10,6 +10,7 @@ import {
   payingEntities,
 } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth/current";
+import { scheduleDccMasterReconcile } from "@/lib/dcc/master-sync";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { readSheetValues } from "@/lib/google/read-sheet";
 import {
@@ -296,6 +297,9 @@ export async function confirmSalaryProfileImport(): Promise<
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `DB: ${msg}` };
   }
+
+  // Designations stamped by the import move people between DCC Masters.
+  if (stampedDesignation > 0) scheduleDccMasterReconcile();
 
   revalidatePath(PATH);
   return {

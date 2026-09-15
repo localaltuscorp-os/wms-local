@@ -19,6 +19,7 @@ import {
 } from "@/lib/project-plan/levels";
 import { describeProgress, toPercent, nodeFraction, formatCompletion, milestoneCompletion } from "@/lib/project-plan/progress";
 import { PLAN_STATUS_LABEL, effectivePlanStatus } from "@/lib/project-plan/status";
+import { APPROVER_LABEL, approverShown } from "@/lib/status/approver-status";
 import {
   createPlanNode, updatePlanNode, deletePlanNode, duplicatePlanNode,
   movePlanNode, planDeleteImpact,
@@ -35,7 +36,7 @@ import { NewNodeDialog } from "./new-node-dialog";
 import { NewItemButtons, usePlanCreateShortcuts } from "./new-item-buttons";
 import { PlanBulkUpload } from "./plan-bulk-upload";
 import { useRememberPlanNode } from "./use-recent-plan";
-import { PlanStatusCell, planActorFor } from "./plan-status-cell";
+import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-cell";
 import { PlanAttachmentPanel } from "./plan-attachment-cell";
 import { normaliseUrl } from "./plan-links-cell";
 import { PlanProgressCell } from "./plan-progress-cell";
@@ -170,7 +171,10 @@ const ALL_COLUMNS = [
   // Status and Progress work on EVERY level — one vocabulary for the module,
   // per brief §6/§8. Where the value lands differs by level, but that is
   // `setPlanNodeStatus`'s business, not this table's.
-  { key: "status", label: "Status", width: "w-[188px]", fixed: false },
+  // Two statuses, as in WMS Tasks and Goals (2026-09-15): the doer's progress
+  // and the Approver / Initiator ruling on it.
+  { key: "status", label: "Doer Status", width: "w-[188px]", fixed: false },
+  { key: "approver", label: "Approver / Initiator Status", width: "w-[196px]", fixed: false },
   { key: "progress", label: "Progress", width: "w-[136px]", fixed: false },
   // The two task-side columns. They render only on executable rows, because a
   // Project or a Milestone has no task to carry a doer or a flag.
@@ -911,9 +915,10 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
         // — so an exported number can never disagree with the cell it came from.
         status: PLAN_STATUS_LABEL[effectivePlanStatus(
           isExecutable(n.kind) && n.task ? n.task.status : n.status,
-          n.approvalStatus,
+          null,
           false,
         )],
+        approver: APPROVER_LABEL[approverShown(n.approvalStatus)],
         progress: isExecutable(n.kind)
           ? ""
           : n.kind === "project"
@@ -1780,6 +1785,14 @@ function Row({
             return (
               <td key={key} className={pad}>
                 <PlanStatusCell node={node} actor={actor} linkedToTask={!!node.task} />
+              </td>
+            );
+
+          // ── Approver / Initiator Status ──────────────────────────────────
+          case "approver":
+            return (
+              <td key={key} className={pad}>
+                <PlanApproverCell node={node} actor={actor} />
               </td>
             );
 
@@ -2670,11 +2683,10 @@ function DetailDialog({
   const { node, ref: rowRef, fullRef, path } = target;
   const executable = isExecutable(node.kind);
   const below = countBelow(node);
-  // The effective status — a restricted verdict outranks a progress report, so
-  // a cancelled project reads "Cancelled" whatever its last report said.
+  // The two statuses, shown apart as the table shows them.
   const status = effectivePlanStatus(
     executable && node.task ? node.task.status : node.status,
-    node.approvalStatus,
+    null,
     false,
   );
   const progress = node.kind === "project" ? describeProgress(node) : null;
@@ -2734,7 +2746,8 @@ function DetailDialog({
           </div>
 
           <div className="mt-3.5 grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
-            <ReadField label="Status" value={PLAN_STATUS_LABEL[status]} />
+            <ReadField label="Doer Status" value={PLAN_STATUS_LABEL[status]} />
+            <ReadField label="Approver / Initiator Status" value={APPROVER_LABEL[approverShown(node.approvalStatus)]} />
             <ReadField
               label={progress ? "Progress" : "Completion"}
               value={

@@ -57,7 +57,10 @@ import { GoalDetailPopup } from "@/components/goals/shared/goal-detail-popup";
 import { useGoalGridEngine, type GridColumn } from "@/components/goals/board/goal-grid";
 import { Select } from "@/components/ui/select";
 import { DateInput } from "@/components/ui/date-input";
-import { ADMIN_TASK_STATUSES, USER_TASK_STATUSES, GOAL_TYPES, GOAL_TYPE_LABELS, type TaskStatus, type GoalType } from "@/db/enums";
+import { ADMIN_TASK_STATUSES, USER_TASK_STATUSES, DOER_TASK_STATUSES, GOAL_TYPES, GOAL_TYPE_LABELS, type TaskStatus, type GoalType } from "@/db/enums";
+import { ApproverChip } from "@/components/status/approver-chip";
+import { approverShown, approverStored, selectableApproverChoices } from "@/lib/status/approver-status";
+import { setGoalApproverStatus } from "@/app/(app)/goals/approver-actions";
 import { pctTone, fmtNum, num, periodKeyLabel, periodKeyShort, goalCode, trimDecimal, targetDateStatus, fmtTargetDate, assignmentInfo } from "@/components/goals/cascade/util";
 import { CalendarClock } from "lucide-react";
 import { AssignmentChip } from "@/components/goals/board/assignment-chip";
@@ -147,7 +150,14 @@ export interface GoalTableViewProps {
    *  Columns picker's list, reorders live the same way. Omitted → headers
    *  aren't draggable (read-only order). */
   onColOrderChange?: (next: string[]) => void;
+  /** The signed-in employee — decides whether the Approver / Initiator chip is
+   *  editable on a row. Omitted → only an admin gets an editable chip. */
+  meId?: string;
+  /** The viewer manages the person whose goals these are. */
+  managesViewed?: boolean;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ActionRes = { ok: true } | { ok: false; error: string };
 
@@ -376,13 +386,14 @@ function TextCell({
 
 /** Human label for a Task status enum value (live set + legacy verdicts). */
 const STATUS_LABEL: Partial<Record<TaskStatus, string>> = {
-  dont_know: "Not assessed",
-  not_started: "Not started",
-  initiated: "In progress",
-  follow_up: "Follow-up",
+  // The WMS wording, so a goal and a task name the same state identically.
+  dont_know: "Not Read",
+  not_started: "Not Started",
+  initiated: "Initiated",
+  follow_up: "Follow Up",
   need_help: "Need help",
-  on_hold: "On hold",
-  need_info: "Need info",
+  on_hold: "On Hold",
+  need_info: "Need Info",
   done: "Done",
   approved: "Approved",
   not_approved: "Not approved",
@@ -405,28 +416,26 @@ function statusColor(s: string): string {
   return "#b45309";
 }
 
-/** Inline Status dropdown. Built on the shared `Select` primitive so it inherits
- *  the keyboard-first flow (type-ahead first-match highlight, ↑/↓, Enter/Tab to
- *  commit + advance, Esc to close). Admins see every live status; others see the
- *  user-settable set. The row's CURRENT value is always included. */
+/** Inline DOER STATUS dropdown — the same six a WMS doer reports
+ *  (DOER_TASK_STATUSES), so Goals, Tasks and Projects share one progress
+ *  vocabulary (2026-09-15). Built on the shared `Select` primitive for the
+ *  keyboard-first flow. The row's CURRENT value is always included. */
 function StatusCell({
   value,
-  isAdmin,
   disabled,
   onCommit,
 }: {
   value: string;
-  isAdmin: boolean;
   disabled: boolean;
   onCommit: (status: TaskStatus) => void;
 }) {
-  const base = (isAdmin ? ADMIN_TASK_STATUSES : USER_TASK_STATUSES) as readonly TaskStatus[];
   const options = React.useMemo(() => {
+    const base = DOER_TASK_STATUSES as readonly TaskStatus[];
     const set = new Set<string>(base);
     // Keep a legacy/out-of-set current value visible so it never silently drops.
     const list = value && !set.has(value) ? [value as TaskStatus, ...base] : [...base];
     return list.map((s) => ({ value: s, label: statusLabel(s) }));
-  }, [base, value]);
+  }, [value]);
 
   return (
     <div className={cn("flex items-center gap-1.5", disabled && "pointer-events-none opacity-60")}>
@@ -1856,6 +1865,10 @@ function headerCellsFor(key: string): { reactKey: string; label: string; classNa
       return [{ reactKey: "owner", label: "Owner", className: cn(TH, "px-1.5 min-w-[50px]") }];
     case "type":
       return [{ reactKey: "type", label: "Type", className: cn(TH, "px-1.5 min-w-[56px]") }];
+    case "doerStatus":
+      return [{ reactKey: "doerStatus", label: "Doer Status", className: cn(TH, "px-1.5 min-w-[120px]") }];
+    case "approver":
+      return [{ reactKey: "approver", label: "Approver / Initiator Status", className: cn(TH, "px-1.5 min-w-[150px]") }];
     case "notes":
       return [
         { reactKey: "notes", label: "Notes", className: cn(TH, "px-1.5 min-w-[64px]") },
@@ -1889,12 +1902,14 @@ export const OPTIONAL_COLUMNS: { key: string; label: string }[] = [
   { key: "delegate", label: "Delegated" },
   { key: "owner", label: "Owner" },
   { key: "type", label: "Type" },
+  { key: "doerStatus", label: "Doer Status" },
+  { key: "approver", label: "Approver / Initiator Status" },
   { key: "notes", label: "Notes" },
 ];
 
 /** The simplified table's original fixed column set, unchanged for any
  *  caller that doesn't pass `visibleCols` (the Columns picker). */
-export const DEFAULT_VISIBLE_COLS = new Set(["actual", "delegate", "owner", "type"]);
+export const DEFAULT_VISIBLE_COLS = new Set(["actual", "delegate", "owner", "type", "doerStatus", "approver"]);
 
 /** Every optional column shown — used where the caller wants the Columns
  *  picker to start fully expanded (the level board defaults to this). */
@@ -1919,6 +1934,8 @@ export const REORDERABLE_COLUMNS: { key: string; label: string; pickable: boolea
   { key: "delegate", label: "Delegated", pickable: true },
   { key: "owner", label: "Owner", pickable: true },
   { key: "type", label: "Type", pickable: true },
+  { key: "doerStatus", label: "Doer Status", pickable: true },
+  { key: "approver", label: "Approver / Initiator Status", pickable: true },
   { key: "notes", label: "Notes", pickable: true },
   { key: "targetDate", label: "Target Date", pickable: false },
   { key: "targetDateStatus", label: "Days Left", pickable: false },
@@ -2047,6 +2064,20 @@ export function GoalTableView(props: GoalTableViewProps) {
   } = props;
 
   const weekly = props.variant === "weekly";
+
+  /** The viewer relative to one goal, for the Approver / Initiator chip. The
+   *  initiator is whoever raised the goal; the owner of a goal somebody else
+   *  raised is its doer. The server re-decides every pick. */
+  const approverActorFor = (g: GoalDTO) => {
+    const meId = props.meId;
+    const isInitiator = !!meId && g.createdById === meId;
+    return {
+      isAdmin: props.isAdmin,
+      isInitiator,
+      isDoersManager: !!meId && !!props.managesViewed && g.employeeId !== meId,
+      isDoer: !!meId && g.employeeId === meId && !isInitiator,
+    };
+  };
   const A = props.actions ?? CASCADE_ACTIONS;
   const detailKind = props.detailKind ?? "cascade";
   const visibleCols = props.visibleCols ?? DEFAULT_VISIBLE_COLS;
@@ -2749,6 +2780,32 @@ export function GoalTableView(props: GoalTableViewProps) {
           </td>,
           <td key="attachments" className="px-2.5 py-2 align-top">
             <AttachmentsCell goalId={g.id} expanded={expanded.has(g.id)} onToggle={() => toggleExpand(g.id)} />
+          </td>,
+        ];
+      case "doerStatus":
+        return [
+          <td key="doerStatus" className="px-2.5 py-2 align-middle">
+            <StatusCell
+              value={g.status ?? "not_started"}
+              disabled={locked}
+              onCommit={(s) => editField(g.id, { status: s }, () => A.editGoal({ id: g.id, status: s }))}
+            />
+          </td>,
+        ];
+      case "approver":
+        return [
+          <td key="approver" className="px-2.5 py-2 align-middle">
+            <ApproverChip
+              shown={approverShown(g.approverStatus)}
+              // An optimistic row has no id the server knows yet.
+              choices={UUID_RE.test(g.id) ? selectableApproverChoices(approverActorFor(g), g.status) : []}
+              onPick={async (choice) => {
+                const res = await setGoalApproverStatus({ kind: weekly ? "weekly" : "goal", id: g.id, choice });
+                if (!res.ok) return res.error;
+                setRows((prev) => prev.map((r) => (r.id === g.id ? { ...r, approverStatus: approverStored(choice) } : r)));
+                return null;
+              }}
+            />
           </td>,
         ];
       case "targetDateStatus":

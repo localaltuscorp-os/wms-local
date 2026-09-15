@@ -14,7 +14,11 @@ import {
   Plus,
   TriangleAlert,
   X,
+  FileSpreadsheet,
+  UserRound,
 } from "lucide-react";
+import { JdBulkUpload } from "@/components/operations/job-description/jd-bulk-upload";
+import { JdPersonView } from "@/components/operations/job-description/jd-person-view";
 import {
   FUNCTION_LABELS,
   type BusinessFunction,
@@ -26,6 +30,8 @@ import {
 } from "@/lib/jd/recurrence";
 import type { JdEntryRow, JdPositionRow, JdRankRow } from "@/lib/queries/job-description";
 import { ModuleAssignBoxes } from "@/components/operations/job-description/module-assign-boxes";
+import { CategoryInput, distinctCategories } from "@/components/operations/category-input";
+import { VoiceNoteButton } from "@/components/ui/voice-note-button";
 import type { TargetPeople } from "@/lib/jd/assignment-targets";
 import { JD_FUNCTIONS } from "@/lib/jd/functions";
 import {
@@ -66,6 +72,15 @@ export interface JdBankProps {
    * migration has been applied by hand.
    */
   holders?: SeatHolder[];
+  /**
+   * Which screen this is (2026-09-15, Operations → Masters):
+   *   · "all"     — the full Bank (Operations → Job Description)
+   *   · "general" — General JD only: list and by-position views, no person view
+   *   · "person"  — Person-specific JD only: the people list and one person's JD
+   */
+  mode?: "all" | "general" | "person";
+  /** Person mode: open on this person. */
+  initialPersonId?: string | null;
 }
 
 /**
@@ -82,6 +97,8 @@ export function JdBank({
   ranks,
   people,
   holders = [],
+  mode = "all",
+  initialPersonId = null,
 }: JdBankProps) {
   const [tab, setTab] = React.useState<BusinessFunction | "all">("all");
   /* Null is the Bank's own order — by serial, the sequence they were written
@@ -94,7 +111,8 @@ export function JdBank({
     [],
   );
   const [showForm, setShowForm] = React.useState(false);
-  const [view, setView] = React.useState<"list" | "seats">("list");
+  const [view, setView] = React.useState<"list" | "seats" | "people">(mode === "person" ? "people" : "list");
+  const [bulkOpen, setBulkOpen] = React.useState(false);
   const [openId, setOpenId] = React.useState<string | null>(null);
 
   const filtered = tab === "all" ? entries : entries.filter((e) => e.functionKey === tab);
@@ -109,6 +127,7 @@ export function JdBank({
     [filtered, sort],
   );
   const open = entries.find((e) => e.id === openId) ?? null;
+  const categories = React.useMemo(() => distinctCategories(entries), [entries]);
 
   const functionsPresent = React.useMemo(() => {
     const s = new Set(entries.map((e) => e.functionKey));
@@ -117,15 +136,17 @@ export function JdBank({
 
   return (
     <div className="flex flex-col gap-5">
-      {positions.length === 0 && (
+      {mode !== "person" && positions.length === 0 && (
         <NoPositionsYet ranks={ranks} />
       )}
 
-      {positions.length > 0 && (
+      {mode !== "person" && positions.length > 0 && (
         <JdSummary entries={entries} positions={positions} holders={holders} />
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
+      {/* The person screen has its own controls — function tabs, views and the
+          New JD form belong to the register, not to one person's JD. */}
+      <div className={mode === "person" ? "hidden" : "flex flex-wrap items-center gap-2"}>
         <FilterTab active={tab === "all"} onClick={() => setTab("all")}>
           All ({entries.length})
         </FilterTab>
@@ -134,20 +155,42 @@ export function JdBank({
             {FUNCTION_LABELS[f]} ({entries.filter((e) => e.functionKey === f).length})
           </FilterTab>
         ))}
-        <div className="ml-auto inline-flex rounded-lg border border-slate-300 p-0.5">
-          <ViewButton active={view === "list"} onClick={() => setView("list")}>
-            <List className="h-3.5 w-3.5" /> All
-          </ViewButton>
-          <ViewButton active={view === "seats"} onClick={() => setView("seats")}>
-            <LayoutGrid className="h-3.5 w-3.5" /> By position
-          </ViewButton>
-        </div>
+        {/* Hidden while the form is open: it switches how the Bank below is
+            laid out, which does nothing for somebody writing a new JD. */}
+        {!showForm && (
+          <div className="ml-auto inline-flex rounded-lg border border-slate-300 p-0.5">
+            <ViewButton active={view === "list"} onClick={() => setView("list")}>
+              <List className="h-3.5 w-3.5" /> All
+            </ViewButton>
+            <ViewButton active={view === "seats"} onClick={() => setView("seats")}>
+              <LayoutGrid className="h-3.5 w-3.5" /> By position
+            </ViewButton>
+            {mode === "all" && (
+              <ViewButton active={view === "people"} onClick={() => setView("people")}>
+                <UserRound className="h-3.5 w-3.5" /> By person
+              </ViewButton>
+            )}
+          </div>
+        )}
+
+        {/* All tasks in one go, from Excel — General JDs and personal JDs alike. */}
+        {!showForm && (
+          <button
+            type="button"
+            onClick={() => setBulkOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <FileSpreadsheet className="h-4 w-4" /> Bulk upload
+          </button>
+        )}
 
         <button
           type="button"
           onClick={() => setShowForm((s) => !s)}
           disabled={positions.length === 0}
-          className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-45"
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-45 ${
+            showForm ? "ml-auto" : ""
+          }`}
           style={{ background: ACCENT }}
         >
           {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -159,18 +202,37 @@ export function JdBank({
         <JdForm
           positions={positions}
           people={people}
+          categories={categories}
           onDone={() => setShowForm(false)}
         />
       )}
 
-      {shown.length === 0 ? (
+      {view === "people" ? (
+        <JdPersonView
+          entries={entries}
+          positions={positions}
+          holders={holders}
+          people={people}
+          onOpen={setOpenId}
+          initialPersonId={initialPersonId}
+          renderForm={(person, done) => (
+            <JdForm
+              positions={positions}
+              people={people}
+              categories={categories}
+              person={person}
+              onDone={done}
+            />
+          )}
+        />
+      ) : shown.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center">
           <p className="text-[14px] font-semibold text-slate-700">
             {entries.length === 0 ? "The JD Bank is empty" : "Nothing in this function"}
           </p>
           <p className="mt-1 text-[13px] text-slate-500">
             {positions.length === 0
-              ? "Create a position first — a job description belongs to a seat."
+              ? "Create a position for a General JD, or open By person to write a personal JD."
               : "Add the first job description above."}
           </p>
         </div>
@@ -207,12 +269,13 @@ export function JdBank({
           )}
 
           <div className="table-scroll overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-            <table className="w-full min-w-[1360px] text-[13px]">
+            <table className="w-full min-w-[1500px] text-[13px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   <SortTh k="sr" sort={sort} onSort={toggleSort} className="w-16" align="right" />
                   <SortTh k="position" sort={sort} onSort={toggleSort} className="w-52" />
                   <SortTh k="function" sort={sort} onSort={toggleSort} className="w-36" />
+                  <SortTh k="category" sort={sort} onSort={toggleSort} className="w-36" />
                   <SortTh k="task" sort={sort} onSort={toggleSort} className="min-w-[260px]" />
                   <SortTh k="frequency" sort={sort} onSort={toggleSort} className="w-44" />
                   <SortTh k="estimate" sort={sort} onSort={toggleSort} className="w-28" align="right" />
@@ -242,12 +305,15 @@ export function JdBank({
         </>
       )}
 
+      <JdBulkUpload open={bulkOpen} onClose={() => setBulkOpen(false)} positions={positions} people={people} />
+
       {open && (
         <JdDetailDrawer
           entry={open}
           positions={positions}
           holders={holders}
           people={people}
+          categories={categories}
           onClose={() => setOpenId(null)}
         />
       )}
@@ -323,7 +389,14 @@ function EntryRow({
       </td>
 
       <td className="px-4 py-2.5 text-slate-600">
-        {entry.positionTitle}
+        {entry.ownerEmployeeId ? (
+          <span>
+            <span className="rounded bg-slate-100 px-1 py-0.5 text-[10px] font-bold text-slate-600">PERSONAL</span>{" "}
+            {entry.ownerName ?? "—"}
+          </span>
+        ) : (
+          entry.positionTitle
+        )}
         {doers.via === "escalated" && (
           <span className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-bold text-amber-800">
             VACANT
@@ -333,6 +406,10 @@ function EntryRow({
 
       <td className="px-4 py-2.5 text-slate-600">
         {FUNCTION_LABELS[entry.functionKey as BusinessFunction] ?? entry.functionKey}
+      </td>
+
+      <td className="px-4 py-2.5 text-slate-600">
+        {entry.category ?? <span className="text-slate-300">—</span>}
       </td>
 
       <td className="px-4 py-2.5 font-medium text-slate-800">{entry.task}</td>
@@ -427,7 +504,7 @@ function EntryRow({
 }
 
 /**
- * The ten headings, spelled once. The grid, the sort banner and the drawer all
+ * The eleven headings, spelled once. The grid, the sort banner and the drawer all
  * read them from here, so a column cannot be called one thing in the header and
  * another in the sentence describing the sort.
  */
@@ -435,6 +512,7 @@ const JD_COLUMN_LABELS: Record<JdSortKey, string> = {
   sr: "Sr. No.",
   position: "Position",
   function: "Function",
+  category: "Category",
   task: "Job Description",
   frequency: "Frequency",
   estimate: "Time Estimated",
@@ -516,15 +594,22 @@ function LinkChip({ href, label }: { href: string; label: string }) {
 function JdForm({
   positions,
   people,
+  categories,
+  person = null,
   onDone,
 }: {
   positions: JdPositionRow[];
   people: { id: string; name: string }[];
+  categories: readonly string[];
+  /** Set → a PERSONAL task for this employee: no position, a function picked instead. */
+  person?: { id: string; name: string } | null;
   onDone: () => void;
 }) {
   const router = useRouter();
   const [positionId, setPositionId] = React.useState("");
+  const [functionKey, setFunctionKey] = React.useState<BusinessFunction>("operations");
   const [task, setTask] = React.useState("");
+  const [category, setCategory] = React.useState<string | null>(null);
   const [freqId, setFreqId] = React.useState("daily");
   const [anchor, setAnchor] = React.useState(new Date().toISOString().slice(0, 10));
   const [customLabel, setCustomLabel] = React.useState("");
@@ -571,8 +656,9 @@ function JdForm({
     setBusy(true);
     try {
       const res = await createJdEntry({
-        positionId,
+        ...(person ? { ownerEmployeeId: person.id, functionKey } : { positionId }),
         task,
+        category,
         notesHtml: notes || null,
         recurrence,
         estimatedMinutes: Number(minutes),
@@ -597,8 +683,30 @@ function JdForm({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5">
-      <h2 className="mb-4 text-[15px] font-bold text-slate-900">New Job Description</h2>
+      <h2 className="mb-4 text-[15px] font-bold text-slate-900">
+        {person ? `New personal task — ${person.name}` : "New Job Description"}
+      </h2>
 
+      {person ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Person" hint="A personal task belongs to this person, not to a seat.">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] font-semibold text-slate-700">{person.name}</div>
+          </Field>
+          <Field label="Function">
+            <select
+              value={functionKey}
+              onChange={(e) => setFunctionKey(e.target.value as BusinessFunction)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
+            >
+              {JD_FUNCTIONS.map((f) => (
+                <option key={f} value={f}>
+                  {FUNCTION_LABELS[f]}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      ) : (
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Position" hint="A job description belongs to a seat, not a person.">
           <select
@@ -623,8 +731,9 @@ function JdForm({
           </div>
         </Field>
       </div>
+      )}
 
-      {chosen && chosen.holderCount === 0 && (
+      {!person && chosen && chosen.holderCount === 0 && (
         <p className="mt-3 inline-flex items-start gap-2 rounded-lg px-3 py-2 text-[12px]"
            style={{ background: "#FFFBEB", color: "#92400E" }}>
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -635,11 +744,21 @@ function JdForm({
 
       <div className="mt-4">
         <Field label="Task / Job Description">
-          <textarea
-            rows={2}
+          <DictateTextarea
             value={task}
-            onChange={(e) => setTask(e.target.value)}
+            onChange={setTask}
             placeholder="e.g. Make tea/coffee for the office and guests"
+          />
+        </Field>
+      </div>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <Field label="Category" hint="Type your own, or pick one already in use.">
+          <CategoryInput
+            value={category}
+            suggestions={categories}
+            onCommit={setCategory}
+            placeholder="e.g. Housekeeping, Internet, Vendors"
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
           />
         </Field>
@@ -728,12 +847,7 @@ function JdForm({
 
       <div className="mt-4">
         <Field label="Notes / Context">
-          <textarea
-            rows={2}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-          />
+          <DictateTextarea value={notes} onChange={setNotes} />
         </Field>
       </div>
 
@@ -774,7 +888,7 @@ function JdForm({
           style={{ background: ACCENT }}
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          Save to JD Bank
+          {person ? `Save to ${person.name.split(" ")[0]}'s JD` : "Save to JD Bank"}
         </button>
         <button
           type="button"
@@ -883,6 +997,40 @@ function NoPositionsYet({ ranks }: { ranks: JdRankRow[] }) {
 }
 
 /* ── Small pieces ─────────────────────────────────────────────────────────── */
+
+/**
+ * A textarea with a small Dictate pill in its top-right corner — inside the box,
+ * not beside the label. Top rather than bottom, because the bottom-right corner
+ * is the resize handle. Spoken words are appended to whatever is already typed.
+ */
+function DictateTextarea({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="relative">
+      <textarea
+        rows={2}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-slate-300 py-2 pl-3 pr-24 text-[13px]"
+      />
+      <div className="absolute right-1.5 top-1.5">
+        <VoiceNoteButton
+          compact
+          label="Dictate"
+          onText={(t) => onChange(value.trim() ? `${value.trimEnd()} ${t}` : t)}
+        />
+      </div>
+    </div>
+  );
+}
 
 function Field({
   label,

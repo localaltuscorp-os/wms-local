@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireUser, getDelegation } from "@/lib/auth/current";
@@ -31,6 +31,8 @@ import { ManagerDailyTaskGate } from "@/components/manager-gates/manager-daily-t
 import { dccGateTarget, dccManagerReviewState } from "@/lib/dcc/gate";
 import { DccGateView } from "@/components/dcc/dcc-gate-view";
 import { DccManagerReviewGate } from "@/components/dcc/dcc-manager-review-gate";
+import { needsDccCalendarConnect } from "@/lib/dcc/calendar-gate";
+import { DccCalendarConnectGate } from "@/components/dcc/dcc-calendar-connect-gate";
 import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
 import { BroadcastPopup } from "@/components/ecos/broadcast-popup";
 import { pendingLockBroadcastForEmployee } from "@/lib/ecos/queries";
@@ -106,6 +108,18 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // disagree about who is exempt.
   if (!isExemptFromDailyStart(me.email)) {
     const firstName = me.name.split(" ")[0] ?? me.name;
+
+    // ── COMPULSORY — connect the Altus Google Calendar, where every DCC day now
+    //    sits (lib/dcc/calendar-gate.ts). Only for people with DCC KPIs; off with
+    //    DCC_CALENDAR_GATE_OFF=true. FAIL-OPEN: an error means no prompt. ──
+    if (await needsDccCalendarConnect(me).catch(() => false)) {
+      return (
+        <Suspense fallback={null}>
+          <DccCalendarConnectGate firstName={firstName} workEmail={me.officialEmail ?? me.email} />
+        </Suspense>
+      );
+    }
+
     const isManager = await isManagerWithReports(me.id).catch(() => false);
 
     // ── COMPULSORY — PLAN gate. Two implementations, switched by planGateOn():

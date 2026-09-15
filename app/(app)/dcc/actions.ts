@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { dccKpiItems, dccEntries, dccReviews } from "@/db/schema";
+import { dccKpiItems, dccEntries, dccReviews, employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { loadDccScope, canManageItemsFor, canReviewFor, canViewFor } from "@/lib/dcc/access";
@@ -13,6 +13,10 @@ import { parseAmount } from "@/lib/accounts/amounts";
 import { parseFrequency, scheduledDueOn } from "@/lib/dcc/util";
 import { listOwnerItems, listOwnerEntries } from "@/lib/queries/dcc";
 import { writeDccEntry, writeParticipantEntries } from "@/lib/dcc/write";
+import { checkDccItemDelete } from "@/lib/dcc/item-lock";
+import { scheduleDccCalendarSync } from "@/lib/dcc/calendar-sync";
+import { masterDesignationForItem } from "@/lib/dcc/master-sync";
+import { masterLockedMessage } from "@/lib/dcc/master";
 import { generateText, GeminiNotConfiguredError } from "@/lib/ai/gemini";
 
 const PATH = "/dcc";
@@ -127,6 +131,7 @@ export async function createDccItem(input: unknown): Promise<ActionResult<{ id: 
         unit: d.unit, sortOrder: maxRows[0]?.next ?? 1, createdById: me.id,
       })
       .returning({ id: dccKpiItems.id });
+    scheduleDccCalendarSync(d.ownerEmployeeId);
     revalidatePath(PATH);
     return { ok: true, id: row!.id };
   } catch (err) { return fail(err instanceof Error ? err.message : String(err)); }
@@ -144,6 +149,9 @@ export async function updateDccItem(input: unknown): Promise<ActionResult> {
     if (!item) return fail("KPI not found.");
     const scope = await loadDccScope(me);
     if (!canManageItemsFor(scope, item.owner)) return fail("Not allowed.");
+    // A master KPI changes only through its DCC Master (lib/dcc/master.ts).
+    const fromMaster = await masterDesignationForItem(id);
+    if (fromMaster) return fail(masterLockedMessage(fromMaster));
     const pf = parseFrequency(d.frequency);
     await db.update(dccKpiItems).set({
       section: d.section, code: d.code, title: d.title, frequency: d.frequency,
@@ -153,6 +161,7 @@ export async function updateDccItem(input: unknown): Promise<ActionResult> {
       ...(d.clientId !== undefined ? { clientId: d.clientId } : {}),
       updatedAt: new Date(),
     }).where(eq(dccKpiItems.id, id));
+    scheduleDccCalendarSync(item.owner);
     revalidatePath(PATH);
     return { ok: true };
   } catch (err) { return fail(err instanceof Error ? err.message : String(err)); }
@@ -164,11 +173,22 @@ export async function deleteDccItem(id: string): Promise<ActionResult> {
   if (limited) return limited;
   if (!z.string().uuid().safeParse(id).success) return fail("Invalid id.");
   try {
-    const [item] = await db.select({ owner: dccKpiItems.ownerEmployeeId }).from(dccKpiItems).where(eq(dccKpiItems.id, id)).limit(1);
+    const [item] = await db
+      .select({ owner: dccKpiItems.ownerEmployeeId, creatorEmail: employees.email })
+      .from(dccKpiItems)
+      .leftJoin(employees, eq(employees.id, dccKpiItems.createdById))
+      .where(eq(dccKpiItems.id, id))
+      .limit(1);
     if (!item) return fail("KPI not found.");
     const scope = await loadDccScope(me);
     if (!canManageItemsFor(scope, item.owner)) return fail("Not allowed.");
+    const fromMaster = await masterDesignationForItem(id);
+    if (fromMaster) return fail(masterLockedMessage(fromMaster));
+    // A KPI Manan Sir gave is his alone to delete (lib/dcc/item-lock.ts).
+    const lock = checkDccItemDelete({ actorEmail: me.email, creatorEmail: item.creatorEmail });
+    if (!lock.ok) return lock;
     await db.update(dccKpiItems).set({ archived: true, updatedAt: new Date() }).where(eq(dccKpiItems.id, id));
+    scheduleDccCalendarSync(item.owner);
     revalidatePath(PATH);
     return { ok: true };
   } catch (err) { return fail(err instanceof Error ? err.message : String(err)); }

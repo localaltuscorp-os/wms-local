@@ -41,6 +41,7 @@ export type SortKey =
   | "sr"
   | "doer"
   | "activity"
+  | "category"
   | "offset"
   | "target"
   | "backup"
@@ -71,6 +72,7 @@ export interface SortableRow {
   offsetDays: number | null;
   sortOrder: number;
   title: string;
+  category: string | null;
   doerId: string | null;
   backupId: string | null;
   status: CheckStatus;
@@ -120,6 +122,8 @@ export function sortChecklistRows<T extends SortableRow>(
         return ctx.nameOf(r.backupId);
       case "activity":
         return r.title;
+      case "category":
+        return r.category?.trim() || null;
       case "offset":
         return r.offsetDays;
       case "target":

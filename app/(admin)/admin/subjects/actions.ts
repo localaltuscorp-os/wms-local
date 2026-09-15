@@ -5,7 +5,8 @@ import { CACHE_TAGS } from "@/lib/cache-tags";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { subjects, tasks, settingsEvents } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth/current";
+import { requireUser } from "@/lib/auth/current";
+import { TASK_ROSTER_REFUSAL, canManageTaskRosters } from "@/lib/security/capabilities";
 import {
   CreateSubjectSchema,
   UpdateSubjectSchema,
@@ -33,7 +34,9 @@ function revalidateSubjectSurfaces() {
 export async function createSubject(
   input: CreateSubjectInput,
 ): Promise<ActionResult<{ id: string }>> {
-  const me = await requireAdmin();
+  const me = await requireUser();
+  // Locked to Manan Sir, Jeevan and Rohan (2026-09-15) — not every admin.
+  if (!canManageTaskRosters(me.email)) return { ok: false, error: TASK_ROSTER_REFUSAL };
 
   const parsed = CreateSubjectSchema.safeParse(input);
   if (!parsed.success) {
@@ -81,7 +84,9 @@ export async function updateSubject(
   subjectId: string,
   fields: UpdateSubjectInput,
 ): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const me = await requireUser();
+  // Locked to Manan Sir, Jeevan and Rohan (2026-09-15) — not every admin.
+  if (!canManageTaskRosters(me.email)) return { ok: false, error: TASK_ROSTER_REFUSAL };
 
   const parsedId = SubjectIdSchema.safeParse(subjectId);
   if (!parsedId.success) {

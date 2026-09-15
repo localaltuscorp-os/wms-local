@@ -1,6 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BookMarked,
+  Briefcase,
+  Library,
   CalendarClock,
   CalendarDays,
   ClipboardList,
@@ -17,6 +19,7 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
+  UserRound,
   Users2,
 } from "lucide-react";
 
@@ -253,3 +256,59 @@ export function isOperationsItemActive(item: OperationsSubItem, pathname: string
   if (item.exact) return pathname === item.href;
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
+
+/* ── MASTERS (account holder, 2026-09-15) ────────────────────────────────────
+ * Every master the room keeps, in a rail section of its own, each topic kept
+ * separate: Checklist · Events · Job Description (General, and per person).
+ *
+ * A SECTION, not an eighth area. The areas above are where the work happens;
+ * these are the reference lists the work is built from, and they were buried
+ * one inside each area. The same list feeds the left rail (main-nav.tsx), the
+ * tab strip on every Masters page and the Masters overview — one copy, so the
+ * three cannot disagree about what a master is. */
+export type OperationsMasterTopic = "Overview" | "Checklist" | "Events" | "Job Description";
+
+export interface OperationsMasterItem extends OperationsSubItem {
+  topic: OperationsMasterTopic;
+  /** One line for the overview card. */
+  blurb: string;
+}
+
+export const OPERATIONS_MASTERS: OperationsMasterItem[] = [
+  {
+    href: "/operations/masters",
+    label: "All Masters",
+    Icon: Library,
+    exact: true,
+    topic: "Overview",
+    blurb: "Every master in one place.",
+  },
+  {
+    href: "/operations/masters/checklist",
+    label: "Checklist Masters",
+    Icon: ListChecks,
+    topic: "Checklist",
+    blurb: "Reusable checklists — activities, day offsets, doers and backups. New checklists are built from these.",
+  },
+  {
+    href: "/operations/masters/events",
+    label: "Event Masters",
+    Icon: Palette,
+    topic: "Events",
+    blurb: "Event categories (the colour legend behind every event) and batch types.",
+  },
+  {
+    href: "/operations/masters/jd",
+    label: "General JD",
+    Icon: Briefcase,
+    topic: "Job Description",
+    blurb: "Job descriptions owned by a position — the work stays with the seat when people change.",
+  },
+  {
+    href: "/operations/masters/person-jd",
+    label: "Person-specific JD",
+    Icon: UserRound,
+    topic: "Job Description",
+    blurb: "One person's whole JD — their seat's tasks, tasks given to them by name, and personal tasks.",
+  },
+];

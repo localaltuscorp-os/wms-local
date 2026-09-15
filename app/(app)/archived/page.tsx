@@ -6,6 +6,7 @@ import { listTasks, listDistinctSubjects } from "@/lib/queries/tasks";
 import { parseTaskFilters } from "@/lib/task-filters";
 import { requireUser } from "@/lib/auth/current";
 import { canChangeDoerFor } from "@/lib/auth/doer-permission";
+import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
 import { defaultScopeId, opensOnEveryone } from "@/lib/auth/default-scope";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
@@ -25,6 +26,7 @@ export default async function ArchivedPage({ searchParams }: PageProps) {
   // passed down as a boolean — the table is a client component and has no
   // business knowing emails or the org chart. The server actions re-check it.
   const mayChangeDoer = await canChangeDoerFor(me);
+  const managedIds = await getDownlineIds(me.id).catch(() => [] as string[]);
   // Archiving is admin-only, so the archive view is too — a doer who types the
   // URL is sent back to their task list.
   if (!me.isAdmin) redirect("/tasks" as Route);
@@ -81,7 +83,7 @@ export default async function ArchivedPage({ searchParams }: PageProps) {
         filters={filters}
         basePath="/archived"
         employees={allEmployees.map((e) => ({ id: e.id, name: e.name }))}
-        me={{ id: me.id, isAdmin: me.isAdmin, canChangeDoer: mayChangeDoer }}
+        me={{ id: me.id, isAdmin: me.isAdmin, canChangeDoer: mayChangeDoer, managedIds }}
         statusLabels={statusLabels}
         statusTones={statusTones}
         subjects={subjects}

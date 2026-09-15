@@ -59,13 +59,14 @@ import {
   Home,
   CheckCircle2,
   Users2,
+  Layers as DccMasterIcon,
 } from "lucide-react";
 import type { Route } from "next";
 import type { LucideIcon } from "lucide-react";
 import { MainNavPill } from "./main-nav-pill";
 import { MainNavGroup } from "./main-nav-group";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
-import { OPERATIONS_AREAS, type OperationsAreaId } from "@/lib/operations/nav";
+import { OPERATIONS_AREAS, OPERATIONS_MASTERS, type OperationsAreaId } from "@/lib/operations/nav";
 import { nodeKeyForPath } from "@/lib/permissions/catalog";
 import { HR_STAGES, hrItemHref, type HrStage, type HrStageKey } from "@/lib/hr/lifecycle";
 
@@ -249,7 +250,21 @@ const OPERATIONS_NAV: WorkspaceNav = {
     label: a.label,
     Icon: a.Icon,
   })),
-  groups: [],
+  /* MASTERS (2026-09-15) — the reference lists behind the areas, as a rail
+     section of their own with each topic separate. The rail (drawer variant)
+     renders a group as a headed section. See OPERATIONS_MASTERS. */
+  groups: [
+    {
+      label: "Masters",
+      Icon: OPERATIONS_MASTERS[0]!.Icon,
+      items: OPERATIONS_MASTERS.map((m) => ({
+        href: m.href as Route,
+        label: m.label,
+        Icon: m.Icon,
+        exact: m.exact,
+      })),
+    },
+  ],
 };
 
 /* The legacy `events` / `people-allocation` / `training` WorkspaceNav entries
@@ -340,7 +355,10 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // attendance page before — Leave as a link, Live Status as a rail panel —
       // which put a whole-team snapshot on the screen an individual visits to
       // clock in. Each now has its own door.
-      { href: "/dcc" as Route, label: "DCC", Icon: Gauge },
+      // The dashboard has its own door, so DCC must not stay lit while you stand on it.
+      { href: "/dcc" as Route, label: "DCC", Icon: Gauge, not: ["/dcc/dashboard", "/dcc/masters"] },
+      { href: "/dcc/dashboard" as Route, label: "DCC Dashboard", Icon: LayoutDashboard },
+      { href: "/dcc/masters" as Route, label: "DCC Master", Icon: DccMasterIcon },
       { href: "/attendance/leave" as Route, label: "Leaves", Icon: Plane },
       { href: "/attendance/remote-work" as Route, label: "Remote Work", Icon: House },
       {
@@ -599,6 +617,7 @@ const NAV_TITLE_ENTRIES: Array<[string, string]> = (() => {
    design — the rail label is right almost everywhere. */
 const TITLE_OVERRIDES: Record<string, string> = {
   "/accounts": "Accounts",
+  "/operations/masters": "Masters",
   "/hub": "Hub",
   "/": "Hub",
 };

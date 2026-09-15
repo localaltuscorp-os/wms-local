@@ -3,14 +3,7 @@ import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import { JdBank } from "@/components/operations/job-description/jd-bank";
-import { demoJdSnapshot, type DemoHolder } from "@/lib/demo/jd-demo";
-import {
-  isMissingJdTable,
-  listJdEntries,
-  listJdPeople,
-  listPositions,
-  listRanks,
-} from "@/lib/queries/job-description";
+import { loadJdBank } from "@/lib/operations/jd-bank-data";
 
 export const dynamic = "force-dynamic";
 
@@ -35,23 +28,7 @@ export default async function JobDescriptionPage() {
      Supabase, so there is a real window where this page is deployed and its
      tables do not exist. Without this the window looks like a 500 with a stack
      trace; with it, it says what to do. */
-  let entries, positions, ranks, people;
-  let holders: DemoHolder[] = [];
-  let demo = false;
-  try {
-    [entries, positions, ranks, people] = await Promise.all([
-      listJdEntries({ includeInactive: true }),
-      listPositions(),
-      listRanks(),
-      listJdPeople(),
-    ]);
-  } catch (e) {
-    if (!isMissingJdTable(e)) throw e;
-    /* Fall back to a seeded in-memory Bank rather than a "run the migration"
-       card. The card was accurate and unreviewable — see lib/demo/store.ts. */
-    demo = true;
-    ({ entries, positions, ranks, people, holders } = demoJdSnapshot());
-  }
+  const { entries, positions, ranks, people, holders, demo } = await loadJdBank();
 
   return (
     <PageShell>

@@ -19,6 +19,7 @@ import { resolveAssignees, type ResolutionVia } from "@/lib/jd/ladder";
 import type { JdEntryRow, JdPositionRow } from "@/lib/queries/job-description";
 import { setJdEntryActive, updateJdEntry } from "@/app/(app)/operations/job-description/actions";
 import { ModuleAssignBoxes } from "@/components/operations/job-description/module-assign-boxes";
+import { CategoryInput } from "@/components/operations/category-input";
 
 const ACCENT = "#B91C1C";
 
@@ -52,6 +53,11 @@ export function whoDoesIt(
   positions: JdPositionRow[],
   holders: SeatHolder[],
 ): Doers {
+  // A personal task (0233) is its owner's, whoever else is named on it.
+  if (entry.ownerEmployeeId) {
+    return { names: [entry.ownerName ?? "—"], via: "assigned", landedOn: null, chain: [] };
+  }
+
   // An explicit assignment beats the seat, and the Bank stores those as names.
   if (entry.assignees.length > 0) {
     return { names: entry.assignees, via: "assigned", landedOn: null, chain: [] };
@@ -130,12 +136,15 @@ export function JdDetailDrawer({
   positions,
   holders,
   people,
+  categories = [],
   onClose,
 }: {
   entry: JdEntryRow;
   positions: JdPositionRow[];
   holders: SeatHolder[];
   people: { id: string; name: string }[];
+  /** Categories already used across the Bank, offered as suggestions. */
+  categories?: readonly string[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -233,8 +242,10 @@ export function JdDetailDrawer({
             )}
           </section>
 
-          <Row label="Position">
-            <span className="font-semibold text-slate-900">{seat?.title ?? "—"}</span>
+          <Row label={entry.ownerEmployeeId ? "Personal JD" : "Position"}>
+            <span className="font-semibold text-slate-900">
+              {entry.ownerEmployeeId ? entry.ownerName ?? "—" : seat?.title ?? "—"}
+            </span>
             {seat && (
               <span className="ml-2 text-slate-500">
                 {seatHolders.length === 0
@@ -246,6 +257,22 @@ export function JdDetailDrawer({
 
           <Row label="Function">
             {FUNCTION_LABELS[entry.functionKey as BusinessFunction] ?? entry.functionKey}
+          </Row>
+
+          {/* Saves on blur, like everything else in this drawer. */}
+          <Row label="Category">
+            <span className="inline-flex w-full items-center gap-2">
+              <CategoryInput
+                value={entry.category}
+                suggestions={categories}
+                disabled={busy === "category"}
+                onCommit={(v) => save({ category: v }, "category")}
+                className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-[13px] text-slate-800"
+              />
+              {busy === "category" && (
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-slate-400" />
+              )}
+            </span>
           </Row>
 
           <Row label="Frequency">

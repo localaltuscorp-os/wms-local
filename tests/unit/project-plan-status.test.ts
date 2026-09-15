@@ -82,29 +82,33 @@ describe("working flow — the doer, their supervisor, the owner", () => {
   });
 });
 
-// Brief §6: the restricted five are a RULING about the work. This is the rule
-// the whole permission story rests on.
-describe("restricted flow — the project owner or an administrator, nobody else", () => {
-  it("lets the owner and an admin rule", () => {
-    for (const who of [ADMIN, OWNER]) {
-      for (const s of PLAN_RESTRICTED_STATUSES) {
-        expect(canSetPlanStatus(who, s).ok).toBe(true);
+// The restricted values are a RULING about the work. Since 2026-09-15 the
+// rulings follow the one Approver / Initiator rule WMS Tasks and Goals share:
+// the owner (initiator), the doer's manager (supervisor) or an admin — never
+// the doer. Archiving stays owner/admin.
+const RULINGS = PLAN_RESTRICTED_STATUSES.filter((s) => s !== "archived");
+
+describe("restricted flow — the Approver / Initiator rule", () => {
+  it("lets the owner, the supervisor and an admin rule", () => {
+    for (const who of [ADMIN, OWNER, SUPERVISOR]) {
+      for (const s of RULINGS) {
+        expect(canSetPlanStatus(who, s, "done").ok).toBe(true);
       }
     }
   });
 
   it("refuses the DOER — the person who did the work cannot approve it", () => {
-    for (const s of PLAN_RESTRICTED_STATUSES) {
-      const v = canSetPlanStatus(DOER, s);
+    for (const s of RULINGS) {
+      const v = canSetPlanStatus(DOER, s, "done");
       expect(v.ok).toBe(false);
-      if (!v.ok) expect(v.reason).toMatch(/project owner or an administrator/i);
+      if (!v.ok) expect(v.reason).toMatch(/doer can't/i);
     }
   });
 
-  it("refuses the SUPERVISOR too — reporting up is not the same as ruling", () => {
-    for (const s of PLAN_RESTRICTED_STATUSES) {
-      expect(canSetPlanStatus(SUPERVISOR, s).ok).toBe(false);
-    }
+  it("keeps archiving to the owner and an admin", () => {
+    expect(canSetPlanStatus(ADMIN, "archived").ok).toBe(true);
+    expect(canSetPlanStatus(OWNER, "archived").ok).toBe(true);
+    expect(canSetPlanStatus(SUPERVISOR, "archived").ok).toBe(false);
   });
 
   it("refuses a bystander", () => {
@@ -113,10 +117,10 @@ describe("restricted flow — the project owner or an administrator, nobody else
     }
   });
 
-  it("names the status it refused, so the message is actionable", () => {
-    const v = canSetPlanStatus(DOER, "approved");
-    expect(v.ok).toBe(false);
-    if (!v.ok) expect(v.reason).toContain("Approved");
+  it("waits for Done before Approved or Not Approved, but not before On Hold", () => {
+    expect(canSetPlanStatus(OWNER, "approved", "initiated").ok).toBe(false);
+    expect(canSetPlanStatus(OWNER, "not_approved", null).ok).toBe(false);
+    expect(canSetPlanStatus(OWNER, "on_hold", "initiated").ok).toBe(true);
   });
 });
 
@@ -127,6 +131,10 @@ describe("selectableStatuses — what a picker may offer", () => {
         PLAN_WORKING_STATUSES.length + PLAN_RESTRICTED_STATUSES.length,
       );
     }
+  });
+
+  it("gives a supervisor the working six and the rulings, but not archiving", () => {
+    expect(selectableStatuses(SUPERVISOR)).toEqual([...PLAN_WORKING_STATUSES, ...RULINGS]);
   });
 
   it("gives a doer the working six and not one verdict", () => {

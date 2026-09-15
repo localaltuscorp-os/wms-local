@@ -34,8 +34,9 @@ export function GoogleCalendarCard({
     const status = params.get("google");
     if (!status) return;
     const msg: Record<string, string> = {
-      connected: "Google Calendar connected — your tasks will sync.",
+      connected: "Google Calendar connected — your tasks and Daily Compliance will sync.",
       denied: "Google Calendar connection was cancelled.",
+      wrong_account: "That Google account isn't your Altus account. Connect with your Altus email.",
       error: "Couldn't connect Google Calendar. Please try again.",
       unconfigured: "Google Calendar isn't configured on the server yet.",
     };
@@ -58,12 +59,15 @@ export function GoogleCalendarCard({
         fireToast({ message: res.error });
         return;
       }
-      fireToast({
-        message:
-          res.synced === 0
-            ? "No active tasks to sync — nothing assigned to you right now."
-            : `Synced ${res.synced} of ${res.attempted} task${res.attempted === 1 ? "" : "s"} to your calendar.`,
-      });
+      const tasks =
+        res.synced === 0
+          ? "No active tasks to sync."
+          : `Synced ${res.synced} of ${res.attempted} task${res.attempted === 1 ? "" : "s"} to your calendar.`;
+      const dcc =
+        res.dccChanged === 0
+          ? "Daily Compliance is up to date."
+          : `${res.dccChanged} Daily Compliance day${res.dccChanged === 1 ? "" : "s"} updated.`;
+      fireToast({ message: `${tasks} ${dcc}` });
     });
   }
 
@@ -86,8 +90,8 @@ export function GoogleCalendarCard({
           <h3 className="text-[16px] font-bold text-ink-strong">Google Calendar</h3>
           <p className="mt-1 text-[14px] text-ink-soft leading-relaxed">
             {connected
-              ? "Connected — tasks assigned to you are added to your Google Calendar automatically, and stay in sync as they change."
-              : "Connect your Google Calendar so tasks assigned to you appear there automatically when they're created."}
+              ? "Connected — tasks assigned to you and your Daily Compliance (one entry per day) are added to your Google Calendar automatically, and stay in sync as they change."
+              : "Connect your Altus Google Calendar so tasks assigned to you and your Daily Compliance appear there automatically."}
           </p>
 
           {connected ? (

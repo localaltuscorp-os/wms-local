@@ -3858,6 +3858,114 @@ export const dccReviews = pgTable(
   (t) => [uniqueIndex("dcc_reviews_uq").on(t.ownerEmployeeId, t.reviewDate)],
 );
 
+// Migration 0229 — each person-day's DCC event in their Google Calendar
+// (lib/dcc/calendar-sync.ts). A row with a null event id records a day whose
+// event was removed, keeping its snapshot time so an older sync cannot revive it.
+export const dccCalendarEvents = pgTable(
+  "dcc_calendar_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    eventDate: date("event_date").notNull(),
+    googleEventId: text("google_event_id"),
+    syncedHash: text("synced_hash"),
+    snapshotAt: timestamp("snapshot_at", { withTimezone: true }),
+    syncedAt: timestamp("synced_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    attempts: integer("attempts").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("dcc_calendar_events_uq").on(t.employeeId, t.eventDate)],
+);
+
+// Migration 0230 — DCC Masters: the Daily Compliance template for a designation
+// (lib/dcc/master.ts, lib/dcc/master-sync.ts).
+export const dccMasterItems = pgTable(
+  "dcc_master_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    designationId: uuid("designation_id").notNull().references(() => designations.id, { onDelete: "cascade" }),
+    section: text("section"),
+    code: text("code"),
+    title: text("title").notNull(),
+    frequency: text("frequency"),
+    targetNumber: numeric("target_number", { precision: 14, scale: 2 }),
+    unit: text("unit"),
+    sortOrder: integer("sort_order").notNull().default(100),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("dcc_master_items_designation_idx").on(t.designationId, t.isActive, t.sortOrder)],
+);
+
+// Which of a person's KPIs came from a master. A separate table, NOT a column on
+// dcc_kpi_items — see migration 0230 for why. No row = a person-specific KPI.
+export const dccMasterLinks = pgTable(
+  "dcc_master_links",
+  {
+    itemId: uuid("item_id").primaryKey().references(() => dccKpiItems.id, { onDelete: "cascade" }),
+    masterItemId: uuid("master_item_id").notNull().references(() => dccMasterItems.id, { onDelete: "cascade" }),
+    ownerEmployeeId: uuid("owner_employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("dcc_master_links_owner_master_uq").on(t.ownerEmployeeId, t.masterItemId)],
+);
+
+// Migration 0231 — the Approver / Initiator Status of a goal (lib/status/
+// approver-status.ts). Side tables, NOT columns on goals / weekly_goals: those
+// are read with bare select()/returning() across the Goals module. No row = Pending.
+export const goalApproverStatuses = pgTable("goal_approver_statuses", {
+  goalId: uuid("goal_id").primaryKey().references(() => goals.id, { onDelete: "cascade" }),
+  approvalStatus: text("approval_status").notNull().$type<"approved" | "not_approved" | "on_hold" | "cancelled">(),
+  setById: uuid("set_by_id").references(() => employees.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Migration 0232 — Recruitment JDs (HR). Not the internal JD Bank (jd_*): these
+// are what recruiters send candidates. Content shape: lib/hr/recruitment-jd.ts.
+export const recruitmentJds = pgTable("recruitment_jds", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  positionId: uuid("position_id").notNull().unique().references(() => interviewPositions.id, { onDelete: "restrict" }),
+  masterContent: jsonb("master_content"),
+  masterUpdatedById: uuid("master_updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+  masterUpdatedAt: timestamp("master_updated_at", { withTimezone: true }),
+  /** NULL = the same as the master. */
+  recruiterContent: jsonb("recruiter_content"),
+  recruiterUpdatedById: uuid("recruiter_updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+  recruiterUpdatedAt: timestamp("recruiter_updated_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const recruitmentJdSends = pgTable(
+  "recruitment_jd_sends",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jdId: uuid("jd_id").references(() => recruitmentJds.id, { onDelete: "set null" }),
+    positionLabel: text("position_label").notNull(),
+    channel: text("channel").notNull().$type<"whatsapp" | "email">(),
+    recipientName: text("recipient_name"),
+    recipientPhone: text("recipient_phone"),
+    recipientEmail: text("recipient_email"),
+    content: jsonb("content").notNull(),
+    status: text("status").notNull().$type<"opened" | "sent" | "failed">(),
+    error: text("error"),
+    sentById: uuid("sent_by_id").references(() => employees.id, { onDelete: "set null" }),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("recruitment_jd_sends_jd_idx").on(t.jdId, t.sentAt)],
+);
+
+export const weeklyGoalApproverStatuses = pgTable("weekly_goal_approver_statuses", {
+  weeklyGoalId: uuid("weekly_goal_id").primaryKey().references(() => weeklyGoals.id, { onDelete: "cascade" }),
+  approvalStatus: text("approval_status").notNull().$type<"approved" | "not_approved" | "on_hold" | "cancelled">(),
+  setById: uuid("set_by_id").references(() => employees.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type DccKpiItem = typeof dccKpiItems.$inferSelect;
 export type DccEntry = typeof dccEntries.$inferSelect;
 export type DccReview = typeof dccReviews.$inferSelect;
@@ -8161,12 +8269,15 @@ export const jdEntries = pgTable(
       .notNull()
       .unique()
       .default(sql`'JD-' || lpad(nextval('jd_entries_serial_seq')::text, 4, '0')`),
-    positionId: uuid("position_id")
-      .notNull()
-      .references(() => jdPositions.id, { onDelete: "restrict" }),
+    /* EXACTLY ONE OWNER (migration 0233): a position (the General JD) or a
+       person (their personal JD). A CHECK in the database enforces it. */
+    positionId: uuid("position_id").references(() => jdPositions.id, { onDelete: "restrict" }),
+    ownerEmployeeId: uuid("owner_employee_id").references(() => employees.id, { onDelete: "cascade" }),
     /** Denormalised from the position so the Bank filters without a join. */
     functionKey: text("function_key").notNull(),
     task: text("task").notNull(),
+    /** Free text the author types — Housekeeping, Internet, Vendors. Migration 0228. */
+    category: text("category"),
     notesHtml: text("notes_html"),
     /** Structured, never a label string. Shape in lib/jd/recurrence.ts. */
     recurrence: jsonb("recurrence").notNull().default({ kind: "daily" }),

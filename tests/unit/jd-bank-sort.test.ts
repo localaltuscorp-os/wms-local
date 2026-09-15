@@ -16,7 +16,7 @@ import {
 /**
  * SORTING THE JD BANK (account holder, 2026-09-12).
  *
- * Ten columns, and three of them hold SETS rather than values — Attachment,
+ * Eleven columns, and three of them hold SETS rather than values — Attachment,
  * Add To and Add To Person. What those sort by, and where an empty one lands,
  * is the part no screenshot shows and the part a reader will notice first.
  */
@@ -30,6 +30,7 @@ function row(id: string, over: Partial<Row> = {}): Row {
     positionTitle: "Admin - Executive",
     functionKey: "admin",
     task: `Task ${id}`,
+    category: null,
     notesHtml: null,
     estimatedMinutes: 15,
     videoUrl: null,
@@ -206,5 +207,23 @@ describe("ties and the click cycle", () => {
 
   it("compares serials numerically wherever it is used", () => {
     expect(compareBySerial(row("2"), row("10"))).toBeLessThan(0);
+  });
+});
+
+describe("the Category column", () => {
+  const rows = [
+    row("v", { category: "Vendors" }),
+    row("blank", { category: null }),
+    row("h", { category: "Housekeeping" }),
+    row("space", { category: "   " }),
+    row("i", { category: "Internet" }),
+  ];
+
+  it("sorts A–Z by the text, with blanks last", () => {
+    expect(by(rows, "category", "asc")).toEqual(["h", "i", "v", "blank", "space"]);
+  });
+
+  it("keeps blanks last when reversed", () => {
+    expect(by(rows, "category", "desc")).toEqual(["v", "i", "h", "blank", "space"]);
   });
 });

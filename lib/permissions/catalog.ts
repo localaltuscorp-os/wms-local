@@ -239,6 +239,7 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
          grant already written against it. */
       { key: "hr.salary-slip", label: "Salary Slip", routes: ["/salary-slip", "/hr/salary-slip"] },
       { key: "hr.letters", label: "Letters", routes: ["/hr/letters"] },
+      { key: "hr.recruitment-jd", label: "Recruitment JDs", routes: ["/hr/recruitment-jd"] },
       // These three have NO page at the bare segment — only children. Naming
       // the real paths keeps the catalogue test honest: a route listed here that
       // does not exist on disk is a switch wired to nothing, which is worse than
@@ -517,6 +518,7 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "operations.home", label: "Operations Home", routes: ["/operations"] },
       { key: "operations.checklist", label: "Checklist", routes: ["/operations/checklist"] },
       { key: "operations.guidelines", label: "Guidelines", routes: ["/operations/guidelines"] },
+      { key: "operations.masters", label: "Masters", routes: ["/operations/masters"] },
     ],
   },
 

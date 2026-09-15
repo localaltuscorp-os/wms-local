@@ -33,6 +33,10 @@
       "schedule": "0 14 * * *"
     },
     {
+      "path": "/api/cron/dcc-daily-report",
+      "schedule": "30 16 * * *"
+    },
+    {
       "path": "/api/cron/calendar-sync",
       "schedule": "20 3 * * *"
     },
@@ -143,6 +147,14 @@
     {
       "path": "/api/cron/retention-anonymise",
       "schedule": "0 21 * * 0"
+    },
+    {
+      "path": "/api/cron/dcc-calendar-sync",
+      "schedule": "35 18 * * *"
+    },
+    {
+      "path": "/api/cron/dcc-calendar-sync",
+      "schedule": "30 6 * * *"
     }
   ]
 }

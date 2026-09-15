@@ -7,12 +7,13 @@ import type { Route } from "next";
 import Link from "next/link";
 import {
   ChevronLeft, ChevronRight, ChevronDown, Flame, CheckCircle2, Loader2, StickyNote, Plus, Pencil,
-  Trash2, X, Check, Trophy, Sparkles, ListChecks, PenLine, ShieldCheck, CalendarDays, Users, CalendarClock,
+  Trash2, X, Check, Trophy, Sparkles, ListChecks, PenLine, ShieldCheck, CalendarDays, Users, CalendarClock, Lock, Layers,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { Avatar } from "@/components/ui/avatar";
 import type { DccItemRow, DccEntryRow, DccPerson, DccClientRow, DccSubjectRow, DccItemSubjectRow } from "@/lib/queries/dcc";
 import { DCC_STATUSES, dccStatusTone, scheduledDueOn, slotKey, isoDate, maskLabel, isDueOn } from "@/lib/dcc/util";
+import { DCC_PAST_ENTRY_LOCKED, isDccDayOpen } from "@/lib/dcc/entry-lock";
 import { setDccEntry, setParticipantEntries, createDccItem, updateDccItem, deleteDccItem, setDccReview, summarizeDccDay, addParticipant, removeParticipant, renameParticipant } from "@/app/(app)/dcc/actions";
 
 type ReviewRow = { ownerEmployeeId: string; reviewDate: string; status: string | null; note: string | null };
@@ -31,7 +32,10 @@ interface Props {
   clients?: DccClientRow[];
   subjects?: DccSubjectRow[];
   itemSubjects?: DccItemSubjectRow[];
+  /** Today in IST — the one day an ordinary fill is still open. */
   today: string;
+  /** Holds `dcc.edit_past_entries`: may change closed days (Manan Sir). */
+  canEditPast?: boolean;
 }
 
 const GREEN = "#16a34a";
@@ -60,9 +64,14 @@ function fmtLong(iso: string): string {
   return dateToObj(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
 }
 
-export function DccBoard({ ownerId, ownerName, meId, canFill, canReview, canManage, people, items, entries, reviews, clients = [], subjects = [], itemSubjects = [], today }: Props) {
+export function DccBoard({ ownerId, ownerName, meId, canFill: canFillOwner, canReview, canManage, people, items, entries, reviews, clients = [], subjects = [], itemSubjects = [], today, canEditPast = false }: Props) {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = React.useState(today);
+  // May fill THIS board on THE SELECTED DAY: whose (the page's canFill) and when
+  // (lib/dcc/entry-lock.ts). The server applies the same rule on every save.
+  const dayOpen = isDccDayOpen(selectedDate, today, canEditPast);
+  const canFill = canFillOwner && dayOpen;
+  const dayLocked = canFillOwner && !dayOpen;
   const [showAll, setShowAll] = React.useState(false);
   const [, startTransition] = React.useTransition();
 
@@ -367,7 +376,27 @@ export function DccBoard({ ownerId, ownerName, meId, canFill, canReview, canMana
         <ReviewBar ownerId={ownerId} date={selectedDate} canReview={canReview} review={review} />
       )}
 
-      {!canFill && ownerId !== meId && (
+      {dayLocked && (
+        <p
+          className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] font-semibold"
+          style={{ background: "#FFFBEB", color: "#92400E", boxShadow: "inset 0 0 0 1px #FCD34D" }}
+          role="status"
+        >
+          <ShieldCheck size={16} strokeWidth={2.4} className="shrink-0" />
+          {fmtLong(selectedDate)} is locked. {DCC_PAST_ENTRY_LOCKED.replace(/^This day is closed\. /, "")}
+        </p>
+      )}
+      {canEditPast && canFill && selectedDate < today && (
+        <p
+          className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] font-semibold"
+          style={{ background: "#FEF2F2", color: "#991B1B", boxShadow: "inset 0 0 0 1px #FCA5A5" }}
+          role="status"
+        >
+          <PenLine size={16} strokeWidth={2.4} className="shrink-0" />
+          You are changing a closed day ({fmtLong(selectedDate)}). Past entries are locked for everyone else.
+        </p>
+      )}
+      {!canFillOwner && ownerId !== meId && (
         <p className="rounded-xl bg-surface-soft px-4 py-2.5 text-[13px] font-semibold text-ink-muted" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}>
           Viewing {ownerName}&apos;s KPIs — read-only.
         </p>
@@ -517,7 +546,7 @@ function ParticipantCard({ item, ownerId, allItems, clients, canManage, subjects
             <p className="mt-0.5 text-[12.5px] font-semibold text-ink-subtle">{subjects.length} participant{subjects.length === 1 ? "" : "s"} · {doneN} done · {addressed} addressed{freqLabel ? ` · ${freqLabel}` : ""}</p>
           </div>
         </button>
-        {canManage && <ItemEditor ownerId={ownerId} mode="edit" item={item} allItems={allItems} clients={clients} compact />}
+        {canManage && !item.masterDesignation && <ItemEditor ownerId={ownerId} mode="edit" item={item} allItems={allItems} clients={clients} compact />}
         <button onClick={() => setOpen((v) => !v)} className="shrink-0 text-ink-subtle transition-transform" style={{ transform: open ? "rotate(180deg)" : undefined }} aria-label={open ? "Collapse" : "Expand"}><ChevronDown size={18} /></button>
       </div>
       {open && (
@@ -679,6 +708,11 @@ function FillRow({ item, entry, busy, canFill, canManage, first, onCommit, clien
               {item.frequency && <span>{item.frequency}</span>}
               {!item.frequency && item.weekdays != null && <span>{maskLabel(item.weekdays)}</span>}
               {item.targetNumber != null && <span style={{ color: GREEN_DEEP }}>target {item.targetNumber}{item.unit ? ` ${item.unit}` : ""}</span>}
+              {item.masterDesignation && (
+                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11.5px] font-bold" style={{ background: "color-mix(in srgb, #16a34a 12%, transparent)", color: GREEN_DEEP }} title="Comes from the DCC Master for this position — change it in DCC Master.">
+                  <Layers size={11} /> {item.masterDesignation} master
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -724,7 +758,7 @@ function FillRow({ item, entry, busy, canFill, canManage, first, onCommit, clien
             <StickyNote size={18} />
           </button>
           {busy && <Loader2 size={16} className="animate-spin text-ink-subtle" />}
-          {canManage && <ItemEditor ownerId={item.ownerEmployeeId} mode="edit" item={item} clients={clients} compact />}
+          {canManage && !item.masterDesignation && <ItemEditor ownerId={item.ownerEmployeeId} mode="edit" item={item} clients={clients} compact />}
         </div>
       </div>
 
@@ -901,7 +935,10 @@ function ItemEditor({ ownerId, mode, item, compact, allItems, presetSection, sec
               </label>
             </div>
             <div className="mt-4 flex items-center justify-between">
-              {mode === "edit" ? (
+              {mode === "edit" && item?.deleteLocked ? (
+                // Manan Sir gave this KPI — only he can delete it (lib/dcc/item-lock.ts).
+                <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-muted"><Lock size={13} /> Given by Manan Sir. Only he can delete it.</span>
+              ) : mode === "edit" ? (
                 <button onClick={remove} className="bg-surface-card inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-bold text-altus-red transition-colors hover:bg-[color:color-mix(in_srgb,var(--color-altus-red)_8%,transparent)]"><Trash2 size={14} /> Delete</button>
               ) : <span />}
               <button onClick={submit} className="wg-btn inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[14px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DEEP})` }}><Check size={15} /> Save</button>

@@ -11,6 +11,7 @@ import type { GoalsBoardData } from "@/components/goals/board/types";
 import { resolveGoalsView } from "./cascade/view";
 import { listProjectOptions } from "@/lib/queries/projects";
 import { listActiveVendors } from "@/lib/queries/vendors";
+import { loadGoalApprovers } from "@/lib/goals/approver";
 
 /**
  * Lean data-load for the Goals LEVEL BOARD pages (Yearly / Quarterly /
@@ -72,7 +73,11 @@ export async function loadBoardData(sp: {
     createdById: row.employeeId,
   }));
 
-  const goals: GoalDTO[] = [...ownGoals, ...sharedGoals];
+  // Approver / Initiator Status (0231) — one lean side-table read; no rulings
+  // before the migration.
+  const listed = [...ownGoals, ...sharedGoals];
+  const approvers = await loadGoalApprovers(listed.map((g) => g.id));
+  const goals: GoalDTO[] = listed.map((g) => ({ ...g, approverStatus: approvers.get(g.id) ?? null }));
 
   // Weekly cascade rows → period="week" GoalDTOs keyed on their Monday
   // (`week_start`), parented up to their linked month goal. These populate the

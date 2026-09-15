@@ -71,6 +71,16 @@ const FUNCTION_LABEL: Record<string, string> = {
 
 let seq = 0;
 
+/** A few rows carry a Category so the column shows what it is for. */
+const DEMO_CATEGORY: Record<string, string> = {
+  "Renew the office fire-safety certificate": "Housekeeping",
+  "Open the shop floor and log attendance": "Housekeeping",
+  "Vendor payment sheet to Accounts": "Vendors",
+  "Dispatch check against the day's orders": "Vendors",
+  "Triage the error inbox": "Internet",
+  "Backup and restore drill": "Internet",
+};
+
 function seed(): Data {
   const ranks: JdRankRow[] = RANK_LADDER.map((r) => ({
     id: rankId(r.name),
@@ -186,6 +196,7 @@ function seed(): Data {
       positionTitle: `${FUNCTION_LABEL[fn]} - ${rank}`,
       functionKey: fn,
       task,
+      category: DEMO_CATEGORY[task] ?? null,
       notesHtml: null,
       recurrence,
       estimatedMinutes: minutes,
@@ -266,6 +277,7 @@ export function demoCreatePosition(v: {
 export function demoCreateEntry(v: {
   positionId: string;
   task: string;
+  category?: string | null;
   notesHtml?: string | null;
   /* Loose on the way in: the action hands over its zod output, whose weekday
      array widens to number[]. readRecurrence narrows it back. */
@@ -294,6 +306,7 @@ export function demoCreateEntry(v: {
     positionTitle: pos.title,
     functionKey: pos.functionKey,
     task: v.task,
+    category: v.category ?? null,
     notesHtml: v.notesHtml ?? null,
     recurrence: readRecurrence(v.recurrence),
     estimatedMinutes: v.estimatedMinutes,
@@ -320,6 +333,7 @@ export function demoUpdateEntry(v: Record<string, unknown> & { id: string }): bo
 
   for (const k of [
     "task",
+    "category",
     "estimatedMinutes",
     "videoUrl",
     "guidelinesUrl",

@@ -52,6 +52,8 @@ import {
   updateChecklistItem,
   updateChecklistRun,
 } from "@/app/(app)/operations/checklist/actions";
+import { CategoryInput, distinctCategories } from "@/components/operations/category-input";
+import { VoiceNoteButton } from "@/components/ui/voice-note-button";
 
 const ACCENT = "#E10600";
 const ACCENT_DEEP = "#A80400";
@@ -205,6 +207,7 @@ export function ChecklistGrid({ run, items, people, canEdit }: ChecklistGridProp
   }, [items, run.isEvent, run.eventDate, sort, nameById, today]);
 
   const overall = checklistProgress(items.map((i) => i.status));
+  const categories = React.useMemo(() => distinctCategories(items), [items]);
 
   /** Which groups get a header. Undated only appears when it has rows. */
   const phases: ChecklistPhase[] = run.isEvent
@@ -299,12 +302,13 @@ export function ChecklistGrid({ run, items, people, canEdit }: ChecklistGridProp
 
       {/* ── The grid ───────────────────────────────────────────────────────── */}
       <div className="table-scroll overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-        <table className="w-full min-w-[980px] text-[13px]">
+        <table className="w-full min-w-[1120px] text-[13px]">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
               <SortTh k="sr" sort={sort} onSort={toggleSort} className="w-16" />
               <SortTh k="doer" sort={sort} onSort={toggleSort} className="w-40" />
               <SortTh k="activity" sort={sort} onSort={toggleSort} />
+              <SortTh k="category" sort={sort} onSort={toggleSort} className="w-36" />
               {/* A non-event checklist has no anchor to offset from, so the
                   column is blank — and a blank header is nothing to sort by. */}
               {run.isEvent ? (
@@ -344,7 +348,7 @@ export function ChecklistGrid({ run, items, people, canEdit }: ChecklistGridProp
               const rows = grouped.get(phase) ?? [];
               const isShut = collapsed.has(phase);
               const prog = checklistProgress(rows.map((r) => r.status));
-              const colSpan = canEdit ? 10 : 9;
+              const colSpan = canEdit ? 11 : 10;
 
               return (
                 <React.Fragment key={phase}>
@@ -378,6 +382,7 @@ export function ChecklistGrid({ run, items, people, canEdit }: ChecklistGridProp
                         index={i + 1}
                         run={run}
                         people={people}
+                        categories={categories}
                         canEdit={canEdit}
                         today={today}
                         busy={busy}
@@ -431,6 +436,7 @@ const SORT_LABELS: Record<SortKey, string> = {
   sr: "Sr. No.",
   doer: "Doer",
   activity: "Activity",
+  category: "Category",
   offset: "Due Date",
   target: "Target Date",
   backup: "Backup",
@@ -512,6 +518,7 @@ function GridRow({
   index,
   run,
   people,
+  categories,
   canEdit,
   today,
   busy,
@@ -521,6 +528,7 @@ function GridRow({
   index: number;
   run: ChecklistRunRow;
   people: ChecklistPersonRow[];
+  categories: readonly string[];
   canEdit: boolean;
   today: string;
   busy: string | null;
@@ -557,17 +565,55 @@ function GridRow({
       </td>
 
       <td className="px-3 py-2">
-        <TextCell
-          value={item.title}
-          disabled={!canEdit || busy !== null}
-          onCommit={(v2) =>
-            onRun(`row:${item.id}`, () => updateChecklistItem({ id: item.id, title: v2 }))
-          }
-        />
+        <div className="relative">
+          <TextCell
+            value={item.title}
+            disabled={!canEdit || busy !== null}
+            padForMic={canEdit}
+            onCommit={(v2) =>
+              onRun(`row:${item.id}`, () => updateChecklistItem({ id: item.id, title: v2 }))
+            }
+          />
+          {/* In the cell's corner, but rendered OUTSIDE TextCell: that cell swaps
+              to plain text whenever ANY row is saving, which would unmount a
+              recording in progress. */}
+          {canEdit && (
+            <div className="absolute right-0.5 top-0.5">
+              <VoiceNoteButton
+                iconOnly
+                compact
+                label="Dictate with Voice"
+                onText={(t) =>
+                  onRun(`row:${item.id}`, () =>
+                    updateChecklistItem({ id: item.id, title: `${item.title.trimEnd()} ${t}` }),
+                  )
+                }
+              />
+            </div>
+          )}
+        </div>
         {item.jdEntryId && (
           <span className="mt-0.5 inline-block rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
             from JD
           </span>
+        )}
+      </td>
+
+      <td className="px-3 py-2">
+        {!canEdit || busy !== null ? (
+          <span className={item.category ? "text-slate-700" : "text-slate-300"}>
+            {item.category ?? "—"}
+          </span>
+        ) : (
+          <CategoryInput
+            value={item.category}
+            suggestions={categories}
+            placeholder="—"
+            onCommit={(v2) =>
+              onRun(`row:${item.id}`, () => updateChecklistItem({ id: item.id, category: v2 }))
+            }
+            className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] text-slate-800 outline-none placeholder:text-slate-300 hover:border-slate-200 focus:border-slate-300 focus:bg-white"
+          />
         )}
       </td>
 
@@ -679,10 +725,13 @@ function GridRow({
 function TextCell({
   value,
   disabled,
+  padForMic = false,
   onCommit,
 }: {
   value: string;
   disabled: boolean;
+  /** Leave room at the right for the Dictate mic sitting in the corner. */
+  padForMic?: boolean;
   onCommit: (v: string) => void;
 }) {
   /* The committed value is the source of truth; `draft` is what is being typed.
@@ -734,7 +783,9 @@ function TextCell({
           e.currentTarget.blur();
         }
       }}
-      className="w-full resize-none rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] text-slate-800 outline-none hover:border-slate-200 focus:border-slate-300 focus:bg-white"
+      className={`w-full resize-none rounded border border-transparent bg-transparent py-0.5 pl-1 text-[13px] text-slate-800 outline-none hover:border-slate-200 focus:border-slate-300 focus:bg-white ${
+        padForMic ? "pr-8" : "pr-1"
+      }`}
     />
   );
 }
@@ -959,18 +1010,29 @@ function QuickAddRow({
         <Plus className="h-3.5 w-3.5" />
       </td>
       <td colSpan={colSpan - 2} className="px-3 py-1.5">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={`Add a task to ${isEvent ? PHASE_LABELS[phase] : "the checklist"} — press Enter`}
-          className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] text-slate-700 outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-slate-300 focus:bg-white"
-        />
+        <div className="relative">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            placeholder={`Add a task to ${isEvent ? PHASE_LABELS[phase] : "the checklist"} — type, or dictate, then press Enter`}
+            className="w-full rounded border border-transparent bg-transparent py-0.5 pl-1 pr-24 text-[13px] text-slate-700 outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-slate-300 focus:bg-white"
+          />
+          {/* In the box's right corner. Fills the field rather than adding the
+              row, so the words can be checked before Enter. */}
+          <div className="absolute right-0.5 top-1/2 -translate-y-1/2">
+            <VoiceNoteButton
+              compact
+              label="Dictate"
+              onText={(t) => setTitle((cur) => (cur.trim() ? `${cur.trimEnd()} ${t}` : t))}
+            />
+          </div>
+        </div>
       </td>
       <td className="px-3 py-1.5 text-right">
         {busy === `add:${phase}` ? (

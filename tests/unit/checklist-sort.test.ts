@@ -36,6 +36,7 @@ function row(id: string, over: Partial<Row> = {}): Row {
     offsetDays: 0,
     sortOrder: 100,
     title: `Task ${id}`,
+    category: null,
     doerId: null,
     backupId: null,
     status: "Pending",
@@ -205,5 +206,22 @@ describe("the banner that says what the sort is doing", () => {
     expect(describeSort({ key: "target", dir: "desc" }, label)).toBe("Target (latest first)");
     expect(describeSort({ key: "done", dir: "asc" }, label)).toBe("Done (outstanding first)");
     expect(describeSort({ key: "var", dir: "desc" }, label)).toBe("Var (high to low)");
+  });
+});
+
+describe("the Category column", () => {
+  const rows = [
+    row("v", { category: "Vendors", sortOrder: 10 }),
+    row("blank", { category: null, sortOrder: 20 }),
+    row("h", { category: "Housekeeping", sortOrder: 30 }),
+    row("i", { category: "Internet", sortOrder: 40 }),
+  ];
+
+  it("sorts A–Z by the text, with blanks last", () => {
+    expect(sortBy(rows, "category", "asc")).toEqual(["h", "i", "v", "blank"]);
+  });
+
+  it("keeps blanks last when reversed", () => {
+    expect(sortBy(rows, "category", "desc")).toEqual(["v", "i", "h", "blank"]);
   });
 });

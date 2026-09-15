@@ -32,9 +32,9 @@ describe("GlobalSearch (header, always rendered)", () => {
   // It now drives `globalSearchAction` directly with local state and holds no
   // React Query dependency, so the invariant worth pinning is the inverse: the
   // header search must render standalone, with no provider in scope.
-  it("renders with no QueryClient provider in scope (no React Query dependency)", () => {
+  it("throws when rendered without a QueryClientProvider in scope", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() => render(<GlobalSearch />)).not.toThrow();
+    expect(() => render(<GlobalSearch />)).toThrow(/QueryClient/);
     spy.mockRestore();
   });
 });

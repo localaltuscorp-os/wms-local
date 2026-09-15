@@ -30,6 +30,11 @@ import {
 import { OFFSET_MAX, OFFSET_MIN } from "@/lib/operations/checklist-dates";
 
 const PATH = "/operations/checklist";
+/** Every page that shows these rows: the area's own page AND the Masters section. */
+function revalidateChecklist() {
+  revalidatePath(PATH);
+  revalidatePath("/operations/masters", "layout");
+}
 
 export type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 function fail(error: string): { ok: false; error: string } {
@@ -134,7 +139,7 @@ export async function createChecklistEvent(
 
   if (checklistDemoActive()) {
     const row = demoCreateEvent(v);
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true, ...row };
   }
 
@@ -145,7 +150,7 @@ export async function createChecklistEvent(
       .where(and(eq(calendarEvents.title, v.title), eq(calendarEvents.eventDate, v.eventDate)))
       .limit(1);
     if (dupe) {
-      revalidatePath(PATH);
+      revalidateChecklist();
       return { ok: true, id: dupe.id, title: dupe.title, eventDate: dupe.eventDate };
     }
 
@@ -162,7 +167,7 @@ export async function createChecklistEvent(
       })
       .returning({ id: calendarEvents.id });
 
-    revalidatePath(PATH);
+    revalidateChecklist();
     // The calendar renders this event too, and it is cached per route.
     revalidatePath("/events/calendar");
     return { ok: true, id: row!.id, title: v.title, eventDate: v.eventDate };
@@ -206,7 +211,7 @@ export async function createChecklistRun(
     const date = v.eventDate ?? ev?.eventDate ?? null;
     if (v.isEvent && !date) return fail("Pick the event, or set the event date.");
     const id = demoCreateRun({ ...v, eventDate: v.isEvent ? date : null });
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true, id };
   }
 
@@ -282,7 +287,7 @@ export async function createChecklistRun(
       return runId;
     });
 
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true, id };
   } catch {
     return fail("Could not create the checklist. Nothing was saved.");
@@ -318,13 +323,13 @@ export async function updateChecklistRun(input: unknown): Promise<ActionResult> 
 
   if (checklistDemoActive()) {
     if (!demoUpdateRun({ id, ...rest })) return fail("That checklist is gone.");
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true };
   }
 
   try {
     await db.update(opsChecklistRuns).set(patch).where(eq(opsChecklistRuns.id, id));
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true };
   } catch {
     return fail("Could not save that change.");
@@ -372,7 +377,7 @@ export async function createChecklistItem(
       backupId: v.backupId,
     });
     if (!id) return fail("That checklist is gone.");
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true, id };
   }
 
@@ -403,7 +408,7 @@ export async function createChecklistItem(
       })
       .returning({ id: opsChecklistItems.id });
 
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true, id: row!.id };
   } catch {
     return fail("Could not add that row.");
@@ -437,13 +442,13 @@ export async function updateChecklistItem(input: unknown): Promise<ActionResult>
 
   if (checklistDemoActive()) {
     if (!demoUpdateItem({ id, ...rest })) return fail("That row is gone.");
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true };
   }
 
   try {
     await db.update(opsChecklistItems).set(patch).where(eq(opsChecklistItems.id, id));
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true };
   } catch {
     // The backup-is-not-the-doer rule is a CHECK constraint, so it surfaces
@@ -462,7 +467,7 @@ export async function removeChecklistItem(input: unknown): Promise<ActionResult>
 
   if (checklistDemoActive()) {
     if (!demoRemoveItem(parsed.data.id)) return fail("That row is gone.");
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true };
   }
 
@@ -471,7 +476,7 @@ export async function removeChecklistItem(input: unknown): Promise<ActionResult>
       .update(opsChecklistItems)
       .set({ isActive: false, updatedById: me.id, updatedAt: new Date() })
       .where(eq(opsChecklistItems.id, parsed.data.id));
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true };
   } catch {
     return fail("Could not remove that row.");
@@ -509,7 +514,7 @@ export async function setChecklistCheck(input: unknown): Promise<ActionResult> {
   if (checklistDemoActive()) {
     if (!demoSetCheck({ itemId: v.itemId, status: v.status, notes: v.notes }))
       return fail("That row is gone.");
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true };
   }
 
@@ -535,7 +540,7 @@ export async function setChecklistCheck(input: unknown): Promise<ActionResult> {
         },
       });
 
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true };
   } catch {
     return fail("Could not save that tick.");
@@ -572,7 +577,7 @@ export async function saveRunAsTemplate(
   if (checklistDemoActive()) {
     const id = demoSaveRunAsTemplate(v.runId, v.name);
     if (!id) return fail("That checklist is gone.");
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true, id };
   }
 
@@ -628,9 +633,201 @@ export async function saveRunAsTemplate(
       return tpl!.id;
     });
 
-    revalidatePath(PATH);
+    revalidateChecklist();
     return { ok: true, id };
   } catch {
     return fail("Could not save the master checklist. A name must be unique.");
+  }
+}
+
+/* ── Masters, edited directly (account holder, 2026-09-15) ───────────────────
+ * A master used to be born only from a worked checklist ("Save as Master
+ * Checklist"). The Masters section lets an admin write one from scratch, rename
+ * it, change its rows, copy it and retire it. Its rows go through the same
+ * updateChecklistItem / removeChecklistItem as a run's — a row is addressed by
+ * id whichever parent it has. */
+
+const MASTERS_NEED_TABLES = "Masters need the checklist tables (migration 0221).";
+
+const CreateTemplate = z.object({
+  name: z.string().trim().min(1, "Give the master checklist a name.").max(200),
+  isEvent: z.boolean(),
+  description: optText.optional(),
+});
+
+export async function createChecklistTemplate(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  const { me, denied } = await requireEditor();
+  if (denied) return denied;
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = CreateTemplate.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid master.");
+  if (checklistDemoActive()) return fail(MASTERS_NEED_TABLES);
+  const v = parsed.data;
+
+  try {
+    const [row] = await db
+      .insert(opsChecklistTemplates)
+      .values({
+        name: v.name,
+        isEvent: v.isEvent,
+        description: v.description ?? null,
+        createdById: me.id,
+        updatedById: me.id,
+      })
+      .returning({ id: opsChecklistTemplates.id });
+    revalidateChecklist();
+    return { ok: true, id: row!.id };
+  } catch {
+    return fail("Could not create the master. The name must be unique, retired masters included.");
+  }
+}
+
+const UpdateTemplate = z.object({
+  id: idText,
+  name: z.string().trim().min(1, "A master needs a name.").max(200).optional(),
+  isEvent: z.boolean().optional(),
+  description: optText.optional(),
+  isActive: z.boolean().optional(),
+});
+
+/** Rename, re-describe, switch Event-linked / Standing, or retire (isActive false). */
+export async function updateChecklistTemplate(input: unknown): Promise<ActionResult> {
+  const { me, denied } = await requireEditor();
+  if (denied) return denied;
+  const parsed = UpdateTemplate.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid change.");
+  if (checklistDemoActive()) return fail(MASTERS_NEED_TABLES);
+  const { id, ...rest } = parsed.data;
+
+  const patch: Record<string, unknown> = { updatedById: me.id, updatedAt: new Date() };
+  for (const k of ["name", "isEvent", "description", "isActive"] as const) {
+    if (rest[k] !== undefined) patch[k] = rest[k];
+  }
+
+  try {
+    await db.update(opsChecklistTemplates).set(patch).where(eq(opsChecklistTemplates.id, id));
+    revalidateChecklist();
+    return { ok: true };
+  } catch {
+    return fail("Could not save that change. The name must be unique.");
+  }
+}
+
+const DuplicateTemplate = z.object({
+  id: idText,
+  name: z.string().trim().min(1, "Name the copy.").max(200),
+});
+
+/** Copy a master with all its rows — the quickest way to a variant of a plan. */
+export async function duplicateChecklistTemplate(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  const { me, denied } = await requireEditor();
+  if (denied) return denied;
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = DuplicateTemplate.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid copy.");
+  if (checklistDemoActive()) return fail(MASTERS_NEED_TABLES);
+  const v = parsed.data;
+
+  try {
+    const id = await db.transaction(async (tx) => {
+      const [src] = await tx
+        .select({ isEvent: opsChecklistTemplates.isEvent, description: opsChecklistTemplates.description })
+        .from(opsChecklistTemplates)
+        .where(eq(opsChecklistTemplates.id, v.id))
+        .limit(1);
+      if (!src) throw new Error("gone");
+
+      const [tpl] = await tx
+        .insert(opsChecklistTemplates)
+        .values({
+          name: v.name,
+          isEvent: src.isEvent,
+          description: src.description,
+          createdById: me.id,
+          updatedById: me.id,
+        })
+        .returning({ id: opsChecklistTemplates.id });
+
+      const rows = await tx
+        .select({
+          code: opsChecklistItems.code,
+          title: opsChecklistItems.title,
+          category: opsChecklistItems.category,
+          offsetDays: opsChecklistItems.offsetDays,
+          doerId: opsChecklistItems.doerId,
+          backupId: opsChecklistItems.backupId,
+          instructions: opsChecklistItems.instructions,
+          fileLink: opsChecklistItems.fileLink,
+          jdEntryId: opsChecklistItems.jdEntryId,
+          sortOrder: opsChecklistItems.sortOrder,
+        })
+        .from(opsChecklistItems)
+        .where(and(eq(opsChecklistItems.templateId, v.id), eq(opsChecklistItems.isActive, true)));
+
+      if (rows.length > 0) {
+        await tx.insert(opsChecklistItems).values(
+          rows.map((r) => ({ ...r, templateId: tpl!.id, runId: null, createdById: me.id, updatedById: me.id })),
+        );
+      }
+      return tpl!.id;
+    });
+    revalidateChecklist();
+    return { ok: true, id };
+  } catch {
+    return fail("Could not copy the master. The new name must be unique.");
+  }
+}
+
+const CreateTemplateItem = ItemFields.extend({ templateId: idText });
+
+/** Add a row to a master. A master has no dates — only a day offset (event-linked). */
+export async function createTemplateItem(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  const { me, denied } = await requireEditor();
+  if (denied) return denied;
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = CreateTemplateItem.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid row.");
+  if (checklistDemoActive()) return fail(MASTERS_NEED_TABLES);
+  const v = parsed.data;
+  if (v.backupId && v.backupId === v.doerId) {
+    return fail("The backup must be someone other than the doer.");
+  }
+
+  try {
+    const tail = await db
+      .select({ next: sql<number>`coalesce(max(${opsChecklistItems.sortOrder}), 0) + 10` })
+      .from(opsChecklistItems)
+      .where(eq(opsChecklistItems.templateId, v.templateId));
+
+    const [row] = await db
+      .insert(opsChecklistItems)
+      .values({
+        templateId: v.templateId,
+        title: v.title,
+        offsetDays: v.offsetDays,
+        targetDate: null,
+        doerId: v.doerId,
+        backupId: v.backupId,
+        category: v.category,
+        instructions: v.instructions,
+        fileLink: v.fileLink,
+        sortOrder: tail[0]?.next ?? 100,
+        createdById: me.id,
+        updatedById: me.id,
+      })
+      .returning({ id: opsChecklistItems.id });
+    revalidateChecklist();
+    return { ok: true, id: row!.id };
+  } catch {
+    return fail("Could not add that row.");
   }
 }

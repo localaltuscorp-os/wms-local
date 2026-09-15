@@ -31,6 +31,7 @@ export type JdSortKey =
   | "sr"
   | "position"
   | "function"
+  | "category"
   | "task"
   | "frequency"
   | "estimate"
@@ -48,6 +49,7 @@ export interface JdSortableRow {
   positionTitle: string;
   functionKey: string;
   task: string;
+  category: string | null;
   notesHtml: string | null;
   estimatedMinutes: number;
   videoUrl: string | null;
@@ -127,6 +129,8 @@ export function sortJdRows<T extends JdSortableRow>(
         return r.positionTitle;
       case "function":
         return ctx.labelOfFunction(r.functionKey);
+      case "category":
+        return r.category?.trim() || null;
       case "task":
         return r.task;
       case "frequency":

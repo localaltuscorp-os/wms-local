@@ -28,7 +28,7 @@ import {
   ROLLUP_KIND,
   type RegisterLevel,
 } from "@/lib/project-plan/register";
-import { PlanStatusCell, planActorFor } from "./plan-status-cell";
+import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-cell";
 import { PlanProgressCell } from "./plan-progress-cell";
 import { PlanAttachmentCell } from "./plan-attachment-cell";
 import { PlanLinksCell } from "./plan-links-cell";
@@ -462,11 +462,12 @@ export function PlanRegister({
   const levelLabel = KIND_LABEL[kind];
   const rollupLabel = `${KIND_LABEL[rollupKind]}s Completion`;
   // The tick column, two columns per ancestor (No + Name), then: own No, own
-  // Name, Description, Status, the level-dependent column (own Completion on a
-  // container / Task on an executable row), the rollup, Attachments, Links and
-  // Initiator Notes — plus Start / End / Duration on the scheduled levels.
+  // Name, Description, Doer Status, Approver / Initiator Status, the
+  // level-dependent column (own Completion on a container / Task on an
+  // executable row), the rollup, Attachments, Links and Initiator Notes — plus
+  // Start / End / Duration on the scheduled levels.
   const colCount =
-    1 + ancestorKinds.length * 2 + 9 + (showsSchedule ? 3 : 0);
+    1 + ancestorKinds.length * 2 + 10 + (showsSchedule ? 3 : 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -651,7 +652,8 @@ export function PlanRegister({
                 {levelLabel} Name
               </SortTh>
               <Th className="w-[240px]">{levelLabel} Description</Th>
-              <Th className="w-[150px]">{levelLabel} Status</Th>
+              <Th className="w-[150px]">Doer Status</Th>
+              <Th className="w-[180px]">Approver / Initiator Status</Th>
               {/* Only on the levels that own a schedule — see `showsSchedule`. */}
               {showsSchedule && (
                 <>
@@ -806,6 +808,9 @@ export function PlanRegister({
 
                   <Td>
                     <PlanStatusCell node={n} actor={actor} linkedToTask={false} />
+                  </Td>
+                  <Td>
+                    <PlanApproverCell node={n} actor={actor} />
                   </Td>
 
                   {showsSchedule && (

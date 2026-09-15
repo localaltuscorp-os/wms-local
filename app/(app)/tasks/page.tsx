@@ -13,7 +13,7 @@ import { listTasks, listDistinctSubjects } from "@/lib/queries/tasks";
 import type { TaskListFilters } from "@/lib/types";
 import { listActiveClientNames } from "@/lib/queries/clients";
 import { listWeekGoalsAsTasks } from "@/lib/weekly-goals/as-task-row";
-import { goalScopeFor } from "@/lib/weekly-goals/hierarchy";
+import { getDownlineIds, goalScopeFor } from "@/lib/weekly-goals/hierarchy";
 import { parseTaskFilters } from "@/lib/task-filters";
 import { requireUser } from "@/lib/auth/current";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
@@ -39,6 +39,9 @@ export default async function TasksPage({ searchParams }: PageProps) {
   // passed down as a boolean — the table is a client component and has no
   // business knowing emails or the org chart. The server actions re-check it.
   const mayChangeDoer = await canChangeDoerFor(me);
+  // Everyone below the viewer — the doer's manager may rule on a task's
+  // Approver / Initiator Status. The server action re-checks it.
+  const managedIds = await getDownlineIds(me.id).catch(() => [] as string[]);
   const rawTask = Array.isArray(sp.task) ? sp.task[0] : sp.task;
   const selectedTaskId = rawTask && TASK_ID.test(rawTask) ? rawTask : null;
   // Everyone opens on their OWN tasks; only a super-admin opens on the
@@ -173,7 +176,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
         rows={rows}
         filters={filters}
         employees={allEmployees}
-        me={{ id: me.id, isAdmin: me.isAdmin, canChangeDoer: mayChangeDoer }}
+        me={{ id: me.id, isAdmin: me.isAdmin, canChangeDoer: mayChangeDoer, managedIds }}
         statusLabels={statusLabels}
         statusTones={statusTones}
         subjects={subjects}

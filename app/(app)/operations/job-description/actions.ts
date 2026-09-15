@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { jdAssignments, jdEntries, jdPositions, jdRanks } from "@/db/schema";
+import { employees, jdAssignments, jdEntries, jdPositionHolders, jdPositions, jdRanks } from "@/db/schema";
+import { isOfferedFunction } from "@/lib/jd/functions";
+import { JD_BULK_MAX } from "@/lib/jd/bulk";
 /* AUTHORING STAYS WITH HR (2026-09-12). The Bank moved to the Operations room,
    which is OPEN to every employee — so switching these to the room's own gate
    would have handed "create, edit and retire a job description" to the whole
@@ -22,6 +24,11 @@ import {
 } from "@/lib/demo/jd-demo";
 
 const PATH = "/operations/job-description";
+/** Every page that shows these rows: the area's own page AND the Masters section. */
+function revalidateJd() {
+  revalidatePath(PATH);
+  revalidatePath("/operations/masters", "layout");
+}
 
 export type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 function fail(error: string): { ok: false; error: string } {
@@ -122,7 +129,7 @@ export async function createJdPosition(input: unknown): Promise<ActionResult<{ i
 
   if (jdDemoActive()) {
     const id = demoCreatePosition(v);
-    revalidatePath(PATH);
+    revalidateJd();
     return { ok: true, id };
   }
 
@@ -150,7 +157,7 @@ export async function createJdPosition(input: unknown): Promise<ActionResult<{ i
       })
       .returning({ id: jdPositions.id });
 
-    revalidatePath(PATH);
+    revalidateJd();
     return { ok: true, id: row!.id };
   } catch {
     // The uniqueness rule is an expression index, so a duplicate surfaces here.
@@ -161,8 +168,17 @@ export async function createJdPosition(input: unknown): Promise<ActionResult<{ i
 /* ── The JD Bank ──────────────────────────────────────────────────────────── */
 
 const EntryFields = z.object({
-  positionId: idText.describe("Pick the position this job belongs to."),
+  /* EXACTLY ONE OWNER — a position (the General JD) or a person (their personal
+     JD, migration 0233). createJdEntry / bulkCreateJdEntries check it, and a
+     CHECK in the database backs them. */
+  positionId: idText.optional(),
+  ownerEmployeeId: idText.optional(),
+  /** Needed only for a personal task — a position's task takes its function. */
+  functionKey: functionKey.optional(),
   task: z.string().trim().min(1, "Describe the task.").max(2000),
+  category: z
+    .preprocess((v) => (typeof v === "string" ? v.trim() : v), z.string().max(80).nullable().optional())
+    .transform((s) => (s ? s : null)),
   notesHtml: optText,
   recurrence: Recurrence,
   estimatedMinutes: z.coerce
@@ -197,30 +213,34 @@ export async function createJdEntry(input: unknown): Promise<ActionResult<{ id: 
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid job description.");
   const v = parsed.data;
 
+  if (Boolean(v.positionId) === Boolean(v.ownerEmployeeId)) {
+    return fail("Pick a position for a General JD, or a person for a personal task — one of the two.");
+  }
+
   if (jdDemoActive()) {
-    const id = demoCreateEntry(v);
+    if (!v.positionId) return fail("Personal tasks need the JD tables — apply migration 0233.");
+    const id = demoCreateEntry({ ...v, positionId: v.positionId });
     if (!id) return fail("That position no longer exists.");
-    revalidatePath(PATH);
+    revalidateJd();
     return { ok: true, id };
   }
 
   try {
-    const pos = await db
-      .select({ functionKey: jdPositions.functionKey })
-      .from(jdPositions)
-      .where(eq(jdPositions.id, v.positionId))
-      .limit(1);
-    if (pos.length === 0) return fail("That position no longer exists.");
+    const owner = await resolveEntryOwner(v);
+    if (!owner.ok) return owner;
 
     const id = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(jdEntries)
         .values({
-          positionId: v.positionId,
-          // Denormalised from the position — never taken from the form, so the
-          // two cannot drift apart and make the Bank's filters lie.
-          functionKey: pos[0]!.functionKey,
+          positionId: v.positionId ?? null,
+          ownerEmployeeId: v.ownerEmployeeId ?? null,
+          // A position's function is denormalised from the position — never
+          // taken from the form, so the two cannot drift apart. A personal task
+          // carries the function picked for it.
+          functionKey: owner.functionKey,
           task: v.task,
+          category: v.category,
           notesHtml: v.notesHtml,
           recurrence: v.recurrence,
           estimatedMinutes: v.estimatedMinutes,
@@ -261,7 +281,7 @@ export async function createJdEntry(input: unknown): Promise<ActionResult<{ id: 
       return row!.id;
     });
 
-    revalidatePath(PATH);
+    revalidateJd();
     return { ok: true, id };
   } catch {
     return fail("Could not save the job description. Nothing was written.");
@@ -280,6 +300,7 @@ export async function updateJdEntry(input: unknown): Promise<ActionResult> {
   const patch: Record<string, unknown> = { updatedById: me.id, updatedAt: new Date() };
   for (const k of [
     "task",
+    "category",
     "notesHtml",
     "recurrence",
     "estimatedMinutes",
@@ -296,7 +317,7 @@ export async function updateJdEntry(input: unknown): Promise<ActionResult> {
   if (jdDemoActive()) {
     if (!demoUpdateEntry({ id, targetPeople, ...rest }))
       return fail("That job description is gone.");
-    revalidatePath(PATH);
+    revalidateJd();
     return { ok: true };
   }
 
@@ -368,10 +389,156 @@ export async function updateJdEntry(input: unknown): Promise<ActionResult> {
       }
     });
 
-    revalidatePath(PATH);
+    revalidateJd();
     return { ok: true };
   } catch {
     return fail("Could not save that change.");
+  }
+}
+
+/* ── Owners, seats and bulk upload (2026-09-15) ───────────────────────────── */
+
+/** A task's owner, checked: the position exists, or the person does and a function was picked. */
+async function resolveEntryOwner(v: {
+  positionId?: string;
+  ownerEmployeeId?: string;
+  functionKey?: string;
+}): Promise<{ ok: true; functionKey: string } | { ok: false; error: string }> {
+  if (v.positionId) {
+    const pos = await db
+      .select({ functionKey: jdPositions.functionKey })
+      .from(jdPositions)
+      .where(eq(jdPositions.id, v.positionId))
+      .limit(1);
+    return pos[0] ? { ok: true, functionKey: pos[0].functionKey } : fail("That position no longer exists.");
+  }
+  if (!v.functionKey || !isOfferedFunction(v.functionKey)) return fail("Pick the function this personal task belongs to.");
+  const person = await db
+    .select({ id: employees.id })
+    .from(employees)
+    .where(eq(employees.id, v.ownerEmployeeId!))
+    .limit(1);
+  return person[0] ? { ok: true, functionKey: v.functionKey } : fail("That person no longer exists.");
+}
+
+/**
+ * Place a person in a seat — or take them out of theirs (positionId null).
+ *
+ * One live seat per person (a partial unique index): the current one is
+ * retired, never deleted, so the record of where they sat survives the move.
+ */
+export async function setJdPositionHolder(input: unknown): Promise<ActionResult> {
+  const me = await requireHrStaff();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = z.object({ employeeId: idText, positionId: idText.nullable() }).safeParse(input);
+  if (!parsed.success) return fail("Invalid request.");
+  if (jdDemoActive()) return fail("Placing people in seats needs the JD tables.");
+  const { employeeId, positionId } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(jdPositionHolders)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(and(eq(jdPositionHolders.employeeId, employeeId), eq(jdPositionHolders.isActive, true)));
+      if (positionId) {
+        await tx.insert(jdPositionHolders).values({ positionId, employeeId, createdById: me.id });
+      }
+    });
+  } catch {
+    return fail("Could not change the seat.");
+  }
+  revalidateJd();
+  return { ok: true };
+}
+
+/**
+ * BULK UPLOAD — every task from the Excel sheet in one go (lib/jd/bulk.ts reads
+ * and checks the sheet on screen first). All-or-nothing: one transaction, so a
+ * failure part-way leaves the Bank exactly as it was rather than half-imported.
+ */
+export async function bulkCreateJdEntries(input: unknown): Promise<ActionResult<{ created: number }>> {
+  const me = await requireHrStaff();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = z.object({ rows: z.array(EntryFields).min(1).max(JD_BULK_MAX) }).safeParse(input);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const row = typeof issue?.path[1] === "number" ? `Row ${issue.path[1] + 1}: ` : "";
+    return fail(`${row}${issue?.message ?? "Invalid rows."}`);
+  }
+  if (jdDemoActive()) return fail("Bulk upload needs the JD tables.");
+  const rows = parsed.data.rows;
+
+  for (const [i, v] of rows.entries()) {
+    if (Boolean(v.positionId) === Boolean(v.ownerEmployeeId)) {
+      return fail(`Row ${i + 1}: fill a position or a person — one of the two.`);
+    }
+  }
+
+  try {
+    const created = await db.transaction(async (tx) => {
+      const positionIds = [...new Set(rows.map((r) => r.positionId).filter((x): x is string => Boolean(x)))];
+      const positionFn = new Map(
+        positionIds.length
+          ? (
+              await tx
+                .select({ id: jdPositions.id, functionKey: jdPositions.functionKey })
+                .from(jdPositions)
+                .where(inArray(jdPositions.id, positionIds))
+            ).map((p) => [p.id, p.functionKey] as const)
+          : [],
+      );
+
+      let n = 0;
+      for (const [i, v] of rows.entries()) {
+        const fn = v.positionId ? positionFn.get(v.positionId) : v.functionKey;
+        if (!fn) throw new Error(`Row ${i + 1}: ${v.positionId ? "that position no longer exists" : "pick a function"}.`);
+        const [row] = await tx
+          .insert(jdEntries)
+          .values({
+            positionId: v.positionId ?? null,
+            ownerEmployeeId: v.ownerEmployeeId ?? null,
+            functionKey: fn,
+            task: v.task,
+            category: v.category,
+            notesHtml: v.notesHtml,
+            recurrence: v.recurrence,
+            estimatedMinutes: v.estimatedMinutes,
+            videoUrl: v.videoUrl,
+            guidelinesUrl: v.guidelinesUrl,
+            templateUrl: v.templateUrl,
+            pushDcc: v.pushDcc,
+            pushWms: v.pushWms,
+            pushEvent: v.pushEvent,
+            createdById: me.id,
+            updatedById: me.id,
+          })
+          .returning({ id: jdEntries.id });
+        const assignments = toAssignmentRows(v.targetPeople, { dcc: v.pushDcc, wms: v.pushWms, event: v.pushEvent });
+        if (assignments.length > 0) {
+          await tx.insert(jdAssignments).values(
+            assignments.map((a) => ({
+              jdId: row!.id,
+              employeeId: a.employeeId,
+              source: "manual",
+              forDcc: a.forDcc,
+              forWms: a.forWms,
+              forEvent: a.forEvent,
+              assignedById: me.id,
+            })),
+          );
+        }
+        n++;
+      }
+      return n;
+    });
+    revalidateJd();
+    return { ok: true, created };
+  } catch (err) {
+    const msg = err instanceof Error && /^Row \d+:/.test(err.message) ? err.message : "Could not save the upload. Nothing was written.";
+    return fail(msg);
   }
 }
 
@@ -387,7 +554,7 @@ export async function setJdEntryActive(input: unknown): Promise<ActionResult> {
   if (jdDemoActive()) {
     if (!demoSetEntryActive(parsed.data.id, parsed.data.isActive))
       return fail("That job description is gone.");
-    revalidatePath(PATH);
+    revalidateJd();
     return { ok: true };
   }
 
@@ -400,7 +567,7 @@ export async function setJdEntryActive(input: unknown): Promise<ActionResult> {
         updatedAt: new Date(),
       })
       .where(eq(jdEntries.id, parsed.data.id));
-    revalidatePath(PATH);
+    revalidateJd();
     return { ok: true };
   } catch {
     return fail("Could not change that job description.");

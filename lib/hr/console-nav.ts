@@ -12,6 +12,7 @@ import {
   FolderOpen,
   Target,
   Files,
+  FileText,
 } from "lucide-react";
 
 import { HR_STAGES, hrItemHref } from "@/lib/hr/lifecycle";
@@ -106,6 +107,9 @@ const standalone: Array<{ id: string; title: string; Icon: LucideIcon; href: str
      Their routes moved too where they had to: anything under app/(app)/hr/ is
      wrapped in the HR console shell, so a rail row elsewhere would have opened a
      page still wearing HR's chrome. The old paths redirect. */
+  // Recruitment JDs (2026-09-15) — what recruiters send candidates. Not the
+  // internal Job Description module, which moved to Operations (above).
+  { id: "recruitment-jd", title: "Recruitment JDs", Icon: FileText, href: "/hr/recruitment-jd" },
   { id: "holiday-list", title: "Holiday List", Icon: CalendarDays, href: "/hr/holidays" },
   { id: "policies", title: "Policies", Icon: ScrollText, href: "/policies" },
   // "HR Help Desk", not "Help Desk" (2026-09-12): there is more than one help

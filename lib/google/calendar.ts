@@ -225,6 +225,58 @@ export async function updateEvent(
   if (!res.ok) throw new Error(`updateEvent failed: ${res.status} ${await res.text()}`);
 }
 
+// ─── Raw event calls (DCC day events — lib/dcc/calendar-sync.ts) ──────────
+//
+// These take an ACCESS token, minted once per person by the caller: a backfill
+// of a hundred days must not exchange the refresh token a hundred times.
+
+/** A Calendar API refusal, with the HTTP status the caller branches on. */
+export class GoogleApiError extends Error {
+  constructor(
+    readonly op: string,
+    readonly status: number,
+    readonly body: string,
+  ) {
+    super(`${op} failed: ${status} ${body}`);
+    this.name = "GoogleApiError";
+  }
+}
+
+/** The person revoked access (or the grant expired): only a reconnect fixes it. */
+export function isRevokedGrant(err: unknown): boolean {
+  return err instanceof Error && /invalid_grant/u.test(err.message);
+}
+
+export async function insertEventBody(accessToken: string, body: object): Promise<string> {
+  const res = await fetch(CAL_BASE, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new GoogleApiError("insertEvent", res.status, await res.text());
+  return ((await res.json()) as { id: string }).id;
+}
+
+export async function patchEventBody(accessToken: string, eventId: string, body: object): Promise<void> {
+  const res = await fetch(`${CAL_BASE}/${encodeURIComponent(eventId)}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new GoogleApiError("patchEvent", res.status, await res.text());
+}
+
+/** Already gone (404 / 410) counts as deleted. */
+export async function deleteEventById(accessToken: string, eventId: string): Promise<void> {
+  const res = await fetch(`${CAL_BASE}/${encodeURIComponent(eventId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok && res.status !== 404 && res.status !== 410) {
+    throw new GoogleApiError("deleteEvent", res.status, await res.text());
+  }
+}
+
 export async function deleteEvent(refreshToken: string, eventId: string): Promise<void> {
   const accessToken = await accessTokenFromRefresh(refreshToken);
   const res = await fetch(`${CAL_BASE}/${encodeURIComponent(eventId)}`, {

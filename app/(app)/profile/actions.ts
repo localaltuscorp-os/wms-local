@@ -13,6 +13,7 @@ import { rateLimitOrError } from "@/lib/rate-limit";
 import { isAcceptableAvatarUrl } from "@/lib/avatar-url";
 import { revokeToken } from "@/lib/google/calendar";
 import { backfillDoerCalendar } from "@/lib/google/sync";
+import { syncDccCalendar } from "@/lib/dcc/calendar-sync";
 
 /**
  * Disconnect Google Calendar — revoke the stored refresh token at Google and
@@ -41,7 +42,7 @@ export async function disconnectGoogleCalendar(): Promise<{ ok: boolean }> {
  * you can verify the integration end-to-end and re-seed after any drift.
  */
 export async function syncGoogleCalendarNow(): Promise<
-  { ok: true; attempted: number; synced: number } | { ok: false; error: string }
+  { ok: true; attempted: number; synced: number; dccChanged: number } | { ok: false; error: string }
 > {
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
@@ -57,8 +58,12 @@ export async function syncGoogleCalendarNow(): Promise<
   }
 
   try {
-    const { attempted, synced } = await backfillDoerCalendar(me.id);
-    return { ok: true, attempted, synced };
+    const [{ attempted, synced }, dcc] = await Promise.all([
+      backfillDoerCalendar(me.id),
+      // Daily Compliance days too (lib/dcc/calendar-sync.ts).
+      syncDccCalendar({ employeeIds: [me.id], budgetMs: 50_000 }),
+    ]);
+    return { ok: true, attempted, synced, dccChanged: dcc.created + dcc.updated + dcc.deleted };
   } catch (err) {
     return { ok: false, error: `Sync failed: ${(err as Error).message}` };
   }
