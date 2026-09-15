@@ -24,6 +24,9 @@ export const WIDGET_IDS = [
   "outcomes",
   "work-shape",
   "team",
+  "delegated",
+  "inbox",
+  "anniversaries",
   "open-table",
 ] as const;
 
@@ -124,6 +127,27 @@ export const WIDGETS: Record<WidgetId, WidgetSpec> = {
     sizes: ["m", "l"],
     defaultSize: "m",
   },
+  delegated: {
+    id: "delegated",
+    title: "Waiting on",
+    blurb: "Tasks you handed out that are still open, by person.",
+    sizes: ["s", "m"],
+    defaultSize: "m",
+  },
+  inbox: {
+    id: "inbox",
+    title: "Inbox",
+    blurb: "Unread updates, and a way into the inbox and the archive.",
+    sizes: ["s", "m"],
+    defaultSize: "s",
+  },
+  anniversaries: {
+    id: "anniversaries",
+    title: "Joined this month",
+    blurb: "Work anniversaries falling in this calendar month.",
+    sizes: ["s", "m"],
+    defaultSize: "s",
+  },
   "open-table": {
     id: "open-table",
     title: "Open on you",
@@ -148,7 +172,6 @@ export interface WidgetPlacement {
 export const DEFAULT_LAYOUT: readonly WidgetPlacement[] = [
   { id: "wms-loop", size: "m" },
   { id: "goals-week", size: "m" },
-  { id: "quick-actions", size: "s" },
   { id: "hours-ledger", size: "s" },
   { id: "upcoming", size: "s" },
   { id: "attendance", size: "l" },
@@ -156,6 +179,10 @@ export const DEFAULT_LAYOUT: readonly WidgetPlacement[] = [
   { id: "outcomes", size: "s" },
   { id: "work-shape", size: "s" },
   { id: "team", size: "m" },
+  { id: "delegated", size: "m" },
+  { id: "inbox", size: "s" },
+  { id: "anniversaries", size: "s" },
+  { id: "quick-actions", size: "s" },
   { id: "open-table", size: "l" },
 ];
 
@@ -177,10 +204,38 @@ export const SIZE_LABEL: Record<WidgetSize, string> = {
  * append widgets added since you last saved, would put every removed one
  * straight back on your next visit.
  */
+export type Density = "comfortable" | "compact";
+
 export interface StoredLayout {
   v: 1;
   shown: WidgetPlacement[];
   removed: WidgetId[];
+  /** Padding and gaps. `compact` fits roughly a third more on a screen. */
+  density?: Density;
+  /** Whether the date + greeting block shows above the grid. */
+  greeting?: boolean;
+}
+
+export const DENSITY_LABEL: Record<Density, string> = {
+  comfortable: "Comfortable",
+  compact: "Compact",
+};
+
+/** Everything about the dashboard that is not the widget list itself. */
+export interface Preferences {
+  density: Density;
+  greeting: boolean;
+}
+
+export const DEFAULT_PREFERENCES: Preferences = { density: "comfortable", greeting: true };
+
+/** Read the non-widget preferences out of whatever storage handed back. */
+export function readPreferences(stored: unknown): Preferences {
+  const box = (stored ?? {}) as Partial<StoredLayout>;
+  return {
+    density: box.density === "compact" ? "compact" : "comfortable",
+    greeting: box.greeting !== false,
+  };
 }
 
 export const LAYOUT_STORAGE_KEY = "altus.dashboard.layout";

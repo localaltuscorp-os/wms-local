@@ -9,7 +9,6 @@ import { GlobalSearch } from "@/components/header/global-search";
 import { NewTaskQuickAction } from "@/components/header/new-task-quick-action";
 import { FocusModeToggle } from "@/components/layout/focus-mode-toggle";
 import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
-import { AuraRailToggle } from "@/components/hub/aura-chrome";
 import { MODULE_THEME } from "@/lib/module-theme";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
 import type { AuraRoom } from "@/lib/aura-rooms";
@@ -55,15 +54,18 @@ import type { AuraRoom } from "@/lib/aura-rooms";
  * putting it in the menu, and that room would be unreachable at that width.
  */
 const TAB_BREAKPOINTS: readonly { min: number; tabs: number }[] = [
-  { min: 1480, tabs: 5 },
-  { min: 1320, tabs: 4 },
-  { min: 1180, tabs: 3 },
-  { min: 1024, tabs: 2 },
+  { min: 1720, tabs: 8 },
+  { min: 1580, tabs: 7 },
+  { min: 1440, tabs: 6 },
+  { min: 1280, tabs: 5 },
+  { min: 1120, tabs: 4 },
+  { min: 1000, tabs: 3 },
+  { min: 860, tabs: 2 },
   { min: 0, tabs: 0 },
 ];
 
 /** The widest breakpoint, used for the server render and the first paint. */
-const TAB_COUNT_SSR = 5;
+const TAB_COUNT_SSR = 6;
 
 /**
  * Subscribes to the breakpoints above.
@@ -105,11 +107,11 @@ export function AuraTopBar({
   const ws = workspaceForPath(pathname);
   const slots = usePageChromeSlots();
 
-  /* The dashboard is the one route with an Aura workspace rail to collapse, and
-     the one route with no `DashboardSidebar` — which means no mobile bar of its
-     own either. Both facts are read off the path here rather than plumbed down
-     as props, because the `(app)` layout is SHARED and does not re-run on a soft
-     navigation: a prop decided up there would freeze on the first page landed. */
+  /* The dashboard has no `DashboardSidebar`, so it has no mobile bar of its own
+     and this one must show at every width there. Read off the path rather than
+     plumbed down as a prop, because the `(app)` layout is SHARED and does not
+     re-run on a soft navigation: a prop decided up there would freeze on the
+     first page landed. */
   const onDashboard = pathname === "/hub";
 
   const tabCount = useTabCount();
@@ -135,7 +137,6 @@ export function AuraTopBar({
     // Phones already carry a fixed 56px bar from DashboardSidebar, so off the
     // dashboard this one hides rather than eating a third of a small screen.
     <header className={onDashboard ? "aura-topbar app-topbar" : "aura-topbar app-topbar max-md:hidden"}>
-      {onDashboard && <AuraRailToggle />}
 
       <a
         href="/hub"

@@ -1546,3 +1546,83 @@
   .aura-w[data-size="m"],
   .aura-w[data-size="l"] { grid-column: span 1; }
 }
+
+/* ── 17. A LAYOUT WITH NO RAIL ────────────────────────────────────────────
+   The dashboard dropped its workspace rail: every room is in the top bar, as a
+   tab or under "More", so a second permanent copy down the left was 252px
+   spent saying it twice. Module pages keep THEIR rail — that one lists the
+   sections inside a room, which the top bar does not.
+   ──────────────────────────────────────────────────────────────────────── */
+.aura-layout.aura-layout-bare { grid-template-columns: minmax(0, 1fr); }
+.aura-layout.aura-layout-bare .aura-main {
+  width: 100%;
+  max-width: 1560px;
+  margin-inline: auto;
+}
+
+/* ── 18. DENSITY ──────────────────────────────────────────────────────────
+   Compact trims the gaps and the padding inside every pane — roughly a third
+   more fits on a screen. It is a data attribute on the grid rather than a
+   class per widget, so one switch moves everything at once. */
+.aura-wgrid[data-density="compact"] { gap: 10px; }
+.aura-wgrid[data-density="compact"] .aura-pane { padding: 14px 15px; }
+.aura-wgrid[data-density="compact"] .aura-chart { padding: 13px 15px 14px; }
+.aura-wgrid[data-density="compact"] .aura-att { padding: 14px 16px 15px; }
+.aura-wgrid[data-density="compact"] .aura-tbl-card { padding: 14px 16px 4px; }
+.aura-wgrid[data-density="compact"] .aura-bigrow { margin-top: 10px; }
+.aura-wgrid[data-density="compact"] .aura-big { font-size: 30px; }
+.aura-wgrid[data-density="compact"] .aura-tasks { margin-top: 11px; gap: 7px; }
+.aura-wgrid[data-density="compact"] .aura-stats { margin-top: 10px; gap: 16px; }
+.aura-wgrid[data-density="compact"] .aura-quick-item { padding: 6px 9px; }
+
+/* ── 19. THE REST OF THE EDIT BAR ─────────────────────────────────────────
+   Move-to-top and move-to-bottom sit beside the one-step arrows: eleven
+   widgets is far enough that stepping one at a time is a chore, and a drag
+   target on a grid that reflows under the pointer is worse than both. */
+.aura-w-group {
+  display: inline-flex;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(22, 32, 68, 0.16);
+}
+.aura-w-group .aura-w-btn {
+  border: 0;
+  border-radius: 0;
+  width: 24px;
+  height: 22px;
+}
+.aura-w-group .aura-w-btn + .aura-w-btn { border-left: 1px solid rgba(22, 32, 68, 0.16); }
+
+.aura-pref {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px 5px 6px;
+  border-radius: var(--aura-r-control);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.5);
+  font-family: var(--aura-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--aura-ink-2);
+}
+.aura-pref-seg {
+  display: inline-flex;
+  border-radius: 7px;
+  overflow: hidden;
+  border: 1px solid rgba(22, 32, 68, 0.16);
+}
+.aura-pref-seg button {
+  padding: 3px 9px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.7);
+  font-family: var(--aura-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--aura-ink-2);
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s;
+}
+.aura-pref-seg button + button { border-left: 1px solid rgba(22, 32, 68, 0.16); }
+.aura-pref-seg button:hover { background: #fff; color: var(--aura-ink); }
+.aura-pref-seg button[aria-pressed="true"] { background: var(--aura-ink); color: #fff; }
