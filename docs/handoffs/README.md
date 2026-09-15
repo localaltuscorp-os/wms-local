@@ -106,9 +106,17 @@ ones traced no `node_modules` whatsoever — no database driver, no
 the app cannot start without is missing from the trace, throw the measurement
 away.** Vercel → Usage → Functions Storage is the only authority.
 
-**Deleting old deployments does not fix Functions Storage** — Vercel dedupes
-function content across deployments, so 84 near-identical ones cost about what
-one does. It does help Deployment Storage, which accumulates normally.
+**Functions Storage is CUMULATIVE and never falls, so every deploy costs ~240
+MB of the 10 GB permanently.** Look at Usage → Functions Storage → Total size
+first: the line climbs from 0 B on ~30 Aug to 10.6 GB and never dips, including
+on the afternoon 80 of 84 deployments were deleted. **Deleting deployments does
+not reclaim any of it** (that is Deployment Storage, a separate meter), and it
+does not reset until the billing period rolls over.
+
+So: **batch your pushes.** Fifteen small ones cost 3.6 GB for a single
+afternoon's work. And never push the same commit to two branches that both
+build — `vercel.json` now disables builds for `dev-integration` for exactly
+that reason, after every change on 15 Sep was built twice.
 
 **2. Never add a client-side poller without doing the arithmetic.** A 4-second
 `setInterval` is 900 requests an hour **per open tab, per person**, and if it
