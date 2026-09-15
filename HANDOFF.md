@@ -605,12 +605,44 @@ can see is not worth a round trip, and nothing is missed or even delayed — the
 a broadcast sent while you were away now appears on RETURN rather than up to
 one throttled interval later. Strictly faster than before.
 
-**Still on the table, and it is a product decision:** `POLL_MS = 4000` exists
-because the brief was "within 5 seconds of Send". At 15s it is 240 requests an
-hour instead of 900 (−73%); at 30s, 120 (−87%). For an internal announcement
-tool the difference between 5 and 15 seconds is unlikely to matter, but the 4s
-value is documented as deliberate, so changing it is the account holder's call
-and not a cleanup.
+**Then solved properly: the popup now PUSHES, and the poll is a safety net.**
+Raising the interval was the obvious lever and it is the wrong one — it trades
+the feature's whole promise for the saving. Supabase Realtime already carries
+`tasks` changes in this app (`components/layout/live-indicator.tsx`), and a
+broadcast is the same shape of event, over a websocket the browser is holding
+open anyway. So the popup subscribes to the `broadcasts` table and the poll
+rate became **adaptive**:
+
+| realtime channel | poll rate | requests/hour/tab |
+|---|---|---|
+| `SUBSCRIBED` | 60s | **60** |
+| anything else | 4s | 900 (the old behaviour) |
+
+That is a 93% cut **and** faster delivery — push arrives when the row is
+written, polling arrives up to a full interval later.
+
+**The adaptive rate is what makes it safe to deploy before the SQL.** It runs
+at 4s until the channel actually reports `SUBSCRIBED`. So with `broadcasts`
+missing from the publication, the websocket blocked, or
+`NEXT_PUBLIC_DISABLE_REALTIME=true` on the LAN build, it degrades to exactly
+what it did before — there is no configuration in which it is slower than the
+version it replaces.
+
+**SQL to get the saving: `db/ENABLE-REALTIME-BROADCASTS.sql`** — one guarded
+statement adding `broadcasts` to the `supabase_realtime` publication. Until it
+runs, the code is live and costing what it always did.
+
+**The poll does not go away, and should not.** Realtime announces row changes;
+it cannot announce that somebody's SNOOZE expired, which is a clock event with
+no row behind it. 60s is the right resolution for that, and doubles as the net
+for a websocket that dropped silently.
+
+**It subscribes to `broadcasts`, never `broadcast_recipients`** — publishing
+writes one broadcast row and one recipient row PER PERSON, so the recipients
+table would wake every tab in the company once per colleague. And the push is
+only a nudge: the browser then calls `/api/broadcasts/popup` once, so every
+per-person decision (who, snoozed, lock-mode) stays on the server and no
+broadcast content crosses the realtime channel.
 
 **The SECOND Vercel alert — Function Storage 75% of 10 GB — is a different
 problem with a different cause, and it is structural.** Measured from the
@@ -620,11 +652,21 @@ function's actual files), not estimated:
 | | |
 |---|---|
 | Functions in one deployment | **431** |
-| Sum of all function bundles | **10.30 GB** |
+| Sum of all function bundles, uncompressed | 10.30 GB |
 | Unique files behind them | 180 MB |
 | `/api/hr/letters/pdf` | **98.7 MB** |
 | `/api/hr/letters/email-pdf` | **98.7 MB** |
 | `/api/hr/letters/issue-rich` | **96.2 MB** |
+
+⚠️ **That 10.30 GB is an UPPER BOUND, not what Vercel bills.** It is the sum of
+every function's traced files with nothing shared or compressed, and it cannot
+be the stored figure — 84 deployments existed inside a 10 GB allowance, so
+Vercel deduplicates and compresses heavily. Working back from the alert
+instead: 84 deployments ≈ 75% of 10 GB puts the real cost at roughly **90 MB
+per deployment**. Use that number when reasoning about this, not the 10.30 GB.
+The ratios between routes still hold, so the letter routes are still the
+heaviest thing in the build — but "200 MB saved per deploy" from deduplicating
+Chromium is the uncompressed figure and the true saving will be smaller.
 
 **Three routes carry three separate copies of the same 67 MB Chromium binary
 — 201 MB of pure duplication in every single deployment.** They are traced in
