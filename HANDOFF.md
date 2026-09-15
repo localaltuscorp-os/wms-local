@@ -13,40 +13,57 @@ broken, what changed and why.
 
 ---
 
-## ⚠️ Pending database migrations — 0216 to 0224 (updated 2026-09-11)
+## ⚠️ Pending database migrations — 0215 to 0224 (updated 2026-09-15)
 
-The `Om` branch ships code that **assumes tables and columns which do not exist
-in Supabase yet**. Nobody has run these. Until they are applied, master-admin,
-the permission matrix, delegated access, manager history, reimbursement
-attachments, holiday notes and first-login device registration all fail at
-runtime.
+**Order: `db/VERIFY-0215-0224.sql`, then
+`db/RUN-IN-SUPABASE-0215-0224-ALL.sql`, then the verify file again.** Both
+arrived on the team's `prod-sync-0915` branch, merged here on 15 September.
 
-**One file, everything.** Every pending migration, `0216` through `0224`, in
-order:
+🔴 **The instructions that came with those files name the wrong Supabase
+project.** They say `fjopgyqytfvbudkwhdto`, and call it production. That is the
+**team's** database. Production is **`mwaijzxuyicysvimzspx`**:
 
-```bash
-# Supabase Dashboard -> SQL Editor -> New query -> paste -> Run
-#   or:
-psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0216-0224.sql
+```
+https://supabase.com/dashboard/project/mwaijzxuyicysvimzspx/sql/new
 ```
 
-It is in **two parts**. **Part 1** (`0216`–`0222`, `0224`) is additive and
-idempotent — no `DROP TABLE`, no `TRUNCATE`, no `DELETE`, so re-running changes
-nothing.
+Run the file against their ref and it changes their data while production stays
+unmigrated — and it looks like it worked.
 
-**Part 2** is `0223`, which **clears every row from `mobile_devices`** so the
-roster re-registers deliberately. That wipe is intended, but it destroys device
-history — so in this file it copies the table to `mobile_devices_pre_0223`
-first, in the same transaction, and skips itself entirely if that backup already
-exists. Running the file twice therefore cannot wipe devices people have just
-registered.
+**Their sanity check cannot catch that.** "~270+ tables, near 0 means wrong
+project" only catches an *empty* project; both databases carry the full WMS
+schema. Step 3 of the verify file is the check that discriminates: this database
+has `app.is_admin()` and `app.current_employee_id()`, theirs has neither — which
+is why their `PART 3b` shipped commented out in September. **`has_is_admin`
+false means you are not in production.**
 
-**To stop before the wipe, end at the line marked `END OF PART 1`.**
+**Most of Part 1 is already applied here.** `0215`–`0220` went in by hand on
+11 September as `SQL STEPS/STEP-3`, `STEP-5` and `STEP-6`. Every statement is
+idempotent, so re-running is harmless — but the genuinely outstanding set is
+smaller than "15 migrations": `0221` ×3, `0222` ×3 and `0224`, plus `0223`
+only if the device wipe is wanted.
+
+**Part 2 (`0223`) clears every row from `mobile_devices`.** That is intended —
+it is the point of first-login registration — and it is guarded: it copies the
+table to `mobile_devices_pre_0223` in the same transaction first, and skips
+itself entirely if that backup already exists, so a second run cannot wipe
+registrations people have just made. **To stop before the wipe, end at the line
+marked `END OF PART 1`.**
+
+**`0216_incentive_eligibility.sql` is ours and is NOT in that file** — it was
+generated from `ae58385`, before that commit existed. The incentive page will
+not break meanwhile: `lib/incentive/ensure-eligibility-schema.ts` applies the
+additive half at runtime. Apply the migration properly regardless.
+
+`db/RUN-IN-SUPABASE-0216-0224.sql` is **superseded and incomplete** — neither
+`0215`, and none of Rudra's or Vinal's `0221`/`0222`. Use the `-ALL` file.
+
+**Two 0216 files now exist**, ours and theirs. Harmless — the runner orders by
+full filename — and it joins the 28 collisions already there back to `0019`.
 
 Do **not** reach for `npm run db:migrate`: the drizzle journal is stale at
 `0019`, so it would also apply two dozen unrelated pending migrations. Full
-detail, per-file notes and the known limitations are in
-[`HANDOFF-Om.md`](./HANDOFF-Om.md).
+detail and per-file notes are in [`HANDOFF-Om.md`](./HANDOFF-Om.md).
 
 ---
 

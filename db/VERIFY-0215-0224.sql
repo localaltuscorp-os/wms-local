@@ -8,7 +8,11 @@
 -- ===========================================================================
 
 
--- 1. RIGHT PROJECT? A real WMS database returns ~270+. Near 0 = wrong project.
+-- 1. RIGHT PROJECT?
+--    Production is mwaijzxuyicysvimzspx. The team's own database is
+--    fjopgyqytfvbudkwhdto -- do not run the migration file there.
+--    A TABLE COUNT CANNOT TELL THEM APART: both carry the full WMS schema,
+--    so ~270+ only rules out an empty project. Step 3 is the real test.
 select current_database()                                   as db,
        (select count(*)::int from information_schema.tables
          where table_schema = 'public')                     as public_tables;
@@ -27,6 +31,9 @@ order by exists, t;
 
 
 -- 3. RLS HELPER FUNCTIONS — Part 0 of the migration file creates these if missing.
+--    ALSO THE PROJECT TEST. Production has both; the team's database has
+--    neither. Two falses here mean you are in the wrong project, not that
+--    Part 0 has work to do.
 select to_regprocedure('app.is_admin()') is not null            as has_is_admin,
        to_regprocedure('app.current_employee_id()') is not null as has_current_employee_id;
 
