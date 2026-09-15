@@ -51,6 +51,27 @@ has `app.is_admin()` and `app.current_employee_id()`, theirs has neither — whi
 is why their `PART 3b` shipped commented out in September. **`has_is_admin`
 false means you are not in production.**
 
+🔴 **`0224` MUST RUN BEFORE THIS CODE DEPLOYS. It is not a degrade-gracefully
+migration.** `0224` renames `mobile_devices.bios_serial_number` to
+`device_name`, and `db/schema.ts:2085` already declares `deviceName`. Drizzle's
+`db.query.mobileDevices.findFirst` expands every declared column, so against a
+database where `0224` has not run it asks for a column that does not exist and
+throws `42703`.
+
+`resolveDeviceContext` (`lib/security/device-access.ts:220`) makes exactly that
+call on **every request that carries a device cookie**, with no try/catch above
+it, and the lookup runs even for exempt actors and with
+`DEVICE_ACCESS_ENFORCEMENT=off` — the comment there says so deliberately, so the
+master switch does not silently skip the audit row. So the failure is app-wide,
+not confined to the device screens.
+
+This is the 9 September outage in a new place: a bare-selected table, a column
+the code knows about and the database does not. **Run the SQL first, then push
+to `main`.** `DeviceRegistrationGate` catches its own errors and the Operations
+Checklist and Job Description pages guard `42P01`/`42703` and show a setup
+notice — those three are genuinely safe to deploy early. The device context is
+not.
+
 **Most of Part 1 is already applied here.** `0215`–`0220` went in by hand on
 11 September as `SQL STEPS/STEP-3`, `STEP-5` and `STEP-6`. Every statement is
 idempotent, so re-running is harmless — but the genuinely outstanding set is
