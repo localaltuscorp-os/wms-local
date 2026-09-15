@@ -15,6 +15,7 @@ import {
 } from "@/lib/queries/incentives";
 import { getBillingDashboard } from "@/lib/queries/billing";
 import { listIncentiveCatalog } from "@/lib/queries/incentive-catalog";
+import { listEligibilityPeople } from "@/lib/queries/incentive-eligibility";
 import { listEmployeeOptions } from "@/lib/queries/employees";
 import { getIncentiveStatusReport, listIncentiveEntriesStatus } from "@/lib/queries/incentive-status";
 import { incentiveStatusUiEnabled } from "@/lib/incentive/status-flag";
@@ -64,14 +65,20 @@ export default async function IncentivePage({ searchParams }: PageProps) {
   const r = <T,>(label: string, make: () => Promise<T>): Promise<T> =>
     withRetry(make, { attempts: 2, timeoutMs: [6000, 9000], label });
 
-  const [dashboard, targetVsActual, rows, catalog, entries, employees] =
+  const [dashboard, targetVsActual, rows, catalog, entries, employees, eligibilityPeople] =
     await Promise.all([
       r("incentive:dashboard", () => getIncentiveDashboard(year)),
       r("incentive:target-vs-actual", () => getIncentiveTargetVsActual(year)),
       r("incentive:requests", () => listIncentiveRequests({ employeeId: me.id, isAdmin: me.isAdmin })),
-      r("incentive:catalog", () => listIncentiveCatalog()),
+      // SCOPED TO THE VIEWER (migration 0216): an employee is shown only the
+      // incentives they were picked for. Admins see everything, plus who each
+      // one applies to, because they are the ones who decide it.
+      r("incentive:catalog", () => listIncentiveCatalog({ forEmployeeId: me.id, isAdmin: me.isAdmin })),
       me.isAdmin ? r("incentive:entries", () => listIncentiveEntriesAdmin(year)) : Promise.resolve([]),
       me.isAdmin ? r("incentive:employees", () => listEmployeeOptions()) : Promise.resolve([]),
+      // The eligibility picker’s roster. Admin-only: shipping every name and
+      // department to a non-admin’s browser would be a quiet leak.
+      me.isAdmin ? r("incentive:eligibility-people", () => listEligibilityPeople()) : Promise.resolve([]),
     ]);
 
   // WS-6 — incentive 3-status (Booked/Accrued/Paid) tab: admin-only + flag-gated
@@ -128,7 +135,7 @@ export default async function IncentivePage({ searchParams }: PageProps) {
               ? "Earned, paid and target attainment across the year."
               : "Your incentive earnings, attainment and requests."
           }
-          actions={<IncentiveCatalogDialog rows={catalog} isAdmin={me.isAdmin} />}
+          actions={<IncentiveCatalogDialog rows={catalog} isAdmin={me.isAdmin} people={eligibilityPeople} />}
           toolbar={
             <nav aria-label="Incentive year" className="flex flex-wrap items-center gap-1">
               {years.map((y) => {

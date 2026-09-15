@@ -455,6 +455,59 @@ throughout; her Firebase UID is new.
 
 ## Changelog
 
+### 2026-09-15 — Per-person incentive eligibility; dashboard trimmed and widened
+
+**SQL TO RUN: `db/migrations/0216_incentive_eligibility.sql`.** It is additive
+and safe to re-run. You do not have to run it before the deploy — see below.
+
+**THE INCENTIVE MODULE NOW DECIDES WHO EACH INCENTIVE APPLIES TO.** An admin
+opens the incentive chart and, per row, picks **Everyone**, a **whole function**
+(one button per department), or **named people**. Anyone not picked:
+
+- does not see that incentive **at all** — it is not greyed out or marked
+  ineligible, it is simply not in their catalog;
+- does not have it counted in their **target vs actual**.
+
+Two design decisions worth knowing:
+
+- **A department button SELECTS, it does not SUBSCRIBE.** Pressing "Sales" ticks
+  everyone currently in Sales and then forgets it was ever a department; what is
+  stored is the list of people. If the rule were stored instead, moving somebody
+  between departments would change what they are paid for months after anyone
+  decided anything, and nobody would know why.
+- **`applies_to_all` defaults to TRUE.** The moment the migration runs, every
+  existing incentive stays visible to exactly the people who could see it a
+  second earlier. Nothing disappears until an admin narrows it deliberately.
+
+**An entry naming an incentive the catalog has never heard of still counts.**
+`incentive_entries.incentive_name` is free text imported from the old sheet with
+no foreign key, so a typo or a retired scheme makes a row unclassifiable — not
+forbidden. Quietly dropping someone's earnings over a spelling mistake in an
+import is the worse failure. Same for a ledger row never linked to an employee.
+
+**THE DEPLOY CANNOT OUTRUN THE SQL.** `lib/incentive/ensure-eligibility-schema.ts`
+runs the additive half of 0216 once per server process, and every read falls
+back to "everything applies to everyone" if the rules cannot be read at all.
+Code arriving before its migration is what took Daily Goals, punch-in and
+sign-in down on 8 and 9 September; this is the same shape as the existing
+`lib/ensure-incentive-schema.ts`. **Still run the file** — the guard is
+insurance, not a substitute.
+
+**What is NOT covered:** `incentive_targets` stores ONE target per person per
+month, not a target per incentive. So the *actual* side is filtered by
+eligibility and the *target* side cannot be — there is nothing in the schema to
+split it by. Per-incentive targets would need their own column and a second
+migration.
+
+**Dashboard, same day:** the workspace rail is gone from /hub (every room is in
+the top bar, so a second permanent copy down the left was 252px spent saying it
+twice), the "N things need you today" line is gone, the top bar now shows up to
+eight tabs, and there are three more widgets (Waiting on, Inbox, Joined this
+month) plus move-to-top/bottom, a compact density and a greeting switch.
+
+Tests: `tests/unit/incentive-eligibility.test.ts` (8) and
+`tests/unit/dashboard-layout.test.ts` (15).
+
 ### 2026-09-12 (night) — The home screen is a dashboard you arrange yourself
 
 **The launcher grid is gone.** Twelve tiles under "Jump into a workspace" were

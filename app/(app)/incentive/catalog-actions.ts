@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { incentiveCatalog } from "@/db/schema";
+import { filterToActiveEmployees, saveEligibility } from "@/lib/queries/incentive-eligibility";
 import { requireAdmin } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 
@@ -80,6 +81,56 @@ export async function deleteCatalogEntry(id: string): Promise<ActionResult> {
 
   try {
     await db.delete(incentiveCatalog).where(eq(incentiveCatalog.id, id));
+  } catch (err: unknown) {
+    return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+const EligibilitySchema = z.object({
+  incentiveId: z.string().uuid(),
+  appliesToAll: z.boolean(),
+  // The headcount is the natural ceiling; the cap is only here so a malformed
+  // request cannot ask the database to insert an unbounded list.
+  employeeIds: z.array(z.string().uuid()).max(2000),
+});
+
+/**
+ * Decide who one incentive applies to. Admin-only.
+ *
+ * `appliesToAll` and the list are written TOGETHER, in a transaction, so the
+ * pair can never disagree — and when it is open to all, the list is cleared
+ * rather than kept, so narrowing it later starts from a blank slate instead of
+ * silently resurrecting whoever was picked months ago.
+ *
+ * The ids are re-checked against the employees table before they are stored.
+ * They arrive from a browser, and a stale or invented uuid would otherwise sit
+ * in the table forever deciding nothing.
+ */
+export async function setIncentiveEligibility(
+  input: z.input<typeof EligibilitySchema>,
+): Promise<ActionResult> {
+  const me = await requireAdmin();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = EligibilitySchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid selection." };
+  }
+  const { incentiveId, appliesToAll, employeeIds } = parsed.data;
+
+  if (!appliesToAll && employeeIds.length === 0) {
+    return {
+      ok: false,
+      error: "Pick at least one person, or set it back to everyone.",
+    };
+  }
+
+  try {
+    const live = appliesToAll ? [] : await filterToActiveEmployees(employeeIds);
+    await saveEligibility(incentiveId, appliesToAll, live);
   } catch (err: unknown) {
     return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
   }
