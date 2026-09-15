@@ -658,15 +658,55 @@ function's actual files), not estimated:
 | `/api/hr/letters/email-pdf` | **98.7 MB** |
 | `/api/hr/letters/issue-rich` | **96.2 MB** |
 
-⚠️ **That 10.30 GB is an UPPER BOUND, not what Vercel bills.** It is the sum of
-every function's traced files with nothing shared or compressed, and it cannot
-be the stored figure — 84 deployments existed inside a 10 GB allowance, so
-Vercel deduplicates and compresses heavily. Working back from the alert
-instead: 84 deployments ≈ 75% of 10 GB puts the real cost at roughly **90 MB
-per deployment**. Use that number when reasoning about this, not the 10.30 GB.
-The ratios between routes still hold, so the letter routes are still the
-heaviest thing in the build — but "200 MB saved per deploy" from deduplicating
-Chromium is the uncompressed figure and the true saving will be smaller.
+**THE CAUSE WAS NOT THE LETTER ROUTES, AND NOT THE NUMBER OF DEPLOYMENTS.**
+Both were wrong guesses made from the list of heaviest FUNCTIONS; the answer
+only appeared on totalling what was INSIDE all 431 of them:
+
+| package | total | in # functions | each |
+|---|---|---|---|
+| **`@electric-sql/pglite`** | **7.14 GB** | **426 of 431** | 17.2 MB |
+| (the app's own code) | 1.97 GB | 431 | 4.7 MB |
+| `next` | 0.52 GB | 431 | 1.2 MB |
+| `@sparticuz/chromium` | 0.19 GB | 4 | 49.8 MB |
+
+**One devDependency was 69% of the bill.** PGlite is the DUMMY_MODE fixture
+database — PostgreSQL compiled to WASM, for the local sandbox on port 3002 —
+and every function that touched `lib/db` shipped a copy production can never
+execute. Chromium, the thing that looked like the problem, is 1.8%.
+
+**Every precaution was already in place and none of them helped.** It is a
+devDependency, it is in `serverExternalPackages`, and `dummyDb()` `require()`s
+it at call time with a comment saying the real database path must never pay for
+it. But `serverExternalPackages` stops a package being BUNDLED, not TRACED —
+keeping it a plain runtime require is the whole point of it — and a call-time
+`require()` with a literal string is still statically analysable, so the tracer
+follows it exactly as it would an import. **This is the trap worth remembering:
+the three things that normally keep a dependency out of production say nothing
+at all about file tracing.** Only `outputFileTracingExcludes` does, and that is
+now set in `next.config.ts`.
+
+**Deleting deployments does NOT fix this meter.** 80 of 84 deployments were
+deleted on 15 September: Deployment Storage fell to 1.76 GB, and Functions
+Storage did not move off 10.6 GB. One build measured 10.30 GB, so Vercel is
+deduplicating function content across deployments by hash — 84 near-identical
+deployments cost about what one does. The only lever is making the functions
+smaller, then redeploying so the fat bundles are no longer referenced.
+
+⚠️ **DO NOT TRUST A LOCAL `.nft.json` MEASUREMENT, including the table above.**
+Three builds of essentially the same tree measured 10.30 GB, then 1.95 GB, then
+1.95 GB — and both small ones traced **no node_modules at all**: zero files for
+`@sparticuz/chromium`, zero for `firebase-admin`, zero for `postgres`. An app
+without its own database driver cannot run, so those traces are incomplete, not
+a saving. The complete one came from a build that reused an existing `.next`;
+the empty ones followed `rm -rf .next`. An `outputFileTracingExcludes` entry was
+blamed for the emptiness and was innocent — it reproduces with no exclude
+configured.
+
+So the 7.14 GB figure comes from the one trace that was internally consistent
+(chromium in exactly the four routes configured for it, firebase-admin in 92),
+and it is the best evidence available rather than a proven number. **The
+authority is Vercel → Usage → Functions Storage after a deploy.** Treat a local
+build as a hypothesis generator only.
 
 **Three routes carry three separate copies of the same 67 MB Chromium binary
 — 201 MB of pure duplication in every single deployment.** They are traced in
@@ -675,20 +715,23 @@ binary at runtime, so nothing statically imports it and Vercel's file-tracing
 would otherwise drop it. The include is correct; having three routes that each
 need it is the cost.
 
-**What to do, in order of how fast it helps:**
+**What to do, in order:**
 
-1. **Delete old deployments** (Vercel → Deployments → ⋯ → Delete). Every past
-   deployment keeps its functions, so this reclaims storage immediately and is
-   the only lever that works without a code change. Keep the current production
-   deployment and a couple to roll back to.
-2. **Do not deploy on every push.** Each push to `main` is a full 431-function
-   deployment. Batch work onto one deploy rather than five.
-3. **Structural, and the real fix: collapse the three letter-PDF routes into
-   one.** They all render the same rich letter through headless Chromium and
-   differ only in what they do with the bytes (return / email / store). One
-   route taking a mode parameter carries the 67 MB once instead of three times
-   — roughly 200 MB off every deployment. Not attempted here: it is a genuine
-   refactor of three live endpoints and wants its own change and its own test.
+1. **Deploy the `outputFileTracingExcludes` fix** (done — see `next.config.ts`).
+   It is what removes the 7.14 GB.
+2. **Then delete the deployments built BEFORE it**, once the new one is live
+   and healthy. They still reference the fat bundles, and the meter cannot fall
+   while anything does.
+3. **Do not deploy on every push.** Each push to `main` is a full 431-function
+   deployment. Batch work onto one deploy rather than five. This matters for
+   Deployment Storage (which does accumulate) more than for Functions Storage.
+4. **Optional, and much smaller than it looks: collapse the three letter-PDF
+   routes into one.** They all render the same rich letter through headless
+   Chromium and differ only in what they do with the bytes (return / email /
+   store), so one route with a mode parameter carries the 67 MB once instead of
+   three times. Worth roughly 150 MB — real, but 1.8% of the problem, not the
+   headline it first appeared to be. It is a refactor of three live endpoints
+   and wants its own change and its own test.
 
 **Do NOT "fix" this by deleting the `outputFileTracingIncludes` entries.** They
 look like bloat and they are load-bearing: without `CHROMIUM_BIN` the rich

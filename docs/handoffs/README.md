@@ -68,11 +68,47 @@ has no counter and needs nothing.)
 The free team plan pauses the project when a limit is hit, so these are not
 housekeeping.
 
-**1. Every push to `main` is a full 431-function deployment, and every old one
-still occupies storage.** One deployment's bundles total ~10.3 GB against a
-10 GB Function Storage allowance. Batch work onto one deploy instead of five,
-and delete old deployments (Deployments → ⋯ → Delete), keeping production plus
-one or two to roll back to.
+**1. A dependency kept out of production three different ways can still be in
+every function.** Functions Storage hit 10.6 GB of 10 GB, and 7.14 GB of it was
+`@electric-sql/pglite` — the local sandbox database — sitting in 426 of 431
+functions. It is a devDependency, it is in `serverExternalPackages`, and it is
+`require()`d at call time behind a `DUMMY_MODE` check. **None of those affect
+file tracing.** `serverExternalPackages` stops bundling, not tracing; a literal
+`require("pkg")` is statically analysable wherever it sits. Only
+`outputFileTracingExcludes` keeps a package out of the deployed function, and
+only `.nft.json` tells you what is actually in there:
+
+```bash
+# what is really inside every function, by package
+python - <<'PY'
+import json,io,os,glob,collections
+b=collections.Counter(); n=collections.Counter(); sz={}
+for f in glob.glob(".next/server/**/*.nft.json", recursive=True):
+    r=os.path.dirname(f); seen=set()
+    for rel in json.load(io.open(f,encoding="utf-8")).get("files",[]):
+        p=os.path.normpath(os.path.join(r,rel))
+        if p not in sz:
+            try: sz[p]=os.path.getsize(p)
+            except OSError: sz[p]=0
+        k=p.replace("\\","/")
+        k=k.split("/node_modules/")[-1].split("/") if "/node_modules/" in k else ["(app)"]
+        k="/".join(k[:2]) if k[0].startswith("@") else k[0]
+        b[k]+=sz[p]
+        if k not in seen: seen.add(k); n[k]+=1
+for k,v in b.most_common(12): print(f"{k:<40}{v/2**30:7.2f} GB  in {n[k]} fns")
+PY
+```
+
+⚠️ **Sanity-check that script's output before believing it.** Three local
+builds of the same tree gave 10.30 GB, 1.95 GB and 1.95 GB, and the two small
+ones traced no `node_modules` whatsoever — no database driver, no
+`firebase-admin`. That is a broken trace, not a win. **The test: if a package
+the app cannot start without is missing from the trace, throw the measurement
+away.** Vercel → Usage → Functions Storage is the only authority.
+
+**Deleting old deployments does not fix Functions Storage** — Vercel dedupes
+function content across deployments, so 84 near-identical ones cost about what
+one does. It does help Deployment Storage, which accumulates normally.
 
 **2. Never add a client-side poller without doing the arithmetic.** A 4-second
 `setInterval` is 900 requests an hour **per open tab, per person**, and if it

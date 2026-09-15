@@ -115,6 +115,66 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
+  /**
+   * KEEP THE DUMMY-MODE DATABASE OUT OF PRODUCTION FUNCTIONS.
+   *
+   * ── THE MEASUREMENT ──────────────────────────────────────────────────────
+   * On 2026-09-15 Vercel reported Functions Storage at 10.6 GB against a 10 GB
+   * allowance. Summing every function's traced files (.next/server/**\/*.nft.json)
+   * found 10.30 GB across 431 functions, and 7.14 GB of that — 69% — was ONE
+   * devDependency:
+   *
+   *   @electric-sql/pglite   7.14 GB   in 426 of 431 functions   17.2 MB each
+   *
+   * ── WHY IT WAS THERE, THOUGH EVERY PRECAUTION WAS ALREADY TAKEN ─────────
+   * PGlite is the local fixture database (DUMMY_MODE, port 3002). It is a
+   * devDependency, it is in `serverExternalPackages` below, and `dummyDb()` in
+   * lib/db/index.ts `require()`s it at CALL time with a comment saying the real
+   * database path must never pay for it. All correct, and none of it helps:
+   *
+   *   · `serverExternalPackages` stops it being BUNDLED. It does not stop it
+   *     being TRACED — that is the point of the option, to keep it a plain
+   *     runtime require out of node_modules.
+   *   · A call-time `require()` with a LITERAL string is still statically
+   *     analysable, so nft follows it exactly as it would an import.
+   *
+   * So every function that touched `lib/db` — all 426 of them — shipped a copy
+   * of PostgreSQL-compiled-to-WASM that production can never execute.
+   *
+   * ── WHY EXCLUDING IS SAFE ───────────────────────────────────────────────
+   * `dummyDb()` is reached only when DUMMY_MODE=true, which is the local
+   * sandbox and never a deployment. If it somehow ran on Vercel it would fail
+   * at the require rather than misbehave — a loud failure in a mode that is not
+   * supposed to exist there, which is the right way round.
+   *
+   * ── WHY THIS IS FIXED IN lib/db/index.ts AND NOT WITH AN EXCLUDE HERE ───
+   * `outputFileTracingExcludes` was tried and then abandoned, for a reason
+   * worth recording because it will waste the next person's afternoon too.
+   *
+   * DO NOT TRUST A LOCAL `.nft.json` MEASUREMENT. Three builds of essentially
+   * the same tree gave 10.30 GB, then 1.95 GB, then 1.95 GB again — and the
+   * two small ones traced NO node_modules AT ALL: zero for `@sparticuz/
+   * chromium`, zero for `firebase-admin`, zero for `postgres`. An app missing
+   * its own database driver cannot run, so those traces are simply incomplete,
+   * not a saving. (The full one came from a build that reused an existing
+   * `.next`; the empty ones followed `rm -rf .next`.) The exclude was blamed
+   * for that and was innocent — the same emptiness appears with no exclude
+   * configured at all.
+   *
+   * The one trustworthy local measurement is the complete trace, and it is
+   * where the 7.14 GB above comes from: internally consistent, with chromium
+   * in exactly the four routes configured for it and firebase-admin in 92.
+   *
+   * The fix lives at the source instead: `dummyDb()` requires PGlite through a
+   * VARIABLE specifier, which a static analyser cannot resolve and so cannot
+   * follow. Chosen over an exclude because it is precise BY CONSTRUCTION —
+   * there is no glob to get wrong and no way for it to catch another package —
+   * and because it cannot break anything even if it turns out to save nothing:
+   * production never calls `dummyDb()`, and Node resolves a variable specifier
+   * perfectly well at runtime for the local sandbox that does.
+   *
+   * VERIFY ON VERCEL, NOT HERE: Usage → Functions Storage, after a deploy.
+   */
   // Ship the hand-crafted Goals bulk-import workbook INTO the template route's
   // serverless function bundle (public/ assets are CDN-served and NOT guaranteed
   // to be on the function filesystem, so a bare readFile would 500 in prod).
