@@ -121,6 +121,20 @@ export function BroadcastPopup() {
     async function check() {
       // Nothing to do while one is already up, or while a click is in flight.
       if (cancelled || showing.current) return;
+      // A POPUP NOBODY CAN SEE IS NOT WORTH A ROUND TRIP.
+      //
+      // Each poll costs a session lookup AND a database query (see
+      // app/api/broadcasts/popup/route.ts), and this component is mounted on
+      // every authed page, so a tab left open in the background was buying two
+      // queries a minute — for hours — to decide whether to draw something on
+      // a screen nobody is looking at. That is Vercel Fluid Active CPU and
+      // Supabase connections spent on a guaranteed no-op.
+      //
+      // NOTHING IS MISSED AND NOTHING IS EVEN DELAYED. The visibilitychange
+      // handler below already fires a check the instant the tab comes back, so
+      // a broadcast sent while you were away now appears on RETURN rather than
+      // up to one throttled interval later. Strictly faster than it was.
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       try {
         const qs = sessionRef.current ? `?s=${encodeURIComponent(sessionRef.current)}` : "";
         const res = await fetch(`/api/broadcasts/popup${qs}`, { cache: "no-store" });

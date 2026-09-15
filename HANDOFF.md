@@ -582,6 +582,36 @@ can be redone deliberately — the footer of the restore file has the three
 statements, and note that Part 2 skips itself while `mobile_devices_pre_0223`
 exists, so the old backup must be renamed and dropped first.
 
+**Vercel warned that `altus-corp1` had used 75% of the free Fluid Active CPU
+allowance, and the cause is the broadcast poller.** `<BroadcastPopup>` is
+mounted in `app/(app)/layout.tsx`, so it runs on every authenticated page, and
+it polls `/api/broadcasts/popup` every **4 seconds** — 900 requests an hour per
+open tab. It is the ONLY network poller in the app (`refetchInterval`,
+`refreshInterval` and `pollingInterval` appear nowhere), and it went live with
+Rudra's 0215 work this same day, which is why the alert arrived when it did.
+
+**The crons are not the cause and can be ruled out:** 35 of them, none more
+frequent than daily — 35 invocations a day against roughly 150,000 from the
+poller.
+
+Each poll is not cheap either. `getCurrentEmployee()` verifies the session
+(crypto, which is real CPU rather than I/O wait that Fluid bills lightly), then
+reads the employee, then `getDelegation()`, then the broadcast query — about
+four round trips, fifteen times a minute, per person.
+
+**Fixed for free: the poll now skips while the tab is hidden.** A popup nobody
+can see is not worth a round trip, and nothing is missed or even delayed — the
+`visibilitychange` handler already fires a check the moment the tab returns, so
+a broadcast sent while you were away now appears on RETURN rather than up to
+one throttled interval later. Strictly faster than before.
+
+**Still on the table, and it is a product decision:** `POLL_MS = 4000` exists
+because the brief was "within 5 seconds of Send". At 15s it is 240 requests an
+hour instead of 900 (−73%); at 30s, 120 (−87%). For an internal announcement
+tool the difference between 5 and 15 seconds is unlikely to matter, but the 4s
+value is documented as deliberate, so changing it is the account holder's call
+and not a cleanup.
+
 **A verification file must be ONE statement.** The Supabase editor displays only
 the LAST result set of a multi-statement run. `VERIFY` was eight `SELECT`s, so
 running it showed check 7 and silently discarded checks 1–6 — and the output
@@ -591,11 +621,18 @@ no `BEGIN`/`COMMIT`: one statement is atomic already, and a trailing `COMMIT`
 returns no rows, so it would become the last result set and hide the report.
 Written up for the team in [`docs/handoffs/README.md`](./docs/handoffs/README.md).
 
-**Still unanswered, and it is a permissions decision:** broadcast authoring is
-open to every signed-in employee (`requireAuthor()` is `requireUser()`), while
-managing an existing broadcast correctly requires author-or-admin. Broadcasts
-carry Critical/Emergency priority with app-lock mode. Rudra asked for a ruling
-in `docs/handoffs/HANDOFF-Rudra.md` §6.4 and has not had one.
+**ANSWERED — broadcast authoring stays open to every employee.** Rudra asked
+for a ruling in `docs/handoffs/HANDOFF-Rudra.md` §6.4: `requireAuthor()` is
+`requireUser()`, so anyone signed in can create a broadcast, while managing an
+existing one correctly requires author-or-admin. **The account holder's
+decision on 15 September is that this is intended — leave it as it is.** No
+code change; the current behaviour already is the decision.
+
+Recorded here so it is not re-raised as a bug every time someone reads that
+permission check. The thing to watch, if it ever becomes a problem, is not
+authoring itself but **Critical/Emergency priority, which carries app-lock
+mode** — that is the capability worth splitting off, rather than restricting
+who may post an announcement.
 
 ### 2026-09-15 (evening) — The team's fork audited against the Aura merge
 
