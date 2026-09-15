@@ -5,13 +5,20 @@ import { accessFor } from "@/lib/auth/workspace-access";
 import { canAccessWorkspace, WORKSPACE_LANDING, type WorkspaceId } from "@/lib/workspaces";
 import { MODULE_ORDER } from "@/lib/module-theme";
 import { EnterWorkspaceLink } from "@/components/hub/enter-workspace-link";
-import { AuraSheen, AURA_LAYOUT_ID } from "@/components/hub/aura-chrome";
+import { AuraSheen } from "@/components/hub/aura-chrome";
 import { AuraTopBar } from "@/components/layout/aura-top-bar";
 import { roomsFor } from "@/lib/aura-rooms";
 import { AuraDonut, AuraBloom } from "@/components/hub/aura-charts";
-import { AuraGlassRail } from "@/components/hub/aura-glass-rail";
 import { DashboardGrid } from "@/components/hub/dashboard-grid";
-import { HoursWidget, QuickActionsWidget, TeamWidget, UpcomingWidget } from "@/components/hub/aura-widgets";
+import {
+  AnniversaryWidget,
+  DelegatedWidget,
+  HoursWidget,
+  InboxWidget,
+  QuickActionsWidget,
+  TeamWidget,
+  UpcomingWidget,
+} from "@/components/hub/aura-widgets";
 import type { WidgetId } from "@/lib/dashboard/widgets";
 import { UserMenuServer } from "@/components/header/user-menu-server";
 import { NotificationBell } from "@/components/header/notification-bell";
@@ -19,7 +26,13 @@ import { getMyDayCounts, getMyTodayTasks, type MyTodayTask } from "@/lib/queries
 import { getDashboard } from "@/lib/goals/queries";
 import { fyStartYearOf } from "@/lib/goals/types";
 import { getOrgSettings } from "@/lib/queries/org-settings";
-import { loadAuraDashboard, hhmmToMinutes, type OpenItem } from "@/lib/queries/aura-dashboard";
+import { getNavCounts } from "@/lib/queries/nav-counts";
+import {
+  loadAuraDashboard,
+  hhmmToMinutes,
+  type AuraDashboard,
+  type OpenItem,
+} from "@/lib/queries/aura-dashboard";
 import type { ReactNode } from "react";
 import { isManagerWithReports, managerDailyTaskGate } from "@/lib/manager-gates";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
@@ -122,13 +135,6 @@ function istTimeLabel(d: Date): string {
     hour: "numeric",
     minute: "2-digit",
   }).format(d);
-}
-
-/** The one line under the greeting, built from what is actually waiting. */
-function needsYouLine(open: number): string {
-  if (open === 0) return "Nothing is due on you today.";
-  if (open === 1) return "One thing needs you today.";
-  return `${open} things need you today.`;
 }
 
 function hm(minutes: number): string {
@@ -239,11 +245,17 @@ export default async function HubPage() {
   const canSeeGoals = canAccessWorkspace("goals", access);
 
   // One round of parallel reads, each caught on its own.
-  const [counts, todayTasks, goals, org] = await Promise.all([
+  const [counts, todayTasks, goals, org, nav] = await Promise.all([
     canSeeWms ? getMyDayCounts(me.id).catch(() => null) : null,
     canSeeWms ? getMyTodayTasks(me.id).catch((): MyTodayTask[] => []) : [],
     canSeeGoals ? getDashboard(me.id, fyStartYearOf(now)).catch(() => null) : null,
     getOrgSettings().catch(() => null),
+    // The account menu calls this on every page: the task totals are a shared
+    // cache hit, so the inbox widget costs one per-user unread query and
+    // nothing more.
+    getNavCounts({ userId: me.id, isAdmin: me.isAdmin, inboxSince: me.lastInboxVisitAt }).catch(
+      () => null,
+    ),
   ]);
 
   const board = await loadAuraDashboard({
@@ -258,22 +270,21 @@ export default async function HubPage() {
       workingDays: me.workingDays,
     },
     now,
-  }).catch(() => ({
-    shape: null,
-    attendance: null,
-    openWork: null,
-    outcomes: null,
-    items: [],
-    upcoming: [],
-    team: [],
-  }));
+  }).catch(
+    (): AuraDashboard => ({
+      shape: null,
+      attendance: null,
+      openWork: null,
+      outcomes: null,
+      items: [],
+      upcoming: [],
+      team: [],
+      anniversaries: [],
+      delegated: [],
+    }),
+  );
 
   const open = (counts?.dueToday ?? 0) + (counts?.overdue ?? 0);
-
-  // Rail badges: only where a real number exists.
-  const badges: Partial<Record<WorkspaceId, string>> = {};
-  if (counts && open > 0) badges.wms = `${open} due`;
-  if (goals) badges.goals = `${goals.weekScore}%`;
 
   const shape = board.shape;
   // The week strip's tallest bar is 34px; every other day is drawn in
@@ -478,6 +489,10 @@ export default async function HubPage() {
   if (board.outcomes) nodes.outcomes = <AuraDonut data={board.outcomes} title="This month's outcomes" />;
   if (board.upcoming.length > 0) nodes.upcoming = <UpcomingWidget days={board.upcoming} />;
   if (board.team.length > 0) nodes.team = <TeamWidget team={board.team} />;
+  if (board.delegated.length > 0) nodes.delegated = <DelegatedWidget people={board.delegated} />;
+  if (board.anniversaries.length > 0)
+    nodes.anniversaries = <AnniversaryWidget people={board.anniversaries} />;
+  if (nav) nodes.inbox = <InboxWidget unread={nav.inboxUnread} archived={nav.archivedTasks} />;
 
   nodes["open-table"] = (
     <section className="aura-glass aura-tbl-card">
@@ -532,26 +547,31 @@ export default async function HubPage() {
         userMenu={<UserMenuServer />}
       />
 
-      <div className="aura-layout" id={AURA_LAYOUT_ID}>
-        {/* The room switcher that stays put while a long dashboard scrolls.
-            Only rooms the viewer can actually enter are listed, and the badges
-            are the same live counts the tiles carry — one source, so the rail
-            and the grid can never disagree. */}
-        <AuraGlassRail rooms={roomsFor(visible)} badges={badges} />
-
+      {/* The workspace rail is GONE from this page. Every room is in the top
+          bar — as a tab or under "More" — so a second, permanent copy of the
+          same list down the left was 252px spent saying it twice. Module pages
+          keep THEIR rail: that one lists the sections inside a room, which the
+          top bar does not. */}
+      <div className="aura-layout aura-layout-bare">
         <main className="aura-main">
-          <div className="aura-top">
-            <div>
-              <div className="aura-date">{istDateLabel(now)}</div>
-              <h1 className="aura-h1">
-                {istGreeting(now)}, {firstName}
-              </h1>
-              <p className="aura-sub">{needsYouLine(open)}</p>
-            </div>
-            <div className="aura-glass aura-chip">Today</div>
-          </div>
-
-          <DashboardGrid nodes={nodes} available={available} />
+          {/* The greeting is passed IN rather than rendered here, so the grid
+              can switch it off with everything else. A page whose whole point
+              is that nothing is fixed should not have one fixed thing. */}
+          <DashboardGrid
+            nodes={nodes}
+            available={available}
+            greeting={
+              <div className="aura-top">
+                <div>
+                  <div className="aura-date">{istDateLabel(now)}</div>
+                  <h1 className="aura-h1">
+                    {istGreeting(now)}, {firstName}
+                  </h1>
+                </div>
+                <div className="aura-glass aura-chip">Today</div>
+              </div>
+            }
+          />
         </main>
       </div>
     </div>

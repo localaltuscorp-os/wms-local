@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gte, inArray, lt, lte, ne, desc } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, lt, lte, ne, desc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { attendanceLogs, employees, holidays, leaveRequests, tasks } from "@/db/schema";
 import { PENDING_STATUSES, PRIORITY_LABELS, TASK_PRIORITIES } from "@/db/enums";
@@ -760,6 +760,122 @@ export async function teamLoad(managerId: string, now: Date = new Date()): Promi
 }
 
 
+/* ─────────────────────────── 7. work anniversaries ─────────────────────── */
+
+export interface Anniversary {
+  id: string;
+  name: string;
+  /** "12 Sep". */
+  dayLabel: string;
+  /** Completed years on this anniversary. 0 means they joined this month. */
+  years: number;
+  /** Sorts the list; days from today, negative for already-passed this month. */
+  offset: number;
+}
+
+/**
+ * Who joined Altus in this calendar month, and how many years ago.
+ *
+ * `joined_at` is the only date on the employee row that marks an occasion — the
+ * schema carries no date of birth, so this is work anniversaries only and the
+ * widget says so rather than implying birthdays it cannot know.
+ */
+export async function anniversariesThisMonth(
+  tz: string,
+  now: Date = new Date(),
+  limit = 6,
+): Promise<Anniversary[]> {
+  const today = ymd(now, tz);
+  const month = Number(today.slice(5, 7));
+  const dayOfMonth = Number(today.slice(8, 10));
+  const thisYear = Number(today.slice(0, 4));
+
+  const rows = await withRetry(
+    () =>
+      db
+        .select({ id: employees.id, name: employees.name, joinedAt: employees.joinedAt })
+        .from(employees)
+        .where(and(eq(employees.isActive, true), isNotNull(employees.joinedAt))),
+    { timeoutMs: [...READ_BUDGET], label: "aura.anniversaries" },
+  );
+
+  const out: Anniversary[] = [];
+  for (const r of rows) {
+    if (!r.joinedAt) continue;
+    // Read the join date IN THE VIEWER'S ZONE. A timestamp stored at UTC
+    // midnight is the previous day in a negative offset and the same day in
+    // IST — the anniversary has to be the date the person experienced.
+    const joined = ymd(r.joinedAt, tz);
+    if (Number(joined.slice(5, 7)) !== month) continue;
+    const day = Number(joined.slice(8, 10));
+    out.push({
+      id: r.id,
+      name: r.name,
+      dayLabel: new Intl.DateTimeFormat("en-GB", { timeZone: tz, day: "numeric", month: "short" })
+        .format(r.joinedAt),
+      years: Math.max(0, thisYear - Number(joined.slice(0, 4))),
+      offset: day - dayOfMonth,
+    });
+  }
+
+  // Upcoming first, then the ones already past this month.
+  return out
+    .sort((a, b) => (a.offset >= 0 ? a.offset : 1000 - a.offset) - (b.offset >= 0 ? b.offset : 1000 - b.offset))
+    .slice(0, limit);
+}
+
+/* ─────────────────────────── 8. what you gave out ──────────────────────── */
+
+export interface DelegatedLoad {
+  id: string;
+  name: string;
+  open: number;
+  overdue: number;
+}
+
+/**
+ * Tasks YOU handed to other people and that are still open, by person.
+ *
+ * The mirror of "Open on you": the other half of a manager's day is what they
+ * are waiting on. Distinct from the team widget — this is anyone you assigned
+ * to, reports or not.
+ */
+export async function delegatedLoad(
+  employeeId: string,
+  now: Date = new Date(),
+  limit = 6,
+): Promise<DelegatedLoad[]> {
+  const rows = await withRetry(
+    () =>
+      db
+        .select({ doerId: tasks.doerId, name: employees.name, dueAt: tasks.dueAt })
+        .from(tasks)
+        .leftJoin(employees, eq(employees.id, tasks.doerId))
+        .where(
+          and(
+            eq(tasks.initiatorId, employeeId),
+            ne(tasks.doerId, employeeId),
+            eq(tasks.archived, false),
+            inArray(tasks.status, [...PENDING_STATUSES]),
+          ),
+        ),
+    { timeoutMs: [...READ_BUDGET], label: "aura.delegatedLoad" },
+  );
+
+  const by = new Map<string, DelegatedLoad>();
+  for (const r of rows) {
+    const slot = by.get(r.doerId) ?? { id: r.doerId, name: r.name ?? "Unknown", open: 0, overdue: 0 };
+    slot.open++;
+    if (r.dueAt && r.dueAt.getTime() < now.getTime()) slot.overdue++;
+    by.set(r.doerId, slot);
+  }
+
+  return [...by.values()]
+    .sort((a, b) => b.overdue - a.overdue || b.open - a.open)
+    .slice(0, limit);
+}
+
+
 /* ───────────────────────────── the one entry ────────────────────────────── */
 
 export interface AuraDashboard {
@@ -770,6 +886,8 @@ export interface AuraDashboard {
   items: OpenItem[];
   upcoming: UpcomingDay[];
   team: TeamMemberLoad[];
+  anniversaries: Anniversary[];
+  delegated: DelegatedLoad[];
 }
 
 /**
@@ -794,20 +912,23 @@ export async function loadAuraDashboard(opts: {
   now?: Date;
 }): Promise<AuraDashboard> {
   const now = opts.now ?? new Date();
-  const [shape, attendance, openWork, outcomes, items, upcoming, team] = await Promise.all([
-    myWorkShape(opts.employeeId, opts.tz, now, opts.target).catch(() => null),
-    opts.isAdmin
-      ? attendanceToday(opts.tz, opts.lateAfterMinutes, now).catch(() => null)
-      : Promise.resolve(null),
-    openWorkByPriority(opts.employeeId).catch(() => null),
-    monthOutcomes(opts.employeeId, opts.tz, now).catch(() => null),
-    openItems(opts.employeeId).catch((): OpenItem[] => []),
-    upcomingHolidays(opts.tz, now).catch((): UpcomingDay[] => []),
-    opts.isManager
-      ? teamLoad(opts.employeeId, now).catch((): TeamMemberLoad[] => [])
-      : Promise.resolve<TeamMemberLoad[]>([]),
-  ]);
-  return { shape, attendance, openWork, outcomes, items, upcoming, team };
+  const [shape, attendance, openWork, outcomes, items, upcoming, team, anniversaries, delegated] =
+    await Promise.all([
+      myWorkShape(opts.employeeId, opts.tz, now, opts.target).catch(() => null),
+      opts.isAdmin
+        ? attendanceToday(opts.tz, opts.lateAfterMinutes, now).catch(() => null)
+        : Promise.resolve(null),
+      openWorkByPriority(opts.employeeId).catch(() => null),
+      monthOutcomes(opts.employeeId, opts.tz, now).catch(() => null),
+      openItems(opts.employeeId).catch((): OpenItem[] => []),
+      upcomingHolidays(opts.tz, now).catch((): UpcomingDay[] => []),
+      opts.isManager
+        ? teamLoad(opts.employeeId, now).catch((): TeamMemberLoad[] => [])
+        : Promise.resolve<TeamMemberLoad[]>([]),
+      anniversariesThisMonth(opts.tz, now).catch((): Anniversary[] => []),
+      delegatedLoad(opts.employeeId, now).catch((): DelegatedLoad[] => []),
+    ]);
+  return { shape, attendance, openWork, outcomes, items, upcoming, team, anniversaries, delegated };
 }
 
 /** "10:50" → 650. Exported so the page can turn the org threshold into minutes. */

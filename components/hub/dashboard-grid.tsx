@@ -1,14 +1,28 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowUp, Check, Plus, Settings2, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronsDown,
+  ChevronsUp,
+  Plus,
+  Settings2,
+  X,
+} from "lucide-react";
 import {
   DEFAULT_LAYOUT,
+  DEFAULT_PREFERENCES,
+  DENSITY_LABEL,
   LAYOUT_STORAGE_KEY,
   SIZE_LABEL,
   WIDGETS,
   hiddenWidgets,
+  readPreferences,
   reconcileLayout,
+  type Density,
+  type Preferences,
   type StoredLayout,
   type WidgetId,
   type WidgetPlacement,
@@ -86,11 +100,16 @@ function subscribe(onChange: () => void): () => void {
 export function DashboardGrid({
   nodes,
   available,
+  greeting,
 }: {
   /** Widget bodies, rendered on the server. Keyed by widget id. */
   nodes: Partial<Record<WidgetId, React.ReactNode>>;
   /** Which widgets this viewer may see at all — permissions and data. */
   available: WidgetId[];
+  /** The date + "Good morning" block. Rendered HERE so it can be switched off
+   *  with everything else, rather than being the one fixed thing on a page
+   *  whose entire point is that nothing is fixed. */
+  greeting?: React.ReactNode;
 }) {
   const [editing, setEditing] = React.useState(false);
   const [adding, setAdding] = React.useState(false);
@@ -105,23 +124,45 @@ export function DashboardGrid({
 
   const layout = React.useMemo(() => reconcileLayout(stored, available), [stored, available]);
   const hidden = React.useMemo(() => hiddenWidgets(layout, available), [layout, available]);
+  const prefs = React.useMemo(() => readPreferences(stored), [stored]);
 
   /* Every mutation writes the WHOLE arrangement, including which widgets are
      off. See `StoredLayout.removed` for why "off" has to be recorded rather
      than inferred from absence. */
   const commit = React.useCallback(
-    (shown: WidgetPlacement[]) => {
+    (shown: WidgetPlacement[], next?: Partial<Preferences>) => {
       const on = new Set(shown.map((w) => w.id));
-      writeStore({ v: 1, shown, removed: available.filter((id) => !on.has(id)) });
+      const p = { ...DEFAULT_PREFERENCES, ...prefs, ...next };
+      writeStore({
+        v: 1,
+        shown,
+        removed: available.filter((id) => !on.has(id)),
+        density: p.density,
+        greeting: p.greeting,
+      });
     },
-    [available],
+    [available, prefs],
   );
+
+  const setPref = (next: Partial<Preferences>) => commit(layout, next);
 
   const move = (index: number, by: -1 | 1) => {
     const next = [...layout];
     const to = index + by;
     if (to < 0 || to >= next.length) return;
     [next[index], next[to]] = [next[to]!, next[index]!];
+    commit(next);
+  };
+
+  /* Fourteen widgets is far enough that stepping one at a time is a chore, and
+     a drag target on a grid that reflows under the pointer is worse than both
+     — so the ends get their own buttons. */
+  const moveTo = (index: number, edge: "top" | "bottom") => {
+    const next = [...layout];
+    const [w] = next.splice(index, 1);
+    if (!w) return;
+    if (edge === "top") next.unshift(w);
+    else next.push(w);
     commit(next);
   };
 
@@ -140,16 +181,46 @@ export function DashboardGrid({
 
   const reset = () => {
     const allow = new Set(available);
-    commit(DEFAULT_LAYOUT.filter((d) => allow.has(d.id)).map((d) => ({ ...d })));
+    commit(
+      DEFAULT_LAYOUT.filter((d) => allow.has(d.id)).map((d) => ({ ...d })),
+      DEFAULT_PREFERENCES,
+    );
   };
 
   return (
     <>
+      {prefs.greeting && greeting}
+
       <div className="aura-grid-head">
         <h2 className="aura-h2">Your dashboard</h2>
         <div className="aura-edit-bar">
           {editing && (
             <>
+              <span className="aura-pref">
+                Density
+                <span className="aura-pref-seg" role="group" aria-label="Density">
+                  {(["comfortable", "compact"] as Density[]).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      aria-pressed={prefs.density === d}
+                      onClick={() => setPref({ density: d })}
+                    >
+                      {DENSITY_LABEL[d]}
+                    </button>
+                  ))}
+                </span>
+              </span>
+
+              <button
+                type="button"
+                className="aura-edit-btn"
+                aria-pressed={prefs.greeting}
+                onClick={() => setPref({ greeting: !prefs.greeting })}
+              >
+                {prefs.greeting ? "Hide greeting" : "Show greeting"}
+              </button>
+
               <button type="button" className="aura-edit-btn" onClick={reset}>
                 Reset to default
               </button>
@@ -203,7 +274,10 @@ export function DashboardGrid({
         </div>
       )}
 
-      <div className={editing ? "aura-wgrid is-editing" : "aura-wgrid"}>
+      <div
+        className={editing ? "aura-wgrid is-editing" : "aura-wgrid"}
+        data-density={prefs.density}
+      >
         {layout.map((w, i) => {
           const spec = WIDGETS[w.id];
           const body = nodes[w.id];
@@ -229,26 +303,48 @@ export function DashboardGrid({
                     ))}
                   </span>
 
-                  <button
-                    type="button"
-                    className="aura-w-btn"
-                    title="Move up"
-                    aria-label={`Move ${spec.title} up`}
-                    disabled={i === 0}
-                    onClick={() => move(i, -1)}
-                  >
-                    <ArrowUp size={13} strokeWidth={2.6} aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className="aura-w-btn"
-                    title="Move down"
-                    aria-label={`Move ${spec.title} down`}
-                    disabled={i === layout.length - 1}
-                    onClick={() => move(i, 1)}
-                  >
-                    <ArrowDown size={13} strokeWidth={2.6} aria-hidden />
-                  </button>
+                  <span className="aura-w-group">
+                    <button
+                      type="button"
+                      className="aura-w-btn"
+                      title="Move to top"
+                      aria-label={`Move ${spec.title} to the top`}
+                      disabled={i === 0}
+                      onClick={() => moveTo(i, "top")}
+                    >
+                      <ChevronsUp size={13} strokeWidth={2.6} aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className="aura-w-btn"
+                      title="Move up"
+                      aria-label={`Move ${spec.title} up`}
+                      disabled={i === 0}
+                      onClick={() => move(i, -1)}
+                    >
+                      <ArrowUp size={13} strokeWidth={2.6} aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className="aura-w-btn"
+                      title="Move down"
+                      aria-label={`Move ${spec.title} down`}
+                      disabled={i === layout.length - 1}
+                      onClick={() => move(i, 1)}
+                    >
+                      <ArrowDown size={13} strokeWidth={2.6} aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className="aura-w-btn"
+                      title="Move to bottom"
+                      aria-label={`Move ${spec.title} to the bottom`}
+                      disabled={i === layout.length - 1}
+                      onClick={() => moveTo(i, "bottom")}
+                    >
+                      <ChevronsDown size={13} strokeWidth={2.6} aria-hidden />
+                    </button>
+                  </span>
                   <button
                     type="button"
                     className="aura-w-btn aura-w-remove"

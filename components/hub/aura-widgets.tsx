@@ -3,12 +3,20 @@ import type { Route } from "next";
 import {
   CalendarDays,
   CalendarClock,
+  Cake,
   Inbox,
   ListChecks,
   Plus,
+  Send,
   Target,
 } from "lucide-react";
-import type { MyWorkShape, TeamMemberLoad, UpcomingDay } from "@/lib/queries/aura-dashboard";
+import type {
+  Anniversary,
+  DelegatedLoad,
+  MyWorkShape,
+  TeamMemberLoad,
+  UpcomingDay,
+} from "@/lib/queries/aura-dashboard";
 
 /**
  * The widgets that are not charts — the small panes that fill out the home
@@ -181,6 +189,118 @@ export function TeamWidget({ team }: { team: TeamMemberLoad[] }) {
               <b>{m.open}</b>
               <em>open</em>
               {m.overdue > 0 && <span className="aura-state aura-state-hot">{m.overdue} overdue</span>}
+            </span>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+/* ────────────────────────────── inbox & unread ──────────────────────────── */
+
+/**
+ * The two counts that otherwise only exist inside the account menu.
+ *
+ * Both come from `getNavCounts`, which the account menu already calls on every
+ * page — the task totals are a shared cache hit, so putting them here costs one
+ * per-user unread query and nothing else.
+ */
+export function InboxWidget({
+  unread,
+  archived,
+}: {
+  unread: number;
+  archived: number;
+}) {
+  return (
+    <article className="aura-glass aura-pane">
+      <div className="aura-pane-head">
+        <h2 className="aura-h2">Inbox</h2>
+        <Inbox size={15} strokeWidth={2} style={{ color: "var(--aura-ink-2)" }} aria-hidden />
+      </div>
+      <div className="aura-bigrow">
+        <b className="aura-big">{unread}</b>
+        <span>{unread === 1 ? "unread update" : "unread updates"}</span>
+      </div>
+      <div className="aura-quick-list" style={{ marginTop: 14 }}>
+        <Link href={"/inbox" as Route} className="aura-quick-item">
+          <span className="aura-quick-icon">
+            <Inbox size={15} strokeWidth={2.1} aria-hidden />
+          </span>
+          Open inbox
+        </Link>
+        <Link href={"/archived" as Route} className="aura-quick-item">
+          <span className="aura-quick-icon">
+            <ListChecks size={15} strokeWidth={2.1} aria-hidden />
+          </span>
+          Archived · {archived}
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+/* ───────────────────────────── work anniversaries ───────────────────────── */
+
+/**
+ * Who joined this month, and how long ago.
+ *
+ * WORK ANNIVERSARIES ONLY. The employee row carries `joined_at` and no date of
+ * birth, so the widget says "joined" rather than implying birthdays it has no
+ * way to know.
+ */
+export function AnniversaryWidget({ people }: { people: Anniversary[] }) {
+  return (
+    <article className="aura-glass aura-pane">
+      <div className="aura-pane-head">
+        <h2 className="aura-h2">Joined this month</h2>
+        <Cake size={15} strokeWidth={2} style={{ color: "var(--aura-ink-2)" }} aria-hidden />
+      </div>
+      <div className="aura-tasks">
+        {people.map((p) => (
+          <div className="aura-task" key={p.id}>
+            <i className={p.offset === 0 ? "aura-dot aura-dot-hot" : "aura-dot"} aria-hidden />
+            <span className="aura-task-title">{p.name}</span>
+            <time>
+              {p.years > 0 ? `${p.years} yr${p.years === 1 ? "" : "s"} · ` : ""}
+              {p.dayLabel}
+            </time>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+/* ───────────────────────────── what you gave out ────────────────────────── */
+
+/**
+ * The mirror of "Open on you" — tasks YOU handed to other people and are still
+ * waiting on. Distinct from the team widget: this is anyone you assigned to,
+ * reports or not.
+ */
+export function DelegatedWidget({ people }: { people: DelegatedLoad[] }) {
+  const overdue = people.reduce((s, p) => s + p.overdue, 0);
+  return (
+    <article className="aura-glass aura-pane">
+      <div className="aura-pane-head">
+        <span className="aura-pill" style={{ background: "rgba(22,74,143,.16)", color: "#0f3569" }}>
+          WAITING ON
+        </span>
+        <span className="aura-note" style={{ marginTop: 0 }}>
+          {people.length} {people.length === 1 ? "person" : "people"}
+          {overdue > 0 ? ` · ${overdue} overdue` : ""}
+        </span>
+      </div>
+      <div className="aura-team">
+        {people.map((p) => (
+          <div className="aura-team-row" key={p.id}>
+            <span className="aura-team-name">{p.name}</span>
+            <span className="aura-team-counts">
+              <b>{p.open}</b>
+              <em>open</em>
+              {p.overdue > 0 && <span className="aura-state aura-state-hot">{p.overdue} overdue</span>}
             </span>
           </div>
         ))}
