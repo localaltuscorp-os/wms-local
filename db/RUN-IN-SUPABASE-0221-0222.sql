@@ -4,6 +4,11 @@
 --   0221 — Operations · Event Checklist   (templates, runs, items, checks)
 --   0222 — HR · Job Description           (ranks, positions, JD Bank, …)
 --
+-- ⚠ THIS IS A SUBSET. db/RUN-IN-SUPABASE-0215-0224-ALL.sql contains both of
+--   these and everything else main needs — run that one, and this file becomes
+--   unnecessary. Correct as far as it goes (it is what Vinal's handoff links
+--   to), but it is two migrations out of fifteen.
+--
 -- HOW TO RUN
 --   Supabase → SQL Editor → New query → paste this whole file → Ctrl+A → Run.
 --   ⚠ The editor runs ONLY THE SELECTED TEXT when a selection exists, so a

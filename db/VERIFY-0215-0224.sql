@@ -4,13 +4,20 @@
 --
 --  BEFORE: confirms you are in the right project and every prerequisite exists.
 --          Any `false` in step 2 or 3 means the migration file will fail.
+--          Any `false` in step 3b means a SECOND file is needed as well — the
+--          -ALL sheet does not contain those migrations. See 3b.
 --  AFTER:  every row in steps 4–6 should read true / present.
 -- ===========================================================================
 
 
 -- 1. RIGHT PROJECT?
---    Production is mwaijzxuyicysvimzspx. The team's own database is
---    fjopgyqytfvbudkwhdto -- do not run the migration file there.
+--    Production is mwaijzxuyicysvimzspx. THREE Supabase projects are in play
+--    and the team's notes name two of them as the place they ran things:
+--      fjopgyqytfvbudkwhdto  their database -- SCHEMA_DRIFT_FIX_2026-09-10.sql
+--      ifcdpjbdinvmtewmgceg  another one    -- 0221_candidate_access_links,
+--                                              per docs/handoffs/HANDOFF-2026-
+--                                              09-11-candidate-no-login-form.md
+--    Do not run the migration file against either.
 --    A TABLE COUNT CANNOT TELL THEM APART: both carry the full WMS schema,
 --    so ~270+ only rules out an empty project. Step 3 is the real test.
 select current_database()                                   as db,
@@ -36,6 +43,54 @@ order by exists, t;
 --    Part 0 has work to do.
 select to_regprocedure('app.is_admin()') is not null            as has_is_admin,
        to_regprocedure('app.current_employee_id()') is not null as has_current_employee_id;
+
+
+-- 3b. PRE-0215 SCHEMA DRIFT — a SEPARATE question this file used not to ask.
+--
+--     `db/history/SCHEMA_DRIFT_FIX_2026-09-10.sql` is the team's record of
+--     repairing their own database on 9-10 September (it arrived loose, as
+--     "SQl Queries by the team members/"; tracked here so this reference and
+--     its instructions cannot drift apart from the file). Its
+--     Part 3 is 0215, which the -ALL sheet already carries; its Parts 1 and 2
+--     are EARLIER migrations that were never applied there, and the -ALL sheet
+--     does not contain them. So if this database skipped the same migrations,
+--     running the -ALL sheet start to finish still leaves these missing.
+--
+--     These are the four failures of 8-9 September, by their real cause:
+--       employees.employment_status  -> sign-in 500s as "Email or password
+--                                       didn't match" while Firebase succeeds
+--       goals.client                 -> Daily Goals "That didn't go through"
+--       project_nodes.client_name    -> Project node create/edit
+--       project_node_attachments     -> Project attachments
+--
+--     ANY false HERE MEANS RUN THEIR FILE TOO (Parts 1 and 2 only; its Part 3b
+--     is the RLS block, and check 3 above already answered whether this
+--     database has the `app` schema it needs). Every statement in it is
+--     IF NOT EXISTS / CREATE OR REPLACE, so it is safe on a database that has
+--     some of this already.
+--
+--     Expect all true on production, which was repaired on 9 September. This
+--     check exists so that is a fact you read rather than an assumption.
+select tbl, col,
+       exists (select 1 from information_schema.columns c
+                where c.table_name = tbl and c.column_name = col) as present
+from (values
+  ('employees','employment_status'),
+  ('employees','last_working_day'),
+  ('employees','legal_hold'),
+  ('employees','anonymised_at'),
+  ('goals','client'),
+  ('project_nodes','client_name'),
+  ('project_nodes','subject'),
+  ('project_nodes','priority'),
+  ('project_nodes','initiator_id'),
+  ('project_nodes','tags'),
+  ('project_nodes','links')
+) as v(tbl, col)
+order by present, tbl, col;
+
+select 'project_node_attachments' as drift_table,
+       to_regclass('public.project_node_attachments') is not null as exists;
 
 
 -- 4. AFTER: every table the 15 migrations create.

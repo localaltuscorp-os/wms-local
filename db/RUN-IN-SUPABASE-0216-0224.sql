@@ -1,7 +1,28 @@
+-- ###########################################################################
+-- #                                                                         #
+-- #   SUPERSEDED — DO NOT RUN THIS FILE.                                    #
+-- #   USE  db/RUN-IN-SUPABASE-0215-0224-ALL.sql  INSTEAD.                   #
+-- #                                                                         #
+-- #   It was accurate for the `Om` branch alone and is INCOMPLETE for main:  #
+-- #   it has neither 0215 (there are two of them), nor Rudra's and Vinal's   #
+-- #   0221/0222 — Event Checklist and Job Description. Running it leaves     #
+-- #   those pages pointed at tables that do not exist, which is the exact    #
+-- #   failure of 8 September.                                               #
+-- #                                                                         #
+-- #   Kept, not deleted, because the handoff notes link to it by name and a  #
+-- #   dead link reads as "that step was dropped". Its statements are still   #
+-- #   verbatim and still idempotent — it is not WRONG, it is PARTIAL, which  #
+-- #   is worse, because it finishes cleanly and reports success.             #
+-- #                                                                         #
+-- ###########################################################################
+
 -- ===========================================================================
 --  RUN IN SUPABASE - EVERY pending migration, 0216 through 0224
 --  Altus WMS | branch Om | generated 2026-09-11
 -- ===========================================================================
+--
+--  [SUPERSEDED — see the banner above. "COMPLETE" below meant complete for the
+--  Om branch on 11 September, not for main.]
 --
 --  This is the COMPLETE set. Paste the whole file into the Supabase SQL editor
 --  and Run, or:   psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0216-0224.sql

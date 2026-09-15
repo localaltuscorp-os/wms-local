@@ -30,6 +30,20 @@ https://supabase.com/dashboard/project/mwaijzxuyicysvimzspx/sql/new
 Run the file against their ref and it changes their data while production stays
 unmigrated — and it looks like it worked.
 
+**There is a THIRD project.** `docs/handoffs/HANDOFF-2026-09-11-candidate-no-
+login-form.md` records `0221_candidate_access_links` being applied to
+`ifcdpjbdinvmtewmgceg`. So of the three refs that appear in the team's notes,
+**one is production and two are not**, and both of the others are named as
+places migrations were actually run. Check the ref in the URL bar every time.
+
+**Their notes disagree with ours about what is already applied**, and neither
+is evidence. That same file says seven migrations are outstanding on production
+(`0215` ×2, `0216`–`0220`); the 11 September entry below records `0215`–`0220`
+applied by hand. They cannot both be right. Do not try to settle it by reading:
+`db/VERIFY-0215-0224.sql` answers it against the live database in one run, and
+every statement in the sheet is idempotent, so the cost of being wrong in the
+"already applied" direction is nothing.
+
 **Their sanity check cannot catch that.** "~270+ tables, near 0 means wrong
 project" only catches an *empty* project; both databases carry the full WMS
 schema. Step 3 of the verify file is the check that discriminates: this database
@@ -514,6 +528,95 @@ throughout; her Firebase UID is new.
 ---
 
 ## Changelog
+
+### 2026-09-15 (evening) — The team's fork audited against the Aura merge
+
+No new code from the fork: `dev/main` and `dev/prod-sync-0915` are both already
+contained in this branch (merged as `5a86a2a0`). What follows is the audit of
+that merge, and the four repairs it needed.
+
+**SQL to run before deploying** — unchanged, and still outstanding:
+`db/VERIFY-0215-0224.sql` → `db/RUN-IN-SUPABASE-0215-0224-ALL.sql` → the verify
+file again, against **`mwaijzxuyicysvimzspx`**. See the pending-migrations
+section at the top of this file, including why the instructions that shipped
+with those files name the wrong project.
+
+**What the merge broke, and the fixes**
+
+- **`tests/unit/incentive-export.test.ts` no longer type-checked.** Its
+  `CatalogRow` fixture predates `0216`, so it was missing the two fields that
+  migration added. Given `appliesToAll: true` / `eligibleIds: []` — the state
+  0216 leaves behind — with a note saying why the exports do not read them.
+  This was the ONLY type error in 459 changed files.
+- **The Aura room switcher advertised a key that does nothing.** The shortcut
+  alphabet became letters on 11 September (`qwertyuiopdf`, twelve keys for
+  twelve rooms, replacing ten digits that left two rooms with none). The one
+  listener mounted app-wide requires **Alt**, so a badge reading a bare "Q" was
+  advertising a keystroke the app ignores. `lib/aura-rooms.ts` now emits
+  `moduleShortcutHint` — "⌥Q", the same two-character form the module footer
+  and module bar already use. **This is the only user-visible change here.**
+- **`.gitignore` carried `!components/**/whatsapp*` twice**, once from each
+  side of the merge, with two different comment blocks explaining the same
+  incident. Kept the first.
+- **`db/VERIFY-0215-0224.sql` gained check 3b.** See below.
+
+**Check 3b — the drift the -ALL sheet does not cover**
+
+`db/history/SCHEMA_DRIFT_FIX_2026-09-10.sql` (their file, tracked here rather
+than left loose in `SQl Queries by the team members/`) repairs **pre-0215**
+migrations that were never applied on their database: `employees.employment_
+status` and its four siblings, `goals.client`, the `project_nodes` columns and
+`project_node_attachments`. Its Part 3 is `0215`, which the -ALL sheet already
+carries — Parts 1 and 2 are not in that sheet at all. So running the -ALL sheet
+end to end would still leave those missing, on any database that skipped them.
+Check 3b now asks the question directly instead of assuming the answer. Expect
+every row true on production, which was repaired on 9 September.
+
+That file also independently confirms the project test in check 3: it records
+that `app.is_admin()` does not exist on `fjopgyqytfvbudkwhdto`, which is why
+their `PART 3b` shipped commented out.
+
+**What the merge got right, and is worth not re-litigating**
+
+- **Every Aura file is byte-identical** to `7e91012a`: `app/aura.css`, the top
+  bar, the rail lens, the widget grid, the charts, the widget bodies,
+  `lib/dashboard/widgets.ts`, `lib/aura-rooms.ts`, the hub page. Nothing of the
+  design was reverted by a team branch that predated it.
+- **Operations reaches the new top bar for free.** `roomsFor()` maps whatever
+  `MODULE_ORDER` holds, and Operations was *appended* to that list rather than
+  slotted in beside the two rooms it absorbed — which is what kept `q`…`p`
+  pointing at the same ten modules. No wiring was needed.
+- **The HR console renders the Aura bar inset**, through Rudra's
+  `useInsetTopBar()`, so the console's rail runs full height like every other
+  module's. The bar is a `shrink-0` flex item there, not a scroll child, so its
+  `position: sticky` is inert rather than wrong.
+
+**Known, deliberately not fixed here**
+
+- **`components/hub/module-shortcuts.tsx` is orphaned.** The team's bare-letter
+  hub shortcuts were built for the old hub-card grid, which the dashboard
+  replaced; nothing imports the file. Mounting it now would be actively wrong —
+  the Aura bar carries a search field, so a bare "q" on this screen is typing.
+  Alt+letter works everywhere, including here. Left in place, unmounted.
+- **`package.json`'s tiptap pin is under the npm-only `overrides` key.** This
+  repo declares `packageManager: pnpm@10.33.0`, and pnpm reads
+  `pnpm.overrides`. The pin therefore works for `npm install` and does nothing
+  on Vercel. Not moved: mirroring it under `pnpm.overrides` forces a
+  `pnpm-lock.yaml` regeneration, and changing dependency resolution in the same
+  push as a 459-file merge is how a good merge becomes a bad deploy. The
+  lockfile is untouched by the merge and `--frozen-lockfile` still matches, so
+  the deploy builds exactly as today's does. Do it as its own change.
+- **Broadcast authoring is open to every signed-in employee** —
+  `requireAuthor()` is `requireUser()`, while managing an existing broadcast
+  correctly requires author-or-admin. Broadcasts support Critical/Emergency
+  priority with app-lock mode, so this is any employee being able to take over
+  everyone's screen. Rudra flagged it for confirmation in
+  `docs/handoffs/HANDOFF-Rudra.md` §6.4 and it has not been answered.
+
+**Verification** — `tsc --noEmit` clean after the fixture fix (the one error
+above was the only one). The nine-to-ten red unit tests and ten lint errors are
+pre-existing and unrelated; both the team and this branch have confirmed them
+against clean trees at `bd20607` and at `ea75ddec`.
 
 ### 2026-09-15 — Per-person incentive eligibility; dashboard trimmed and widened
 
