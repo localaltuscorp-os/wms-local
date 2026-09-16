@@ -73,7 +73,7 @@ export async function loadBoardData(sp: {
     createdById: row.employeeId,
   }));
 
-  // Approver / Initiator Status (0231) — one lean side-table read; no rulings
+  // Initiator Status (0231) — one lean side-table read; no rulings
   // before the migration.
   const listed = [...ownGoals, ...sharedGoals];
   const approvers = await loadGoalApprovers(listed.map((g) => g.id));

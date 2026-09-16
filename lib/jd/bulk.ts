@@ -2,7 +2,7 @@
  * JOB DESCRIPTION — BULK UPLOAD from Excel (account holder, 2026-09-15).
  *
  * "All tasks in one go as per columns": the sheet carries the JD Bank's own
- * columns, one task per row. Each row belongs to a POSITION (the General JD) or
+ * columns, one task per row. Each row belongs to a POSITION (the Master JD) or
  * to a PERSON (their personal JD) — never both.
  *
  * Pure and client-safe. The upload dialog reads the sheet with this, shows every
@@ -40,7 +40,7 @@ export interface JdBulkColumn {
 
 /** Every column, in template order — the JD Bank's columns. */
 export const JD_BULK_COLUMNS: JdBulkColumn[] = [
-  { field: "position", header: "Position", aliases: ["seat", "role", "position title", "general jd"], hint: "For a General JD — the position's title" },
+  { field: "position", header: "Position", aliases: ["seat", "role", "position title", "master jd", "general jd"], hint: "For a Master JD — the position's title" },
   { field: "person", header: "Person", aliases: ["employee", "specific person", "for person", "personal jd"], hint: "For a personal JD — the employee's name" },
   { field: "function", header: "Function", aliases: ["department", "dept", "department function"], hint: "Only needed for a personal JD" },
   { field: "category", header: "Category", aliases: ["area", "type"], hint: "e.g. Housekeeping" },
@@ -298,7 +298,7 @@ export function readJdMatrix(matrix: unknown[][], ctx: JdBulkContext): { rows: J
         functionKey = functionFrom(fnText);
         if (!functionKey) errors.push(fnText ? `Unknown function "${fnText}"` : "Function is needed for a personal task");
       } else {
-        errors.push("Fill Position (General JD) or Person (personal JD)");
+        errors.push("Fill Position (Master JD) or Person (personal JD)");
       }
     }
 

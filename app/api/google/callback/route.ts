@@ -7,11 +7,10 @@ import { getCurrentEmployee, isCandidateAccount } from "@/lib/auth/current";
 import { exchangeCode, fetchGoogleEmail, revokeToken } from "@/lib/google/calendar";
 import { backfillDoerCalendar } from "@/lib/google/sync";
 import { isSameGoogleAccount } from "@/lib/google/account-match";
-import { syncDccCalendar } from "@/lib/dcc/calendar-sync";
 import { HR_DRIVE_STATE_PREFIX, finishHrDriveConnect } from "@/lib/hr/records-export/oauth";
 
 export const dynamic = "force-dynamic";
-// The post-redirect backfill (tasks + DCC history) runs inside this budget.
+// The post-redirect task backfill runs inside this budget.
 export const maxDuration = 300;
 
 /** OAuth redirect target — exchange the code for a refresh token and store it
@@ -69,9 +68,6 @@ export async function GET(req: NextRequest) {
     // Seed the calendar with the doer's existing active tasks, without
     // delaying the redirect — best-effort, logs internally.
     after(() => backfillDoerCalendar(me.id));
-    // …and with every day of their Daily Compliance so far. Anything cut short
-    // by the time limit is finished by the DCC calendar cron.
-    after(() => syncDccCalendar({ employeeIds: [me.id], budgetMs: 240_000 }).catch(() => undefined));
     return NextResponse.redirect(`${back}?google=connected`);
   } catch (err) {
     // eslint-disable-next-line no-console

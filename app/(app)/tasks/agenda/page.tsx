@@ -46,7 +46,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     listDistinctSubjects(),
     listActiveClientNames(),
     getStatusDisplayMap(),
-    // Everyone below the viewer, for the Approver / Initiator chip.
+    // Everyone below the viewer, for the Initiator Status chip.
     getDownlineIds(me.id).catch(() => [] as string[]),
   ]);
 

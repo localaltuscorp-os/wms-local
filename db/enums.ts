@@ -115,9 +115,12 @@ export const APPROVAL_STATUSES = [
   "not_approved",
   "cancelled",
   "transferred",
-  // Migration 0231 — On Hold is set from the Approver / Initiator Status chip
+  // Migration 0231 — On Hold is set from the Initiator Status chip
   // (lib/status/approver-status.ts). Writing it needs 0231 applied.
   "on_hold",
+  // Migration 0234 — Archived joins the Initiator Status verdicts (account
+  // holder, 2026-09-16). Writing it needs 0234 applied.
+  "archived",
 ] as const;
 export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
 

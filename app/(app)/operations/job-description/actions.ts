@@ -14,6 +14,7 @@ import { JD_BULK_MAX } from "@/lib/jd/bulk";
 import { requireHrStaff } from "@/lib/hr/access";
 import { toAssignmentRows } from "@/lib/jd/assignment-targets";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { parseRRule } from "@/lib/recurrence/rrule";
 import { BUSINESS_FUNCTIONS, FUNCTION_LABELS } from "@/lib/org/functions";
 import {
   demoCreateEntry,
@@ -100,6 +101,18 @@ const Recurrence = z.discriminatedUnion("kind", [
     ordinal: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(-1)]),
     weekday: z.number().int().min(0).max(6),
   }),
+  /* The Custom dialog's output. The rule is PARSED here, not merely shape-
+     checked: an RRULE the generator cannot read is a job description that never
+     comes due, which is the same silent months-later failure as a dateless
+     "once" — and the account holder would have no way to tell from the form. */
+  z.object({
+    kind: z.literal("rrule"),
+    rule: z
+      .string()
+      .max(200)
+      .refine((r) => parseRRule(r) !== null, "That custom recurrence could not be read."),
+    anchor: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a start date."),
+  }),
   z.object({ kind: z.literal("custom"), label: z.string().max(200) }),
 ]);
 
@@ -168,7 +181,7 @@ export async function createJdPosition(input: unknown): Promise<ActionResult<{ i
 /* ── The JD Bank ──────────────────────────────────────────────────────────── */
 
 const EntryFields = z.object({
-  /* EXACTLY ONE OWNER — a position (the General JD) or a person (their personal
+  /* EXACTLY ONE OWNER — a position (the Master JD) or a person (their personal
      JD, migration 0233). createJdEntry / bulkCreateJdEntries check it, and a
      CHECK in the database backs them. */
   positionId: idText.optional(),
@@ -214,7 +227,7 @@ export async function createJdEntry(input: unknown): Promise<ActionResult<{ id: 
   const v = parsed.data;
 
   if (Boolean(v.positionId) === Boolean(v.ownerEmployeeId)) {
-    return fail("Pick a position for a General JD, or a person for a personal task — one of the two.");
+    return fail("Pick a position for a Master JD, or a person for a personal task — one of the two.");
   }
 
   if (jdDemoActive()) {

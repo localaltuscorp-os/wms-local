@@ -18,8 +18,8 @@ import {
   levelTextStyle, formatPlanDate, durationDays, type PlanKind,
 } from "@/lib/project-plan/levels";
 import { describeProgress, toPercent, nodeFraction, formatCompletion, milestoneCompletion } from "@/lib/project-plan/progress";
-import { PLAN_STATUS_LABEL, effectivePlanStatus } from "@/lib/project-plan/status";
-import { APPROVER_LABEL, approverShown } from "@/lib/status/approver-status";
+import { PLAN_STATUS_LABEL, effectivePlanStatus, isSelfRaisedNode } from "@/lib/project-plan/status";
+import { APPROVER_LABEL, approverDisplay } from "@/lib/status/approver-status";
 import {
   createPlanNode, updatePlanNode, deletePlanNode, duplicatePlanNode,
   movePlanNode, planDeleteImpact,
@@ -172,9 +172,9 @@ const ALL_COLUMNS = [
   // per brief §6/§8. Where the value lands differs by level, but that is
   // `setPlanNodeStatus`'s business, not this table's.
   // Two statuses, as in WMS Tasks and Goals (2026-09-15): the doer's progress
-  // and the Approver / Initiator ruling on it.
+  // and the Initiator Status ruling on it.
   { key: "status", label: "Doer Status", width: "w-[188px]", fixed: false },
-  { key: "approver", label: "Approver / Initiator Status", width: "w-[196px]", fixed: false },
+  { key: "approver", label: "Initiator Status", width: "w-[196px]", fixed: false },
   { key: "progress", label: "Progress", width: "w-[136px]", fixed: false },
   // The two task-side columns. They render only on executable rows, because a
   // Project or a Milestone has no task to carry a doer or a flag.
@@ -918,7 +918,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
           null,
           false,
         )],
-        approver: APPROVER_LABEL[approverShown(n.approvalStatus)],
+        approver: APPROVER_LABEL[approverDisplay(n.approvalStatus, isSelfRaisedNode(n))],
         progress: isExecutable(n.kind)
           ? ""
           : n.kind === "project"
@@ -1788,7 +1788,7 @@ function Row({
               </td>
             );
 
-          // ── Approver / Initiator Status ──────────────────────────────────
+          // ── Initiator Status ──────────────────────────────────
           case "approver":
             return (
               <td key={key} className={pad}>
@@ -2747,7 +2747,10 @@ function DetailDialog({
 
           <div className="mt-3.5 grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
             <ReadField label="Doer Status" value={PLAN_STATUS_LABEL[status]} />
-            <ReadField label="Approver / Initiator Status" value={APPROVER_LABEL[approverShown(node.approvalStatus)]} />
+            <ReadField
+              label="Initiator Status"
+              value={APPROVER_LABEL[approverDisplay(node.approvalStatus, isSelfRaisedNode(node))]}
+            />
             <ReadField
               label={progress ? "Progress" : "Completion"}
               value={

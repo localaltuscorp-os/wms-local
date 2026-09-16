@@ -12,7 +12,7 @@ import { rateLimitOrError } from "@/lib/rate-limit";
 import { approverStored, canSetApproverStatus, isApproverChoice } from "@/lib/status/approver-status";
 
 /**
- * Set a goal's Approver / Initiator Status — Yearly, Quarterly and Monthly goals
+ * Set a goal's Initiator Status — Yearly, Quarterly and Monthly goals
  * (`goals`) and Weekly goals (`weekly_goals`) alike (account holder, 2026-09-15).
  *
  * WHO: the goal's initiator (`created_by_id`), the owner's manager (the owner is
@@ -41,7 +41,7 @@ export async function setGoalApproverStatus(input: unknown): Promise<{ ok: true 
   const parsed = Input.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid input." };
   const { kind, id, choice } = parsed.data;
-  if (!isApproverChoice(choice)) return { ok: false, error: "Unknown Approver / Initiator Status." };
+  if (!isApproverChoice(choice)) return { ok: false, error: "Unknown Initiator Status." };
 
   const [row] =
     kind === "goal"
@@ -59,13 +59,19 @@ export async function setGoalApproverStatus(input: unknown): Promise<{ ok: true 
 
   const admin = isAdmin || isSuperAdmin(me.email);
   const scope = admin ? { all: true, ids: [] as string[] } : await goalScopeFor({ id: me.id, isAdmin: false });
-  const isInitiator = row.createdById != null && row.createdById === me.id;
+  /* A goal somebody set for themselves has no approver. This used to be fudged
+     by reporting `isDoer: false` for the raiser, which let them approve their
+     own goal — the one place Goals disagreed with Tasks (account holder,
+     2026-09-16). Now both say "Not Applicable" and hand it to admins. */
+  const isSelfRaised = row.createdById != null && row.createdById === row.employeeId;
+  const isInitiator = row.createdById != null && row.createdById === me.id && !isSelfRaised;
   const verdict = canSetApproverStatus(
     {
       isAdmin: admin,
       isInitiator,
       isDoersManager: row.employeeId !== me.id && (scope.all || scope.ids.includes(row.employeeId)),
-      isDoer: row.employeeId === me.id && !isInitiator,
+      isDoer: row.employeeId === me.id,
+      isSelfRaised,
     },
     choice,
     row.status,
@@ -100,7 +106,7 @@ export async function setGoalApproverStatus(input: unknown): Promise<{ ok: true 
     }
   } catch (err) {
     if (isMissingTable(err)) {
-      return { ok: false, error: "Approver / Initiator Status isn't set up yet — migration 0231 must be applied first." };
+      return { ok: false, error: "Initiator Status isn't set up yet — migration 0231 must be applied first." };
     }
     return { ok: false, error: err instanceof Error ? err.message : "Couldn't save." };
   }

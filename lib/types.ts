@@ -506,7 +506,7 @@ export interface TaskListRow {
   archived: boolean;
   createdById: string | null;
   updatedAt: Date;
-  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | "on_hold" | null;
+  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | "on_hold" | "archived" | null;
   firstReadAt: Date | null;
   /** When work was FIRST started on this task — task_time_rollup.first_started_at,
    *  i.e. the first `work_started` time event. Null until someone hits Start.

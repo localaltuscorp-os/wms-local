@@ -1,6 +1,6 @@
 # HANDOFF — `Vinal` branch
 
-**Updated:** 2026-09-15
+**Updated:** 2026-09-16
 **Repo:** `https://github.com/localaltuscorp-os/wms-local` · branch `Vinal`
 **Audience:** team, lead, and whoever runs the SQL in Supabase.
 
@@ -8,58 +8,161 @@
 
 ## 1. Run this SQL in Supabase
 
-### Combined migration sheet for today's work:
+Two new migrations today. **Both are idempotent** (`if not exists` / `do $$` guards), so they are safe to run twice.
 
-**`db/RUN-IN-SUPABASE-0228-0233.sql`** — every pending migration created today (`0228` through `0233`), in order.
+| File | What it does | Needed before |
+|---|---|---|
+| `db/migrations/0234_initiator_status_archived.sql` | Adds **Archived** as a sixth Initiator Status verdict | Picking "Archived" on a task / goal / project |
+| `db/migrations/0235_dcc_call_logs.sql` | Creates `dcc_call_logs` — the SP1 call log | The DCC Call Log and SP1 Report screens |
 
-Supabase Dashboard → SQL Editor → New query → paste the file → Run. Or:
+Supabase Dashboard → SQL Editor → New query → paste the file → Run.
 
-```bash
-psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0228-0233.sql
+> 🔴 **Still outstanding from 2026-09-15** and blocking two DCC features:
+> `db/migrations/0229_dcc_calendar_events.sql` (Google Calendar sync) and
+> `db/migrations/0230_dcc_master_items.sql` (DCC Masters). Both screens
+> currently show an explicit "not set up yet" notice instead of throwing — run
+> these two and the notices disappear.
+
+**Order to run:** `0229` → `0230` → `0234` → `0235`.
+
+### 0234 — Archived verdict
+
+```sql
+alter type approval_status add value if not exists 'archived';
+
+do $$
+begin
+  if to_regclass('public.goal_approver_statuses') is not null then
+    alter table goal_approver_statuses drop constraint if exists goal_approver_statuses_approval_status_check;
+    alter table goal_approver_statuses add constraint goal_approver_statuses_approval_status_check
+      check (approval_status in ('approved','not_approved','on_hold','archived','cancelled'));
+  end if;
+  if to_regclass('public.weekly_goal_approver_statuses') is not null then
+    alter table weekly_goal_approver_statuses drop constraint if exists weekly_goal_approver_statuses_approval_status_check;
+    alter table weekly_goal_approver_statuses add constraint weekly_goal_approver_statuses_approval_status_check
+      check (approval_status in ('approved','not_approved','on_hold','archived','cancelled'));
+  end if;
+end $$;
 ```
 
-All 6 migrations are fully **idempotent** (`if not exists` / `if exists`), safe to re-run.
+The `project_nodes` constraint is re-added **`NOT VALID`**, exactly as `0204` wrote it — that table has rows older than the constraint which were never checked, and a validating constraint would scan the table and fail on one of them.
+
+### 0235 — the SP1 call log
+
+```sql
+create table if not exists dcc_call_logs (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid not null references employees(id) on delete cascade,
+  log_date date not null,
+  disposition text not null,
+  count integer not null default 0 check (count >= 0),
+  note text,
+  filled_by_id uuid references employees(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists dcc_call_logs_uq
+  on dcc_call_logs (employee_id, log_date, disposition);
+
+create index if not exists dcc_call_logs_date_idx
+  on dcc_call_logs (log_date, employee_id);
+```
+
+**No CHECK on `disposition`** — deliberately. The fifteen outcomes live in `lib/dcc/sp1.ts`, the write path validates against them, and the grid drops anything it does not recognise. A constraint here would mean a migration every time Jeevan's sheet gains a row.
+
+### Verifying afterwards
+
+```sql
+-- All four tables present?
+select table_name from information_schema.tables
+where table_schema = 'public' and table_name like 'dcc%'
+order by table_name;
+
+-- Archived accepted by the enum?
+select unnest(enum_range(null::approval_status));
+```
 
 ---
 
-## 2. Work Delivered Today (2026-09-15)
+## 2. Work Delivered Today (2026-09-16)
 
-### 1. Job Description Category Field & Person-Specific JDs
-- **What changed**: Added `category` column to `jd_entries` (`0228`) and `owner_employee_id` with XOR check constraint (`0233`). Created person view tab and bulk CSV uploader.
-- **Why**: Allows job description items to be tagged by free-text categories (e.g. Vendors, Housekeeping) and assigned directly to a specific person in addition to position seats.
-- **SQL**: `db/migrations/0228_jd_entries_category.sql`, `db/migrations/0233_jd_person_specific.sql`.
-
-### 2. DCC Masters (Position Templates & Live Link Sync)
-- **What changed**: Created `dcc_master_items` & `dcc_master_links` (`0230`). Added `/dcc/masters` administration interface and automatic sync engine (`lib/dcc/master-sync.ts`).
-- **Why**: Enables defining a master Daily Compliance checklist per designation/position that automatically populates and updates active employee KPIs while preserving historical entries.
-- **SQL**: `db/migrations/0230_dcc_master_items.sql`.
-
-### 3. DCC Dashboard, Detailed Breakdown & 10 PM Daily Automated Report
-- **What changed**: Created `/dcc/dashboard` with completion statistics, department filters, entry lock status, and cron endpoint `/api/cron/dcc-daily-report` for daily email digests.
-- **Why**: Gives management visibility into daily compliance across departments and sends nightly summary emails to leaders.
-- **SQL**: Uses `0230` master tables and existing DCC entry tables.
-
-### 4. DCC Google Calendar Sync & Connect Gate
-- **What changed**: Created `dcc_calendar_events` (`0229`) and Google Calendar sync service (`lib/dcc/calendar-sync.ts`, `/api/cron/dcc-calendar-sync`). Added Calendar Connect Gate component.
-- **Why**: Keeps each employee's daily compliance tasks visible directly as an all-day event in their Altus Google Calendar without duplicate events.
-- **SQL**: `db/migrations/0229_dcc_calendar_events.sql`.
-
-### 5. Approver / Initiator Status (Doer Status vs Approver Ruling)
-- **What changed**: Added `on_hold` value to `approval_status` enum, and created `goal_approver_statuses` & `weekly_goal_approver_statuses` tables (`0231`). Updated WMS tasks, Goals, and Weekly Goals boards to present independent Doer Status and Approver/Initiator Status rulings.
-- **Why**: Separates the doer's execution status (e.g. Not Started, Initiated, Done) from the approver/initiator's ruling (Pending, Approved, Not Approved, On Hold, Cancelled).
-- **SQL**: `db/migrations/0231_approver_initiator_status.sql`.
-
-### 6. Recruitment JDs (HR Candidate Job Descriptions & WhatsApp / Email Sends)
-- **What changed**: Created `recruitment_jds` & `recruitment_jd_sends` (`0232`), added `/hr/recruitment-jd` management hub and recruiter share modal with WhatsApp deep link formatting and email delivery.
-- **Why**: Allows HR recruiters to view master candidate job descriptions, customize recruiter copies, and send formatted job overviews directly to applicants.
-- **SQL**: `db/migrations/0232_recruitment_jds.sql`.
-
-### 7. Hand-Holding (HH) Week Calendar & Auto-Linking
-- **What changed**: Created HH Week Calendar view component and server actions (`app/(app)/people-allocation/calendar-actions.ts`, `components/people-allocation/hh-week-calendar.tsx`, `lib/hh/auto-link.ts`).
-- **Why**: Provides a week-by-week visual schedule for hand-holding allocations and automatically links team allocations to calendar events.
+### 1. Merged `origin/main` into `Vinal`
+- **What changed**: Resolved 4 conflicts (`HANDOFF.md`, `vercel.json`, `lib/hr/console-nav.ts`, `app/(app)/api/google/callback/route.ts`). Merge commit `0b7b3807`.
+- **Why**: The branch had drifted behind the team's work and the two calendar integrations were about to collide.
 - **SQL**: None.
 
-### 8. Operations & Event Masters Navigation
-- **What changed**: Added masters administration routes for Operations (`/operations/masters`) and Events (`/events/masters`).
-- **Why**: Provides central administration for category options and checklist master items.
+### 2. JD Frequency picker now speaks Google Calendar
+- **What changed**: The Job Description frequency field offers date-derived presets (Does not repeat · Daily · Weekly on ⟨day⟩ · Monthly on the ⟨nth⟩ ⟨day⟩ · Annually on ⟨date⟩ · Every weekday) plus a **Custom recurrence** dialog — repeat every N days/weeks/months/years, weekday chips, and Ends Never / On ⟨date⟩ / After N occurrences. The shared vocabulary lives in `lib/recurrence/google-recurrence.ts` and the dialog in `components/recurrence/custom-recurrence-dialog.tsx`, so Tasks and JD cannot drift apart.
+- **Why**: Account holder: the frequency section must behave like Google Calendar's.
+- **Note**: `lib/jd/recurrence.ts` matches an RRULE **in closed form** rather than generating occurrences — the generator in `lib/recurrence/rrule.ts` caps at 200 occurrences, which makes it the wrong tool for "is this due on this day?".
+- **SQL**: None — the rule is stored in the existing `recurrence` column.
+
+### 3. "General JD" renamed to "Master JD"
+- **What changed**: The label in the Operations masters rail and everywhere else it is user-visible.
+- **Why**: Account holder's wording.
 - **SQL**: None.
+
+### 4. Initiator Status — renamed, gains **Archived**, and N/A for self-raised work
+- **What changed**: "Approver / Initiator Status" is now **Initiator Status** across WMS Tasks, Goals and Projects. The verdicts are Pending · Approved · Not Approved · On Hold · **Archived** · Cancelled. When the initiator IS the doer, the column reads **Not Applicable** — an admin or super-admin may still overrule, nobody else can.
+- **Why**: Account holder's brief, including "keep the Pending option".
+- **Bug fixed on the way**: Goals and Tasks disagreed about self-raised work — Goals set `isDoer: false` for the raiser, which let somebody approve their own goal. Both now go through one explicit `isSelfRaised` flag instead of fudging `isDoer`.
+- **SQL**: `db/migrations/0234_initiator_status_archived.sql`.
+
+### 5. JD — person picker replaces the left rail
+- **What changed**: Person-specific JD picks the person from a searchable dropdown beside the heading (`components/operations/job-description/jd-person-picker.tsx`) instead of a 68-line left rail of names. Full keyboard support, `role="listbox"`, its own scroll container.
+- **Why**: The rail cost a whole column on every screen width to answer a question you ask once per visit.
+- **SQL**: None.
+
+### 6. DCC removed from the Employees module
+- **What changed**: The whole old DCC surface deleted — 46 files: nav entries, `app/(app)/dcc/`, `components/dcc/`, three crons, the permission branch, the `/dcc` workspace mapping. **Three app-wide gates came out with it**: the post-login "fill your DCC" wall, the manager review wall, and the Google-Calendar connect prompt that fired ahead of every other login gate.
+- **Why**: Account holder: "remove all the dcc section from employees completely — we will make that again".
+- **SQL**: None. **No table was dropped and no data was touched.**
+
+### 7. DCC rebuilt from a written specification
+- **What changed**: The module rebuilt against **[`docs/DCC-SPEC.md`](./docs/DCC-SPEC.md)**, which is now authoritative. Five doors under Employees, all generated from one list (`lib/dcc/nav.ts`) that the sidebar and the module's own tab row both render:
+
+  | Door | What it is |
+  |---|---|
+  | `/dcc` | My Day — today's compliances, four-way status, saves per row |
+  | `/dcc/call-log` | **New** — enter the fifteen call outcomes for a day |
+  | `/dcc/sp1` | Jeevan's grid: Mon→Sat, Weekly Total, rows 1–23, no Sunday column |
+  | `/dcc/dashboard` | The SP1 day card + WMS-style KPI strip, heatmap, trend, leaderboards |
+  | `/dcc/masters` | By Position and By Person, mirroring Master JD / Person-specific JD |
+
+- **The missing half**: the old module could *report* call outcomes but had no way to *enter* them, so the report was permanently empty. `/dcc/call-log` is that screen.
+- **11:59 pm IST lock** now governs the call log as well as compliance entries, through the same `checkDccEntryWindow`. Only `dcc.edit_past_entries` (Manan Sir) reaches a closed day, for any employee.
+- **Team Leads** author compliances for themselves and their transitive downline; a compliance **Manan authored is his alone to delete** (`dcc.protected_kpi_author`, fails closed toward the ordinary rule). The Person view shows the author on every row so the refusal is legible before anyone tries.
+- **10 pm report** (`30 16 * * *` = 22:00 IST) now **leads with the SP1 tables** and puts the compliance summary under them. Each person gets their own day, every Team Lead everyone below them transitively, the owner everybody. Still preview-only until `DCC_DAILY_REPORT_LIVE=true`.
+- **Google Calendar** sync restored on the entry write and the nightly cron. **The connect-gate is not back** — sync is a benefit of connecting, not a toll on entering the app.
+- **Hand-holding calendar**: already read DCC entries via `lib/queries/hh-calendar.ts`; verified intact, not rebuilt.
+- **SQL**: `db/migrations/0235_dcc_call_logs.sql`.
+
+### 8. Fixed: `localhost` returning 500 on every page
+- **What changed**: Nothing in the source. `.next` was deleted and rebuilt.
+- **Why**: The dev server's Turbopack cache was corrupted at ~17:13 when `.next/types` was removed while the server held it. It cached a CSS parse error against a class (`.z-[130P…`) that does not exist in `app/globals.css` — `git diff` on that file is empty and a fresh dist directory compiles and serves every route at 200.
+- **Action needed**: **restart your dev server** (`Ctrl+C`, then `npm run dev`). The stale cache is gone; the next start rebuilds clean.
+- **SQL**: None.
+
+---
+
+## 3. Verification
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npx next build` | clean — all five DCC routes and both crons registered |
+| `npx eslint` on every new/changed file | clean |
+| `npx vitest run --no-file-parallelism` | **3146 passed, 7 skipped, 0 failed** |
+| All five DCC routes against the live DB | 200, no server-side errors |
+| Routes touched by the removal (`/hub`, `/dashboard`, `/tasks`, `/attendance`, `/profile`, `/goals`, `/operations`, `/people-allocation`, `/inbox`, `/hr`, `/my-salary`, `/incentive`) | all 200 |
+
+**40 new unit tests** across `tests/unit/dcc-sp1.test.ts`, `tests/unit/dcc-sp1-email.test.ts` and `tests/unit/dcc-nav.test.ts`.
+
+---
+
+## 4. Two things to decide
+
+1. 🟡 **Jeevan's reference sheet has drifted from the calendar.** It labels `13-Sep-2026` as "Monday"; that date is a **Sunday**. The whole Day row is one step off, so the sheet's six-day blocks are really Sun–Fri while claiming Mon–Sat. This app derives the weekday from the date, so its columns will not line up with the sheet's labels. The structure was copied (six working days, weekly total, Sunday omitted); the typo was not.
+
+2. **The Connected partition is a judgement call**, in one constant in `lib/dcc/sp1.ts`. Rows 1–11 count as Connected — including *Not Interested* and *DND*, on the grounds that a person declining is not a call that failed to reach anybody. Rows 12–15 (*No Busy, Ringing, Call Back, Wrong Number*) reached nobody. One line to change if that is wrong.

@@ -47,6 +47,20 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  /**
+   * WHERE THE BUILD OUTPUT GOES — overridable, so DUMMY MODE can run BESIDE the
+   * real dev server instead of instead of it.
+   *
+   * Next refuses to start a second `next dev` from the same directory ("Another
+   * next dev server is already running"), because both would fight over
+   * `.next/`. That made the dummy sandbox an either/or: stop the server pointed
+   * at the real database, or do not look at dummy data. Giving the sandbox its
+   * own output directory lets both run — :3000 on the real data, :3002 on
+   * PGlite (see `pnpm dev:dummy`).
+   *
+   * Defaults to `.next`, so every existing build and deploy is unchanged.
+   */
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // THIS DIRECTORY IS THE WORKSPACE, full stop.
   //
   // Turbopack infers the root by walking UP for a lockfile, and there is a stray

@@ -12,7 +12,7 @@ import { gateSkipActive } from "@/lib/auth/gate-skip";
 import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 import { SkipGateButton } from "@/components/layout/skip-gate-button";
 import { needsDailyChecklistPlan, needsGoalsPlanCommit } from "@/lib/daily-checklist/gate";
-import { planGateOn, managerTaskGateOn, dccReviewGateOn, goalsCascadeEnabled, loginPlanGateOn, loginDccGateOn } from "@/lib/goals/flag";
+import { planGateOn, managerTaskGateOn, goalsCascadeEnabled, loginPlanGateOn } from "@/lib/goals/flag";
 import { DailyChecklistView } from "@/components/daily-checklist/daily-checklist-view";
 import { DashboardSidebar } from "@/components/layout/dashboard-sidebar";
 import { ChromeShell } from "@/components/layout/chrome-shell";
@@ -30,11 +30,6 @@ import { IdleTimerClient } from "@/components/auth/idle-timer-client";
 import { workspaceForPath, canAccessWorkspace } from "@/lib/workspaces";
 import { managerDailyTaskGate, isManagerWithReports } from "@/lib/manager-gates";
 import { ManagerDailyTaskGate } from "@/components/manager-gates/manager-daily-task-gate";
-import { dccGateTarget, dccManagerReviewState } from "@/lib/dcc/gate";
-import { DccGateView } from "@/components/dcc/dcc-gate-view";
-import { DccManagerReviewGate } from "@/components/dcc/dcc-manager-review-gate";
-import { needsDccCalendarConnect } from "@/lib/dcc/calendar-gate";
-import { DccCalendarConnectGate } from "@/components/dcc/dcc-calendar-connect-gate";
 import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
 import { BroadcastPopup } from "@/components/ecos/broadcast-popup";
 import { pendingLockBroadcastForEmployee } from "@/lib/ecos/queries";
@@ -81,46 +76,34 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   await requirePathView(pathname);
 
   // The daily ritual gate chain. Policy: a COMPULSORY post-login wall — the daily
-  // rituals (plan-your-day / DCC / manager duties) must be done before ANY app
-  // surface opens, INCLUDING the hub launcher. There is no ungated landing spot:
-  // you cannot slip past by going to /hub or any other route. All checks are
+  // rituals (plan-your-day / manager duties) must be done before ANY app surface
+  // opens, INCLUDING the hub launcher. There is no ungated landing spot: you
+  // cannot slip past by going to /hub or any other route. All checks are
   // day-scoped + FAIL-OPEN, so a finished ritual / DB hiccup never traps anyone,
-  // and each has a kill-switch (DCC_GATE_OFF / MANAGER_GATES_OFF).
+  // and the manager duties have a kill-switch (MANAGER_GATES_OFF).
   //
   // The gate view takes over full-screen and its ritual is filled inline (no
   // navigation), so gating every route is safe — the manager duty routes
   // (/tasks/new, /weekly-goals) stay reachable via the `onDutyRoute` exemption.
   //
-  // Daily gate chain. COMPULSORY for everyone (incl. super-admins): the PLAN gate
-  // (daily checklist) and the OWN-DCC fill. SKIPPABLE by super-admins ONLY: the
-  // MANAGER (assign-tasks) gate + the DCC-REVIEW (sign-off-your-team) gate — Sir:
-  // "me and manan get a skip button on the review and assigning page only, NOT
-  // on the daily checklist page". A super-admin's "Skip for today" (sa_gate_skip
-  // cookie) bypasses ONLY those two. Day-scoped + FAIL-OPEN.
+  // Daily gate chain. COMPULSORY for everyone (incl. super-admins): the PLAN
+  // gate (daily checklist). SKIPPABLE by super-admins ONLY: the MANAGER
+  // (assign-tasks) gate — Sir: "me and manan get a skip button on the review and
+  // assigning page only, NOT on the daily checklist page". A super-admin's "Skip
+  // for today" (sa_gate_skip cookie) bypasses ONLY that. Day-scoped + FAIL-OPEN.
   //
   // ── ONE EXEMPTION, APPLIED TO THE WHOLE CHAIN (0222) ──────────────────────
-  // `daily_start.exempt` holders skip every gate below: plan, own-DCC, manager
-  // assign, DCC review. `needsDailyChecklistPlan` and `needsGoalsPlanCommit`
-  // already honoured it inside lib/daily-checklist/gate.ts, but the DCC and
-  // manager gates live in other modules and did not — so the exemption held for
-  // some of the chain and not the rest, which is not an exemption.
+  // `daily_start.exempt` holders skip every gate below: plan and manager assign.
+  // `needsDailyChecklistPlan` and `needsGoalsPlanCommit` already honoured it
+  // inside lib/daily-checklist/gate.ts, but the manager gate lives in another
+  // module and did not — so the exemption held for some of the chain and not the
+  // rest, which is not an exemption.
   //
   // Applied HERE, where the chain is enforced, rather than by editing four gate
   // modules: one place to read, one place to change, and no way for the gates to
   // disagree about who is exempt.
   if (!isExemptFromDailyStart(me.email)) {
     const firstName = me.name.split(" ")[0] ?? me.name;
-
-    // ── COMPULSORY — connect the Altus Google Calendar, where every DCC day now
-    //    sits (lib/dcc/calendar-gate.ts). Only for people with DCC KPIs; off with
-    //    DCC_CALENDAR_GATE_OFF=true. FAIL-OPEN: an error means no prompt. ──
-    if (await needsDccCalendarConnect(me).catch(() => false)) {
-      return (
-        <Suspense fallback={null}>
-          <DccCalendarConnectGate firstName={firstName} workEmail={me.officialEmail ?? me.email} />
-        </Suspense>
-      );
-    }
 
     const isManager = await isManagerWithReports(me.id).catch(() => false);
 
@@ -154,16 +137,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       }
     }
 
-    // ── Own-DCC "fill your DCC" wall — now OFF by default at login (Sir).
-    //    LOGIN_DCC_GATE_ON=true restores. (The punch-out DCC block still uses
-    //    DCC_GATE_OFF, so clock-out compliance is unaffected.) ──
-    if (loginDccGateOn()) {
-      const dccTarget = await dccGateTarget(me.id).catch(() => null);
-      if (dccTarget) {
-        return <DccGateView greetingName={firstName} date={dccTarget.date} items={dccTarget.items} entries={dccTarget.entries} />;
-      }
-    }
-
     // ── SKIPPABLE by super-admins — the manager duties (assign + review). ──
     const canSkip = isSuperAdmin(me.email);
     const skipDuties = canSkip && (await gateSkipActive(me).catch(() => false));
@@ -181,16 +154,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           return withSkip(<ManagerDailyTaskGate greetingName={firstName} state={dailyGate} />);
         }
       }
-      // DCC REVIEW gate: sign off your DIRECT reports' DCC. Rewired to
-      // dccReviewGateOn() (default OFF ⇒ the review step is removed for now,
-      // design §4). Set DCC_REVIEW_GATE_ON=true to restore it. (The COMPULSORY
-      // own-DCC fill above still honors DCC_GATE_OFF — unchanged.)
-      if (dccReviewGateOn()) {
-        const dccReview = await dccManagerReviewState(me).catch(() => null);
-        if (dccReview && !dccReview.satisfied) {
-          return withSkip(<DccManagerReviewGate greetingName={firstName} state={dccReview} />);
-        }
-      }
     }
   }
 
@@ -206,8 +169,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   //   1. kill-switch — ECOS_LOCK_OFF=true disables locking entirely. Default OFF
   //      (unset) = locking ACTIVE, since enforcement is the whole point; but it
   //      is trivially disableable if it ever misbehaves in prod.
-  //   2. super-admin skip — the SAME `gateSkipActive` helper the manager/DCC
-  //      gates use (sa_gate_skip cookie), so a super-admin is never locked out.
+  //   2. super-admin skip — the SAME `gateSkipActive` helper the manager
+  //      gate uses (sa_gate_skip cookie), so a super-admin is never locked out.
   //   3. `pendingLockBroadcastForEmployee` is itself fail-open (returns null on
   //      any error), and we .catch(() => null) on top for a second guarantee.
   //   4. daily-start exemption — the same capability that clears the chain above

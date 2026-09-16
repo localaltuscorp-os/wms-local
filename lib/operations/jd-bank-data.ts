@@ -11,7 +11,7 @@ import {
 
 /**
  * Everything the JD Bank renders — read by Operations → Job Description and by
- * the Masters section's General JD and Person-specific JD pages.
+ * the Masters section's Master JD and Person-specific JD pages.
  *
  * Falls back to the seeded in-memory Bank when the JD tables are missing (a
  * migration applied by hand may not have run yet) — see lib/demo/store.ts.

@@ -39,12 +39,9 @@ import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { gateSkipActive } from "@/lib/auth/gate-skip";
 import { SkipGateButton } from "@/components/layout/skip-gate-button";
 import { needsDailyChecklistPlan } from "@/lib/daily-checklist/gate";
-import { loginPlanGateOn, loginDccGateOn, managerTaskGateOn, dccReviewGateOn } from "@/lib/goals/flag";
-import { dccGateTarget, dccManagerReviewState } from "@/lib/dcc/gate";
+import { loginPlanGateOn, managerTaskGateOn } from "@/lib/goals/flag";
 import { DailyChecklistView } from "@/components/daily-checklist/daily-checklist-view";
 import { ManagerDailyTaskGate } from "@/components/manager-gates/manager-daily-task-gate";
-import { DccGateView } from "@/components/dcc/dcc-gate-view";
-import { DccManagerReviewGate } from "@/components/dcc/dcc-manager-review-gate";
 
 // The dashboard is the post-login landing and MUST run the (app) layout's
 // daily-ritual gate on every request — never a cached/prerendered copy that
@@ -202,23 +199,17 @@ export default async function HubPage() {
   // landing) in addition to the (app) layout, because the layout's gate return
   // wasn't reliably taking effect for this route on prod. Same policy:
   // fail-open, day-scoped, super-admin-skippable, kill-switchable
-  // (DCC_GATE_OFF / MANAGER_GATES_OFF). Employees must commit ≥5 checklist
-  // items + log goal progress; managers get their task-give gate; everyone
-  // fills DCC.
+  // (MANAGER_GATES_OFF). Employees must commit ≥5 checklist items + log goal
+  // progress; managers get their task-give gate.
   {
-    // Keep in LOCK-STEP with app/(app)/layout.tsx. COMPULSORY: plan gate + own-DCC.
-    // SKIPPABLE by super-admins: manager (assign) + DCC-review gates.
-    // All four login walls are now OFF by default (Sir) — kept behind kill-switches,
-    // restorable per-gate: LOGIN_PLAN_GATE_ON / LOGIN_DCC_GATE_ON / MANAGER_TASK_GATE_ON
-    // / DCC_REVIEW_GATE_ON. Kept in lock-step with app/(app)/layout.tsx.
+    // Keep in LOCK-STEP with app/(app)/layout.tsx. COMPULSORY: plan gate.
+    // SKIPPABLE by super-admins: the manager (assign) gate.
+    // Both login walls are now OFF by default (Sir) — kept behind kill-switches,
+    // restorable per-gate: LOGIN_PLAN_GATE_ON / MANAGER_TASK_GATE_ON.
     const isManager = await isManagerWithReports(me.id).catch(() => false);
     if (loginPlanGateOn() && !isManager) {
       const mustPlan = await needsDailyChecklistPlan(me).catch(() => false);
       if (mustPlan) return <DailyChecklistView employeeId={me.id} greetingName={firstName} mode="gate" />;
-    }
-    if (loginDccGateOn()) {
-      const dccTarget = await dccGateTarget(me.id).catch(() => null);
-      if (dccTarget) return <DccGateView greetingName={firstName} date={dccTarget.date} items={dccTarget.items} entries={dccTarget.entries} />;
     }
     const canSkip = isSuperAdmin(me.email);
     const skipDuties = canSkip && (await gateSkipActive(me).catch(() => false));
@@ -227,10 +218,6 @@ export default async function HubPage() {
       if (managerTaskGateOn()) {
         const dailyGate = await managerDailyTaskGate(me.id).catch(() => null);
         if (dailyGate && !dailyGate.satisfied) return withSkip(<ManagerDailyTaskGate greetingName={firstName} state={dailyGate} />);
-      }
-      if (dccReviewGateOn()) {
-        const dccReview = await dccManagerReviewState(me).catch(() => null);
-        if (dccReview && !dccReview.satisfied) return withSkip(<DccManagerReviewGate greetingName={firstName} state={dccReview} />);
       }
     }
   }

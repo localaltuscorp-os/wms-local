@@ -34,10 +34,6 @@
       "schedule": "0 5 1 * *"
     },
     {
-      "path": "/api/cron/dcc-reminder",
-      "schedule": "0 14 * * *"
-    },
-    {
       "path": "/api/cron/dcc-daily-report",
       "schedule": "30 16 * * *"
     },

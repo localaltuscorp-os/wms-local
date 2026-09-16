@@ -20,6 +20,7 @@ import { db, tasks } from "@/lib/db";
 import { reconcileTaskEvent, removeTaskEvent } from "@/lib/google/sync";
 import { syncTaskToGoal } from "@/lib/weekly-goals/task-sync";
 import { CACHE_TAGS } from "@/lib/cache-tags";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
 import {
   TASK_STATUSES,
   TASK_PRIORITIES,
@@ -1979,7 +1980,7 @@ export async function nudgeTask(
   );
 }
 
-// ─────────────────── Approver / Initiator Status (2026-09-15) ───────────────────
+// ─────────────────── Initiator Status (2026-09-15) ───────────────────
 
 const DOER_VALUES: readonly string[] = ["dont_know", "not_started", "initiated", "follow_up", "need_info", "done"];
 
@@ -1997,7 +1998,7 @@ async function statusBeforeHold(taskId: string): Promise<string> {
 }
 
 /**
- * Set a task's Approver / Initiator Status from the WMS table's chip.
+ * Set a task's Initiator Status from the WMS table's chip.
  *
  * WHO: the initiator, the doer's manager (anyone above the doer) or an admin —
  * never the doer (lib/status/approver-status.ts). Approved / Not Approved wait
@@ -2017,7 +2018,7 @@ export async function setTaskApproverStatus(
   choice: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!isUuid(taskId)) return { ok: false, error: "Bad task id." };
-  if (!isApproverChoice(choice)) return { ok: false, error: "Unknown Approver / Initiator Status." };
+  if (!isApproverChoice(choice)) return { ok: false, error: "Unknown Initiator Status." };
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
@@ -2035,11 +2036,15 @@ export async function setTaskApproverStatus(
   if (!task) return { ok: false, error: "Task not found." };
 
   const isDoer = task.doerId === me.id;
-  // A task someone raised for themselves has no separate initiator to rule on it.
-  const isInitiator = task.initiatorId === me.id && task.initiatorId !== task.doerId;
+  /* A task someone raised for themselves has no separate initiator to rule on
+     it — the column reads "Not Applicable" and only an admin overrules. */
+  const isSelfRaised = !!task.initiatorId && task.initiatorId === task.doerId;
+  const isInitiator = task.initiatorId === me.id && !isSelfRaised;
   const isDoersManager = !isDoer && !!task.doerId && (await getDownlineIds(me.id)).includes(task.doerId);
+  // Super-admin rules the same as an admin here, as it does in Goals.
+  const admin = me.isAdmin || isSuperAdmin(me.email);
   const verdict = canSetApproverStatus(
-    { isAdmin: me.isAdmin, isInitiator, isDoersManager, isDoer },
+    { isAdmin: admin, isInitiator, isDoersManager, isDoer, isSelfRaised },
     choice,
     // A task already ruled on was Done when it was ruled on.
     taskDoerShown(task.status),

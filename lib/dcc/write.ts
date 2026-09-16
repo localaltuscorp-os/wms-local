@@ -89,7 +89,9 @@ export async function writeDccEntry(
     DO UPDATE SET status = EXCLUDED.status, value_number = EXCLUDED.value_number,
                   note = EXCLUDED.note, filled_by_id = EXCLUDED.filled_by_id, updated_at = now()
   `);
-  // The owner's DCC day in their Google Calendar (participant rows aren't in it).
+  // The owner's DCC day in their Altus Google Calendar (participant rows are not
+  // in it). Deferred and best-effort — an expired calendar token must never be
+  // able to fail a compliance write.
   if (!subjectId) scheduleDccCalendarSync(writable.owner, date);
   return { ok: true };
 }

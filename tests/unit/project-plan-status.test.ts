@@ -20,6 +20,7 @@ function actor(over: Partial<PlanActor> = {}): PlanActor {
     isOwner: false,
     isDoer: false,
     isSupervisor: false,
+    isSelfRaised: false,
     ...over,
   };
 }
@@ -83,12 +84,12 @@ describe("working flow — the doer, their supervisor, the owner", () => {
 });
 
 // The restricted values are a RULING about the work. Since 2026-09-15 the
-// rulings follow the one Approver / Initiator rule WMS Tasks and Goals share:
+// rulings follow the one Initiator Status rule WMS Tasks and Goals share:
 // the owner (initiator), the doer's manager (supervisor) or an admin — never
 // the doer. Archiving stays owner/admin.
 const RULINGS = PLAN_RESTRICTED_STATUSES.filter((s) => s !== "archived");
 
-describe("restricted flow — the Approver / Initiator rule", () => {
+describe("restricted flow — the Initiator Status rule", () => {
   it("lets the owner, the supervisor and an admin rule", () => {
     for (const who of [ADMIN, OWNER, SUPERVISOR]) {
       for (const s of RULINGS) {

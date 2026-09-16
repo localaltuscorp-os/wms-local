@@ -462,7 +462,7 @@ export function PlanRegister({
   const levelLabel = KIND_LABEL[kind];
   const rollupLabel = `${KIND_LABEL[rollupKind]}s Completion`;
   // The tick column, two columns per ancestor (No + Name), then: own No, own
-  // Name, Description, Doer Status, Approver / Initiator Status, the
+  // Name, Description, Doer Status, Initiator Status, the
   // level-dependent column (own Completion on a container / Task on an
   // executable row), the rollup, Attachments, Links and Initiator Notes — plus
   // Start / End / Duration on the scheduled levels.
@@ -653,7 +653,7 @@ export function PlanRegister({
               </SortTh>
               <Th className="w-[240px]">{levelLabel} Description</Th>
               <Th className="w-[150px]">Doer Status</Th>
-              <Th className="w-[180px]">Approver / Initiator Status</Th>
+              <Th className="w-[180px]">Initiator Status</Th>
               {/* Only on the levels that own a schedule — see `showsSchedule`. */}
               {showsSchedule && (
                 <>

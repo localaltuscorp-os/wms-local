@@ -59,7 +59,7 @@ import { Select } from "@/components/ui/select";
 import { DateInput } from "@/components/ui/date-input";
 import { ADMIN_TASK_STATUSES, USER_TASK_STATUSES, DOER_TASK_STATUSES, GOAL_TYPES, GOAL_TYPE_LABELS, type TaskStatus, type GoalType } from "@/db/enums";
 import { ApproverChip } from "@/components/status/approver-chip";
-import { approverShown, approverStored, selectableApproverChoices } from "@/lib/status/approver-status";
+import { approverDisplay, approverStored, selectableApproverChoices } from "@/lib/status/approver-status";
 import { setGoalApproverStatus } from "@/app/(app)/goals/approver-actions";
 import { pctTone, fmtNum, num, periodKeyLabel, periodKeyShort, goalCode, trimDecimal, targetDateStatus, fmtTargetDate, assignmentInfo } from "@/components/goals/cascade/util";
 import { CalendarClock } from "lucide-react";
@@ -150,7 +150,7 @@ export interface GoalTableViewProps {
    *  Columns picker's list, reorders live the same way. Omitted → headers
    *  aren't draggable (read-only order). */
   onColOrderChange?: (next: string[]) => void;
-  /** The signed-in employee — decides whether the Approver / Initiator chip is
+  /** The signed-in employee — decides whether the Initiator Status chip is
    *  editable on a row. Omitted → only an admin gets an editable chip. */
   meId?: string;
   /** The viewer manages the person whose goals these are. */
@@ -1868,7 +1868,7 @@ function headerCellsFor(key: string): { reactKey: string; label: string; classNa
     case "doerStatus":
       return [{ reactKey: "doerStatus", label: "Doer Status", className: cn(TH, "px-1.5 min-w-[120px]") }];
     case "approver":
-      return [{ reactKey: "approver", label: "Approver / Initiator Status", className: cn(TH, "px-1.5 min-w-[150px]") }];
+      return [{ reactKey: "approver", label: "Initiator Status", className: cn(TH, "px-1.5 min-w-[150px]") }];
     case "notes":
       return [
         { reactKey: "notes", label: "Notes", className: cn(TH, "px-1.5 min-w-[64px]") },
@@ -1903,7 +1903,7 @@ export const OPTIONAL_COLUMNS: { key: string; label: string }[] = [
   { key: "owner", label: "Owner" },
   { key: "type", label: "Type" },
   { key: "doerStatus", label: "Doer Status" },
-  { key: "approver", label: "Approver / Initiator Status" },
+  { key: "approver", label: "Initiator Status" },
   { key: "notes", label: "Notes" },
 ];
 
@@ -1935,7 +1935,7 @@ export const REORDERABLE_COLUMNS: { key: string; label: string; pickable: boolea
   { key: "owner", label: "Owner", pickable: true },
   { key: "type", label: "Type", pickable: true },
   { key: "doerStatus", label: "Doer Status", pickable: true },
-  { key: "approver", label: "Approver / Initiator Status", pickable: true },
+  { key: "approver", label: "Initiator Status", pickable: true },
   { key: "notes", label: "Notes", pickable: true },
   { key: "targetDate", label: "Target Date", pickable: false },
   { key: "targetDateStatus", label: "Days Left", pickable: false },
@@ -2065,17 +2065,21 @@ export function GoalTableView(props: GoalTableViewProps) {
 
   const weekly = props.variant === "weekly";
 
-  /** The viewer relative to one goal, for the Approver / Initiator chip. The
+  /** The viewer relative to one goal, for the Initiator Status chip. The
    *  initiator is whoever raised the goal; the owner of a goal somebody else
    *  raised is its doer. The server re-decides every pick. */
   const approverActorFor = (g: GoalDTO) => {
     const meId = props.meId;
-    const isInitiator = !!meId && g.createdById === meId;
+    /* A goal somebody set for themselves has no approver (account holder,
+       2026-09-16). This USED to read `isDoer: false`, which let the raiser
+       approve their own goal — the one place Goals disagreed with Tasks. */
+    const isSelfRaised = !!g.createdById && g.createdById === g.employeeId;
     return {
       isAdmin: props.isAdmin,
-      isInitiator,
+      isInitiator: !!meId && g.createdById === meId && !isSelfRaised,
       isDoersManager: !!meId && !!props.managesViewed && g.employeeId !== meId,
-      isDoer: !!meId && g.employeeId === meId && !isInitiator,
+      isDoer: !!meId && g.employeeId === meId,
+      isSelfRaised,
     };
   };
   const A = props.actions ?? CASCADE_ACTIONS;
@@ -2796,7 +2800,7 @@ export function GoalTableView(props: GoalTableViewProps) {
         return [
           <td key="approver" className="px-2.5 py-2 align-middle">
             <ApproverChip
-              shown={approverShown(g.approverStatus)}
+              shown={approverDisplay(g.approverStatus, approverActorFor(g).isSelfRaised)}
               // An optimistic row has no id the server knows yet.
               choices={UUID_RE.test(g.id) ? selectableApproverChoices(approverActorFor(g), g.status) : []}
               onPick={async (choice) => {

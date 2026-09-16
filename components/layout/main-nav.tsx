@@ -59,7 +59,6 @@ import {
   Home,
   CheckCircle2,
   Users2,
-  Layers as DccMasterIcon,
 } from "lucide-react";
 import type { Route } from "next";
 import type { LucideIcon } from "lucide-react";
@@ -67,6 +66,7 @@ import { MainNavPill } from "./main-nav-pill";
 import { MainNavGroup } from "./main-nav-group";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
 import { OPERATIONS_AREAS, OPERATIONS_MASTERS, type OperationsAreaId } from "@/lib/operations/nav";
+import { DCC_CHILD_ROUTES, DCC_DOORS } from "@/lib/dcc/nav";
 import { nodeKeyForPath } from "@/lib/permissions/catalog";
 import { HR_STAGES, hrItemHref, type HrStage, type HrStageKey } from "@/lib/hr/lifecycle";
 
@@ -341,7 +341,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
   },
   employees: {
     top: [
-      // Order (Sir, 2026-07): Attendance · DCC · Incentive · My Salary ·
+      // Order (Sir, 2026-07): Attendance · Incentive · My Salary ·
       // Reimbursements. HR Record moved to the HR room; the admin Salary module
       // + Overtime moved to the Accounts room.
       //
@@ -350,15 +350,23 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // one door, not two. The route it used to point at, /appraisal, still
       // resolves: it redirects to the new home so old bookmarks and the inbox
       // notifications keep working.
-      // Order (Sir, 2026-08): DCC · Leaves · Attendance · Live Status, then the
+      // Order (Sir, 2026-08): Leaves · Attendance · Live Status, then the
       // rest. Leave and Live Status were both reachable only from inside the
       // attendance page before — Leave as a link, Live Status as a rail panel —
       // which put a whole-team snapshot on the screen an individual visits to
       // clock in. Each now has its own door.
-      // The dashboard has its own door, so DCC must not stay lit while you stand on it.
-      { href: "/dcc" as Route, label: "DCC", Icon: Gauge, not: ["/dcc/dashboard", "/dcc/masters"] },
-      { href: "/dcc/dashboard" as Route, label: "DCC Dashboard", Icon: LayoutDashboard },
-      { href: "/dcc/masters" as Route, label: "DCC Master", Icon: DccMasterIcon },
+      /* DCC IS FIRST IN THIS ROOM (account holder, 2026-09-16, DCC-SPEC §2).
+         The five doors are generated from lib/dcc/nav.ts — the SAME list the
+         module's own quick-nav row renders — so the rail can never advertise a
+         door the pages have stopped honouring, which is what went wrong before.
+         The parent excludes its children, or /dcc stays lit while you stand on
+         one of them. */
+      ...DCC_DOORS.map((d) => ({
+        href: d.href as Route,
+        label: d.href === "/dcc" ? "DCC" : d.label,
+        Icon: d.Icon,
+        ...(d.exact ? { not: DCC_CHILD_ROUTES } : {}),
+      })),
       { href: "/attendance/leave" as Route, label: "Leaves", Icon: Plane },
       { href: "/attendance/remote-work" as Route, label: "Remote Work", Icon: House },
       {

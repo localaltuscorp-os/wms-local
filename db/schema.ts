@@ -911,7 +911,7 @@ export const projectNodes = pgTable(
     >(),
     /** Restricted flow — an owner/admin verdict layered on top of `status`. */
     approvalStatus: text("approval_status").$type<
-      "not_approved" | "approved" | "on_hold" | "cancelled"
+      "not_approved" | "approved" | "on_hold" | "archived" | "cancelled"
     >(),
     /** Recorded partial completion 0–100. NULL = derive it from the work below. */
     progressPercent: integer("progress_percent"),
@@ -3953,12 +3953,42 @@ export const dccMasterLinks = pgTable(
   (t) => [uniqueIndex("dcc_master_links_owner_master_uq").on(t.ownerEmployeeId, t.masterItemId)],
 );
 
-// Migration 0231 — the Approver / Initiator Status of a goal (lib/status/
+/**
+ * Migration 0235 — the SP1 call log (lib/dcc/sp1.ts, DCC-SPEC §7).
+ *
+ * One row per employee per day per outcome, carrying a COUNT. The fifteen
+ * outcomes and every ratio derived from them live in lib/dcc/sp1.ts; nothing
+ * here constrains the disposition text, so the sheet can gain a row without a
+ * migration.
+ */
+export const dccCallLogs = pgTable(
+  "dcc_call_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    logDate: date("log_date").notNull(),
+    disposition: text("disposition").notNull(),
+    count: integer("count").notNull().default(0),
+    note: text("note"),
+    filledById: uuid("filled_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // dcc_call_logs_uq — the unique index on (employee_id, log_date,
+    // disposition) — is managed in the migration; it is what makes the fill
+    // screen's upsert safe.
+    index("dcc_call_logs_date_idx").on(t.logDate, t.employeeId),
+  ],
+);
+export type DccCallLog = typeof dccCallLogs.$inferSelect;
+
+// Migration 0231 — the Initiator Status of a goal (lib/status/
 // approver-status.ts). Side tables, NOT columns on goals / weekly_goals: those
 // are read with bare select()/returning() across the Goals module. No row = Pending.
 export const goalApproverStatuses = pgTable("goal_approver_statuses", {
   goalId: uuid("goal_id").primaryKey().references(() => goals.id, { onDelete: "cascade" }),
-  approvalStatus: text("approval_status").notNull().$type<"approved" | "not_approved" | "on_hold" | "cancelled">(),
+  approvalStatus: text("approval_status").notNull().$type<"approved" | "not_approved" | "on_hold" | "archived" | "cancelled">(),
   setById: uuid("set_by_id").references(() => employees.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -4000,7 +4030,7 @@ export const recruitmentJdSends = pgTable(
 
 export const weeklyGoalApproverStatuses = pgTable("weekly_goal_approver_statuses", {
   weeklyGoalId: uuid("weekly_goal_id").primaryKey().references(() => weeklyGoals.id, { onDelete: "cascade" }),
-  approvalStatus: text("approval_status").notNull().$type<"approved" | "not_approved" | "on_hold" | "cancelled">(),
+  approvalStatus: text("approval_status").notNull().$type<"approved" | "not_approved" | "on_hold" | "archived" | "cancelled">(),
   setById: uuid("set_by_id").references(() => employees.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -8308,7 +8338,7 @@ export const jdEntries = pgTable(
       .notNull()
       .unique()
       .default(sql`'JD-' || lpad(nextval('jd_entries_serial_seq')::text, 4, '0')`),
-    /* EXACTLY ONE OWNER (migration 0233): a position (the General JD) or a
+    /* EXACTLY ONE OWNER (migration 0233): a position (the Master JD) or a
        person (their personal JD). A CHECK in the database enforces it. */
     positionId: uuid("position_id").references(() => jdPositions.id, { onDelete: "restrict" }),
     ownerEmployeeId: uuid("owner_employee_id").references(() => employees.id, { onDelete: "cascade" }),

@@ -20,6 +20,14 @@
  * here converts through an instant.
  */
 
+import { parseRRule, type ParsedRule } from "@/lib/recurrence/rrule";
+import {
+  dateFromYmd,
+  humanSummary,
+  presetOptions,
+  type PresetKey,
+} from "@/lib/recurrence/google-recurrence";
+
 /** 0 = Monday … 6 = Sunday. Matches the DCC weekday bit order. */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -32,42 +40,95 @@ export type Recurrence =
   | { kind: "monthly_ordinal"; ordinal: 1 | 2 | 3 | 4 | -1; weekday: Weekday }
   /** "Annually on [date]" — the same calendar date each year. */
   | { kind: "yearly"; month: number; day: number }
+  /**
+   * Whatever the Custom dialog built — Google's full grammar as an RRULE,
+   * counted from `anchor` (the JD's start date). This is the ONLY shape that
+   * can say "every 3 weeks on Tue and Thu, 13 times".
+   */
+  | { kind: "rrule"; rule: string; anchor: string }
   | { kind: "custom"; label: string };
 
 /**
- * The dropdown, in Google Calendar's vocabulary (account holder, 2026-09-12).
+ * The dropdown, in Google Calendar's vocabulary (account holder, 2026-09-12),
+ * now spoken ABOUT THE START DATE the way Google's is (2026-09-16).
  *
- * ── THE FIVE PATTERNS THAT LEFT THE LIST STILL WORK ──────────────────────
+ * ── WHY THIS IS A FUNCTION AND NOT A CONSTANT ────────────────────────────────
+ * It used to be a fixed list: "Weekly on Saturday", "Monthly on the second
+ * Saturday", "Annually on [Date]". That is right one day in seven and quietly
+ * wrong the rest of the time — a job starting on a Wednesday offered to repeat
+ * "weekly on Saturday", and the literal placeholder "[Date]" was never a date
+ * at all. Google names the day you actually picked, so the list is derived.
+ *
+ * ── THE PATTERNS THAT LEFT THE LIST STILL WORK ───────────────────────────────
  * Mon-Wed-Fri, Tue-Sat, Once in 15 Days, Once in 30 Days and First Monday of
- * Month were offered here until this change, and rows are stored holding them.
- * They are SHAPES, not list entries — `describeRecurrence`, `isDueOn` and
+ * Month were offered here once, and rows are stored holding them. They are
+ * SHAPES, not list entries — `describeRecurrence`, `isDueOn` and
  * `toDccSchedule` all still handle them, so an existing job description keeps
  * working and keeps reading correctly. What changed is only what a NEW one can
  * be set to from this menu; anything else goes through Custom.
  *
- * Removing the shapes as well would have turned every one of those rows into
- * "Unknown" the day this shipped.
+ * ── WHY THE PRESETS ARE NOT RRULEs ───────────────────────────────────────────
+ * Each preset maps to the structured shape it always mapped to, NOT to the
+ * equivalent RRULE. `FREQ=DAILY` means seven days a week; this firm's "Daily"
+ * means Mon–Sat, because a task that fires on the weekly off becomes an overdue
+ * row nobody can clear. Only `Custom…` needs the richer grammar, so only
+ * `Custom…` produces `{ kind: "rrule" }`.
  */
-export const FREQUENCY_OPTIONS: readonly { id: string; label: string; value: Recurrence }[] = [
-  { id: "once", label: "Does not repeat", value: { kind: "once", date: "" } },
-  { id: "daily", label: "Daily", value: { kind: "daily" } },
-  { id: "sat", label: "Weekly on Saturday", value: { kind: "weekdays", days: [5] } },
-  {
-    id: "sat2",
-    label: "Monthly on the second Saturday",
-    value: { kind: "monthly_ordinal", ordinal: 2, weekday: 5 },
-  },
-  { id: "yearly", label: "Annually on [Date]", value: { kind: "yearly", month: 1, day: 1 } },
-  {
-    id: "weekday",
-    label: "Every weekday (Monday to Friday)",
-    value: { kind: "weekdays", days: [0, 1, 2, 3, 4] },
-  },
-  { id: "custom", label: "Custom…", value: { kind: "custom", label: "" } },
-] as const;
+export function frequencyOptionsFor(
+  anchorYmd: string,
+): { id: PresetKey; label: string; value: Recurrence }[] {
+  const anchor = dateFromYmd(anchorYmd);
+  const wd = weekdayOf(anchorYmd) ?? 0;
+  const p = parts(anchorYmd);
+  return presetOptions(anchor).map(({ key, label }) => ({
+    id: key,
+    label,
+    value: recurrenceForPreset(key, anchorYmd, wd, p),
+  }));
+}
 
-/** Which options need a date field revealed beside them. */
-export const FREQUENCY_NEEDS_DATE = new Set(["once", "yearly"]);
+function recurrenceForPreset(
+  key: PresetKey,
+  anchorYmd: string,
+  wd: Weekday,
+  p: { y: number; m: number; d: number } | null,
+): Recurrence {
+  switch (key) {
+    case "none":
+      return { kind: "once", date: anchorYmd };
+    case "daily":
+      return { kind: "daily" };
+    case "weekly":
+      return { kind: "weekdays", days: [wd] };
+    case "monthly":
+      return {
+        kind: "monthly_ordinal",
+        ordinal: monthlyOrdinalOf(anchorYmd),
+        weekday: wd,
+      };
+    case "yearly":
+      return { kind: "yearly", month: p?.m ?? 1, day: p?.d ?? 1 };
+    case "weekday":
+      return { kind: "weekdays", days: [0, 1, 2, 3, 4] };
+    case "custom":
+      // Seeded empty; the dialog replaces it wholesale on Done.
+      return { kind: "rrule", rule: "", anchor: anchorYmd };
+  }
+}
+
+/**
+ * Which ordinal a date is within its month, as the `monthly_ordinal` shape
+ * stores it. A date in the final week is always "last" (-1) rather than a
+ * fifth, which most months do not have — the same rule the picker speaks.
+ */
+export function monthlyOrdinalOf(anchorYmd: string): 1 | 2 | 3 | 4 | -1 {
+  const p = parts(anchorYmd);
+  if (!p) return 1;
+  const daysInMonth = new Date(Date.UTC(p.y, p.m, 0)).getUTCDate();
+  if (p.d + 7 > daysInMonth) return -1;
+  const nth = Math.floor((p.d - 1) / 7) + 1;
+  return (nth >= 1 && nth <= 4 ? nth : -1) as 1 | 2 | 3 | 4 | -1;
+}
 
 const WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const MONTH_NAMES = [
@@ -198,11 +259,192 @@ export function isDueOn(rec: Recurrence, ymd: string): boolean {
     }
     case "monthly_ordinal":
       return nthWeekdayOfMonth(p.y, p.m, rec.ordinal, rec.weekday) === ymd;
+    case "rrule":
+      return rruleDueOn(rec.rule, rec.anchor, ymd);
     case "custom":
       // Deliberately never auto-due: a custom rule nobody has encoded must not
       // silently fire every day. It shows in the Bank and is pushed by hand.
       return false;
   }
+}
+
+/* ── RRULE MATCHING ──────────────────────────────────────────────────────────
+ *
+ * `lib/recurrence/rrule.ts` GENERATES occurrences forward from an anchor, and
+ * caps itself at 200 to stop a runaway rule spawning rows. That cap makes it
+ * the wrong tool for the one question asked here — "is this due on this day?" —
+ * because a daily job anchored a year back would run out of generated dates and
+ * answer "no" for every day after the 200th. So this matches the pattern
+ * directly, in closed form, and only walks occurrences where it must (COUNT).
+ */
+
+/** rrule.ts's weekday codes, in its own order. */
+const RR_WD_ORDER = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"] as const;
+
+/** "SU".."SA" → our Monday-based Weekday. */
+function toWeekday(code: string): Weekday | null {
+  const i = RR_WD_ORDER.indexOf(code as (typeof RR_WD_ORDER)[number]);
+  return i < 0 ? null : (((i + 6) % 7) as Weekday);
+}
+
+/** Days since the epoch — the cheapest way to compare and step calendar days. */
+function dayNum(ymd: string): number | null {
+  const p = parts(ymd);
+  return p ? Math.floor(Date.UTC(p.y, p.m - 1, p.d) / 86_400_000) : null;
+}
+
+/** Sunday-based day of week for a day number. 1970-01-01 was a Thursday. */
+function jsDow(dn: number): number {
+  return (((dn + 4) % 7) + 7) % 7;
+}
+
+/** The Sunday on or before a day number — rrule.ts's own week boundary. */
+function weekStartNum(dn: number): number {
+  return dn - jsDow(dn);
+}
+
+/** The wanted weekdays of one week, as day numbers, in calendar order. */
+function weeklyDayNums(weekStart: number, wanted: Weekday[]): number[] {
+  return wanted.map((w) => weekStart + ((w + 1) % 7)).sort((a, b) => a - b);
+}
+
+/** Which weekdays a weekly rule lands on — its own list, else the anchor's. */
+function weeklyWanted(r: ParsedRule, anchorYmd: string): Weekday[] {
+  const listed = r.byDay
+    .map(toWeekday)
+    .filter((w): w is Weekday => w !== null);
+  if (listed.length) return listed;
+  const wd = weekdayOf(anchorYmd);
+  return wd === null ? [] : [wd];
+}
+
+function rruleDueOn(rule: string, anchorYmd: string, ymd: string): boolean {
+  const parsed = parseRRule(rule);
+  if (!parsed || !anchorYmd) return false;
+  // Nothing before the start date, and nothing past an explicit end date.
+  if (ymd < anchorYmd) return false;
+  if (parsed.until && ymd > parsed.until) return false;
+  if (!rruleMatches(parsed, anchorYmd, ymd)) return false;
+  // "After N occurrences" — the anchor's own occurrence is #1.
+  if (parsed.count !== null && rruleIndex(parsed, anchorYmd, ymd) > parsed.count) return false;
+  return true;
+}
+
+/** Does the date fit the pattern, ignoring any end condition? */
+function rruleMatches(r: ParsedRule, anchorYmd: string, ymd: string): boolean {
+  const a = parts(anchorYmd);
+  const t = parts(ymd);
+  const an = dayNum(anchorYmd);
+  const tn = dayNum(ymd);
+  if (!a || !t || an === null || tn === null) return false;
+  const interval = Math.max(1, r.interval || 1);
+
+  switch (r.freq) {
+    case "DAILY":
+      return (tn - an) % interval === 0;
+
+    case "WEEKLY": {
+      const wanted = weeklyWanted(r, anchorYmd);
+      const wd = weekdayOf(ymd);
+      if (wd === null || !wanted.includes(wd)) return false;
+      // INTERVAL counts WEEKS, so it is measured between week starts — not
+      // between the two dates, which would make "every 2 weeks on Mon, Thu"
+      // skip the Thursday of every active week.
+      const weeks = (weekStartNum(tn) - weekStartNum(an)) / 7;
+      return weeks % interval === 0;
+    }
+
+    case "MONTHLY": {
+      const months = (t.y - a.y) * 12 + (t.m - a.m);
+      if (months < 0 || months % interval !== 0) return false;
+      if (r.monthlyNth !== null && r.monthlyWeekday) {
+        const wd = toWeekday(r.monthlyWeekday);
+        if (wd === null) return false;
+        const nth = r.monthlyNth;
+        if (nth !== -1 && (nth < 1 || nth > 4)) return false;
+        return nthWeekdayOfMonth(t.y, t.m, nth as 1 | 2 | 3 | 4 | -1, wd) === ymd;
+      }
+      // A 31st simply does not happen in a 30-day month, matching the
+      // generator — the month is skipped rather than pulled back to the 30th.
+      return t.d === (r.byMonthDay ?? a.d);
+    }
+
+    case "YEARLY": {
+      if ((t.y - a.y) % interval !== 0) return false;
+      // 29 February falls back to the 28th in a common year, the same rule the
+      // plain `yearly` shape uses — skipping three years in four is never what
+      // anybody meant.
+      if (a.m === 2 && a.d === 29 && !isLeapYear(t.y)) return t.m === 2 && t.d === 28;
+      return t.m === a.m && t.d === a.d;
+    }
+  }
+}
+
+/**
+ * Which occurrence this date is, counting the anchor's own as #1.
+ *
+ * Only consulted when the rule carries COUNT. Closed form everywhere — the
+ * weekly case is the fiddly one, because the anchor's week is partial: the
+ * occurrences before the start date never happened and must not be counted.
+ */
+function rruleIndex(r: ParsedRule, anchorYmd: string, ymd: string): number {
+  const a = parts(anchorYmd);
+  const t = parts(ymd);
+  const an = dayNum(anchorYmd);
+  const tn = dayNum(ymd);
+  if (!a || !t || an === null || tn === null) return Number.MAX_SAFE_INTEGER;
+  const interval = Math.max(1, r.interval || 1);
+
+  switch (r.freq) {
+    case "DAILY":
+      return (tn - an) / interval + 1;
+
+    case "YEARLY":
+      return (t.y - a.y) / interval + 1;
+
+    case "MONTHLY": {
+      const months = (t.y - a.y) * 12 + (t.m - a.m);
+      let index = months / interval + 1;
+      // The anchor's own month may resolve to a date BEFORE the start date
+      // ("monthly on day 5" started on the 16th) — that one never happened.
+      const first = monthlyOccurrenceYmd(r, a);
+      if (first !== null && first < anchorYmd) index -= 1;
+      return index;
+    }
+
+    case "WEEKLY": {
+      const wanted = weeklyWanted(r, anchorYmd);
+      if (!wanted.length) return Number.MAX_SAFE_INTEGER;
+      const anchorWeek = weekStartNum(an);
+      const targetWeek = weekStartNum(tn);
+      const cycles = (targetWeek - anchorWeek) / 7 / interval;
+      const anchorWeekDays = weeklyDayNums(anchorWeek, wanted);
+      if (cycles === 0) {
+        // Same week as the start date: count only what falls inside it.
+        return anchorWeekDays.filter((d) => d >= an && d <= tn).length;
+      }
+      const startedInAnchorWeek = anchorWeekDays.filter((d) => d >= an).length;
+      const rankInTargetWeek = weeklyDayNums(targetWeek, wanted).filter((d) => d <= tn).length;
+      return startedInAnchorWeek + (cycles - 1) * wanted.length + rankInTargetWeek;
+    }
+  }
+}
+
+/** The date a MONTHLY rule resolves to inside the anchor's own month. */
+function monthlyOccurrenceYmd(
+  r: ParsedRule,
+  a: { y: number; m: number; d: number },
+): string | null {
+  if (r.monthlyNth !== null && r.monthlyWeekday) {
+    const wd = toWeekday(r.monthlyWeekday);
+    if (wd === null) return null;
+    const nth = r.monthlyNth;
+    if (nth !== -1 && (nth < 1 || nth > 4)) return null;
+    return nthWeekdayOfMonth(a.y, a.m, nth as 1 | 2 | 3 | 4 | -1, wd);
+  }
+  const dom = r.byMonthDay ?? a.d;
+  const daysInMonth = new Date(Date.UTC(a.y, a.m, 0)).getUTCDate();
+  return dom > daysInMonth ? null : iso(a.y, a.m, dom);
 }
 
 /** A human sentence for the Bank list and the form's summary line. */
@@ -223,6 +465,9 @@ export function describeRecurrence(rec: Recurrence): string {
       return `Once in ${rec.everyDays} days${rec.anchor ? ` from ${rec.anchor}` : ""}`;
     case "monthly_ordinal":
       return `${ORDINAL_NAMES[String(rec.ordinal)] ?? ""} ${WEEKDAY_NAMES[rec.weekday]} of the month`;
+    case "rrule":
+      // The dialog's own sentence — "Every 3 weeks on Tue, Thu, 13 times".
+      return humanSummary(rec.rule, dateFromYmd(rec.anchor)) ?? "Custom";
     case "custom":
       return rec.label ? `Custom — ${rec.label}` : "Custom";
   }
@@ -256,6 +501,30 @@ export function toDccSchedule(rec: Recurrence): {
       };
     case "monthly_ordinal":
       return { scheduleKind: "monthly", weekdays: 0, frequency };
+    case "rrule": {
+      /* A plain weekly rule IS a weekday mask, so it projects exactly. Anything
+         carrying an INTERVAL or an end condition does not — the mask has no way
+         to say "every third week" or "stop after 13" — so it goes to the cron
+         as adhoc rather than being flattened into a lie the gate enforces. */
+      const parsed = parseRRule(rec.rule);
+      if (
+        parsed &&
+        parsed.freq === "WEEKLY" &&
+        Math.max(1, parsed.interval || 1) === 1 &&
+        !parsed.until &&
+        parsed.count === null
+      ) {
+        const days = weeklyWanted(parsed, rec.anchor);
+        if (days.length) {
+          return {
+            scheduleKind: days.length === 1 ? "weekly" : "scheduled",
+            weekdays: mask(days),
+            frequency,
+          };
+        }
+      }
+      return { scheduleKind: "adhoc", weekdays: null, frequency };
+    }
     case "interval":
     case "once":
     case "yearly":
@@ -278,6 +547,7 @@ export function isRecurrence(v: unknown): v is Recurrence {
     k === "interval" ||
     k === "monthly_ordinal" ||
     k === "yearly" ||
+    k === "rrule" ||
     k === "custom"
   );
 }

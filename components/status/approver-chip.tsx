@@ -6,15 +6,17 @@ import {
   APPROVER_LABEL,
   APPROVER_TONE,
   type ApproverChoice,
+  type ApproverShown,
 } from "@/lib/status/approver-status";
 
 /**
- * The Approver / Initiator Status chip — one look for WMS Tasks, Goals and
- * Projects (lib/status/approver-status.ts). Presentational: the caller decides
- * which choices this viewer may pick and saves the pick.
+ * The Initiator Status chip — one look for WMS Tasks, Goals and Projects
+ * (lib/status/approver-status.ts). Presentational: the caller decides which
+ * choices this viewer may pick and saves the pick.
  *
  * With no choices it is a read-only chip with a lock — the viewer is the doer,
- * or has no say over this work.
+ * has no say over this work, or the row is self-raised and reads "Not
+ * Applicable" because nobody is approving it.
  */
 export function ApproverChip({
   shown,
@@ -23,7 +25,7 @@ export function ApproverChip({
   lockedTitle = "Only the initiator, the doer's manager or an admin can change this.",
 }: {
   /** What the row currently reads. */
-  shown: ApproverChoice | "transferred";
+  shown: ApproverShown;
   /** What this viewer may pick now; empty = read-only. */
   choices: readonly ApproverChoice[];
   /** Save a pick. Resolve to an error message, or null when saved. */
@@ -31,7 +33,7 @@ export function ApproverChip({
   lockedTitle?: string;
 }) {
   const [busy, setBusy] = React.useState(false);
-  const [optimistic, setOptimistic] = React.useState<ApproverChoice | "transferred" | null>(null);
+  const [optimistic, setOptimistic] = React.useState<ApproverShown | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const current = optimistic ?? shown;
   const tone = APPROVER_TONE[current];
@@ -43,7 +45,7 @@ export function ApproverChip({
         className="inline-flex min-w-[118px] items-center justify-center gap-1 whitespace-nowrap rounded-pill px-2.5 py-1 text-[12.5px] font-bold"
         style={style}
         title={lockedTitle}
-        aria-label={`Approver / Initiator Status: ${APPROVER_LABEL[current]}`}
+        aria-label={`Initiator Status: ${APPROVER_LABEL[current]}`}
       >
         <Lock size={10} strokeWidth={2.6} aria-hidden />
         {APPROVER_LABEL[current]}
@@ -74,7 +76,7 @@ export function ApproverChip({
           disabled={busy}
           onChange={(e) => void choose(e.target.value)}
           onClick={(e) => e.stopPropagation()}
-          aria-label="Approver / Initiator Status"
+          aria-label="Initiator Status"
           className="min-w-[118px] cursor-pointer rounded-pill border border-transparent px-2.5 py-1 text-[12.5px] font-bold outline-none transition-colors hover:border-hairline-strong focus-visible:ring-2 focus-visible:ring-altus-red/40"
           style={style}
         >

@@ -63,11 +63,7 @@ export function GoogleCalendarCard({
         res.synced === 0
           ? "No active tasks to sync."
           : `Synced ${res.synced} of ${res.attempted} task${res.attempted === 1 ? "" : "s"} to your calendar.`;
-      const dcc =
-        res.dccChanged === 0
-          ? "Daily Compliance is up to date."
-          : `${res.dccChanged} Daily Compliance day${res.dccChanged === 1 ? "" : "s"} updated.`;
-      fireToast({ message: `${tasks} ${dcc}` });
+      fireToast({ message: tasks });
     });
   }
 

@@ -116,6 +116,7 @@ const APPROVAL_LABEL: Record<ApprovalStatus, string> = {
   cancelled:    "Cancelled",
   transferred:  "Transferred",
   on_hold:      "On Hold",
+  archived:     "Archived",
 };
 
 interface ColumnSpec {

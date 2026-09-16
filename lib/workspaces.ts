@@ -244,10 +244,10 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
        is true — left to fall through, an employee's payslips would have landed
        in the finance room's rail. */
     p.startsWith("/salary-slip") ||
+    p.startsWith("/dcc") ||
     p.startsWith("/incentive") ||
     p.startsWith("/reimbursements") ||
     p.startsWith("/leave") ||
-    p.startsWith("/dcc") ||
     p.startsWith("/pms") ||
     // `/appraisal` is NOT here any more — Appraisal is part of Team Productivity
     // and is claimed by the rule above.

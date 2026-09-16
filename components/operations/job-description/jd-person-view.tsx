@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { FileSpreadsheet, Loader2, Plus, Search, UserRound, X } from "lucide-react";
+import { FileSpreadsheet, Loader2, Plus, UserRound, X } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { describeRecurrence } from "@/lib/jd/recurrence";
 import { allAssignedIds } from "@/lib/jd/assignment-targets";
+import type { PersonIndex } from "@/lib/jd/person-index";
 import { FUNCTION_LABELS, type BusinessFunction } from "@/lib/org/functions";
 import type { JdEntryRow, JdPositionRow } from "@/lib/queries/job-description";
 import { setJdPositionHolder } from "@/app/(app)/operations/job-description/actions";
@@ -15,35 +16,20 @@ import type { SeatHolder } from "@/components/operations/job-description/jd-deta
 /**
  * JD FOR A SPECIFIC PERSON (account holder, 2026-09-15).
  *
- * People on the left — searchable, with how many tasks each carries — and the
- * chosen person's whole Job Description on the right:
- *   · FROM THEIR POSITION — the General JD of the seat they sit in (set here)
- *   · ASSIGNED BY NAME   — General JDs from other seats given to them by name
+ * The chosen person's whole Job Description, in three sections:
+ *   · FROM THEIR POSITION — the Master JD of the seat they sit in (set here)
+ *   · ASSIGNED BY NAME   — Master JDs from other seats given to them by name
  *   · PERSONAL           — tasks written for them alone, which belong to no seat
  * Personal tasks are added one at a time or from Excel, for this person only.
+ *
+ * WHO is chosen is NOT decided here. The picker was a 280px column down the
+ * left of this component until 2026-09-16; it is now a dropdown beside the page
+ * heading (JdPersonPicker), which is above this component in the tree. So this
+ * takes `personId` as a prop and reports changes upward — the seat dropdown
+ * below still changes a person's seat, which is a different thing entirely.
  */
 
 const ACCENT = "#B91C1C";
-
-type PeopleFilter = "all" | "personal" | "noseat";
-const FILTERS: { id: PeopleFilter; label: string }[] = [
-  { id: "all", label: "Everyone" },
-  { id: "personal", label: "Has personal JD" },
-  { id: "noseat", label: "No seat" },
-];
-
-function bump(m: Map<string, number>, k: string) {
-  m.set(k, (m.get(k) ?? 0) + 1);
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
-}
 
 export function JdPersonView({
   entries,
@@ -52,7 +38,8 @@ export function JdPersonView({
   people,
   onOpen,
   renderForm,
-  initialPersonId = null,
+  personId,
+  index,
 }: {
   entries: JdEntryRow[];
   positions: JdPositionRow[];
@@ -61,67 +48,23 @@ export function JdPersonView({
   onOpen: (entryId: string) => void;
   /** The New JD form in personal mode — rendered by the Bank, which owns it. */
   renderForm: (person: { id: string; name: string }, onDone: () => void) => React.ReactNode;
-  /** Open on this person (e.g. from `?person=`). */
-  initialPersonId?: string | null;
+  /** Whose JD to show. Chosen by the picker beside the page heading. */
+  personId: string;
+  /** Seats and task counts, computed once above and shared with the picker. */
+  index: PersonIndex;
 }) {
   const router = useRouter();
-  const [personId, setPersonId] = React.useState(() =>
-    initialPersonId && people.some((p) => p.id === initialPersonId) ? initialPersonId : (people[0]?.id ?? ""),
-  );
-  const [query, setQuery] = React.useState("");
-  const [filter, setFilter] = React.useState<PeopleFilter>("all");
-  const [adding, setAdding] = React.useState(false);
+  const [addingFor, setAddingFor] = React.useState<string | null>(null);
   const [bulkOpen, setBulkOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
 
-  const positionTitle = React.useMemo(() => new Map(positions.map((p) => [p.id, p.title])), [positions]);
-  const seatOf = React.useMemo(() => new Map(holders.map((h) => [h.employeeId, h.positionId])), [holders]);
+  const seatOf = index.seatOf;
 
-  /* Task counts for every person in one pass over the register, so the list
-     does not re-scan every entry for every name. */
-  const countsFor = React.useMemo(() => {
-    const byPosition = new Map<string, number>();
-    const personal = new Map<string, number>();
-    const byName = new Map<string, number>();
-    for (const e of entries) {
-      if (!e.isActive) continue;
-      if (e.ownerEmployeeId) {
-        bump(personal, e.ownerEmployeeId);
-        continue;
-      }
-      if (e.positionId) bump(byPosition, e.positionId);
-      for (const id of new Set(allAssignedIds(e.targetPeople))) {
-        if (seatOf.get(id) !== e.positionId) bump(byName, id);
-      }
-    }
-    return (id: string) => {
-      const seat = seatOf.get(id);
-      const s = seat ? (byPosition.get(seat) ?? 0) : 0;
-      const p = personal.get(id) ?? 0;
-      const n = byName.get(id) ?? 0;
-      return { seat: s, personal: p, byName: n, total: s + p + n };
-    };
-  }, [entries, seatOf]);
-
-  const q = query.trim().toLowerCase();
-  const list = people.filter(
-    (p) =>
-      (!q || p.name.toLowerCase().includes(q)) &&
-      (filter === "all" || (filter === "personal" ? countsFor(p.id).personal > 0 : !seatOf.has(p.id))),
-  );
-
-  function pick(id: string) {
-    setPersonId(id);
-    setAdding(false);
-    // Keep the open person in the address bar, so it can be shared or reloaded.
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set("person", id);
-      window.history.replaceState(window.history.state, "", url);
-    } catch {
-      /* the address bar is a convenience */
-    }
-  }
+  /* The add-a-task form belongs to ONE person. Storing whose it is, rather than
+     a bare boolean reset by an effect, means moving the picker to somebody else
+     closes it as a matter of arithmetic — no render where the form is still
+     open and headed with the previous person's name. */
+  const adding = addingFor === personId;
 
   const person = people.find((p) => p.id === personId) ?? null;
   const seatId = seatOf.get(personId) ?? "";
@@ -155,73 +98,9 @@ export function JdPersonView({
   }
 
   return (
-    <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 lg:sticky lg:top-4">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search ${people.length} people`}
-            aria-label="Search people"
-            className="w-full rounded-lg border border-slate-300 py-2 pl-8 pr-3 text-[13px]"
-          />
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              aria-pressed={filter === f.id}
-              onClick={() => setFilter(f.id)}
-              className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
-                filter === f.id ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <ul className="flex max-h-[62vh] flex-col gap-0.5 overflow-y-auto">
-          {list.map((p) => {
-            const c = countsFor(p.id);
-            const pSeat = seatOf.get(p.id);
-            const active = p.id === personId;
-            return (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  onClick={() => pick(p.id)}
-                  aria-current={active ? "true" : undefined}
-                  className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors ${
-                    active ? "bg-red-50 ring-1 ring-red-200" : "hover:bg-slate-50"
-                  }`}
-                >
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600">
-                    {initials(p.name)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-semibold text-slate-800">{p.name}</span>
-                    <span className="block truncate text-[11px] text-slate-500">
-                      {pSeat ? (positionTitle.get(pSeat) ?? "—") : "No seat"}
-                    </span>
-                  </span>
-                  {c.total > 0 && (
-                    <span
-                      className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-slate-600"
-                      title={`${c.seat} from seat · ${c.byName} by name · ${c.personal} personal`}
-                    >
-                      {c.total}
-                    </span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-          {list.length === 0 && <li className="px-2 py-4 text-[12.5px] text-slate-500">No one matches.</li>}
-        </ul>
-      </aside>
-
+    /* One column. The people list used to be a 280px rail here; it is now the
+       dropdown beside the page heading, so the JD gets the whole width. */
+    <div className="min-w-0">
       {person ? (
         <div className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4">
@@ -252,7 +131,7 @@ export function JdPersonView({
               </button>
               <button
                 type="button"
-                onClick={() => setAdding((a) => !a)}
+                onClick={() => setAddingFor((cur) => (cur === personId ? null : personId))}
                 className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-semibold text-white"
                 style={{ background: ACCENT }}
               >
@@ -261,11 +140,11 @@ export function JdPersonView({
             </div>
           </div>
 
-          {adding && renderForm(person, () => setAdding(false))}
+          {adding && renderForm(person, () => setAddingFor(null))}
 
           <Section
             title={seat ? `From their position — ${seat.title}` : "From their position"}
-            empty={seat ? "This position has no active JDs yet." : `${person.name} isn't placed in a position. Pick their seat above to bring in its General JD.`}
+            empty={seat ? "This position has no active JDs yet." : `${person.name} isn't placed in a position. Pick their seat above to bring in its Master JD.`}
             rows={fromSeat}
             onOpen={onOpen}
           />

@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { goalApproverStatuses, weeklyGoalApproverStatuses } from "@/db/schema";
 
 /**
- * Read a goal's Approver / Initiator Status (migration 0231 side tables).
+ * Read a goal's Initiator Status (migration 0231 side tables).
  *
  * Every failure — above all the tables not existing before 0231 is applied —
  * reads as "no rulings": a status column must never take a Goals board down.

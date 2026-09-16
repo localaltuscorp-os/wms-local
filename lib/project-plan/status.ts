@@ -120,6 +120,9 @@ export interface PlanActor {
   isDoer: boolean;
   /** True when the node's owner or doer reports to the caller, directly or not. */
   isSupervisor: boolean;
+  /** The node's owner IS the doer of its linked task — nobody is approving it,
+   *  so the Initiator Status reads "Not Applicable" and only an admin rules. */
+  isSelfRaised: boolean;
 }
 
 /**
@@ -151,7 +154,7 @@ export function canSetPlanStatus(
       };
     }
     // The rulings — Approved · Not Approved · On Hold · Cancelled — follow the
-    // ONE Approver / Initiator rule WMS Tasks and Goals use (account holder,
+    // ONE Initiator Status rule WMS Tasks and Goals use (account holder,
     // 2026-09-15): the owner (the initiator), the doer's manager or an admin,
     // never the doer. See lib/status/approver-status.ts.
     return canSetApproverStatus(approverActorOf(actor), next, doerStatus);
@@ -167,14 +170,32 @@ export function canSetPlanStatus(
   };
 }
 
-/** A plan actor in the shared Approver / Initiator terms: the project owner is
+/**
+ * Raised by the person doing it — the row's owner IS its linked task's doer.
+ *
+ * One predicate, used by the cell, the board's read-only detail and its export,
+ * so the column, the dialog and the spreadsheet cannot disagree about which
+ * rows read "Not Applicable". The server re-derives it in `actorFor`, from the
+ * task it looks up itself rather than from anything the client sent.
+ */
+export function isSelfRaisedNode(node: {
+  ownerId: string | null;
+  task?: { doerId: string } | null;
+}): boolean {
+  return !!node.ownerId && !!node.task?.doerId && node.ownerId === node.task.doerId;
+}
+
+/** A plan actor in the shared Initiator Status terms: the project owner is
  *  the initiator, a supervisor is the doer's manager. */
 export function approverActorOf(actor: PlanActor): ApproverActor {
   return {
     isAdmin: actor.isAdmin,
-    isInitiator: actor.isOwner,
+    // On self-raised work the owner IS the doer, so "owner" confers no
+    // authority — the shared rule hands those rows to admins alone.
+    isInitiator: actor.isOwner && !actor.isSelfRaised,
     isDoersManager: actor.isSupervisor,
     isDoer: actor.isDoer,
+    isSelfRaised: actor.isSelfRaised,
   };
 }
 

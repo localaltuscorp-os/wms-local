@@ -8,7 +8,7 @@ import { loadJdBank } from "@/lib/operations/jd-bank-data";
 
 export const dynamic = "force-dynamic";
 
-/** OPERATIONS → MASTERS → General JD — the JD Bank by position, without personal tasks. */
+/** OPERATIONS → MASTERS → Master JD — the JD Bank by position, without personal tasks. */
 export default async function GeneralJdMasterPage() {
   await requireWorkspace("operations");
   const { entries, positions, ranks, people, holders, demo } = await loadJdBank();
@@ -19,7 +19,7 @@ export default async function GeneralJdMasterPage() {
       <MastersHeader
         Icon={Briefcase}
         topic="Job Description"
-        title="General JD"
+        title="Master JD"
         description="Job descriptions owned by a position — the work stays with the seat when people change. Add one at a time or bulk upload from Excel."
       />
       <JdBank

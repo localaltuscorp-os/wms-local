@@ -23,11 +23,10 @@ import {
   FUNCTION_LABELS,
   type BusinessFunction,
 } from "@/lib/org/functions";
-import {
-  FREQUENCY_OPTIONS,
-  describeRecurrence,
-  type Recurrence,
-} from "@/lib/jd/recurrence";
+import { describeRecurrence, type Recurrence } from "@/lib/jd/recurrence";
+import { JdFrequencyField } from "@/components/operations/job-description/jd-frequency-field";
+import { JdPersonPicker, rememberPersonInUrl } from "@/components/operations/job-description/jd-person-picker";
+import { buildPersonIndex } from "@/lib/jd/person-index";
 import type { JdEntryRow, JdPositionRow, JdRankRow } from "@/lib/queries/job-description";
 import { ModuleAssignBoxes } from "@/components/operations/job-description/module-assign-boxes";
 import { CategoryInput, distinctCategories } from "@/components/operations/category-input";
@@ -75,12 +74,22 @@ export interface JdBankProps {
   /**
    * Which screen this is (2026-09-15, Operations → Masters):
    *   · "all"     — the full Bank (Operations → Job Description)
-   *   · "general" — General JD only: list and by-position views, no person view
+   *   · "general" — Master JD only: list and by-position views, no person view
    *   · "person"  — Person-specific JD only: the people list and one person's JD
    */
   mode?: "all" | "general" | "person";
   /** Person mode: open on this person. */
   initialPersonId?: string | null;
+  /**
+   * CONTROLLED PERSON, when somebody above hosts the picker.
+   *
+   * The Person-specific JD page puts the picker beside its heading, which is
+   * above this component — so it owns the choice and this follows. Pass BOTH or
+   * NEITHER: given neither, the Bank keeps its own state and renders the picker
+   * itself, which is what the full Bank's "By person" view needs.
+   */
+  personId?: string;
+  onPersonChange?: (id: string) => void;
 }
 
 /**
@@ -99,6 +108,8 @@ export function JdBank({
   holders = [],
   mode = "all",
   initialPersonId = null,
+  personId: controlledPersonId,
+  onPersonChange,
 }: JdBankProps) {
   const [tab, setTab] = React.useState<BusinessFunction | "all">("all");
   /* Null is the Bank's own order — by serial, the sequence they were written
@@ -114,6 +125,31 @@ export function JdBank({
   const [view, setView] = React.useState<"list" | "seats" | "people">(mode === "person" ? "people" : "list");
   const [bulkOpen, setBulkOpen] = React.useState(false);
   const [openId, setOpenId] = React.useState<string | null>(null);
+
+  /* Whose JD the person view shows. Controlled when a host renders the picker
+     (see JdBankProps.personId), otherwise ours. */
+  const [ownPersonId, setOwnPersonId] = React.useState(() =>
+    initialPersonId && people.some((p) => p.id === initialPersonId)
+      ? initialPersonId
+      : (people[0]?.id ?? ""),
+  );
+  const hosted = onPersonChange !== undefined;
+  const personId = controlledPersonId ?? ownPersonId;
+  const setPersonId = React.useCallback(
+    (id: string) => {
+      if (onPersonChange) onPersonChange(id);
+      else {
+        setOwnPersonId(id);
+        rememberPersonInUrl(id);
+      }
+    },
+    [onPersonChange],
+  );
+  const personIndex = React.useMemo(() => buildPersonIndex(entries, holders), [entries, holders]);
+  const positionTitle = React.useMemo(
+    () => new Map(positions.map((p) => [p.id, p.title])),
+    [positions],
+  );
 
   const filtered = tab === "all" ? entries : entries.filter((e) => e.functionKey === tab);
   /* Sorting is applied AFTER filtering and never touches `entries`, so the
@@ -173,7 +209,7 @@ export function JdBank({
           </div>
         )}
 
-        {/* All tasks in one go, from Excel — General JDs and personal JDs alike. */}
+        {/* All tasks in one go, from Excel — Master JDs and personal JDs alike. */}
         {!showForm && (
           <button
             type="button"
@@ -208,13 +244,27 @@ export function JdBank({
       )}
 
       {view === "people" ? (
+        <div className="flex min-w-0 flex-col gap-4">
+          {/* The full Bank has no page-level picker, so it carries its own. */}
+          {!hosted && people.length > 0 && (
+            <div className="flex justify-end">
+              <JdPersonPicker
+                people={people}
+                personId={personId}
+                onChange={setPersonId}
+                index={personIndex}
+                positionTitle={positionTitle}
+              />
+            </div>
+          )}
         <JdPersonView
           entries={entries}
           positions={positions}
           holders={holders}
           people={people}
           onOpen={setOpenId}
-          initialPersonId={initialPersonId}
+          personId={personId}
+          index={personIndex}
           renderForm={(person, done) => (
             <JdForm
               positions={positions}
@@ -225,6 +275,7 @@ export function JdBank({
             />
           )}
         />
+        </div>
       ) : shown.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center">
           <p className="text-[14px] font-semibold text-slate-700">
@@ -232,7 +283,7 @@ export function JdBank({
           </p>
           <p className="mt-1 text-[13px] text-slate-500">
             {positions.length === 0
-              ? "Create a position for a General JD, or open By person to write a personal JD."
+              ? "Create a position for a Master JD, or open By person to write a personal JD."
               : "Add the first job description above."}
           </p>
         </div>
@@ -610,11 +661,11 @@ function JdForm({
   const [functionKey, setFunctionKey] = React.useState<BusinessFunction>("operations");
   const [task, setTask] = React.useState("");
   const [category, setCategory] = React.useState<string | null>(null);
-  const [freqId, setFreqId] = React.useState("daily");
-  const [anchor, setAnchor] = React.useState(new Date().toISOString().slice(0, 10));
-  const [customLabel, setCustomLabel] = React.useState("");
-  /** The date behind "Does not repeat" and "Annually on". */
-  const [onDate, setOnDate] = React.useState(new Date().toISOString().slice(0, 10));
+  /* ONE start date, the way Google Calendar has one. It anchors the whole
+     frequency menu: "Does not repeat" is that day, "Weekly on …" is its
+     weekday, "Annually on …" is its date, and a custom rule counts from it. */
+  const [startDate, setStartDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [recurrence, setRecurrence] = React.useState<Recurrence>({ kind: "daily" });
   const [minutes, setMinutes] = React.useState("15");
   const [videoUrl, setVideoUrl] = React.useState("");
   const [guidelinesUrl, setGuidelinesUrl] = React.useState("");
@@ -635,21 +686,6 @@ function JdForm({
   const [error, setError] = React.useState<string | null>(null);
 
   const chosen = positions.find((p) => p.id === positionId) ?? null;
-
-  /** Rebuild the structured recurrence from the picker + its sub-fields. */
-  const recurrence: Recurrence = React.useMemo(() => {
-    const base = FREQUENCY_OPTIONS.find((o) => o.id === freqId)?.value ?? { kind: "daily" };
-    if (base.kind === "interval") return { ...base, anchor };
-    if (base.kind === "custom") return { ...base, label: customLabel };
-    // "Does not repeat" is the date itself; "Annually on" keeps only its day and
-    // month, so the same picker feeds both and the year is simply discarded.
-    if (base.kind === "once") return { ...base, date: onDate };
-    if (base.kind === "yearly") {
-      const [, m, d] = onDate.split("-");
-      return { ...base, month: Number(m) || 1, day: Number(d) || 1 };
-    }
-    return base;
-  }, [freqId, anchor, customLabel, onDate]);
 
   async function submit() {
     setError(null);
@@ -766,46 +802,12 @@ function JdForm({
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <Field label="Frequency">
-          <select
-            value={freqId}
-            onChange={(e) => setFreqId(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-          >
-            {FREQUENCY_OPTIONS.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          {(recurrence.kind === "once" || recurrence.kind === "yearly") && (
-            <input
-              type="date"
-              value={onDate}
-              onChange={(e) => setOnDate(e.target.value)}
-              aria-label={
-                recurrence.kind === "once" ? "The date it happens" : "The date it happens each year"
-              }
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-            />
-          )}
-          {recurrence.kind === "interval" && (
-            <input
-              type="date"
-              value={anchor}
-              onChange={(e) => setAnchor(e.target.value)}
-              aria-label="Count from"
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-            />
-          )}
-          {recurrence.kind === "custom" && (
-            <input
-              value={customLabel}
-              onChange={(e) => setCustomLabel(e.target.value)}
-              placeholder="Describe the schedule"
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-            />
-          )}
-          <p className="mt-1 text-[11px] text-slate-500">{describeRecurrence(recurrence)}</p>
+          <JdFrequencyField
+            startDate={startDate}
+            onStartDateChange={setStartDate}
+            value={recurrence}
+            onChange={setRecurrence}
+          />
         </Field>
 
         <Field label="Estimated Time (minutes)">

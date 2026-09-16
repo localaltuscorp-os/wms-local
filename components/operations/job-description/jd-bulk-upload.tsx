@@ -16,7 +16,7 @@ import { bulkCreateJdEntries } from "@/app/(app)/operations/job-description/acti
 /**
  * JD BULK UPLOAD — every task from an Excel sheet in one go (lib/jd/bulk.ts).
  *
- * Download the template, fill one task per row (a Position for a General JD, or
+ * Download the template, fill one task per row (a Position for a Master JD, or
  * a Person for a personal JD), then upload the .xlsx or paste the rows. Every
  * row is shown with its problems before anything is saved; only clean rows go.
  */
@@ -132,7 +132,7 @@ export function JdBulkUpload({
           <div className="min-w-0 flex-1">
             <h2 className="text-[16px] font-bold text-slate-900">Bulk upload {person ? `— ${person.name}'s personal JD` : "— Job Descriptions"}</h2>
             <p className="text-[12.5px] text-slate-500">
-              One task per row, in the template&apos;s columns. Fill <b>Position</b> for a General JD or <b>Person</b> for a personal JD
+              One task per row, in the template&apos;s columns. Fill <b>Position</b> for a Master JD or <b>Person</b> for a personal JD
               {person ? ` (leave both blank and the row is ${person.name.split(" ")[0]}'s)` : ""}.
             </p>
           </div>

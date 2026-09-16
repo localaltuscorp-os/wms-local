@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_RECURRENCE,
-  FREQUENCY_OPTIONS,
+  frequencyOptionsFor,
   describeRecurrence,
   isDueOn,
   isRecurrence,
@@ -22,19 +22,49 @@ import {
  */
 
 describe("the frequency menu", () => {
-  it("offers Google Calendar's seven, in order", () => {
+  it("offers Google Calendar's seven, in order, spoken about the start date", () => {
     /* Changed 2026-09-12 on the account holder's instruction, from a ten-option
        list of the firm's own patterns to the vocabulary people already know
-       from their calendar. */
-    expect(FREQUENCY_OPTIONS.map((o) => o.label)).toEqual([
+       from their calendar; changed again 2026-09-16 so the list NAMES THE DAY
+       PICKED rather than a fixed Saturday. 2026-09-16 is a Wednesday, and the
+       third Wednesday of its month. */
+    expect(frequencyOptionsFor("2026-09-16").map((o) => o.label)).toEqual([
       "Does not repeat",
       "Daily",
-      "Weekly on Saturday",
-      "Monthly on the second Saturday",
-      "Annually on [Date]",
+      "Weekly on Wednesday",
+      "Monthly on the third Wednesday",
+      "Annually on September 16",
       "Every weekday (Monday to Friday)",
       "Custom…",
     ]);
+  });
+
+  it("re-speaks itself when the start date moves", () => {
+    // The whole point of deriving the list: a fixed one is right 1 day in 7.
+    expect(frequencyOptionsFor("2026-09-19").map((o) => o.label)).toContain(
+      "Weekly on Saturday",
+    );
+    // 2026-09-26 is the LAST Saturday of September, not the fourth-and-nothing-
+    // else — a fifth weekday does not exist in most months.
+    expect(frequencyOptionsFor("2026-09-26").map((o) => o.label)).toContain(
+      "Monthly on the last Saturday",
+    );
+  });
+
+  it("maps presets to the STRUCTURED shapes, not to the equivalent RRULE", () => {
+    /* FREQ=DAILY is seven days a week; this firm's Daily is Mon–Sat, because a
+       task firing on the weekly off becomes an overdue row nobody can clear.
+       Only Custom needs the richer grammar. */
+    const byId = (id: string) =>
+      frequencyOptionsFor("2026-09-16").find((o) => o.id === id)!.value;
+    expect(byId("daily")).toEqual({ kind: "daily" });
+    expect(byId("weekly")).toEqual({ kind: "weekdays", days: [2] }); // Wednesday
+    expect(byId("monthly")).toEqual({ kind: "monthly_ordinal", ordinal: 3, weekday: 2 });
+    expect(byId("yearly")).toEqual({ kind: "yearly", month: 9, day: 16 });
+    expect(byId("weekday")).toEqual({ kind: "weekdays", days: [0, 1, 2, 3, 4] });
+    // "Does not repeat" is the start date itself — never a blank that can
+    // never come due.
+    expect(byId("none")).toEqual({ kind: "once", date: "2026-09-16" });
   });
 
   it("still UNDERSTANDS the five patterns that left the menu", () => {
@@ -276,5 +306,103 @@ describe("readRecurrence", () => {
     const r: Recurrence = { kind: "weekdays", days: [1, 3] };
     expect(readRecurrence(r)).toEqual(r);
     expect(isRecurrence(r)).toBe(true);
+  });
+});
+
+describe("the Custom dialog's rule (kind: rrule)", () => {
+  // 2026-09-16 is a Wednesday.
+  const anchor = "2026-09-16";
+  const r = (rule: string): Recurrence => ({ kind: "rrule", rule, anchor });
+
+  it("never fires before the start date", () => {
+    expect(isDueOn(r("FREQ=DAILY"), "2026-09-15")).toBe(false);
+    expect(isDueOn(r("FREQ=DAILY"), "2026-09-16")).toBe(true);
+  });
+
+  it("KEEPS FIRING PAST THE GENERATOR'S 200-OCCURRENCE CAP", () => {
+    /* This is why isDueOn matches the pattern directly instead of generating
+       occurrences and checking membership: lib/recurrence/rrule.ts caps itself
+       at 200 to stop a runaway rule spawning rows, so a daily job anchored a
+       year back would answer "not due" for every day after the 200th — the push
+       job would simply stop, silently, in month seven. */
+    expect(isDueOn(r("FREQ=DAILY"), "2028-09-16")).toBe(true); // ~730 days out
+  });
+
+  it("counts a weekly INTERVAL in weeks, not in days", () => {
+    // Every 2 weeks on Mon + Thu. Both days of an ACTIVE week must fire — a
+    // day-based interval would drop the Thursday of every one.
+    const every2 = r("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH");
+    expect(isDueOn(every2, "2026-09-17")).toBe(true); // Thu, anchor week
+    expect(isDueOn(every2, "2026-09-21")).toBe(false); // Mon, skipped week
+    expect(isDueOn(every2, "2026-09-28")).toBe(true); // Mon, active week
+    expect(isDueOn(every2, "2026-10-01")).toBe(true); // Thu, active week
+  });
+
+  it("honours UNTIL", () => {
+    const until = r("FREQ=DAILY;UNTIL=2026-09-20");
+    expect(isDueOn(until, "2026-09-20")).toBe(true);
+    expect(isDueOn(until, "2026-09-21")).toBe(false);
+  });
+
+  it("honours COUNT, with the start date as occurrence #1", () => {
+    const thrice = r("FREQ=DAILY;COUNT=3");
+    expect(isDueOn(thrice, "2026-09-16")).toBe(true); // #1
+    expect(isDueOn(thrice, "2026-09-18")).toBe(true); // #3
+    expect(isDueOn(thrice, "2026-09-19")).toBe(false); // #4 — past the end
+  });
+
+  it("counts weekly occurrences across a PARTIAL first week", () => {
+    /* The anchor is a Wednesday, so the Monday of its own week never happened
+       and must not be counted against the total. Mon+Wed, 3 times → Wed 16th,
+       Mon 21st, Wed 23rd, then stop. */
+    const three = r("FREQ=WEEKLY;BYDAY=MO,WE;COUNT=3");
+    expect(isDueOn(three, "2026-09-16")).toBe(true); // #1 Wed
+    expect(isDueOn(three, "2026-09-21")).toBe(true); // #2 Mon
+    expect(isDueOn(three, "2026-09-23")).toBe(true); // #3 Wed
+    expect(isDueOn(three, "2026-09-28")).toBe(false); // #4 — past the end
+  });
+
+  it("matches a monthly nth-weekday and a monthly day-of-month", () => {
+    expect(isDueOn(r("FREQ=MONTHLY;BYDAY=3WE"), "2026-10-21")).toBe(true);
+    expect(isDueOn(r("FREQ=MONTHLY;BYDAY=3WE"), "2026-10-14")).toBe(false);
+    expect(isDueOn(r("FREQ=MONTHLY;BYMONTHDAY=16"), "2026-11-16")).toBe(true);
+  });
+
+  it("skips a month that has no such day rather than pulling the date back", () => {
+    // The 31st in a 30-day month does not happen — same as the generator.
+    const d31: Recurrence = { kind: "rrule", rule: "FREQ=MONTHLY;BYMONTHDAY=31", anchor: "2026-01-31" };
+    expect(isDueOn(d31, "2026-03-31")).toBe(true);
+    expect(isDueOn(d31, "2026-04-30")).toBe(false);
+  });
+
+  it("speaks the dialog's own sentence in the Bank", () => {
+    expect(describeRecurrence(r("FREQ=WEEKLY;INTERVAL=3;BYDAY=TU,TH;COUNT=13"))).toBe(
+      "Every 3 weeks on Tue, Thu, 13 times",
+    );
+  });
+
+  it("projects a plain weekly rule onto the DCC mask, and everything else to adhoc", () => {
+    // Mon + Thu = bits 0 and 3.
+    expect(toDccSchedule(r("FREQ=WEEKLY;BYDAY=MO,TH"))).toMatchObject({
+      scheduleKind: "scheduled",
+      weekdays: 0b0001001,
+    });
+    // An INTERVAL has nowhere to live in a 7-bit mask, so it must NOT be
+    // flattened into "every week" — the gate would then enforce the lie daily.
+    expect(toDccSchedule(r("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"))).toMatchObject({
+      scheduleKind: "adhoc",
+      weekdays: null,
+    });
+  });
+
+  it("is a recognised shape, so the Bank does not fall back on it", () => {
+    expect(isRecurrence(r("FREQ=DAILY"))).toBe(true);
+    expect(readRecurrence(r("FREQ=DAILY"))).toEqual(r("FREQ=DAILY"));
+  });
+
+  it("never comes due on an unreadable rule", () => {
+    // A rule the generator cannot read must fire NEVER, not every day.
+    expect(isDueOn(r("nonsense"), "2026-09-16")).toBe(false);
+    expect(isDueOn(r(""), "2026-09-16")).toBe(false);
   });
 });

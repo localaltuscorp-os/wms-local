@@ -299,7 +299,7 @@ export const OPERATIONS_MASTERS: OperationsMasterItem[] = [
   },
   {
     href: "/operations/masters/jd",
-    label: "General JD",
+    label: "Master JD",
     Icon: Briefcase,
     topic: "Job Description",
     blurb: "Job descriptions owned by a position — the work stays with the seat when people change.",

@@ -3,7 +3,7 @@ import { jdBulkPayload, jdTemplateMatrix, parseFrequencyText, parseMinutes, pars
 
 /**
  * JOB DESCRIPTION BULK UPLOAD (account holder, 2026-09-15) — every task from an
- * Excel sheet in one go, as General JD (a position) or personal JD (a person).
+ * Excel sheet in one go, as Master JD (a position) or personal JD (a person).
  */
 
 const TODAY = "2026-09-15";

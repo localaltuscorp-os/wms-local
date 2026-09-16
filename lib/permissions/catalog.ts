@@ -122,15 +122,17 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
   {
     key: "employees",
     label: "Employees",
-    note: "The employee-facing room: attendance, leave, salary, reimbursements.",
+    note: "The employee-facing room: DCC, attendance, leave, salary, reimbursements.",
     children: [
       {
         key: "employees.dcc",
         label: "DCC",
         routes: ["/dcc"],
         children: [
+          { key: "employees.dcc.callLog", label: "Call Log", routes: ["/dcc/call-log"] },
+          { key: "employees.dcc.sp1", label: "SP1 Report", routes: ["/dcc/sp1"] },
           { key: "employees.dcc.dashboard", label: "DCC Dashboard", routes: ["/dcc/dashboard"] },
-          { key: "employees.dcc.ranking", label: "DCC Ranking", routes: ["/dcc/ranking"] },
+          { key: "employees.dcc.masters", label: "DCC Masters", routes: ["/dcc/masters"] },
         ],
       },
       {

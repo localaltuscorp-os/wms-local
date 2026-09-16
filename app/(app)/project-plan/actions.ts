@@ -833,7 +833,7 @@ export async function setPlanNodeStatus(input: unknown): Promise<Result> {
     if (t) doerStatus = t.status === "approved" || t.status === "not_approved" ? "done" : t.status;
   }
 
-  // Pending — clear the Approver / Initiator ruling.
+  // Pending — clear the Initiator Status ruling.
   if (status === "pending") {
     const clear = canSetApproverStatus(approverActorOf(actor), "pending", doerStatus);
     if (!clear.ok) return fail(clear.reason);

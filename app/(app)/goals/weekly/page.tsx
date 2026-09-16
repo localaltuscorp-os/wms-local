@@ -226,7 +226,7 @@ export default async function GoalsWeeklyPage({ searchParams }: PageProps) {
     isActive: r.isActive,
   }));
 
-  // Approver / Initiator Status (0231) — empty before the migration.
+  // Initiator Status (0231) — empty before the migration.
   const weeklyApprovers = await loadWeeklyGoalApprovers(rawRows.map((r) => r.id));
 
   const rows: CascadeWeeklyGoal[] = rawRows.map((r) => ({

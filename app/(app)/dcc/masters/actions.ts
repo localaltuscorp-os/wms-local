@@ -1,148 +1,143 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { dccMasterItems, designations } from "@/db/schema";
+import { dccMasterItems } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
-import { parseAmount } from "@/lib/accounts/amounts";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { isMissingTable, reconcileDccMasters } from "@/lib/dcc/master-sync";
 
 /**
- * DCC MASTER authoring. Manan Sir and the super-admins only (account holder,
- * 2026-09-15): a master changes the DCC of everyone in a position at once.
- * Team Leads keep adding person-specific KPIs from the DCC board as before.
+ * EDITING A POSITION'S DCC MASTER (DCC-SPEC §3).
  *
- * Every change is applied to the holders before returning, so the author sees
- * the result on the page they are on.
+ * Every write here ends in a RECONCILE, because a master that is saved but not
+ * applied is worse than no master at all: the screen says the position carries
+ * the duty and nobody's board shows it. The reconcile is idempotent and takes an
+ * advisory lock, so two quick saves cannot give anybody the same KPI twice.
+ *
+ * WHO: admins and super-admins. A Team Lead authors KPIs for their own people
+ * (app/(app)/dcc/actions.ts) — changing what a POSITION carries is a different
+ * power, because it lands on everybody holding that seat, including people the
+ * Team Lead has never met.
  */
 
-export type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
-function fail(error: string): { ok: false; error: string } {
-  return { ok: false, error };
+export type MasterResult = { ok: true; changed?: number } | { ok: false; error: string };
+
+const NOT_ALLOWED = "Only an admin can change what a position's DCC carries.";
+const NEEDS_MIGRATION =
+  "DCC Masters aren't set up in this database yet — migration 0230_dcc_master_items.sql must be applied.";
+
+async function guard() {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return { ok: false as const, error: limited.error };
+  if (!(me.isAdmin || isSuperAdmin(me.email))) return { ok: false as const, error: NOT_ALLOWED };
+  return { ok: true as const, me };
 }
 
-const NOT_ALLOWED = "Only Manan Sir and the super-admins can change a DCC Master.";
-const NOT_SET_UP = "DCC Master isn't set up yet — migration 0230 must be applied first.";
-
-const optText = z
-  .preprocess((v) => (typeof v === "string" ? v.trim() : v), z.string().max(4000).nullable().optional())
-  .transform((s) => (s ? s : null));
-
-const Fields = z.object({
-  section: optText,
-  code: optText,
-  title: z.string().trim().min(1, "A title is required.").max(2000),
-  frequency: optText,
-  targetNumber: z.any(),
-  unit: optText,
+const ItemInput = z.object({
+  id: z.string().uuid().optional(),
+  designationId: z.string().uuid(),
+  title: z.string().trim().min(1).max(300),
+  section: z.string().trim().max(120).nullable().optional(),
+  code: z.string().trim().max(40).nullable().optional(),
+  frequency: z.string().trim().max(120).nullable().optional(),
+  targetNumber: z.string().trim().max(20).nullable().optional(),
+  unit: z.string().trim().max(40).nullable().optional(),
+  sortOrder: z.number().int().min(0).max(100_000).optional(),
 });
 
-function num(v: unknown): string | null {
-  const n = parseAmount(typeof v === "string" || typeof v === "number" ? v : null);
-  return n === null ? null : String(n);
+export async function saveDccMasterItem(raw: z.input<typeof ItemInput>): Promise<MasterResult> {
+  const g = await guard();
+  if (!g.ok) return g;
+
+  const parsed = ItemInput.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: "Give the compliance a title." };
+  const d = parsed.data;
+
+  const fields = {
+    designationId: d.designationId,
+    title: d.title,
+    section: d.section || null,
+    code: d.code || null,
+    frequency: d.frequency || null,
+    targetNumber: d.targetNumber || null,
+    unit: d.unit || null,
+    sortOrder: d.sortOrder ?? 100,
+    updatedById: g.me.id,
+    updatedAt: new Date(),
+  };
+
+  try {
+    if (d.id) {
+      await db.update(dccMasterItems).set(fields).where(eq(dccMasterItems.id, d.id));
+    } else {
+      await db.insert(dccMasterItems).values({ ...fields, createdById: g.me.id });
+    }
+  } catch (e) {
+    if (isMissingTable(e)) return { ok: false, error: NEEDS_MIGRATION };
+    throw e;
+  }
+
+  return finish();
 }
 
-async function authorOrFail() {
-  const me = await requireUser();
-  if (!isSuperAdmin(me.email)) return { me, error: fail(NOT_ALLOWED) };
-  const limited = rateLimitOrError(me.id, "write");
-  if (limited) return { me, error: limited };
-  return { me, error: null };
+/**
+ * RETIRE, not delete. `is_active = false` archives every holder's copy on the
+ * next reconcile while leaving the entries recorded against it untouched — those
+ * are the record of what people actually did, and a hard delete would cascade
+ * them away along with the template row.
+ */
+export async function retireDccMasterItem(id: string): Promise<MasterResult> {
+  const g = await guard();
+  if (!g.ok) return g;
+  if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Unknown row." };
+
+  try {
+    await db
+      .update(dccMasterItems)
+      .set({ isActive: false, updatedById: g.me.id, updatedAt: new Date() })
+      .where(eq(dccMasterItems.id, id));
+  } catch (e) {
+    if (isMissingTable(e)) return { ok: false, error: NEEDS_MIGRATION };
+    throw e;
+  }
+
+  return finish();
 }
 
-async function applyAndRefresh(): Promise<number> {
-  const r = await reconcileDccMasters();
+export async function restoreDccMasterItem(id: string): Promise<MasterResult> {
+  const g = await guard();
+  if (!g.ok) return g;
+  if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Unknown row." };
+
+  try {
+    await db
+      .update(dccMasterItems)
+      .set({ isActive: true, updatedById: g.me.id, updatedAt: new Date() })
+      .where(eq(dccMasterItems.id, id));
+  } catch (e) {
+    if (isMissingTable(e)) return { ok: false, error: NEEDS_MIGRATION };
+    throw e;
+  }
+
+  return finish();
+}
+
+/** Apply the masters to every holder, and refresh the screens that show them. */
+async function finish(): Promise<MasterResult> {
+  const res = await reconcileDccMasters();
   revalidatePath("/dcc/masters");
   revalidatePath("/dcc");
-  return r.created + r.updated + r.archived;
+  return { ok: true, changed: res.created + res.updated + res.archived };
 }
 
-function errorResult(err: unknown): { ok: false; error: string } {
-  if (isMissingTable(err)) return fail(NOT_SET_UP);
-  return fail(err instanceof Error ? err.message : String(err));
-}
-
-export async function createDccMasterItem(input: unknown): Promise<ActionResult<{ id: string; changed: number }>> {
-  const { me, error } = await authorOrFail();
-  if (error) return error;
-  const parsed = Fields.extend({ designationId: z.string().uuid() }).safeParse(input);
-  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid input.");
-  const d = parsed.data;
-  try {
-    const [desig] = await db.select({ id: designations.id }).from(designations).where(eq(designations.id, d.designationId)).limit(1);
-    if (!desig) return fail("That position no longer exists.");
-    const [next] = (await db
-      .select({ n: sql<number>`coalesce(max(${dccMasterItems.sortOrder}), 0) + 1` })
-      .from(dccMasterItems)
-      .where(eq(dccMasterItems.designationId, d.designationId))) as Array<{ n: number }>;
-    const [row] = await db
-      .insert(dccMasterItems)
-      .values({
-        designationId: d.designationId,
-        section: d.section,
-        code: d.code,
-        title: d.title,
-        frequency: d.frequency,
-        targetNumber: num(d.targetNumber),
-        unit: d.unit,
-        sortOrder: next?.n ?? 1,
-        createdById: me.id,
-        updatedById: me.id,
-      })
-      .returning({ id: dccMasterItems.id });
-    return { ok: true, id: row!.id, changed: await applyAndRefresh() };
-  } catch (err) {
-    return errorResult(err);
-  }
-}
-
-export async function updateDccMasterItem(input: unknown): Promise<ActionResult<{ changed: number }>> {
-  const { me, error } = await authorOrFail();
-  if (error) return error;
-  const parsed = Fields.extend({ id: z.string().uuid() }).safeParse(input);
-  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid input.");
-  const { id, ...d } = parsed.data;
-  try {
-    const updated = await db
-      .update(dccMasterItems)
-      .set({
-        section: d.section,
-        code: d.code,
-        title: d.title,
-        frequency: d.frequency,
-        targetNumber: num(d.targetNumber),
-        unit: d.unit,
-        updatedById: me.id,
-        updatedAt: new Date(),
-      })
-      .where(eq(dccMasterItems.id, id))
-      .returning({ id: dccMasterItems.id });
-    if (updated.length === 0) return fail("That master KPI is gone.");
-    return { ok: true, changed: await applyAndRefresh() };
-  } catch (err) {
-    return errorResult(err);
-  }
-}
-
-/** Retire (or restore) a master KPI. Holders' copies are archived, never deleted. */
-export async function setDccMasterItemActive(input: unknown): Promise<ActionResult<{ changed: number }>> {
-  const { me, error } = await authorOrFail();
-  if (error) return error;
-  const parsed = z.object({ id: z.string().uuid(), isActive: z.boolean() }).safeParse(input);
-  if (!parsed.success) return fail("Invalid input.");
-  try {
-    const updated = await db
-      .update(dccMasterItems)
-      .set({ isActive: parsed.data.isActive, updatedById: me.id, updatedAt: new Date() })
-      .where(eq(dccMasterItems.id, parsed.data.id))
-      .returning({ id: dccMasterItems.id });
-    if (updated.length === 0) return fail("That master KPI is gone.");
-    return { ok: true, changed: await applyAndRefresh() };
-  } catch (err) {
-    return errorResult(err);
-  }
+/** The "Apply to everyone now" button — a reconcile with no edit in front of it. */
+export async function reconcileNow(): Promise<MasterResult> {
+  const g = await guard();
+  if (!g.ok) return g;
+  return finish();
 }

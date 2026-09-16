@@ -762,7 +762,7 @@ export interface TaskExportRow {
   archived: boolean;
   // Tier-3 (2026-05-20) additions — surfaced for XLSX/PDF exports.
   tags: string[] | null;
-  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | "on_hold" | null;
+  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | "on_hold" | "archived" | null;
   revisedTargetDate: Date | null;
 }
 
@@ -923,7 +923,7 @@ export type TaskDetail = {
   updatedAt: Date;
   // Tier-3 (2026-05-20) additions
   tags: string[] | null;
-  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | "on_hold" | null;
+  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | "on_hold" | "archived" | null;
   // Two-stage approval (mig 0185): which level, if any, this task is signed off at.
   approvalLevel: "none" | "manager" | "admin";
   revisedTargetDate: Date | null;

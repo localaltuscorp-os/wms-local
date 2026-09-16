@@ -40,7 +40,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
   // business knowing emails or the org chart. The server actions re-check it.
   const mayChangeDoer = await canChangeDoerFor(me);
   // Everyone below the viewer — the doer's manager may rule on a task's
-  // Approver / Initiator Status. The server action re-checks it.
+  // Initiator Status. The server action re-checks it.
   const managedIds = await getDownlineIds(me.id).catch(() => [] as string[]);
   const rawTask = Array.isArray(sp.task) ? sp.task[0] : sp.task;
   const selectedTaskId = rawTask && TASK_ID.test(rawTask) ? rawTask : null;

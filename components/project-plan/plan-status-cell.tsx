@@ -12,10 +12,11 @@ import {
   approverActorOf,
   canSetPlanStatus,
   isWorkingStatus,
+  isSelfRaisedNode,
   type PlanActor,
   type PlanStatus,
 } from "@/lib/project-plan/status";
-import { approverShown, selectableApproverChoices } from "@/lib/status/approver-status";
+import { approverDisplay, selectableApproverChoices } from "@/lib/status/approver-status";
 import { ApproverChip } from "@/components/status/approver-chip";
 import { isExecutable, type PlanKind } from "@/lib/project-plan/levels";
 import { setPlanNodeStatus } from "@/app/(app)/project-plan/actions";
@@ -26,7 +27,7 @@ import { setPlanNodeStatus } from "@/app/(app)/project-plan/actions";
  *
  *   DOER STATUS                  PlanStatusCell  — the working flow, a progress
  *                                report: Not Read … Done.
- *   APPROVER / INITIATOR STATUS  PlanApproverCell — the ruling: Pending ·
+ *   INITIATOR STATUS             PlanApproverCell — the ruling: Pending ·
  *                                Approved · Not Approved · On Hold · Cancelled.
  *
  * Where each value lands is `setPlanNodeStatus`'s job:
@@ -81,7 +82,14 @@ export function planActorFor(
   const isSupervisor =
     (!!node.ownerId && downline.has(node.ownerId)) ||
     (!!node.task?.doerId && downline.has(node.task.doerId));
-  return { id: me.id, isAdmin: me.isAdmin, isOwner, isDoer, isSupervisor };
+  return {
+    id: me.id,
+    isAdmin: me.isAdmin,
+    isOwner,
+    isDoer,
+    isSupervisor,
+    isSelfRaised: isSelfRaisedNode(node),
+  };
 }
 
 /** DOER STATUS — the progress report. */
@@ -176,7 +184,7 @@ export function PlanApproverCell({ node, actor }: { node: PlanStatusNode; actor:
   const router = useRouter();
   return (
     <ApproverChip
-      shown={approverShown(node.approvalStatus)}
+      shown={approverDisplay(node.approvalStatus, actor.isSelfRaised)}
       choices={selectableApproverChoices(approverActorOf(actor), doerStatusOf(node))}
       lockedTitle="Only the project owner, the doer's manager or an admin can change this."
       onPick={async (choice) => {
