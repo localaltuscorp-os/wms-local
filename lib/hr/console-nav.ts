@@ -15,6 +15,7 @@ import {
   Files,
   Receipt,
   ClipboardList,
+  FolderArchive,
 } from "lucide-react";
 
 import { HR_STAGES, hrItemHref } from "@/lib/hr/lifecycle";
@@ -114,6 +115,8 @@ const standalone: Array<{ id: string; title: string; Icon: LucideIcon; href: str
   { id: "kpi-management", title: "KPI Management", Icon: Target, href: "/hr/kpi" },
   { id: "enterprise-communications", title: "Broadcasts", Icon: Megaphone, href: "/communications" },
   { id: "all-filled-forms", title: "All Filled Forms", Icon: Files, href: "/hr/all-forms" },
+  // Per-person ZIP download + the scheduled Google Drive save (0225). HR admins only.
+  { id: "records-backup", title: "Records Backup", Icon: FolderArchive, href: "/hr/records-backup" },
   { id: "salary-slip", title: "Salary Slip", Icon: Receipt, href: "/hr/salary-slip" },
 ];
 
