@@ -8,6 +8,7 @@ import { exchangeCode, fetchGoogleEmail, revokeToken } from "@/lib/google/calend
 import { backfillDoerCalendar } from "@/lib/google/sync";
 import { isSameGoogleAccount } from "@/lib/google/account-match";
 import { syncDccCalendar } from "@/lib/dcc/calendar-sync";
+import { HR_DRIVE_STATE_PREFIX, finishHrDriveConnect } from "@/lib/hr/records-export/oauth";
 
 export const dynamic = "force-dynamic";
 // The post-redirect backfill (tasks + DCC history) runs inside this budget.
@@ -17,6 +18,11 @@ export const maxDuration = 300;
  *  on the signed-in employee. */
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
+  // The HR Records Drive connection shares this registered redirect URI; its
+  // state is prefixed so it never touches the signed-in employee's calendar.
+  if ((url.searchParams.get("state") ?? "").startsWith(HR_DRIVE_STATE_PREFIX)) {
+    return finishHrDriveConnect(req);
+  }
   const origin = url.origin;
   const back = `${origin}/profile`;
 

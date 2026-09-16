@@ -41,17 +41,23 @@ export function isGoogleConfigured(): boolean {
 /** Build the consent-screen URL. `redirectUri` must be registered in the
  *  OAuth client. `access_type=offline` + `prompt=consent` guarantee a refresh
  *  token even on re-connect. */
-export function buildAuthUrl(redirectUri: string, state: string): string {
+export function buildAuthUrl(
+  redirectUri: string,
+  state: string,
+  /** Other flows on the same OAuth client (the HR Records Drive save) ask for their own scopes. */
+  opts: { scope?: string; loginHint?: string; includeGrantedScopes?: boolean } = {},
+): string {
   const p = new URLSearchParams({
     client_id: clientId(),
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: GOOGLE_SCOPES,
+    scope: opts.scope ?? GOOGLE_SCOPES,
     access_type: "offline",
     prompt: "consent",
-    include_granted_scopes: "true",
+    include_granted_scopes: opts.includeGrantedScopes === false ? "false" : "true",
     state,
   });
+  if (opts.loginHint) p.set("login_hint", opts.loginHint);
   return `${AUTH_URL}?${p.toString()}`;
 }
 

@@ -498,6 +498,21 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
     // level navigator. The rituals sit below. Level pages need GOALS_CANVAS_ON
     // (they redirect to /goals when off).
     top: [
+      // DASHBOARD FIRST, because it is where the room's front door drops you:
+      // WORKSPACE_LANDING.goals is "/goals/dashboard" and `/ws/goals` routes
+      // there too. Without a pill for it, entering Goals landed on a page the
+      // rail did not list — nothing highlighted, and no way back to it once you
+      // clicked away. Reported 2026-09-15.
+      //
+      // `canvasOnly` for the same reason the three level pages carry it: the
+      // page itself does `if (!goalsCanvasOn()) redirect("/goals")`, so with the
+      // flag off this pill would be a dead link.
+      {
+        href: "/goals/dashboard" as Route,
+        label: "Dashboard",
+        Icon: LayoutDashboard,
+        canvasOnly: true,
+      },
       // yearly rootView — the FY's YEAR objectives themselves (drill → Quarterly).
       { href: "/goals/yearly" as Route, label: "Yearly Goals", Icon: Trophy, canvasOnly: true },
       { href: "/goals/quarterly" as Route, label: "Quarterly Goals", Icon: Target, canvasOnly: true },

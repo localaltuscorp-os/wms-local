@@ -13,6 +13,7 @@ import {
   Target,
   Files,
   FileText,
+  FolderArchive,
 } from "lucide-react";
 
 import { HR_STAGES, hrItemHref } from "@/lib/hr/lifecycle";
@@ -119,6 +120,8 @@ const standalone: Array<{ id: string; title: string; Icon: LucideIcon; href: str
   { id: "hr-record", title: "HR Record", Icon: FolderOpen, href: "/hr/record" },
   { id: "kpi-management", title: "KPI Management", Icon: Target, href: "/hr/kpi" },
   { id: "all-filled-forms", title: "All Filled Forms", Icon: Files, href: "/hr/all-forms" },
+  // Per-person ZIP download + the scheduled Google Drive save (0225). HR admins only.
+  { id: "records-backup", title: "Records Backup", Icon: FolderArchive, href: "/hr/records-backup" },
 ];
 
 export const HR_CONSOLE_MODULES: HrConsoleModule[] = [

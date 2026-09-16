@@ -1,0 +1,1628 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   AURA — liquid glass
+   ════════════════════════════════════════════════════════════════════════════
+   The design language in `.claude/skills/aura/SKILL.md`, ported to this app.
+   Imported from globals.css; the tokens below are the same values the skill's
+   own `aura.css` carries, so a screen built from either matches the other.
+
+   Three layers, back to front, on every Aura screen:
+
+     FIELD   three slowly drifting colour blobs — the thing the glass refracts
+     GRAIN   fine noise at 32% overlay, so glass reads as material, not plastic
+     GLASS   panes, bars and rails: translucent, blurred, edge-lit
+
+   Glass over a flat white page is just a border. If there is no field, there
+   is no system.
+
+   EVERY CLASS IS `aura-`-PREFIXED. That is not decoration: globals.css already
+   owns `.nav` (46 rules) and `.topbar` (7), and the design language's own names
+   collide with both. The prefix is what lets Aura live alongside the warm-paper
+   pastel dashboard without either one bleeding into the other.
+
+   Used by: app/(app)/hub/page.tsx (the front door).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Tokens are scoped to the Aura subtree rather than :root — the rest of the app
+   is a warm-paper pastel system and must not inherit a cool glass one.
+
+   `.aura-topbar` carries them TOO, because the bar is the one Aura component
+   that renders outside an Aura page: it sits on every route in the app,
+   including the pastel ones, where there is no `.aura-app` ancestor to inherit
+   from and every `var(--aura-*)` would otherwise resolve to nothing. */
+.aura-app,
+.aura-topbar {
+  --aura-ink: #0a0f22;
+  --aura-ink-2: #39415f;
+  --aura-ink-3: #565f7d;
+  --aura-accent: #d81f12;
+  --aura-accent-warm: #ff6a3d;
+  --aura-accent-2: #164a8f;
+  --aura-ok: #2fa36b;
+  --aura-ground: #eef2fb;
+  --aura-r-pane: 20px;
+  --aura-r-control: 12px;
+  --aura-ease: cubic-bezier(0.2, 0.8, 0.3, 1);
+  --aura-display: var(--font-heros), "TeX Gyre Heros", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --aura-body: var(--font-inter), "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.aura-app {
+  position: relative;
+  min-height: 100dvh;
+  /* DELIBERATELY NOT `overflow: hidden`, which is what the reference page uses.
+     An ancestor with a non-visible overflow becomes the scroll container for
+     everything inside it, and `position: sticky` then resolves against THAT
+     box rather than the viewport — so the top bar simply scrolled away with the
+     page. The field's blobs are already clipped by `.aura-field`'s own
+     `overflow: hidden`, so nothing here needed it. */
+  background: var(--aura-ground);
+  color: var(--aura-ink);
+  font-family: var(--aura-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 1. THE FIELD ─────────────────────────────────────────────────────────── */
+.aura-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.aura-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  will-change: transform;
+}
+.aura-b1 {
+  width: 900px;
+  height: 620px;
+  left: -12%;
+  top: -24%;
+  background: radial-gradient(circle, rgba(120, 150, 255, 0.62), transparent 68%);
+  animation: aura-drift1 26s ease-in-out infinite;
+}
+.aura-b2 {
+  width: 760px;
+  height: 560px;
+  right: -10%;
+  top: -18%;
+  background: radial-gradient(circle, rgba(255, 150, 190, 0.55), transparent 68%);
+  animation: aura-drift2 32s ease-in-out infinite;
+}
+.aura-b3 {
+  width: 980px;
+  height: 640px;
+  left: 34%;
+  bottom: -30%;
+  background: radial-gradient(circle, rgba(120, 225, 225, 0.5), transparent 68%);
+  animation: aura-drift3 29s ease-in-out infinite;
+}
+@keyframes aura-drift1 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(80px, 50px, 0) scale(1.12); }
+}
+@keyframes aura-drift2 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+  50% { transform: translate3d(-70px, 70px, 0) scale(0.94); }
+}
+@keyframes aura-drift3 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-90px, -60px, 0) scale(1.1); }
+}
+
+.aura-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='160' height='160' filter='url(%23n)' opacity='.5'/></svg>");
+}
+
+/* ── 2. THE MATERIAL ──────────────────────────────────────────────────────── */
+.aura-glass {
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--aura-r-pane);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.16));
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,       /* top specular edge */
+    0 -1px 0 rgba(255, 255, 255, 0.35) inset,      /* bottom bounce */
+    0 0 0 0.5px rgba(120, 150, 255, 0.18),         /* chromatic rim */
+    0 12px 32px -12px rgba(22, 32, 68, 0.3),
+    0 2px 6px -2px rgba(22, 32, 68, 0.14);
+  backdrop-filter: blur(40px) saturate(200%) brightness(1.08);
+  -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.08);
+  transition: transform 0.24s var(--aura-ease), box-shadow 0.24s, background 0.24s;
+}
+.aura-glass::before {
+  /* curved light running along the top edge */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.8;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 42%);
+}
+.aura-glass::after {
+  /* sheen that follows the pointer — --mx/--my are set by AuraSheen */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.3s;
+  background: radial-gradient(
+    220px 160px at var(--mx, 50%) var(--my, 0%),
+    rgba(255, 255, 255, 0.55),
+    transparent 65%
+  );
+}
+.aura-interactive { cursor: pointer; }
+.aura-interactive:hover {
+  transform: translateY(-3px);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.26));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 1) inset,
+    0 -1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 0 0 0.5px rgba(120, 150, 255, 0.3),
+    0 26px 50px -16px rgba(22, 32, 68, 0.38),
+    0 3px 10px -3px rgba(22, 32, 68, 0.18);
+}
+.aura-interactive:hover::after { opacity: 1; }
+.aura-interactive:active { transform: translateY(-1px) scale(0.996); }
+.aura-app :focus-visible {
+  outline: 2px solid var(--aura-accent);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* Chrome — bars and rails are MORE transparent than panes and never lift.
+   They are the window, not the content. */
+/* THE TOP BAR IS THE ONE OPAQUE SURFACE IN THE SYSTEM, on purpose.
+   Everything else here is glass, but this strip sits over a whole scrolling
+   page and a translucent one is unreadable the moment anything passes under it
+   — which is exactly what happened: dashboard cards, faces and numbers came
+   straight through the bar. Chrome you cannot read is worse than chrome with no
+   material. It keeps the specular top edge and the drop shadow, so it still
+   reads as an Aura surface; it simply does not let anything through.
+
+   z-index 60 for the same reason. At the old 20 (and even at the previous
+   bar's 40) page content at z-50 painted OVER the strip, so opacity alone would
+   not have fixed it. 60 clears every in-page layer and still sits under the
+   app's dialogs and drawers (70, 90, 100, 120). */
+.aura-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 20px;
+  background: linear-gradient(180deg, #fdfdff, #f3f5fc);
+  border-bottom: 1px solid rgba(22, 32, 68, 0.1);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 8px 24px -18px rgba(22, 32, 68, 0.55);
+}
+.aura-topbar {
+  color: var(--aura-ink);
+  font-family: var(--aura-body);
+  /* EXACTLY 56px, and not a pixel more. `body:has(.app-topbar)` publishes that
+     number as `--app-topbar-h` (app/globals.css), and the HR console sizes
+     itself to `calc(100dvh - var(--app-topbar-h))` while every
+     `.sticky-below-topbar` page header pins to it. A bar that grew past 56
+     would push the console past the fold and slide those headers under this
+     one. Every control inside is ≤36px, so 10px of padding either side lands
+     on 56 with room to spare — but the height is fixed rather than implied,
+     because the contract must not depend on that staying true. */
+  height: 56px;
+  flex: none;
+}
+.aura-topbar :focus-visible {
+  outline: 2px solid var(--aura-accent);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* ── MODULE TABS ──────────────────────────────────────────────────────────
+   Quick access to the first few rooms. They drop out one at a time as the bar
+   narrows — which is safe ONLY because the "More" menu beside them lists EVERY
+   room, not just the ones that overflowed. An overflow-only menu computed from
+   a width measurement would leave a module unreachable at any width the
+   measurement got wrong; this cannot. */
+.aura-tabs { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.aura-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 11px;
+  background: none;
+  cursor: pointer;
+  font-family: var(--aura-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--aura-ink-2);
+  white-space: nowrap;
+  transition: background 0.16s, color 0.16s;
+}
+.aura-tab:hover { background: rgba(255, 255, 255, 0.4); color: var(--aura-ink); }
+.aura-tab[aria-current] {
+  background: rgba(255, 255, 255, 0.66);
+  color: var(--aura-ink);
+  box-shadow: 0 6px 16px -10px rgba(22, 32, 68, 0.5);
+}
+.aura-tab-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+
+/* ── MORE ─────────────────────────────────────────────────────────────────
+   Opens on hover AND on click. Hover alone is unusable on a touch screen and
+   unreachable from a keyboard; the click and the `:focus-within` below are what
+   make the same menu work for all three. */
+.aura-more { position: relative; display: inline-flex; }
+.aura-more-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 60;
+  width: 330px;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: var(--aura-r-pane);
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 0.16s var(--aura-ease), transform 0.16s var(--aura-ease);
+}
+/* A FLOATING pane is the one place the 42%-white fill has to give way. It sits
+   over arbitrary page content — donuts, tables, paragraphs — and at the normal
+   glass opacity the text underneath reads straight through the menu on top of
+   it. Contrast is the counterweight in this language, so the menu keeps the
+   blur and the edge light and takes a near-opaque fill. */
+.aura-glass.aura-more-panel {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.89));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 1) inset,
+    0 0 0 0.5px rgba(120, 150, 255, 0.22),
+    0 24px 48px -16px rgba(22, 32, 68, 0.42),
+    0 4px 12px -4px rgba(22, 32, 68, 0.2);
+}
+
+.aura-more[data-open="true"] .aura-more-panel,
+.aura-more:focus-within .aura-more-panel {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.aura-more-label {
+  font-family: var(--aura-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--aura-ink-2);
+  padding: 6px 10px 8px;
+}
+.aura-more-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: var(--aura-r-control);
+  color: var(--aura-ink);
+  text-align: left;
+  transition: background 0.16s;
+}
+.aura-more-item:hover { background: rgba(255, 255, 255, 0.55); }
+.aura-more-item[aria-current] { background: rgba(255, 255, 255, 0.72); }
+.aura-more-icon {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  margin-top: 1px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.28));
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+.aura-more-text { min-width: 0; flex: 1; }
+.aura-more-name {
+  font-family: var(--aura-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.aura-more-desc {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--aura-ink-2);
+  font-weight: 500;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── THE SEARCH FIELD ─────────────────────────────────────────────────────
+   A long labelled box, not an icon: on the reference screen the search is the
+   widest thing in the bar, and the ⌘K cap is part of the shape. It opens the
+   app's existing command palette — same dialog, same results, same shortcut. */
+.aura-searchbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 11px;
+  border-radius: var(--aura-r-control);
+  background: rgba(255, 255, 255, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  font-family: var(--aura-body);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--aura-ink-2);
+  cursor: text;
+  text-align: left;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  transition: background 0.16s, border-color 0.16s;
+}
+.aura-searchbox:hover { background: rgba(255, 255, 255, 0.5); border-color: rgba(255, 255, 255, 0.75); }
+.aura-searchbox > span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aura-searchbox .aura-kbd { margin-left: auto; flex: none; }
+/* SEARCH AND IDENTITY BOTH LIVE ON THE RIGHT. The search used to grow into the
+   middle of the bar, which put it between the tabs and the controls and left
+   the account menu stranded on its own. One right-hand cluster reads as one
+   thing: find something, make something, then who you are. */
+.aura-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.aura-search-slot { flex: 0 1 360px; width: 360px; min-width: 0; }
+
+.aura-bell { position: relative; }
+.aura-bell-dot {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--aura-accent);
+  border: 1.5px solid #fff;
+}
+
+/* NOTE: which tabs show is decided in JS (see `useTabCount` in aura-top-bar),
+   NOT by hiding them here. It has to be: "More" now lists exactly the rooms
+   that did NOT get a tab, so the two have to be computed from the same number.
+   A CSS rule that hid a tab would drop it out of the bar without putting it in
+   the menu, and that room would be unreachable. */
+@media (max-width: 860px) { .aura-search-slot { flex-basis: 190px; width: 190px; } }
+@media (max-width: 560px) { .aura-search-slot { display: none; } }
+
+.aura-rail {
+  /* Sticky under the 57px bar (56px + its hairline) and scrollable on its own,
+     so the twelfth room stays one click away from the bottom of a long page.
+     `align-self: start` is the part that is easy to miss: a grid item stretches
+     to the row's height by default, which makes it taller than the viewport and
+     leaves `position: sticky` nothing to do. */
+  position: sticky;
+  top: 57px;
+  align-self: start;
+  max-height: calc(100dvh - 57px);
+  overflow-y: auto;
+  padding: 20px 14px;
+  border-right: 1px solid rgba(255, 255, 255, 0.55);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.14));
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.55) inset;
+  backdrop-filter: blur(40px) saturate(190%);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  overflow: hidden;
+  transition: opacity 0.2s, transform 0.26s var(--aura-ease);
+}
+
+/* ── 3. LAYOUT ────────────────────────────────────────────────────────────── */
+.aura-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  min-height: calc(100dvh - 57px);
+  transition: grid-template-columns 0.26s var(--aura-ease);
+}
+.aura-layout.aura-rail-hidden { grid-template-columns: 0 minmax(0, 1fr); }
+.aura-layout.aura-rail-hidden .aura-rail {
+  opacity: 0;
+  transform: translateX(-14px);
+  pointer-events: none;
+}
+.aura-main { padding: 26px 30px 32px; }
+.aura-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+/* ── 4. TYPE ──────────────────────────────────────────────────────────────── */
+/* TeX Gyre Heros carries every load-bearing string; Inter does the reading.
+   Secondary text runs 500–600, never 400 — light type dissolves into a blurred
+   background. Numbers are the loudest thing on the screen. */
+.aura-h1 {
+  font-family: var(--aura-display);
+  font-weight: 700;
+  font-size: 35px;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin: 6px 0 0;
+}
+.aura-h2 {
+  font-family: var(--aura-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.aura-date {
+  font-family: var(--aura-display);
+  font-size: 12px;
+  color: var(--aura-ink-2);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.aura-sub {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--aura-ink-2);
+  font-weight: 500;
+}
+.aura-num {
+  font-family: var(--aura-display);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+.aura-brand {
+  font-family: var(--aura-display);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+/* ── 5. CONTROLS ──────────────────────────────────────────────────────────── */
+.aura-icon-btn {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: var(--aura-r-control);
+  color: var(--aura-ink);
+  cursor: pointer;
+  font-family: inherit;
+}
+.aura-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: var(--aura-r-control);
+  background: none;
+  font-family: var(--aura-body);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--aura-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s;
+}
+.aura-nav:hover { background: rgba(255, 255, 255, 0.38); }
+.aura-nav[aria-current] {
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 6px 16px -10px rgba(22, 32, 68, 0.5);
+}
+.aura-nav-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: none;
+}
+.aura-nav-key {
+  margin-left: auto;
+  font-family: var(--aura-display);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--aura-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.aura-rail-label {
+  font-family: var(--aura-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--aura-ink-2);
+  padding: 0 11px 7px;
+}
+.aura-rail-label + .aura-rail-label,
+.aura-rail-label.aura-spaced { padding-top: 16px; }
+.aura-chip {
+  padding: 8px 14px;
+  border-radius: 14px;
+  font-family: var(--aura-display);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--aura-ink);
+}
+.aura-kbd {
+  font-family: var(--aura-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--aura-ink-2);
+  border: 1px solid rgba(10, 15, 34, 0.22);
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+
+/* ── 6. STATUS ────────────────────────────────────────────────────────────── */
+/* Every status colour is a deep ramp step on a light tint, never a pastel on a
+   pastel — transparency costs legibility and ink is how Aura pays it back. */
+.aura-pill {
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-family: var(--aura-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.aura-state {
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-family: var(--aura-display);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.aura-state-ok { background: rgba(47, 163, 107, 0.18); color: #1c6b45; }
+.aura-state-warn { background: rgba(232, 161, 26, 0.22); color: #7a5305; }
+.aura-state-hot { background: rgba(216, 31, 18, 0.16); color: #8f1109; }
+.aura-state-idle { background: rgba(10, 15, 34, 0.1); color: var(--aura-ink-2); }
+
+/* ── 7. PANES ─────────────────────────────────────────────────────────────── */
+/* Whitespace is the only separator — no dividers between panes. */
+.aura-panes {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 16px;
+  margin-top: 22px;
+}
+.aura-pane { padding: 20px 22px; }
+/* Either pane can be absent — WMS and Goals are each access-gated, and either
+   query can fail soft. A lone pane spans the row rather than sitting stranded
+   at 1.25fr with dead space beside it. */
+.aura-panes > :only-child { grid-column: 1 / -1; }
+.aura-pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+/* A stat is 22–38px Heros 700 with its unit BESIDE it, never above it. */
+.aura-big {
+  font-family: var(--aura-display);
+  font-size: 38px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.aura-bigrow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 14px;
+}
+.aura-bigrow span { font-size: 13.5px; color: var(--aura-ink-2); font-weight: 500; }
+.aura-tasks { margin-top: 16px; display: grid; gap: 9px; }
+.aura-task {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 0;
+}
+.aura-task-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aura-task time {
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--aura-ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.aura-dot { width: 7px; height: 7px; border-radius: 50%; background: #94a0c8; flex: none; }
+.aura-dot-hot { background: var(--aura-accent); }
+.aura-bar {
+  margin-top: 16px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(10, 15, 34, 0.16);
+  overflow: hidden;
+}
+.aura-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4f7cf7, #7ad8d0);
+}
+.aura-stats { display: flex; gap: 22px; margin-top: 14px; flex-wrap: wrap; }
+.aura-stats b {
+  display: block;
+  font-family: var(--aura-display);
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.aura-stats em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--aura-ink-2);
+  font-weight: 500;
+}
+@media (max-width: 1080px) { .aura-panes { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── 8. ATTENDANCE BLOCK ──────────────────────────────────────────────────── */
+.aura-att { margin-top: 16px; padding: 18px 22px 20px; }
+.aura-att-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.aura-att-head span { font-size: 12px; color: var(--aura-ink-2); font-weight: 500; }
+.aura-att-body {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) 1.3fr;
+  gap: 18px;
+  margin-top: 16px;
+  align-items: start;
+}
+/* Without the roster counters (everyone who is not an admin) the week strip is
+   the whole block, so it takes the full width instead of a fifth of it. */
+.aura-att-body.aura-att-mine-only { grid-template-columns: minmax(0, 1fr); }
+.aura-att-stat b {
+  display: block;
+  font-family: var(--aura-display);
+  font-size: 26px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.aura-att-stat em {
+  font-style: normal;
+  display: block;
+  font-size: 11.5px;
+  color: var(--aura-ink-2);
+  font-weight: 600;
+  margin-top: 5px;
+}
+.aura-att-stat i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.aura-att-week { border-left: 1px solid rgba(10, 15, 34, 0.16); padding-left: 18px; }
+.aura-att-body.aura-att-mine-only .aura-att-week { border-left: 0; padding-left: 0; }
+.aura-att-week .aura-row { display: flex; align-items: stretch; gap: 6px; }
+/* Each day is a fixed-height column: label pinned to the TOP, bar growing off a
+   shared BASELINE at the bottom. Without the fixed height the column shrinks to
+   its bar and the labels ride up and down with the hours — which is how a
+   thin Thursday ends up with its letter 14px lower than Monday's. */
+.aura-att-week .aura-day {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+.aura-att-week .aura-day span {
+  display: block;
+  flex: none;
+  font-size: 10.5px;
+  color: var(--aura-ink-3);
+  font-weight: 600;
+}
+.aura-att-week .aura-day i {
+  display: block;
+  margin-top: auto;
+  border-radius: 7px;
+  background: rgba(20, 26, 46, 0.08);
+}
+.aura-att-week .aura-cap {
+  font-size: 11.5px;
+  color: var(--aura-ink-2);
+  margin-top: 9px;
+  font-weight: 500;
+}
+.aura-att-mine {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(20, 26, 46, 0.1);
+  font-size: 13px;
+  font-weight: 500;
+  flex-wrap: wrap;
+}
+.aura-btn-mini {
+  margin-left: auto;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 11px;
+  cursor: pointer;
+  font-family: var(--aura-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(140deg, var(--aura-accent-warm), var(--aura-accent));
+  box-shadow: 0 8px 20px -10px rgba(232, 38, 26, 0.9);
+  transition: filter 0.16s, transform 0.16s;
+}
+.aura-btn-mini:hover { filter: brightness(1.06); }
+.aura-btn-mini:active { transform: translateY(1px); }
+@media (max-width: 1080px) {
+  .aura-att-body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .aura-att-week { grid-column: 1 / -1; border-left: 0; padding-left: 0; }
+}
+
+/* ── 9. CHARTS ────────────────────────────────────────────────────────────── */
+.aura-trio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+  align-items: stretch;
+}
+.aura-chart { padding: 18px 20px 20px; display: flex; flex-direction: column; }
+.aura-note { font-size: 11.5px; color: var(--aura-ink-2); margin-top: 3px; font-weight: 500; }
+
+.aura-donut-wrap { display: flex; align-items: center; gap: 18px; margin-top: 12px; flex: 1; }
+.aura-donut { position: relative; flex: none; width: min(132px, 40%); aspect-ratio: 1; }
+.aura-donut svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.aura-donut-mid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+.aura-donut-mid b {
+  display: block;
+  font-family: var(--aura-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.aura-donut-mid em { font-style: normal; font-size: 10.5px; color: var(--aura-ink-2); font-weight: 600; }
+/* Hovering the ring fades every slice; the one under the pointer comes back.
+   Pure CSS — there is no chart library on this page and no hydration cost. */
+.aura-donut path { transition: opacity 0.18s, filter 0.18s; cursor: pointer; }
+.aura-donut:hover path { opacity: 0.45; }
+.aura-donut path:hover { opacity: 1; filter: drop-shadow(0 4px 10px rgba(22, 32, 68, 0.35)); }
+
+.aura-legend { display: grid; gap: 7px; min-width: 0; flex: 1; }
+.aura-legend div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--aura-ink-2);
+  min-width: 0;
+}
+.aura-legend span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aura-legend i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.aura-legend b {
+  margin-left: auto;
+  color: var(--aura-ink);
+  font-family: var(--aura-display);
+  font-weight: 700;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.aura-bloom-wrap {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 10px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.aura-bloom { flex: none; width: 176px; height: 176px; position: relative; }
+.aura-bloom svg { display: block; }
+.aura-bloom-hub { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.aura-bloom-hub b {
+  display: block;
+  font-family: var(--aura-display);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+/* 9.5px, not 10: "this week" has to fit inside a hub that renders ~53px wide. */
+.aura-bloom-hub em { font-style: normal; font-size: 9.5px; color: var(--aura-ink-2); font-weight: 600; }
+.aura-bloom-read { flex: 1; min-width: 190px; }
+.aura-tagline { font-family: var(--aura-display); font-size: 13.5px; font-weight: 700; letter-spacing: -0.01em; }
+.aura-bloom-read p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--aura-ink-2);
+  font-weight: 500;
+  text-wrap: pretty;
+}
+.aura-hours { display: flex; gap: 3px; margin-top: 12px; }
+.aura-hours i { flex: 1; min-width: 4px; height: 26px; border-radius: 5px; background: rgba(10, 15, 34, 0.09); }
+.aura-hours-cap {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--aura-ink-2);
+  margin-top: 5px;
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .aura-bloom-wrap { flex-direction: column; align-items: stretch; }
+  .aura-bloom { margin-inline: auto; }
+}
+
+/* ── 10. TABLE ────────────────────────────────────────────────────────────── */
+.aura-tbl-card { margin-top: 16px; padding: 18px 20px 8px; overflow-x: auto; }
+.aura-tbl-card table { min-width: 620px; width: 100%; border-collapse: collapse; margin-top: 12px; }
+.aura-tbl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.aura-tbl-head a { font-size: 12px; font-weight: 600; color: var(--aura-accent); }
+.aura-tbl-card th {
+  text-align: left;
+  font-family: var(--aura-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  color: var(--aura-ink-2);
+  padding: 0 12px 9px 0;
+  border-bottom: 1px solid rgba(10, 15, 34, 0.16);
+}
+.aura-tbl-card td {
+  padding: 11px 12px 11px 0;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(10, 15, 34, 0.08);
+  vertical-align: middle;
+}
+.aura-tbl-card tbody tr { transition: background 0.16s; }
+.aura-tbl-card tbody tr:hover { background: rgba(255, 255, 255, 0.4); }
+.aura-tbl-card tbody tr:last-child td { border-bottom: 0; }
+.aura-cell-main { font-weight: 600; }
+.aura-cell-main a { color: inherit; }
+.aura-cell-main a:hover { color: var(--aura-accent); }
+.aura-mini-av {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-family: var(--aura-display);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+}
+.aura-who-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.aura-who-cell span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aura-due { font-weight: 600; color: var(--aura-ink-2); white-space: nowrap; }
+.aura-due-late { color: #8f1109; }
+.aura-empty {
+  padding: 26px 0 30px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--aura-ink-2);
+}
+
+/* ── 11. SECTION HEADS ────────────────────────────────────────────────────
+   What used to be section 11 was the launcher's tile grid — twelve cards under
+   "Jump into a workspace". It is gone: the rail lists every room, permanently,
+   two clicks closer, so the tiles were a second copy of the same twelve links
+   taking up the bottom half of the screen. Only the heading style it shared
+   with the rest of the page survives. */
+.aura-grid-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 26px 0 12px;
+  flex-wrap: wrap;
+}
+.aura-grid-head span { font-size: 12px; color: var(--aura-ink-2); font-weight: 500; }
+
+/* ── 12. RESPONSIVE ────────────────────────────────────────────────────────── */
+/* Cards rebalance rather than orphaning: four across is the reference grid,
+   and every step down keeps the last row full for the module counts we ship. */
+@media (max-width: 1240px) {
+  .aura-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1080px) {
+  .aura-layout,
+  .aura-layout.aura-rail-hidden { grid-template-columns: minmax(0, 1fr); }
+  .aura-rail { display: none; }
+  .aura-main { padding: 20px 18px 26px; }
+  .aura-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .aura-grid { grid-template-columns: minmax(0, 1fr); }
+  .aura-h1 { font-size: 28px; }
+  .aura-topbar { padding: 10px 14px; gap: 10px; }
+}
+
+/* ── 13. MOTION ────────────────────────────────────────────────────────────── */
+/* All field motion stops under prefers-reduced-motion; the glass stays. */
+@media (prefers-reduced-motion: reduce) {
+  .aura-blob { animation: none; }
+  .aura-glass,
+  .aura-layout,
+  .aura-rail { transition: none; }
+}
+
+/* ── 14. THE MODULE RAIL, IN AURA ─────────────────────────────────────────
+   The left rail belongs to the MODULE: the top bar switches rooms, this lists
+   the sections inside the one you are in. That division is why the bar no
+   longer carries a page title — the rail already says where you are.
+
+   This section is a SKIN over the existing `DashboardSidebar`, not a rewrite.
+   The markup, the collapse behaviour, the per-module widths and the HR
+   auto-collapse are all untouched; only the material and the type change. The
+   tokens are pulled in explicitly rather than inherited, because the rail
+   renders outside `.aura-app` exactly like the top bar does.
+
+   EVERY SELECTOR BELOW CARRIES BOTH `.sidebar-rail` AND `.aura-rail-skin`,
+   on the same element. globals.css imports this file at the TOP, so a rule
+   here with the same specificity as the `.sidebar-rail .sidebar-nav
+   .nav-pill-active` rule further down globals.css loses on source order —
+   which is exactly how the selected item kept its old pink wash. The extra
+   class buys the win outright instead of depending on where the file sits.
+   ──────────────────────────────────────────────────────────────────────── */
+.aura-rail-skin {
+  --aura-ink: #0a0f22;
+  --aura-ink-2: #39415f;
+  --aura-ink-3: #565f7d;
+  --aura-accent: #d81f12;
+  --aura-display: var(--font-heros), "TeX Gyre Heros", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --aura-body: var(--font-inter), "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.52));
+  border-right: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.55) inset, 10px 0 30px -24px rgba(22, 32, 68, 0.45);
+  backdrop-filter: blur(40px) saturate(190%);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+}
+
+/* Section headings take the display face at the rail-label size and tracking. */
+.sidebar-rail.aura-rail-skin .nav-drawer-section {
+  font-family: var(--aura-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--aura-ink-2);
+}
+
+/* Items: Inter at 600, because secondary text on a translucent surface
+   dissolves at 400. The selected item is a white glass chip rather than a
+   brand-tint wash — on glass, LIGHT is what reads as raised, not colour. */
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill {
+  font-family: var(--aura-body);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--aura-ink);
+  border-radius: 12px;
+  padding: 9px 11px;
+}
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill:hover {
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--aura-ink);
+}
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-active,
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-active:hover {
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--aura-ink);
+  box-shadow: 0 6px 16px -10px rgba(22, 32, 68, 0.5);
+}
+
+/* Counts are numerals, so they take the display face like every other number
+   in the language. */
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-count {
+  font-family: var(--aura-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: rgba(10, 15, 34, 0.08);
+  color: var(--aura-ink-2);
+}
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-active .nav-pill-count {
+  background: rgba(216, 31, 18, 0.16);
+  color: #8f1109;
+}
+
+/* ── 15. THE GLASS RAIL ───────────────────────────────────────────────────
+   `.claude/skills/aura/reference/aura-glass-rail.html` + `RAIL-SPEC.md`, ported.
+
+   A numbered index on a floating glass pane, with ONE travelling indicator
+   instead of a background per row, and a red light that flows across a row
+   while it is hovered. Three parts:
+
+     .aura-grail        the pane — sticky, 22px radius, inset 14px from the edge
+     .aura-grail-inner  the scroll container; the lens is positioned against it
+     .aura-grail-lens   the single indicator, driven by --lens-y/-h/-o from JS
+
+   EVERY CLASS IS `aura-grail-`-PREFIXED. The spec warns about this from its own
+   experience ("a generic `.lens` collided with another rule and silently
+   blanked the component") and it matters more here: this codebase already owns
+   `.nav` in 46 rules and `.rail-label`, `.count` and `.no` are all far too
+   common to claim.
+   ──────────────────────────────────────────────────────────────────────── */
+.aura-grail {
+  position: sticky;
+  top: 71px;
+  align-self: start;
+  max-height: calc(100dvh - 85px);
+  display: flex;
+  flex-direction: column;
+  margin: 14px 0 14px 14px;
+  padding: 16px 8px;
+  border-radius: 22px;
+  background: linear-gradient(168deg, rgba(255, 255, 255, 0.44), rgba(255, 255, 255, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(40px) saturate(190%);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 26px 50px -26px rgba(22, 32, 68, 0.5);
+  transition: opacity 0.2s, transform 0.26s var(--aura-ease);
+}
+.aura-grail-inner {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 2px;
+}
+.aura-grail-inner::-webkit-scrollbar { width: 6px; }
+.aura-grail-inner::-webkit-scrollbar-thumb { background: rgba(22, 32, 68, 0.16); border-radius: 3px; }
+
+/* THE TRAVELLING INDICATOR. It ships with `transition: none` and only gains one
+   once `.is-ready` lands, 60ms after the first successful placement — without
+   that it can stay pinned at height 0 in frames where the transition timeline
+   is not ticking. The overshoot in the curve is the character of the thing. */
+.aura-grail-lens {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 0;
+  border-radius: 13px;
+  pointer-events: none;
+  height: var(--lens-h, 0px);
+  opacity: var(--lens-o, 0);
+  transform: translateY(var(--lens-y, 0px));
+  background: linear-gradient(168deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.6));
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 0 0 1px rgba(255, 255, 255, 0.85),
+    0 14px 26px -16px rgba(22, 32, 68, 0.6);
+  transition: none;
+  will-change: transform;
+}
+.aura-grail-lens.is-ready {
+  transition:
+    transform 0.42s cubic-bezier(0.22, 1.3, 0.32, 1),
+    height 0.28s cubic-bezier(0.22, 1.3, 0.32, 1),
+    opacity 0.2s;
+}
+
+.aura-grail-label {
+  font-family: var(--aura-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--aura-ink-2);
+  opacity: 0.72;
+  padding: 0 12px 9px;
+}
+.aura-grail-label.aura-spaced { padding-top: 20px; }
+.aura-grail-group { display: flex; flex-direction: column; }
+
+.aura-grail-nav {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 13px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--aura-ink-2);
+  transition: color 0.18s;
+  isolation: isolate;
+}
+.aura-grail-no {
+  flex: none;
+  width: 16px;
+  font-family: var(--aura-display);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--aura-ink-2);
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.18s, opacity 0.18s;
+}
+.aura-grail-roll { position: relative; display: block; flex: 1; min-width: 0; }
+.aura-grail-roll > span {
+  display: block;
+  font-family: var(--aura-body);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.32, 1);
+}
+.aura-grail-nav:hover .aura-grail-roll > span { transform: translateX(4px); }
+
+/* THE RED FLOW. A 220%-wide gradient scrolled by background-position while the
+   row is hovered; the selected row holds it steady at centre. `isolation` on
+   the row is what lets a z-index:-1 wash sit behind the label but still above
+   the pane. */
+.aura-grail-nav::before,
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 13px;
+  pointer-events: none;
+  z-index: -1;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.22s;
+  background: linear-gradient(
+    100deg,
+    rgba(216, 31, 18, 0) 0%,
+    rgba(216, 31, 18, 0.07) 22%,
+    rgba(216, 31, 18, 0.17) 50%,
+    rgba(216, 31, 18, 0.07) 78%,
+    rgba(216, 31, 18, 0) 100%
+  );
+  background-size: 220% 100%;
+  background-position: -60% 0;
+}
+.aura-grail-nav:hover::before,
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill:hover::before {
+  opacity: 1;
+  animation: aura-rail-flow 1.9s linear infinite;
+}
+.aura-grail-nav.is-active::before,
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-active::before {
+  opacity: 1;
+  background-position: 50% 0;
+  animation: none;
+}
+@keyframes aura-rail-flow {
+  from { background-position: -60% 0; }
+  to { background-position: 160% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aura-grail-nav:hover::before,
+  .sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill:hover::before {
+    animation: none;
+    background-position: 50% 0;
+  }
+  .aura-grail-lens.is-ready { transition: opacity 0.2s; }
+}
+
+.aura-grail-nav:hover,
+.aura-grail-nav.is-active { color: var(--aura-ink); }
+.aura-grail-nav.is-active .aura-grail-no { color: var(--aura-accent); opacity: 1; }
+.aura-grail-nav:active { transform: scale(0.994); }
+.aura-grail-count {
+  font-family: var(--aura-display);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--aura-ink-2);
+  opacity: 0.75;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.aura-grail-nav.is-active .aura-grail-count { color: var(--aura-accent); opacity: 1; font-weight: 700; }
+
+/* THE SAME VOCABULARY ON THE MODULE RAIL. The rows there are the app's existing
+   `.nav-pill`s, so they cannot take the markup above — but they can take the
+   material: the travelling lens replaces the per-row selected background (which
+   is why it is cleared here), and the red flow above is already wired to them.
+   `position: relative` on the scroll container is what the lens measures
+   `offsetTop` against. */
+.sidebar-rail.aura-rail-skin .sidebar-nav { position: relative; }
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+}
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill:hover { background: none; }
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-active,
+.sidebar-rail.aura-rail-skin .sidebar-nav .nav-pill-active:hover {
+  background: none;
+  box-shadow: none;
+}
+
+/* Rail widths, from the spec. */
+@media (max-width: 1080px) { .aura-layout { grid-template-columns: 212px minmax(0, 1fr); } }
+@media (max-width: 820px) {
+  .aura-layout,
+  .aura-layout.aura-rail-hidden { grid-template-columns: minmax(0, 1fr); }
+  .aura-grail { display: none; }
+}
+
+/* ── 16. THE WIDGET GRID ──────────────────────────────────────────────────
+   The home screen is arranged by the person looking at it: every widget can be
+   one of three widths, moved up or down, removed, or added back. This section
+   is the frame; `lib/dashboard/widgets.ts` is the catalogue and
+   `components/hub/dashboard-grid.tsx` owns the arrangement.
+
+   SIX COLUMNS, because 6 divides by both 2 and 3 — so a small (2), a medium (3)
+   and a large (6) all pack into whole rows with no gaps to design around.
+   ──────────────────────────────────────────────────────────────────────── */
+.aura-wgrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+  align-items: stretch;
+}
+.aura-w { display: flex; flex-direction: column; min-width: 0; }
+.aura-w[data-size="s"] { grid-column: span 2; }
+.aura-w[data-size="m"] { grid-column: span 3; }
+.aura-w[data-size="l"] { grid-column: span 6; }
+/* The body stretches so two widgets sharing a row end level, whatever is in
+   them. Panes inside are `height: 100%` for the same reason. */
+.aura-w-body { flex: 1; min-width: 0; display: flex; }
+.aura-w-body > * { flex: 1; min-width: 0; }
+
+/* ── EDIT MODE ────────────────────────────────────────────────────────────
+   The controls only exist while customising. They sit ABOVE the widget rather
+   than floating over it, because a handle that covers content makes you guess
+   what you are rearranging. */
+.aura-edit-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.aura-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: var(--aura-r-control);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.5);
+  font-family: var(--aura-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--aura-ink);
+  cursor: pointer;
+  transition: background 0.16s, border-color 0.16s, opacity 0.16s;
+}
+.aura-edit-btn:hover { background: rgba(255, 255, 255, 0.8); border-color: rgba(255, 255, 255, 0.9); }
+.aura-edit-btn:disabled { opacity: 0.45; cursor: default; }
+.aura-edit-btn.is-on {
+  background: linear-gradient(140deg, var(--aura-accent-warm), var(--aura-accent));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 8px 20px -10px rgba(232, 38, 26, 0.9);
+}
+
+.aura-wgrid.is-editing .aura-w {
+  border-radius: calc(var(--aura-r-pane) + 6px);
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.34);
+  outline: 1px dashed rgba(22, 32, 68, 0.22);
+  outline-offset: -1px;
+}
+.aura-w-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 8px;
+  flex-wrap: wrap;
+}
+.aura-w-name {
+  font-family: var(--aura-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--aura-ink-2);
+  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aura-w-sizes {
+  display: inline-flex;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(22, 32, 68, 0.16);
+}
+.aura-w-size {
+  padding: 2px 7px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.6);
+  font-family: var(--aura-display);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--aura-ink-2);
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s;
+}
+.aura-w-size + .aura-w-size { border-left: 1px solid rgba(22, 32, 68, 0.16); }
+.aura-w-size:hover { background: #fff; color: var(--aura-ink); }
+.aura-w-size[aria-pressed="true"] { background: var(--aura-ink); color: #fff; }
+.aura-w-btn {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(22, 32, 68, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--aura-ink-2);
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s, opacity 0.16s;
+}
+.aura-w-btn:hover:not(:disabled) { background: #fff; color: var(--aura-ink); }
+.aura-w-btn:disabled { opacity: 0.35; cursor: default; }
+.aura-w-remove:hover:not(:disabled) { background: rgba(216, 31, 18, 0.14); color: #8f1109; }
+
+/* ── THE ADD LIST ─────────────────────────────────────────────────────────
+   Near-opaque for the same reason the "More" menu is: it floats over content,
+   and at the pane fill you read the page through it. */
+.aura-add-panel {
+  margin-top: 12px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 4px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.89));
+}
+.aura-add-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 11px;
+  border: 0;
+  border-radius: var(--aura-r-control);
+  background: none;
+  text-align: left;
+  color: var(--aura-ink);
+  cursor: pointer;
+  transition: background 0.16s;
+}
+.aura-add-item:hover { background: rgba(255, 255, 255, 0.9); }
+.aura-add-item > svg { flex: none; margin-top: 2px; color: var(--aura-accent); }
+.aura-add-name {
+  display: block;
+  font-family: var(--aura-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.aura-add-blurb {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--aura-ink-2);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* ── THE NEW WIDGETS ──────────────────────────────────────────────────────
+   Panes fill their cell so a row ends level. */
+.aura-wgrid .aura-pane,
+.aura-wgrid .aura-chart,
+.aura-wgrid .aura-att,
+.aura-wgrid .aura-tbl-card {
+  height: 100%;
+  margin-top: 0;
+}
+
+.aura-quick-list { display: grid; gap: 6px; margin-top: 12px; }
+.aura-quick-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--aura-r-control);
+  font-family: var(--aura-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--aura-ink);
+  transition: background 0.16s, transform 0.16s;
+}
+.aura-quick-item:hover { background: rgba(255, 255, 255, 0.6); transform: translateX(2px); }
+.aura-quick-icon {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--aura-ink-2);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.28));
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.aura-team { display: grid; gap: 2px; margin-top: 12px; }
+.aura-team-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  transition: background 0.16s;
+}
+.aura-team-row:hover { background: rgba(255, 255, 255, 0.5); }
+.aura-team-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+.aura-team-counts { display: flex; align-items: baseline; gap: 6px; flex: none; }
+.aura-team-counts b {
+  font-family: var(--aura-display);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.aura-team-counts em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--aura-ink-2);
+  font-weight: 600;
+}
+
+/* ── RESPONSIVE ───────────────────────────────────────────────────────────
+   The column count drops before the spans do, so a "small" stays a third of
+   whatever the row is until there is no room for thirds at all. */
+@media (max-width: 1240px) {
+  .aura-wgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .aura-w[data-size="s"] { grid-column: span 2; }
+  .aura-w[data-size="m"] { grid-column: span 2; }
+  .aura-w[data-size="l"] { grid-column: span 4; }
+}
+@media (max-width: 820px) {
+  .aura-wgrid { grid-template-columns: minmax(0, 1fr); }
+  .aura-w[data-size="s"],
+  .aura-w[data-size="m"],
+  .aura-w[data-size="l"] { grid-column: span 1; }
+}
+
+/* ── 17. A LAYOUT WITH NO RAIL ────────────────────────────────────────────
+   The dashboard dropped its workspace rail: every room is in the top bar, as a
+   tab or under "More", so a second permanent copy down the left was 252px
+   spent saying it twice. Module pages keep THEIR rail — that one lists the
+   sections inside a room, which the top bar does not.
+   ──────────────────────────────────────────────────────────────────────── */
+.aura-layout.aura-layout-bare { grid-template-columns: minmax(0, 1fr); }
+.aura-layout.aura-layout-bare .aura-main {
+  width: 100%;
+  max-width: 1560px;
+  margin-inline: auto;
+}
+
+/* ── 18. DENSITY ──────────────────────────────────────────────────────────
+   Compact trims the gaps and the padding inside every pane — roughly a third
+   more fits on a screen. It is a data attribute on the grid rather than a
+   class per widget, so one switch moves everything at once. */
+.aura-wgrid[data-density="compact"] { gap: 10px; }
+.aura-wgrid[data-density="compact"] .aura-pane { padding: 14px 15px; }
+.aura-wgrid[data-density="compact"] .aura-chart { padding: 13px 15px 14px; }
+.aura-wgrid[data-density="compact"] .aura-att { padding: 14px 16px 15px; }
+.aura-wgrid[data-density="compact"] .aura-tbl-card { padding: 14px 16px 4px; }
+.aura-wgrid[data-density="compact"] .aura-bigrow { margin-top: 10px; }
+.aura-wgrid[data-density="compact"] .aura-big { font-size: 30px; }
+.aura-wgrid[data-density="compact"] .aura-tasks { margin-top: 11px; gap: 7px; }
+.aura-wgrid[data-density="compact"] .aura-stats { margin-top: 10px; gap: 16px; }
+.aura-wgrid[data-density="compact"] .aura-quick-item { padding: 6px 9px; }
+
+/* ── 19. THE REST OF THE EDIT BAR ─────────────────────────────────────────
+   Move-to-top and move-to-bottom sit beside the one-step arrows: eleven
+   widgets is far enough that stepping one at a time is a chore, and a drag
+   target on a grid that reflows under the pointer is worse than both. */
+.aura-w-group {
+  display: inline-flex;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(22, 32, 68, 0.16);
+}
+.aura-w-group .aura-w-btn {
+  border: 0;
+  border-radius: 0;
+  width: 24px;
+  height: 22px;
+}
+.aura-w-group .aura-w-btn + .aura-w-btn { border-left: 1px solid rgba(22, 32, 68, 0.16); }
+
+.aura-pref {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px 5px 6px;
+  border-radius: var(--aura-r-control);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.5);
+  font-family: var(--aura-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--aura-ink-2);
+}
+.aura-pref-seg {
+  display: inline-flex;
+  border-radius: 7px;
+  overflow: hidden;
+  border: 1px solid rgba(22, 32, 68, 0.16);
+}
+.aura-pref-seg button {
+  padding: 3px 9px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.7);
+  font-family: var(--aura-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--aura-ink-2);
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s;
+}
+.aura-pref-seg button + button { border-left: 1px solid rgba(22, 32, 68, 0.16); }
+.aura-pref-seg button:hover { background: #fff; color: var(--aura-ink); }
+.aura-pref-seg button[aria-pressed="true"] { background: var(--aura-ink); color: #fff; }

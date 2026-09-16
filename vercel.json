@@ -1,5 +1,10 @@
 {
   "framework": "nextjs",
+  "git": {
+    "deploymentEnabled": {
+      "dev-integration": false
+    }
+  },
   "regions": [
     "bom1"
   ],
@@ -155,6 +160,10 @@
     {
       "path": "/api/cron/dcc-calendar-sync",
       "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/hr-records-drive",
+      "schedule": "30 21 * * *"
     }
   ]
 }

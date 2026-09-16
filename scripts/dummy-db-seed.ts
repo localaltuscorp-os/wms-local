@@ -261,5 +261,11 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
   }
   await bump("project_nodes");
 
+  // HR records — filled forms, scanned documents and letters, with the files
+  // themselves on disk, so HR Record's ZIP download and the Drive backup have
+  // something real to collect. Imported lazily: it pulls in pdf-lib.
+  const { seedDummyHrRecords } = await import("./dummy-db-seed-hr-records");
+  Object.assign(counts, await seedDummyHrRecords(pg, { admin: EMP.me, asha: EMP.asha, ravi: EMP.ravi }));
+
   return counts;
 }

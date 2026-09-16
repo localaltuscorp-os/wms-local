@@ -42,7 +42,14 @@ test-results/
 .playwright/
 
 # claude session-local state
-.claude/
+# `.claude/*` and not `.claude/` — git never descends into an excluded
+# DIRECTORY, so a `!` re-include underneath it can never match. Excluding the
+# contents instead is what lets the skills below be tracked.
+.claude/*
+# ...except the skills, which are project assets the whole team shares.
+# `.claude/skills/aura` is the design language the hub front door is built in;
+# it has to travel with the repo or the next person rebuilds it by eye.
+!.claude/skills/
 .superpowers/
 
 # vercel
@@ -74,11 +81,6 @@ WhatsApp*
 !app/api/whatsapp/
 !app/api/whatsapp/**
 !tests/unit/whatsapp-*.test.ts
-# …and COMPONENTS too. Same trap, third time: `components/ecos/whatsapp-panel.tsx`
-# was written, imported by app/(app)/communications/[id]/page.tsx, and then
-# silently skipped by `git add -A` — so the branch carried an import of a file
-# that was never pushed and failed to resolve at build time.
-!components/**/whatsapp*
 ddd.py
 *.jpeg
 # …but letter signature assets under public/signatures/ MUST ship (else ship.sh's
