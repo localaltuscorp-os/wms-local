@@ -621,7 +621,7 @@ function TransposedActivityTable({
     "sticky left-0 z-10 bg-white px-3 py-2.5 text-[12.5px] font-bold text-ink-strong";
 
   return (
-    <div className="max-h-[600px] overflow-auto">
+    <div className="table-scroll max-h-[600px] overflow-auto">
       <table className="min-w-full border-collapse">
         <thead className="sticky top-0 z-30" style={{ background: "#f9fafb" }}>
           <tr>
@@ -1066,7 +1066,7 @@ export function ManagerActivityTable({
                viewport it DOES exceed its card; the border and radius give the
                grid a visible boundary inside the card instead of letting rows
                reach the card's own edge. */
-            <div className="max-h-[600px] overflow-auto rounded-xl border border-slate-200/70">
+            <div className="table-scroll max-h-[600px] overflow-auto rounded-xl border border-slate-200/70">
               <table className="min-w-full border-collapse">
                 <thead className="sticky top-0 z-10" style={{ background: "#f9fafb" }}>
                   <tr>

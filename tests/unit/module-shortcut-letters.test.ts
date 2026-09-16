@@ -29,12 +29,17 @@ const EXPECTED: [string, string][] = [
   ["admin", "I"],
   ["training", "O"],
   ["employees", "P"],
-  // A AND S VACATED (2026-09-11). The standalone Admin Panel entry was given
-  // the letter A, and A was this row's eleventh key. Both surfaces are
-  // admin-only, so that was a collision for exactly the people who would press
-  // it. The two tail modules moved right by one pair of home-row keys.
-  ["events", "D"],
-  ["people-allocation", "F"],
+  // OPERATIONS, appended 2026-09-11, is the eleventh module and so takes the
+  // eleventh key. Monthly Events Master and HandHolding left the hub the same
+  // day — both became areas inside Operations rather than hub cards.
+  //
+  // THE KEY IS "D", NOT "A". A and S were vacated earlier that same day so the
+  // standalone Admin Panel entry could hold A without colliding with a module
+  // (both are admin-only, so it would have collided for exactly the people who
+  // press it). The alphabet is therefore "qwertyuiopdf" and index 10 is D.
+  // Two branches each wrote a different answer here; this is what the merged
+  // MODULE_ORDER and SHORTCUT_KEYS actually produce.
+  ["operations", "D"],
 ];
 
 describe("module shortcuts — qwertyuiopdf", () => {
@@ -55,7 +60,8 @@ describe("module shortcuts — qwertyuiopdf", () => {
 
   it("leaves EVERY module with a shortcut", () => {
     // The old 1-9/0 row ran out at ten and left HandHolding and Project with
-    // none; twelve letters for twelve modules is the point of the change.
+    // none; a letter for every module is the point of the change, and the
+    // alphabet has room to spare now the hub holds eleven.
     const missing = MODULE_ORDER.filter((_, i) => moduleShortcut(i) === null);
     expect(missing).toEqual([]);
   });
@@ -70,20 +76,26 @@ describe("module shortcuts — qwertyuiopdf", () => {
     // would be advertising a shortcut that does nothing.
     //
     // Two forms, and the width difference is the whole reason both exist: the
-    // footer dock and the module bar put all twelve modules on one scrolling
-    // line, where "⌥Q" costs the same two characters the old "⌃1" did and
-    // "Alt+Q" costs five. The long form is for tooltips and the cheatsheet.
+    // footer dock and the module bar put every module on one scrolling line,
+    // where "⌥Q" costs the same two characters the old "⌃1" did and "Alt+Q"
+    // costs five. The long form is for tooltips and the cheatsheet.
+    //
+    // Indexed off the LAST module rather than a hardcoded 11, so adding a
+    // twelfth does not fail this on a number that was never the point.
+    const last = MODULE_ORDER.length - 1;
     expect(moduleShortcutHint(0)).toBe("⌥Q");
-    expect(moduleShortcutHint(11)).toBe("⌥F");
+    expect(moduleShortcutHint(last)).toBe("⌥D");
     expect(moduleShortcutLabel(0)).toBe("Alt+Q");
-    expect(moduleShortcutLabel(11)).toBe("Alt+F");
+    expect(moduleShortcutLabel(last)).toBe("Alt+D");
     for (let i = 0; i < MODULE_ORDER.length; i++) {
       expect(moduleShortcutHint(i)).toHaveLength(2);
     }
   });
 
   it("ignores keys outside the alphabet", () => {
-    for (const k of ["z", "n", "1", "0", "", "Enter", "ArrowLeft"]) {
+    // "s" is in the alphabet but past the end of an eleven-module hub, so it
+    // resolves to nothing — exactly like a letter that was never in it.
+    for (const k of ["z", "n", "s", "1", "0", "", "Enter", "ArrowLeft"]) {
       expect(moduleForShortcut(k)).toBeUndefined();
     }
   });

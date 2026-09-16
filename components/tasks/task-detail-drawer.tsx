@@ -128,7 +128,7 @@ export function TaskDetailDrawer({
             detail subtree, which renders unpadded on /tasks/[id] where the
             page's own <main> supplies the margins — without it the hero band
             and every card ran flush into the drawer's left and right edges. */}
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-6 max-md:p-4">{children}</div>
+        <div className="slim-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-6 max-md:p-4">{children}</div>
       </aside>
     </div>
   );

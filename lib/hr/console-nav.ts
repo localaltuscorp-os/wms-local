@@ -14,6 +14,7 @@ import {
   Megaphone,
   Files,
   Receipt,
+  ClipboardList,
 } from "lucide-react";
 
 import { HR_STAGES, hrItemHref } from "@/lib/hr/lifecycle";
@@ -101,6 +102,11 @@ const lifecycleModules: HrConsoleModule[] = HR_STAGES.map((stage) => ({
 
 /** The standalone HR surfaces — no inner steps, the rail row IS the link. */
 const standalone: Array<{ id: string; title: string; Icon: LucideIcon; href: string }> = [
+  // Job Description (0222) — a STANDALONE module, not a lifecycle stage: the
+  // stages describe an employee's journey, and a JD outlives every employee who
+  // ever holds it. Placed first because it is the register the other HR
+  // surfaces refer back to.
+  { id: "job-description", title: "Job Description", Icon: ClipboardList, href: "/hr/job-description" },
   { id: "holiday-list", title: "Holiday List", Icon: CalendarDays, href: "/hr/holidays" },
   { id: "policies", title: "Policies", Icon: ScrollText, href: "/policies" },
   { id: "help-desk", title: "Help Desk", Icon: LifeBuoy, href: "/support" },

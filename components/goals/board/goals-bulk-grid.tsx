@@ -156,7 +156,7 @@ function DelegatePicker({ roster, value, onChange }: { roster: RosterMember[]; v
                   className="w-full bg-transparent text-[13px] text-ink-strong outline-none"
                 />
               </div>
-              <div className="max-h-52 overflow-y-auto py-1">
+              <div className="slim-scroll max-h-52 overflow-y-auto py-1">
                 {filtered.length === 0 ? (
                   <p className="px-3 py-2 text-[12.5px] font-semibold text-ink-subtle">No matches</p>
                 ) : (

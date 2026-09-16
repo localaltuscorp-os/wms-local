@@ -331,7 +331,7 @@ export function DataTable<T>({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto">
+      <div className="table-scroll overflow-x-auto">
         <table className="w-full min-w-[640px] text-[15px]">
           <thead>
             <tr

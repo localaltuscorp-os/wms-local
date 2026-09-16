@@ -222,7 +222,29 @@ export async function requireUser(): Promise<Employee> {
   // `getSignedInEmployee` is the pre-swap resolution and is cached per request,
   // so this is a cache hit, not a second lookup.
   const real = (await getSignedInEmployee()) ?? e;
-  await enforceWmsDeviceAccess(real);
+  // ── DEVICE GATE DISABLED 2026-09-12 ──────────────────────────────────────
+  //
+  // It refused every login. The gate runs BEFORE capabilities are consulted,
+  // so a person whose one-per-kind device slot was already filled landed
+  // `pending` and was bounced — including from the Registered Devices screen,
+  // the only place that could have approved them. That is the deadlock the
+  // "Manan exception" was written to avoid, reached by everyone at once rather
+  // than by one person.
+  //
+  // The enforcement is switched off HERE, at the single call site, rather than
+  // by deleting `enforceWmsDeviceAccess` or unpicking the device feature: the
+  // registration flow, the admin screen and the capability grants all stay
+  // intact and reviewable, and re-enabling is restoring one line.
+  //
+  // `adoptDeviceOnLogin` in app/api/auth/session/route.ts is deliberately left
+  // running. It still enrols a device row at sign-in and already fails open on
+  // a database error, so device history keeps accruing for when the gate comes
+  // back — it simply no longer decides whether anybody may use the app.
+  //
+  // BEFORE RE-ENABLING: make sure every active employee holds an approved
+  // device of the kind they sign in from, or the same lockout returns.
+  void real;
+  // await enforceWmsDeviceAccess(real);
   return e;
 }
 

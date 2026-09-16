@@ -142,7 +142,7 @@ export function SalaryProfileImportDialog() {
               )}
 
               {changed.length > 0 ? (
-                <div className="mt-4 overflow-x-auto">
+                <div className="table-scroll mt-4 overflow-x-auto">
                   <table className="w-full text-[13px]">
                     <thead>
                       <tr className="text-left text-[#64748B] border-b border-[#E2E8F0]">

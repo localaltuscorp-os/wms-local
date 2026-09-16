@@ -442,7 +442,7 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
 
   {
     key: "productivity",
-    label: "Team Productivity",
+    label: "Performance",
     children: [
       { key: "productivity.mine", label: "My Productivity", routes: ["/productivity"] },
       {
@@ -490,6 +490,27 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "training.feedback", label: "Feedback", routes: ["/training/feedback"] },
       { key: "training.dashboard", label: "Training Dashboard", routes: ["/training/dashboard"] },
       { key: "training.new", label: "New Training", routes: ["/training/new"] },
+    ],
+  },
+
+  /*
+   * OPERATIONS — the room that now holds Monthly Events Master and Hand-holding
+   * (2026-09-11), plus Checklist and Guidelines.
+   *
+   * It claims ONLY its own three routes. The two absorbed modules keep their own
+   * top-level nodes directly below rather than being re-parented under this one,
+   * and that is deliberate: permission keys are persisted grants, so moving
+   * `events.calendar` to `operations.events.calendar` would silently revoke
+   * every grant already written against the old key. The room moved in the UI;
+   * the permission tree did not have to move with it.
+   */
+  {
+    key: "operations",
+    label: "Operations",
+    children: [
+      { key: "operations.home", label: "Operations Home", routes: ["/operations"] },
+      { key: "operations.checklist", label: "Checklist", routes: ["/operations/checklist"] },
+      { key: "operations.guidelines", label: "Guidelines", routes: ["/operations/guidelines"] },
     ],
   },
 

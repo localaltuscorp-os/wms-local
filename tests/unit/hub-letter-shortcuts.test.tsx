@@ -249,14 +249,21 @@ describe("Admin Panel shortcut", () => {
     expect(push).toHaveBeenCalledTimes(1);
   });
 
-  it("does not disturb the module letters that share the row", () => {
-    // D and F are Events and HandHolding since A was vacated. The panel must
-    // not have swallowed them on its way in.
+  it("does not disturb the module letter that shares the row", () => {
+    // D belongs to OPERATIONS, not Events. Events and HandHolding left
+    // MODULE_ORDER on 2026-09-11 — both became areas inside Operations — and
+    // Operations was appended, landing on the eleventh key. A and S stay vacated
+    // so the Admin Panel can hold A; the alphabet is "qwertyuiopdf".
+    //
+    // This test previously asserted D→Events and F→HandHolding. Those modules
+    // are gone from the order, so the assertion outlived the thing it described.
     render(<HubLetterShortcuts allowed={ALLOWED} adminAllowed />);
     key("KeyD");
-    expect(push).toHaveBeenCalledWith(MODULE_THEME["events"].href);
+    expect(push).toHaveBeenCalledWith(MODULE_THEME["operations"].href);
     push.mockReset();
+    // F is the twelfth key and there is no twelfth module, so it must do
+    // nothing — not fall through to some other room.
     key("KeyF");
-    expect(push).toHaveBeenCalledWith(MODULE_THEME["people-allocation"].href);
+    expect(push).not.toHaveBeenCalled();
   });
 });

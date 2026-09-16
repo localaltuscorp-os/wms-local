@@ -125,6 +125,19 @@ export async function POST(req: Request) {
     const res = await setAuthCookies(forwardedHeaders, {
       apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
       cookieName: "__session",
+      // SPLIT ACROSS SEVERAL COOKIES. A Firebase session cookie carries both the
+      // ID token and the refresh token, and Chrome SILENTLY DISCARDS any single
+      // cookie over 4 KB - no error, the Set-Cookie simply does not stick. The
+      // symptom is login appearing to succeed (the mint route returns 200, the
+      // 50-byte att_device cookie lands) and then every page bouncing to
+      // /login?next=... because __session was never stored.
+      //
+      // THIS MUST STAY IDENTICAL IN ALL THREE PLACES that touch the cookie -
+      // setAuthCookies (app/api/auth/session/route.ts), authMiddleware (proxy.ts)
+      // and getTokens (lib/auth/session.ts). They agree on the cookie NAMES, so
+      // changing it in one place alone makes the other two unable to read what it
+      // wrote - which fails exactly like this bug.
+      enableMultipleCookies: true,
       cookieSignatureKeys: [
         process.env.COOKIE_SECRET_CURRENT!,
         process.env.COOKIE_SECRET_PREVIOUS!,
@@ -149,16 +162,29 @@ export async function POST(req: Request) {
     // object a library built is the kind of assumption that works until it quietly
     // does not — and if this cookie is dropped, the next request is "unidentified"
     // and the person is bounced to /device-blocked one redirect after signing in.
+    //
+    // ── APPENDED AS A RAW HEADER, NEVER res.cookies.set() ────────────────────
+    //
+    // THIS IS WHAT BROKE LOGIN ON 2026-09-12. `res.cookies.set()` re-serializes
+    // the response's whole cookie store from Next's own parsed view of it, and
+    // that view does not round-trip the Set-Cookie headers `setAuthCookies`
+    // wrote — so setting the device cookie this way CLOBBERED `__session`
+    // entirely. Sign-in returned 200, the device cookie arrived, the session
+    // cookie did not, and the middleware then bounced every request to
+    // /login?next=… with `cookiePresent: false`.
+    //
+    // The sign-out route already records the identical trap from the other
+    // direction: `res.cookies.set()` there clobbered removeAuthCookies'
+    // __session CLEARING. Same cause, same fix — an additive Set-Cookie header
+    // cannot disturb headers another writer already appended.
     if (deviceCookieId) {
-      res.cookies.set(DEVICE_COOKIE, deviceCookieId, {
-        httpOnly: true,
-        sameSite: "lax",
-        secure:
-          process.env.NODE_ENV === "production" &&
-          process.env.ALLOW_INSECURE_COOKIES !== "true",
-        path: "/",
-        maxAge: DEVICE_COOKIE_MAX_AGE_SECONDS,
-      });
+      const secure =
+        process.env.NODE_ENV === "production" &&
+        process.env.ALLOW_INSECURE_COOKIES !== "true";
+      res.headers.append(
+        "Set-Cookie",
+        `${DEVICE_COOKIE}=${deviceCookieId}; Path=/; Max-Age=${DEVICE_COOKIE_MAX_AGE_SECONDS}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`,
+      );
     }
     return res;
   } catch (err) {

@@ -242,7 +242,7 @@ export function TransferControl({
             // propagation here keeps that handler from ever seeing the click.
             <div
               onMouseDown={(e) => e.stopPropagation()}
-              className="z-[80] max-h-64 w-44 overflow-y-auto rounded-lg border border-hairline-strong bg-surface-card p-1 shadow-[0_12px_30px_rgba(15,23,42,0.18)]"
+              className="slim-scroll z-[80] max-h-64 w-44 overflow-y-auto rounded-lg border border-hairline-strong bg-surface-card p-1 shadow-[0_12px_30px_rgba(15,23,42,0.18)]"
               style={{ position: "fixed", top: pos.top, left: pos.left }}
             >
               {menuItems}
@@ -568,7 +568,7 @@ export function ItemDetailModal({
             <X size={16} />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
+        <div className="slim-scroll min-h-0 flex-1 overflow-auto px-5 py-4">
           <ItemDetailBody item={item} today={today} />
         </div>
         <div className="flex items-center justify-end gap-2 border-t border-hairline px-5 py-3">
@@ -677,7 +677,7 @@ export function PlanItemDetailModal({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
+        <div className="slim-scroll min-h-0 flex-1 overflow-auto px-5 py-4">
           <div className="mb-4">
             <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted/80">Task</div>
             {canEdit && onRename ? (

@@ -42,8 +42,8 @@ import { CriticalBadge } from "@/components/ui/critical-badge";
 import { Avatar } from "@/components/ui/avatar";
 import { SectionIcon } from "@/components/dashboard/section-icon";
 import { PageShell } from "@/components/layout/page-shell";
-import { inTeamView, TEAM_VIEW_LABELS, type TeamView } from "@/lib/teams/app-team";
-import { TeamToggle } from "@/components/dashboard/team-toggle";
+import { inFunctionView, FUNCTION_LABELS, FUNCTION_VIEWS, type FunctionView } from "@/lib/org/functions";
+import { FunctionToggle } from "@/components/dashboard/function-toggle";
 
 /* The two non-department tab keys. Sentinels rather than "" / null so the tab
    list, the active-tab check and the filter all speak one type — and prefixed
@@ -410,12 +410,12 @@ export function StatusTable({
     );
   }, []);
   const [query, setQuery] = React.useState("");
-  /* ONE team at a time, because the control is a segmented tab bar rather than
+  /* ONE function at a time, because the control is a segmented tab bar rather than
      a multi-select. That was a real capability of the dropdown this replaced
      and it is gone deliberately: two controls that can each filter the same
      column are two controls that can disagree, with no way for a reader to
      tell which one the table is obeying. */
-  const [teamView, setTeamView] = React.useState<TeamView>("all");
+  const [functionView, setFunctionView] = React.useState<FunctionView>("all");
   /* The opening batch on the All tab, and the step each "Load More" adds. */
   const BATCH = 10;
 
@@ -453,7 +453,7 @@ export function StatusTable({
      Split out so the tab counts are what each tab will actually render: a bar
      reading "Sales 4" that shows 1 row once you click it, because the search
      box was already narrowing the list, is a bar nobody can trust. Same order
-     the other sections partition in (privacy/search first, team split last). */
+     the other sections partition in (privacy/search first, function split last). */
   const preDeptFiltered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
@@ -467,39 +467,42 @@ export function StatusTable({
     });
   }, [rows, query, sectionQuery, focusColumns]);
 
-  /* THE TEAM TABS — the SAME control, labels and membership rule as Overdue
-     Tasks by Person, the Aging Heatmap and People To Pull Up
-     (components/dashboard/team-toggle.tsx, lib/teams/app-team.ts).
+  /* THE FUNCTION TABS — the SAME control, labels and membership rule as Overdue
+     Tasks by Person and the Aging Heatmap
+     (components/dashboard/function-toggle.tsx, lib/org/functions.ts).
 
-     This replaced a bar of six department buckets — All / Ops / Sales /
-     Marketing / App / Others — that only this section ran. It filtered
-     correctly, but it meant one page asked "which team?" in two incompatible
-     vocabularies, and "App Team" named one set of people here and a different
-     set two sections up. A reader comparing the two bars had no way to know
-     they did not mean the same thing.
+     This replaced the App / Non-App split, which answered "is this a
+     developer?" while the board is read for a different question — how each
+     FUNCTION of the business is doing. "Non-App Team" lumped Sales, HR,
+     Accounts and Operations into one tab, which is exactly the comparison an
+     overdue board exists to support.
 
-     TWO TABS THAT PARTITION THE ROSTER, so the counts always sum to All and
-     there is no third group left for an "Others" tab to hold: `nonApp` is
-     defined as the exact complement of `app` (see inTeamView). Someone in both
-     Apps and HR counts as App under the any-of rule, and someone with no
-     department at all lands in Non-App.
+     THE TABS PARTITION THE ROSTER, so the counts always sum to All: `others`
+     is the exact complement of the eight named functions, and someone with no
+     department at all lands there rather than dropping off the board. Someone
+     in both Apps and HR counts under BOTH, per the any-of rule — so the eight
+     named counts can sum to more than All. That is correct and not a total.
 
-     THE LABELS ARE FIXED; THE COUNTS ARE NOT. All three tabs always render,
-     including one that currently counts zero — a bar whose tabs appear and
-     disappear as you type is a bar you cannot aim at, and an empty tab is
-     legible as a fact about the org rather than as a missing control. */
-  const teamCounts = React.useMemo(
-    () => ({
-      all: preDeptFiltered.length,
-      app: preDeptFiltered.filter((r) => inTeamView(departmentNames(r), "app")).length,
-      nonApp: preDeptFiltered.filter((r) => inTeamView(departmentNames(r), "nonApp")).length,
-    }),
+     THE LABELS ARE FIXED; THE COUNTS ARE NOT. Every tab always renders,
+     including the many that read zero on a small roster — a bar whose tabs
+     appear and disappear as you type is a bar you cannot aim at, and an empty
+     tab is legible as a fact about the org rather than as a missing control. */
+  const functionCounts = React.useMemo(
+    () =>
+      Object.fromEntries(
+        FUNCTION_VIEWS.map((v) => [
+          v,
+          v === "all"
+            ? preDeptFiltered.length
+            : preDeptFiltered.filter((r) => inFunctionView(departmentNames(r), v)).length,
+        ]),
+      ) as Record<FunctionView, number>,
     [preDeptFiltered],
   );
 
   const filtered = React.useMemo(
-    () => preDeptFiltered.filter((r) => inTeamView(departmentNames(r), teamView)),
-    [preDeptFiltered, teamView],
+    () => preDeptFiltered.filter((r) => inFunctionView(departmentNames(r), functionView)),
+    [preDeptFiltered, functionView],
   );
 
   const columns = React.useMemo(
@@ -535,7 +538,7 @@ export function StatusTable({
 
   const hasActiveFilter =
     query.trim().length > 0 ||
-    teamView !== "all" ||
+    functionView !== "all" ||
     sectionQuery.length > 0 ||
     focusColumns !== null;
 
@@ -551,10 +554,10 @@ export function StatusTable({
         { label: "View", value: view === "doer" ? "By doer" : "By initiator" },
         ...(query.trim() ? [{ label: "Search", value: query.trim() }] : []),
         {
-          label: "Team",
-          /* The tab's own label, so the export says "Non-App Team" rather than
-             the key it is stored under. */
-          value: TEAM_VIEW_LABELS[teamView],
+          label: "Function",
+          /* The tab's own label, so the export says "Apps/IT" rather than the
+             key it is stored under. */
+          value: FUNCTION_LABELS[functionView],
         },
         ...(kpiFocus ? [{ label: "Focused on", value: kpiFocus }] : []),
       ],
@@ -568,7 +571,7 @@ export function StatusTable({
         ...STATUS_COLUMNS.map((c) => String(r[c.key] ?? 0)),
       ]),
     };
-  }, [filtered, query, teamView, kpiFocus, view]);
+  }, [filtered, query, functionView, kpiFocus, view]);
 
   /* ── ONE GROWING SLICE, NOT PAGES ────────────────────────────────────────
      Replaces usePagedRows and the header's prev/next pager. Two controls that
@@ -576,7 +579,7 @@ export function StatusTable({
      and a reader has no way to tell which one the table is obeying; a batch
      that only ever grows has no second state to fall out of sync with.
 
-     THE SLICE APPLIES TO THE "All" TAB ONLY. A team tab is already the reader
+     THE SLICE APPLIES TO THE "All" TAB ONLY. A function tab is already the reader
      saying "just this side of the roster" — answering that with a second,
      hidden limit makes "how many people in Sales are carrying this?" a number
      you have to click to finish reading. All is the only view long enough to
@@ -597,7 +600,7 @@ export function StatusTable({
      renders the stale slice and corrects it on the next pass, which is the
      cascading render `react-hooks/set-state-in-effect` flags and, on a tab
      switch, a visible flash of the previous team's rows. */
-  const listKey = `${teamView}|${query.trim()}|${sectionQuery}|${kpiFocus ?? ""}|${sorting
+  const listKey = `${functionView}|${query.trim()}|${sectionQuery}|${kpiFocus ?? ""}|${sorting
     .map((sc) => `${sc.id}:${sc.desc}`)
     .join(",")}`;
   const [seenListKey, setSeenListKey] = React.useState(listKey);
@@ -606,7 +609,7 @@ export function StatusTable({
     setVisibleCount(BATCH);
   }
 
-  const isAllTab = teamView === "all";
+  const isAllTab = functionView === "all";
   const visibleRows = isAllTab ? sortedRows.slice(0, visibleCount) : sortedRows;
   /* `visibleRows.length`, not `visibleCount`: the count is a ceiling that can
      sit above a list the search just shortened, and "Showing 20 of 14" is
@@ -682,7 +685,7 @@ export function StatusTable({
                 // button on the page.
                 onClick={() => {
                   setQuery("");
-                  setTeamView("all");
+                  setFunctionView("all");
                   setKpiFocus(null);
                 }}
                 className={SECTION_CONTROL}
@@ -732,7 +735,7 @@ export function StatusTable({
               type="button"
               onClick={() => {
                 setQuery("");
-                setTeamView("all");
+                setFunctionView("all");
                 setKpiFocus(null);
               }}
               className="bg-surface-card mt-3 text-cta text-altus-red hover:underline"
@@ -748,14 +751,15 @@ export function StatusTable({
              hard against the card edge. */
           className={`${DASHBOARD_CARD} p-6`}
         >
-          {/* THE TEAM TABS — inside the card, above the column headers, and
-              unconditional: three fixed tabs can never collapse to a bar with
-              nothing to choose between, the way the derived department bar
-              this replaced could on a single-department roster. */}
-          <TeamToggle
-            view={teamView}
-            onChange={setTeamView}
-            counts={teamCounts}
+          {/* THE FUNCTION TABS — inside the card, above the column headers,
+              and unconditional: a fixed list of functions can never collapse to
+              a bar with nothing to choose between, the way the derived
+              department bar this replaced could on a single-department
+              roster. */}
+          <FunctionToggle
+            view={functionView}
+            onChange={setFunctionView}
+            counts={functionCounts}
             className="mb-4"
           />
 
@@ -764,7 +768,7 @@ export function StatusTable({
                it — the outer empty state above cannot say this, because it only
                renders when the department filter has not run yet. */
             <p className="py-10 text-center text-body-lg text-ink-subtle">
-              Nobody in {TEAM_VIEW_LABELS[teamView]} matches the current filters.
+              Nobody in {FUNCTION_LABELS[functionView]} matches the current filters.
             </p>
           ) : isTransposed ? (
             /* Transposed reads the SAME filtered set, but not the paged one:
@@ -938,7 +942,7 @@ export function StatusTable({
               card rather than sliding away when the twelve columns scroll
               sideways. Rendered only while there is more to show, so it
               disappears on the last batch instead of sitting there inert — and
-              never appears on a team tab, which shows everyone it matched the
+              never appears on a function tab, which shows everyone it matched the
               moment it is clicked. */}
           {hasMore && (
             <div className="mt-5 flex items-center justify-center gap-3 border-t border-slate-100 pt-4">

@@ -45,6 +45,10 @@ const DEPT = {
   ops: "00000000-0000-4000-8001-000000000001",
   finance: "00000000-0000-4000-8001-000000000002",
   tech: "00000000-0000-4000-8001-000000000003",
+  // Named exactly "HR", not "Human Resources": matchesDepartment() (lib/
+  // workspaces.ts) lowercases the name, splits it on non-letters and looks for
+  // the token "hr", so "Human Resources" → ["human","resources"] does NOT match.
+  hr: "00000000-0000-4000-8001-000000000004",
 } as const;
 
 const DESIG = {
@@ -143,6 +147,7 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
     [DEPT.ops, "Operations"],
     [DEPT.finance, "Finance"],
     [DEPT.tech, "Technology"],
+    [DEPT.hr, "HR"],
   ] as const) {
     await pg.query(`insert into departments (id, name) values ($1,$2) on conflict do nothing`, [id, name]);
   }
@@ -163,6 +168,47 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
       [id, name, email, role, admin, dept, desig],
     );
   }
+  // THE DUMMY ADMIN IS HR STAFF — seeded, not hand-tweaked.
+  //
+  // Without this, every /hr/* sub-page silently bounces back to /hr and the
+  // console looks broken: you pick "Selection Letter" and land on the module's
+  // "choose a step" placeholder, with the URL never leaving /hr. The cause is
+  // requireHrStaff() (lib/hr/access.ts), which admits super-admins and members
+  // of the "HR" department ONLY — `is_admin` explicitly does NOT count, and the
+  // seeded admin was in Technology.
+  //
+  // This used to be a manual UPDATE somebody ran against .pglite by hand, so it
+  // vanished on every `pnpm dummy:setup --reset` and the redirect loop came
+  // back looking like a fresh bug. Seeding it makes a reset reproduce a working
+  // sandbox instead.
+  //
+  // BOTH sources isHrStaff() reads are set, because they are different places:
+  // the `department` TEXT column on the employee row, and membership in the
+  // structured `employee_departments` join table (employeeDepartmentNames()
+  // reads only the latter). `department_id` alone feeds NEITHER.
+  // Resolve the HR department BY NAME rather than trusting DEPT.hr: the
+  // migrations may already ship an "HR" row with an id of their own, in which
+  // case the seed's `on conflict do nothing` insert above is skipped and
+  // DEPT.hr never exists — pointing employees.department_id at it then fails
+  // the employees_department_id_fkey constraint.
+  const hrDept = await pg.query<{ id: string }>(
+    `select id from departments where lower(name) = 'hr' limit 1`,
+  );
+  const hrDeptId = hrDept.rows[0]?.id ?? null;
+
+  // The TEXT column is set unconditionally — it is on its own sufficient for
+  // isHrStaff(), so the sandbox still works even if no departments row exists.
+  await pg.query(`update employees set department = 'HR' where id = $1`, [EMP.me]);
+
+  if (hrDeptId) {
+    await pg.query(`update employees set department_id = $1 where id = $2`, [hrDeptId, EMP.me]);
+    await pg.query(
+      `insert into employee_departments (employee_id, department_id) values ($1,$2)
+       on conflict do nothing`,
+      [EMP.me, hrDeptId],
+    );
+  }
+
   await bump("employees");
 
   for (const name of CLIENTS) {

@@ -218,7 +218,7 @@ export function SectionDispatch({ report }: { report: () => SectionReport }) {
             />
           </div>
 
-          <div className="max-h-[260px] overflow-y-auto">
+          <div className="slim-scroll max-h-[260px] overflow-y-auto">
             {loadError && (
               <p className="px-2 py-6 text-center text-xs font-semibold text-slate-500">
                 {loadError}

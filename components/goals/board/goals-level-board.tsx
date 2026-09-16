@@ -1951,7 +1951,7 @@ export function MultiPickFilter({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[220px] p-1.5">
-        <div className="max-h-[280px] overflow-auto">
+        <div className="slim-scroll max-h-[280px] overflow-auto">
           {options.length === 0 && (
             <p className="px-2 py-2 text-[12.5px] text-ink-subtle">No {label.toLowerCase()} yet.</p>
           )}

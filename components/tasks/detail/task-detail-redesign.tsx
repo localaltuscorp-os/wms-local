@@ -654,7 +654,7 @@ function SessionHistory({
       {rows.length === 0 ? (
         <p className="px-4 py-6 text-center text-[13px] text-ink-muted">No sessions yet.</p>
       ) : (
-        <div className="max-h-[280px] overflow-y-auto">
+        <div className="table-scroll max-h-[280px] overflow-y-auto">
           <table className="min-w-full border-collapse">
             <thead className="sticky top-0 bg-slate-50">
               <tr>

@@ -274,7 +274,7 @@ export function TaskImport({
 
           {/* Preview table */}
           <div className="mt-5 rounded-section border border-hairline overflow-hidden">
-            <div className="overflow-auto max-h-[52vh]">
+            <div className="table-scroll overflow-auto max-h-[52vh]">
               <table className="min-w-full text-[13.5px]">
                 <thead className="sticky top-0 z-10" style={{ background: "var(--color-surface-soft)" }}>
                   <tr className="text-left text-ink-subtle">

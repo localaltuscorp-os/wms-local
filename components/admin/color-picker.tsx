@@ -61,7 +61,7 @@ export function ColorPicker({ value, onChange }: Props) {
           align="start"
           sideOffset={8}
           collisionPadding={12}
-          className="z-[100] w-64 rounded-xl border border-[rgba(15,23,42,0.10)] bg-white p-3 shadow-lg max-h-[var(--radix-popover-content-available-height)] overflow-y-auto"
+          className="slim-scroll z-[100] w-64 rounded-xl border border-[rgba(15,23,42,0.10)] bg-white p-3 shadow-lg max-h-[var(--radix-popover-content-available-height)] overflow-y-auto"
         >
           <div className="grid grid-cols-6 gap-2">
             {STATUS_COLOR_TOKENS.map((t) => (

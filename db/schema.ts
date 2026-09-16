@@ -7673,6 +7673,86 @@ export const candidateIntake = pgTable(
 export type CandidateIntake = typeof candidateIntake.$inferSelect;
 
 /**
+ * Candidate ACCESS LINKS (migration 0221) — the HR forms without a login.
+ *
+ * Replaces the SIGN-IN step only, never the identity: a candidate still has a
+ * real `employees` row (account_type 'candidate', linked by candidateIntakeId),
+ * and every downstream write still targets it — `documentSignatures
+ * .signerEmployeeId`, the intake row, the policy compliance rows. Ownership and
+ * audit are unchanged; only the proof-of-identity differs.
+ *
+ * Only the SHA-256 of the token is stored, so this table leaking lets nobody in
+ * — the same shape as `delegatedAccessGrants`, for the same reason. See
+ * lib/hr/candidate/access-link.ts.
+ */
+export const candidateAccessLinks = pgTable(
+  "candidate_access_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The one intake row this link opens. Dies with it. */
+    intakeId: uuid("intake_id")
+      .notNull()
+      .references(() => candidateIntake.id, { onDelete: "cascade" }),
+    /** SHA-256 of the token, hex. The plaintext is never stored or logged. */
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    /** Set instead of deleting, so a revoked link stays auditable. */
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /** Throttled — tells HR whether the candidate ever actually opened it. */
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    /** SET NULL, not CASCADE: an HR person leaving must not delete their links. */
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    /**
+     * What this link was issued FOR (0222) — 'form' (the interview form) or
+     * 'policies' (the acknowledgements). A LANDING decision only: both surfaces
+     * belong to the same candidate and the token proves identity for both.
+     */
+    purpose: text("purpose").notNull().default("form").$type<CandidateLinkPurpose>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("candidate_access_links_intake_idx").on(t.intakeId, t.createdAt)],
+);
+export type CandidateAccessLink = typeof candidateAccessLinks.$inferSelect;
+
+/** Where `/c/<token>` puts the candidate down (0222). */
+export type CandidateLinkPurpose = "form" | "policies";
+
+/**
+ * A candidate's typed acceptance of one policy (0222).
+ *
+ * Deliberately NOT `document_signatures`: that table holds DigiLocker-verified,
+ * Aadhaar-backed signatures with an archived signed PDF. A candidate has no
+ * account and no DigiLocker session, so their acceptance is a different — and
+ * weaker — kind of evidence, and it is recorded somewhere that says so rather
+ * than sitting alongside verified signatures where the two could be confused.
+ */
+export const candidatePolicySignatures = pgTable(
+  "candidate_policy_signatures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    intakeId: uuid("intake_id")
+      .notNull()
+      .references(() => candidateIntake.id, { onDelete: "cascade" }),
+    /** The candidate's own employees row — the subject every other write targets. */
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    policyKey: text("policy_key").notNull(),
+    /** The published version that was on screen when they accepted. */
+    version: integer("version").notNull().default(1),
+    /** What they typed, verbatim. */
+    signedName: text("signed_name").notNull(),
+    signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("candidate_policy_signature_uq").on(t.intakeId, t.policyKey),
+    index("candidate_policy_signatures_intake_idx").on(t.intakeId),
+  ],
+);
+export type CandidatePolicySignature = typeof candidatePolicySignatures.$inferSelect;
+
+/**
  * Per-designation weight profiles for Candidate Evaluation v2. One row per
  * designation (Intern → Sr VP) plus a `default` pseudo-row that seeds the base
  * profile. `weights` = { [sectionId]: number } (relative macro weights).
@@ -8417,3 +8497,409 @@ export const employeeManagerHistory = pgTable(
 
 export type EmployeeManagerHistory = typeof employeeManagerHistory.$inferSelect;
 export type NewEmployeeManagerHistory = typeof employeeManagerHistory.$inferInsert;
+
+/* ── Operations · Event Checklist (migration 0221) ───────────────────────────
+ * Dates are driven by an OFFSET from the event, and that one decision shapes
+ * everything: an offset means nothing without an event date, so "is this an
+ * event checklist?" belongs to the CHECKLIST, not to each row.
+ *
+ * Two levels. A TEMPLATE is a reusable named list — offsets, no event, no
+ * dates. A RUN is one template applied to one event on one date, and it is the
+ * run that carries the ticks. That split is what makes "duplicate onto the next
+ * conference" a row copy instead of an hour of re-typing.
+ */
+
+/** A reusable master checklist. Offsets only — no event, no dates. */
+export const opsChecklistTemplates = pgTable(
+  "ops_checklist_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull().unique(),
+    /** true → offsets + an event anchor. false → a standing operational list. */
+    isEvent: boolean("is_event").notNull().default(true),
+    description: text("description"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ops_checklist_templates_active_idx").on(t.isActive, t.name)],
+);
+export type OpsChecklistTemplate = typeof opsChecklistTemplates.$inferSelect;
+export type NewOpsChecklistTemplate = typeof opsChecklistTemplates.$inferInsert;
+
+/**
+ * One checklist, for one event.
+ *
+ * `eventDate` is COPIED from calendar_events, not joined. Joining would look
+ * tidier and would mean that moving an event silently rewrote every target date
+ * and every variance figure on checklists people had already worked against —
+ * closed ones included. The run owns its date; the UI offers "the event moved —
+ * recalculate?" as a decision rather than a side effect.
+ */
+export const opsChecklistRuns = pgTable(
+  "ops_checklist_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    templateId: uuid("template_id").references((): AnyPgColumn => opsChecklistTemplates.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull(),
+    isEvent: boolean("is_event").notNull().default(true),
+    /** SET NULL, not CASCADE: deleting an event must not delete the work record. */
+    eventId: uuid("event_id").references(() => calendarEvents.id, { onDelete: "set null" }),
+    eventDate: date("event_date"),
+    status: text("status").notNull().default("active"),
+    notes: text("notes"),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ops_checklist_runs_event_idx").on(t.eventId),
+    index("ops_checklist_runs_status_date_idx").on(t.status, t.eventDate),
+  ],
+);
+export type OpsChecklistRun = typeof opsChecklistRuns.$inferSelect;
+export type NewOpsChecklistRun = typeof opsChecklistRuns.$inferInsert;
+
+/**
+ * The rows of the grid. Belongs to EXACTLY ONE of a template or a run —
+ * the template's items are the pattern, the run's are the worked copy.
+ *
+ * `offsetDays` NULL is not the same as 0: an imported row nobody has scheduled
+ * yet sorts into its own Undated group rather than silently claiming event day.
+ */
+export const opsChecklistItems = pgTable(
+  "ops_checklist_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    templateId: uuid("template_id").references((): AnyPgColumn => opsChecklistTemplates.id, {
+      onDelete: "cascade",
+    }),
+    runId: uuid("run_id").references((): AnyPgColumn => opsChecklistRuns.id, {
+      onDelete: "cascade",
+    }),
+    code: text("code"),
+    /** The Activity column. */
+    title: text("title").notNull(),
+    category: text("category"),
+    /** Days relative to the event. -3 = three days before, 0 = event day. */
+    offsetDays: integer("offset_days"),
+    /** Non-event runs only — the date typed directly, since there is no anchor. */
+    targetDate: date("target_date"),
+    doerId: uuid("doer_id").references(() => employees.id, { onDelete: "set null" }),
+    backupId: uuid("backup_id").references(() => employees.id, { onDelete: "set null" }),
+    instructions: text("instructions"),
+    fileLink: text("file_link"),
+    /** Provenance for a row pulled from the JD Bank. FK added when 0222 lands. */
+    jdEntryId: uuid("jd_entry_id"),
+    sortOrder: integer("sort_order").notNull().default(100),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ops_checklist_items_template_idx").on(t.templateId, t.sortOrder),
+    index("ops_checklist_items_run_idx").on(t.runId, t.offsetDays, t.sortOrder),
+    index("ops_checklist_items_doer_idx").on(t.doerId),
+  ],
+);
+export type OpsChecklistItem = typeof opsChecklistItems.$inferSelect;
+export type NewOpsChecklistItem = typeof opsChecklistItems.$inferInsert;
+
+/**
+ * One tick per item per run.
+ *
+ * Four states rather than a boolean, matching the Accounts weekly checklist
+ * (0080): "Not Applicable" is what stops people ticking Done on work that never
+ * needed doing. `doneAt` is the Actual Date; variance derives from it and the
+ * target and is never stored, since a third copy could disagree with both.
+ */
+export const opsChecklistChecks = pgTable(
+  "ops_checklist_checks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id")
+      .notNull()
+      .references((): AnyPgColumn => opsChecklistRuns.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id")
+      .notNull()
+      .references((): AnyPgColumn => opsChecklistItems.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("Pending"),
+    notes: text("notes"),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ops_checklist_checks_uq").on(t.runId, t.itemId),
+    index("ops_checklist_checks_run_idx").on(t.runId),
+  ],
+);
+export type OpsChecklistCheck = typeof opsChecklistChecks.$inferSelect;
+export type NewOpsChecklistCheck = typeof opsChecklistChecks.$inferInsert;
+
+/* ── HR · Job Description (migration 0222) ───────────────────────────────────
+ * A Job Description belongs to a POSITION, never to a person. People come and
+ * go; the tea still needs making. The Bank is keyed on a seat, assignment to a
+ * human is a separate join, and a vacant seat escalates up the ladder rather
+ * than losing its work.
+ */
+
+/**
+ * The rank ladder. `rankOrder` IS BEHAVIOUR — the vacancy resolver walks it
+ * upward, so changing a number reroutes live work. Unique, and seeded in steps
+ * of ten so a rank can be inserted later without renumbering its neighbours.
+ *
+ * NOT to be confused with `pgDesignations` (Prospect Generation — a sales
+ * prospect's job title) or `designations` (the payroll-facing title).
+ */
+export const jdRanks = pgTable("jd_ranks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  rankOrder: integer("rank_order").notNull().unique(),
+  band: text("band"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type JdRank = typeof jdRanks.$inferSelect;
+export type NewJdRank = typeof jdRanks.$inferInsert;
+
+/** A seat: function × rank, plus an optional variant for genuine exceptions. */
+export const jdPositions = pgTable(
+  "jd_positions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** A STABLE key from lib/org/functions.ts, never the display label. */
+    functionKey: text("function_key").notNull(),
+    rankId: uuid("rank_id")
+      .notNull()
+      .references(() => jdRanks.id, { onDelete: "restrict" }),
+    variant: text("variant"),
+    title: text("title").notNull(),
+    departmentId: uuid("department_id").references(() => departments.id, { onDelete: "set null" }),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // jd_positions_uq is an EXPRESSION unique index on
+    //   (function_key, rank_id, COALESCE(variant, ''))
+    // managed in the migration — a plain UNIQUE over a nullable `variant` would
+    // let unlimited duplicate NULL rows through. Not declarable here.
+    index("jd_positions_active_idx").on(t.isActive, t.functionKey),
+  ],
+);
+export type JdPosition = typeof jdPositions.$inferSelect;
+export type NewJdPosition = typeof jdPositions.$inferInsert;
+
+/**
+ * The JD Bank — one row per recurring task, owned by a position.
+ *
+ * `serialNo` is defaulted by a Postgres SEQUENCE, not by application code: two
+ * people saving at once would collide on a max()+1 read. Gaps are expected — a
+ * serial identifies a JD, it does not count them.
+ */
+export const jdEntries = pgTable(
+  "jd_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Defaulted by a Postgres SEQUENCE (see the migration). Declared here so
+    // Drizzle treats it as optional on insert — application code must never
+    // compute it, because two concurrent saves would collide on a max()+1 read.
+    serialNo: text("serial_no")
+      .notNull()
+      .unique()
+      .default(sql`'JD-' || lpad(nextval('jd_entries_serial_seq')::text, 4, '0')`),
+    positionId: uuid("position_id")
+      .notNull()
+      .references(() => jdPositions.id, { onDelete: "restrict" }),
+    /** Denormalised from the position so the Bank filters without a join. */
+    functionKey: text("function_key").notNull(),
+    task: text("task").notNull(),
+    notesHtml: text("notes_html"),
+    /** Structured, never a label string. Shape in lib/jd/recurrence.ts. */
+    recurrence: jsonb("recurrence").notNull().default({ kind: "daily" }),
+    estimatedMinutes: integer("estimated_minutes").notNull().default(15),
+    videoUrl: text("video_url"),
+    guidelinesUrl: text("guidelines_url"),
+    templateUrl: text("template_url"),
+    pushDcc: boolean("push_dcc").notNull().default(false),
+    pushWms: boolean("push_wms").notNull().default(false),
+    pushEvent: boolean("push_event").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("jd_entries_position_idx").on(t.positionId, t.isActive),
+    index("jd_entries_function_idx").on(t.functionKey, t.isActive),
+  ],
+);
+export type JdEntry = typeof jdEntries.$inferSelect;
+export type NewJdEntry = typeof jdEntries.$inferInsert;
+
+/**
+ * WHO OCCUPIES WHICH SEAT.
+ *
+ * A JOIN TABLE, and NOT a column on `employees` — that distinction is the whole
+ * reason this exists. Adding `jd_position_id` to `employees` makes every bare
+ * `.select()` on that table (there are hundreds, including the sign-in lookup)
+ * request a column that does not exist until 0222 has been applied by hand in
+ * Supabase. The symptom is not a broken JD page: it is nobody being able to log
+ * in, presenting as "Email or password didn't match" — the exact outage this
+ * project had on 9 September.
+ *
+ * A separate table is only read by code that already requires 0222, so the
+ * window between deploy and migration costs nothing. It also leaves room for
+ * seat history later, which a scalar column never had.
+ */
+export const jdPositionHolders = pgTable(
+  "jd_position_holders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    positionId: uuid("position_id")
+      .notNull()
+      .references(() => jdPositions.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // jd_position_holders_active_uq — partial unique on (employee_id) WHERE
+    // is_active, declared in the migration: one live seat per person.
+    index("jd_position_holders_position_idx").on(t.positionId, t.isActive),
+  ],
+);
+export type JdPositionHolder = typeof jdPositionHolders.$inferSelect;
+export type NewJdPositionHolder = typeof jdPositionHolders.$inferInsert;
+
+/** SOP files. Same shape as module_submission_attachments (0216). */
+export const jdAttachments = pgTable(
+  "jd_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jdId: uuid("jd_id")
+      .notNull()
+      .references(() => jdEntries.id, { onDelete: "cascade" }),
+    /** video | guidelines | template — the three render as separate groups. */
+    kind: text("kind").notNull(),
+    storagePath: text("storage_path").notNull(),
+    fileName: text("file_name").notNull(),
+    mime: text("mime"),
+    sizeBytes: integer("size_bytes"),
+    uploadedById: uuid("uploaded_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("jd_attachments_jd_idx").on(t.jdId, t.createdAt)],
+);
+export type JdAttachment = typeof jdAttachments.$inferSelect;
+export type NewJdAttachment = typeof jdAttachments.$inferInsert;
+
+/** Which people hold which JD. `source` decides whether a holder change revokes it. */
+export const jdAssignments = pgTable(
+  "jd_assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jdId: uuid("jd_id")
+      .notNull()
+      .references(() => jdEntries.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    source: text("source").notNull().default("position"),
+    assignedById: uuid("assigned_by_id").references(() => employees.id, { onDelete: "set null" }),
+    effectiveFrom: date("effective_from").notNull().default(sql`CURRENT_DATE`),
+    effectiveTo: date("effective_to"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // jd_assignments_active_uq is a PARTIAL unique index on (jd_id, employee_id)
+    // WHERE is_active — managed in the migration so a revoked assignment can sit
+    // alongside a fresh one without deleting the history.
+    index("jd_assignments_employee_idx").on(t.employeeId, t.isActive),
+  ],
+);
+export type JdAssignment = typeof jdAssignments.$inferSelect;
+export type NewJdAssignment = typeof jdAssignments.$inferInsert;
+
+/** Leave handover. Outranks every other routing rule — it is a dated human decision. */
+export const jdDelegations = pgTable(
+  "jd_delegations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jdId: uuid("jd_id")
+      .notNull()
+      .references(() => jdEntries.id, { onDelete: "cascade" }),
+    fromEmployeeId: uuid("from_employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    toEmployeeId: uuid("to_employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** Nullable — a same-day absence has no approved leave row to point at. */
+    leaveRequestId: uuid("leave_request_id").references(() => leaveRequests.id, {
+      onDelete: "set null",
+    }),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    status: text("status").notNull().default("active"),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("jd_delegations_to_idx").on(t.toEmployeeId, t.status, t.startDate),
+    index("jd_delegations_from_idx").on(t.fromEmployeeId, t.status, t.startDate),
+  ],
+);
+export type JdDelegation = typeof jdDelegations.$inferSelect;
+export type NewJdDelegation = typeof jdDelegations.$inferInsert;
+
+/**
+ * Idempotency for the auto-push. Without it the nightly job re-writes every
+ * task it has already written. The push inserts ON CONFLICT DO NOTHING and
+ * reads a zero row count as "already pushed", which makes it safe to re-run and
+ * safe to run twice at once — both of which will happen.
+ */
+export const jdPushLog = pgTable(
+  "jd_push_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jdId: uuid("jd_id")
+      .notNull()
+      .references(() => jdEntries.id, { onDelete: "cascade" }),
+    target: text("target").notNull(), // dcc | wms | event
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** '2026-09-11' daily, '2026-09' monthly, or the event id. */
+    periodKey: text("period_key").notNull(),
+    externalId: uuid("external_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // jd_push_log_uq — unique on (jd_id, target, employee_id, period_key),
+    // declared in the migration.
+    index("jd_push_log_jd_idx").on(t.jdId, t.target),
+  ],
+);
+export type JdPushLog = typeof jdPushLog.$inferSelect;
+export type NewJdPushLog = typeof jdPushLog.$inferInsert;

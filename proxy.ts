@@ -5,6 +5,14 @@ import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 
 const PUBLIC_PATHS = [
   "/ctest",
+  // Candidate no-login forms (migration 0221). `/c/<token>` lets someone who is
+  // not an employee yet fill in their own details and sign the policies without
+  // creating an account on os.altuscorp.in, and `/c/resume` mails them a fresh
+  // link. Public HERE only in the sense that the cookie middleware must not
+  // bounce them to /login — the pages themselves are NOT unguarded: every one of
+  // them resolves the token through resolveAccessLink() and renders nothing
+  // without a live, unrevoked, unexpired link. See lib/hr/candidate/access-link.ts.
+  "/c",
   "/login",
   "/forgot-password",
   "/set-password",
@@ -60,15 +68,29 @@ function isPublic(pathname: string): boolean {
  */
 function redirectClearingSession(url: URL): NextResponse {
   const res = NextResponse.redirect(url);
-  res.cookies.set("__session", "", {
-    path: "/",
-    maxAge: 0,
-    httpOnly: true,
-    sameSite: "lax",
-    secure:
-      process.env.NODE_ENV === "production" &&
-      process.env.ALLOW_INSECURE_COOKIES !== "true",
-  });
+  // EVERY name the session can occupy. With `enableMultipleCookies: true` the
+  // session is split into `__session.id` / `.refresh` / `.custom` / `.sig`;
+  // the bare `__session` is kept in the list so a cookie minted BEFORE that
+  // change is still cleared, rather than lingering as an undecodable cookie
+  // that keeps this redirect firing forever — the exact loop this function
+  // exists to break.
+  for (const name of [
+    "__session",
+    "__session.id",
+    "__session.refresh",
+    "__session.custom",
+    "__session.sig",
+  ]) {
+    res.cookies.set(name, "", {
+      path: "/",
+      maxAge: 0,
+      httpOnly: true,
+      sameSite: "lax",
+      secure:
+        process.env.NODE_ENV === "production" &&
+        process.env.ALLOW_INSECURE_COOKIES !== "true",
+    });
+  }
   return res;
 }
 
@@ -189,6 +211,19 @@ export async function proxy(request: NextRequest) {
     logoutPath: "/api/auth/signout",
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
     cookieName: "__session",
+    // SPLIT ACROSS SEVERAL COOKIES. A Firebase session cookie carries both the
+    // ID token and the refresh token, and Chrome SILENTLY DISCARDS any single
+    // cookie over 4 KB - no error, the Set-Cookie simply does not stick. The
+    // symptom is login appearing to succeed (the mint route returns 200, the
+    // 50-byte att_device cookie lands) and then every page bouncing to
+    // /login?next=... because __session was never stored.
+    //
+    // THIS MUST STAY IDENTICAL IN ALL THREE PLACES that touch the cookie -
+    // setAuthCookies (app/api/auth/session/route.ts), authMiddleware (proxy.ts)
+    // and getTokens (lib/auth/session.ts). They agree on the cookie NAMES, so
+    // changing it in one place alone makes the other two unable to read what it
+    // wrote - which fails exactly like this bug.
+    enableMultipleCookies: true,
     cookieSignatureKeys: [
       process.env.COOKIE_SECRET_CURRENT!,
       process.env.COOKIE_SECRET_PREVIOUS!,
@@ -232,6 +267,42 @@ export async function proxy(request: NextRequest) {
       return NextResponse.next({ request: { headers } });
     },
     handleInvalidToken: async () => {
+      // ── WHY THIS LOGS AT ALL ─────────────────────────────────────────────
+      //
+      // This branch is the one place that produces `/login?next=<path>`, and it
+      // used to be SILENT — which is what made the 2026-09-12 login loop cost a
+      // day. Sign-in returned 200, the cookie was minted, and then every page
+      // bounced here with nothing in the logs to say whether the cookie had
+      // arrived and failed to verify, or had never reached the browser at all.
+      // Those two have completely different causes and the redirect looks
+      // identical for both.
+      //
+      // So: log the FACTS that separate them, permanently. This is not
+      // temporary instrumentation — being unable to tell "signed out" from
+      // "misconfigured" is the actual defect.
+      //
+      //   cookiePresent false → the browser never stored it: Secure over plain
+      //                         http, over the 4 KB cap, wrong host scope, or a
+      //                         proxy stripping Set-Cookie
+      //   cookiePresent true  → it is there and will not verify: mismatched
+      //                         COOKIE_SECRET_*, clock skew, or a Firebase
+      //                         project mismatch
+      //
+      // NEVER log the cookie VALUE — it is a live session credential. Length
+      // and presence are enough to choose a branch.
+      const rawSingle = request.cookies.get("__session")?.value;
+      const rawSplit = ["id", "refresh", "custom", "sig"]
+        .map((p) => request.cookies.get(`__session.${p}`)?.value)
+        .filter(Boolean);
+      console.error("[auth] invalid session, redirecting to /login", {
+        path: request.nextUrl.pathname,
+        cookiePresent: Boolean(rawSingle) || rawSplit.length > 0,
+        singleCookieLength: rawSingle?.length ?? 0,
+        splitCookieCount: rawSplit.length,
+        splitCookieTotalLength: rawSplit.reduce((n, v) => n + (v?.length ?? 0), 0),
+        proto: request.headers.get("x-forwarded-proto"),
+        host: request.headers.get("host"),
+      });
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("next", request.nextUrl.pathname);

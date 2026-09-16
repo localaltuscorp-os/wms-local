@@ -203,7 +203,7 @@ export function GoalEditDialog({
     >
       <form
         onSubmit={submit}
-        className="wg-modal-in max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-section border border-hairline bg-surface-card p-6 shadow-xl"
+        className="slim-scroll wg-modal-in max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-section border border-hairline bg-surface-card p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">

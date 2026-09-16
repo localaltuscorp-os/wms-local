@@ -1765,7 +1765,7 @@ function SourceRail({
         </div>
       ) : null}
 
-      <div className="flex max-h-[calc(100vh-260px)] min-h-[180px] flex-col gap-1.5 overflow-y-auto pr-0.5 max-lg:max-h-[420px]">
+      <div className="slim-scroll flex max-h-[calc(100vh-260px)] min-h-[180px] flex-col gap-1.5 overflow-y-auto pr-0.5 max-lg:max-h-[420px]">
         {shown.length === 0 ? (
           <p className="rounded-xl border border-hairline-strong px-3 py-6 text-center text-[12px] text-ink-muted/75">
             {empty}

@@ -596,8 +596,8 @@ export function TeamPerformanceBoard({
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-hairline bg-surface-card">
-          <table className="w-full border-collapse text-left">
+        <div className="table-scroll overflow-x-auto rounded-xl border border-hairline bg-surface-card">
+          <table className="w-full min-w-[680px] border-collapse text-left">
             <thead>
               <tr className="border-b border-hairline">
                 <Th className="pl-4">Employee</Th>

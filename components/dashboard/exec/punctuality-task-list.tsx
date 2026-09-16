@@ -233,7 +233,7 @@ export function PunctualityTaskList({
               every "Load more" press grew the card and shoved the widgets below
               it down the page. The explicit max-h is what makes the cap real, so
               appending rows fills the scroller instead of the layout. */}
-          <div className="min-h-0 max-h-[360px] flex-1 overflow-y-auto overscroll-contain">
+          <div className="table-scroll min-h-0 max-h-[360px] flex-1 overflow-y-auto overscroll-contain">
             <table className="min-w-full border-collapse">
               <thead className="sticky top-0 z-10 bg-gray-50">
                 {/* Header type is set on the ROW, so the three cells and their

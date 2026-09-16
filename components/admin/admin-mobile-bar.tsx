@@ -156,7 +156,7 @@ export function AdminMobileBar({ adminName, adminEmail, backHref, canSeeAccounts
             </div>
 
             <div
-              className="flex-1 overflow-y-auto p-3 flex flex-col gap-1"
+              className="slim-scroll flex-1 overflow-y-auto p-3 flex flex-col gap-1"
               onPointerDown={(e) => {
                 const target = e.target as HTMLElement;
                 if (target.closest("a")) setOpen(false);

@@ -450,7 +450,7 @@ function GrantsCard({ grants }: { grants: GrantView[] }) {
       {grants.length === 0 ? (
         <p className="text-[14px] text-[#94A3B8]">No temporary access has been granted yet.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="table-scroll overflow-x-auto">
           <table className="w-full min-w-[820px] border-collapse text-[13px]">
             <thead>
               <tr className="text-left text-[11.5px] font-semibold uppercase tracking-wide text-[#94A3B8]">

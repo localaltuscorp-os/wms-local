@@ -1162,7 +1162,7 @@ export function TaskTable({
         // stays put while rows move under it.
         // `overscroll-x-contain` stops a sideways fling from also triggering the
         // browser's back-navigation gesture.
-        className={`overflow-x-auto overflow-y-auto overscroll-x-contain ${pageSize > 10 ? "max-h-[600px]" : ""}`}
+        className={`table-scroll overflow-x-auto overflow-y-auto overscroll-x-contain ${pageSize > 10 ? "max-h-[600px]" : ""}`}
       >
       <table className="min-w-full">
         <thead>

@@ -410,7 +410,7 @@ function HistoryDialog({
       onClick={onClose}
     >
       <div
-        className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white p-5"
+        className="slim-scroll max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="font-serif text-xl text-[#0F172A]">{person.name}</h3>

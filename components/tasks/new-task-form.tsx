@@ -1049,7 +1049,7 @@ function DoerMultiSelect({
             ref={listRef}
             role="listbox"
             aria-multiselectable
-            className="max-h-[240px] overflow-y-auto overscroll-contain py-1"
+            className="slim-scroll max-h-[240px] overflow-y-auto overscroll-contain py-1"
           >
           {employees.length === 0 ? (
             <li

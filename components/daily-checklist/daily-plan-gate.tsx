@@ -192,7 +192,7 @@ export function DailyPlanGate({ greetingName, today, items: pItems, overdue: pOv
               <p className="mt-0.5 text-[13px] text-ink-subtle">Type your first task below, or tap one from your tasks.</p>
             </div>
           ) : (
-            <ul className="flex max-h-[260px] flex-col gap-2 overflow-y-auto pr-1">
+            <ul className="slim-scroll flex max-h-[260px] flex-col gap-2 overflow-y-auto pr-1">
               {committed.map((it) => (
                 <li key={it.id} className="flex items-center gap-3 rounded-xl bg-surface-soft px-3.5 py-2.5" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}>
                   <span className="inline-grid size-6 shrink-0 place-items-center rounded-full text-white" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DEEP})` }}><Check size={13} strokeWidth={3} /></span>
@@ -248,7 +248,7 @@ export function DailyPlanGate({ greetingName, today, items: pItems, overdue: pOv
             )}
 
             {pool.length > 0 && (
-              <ul className="flex max-h-[240px] flex-col gap-2 overflow-y-auto pr-1">
+              <ul className="slim-scroll flex max-h-[240px] flex-col gap-2 overflow-y-auto pr-1">
                 {pool.map((t) => (
                   <li key={t.id} className="flex items-center gap-3 rounded-xl bg-surface-soft px-3.5 py-2.5" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}>
                     <div className="min-w-0 flex-1">

@@ -229,7 +229,7 @@ export function BulkActionBar({
             <ChevronDown size={13} className="opacity-60" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+        <DropdownMenuContent align="start" className="slim-scroll max-h-72 overflow-y-auto">
           <DropdownMenuLabel>Set doer status to…</DropdownMenuLabel>
           {statuses.map((s) => (
             <DropdownMenuItem
@@ -275,7 +275,7 @@ export function BulkActionBar({
             <ChevronDown size={13} className="opacity-60" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+        <DropdownMenuContent align="start" className="slim-scroll max-h-72 overflow-y-auto">
           <DropdownMenuLabel>Reassign doer to…</DropdownMenuLabel>
           {employees.map((e) => (
             <DropdownMenuItem
@@ -298,7 +298,7 @@ export function BulkActionBar({
               <ChevronDown size={13} className="opacity-60" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+          <DropdownMenuContent align="start" className="slim-scroll max-h-72 overflow-y-auto">
             <DropdownMenuLabel>Set subject to…</DropdownMenuLabel>
             {subjects.map((s) => (
               <DropdownMenuItem
@@ -322,7 +322,7 @@ export function BulkActionBar({
               <ChevronDown size={13} className="opacity-60" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+          <DropdownMenuContent align="start" className="slim-scroll max-h-72 overflow-y-auto">
             <DropdownMenuLabel>Set client to…</DropdownMenuLabel>
             {clients.map((c) => (
               <DropdownMenuItem
