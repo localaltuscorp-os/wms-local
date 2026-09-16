@@ -13,6 +13,7 @@ import {
   Tag,
   Package,
   Landmark,
+  ReceiptIndianRupee,
   CreditCard,
   UserCog,
   CalendarDays,
@@ -51,6 +52,11 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
     Icon: UsersRound,
     items: [
       { href: "/admin/employees" as Route, label: "Employees", Icon: Users },
+      // The consolidated employee record (0225). Sits directly under Employees
+      // because it is a second door onto the SAME rows, not a replacement: the
+      // Employees screen keeps the invite, offboarding and previous-employee
+      // flows, and this one is the master view with the workspace and bulk edit.
+      { href: "/admin/employee-master" as Route, label: "Employee Master", Icon: IdCard },
       // The org chart as a Kanban board. Sits directly under Employees because
       // it edits the same relationship the employee editor's Manager field does
       // — one write path (setReportingManager), two doors onto it.
@@ -83,6 +89,7 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
       { href: "/admin/subjects" as Route, label: "Subjects", Icon: Tag },
       { href: "/admin/products" as Route, label: "Products", Icon: Package },
       { href: "/admin/outstanding-payment-modes" as Route, label: "Payment Modes", Icon: CreditCard },
+      { href: "/admin/billing-master" as Route, label: "Billing Master", Icon: ReceiptIndianRupee },
       { href: "/admin/paying-entities" as Route, label: "Paying Entities", Icon: Building2 },
     ],
   },

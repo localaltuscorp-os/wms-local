@@ -7,6 +7,8 @@ import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { IncentiveTabs } from "@/components/incentive/incentive-tabs";
 import { BillingDashboard } from "@/components/incentive/billing-dashboard";
 import { requireUser } from "@/lib/auth/current";
+import { canReviewIncentives } from "@/lib/auth/incentive-permissions";
+import { needsReview } from "@/lib/incentive/workflow";
 import { listIncentiveRequests } from "@/lib/queries/incentive";
 import {
   getIncentiveDashboard,
@@ -16,7 +18,11 @@ import {
 import { getBillingDashboard } from "@/lib/queries/billing";
 import { listIncentiveCatalog } from "@/lib/queries/incentive-catalog";
 import { listEmployeeOptions } from "@/lib/queries/employees";
+import { listActiveProductNames } from "@/lib/queries/products";
 import { getIncentiveStatusReport, listIncentiveEntriesStatus } from "@/lib/queries/incentive-status";
+import { loadIncentiveAnalytics, restrictTargetVsActual } from "@/lib/queries/incentive-analytics";
+import { incentiveAnalyticsScopeFor } from "@/lib/incentive/analytics/scope";
+import { selectableMonths } from "@/lib/incentive/analytics/periods";
 import { incentiveStatusUiEnabled } from "@/lib/incentive/status-flag";
 import { IncentiveStatusTab } from "@/components/incentive/incentive-status-tab";
 import { withRetry } from "@/lib/db/with-timeout";
@@ -64,15 +70,43 @@ export default async function IncentivePage({ searchParams }: PageProps) {
   const r = <T,>(label: string, make: () => Promise<T>): Promise<T> =>
     withRetry(make, { attempts: 2, timeoutMs: [6000, 9000], label });
 
-  const [dashboard, targetVsActual, rows, catalog, entries, employees] =
+  // Manan Vasa — sees every request and the decision controls. Decides what is
+  // RENDERED; the decision action re-checks it on the server.
+  const canReview = canReviewIncentives(me.email);
+
+  // WHO THIS VIEWER MAY SEE (lib/incentive/analytics/scope.ts). Company-wide
+  // viewers get the company roll-ups; everyone else gets only themselves and
+  // their downline, and the company-wide queries are not even run for them —
+  // what is never loaded can never be serialised into their page.
+  const scope = await r("incentive:scope", () => incentiveAnalyticsScopeFor(me));
+
+  const [dashboard, targetVsActualAll, rows, catalog, entries, employees, products] =
     await Promise.all([
-      r("incentive:dashboard", () => getIncentiveDashboard(year)),
+      scope.all ? r("incentive:dashboard", () => getIncentiveDashboard(year)) : Promise.resolve(null),
       r("incentive:target-vs-actual", () => getIncentiveTargetVsActual(year)),
-      r("incentive:requests", () => listIncentiveRequests({ employeeId: me.id, isAdmin: me.isAdmin })),
+      r("incentive:requests", () => listIncentiveRequests({ employeeId: me.id, isAdmin: me.isAdmin, canReview })),
       r("incentive:catalog", () => listIncentiveCatalog()),
       me.isAdmin ? r("incentive:entries", () => listIncentiveEntriesAdmin(year)) : Promise.resolve([]),
-      me.isAdmin ? r("incentive:employees", () => listEmployeeOptions()) : Promise.resolve([]),
+      // Everyone, not only admins: the New Incentive Request dialog's Split
+      // Incentive picker needs the active roster. The same cached {id,name}
+      // list every other picker in the app reads.
+      r("incentive:employees", () => listEmployeeOptions()),
+      // Admin → Products — the Conversion form's Product dropdown. Cached under
+      // the `products` tag, which every product write busts.
+      r("incentive:products", () => listActiveProductNames()),
     ]);
+  // After the batch above, not inside it: the dashboard runs its own queries
+  // (in rounds of at most five), and adding them to the page's burst would
+  // exceed the 10-connection pool.
+  const analytics = await r("incentive:analytics", () =>
+    loadIncentiveAnalytics(me, { kind: "current_month" }, { scope }),
+  );
+  if (!analytics) throw new Error("Incentive analytics could not be resolved for the current month.");
+
+  // The Targets tab's data, narrowed server-side for a scoped viewer.
+  const targetVsActual = scope.all
+    ? targetVsActualAll
+    : restrictTargetVsActual(targetVsActualAll, analytics.employees.map((e) => e.name));
 
   // WS-6 — incentive 3-status (Booked/Accrued/Paid) tab: admin-only + flag-gated
   // (INCENTIVE_STATUS_UI, default on). Only fetched when shown, so non-admins pay
@@ -97,22 +131,20 @@ export default async function IncentivePage({ searchParams }: PageProps) {
     );
   }
 
-  const pendingCount = rows.filter((r) => r.status === "pending").length;
+  // Deep links from incentive notifications. `?request=<id>` opens the Requests
+  // tab with that request expanded — only when it is already in this viewer's
+  // own list, so a link to someone else's request opens nothing. `?view=table`
+  // opens the Incentive Table.
+  const firstParam = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const requestedId = firstParam(sp.request)?.toLowerCase();
+  const focusRequestId = requestedId && rows.some((row) => row.id === requestedId) ? requestedId : null;
+  const openTable = firstParam(sp.view) === "table";
 
-  // ── Page-level KPIs, folded over the already-loaded data (zero extra queries) ──
-  const earned = dashboard.consolidated.approved;
-  const paid = dashboard.consolidated.paid;
-  const unpaid = dashboard.consolidated.unpaid;
-  const attainPct = targetVsActual.totals.attainmentPct;
-  const paidRate = earned > 0 ? (paid / earned) * 100 : null;
-  const attainAccent =
-    attainPct == null
-      ? "#334155"
-      : attainPct >= 100
-        ? GREEN
-        : attainPct >= 60
-          ? "#d97706"
-          : "var(--color-altus-red)";
+  // The reviewer's badge counts their queue (Pending Approval, Due, Not Due);
+  // everyone else's counts what is still waiting.
+  const pendingCount = canReview
+    ? rows.filter((r) => needsReview(r.status)).length
+    : rows.filter((r) => r.status === "pending").length;
 
   return (
     <>
@@ -128,7 +160,7 @@ export default async function IncentivePage({ searchParams }: PageProps) {
               ? "Earned, paid and target attainment across the year."
               : "Your incentive earnings, attainment and requests."
           }
-          actions={<IncentiveCatalogDialog rows={catalog} isAdmin={me.isAdmin} />}
+          actions={<IncentiveCatalogDialog rows={catalog} isAdmin={me.isAdmin} defaultOpen={openTable} />}
           toolbar={
             <nav aria-label="Incentive year" className="flex flex-wrap items-center gap-1">
               {years.map((y) => {
@@ -153,52 +185,27 @@ export default async function IncentivePage({ searchParams }: PageProps) {
           }
         />
 
-        {/* ── KPI strip (folded over the loaded dashboard + attainment — zero extra queries) ── */}
-        <section aria-label="Incentive totals" className="mb-6">
-         <CardGrid min={240} gap="0.875rem">
-          <KpiCard
-            icon={<TrendingUp size={17} strokeWidth={2.4} />}
-            accent={RED}
-            label="Total earned"
-            value={formatInr(earned)}
-            caption={`permanent + project · ${year}`}
-            delay={0}
+        {/* ── Company KPI strip — company-wide viewers only. It is folded over
+            the company roll-up, which a scoped viewer is never sent; their own
+            totals are in the dashboard's status summary. ── */}
+        {dashboard && (
+          <CompanyKpis
+            year={year}
+            earned={dashboard.consolidated.approved}
+            paid={dashboard.consolidated.paid}
+            unpaid={dashboard.consolidated.unpaid}
+            attainPct={targetVsActual.totals.attainmentPct}
+            target={targetVsActual.totals.target}
+            actual={targetVsActual.totals.actual}
           />
-          <KpiCard
-            icon={<CheckCircle2 size={17} strokeWidth={2.4} />}
-            accent={GREEN_DEEP}
-            label="Paid"
-            value={formatInr(paid)}
-            caption={paidRate != null ? `${paidRate.toFixed(0)}% of earned settled` : "nothing earned yet"}
-            progress={paidRate != null ? Math.min(paidRate / 100, 1) : null}
-            delay={50}
-          />
-          <KpiCard
-            icon={<Hourglass size={17} strokeWidth={2.4} />}
-            accent={unpaid > 0 ? "var(--color-altus-red)" : "#334155"}
-            label="Unpaid"
-            value={formatInr(unpaid)}
-            caption={unpaid > 0 ? "awaiting payout" : "all settled"}
-            delay={100}
-          />
-          <KpiCard
-            icon={<Gauge size={17} strokeWidth={2.4} />}
-            accent={attainAccent}
-            label="Avg attainment"
-            value={attainPct == null ? "—" : `${attainPct.toFixed(0)}%`}
-            caption={
-              attainPct == null
-                ? "no targets set"
-                : `${formatInr(targetVsActual.totals.actual)} of ${formatInr(targetVsActual.totals.target)} target`
-            }
-            progress={attainPct != null ? Math.min(attainPct / 100, 1) : null}
-            delay={150}
-          />
-         </CardGrid>
-        </section>
+        )}
 
         <IncentiveTabs
+          key={focusRequestId ?? "incentive"}
+          focusRequestId={focusRequestId}
           dashboard={dashboard}
+          analytics={analytics}
+          analyticsMonths={selectableMonths()}
           targetVsActual={targetVsActual}
           billingSlot={
             <Suspense fallback={<BillingLoading />}>
@@ -209,13 +216,84 @@ export default async function IncentivePage({ searchParams }: PageProps) {
           requests={rows}
           entries={entries}
           employees={employees}
+          products={products}
+          me={{ id: me.id, name: me.name }}
           isAdmin={me.isAdmin}
+          canReview={canReview}
           pendingCount={pendingCount}
           showStatus={showStatus}
           statusTab={statusTab}
         />
       </PageShell>
     </>
+  );
+}
+
+function CompanyKpis({
+  year,
+  earned,
+  paid,
+  unpaid,
+  attainPct,
+  target,
+  actual,
+}: {
+  year: number;
+  earned: number;
+  paid: number;
+  unpaid: number;
+  attainPct: number | null;
+  target: number;
+  actual: number;
+}) {
+  const paidRate = earned > 0 ? (paid / earned) * 100 : null;
+  const attainAccent =
+    attainPct == null
+      ? "#334155"
+      : attainPct >= 100
+        ? GREEN
+        : attainPct >= 60
+          ? "#d97706"
+          : "var(--color-altus-red)";
+  return (
+    <section aria-label="Incentive totals" className="mb-6">
+      <CardGrid min={240} gap="0.875rem">
+        <KpiCard
+          icon={<TrendingUp size={17} strokeWidth={2.4} />}
+          accent={RED}
+          label="Total earned"
+          value={formatInr(earned)}
+          caption={`permanent + project · ${year}`}
+          delay={0}
+        />
+        <KpiCard
+          icon={<CheckCircle2 size={17} strokeWidth={2.4} />}
+          accent={GREEN_DEEP}
+          label="Paid"
+          value={formatInr(paid)}
+          caption={paidRate != null ? `${paidRate.toFixed(0)}% of earned settled` : "nothing earned yet"}
+          progress={paidRate != null ? Math.min(paidRate / 100, 1) : null}
+          delay={50}
+        />
+        <KpiCard
+          icon={<Hourglass size={17} strokeWidth={2.4} />}
+          accent={unpaid > 0 ? "var(--color-altus-red)" : "#334155"}
+          label="Unpaid"
+          value={formatInr(unpaid)}
+          caption={unpaid > 0 ? "awaiting payout" : "all settled"}
+          delay={100}
+        />
+        <KpiCard
+          icon={<Gauge size={17} strokeWidth={2.4} />}
+          accent={attainAccent}
+          label="Avg attainment"
+          value={attainPct == null ? "—" : `${attainPct.toFixed(0)}%`}
+          caption={attainPct == null ? "no targets set" : `${formatInr(actual)} of ${formatInr(target)} target`}
+          progress={attainPct != null ? Math.min(attainPct / 100, 1) : null}
+          delay={150}
+        />
+      </CardGrid>
+    </section>
   );
 }
 

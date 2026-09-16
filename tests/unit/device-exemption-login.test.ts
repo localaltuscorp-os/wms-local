@@ -84,7 +84,21 @@ beforeEach(() => {
   inserted = [];
   cookieSet = null;
   insertShouldThrow = false;
-  delete process.env.DEVICE_ACCESS_ENFORCEMENT;
+  // ENFORCEMENT IS SET ON EXPLICITLY, not left to the default.
+  //
+  // This file tests one thing: that the device EXEMPTION lets the two exempt
+  // actors in without letting anybody else in. That question only exists while
+  // restriction is being enforced — with it off, everyone is unrestricted and
+  // every assertion here passes for the wrong reason.
+  //
+  // It used to `delete` this variable and rely on the default being "enforcing".
+  // On 2026-09-15 that default was reversed (see `deviceAccessEnforced()`), and
+  // these tests silently started exercising the unrestricted path instead: a
+  // normal employee came back approved rather than pending. Naming the state
+  // the tests need is what should have been here all along — a suite whose
+  // subject is a security rule must not depend on which way a switch happens to
+  // default, in either direction.
+  process.env.DEVICE_ACCESS_ENFORCEMENT = "on";
   delete process.env.DEVICE_AUTO_ADOPT;
 });
 

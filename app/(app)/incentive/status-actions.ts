@@ -12,8 +12,45 @@ import {
   listIncentiveParticipants,
   type ParticipantRow,
 } from "@/lib/queries/incentive-status";
+import { afterResponse } from "@/lib/after";
+import { notifyIncentivePaid } from "@/lib/incentive/notifications/service";
 
 type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
+
+/**
+ * "Incentive paid" notice. When a save RAISES what has been paid to an
+ * employee, tell them, after the response — the save has already committed and
+ * the notice can neither block nor fail it. Lowering a paid amount, or saving
+ * the same one again, says nothing; the version key (paid total + date) keeps a
+ * repeated save from notifying twice. No amounts or statuses are changed here.
+ */
+function notifyIfPaidIncreased(input: {
+  employeeId: string | null;
+  subjectId: string;
+  leg: string;
+  label: string | null;
+  previousPaid: number;
+  paid: number;
+  paidDate: string | null;
+  periodMonth: string | null;
+  actorId: string;
+}) {
+  const increase = Math.round((input.paid - input.previousPaid) * 100) / 100;
+  const employeeId = input.employeeId;
+  if (!employeeId || increase <= 0) return;
+  afterResponse(() =>
+    notifyIncentivePaid({
+      employeeId,
+      subjectId: input.subjectId,
+      versionKey: `${input.leg}-paid:${input.paid.toFixed(2)}:${input.paidDate ?? ""}`,
+      label: input.label,
+      amount: increase,
+      paidDate: input.paidDate,
+      periodMonth: input.periodMonth,
+      actorId: input.actorId,
+    }),
+  );
+}
 
 const money = z.number().finite().min(0).max(1_000_000_000);
 const money2 = (n: number): string => n.toFixed(2);
@@ -69,6 +106,16 @@ export async function setEntryStatusAmounts(
   }
   const v = parsed.data;
 
+  const [prev] = await db
+    .select({
+      employeeId: incentiveEntries.employeeId,
+      incentiveName: incentiveEntries.incentiveName,
+      paidAmt: incentiveEntries.paidAmt,
+      periodMonth: incentiveEntries.periodMonth,
+    })
+    .from(incentiveEntries)
+    .where(eq(incentiveEntries.id, v.id));
+
   await db
     .update(incentiveEntries)
     .set({
@@ -80,6 +127,20 @@ export async function setEntryStatusAmounts(
       updatedAt: new Date(),
     })
     .where(eq(incentiveEntries.id, v.id));
+
+  if (prev) {
+    notifyIfPaidIncreased({
+      employeeId: prev.employeeId,
+      subjectId: v.id,
+      leg: "entry",
+      label: prev.incentiveName,
+      previousPaid: Number(prev.paidAmt),
+      paid: v.paidAmt,
+      paidDate: v.paidDate ?? null,
+      periodMonth: prev.periodMonth,
+      actorId: me.id,
+    });
+  }
 
   revalidatePath("/incentive");
   return { ok: true };
@@ -131,6 +192,19 @@ export async function setProjectLegStatusAmounts(
           internPaidAmt: money2(v.paidAmt),
         };
 
+  const [prev] = await db
+    .select({
+      supervisorId: incentiveProjects.supervisorId,
+      internId: incentiveProjects.internId,
+      projectName: incentiveProjects.projectName,
+      subject: incentiveProjects.subject,
+      empPaidAmt: incentiveProjects.empPaidAmt,
+      internPaidAmt: incentiveProjects.internPaidAmt,
+      periodMonth: incentiveProjects.periodMonth,
+    })
+    .from(incentiveProjects)
+    .where(eq(incentiveProjects.id, v.id));
+
   await db
     .update(incentiveProjects)
     .set({
@@ -140,6 +214,20 @@ export async function setProjectLegStatusAmounts(
       updatedAt: new Date(),
     })
     .where(eq(incentiveProjects.id, v.id));
+
+  if (prev) {
+    notifyIfPaidIncreased({
+      employeeId: v.leg === "supervisor" ? prev.supervisorId : prev.internId,
+      subjectId: v.id,
+      leg: `project-${v.leg}`,
+      label: prev.projectName ?? prev.subject ?? "Project incentive",
+      previousPaid: Number(v.leg === "supervisor" ? prev.empPaidAmt : prev.internPaidAmt),
+      paid: v.paidAmt,
+      paidDate: v.paidDate ?? null,
+      periodMonth: prev.periodMonth,
+      actorId: me.id,
+    });
+  }
 
   revalidatePath("/incentive");
   return { ok: true };
@@ -193,19 +281,38 @@ export async function saveIncentiveSplit(
   const period = v.periodMonth ? `${v.periodMonth.slice(0, 7)}-01` : null;
 
   // Verify the parent exists (and read its period as a fallback).
+  let parentLabel: string | null = null;
   if (v.parentKind === "entry") {
     const [row] = await db
-      .select({ id: incentiveEntries.id, period: incentiveEntries.periodMonth })
+      .select({ id: incentiveEntries.id, period: incentiveEntries.periodMonth, name: incentiveEntries.incentiveName })
       .from(incentiveEntries)
       .where(eq(incentiveEntries.id, v.parentId));
     if (!row) return { ok: false, error: "Incentive entry not found." };
+    parentLabel = row.name;
   } else {
     const [row] = await db
-      .select({ id: incentiveProjects.id, period: incentiveProjects.periodMonth })
+      .select({
+        id: incentiveProjects.id,
+        period: incentiveProjects.periodMonth,
+        projectName: incentiveProjects.projectName,
+        subject: incentiveProjects.subject,
+      })
       .from(incentiveProjects)
       .where(eq(incentiveProjects.id, v.parentId));
     if (!row) return { ok: false, error: "Incentive project not found." };
+    parentLabel = row.projectName ?? row.subject ?? "Project incentive";
   }
+
+  // What each linked employee had been paid under the split before this save —
+  // read only to tell them if it goes up.
+  const previousShares = await db
+    .select({ employeeId: incentiveParticipants.employeeId, paidAmt: incentiveParticipants.paidAmt })
+    .from(incentiveParticipants)
+    .where(
+      v.parentKind === "entry"
+        ? eq(incentiveParticipants.entryId, v.parentId)
+        : eq(incentiveParticipants.projectId, v.parentId),
+    );
 
   const rows = v.shares
     .filter((s) => s.empName.trim().length > 0)
@@ -232,6 +339,33 @@ export async function saveIncentiveSplit(
       );
     if (rows.length) await tx.insert(incentiveParticipants).values(rows);
   });
+
+  const paidBefore = new Map<string, number>();
+  for (const s of previousShares) {
+    if (s.employeeId) paidBefore.set(s.employeeId, (paidBefore.get(s.employeeId) ?? 0) + Number(s.paidAmt));
+  }
+  const paidAfter = new Map<string, { paid: number; paidDate: string | null }>();
+  for (const r of rows) {
+    if (!r.employeeId) continue;
+    const cur = paidAfter.get(r.employeeId) ?? { paid: 0, paidDate: null };
+    paidAfter.set(r.employeeId, {
+      paid: cur.paid + Number(r.paidAmt),
+      paidDate: r.paidDate && (!cur.paidDate || r.paidDate > cur.paidDate) ? r.paidDate : cur.paidDate,
+    });
+  }
+  for (const [employeeId, after] of paidAfter) {
+    notifyIfPaidIncreased({
+      employeeId,
+      subjectId: v.parentId,
+      leg: `split-${v.parentKind}`,
+      label: parentLabel,
+      previousPaid: paidBefore.get(employeeId) ?? 0,
+      paid: after.paid,
+      paidDate: after.paidDate,
+      periodMonth: period,
+      actorId: me.id,
+    });
+  }
 
   revalidatePath("/incentive");
   return { ok: true, count: rows.length };

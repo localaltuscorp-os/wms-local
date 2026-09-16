@@ -56,6 +56,20 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   appraisal_finalized:          "Appraisal — finalized",
   // Enterprise Communications (mig 0179) — delivered by the ECOS publish flow.
   broadcast:                    "Broadcasts — broadcast",
+  // Incentive (mig 0231) — in-app + email + push; Slack/WhatsApp never used.
+  incentive_created:              "Incentive — new incentive",
+  incentive_updated:              "Incentive — incentive updated",
+  incentive_eligibility_removed:  "Incentive — eligibility removed",
+  incentive_deleted:              "Incentive — incentive removed",
+  incentive_request_approved:     "Incentive request — approved",
+  incentive_request_published:    "Incentive request — published",
+  incentive_request_not_approved: "Incentive request — not approved",
+  incentive_request_revision:     "Incentive request — revision required",
+  incentive_request_due:          "Incentive request — marked Due",
+  incentive_request_not_due:      "Incentive request — marked Not Due",
+  incentive_request_reversed:     "Incentive request — reversed",
+  incentive_request_resubmitted:  "Incentive request — resubmitted (reviewer)",
+  incentive_paid:                 "Incentive — paid",
 };
 
 const CHANNEL_LABEL: Record<NotificationChannel, string> = {

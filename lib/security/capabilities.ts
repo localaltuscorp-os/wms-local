@@ -92,6 +92,31 @@ export type SecurityCapability =
    */
   | "daily_start.exempt"
   /**
+   * MAY DELETE A BILLING MASTER ENTITY.
+   *
+   * The brief: "Deleting an entity must be accessible ONLY to Manan ... Even if
+   * another user has Entity Edit, Admin access, File Manage, or other Billing
+   * Master permissions, they must NOT be able to delete an entity."
+   *
+   * ── WHY A CAPABILITY OF ITS OWN, NOT `isFounderEmail` ────────────────────
+   * `lib/auth/founder.ts` already knows Manan's address, and testing it would
+   * have worked today. But it means "the founder", and this rule is not about
+   * being the founder — it is about one irreversible operation on one master.
+   * Keyed off the founder, a change of founder silently moves the authority,
+   * and a second person who one day needs it could only be added by making
+   * them a founder. Here it is one line in this table.
+   *
+   * ── WHAT MAKES THIS DELETION DIFFERENT ───────────────────────────────────
+   * Deleting an entity removes the GST number, bank account and signature that
+   * past invoices were issued under, and the brief explicitly permits doing so
+   * even when invoices reference it. Nothing else in the Billing Master is
+   * unrecoverable; this is, which is why it is the narrowest grant here.
+   *
+   * Checked against the REAL signed-in person, never the delegated identity —
+   * see `requireBillingEntityDelete`.
+   */
+  | "billing_entity.delete"
+  /**
    * May grant TEMPORARY DELEGATED ACCESS to any employee's account, regardless
    * of the reporting hierarchy.
    *
@@ -144,6 +169,13 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
      * this table, visible in review.
      */
     "daily_start.exempt",
+    /**
+     * Deleting a Billing Master entity. THE ONLY HOLDER — the brief names him
+     * alone, and deliberately says that Entity Edit, admin rights and File
+     * Manage must none of them be enough. Rohan holds `master_admin.manage`
+     * and is not on this line; that is the intended asymmetry, not an omission.
+     */
+    "billing_entity.delete",
   ],
 
   /**
@@ -295,6 +327,21 @@ export function isExemptFromDailyStart(email: string | null | undefined): boolea
   return hasCapability(email, "daily_start.exempt");
 }
 
+/**
+ * MAY DELETE A BILLING MASTER ENTITY.
+ *
+ * Read by the server action that performs the delete and, separately, by the
+ * page that decides whether to render the control. The action is the boundary:
+ * hiding the button is presentation, and the brief asks for both ("Hide the
+ * delete action for unauthorized users AND enforce the restriction
+ * server-side").
+ *
+ * Fails CLOSED. An unknown address deletes nothing.
+ */
+export function canDeleteBillingEntity(email: string | null | undefined): boolean {
+  return hasCapability(email, "billing_entity.delete");
+}
+
 export const MASTER_ADMIN_REFUSAL =
   "Only the master administrators can change module permissions.";
 
@@ -311,3 +358,6 @@ export const ATTENDANCE_OTHERS_REFUSAL =
 
 export const ATTENDANCE_AUDIT_REFUSAL =
   "You are not authorized to view the attendance change log.";
+
+export const BILLING_ENTITY_DELETE_REFUSAL =
+  "Deleting a billing entity is restricted. Entity edit access does not include it.";

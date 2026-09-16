@@ -587,6 +587,40 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         key: "admin.masters",
         label: "Masters",
         children: [
+          /**
+           * BILLING MASTER — TWO nodes, giving the four capabilities the brief
+           * names: Entity View, Entity Edit, File View, File Manage.
+           *
+           * VIEW/EDIT on `billing` are Entity View and Entity Edit. VIEW/EDIT on
+           * `billing-files` are File View and File Manage. So the brief's
+           * requirement — "a user may have entity edit access without
+           * automatically receiving file-management access" — is one switch,
+           * inside the permission system the application already has, rather
+           * than a parallel table of billing-specific roles.
+           *
+           * ── WHY SIBLINGS AND NOT PARENT/CHILD ───────────────────────────
+           * A child of `admin.masters.billing` would be the FOURTH level, and
+           * this catalogue is three by design — `flatten()` throws rather than
+           * render a fourth level as a third. So the files node is a sibling,
+           * and the cascade the nesting would have given (no entity view ⇒ no
+           * file view) is applied explicitly by `billingFilePermission()` in
+           * lib/queries/billing-entities.ts, which ANDs the two.
+           *
+           * `billing-files` owns no route: the files live inside the entity
+           * workspace, and its guard is called by node key from the
+           * upload/replace/remove actions rather than resolved from a URL.
+           */
+          {
+            key: "admin.masters.billing",
+            label: "Billing Master",
+            routes: ["/admin/billing-master"],
+            note: "Entity details Billing bills from — GST, PAN, SAC, banking. View/Edit here are Entity View and Entity Edit. Deleting an entity is separately restricted and this cannot widen it.",
+          },
+          {
+            key: "admin.masters.billing-files",
+            label: "Billing Master · Files",
+            note: "The logo, signature and billing documents. View = see them; Edit = upload, replace and remove. Deliberately separate from entity edit, and additionally requires Billing Master view.",
+          },
           { key: "admin.masters.clients", label: "Client Master", routes: ["/admin/clients"] },
           { key: "admin.masters.subjects", label: "Subject Master", routes: ["/admin/subjects"] },
           { key: "admin.masters.products", label: "Product Master", routes: ["/admin/products"] },

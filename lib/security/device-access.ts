@@ -101,20 +101,42 @@ const DENY_MESSAGES: Record<DeviceDenyReason, string> = {
 /* ── Enforcement switches ─────────────────────────────────────────────────── */
 
 /**
- * The master switch. ENFORCING BY DEFAULT — the whole point of this work is
- * that the rule holds without anyone having to remember to switch it on, and a
- * security control that defaults off ships as documentation.
+ * The master switch. **DEFAULT REVERSED ON 2026-09-15 — NOW OFF UNLESS ASKED
+ * FOR**, at the account holder's explicit instruction, everywhere including
+ * production.
  *
- * `DEVICE_ACCESS_ENFORCEMENT=off` is a deliberate operator escape hatch for one
- * situation: the native Android app sends its device id on a header
- * ({@link DEVICE_ID_HEADER}) that only builds after this change include, so
- * every phone still running an older build presents no id and is refused.
- * Turning enforcement off for the length of that app rollout is a considered
- * trade, not a bypass — and it is the ONLY way to disable this, so its use is
- * visible in one environment variable rather than spread across the code.
+ * ── WHAT THIS MEANS RIGHT NOW ──────────────────────────────────────────────
+ * Device restriction is DISABLED. Nobody is asked to register a device at first
+ * login, nobody is sent to /device-blocked, and an employee signs in from any
+ * machine. Every branch that reads this already handles the off state — the
+ * sign-in path too (see `adoptDeviceOnLogin`), so no one is refused at the door
+ * while it is off. Rows in `mobile_devices` are still written and the admin
+ * screen still lists them; they simply stop being an access decision.
+ *
+ * ── HOW TO TURN IT BACK ON ─────────────────────────────────────────────────
+ *   DEVICE_ACCESS_ENFORCEMENT=on
+ * in the environment — one variable, no code change, no deploy if your host can
+ * set it live. Any other value, and no value at all, leaves it off.
+ *
+ * ── WHY THE DEFAULT MOVED, RATHER THAN SETTING THE OLD VAR ─────────────────
+ * Because "off everywhere" was the instruction, and the previous default made
+ * that depend on someone remembering to set `=off` in each environment. A
+ * production deployment whose env var was missed would have kept enforcing and
+ * kept locking people out, which is the exact outcome being removed. Putting
+ * the state in code makes it true in every environment at once and visible in
+ * review.
+ *
+ * ── THE PRIOR REASONING, KEPT DELIBERATELY ─────────────────────────────────
+ * This used to read: "ENFORCING BY DEFAULT — the whole point of this work is
+ * that the rule holds without anyone having to remember to switch it on, and a
+ * security control that defaults off ships as documentation." That argument was
+ * right when it was written and is the argument for reverting this line. It is
+ * left here so whoever turns enforcement back on knows what they are restoring
+ * and why it was built that way — and so this reads as a decision that was
+ * taken, not a default that quietly rotted.
  */
 export function deviceAccessEnforced(): boolean {
-  return process.env.DEVICE_ACCESS_ENFORCEMENT !== "off";
+  return process.env.DEVICE_ACCESS_ENFORCEMENT === "on";
 }
 
 /**

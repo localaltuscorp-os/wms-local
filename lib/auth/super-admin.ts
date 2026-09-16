@@ -30,6 +30,39 @@ export const SUPER_ADMIN_EMAILS = [
 ] as const;
 
 /**
+ * LOCAL DEVELOPMENT ONLY — super-admin on a dev machine, never on a deployment.
+ *
+ * 2026-09-12: added so the local no-login session (DISABLE_AUTH, see
+ * lib/auth/local-session.ts) opens the super-admin surfaces — CTC on Employee
+ * Master, the admin toggle, the pay columns — without promoting anyone on the
+ * real deployment.
+ *
+ * ── WHY THIS IS A HARDCODED LIST AND NOT AN ENV VAR ────────────────────────
+ * Because the env-var version of exactly this idea was REMOVED on 2026-09-04
+ * (the note below). An env var meant anyone who could set one on Vercel could
+ * silently grant themselves the highest privilege in the app, with nothing in
+ * code review or git history to show for it. This list has the opposite
+ * property: a name appears here only in a diff, and it is inert off a dev
+ * machine regardless.
+ *
+ * ── WHY `NODE_ENV` AND NOT `VERCEL` / `DISABLE_AUTH` ───────────────────────
+ * `process.env.NODE_ENV` is the only one of the three that is statically
+ * inlined by the bundler on BOTH sides. `isSuperAdmin` is called from five
+ * client components as well as the server, and a check the server can read but
+ * the browser cannot would resolve differently in each — a hydration mismatch,
+ * and a UI that disagrees with the guard behind it. Inlined, the whole branch
+ * is dead code eliminated from a production build: `next build` sets
+ * NODE_ENV=production, so no deployment — Vercel or otherwise — can reach it.
+ *
+ * Note this means `pnpm build && pnpm start` on this same machine does NOT
+ * grant it either. That is correct: the grant is for `next dev`, not for any
+ * production artifact, wherever it happens to run.
+ */
+const LOCAL_DEV_SUPER_ADMINS = [
+  "vinalpatil.altuscorp@gmail.com",
+] as const;
+
+/**
  * NOTE: the previous `SYSTEM_SERVICE_EMAIL` env-var escape hatch was removed in
  * the same 2026-09-04 change. It let any address named in that variable gain
  * super-admin without a code change or review — i.e. anyone who could set a
@@ -41,7 +74,14 @@ export const SUPER_ADMIN_EMAILS = [
 export function isSuperAdmin(email: string | null | undefined): boolean {
   if (!email) return false;
   const e = email.trim().toLowerCase();
-  return SUPER_ADMIN_EMAILS.includes(e as (typeof SUPER_ADMIN_EMAILS)[number]);
+  if (SUPER_ADMIN_EMAILS.includes(e as (typeof SUPER_ADMIN_EMAILS)[number])) return true;
+  if (
+    process.env.NODE_ENV !== "production" &&
+    LOCAL_DEV_SUPER_ADMINS.includes(e as (typeof LOCAL_DEV_SUPER_ADMINS)[number])
+  ) {
+    return true;
+  }
+  return false;
 }
 
 // Who may change a task's DOER lives in lib/auth/doer-permission.ts, not here.

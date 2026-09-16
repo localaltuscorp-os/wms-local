@@ -25,6 +25,22 @@ export const NOTIFICATION_KINDS = [
   // note that critical/emergency broadcast delivery bypasses the matrix (the
   // ECOS publish flow drives the in-app row + email directly).
   "broadcast",
+  // Incentive notifications (migration 0231). Listed so dispatch honours the
+  // recipient's email / push preferences for them — an employee who has turned
+  // email off does not get incentive emails either.
+  "incentive_created",
+  "incentive_updated",
+  "incentive_eligibility_removed",
+  "incentive_deleted",
+  "incentive_request_approved",
+  "incentive_request_published",
+  "incentive_request_not_approved",
+  "incentive_request_revision",
+  "incentive_request_due",
+  "incentive_request_not_due",
+  "incentive_request_reversed",
+  "incentive_request_resubmitted",
+  "incentive_paid",
 ] as const;
 export type NotificationKindKey = (typeof NOTIFICATION_KINDS)[number];
 

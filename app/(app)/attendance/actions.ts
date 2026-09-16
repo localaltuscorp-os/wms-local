@@ -413,6 +413,17 @@ async function targetForNotify(employeeId: string): Promise<{
   attFullDayMinutes: number | null;
   attHalfDayMinutes: number | null;
   weeklyTargetMinutes: number | null;
+  // 0228 — an admin edit to someone's punch fires the same alerts a self punch
+  // does, so it needs the same settings: silence on a non-working Saturday or
+  // for someone not required to punch, and Saturday's own clock.
+  attendanceApplicable: boolean;
+  sat1Working: boolean;
+  sat2Working: boolean;
+  sat3Working: boolean;
+  sat4Working: boolean;
+  sat5Working: boolean;
+  satOfficialStart: string | null;
+  satOfficialEnd: string | null;
 } | null> {
   const [row] = await db
     .select({
@@ -426,6 +437,14 @@ async function targetForNotify(employeeId: string): Promise<{
       attFullDayMinutes: employees.attFullDayMinutes,
       attHalfDayMinutes: employees.attHalfDayMinutes,
       weeklyTargetMinutes: employees.weeklyTargetMinutes,
+      attendanceApplicable: employees.attendanceApplicable,
+      sat1Working: employees.sat1Working,
+      sat2Working: employees.sat2Working,
+      sat3Working: employees.sat3Working,
+      sat4Working: employees.sat4Working,
+      sat5Working: employees.sat5Working,
+      satOfficialStart: employees.satOfficialStart,
+      satOfficialEnd: employees.satOfficialEnd,
     })
     .from(employees)
     .where(eq(employees.id, employeeId))

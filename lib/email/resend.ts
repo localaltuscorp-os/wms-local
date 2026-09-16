@@ -36,6 +36,9 @@ import { AttendanceLateWaivedEmail } from "@/emails/notifications/attendance-lat
 import { AttendanceHalfDayEmail } from "@/emails/notifications/attendance-half-day";
 import { AttendanceLateDeductionEmail } from "@/emails/notifications/attendance-late-deduction";
 import { IncentiveDecisionEmail } from "@/emails/notifications/IncentiveDecision";
+import { IncentiveNoticeEmail } from "@/emails/notifications/IncentiveNotice";
+import { incentiveEmailContent } from "@/lib/incentive/notifications/content";
+import { isIncentiveNotificationKind, parseIncentiveMeta } from "@/lib/incentive/notifications/kinds";
 import {
   HrTicketNoticeEmail,
   ticketThreadUrl,
@@ -377,13 +380,18 @@ export async function sendNotificationEmail(
 
   if (!template) return;
 
-  await resend.emails.send({
+  // The Resend SDK reports API failures (rejected address, rate limit, bad key)
+  // as `{ error }` rather than throwing. Throw it, so the dispatcher records the
+  // email arm as FAILED — logged in notification_dispatch_log and picked up by
+  // the retry cron — instead of as sent.
+  const { error } = await resend.emails.send({
     from: FROM,
     to: recipient.email,
     subject: clampSubject(n.title),
     react: template,
     ...companyBcc(),
   });
+  if (error) throw new Error(`Resend: ${error.message}`);
 }
 
 /**
@@ -778,6 +786,17 @@ function attendanceDateLabel(ymd: string | undefined): string {
 }
 
 function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
+  // Incentive notifications (mig 0231) — every kind renders the one shared
+  // IncentiveNoticeEmail from the meta stored on the row, so a retry renders
+  // exactly what the first attempt did. Kinds without an email (Not Due) and
+  // malformed meta render nothing; the in-app row still stands.
+  if (isIncentiveNotificationKind(ctx.notification.kind)) {
+    const content = incentiveEmailContent(ctx.notification.kind, parseIncentiveMeta(ctx.notification.body));
+    return content
+      ? IncentiveNoticeEmail({ ...content, recipientName: ctx.recipient.name, siteUrl: ctx.siteUrl })
+      : null;
+  }
+
   const meta = parseMeta(ctx.notification.body);
   const actor = ctx.actorName ?? "Someone";
   const subject = ctx.taskSubject ?? "your task";

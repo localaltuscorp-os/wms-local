@@ -30,9 +30,18 @@ const toDraft = (r: CatalogRow): Draft => ({
   notes: r.notes ?? "",
 });
 
-export function IncentiveCatalogDialog({ rows, isAdmin }: { rows: CatalogRow[]; isAdmin: boolean }) {
+export function IncentiveCatalogDialog({
+  rows,
+  isAdmin,
+  defaultOpen = false,
+}: {
+  rows: CatalogRow[];
+  isAdmin: boolean;
+  /** Opened from an Incentive Table notification (`/incentive?view=table`). */
+  defaultOpen?: boolean;
+}) {
   const router = useRouter();
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(defaultOpen);
   const [editing, setEditing] = React.useState<Draft | null>(null); // row being edited / new
   const [saving, setSaving] = React.useState(false);
 
