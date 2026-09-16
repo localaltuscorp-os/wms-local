@@ -7,9 +7,21 @@
 --  0215 (either of them) and none of Rudra's or Vinal's 0221/0222 migrations.
 --
 --  HOW TO RUN: Supabase Dashboard -> SQL Editor -> paste -> Run.
---  CONFIRM THE PROJECT FIRST. Run `select count(*) from information_schema.tables
---  where table_schema='public';` — a real WMS database returns ~270+. Near 0 means
---  you are in the wrong project.
+--
+--  CONFIRM THE PROJECT FIRST. Production is mwaijzxuyicysvimzspx:
+--    https://supabase.com/dashboard/project/mwaijzxuyicysvimzspx/sql/new
+--  The team's own database is fjopgyqytfvbudkwhdto. Run this there and it
+--  changes their data and leaves production unmigrated, while appearing to
+--  succeed. A table count does NOT tell the two apart -- both carry the full
+--  schema. Run db/VERIFY-0215-0224.sql first: its step 3 is the real test,
+--  because this database has app.is_admin() and theirs does not.
+--
+--  ALREADY APPLIED HERE: 0215-0220, by hand on 2026-09-11 (SQL STEPS 3, 5, 6).
+--  Idempotent, so they re-run harmlessly; the outstanding set is 0221 x3,
+--  0222 x3, 0224, and 0223 only if the device wipe is wanted.
+--
+--  NOT IN THIS FILE: 0216_incentive_eligibility.sql, which landed on main after
+--  ae58385. lib/incentive/ensure-eligibility-schema.ts covers it at runtime.
 --
 --  STRUCTURE
 --    PART 0  RLS helper functions (from 0004). Safety net: 0215 creates policies

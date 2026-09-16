@@ -21,7 +21,7 @@ The standing list. Delete a row the moment it is applied and verified — a stal
 | Migration | Paste sheet | Creates | Status |
 |-----------|-------------|---------|--------|
 | `0221` + `0222` | [`db/RUN-IN-SUPABASE-0221-0222.sql`](../../db/RUN-IN-SUPABASE-0221-0222.sql) | Event Checklist (4 tables) + Job Description (8 tables, 14 seeded ranks) | **Not run.** Both pages detect the missing tables and render a setup notice rather than a 500 |
-| `0216`–`0220` | [`db/RUN-IN-SUPABASE-0216-0220.sql`](../../db/RUN-IN-SUPABASE-0216-0220.sql) | permissions, delegated access, manager history, attachments | **Not run** — inherited from the `Om` branch, not mine |
+| `0215`–`0224` | [`db/RUN-IN-SUPABASE-0215-0224-ALL.sql`](../../db/RUN-IN-SUPABASE-0215-0224-ALL.sql) | everything, the row above included — no `0216-0220` sheet ever existed | `0215`–`0220` **applied 2026-09-11** by hand; `0221`–`0224` outstanding |
 
 > `0221` was **amended in place**, not superseded. It had never been applied or
 > committed, so reshaping it for the offset model cost nothing — and a migration

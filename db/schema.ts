@@ -2997,8 +2997,47 @@ export const incentiveCatalog = pgTable("incentive_catalog", {
   notes: text("notes"),
   sortOrder: integer("sort_order"),
   active: boolean("active").notNull().default(true),
+  /**
+   * Eligibility, migration 0216. TRUE means everyone — and it is the DEFAULT,
+   * so the migration changed nothing for anyone the moment it ran. FALSE means
+   * only the people named in `incentive_eligibility` below.
+   *
+   * This supersedes `salesEligible` / `internsEligible`, which were advisory
+   * labels nothing enforced. They are left in place rather than dropped: the
+   * import path still writes them and the catalog popup still shows them.
+   */
+  appliesToAll: boolean("applies_to_all").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * WHO A NARROWED INCENTIVE APPLIES TO (migration 0216).
+ *
+ * Only consulted when `incentive_catalog.applies_to_all` is FALSE. The admin
+ * picks people directly, or a whole department at a time — but what is STORED
+ * is always the resulting list of people, never the department. A department is
+ * a shortcut for selecting, not a rule that keeps evaluating: if it were the
+ * latter, moving someone between departments would silently change what they
+ * are paid for, months after anyone decided anything.
+ */
+export const incentiveEligibility = pgTable(
+  "incentive_eligibility",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    incentiveId: uuid("incentive_id")
+      .notNull()
+      .references(() => incentiveCatalog.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("incentive_eligibility_pair_uq").on(t.incentiveId, t.employeeId),
+    index("incentive_eligibility_employee_idx").on(t.employeeId),
+  ],
+);
+export type IncentiveEligibilityRow = typeof incentiveEligibility.$inferSelect;
 
 export const incentiveEntries = pgTable(
   "incentive_entries",

@@ -13,40 +13,100 @@ broken, what changed and why.
 
 ---
 
-## ⚠️ Pending database migrations — 0216 to 0224 (updated 2026-09-11)
+## ✅ Database migrations 0215–0224 — APPLIED 2026-09-15
 
-The `Om` branch ships code that **assumes tables and columns which do not exist
-in Supabase yet**. Nobody has run these. Until they are applied, master-admin,
-the permission matrix, delegated access, manager history, reimbursement
-attachments, holiday notes and first-login device registration all fail at
-runtime.
+> **This section is now a record, not a to-do.** All 15 migrations ran against
+> production and verified clean (74/74). See the 15 September (night) changelog
+> entry for the run, the device wipe and its restore. What follows is kept
+> because every warning in it still applies to the next batch — the project
+> mix-up, the "success is not proof" traps, and why `npm run db:migrate` is not
+> the tool here. **`0216_incentive_eligibility.sql` is the one still outstanding**
+> (see below); it self-heals at runtime, but apply it properly.
 
-**One file, everything.** Every pending migration, `0216` through `0224`, in
-order:
+**Order: `db/VERIFY-0215-0224.sql`, then
+`db/RUN-IN-SUPABASE-0215-0224-ALL.sql`, then the verify file again.** Both
+arrived on the team's `prod-sync-0915` branch, merged here on 15 September.
 
-```bash
-# Supabase Dashboard -> SQL Editor -> New query -> paste -> Run
-#   or:
-psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0216-0224.sql
+🔴 **The instructions that came with those files name the wrong Supabase
+project.** They say `fjopgyqytfvbudkwhdto`, and call it production. That is the
+**team's** database. Production is **`mwaijzxuyicysvimzspx`**:
+
+```
+https://supabase.com/dashboard/project/mwaijzxuyicysvimzspx/sql/new
 ```
 
-It is in **two parts**. **Part 1** (`0216`–`0222`, `0224`) is additive and
-idempotent — no `DROP TABLE`, no `TRUNCATE`, no `DELETE`, so re-running changes
-nothing.
+Run the file against their ref and it changes their data while production stays
+unmigrated — and it looks like it worked.
 
-**Part 2** is `0223`, which **clears every row from `mobile_devices`** so the
-roster re-registers deliberately. That wipe is intended, but it destroys device
-history — so in this file it copies the table to `mobile_devices_pre_0223`
-first, in the same transaction, and skips itself entirely if that backup already
-exists. Running the file twice therefore cannot wipe devices people have just
-registered.
+**There is a THIRD project.** `docs/handoffs/HANDOFF-2026-09-11-candidate-no-
+login-form.md` records `0221_candidate_access_links` being applied to
+`ifcdpjbdinvmtewmgceg`. So of the three refs that appear in the team's notes,
+**one is production and two are not**, and both of the others are named as
+places migrations were actually run. Check the ref in the URL bar every time.
 
-**To stop before the wipe, end at the line marked `END OF PART 1`.**
+**Their notes disagree with ours about what is already applied**, and neither
+is evidence. That same file says seven migrations are outstanding on production
+(`0215` ×2, `0216`–`0220`); the 11 September entry below records `0215`–`0220`
+applied by hand. They cannot both be right. Do not try to settle it by reading:
+`db/VERIFY-0215-0224.sql` answers it against the live database in one run, and
+every statement in the sheet is idempotent, so the cost of being wrong in the
+"already applied" direction is nothing.
+
+**Their sanity check cannot catch that.** "~270+ tables, near 0 means wrong
+project" only catches an *empty* project; both databases carry the full WMS
+schema. Step 3 of the verify file is the check that discriminates: this database
+has `app.is_admin()` and `app.current_employee_id()`, theirs has neither — which
+is why their `PART 3b` shipped commented out in September. **`has_is_admin`
+false means you are not in production.**
+
+🔴 **`0224` MUST RUN BEFORE THIS CODE DEPLOYS. It is not a degrade-gracefully
+migration.** `0224` renames `mobile_devices.bios_serial_number` to
+`device_name`, and `db/schema.ts:2085` already declares `deviceName`. Drizzle's
+`db.query.mobileDevices.findFirst` expands every declared column, so against a
+database where `0224` has not run it asks for a column that does not exist and
+throws `42703`.
+
+`resolveDeviceContext` (`lib/security/device-access.ts:220`) makes exactly that
+call on **every request that carries a device cookie**, with no try/catch above
+it, and the lookup runs even for exempt actors and with
+`DEVICE_ACCESS_ENFORCEMENT=off` — the comment there says so deliberately, so the
+master switch does not silently skip the audit row. So the failure is app-wide,
+not confined to the device screens.
+
+This is the 9 September outage in a new place: a bare-selected table, a column
+the code knows about and the database does not. **Run the SQL first, then push
+to `main`.** `DeviceRegistrationGate` catches its own errors and the Operations
+Checklist and Job Description pages guard `42P01`/`42703` and show a setup
+notice — those three are genuinely safe to deploy early. The device context is
+not.
+
+**Most of Part 1 is already applied here.** `0215`–`0220` went in by hand on
+11 September as `SQL STEPS/STEP-3`, `STEP-5` and `STEP-6`. Every statement is
+idempotent, so re-running is harmless — but the genuinely outstanding set is
+smaller than "15 migrations": `0221` ×3, `0222` ×3 and `0224`, plus `0223`
+only if the device wipe is wanted.
+
+**Part 2 (`0223`) clears every row from `mobile_devices`.** That is intended —
+it is the point of first-login registration — and it is guarded: it copies the
+table to `mobile_devices_pre_0223` in the same transaction first, and skips
+itself entirely if that backup already exists, so a second run cannot wipe
+registrations people have just made. **To stop before the wipe, end at the line
+marked `END OF PART 1`.**
+
+**`0216_incentive_eligibility.sql` is ours and is NOT in that file** — it was
+generated from `ae58385`, before that commit existed. The incentive page will
+not break meanwhile: `lib/incentive/ensure-eligibility-schema.ts` applies the
+additive half at runtime. Apply the migration properly regardless.
+
+`db/RUN-IN-SUPABASE-0216-0224.sql` is **superseded and incomplete** — neither
+`0215`, and none of Rudra's or Vinal's `0221`/`0222`. Use the `-ALL` file.
+
+**Two 0216 files now exist**, ours and theirs. Harmless — the runner orders by
+full filename — and it joins the 28 collisions already there back to `0019`.
 
 Do **not** reach for `npm run db:migrate`: the drizzle journal is stale at
 `0019`, so it would also apply two dozen unrelated pending migrations. Full
-detail, per-file notes and the known limitations are in
-[`HANDOFF-Om.md`](./HANDOFF-Om.md).
+detail and per-file notes are in [`HANDOFF-Om.md`](./HANDOFF-Om.md).
 
 ---
 
@@ -497,6 +557,417 @@ throughout; her Firebase UID is new.
 ---
 
 ## Changelog
+
+### 2026-09-15 (night) — Migrations 0215–0224 APPLIED; the team's merge deployed
+
+**The pending-migration section above is now history.** `0215`–`0224` ran
+against production (`mwaijzxuyicysvimzspx`, the personal-Gmail project) on
+15 September, verified by a full pass of `db/VERIFY-0215-0224.sql`: **74 checks,
+all true**, including both `0224` rows that gate the deploy. `main` and
+`dev-integration` were then pushed together; `/login` 200, `/api/health` ok
+(db 108ms, storage 603ms).
+
+**Part 2 ran too — the device wipe — and was then restored.** The paste covered
+lines 1–1994 of a 1994-line file, so Part 2 was included rather than stopped at
+`END OF PART 1`. All 66 `mobile_devices` rows were deleted, having been copied
+to `mobile_devices_pre_0223` in the same transaction first. They were put back
+within the hour by `db/RESTORE-DEVICES-FROM-0223-BACKUP.sql`: **66 restored, 66
+in backup, 0 live before, 0 skipped** — a clean full copy, and proof nobody had
+re-registered in the window.
+
+So **first-login registration is effectively not in force**: the restored rows
+carry their old `approved` status, which for the auto-adopted ones means "this
+browser turned up once", not "this person registered this machine". The wipe
+can be redone deliberately — the footer of the restore file has the three
+statements, and note that Part 2 skips itself while `mobile_devices_pre_0223`
+exists, so the old backup must be renamed and dropped first.
+
+**Vercel warned that `altus-corp1` had used 75% of the free Fluid Active CPU
+allowance, and the cause is the broadcast poller.** `<BroadcastPopup>` is
+mounted in `app/(app)/layout.tsx`, so it runs on every authenticated page, and
+it polls `/api/broadcasts/popup` every **4 seconds** — 900 requests an hour per
+open tab. It is the ONLY network poller in the app (`refetchInterval`,
+`refreshInterval` and `pollingInterval` appear nowhere), and it went live with
+Rudra's 0215 work this same day, which is why the alert arrived when it did.
+
+**The crons are not the cause and can be ruled out:** 35 of them, none more
+frequent than daily — 35 invocations a day against roughly 150,000 from the
+poller.
+
+Each poll is not cheap either. `getCurrentEmployee()` verifies the session
+(crypto, which is real CPU rather than I/O wait that Fluid bills lightly), then
+reads the employee, then `getDelegation()`, then the broadcast query — about
+four round trips, fifteen times a minute, per person.
+
+**Fixed for free: the poll now skips while the tab is hidden.** A popup nobody
+can see is not worth a round trip, and nothing is missed or even delayed — the
+`visibilitychange` handler already fires a check the moment the tab returns, so
+a broadcast sent while you were away now appears on RETURN rather than up to
+one throttled interval later. Strictly faster than before.
+
+**Then solved properly: the popup now PUSHES, and the poll is a safety net.**
+Raising the interval was the obvious lever and it is the wrong one — it trades
+the feature's whole promise for the saving. Supabase Realtime already carries
+`tasks` changes in this app (`components/layout/live-indicator.tsx`), and a
+broadcast is the same shape of event, over a websocket the browser is holding
+open anyway. So the popup subscribes to the `broadcasts` table and the poll
+rate became **adaptive**:
+
+| realtime channel | poll rate | requests/hour/tab |
+|---|---|---|
+| `SUBSCRIBED` | 60s | **60** |
+| anything else | 4s | 900 (the old behaviour) |
+
+That is a 93% cut **and** faster delivery — push arrives when the row is
+written, polling arrives up to a full interval later.
+
+**The adaptive rate is what makes it safe to deploy before the SQL.** It runs
+at 4s until the channel actually reports `SUBSCRIBED`. So with `broadcasts`
+missing from the publication, the websocket blocked, or
+`NEXT_PUBLIC_DISABLE_REALTIME=true` on the LAN build, it degrades to exactly
+what it did before — there is no configuration in which it is slower than the
+version it replaces.
+
+**SQL to get the saving: `db/ENABLE-REALTIME-BROADCASTS.sql`** — one guarded
+statement adding `broadcasts` to the `supabase_realtime` publication. Until it
+runs, the code is live and costing what it always did.
+
+**The poll does not go away, and should not.** Realtime announces row changes;
+it cannot announce that somebody's SNOOZE expired, which is a clock event with
+no row behind it. 60s is the right resolution for that, and doubles as the net
+for a websocket that dropped silently.
+
+**It subscribes to `broadcasts`, never `broadcast_recipients`** — publishing
+writes one broadcast row and one recipient row PER PERSON, so the recipients
+table would wake every tab in the company once per colleague. And the push is
+only a nudge: the browser then calls `/api/broadcasts/popup` once, so every
+per-person decision (who, snoozed, lock-mode) stays on the server and no
+broadcast content crosses the realtime channel.
+
+**The SECOND Vercel alert — Function Storage 75% of 10 GB — is a different
+problem with a different cause, and it is structural.** Measured from the
+traced bundles of a real build (`.next/server/**/*.nft.json`, summing each
+function's actual files), not estimated:
+
+| | |
+|---|---|
+| Functions in one deployment | **431** |
+| Sum of all function bundles, uncompressed | 10.30 GB |
+| Unique files behind them | 180 MB |
+| `/api/hr/letters/pdf` | **98.7 MB** |
+| `/api/hr/letters/email-pdf` | **98.7 MB** |
+| `/api/hr/letters/issue-rich` | **96.2 MB** |
+
+**THE CAUSE WAS NOT THE LETTER ROUTES, AND NOT THE NUMBER OF DEPLOYMENTS.**
+Both were wrong guesses made from the list of heaviest FUNCTIONS; the answer
+only appeared on totalling what was INSIDE all 431 of them:
+
+| package | total | in # functions | each |
+|---|---|---|---|
+| **`@electric-sql/pglite`** | **7.14 GB** | **426 of 431** | 17.2 MB |
+| (the app's own code) | 1.97 GB | 431 | 4.7 MB |
+| `next` | 0.52 GB | 431 | 1.2 MB |
+| `@sparticuz/chromium` | 0.19 GB | 4 | 49.8 MB |
+
+**One devDependency was 69% of the bill.** PGlite is the DUMMY_MODE fixture
+database — PostgreSQL compiled to WASM, for the local sandbox on port 3002 —
+and every function that touched `lib/db` shipped a copy production can never
+execute. Chromium, the thing that looked like the problem, is 1.8%.
+
+**Every precaution was already in place and none of them helped.** It is a
+devDependency, it is in `serverExternalPackages`, and `dummyDb()` `require()`s
+it at call time with a comment saying the real database path must never pay for
+it. But `serverExternalPackages` stops a package being BUNDLED, not TRACED —
+keeping it a plain runtime require is the whole point of it — and a call-time
+`require()` with a literal string is still statically analysable, so the tracer
+follows it exactly as it would an import. **This is the trap worth remembering:
+the three things that normally keep a dependency out of production say nothing
+at all about file tracing.** Only `outputFileTracingExcludes` does, and that is
+now set in `next.config.ts`.
+
+🔴 **FUNCTIONS STORAGE IS CUMULATIVE AND NEVER FALLS. Read the graph before
+theorising — Usage → Functions Storage → Total size.** It runs from **0 B on
+~30 August** in an unbroken climb to 10.6 GB, with no dip anywhere, including
+on 15 September when **80 of 84 deployments were deleted**. Deployment Storage
+fell to 1.76 GB that same afternoon; this meter did not move.
+
+So it is not a gauge of what is currently stored. **Every deployment adds to it
+permanently for the billing period** — roughly **240 MB each**, measured from
+the 15 September step (~7.2 GB to 10.6 GB across about fourteen deployments).
+The three earlier theories in this section's history — delete old deployments,
+blame the letter routes, blame a tracing exclude — were all wrong, and the
+graph would have refuted each of them in one glance.
+
+**What follows from that:**
+
+- **The 10.6 GB does not come down.** It resets when the period rolls over
+  (the graph starts ~30 August, so expect ~30 September). Being over the line
+  risks the project being paused; the only ways out before the reset are to
+  stop deploying or to upgrade.
+- **Every deploy is ~240 MB. Batch ruthlessly.** Fifteen small pushes cost
+  3.6 GB of a 10 GB allowance for one afternoon's work. This is the single
+  biggest thing anyone can do about the bill.
+- **Pushing the same commit to `main` AND `dev-integration` built it TWICE** —
+  visible as Preview/Production pairs at identical timestamps in `vercel ls`.
+  `vercel.json` now sets `git.deploymentEnabled["dev-integration"] = false`, so
+  the branch still receives pushes and still works as the outside developer's
+  PR target but no longer produces a build. That halves the cost of every
+  change on its own.
+- **Making functions smaller still matters**, but only for FUTURE deploys —
+  the pglite fix reduces what each new deployment adds, it cannot refund the
+  10.6 GB already counted.
+
+⚠️ **DO NOT TRUST A LOCAL `.nft.json` MEASUREMENT, including the table above.**
+Three builds of essentially the same tree measured 10.30 GB, then 1.95 GB, then
+1.95 GB — and both small ones traced **no node_modules at all**: zero files for
+`@sparticuz/chromium`, zero for `firebase-admin`, zero for `postgres`. An app
+without its own database driver cannot run, so those traces are incomplete, not
+a saving. The complete one came from a build that reused an existing `.next`;
+the empty ones followed `rm -rf .next`. An `outputFileTracingExcludes` entry was
+blamed for the emptiness and was innocent — it reproduces with no exclude
+configured.
+
+So the 7.14 GB figure comes from the one trace that was internally consistent
+(chromium in exactly the four routes configured for it, firebase-admin in 92),
+and it is the best evidence available rather than a proven number. **The
+authority is Vercel → Usage → Functions Storage after a deploy.** Treat a local
+build as a hypothesis generator only.
+
+**Three routes carry three separate copies of the same 67 MB Chromium binary
+— 201 MB of pure duplication in every single deployment.** They are traced in
+by `CHROMIUM_BIN` in `next.config.ts` because `@sparticuz/chromium` unpacks its
+binary at runtime, so nothing statically imports it and Vercel's file-tracing
+would otherwise drop it. The include is correct; having three routes that each
+need it is the cost.
+
+**What to do, in order:**
+
+1. **Deploy the `outputFileTracingExcludes` fix** (done — see `next.config.ts`).
+   It is what removes the 7.14 GB.
+2. **Then delete the deployments built BEFORE it**, once the new one is live
+   and healthy. They still reference the fat bundles, and the meter cannot fall
+   while anything does.
+3. **Do not deploy on every push.** Each push to `main` is a full 431-function
+   deployment. Batch work onto one deploy rather than five. This matters for
+   Deployment Storage (which does accumulate) more than for Functions Storage.
+4. **Optional, and much smaller than it looks: collapse the three letter-PDF
+   routes into one.** They all render the same rich letter through headless
+   Chromium and differ only in what they do with the bytes (return / email /
+   store), so one route with a mode parameter carries the 67 MB once instead of
+   three times. Worth roughly 150 MB — real, but 1.8% of the problem, not the
+   headline it first appeared to be. It is a refactor of three live endpoints
+   and wants its own change and its own test.
+
+**Do NOT "fix" this by deleting the `outputFileTracingIncludes` entries.** They
+look like bloat and they are load-bearing: without `CHROMIUM_BIN` the rich
+letter routes fail at runtime with "input directory …/bin does not exist", and
+without the `public/letter-fonts`, `public/letterhead` and `public/logos`
+includes the PDFs render with no fonts and a code-drawn red band instead of the
+letterhead. `public/` is CDN-served and is not guaranteed to be on the function
+filesystem.
+
+**The two alerts are unrelated.** Fluid Active CPU is the broadcast poller
+(above); Function Storage is deployment artifacts. Fixing one does nothing for
+the other.
+
+**A verification file must be ONE statement.** The Supabase editor displays only
+the LAST result set of a multi-statement run. `VERIFY` was eight `SELECT`s, so
+running it showed check 7 and silently discarded checks 1–6 — and the output
+was indistinguishable from a clean full run. It is now a single query returning
+`(check_name, ok)` ordered failures-first. Same reason the restore script has
+no `BEGIN`/`COMMIT`: one statement is atomic already, and a trailing `COMMIT`
+returns no rows, so it would become the last result set and hide the report.
+Written up for the team in [`docs/handoffs/README.md`](./docs/handoffs/README.md).
+
+**Three defects Vinal reported, two of them fixed here.**
+
+1. **The Goals rail had no pill for the page it lands you on.**
+   `WORKSPACE_LANDING.goals` is `/goals/dashboard` and `/ws/goals` routes there
+   too, but `WORKSPACE_NAV.goals` never listed it — so entering the room opened
+   a page with nothing highlighted and no way back to it once you clicked away.
+   Added as the first item, with `canvasOnly` for the same reason the three
+   level pages carry it (the page itself redirects to `/goals` when
+   `GOALS_CANVAS_ON` is off, so without it the pill would be a dead link).
+
+2. **Bulk Add vanished from the desktop ribbon — and that one is ours, not
+   the team's.** The bar the Aura bar replaced carried "search · bulk add ·
+   create · bell · focus"; bulk add was the single control that did not make
+   the crossing. It is still rendered in `DashboardSidebar`, so it survived on
+   phones and disappeared on desktop, which is exactly why it read as "it works
+   in wms-local but not here". Restored to `aura-top-bar.tsx` before Create,
+   the order the old bar used. **The lesson: when a component is replaced,
+   diff what the old one RENDERED, not just what it looked like.**
+
+3. **The short client and subject pickers are a DATA gap, not a bug — no code
+   change would fix it.** Both lists are rows read straight out of `clients`
+   and `subjects` filtered on `is_active = true`. The only code-level filter
+   that exists is `lib/tasks/subject-options.ts`, and it retires exactly two
+   values — "WMS" and "WMS App" — neither of which is on the reported list;
+   "Altus Ecosystem" is PINNED there and is always offered. Clients have no
+   policy layer at all. So those rows are on the team's database and not on
+   this one, which is what a team working on a separate Supabase project
+   produces. `db/SEED-CLIENTS-AND-SUBJECTS.sql` diagnoses first (missing vs
+   merely switched off — different fixes) and then seeds, matching
+   case-insensitively because `name` is UNIQUE but case-SENSITIVE and a plain
+   `ON CONFLICT DO NOTHING` would put "BSS" next to "bss" in the picker.
+   **Expect up to a 10-minute lag** before the names appear: both lists are
+   `unstable_cache`d with a 600s revalidate, and a hand-written INSERT cannot
+   invalidate the tag the way the in-app write paths do. A redeploy is instant.
+
+**ANSWERED — broadcast authoring stays open to every employee.** Rudra asked
+for a ruling in `docs/handoffs/HANDOFF-Rudra.md` §6.4: `requireAuthor()` is
+`requireUser()`, so anyone signed in can create a broadcast, while managing an
+existing one correctly requires author-or-admin. **The account holder's
+decision on 15 September is that this is intended — leave it as it is.** No
+code change; the current behaviour already is the decision.
+
+Recorded here so it is not re-raised as a bug every time someone reads that
+permission check. The thing to watch, if it ever becomes a problem, is not
+authoring itself but **Critical/Emergency priority, which carries app-lock
+mode** — that is the capability worth splitting off, rather than restricting
+who may post an announcement.
+
+### 2026-09-15 (evening) — The team's fork audited against the Aura merge
+
+No new code from the fork: `dev/main` and `dev/prod-sync-0915` are both already
+contained in this branch (merged as `5a86a2a0`). What follows is the audit of
+that merge, and the four repairs it needed.
+
+**SQL to run before deploying** — unchanged, and still outstanding:
+`db/VERIFY-0215-0224.sql` → `db/RUN-IN-SUPABASE-0215-0224-ALL.sql` → the verify
+file again, against **`mwaijzxuyicysvimzspx`**. See the pending-migrations
+section at the top of this file, including why the instructions that shipped
+with those files name the wrong project.
+
+**What the merge broke, and the fixes**
+
+- **`tests/unit/incentive-export.test.ts` no longer type-checked.** Its
+  `CatalogRow` fixture predates `0216`, so it was missing the two fields that
+  migration added. Given `appliesToAll: true` / `eligibleIds: []` — the state
+  0216 leaves behind — with a note saying why the exports do not read them.
+  This was the ONLY type error in 459 changed files.
+- **The Aura room switcher advertised a key that does nothing.** The shortcut
+  alphabet became letters on 11 September (`qwertyuiopdf`, twelve keys for
+  twelve rooms, replacing ten digits that left two rooms with none). The one
+  listener mounted app-wide requires **Alt**, so a badge reading a bare "Q" was
+  advertising a keystroke the app ignores. `lib/aura-rooms.ts` now emits
+  `moduleShortcutHint` — "⌥Q", the same two-character form the module footer
+  and module bar already use. **This is the only user-visible change here.**
+- **`.gitignore` carried `!components/**/whatsapp*` twice**, once from each
+  side of the merge, with two different comment blocks explaining the same
+  incident. Kept the first.
+- **`db/VERIFY-0215-0224.sql` gained check 3b.** See below.
+
+**Check 3b — the drift the -ALL sheet does not cover**
+
+`db/history/SCHEMA_DRIFT_FIX_2026-09-10.sql` (their file, tracked here rather
+than left loose in `SQl Queries by the team members/`) repairs **pre-0215**
+migrations that were never applied on their database: `employees.employment_
+status` and its four siblings, `goals.client`, the `project_nodes` columns and
+`project_node_attachments`. Its Part 3 is `0215`, which the -ALL sheet already
+carries — Parts 1 and 2 are not in that sheet at all. So running the -ALL sheet
+end to end would still leave those missing, on any database that skipped them.
+Check 3b now asks the question directly instead of assuming the answer. Expect
+every row true on production, which was repaired on 9 September.
+
+That file also independently confirms the project test in check 3: it records
+that `app.is_admin()` does not exist on `fjopgyqytfvbudkwhdto`, which is why
+their `PART 3b` shipped commented out.
+
+**What the merge got right, and is worth not re-litigating**
+
+- **Every Aura file is byte-identical** to `7e91012a`: `app/aura.css`, the top
+  bar, the rail lens, the widget grid, the charts, the widget bodies,
+  `lib/dashboard/widgets.ts`, `lib/aura-rooms.ts`, the hub page. Nothing of the
+  design was reverted by a team branch that predated it.
+- **Operations reaches the new top bar for free.** `roomsFor()` maps whatever
+  `MODULE_ORDER` holds, and Operations was *appended* to that list rather than
+  slotted in beside the two rooms it absorbed — which is what kept `q`…`p`
+  pointing at the same ten modules. No wiring was needed.
+- **The HR console renders the Aura bar inset**, through Rudra's
+  `useInsetTopBar()`, so the console's rail runs full height like every other
+  module's. The bar is a `shrink-0` flex item there, not a scroll child, so its
+  `position: sticky` is inert rather than wrong.
+
+**Known, deliberately not fixed here**
+
+- **`components/hub/module-shortcuts.tsx` is orphaned.** The team's bare-letter
+  hub shortcuts were built for the old hub-card grid, which the dashboard
+  replaced; nothing imports the file. Mounting it now would be actively wrong —
+  the Aura bar carries a search field, so a bare "q" on this screen is typing.
+  Alt+letter works everywhere, including here. Left in place, unmounted.
+- **`package.json`'s tiptap pin is under the npm-only `overrides` key.** This
+  repo declares `packageManager: pnpm@10.33.0`, and pnpm reads
+  `pnpm.overrides`. The pin therefore works for `npm install` and does nothing
+  on Vercel. Not moved: mirroring it under `pnpm.overrides` forces a
+  `pnpm-lock.yaml` regeneration, and changing dependency resolution in the same
+  push as a 459-file merge is how a good merge becomes a bad deploy. The
+  lockfile is untouched by the merge and `--frozen-lockfile` still matches, so
+  the deploy builds exactly as today's does. Do it as its own change.
+- **Broadcast authoring is open to every signed-in employee** —
+  `requireAuthor()` is `requireUser()`, while managing an existing broadcast
+  correctly requires author-or-admin. Broadcasts support Critical/Emergency
+  priority with app-lock mode, so this is any employee being able to take over
+  everyone's screen. Rudra flagged it for confirmation in
+  `docs/handoffs/HANDOFF-Rudra.md` §6.4 and it has not been answered.
+
+**Verification** — `tsc --noEmit` clean after the fixture fix (the one error
+above was the only one). The nine-to-ten red unit tests and ten lint errors are
+pre-existing and unrelated; both the team and this branch have confirmed them
+against clean trees at `bd20607` and at `ea75ddec`.
+
+### 2026-09-15 — Per-person incentive eligibility; dashboard trimmed and widened
+
+**SQL TO RUN: `db/migrations/0216_incentive_eligibility.sql`.** It is additive
+and safe to re-run. You do not have to run it before the deploy — see below.
+
+**THE INCENTIVE MODULE NOW DECIDES WHO EACH INCENTIVE APPLIES TO.** An admin
+opens the incentive chart and, per row, picks **Everyone**, a **whole function**
+(one button per department), or **named people**. Anyone not picked:
+
+- does not see that incentive **at all** — it is not greyed out or marked
+  ineligible, it is simply not in their catalog;
+- does not have it counted in their **target vs actual**.
+
+Two design decisions worth knowing:
+
+- **A department button SELECTS, it does not SUBSCRIBE.** Pressing "Sales" ticks
+  everyone currently in Sales and then forgets it was ever a department; what is
+  stored is the list of people. If the rule were stored instead, moving somebody
+  between departments would change what they are paid for months after anyone
+  decided anything, and nobody would know why.
+- **`applies_to_all` defaults to TRUE.** The moment the migration runs, every
+  existing incentive stays visible to exactly the people who could see it a
+  second earlier. Nothing disappears until an admin narrows it deliberately.
+
+**An entry naming an incentive the catalog has never heard of still counts.**
+`incentive_entries.incentive_name` is free text imported from the old sheet with
+no foreign key, so a typo or a retired scheme makes a row unclassifiable — not
+forbidden. Quietly dropping someone's earnings over a spelling mistake in an
+import is the worse failure. Same for a ledger row never linked to an employee.
+
+**THE DEPLOY CANNOT OUTRUN THE SQL.** `lib/incentive/ensure-eligibility-schema.ts`
+runs the additive half of 0216 once per server process, and every read falls
+back to "everything applies to everyone" if the rules cannot be read at all.
+Code arriving before its migration is what took Daily Goals, punch-in and
+sign-in down on 8 and 9 September; this is the same shape as the existing
+`lib/ensure-incentive-schema.ts`. **Still run the file** — the guard is
+insurance, not a substitute.
+
+**What is NOT covered:** `incentive_targets` stores ONE target per person per
+month, not a target per incentive. So the *actual* side is filtered by
+eligibility and the *target* side cannot be — there is nothing in the schema to
+split it by. Per-incentive targets would need their own column and a second
+migration.
+
+**Dashboard, same day:** the workspace rail is gone from /hub (every room is in
+the top bar, so a second permanent copy down the left was 252px spent saying it
+twice), the "N things need you today" line is gone, the top bar now shows up to
+eight tabs, and there are three more widgets (Waiting on, Inbox, Joined this
+month) plus move-to-top/bottom, a compact density and a greeting switch.
+
+Tests: `tests/unit/incentive-eligibility.test.ts` (8) and
+`tests/unit/dashboard-layout.test.ts` (15).
 
 ### 2026-09-12 (night) — The home screen is a dashboard you arrange yourself
 

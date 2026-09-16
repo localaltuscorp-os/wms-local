@@ -1,4 +1,4 @@
-import { MODULE_THEME, MODULE_ORDER, moduleShortcut } from "@/lib/module-theme";
+import { MODULE_THEME, MODULE_ORDER, moduleShortcutHint } from "@/lib/module-theme";
 import { WORKSPACE_LANDING, type WorkspaceId } from "@/lib/workspaces";
 
 /**
@@ -26,7 +26,20 @@ export interface AuraRoom {
   accent: string;
   /** Deeper step of the same hue, for a glyph that must stay readable. */
   accentDeep: string;
-  /** 1–9/0, or null past the tenth room. */
+  /**
+   * The keystroke badge, MODIFIER INCLUDED — "⌥Q", not "Q".
+   *
+   * The shortcut alphabet became letters on 2026-09-11 (MODULE_ORDER, twelve
+   * keys `qwertyuiopdf`, replacing the ten digits that left two rooms with no
+   * shortcut at all). Letters made the modifier load-bearing: the ONE listener
+   * mounted app-wide, components/layout/module-shortcuts.tsx, requires Alt,
+   * because inside a room a bare letter is almost always typing — and this bar
+   * carries a search field, so the hub is no exception any more.
+   *
+   * A badge reading a lone "Q" would therefore advertise a key that does
+   * nothing. `moduleShortcutHint` is the same two-character form the module
+   * footer and module bar already use.
+   */
   shortcut: string | null;
 }
 
@@ -40,7 +53,7 @@ export function roomsFor(allowed: WorkspaceId[]): AuraRoom[] {
       href: WORKSPACE_LANDING[id],
       accent: m.accent,
       accentDeep: m.accentDeep,
-      shortcut: moduleShortcut(MODULE_ORDER.indexOf(id)),
+      shortcut: moduleShortcutHint(MODULE_ORDER.indexOf(id)),
     };
   });
 }
