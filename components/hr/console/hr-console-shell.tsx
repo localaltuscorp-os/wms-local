@@ -9,7 +9,6 @@ import { HrModuleRail } from "./hr-module-rail";
 import { HrStepList } from "./hr-step-list";
 import { HrConsoleContextProvider } from "./hr-console-context";
 import { HrModuleGhost } from "./hr-module-ghost";
-import { useInsetTopBar } from "@/components/layout/inset-top-bar";
 
 /**
  * The HR workspace — a three-column console wrapping every /hr surface:
@@ -46,9 +45,6 @@ export function HrConsoleShell({
 }) {
   const pathname = usePathname() ?? "/hr";
   const searchParams = useSearchParams();
-  // The app-wide top bar, handed down by ChromeShell so it can be rendered
-  // inside the content column rather than across the top of the rail too.
-  const topBar = useInsetTopBar();
   // Two independently collapsible columns. The steps list is a real column again
   // (see below), so it gets its own toggle beside the rail's.
   const [railCollapsed, setRailCollapsed] = React.useState(false);
@@ -118,21 +114,17 @@ export function HrConsoleShell({
       // ~848px page with this pane's scrollbar painted down its side.
       // globals.css unclips both under @media print. Keep the class names.
       className="hr-shell flex overflow-hidden bg-canvas-base"
-      // A FULL viewport, not `calc(100dvh - var(--app-topbar-h))`. The top bar
-      // used to be a sibling ABOVE this shell, so its height had to come off
-      // the top; it is now rendered INSIDE the content column below, which is
-      // what lets the rail start at y=0 like every other module's rail.
+      // The viewport MINUS the full-width top bar. The bar is now a sibling ABOVE
+      // this shell (rendered by ChromeShell, same as every other module), so this
+      // shell must take the remaining height or the page would overflow.
       //
       // NO `flex-1` HERE, EVER. This is a flex ITEM (app/(app)/template.tsx is
-      // a flex column between us and ChromeShell's h-dvh frame). `flex-1` sets
-      // `flex-basis: 0%`, and on a flex item the basis REPLACES the main-size
-      // property — so the height below would be silently ignored and the shell
-      // would size to its content instead. It then grew ~160px past the frame,
-      // which clips with `overflow-hidden`: the rail's New Request button and
-      // user card fell off the bottom of the screen and nothing on the page
-      // could scroll to reach them. With the default `flex-basis: auto` the
-      // height is used, and the shell is exactly one viewport.
-      style={{ height: "100dvh" }}
+      // a flex column between us and ChromeShell's min-h-dvh frame). `flex-1`
+      // sets `flex-basis: 0%`, and on a flex item the basis REPLACES the main-
+      // size property — so the height below would be silently ignored and the
+      // shell would size to its content instead. With the default
+      // `flex-basis: auto` the height is used.
+      style={{ height: "calc(100dvh - var(--app-topbar-h))" }}
     >
       <div
         className={cn(
@@ -190,16 +182,9 @@ export function HrConsoleShell({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* THE APP TOP BAR — the first row of the CONTENT column, so its page
-            title begins where the page begins instead of sitting over the rail.
-            `z-[46]` puts it one step above the step nav's z-[45] (see the band
-            documented below), so the bell's dropdown and the search trigger are
-            never painted over by the row beneath them, while the `>= z-50`
-            full-screen modals still cover it. */}
-        {topBar ? <div className="relative z-[46] shrink-0">{topBar}</div> : null}
-        {/* The CONTENT column: top bar, then the page. The steps now live in
-            column 2 (HrStepList above), so there is no horizontal step row here
-            any more — the page is the only thing under the top bar. */}
+        {/* The CONTENT column: the page itself. The full-width top bar lives
+            above this shell (ChromeShell), and the steps live in column 2
+            (HrStepList above), so the page is the only thing here. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* --app-topbar-h is a body-scoped CSS var (see globals.css) that
               individual /hr pages use via the `.sticky-below-topbar` utility
