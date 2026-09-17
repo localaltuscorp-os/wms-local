@@ -23,7 +23,15 @@ import {
   type ReactNode,
 } from "react";
 import { Extension, Mark, mergeAttributes, type CommandProps } from "@tiptap/core";
-import { useEditor, useEditorState, EditorContent, type Editor } from "@tiptap/react";
+import {
+  useEditor,
+  useEditorState,
+  EditorContent,
+  NodeViewWrapper,
+  ReactNodeViewRenderer,
+  type Editor,
+  type NodeViewProps,
+} from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { Underline } from "@tiptap/extension-underline";
 // TextStyle v3 is the SINGLE source of truth for inline colour / highlight /
@@ -260,6 +268,90 @@ const FieldPlaceholder = Mark.create({
  * Image node that persists a `data-path` attribute (the stored value) AND a
  * `width` — a CSS width (e.g. "50%") written into the inline style, so an
  * inserted image is RESIZABLE and the chosen size survives save → reload → PDF.
+ *
+ * The width is written by the toolbar's preset buttons OR by the free drag
+ * handle below — both end up as the same `width` attribute, so a size chosen
+ * either way prints identically.
+ */
+
+/**
+ * Free-form drag-to-resize for an image. A NodeView renders the <img> plus a
+ * bottom-right handle; dragging the handle rewrites the node's `width` as a
+ * percentage of the image's parent block, clamped to 10–100%. This is the
+ * "selection tool" the presets never offered — you pull the corner to the size
+ * you want instead of landing on 25/50/75/100.
+ */
+function ResizableImage(props: NodeViewProps) {
+  const { node, updateAttributes, selected } = props;
+  const frameRef = useRef<HTMLSpanElement | null>(null);
+
+  const onHandlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLSpanElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const frame = frameRef.current;
+      if (!frame) return;
+
+      const startX = e.clientX;
+      const startW = frame.getBoundingClientRect().width;
+      // 100% is the image's parent block (the body column / table cell), not the
+      // image's own natural width — matching the CSS `width: NN%` the presets and
+      // the exported <img> both use.
+      const refW = frame.parentElement?.clientWidth ?? startW;
+
+      const clamp = (pct: number) => Math.min(100, Math.max(10, pct));
+      const apply = (clientX: number) => {
+        const pct = clamp(((startW + (clientX - startX)) / refW) * 100);
+        frame.style.width = `${pct}%`;
+        return pct;
+      };
+
+      const onMove = (ev: PointerEvent) => apply(ev.clientX);
+      const onUp = (ev: PointerEvent) => {
+        const pct = apply(ev.clientX);
+        updateAttributes({ width: `${pct}%` });
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+      };
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+    },
+    [updateAttributes],
+  );
+
+  return (
+    <NodeViewWrapper as="div" className="rle-img-node">
+      <span
+        ref={frameRef}
+        className="rle-img-frame"
+        data-selected={selected ? "true" : undefined}
+        style={{ width: node.attrs.width ? String(node.attrs.width) : "auto" }}
+      >
+        {/* A raw <img>, not next/image: a TipTap NodeView must render the editor's
+            stored markup as-is (a user-uploaded signed URL with no known
+            dimensions), and next/image's optimizer cannot serve it inside
+            contentEditable. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={node.attrs.src as string}
+          alt={String(node.attrs.alt ?? "")}
+          data-path={node.attrs.dataPath ? String(node.attrs.dataPath) : undefined}
+        />
+        <span
+          className="rle-img-handle"
+          aria-hidden
+          title="Drag to resize"
+          onPointerDown={onHandlePointerDown}
+        />
+      </span>
+    </NodeViewWrapper>
+  );
+}
+
+/**
+ * Image node that persists a `data-path` attribute (the stored value) AND a
+ * `width` — a CSS width (e.g. "50%") written into the inline style, so an
+ * inserted image is RESIZABLE and the chosen size survives save → reload → PDF.
  */
 const ImageWithPath = Image.extend({
   addAttributes() {
@@ -278,6 +370,13 @@ const ImageWithPath = Image.extend({
           attrs.width ? { style: `width: ${attrs.width}; height: auto` } : {},
       },
     };
+  },
+  // The free drag-resize NodeView. Kept OUT of the attributes above so the
+  // stored document stays plain HTML (an <img> with an inline width) — the
+  // NodeView is a live-editing affordance only, and the exported HTML/PDF see
+  // the exact same <img> they always did.
+  addNodeView() {
+    return ReactNodeViewRenderer(ResizableImage);
   },
 });
 
@@ -1399,6 +1498,24 @@ const RLE_CSS = `
 .rle-prose a{color:var(--rle-red);text-decoration:underline;}
 .rle-prose img{max-width:100%;height:auto;border-radius:4px;}
 .rle-prose img.ProseMirror-selectednode{outline:2px solid var(--rle-red);outline-offset:2px;}
+/* ── Free drag-resize image (NodeView) ───────────────────────────────────────
+   .rle-img-node is the block wrapper (full body width). .rle-img-frame is an
+   inline-block that carries the image's width, so the frame shrink-wraps the
+   image and the drag handle anchors to the image's corner rather than the whole
+   line. The handle is a red corner pill that only appears when the image is
+   selected; it has a larger invisible hit target so a small square is still
+   easy to grab with a mouse. */
+.rle-img-node{max-width:100%;}
+.rle-img-frame{position:relative;display:inline-block;max-width:100%;vertical-align:top;}
+.rle-img-frame img{display:block;width:100%;height:auto;border-radius:4px;}
+.rle-img-handle{
+  position:absolute;right:-6px;bottom:-6px;width:14px;height:14px;border-radius:4px;
+  background:var(--rle-red);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);
+  cursor:nwse-resize;touch-action:none;opacity:0;transition:opacity .12s ease;
+  pointer-events:none;
+}
+.rle-img-handle::after{content:"";position:absolute;inset:-6px;} /* bigger grab area */
+.rle-img-frame[data-selected="true"] .rle-img-handle{opacity:1;pointer-events:auto;}
 .rle-prose sub,.rle-prose sup{font-size:.72em;line-height:0;}
 .rle-prose hr{border:0;border-top:1px solid var(--rle-line);margin:16px 0;}
 /* Tables - match the bordered/padded letter-body term-table look */
