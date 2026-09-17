@@ -8534,3 +8534,82 @@ export const jdPushLog = pgTable(
 );
 export type JdPushLog = typeof jdPushLog.$inferSelect;
 export type NewJdPushLog = typeof jdPushLog.$inferInsert;
+
+/**
+ * ACCOUNT LOCKOUT after consecutive failed sign-ins (migration 0236).
+ *
+ * Five wrong passwords locks the account. While locked the person can neither
+ * sign in nor use Forgot Password; only the four in
+ * lib/auth/unlock-permission.ts can clear it.
+ *
+ * KEYED BY EMAIL, NOT employee id. A failed attempt proves someone typed an
+ * address, not who they are, and the address may belong to nobody — the
+ * attempts worth counting most are the ones against addresses that do not
+ * exist. `employeeId` below is a nullable convenience for the admin screen,
+ * filled in when the address happens to match a row; it is not this record's
+ * identity. See the migration for the longer argument.
+ *
+ * `lockedAt` IS the lock — one nullable timestamp rather than a boolean and a
+ * date that can disagree. There is deliberately no `lockedUntil`: a timed
+ * release would let a brute-force attempt simply wait, and the requirement is
+ * that a human approves each one.
+ */
+export const accountLockouts = pgTable(
+  "account_lockouts",
+  {
+    /** Lower-cased by every call site. */
+    email: text("email").primaryKey(),
+    /** Consecutive failures inside FAILED_ATTEMPT_WINDOW_MS. */
+    failedCount: integer("failed_count").notNull().default(0),
+    lastFailedAt: timestamp("last_failed_at", { withTimezone: true }),
+    /** NULL = not locked. */
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    /** Kept after release, so "has this account been locked before?" stays answerable. */
+    unlockedAt: timestamp("unlocked_at", { withTimezone: true }),
+    unlockedById: uuid("unlocked_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    employeeId: uuid("employee_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("account_lockouts_count_nonneg", sql`${t.failedCount} >= 0`),
+    // The admin screen's only query: everyone currently locked, newest first.
+    index("account_lockouts_locked_idx").on(t.lockedAt).where(sql`${t.lockedAt} is not null`),
+    index("account_lockouts_employee_idx")
+      .on(t.employeeId)
+      .where(sql`${t.employeeId} is not null`),
+  ],
+);
+
+export type AccountLockout = typeof accountLockouts.$inferSelect;
+
+/**
+ * PER-IP LOGIN THROTTLE (migration 0236).
+ *
+ * The per-email counter cannot see the attack that matters most here: one
+ * failure each against fifty addresses trips no per-email threshold, yet that is
+ * exactly how an address list gets swept. This table prices that.
+ *
+ * DELIBERATELY NOT A LOCKOUT. An office NAT is one address for everybody, so
+ * tripping this throttles and refuses — it never locks a person out. Rows are
+ * disposable; anything older than the window can be pruned.
+ */
+export const loginAttemptIps = pgTable(
+  "login_attempt_ips",
+  {
+    ip: text("ip").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
+    failedCount: integer("failed_count").notNull().default(0),
+    lastFailedAt: timestamp("last_failed_at", { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.ip, t.windowStart] }),
+    index("login_attempt_ips_window_idx").on(t.windowStart),
+  ],
+);
+
+export type LoginAttemptIp = typeof loginAttemptIps.$inferSelect;

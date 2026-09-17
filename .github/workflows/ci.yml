@@ -14,6 +14,18 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Node's default heap is ~2 GB and both `typecheck` and `test` now exceed
+      # it: the suite died at 65s with "FATAL ERROR: Reached heap limit" and
+      # exit code 134 (SIGABRT), which reads as a red ✕ but is a CRASH, not a
+      # failing assertion — no test was actually failing. The repo simply grew
+      # past what 2 GB holds: ~240 tables in db/schema.ts, 800+ routes, and the
+      # whole unit suite loaded into one process.
+      #
+      # GitHub's standard runner has 16 GB, so 6 GB is comfortable. If this
+      # starts failing again, cap Vitest's workers before raising it further —
+      # more heap per worker multiplied by more workers is how you reach the
+      # runner's real ceiling.
+      NODE_OPTIONS: --max-old-space-size=6144
 
     steps:
       - uses: actions/checkout@v4
