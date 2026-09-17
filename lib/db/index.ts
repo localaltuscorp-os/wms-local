@@ -144,11 +144,42 @@ function withPostgresJsResultShape<T extends object>(instance: T): T {
 
 function dummyDb() {
   if (globalForDummy.__pglite) return globalForDummy.__pglite;
-  // Required at call time, not imported at module scope: this pulls in a
-  // multi-megabyte WASM build, and the real database path must never pay for it.
-  const { PGlite } = require("@electric-sql/pglite") as typeof import("@electric-sql/pglite");
-  const { pg_trgm } = require("@electric-sql/pglite/contrib/pg_trgm");
-  const { unaccent } = require("@electric-sql/pglite/contrib/unaccent");
+  /* Required at call time, not imported at module scope: this pulls in a
+   * multi-megabyte WASM build, and the real database path must never pay for it.
+   *
+   * ── AND THROUGH A VARIABLE, WHICH IS THE PART THAT ACTUALLY WORKS ────────
+   * Call-time was not enough. Next's file tracer reads the BUILD OUTPUT and
+   * follows any `require()` whose specifier is a string literal, wherever it
+   * sits — a function body is no different from module scope to a static
+   * analyser. So on 2026-09-15 this package was measured in 426 of 431
+   * deployed functions at 17.2 MB each: 7.14 GB, 69% of a Functions Storage
+   * bill that had gone over its 10 GB allowance.
+   *
+   * Neither of the other two defences helps, and it is worth knowing why:
+   *   · `devDependencies` governs INSTALL, and Vercel installs dev deps to
+   *     build with, so the files are present to be traced.
+   *   · `serverExternalPackages` (next.config.ts) governs BUNDLING. Leaving it
+   *     as a plain runtime require out of node_modules is the entire point of
+   *     that option — which means the tracer must copy node_modules in.
+   *
+   * A variable specifier cannot be resolved statically, so the tracer does not
+   * follow it and the package stays out of every deployed function. Node
+   * resolves it perfectly well at runtime, which is all DUMMY_MODE needs.
+   *
+   * DELIBERATELY NOT `outputFileTracingExcludes`, which was tried first. Not
+   * because it was proven harmful — it was blamed for emptying every trace and
+   * was innocent — but because a variable specifier is precise BY CONSTRUCTION:
+   * there is no glob to get wrong, nothing else can be caught by it, and it
+   * cannot break production even if it saves nothing, because production never
+   * reaches this function. The full reasoning, and the warning about trusting
+   * local `.nft.json` numbers at all, is in next.config.ts.
+   *
+   * If this ever runs on a deployment it throws MODULE_NOT_FOUND here, which is
+   * the right failure: DUMMY_MODE is the local sandbox and must never be on. */
+  const PGLITE = "@electric-sql/pglite";
+  const { PGlite } = require(PGLITE) as typeof import("@electric-sql/pglite");
+  const { pg_trgm } = require(`${PGLITE}/contrib/pg_trgm`);
+  const { unaccent } = require(`${PGLITE}/contrib/unaccent`);
   const instance = withPostgresJsResultShape(
     drizzlePglite(new PGlite({ dataDir: DUMMY_DB_DIR, extensions: { pg_trgm, unaccent } }), {
       schema,

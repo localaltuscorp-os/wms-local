@@ -43,7 +43,8 @@ Two notes for whoever runs it:
   (outside a transaction) if that table has grown.
 
 > ⚠️ **This is not the only SQL outstanding.** `main` also carries `0216`–`0220` from the
-> `Om` branch, bundled in [`db/RUN-IN-SUPABASE-0216-0220.sql`](../../db/RUN-IN-SUPABASE-0216-0220.sql).
+> `Om` branch, bundled in [`db/RUN-IN-SUPABASE-0215-0224-ALL.sql`](../../db/RUN-IN-SUPABASE-0215-0224-ALL.sql)
+> (the `0216-0220` sheet this line used to name never existed).
 > Run those too — see [`HANDOFF-Om.md`](../../HANDOFF-Om.md) §1. A copy-paste version of
 > `0215` alone also lives in [`docs/SQL_QUERIES_FOR_DEPLOY.md`](../SQL_QUERIES_FOR_DEPLOY.md).
 

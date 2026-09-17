@@ -37,6 +37,14 @@ const row = (over: Partial<CatalogRow> = {}): CatalogRow => ({
   notes: null,
   sortOrder: 100,
   active: true,
+  // Migration 0216's two fields. Defaulted to "open to everyone, nobody
+  // singled out" because that is what the migration leaves behind, and because
+  // the exports deliberately do not read them: the sheet's eligibility column
+  // is the Sales/Interns pair, which is a different question from who an admin
+  // narrowed the incentive to. If that ever changes, these two lines are where
+  // the fixture has to start varying.
+  appliesToAll: true,
+  eligibleIds: [],
   ...over,
 });
 

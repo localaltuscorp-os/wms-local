@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { createBrowserClient } from "@supabase/ssr";
 import type { Route } from "next";
 import { X, Check, Megaphone, Loader2, ArrowUpRight } from "lucide-react";
 import {
@@ -16,6 +17,7 @@ import {
   BROADCAST_PRIORITY_LABELS,
   BROADCAST_PRIORITY_TONE,
 } from "@/lib/ecos/labels";
+import { clientEnv } from "@/lib/env-client";
 import type { BroadcastCategory, BroadcastPriority } from "@/db/enums";
 
 /**
@@ -53,8 +55,25 @@ import type { BroadcastCategory, BroadcastPriority } from "@/db/enums";
  * poller is a full interval plus the round trip — at 5000 that lands *on* the
  * boundary and measured 5.08s in an end-to-end run. 4000 leaves a second of
  * headroom for the request, so the promise holds rather than nearly holds.
+ *
+ * THIS IS NOW THE FALLBACK RATE, not the normal one — see SLOW_POLL_MS.
  */
-const POLL_MS = 4000;
+const FAST_POLL_MS = 4000;
+
+/**
+ * The rate once Supabase Realtime is carrying the news instead.
+ *
+ * WHY THE POLL SURVIVES AT ALL. Realtime tells us a `broadcasts` row changed;
+ * it cannot tell us that somebody's SNOOZE has expired, which is a clock event
+ * with no row behind it. A minute is a fine resolution for "your snooze ran
+ * out", and it is also the safety net for a websocket that dropped without
+ * saying so.
+ *
+ * 4s → 60s is 900 requests an hour per open tab down to 60, and each of those
+ * requests costs a session verification plus three queries. That is the whole
+ * of the Fluid Active CPU problem this component created.
+ */
+const SLOW_POLL_MS = 60_000;
 
 interface PopupMedia {
   url: string;
@@ -80,6 +99,10 @@ export function BroadcastPopup() {
   const pathname = usePathname();
   const [broadcast, setBroadcast] = React.useState<PopupBroadcast | null>(null);
   const [busy, setBusy] = React.useState<null | "read" | "snooze">(null);
+  // Realtime channel names must be unique PER INSTANCE: createBrowserClient
+  // hands back a singleton, so a shared name would return an already-subscribed
+  // channel, and adding a postgres_changes callback to one of those throws.
+  const instanceId = React.useId();
 
   /*
    * THREE REFS, ALL WRITTEN FROM EFFECTS. The poll below is set up once and
@@ -121,6 +144,20 @@ export function BroadcastPopup() {
     async function check() {
       // Nothing to do while one is already up, or while a click is in flight.
       if (cancelled || showing.current) return;
+      // A POPUP NOBODY CAN SEE IS NOT WORTH A ROUND TRIP.
+      //
+      // Each poll costs a session lookup AND a database query (see
+      // app/api/broadcasts/popup/route.ts), and this component is mounted on
+      // every authed page, so a tab left open in the background was buying two
+      // queries a minute — for hours — to decide whether to draw something on
+      // a screen nobody is looking at. That is Vercel Fluid Active CPU and
+      // Supabase connections spent on a guaranteed no-op.
+      //
+      // NOTHING IS MISSED AND NOTHING IS EVEN DELAYED. The visibilitychange
+      // handler below already fires a check the instant the tab comes back, so
+      // a broadcast sent while you were away now appears on RETURN rather than
+      // up to one throttled interval later. Strictly faster than it was.
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       try {
         const qs = sessionRef.current ? `?s=${encodeURIComponent(sessionRef.current)}` : "";
         const res = await fetch(`/api/broadcasts/popup${qs}`, { cache: "no-store" });
@@ -135,8 +172,45 @@ export function BroadcastPopup() {
       }
     }
 
+    /* ── PUSH FIRST, POLL AS THE SAFETY NET ──────────────────────────────
+     *
+     * The poll used to be the whole mechanism: every tab asked "anything for
+     * me?" every four seconds, forever, and each ask cost a session
+     * verification plus three queries. Supabase Realtime already carries
+     * `tasks` changes in this app (components/layout/live-indicator.tsx), and
+     * a broadcast is exactly the same shape of event — so it carries this too,
+     * over a websocket the browser is holding open anyway.
+     *
+     * THE POLL RATE IS ADAPTIVE, and that is what makes this safe to ship
+     * without first checking that `broadcasts` is in the `supabase_realtime`
+     * publication:
+     *
+     *   realtime SUBSCRIBED  → 60s   (push does the work; this catches
+     *                                 snooze expiry, a clock event no row
+     *                                 change can announce)
+     *   anything else        → 4s    (exactly the old behaviour)
+     *
+     * So if the publication is missing, the websocket is blocked, or
+     * NEXT_PUBLIC_DISABLE_REALTIME is set for the LAN build, this degrades to
+     * precisely what it did before rather than to a slower popup. There is no
+     * configuration in which this is worse than the version it replaces, and
+     * when realtime works delivery is immediate instead of up-to-four-seconds.
+     */
+    const realtimeUp = { current: false };
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    function schedule() {
+      if (cancelled) return;
+      timer = setTimeout(
+        () => {
+          void check().finally(schedule);
+        },
+        realtimeUp.current ? SLOW_POLL_MS : FAST_POLL_MS,
+      );
+    }
+
     void check();
-    const t = setInterval(() => void check(), POLL_MS);
+    schedule();
 
     // Coming back to the tab is the other moment a broadcast may be waiting —
     // browsers throttle timers in background tabs, so the interval alone can be
@@ -146,12 +220,46 @@ export function BroadcastPopup() {
     };
     document.addEventListener("visibilitychange", onVisible);
 
+    // Realtime is OPTIONAL. Same env flag the live indicator honours, for the
+    // local-server deploy that has no Supabase realtime endpoint on the LAN.
+    let teardownRealtime: (() => void) | undefined;
+    if (process.env.NEXT_PUBLIC_DISABLE_REALTIME !== "true") {
+      try {
+        const supabase = createBrowserClient(
+          clientEnv.NEXT_PUBLIC_SUPABASE_URL,
+          clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        );
+        // Unique per instance: createBrowserClient returns a SINGLETON, and
+        // adding a postgres_changes callback to an already-subscribed channel
+        // throws. The live indicator learned this the hard way.
+        const channel = supabase
+          .channel(`broadcast-popup-${instanceId}`)
+          // `broadcasts`, not `broadcast_recipients`. Publishing writes one
+          // broadcast row and a recipient row PER PERSON, so listening to the
+          // recipients table would wake every tab in the company once for
+          // every colleague as well as once for itself.
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "broadcasts" },
+            () => void check(),
+          )
+          .subscribe((status) => {
+            realtimeUp.current = status === "SUBSCRIBED";
+          });
+        teardownRealtime = () => void supabase.removeChannel(channel);
+      } catch {
+        // Misconfigured env, blocked websocket — realtimeUp stays false and the
+        // 4s poll carries it exactly as before.
+      }
+    }
+
     return () => {
       cancelled = true;
-      clearInterval(t);
+      if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
+      teardownRealtime?.();
     };
-  }, []);
+  }, [instanceId]);
 
   /* ── Close paths ───────────────────────────────────────────────── */
   const close = React.useCallback(() => {

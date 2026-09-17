@@ -3,7 +3,7 @@ import "server-only";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { DUMMY_MODE, DUMMY_STORAGE_DIR } from "@/lib/db/dummy-dir";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin, storageErrorMessage } from "@/lib/supabase/admin";
 
 /**
  * Object storage, with ONE seam for dummy mode.
@@ -122,6 +122,27 @@ export async function removeObjects(bucket: string, paths: string[]): Promise<vo
     return;
   }
   await getSupabaseAdmin().storage.from(bucket).remove(paths);
+}
+
+/**
+ * The object's bytes, for server-side consumers that bundle files (the HR
+ * records ZIP and Drive save). Null when the object does not exist in dummy
+ * mode; in production any storage error throws, translated by
+ * storageErrorMessage so "the API keys need renewing" is not reported as a
+ * missing file.
+ */
+export async function getObjectBytes(bucket: string, path: string): Promise<Uint8Array | null> {
+  if (DUMMY_MODE) {
+    const buf = await readDummyObject(bucket, path);
+    return buf ? new Uint8Array(buf) : null;
+  }
+  const { data, error } = await getSupabaseAdmin().storage.from(bucket).download(path);
+  if (error) {
+    const raw = error.message || "Storage download failed";
+    if (/not.?found/i.test(raw)) return null;
+    throw new Error(storageErrorMessage(raw).replace(/^Upload failed: /, ""));
+  }
+  return data ? new Uint8Array(await data.arrayBuffer()) : null;
 }
 
 /** Read one dummy object back. Only the dev-only serving route calls this. */

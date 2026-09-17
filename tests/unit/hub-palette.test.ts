@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { MODULE_ORDER } from "@/lib/module-theme";
 
 /**
- * EVERY HUB CARD MUST LOOK LIKE ITSELF.
+ * EVERY MODULE TILE MUST LOOK LIKE ITSELF.
  *
  * The palette's whole job is "every module has a specific colour so we know
  * which module we're in" — and it had quietly stopped doing it: WMS, Project and
@@ -13,9 +13,12 @@ import { MODULE_ORDER } from "@/lib/module-theme";
  * inherited it because the ROOM wears the WMS theme inside. Both were locally
  * reasonable and collectively unreadable.
  *
- * Parsed out of the source rather than imported: HUB_PASTEL and the logo
- * palette are module-private consts in a page and a component, and exporting
- * them only so a test can read them would widen their API for no other reason.
+ * The hub's HUB_PASTEL card grid was removed by the Aura redesign (2026-09-15),
+ * so only the logo-tile palette is checked now.
+ *
+ * Parsed out of the source rather than imported: the logo palette is a
+ * module-private const, and exporting it only so a test can read it would
+ * widen its API for no other reason.
  */
 function parsePalette(file: string, startMarker: string, endMarker: string) {
   const src = readFileSync(file, "utf8");
@@ -28,43 +31,20 @@ function parsePalette(file: string, startMarker: string, endMarker: string) {
   return out;
 }
 
-const CARDS = parsePalette("app/(app)/hub/page.tsx", "const HUB_PASTEL", "const PASTEL_FALLBACK");
 const TILES = parsePalette("components/hub/module-logos.tsx", "const PAL", "function Glyph");
 
-/** Only the modules actually rendered on the hub have to be distinguishable. */
-const onHub = <T,>(m: Map<string, T>) =>
-  MODULE_ORDER.filter((id) => m.has(id)).map((id) => [id, m.get(id)!] as const);
-
-describe("the hub palette", () => {
-  it("has a card for every module on the hub", () => {
+describe("the module tile palette", () => {
+  it("has a logo tile for every module", () => {
     for (const id of MODULE_ORDER) {
-      expect(CARDS.has(id), `${id} has no HUB_PASTEL entry`).toBe(true);
       expect(TILES.has(id), `${id} has no logo tile entry`).toBe(true);
     }
   });
 
-  it("gives no two hub cards the same ink", () => {
+  it("gives no two glyph tiles the same ink", () => {
     const seen = new Map<string, string>();
-    for (const [id, c] of onHub(CARDS)) {
-      const clash = seen.get(c.ink);
-      expect(clash, `${id} and ${clash} both use ink ${c.ink}`).toBeUndefined();
-      seen.set(c.ink, id);
-    }
-  });
-
-  it("gives no two hub cards the same background", () => {
-    const seen = new Map<string, string>();
-    for (const [id, c] of onHub(CARDS)) {
-      const key = `${c.from}|${c.to}`;
-      const clash = seen.get(key);
-      expect(clash, `${id} and ${clash} share the card fill ${key}`).toBeUndefined();
-      seen.set(key, id);
-    }
-  });
-
-  it("gives no two hub glyph tiles the same ink", () => {
-    const seen = new Map<string, string>();
-    for (const [id, t] of onHub(TILES)) {
+    for (const id of MODULE_ORDER) {
+      const t = TILES.get(id);
+      if (!t) continue;
       const clash = seen.get(t.ink);
       expect(clash, `${id} and ${clash} both use tile ink ${t.ink}`).toBeUndefined();
       seen.set(t.ink, id);
@@ -73,10 +53,9 @@ describe("the hub palette", () => {
 
   it("keeps Project and Operations off the WMS red specifically", () => {
     // The exact regression this file exists for.
-    const wms = CARDS.get("wms")!;
+    const wms = TILES.get("wms")!;
     for (const id of ["project-plan", "operations"] as const) {
-      expect(CARDS.get(id)!.ink, id).not.toBe(wms.ink);
-      expect(CARDS.get(id)!.from, id).not.toBe(wms.from);
+      expect(TILES.get(id)!.ink, id).not.toBe(wms.ink);
     }
   });
 });

@@ -14,6 +14,7 @@ import {
   type IncentiveProject,
   type IncentiveTarget,
 } from "@/db/schema";
+import { buildNameEligibility, loadEligibility } from "@/lib/queries/incentive-eligibility";
 
 /**
  * Read queries for the Incentive MIS module (migration 0064 / native rebuild
@@ -188,7 +189,19 @@ export interface IncentiveDashboard {
  * Aggregates the (small) permanent-entry and project ledgers in memory.
  * Excluded operational actors (see EXCLUDED) are dropped from every roll-up.
  */
-export async function getIncentiveDashboard(year: number): Promise<IncentiveDashboard> {
+export async function getIncentiveDashboard(
+  year: number,
+  /**
+   * ELIGIBILITY (migration 0216). When supplied, a permanent-ledger entry is
+   * skipped unless the person it names is eligible for the incentive it names
+   * — so nobody's attainment counts a reward they were never picked for.
+   *
+   * Passed IN rather than loaded here: the caller already knows whether any
+   * incentive has actually been narrowed, and while none has (the state the
+   * migration leaves behind) it passes nothing and this costs literally zero.
+   */
+  eligible?: (incentiveName: string, employeeId: string | null) => boolean,
+): Promise<IncentiveDashboard> {
   const [entries, projects, removed] = await Promise.all([
     listIncentiveEntries({ year }),
     listIncentiveProjects({ year }),
@@ -224,6 +237,8 @@ export async function getIncentiveDashboard(year: number): Promise<IncentiveDash
   // Permanent entries — name resolved from the raw emp_name column.
   for (const e of entries) {
     if (dropped(e.empName)) continue;
+    // Not eligible for this incentive ⇒ it is not part of their attainment.
+    if (eligible && !eligible(e.incentiveName, e.employeeId)) continue;
     const approved = num(e.approvedAmt);
     const paid = num(e.paidAmt);
     const unpaid = Math.max(0, approved - paid);
@@ -588,8 +603,22 @@ export async function getIncentiveTargetVsActual(
   year: number,
 ): Promise<IncentiveTargetVsActual> {
   const { start, end } = yearBounds(year);
+
+  /* ELIGIBILITY, and the reason it is resolved here rather than inside the
+     dashboard: `loadEligibility` is two tiny reads, and if NOTHING has been
+     narrowed — which is every installation until an admin says otherwise —
+     the filter is never built and the roll-up is byte-for-byte what it was. */
+  const elig = await loadEligibility().catch(() => null);
+  const narrowed = elig != null && elig.picked.size > 0;
+  const filter = narrowed
+    ? buildNameEligibility(
+        elig,
+        (await db.select({ id: incentiveCatalog.id, name: incentiveCatalog.name }).from(incentiveCatalog)),
+      )
+    : undefined;
+
   const [dashboard, targets, removed] = await Promise.all([
-    getIncentiveDashboard(year),
+    getIncentiveDashboard(year, filter),
     db
       .select()
       .from(incentiveTargets)

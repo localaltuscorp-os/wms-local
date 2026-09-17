@@ -1,5 +1,8 @@
 @import "tailwindcss";
 @import "react-day-picker/style.css";
+/* Aura — the liquid-glass design language (.claude/skills/aura). Scoped to
+   `.aura-app`; see app/aura.css for why every class carries the prefix. */
+@import "./aura.css";
 
 @theme inline {
   /* canvas + surfaces */

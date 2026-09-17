@@ -91,13 +91,11 @@ export function SidebarRail({
     <CollapseCtx.Provider value={{ collapsed, toggle }}>
       <aside
         data-collapsed={collapsed ? "true" : "false"}
-        className={`sidebar-rail sticky top-0 z-40 header-light flex h-dvh shrink-0 flex-col max-md:hidden ${collapsed ? "w-[74px]" : expandedWidth}`}
-        style={{
-          backgroundColor: "rgba(255, 255, 255, 0.86)",
-          backdropFilter: "blur(20px) saturate(160%)",
-          WebkitBackdropFilter: "blur(20px) saturate(160%)",
-          borderRight: "1px solid var(--color-hairline)",
-        }}
+        /* `aura-rail-skin` carries the material (see app/aura.css) — it used to
+           be four inline properties here, which no stylesheet could override
+           because inline always wins. The rail is now glass like the top bar
+           above it, and the two read as one piece of chrome. */
+        className={`sidebar-rail aura-rail-skin sticky top-0 z-40 header-light flex h-dvh shrink-0 flex-col max-md:hidden ${collapsed ? "w-[74px]" : expandedWidth}`}
       >
         {children}
       </aside>

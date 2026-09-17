@@ -1,21 +1,38 @@
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Lock } from "lucide-react";
+import type { Route } from "next";
 import { requireUser } from "@/lib/auth/current";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { canAccessWorkspace, WORKSPACE_LANDING, type WorkspaceId } from "@/lib/workspaces";
-import {
-  ADMIN_PANEL_ENTRY,
-  MODULE_THEME,
-  MODULE_ORDER,
-  moduleShortcut,
-  type ModuleTheme,
-} from "@/lib/module-theme";
+import { MODULE_ORDER } from "@/lib/module-theme";
 import { EnterWorkspaceLink } from "@/components/hub/enter-workspace-link";
+import { AuraSheen } from "@/components/hub/aura-chrome";
+import { AuraTopBar } from "@/components/layout/aura-top-bar";
+import { roomsFor } from "@/lib/aura-rooms";
+import { AuraDonut, AuraBloom } from "@/components/hub/aura-charts";
+import { DashboardGrid } from "@/components/hub/dashboard-grid";
+import {
+  AnniversaryWidget,
+  DelegatedWidget,
+  HoursWidget,
+  InboxWidget,
+  QuickActionsWidget,
+  TeamWidget,
+  UpcomingWidget,
+} from "@/components/hub/aura-widgets";
+import type { WidgetId } from "@/lib/dashboard/widgets";
 import { UserMenuServer } from "@/components/header/user-menu-server";
-import { ModuleLogo } from "@/components/hub/module-logos";
-import { ModuleShortcuts as HubLetterShortcuts } from "@/components/hub/module-shortcuts";
-import { GlobalSearch } from "@/components/header/global-search";
+import { NotificationBell } from "@/components/header/notification-bell";
+import { getMyDayCounts, getMyTodayTasks, type MyTodayTask } from "@/lib/queries/my-day";
+import { getDashboard } from "@/lib/goals/queries";
+import { fyStartYearOf } from "@/lib/goals/types";
+import { getOrgSettings } from "@/lib/queries/org-settings";
+import { getNavCounts } from "@/lib/queries/nav-counts";
+import {
+  loadAuraDashboard,
+  hhmmToMinutes,
+  type AuraDashboard,
+  type OpenItem,
+} from "@/lib/queries/aura-dashboard";
 import type { ReactNode } from "react";
 import { isManagerWithReports, managerDailyTaskGate } from "@/lib/manager-gates";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
@@ -29,277 +46,151 @@ import { ManagerDailyTaskGate } from "@/components/manager-gates/manager-daily-t
 import { DccGateView } from "@/components/dcc/dcc-gate-view";
 import { DccManagerReviewGate } from "@/components/dcc/dcc-manager-review-gate";
 
-// The hub is the post-login landing and MUST run the (app) layout's daily-ritual
-// gate on every request — never a cached/prerendered copy that would let someone
-// past the wall. Force dynamic so the gate is always evaluated per-user.
+// The dashboard is the post-login landing and MUST run the (app) layout's
+// daily-ritual gate on every request — never a cached/prerendered copy that
+// would let someone past the wall. Force dynamic so the gate is always
+// evaluated per-user.
 export const dynamic = "force-dynamic";
 
 /**
- * THE FRONT DOOR — post-login Hub launcher.
+ * THE DASHBOARD — what you land on after signing in, in the AURA liquid-glass
+ * language.
  *
- * Each workspace is a SOLID module-colour card with that module's cut-out
- * artwork (background removed) sitting on the right, fully visible — NO colour
- * scrim over the image. Text lives on the left so it never overlaps the art.
- * Colour, image and copy come from the single MODULE_THEME source of truth.
- * WMS has no art (the founder is designing its logo) → its icon stands in.
- * Server Component; the only interactive islands are sign-out + ⌘K search.
+ * It used to be a launcher: twelve cards and nothing else, so the first thing
+ * anyone did after logging in was click away from it. It is now the reference
+ * screen from `.claude/skills/aura/reference/altus-home-heros.html` — your day,
+ * your week and your open work, with the launcher kept at the bottom.
+ *
+ * IT IS ARRANGED BY THE PERSON LOOKING AT IT. Every widget can be one of three
+ * widths, pushed up or down, removed or added back; `DashboardGrid` owns that
+ * and `lib/dashboard/widgets.ts` is the catalogue. This file's job is to fetch
+ * the data and render each widget's BODY on the server, then hand the grid a
+ * map of finished nodes — so none of the dashboard's data crosses to the
+ * client and a widget can stay an async Server Component.
+ *
+ * THE LAUNCHER GRID IS GONE. Twelve tiles under "Jump into a workspace" were a
+ * second copy of the twelve links the rail already carries, permanently, two
+ * clicks closer — and they took the bottom half of the screen to say it.
+ *
+ *   greeting            what today is and how much is on you
+ *   wms-loop            what is due or overdue on you today
+ *   goals-week          this week's score and the FY average
+ *   quick-actions       the five things people come here to do
+ *   hours-ledger        this week against your target, and the month
+ *   upcoming            the next company holidays
+ *   attendance          your punch, your week, and the roster (admins only)
+ *   open-work           everything still on you, by priority
+ *   outcomes            what was due this month, and how it went
+ *   work-shape          a petal per day sized by hours actually worked
+ *   team                each direct report's load (managers only)
+ *   open-table          every open task, soonest first
+ *
+ * EVERY NUMBER IS REAL, and where the mock's dimension does not exist in this
+ * schema the panel is re-cut onto one that does rather than filled in with
+ * something plausible. `lib/queries/aura-dashboard.ts` carries the reasoning
+ * per panel; the short version is that nothing here tags a record with a
+ * WorkspaceId, so "hours by workspace" cannot be computed at all, and the
+ * timer-based hour counts are replaced by attendance punches, which everyone
+ * actually files.
+ *
+ * PERMISSIONS. The roster-wide attendance counters are ADMIN-ONLY — the same
+ * rule /attendance/live-status enforces, since those counts span every
+ * employee. Everyone sees their own punch and their own week.
+ *
+ * FAILURE. Everything on this page is on the critical path of signing in, so
+ * every read fails soft and every panel is conditional on its own data. A dead
+ * panel costs a panel; a thrown one costs the front door — which is how Daily
+ * Goals took attendance punch-in down on 8 September.
+ *
+ * Server Component. The only client leaves are the pointer sheen, the rail
+ * toggle, the top bar, ⌘K search and the account menu.
  */
 
-/**
- * HUB-ONLY palette. Scoped to the front-door cards so each module's own strong
- * identity colour (MODULE_THEME) stays intact everywhere inside it — recolouring
- * the hub therefore leaves the module footer dock, every room's chrome and every
- * in-module accent exactly as they were.
- *
- * TWO COLOURS PER MODULE, and no more (Sir, 2026-08): one light BACKGROUND and
- * one PRIMARY. Primary carries the title, glyph, shortcut badge and the Enter
- * button; background fills the card. `from`/`to` are held at the same value
- * so the card renders FLAT — the gradient stops are identical, which keeps the
- * existing `linear-gradient` code path without producing a gradient.
- *
- * `inkSoft` is deliberately equal to `ink` rather than a lighter step. A third
- * tone per module is exactly the "additional decorative colour" the brief rules
- * out. It is now unused on the card itself (the tagline it coloured is gone) and
- * is kept only so the two-value shape of this table stays uniform.
- *
- * WMS IS UNTOUCHED — the brand's own card keeps its red and its two-stop
- * gradient. It is the one module whose entry must not change.
- */
-const HUB_PASTEL: Record<WorkspaceId, { from: string; to: string; ink: string; inkSoft: string }> = {
-  wms:       { from: "#FEE2E2", to: "#FECACA", ink: "#B91C1C", inkSoft: "#DC2626" }, // red (unchanged)
-  goals:        { from: "#F4E1D5", to: "#F4E1D5", ink: "#A85432", inkSoft: "#A85432" }, // 2 · terracotta
-  productivity: { from: "#E5E4F7", to: "#E5E4F7", ink: "#5148A3", inkSoft: "#5148A3" }, // 3 · deep indigo
-  billing:      { from: "#ECECEA", to: "#ECECEA", ink: "#5F5E59", inkSoft: "#5F5E59" }, // 4 · platinum grey
-  hr:           { from: "#DDF1EC", to: "#DDF1EC", ink: "#147D73", inkSoft: "#147D73" }, // 5 · teal
-  sales:        { from: "#EAE1F7", to: "#EAE1F7", ink: "#6838B8", inkSoft: "#6838B8" }, // 6 · royal purple
-  admin:        { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B", inkSoft: "#315A9B" }, // 7 · slate blue (the "Accounts" card)
-  training:     { from: "#F5E0E9", to: "#F5E0E9", ink: "#C32968", inkSoft: "#C32968" }, // 8 · berry
-  employees:    { from: "#DDF1E2", to: "#DDF1E2", ink: "#16803C", inkSoft: "#16803C" }, // 9 · forest green
-  events:       { from: "#D9F1F5", to: "#D9F1F5", ink: "#167C91", inkSoft: "#167C91" }, // 0 · cyan/teal
-  // Not rendered on the hub (MODULE_ORDER carries `admin`, at Alt+I), but it
-  // shadows that card's identity so the pair never disagrees if it is ever shown.
-  accounts:     { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B", inkSoft: "#315A9B" },
-  // Hand-holding — orange, the module's own accent (lib/module-theme). No longer
-  // rendered on the hub (it is an area inside Operations), kept so the pair
-  // never disagrees if it is ever shown again.
-  "people-allocation": { from: "#FBE7D6", to: "#FBE7D6", ink: "#C2410C", inkSoft: "#C2410C" },
-  // Operations — GOLD, and its own hue (2026-09-11). It used to carry the WMS
-  // red because the room wears the WMS theme INSIDE; on the hub that produced
-  // three byte-identical cards — WMS, Project and Operations — which is the one
-  // thing the card palette exists to prevent. The room's interior is unchanged
-  // and still red: this is a hub-card identity, deliberately, so the account
-  // holder can tell the three apart at the front door.
-  //
-  // Gold rather than a second red: the nearest hue already on the hub is Goals'
-  // terracotta (#A85432), which is red-brown where this is yellow-olive.
-  //
-  // MEASURED INTO THE FAMILY, not eyeballed. The first cut of this card used
-  // Tailwind's yellow-100/200 (#FEF9C3 -> #FEF08A, S97) and looked wrong beside
-  // its neighbours for a reason the eye registers before it can name: the nine
-  // established cards sit at fill S42-58 / L90-94, and a S97 fill is a bright
-  // screen yellow dropped into a set of muted pastels. This is H45 S52 L90 —
-  // inside the family's own band — with the ink at H42 S62 L33, inside the
-  // family's S39-72 / L28-47.
-  //
-  // FLAT, from === to. Eight of the nine established cards are flat; only WMS
-  // carries a gradient. A second gradient would have made this card the odd one
-  // out a second way.
-  operations:   { from: "#F3ECD8", to: "#F3ECD8", ink: "#886920", inkSoft: "#886920" }, // a · gold
-  // Project — CYAN, its own hue (2026-09-11). It used to share the WMS red on
-  // the argument that the plan and the task list are two windows onto the same
-  // records — true, and still not worth two cards a reader cannot tell apart.
-  // Blueprint blue for the planning table; the nearest hue on the hub is HR's
-  // teal (#147D73), which is green-leaning where this is blue-leaning.
-  "project-plan": { from: "#CFFAFE", to: "#A5F3FC", ink: "#0E7490", inkSoft: "#0891B2" },
-};
+const TZ = "Asia/Kolkata";
 
-/**
- * A card whose module has no palette must not take the whole hub down with it —
- * MODULE_ORDER and HUB_PASTEL are two lists that have to be kept in step by
- * hand, and one of them WILL be forgotten again. Neutral grey, card still
- * clickable.
- */
-const PASTEL_FALLBACK = { from: "#ECECEA", to: "#ECECEA", ink: "#5F5E59", inkSoft: "#5F5E59" };
-
-function WorkspaceCard({ m, locked, i }: { m: ModuleTheme; locked: boolean; i: number }) {
-  const p = HUB_PASTEL[m.id] ?? PASTEL_FALLBACK;
-  const delay = { animationDelay: `${i * 70}ms` } as const;
-
-  const shortcut = moduleShortcut(i);
-
-  const inner = (
-    <>
-      {/* Faint oversized logo bottom-right for depth/texture. */}
-      <ModuleLogo
-        id={m.id}
-        size={104}
-        className="pointer-events-none absolute -bottom-5 -right-5 opacity-[0.07]"
-      />
-
-      {/* Keyboard-shortcut badge — deliberately quiet: it is a hint, not a
-          heading, so it sits in the corner at a fraction of the title's weight
-          and never competes with the module name. `aria-hidden` because the key
-          is announced once, in the link's own label, rather than as a stray
-          letter before every card.
-
-          A BARE letter, with no "Alt+" in front, and that is accurate rather
-          than shorthand: HubLetterShortcuts below makes the unmodified key work
-          on this page. Inside a module the same shortcut needs Alt, and the
-          footer dock badges it as "⌥Q" there for exactly that reason. */}
-      {shortcut && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute left-3 top-3 z-10 inline-flex size-[22px] items-center justify-center rounded-md text-[12px] font-bold"
-          style={{ background: "rgba(255,255,255,0.55)", color: p.ink }}
-        >
-          {shortcut}
-        </span>
-      )}
-
-      {/* Content — fully centred (logo + text) with no wasted middle gap. */}
-      <div className="relative z-10 flex h-full flex-col items-center justify-center gap-3 p-5 text-center max-md:p-4">
-        <ModuleLogo id={m.id} size={56} className="drop-shadow-[0_7px_16px_rgba(15,23,42,0.22)]" />
-        <div className="w-full">
-          <h3 className="text-[22px] font-extrabold leading-none tracking-tight max-md:text-[20px]" style={{ color: p.ink }}>
-            {m.label}
-          </h3>
-          {/* NO TAGLINE. The one-line description under each title was removed
-              at the account holder's request (2026-09-10) — the third such
-              round trip on this element, so the reasoning is worth writing
-              down rather than re-litigating: the glyph, the colour and the name
-              are what people navigate by once they know the place, and twelve
-              paragraphs of prose is what was making the hub scroll. The copy
-              itself still lives on `ModuleTheme.tagline`, which the module
-              landings read, so nothing had to be deleted to take it off this
-              card. */}
-          {locked ? (
-            <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-pill bg-black/10 px-3 py-1 text-[12.5px] font-bold" style={{ color: p.ink }}>
-              <Lock size={13} strokeWidth={2.5} /> No Access
-            </span>
-          ) : (
-            <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-[13px] font-bold text-white" style={{ background: p.ink }}>
-              Enter
-              <ArrowRight size={14} strokeWidth={2.8} className="transition-transform duration-200 group-hover:translate-x-1" />
-            </span>
-          )}
-        </div>
-      </div>
-    </>
-  );
-
-  const base =
-    // 176px is the height for a card with no prose under the title — it was
-    // 236px only to fit the three-line tagline that is now gone, and leaving it
-    // there would have left every card two-thirds empty.
-    "wg-rise group relative block h-full min-h-[176px] overflow-hidden rounded-[28px] shadow-md max-md:min-h-[156px]";
-  const bg = { background: `linear-gradient(145deg, ${p.from}, ${p.to})` };
-
-  if (locked) {
-    return (
-      <div className={`${base} grayscale`} style={{ ...bg, ...delay }} aria-disabled="true">
-        {inner}
-      </div>
-    );
-  }
-  return (
-    <EnterWorkspaceLink
-      id={m.id}
-      href={WORKSPACE_LANDING[m.id]}
-      ariaLabel={`Open ${m.label}`}
-      className={`${base} transition duration-200 hover:-translate-y-1.5 hover:shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2`}
-      style={{ ...bg, ...delay, "--tw-ring-color": p.ink } as React.CSSProperties}
-    >
-      {inner}
-    </EnterWorkspaceLink>
-  );
+/** "Friday, 12 September" in IST, wherever the server happens to be. */
+function istDateLabel(now: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZ,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(now);
 }
 
-/**
- * THE ADMIN PANEL CARD — the standalone entry (2026-09-11).
- *
- * A thirteenth tile in the same grid, deliberately built to read as one of the
- * cards rather than as an afterthought pinned somewhere else. It opens `/admin`
- * — the SAME route the user-menu "Admin panel" link has always opened, rendered
- * by the same `app/(admin)/admin/layout.tsx` and the same AdminShell. There is
- * no second panel and nothing here to keep in sync with anything.
- *
- * ── WHY NOT `WorkspaceCard` ───────────────────────────────────────────────
- * That component is keyed on `ModuleTheme.id`, a WorkspaceId, and uses it to
- * look up a bespoke `ModuleLogo` glyph and a `HUB_PASTEL` row. The Admin Panel
- * is not a workspace (see ADMIN_PANEL_ENTRY), so it has neither. Everything
- * else — the geometry, the badge, the Enter pill, the hover lift — is copied
- * verbatim so the two are indistinguishable on screen.
- *
- * ── NO `EnterWorkspaceLink` ───────────────────────────────────────────────
- * That link's whole job is to stamp the `aw` cookie with the room you are
- * entering. `/admin` belongs to no room — `workspaceForPath` returns null for
- * it on purpose — so writing a workspace there would swap the sidebar out from
- * under whatever room the admin came from. A plain <Link> is the correct one.
- */
-function AdminPanelCard({ i }: { i: number }) {
-  const p = { from: "#FEE2E2", to: "#FECACA", ink: "#B91C1C" };
-  const delay = { animationDelay: `${i * 70}ms` } as const;
-  const Icon = ADMIN_PANEL_ENTRY.Icon;
+/** Morning / afternoon / evening by the user's working day, not the server's. */
+function istGreeting(now: Date): string {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", hour12: false }).format(now),
+  );
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
 
+/** "2:00 PM" in IST. */
+function istTimeLabel(d: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
+}
+
+function hm(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+}
+
+/** Two initials for the table's assigner avatar. */
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+/** A stable colour per person, so the same face keeps the same tint. */
+const AVATAR_TINTS = ["#d81f12", "#1e5aa8", "#2fa36b", "#7a5ca8", "#c2410c", "#167c91"];
+function tintFor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_TINTS[h % AVATAR_TINTS.length]!;
+}
+
+/** A row in the open-items table. */
+function ItemRow({ item }: { item: OpenItem }) {
+  const state = item.overdue
+    ? "aura-state-hot"
+    : item.priority === "imp_urgent"
+      ? "aura-state-warn"
+      : item.dueAt
+        ? "aura-state-idle"
+        : "aura-state-idle";
   return (
-    <Link
-      href={ADMIN_PANEL_ENTRY.href}
-      aria-label={`Open ${ADMIN_PANEL_ENTRY.label} — shortcut ${ADMIN_PANEL_ENTRY.shortcut}`}
-      className="wg-rise group relative block h-full min-h-[176px] overflow-hidden rounded-[28px] shadow-md transition duration-200 hover:-translate-y-1.5 hover:shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 max-md:min-h-[156px]"
-      style={{
-        background: `linear-gradient(145deg, ${p.from}, ${p.to})`,
-        ...delay,
-        "--tw-ring-color": p.ink,
-      } as React.CSSProperties}
-    >
-      <Icon
-        size={104}
-        strokeWidth={1.6}
-        aria-hidden
-        className="pointer-events-none absolute -bottom-5 -right-5 opacity-[0.07]"
-        style={{ color: p.ink }}
-      />
-
-      {/* The bare letter, exactly as the module cards badge theirs — and it is
-          accurate here for the same reason: HubLetterShortcuts makes an
-          unmodified A work on this page. Inside a module it needs Alt, and the
-          footer dock badges it "⌥A" there. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute left-3 top-3 z-10 inline-flex size-[22px] items-center justify-center rounded-md text-[12px] font-bold"
-        style={{ background: "rgba(255,255,255,0.55)", color: p.ink }}
-      >
-        {ADMIN_PANEL_ENTRY.shortcut}
-      </span>
-
-      <div className="relative z-10 flex h-full flex-col items-center justify-center gap-3 p-5 text-center max-md:p-4">
-        <span
-          className="inline-flex size-[56px] items-center justify-center rounded-[16px] drop-shadow-[0_7px_16px_rgba(15,23,42,0.22)]"
-          style={{ background: `linear-gradient(145deg, #FFC9C6, #FFA9A5)`, border: `2.4px solid ${p.ink}` }}
-        >
-          <Icon size={30} strokeWidth={2.4} style={{ color: p.ink }} aria-hidden />
-        </span>
-        <div className="w-full">
-          <h3
-            className="text-[22px] font-extrabold leading-none tracking-tight max-md:text-[20px]"
-            style={{ color: p.ink }}
-          >
-            {ADMIN_PANEL_ENTRY.label}
-          </h3>
-          <span
-            className="mt-2.5 inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-[13px] font-bold text-white"
-            style={{ background: p.ink }}
-          >
-            Enter
-            <ArrowRight
-              size={14}
-              strokeWidth={2.8}
-              className="transition-transform duration-200 group-hover:translate-x-1"
-            />
+    <tr>
+      <td className="aura-cell-main">
+        <Link href={`/tasks/${item.id}` as Route}>{item.title}</Link>
+      </td>
+      <td>{item.client ?? "—"}</td>
+      <td>
+        {item.assigner ? (
+          <span className="aura-who-cell">
+            <span className="aura-mini-av" style={{ background: tintFor(item.assigner) }}>
+              {initials(item.assigner)}
+            </span>
+            <span>{item.assigner}</span>
           </span>
-        </div>
-      </div>
-    </Link>
+        ) : (
+          "—"
+        )}
+      </td>
+      <td className={item.overdue ? "aura-due aura-due-late" : "aura-due"}>
+        {item.dueAt ? (item.overdue ? "Overdue" : istTimeLabel(item.dueAt)) : "No date"}
+      </td>
+      <td>
+        <span className={`aura-state ${state}`}>{item.priorityLabel}</span>
+      </td>
+    </tr>
   );
 }
 
@@ -307,12 +198,13 @@ export default async function HubPage() {
   const me = await requireUser();
   const firstName = me.name.split(" ")[0] ?? me.name;
 
-  // COMPULSORY DAILY WALL — enforced HERE on the hub (the post-login landing) in
-  // addition to the (app) layout, because the layout's gate return wasn't
-  // reliably taking effect for the /hub route on prod. Same policy: fail-open,
-  // day-scoped, super-admin-skippable, kill-switchable (DCC_GATE_OFF /
-  // MANAGER_GATES_OFF). Employees must commit ≥5 checklist items + log goal
-  // progress; managers get their task-give gate; everyone fills DCC.
+  // COMPULSORY DAILY WALL — enforced HERE on the dashboard (the post-login
+  // landing) in addition to the (app) layout, because the layout's gate return
+  // wasn't reliably taking effect for this route on prod. Same policy:
+  // fail-open, day-scoped, super-admin-skippable, kill-switchable
+  // (DCC_GATE_OFF / MANAGER_GATES_OFF). Employees must commit ≥5 checklist
+  // items + log goal progress; managers get their task-give gate; everyone
+  // fills DCC.
   {
     // Keep in LOCK-STEP with app/(app)/layout.tsx. COMPULSORY: plan gate + own-DCC.
     // SKIPPABLE by super-admins: manager (assign) + DCC-review gates.
@@ -343,136 +235,345 @@ export default async function HubPage() {
     }
   }
 
+  const now = new Date();
+  const tz = me.timezone || TZ;
+
+  // Access first — it decides which panes may even be fetched.
   const access = await accessFor(me);
+  const visible = MODULE_ORDER.filter((id) => canAccessWorkspace(id, access));
+  const canSeeWms = canAccessWorkspace("wms", access);
+  const canSeeGoals = canAccessWorkspace("goals", access);
+
+  // One round of parallel reads, each caught on its own.
+  const [counts, todayTasks, goals, org, nav] = await Promise.all([
+    canSeeWms ? getMyDayCounts(me.id).catch(() => null) : null,
+    canSeeWms ? getMyTodayTasks(me.id).catch((): MyTodayTask[] => []) : [],
+    canSeeGoals ? getDashboard(me.id, fyStartYearOf(now)).catch(() => null) : null,
+    getOrgSettings().catch(() => null),
+    // The account menu calls this on every page: the task totals are a shared
+    // cache hit, so the inbox widget costs one per-user unread query and
+    // nothing more.
+    getNavCounts({ userId: me.id, isAdmin: me.isAdmin, inboxSince: me.lastInboxVisitAt }).catch(
+      () => null,
+    ),
+  ]);
+
+  const board = await loadAuraDashboard({
+    employeeId: me.id,
+    isAdmin: me.isAdmin,
+    isManager: await isManagerWithReports(me.id).catch(() => false),
+    tz,
+    lateAfterMinutes: hhmmToMinutes(org?.attLateAfter ?? me.attLateAfter),
+    target: {
+      weeklyTargetMinutes: me.weeklyTargetMinutes,
+      fullDayMinutes: me.attFullDayMinutes,
+      workingDays: me.workingDays,
+    },
+    now,
+  }).catch(
+    (): AuraDashboard => ({
+      shape: null,
+      attendance: null,
+      openWork: null,
+      outcomes: null,
+      items: [],
+      upcoming: [],
+      team: [],
+      anniversaries: [],
+      delegated: [],
+    }),
+  );
+
+  const open = (counts?.dueToday ?? 0) + (counts?.overdue ?? 0);
+
+  const shape = board.shape;
+  // The week strip's tallest bar is 34px; every other day is drawn in
+  // proportion to it, so a light week is visibly light rather than rescaled to
+  // look full.
+  const peakMinutes = Math.max(...(shape?.days ?? []).map((d) => d.minutes), 1);
+
+  /* EVERY WIDGET BODY, RENDERED HERE ON THE SERVER, handed to the grid as a map
+     of finished nodes. The grid only decides order, size and presence — so the
+     dashboard's data never crosses to the client, and a widget can go on being
+     an async Server Component while still being furniture the user moves.
+
+     A widget with no data is simply absent from both maps. `available` is what
+     the viewer may ever see; the grid uses it for the "add a widget" list and
+     to discard a stored layout entry that no longer applies. */
+  const nodes: Partial<Record<WidgetId, ReactNode>> = {};
+
+  if (counts) {
+    nodes["wms-loop"] = (
+      <EnterWorkspaceLink
+        id="wms"
+        href={WORKSPACE_LANDING.wms}
+        ariaLabel="Open WMS"
+        className="aura-glass aura-interactive aura-pane"
+      >
+        <div className="aura-pane-head">
+          <span className="aura-pill" style={{ background: "rgba(216,31,18,.16)", color: "#8f1109" }}>
+            WMS · DAILY LOOP
+          </span>
+          <span className="aura-go" style={{ color: "#b5170e" }}>
+            Open →
+          </span>
+        </div>
+        <div className="aura-bigrow">
+          <b className="aura-big">{open}</b>
+          <span>
+            {open === 1 ? "task" : "tasks"} due or overdue
+            {counts.doneToday > 0 ? ` · ${counts.doneToday} done today` : ""}
+          </span>
+        </div>
+        <div className="aura-tasks">
+          {todayTasks.slice(0, 3).map((t) => (
+            <div className="aura-task" key={t.id}>
+              <i className={t.overdue ? "aura-dot aura-dot-hot" : "aura-dot"} aria-hidden />
+              <span className="aura-task-title">
+                {t.title || t.subject || t.client || `Task ${t.taskNo ?? ""}`.trim()}
+              </span>
+              <time>{t.overdue ? "Overdue" : t.dueAt ? istTimeLabel(t.dueAt) : "Today"}</time>
+            </div>
+          ))}
+          {todayTasks.length === 0 && (
+            <div className="aura-task">
+              <i className="aura-dot" aria-hidden />
+              <span className="aura-task-title">Nothing due today — the loop is clear.</span>
+            </div>
+          )}
+        </div>
+      </EnterWorkspaceLink>
+    );
+  }
+
+  if (goals) {
+    nodes["goals-week"] = (
+      <EnterWorkspaceLink
+        id="goals"
+        href={WORKSPACE_LANDING.goals}
+        ariaLabel="Open Goals"
+        className="aura-glass aura-interactive aura-pane"
+      >
+        <div className="aura-pane-head">
+          <span className="aura-pill" style={{ background: "rgba(22,74,143,.16)", color: "#0f3569" }}>
+            GOALS · THIS WEEK
+          </span>
+          <span className="aura-go" style={{ color: "#164a8f" }}>
+            Open →
+          </span>
+        </div>
+        <div className="aura-bigrow">
+          <b className="aura-big">{goals.weekScore}%</b>
+          <span>of this week&rsquo;s goals delivered</span>
+        </div>
+        <div className="aura-bar">
+          <i style={{ width: `${Math.min(100, Math.max(0, goals.weekScore))}%` }} />
+        </div>
+        <div className="aura-stats">
+          <div>
+            <b>{goals.weeklyGoalCount}</b>
+            <em>this week</em>
+          </div>
+          <div>
+            <b>{goals.cascadeGoalCount}</b>
+            <em>cascade goals</em>
+          </div>
+          <div>
+            <b>{goals.ytdWeeklyAvg}%</b>
+            <em>FY average</em>
+          </div>
+        </div>
+      </EnterWorkspaceLink>
+    );
+  }
+
+  // No data behind it at all — it is five links — so it is always offerable.
+  nodes["quick-actions"] = <QuickActionsWidget />;
+
+  if (shape) {
+    nodes["hours-ledger"] = <HoursWidget shape={shape} />;
+    nodes["work-shape"] = <AuraBloom shape={shape} />;
+
+    nodes.attendance = (
+      <section className="aura-glass aura-att">
+        <div className="aura-att-head">
+          <h2 className="aura-h2">Attendance — today</h2>
+          <span>
+            {board.attendance ? `${board.attendance.total} on roll` : "Your punches, this week"}
+          </span>
+        </div>
+
+        {/* The roster counters are ADMIN-ONLY: they span every employee, which
+            is exactly why /attendance/live-status is behind requireAdmin.
+            Everyone else gets their own week, full width. */}
+        <div className={board.attendance ? "aura-att-body" : "aura-att-body aura-att-mine-only"}>
+          {board.attendance && (
+            <>
+              <div className="aura-att-stat">
+                <b>{board.attendance.present}</b>
+                <em>
+                  <i style={{ background: "#2fa36b" }} />
+                  Present
+                </em>
+              </div>
+              <div className="aura-att-stat">
+                <b>{board.attendance.late}</b>
+                <em>
+                  <i style={{ background: "#e8a11a" }} />
+                  Late
+                </em>
+              </div>
+              <div className="aura-att-stat">
+                <b>{board.attendance.onLeave}</b>
+                <em>
+                  <i style={{ background: "#4f7cf7" }} />
+                  On leave
+                </em>
+              </div>
+              <div className="aura-att-stat">
+                <b>{board.attendance.unmarked}</b>
+                <em>
+                  <i style={{ background: "#d81f12" }} />
+                  Unmarked
+                </em>
+              </div>
+            </>
+          )}
+
+          <div className="aura-att-week">
+            <div className="aura-row">
+              {shape.days.map((d) => {
+                const height = Math.max(6, Math.round((d.minutes / peakMinutes) * 34));
+                const tint =
+                  d.minutes === 0
+                    ? "rgba(20,26,46,.08)"
+                    : d.open
+                      ? "linear-gradient(180deg,rgba(232,161,26,.25),rgba(232,161,26,.55))"
+                      : "linear-gradient(180deg,rgba(47,163,107,.25),rgba(47,163,107,.5))";
+                return (
+                  <div className="aura-day" key={d.ymd} title={`${d.letter} — ${hm(d.minutes)}`}>
+                    <span>{d.letter}</span>
+                    <i style={{ height, background: tint }} />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="aura-cap">
+              {shape.totalMinutes > 0
+                ? `${hm(shape.totalMinutes)} logged this week.`
+                : "No punches recorded this week yet."}
+            </div>
+          </div>
+        </div>
+
+        <div className="aura-att-mine">
+          <i
+            className="aura-dot"
+            style={{ background: shape.today ? "#2fa36b" : "#94a0c8" }}
+            aria-hidden
+          />
+          {shape.today?.inLabel
+            ? `You clocked in at ${shape.today.inLabel}` +
+              (shape.today.outLabel ? ` and out at ${shape.today.outLabel}` : "") +
+              ` · ${hm(shape.today.minutes)} logged`
+            : "You have not clocked in today."}
+          <Link href={"/attendance" as Route} className="aura-btn-mini">
+            {shape.today?.inLabel && !shape.today.outLabel ? "Clock out" : "Attendance"}
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  if (board.openWork) nodes["open-work"] = <AuraDonut data={board.openWork} title="Where your work sits" />;
+  if (board.outcomes) nodes.outcomes = <AuraDonut data={board.outcomes} title="This month's outcomes" />;
+  if (board.upcoming.length > 0) nodes.upcoming = <UpcomingWidget days={board.upcoming} />;
+  if (board.team.length > 0) nodes.team = <TeamWidget team={board.team} />;
+  if (board.delegated.length > 0) nodes.delegated = <DelegatedWidget people={board.delegated} />;
+  if (board.anniversaries.length > 0)
+    nodes.anniversaries = <AnniversaryWidget people={board.anniversaries} />;
+  if (nav) nodes.inbox = <InboxWidget unread={nav.inboxUnread} archived={nav.archivedTasks} />;
+
+  nodes["open-table"] = (
+    <section className="aura-glass aura-tbl-card">
+      <div className="aura-tbl-head">
+        <h2 className="aura-h2">Open on you</h2>
+        <Link href={"/tasks" as Route}>View all →</Link>
+      </div>
+      {board.items.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Client</th>
+              <th>Given by</th>
+              <th>Due</th>
+              <th>Priority</th>
+            </tr>
+          </thead>
+          <tbody>
+            {board.items.map((item) => (
+              <ItemRow key={item.id} item={item} />
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <div className="aura-empty">Nothing is open on you right now.</div>
+      )}
+    </section>
+  );
+
+  const available = Object.keys(nodes) as WidgetId[];
 
   return (
-    <main
-      // `flex-1`, NOT `min-h-[100dvh]`. ChromeShell already wraps this in a
-      // `flex min-h-dvh flex-col pb-10` column, so a full viewport height
-      // demanded HERE stacked on top of that padding and made the page
-      // 100dvh + 40px — every hub had a scrollbar with 40px of nothing under
-      // it, whatever the grid did. Growing to fill the column instead lets the
-      // gradient still reach the bottom of the screen with no overflow.
-      className="flex w-full flex-1 flex-col"
-      style={{ background: "linear-gradient(180deg, #f6f7f9 0%, #fbfbfc 38%, #ffffff 100%)" }}
-    >
-      {/* `flex-1` so this column owns the whole viewport height. The HERO
-          STAYS PUT at the top of it — logo, welcome, search and avatar are the
-          page's identity band and the account holder asked for them left
-          exactly where they are — and the CARD GRID below takes all the slack
-          and centres itself in it (see the `my-auto` on the section). */}
-      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col px-8 py-6 max-md:px-5 max-md:py-5">
-        {/* ONE BAND — logo (extreme left) · welcome hero (page-centered) · Hi over
-            Sign out (right). Both side clusters are flex-1 so the centre block is
-            truly centered on the page regardless of their differing widths. */}
-        <header className="flex shrink-0 items-center gap-6 max-md:flex-col max-md:gap-4 max-md:text-center">
-          <div className="flex flex-1 justify-start max-md:justify-center">
-            <a
-              href="https://altuscorp.in"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Altus Corp — altuscorp.in"
-              className="shrink-0 rounded-lg outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
-            >
-              <Image
-                src="/logo.png"
-                alt="Altus Corp"
-                width={170}
-                height={188}
-                priority
-                className="h-[84px] w-auto shrink-0 max-md:h-[64px]"
-              />
-            </a>
-          </div>
-
-          <div className="shrink-0 text-center">
-            <span className="text-[12px] font-bold uppercase tracking-[0.22em]" style={{ color: "var(--color-altus-red)" }}>
-              Altus&nbsp;/&nbsp;Workspaces
-            </span>
-            <h1 className="mt-1 font-extrabold tracking-tight text-ink-strong" style={{ fontSize: "clamp(30px, 3.4vw, 46px)", lineHeight: 1.02 }}>
-              Welcome back, {firstName}
-            </h1>
-            <p className="mt-1 text-[15px] text-ink-muted">Choose your workspace to get started</p>
-          </div>
-
-          <div className="flex flex-1 items-center justify-end gap-3 max-md:justify-center">
-            <GlobalSearch />
-            {/* Profile avatar → the full account/workspace menu (Admin Panel,
-                Profile & Preferences, Documents, Inbox, Archived, Sign Out). */}
-            <UserMenuServer />
-          </div>
-        </header>
-
-        {/* Workspace grid — SIX ACROSS on xl, which is the whole point of the
-            column count: there are exactly twelve modules, so six per row is
-            2 × 6 and the entire hub is on screen with nothing to scroll to.
-            Five gave 5 · 5 · 2 and pushed the last row below the fold on a
-            laptop; four (the WMS branch's) was worse again.
-
-            The wrapper above widened from 1140px to 1440px in the same change.
-            Six cards inside 1140 are ~173px wide, which is too narrow for
-            "Monthly Events Master" — and that cap was leaving a quarter of a
-            wide screen empty on either side anyway.
-
-            Below xl it steps down 4 → 3 → 2 → 1 rather than jumping, so a row
-            never ends in a single orphan card at any width. Those narrower
-            layouts do scroll; that is the correct trade at a size where six
-            cards cannot be read. */}
-        {/* THE GRID STARTS DIRECTLY UNDER THE HERO, at a fixed 80px.
-
-            It was `my-auto`, which split the leftover height evenly above and
-            below — measured at 1536x880 that put 173px of nothing between
-            "Choose your workspace to get started" and the first row of cards,
-            so the two halves of the page read as unrelated. The account holder
-            marked the line the modules should begin on; 80px under a header
-            that ends at y=125 puts the first card there.
-
-            A plain top margin, not `justify-start` on the parent: when the grid
-            is TALLER than the space (a narrow window, where it steps down to
-            one or two columns) this simply scrolls from the top, which is the
-            correct behaviour at a size where six cards cannot be read.
-
-            The slack now pools BELOW the cards instead of being split. That is
-            the deliberate trade for a hero and a grid that sit together. */}
-        <section
-          className="mt-20 grid grid-cols-1 gap-5 max-md:mt-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
-          aria-label="Workspaces"
-        >
-          {/* A workspace you can't enter is HIDDEN, not shown greyed as "No
-              Access" (Sir 2026-08) — a normal doer only sees the modules that are
-              actually theirs. The card keeps its CANONICAL index so its letter
-              badge still matches the global Alt+letter shortcut (which is stable
-              per module in the layout), even with some cards hidden. */}
-          {MODULE_ORDER.filter((id) => canAccessWorkspace(id, access)).map((id) => (
-            <WorkspaceCard key={id} m={MODULE_THEME[id]} locked={false} i={MODULE_ORDER.indexOf(id)} />
-          ))}
-
-          {/* THE ADMIN PANEL, for admins only — the same test the user-menu
-              entry uses (`isAdmin &&`) and the same one `/admin`'s layout
-              enforces server-side. Hidden rather than shown locked, matching
-              how an unreachable room is treated two lines above: a doer sees
-              only the places that are actually theirs.
-
-              This is PRESENTATION. `app/(admin)/admin/layout.tsx` redirects a
-              non-admin to /hub whether or not a card was drawn, so nothing here
-              is load-bearing for authorization. */}
-          {me.isAdmin && <AdminPanelCard i={MODULE_ORDER.length} />}
-        </section>
-
-        {/* BARE-LETTER shortcuts, hub only — pressing Q opens WMS. This is the
-            listener that makes the corner badges above true: they show "Q", not
-            "Alt+Q", because on this page a bare Q is what works.
-
-            The layout ALSO mounts its own Alt+letter listener, on every route
-            including this one, so Alt+Q works here too and the same keys keep
-            working once you are inside a room (where a bare letter is typing
-            and must not navigate). The two split cleanly on the modifier — see
-            the note in components/hub/module-shortcuts.tsx. */}
-        <HubLetterShortcuts
-          allowed={MODULE_ORDER.filter((id) => canAccessWorkspace(id, access))}
-          adminAllowed={me.isAdmin}
-        />
+    <div className="aura-app">
+      {/* 1 — THE FIELD: the thing the glass refracts. */}
+      <div className="aura-field" aria-hidden>
+        <div className="aura-blob aura-b1" />
+        <div className="aura-blob aura-b2" />
+        <div className="aura-blob aura-b3" />
       </div>
-    </main>
+      {/* 2 — THE GRAIN: so the glass reads as material, not white plastic. */}
+      <div className="aura-grain" aria-hidden />
+      <AuraSheen />
+
+      {/* 3 — THE GLASS. The SAME bar the rest of the app gets, mounted inside
+          this page rather than by the layout: here it has the field behind it
+          to refract, which is the whole point of the material. ChromeShell
+          suppresses the layout's copy on this route so there is only ever one. */}
+      <AuraTopBar
+        rooms={roomsFor(visible)}
+        bell={<NotificationBell />}
+        userMenu={<UserMenuServer />}
+      />
+
+      {/* The workspace rail is GONE from this page. Every room is in the top
+          bar — as a tab or under "More" — so a second, permanent copy of the
+          same list down the left was 252px spent saying it twice. Module pages
+          keep THEIR rail: that one lists the sections inside a room, which the
+          top bar does not. */}
+      <div className="aura-layout aura-layout-bare">
+        <main className="aura-main">
+          {/* The greeting is passed IN rather than rendered here, so the grid
+              can switch it off with everything else. A page whose whole point
+              is that nothing is fixed should not have one fixed thing. */}
+          <DashboardGrid
+            nodes={nodes}
+            available={available}
+            greeting={
+              <div className="aura-top">
+                <div>
+                  <div className="aura-date">{istDateLabel(now)}</div>
+                  <h1 className="aura-h1">
+                    {istGreeting(now)}, {firstName}
+                  </h1>
+                </div>
+                <div className="aura-glass aura-chip">Today</div>
+              </div>
+            }
+          />
+        </main>
+      </div>
+    </div>
   );
 }

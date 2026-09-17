@@ -8,6 +8,8 @@ import { fireToast } from "@/lib/toast";
 import { formatInr } from "@/lib/format";
 import { upsertCatalogEntry, deleteCatalogEntry } from "@/app/(app)/incentive/catalog-actions";
 import type { CatalogRow } from "@/lib/queries/incentive-catalog";
+import type { EligibilityPerson } from "@/lib/queries/incentive-eligibility";
+import { IncentiveEligibilityDialog } from "./incentive-eligibility-dialog";
 
 type Draft = {
   id?: string;
@@ -30,7 +32,17 @@ const toDraft = (r: CatalogRow): Draft => ({
   notes: r.notes ?? "",
 });
 
-export function IncentiveCatalogDialog({ rows, isAdmin }: { rows: CatalogRow[]; isAdmin: boolean }) {
+export function IncentiveCatalogDialog({
+  rows,
+  isAdmin,
+  people = [],
+}: {
+  rows: CatalogRow[];
+  isAdmin: boolean;
+  /** Everyone an incentive can be assigned to. Admins only — the roster
+   *  has no business in a non-admin’s browser. */
+  people?: EligibilityPerson[];
+}) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Draft | null>(null); // row being edited / new
@@ -172,10 +184,23 @@ export function IncentiveCatalogDialog({ rows, isAdmin }: { rows: CatalogRow[]; 
                         {formatInr(r.amount)}
                       </td>
                       <td className="py-3 pr-3">
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {/* WHO IT APPLIES TO comes first: since 0216 it is the
+                              thing that actually decides who sees this row, and
+                              the Sales/Interns tags beside it are the older,
+                              advisory labels nothing enforces. */}
+                          {isAdmin ? (
+                            <IncentiveEligibilityDialog
+                              incentiveId={r.id}
+                              incentiveName={r.name}
+                              appliesToAll={r.appliesToAll}
+                              eligibleIds={r.eligibleIds}
+                              people={people}
+                            />
+                          ) : null}
                           {r.salesEligible && <Tag tone="red">Sales</Tag>}
                           {r.internsEligible && <Tag tone="blue">Interns</Tag>}
-                          {!r.salesEligible && !r.internsEligible && <span className="text-ink-subtle" style={{ fontSize: 12 }}>-</span>}
+                          {!isAdmin && !r.salesEligible && !r.internsEligible && <span className="text-ink-subtle" style={{ fontSize: 12 }}>-</span>}
                         </div>
                       </td>
                       {isAdmin && (

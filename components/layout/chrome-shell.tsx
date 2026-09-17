@@ -22,6 +22,35 @@ import { InsetTopBarProvider } from "@/components/layout/inset-top-bar";
  * is server-rendered once and passed in; its inner nav (MainNav) + brand already
  * read `usePathname()`, so its contents track the current route too.
  */
+/**
+ * Does this route render the module LEFT RAIL?
+ *
+ * Exported because two components have to agree on the answer: ChromeShell
+ * decides whether to mount the rail, and AuraTopBar decides whether to show the
+ * account menu — the rail already carries one in its foot, and a second copy
+ * 200px away in the bar is the kind of duplicate nobody notices until it looks
+ * like a bug. One definition, so the two can never drift.
+ *
+ * Rule: EVERY module gets the rail, except the HR console's full-bleed surfaces
+ * (which navigate via their own cards and back buttons) and the hub/shared
+ * routes, which belong to no workspace.
+ */
+export function showsModuleRail(pathname: string): boolean {
+  const ws = workspaceForPath(pathname);
+  const isHrFullBleed =
+    pathname === "/hr" ||
+    pathname.startsWith("/hr/") ||
+    pathname === "/policies" ||
+    pathname.startsWith("/policies/") ||
+    pathname === "/communications" ||
+    pathname.startsWith("/communications/") ||
+    pathname === "/dossier" ||
+    pathname.startsWith("/dossier/") ||
+    pathname === "/support" ||
+    pathname.startsWith("/support/");
+  return Boolean(ws) && !isHrFullBleed;
+}
+
 export function ChromeShell({
   sidebar,
   footer,
@@ -67,7 +96,8 @@ export function ChromeShell({
     (pathname?.startsWith("/dossier/") ?? false) ||
     pathname === "/support" ||
     (pathname?.startsWith("/support/") ?? false);
-  const showSidebar = Boolean(ws) && !isHrFullBleed;
+  // Same answer as `showsModuleRail` above, which the top bar reads.
+  const showSidebar = showsModuleRail(pathname ?? "/");
 
   // Sticky-footer frame (both branches): the page column is a FULL-HEIGHT flex
   // column, so the footer — which every page renders as the last sibling of its
