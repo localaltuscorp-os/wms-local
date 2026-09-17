@@ -5,6 +5,8 @@ import {
   Loader2,
   Check,
   UserRound,
+  UserPlus,
+  X,
   AlertTriangle,
   Briefcase,
   ShieldCheck,
@@ -16,7 +18,7 @@ import { createPortal } from "react-dom";
 import { fireToast } from "@/lib/toast";
 import { PageShell } from "@/components/layout/page-shell";
 import { LookupSelect } from "@/components/ui/lookup-select";
-import { deleteCandidateIntake } from "@/app/(app)/hr/candidate-actions";
+import { deleteCandidateIntake, createQuickCandidate } from "@/app/(app)/hr/candidate-actions";
 import {
   EVAL_SECTIONS,
   type EvaluationInstance,
@@ -104,6 +106,33 @@ export function EvaluationV2Screen({
   const [dirty, setDirty] = React.useState(false);
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [railCollapsed, setRailCollapsed] = React.useState(false);
+  // "Add candidate" — pre-create a candidate by name (+ optional phone) so an
+  // evaluation can start before they have filled the full interview form.
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [addName, setAddName] = React.useState("");
+  const [addPhone, setAddPhone] = React.useState("");
+  const [addBusy, setAddBusy] = React.useState(false);
+  const [addError, setAddError] = React.useState<string | null>(null);
+
+  async function submitNewCandidate() {
+    setAddBusy(true);
+    setAddError(null);
+    const res = await createQuickCandidate({ name: addName, phone: addPhone });
+    setAddBusy(false);
+    if (!res.ok) {
+      setAddError(res.error);
+      return;
+    }
+    // Add to the local list (if it isn't already there) and select it.
+    setCandList((prev) => {
+      if (prev.some((c) => c.id === res.id)) return prev;
+      return [...prev, { id: res.id, fullName: addName.trim() }];
+    });
+    setAddOpen(false);
+    setAddName("");
+    setAddPhone("");
+    void selectCandidate(res.id);
+  }
 
   const cidRef = React.useRef(candidateId); cidRef.current = candidateId;
   const instRef = React.useRef(instance); instRef.current = instance;
@@ -367,6 +396,16 @@ export function EvaluationV2Screen({
               </div>
             )}
 
+            {!fixedCandidateId && (
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="inline-flex shrink-0 items-center gap-1.5 self-end rounded-xl border border-dashed border-hairline-strong bg-white px-3.5 py-2.5 text-[13px] font-semibold text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red"
+              >
+                <UserPlus size={15} strokeWidth={2.4} aria-hidden /> New candidate
+              </button>
+            )}
+
             {load && (
               <div className="ev2-select-wrap min-w-[170px] shrink-0">
                 <label htmlFor="ev2-designation" className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-soft">
@@ -575,6 +614,104 @@ export function EvaluationV2Screen({
                   style={{ background: RED }}
                 >
                   <Trash2 size={14} strokeWidth={2.5} /> Delete Permanently
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {addOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] grid place-items-center bg-black/45 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ev2-add-title"
+            onClick={() => setAddOpen(false)}
+          >
+            <div
+              className="w-full max-w-[440px] rounded-2xl bg-white p-6 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.55)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-4 flex items-start gap-3.5">
+                <span
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full"
+                  style={{ background: "color-mix(in srgb, var(--color-altus-red) 12%, white)", color: RED_DEEP }}
+                >
+                  <UserPlus size={22} strokeWidth={2.4} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h2 id="ev2-add-title" className="text-[17px] font-black text-ink-strong" style={{ fontFamily: DISPLAY }}>
+                    New candidate
+                  </h2>
+                  <p className="mt-1 text-[13.5px] leading-relaxed text-ink-muted">
+                    Start an evaluation before they fill the interview form. If they later
+                    fill it under the same phone number, the two records fold together.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAddOpen(false)}
+                  aria-label="Close"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-soft"
+                >
+                  <X size={16} strokeWidth={2.4} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="ev2-add-name" className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-soft">
+                    Name
+                  </label>
+                  <input
+                    id="ev2-add-name"
+                    value={addName}
+                    onChange={(e) => setAddName(e.target.value)}
+                    autoFocus
+                    placeholder="Full name"
+                    className="w-full rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[14px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ev2-add-phone" className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-soft">
+                    Phone number <span className="normal-case font-medium text-ink-subtle">(optional — used to link their form later)</span>
+                  </label>
+                  <input
+                    id="ev2-add-phone"
+                    value={addPhone}
+                    onChange={(e) => setAddPhone(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void submitNewCandidate();
+                    }}
+                    placeholder="e.g. 98XXXXXXXX"
+                    className="w-full rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[14px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
+                  />
+                </div>
+                {addError && (
+                  <p className="text-[12.5px] font-semibold text-altus-red">{addError}</p>
+                )}
+              </div>
+
+              <div className="mt-5 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setAddOpen(false)}
+                  className="rounded-lg border border-hairline bg-white px-4 py-2.5 text-[13px] font-bold text-ink-muted transition-colors hover:bg-surface-soft"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitNewCandidate()}
+                  disabled={addBusy || !addName.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-[13px] font-bold text-white transition-colors disabled:opacity-60"
+                  style={{ background: RED }}
+                >
+                  {addBusy ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} strokeWidth={2.5} />}
+                  Add candidate
                 </button>
               </div>
             </div>

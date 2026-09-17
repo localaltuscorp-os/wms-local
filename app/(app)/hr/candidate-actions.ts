@@ -313,6 +313,65 @@ export async function deleteCandidateIntake(
   return { ok: true };
 }
 
+const QuickCandidateSchema = z.object({
+  name: z.string().trim().min(1, "Enter the candidate's name.").max(200),
+  phone: z.string().trim().max(40).optional(),
+});
+
+/**
+ * Create a candidate on the spot from just a name (and optionally a phone
+ * number), so the HR desk can run an evaluation BEFORE the person has filled the
+ * 15-minute interview form. Creates a minimal `candidate_intake` row (status
+ * "new", nothing submitted) and returns its id for immediate selection.
+ *
+ * LINK-BY-PHONE: if a candidate has ALREADY filled a form under that number,
+ * return that existing row instead of minting a duplicate — so an evaluation
+ * started early folds into the real record the moment the two share a number.
+ */
+export async function createQuickCandidate(
+  input: z.input<typeof QuickCandidateSchema>,
+): Promise<Result<{ id: string; reused: boolean }>> {
+  const me = await requireHrStaff();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = QuickCandidateSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid candidate." };
+
+  const name = parsed.data.name;
+  const phone = (parsed.data.phone ?? "").trim();
+
+  try {
+    // A matching phone means they already have a record — reuse it.
+    if (phone) {
+      const [existing] = await db
+        .select({ id: candidateIntake.id })
+        .from(candidateIntake)
+        .where(eq(candidateIntake.mobile, phone))
+        .orderBy(desc(candidateIntake.updatedAt))
+        .limit(1);
+      if (existing) return { ok: true, id: existing.id, reused: true };
+    }
+
+    const [row] = await db
+      .insert(candidateIntake)
+      .values({
+        fullName: name,
+        mobile: phone || null,
+        status: "new",
+        createdById: me.id,
+      })
+      .returning({ id: candidateIntake.id });
+    if (!row) return { ok: false, error: "Could not add the candidate." };
+
+    revalidatePath("/hr/evaluation");
+    revalidatePath("/hr/candidates");
+    return { ok: true, id: row.id, reused: false };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not add the candidate." };
+  }
+}
+
 /** Upload a candidate file (passport photo / signature) → returns storage path. */
 export async function uploadCandidateFile(fd: FormData): Promise<Result<{ path: string }>> {
   const me = await requireHrStaff();
