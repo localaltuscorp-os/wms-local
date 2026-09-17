@@ -943,37 +943,54 @@ the three things that normally keep a dependency out of production say nothing
 at all about file tracing.** Only `outputFileTracingExcludes` does, and that is
 now set in `next.config.ts`.
 
-🔴 **FUNCTIONS STORAGE IS CUMULATIVE AND NEVER FALLS. Read the graph before
-theorising — Usage → Functions Storage → Total size.** It runs from **0 B on
-~30 August** in an unbroken climb to 10.6 GB, with no dip anywhere, including
-on 15 September when **80 of 84 deployments were deleted**. Deployment Storage
-fell to 1.76 GB that same afternoon; this meter did not move.
+**FUNCTIONS STORAGE: WHAT IS OBSERVED, AND WHAT IS STILL UNKNOWN.** Four
+theories were advanced about this meter on 15 September and every one was
+wrong, so this section records measurements and marks the rest as open.
 
-So it is not a gauge of what is currently stored. **Every deployment adds to it
-permanently for the billing period** — roughly **240 MB each**, measured from
-the 15 September step (~7.2 GB to 10.6 GB across about fourteen deployments).
-The three earlier theories in this section's history — delete old deployments,
-blame the letter routes, blame a tracing exclude — were all wrong, and the
-graph would have refuted each of them in one glance.
+**Observed, 15 September:** the Usage graph (Usage → Functions Storage → Total
+size) climbed from 0 B on ~30 August to **10.6 GB against a 10 GB allowance**,
+in an unbroken line with no dip — including through the afternoon when **80 of
+84 deployments were deleted**. Deployment Storage fell to 1.76 GB that same
+hour; this meter did not move. Deployments came in Preview/Production PAIRS at
+identical timestamps, because the same commit was being pushed to `main` and to
+`dev-integration` and Vercel built both.
 
-**What follows from that:**
+**Observed, 16 September:** it **dropped to zero**.
 
-- **The 10.6 GB does not come down.** It resets when the period rolls over
-  (the graph starts ~30 August, so expect ~30 September). Being over the line
-  risks the project being paused; the only ways out before the reset are to
-  stop deploying or to upgrade.
-- **Every deploy is ~240 MB. Batch ruthlessly.** Fifteen small pushes cost
-  3.6 GB of a 10 GB allowance for one afternoon's work. This is the single
-  biggest thing anyone can do about the bill.
-- **Pushing the same commit to `main` AND `dev-integration` built it TWICE** —
-  visible as Preview/Production pairs at identical timestamps in `vercel ls`.
-  `vercel.json` now sets `git.deploymentEnabled["dev-integration"] = false`, so
-  the branch still receives pushes and still works as the outside developer's
-  PR target but no longer produces a build. That halves the cost of every
-  change on its own.
-- **Making functions smaller still matters**, but only for FUTURE deploys —
-  the pglite fix reduces what each new deployment adds, it cannot refund the
-  10.6 GB already counted.
+**Why it dropped is NOT established.** Two candidates, and they imply opposite
+things:
+
+1. **The billing period rolled over on the 16th.** Then the allowance simply
+   refills monthly and the climb starts again with the next deploy.
+2. **The deletions were credited a day late.** Then deleting deployments IS a
+   real lever, it just settles slowly — and the "never falls" reading taken
+   from a single afternoon was an artefact of watching too short a window.
+
+A drop to *zero* rather than to the cost of the four surviving deployments
+leans towards (1), but that is an inference, not a measurement.
+
+**To settle it**, watch two things: whether the line resets again around 16
+October (→ monthly cycle), and whether deleting a deployment produces a drop a
+day later (→ deletions work, with a lag).
+
+**What to do is the same under both readings, which is why it is safe to act
+on now:**
+
+- **Batch pushes.** Fifteen small ones on 15 September cost ~3.4 GB in an
+  afternoon — about **240 MB per deployment**, which is the one number here
+  that was measured directly rather than inferred.
+- **Never push one commit to two branches that both build.** `vercel.json` now
+  sets `git.deploymentEnabled["dev-integration"] = false`; the branch still
+  takes pushes and still works as the outside developer's PR target, it just
+  stops producing a build. That halves the cost of every change on its own.
+- **Smaller functions still help**, but only from the next deploy onward — the
+  pglite change reduces what each new deployment adds and cannot refund
+  anything already counted.
+
+**And read the graph before theorising.** Deleting old deployments, the three
+Chromium letter routes, and an `outputFileTracingExcludes` glob were each
+confidently blamed and each innocent; one look at the shape of that line would
+have refuted all three.
 
 ⚠️ **DO NOT TRUST A LOCAL `.nft.json` MEASUREMENT, including the table above.**
 Three builds of essentially the same tree measured 10.30 GB, then 1.95 GB, then
