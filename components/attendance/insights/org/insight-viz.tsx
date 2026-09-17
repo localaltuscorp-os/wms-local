@@ -214,15 +214,24 @@ export function InsightDonut({
     );
   }
 
-  let cursor = 0;
-  const arcs = segs.map((seg, i) => {
-    const frac = seg.value / total;
-    const len = frac * circ;
-    const rotation = (cursor / circ) * 360;
-    cursor += len;
-    const dim = activeKey != null && activeKey !== seg.key;
-    return { seg, len, rotation, i, dim };
-  });
+  /* Each arc starts where the ones before it ended, so the offsets are a
+     PREFIX SUM. Built in a plain loop rather than by mutating a running total
+     from inside `.map()` — a callback that writes to a variable declared in
+     render is the one thing the React Compiler will not analyse, and it opts
+     the whole component out of memoisation to stay safe. Same arithmetic. */
+  const lens = segs.map((seg) => (seg.value / total) * circ);
+  const offsets: number[] = [];
+  for (let i = 0, run = 0; i < lens.length; i++) {
+    offsets.push(run);
+    run += lens[i]!;
+  }
+  const arcs = segs.map((seg, i) => ({
+    seg,
+    len: lens[i]!,
+    rotation: (offsets[i]! / circ) * 360,
+    i,
+    dim: activeKey != null && activeKey !== seg.key,
+  }));
 
   return (
     <div className="flex items-center gap-7 max-md:flex-col max-md:gap-4">

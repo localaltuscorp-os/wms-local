@@ -72,8 +72,8 @@ export async function saveCallLog(raw: z.input<typeof Input>): Promise<SaveResul
     throw e;
   }
 
-  revalidatePath("/dcc/call-log");
-  revalidatePath("/dcc/sp1");
+  // ONE PATH, because there is only one screen: the sheet on the dashboard is
+  // both where the number is typed and where it is read back.
   revalidatePath("/dcc/dashboard");
   return { ok: true };
 }

@@ -13,7 +13,7 @@
 --   recruiter_content  what recruiters edit and send. NULL = identical to the
 --                      master, so a master update flows through until someone
 --                      edits the recruiter copy. "Reset to master" sets it NULL.
--- Content is jsonb in the shape lib/hr/recruitment-jd.ts defines, so the fields
+-- Content is jsonb in the shape lib/operations/recruitment-jd.ts defines, so the fields
 -- can grow once the real JDs arrive without another migration.
 --
 -- recruitment_jd_sends records every send — what was sent (a snapshot, since

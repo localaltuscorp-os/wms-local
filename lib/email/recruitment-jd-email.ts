@@ -1,9 +1,9 @@
 import "server-only";
 import { getResend, FROM, companyBcc, clampSubject, errorMessage } from "./resend";
-import { jdEmailHtml, jdEmailSubject, type JdContent } from "@/lib/hr/recruitment-jd";
+import { jdEmailHtml, jdEmailSubject, type JdContent } from "@/lib/operations/recruitment-jd";
 
 /**
- * Email a Recruitment JD to anyone (lib/hr/recruitment-jd.ts builds the body).
+ * Email a Recruitment JD to anyone (lib/operations/recruitment-jd.ts builds the body).
  * The company archive is BCC'd, as on every HR send. Never throws.
  */
 export async function sendRecruitmentJdEmail(args: {

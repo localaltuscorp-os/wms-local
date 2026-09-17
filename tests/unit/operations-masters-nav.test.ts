@@ -15,7 +15,16 @@ describe("Operations Masters section", () => {
       ["Events", "/operations/masters/events"],
       ["Job Description", "/operations/masters/jd"],
       ["Job Description", "/operations/masters/person-jd"],
+      ["Job Description", "/operations/masters/recruitment-jd"],
     ]);
+  });
+
+  /* MOVED HERE FROM THE HR RAIL (account holder, 2026-09-17). Both halves of
+     the move are asserted: the section is a master now, and the path it shipped
+     at is still governed rather than becoming an ungoverned door. */
+  it("carries Recruitment JD, with its old HR path still governed", () => {
+    expect(OPERATIONS_MASTERS.some((m) => m.href === "/operations/masters/recruitment-jd")).toBe(true);
+    expect(nodeKeyForPath("/hr/recruitment-jd")).toBe("operations.masters");
   });
 
   it("lights exactly one entry on each master's page", () => {

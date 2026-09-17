@@ -3994,10 +3994,22 @@ export const goalApproverStatuses = pgTable("goal_approver_statuses", {
 });
 
 // Migration 0232 — Recruitment JDs (HR). Not the internal JD Bank (jd_*): these
-// are what recruiters send candidates. Content shape: lib/hr/recruitment-jd.ts.
+// are what recruiters send candidates. Content shape: lib/operations/recruitment-jd.ts.
 export const recruitmentJds = pgTable("recruitment_jds", {
   id: uuid("id").primaryKey().defaultRandom(),
-  positionId: uuid("position_id").notNull().unique().references(() => interviewPositions.id, { onDelete: "restrict" }),
+  /**
+   * Migration 0236 — the JD's own identity.
+   *
+   * It used to be keyed to `interview_positions`, which is the interview GRADE
+   * ladder (Executive, Senior Manager, First-Year Intern). The JDs are per
+   * HIRING ROLE, several span two grades at once, and most grades have no JD —
+   * so the slug identifies the role and the grade link is optional.
+   */
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  sortOrder: integer("sort_order").notNull().default(100),
+  isActive: boolean("is_active").notNull().default(true),
+  positionId: uuid("position_id").references(() => interviewPositions.id, { onDelete: "set null" }),
   masterContent: jsonb("master_content"),
   masterUpdatedById: uuid("master_updated_by_id").references(() => employees.id, { onDelete: "set null" }),
   masterUpdatedAt: timestamp("master_updated_at", { withTimezone: true }),

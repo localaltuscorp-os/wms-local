@@ -71,6 +71,20 @@ export async function requireHrStaff(): Promise<Employee> {
   return me;
 }
 
+/**
+ * The read side of {@link requireHrStaff}: the same rule, including the local-dev
+ * knob, but it answers instead of redirecting.
+ *
+ * For a page that is OPEN to everyone and carries HR-only controls — Operations
+ * → Masters → Recruitment JD, where anyone may read the JD and only HR may edit
+ * or send it. The answer decides what is drawn, never what is permitted: every
+ * write still calls `requireHrStaff` for itself.
+ */
+export async function canActAsHrStaff(me: Employee): Promise<boolean> {
+  if (localAllWorkspaces()) return true;
+  return isHrStaff(me);
+}
+
 /** The employee ids of the super-admin allow-list (grievance fallback owners). */
 export async function superAdminIds(): Promise<string[]> {
   const rows = await db

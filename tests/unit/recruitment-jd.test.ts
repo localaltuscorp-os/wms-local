@@ -12,7 +12,7 @@ import {
   normalizeWhatsAppPhone,
   sameJdContent,
   whatsAppLink,
-} from "@/lib/hr/recruitment-jd";
+} from "@/lib/operations/recruitment-jd";
 
 /**
  * RECRUITMENT JDs (account holder, 2026-09-15) — a master and a recruiter copy

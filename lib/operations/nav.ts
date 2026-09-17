@@ -19,6 +19,7 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
+  UserPlus,
   UserRound,
   Users2,
 } from "lucide-react";
@@ -310,5 +311,17 @@ export const OPERATIONS_MASTERS: OperationsMasterItem[] = [
     Icon: UserRound,
     topic: "Job Description",
     blurb: "One person's whole JD — their seat's tasks, tasks given to them by name, and personal tasks.",
+  },
+  /* RECRUITMENT JD (account holder, 2026-09-17) — moved here from the HR rail.
+     The third job description, and it belongs beside the other two: those two
+     say what a seat does once somebody is in it, this one says what the seat is
+     while we are still looking. Reading is open like every master; editing and
+     sending are HR staff only, enforced by the page's actions. */
+  {
+    href: "/operations/masters/recruitment-jd",
+    label: "Recruitment JD",
+    Icon: UserPlus,
+    topic: "Job Description",
+    blurb: "What recruiters send candidates — the original master, a recruiter copy to edit freely, and WhatsApp or email to anyone.",
   },
 ];

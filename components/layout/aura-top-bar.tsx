@@ -53,12 +53,27 @@ import type { AuraRoom } from "@/lib/aura-rooms";
  * NOT get a tab, so the bar and the menu have to be computed from the SAME
  * number. A CSS rule that hid a tab would drop it out of the bar without
  * putting it in the menu, and that room would be unreachable at that width.
+ *
+ * ── FOUR, NOT AS MANY AS FIT (account holder, 2026-09-17) ──────────────────
+ * The ladder used to climb to eight, so a wide screen filled the strip with
+ * every room it could — and the bar read as a crowd rather than a control. It
+ * was also the wrong thing to spend the width on: the rooms past the fourth are
+ * ones you enter occasionally, while the strip sits on EVERY screen in the app.
+ *
+ * Four is a deliberate cap, not a measurement — the four rooms with daily
+ * traffic (WMS · Goals · Project · Performance), then "More". The point of a
+ * fixed number is that the bar keeps the same shape at every desktop width,
+ * which is what makes it read as chrome you can ignore instead of a list you
+ * re-scan. Nothing is lost: "More" is the exact complement, so every other room
+ * is one click away and the room you are IN always keeps its tab (below),
+ * however far down the list it sits.
+ *
+ * The narrow steps stay, and they are measured rather than chosen: below the
+ * widths below, the tabs plus the brand plus search genuinely do not fit, and
+ * the invariant above says the bar must drop a tab into the menu rather than
+ * let CSS hide it.
  */
 const TAB_BREAKPOINTS: readonly { min: number; tabs: number }[] = [
-  { min: 1720, tabs: 8 },
-  { min: 1580, tabs: 7 },
-  { min: 1440, tabs: 6 },
-  { min: 1280, tabs: 5 },
   { min: 1120, tabs: 4 },
   { min: 1000, tabs: 3 },
   { min: 860, tabs: 2 },
@@ -66,7 +81,7 @@ const TAB_BREAKPOINTS: readonly { min: number; tabs: number }[] = [
 ];
 
 /** The widest breakpoint, used for the server render and the first paint. */
-const TAB_COUNT_SSR = 6;
+const TAB_COUNT_SSR = 4;
 
 /**
  * Subscribes to the breakpoints above.

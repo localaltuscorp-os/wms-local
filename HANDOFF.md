@@ -587,11 +587,17 @@ rebuilt against a written specification: **[`docs/DCC-SPEC.md`](./docs/DCC-SPEC.
 which is authoritative and supersedes every earlier DCC note in this repo. Read
 it before changing anything here.
 
-**Five doors, generated from one list.** `/dcc` (My Day) · `/dcc/call-log` ·
-`/dcc/sp1` · `/dcc/dashboard` · `/dcc/masters`, first under Employees. The rail
-and the module's own quick-nav row both render `lib/dcc/nav.ts`, so they cannot
-advertise different doors — which is exactly how the old module ended up
-offering a page that no longer honoured it.
+**Three doors, generated from one list.** `/dcc` (My Day) · `/dcc/dashboard` ·
+`/dcc/masters`, first under Employees. The rail and the module's own quick-nav
+row both render `lib/dcc/nav.ts`, so they cannot advertise different doors —
+which is exactly how the old module ended up offering a page that no longer
+honoured it.
+
+**There is no SP1 door and no Call Log door** (account holder, 2026-09-17): the
+SP1 sheet *is* the dashboard, and the fifteen numbers are typed into that sheet,
+so either would have been a second route to one screen. `/dcc/sp1` and
+`/dcc/call-log` are now **redirects** to `/dcc/dashboard`, kept only because both
+addresses are in bookmarks and in mail already sent.
 
 **The SP1 half is new, and it is the half that was missing.** The old module
 could report call outcomes but had no way to ENTER them, so the report was
@@ -600,9 +606,17 @@ permanently empty and looked broken.
 - `lib/dcc/sp1.ts` owns the fifteen outcomes, their eight sheet colours, the
   Connected partition and all five ratios — **once**, so the screen, the grid and
   the email cannot disagree about what "Connected" means.
-- `/dcc/call-log` enters a day; totals update as you type.
-- `/dcc/sp1` is Jeevan's grid: Monday→Saturday, a Weekly Total, **no Sunday
-  column**, rows numbered 1–23.
+- The **top of `/dcc/dashboard`** is Jeevan's grid, full width: Monday→Saturday,
+  a Weekly Total, **no Sunday column**, rows numbered 1–23, drawn as a
+  spreadsheet because it is read aloud beside the sheet it replaces. The
+  WMS-style sections sit under it and share its window, which is measured in
+  weeks (`?weeks=1|2|4`, `?week=` steps back) so the two halves of the page can
+  never describe different stretches of time.
+- **You type into that sheet** — it is the call log. A cell is open only when one
+  person is selected and you may fill for them, the day has not closed at
+  11:59 pm IST, and the table exists; `saveCallLog` re-checks all three, so an
+  open cell is an affordance and never a permission. Row 16 and the Weekly Total
+  move as you type, rebuilt by the same `buildSp1Grid` the email uses.
 - `dcc_call_logs` (**migration 0235**, new) stores one count per person per day
   per outcome, uniquely keyed, with no CHECK on the outcome — a sixteenth row on
   the sheet is data, not a migration.
