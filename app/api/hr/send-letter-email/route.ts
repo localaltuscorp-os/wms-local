@@ -80,14 +80,17 @@ export async function POST(req: Request): Promise<Response> {
   if (!template) return NextResponse.json({ ok: false, error: "This letter isn't authored yet." });
 
   // ── Recipient: the typed address wins; the attached employee is the fallback
-  //    (and always supplies the greeting name). ──
+  //    (and always supplies the greeting name). The letter goes TO the personal
+  //    inbox and CC's the company address when an employee is attached. ──
   let to = (b.to ?? "").trim();
+  let cc: string | undefined;
   let recipientName = b.candidateName ?? "";
   if (b.employeeId) {
     const emp = await db.query.employees.findFirst({ where: eq(employees.id, b.employeeId) });
     if (!emp) return NextResponse.json({ ok: false, error: "Employee not found." });
     recipientName = emp.name;
-    if (!to) to = (emp.email ?? "").trim();
+    if (!to) to = (emp.personalEmail ?? emp.email ?? "").trim();
+    cc = (emp.officialEmail ?? "").trim() || undefined;
   }
   if (!to) {
     return NextResponse.json({
@@ -119,9 +122,10 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ ok: false, error: "Could not render the PDF." });
   }
 
-  // ── Email it (typed TO, HR desk CC, company archive BCC) ──
+  // ── Email it (typed TO, office CC when attached, company archive BCC) ──
   const res = await sendLetterPdfEmail({
     to,
+    cc,
     recipientName,
     letterTitle: template.title,
     entityName: entity.displayName,

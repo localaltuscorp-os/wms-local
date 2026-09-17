@@ -58,12 +58,12 @@ const template: LetterTemplate = {
     bullets(
       [
         t(
-          "a. That your duty hours, place of work and your transfer from one department to another or from one Firm to other associated Firm, one area to another area or one state to another state will be within the management's discretion and you will abide with all such decisions without any hesitation or without any extra demand of remuneration.",
+          "That your duty hours, place of work and your transfer from one department to another or from one Firm to other associated Firm, one area to another area or one state to another state will be within the management's discretion and you will abide with all such decisions without any hesitation or without any extra demand of remuneration.",
         ),
       ],
       [
         t(
-          "b. Your place of work, in the first instant, will be Mumbai. However, you will be required to travel for duty anywhere in India, depending on the needs of the organization. You will be asked beforehand and your consent will be taken before committing to the client.",
+          "Your place of work, in the first instant, will be Mumbai. However, you will be required to travel for duty anywhere in India, depending on the needs of the organization. You will be asked beforehand and your consent will be taken before committing to the client.",
         ),
       ],
     ),
@@ -72,28 +72,28 @@ const template: LetterTemplate = {
     heading("3. Joining Formalities", 3),
     para(t("All new employees including trainees are expected to carry the following documents on the day of joining:")),
     bullets(
-      [t("a. Originals and photocopies of your qualifications,")],
-      [t("b. Date of birth proof")],
-      [t("c. Address proof")],
-      [t("d. 2 passport size photographs")],
+      [t("Originals and photocopies of your qualifications,")],
+      [t("Date of birth proof")],
+      [t("Address proof")],
+      [t("2 passport size photographs")],
       [
         t(
-          "e. Experience Certificates or Clearance Letter (If a situation requires certain provisions can be by-passed. Concerned officer or manager will write a remark mentioning why the process was by-passed)",
+          "Experience Certificates or Clearance Letter (If a situation requires certain provisions can be by-passed. Concerned officer or manager will write a remark mentioning why the process was by-passed)",
         ),
       ],
       [
         t(
-          "f. Proof of last drawn salary for 3 consecutive months, (1) Bank statement for last 3 months and (2) Latest salary slip from the previous employer or a direct mail from the previous employer to the designated person at {firm}, as will be informed at the time of joining.",
+          "Proof of last drawn salary for 3 consecutive months, (1) Bank statement for last 3 months and (2) Latest salary slip from the previous employer or a direct mail from the previous employer to the designated person at {firm}, as will be informed at the time of joining.",
         ),
       ],
-      [t("g. Relieving Letter")],
+      [t("Relieving Letter")],
     ),
 
     /* ── 4. Probation ────────────────────────────────────────────── */
     heading("4. Probation", 3),
     bullets(
       [
-        t("a. You will be on probation for a period of "),
+        t("You will be on probation for a period of "),
         f("probationMonths", "Probation Period", { defaultValue: "6 (Six months)" }),
         t(
           ", from your date of joining, after which your performance will be appraised. You will be confirmed in your appointment in writing on successful completion of the said probationary period. In case no confirmation is made in writing at the end of the probationary period, it will be deemed to have extended until the Firm confirms in writing otherwise.",
@@ -101,7 +101,7 @@ const template: LetterTemplate = {
       ],
       [
         t(
-          "b. During the probation period, we may terminate your position immediately (usually in 3 working days) and you may terminate this Agreement by giving ",
+          "During the probation period, we may terminate your position immediately (usually in 3 working days) and you may terminate this Agreement by giving ",
         ),
         f("terminationNotice", "Probation Notice", { defaultValue: "15 days" }),
         t(" notice in writing."),
@@ -121,9 +121,9 @@ const template: LetterTemplate = {
     /* ── 6. Compensation & Benefits ──────────────────────────────── */
     heading("6. Compensation & Benefits", 3),
     bullets(
-      [t("a. Your detailed Salary Break-up is available in the Cost to Firm Break-up annexed.")],
+      [t("Your detailed Salary Break-up is available in the Cost to Firm Break-up annexed.")],
       [
-        t("b. You will receive a fixed compensation of "),
+        t("You will receive a fixed compensation of "),
         f("compProbation", "Compensation (Probation)", { placeholder: "e.g. Rs. 30,000/- per month" }),
         t(" during your probationary period and "),
         f("compConfirmed", "Compensation (Confirmed)", { placeholder: "e.g. 30,000/- per month" }),
@@ -133,29 +133,29 @@ const template: LetterTemplate = {
       ],
       [
         t(
-          "c. {firm} will have a right to restructure your total compensation package into various components without adversely affecting the total compensation payable to you under this letter of appointment.",
+          "{firm} will have a right to restructure your total compensation package into various components without adversely affecting the total compensation payable to you under this letter of appointment.",
         ),
       ],
       [
         t(
-          "d. Salary will be paid to you on or before the 10th of every month by cheque or through internet banking only.",
+          "Salary will be paid to you on or before the 10th of every month by cheque or through internet banking only.",
         ),
       ],
-      [t("e. We do not have a bonus policy.")],
+      [t("We do not have a bonus policy.")],
       [
         t(
-          "f. Your future increments or promotion or any other salary increase shall be based on performance incentives earned, merit, considering your periodic and consistent overall performance, your willingness and ability to take more challenges, your own appetite for growth, business conditions and other parameters fixed from time to time at the discretion of the management and shall not be considered merely as a matter of your right.",
+          "Your future increments or promotion or any other salary increase shall be based on performance incentives earned, merit, considering your periodic and consistent overall performance, your willingness and ability to take more challenges, your own appetite for growth, business conditions and other parameters fixed from time to time at the discretion of the management and shall not be considered merely as a matter of your right.",
         ),
       ],
       [
         t(
-          "g. If you decide on yourself to leave the Firm without serving notice period then the Firm is not liable to pay your current month salary.",
+          "If you decide on yourself to leave the Firm without serving notice period then the Firm is not liable to pay your current month salary.",
         ),
       ],
-      [t("h. No show at work without intimation will also result in nonpayment of dues.")],
+      [t("No show at work without intimation will also result in nonpayment of dues.")],
       [
         t(
-          "i. Salary per day shall be calculated on the basis of no of days in that month, ie 28, 29, 30 or 31 days.",
+          "Salary per day shall be calculated on the basis of no of days in that month, ie 28, 29, 30 or 31 days.",
         ),
       ],
     ),
@@ -242,12 +242,12 @@ const template: LetterTemplate = {
     bullets(
       [
         t(
-          "a. In the event of your being guilty of misconduct or inattention or negligence in the discharge of your duties in the conduct of the Firm's business, or such misdemeanor which is likely to affect, or affects the reputation of the Firm's working or of any breach of terms and conditions herein, the Firm reserves its rights to terminate your services at any given point of time, with immediate effect, without any compensation or notice.",
+          "In the event of your being guilty of misconduct or inattention or negligence in the discharge of your duties in the conduct of the Firm's business, or such misdemeanor which is likely to affect, or affects the reputation of the Firm's working or of any breach of terms and conditions herein, the Firm reserves its rights to terminate your services at any given point of time, with immediate effect, without any compensation or notice.",
         ),
       ],
       [
         t(
-          "b. If you are found to not possess the desired competence, skills, willingness, qualification or experience, which do not conform to the rules and/or requirement of the firm, as may be required from time to time and necessary for the continuation of businesses or its exigencies or on account of redundancy.",
+          "If you are found to not possess the desired competence, skills, willingness, qualification or experience, which do not conform to the rules and/or requirement of the firm, as may be required from time to time and necessary for the continuation of businesses or its exigencies or on account of redundancy.",
         ),
       ],
     ),
@@ -260,7 +260,7 @@ const template: LetterTemplate = {
       ),
     ),
     bullets(
-      [t("a. Keep confidential and not disclose to any unauthorized persons")],
+      [t("Keep confidential and not disclose to any unauthorized persons")],
       [t("     i) All Firm information, business, and financial interests.")],
       [
         t(
@@ -276,27 +276,27 @@ const template: LetterTemplate = {
       ],
       [
         t(
-          "b. Not employ, use and/or engage the confidential information for any purposes other than the business of the Firm and only during the course of your employment with the Firm.",
+          "Not employ, use and/or engage the confidential information for any purposes other than the business of the Firm and only during the course of your employment with the Firm.",
         ),
       ],
       [
         t(
-          "c. Solicit or endeavor to entice any employee or person involved, directly or indirectly, from any of the Firm's operations.",
+          "Solicit or endeavor to entice any employee or person involved, directly or indirectly, from any of the Firm's operations.",
         ),
       ],
       [
         t(
-          "d. You shall faithfully and to the best of your ability, perform your duties that may be entrusted to you from the time to time by the management. You will be bound by rules, regulations, and orders promulgated by the management in relation to conduct, discipline and policy matters.",
+          "You shall faithfully and to the best of your ability, perform your duties that may be entrusted to you from the time to time by the management. You will be bound by rules, regulations, and orders promulgated by the management in relation to conduct, discipline and policy matters.",
         ),
       ],
       [
         t(
-          "e. You will not seek membership of any local or public bodies without first obtaining the specific permission of the management. In the event of your becoming a member without following the due process as mentioned, it shall amount to contravention of the provision of employment conditions and the management reserves the right to take appropriate actions including dispensing with your services, as it may deem fit.",
+          "You will not seek membership of any local or public bodies without first obtaining the specific permission of the management. In the event of your becoming a member without following the due process as mentioned, it shall amount to contravention of the provision of employment conditions and the management reserves the right to take appropriate actions including dispensing with your services, as it may deem fit.",
         ),
       ],
       [
         t(
-          "f. Other than the above, you will have to sign a Comprehensive Confidentiality Agreement, Training Confidentiality Agreement, Prevention of Sexual Harassment Policies, Attendance & Leave Policy, Anti Harassment & Non Discrimination Policy, Exit Policy, Conflict Policy and any other Policy introduced and/or updated by the Management from time to time on your date of joining as a necessary condition of your employment.",
+          "Other than the above, you will have to sign a Comprehensive Confidentiality Agreement, Training Confidentiality Agreement, Prevention of Sexual Harassment Policies, Attendance & Leave Policy, Anti Harassment & Non Discrimination Policy, Exit Policy, Conflict Policy and any other Policy introduced and/or updated by the Management from time to time on your date of joining as a necessary condition of your employment.",
         ),
       ],
     ),
