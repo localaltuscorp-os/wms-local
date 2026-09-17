@@ -679,6 +679,12 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             routes: ["/admin/paying-entities"],
           },
           {
+            key: "admin.masters.upload-master",
+            label: "Upload Master",
+            routes: ["/admin/upload-master"],
+            note: "The bulk-import template files (Tasks, Goals, Accounts). View = download; Edit = upload/replace and delete, applied sitewide.",
+          },
+          {
             key: "admin.masters.client-locations",
             label: "Client Locations",
             routes: ["/admin/client-locations"],

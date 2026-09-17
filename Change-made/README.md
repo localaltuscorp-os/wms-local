@@ -23,6 +23,7 @@ It also carries the **SQL to run against the production database**, in [`SQL/`](
 | 5 | [`05-dashboard-presentation.md`](./05-dashboard-presentation.md) | Dashboard summary bar and status KPI cards |
 | 6 | [`06-prior-session-incentive-module.md`](./06-prior-session-incentive-module.md) | The Incentive module rework already in the working tree (reversal, weekly report, Incentive Master, Entries paid-notice, functions rename) |
 | 7 | [`07-files-changed.md`](./07-files-changed.md) | Full file inventory, tracked and untracked |
+| 8 | [`08-upload-master.md`](./08-upload-master.md) | Upload Master — admin management of the bulk-import template files (Tasks, Goals, Accounts) |
 | — | [`SQL/`](./SQL/README.md) | Production SQL: what to run, in what order, and how to verify it |
 
 Read `07-files-changed.md` last if you are reviewing; read it first if you are about to execute the SQL.

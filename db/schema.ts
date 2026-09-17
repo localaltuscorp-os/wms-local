@@ -9037,3 +9037,30 @@ export const jdPushLog = pgTable(
 );
 export type JdPushLog = typeof jdPushLog.$inferSelect;
 export type NewJdPushLog = typeof jdPushLog.$inferInsert;
+
+/**
+ * Upload Master — the uploaded override for a bulk-import template.
+ *
+ * One row per overridden template, keyed by the template registry `key`
+ * (lib/templates/registry.ts). No row = the built-in template is served. The
+ * file bytes live in Supabase Storage (DOCUMENTS_BUCKET under a `templates/`
+ * prefix); this row records where they are and who replaced them last.
+ */
+export const templateFiles = pgTable(
+  "template_files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    key: text("key").notNull().unique(),
+    storagePath: text("storage_path").notNull(),
+    contentType: text("content_type").notNull(),
+    fileName: text("file_name").notNull(),
+    fileSize: integer("file_size").notNull(),
+    updatedById: uuid("updated_by_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+export type TemplateFile = typeof templateFiles.$inferSelect;
+export type NewTemplateFile = typeof templateFiles.$inferInsert;

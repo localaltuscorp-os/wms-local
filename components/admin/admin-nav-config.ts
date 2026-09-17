@@ -23,6 +23,7 @@ import {
   Wallet,
   Network,
   KeyRound,
+  FileUp,
   Settings as SettingsIcon,
 } from "lucide-react";
 
@@ -92,6 +93,7 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
       { href: "/admin/outstanding-payment-modes" as Route, label: "Payment Modes", Icon: CreditCard },
       { href: "/admin/billing-master" as Route, label: "Billing Master", Icon: ReceiptIndianRupee },
       { href: "/admin/paying-entities" as Route, label: "Paying Entities", Icon: Building2 },
+      { href: "/admin/upload-master" as Route, label: "Upload Master", Icon: FileUp },
     ],
   },
   {

@@ -6,6 +6,8 @@
 |---|---|
 | [`01-apply-production.sql`](./01-apply-production.sql) | The SQL to run. Additive, idempotent, re-runnable. |
 | [`02-verify-production.sql`](./02-verify-production.sql) | Read-only checks. Run before and after. |
+| [`03-apply-upload-master.sql`](./03-apply-upload-master.sql) | The `template_files` table for the Upload Master. Additive, idempotent. |
+| [`04-verify-upload-master.sql`](./04-verify-upload-master.sql) | Read-only checks for `template_files`. |
 
 ---
 
