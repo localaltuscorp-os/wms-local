@@ -140,8 +140,9 @@ select unnest(enum_range(null::approval_status));
 
 ### 8. Fixed: `localhost` returning 500 on every page
 - **What changed**: Nothing in the source. `.next` was deleted and rebuilt.
-- **Why**: The dev server's Turbopack cache was corrupted at ~17:13 when `.next/types` was removed while the server held it. It cached a CSS parse error against a class (`.z-[130P…`) that does not exist in `app/globals.css` — `git diff` on that file is empty and a fresh dist directory compiles and serves every route at 200.
-- **Action needed**: **restart your dev server** (`Ctrl+C`, then `npm run dev`). The stale cache is gone; the next start rebuilds clean.
+- **Why**: Tailwind v4 auto-detects its sources across the whole project, **markdown included**. A note in this very file quoted a broken z-index utility verbatim; Tailwind read it as a real class candidate and emitted invalid CSS, which failed the PostCSS transform of `app/globals.css` and took every page down with a build error. `globals.css` itself was never modified — `git diff` on it is empty.
+- **The durable fix**: `app/globals.css` now carries `@source not "**/*.md"`, so documentation can never again inject a utility class into the stylesheet. Class names in notes are also written as code spans without the bracket syntax.
+- **Action needed**: none beyond pulling. Restart the dev server if it is still showing the old error.
 - **SQL**: None.
 
 ---

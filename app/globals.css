@@ -1,4 +1,18 @@
 @import "tailwindcss";
+
+/* ── DOCUMENTATION IS NOT A SOURCE OF CLASSES ──────────────────────────────
+   Tailwind v4 auto-detects its sources across the whole project, and that
+   sweep includes Markdown. A handoff note that quoted a broken z-index
+   utility verbatim was therefore read as a real class candidate, emitted as
+   invalid CSS, and failed the PostCSS transform of this file — which takes
+   every page down with a build error, pointing at a line in globals.css that
+   nobody wrote.
+
+   No Markdown in this repo is compiled into the UI (nothing imports a .md
+   file), so excluding it costs nothing and removes a whole class of
+   build failure: from here on, writing about a class name cannot create one. */
+@source not "**/*.md";
+
 @import "react-day-picker/style.css";
 /* Aura — the liquid-glass design language (.claude/skills/aura). Scoped to
    `.aura-app`; see app/aura.css for why every class carries the prefix. */
