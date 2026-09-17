@@ -94,32 +94,44 @@ export function PoliciesWorkspace({
           <span className="text-[12px] font-semibold text-ink-soft">
             {signable.filter((p) => p.signedAt && !p.outdated).length}/{signable.length} signed
           </span>
+          {signable.some((p) => p.signedAt) && (
+            <a
+              href="/api/hr/policies/download-all"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:border-[var(--color-altus-red)]"
+            >
+              <Download size={13} strokeWidth={2.4} aria-hidden /> Download all
+            </a>
+          )}
         </div>
         <ul className="grid gap-2.5 sm:grid-cols-2">
           {signable.map((p) => {
             const signed = Boolean(p.signedAt) && !p.outdated;
             return (
               <li key={p.key}>
-                <Link
-                  href={`/hr/policies/${p.key}` as Route}
-                  className="flex h-full items-start gap-3 rounded-2xl border border-hairline bg-surface-card px-4 py-3.5 transition-colors hover:border-[var(--color-altus-red)]"
-                >
-                  <span
-                    className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg text-[12px] font-extrabold text-white"
-                    style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
-                    aria-hidden
+                <div className="flex h-full items-start gap-3 rounded-2xl border border-hairline bg-surface-card px-4 py-3.5 transition-colors hover:border-[var(--color-altus-red)]">
+                  <Link
+                    href={`/hr/policies/${p.key}` as Route}
+                    className="flex min-w-0 flex-1 items-start gap-3"
                   >
-                    {p.badge}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-semibold text-ink-strong">
-                      {p.title}
-                    </span>
-                    <span className="mt-0.5 line-clamp-2 block text-[12px] leading-snug text-ink-muted">
-                      {p.blurb}
-                    </span>
                     <span
-                      className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11.5px] font-bold ${
+                      className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg text-[12px] font-extrabold text-white"
+                      style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
+                      aria-hidden
+                    >
+                      {p.badge}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] font-semibold text-ink-strong">
+                        {p.title}
+                      </span>
+                      <span className="mt-0.5 line-clamp-2 block text-[12px] leading-snug text-ink-muted">
+                        {p.blurb}
+                      </span>
+                    </span>
+                  </Link>
+                  <span className="flex shrink-0 flex-col items-end gap-1.5">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11.5px] font-bold ${
                         signed
                           ? "bg-[color-mix(in_srgb,#16a34a_10%,white)] text-[#15803d]"
                           : "bg-surface-soft text-ink-soft"
@@ -137,8 +149,17 @@ export function PoliciesWorkspace({
                         </>
                       )}
                     </span>
+                    {p.signedAt && (
+                      <a
+                        href={`/api/hr/policies/download?key=${encodeURIComponent(p.key)}`}
+                        className="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-[var(--color-altus-red)]"
+                        title="Download your signed copy"
+                      >
+                        <Download size={12} strokeWidth={2.4} aria-hidden /> Download
+                      </a>
+                    )}
                   </span>
-                </Link>
+                </div>
               </li>
             );
           })}
