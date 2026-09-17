@@ -79,10 +79,29 @@ function useTabCount(rooms: AuraRoom[]): {
   const [moreWidth, setMoreWidth] = React.useState(0);
   // The nav's live width = the space tabs + More may occupy.
   const [available, setAvailable] = React.useState(0);
+  // Flipped when the web font finishes loading. The first measurement runs
+  // against the FALLBACK font; Inter is wider, so a count computed from fallback
+  // widths overflows the bar the instant the real font swaps in. Re-measuring on
+  // fonts.ready is what stops the tabs overlapping each other.
+  const [fontsReady, setFontsReady] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof document === "undefined" || !document.fonts) return;
+    let cancelled = false;
+    document.fonts.ready
+      .then(() => {
+        if (!cancelled) setFontsReady(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /* Measure every room's tab, plus the More button, in a hidden strip that
      carries the real `.aura-tab` / `.aura-tab-dot` classes so the numbers match
-     the rendered bar. Runs once when the room list is known. */
+     the rendered bar. Runs when the room list is known AND again when the web
+     font lands (see fontsReady above). */
   React.useLayoutEffect(() => {
     if (typeof window === "undefined" || rooms.length === 0) return;
     const host = document.createElement("div");
@@ -116,7 +135,7 @@ function useTabCount(rooms: AuraRoom[]): {
     setTabWidths(tabs.map((a) => a.getBoundingClientRect().width));
     setMoreWidth(more.getBoundingClientRect().width);
     document.body.removeChild(host);
-  }, [rooms]);
+  }, [rooms, fontsReady]);
 
   /* Watch the nav's width. `clientWidth` is the space flex actually gave it —
      the header's leftover after brand, title and the right cluster — so tabs
