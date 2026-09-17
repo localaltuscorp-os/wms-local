@@ -138,11 +138,13 @@ select unnest(enum_range(null::approval_status));
 - **Hand-holding calendar**: already read DCC entries via `lib/queries/hh-calendar.ts`; verified intact, not rebuilt.
 - **SQL**: `db/migrations/0235_dcc_call_logs.sql`.
 
-### 8. Fixed: `localhost` returning 500 on every page
+### 8. Fixed: every page dying with "Parsing CSS source code failed"
 - **What changed**: Nothing in the source. `.next` was deleted and rebuilt.
-- **Why**: Tailwind v4 auto-detects its sources across the whole project, **markdown included**. A note in this very file quoted a broken z-index utility verbatim; Tailwind read it as a real class candidate and emitted invalid CSS, which failed the PostCSS transform of `app/globals.css` and took every page down with a build error. `globals.css` itself was never modified — `git diff` on it is empty.
-- **The durable fix**: `app/globals.css` now carries `@source not "**/*.md"`, so documentation can never again inject a utility class into the stylesheet. Class names in notes are also written as code spans without the bracket syntax.
-- **Action needed**: none beyond pulling. Restart the dev server if it is still showing the old error.
+- **The real cause**: Tailwind v4's automatic source detection walks the **whole project**, and it was reading `.next/dev/cache/turbopack/*.sst` — Turbopack's **binary** cache. Those files hold compressed copies of this codebase, so scanning them yields class names with raw control bytes spliced through the middle. Tailwind emitted them as real utilities, the CSS parser rejected them, and every page died pointing at a line in `app/globals.css` that nobody wrote. `globals.css` was never modified; `git diff` on it was empty throughout.
+- **Why it kept coming back**: the bad utilities are regenerated the moment the Turbopack cache refills. A cold start was always clean, and stayed clean only until the cache grew again — which is why clearing caches and restarting appeared to work and then failed a few minutes later.
+- **The fix**: `app/globals.css` now declares `@import "tailwindcss" source(none)` and three explicit `@source` directives for `app/`, `components/` and `lib/`. Automatic detection is off, so only real code is ever scanned. Markdown is excluded by the same stroke — a note in this file quoting a broken utility had already caused one separate instance of the same failure.
+- **Verified against the condition that used to break it**: a dev server restarted on a populated 1.3 GB Turbopack cache (28 `.sst` files) served 15 routes at 200 with **0** CSS errors and no garbage in the stylesheet. The generated CSS is 410,842 bytes against 411,483 before — the only thing lost is the garbage.
+- **⚠️ If you add a directory containing `className` strings**, add it to the `@source` list in `app/globals.css` or its classes will silently not be generated. `grep -rl 'className=' <dir>` is the check.
 - **SQL**: None.
 
 ---

@@ -1,17 +1,29 @@
-@import "tailwindcss";
+/* ── TAILWIND SCANS EXACTLY THREE DIRECTORIES, AND NOTHING ELSE ────────────
+   `source(none)` switches OFF Tailwind v4's automatic source detection. The
+   `@source` lines below are then the COMPLETE list of what it reads.
 
-/* ── DOCUMENTATION IS NOT A SOURCE OF CLASSES ──────────────────────────────
-   Tailwind v4 auto-detects its sources across the whole project, and that
-   sweep includes Markdown. A handoff note that quoted a broken z-index
-   utility verbatim was therefore read as a real class candidate, emitted as
-   invalid CSS, and failed the PostCSS transform of this file — which takes
-   every page down with a build error, pointing at a line in globals.css that
-   nobody wrote.
+   WHY THIS IS NOT OPTIONAL. Auto-detection walks the whole project, and it
+   was reading `.next/dev/cache/turbopack/*.sst` — Turbopack's BINARY cache.
+   Those files hold compressed copies of this codebase, so scanning them
+   yields class names with raw control bytes spliced through the middle.
+   Tailwind emitted those as real utilities, the CSS parser rejected them, and
+   every page died with "Parsing CSS source code failed", pointing at a line in
+   this file that nobody wrote.
 
-   No Markdown in this repo is compiled into the UI (nothing imports a .md
-   file), so excluding it costs nothing and removes a whole class of
-   build failure: from here on, writing about a class name cannot create one. */
-@source not "**/*.md";
+   It came back after every fix because it is regenerated the moment the
+   Turbopack cache refills — a cold start was always clean, and stayed clean
+   only until the cache grew again. No example of a broken class is written out
+   here on purpose: this file is the one place where quoting one could recreate
+   it. That is not hypothetical; a handoff note quoting one did exactly that.
+
+   IF YOU ADD A DIRECTORY containing className strings, add it here or its
+   classes will silently not be generated. Today that is app/, components/ and
+   lib/ — `grep -rl 'className=' <dir>` is the check. */
+@import "tailwindcss" source(none);
+
+@source "../app/**/*.{ts,tsx,js,jsx,mdx}";
+@source "../components/**/*.{ts,tsx,js,jsx,mdx}";
+@source "../lib/**/*.{ts,tsx,js,jsx}";
 
 @import "react-day-picker/style.css";
 /* Aura — the liquid-glass design language (.claude/skills/aura). Scoped to
