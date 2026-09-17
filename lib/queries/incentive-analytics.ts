@@ -22,6 +22,7 @@ import {
   buildIncentiveAnalytics,
   ledgerLinesFrom,
   type AnalyticsScope,
+  type AnalyticsView,
   type IncentiveAnalytics,
 } from "@/lib/incentive/analytics/model";
 import {
@@ -30,7 +31,7 @@ import {
   resolvePeriod,
   type PeriodSelection,
 } from "@/lib/incentive/analytics/periods";
-import { incentiveAnalyticsScopeFor } from "@/lib/incentive/analytics/scope";
+import { applyAnalyticsView, incentiveAnalyticsScopeFor } from "@/lib/incentive/analytics/scope";
 
 /**
  * INCENTIVE DASHBOARD — the database half.
@@ -57,7 +58,16 @@ const DEFAULT_EXCLUDED = ["Manan Vasa", "Dattaram Kap", "Parvez Khan"];
 export async function loadIncentiveAnalytics(
   viewer: { id: string; name: string; email: string; isAdmin: boolean },
   selection: PeriodSelection,
-  opts: { now?: Date; scope?: AnalyticsScope } = {},
+  opts: {
+    now?: Date;
+    scope?: AnalyticsScope;
+    /**
+     * The dashboard's Team / User switch. Defaults to `team`, which is the
+     * scope this viewer was already entitled to — so omitting it leaves every
+     * existing caller's behaviour exactly as it was.
+     */
+    view?: AnalyticsView;
+  } = {},
 ): Promise<IncentiveAnalytics | null> {
   const now = opts.now ?? new Date();
   const period = resolvePeriod(selection, now);
@@ -82,7 +92,7 @@ export async function loadIncentiveAnalytics(
   // connections (lib/db/index.ts) shared by every query on the page; a burst
   // wider than that only queues, and queue time counts against each caller's
   // retry budget — which is how a healthy database still "times out".
-  const [scope, entries, projects, participants, requests] =
+  const [resolvedScope, entries, projects, participants, requests] =
     await Promise.all([
       opts.scope ? Promise.resolve(opts.scope) : incentiveAnalyticsScopeFor(viewer),
       db
@@ -127,6 +137,12 @@ export async function loadIncentiveAnalytics(
           ),
         ),
     ]);
+
+  // THE Team / User SWITCH, applied once, here. Everything downstream — the
+  // status cards, the grade report, the ranking, "your performance" — reads the
+  // scope, so narrowing it at the source is what makes the switcher affect the
+  // whole dashboard without a single call site knowing it exists.
+  const scope = applyAnalyticsView(resolvedScope, opts.view ?? "team");
 
   const [catalog, people, ctcRows, targets, config] =
     await Promise.all([

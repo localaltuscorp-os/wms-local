@@ -359,3 +359,64 @@ export async function sendMonthlySlipsEmail(args: {
     return { id: null, error: errorMessage(err) };
   }
 }
+
+/**
+ * The Incentive Breakup Letter, mailed on the payment edge.
+ *
+ * Same shape as the slips sender above (HTML body + the PDF attached, several
+ * mailboxes for ONE employee), and the same reason for existing: the letter is
+ * a record the employee wants the moment the money lands, not at the next
+ * scheduled run. The reversal row is rendered only when there IS one — a
+ * clawback is the one line on this document a reader must not have to infer.
+ */
+export async function sendIncentiveBreakupEmail(args: {
+  /** `email` may be several addresses (work + personal) for the SAME employee. */
+  recipient: { email: string | string[]; name: string };
+  monthLabel: string;
+  netTotal: number;
+  /** ≤ 0, or 0 when there is no reversal on this month. */
+  reversal: number;
+  paidAmount: number;
+  pdf: Buffer;
+  filename: string;
+  siteUrl?: string;
+}): Promise<SendResult> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: null };
+    const reversalRow =
+      args.reversal < 0
+        ? `<tr><td style="padding:12px 14px;border:1px solid #eee;border-radius:8px">
+          <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px">Reversal adjustment</div>
+          <div style="font-size:24px;font-weight:800;color:#B91C1C">${inr(args.reversal)}</div>
+        </td></tr>`
+        : "";
+    const inner = `<p style="font-size:14px;margin:0 0 12px">Hi ${args.recipient.name.split(" ")[0]}, your incentive breakup letter for <b>${args.monthLabel}</b> is attached — it lists each incentive, what was approved, what was paid and the net payable.</p>
+      <table style="width:100%;border-collapse:separate;border-spacing:6px;margin:6px 0 4px">
+        <tr>
+          <td style="padding:12px 14px;border:1px solid #eee;border-radius:8px">
+            <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px">Paid</div>
+            <div style="font-size:24px;font-weight:800;color:#059669">${inr(args.paidAmount)}</div>
+          </td>
+          <td style="padding:12px 14px;border:1px solid #eee;border-radius:8px">
+            <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px">Net payable</div>
+            <div style="font-size:24px;font-weight:800;color:#111">${inr(args.netTotal)}</div>
+          </td>
+        </tr>
+        ${reversalRow}
+      </table>
+      <p style="font-size:12.5px;color:#666;margin-top:10px">The attached PDF is your official incentive breakup. Keep it for your records.</p>`;
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: args.recipient.email,
+      subject: clampSubject(`Your incentive breakup letter — ${args.monthLabel} · Altus Corp`),
+      html: shell("Incentive breakup letter", args.monthLabel, inner, args.siteUrl),
+      attachments: [{ filename: args.filename, content: args.pdf }],
+      ...companyBcc(),
+    });
+    if (error) return { id: null, error: error.message };
+    return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}

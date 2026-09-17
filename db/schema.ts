@@ -39,6 +39,8 @@ import {
   type TaskStatus,
   type AccountType,
   type EmploymentStatus,
+  type IncentiveType,
+  type IncentiveDuration,
   type ExitReason,
   type RehireEligibility,
   type ReligionCode,
@@ -271,12 +273,18 @@ export type BillingEntityVersion = typeof billingEntityVersions.$inferSelect;
 /**
  * FUNCTIONS (0225) — what a person does, as opposed to where they sit.
  *
- * Deliberately NOT `departments`. The Employee Master shows both (spec §7), so
- * they answer different questions: a department is the org-chart position and
- * already drives `employee_departments`, team scoping and a dozen queries; a
- * function is the discipline. Shaped exactly like `designations` so the admin
- * screen, the sort order and the active flag behave like every other master
- * list here.
+ * THE FUNCTION MASTER — the one admin-managed list of organisational units, and
+ * what `employees.department_id` points at (migration 0234).
+ *
+ * It began as a second, empty list alongside `departments`, on the theory that a
+ * department and a function answered different questions. In practice they never
+ * did: this table stayed empty, nothing ever set `employees.function_id`, and
+ * Employee Master relabelled the DEPARTMENT record as "Function" because that is
+ * the only list with rows and assignments. Migration 0234 finished the job by
+ * copying all 18 rows here WITH THEIR ORIGINAL IDS and re-pointing every foreign
+ * key, so no employee changed unit and no screen changed what it says.
+ *
+ * `departments` is kept as a frozen backup — see `departmentsBackup` below.
  */
 export const functions = pgTable(
   "functions",
@@ -343,7 +351,10 @@ export const employees = pgTable("employees", {
   department: text("department"),
   // M3: canonical FK into `departments`.  Source of truth for the
   // admin-managed list; nullable until an admin picks one.
-  departmentId: uuid("department_id").references(() => departments.id, {
+  // The employee's FUNCTION. The COLUMN keeps its old name (0234 renamed the
+  // list, not 1,289 identifiers); the constraint is what says which table the
+  // value must exist in, and it points at `functions`.
+  departmentId: uuid("department_id").references(() => functions.id, {
     onDelete: "set null",
   }),
   // Performance criteria — "how we measure it" (mig 0061) — and KRA — "what we
@@ -503,6 +514,15 @@ export const employees = pgTable("employees", {
    */
   employeeCode: text("employee_code"),
   /** What this person does, as opposed to where they sit (see `functions`). */
+  /**
+   * DEAD COLUMN — never set on any row, and nothing reads it.
+   *
+   * It was added by 0225 for a second "function" concept that never
+   * materialised. The employee's Function is `departmentId` above, which points
+   * at `functions` since 0234. Left in place rather than dropped because
+   * dropping a column is irreversible and this one costs nothing; do NOT start
+   * writing to it.
+   */
   functionId: uuid("function_id").references(() => functions.id, {
     onDelete: "set null",
   }),
@@ -721,13 +741,35 @@ export const auditDataExports = pgTable(
 );
 
 /**
- * M3 — admin-managed list of departments.  The seed migration backfills
- * one row per distinct existing `employees.department` value; from then
- * on admins maintain the list via /admin/departments.  `is_active`
- * controls whether the dept shows up in pickers; we never hard-delete
- * (employees keep their FK reference).
+ * `departments` IS `functions`.
+ *
+ * An ALIAS, not a table — every query written against `departments` now reads
+ * and writes the Function master (migration 0234). That is deliberately one line
+ * rather than an edit to each of the ~30 modules that import this symbol:
+ * renaming them all would have been ~1,289 identifier changes across ~180 files
+ * for no behavioural gain, and the risk that mattered was MISSING one, which
+ * would have left a screen silently reading the frozen backup.
+ *
+ * The two tables are shaped identically (id, name, is_active, sort_order,
+ * created_at, updated_at), so this alias is type-compatible; `functions` is in
+ * fact stricter, because its unique index is case-insensitive.
+ *
+ * New code should say `functions`. This stays for the existing callers.
  */
-export const departments = pgTable(
+export const departments = functions;
+
+/**
+ * THE FROZEN BACKUP of the old `departments` table (migration 0234).
+ *
+ * Still holds all 18 rows as they were before the move. Nothing reads or writes
+ * it, and no screen renders it.
+ *
+ * It is declared here for one concrete reason: `drizzle-kit generate` diffs this
+ * schema against the database, so a table that exists in the database but not in
+ * the schema is a table it will offer to DROP. Declaring it keeps the backup
+ * safe from a future generated migration.
+ */
+export const departmentsBackup = pgTable(
   "departments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -798,7 +840,7 @@ export const employeeDepartments = pgTable(
       .references(() => employees.id, { onDelete: "cascade" }),
     departmentId: uuid("department_id")
       .notNull()
-      .references(() => departments.id, { onDelete: "cascade" }),
+      .references(() => functions.id, { onDelete: "cascade" }),
     isPrimary: boolean("is_primary").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -2732,9 +2774,16 @@ export const incentiveCatalogEvents = pgTable(
     after: jsonb("after"),
     changes: jsonb("changes").notNull().default(sql`'[]'::jsonb`),
     actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+    /**
+     * The date the change TAKES EFFECT, when it is not the moment of the edit
+     * (migration 0232). Eligibility is granted and removed with a chosen date,
+     * and the notification has to say the chosen one. Null on every event
+     * written before 0232, and readers fall back to `created_at`.
+     */
+    effectiveDate: date("effective_date"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  // Mirrors migration 0231.
+  // Mirrors migrations 0231 and 0232.
   (t) => [
     index("incentive_catalog_events_catalog_idx").on(t.catalogId, t.createdAt),
     check("incentive_catalog_events_type_chk", sql`${t.eventType} in ('created', 'updated', 'deleted')`),
@@ -3545,6 +3594,23 @@ export type NewSalaryPolicyConsent = typeof salaryPolicyConsents.$inferInsert;
 // incentive_requests table (migration 0053) is unrelated and left untouched.
 // ---------------------------------------------------------------------------
 
+/**
+ * THE INCENTIVE MASTER (Admin Panel → Incentive → Incentive Master).
+ *
+ * One row per incentive scheme. This single table answers "what does a Google
+ * Review pay" for the Incentive Table dialog, for the dashboard that values
+ * approvals (lib/incentive/analytics/model.ts), and for
+ * `weekly_goals.incentive_catalog_id` — which is why migration 0232 added the
+ * Master's extra fields here instead of creating a second incentive table.
+ *
+ * ── TWO WAYS TO BE ELIGIBLE, ONE OF THEM AUTHORITATIVE ─────────────────────
+ * `salesEligible` / `internsEligible` are the original GROUP flags, resolved
+ * against an employee's designation. `incentiveEligibility` (0232) names
+ * individual employees with effective dates. Where eligibility rows exist they
+ * govern and the flags are ignored; where there are none the flags still apply
+ * exactly as before. See `resolveEligibility` in lib/incentive/master.ts — the
+ * one place that rule is written down.
+ */
 export const incentiveCatalog = pgTable("incentive_catalog", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull().unique(),
@@ -3555,8 +3621,68 @@ export const incentiveCatalog = pgTable("incentive_catalog", {
   notes: text("notes"),
   sortOrder: integer("sort_order"),
   active: boolean("active").notNull().default(true),
+  /** Which request type this scheme prices. Null for project / sheet /
+   *  weekly-goal incentives, which map to no request form. */
+  incentiveType: text("incentive_type").$type<IncentiveType>(),
+  /** The product master every other dropdown reads — never a name copy. */
+  productId: uuid("product_id").references(() => outstandingProducts.id, {
+    onDelete: "set null",
+  }),
+  duration: text("duration").notNull().default("permanent").$type<IncentiveDuration>(),
+  /** Last day the incentive applies. Independent of `active`. */
+  validUntil: date("valid_until"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * THE INCENTIVE CHART — who is eligible for which incentive, and from when
+ * (migration 0232).
+ *
+ * ── A HISTORY, NOT A MEMBERSHIP SET ────────────────────────────────────────
+ * Removing somebody sets `removedEffectiveFrom` and leaves the row, because the
+ * brief requires the effective date of a removal to be recorded. So "who was
+ * eligible on 3 Jun" is answerable, and a person removed and later re-added has
+ * two rows rather than one rewritten one.
+ *
+ * A partial unique index (`… where removed_effective_from is null`) allows at
+ * most one LIVE grant per person per incentive, so a double-add is refused by
+ * the database and not merely by the action that calls it.
+ */
+export const incentiveEligibility = pgTable(
+  "incentive_eligibility",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    catalogId: uuid("catalog_id")
+      .notNull()
+      .references(() => incentiveCatalog.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    effectiveFrom: date("effective_from").notNull(),
+    /** Null = still eligible. */
+    removedEffectiveFrom: date("removed_effective_from"),
+    addedById: uuid("added_by_id").references(() => employees.id, { onDelete: "set null" }),
+    removedById: uuid("removed_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // Mirrors migration 0232.
+  (t) => [
+    uniqueIndex("incentive_eligibility_current_uq")
+      .on(t.catalogId, t.employeeId)
+      .where(sql`${t.removedEffectiveFrom} is null`),
+    index("incentive_eligibility_catalog_idx").on(t.catalogId, t.removedEffectiveFrom),
+    index("incentive_eligibility_employee_idx").on(t.employeeId, t.removedEffectiveFrom),
+    check(
+      "incentive_eligibility_window_chk",
+      sql`${t.removedEffectiveFrom} is null or ${t.removedEffectiveFrom} >= ${t.effectiveFrom}`,
+    ),
+    check(
+      "incentive_eligibility_removed_chk",
+      sql`${t.removedEffectiveFrom} is not null or ${t.removedById} is null`,
+    ),
+  ],
+);
 
 export const incentiveEntries = pgTable(
   "incentive_entries",
@@ -3587,6 +3713,11 @@ export const incentiveEntries = pgTable(
     clientStatus: text("client_status"),
     payoutRunId: uuid("payout_run_id").references(() => salaryRuns.id, { onDelete: "set null" }),
     paidById: uuid("paid_by_id").references(() => employees.id, { onDelete: "set null" }),
+    // WS-6 · reversal (migration 0240). `reversed` guards against duplicate
+    // reversal adjustments; the paid amount is kept as the historical record.
+    reversed: boolean("reversed").notNull().default(false),
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
+    reversedById: uuid("reversed_by_id").references(() => employees.id, { onDelete: "set null" }),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -3594,6 +3725,7 @@ export const incentiveEntries = pgTable(
   (t) => [
     index("incentive_entries_period_idx").on(t.periodMonth),
     index("incentive_entries_employee_idx").on(t.employeeId),
+    index("incentive_entries_reversed_idx").on(t.reversed),
   ],
 );
 
@@ -4431,6 +4563,8 @@ export type AccountsLookup = typeof accountsLookups.$inferSelect;
 
 export type IncentiveCatalog = typeof incentiveCatalog.$inferSelect;
 export type NewIncentiveCatalog = typeof incentiveCatalog.$inferInsert;
+export type IncentiveEligibility = typeof incentiveEligibility.$inferSelect;
+export type NewIncentiveEligibility = typeof incentiveEligibility.$inferInsert;
 export type IncentiveEntry = typeof incentiveEntries.$inferSelect;
 export type NewIncentiveEntry = typeof incentiveEntries.$inferInsert;
 export type IncentiveProject = typeof incentiveProjects.$inferSelect;
@@ -8684,7 +8818,7 @@ export const jdPositions = pgTable(
       .references(() => jdRanks.id, { onDelete: "restrict" }),
     variant: text("variant"),
     title: text("title").notNull(),
-    departmentId: uuid("department_id").references(() => departments.id, { onDelete: "set null" }),
+    departmentId: uuid("department_id").references(() => functions.id, { onDelete: "set null" }),
     isActive: boolean("is_active").notNull().default(true),
     createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

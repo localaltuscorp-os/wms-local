@@ -290,26 +290,15 @@ export async function notifyIncentiveResubmitted(
 
 // ── Incentive Master ─────────────────────────────────────────────────────────
 
-/** A catalog row as the snapshot stored on its change record. */
-export function catalogSnapshot(row: {
-  name: string;
-  description: string | null;
-  amount: string | number;
-  salesEligible: boolean | null;
-  internsEligible: boolean | null;
-  notes: string | null;
-  active: boolean;
-}): CatalogSnapshot {
-  return {
-    name: row.name,
-    description: row.description?.trim() || null,
-    amount: Number(row.amount) || 0,
-    salesEligible: row.salesEligible === true,
-    internsEligible: row.internsEligible === true,
-    notes: row.notes?.trim() || null,
-    active: row.active,
-  };
-}
+/**
+ * `catalogSnapshot` lives in ./eligibility.ts and is re-exported here.
+ *
+ * It is a PURE function — a database row in, the stored snapshot out — so it
+ * belongs with the other snapshot rules rather than in this server-only module,
+ * where nothing could unit-test it without faking a database. Re-exported so
+ * every existing caller keeps one import.
+ */
+export { catalogSnapshot } from "./eligibility";
 
 /**
  * Record an Incentive Master change. Call INSIDE the transaction that makes the
@@ -324,6 +313,13 @@ export async function recordIncentiveCatalogEvent(
     before: CatalogSnapshot | null;
     after: CatalogSnapshot | null;
     actorId: string | null;
+    /**
+     * The date the change takes effect, when it is not today — an eligibility
+     * grant or removal carries a date the admin chose, and the notice has to
+     * say that date rather than the day the button was pressed. Omitted for an
+     * ordinary field edit, which takes effect immediately.
+     */
+    effectiveDate?: string | null;
   },
 ): Promise<string | null> {
   const changes: CatalogChange[] =
@@ -342,6 +338,7 @@ export async function recordIncentiveCatalogEvent(
       after: input.after,
       changes,
       actorId: input.actorId,
+      effectiveDate: input.effectiveDate ?? null,
     })
     .returning({ id: incentiveCatalogEvents.id });
   return row?.id ?? null;
@@ -382,8 +379,13 @@ export async function processIncentiveCatalogEvent(
       employees: people,
       actorId: ev.actorId,
     });
-    // The effective date is the change record's own date, in IST.
-    const effectiveDate = localDateString("Asia/Kolkata", ev.createdAt);
+    // The date the change takes effect: the one chosen when the change was
+    // recorded (an eligibility grant or removal), else the change record's own
+    // date in IST. Events written before migration 0232 have no column value,
+    // which is exactly the fallback.
+    const effectiveDate = ev.effectiveDate
+      ? String(ev.effectiveDate).slice(0, 10)
+      : localDateString("Asia/Kolkata", ev.createdAt);
     const changes = (Array.isArray(ev.changes) ? ev.changes : []) as CatalogChange[];
 
     const items: DeliveryItem[] = [];

@@ -22,6 +22,7 @@ import {
   NOTE_MAX,
 } from "@/lib/incentive/workflow";
 import { INCENTIVE_REVIEWER_NAME } from "@/lib/auth/incentive-permissions";
+import { INCENTIVE_BTN_PRIMARY } from "./ui/chrome";
 import type { EmployeeOption } from "@/lib/queries/employees";
 import {
   INCENTIVE_DATE_KEY,
@@ -378,31 +379,19 @@ export function IncentiveFormDialog({
       }}
     >
       <Dialog.Trigger asChild>
+        {/* Both triggers are the design system's pastel CTA, at one height.
+            They used to be solid red slabs — as were the Add Entry, Add
+            Incentive and Save Target buttons, so eight "primary" buttons could
+            share one screen and none of them read as the important one. */}
         {resubmit ? (
-          <button
-            type="button"
-            data-justify-resubmit
-            className="wg-btn wg-sheen inline-flex cursor-pointer items-center gap-2 rounded-pill py-2 px-4 text-[13.5px] font-bold text-white"
-            style={{
-              background: "linear-gradient(135deg, #E10600, #A80400)",
-              boxShadow:
-                "0 8px 20px -12px rgba(168,4,0,0.7), inset 0 1px 0 rgba(255,255,255,0.25)",
-            }}
-          >
-            <RotateCcw size={15} strokeWidth={2.4} aria-hidden />
+          <button type="button" data-justify-resubmit className={INCENTIVE_BTN_PRIMARY}>
+            <RotateCcw size={14} strokeWidth={2.4} aria-hidden />
             Justify &amp; Resubmit
           </button>
         ) : (
-          <button
-            className="wg-btn wg-sheen inline-flex cursor-pointer items-center gap-2 rounded-pill py-2.5 px-5 text-[15px] font-bold text-white"
-            style={{
-              background: "linear-gradient(135deg, #E10600, #A80400)",
-              boxShadow:
-                "0 10px 24px -12px rgba(168,4,0,0.7), inset 0 1px 0 rgba(255,255,255,0.25)",
-            }}
-          >
-            <Award size={17} strokeWidth={2.4} aria-hidden />
-            New Request
+          <button type="button" className={INCENTIVE_BTN_PRIMARY}>
+            <Award size={14} strokeWidth={2.6} aria-hidden />
+            New request
           </button>
         )}
       </Dialog.Trigger>

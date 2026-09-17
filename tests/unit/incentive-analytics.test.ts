@@ -609,7 +609,15 @@ describe("large dataset", () => {
     }));
     const months = monthRange("2025-10", "2026-09");
     const ledger: LedgerLine[] = Array.from({ length: 60_000 }, (_, i) => ({
-      key: `l${i}`, source: "entry", empName: `Person ${i % 600}`, label: "X", month: months[i % months.length]!,
+      // `employeeId: null` — the ledger import did not resolve a link, so these
+      // lines are attributed BY NAME. That is the path this fixture has always
+      // exercised: it predates the field, and null is what it was implicitly
+      // measuring. (This line is the whole of the fix for a `tsc --noEmit`
+      // break that has been outstanding since `employeeId` became required on
+      // LedgerLine — unrelated to any feature, and it blocked typechecking the
+      // repo at all.)
+      key: `l${i}`, source: "entry", employeeId: null, empName: `Person ${i % 600}`, label: "X",
+      month: months[i % months.length]!,
       approved: (i % 13) * 250, paid: (i % 3) * 250,
     }));
     const requests: AnalyticsRequest[] = Array.from({ length: 6_000 }, (_, i) =>
@@ -650,14 +658,36 @@ describe("server-side access", () => {
   it("every analytics call re-resolves the signed-in user, the module permission and the scope", () => {
     expect(actions).toMatch(/export async function fetchIncentiveAnalytics[\s\S]*?requireUser\(\)[\s\S]*?canViewModule\(/);
     expect(loader).toMatch(/incentiveAnalyticsScopeFor\(viewer\)/);
-    // The browser sends a period, never an employee id or a scope: the input
-    // schema is strict and holds only kind + month.
+    // The browser sends a period and a view, never an employee id or a scope:
+    // the input schema is strict and holds only kind + month + view.
     const schema = actions.match(/const PeriodInput = z[\s\S]*?\.strict\(\);/)?.[0] ?? "";
     expect(schema).toMatch(/kind: z\.enum\(PERIOD_KINDS\)/);
     expect(schema).not.toMatch(/employee|scope|viewer|name/i);
     const fetchSig = actions.match(/export async function fetchIncentiveAnalytics\(input: \{[\s\S]*?\}\)/)?.[0] ?? "";
     expect(fetchSig).not.toMatch(/employee|scope/i);
-    expect(actions).toMatch(/loadIncentiveAnalytics\(me, parsed\.data\)/);
+    expect(actions).toMatch(/loadIncentiveAnalytics\(me, parsed\.data, \{ view: parsed\.data\.view \}\)/);
+  });
+
+  /**
+   * THE Team / User SWITCH is the one thing on this page the browser chooses,
+   * added 2026-09-16. The assertion above says the action forwards it; this one
+   * says forwarding it is safe.
+   *
+   * The view is only ever a CHOICE BETWEEN two scopes the server computed for
+   * the person asking — their own entitlement, or themselves alone. It is
+   * enumerated by zod, so no third value reaches the loader, and it is applied
+   * in exactly one place, which narrows and never widens (proved directly in
+   * incentive-dashboard-scope.test.ts).
+   */
+  it("lets the browser pick a view, but never a wider one", () => {
+    const schema = actions.match(/const PeriodInput = z[\s\S]*?\.strict\(\);/)?.[0] ?? "";
+    // Enumerated, not free text — the schema is the first gate.
+    expect(schema).toMatch(/view: z\.enum\(ANALYTICS_VIEWS\)\.optional\(\)/);
+    // The scope is still resolved from the session, exactly as before...
+    expect(loader).toMatch(/incentiveAnalyticsScopeFor\(viewer\)/);
+    // ...and the view is applied TO that resolved scope, in one place.
+    expect(loader).toMatch(/applyAnalyticsView\(resolvedScope, opts\.view \?\? "team"\)/);
+    expect(loader.match(/applyAnalyticsView\(/g) ?? []).toHaveLength(1);
   });
 
   it("an employee can only fill their own missing target, for this month or next", () => {

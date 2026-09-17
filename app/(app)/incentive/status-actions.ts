@@ -12,45 +12,9 @@ import {
   listIncentiveParticipants,
   type ParticipantRow,
 } from "@/lib/queries/incentive-status";
-import { afterResponse } from "@/lib/after";
-import { notifyIncentivePaid } from "@/lib/incentive/notifications/service";
+import { notifyIfPaidIncreased } from "@/lib/incentive/notifications/paid-increase";
 
 type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
-
-/**
- * "Incentive paid" notice. When a save RAISES what has been paid to an
- * employee, tell them, after the response — the save has already committed and
- * the notice can neither block nor fail it. Lowering a paid amount, or saving
- * the same one again, says nothing; the version key (paid total + date) keeps a
- * repeated save from notifying twice. No amounts or statuses are changed here.
- */
-function notifyIfPaidIncreased(input: {
-  employeeId: string | null;
-  subjectId: string;
-  leg: string;
-  label: string | null;
-  previousPaid: number;
-  paid: number;
-  paidDate: string | null;
-  periodMonth: string | null;
-  actorId: string;
-}) {
-  const increase = Math.round((input.paid - input.previousPaid) * 100) / 100;
-  const employeeId = input.employeeId;
-  if (!employeeId || increase <= 0) return;
-  afterResponse(() =>
-    notifyIncentivePaid({
-      employeeId,
-      subjectId: input.subjectId,
-      versionKey: `${input.leg}-paid:${input.paid.toFixed(2)}:${input.paidDate ?? ""}`,
-      label: input.label,
-      amount: increase,
-      paidDate: input.paidDate,
-      periodMonth: input.periodMonth,
-      actorId: input.actorId,
-    }),
-  );
-}
 
 const money = z.number().finite().min(0).max(1_000_000_000);
 const money2 = (n: number): string => n.toFixed(2);

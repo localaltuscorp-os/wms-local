@@ -47,6 +47,11 @@ import {
   IncentiveMonthlyDigestEmail,
   type IncentiveDigestEntry,
 } from "@/emails/notifications/IncentiveMonthlyDigest";
+import { IncentiveWeeklyReportCardEmail } from "@/emails/notifications/IncentiveWeeklyReportCard";
+import {
+  rankMovementLabel,
+  type WeeklyReportCard,
+} from "@/lib/incentive/analytics/weekly-report";
 import type {
   NotificationMeta,
   OverdueDigestTask,
@@ -676,6 +681,43 @@ export async function sendIncentiveMonthlyDigestEmail(args: {
         paidTotal: args.paidTotal,
         unpaidTotal: args.unpaidTotal,
         recent: args.recent,
+        siteUrl: args.siteUrl ?? "",
+      }),
+      ...companyBcc(),
+    });
+    if (error) return { id: null, error: error.message };
+    return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}
+
+/** Weekly Sunday report card — a recipient's per-period incentive figures. */
+export async function sendIncentiveWeeklyReportEmail(args: {
+  recipient: { email: string; name: string };
+  weekLabel: string;
+  card: WeeklyReportCard;
+  siteUrl: string | undefined;
+}): Promise<EmailSendResult> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: null };
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: args.recipient.email,
+      subject: clampSubject(`Your weekly incentive report card — ${args.weekLabel}`),
+      react: IncentiveWeeklyReportCardEmail({
+        recipientName: args.recipient.name,
+        weekLabel: args.weekLabel,
+        grade: args.card.grade,
+        pctOfCtc: args.card.pctOfCtc,
+        periods: args.card.periods.map((p) => ({ label: p.label, earned: p.earned })),
+        target: args.card.target,
+        actual: args.card.actual,
+        difference: args.card.difference,
+        rank: args.card.rank,
+        previousRank: args.card.previousRank,
+        movementLabel: rankMovementLabel(args.card.movement),
         siteUrl: args.siteUrl ?? "",
       }),
       ...companyBcc(),

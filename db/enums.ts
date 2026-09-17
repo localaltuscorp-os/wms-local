@@ -524,6 +524,26 @@ export const INCENTIVE_TYPE_LABELS: Record<IncentiveType, string> = {
 };
 
 /**
+ * How long an Incentive Master scheme runs (migration 0232).
+ *
+ * `permanent` — part of the standing scheme; runs until switched off.
+ * `one_time`  — a single campaign or drive.
+ *
+ * Deliberately separate from `valid_until` and from `active`: the duration is
+ * the INTENT, the date is when it stops applying, and `active` is whether it is
+ * on offer right now. A one-time incentive with no end date is a real thing (a
+ * drive that runs until it is switched off), and so is a permanent scheme with
+ * a review date.
+ */
+export const INCENTIVE_DURATIONS = ["permanent", "one_time"] as const;
+export type IncentiveDuration = (typeof INCENTIVE_DURATIONS)[number];
+
+export const INCENTIVE_DURATION_LABELS: Record<IncentiveDuration, string> = {
+  permanent: "Permanent",
+  one_time:  "One-Time",
+};
+
+/**
  * Incentive request states (migration 0230 — the approval workflow).
  *
  * `rejected` is the stored value for NOT APPROVED. It was not renamed: it

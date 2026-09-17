@@ -3,6 +3,7 @@ import type { ChipTone } from "@/emails/notifications/_notification-layout";
 import { defaultIncentiveAmount } from "@/lib/incentive-amount";
 import { INCENTIVE_DATE_KEY, incentiveDetailPairs } from "@/lib/incentive-fields";
 import type { DecisionAction } from "@/lib/incentive/workflow";
+import { incentiveDurationLabel, incentiveTypeLabel } from "@/lib/incentive/master";
 import { formatDMonY, formatInr, localDateString } from "@/lib/format";
 import { eligibleGroupsLabel, type CatalogChange, type CatalogSnapshot } from "./eligibility";
 import {
@@ -255,10 +256,16 @@ export function buildCatalogNotification(input: {
       href: INCENTIVE_TABLE_HREF,
       incentiveName: s.name,
       amount: s.amount,
+      typeLabel: incentiveTypeLabel(s.incentiveType) ?? undefined,
+      productName: s.productName ?? undefined,
+      durationLabel: s.duration ? incentiveDurationLabel(s.duration) : undefined,
       eligibleGroups: groups,
       description: s.description,
       effectiveDate: input.effectiveDate,
-      validUntil: null,
+      // From the snapshot as at the change (migration 0232). Was hardcoded null
+      // while the Master had no Valid Until field; the email template has always
+      // rendered the row when there is one.
+      validUntil: s.validUntil ?? null,
       changes: input.changes.slice(0, 10).map(({ label, from, to }) => ({ label, from, to })),
       newlyEligible: input.newlyEligible === true,
     },
@@ -327,7 +334,10 @@ function requestRows(m: IncentiveNotificationMeta, opts: { amountLabel: string; 
 function catalogRows(m: IncentiveNotificationMeta, dateLabel: string): Row[] {
   const rows: Row[] = [];
   push(rows, "Incentive", m.incentiveName);
+  push(rows, "Type", m.typeLabel);
+  push(rows, "Product", m.productName);
   push(rows, "Amount", typeof m.amount === "number" ? formatInr(m.amount) : null);
+  push(rows, "Duration", m.durationLabel);
   push(rows, "Eligible", m.eligibleGroups);
   push(rows, dateLabel, m.effectiveDate ? formatDMonY(m.effectiveDate) : null);
   push(rows, "Valid until", m.validUntil ? formatDMonY(m.validUntil) : null);

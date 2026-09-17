@@ -95,6 +95,10 @@ export interface IncentiveNotificationMeta {
 
   // ── Incentive Master events ──
   incentiveName?: string;
+  /** The product the incentive is tied to, by NAME as at the change (0232). */
+  productName?: string;
+  /** "Permanent" / "One-Time" (0232). */
+  durationLabel?: string;
   eligibleGroups?: string;
   description?: string | null;
   /** YYYY-MM-DD the change took effect (the change record's own date). */

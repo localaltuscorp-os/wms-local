@@ -15,16 +15,22 @@ import {
   currentMonthKey,
   formatMonthKey,
 } from "@/lib/incentive/analytics/periods";
-import type { IncentiveAnalytics } from "@/lib/incentive/analytics/model";
+import { ANALYTICS_VIEWS, type IncentiveAnalytics } from "@/lib/incentive/analytics/model";
 import { loadIncentiveAnalytics } from "@/lib/queries/incentive-analytics";
 
 /**
  * INCENTIVE DASHBOARD — server actions.
  *
- * The browser sends a PERIOD and nothing else. Who is asking, what they may see
- * and the CTC figures are all resolved here on every call, so a crafted request
- * cannot name another employee or widen its own scope — there is no parameter
- * to widen.
+ * The browser sends a PERIOD and a VIEW, and nothing else. Who is asking, what
+ * they may see and the CTC figures are all resolved here on every call, so a
+ * crafted request cannot name another employee or widen its own scope.
+ *
+ * THE VIEW IS NOT AN EXCEPTION TO THAT. It selects between the scope the server
+ * already computed for this person (`team`) and that same person alone
+ * (`user`) — it cannot name anybody, and neither branch produces a scope larger
+ * than the one the server handed it. `applyAnalyticsView` in
+ * lib/incentive/analytics/scope.ts is the single place it is honoured, and it
+ * ignores a `user` request from someone who has no team to narrow from.
  */
 
 const MODULE = "employees.incentive";
@@ -35,12 +41,16 @@ const PeriodInput = z
   .object({
     kind: z.enum(PERIOD_KINDS),
     month: z.string().max(7).nullable().optional(),
+    // Absent means `team`, which is what every caller got before the switcher
+    // existed — so an old client, or a replayed request, behaves unchanged.
+    view: z.enum(ANALYTICS_VIEWS).optional(),
   })
   .strict();
 
 export async function fetchIncentiveAnalytics(input: {
   kind: (typeof PERIOD_KINDS)[number];
   month?: string | null;
+  view?: (typeof ANALYTICS_VIEWS)[number];
 }): Promise<Result<{ data: IncentiveAnalytics }>> {
   const me = await requireUser();
   if (!(await canViewModule(MODULE))) {
@@ -53,7 +63,7 @@ export async function fetchIncentiveAnalytics(input: {
   if (!parsed.success) return { ok: false, error: "Choose a valid period." };
 
   try {
-    const data = await withRetry(() => loadIncentiveAnalytics(me, parsed.data), {
+    const data = await withRetry(() => loadIncentiveAnalytics(me, parsed.data, { view: parsed.data.view }), {
       attempts: 2,
       timeoutMs: [9000, 14000],
       label: "incentive:analytics",

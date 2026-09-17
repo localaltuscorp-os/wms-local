@@ -23,6 +23,7 @@ import {
 import { planIncentivePayout, round2 } from "@/lib/incentive/payout-math";
 import { afterResponse } from "@/lib/after";
 import { notifyIncentivesPaid, type PaidNotificationInput } from "@/lib/incentive/notifications/service";
+import { mailIncentiveBreakup } from "@/lib/incentive/notify-breakup";
 
 export type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -279,6 +280,10 @@ export async function payIncentivesWithRun(
         skipped,
         remainderAfter: plan.remainderAfter,
         paidNotices,
+        // Carried out of the transaction so the breakup mail (which runs after
+        // the response) can name the person and the month without re-reading
+        // either — `run` and `month` are scoped to this callback.
+        breakup: { employeeId: run.employeeId, month },
       };
     });
 
@@ -288,6 +293,17 @@ export async function payIncentivesWithRun(
     if (result.paidNotices.length > 0) {
       const notices = result.paidNotices;
       afterResponse(() => notifyIncentivesPaid(notices));
+    }
+
+    // The document that goes WITH the money: the Incentive Breakup Letter, on
+    // the same edge and also after the response. It re-renders the same PDF the
+    // employee can download later from /salary/incentive-breakup, is claimed in
+    // the delivery table so a replay sends nothing, and cannot fail this action.
+    const breakupFor = result.breakup.employeeId;
+    if (result.paidCount > 0 && breakupFor) {
+      const { month } = result.breakup;
+      const paidTotal = result.totalPaid;
+      afterResponse(() => mailIncentiveBreakup({ employeeId: breakupFor, month, paidTotal }));
     }
 
     revalidatePath("/salary/incentive-payout");

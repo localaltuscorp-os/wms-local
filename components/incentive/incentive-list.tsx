@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Inbox, ListChecks } from "lucide-react";
-import { INCENTIVE_STATUS_LABELS, INCENTIVE_TYPE_LABELS } from "@/db/enums";
+import * as React from "react";
+import { Inbox } from "lucide-react";
+import { INCENTIVE_STATUS_LABELS, INCENTIVE_TYPE_LABELS, INCENTIVE_TYPES } from "@/db/enums";
 import { INCENTIVE_DATE_KEY, incentiveDetailPairs } from "@/lib/incentive-fields";
 import { defaultIncentiveAmount } from "@/lib/incentive-amount";
 import { formatPct } from "@/lib/incentive/split";
@@ -16,10 +16,14 @@ import { INCENTIVE_REVIEWER_NAME } from "@/lib/auth/incentive-permissions";
 import type { IncentiveRequestRow } from "@/lib/queries/incentive";
 import type { EmployeeOption } from "@/lib/queries/employees";
 import { formatDate, formatDMonY, formatInr } from "@/lib/format";
+import { DataTable, type DataTableColumn } from "@/components/admin/ui/data-table";
 import { IncentiveStatusPill } from "./incentive-status-pill";
 import { IncentiveHistory, formatIncentiveDateTime } from "./incentive-history";
 import { IncentiveDecisionPanel } from "./incentive-decision-panel";
 import { IncentiveFormDialog } from "./incentive-form-dialog";
+import { IncentiveBadge } from "./ui/badges";
+import { IncentiveEmptyState } from "./ui/states";
+import { toneFill, toneInk } from "./ui/tone";
 
 /**
  * INCENTIVE REQUESTS — three views of one list.
@@ -33,6 +37,18 @@ import { IncentiveFormDialog } from "./incentive-form-dialog";
  *     else regardless of what renders.
  *   · EMPLOYEES: their own requests. A Not Approved or Revision Requested one
  *     shows the reason, when it was decided, and Justify & Resubmit.
+ *
+ * ── CARDS BECAME ROWS (2026-09-16) ─────────────────────────────────────────
+ * Every one of those three views is the same job — find the request you need
+ * among many — and the card list gave it no search, no sort and no filter, at
+ * about 150px per request. It is the shared `DataTable` now, with the request's
+ * WHOLE expansion (submitted fields, links, split, history and, for the
+ * reviewer, the decision panel) moved verbatim into the expanded row.
+ *
+ * Two things deliberately did NOT move into the expansion, because they are
+ * what the employee has to act on and they must be visible without opening
+ * anything: the resubmission callout with its reason, and its Justify &
+ * Resubmit button. They render under the table as a standing band.
  */
 export function IncentiveList({
   rows,
@@ -54,287 +70,367 @@ export function IncentiveList({
   /** Opened from a notification: this request starts expanded and in view. */
   focusRequestId?: string | null;
 }) {
-  if (rows.length === 0) {
-    return (
-      <p className="text-[15px] text-ink-subtle">
-        No incentive requests yet - file the first one with “New request”.
-      </p>
-    );
-  }
+  const showEmployee = isAdmin || canReview;
 
-  const card = (r: IncentiveRequestRow) => (
-    <RequestCard
-      key={r.id}
-      row={r}
-      showEmployee={isAdmin || canReview}
-      canReview={canReview}
-      isOwner={r.employeeId === me.id}
-      me={me}
-      employees={employees}
-      products={products}
-      focused={r.id === focusRequestId}
-    />
+  /** Rows waiting on THIS person: the reviewer's queue, or my resubmissions. */
+  const mine = React.useMemo(
+    () => rows.filter((r) => r.employeeId === me.id && canResubmit(r.status)),
+    [rows, me.id],
+  );
+  const queueCount = React.useMemo(
+    () => (canReview ? rows.filter((r) => needsReview(r.status)).length : 0),
+    [rows, canReview],
   );
 
-  if (canReview) {
-    const queue = rows.filter((r) => needsReview(r.status));
-    const rest = rows.filter((r) => !needsReview(r.status));
-    return (
-      <div className="space-y-8">
-        <section aria-labelledby="inc-review-queue" data-review-queue>
-          <SectionHeading id="inc-review-queue" icon={Inbox} title="Needs your review" count={queue.length}>
-            Open a request to see everything submitted and its history, then record your decision.
-          </SectionHeading>
-          {queue.length === 0 ? (
-            <p className="text-[14.5px] text-ink-subtle">Nothing is waiting for your review.</p>
-          ) : (
-            <ul className="space-y-3">{queue.map(card)}</ul>
-          )}
-        </section>
-        {rest.length > 0 && (
-          <section aria-labelledby="inc-all-requests">
-            <SectionHeading id="inc-all-requests" icon={ListChecks} title="All other requests" count={rest.length}>
-              Decided, sent back, or waiting on the employee.
-            </SectionHeading>
-            <ul className="space-y-3">{rest.map(card)}</ul>
-          </section>
-        )}
-      </div>
-    );
-  }
+  /**
+   * THE REVIEWER'S QUEUE STILL COMES FIRST.
+   *
+   * It used to be a separate "Needs your review" section above "All other
+   * requests". With one table it is the DEFAULT ORDER instead: waiting requests
+   * on top, newest first within each group. Sorting a column replaces it, which
+   * the two fixed sections never allowed.
+   */
+  const ordered = React.useMemo(() => {
+    if (!canReview) return rows;
+    return [...rows].sort((a, b) => {
+      const qa = needsReview(a.status) ? 0 : 1;
+      const qb = needsReview(b.status) ? 0 : 1;
+      return qa - qb || b.createdAt.getTime() - a.createdAt.getTime();
+    });
+  }, [rows, canReview]);
 
-  return <ul className="space-y-3">{rows.map(card)}</ul>;
+  const columns: DataTableColumn<IncentiveRequestRow>[] = [
+    ...(showEmployee
+      ? [
+          {
+            key: "employee",
+            label: "Employee",
+            sortValue: (r: IncentiveRequestRow) => r.employeeName.toLowerCase(),
+            render: (r: IncentiveRequestRow) => (
+              <span className="text-[13.5px] font-bold text-ink-strong">{r.employeeName}</span>
+            ),
+          },
+        ]
+      : []),
+    {
+      key: "type",
+      label: "Incentive",
+      sortValue: (r) => INCENTIVE_TYPE_LABELS[r.type] ?? r.type,
+      render: (r) => {
+        const happiness = r.type === "client_happiness" ? r.details?.happiness_type : undefined;
+        return (
+          <span className="flex min-w-0 flex-col">
+            <span className="text-[13px] font-semibold text-ink-strong">
+              {INCENTIVE_TYPE_LABELS[r.type] ?? r.type}
+            </span>
+            {happiness && <span className="text-[12px] text-ink-subtle">{happiness}</span>}
+          </span>
+        );
+      },
+    },
+    {
+      key: "date",
+      label: "Incentive date",
+      sortValue: (r) => r.details?.[INCENTIVE_DATE_KEY] ?? r.createdAt.toISOString(),
+      render: (r) => {
+        const d = r.details?.[INCENTIVE_DATE_KEY];
+        return (
+          <span className="flex flex-col text-[13px] tabular-nums">
+            <span>{d ? formatDMonY(d) : formatDate(r.createdAt)}</span>
+            {!d && <span className="text-[11.5px] text-ink-subtle">filed</span>}
+          </span>
+        );
+      },
+    },
+    {
+      key: "amount",
+      label: "Amount",
+      align: "right",
+      sortValue: (r) => defaultIncentiveAmount(r.type, r.details ?? {}),
+      render: (r) => {
+        const amount = defaultIncentiveAmount(r.type, r.details ?? {});
+        return amount > 0 ? (
+          <span className="text-[13px] font-bold tabular-nums text-ink-strong">{formatInr(amount)}</span>
+        ) : (
+          <span
+            className="text-[12.5px] text-ink-subtle"
+            title="The Incentive Master prices this scheme per batch, so a single request has no amount until Accounts records one."
+          >
+            Not set
+          </span>
+        );
+      },
+    },
+    {
+      key: "status",
+      label: "Status",
+      sortValue: (r) => INCENTIVE_STATUS_LABELS[r.status] ?? r.status,
+      render: (r) => (
+        <span className="flex flex-wrap items-center gap-1.5">
+          <IncentiveStatusPill status={r.status} />
+          {canReview && isContentReviewRequest(r.type, r.details) && (
+            <IncentiveBadge tone="amber">Content review</IncentiveBadge>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "submission",
+      label: "Submission",
+      align: "right",
+      sortValue: (r) => r.submissionNo,
+      render: (r) => (
+        <span className="flex flex-col items-end">
+          <span className="text-[13px] font-semibold tabular-nums text-ink-soft">#{r.submissionNo}</span>
+          {r.resubmittedAt && (
+            <span className="text-[11.5px] text-ink-subtle">re-sent {formatDate(r.resubmittedAt)}</span>
+          )}
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-3" data-review-queue={canReview ? "" : undefined}>
+      {/* The employee's rejection / revision experience — ABOVE the table and
+          never behind a disclosure, because it is the thing they must act on. */}
+      {mine.map((row) => (
+        <ResubmitCallout
+          key={row.id}
+          row={row}
+          me={me}
+          employees={employees}
+          products={products}
+        />
+      ))}
+
+      {canReview && (
+        <p className="flex items-center gap-2 text-[13px] font-semibold text-ink-muted">
+          <Inbox size={15} strokeWidth={2.3} aria-hidden />
+          {queueCount === 0
+            ? "Nothing is waiting for your review."
+            : `${queueCount} ${queueCount === 1 ? "request is" : "requests are"} waiting for your review — they sort to the top.`}
+        </p>
+      )}
+
+      <DataTable
+        rows={ordered}
+        columns={columns}
+        getRowKey={(r) => r.id}
+        searchText={(r) =>
+          [
+            r.employeeName,
+            INCENTIVE_TYPE_LABELS[r.type] ?? r.type,
+            INCENTIVE_STATUS_LABELS[r.status] ?? r.status,
+            ...Object.values(r.details ?? {}),
+          ]
+            .filter(Boolean)
+            .join(" ")
+        }
+        searchPlaceholder="Local search — employee, type or detail"
+        /* For the reviewer the rows arrive queue-first (see `ordered`), so no
+           initial sort is imposed — clicking a header still takes over. */
+        initialSort={canReview ? undefined : { key: "date", dir: "desc" }}
+        stickyFirstColumn
+        dense
+        pageSize={25}
+        initiallyExpandedKeys={focusRequestId ? [focusRequestId] : undefined}
+        filters={[
+          {
+            label: "Status",
+            options: Object.entries(INCENTIVE_STATUS_LABELS).map(([value, label]) => ({
+              value,
+              label,
+            })),
+            match: (r, v) => r.status === v,
+          },
+          {
+            label: "Type",
+            options: INCENTIVE_TYPES.map((t) => ({ value: t, label: INCENTIVE_TYPE_LABELS[t] })),
+            match: (r, v) => r.type === v,
+          },
+          ...(showEmployee
+            ? [
+                {
+                  label: "Scope",
+                  options: [
+                    { value: "mine", label: "Mine" },
+                    ...(canReview ? [{ value: "queue", label: "Needs my review" }] : []),
+                  ],
+                  match: (r: IncentiveRequestRow, v: string) =>
+                    v === "mine" ? r.employeeId === me.id : needsReview(r.status),
+                },
+              ]
+            : []),
+        ]}
+        renderRowDetail={(r) => (
+          <RequestDetail row={r} canReview={canReview} isOwner={r.employeeId === me.id} />
+        )}
+        emptyState={
+          <IncentiveEmptyState
+            icon={Inbox}
+            title="No incentive requests yet"
+            body='File the first one with "New request" in the bar above — the form adapts to the incentive you pick.'
+          />
+        }
+      />
+    </div>
+  );
 }
 
-function SectionHeading({
-  id,
-  icon: Icon,
-  title,
-  count,
-  children,
+/**
+ * The expanded row — the card's whole contents, unchanged: every submitted
+ * field with links live, the amount, the split, the full history, and the
+ * decision panel for the one person who may decide.
+ */
+function RequestDetail({
+  row,
+  canReview,
+  isOwner,
 }: {
-  id: string;
-  icon: typeof Inbox;
-  title: string;
-  count: number;
-  children: React.ReactNode;
+  row: IncentiveRequestRow;
+  canReview: boolean;
+  isOwner: boolean;
 }) {
+  const pairs = incentiveDetailPairs(row.type, row.details);
+  const decidable = canReview && availableDecisions(row.type, row.details, row.status).length > 0;
+  const amount = defaultIncentiveAmount(row.type, row.details ?? {});
+
   return (
-    <div className="mb-3">
-      <h3 id={id} className="flex items-center gap-2 text-[17px] font-bold text-ink-strong">
-        <Icon size={17} strokeWidth={2.3} aria-hidden />
-        {title}
-        <span className="rounded-pill bg-surface-soft px-2 py-0.5 text-[12px] font-bold tabular-nums text-ink-muted">
-          {count}
+    <div className="space-y-4" data-request={row.id} data-status={row.status}>
+      {row.decidedAt && row.decidedByName && (
+        <p className="text-[12.5px] text-ink-subtle">
+          {INCENTIVE_STATUS_LABELS[row.status] ?? row.status} by {row.decidedByName} ·{" "}
+          {formatIncentiveDateTime(row.decidedAt)}
+        </p>
+      )}
+
+      {/* A reason on a request that is NOT waiting on the employee (Reversed,
+          or a note left with any other decision) is still theirs to read. */}
+      {row.decisionNote && !canResubmit(row.status) && (isOwner || canReview) && (
+        <div className="rounded-xl border border-hairline bg-surface-card px-3.5 py-2.5">
+          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">
+            {row.status === "reversed" ? "Reversal reason" : "Decision note"}
+          </span>
+          <p className="whitespace-pre-wrap break-words text-[13.5px] text-ink-strong">
+            {row.decisionNote}
+          </p>
+        </div>
+      )}
+
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-2.5 max-md:grid-cols-1">
+        {pairs.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">{label}</dt>
+            <dd className="mt-0.5 whitespace-pre-wrap break-words text-[13.5px] text-ink-strong">
+              {isLink(value) ? (
+                <a
+                  href={value.trim()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-altus-red underline-offset-2 hover:underline"
+                >
+                  {value}
+                </a>
+              ) : (
+                value
+              )}
+            </dd>
+          </div>
+        ))}
+        {amount > 0 && (
+          <div>
+            <dt className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">Amount</dt>
+            <dd className="mt-0.5 text-[13.5px] tabular-nums text-ink-strong">{formatInr(amount)}</dd>
+          </div>
+        )}
+        {row.split && row.split.length > 0 && (
+          <div className="col-span-full">
+            <dt className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">Split</dt>
+            <dd className="mt-0.5 break-words text-[13.5px] text-ink-strong">
+              {row.split.map((s) => `${s.name} ${formatPct(s.pct)}%`).join(" · ")}
+            </dd>
+          </div>
+        )}
+      </dl>
+
+      <div className="border-t pt-3" style={{ borderColor: "var(--color-hairline)" }}>
+        <IncentiveHistory
+          key={`${row.id}:${row.submissionNo}:${row.status}`}
+          requestId={row.id}
+          currentSubmissionNo={row.submissionNo}
+          currentStatus={row.status}
+        />
+      </div>
+
+      {decidable && <IncentiveDecisionPanel key={`${row.id}:${row.status}`} row={row} />}
+    </div>
+  );
+}
+
+/** Not Approved / Revision Requested, and it is mine to fix. */
+function ResubmitCallout({
+  row,
+  me,
+  employees,
+  products,
+}: {
+  row: IncentiveRequestRow;
+  me: { id: string; name: string };
+  employees: EmployeeOption[];
+  products: string[];
+}) {
+  const rejected = row.status === "rejected";
+  return (
+    <div
+      className="rounded-2xl px-4 py-3"
+      data-resubmit-callout
+      style={{
+        background: toneFill(rejected ? "red" : "amber", 7),
+        border: `1px solid ${toneFill(rejected ? "red" : "amber", 30)}`,
+      }}
+    >
+      <p className="text-[13.5px] font-bold" style={{ color: toneInk(rejected ? "red" : "amber") }}>
+        {rejected
+          ? `${INCENTIVE_REVIEWER_NAME} did not approve your ${INCENTIVE_TYPE_LABELS[row.type] ?? row.type}.`
+          : `${INCENTIVE_REVIEWER_NAME} asked for your ${INCENTIVE_TYPE_LABELS[row.type] ?? row.type} to be revised.`}
+      </p>
+      {row.decisionNote && (
+        <div className="mt-1">
+          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">
+            {rejected ? "Reason" : "Revision note"}
+          </span>
+          <p className="whitespace-pre-wrap break-words text-[13.5px] text-ink-strong">
+            {row.decisionNote}
+          </p>
+        </div>
+      )}
+      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[12.5px] text-ink-subtle">
+          Decided {formatIncentiveDateTime(row.decidedAt)}. Your submission is kept — resubmitting adds
+          a new one.
         </span>
-      </h3>
-      <p className="mt-0.5 text-[13.5px] text-ink-subtle">{children}</p>
+        <IncentiveFormDialog
+          products={products}
+          employees={employees}
+          me={me}
+          resubmit={{
+            id: row.id,
+            type: row.type,
+            details: row.details ?? {},
+            split: row.split,
+            status: row.status,
+            reason: row.decisionNote,
+            decidedAt: row.decidedAt,
+            decidedByName: row.decidedByName,
+            submissionNo: row.submissionNo,
+          }}
+        />
+      </div>
     </div>
   );
 }
 
 function isLink(v: string): boolean {
   return /^https?:\/\/\S+$/i.test(v.trim());
-}
-
-function RequestCard({
-  row,
-  showEmployee,
-  canReview,
-  isOwner,
-  me,
-  employees,
-  products,
-  focused,
-}: {
-  row: IncentiveRequestRow;
-  showEmployee: boolean;
-  canReview: boolean;
-  isOwner: boolean;
-  me: { id: string; name: string };
-  employees: EmployeeOption[];
-  products: string[];
-  focused: boolean;
-}) {
-  const [expanded, setExpanded] = useState(focused);
-  const cardRef = useRef<HTMLLIElement>(null);
-  useEffect(() => {
-    if (focused) cardRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [focused]);
-  const pairs = incentiveDetailPairs(row.type, row.details);
-  const content = isContentReviewRequest(row.type, row.details);
-  const decidable = canReview && availableDecisions(row.type, row.details, row.status).length > 0;
-  const amount = defaultIncentiveAmount(row.type, row.details ?? {});
-  const incentiveDate = row.details?.[INCENTIVE_DATE_KEY];
-  const happiness = row.type === "client_happiness" ? row.details?.happiness_type : undefined;
-  const resubmittable = isOwner && canResubmit(row.status);
-
-  return (
-    <li
-      ref={cardRef}
-      className="wg-rise rounded-[18px] bg-surface-card p-5 max-md:p-4"
-      style={{
-        boxShadow: focused
-          ? "inset 0 0 0 2px color-mix(in srgb, var(--color-altus-red) 55%, transparent), 0 8px 24px -20px rgba(15,23,42,0.35)"
-          : "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.7), 0 8px 24px -20px rgba(15,23,42,0.35)",
-      }}
-      data-request={row.id}
-      data-focused={focused || undefined}
-      data-status={row.status}
-    >
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-[16px] font-semibold text-ink-strong">
-              {INCENTIVE_TYPE_LABELS[row.type] ?? row.type}
-              {happiness && <span className="font-medium text-ink-muted"> · {happiness}</span>}
-            </span>
-            <IncentiveStatusPill status={row.status} />
-            {row.submissionNo > 1 && (
-              <span className="rounded-pill bg-surface-soft px-2 py-0.5 text-[11.5px] font-bold text-ink-muted">
-                Submission {row.submissionNo}
-              </span>
-            )}
-            {content && canReview && (
-              <span className="rounded-pill px-2 py-0.5 text-[11.5px] font-bold" style={{ background: "rgba(146,64,14,0.10)", color: "#92400E" }}>
-                Content review
-              </span>
-            )}
-          </div>
-          <p className="text-[13.5px] text-ink-subtle mt-1">
-            {showEmployee ? <b className="font-semibold text-ink-soft">{row.employeeName}</b> : null}
-            {showEmployee ? " · " : ""}
-            {incentiveDate ? `Incentive date ${formatDMonY(incentiveDate)}` : `Filed ${formatDate(row.createdAt)}`}
-            {amount > 0 && ` · ${formatInr(amount)}`}
-            {row.resubmittedAt && ` · resubmitted ${formatDate(row.resubmittedAt)}`}
-          </p>
-          {row.decidedAt && row.decidedByName && (
-            <p className="text-[12.5px] text-ink-subtle mt-0.5">
-              {INCENTIVE_STATUS_LABELS[row.status] ?? row.status} by {row.decidedByName} ·{" "}
-              {formatIncentiveDateTime(row.decidedAt)}
-            </p>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          aria-expanded={expanded}
-          className="inline-flex items-center gap-1 rounded-md px-2.5 py-2 text-[13px] font-semibold text-ink-soft hover:bg-surface-soft"
-        >
-          {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-          {expanded ? "Close" : decidable ? "Open request" : "Details"}
-        </button>
-      </div>
-
-      {/* The employee's rejection / revision experience — visible without
-          opening the card, because it is the thing they need to act on. */}
-      {resubmittable && (
-        <div
-          className="mt-3 rounded-xl px-4 py-3"
-          style={{
-            background: row.status === "rejected" ? "rgba(225,6,0,0.06)" : "rgba(245,158,11,0.08)",
-            boxShadow: `inset 0 0 0 1px ${row.status === "rejected" ? "rgba(225,6,0,0.22)" : "rgba(245,158,11,0.30)"}`,
-          }}
-          data-resubmit-callout
-        >
-          <p className="text-[13.5px] font-bold text-ink-strong">
-            {row.status === "rejected"
-              ? `${INCENTIVE_REVIEWER_NAME} did not approve this incentive.`
-              : `${INCENTIVE_REVIEWER_NAME} asked for this to be revised.`}
-          </p>
-          {row.decisionNote && (
-            <div className="mt-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
-                {row.status === "rejected" ? "Reason" : "Revision note"}
-              </span>
-              <p className="text-[14px] text-ink-strong whitespace-pre-wrap break-words">{row.decisionNote}</p>
-            </div>
-          )}
-          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[12.5px] text-ink-subtle">
-              Decided {formatIncentiveDateTime(row.decidedAt)}. Your submission is kept — resubmitting adds a new one.
-            </span>
-            <IncentiveFormDialog
-              products={products}
-              employees={employees}
-              me={me}
-              resubmit={{
-                id: row.id,
-                type: row.type,
-                details: row.details ?? {},
-                split: row.split,
-                status: row.status,
-                reason: row.decisionNote,
-                decidedAt: row.decidedAt,
-                decidedByName: row.decidedByName,
-                submissionNo: row.submissionNo,
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* A reason on a request that is NOT waiting on the employee (Reversed,
-          or a note left with any other decision) is still theirs to read. */}
-      {!resubmittable && row.decisionNote && (isOwner || showEmployee) && (
-        <div className="mt-3 rounded-xl bg-surface-soft px-4 py-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
-            {row.status === "reversed" ? "Reversal reason" : "Decision note"}
-          </span>
-          <p className="text-[14px] text-ink-strong whitespace-pre-wrap break-words">{row.decisionNote}</p>
-        </div>
-      )}
-
-      {expanded && (
-        <dl
-          className="mt-4 grid grid-cols-2 max-md:grid-cols-1 gap-x-6 gap-y-2.5 border-t pt-4"
-          style={{ borderColor: "var(--color-hairline)" }}
-        >
-          {pairs.map(([label, value]) => (
-            <div key={label}>
-              <dt className="text-[12px] font-semibold uppercase tracking-wide text-ink-subtle">
-                {label}
-              </dt>
-              <dd className="text-[14.5px] text-ink-strong mt-0.5 break-words whitespace-pre-wrap">
-                {isLink(value) ? (
-                  <a href={value.trim()} target="_blank" rel="noopener noreferrer" className="font-semibold text-altus-red underline-offset-2 hover:underline">
-                    {value}
-                  </a>
-                ) : (
-                  value
-                )}
-              </dd>
-            </div>
-          ))}
-          {amount > 0 && (
-            <div>
-              <dt className="text-[12px] font-semibold uppercase tracking-wide text-ink-subtle">Amount</dt>
-              <dd className="text-[14.5px] text-ink-strong mt-0.5 tabular-nums">{formatInr(amount)}</dd>
-            </div>
-          )}
-          {row.split && row.split.length > 0 && (
-            <div className="col-span-full">
-              <dt className="text-[12px] font-semibold uppercase tracking-wide text-ink-subtle">
-                Split
-              </dt>
-              <dd className="text-[14.5px] text-ink-strong mt-0.5 break-words">
-                {row.split.map((s) => `${s.name} ${formatPct(s.pct)}%`).join(" · ")}
-              </dd>
-            </div>
-          )}
-
-          <div className="col-span-full border-t pt-3" style={{ borderColor: "var(--color-hairline)" }}>
-            <IncentiveHistory
-              key={`${row.id}:${row.submissionNo}:${row.status}`}
-              requestId={row.id}
-              currentSubmissionNo={row.submissionNo}
-              currentStatus={row.status}
-            />
-          </div>
-
-          {decidable && <IncentiveDecisionPanel key={`${row.id}:${row.status}`} row={row} />}
-        </dl>
-      )}
-    </li>
-  );
 }

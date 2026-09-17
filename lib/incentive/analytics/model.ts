@@ -193,6 +193,23 @@ export interface AnalyticsTarget {
   amount: number;
 }
 
+/**
+ * THE TWO VIEWS OF THE DASHBOARD.
+ *
+ *  · `team` — everyone this viewer is entitled to see: their downline through
+ *    the existing `employees.manager_id` hierarchy, or the whole company for an
+ *    admin / the incentive reviewer. This is the view the dashboard has always
+ *    shown, and it is the default.
+ *  · `user` — the signed-in person alone.
+ *
+ * The view can only ever NARROW what the viewer's own entitlement already
+ * allows. `team` resolves to exactly the scope the server computed for them, so
+ * there is nothing here a browser can push on to see more — see
+ * `applyAnalyticsView` in ./scope.ts, which is the only place it is applied.
+ */
+export const ANALYTICS_VIEWS = ["team", "user"] as const;
+export type AnalyticsView = (typeof ANALYTICS_VIEWS)[number];
+
 export interface AnalyticsScope {
   /** Company-wide viewer (admin, super-admin, incentive reviewer). */
   all: boolean;
@@ -200,6 +217,18 @@ export interface AnalyticsScope {
   employeeIds: ReadonlySet<string>;
   viewerId: string;
   label: string;
+  /** Which of the two views this scope represents. Defaults to `team`. */
+  view?: AnalyticsView;
+  /**
+   * Does this viewer have a Team view at all — i.e. does their entitlement
+   * cover anyone besides themselves?
+   *
+   * Computed BEFORE the view narrows anything, because after narrowing to
+   * `user` the scope can no longer tell you. It is what decides whether the
+   * switcher is rendered: someone with no reports would otherwise be offered a
+   * "Team" button that shows them their own figures under another name.
+   */
+  canSeeTeam?: boolean;
 }
 
 export interface BuildInput {
@@ -286,7 +315,14 @@ export interface TargetWarning {
 
 export interface IncentiveAnalytics {
   period: ResolvedPeriod;
-  scope: { all: boolean; label: string };
+  scope: {
+    all: boolean;
+    label: string;
+    view: AnalyticsView;
+    canSeeTeam: boolean;
+    /** The signed-in employee's own id — used for their own-document links. */
+    viewerId: string;
+  };
   statuses: StatusCard[];
   records: StatusRecord[];
   employees: EmployeePerformance[];
@@ -606,7 +642,21 @@ export function buildIncentiveAnalytics(input: BuildInput): IncentiveAnalytics {
 
   return {
     period,
-    scope: { all: scope.all, label: scope.label },
+    // `canSeeTeam` defaults to FALSE, not true: a scope built without it (every
+    // existing caller, and every test fixture) gets no switcher, which is the
+    // safe direction to fail — an unusable control is worse than none.
+    scope: {
+      all: scope.all,
+      label: scope.label,
+      view: scope.view ?? "team",
+      canSeeTeam: scope.canSeeTeam ?? false,
+      // The viewer's OWN id, and only ever their own — `viewerId` is set from
+      // the signed-in identity when the scope is resolved and is never derived
+      // from anything the browser sent. It exists so the "your performance"
+      // block can link to that person's own breakup letter; every other row on
+      // the dashboard stays keyed by name, as before.
+      viewerId: scope.viewerId,
+    },
     statuses,
     records,
     employees: visible,

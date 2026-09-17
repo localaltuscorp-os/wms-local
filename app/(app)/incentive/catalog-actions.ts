@@ -9,10 +9,11 @@ import { requireAdmin } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { afterResponse } from "@/lib/after";
 import {
-  catalogSnapshot,
   processIncentiveCatalogEvent,
   recordIncentiveCatalogEvent,
 } from "@/lib/incentive/notifications/service";
+import { incentiveSnapshotFor } from "@/lib/queries/incentive-master";
+import { todayIst } from "@/lib/incentive/master";
 
 export type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -72,6 +73,8 @@ export async function upsertCatalogEntry(
     active: v.active ?? true,
   };
 
+  const today = todayIst();
+
   try {
     const saved = await db.transaction(async (tx) => {
       if (v.id) {
@@ -83,8 +86,12 @@ export async function upsertCatalogEntry(
             ? await recordIncentiveCatalogEvent(tx, {
                 eventType: "updated",
                 catalogId: id,
-                before: catalogSnapshot(before),
-                after: catalogSnapshot(after),
+                // The SHARED snapshot builder, so an edit made here describes
+                // the incentive the same way the Admin Panel's Incentive Master
+                // would — including its named eligibility, which decides who is
+                // notified. See lib/queries/incentive-master.ts.
+                before: await incentiveSnapshotFor(tx, before, today),
+                after: await incentiveSnapshotFor(tx, after, today),
                 actorId: me.id,
               })
             : null;
@@ -96,7 +103,7 @@ export async function upsertCatalogEntry(
         eventType: "created",
         catalogId: row.id,
         before: null,
-        after: catalogSnapshot(row),
+        after: await incentiveSnapshotFor(tx, row, today),
         actorId: me.id,
       });
       return { id: row.id, eventId };
@@ -129,12 +136,15 @@ export async function deleteCatalogEntry(id: string): Promise<ActionResult> {
   try {
     eventId = await db.transaction(async (tx) => {
       const [before] = await tx.select().from(incentiveCatalog).where(eq(incentiveCatalog.id, id)).for("update");
+      // Snapshot BEFORE the delete — afterwards the eligibility rows have
+      // cascaded away and there is nothing left to describe.
+      const snapshot = before ? await incentiveSnapshotFor(tx, before, todayIst()) : null;
       await tx.delete(incentiveCatalog).where(eq(incentiveCatalog.id, id));
-      return before
+      return snapshot
         ? recordIncentiveCatalogEvent(tx, {
             eventType: "deleted",
             catalogId: id,
-            before: catalogSnapshot(before),
+            before: snapshot,
             after: null,
             actorId: me.id,
           })

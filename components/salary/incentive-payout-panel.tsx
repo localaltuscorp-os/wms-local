@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { Loader2, HandCoins, Wallet, BadgeCheck, CheckCircle2, Ban } from "lucide-react";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
@@ -182,7 +184,20 @@ export function IncentivePayoutPanel({
                       if (c.id === "booked") return <Td key={c.id} align="right" muted>{row.booked ? formatInr(row.booked) : "-"}</Td>;
                       if (c.id === "accrued") return <Td key={c.id} align="right">{row.accrued ? formatInr(row.accrued) : "-"}</Td>;
                       if (c.id === "payable") return <Td key={c.id} align="right" strong>{formatInr(row.payable)}</Td>;
-                      if (c.id === "paid") return <Td key={c.id} align="right">{formatInr(row.paid)}</Td>;
+                      if (c.id === "paid") return (
+                        <td key={c.id} className="px-4 py-3 text-right tabular-nums">
+                          <span className="text-ink-soft">{formatInr(row.paid)}</span>
+                          {row.employeeId && (
+                            <Link
+                              href={`/salary/incentive-breakup/${row.employeeId}?month=${board.month}` as Route}
+                              target="_blank"
+                              className="ml-2 text-[11.5px] font-bold text-ink-muted underline decoration-dotted underline-offset-2 hover:text-ink-strong"
+                            >
+                              Breakup
+                            </Link>
+                          )}
+                        </td>
+                      );
                       if (c.id === "remainder") return (
                         <td key={c.id} className="px-4 py-3 text-right tabular-nums">
                           {row.nils ? (
