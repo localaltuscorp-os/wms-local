@@ -590,7 +590,15 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             label: "Reporting Hierarchy",
             routes: ["/admin/hierarchy"],
           },
-          { key: "admin.people.departments", label: "Departments", routes: ["/admin/departments"] },
+          {
+            // The KEY is unchanged on purpose: it is stored in
+            // `module_permissions.node_key`, so renaming it would orphan every
+            // grant anybody has already made. Only the label and the route move.
+            key: "admin.people.departments",
+            label: "Functions",
+            routes: ["/admin/functions"],
+            note: "Called Departments until migration 0234. The permission key still reads `departments`; the rows, the screen and this node are the same thing.",
+          },
           {
             key: "admin.people.designations",
             label: "Designations",
@@ -679,6 +687,30 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             key: "admin.masters.leave-categories",
             label: "Leave Categories",
             routes: ["/admin/leave-categories"],
+          },
+        ],
+      },
+      /**
+       * ADMIN PANEL → INCENTIVE. Its own group, as the brief's structure asks
+       * ("Admin Panel → Incentive → Incentive Master"), rather than a child of
+       * Masters: the Incentive Master is not only a lookup list — it carries
+       * the Incentive Chart, which decides who may earn money — and the group
+       * is where any further incentive administration belongs.
+       *
+       * VIEW opens the screen; EDIT creates, edits, activates and deletes an
+       * incentive. Neither confers the right to change ELIGIBILITY: that is
+       * `incentive_eligibility.manage`, held by Manan alone
+       * (lib/security/capabilities.ts), and this node cannot widen it.
+       */
+      {
+        key: "admin.incentive",
+        label: "Incentive",
+        children: [
+          {
+            key: "admin.incentive.master",
+            label: "Incentive Master",
+            routes: ["/admin/incentive-master"],
+            note: "The incentive schemes and who is eligible for them. Edit here covers the incentives themselves; changing eligibility is separately restricted to Manan Vasa and this cannot widen it.",
           },
         ],
       },

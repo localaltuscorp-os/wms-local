@@ -18,6 +18,7 @@ import {
   UserCog,
   CalendarDays,
   BadgeIndianRupee,
+  Gift,
   IdCard,
   Wallet,
   Network,
@@ -61,7 +62,7 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
       // it edits the same relationship the employee editor's Manager field does
       // — one write path (setReportingManager), two doors onto it.
       { href: "/admin/hierarchy" as Route, label: "Reporting Hierarchy", Icon: Network },
-      { href: "/admin/departments" as Route, label: "Departments", Icon: Building2 },
+      { href: "/admin/functions" as Route, label: "Functions", Icon: Building2 },
       { href: "/admin/designations" as Route, label: "Designations", Icon: IdCard },
       { href: "/admin/holidays" as Route, label: "Holidays", Icon: CalendarDays },
       { href: "/admin/salary-profiles" as Route, label: "Salary Profiles", Icon: BadgeIndianRupee },
@@ -103,6 +104,17 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
       // the Outstanding module. Same table, same rows, no code column — see
       // app/(admin)/admin/products/page.tsx.
       { href: "/admin/outstanding-products" as Route, label: "Products (legacy view)", Icon: Package },
+    ],
+  },
+  {
+    // The Incentive Master and its Incentive Chart. A group of its own rather
+    // than another line under "Masters": it is not just a list the dropdowns
+    // read — it decides who is eligible to earn from each scheme — and the
+    // brief's own structure is Admin Panel → Incentive → Incentive Master.
+    label: "Incentive",
+    Icon: BadgeIndianRupee,
+    items: [
+      { href: "/admin/incentive-master" as Route, label: "Incentive Master", Icon: Gift },
     ],
   },
   {

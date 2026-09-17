@@ -111,6 +111,27 @@ const HUB_PASTEL: Record<WorkspaceId, { from: string; to: string; ink: string; i
   // Blueprint blue for the planning table; the nearest hue on the hub is HR's
   // teal (#147D73), which is green-leaning where this is blue-leaning.
   "project-plan": { from: "#CFFAFE", to: "#A5F3FC", ink: "#0E7490", inkSoft: "#0891B2" },
+  // Incentive — MAGENTA, and its own hue (2026-09-16). The room is RED inside
+  // (see MODULE_THEME.incentive) exactly as Operations is; this is a hub-card
+  // identity, and it exists because a fourth red card at the front door is the
+  // one thing this table is here to prevent.
+  //
+  // MEASURED INTO THE FAMILY, not eyeballed, the same way Operations' gold was.
+  // The fill is H306 S51 L93 and the ink H300 S55 L36 — both inside the bands
+  // the eleven established cards occupy (fill S42-58 / L90-94, ink S39-72 /
+  // L28-47), so it reads as one of the set rather than as a bright import.
+  //
+  // WHY MAGENTA AND NOT SOMETHING WARMER. Reward colours suggest gold or green,
+  // and both are taken — Operations holds the gold, Employees the green — and at
+  // L93 a pale lime is indistinguishable from a pale mint, so the whole
+  // yellow-green band is unusable however open it looks. Magenta sits in the
+  // real gap between Sales' violet (H268) and Training's berry (H334), about
+  // 33 degrees from each. It is the INK that does the telling apart at that
+  // distance — #8E298E against #6838B8 and #C32968 is unmistakable, where three
+  // near-white fills never could be.
+  //
+  // FLAT, from === to, like nine of the eleven before it.
+  incentive: { from: "#F6E3F4", to: "#F6E3F4", ink: "#8E298E", inkSoft: "#8E298E" }, // f · magenta
 };
 
 /**

@@ -261,9 +261,18 @@ describe("Admin Panel shortcut", () => {
     key("KeyD");
     expect(push).toHaveBeenCalledWith(MODULE_THEME["operations"].href);
     push.mockReset();
-    // F is the twelfth key and there is no twelfth module, so it must do
-    // nothing — not fall through to some other room.
+    // F is the twelfth key, and INCENTIVE is now the twelfth module (appended
+    // 2026-09-16 when it was lifted out of Employees into a room of its own).
+    // This used to assert that F did nothing, which was true only while the
+    // alphabet had a spare letter at the end.
     key("KeyF");
+    expect(push).toHaveBeenCalledWith(MODULE_THEME["incentive"].href);
+    push.mockReset();
+    // S, though, is still vacated — it sits in neither the alphabet nor the
+    // Admin Panel's slot, so it must fall through to nothing. That is the
+    // property the original test was really after, and the alphabet now has no
+    // spare letter left to demonstrate it with.
+    key("KeyS");
     expect(push).not.toHaveBeenCalled();
   });
 });

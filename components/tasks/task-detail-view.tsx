@@ -548,7 +548,7 @@ export function TaskDetailView({
                 {me?.department && (
                   <MetaRow
                     icon={<Building2 size={13} strokeWidth={2.4} />}
-                    label="Department"
+                    label="Function"
                     value={me.department}
                   />
                 )}

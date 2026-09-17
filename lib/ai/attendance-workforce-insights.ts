@@ -292,7 +292,7 @@ export function heuristicWorkforceInsights(
       `${lateDept.department}: most late arrivals (${lateDept.late}, ${lateDept.punctualityRatePct}% on-time).`,
     );
   if (departmentCallouts.length === 0)
-    departmentCallouts.push("Departments are evenly matched this month — no outlier.");
+    departmentCallouts.push("Functions are evenly matched this month — no outlier.");
 
   /* — Fallback highlight so the panel is never empty. — */
   if (highlights.length === 0) {

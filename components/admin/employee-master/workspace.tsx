@@ -385,7 +385,7 @@ export function EmployeeWorkspace({
                   <span>{row.officeEmail}</span>
                   <span aria-hidden>·</span>
                   <span className="muted">
-                    {[row.designationName, row.functionName, row.entityName].filter(Boolean).join(" · ") || "No designation set"}
+                    {[row.designationName, row.departmentName, row.entityName].filter(Boolean).join(" · ") || "No designation set"}
                   </span>
                 </div>
               </div>
@@ -605,12 +605,12 @@ function Section(props: {
                 <Text label="Employee Name" value={v("name", r.name) ?? ""} onChange={(x) => set("name", x, r.name)} />
                 <Pick label="Designation" value={v("designationId", r.designationId) ?? ""} onChange={(x) => set("designationId", x || null, r.designationId)} options={options.designations} />
                 <Pick label="Entity" value={v("payingEntityId", r.entityId) ?? ""} onChange={(x) => set("payingEntityId", x || null, r.entityId)} options={options.entities} />
-                {/* FUNCTION is the department record, relabelled. The old
-                    `functionId` picker was removed: it had no rows and no
-                    people, while this has 18 values and every existing
-                    assignment. Read-only here because a person can hold
-                    several (employee_departments is a join table) and the
-                    Employees screen owns that multi-select. */}
+                {/* FUNCTION. Migration 0234 moved these 18 rows into the
+                    `functions` table keeping their ids, so this IS the Function
+                    and not a stand-in; the old empty `functionId` picker is
+                    gone. Read-only here because a person can hold several
+                    (employee_departments is a join table) and the Employees
+                    screen owns that multi-select. */}
                 <Field label="Function"><Readout>{r.departmentName ?? "—"}</Readout></Field>
               </Rows>
             </Pane>

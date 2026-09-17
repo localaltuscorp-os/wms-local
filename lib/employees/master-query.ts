@@ -274,8 +274,14 @@ export interface EmployeeMasterRow {
   whatsapp: string | null;
   avatarUrl: string | null;
 
+  /**
+   * The DEAD `employees.function_id` column, kept only because the employee
+   * editor still round-trips it. There is no `functionName` beside it any more:
+   * since migration 0234 the employee's FUNCTION is `departmentName` below,
+   * which reads the `functions` table. Joining both would be joining one table
+   * to itself.
+   */
   functionId: string | null;
-  functionName: string | null;
   entityId: string | null;
   entityName: string | null;
   designationId: string | null;
@@ -350,7 +356,6 @@ export async function loadEmployeeMasterRows(
       avatarUrl: employees.avatarUrl,
 
       functionId: employees.functionId,
-      functionName: functions.name,
       entityId: employees.payingEntityId,
       entityName: payingEntities.name,
       designationId: employees.designationId,
@@ -381,7 +386,9 @@ export async function loadEmployeeMasterRows(
       deactivatedAt: employees.deactivatedAt,
     })
     .from(employees)
-    .leftJoin(functions, eq(functions.id, employees.functionId))
+    // NO join on `employees.function_id`: `functions` IS `departments` since
+    // migration 0234, so joining both put the same table in the query twice.
+    // The Function comes from the `departments` join below.
     .leftJoin(payingEntities, eq(payingEntities.id, employees.payingEntityId))
     .leftJoin(designations, eq(designations.id, employees.designationId))
     .leftJoin(departments, eq(departments.id, employees.departmentId))
@@ -545,6 +552,11 @@ export async function loadEmployeeMasterDetail(
 /* ── The master lists the filters and the workspace dropdowns need ────────── */
 
 export interface MasterOptions {
+  /**
+   * The FUNCTION list. `functions` and `departments` below are THE SAME ARRAY
+   * (migration 0234 merged the two masters); both keys are kept so no call site
+   * had to change. Prefer `functions` in new code.
+   */
   functions: { id: string; name: string }[];
   entities: { id: string; name: string; codePrefix: string | null }[];
   designations: { id: string; name: string }[];
@@ -554,9 +566,15 @@ export interface MasterOptions {
 }
 
 export async function loadMasterOptions(): Promise<MasterOptions> {
-  const [f, e, d, dep, s, m] = await Promise.all([
-    db.select({ id: functions.id, name: functions.name })
-      .from(functions).where(eq(functions.isActive, true))
+  // ONE query for the Function list. `functions` and `departments` were two
+  // separate lookups here until migration 0234 made them the same table; asking
+  // twice would have returned the same 18 rows down two names and invited a
+  // caller to believe they were different lists.
+  const [fn, e, d, s, m] = await Promise.all([
+    db
+      .select({ id: functions.id, name: functions.name })
+      .from(functions)
+      .where(eq(functions.isActive, true))
       .orderBy(asc(functions.sortOrder), asc(functions.name)),
     db.select({ id: payingEntities.id, name: payingEntities.name, codePrefix: payingEntities.codePrefix })
       .from(payingEntities).where(eq(payingEntities.isActive, true))
@@ -564,7 +582,6 @@ export async function loadMasterOptions(): Promise<MasterOptions> {
     db.select({ id: designations.id, name: designations.name })
       .from(designations).where(eq(designations.isActive, true))
       .orderBy(asc(designations.sortOrder), asc(designations.name)),
-    db.select({ id: departments.id, name: departments.name }).from(departments).orderBy(asc(departments.name)),
     db.select({ id: shiftTypes.id, name: shiftTypes.name })
       .from(shiftTypes).where(eq(shiftTypes.isActive, true))
       .orderBy(asc(shiftTypes.sortOrder), asc(shiftTypes.name)),
@@ -572,5 +589,6 @@ export async function loadMasterOptions(): Promise<MasterOptions> {
       .from(employees).where(and(isCurrentStaff, eq(employees.isActive, true)))
       .orderBy(asc(employees.name)),
   ]);
-  return { functions: f, entities: e, designations: d, departments: dep, shiftTypes: s, managers: m };
+  // `departments` is the same array, under the name ~30 call sites already use.
+  return { functions: fn, entities: e, designations: d, departments: fn, shiftTypes: s, managers: m };
 }

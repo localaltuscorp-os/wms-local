@@ -10,6 +10,7 @@ import {
   ReceiptIndianRupee,
   type LucideIcon,
   Gauge,
+  Award,
   Users2,
   FolderTree,
   ShieldAlert,
@@ -228,6 +229,31 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
     accentDeep: "#A80400",
     image: null,
   },
+  // INCENTIVE — its own room (2026-09-16), lifted out of Employees where it had
+  // been one rail entry among nine.
+  //
+  // IT KEEPS THE ALTUS RED INSIDE, and that is not an oversight. The module's
+  // own chrome — the year pills, the active tab, the request badges — is already
+  // built on #E10600 / #A80400, so the accent pair here simply names the colour
+  // the room has always worn. Nothing inside the module changes appearance.
+  //
+  // Its HUB CARD is magenta, which is a different question with a different
+  // answer: see HUB_PASTEL in app/(app)/hub/page.tsx. The front door must be
+  // able to tell twelve cards apart, and a fourth red one could not be — the
+  // same reason Operations wears gold on the hub and red inside.
+  //
+  // `Award` is the icon the Employees rail has always used for Incentive, kept
+  // so the module is recognisable by the mark people already know it by.
+  incentive: {
+    id: "incentive",
+    label: "Incentive",
+    tagline: "Requests, approvals, targets & payouts - earned and tracked.",
+    href: "/ws/incentive" as Route,
+    Icon: Award,
+    accent: "#E10600",
+    accentDeep: "#A80400",
+    image: null,
+  },
 };
 
 /** Hub display order. */
@@ -261,6 +287,17 @@ export const MODULE_ORDER: WorkspaceId[] = [
   // keeps "q" through "p" pointing at the same ten modules they always have.
   // Inserting it mid-list would have re-lettered every module after it.
   "operations",        // d  — "Operations" (A and S are vacated; see ADMIN_PANEL_SHORTCUT)
+  // INCENTIVE, appended 2026-09-16 — the twelfth module, and the twelfth and
+  // last letter of the alphabet below.
+  //
+  // APPENDED rather than slotted in beside Employees, where it conceptually
+  // belongs, for the reason this list's own header gives: the letters are handed
+  // out BY POSITION, so an insert at index 10 would have re-lettered Employees
+  // and Operations and broken the muscle memory of everyone who uses them. That
+  // is the same trade Operations made when it was added, and the same one this
+  // makes. Reordering the hub is a decision for the account holder, not a side
+  // effect of adding a room.
+  "incentive",         // f  — "Incentive"
 ];
 
 /**

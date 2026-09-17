@@ -1635,14 +1635,14 @@ function Roster({
             Open anyone to work their whole file A–Z - letters, email, assets, policies, documents and exit.
           </p>
         </div>
-        <CollapsibleSearch scope="name, role or department">
+        <CollapsibleSearch scope="name, role or Function">
         <div className="relative w-full max-w-[320px]">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input
             type="text"
             value={query}
             onChange={(e) => onQuery(e.target.value)}
-            placeholder="Local search - name, role or department" title="Local search - filters only the list on this page" aria-label="Local search - name, role or department - this page only"
+            placeholder="Local search - name, role or Function" title="Local search - filters only the list on this page" aria-label="Local search - name, role or Function - this page only"
             className="w-full rounded-xl border border-hairline-strong bg-white py-2.5 pl-9 pr-3 text-[13.5px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
           />
         </div>
@@ -1658,7 +1658,7 @@ function Roster({
             {candidates.length === 0 ? "No people on file yet" : "No one matches that search"}
           </p>
           <p className="mt-1 text-[13px] font-medium text-ink-muted">
-            {candidates.length === 0 ? "People appear here as candidates are entered." : "Try a different name, role or department."}
+            {candidates.length === 0 ? "People appear here as candidates are entered." : "Try a different name, role or Function."}
           </p>
         </div>
       ) : (
@@ -1797,7 +1797,7 @@ function PersonPicker({
       {open && (
         <div className="rec-panel absolute left-0 right-0 top-[calc(100%+8px)] z-40 overflow-hidden rounded-2xl border border-hairline-strong bg-white shadow-[0_24px_60px_-24px_rgba(24,24,27,0.5)]">
           <div className="border-b border-hairline p-2.5">
-            <CollapsibleSearch scope="name, role or department">
+            <CollapsibleSearch scope="name, role or Function">
             <div className="relative">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
               <input
@@ -1806,7 +1806,7 @@ function PersonPicker({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Local search - name, role or department" title="Local search - filters only the list on this page" aria-label="Local search - name, role or department - this page only"
+                placeholder="Local search - name, role or Function" title="Local search - filters only the list on this page" aria-label="Local search - name, role or Function - this page only"
                 className="w-full rounded-lg border border-hairline-strong bg-surface-soft py-2.5 pl-9 pr-8 text-[13.5px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red focus:bg-white"
               />
               {query && (

@@ -40,6 +40,12 @@ const EXPECTED: [string, string][] = [
   // Two branches each wrote a different answer here; this is what the merged
   // MODULE_ORDER and SHORTCUT_KEYS actually produce.
   ["operations", "D"],
+  // INCENTIVE, appended 2026-09-16, is the twelfth module and takes the twelfth
+  // and last key of the alphabet. It was APPENDED rather than slotted in beside
+  // Employees — where it belongs by subject — precisely so this table's first
+  // eleven rows did not move: an insert at index 10 would have re-lettered
+  // Employees and Operations for everyone already using them.
+  ["incentive", "F"],
 ];
 
 describe("module shortcuts — qwertyuiopdf", () => {
@@ -84,17 +90,18 @@ describe("module shortcuts — qwertyuiopdf", () => {
     // twelfth does not fail this on a number that was never the point.
     const last = MODULE_ORDER.length - 1;
     expect(moduleShortcutHint(0)).toBe("⌥Q");
-    expect(moduleShortcutHint(last)).toBe("⌥D");
+    expect(moduleShortcutHint(last)).toBe("⌥F");
     expect(moduleShortcutLabel(0)).toBe("Alt+Q");
-    expect(moduleShortcutLabel(last)).toBe("Alt+D");
+    expect(moduleShortcutLabel(last)).toBe("Alt+F");
     for (let i = 0; i < MODULE_ORDER.length; i++) {
       expect(moduleShortcutHint(i)).toHaveLength(2);
     }
   });
 
   it("ignores keys outside the alphabet", () => {
-    // "s" is in the alphabet but past the end of an eleven-module hub, so it
-    // resolves to nothing — exactly like a letter that was never in it.
+    // "s" is not in the alphabet at all — A and S were both vacated so the
+    // Admin Panel could hold A without shadowing a module. ("f" used to sit in
+    // this list as a letter past the end of the hub; it is Incentive's now.)
     for (const k of ["z", "n", "s", "1", "0", "", "Enter", "ArrowLeft"]) {
       expect(moduleForShortcut(k)).toBeUndefined();
     }

@@ -57,8 +57,8 @@ interface Patch {
    * It replaced the shift_types picker here for the same reason it did on
    * the table and in the workspace: that picker had no rows and nobody
    * assigned to it, while this is set for every employee. The old
-   * functionId field went the same way, with the department record taking
-   * the Function label.
+   * functionId field went the same way: migration 0234 moved the department
+   * rows into the `functions` table, so the Function is now that record.
    *
    * ⚠ It also decides PAY BASIS (lib/attendance/worker-type.ts), which is
    * why this one field carries a warning: applied in bulk it would move

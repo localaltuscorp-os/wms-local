@@ -15,7 +15,7 @@ interface Props {
 }
 
 /**
- * Checkbox list for assigning a person to several departments, with a star
+ * Checkbox list for assigning a person to several Functions, with a star
  * to mark exactly one as primary.  Checking the first department auto-marks
  * it primary; unchecking the primary moves the star to the first remaining
  * selection.
@@ -48,8 +48,8 @@ export function DepartmentMultiSelect({
   if (options.length === 0) {
     return (
       <p className="text-[13px] text-[#64748B]">
-        No departments yet — create them in{" "}
-        <span className="font-medium">/admin/departments</span> first.
+        No Functions yet — create them in{" "}
+        <span className="font-medium">/admin/functions</span> first.
       </p>
     );
   }
@@ -80,7 +80,7 @@ export function DepartmentMultiSelect({
               aria-pressed={isPrimary}
               title={
                 isPrimary
-                  ? "Primary department"
+                  ? "Primary Function"
                   : checked
                     ? "Set as primary"
                     : "Select first to set primary"

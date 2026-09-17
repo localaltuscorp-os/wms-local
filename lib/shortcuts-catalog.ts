@@ -68,6 +68,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: "Alt + O", does: "Training" },
       { keys: "Alt + P", does: "Employees" },
       { keys: "Alt + D", does: "Operations" },
+      { keys: "Alt + F", does: "Incentive" },
     ],
   },
   {

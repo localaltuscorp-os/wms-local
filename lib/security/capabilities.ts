@@ -117,6 +117,27 @@ export type SecurityCapability =
    */
   | "billing_entity.delete"
   /**
+   * MAY CHANGE INCENTIVE ELIGIBILITY — who is on the Incentive Chart.
+   *
+   * The brief: "Only Manan Vasa can change eligibility." Adding somebody to an
+   * incentive is deciding that they may earn money from it, which is why this
+   * is narrower than editing the incentive itself: an admin may correct a
+   * scheme's amount or description without also choosing who collects it.
+   *
+   * ── WHY A CAPABILITY, NOT `isFounderEmail` ───────────────────────────────
+   * The same reasoning as `billing_entity.delete` above, and it has already
+   * been proved right once: keyed off "the founder", a change of founder
+   * silently moves the authority, and a second person who one day shares it
+   * could only be added by making them a founder. Here it is one line in this
+   * table, visible in review. (`canReviewIncentives` in
+   * lib/auth/incentive-permissions.ts is the founder test, and it answers a
+   * different question — who decides a REQUEST.)
+   *
+   * Checked against both the real and the effective identity — see
+   * `mayManageIncentiveEligibility` in lib/incentive/eligibility-guard.ts.
+   */
+  | "incentive_eligibility.manage"
+  /**
    * May grant TEMPORARY DELEGATED ACCESS to any employee's account, regardless
    * of the reporting hierarchy.
    *
@@ -176,6 +197,12 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
      * and is not on this line; that is the intended asymmetry, not an omission.
      */
     "billing_entity.delete",
+    /**
+     * Changing who is eligible for an incentive. THE ONLY HOLDER — the brief
+     * names him alone, and being an admin with full Incentive Master edit
+     * rights is deliberately not enough.
+     */
+    "incentive_eligibility.manage",
   ],
 
   /**
@@ -361,3 +388,19 @@ export const ATTENDANCE_AUDIT_REFUSAL =
 
 export const BILLING_ENTITY_DELETE_REFUSAL =
   "Deleting a billing entity is restricted. Entity edit access does not include it.";
+
+/**
+ * MAY CHANGE WHO IS ELIGIBLE FOR AN INCENTIVE.
+ *
+ * Read by the eligibility actions that perform the change and, separately, by
+ * the page that decides whether to render the controls. The action is the
+ * boundary; hiding a checkbox is presentation.
+ *
+ * Fails CLOSED. An unknown address changes nobody's eligibility.
+ */
+export function canManageIncentiveEligibility(email: string | null | undefined): boolean {
+  return hasCapability(email, "incentive_eligibility.manage");
+}
+
+export const INCENTIVE_ELIGIBILITY_REFUSAL =
+  "Only Manan Vasa can change who is eligible for an incentive. Incentive Master edit access does not include it.";

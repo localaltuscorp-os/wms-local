@@ -130,7 +130,7 @@ export function DoneDashboardView({
           <h2 className="text-[15px] font-black uppercase tracking-[0.08em] text-ink-strong">
             Done by person
           </h2>
-          <CollapsibleSearch scope="name or department" className="size-9">
+          <CollapsibleSearch scope="name or Function" className="size-9">
           <div className="relative flex h-9 w-[240px] items-center rounded-lg border border-hairline bg-surface-card pl-2.5 pr-1.5 max-md:w-full">
             <Search className="size-3.5 shrink-0 text-ink-subtle" />
             <input
@@ -139,8 +139,8 @@ export function DoneDashboardView({
               onKeyDown={(e) => {
                 if (e.key === "Escape") setQuery("");
               }}
-              placeholder="Search name or department"
-              aria-label="Filter by employee name or department"
+              placeholder="Search name or Function"
+              aria-label="Filter by employee name or Function"
               className="min-w-0 flex-1 border-0 bg-transparent px-2 text-[13px] text-ink outline-none placeholder:text-ink-subtle"
             />
             {query && (

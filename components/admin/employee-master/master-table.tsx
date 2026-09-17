@@ -128,14 +128,17 @@ const COLUMNS: ColumnDef[] = [
    */
   { key: "employeeCode", label: "Employee Code", default: true, value: (r) => t(r.employeeCode), sort: (r) => codeSortValue(r.employeeCode) },
   /**
-   * FUNCTION — this is the DEPARTMENT record, relabelled.
+   * FUNCTION.
    *
    * Department and Function were two fields answering one question, and the one
    * with the data was Department: 18 values and ~27 memberships driving team
    * scoping and form audiences, against Function's zero rows and zero people.
-   * So the empty `function` column was removed and this one renamed, which
-   * keeps every existing assignment and needs no migration. `functionName` (the
-   * old, empty field) is no longer read anywhere in this table.
+   * This column relabelled the one with the data.
+   *
+   * Migration 0234 finished the job in the database: those 18 rows now LIVE in
+   * the `functions` table, with their original ids, and `employees.department_id`
+   * points there. So `departmentName` below is the Function, not a stand-in for
+   * it. The old empty `functionName` field is gone entirely.
    */
   { key: "function", label: "Function", default: true, value: (r) => t(r.departmentName), sort: (r) => (r.departmentName ?? "").toLowerCase() },
   { key: "entity", label: "Entity", default: true, value: (r) => t(r.entityName), sort: (r) => (r.entityName ?? "").toLowerCase() },
