@@ -89,7 +89,7 @@ export function getResend(): Resend | null {
   return cached;
 }
 
-export const FROM = process.env.RESEND_FROM_EMAIL || "Altus Corp Dashboard <onboarding@resend.dev>";
+export const FROM = "Altus Corp <noreply@altuscorp.in>";
 
 /**
  * D12 (WMS overhaul Phase 6) — company-record BCC. When `EMAIL_BCC_ADDRESS` is
@@ -102,8 +102,11 @@ export const FROM = process.env.RESEND_FROM_EMAIL || "Altus Corp Dashboard <onbo
  */
 export function companyBcc(): { bcc?: string[] } {
   const raw = process.env.EMAIL_BCC_ADDRESS?.trim();
-  if (!raw) return {};
-  const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  // The company archive is the DEFAULT, not an option — every outgoing
+  // correspondence is blind-copied to HR so management keeps a durable record,
+  // even if the env var was never set. A configured value still wins (and can
+  // be a comma-separated list).
+  const list = (raw || "hr.altuscorp@gmail.com").split(",").map((s) => s.trim()).filter(Boolean);
   return list.length > 0 ? { bcc: list } : {};
 }
 

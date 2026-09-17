@@ -89,6 +89,8 @@ async function LetterEditorLoader({
       id: r.id,
       name: r.name,
       email: r.email,
+      personalEmail: r.personalEmail,
+      officialEmail: r.officialEmail,
       designation: r.designation,
       payingEntity: r.payingEntity,
       // Everything the picker auto-fills into the letter's fields. Any of these

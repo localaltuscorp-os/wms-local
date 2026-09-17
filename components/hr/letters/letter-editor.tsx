@@ -151,6 +151,10 @@ export interface LetterRosterOption {
   designation: string;
   /** Their email on file — pre-fills the "Send Email" composer's To field. */
   email?: string;
+  /** The personal inbox the letter PDF is emailed TO. Falls back to `email`. */
+  personalEmail?: string;
+  /** The company address (firstname.lastname@<domain>), copied as CC. */
+  officialEmail?: string;
   /** The employee's paying entity (from their salary profile) as an EntityId —
    *  picking them auto-selects the matching letterhead. Null → keep the default. */
   payingEntity?: EntityId | null;
@@ -686,7 +690,9 @@ export function LetterEditor({
     const attached = employeeId ? roster.find((r) => r.id === employeeId) : undefined;
     const name = (attached?.name ?? recipientName).trim();
     setCompose({
-      to: (attached?.email ?? recipientEmail).trim(),
+      // Email the PERSONAL inbox (the address they actually check); the office
+      // address is added as CC server-side, not here.
+      to: (attached?.personalEmail || attached?.email || recipientEmail).trim(),
       subject: name ? `${template.title} - ${name}` : template.title,
       message: "",
     });
