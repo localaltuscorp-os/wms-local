@@ -1,14 +1,25 @@
 # HANDOFF — `Om` branch
 
-**Updated:** 2026-09-11
+**Updated:** 2026-09-17
 **Repo:** `https://github.com/localaltuscorp-os/wms-local` · branch `Om`
 **Audience:** whoever picks this up, and whoever runs the SQL in Supabase.
 
-> **Latest (15 September 2026): the Incentive module was reworked.** Read
-> [Incentive Module – Latest Changes](#incentive-module--latest-changes) at the
-> end of this file, and run [`incentive-production.sql`](./incentive-production.sql)
-> before deploying it. The sections directly below are the earlier device and
-> migration work from 11 September, unchanged.
+> **Latest (17 September 2026): Accounts integration, Billing scope, the breakup
+> letter and the dashboard, plus a live `reversed`-column bug fix.** The full
+> record is in [`Change-made/`](./Change-made/README.md) — one document per change,
+> the file inventory, and the SQL with its verification queries. Read that folder
+> rather than reconstructing anything from the diff. The summary is at the end of
+> this file under the 17 September heading.
+>
+> **Before deploying:** run [`Change-made/SQL/02-verify-production.sql`](./Change-made/SQL/02-verify-production.sql).
+> The Supabase database appears to be up to date already; confirm it rather than
+> assuming. Do **not** run `pnpm db:migrate` — see `Change-made/SQL/README.md`.
+
+> **Earlier (15 September 2026): the Incentive module was reworked.** Read
+> [Incentive Module – Latest Changes](#incentive-module--latest-changes) below, and
+> run [`incentive-production.sql`](./incentive-production.sql) before deploying it.
+> The sections directly below are the earlier device and migration work from
+> 11 September, unchanged.
 
 Three streams of work landed today. **None of the SQL has been run yet** — the
 code assumes tables and columns that do not exist in Supabase, so read §1 before
@@ -517,3 +528,119 @@ If the project's migration runner later lists `0229`–`0231` as pending, runnin
 `db/enums.ts` · `db/schema.ts` *(shared — it also holds the unrelated Employee / Billing Master changes)*
 
 **Tests:** 273 tests across the 6 incentive test files pass.
+
+---
+
+# 17 September 2026 — Accounts, scope, breakup letter, dashboard, and the `reversed` bug
+
+> **Everything below is documented in full in [`Change-made/`](./Change-made/README.md).**
+> That folder is the authoritative record: one document per change, the file
+> inventory, and the SQL to run with its verification queries. Read it instead of
+> reconstructing anything from the diff. This section is the summary and the
+> pointer to it.
+
+## 1. What was fixed
+
+**A live production bug.** `/incentive` was down. Every load died in a React error
+boundary with:
+
+```
+Error [PostgresError]: column "reversed" does not exist   (code 42703)
+```
+
+`db/schema.ts` declares `reversed`, `reversed_at` and `reversed_by_id` on
+`incentive_entries`, so Drizzle's `select()` expands to include them — but
+migration `0240_incentive_entry_reversal.sql`, which creates them, had never been
+applied. Fixed by applying that one migration with the targeted applier. No code
+changed.
+
+Two console warnings were fixed alongside it: recharts measuring `-1 × -1` because
+the Trends charts mounted inside a closed `<details>` (now mounted only when open),
+and the global `scroll-behavior: smooth` warning (now answered with
+`data-scroll-behavior="smooth"` on `<html>`).
+
+## 2. What was built
+
+| Area | What it does |
+|---|---|
+| **Accounts → Incentive Payments** | New page at `/accounts/incentive-payments`, listed **above Reimbursement** on the Accounts index. Per entry: Employee · Incentive · Incentive date · Approved/Due · Paid · Unpaid · Reversal adjustment · **Final payable** · Payment status · Paid on. A reversal offsets the payable and can push it negative — money to recover. Team/User scoped, enforced **in the SQL**, resolved by the same functions the Incentive Dashboard and Targets use. |
+| **Billing Team/User scope** | The Billing ledger was unscoped inside a scoped module. It now narrows by the same scope model, filtered **before** aggregation so the KPI cards cannot report company money under a User label. Hidden (not greyed) for a viewer with no team. |
+| **Breakup letter on the payment edge** | Mailed from the payout action's post-commit hook, reusing the existing breakup query and PDF renderer, so the inbox PDF is byte-identical to the downloadable one. Claimed in `incentive_notification_deliveries` under `breakup:<month>:<paid>` — a replay sends nothing, a genuine top-up does. Plus an "Incentive breakup letter" link in the viewer's own performance block. |
+| **Dashboard presentation** | The team summary bar is now a four-column layout at scanning size (figures `clamp(26px,2vw,34px)`, up from 20px) with a hairline rule before the grade spread and larger grade pills. Status KPI cards have a bigger figure (`clamp(24px,1.9vw,31px)`), a uniform 116px height, and the entry count promoted to its own bold line. |
+
+## 3. What was verified rather than rebuilt
+
+Most of the incentive brief was **already implemented** in the working tree.
+Checked end to end and left alone:
+
+- **Reversal → negative payable** — `app/(app)/incentive/reversal-actions.ts`
+  writes a negative `salary_payments` row (`method='reversal'`), an audit event,
+  under `FOR UPDATE` with a `reversed` duplicate guard, leaving the original
+  payment untouched.
+- **Sunday 11:00 IST report card** — `app/api/cron/incentive-weekly-report/route.ts`,
+  schedule `30 5 * * 0`, claim-based idempotency, per-recipient isolation, reusing
+  `buildIncentiveAnalytics` for every figure.
+- **Paid notice through the Entries editor** — `admin-actions.ts:153` already calls
+  `notifyIfPaidIncreased`. **`Incentive-Implementation-Audit.md` §9.3 records this
+  as an open gap; that line is stale.**
+- **The breakup document itself** — `lib/incentive/breakup.ts` + `breakup-pdf.ts`
+  + the on-demand route, already on the salary PDF house style.
+- **Incentive Master, eligibility guard, event-sourced notifications, split
+  incentives, exports, deep links, mobile API** — unchanged.
+
+## 4. Database
+
+**No schema was added by this work.** Everything it reads already exists.
+
+A live check of the Supabase database (`aws-0-ap-south-1.pooler.supabase.com`,
+the host in `.env.local`) on 17 September found all 15 required tables, all 26
+checked columns, `incentive_entries_reversed_idx`, and `0240` recorded in
+`__schema_applied`. So **the SQL has already been run there**.
+
+**Run [`Change-made/SQL/02-verify-production.sql`](./Change-made/SQL/02-verify-production.sql)**
+to confirm it. If production is a different database, run
+[`Change-made/SQL/01-apply-production.sql`](./Change-made/SQL/01-apply-production.sql)
+first — additive, idempotent, no row deleted. Its SECTION C
+(the `departments` → `functions` rename) **moves identity data and must not be run
+blindly**; read `Change-made/SQL/README.md` first.
+
+**One genuine gap, currently harmless:** `incentive_requests` is missing nine
+columns that `lib/ensure-incentive-schema.ts` lists (`amount`, `paid`, `paid_amt`,
+`paid_date`, `conditions`, `label`, `source`, `source_ref`, `archived`). No code
+path reads or writes them, so nothing breaks — it is the documented "the ledger
+can lie" case, and they are an optional block in the apply file.
+
+**Do not run `pnpm db:migrate`.** Its dry run reports 37 migrations pending,
+including five that are already applied and already recorded. Its own header warns
+it re-attempts `0029`–`0104` on a populated database.
+
+## 5. Verification
+
+```
+npx tsc --noEmit                 exit 0
+incentive + accounts tests       17 files, 514 tests passed
+full unit suite                  3528 tests: 3520 passed, 7 failed, 1 skipped
+```
+
+The 7 failures are pre-existing and unrelated (`delegated-access-authorization`,
+`device-exemption-login`, `done-on-time`, `global-search-provider`, `task-actions`,
+`task-stat-counts`). None of those files imports any module this work touched —
+checked by extracting each one's complete import graph. Detail in
+[`Change-made/07-files-changed.md`](./Change-made/07-files-changed.md).
+
+## 6. Open questions
+
+1. **Reversal sends the employee no notification.** Not asked for, but a silent
+   clawback is the same problem the Entries paid-notice fix addressed.
+2. **`createIncentiveEntry` and bulk import do not notify** — only the update path does.
+3. **The monthly digest cron has no delivery claim**, so a manual re-run re-sends it.
+4. **Split incentives still do not divide the payment.**
+5. **Two `nameKey` implementations exist** (identical today, a drift risk).
+6. **The payout page's `GREEN` / `GREEN_DEEP` constants hold red values.**
+
+## 7. Branch
+
+Nothing is committed on top of `639e165`. `origin/Om` is at that commit, so the
+first push needs `-u`. Deploy is gated by `scripts/assert-main-branch.mjs`, which
+refuses unless `HEAD` is `main` — **pushing `Om` does not deploy**; shipping
+requires a merge into `main`.
