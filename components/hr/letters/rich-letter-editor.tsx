@@ -1212,7 +1212,13 @@ const RLE_CSS = `
 }
 /* Toolbar - sticky, premium Google-Docs pill bar */
 .rle-toolbar{
-  position:sticky;top:8px;z-index:40;
+  /* top:8px used to be right, when the outer editing band (.alw-toolbar) sat at
+     top:60px below a sticky title band. That band is gone and .alw-toolbar now
+     pins at top:0, so 8px slid THIS toolbar up OVER the editing band — the band
+     (Paying Entity / Employee / Signed by) disappeared behind it as soon as you
+     scrolled, which read as "edit freely hides it when I scroll". 72px clears
+     the ~60px band plus a hair of air, so both toolbars stay visible, stacked. */
+  position:sticky;top:72px;z-index:40;
   display:flex;flex-wrap:nowrap;overflow-x:auto;align-items:center;justify-content:safe center;gap:2px;
   padding:6px 8px;
   background:rgba(255,255,255,.92);

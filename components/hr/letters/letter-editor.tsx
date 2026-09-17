@@ -9,6 +9,7 @@ import {
   Check,
   Building2,
   UserRound,
+  ContactRound,
   SquarePen,
   ArrowLeft,
   Save,
@@ -806,10 +807,39 @@ export function LetterEditor({
           </select>
         </label>
 
-        {/* Recipient picker — OUR employee list (roster). Quick-fills the name +
-            designation (and CTC ₹ figures for CTC letters) and attaches the
-            letter to that employee. Replaces the old Candidate + Attach-Employee
-            dropdowns. */}
+        {/* Recipient picker — two lists, because a letter is addressed to EITHER
+            a candidate (Selection / offer / rejection …) OR an employee
+            (appointment, appraisal, increment …). Picking a candidate seeds the
+            recipient-name field + the pronoun gender from their intake; picking
+            an employee quick-fills name + designation (+ CTC ₹ for CTC letters)
+            and attaches the letter to that employee. An employee is never
+            offered in the candidate list — they are already on staff, so a
+            Selection letter cannot go to them. */}
+        {isAdmin && candidates.length > 0 && (
+          <label className="alw-pick">
+            <ContactRound size={15} strokeWidth={2.2} aria-hidden />
+            <span className="alw-pick-label">Candidate</span>
+            <select
+              value={candidateId}
+              onChange={(e) => {
+                const id = e.target.value;
+                if (id) onPickCandidate(id);
+                else {
+                  setCandidateId("");
+                  setIssued(false);
+                }
+              }}
+              aria-label="Pick the candidate this letter is for"
+            >
+              <option value="">- pick a candidate -</option>
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {isAdmin && roster.length > 0 && (
           <label className="alw-pick">
             <UserRound size={15} strokeWidth={2.2} aria-hidden />

@@ -243,6 +243,10 @@
   align-items: center;
   gap: 7px;
   padding: 7px 13px;
+  /* Never squish: the top bar measures each tab's natural width and shows only
+     the ones that fit, so a tab that shrinks would make the measurement lie and
+     the rest overlap the right cluster instead of moving to "More". */
+  flex: none;
   border: 0;
   border-radius: 11px;
   background: none;
