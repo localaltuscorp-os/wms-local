@@ -7138,6 +7138,17 @@ export const candidateIntake = pgTable(
     // { interviewer?: EvaluationInstance, management?: EvaluationInstance }
     // (see lib/hr/candidate/evaluation-v2.ts). The old `evaluation` stays intact.
     evaluationV2: jsonb("evaluation_v2"),
+    /**
+     * MANAGEMENT ASSESSMENT — the third assessment blob on this row, added by
+     * migration 0159 and written by raw SQL from
+     * `app/(app)/hr/management-assessment-actions.ts` ever since.
+     *
+     * Declared here (2026-09-18) purely so it can be read and written TYPED: the
+     * candidate merge has to carry it across, and doing that through raw SQL in
+     * two more places would spread the string-typed column further. The existing
+     * raw-SQL writer is untouched and still works — both address one column.
+     */
+    managementAssessment: jsonb("management_assessment"),
     photoPath: text("photo_path"),
     signaturePath: text("signature_path"),
     /**

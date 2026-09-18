@@ -120,11 +120,26 @@ export async function saveEvaluationV2(
 
   try {
     const [cand] = await db
-      .select({ evaluationV2: candidateIntake.evaluationV2 })
+      .select({
+        evaluationV2: candidateIntake.evaluationV2,
+        mergedIntoId: candidateIntake.mergedIntoId,
+      })
       .from(candidateIntake)
       .where(eq(candidateIntake.id, candidateId))
       .limit(1);
     if (!cand) return { ok: false, error: "Candidate not found." };
+
+    // A RETIRED RECORD IS NOT WRITABLE. A browser that has been sitting on this
+    // candidate since before a merge would otherwise keep scoring a row that no
+    // picker lists any more — silently splitting the assessment from the record
+    // that now owns it. Free to check: the row is already being read.
+    if (cand.mergedIntoId) {
+      return {
+        ok: false,
+        error:
+          "This candidate was merged into another record. Reload and score them on the record that was kept.",
+      };
+    }
 
     // Stamp the acting employee on any override events missing an actor id.
     const stamp = (ev: OverrideEvent | null | undefined): OverrideEvent | null | undefined =>

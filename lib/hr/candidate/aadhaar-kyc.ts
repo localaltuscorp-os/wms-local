@@ -306,9 +306,18 @@ export function normalizeGender(g: string): string {
   return "";
 }
 
-/** Keep the last 10 digits of an Indian mobile number; "" if it isn't one. */
-export function normalizeMobile(m: string): string {
-  const digits = m.replace(/\D/g, "");
+/**
+ * Keep the last 10 digits of an Indian mobile number; "" if it isn't one.
+ *
+ * NULL-SAFE ON PURPOSE. The KYC path always hands it a string, but the CANDIDATE
+ * MATCHING path does not: `candidate_intake.mobile` is a nullable column, and a
+ * candidate created from a name alone has no number at all. This used to type as
+ * `(m: string)` and throw on null, so every caller had to remember the `?? ""` —
+ * and "" is what the caller wants anyway. Answering "" for nullish input is the
+ * same answer the type already implied for an empty string.
+ */
+export function normalizeMobile(m: string | null | undefined): string {
+  const digits = (m ?? "").replace(/\D/g, "");
   if (digits.length < 10) return "";
   return digits.slice(-10);
 }
