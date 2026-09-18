@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { getEntity, DEFAULT_ENTITY_ID, type Entity, type EntityId } from "@/lib/hr/entities";
 import { letterFontsUsedIn } from "@/lib/hr/letters/fonts";
+import { renderHtmlToPdf } from "@/lib/pdf/chromium";
 
 /**
  * HR LETTERS — server-only headless-Chromium PDF renderer for RICH ("Edit
@@ -333,56 +334,12 @@ html,body{margin:0;padding:0;background:#ffffff;}
 /* Chromium launch + render                                             */
 /* ------------------------------------------------------------------ */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-/** Candidate Windows Chrome / Edge executables for the dev fallback. */
-function windowsChromeCandidates(): string[] {
-  const pf = process.env["ProgramFiles"] || "C:\\Program Files";
-  const pfx86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
-  const local = process.env["LOCALAPPDATA"] || "";
-  const list = [
-    path.join(pf, "Google", "Chrome", "Application", "chrome.exe"),
-    path.join(pfx86, "Google", "Chrome", "Application", "chrome.exe"),
-    local ? path.join(local, "Google", "Chrome", "Application", "chrome.exe") : "",
-    path.join(pf, "Google", "Chrome Beta", "Application", "chrome.exe"),
-    path.join(pfx86, "Microsoft", "Edge", "Application", "msedge.exe"),
-    path.join(pf, "Microsoft", "Edge", "Application", "msedge.exe"),
-  ];
-  return list.filter(Boolean);
-}
-
-/** Launch a headless browser appropriate to the runtime. Throws on failure. */
-async function launchBrowser(): Promise<any> {
-  const puppeteer = await import("puppeteer-core");
-  const onVercel = !!process.env.VERCEL || process.env.NODE_ENV === "production";
-
-  if (onVercel) {
-    const chromium = (await import("@sparticuz/chromium")).default as any;
-    const executablePath = await chromium.executablePath();
-    return puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath,
-      headless: chromium.headless,
-    } as any);
-  }
-
-  // Local dev — prefer the installed Chrome via the "chrome" channel.
-  try {
-    return await puppeteer.launch({ channel: "chrome", headless: true } as any);
-  } catch {
-    // Fall back to a discovered Windows Chrome / Edge binary.
-    for (const candidate of windowsChromeCandidates()) {
-      if (existsSync(candidate)) {
-        return puppeteer.launch({ executablePath: candidate, headless: true } as any);
-      }
-    }
-    throw new Error(
-      "No Chrome/Chromium found for PDF rendering. Install Google Chrome (dev) " +
-        "or ensure @sparticuz/chromium is deployed (production).",
-    );
-  }
-}
+/*
+ * `launchBrowser` and the print step MOVED to lib/pdf/chromium.ts, where the
+ * policy renderer shares them. They are not merely relocated: the request
+ * interception there is a SECURITY control, and two copies of a security control
+ * is how the second copy drifts. Do not reintroduce a local launch here.
+ */
 
 /* ------------------------------------------------------------------ */
 /* Public entry                                                         */
@@ -424,65 +381,13 @@ export async function renderRichLetterPdf({
     fontFaceCss,
   });
 
-  let browser: any = null;
   try {
-    browser = await launchBrowser();
-    const page = await browser.newPage();
-
-    // ── SSRF / exfiltration hardening ──────────────────────────────────────
-    // The body HTML is user-authored (the "Edit freely" letter). Without this,
-    // headless Chromium would execute any injected <script> and fetch any
-    // sub-resource from the SERVER's network position — SSRF to internal hosts /
-    // cloud metadata, file:// reads, and beaconing out. We:
-    //   1) disable JavaScript entirely (a printed letter needs none), and
-    //   2) intercept every request and allow ONLY `data:` URIs (our inlined
-    //      letterhead/fonts/images) and the Supabase signed-URL host (legit
-    //      inline letter images resolved by resolveInlineImages). Everything
-    //      else — http/https to any other host, file:, blob:, internal IPs — is
-    //      aborted.
-    await page.setJavaScriptEnabled(false);
-    const supabaseHost = (() => {
-      try {
-        return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").host;
-      } catch {
-        return "";
-      }
-    })();
-    await page.setRequestInterception(true);
-    page.on("request", (r: any) => {
-      const url: string = r.url();
-      if (url.startsWith("data:")) return void r.continue();
-      try {
-        const host = new URL(url).host;
-        if (supabaseHost && host === supabaseHost) return void r.continue();
-      } catch {
-        /* unparseable → block */
-      }
-      return void r.abort();
-    });
-
-    // `networkidle0` waited for ALL sub-resource loads (part of the SSRF risk).
-    // With interception in place only allowlisted resources load; `load` is
-    // sufficient and avoids hanging on aborted requests.
-    await page.setContent(html, { waitUntil: "load" });
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: "0", right: "0", bottom: "0", left: "0" },
-    });
-    return new Uint8Array(pdf);
+    // The browser launch, the JavaScript-off policy and the request allowlist all
+    // live in lib/pdf/chromium.ts now, shared with the policy renderer.
+    return await renderHtmlToPdf(html);
   } catch (err) {
     throw new Error(
       `Rich letter PDF render failed: ${err instanceof Error ? err.message : String(err)}`,
     );
-  } finally {
-    if (browser) {
-      try {
-        await browser.close();
-      } catch {
-        /* ignore close errors */
-      }
-    }
   }
 }
