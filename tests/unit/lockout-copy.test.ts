@@ -39,8 +39,15 @@ describe("what the sign-in screen says about a lockout", () => {
     expect(wrongPasswordMessage(-1)).toBe(LOCKED_MESSAGE);
   });
 
-  it("names the four unlockers, and says Forgot Password will not help", () => {
-    expect(UNLOCKER_NAMES).toBe("Mohit, Rohan, Jeevan or Manan");
+  it("points at a role, not at named people, and says Forgot Password will not help", () => {
+    // No names on the sign-in screen: the unlock role is granted in the app, so
+    // a hardcoded list of names goes stale, and it tells anyone who reaches the
+    // login page which accounts are worth attacking.
+    expect(UNLOCKER_NAMES).toBe("your WMS administrator");
+    for (const name of ["Mohit", "Rohan", "Jeevan", "Manan"]) {
+      expect(LOCKED_MESSAGE, name).not.toContain(name);
+      expect(RESET_BLOCKED_MESSAGE, name).not.toContain(name);
+    }
     expect(LOCKED_MESSAGE).toContain(UNLOCKER_NAMES);
     expect(LOCKED_MESSAGE).toContain(String(MAX_FAILED_ATTEMPTS));
     expect(LOCKED_MESSAGE).toMatch(/Forgot password/i);

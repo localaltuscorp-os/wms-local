@@ -84,6 +84,18 @@ describe("only role holders can unlock", () => {
     expect(page).not.toContain("requireAdmin");
   });
 
+  it("offers the screen in the avatar menu, gated on the role and the REAL person", () => {
+    // Without a link the page is reachable only by typing the URL, so a holder
+    // never discovers it. Gated on `canUnlockAccounts`, not `isAdmin`, and
+    // resolved from the signed-in person so a delegated session cannot borrow
+    // the authority to release locks.
+    const menu = read("components/header/user-menu.tsx");
+    expect(menu).toContain("/account-locks");
+    expect(menu).toContain("{canUnlockAccounts && (");
+    const server = read("components/header/user-menu-server.tsx");
+    expect(server).toContain("mayUnlockAccounts(real)");
+  });
+
   it("re-checks in the server action, which is what actually writes", () => {
     const actions = read("app/(app)/account-locks/actions.ts");
     const check = actions.indexOf("mayUnlockAccounts(me)");

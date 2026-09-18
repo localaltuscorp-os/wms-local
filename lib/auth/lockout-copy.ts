@@ -11,8 +11,13 @@ import { MAX_FAILED_ATTEMPTS } from "./unlock-permission";
  * included because the sentence that matters most is the last one before a lock.
  */
 
-/** Who to ask, in the order the requirement named them. */
-export const UNLOCKER_NAMES = "Mohit, Rohan, Jeevan or Manan";
+/**
+ * Who to ask. Deliberately NOT a list of names: the people who hold the unlock
+ * role change (it is granted in Settings → Account Locks, not in code), and a
+ * sign-in screen is the one place in the app a stranger can read, so it should
+ * not publish who the privileged accounts are.
+ */
+export const UNLOCKER_NAMES = "your WMS administrator";
 
 /** The countdown begins at this many attempts remaining. */
 export const WARN_FROM_REMAINING = 3;

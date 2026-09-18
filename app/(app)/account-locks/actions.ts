@@ -18,7 +18,7 @@ export type LockStateResult =
   | { ok: false; error: string };
 
 const NOT_ALLOWED = `You need the “${SECURITY_ROLE_DEFS.account_unlock.label}” role to do that.`;
-const CANNOT_GRANT = "Only Mohit, Rohan, Jeevan, Manan or a super-admin can hand out this role.";
+const CANNOT_GRANT = "Only a permanent unlocker or a super-admin can hand out this role.";
 
 /**
  * Release a locked account.

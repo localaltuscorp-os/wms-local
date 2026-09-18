@@ -110,7 +110,7 @@ attempt 1 → 401  Wrong password. Try again, or reset it below.
 attempt 2 → 401  Wrong password. 3 attempts left before your account locks.
 attempt 3 → 401  Wrong password. 2 attempts left before your account locks.
 attempt 4 → 401  Wrong password. 1 attempt left — the next wrong password locks your account.
-attempt 5 → 423  locked, naming Mohit, Rohan, Jeevan or Manan
+attempt 5 → 423  locked, pointing at "your WMS administrator" (no names)
 attempt 6 → 423  still locked
 ```
 
