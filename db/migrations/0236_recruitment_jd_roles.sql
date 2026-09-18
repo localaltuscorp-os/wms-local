@@ -50,7 +50,7 @@ begin
     select con.conname from pg_constraint con
       join pg_class rel on rel.oid = con.conrelid
      where rel.relname = 'recruitment_jds' and con.contype = 'u'
-       and pg_get_constraintdef(con) like '%(position_id)%'
+       and pg_get_constraintdef(con.oid) like '%(position_id)%'
   loop
     execute format('alter table recruitment_jds drop constraint %I', c);
   end loop;

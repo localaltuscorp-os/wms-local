@@ -1,6 +1,6 @@
 -- ============================================================================
 --  VERIFY — read-only, ONE query (the editor only shows the last result).
---  Run BEFORE and AFTER db/RUN-IN-SUPABASE-MAIN-MISSING-0204-0235.sql.
+--  Run BEFORE and AFTER db/RUN-IN-SUPABASE-MAIN-MISSING-0204-0236.sql.
 --  After the run every row should say PASS (row 6 only if you ran PART 3).
 -- ============================================================================
 with
@@ -14,7 +14,9 @@ expected_columns(tbl, col) as (values
     ('jd_entries','owner_employee_id'),
     ('project_nodes','approval_status'),
     ('project_nodes','progress_percent'),
-    ('project_nodes','status')
+    ('project_nodes','status'),
+    ('recruitment_jds','slug'),
+    ('recruitment_jds','title')
 ),
 checks(ord, check_name, ok, detail) as (
   select 1, 'Right project (about 280+ public tables)',
@@ -30,7 +32,7 @@ checks(ord, check_name, ok, detail) as (
          not exists (select 1 from expected_tables where to_regclass('public.' || name) is null),
          coalesce((select 'missing: ' || string_agg(name, ', ') from expected_tables where to_regclass('public.' || name) is null), 'none missing')
   union all
-  select 4, 'All 9 new columns exist (PART 2)',
+  select 4, 'All 11 new columns exist (PART 2)',
          not exists (select 1 from expected_columns c where not exists (select 1 from information_schema.columns i where i.table_schema = 'public' and i.table_name = c.tbl and i.column_name = c.col)),
          coalesce((select 'missing: ' || string_agg(c.tbl || '.' || c.col, ', ') from expected_columns c where not exists (select 1 from information_schema.columns i where i.table_schema = 'public' and i.table_name = c.tbl and i.column_name = c.col)), 'none missing')
   union all
