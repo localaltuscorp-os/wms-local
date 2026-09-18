@@ -74,10 +74,10 @@ describe("a locked account cannot reset its own password", () => {
   });
 });
 
-describe("only the four named people can unlock", () => {
-  it("gates the screen on the unlocker list, not on admin", () => {
+describe("only role holders can unlock", () => {
+  it("gates the screen on the role, not on admin", () => {
     const page = read("app/(app)/account-locks/page.tsx");
-    expect(page).toContain("canUnlockAccounts(me.email)");
+    expect(page).toContain("mayUnlockAccounts(me)");
     expect(page).toContain("notFound()");
     // NOT under /admin: that area redirects anyone without is_admin, and Jeevan
     // is not an admin.
@@ -86,9 +86,20 @@ describe("only the four named people can unlock", () => {
 
   it("re-checks in the server action, which is what actually writes", () => {
     const actions = read("app/(app)/account-locks/actions.ts");
-    const check = actions.indexOf("canUnlockAccounts");
-    const write = actions.indexOf("unlockAccount(");
+    const check = actions.indexOf("mayUnlockAccounts(me)");
+    const write = actions.indexOf("unlockAccount(email");
     expect(check).toBeGreaterThan(-1);
     expect(check).toBeLessThan(write);
+  });
+
+  it("keeps handing the role out narrower than holding it", () => {
+    const actions = read("app/(app)/account-locks/actions.ts");
+    // Granting is gated on mayGrantSecurityRoles (the four + super-admins), so a
+    // role cannot hand itself out and spread without anyone deciding to.
+    for (const fn of ["grantUnlockRoleAction", "revokeUnlockRoleAction"]) {
+      const at = actions.indexOf(fn);
+      expect(at, fn).toBeGreaterThan(-1);
+      expect(actions.slice(at, at + 400)).toContain("mayGrantSecurityRoles(me)");
+    }
   });
 });

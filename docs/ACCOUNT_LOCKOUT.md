@@ -39,6 +39,44 @@ path can also lock people out.
 
 ---
 
+## Who can unlock: an assignable ROLE (2026-09-18)
+
+The requirement first named four people, then asked for "one more additional
+role … we will just give them role and they can do it". So unlocking is now a
+role somebody can be **given in the app**, with no code change and no deploy.
+
+**The role list is code; the grants are data.** `lib/auth/security-roles-catalog.ts`
+defines `account_unlock`; `security_role_grants` (migration 0238) records who
+holds it. A role nobody enforces would be a switch wired to nothing, so adding a
+role stays a code change — handing it out does not. This is the same split
+`lib/permissions/catalog.ts` documents for the permission tree.
+
+### Why none of the three existing mechanisms fit
+
+| Mechanism | Why not |
+|---|---|
+| `module_permissions` (0219) | A RESTRICT system: with no row the resolver answers `allowAll()`. Unlocking would be open to everybody until each person was switched off. |
+| `lib/security/capabilities.ts` | Grants by email **in code** — right for capabilities that must not move without review, but it means a developer and a deploy for every new unlocker. |
+| `employees.is_admin` | One flag for everything an admin does, and the sets differ: **Jeevan is not an admin**, while Om, Rutvisha, Shreya and Vinal are. "Admins only" would have handed it to four more people and taken it from Jeevan. |
+
+### The rules
+
+- **The four named addresses are a floor in code** and cannot be revoked from the
+  screen. A lockout feature whose release valve can be switched off in a UI can
+  lock the whole company out.
+- **Holding the role ≠ handing it out.** Granting is limited to those four plus
+  super-admins (`mayGrantSecurityRoles`), so the role cannot spread by itself.
+- **A holder can never be locked out**, by grant or by code floor — otherwise five
+  wrong passwords against each holder would leave nobody able to release anybody.
+- **Grants fail CLOSED**: an unreadable `security_role_grants` hands the role to
+  nobody, while the lockout reads deliberately fail OPEN so a database hiccup
+  cannot lock out the company. Opposite defaults, on purpose.
+- Every grant and revoke is recorded in `security_role_events` with who did it.
+
+Managed on **/account-locks** → "Who can unlock accounts": pick a person, Give
+role. Verified on production data: Jeevan (a granted holder, not an admin) is
+exempt after five failures while a non-holder locks at five.
+
 ## Phases 2–4 — what shipped (2026-09-18)
 
 | File | |

@@ -2,11 +2,11 @@ import "server-only";
 
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { emailHoldsAccountUnlock } from "@/lib/auth/security-roles";
 import { accountLockouts, employees, loginAttemptIps } from "@/db/schema";
 import {
   FAILED_ATTEMPT_WINDOW_MS,
   MAX_FAILED_ATTEMPTS,
-  isLockoutExempt,
   remainingAttempts,
 } from "@/lib/auth/unlock-permission";
 
@@ -22,10 +22,10 @@ import {
  * decline to increment is not a control. These functions are therefore reached
  * ONLY from the server-side sign-in route, which holds the credential exchange.
  *
- * NOTHING CALLS THIS YET. It ships ahead of the route deliberately — migration
- * first, then helpers, then behaviour — because the reverse order is what caused
- * the 2026-09-09 login outage, where code that selected a column shipped before
- * the migration that created it.
+ * REACHED FROM app/api/auth/login/route.ts (the server-side credential
+ * exchange) and from the Forgot Password guard. Who may release a lock is the
+ * `account_unlock` role — the four addresses named in lib/auth/unlock-permission.ts
+ * plus anyone granted it since (lib/auth/security-roles.ts, migration 0238).
  */
 
 /** What the sign-in route needs to know before it decides what to say. */
@@ -73,7 +73,11 @@ function windowLapsed(lastFailedAt: Date | null): boolean {
  */
 export async function getLockoutState(emailInput: string): Promise<LockoutState> {
   const email = normalise(emailInput);
-  if (isLockoutExempt(email)) return { email, ...UNLOCKED };
+  // Holders of the `account_unlock` role are never locked — the four named in
+  // code, plus anyone they have since granted it to (migration 0238). If every
+  // holder could be locked, five wrong passwords against each would leave
+  // nobody able to release anybody.
+  if (await emailHoldsAccountUnlock(email)) return { email, ...UNLOCKED };
 
   const [row] = await db
     .select()
@@ -125,8 +129,8 @@ export async function recordFailedAttempt(
 
   // The four who can unlock are never locked: if all of them were locked at
   // once — and their addresses are guessable — nobody could release anybody.
-  // See isLockoutExempt for the trade-off.
-  if (isLockoutExempt(email)) {
+  // See lib/auth/security-roles.ts for the trade-off.
+  if (await emailHoldsAccountUnlock(email)) {
     if (opts.ip) await recordIpFailure(opts.ip);
     return { email, ...UNLOCKED };
   }

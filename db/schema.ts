@@ -8625,3 +8625,45 @@ export const loginAttemptIps = pgTable(
 );
 
 export type LoginAttemptIp = typeof loginAttemptIps.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assignable security roles (migration 0238) — the role LIST lives in
+// lib/auth/security-roles-catalog.ts so every role is one a route enforces;
+// these rows are who HOLDS one. See the migration for why neither
+// module_permissions (restrict-by-default) nor the code-only capability table
+// fits: this has to be grantable from the app, without a deploy.
+// ─────────────────────────────────────────────────────────────────────────────
+export const securityRoleGrants = pgTable(
+  "security_role_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** A key from SECURITY_ROLES. Text on purpose — a new role is a code change, not a migration. */
+    role: text("role").notNull(),
+    grantedById: uuid("granted_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("security_role_grants_employee_role_uniq").on(t.employeeId, t.role),
+    index("security_role_grants_role_idx").on(t.role),
+  ],
+);
+export type SecurityRoleGrant = typeof securityRoleGrants.$inferSelect;
+
+/** Who gave or took a role away. Kept when the grant itself is revoked. */
+export const securityRoleEvents = pgTable(
+  "security_role_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    role: text("role").notNull(),
+    /** granted | revoked */
+    action: text("action").notNull(),
+    actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("security_role_events_role_idx").on(t.role, t.occurredAt.desc())],
+);
+export type SecurityRoleEvent = typeof securityRoleEvents.$inferSelect;
