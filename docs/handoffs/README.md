@@ -63,7 +63,25 @@ re-sync the sequences, or the next insert fails with a duplicate-key error on a
 column the application never sets. (Check the id type first — a `uuid` default
 has no counter and needs nothing.)
 
-## Four more traps, learned 18 September 2026
+## Six more traps, learned 18 September 2026
+
+**`tsc` and 2900 passing tests do not mean it builds.** A route handler needs HTML
+from a React component, so it imported `renderToStaticMarkup` from
+`react-dom/server` — and `next build` refuses that outright:
+
+```
+x You're importing a component that imports react-dom/server.
+```
+
+The check walks the **whole chain** from the route, so moving the import into its
+own component-free file does not help. What does is a **dynamic** import inside
+the function (`await import("react-dom/server")`), which keeps it out of the
+static graph. Typecheck passed, the full suite passed, and it failed only on
+Vercel. **Run `pnpm build` before pushing anything that touches how a route
+renders.** Locally it will then stop at "collecting page data" for an unrelated
+route because `.env.local` has no `NEXT_PUBLIC_SUPABASE_*` — compilation
+succeeding is the signal you want; the env failure is expected and does not
+happen on Vercel.
 
 **A CSS rule can be a system-wide bug, and it will look like a page bug.** Wheel
 scrolling died on every screen with a wide table, and looked per-page for weeks.

@@ -3,7 +3,7 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderReactToHtml } from "@/lib/pdf/server-render";
 import { PolicyDocument } from "@/components/hr/policies/policy-document";
 import type { Entity } from "@/lib/hr/entities";
 import type { PolicyDoc } from "@/lib/hr/policies/types";
@@ -172,7 +172,10 @@ export async function buildPolicyHtml({
   doc: PolicyDoc;
   entity: Entity;
 }): Promise<string> {
-  const markup = renderToStaticMarkup(<PolicyDocument doc={doc} entity={entity} />);
+  // `renderReactToHtml` rather than `renderToStaticMarkup` directly: importing
+  // `react-dom/server` into THIS file (which contains JSX) fails `next build`.
+  // See lib/pdf/server-render.ts.
+  const markup = await renderReactToHtml(<PolicyDocument doc={doc} entity={entity} />);
   const [bodyHtml, css] = await Promise.all([inlinePublicAssets(markup), fontCss()]);
 
   // `@page` is already declared by the letterhead's own print CSS; repeating it
