@@ -21,9 +21,9 @@ export default async function PersonJdMasterPage({
 }: {
   searchParams: Promise<{ person?: string }>;
 }) {
-  await requireWorkspace("operations");
-  const [{ entries, positions, ranks, people, holders, demo }, sp] = await Promise.all([
-    loadJdBank(),
+  const me = await requireWorkspace("operations");
+  const [{ entries, positions, ranks, people, holders, events, rosters, demo }, sp] = await Promise.all([
+    loadJdBank(me),
     searchParams,
   ]);
 
@@ -36,6 +36,8 @@ export default async function PersonJdMasterPage({
         ranks={ranks}
         people={people}
         holders={holders}
+        events={events}
+        rosters={rosters}
         initialPersonId={sp.person ?? null}
       />
     </PageShell>

@@ -31,6 +31,7 @@ export type JdSortKey =
   | "sr"
   | "position"
   | "function"
+  | "client"
   | "category"
   | "task"
   | "frequency"
@@ -49,6 +50,9 @@ export interface JdSortableRow {
   positionTitle: string;
   functionKey: string;
   task: string;
+  /** Optional so rows built before 0237 (tests, demo data) still sort. */
+  client?: string | null;
+  /** The Subject. */
   category: string | null;
   notesHtml: string | null;
   estimatedMinutes: number;
@@ -59,6 +63,8 @@ export interface JdSortableRow {
   pushWms: boolean;
   pushEvent: boolean;
   assignees: string[];
+  /** Uploaded SOP files — counted with the three links. */
+  files?: readonly unknown[];
 }
 
 /* Generic over the caller's row, so `describeFrequency` receives the REAL row
@@ -70,9 +76,9 @@ export interface JdSortContext<T extends JdSortableRow = JdSortableRow> {
   describeFrequency: (row: T) => string;
 }
 
-/** How many of the three SOP slots this JD actually has. */
+/** How many SOP attachments this JD has — its links plus its uploaded files. */
 export function attachmentCount(r: JdSortableRow): number {
-  return (r.videoUrl ? 1 : 0) + (r.guidelinesUrl ? 1 : 0) + (r.templateUrl ? 1 : 0);
+  return (r.videoUrl ? 1 : 0) + (r.guidelinesUrl ? 1 : 0) + (r.templateUrl ? 1 : 0) + (r.files?.length ?? 0);
 }
 
 /** How many checklists this JD is pushed to. */
@@ -129,6 +135,8 @@ export function sortJdRows<T extends JdSortableRow>(
         return r.positionTitle;
       case "function":
         return ctx.labelOfFunction(r.functionKey);
+      case "client":
+        return r.client?.trim() || null;
       case "category":
         return r.category?.trim() || null;
       case "task":

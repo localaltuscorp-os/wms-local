@@ -11,13 +11,17 @@ export function MastersHeader({
   topic,
   title,
   description,
+  beside,
   actions,
 }: {
   Icon: LucideIcon;
   /** The topic this master sits under — omitted on the overview. */
   topic?: string;
   title: string;
-  description: string;
+  /** Optional — JD-For Recruitment was asked to go without one (2026-09-18). */
+  description?: string;
+  /** Right beside the title — Checklist Masters puts its master picker here. */
+  beside?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
@@ -41,8 +45,11 @@ export function MastersHeader({
             <Icon className="h-5 w-5" />
           </span>
           <div className="mr-auto min-w-0">
-            <h1 className="text-[22px] font-black tracking-tight text-slate-900">{title}</h1>
-            <p className="text-[13px] text-slate-500">{description}</p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <h1 className="text-[22px] font-black tracking-tight text-slate-900">{title}</h1>
+              {beside}
+            </div>
+            {description && <p className="text-[13px] text-slate-500">{description}</p>}
           </div>
           {actions}
         </div>

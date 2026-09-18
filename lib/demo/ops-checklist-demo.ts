@@ -20,7 +20,10 @@ interface Data {
   people: ChecklistPersonRow[];
   events: ChecklistEventRow[];
   templates: ChecklistTemplateRow[];
-  templateItems: Record<string, Omit<ChecklistItemRow, "status" | "notes" | "doneAt">[]>;
+  templateItems: Record<
+    string,
+    Omit<ChecklistItemRow, "status" | "notes" | "doneAt" | "approverStatus" | "approverNotes">[]
+  >;
   runs: ChecklistRunRow[];
   items: Record<string, ChecklistItemRow[]>;
 }
@@ -67,11 +70,16 @@ function row(
     instructions: null,
     fileLink: null,
     jdEntryId: null,
+    client: null,
+    initiatorId: null,
+    recurrenceRule: null,
     sortOrder: n * 10,
     isActive: true,
-    status: "Pending" as CheckStatus,
+    status: "not_started" as CheckStatus,
     notes: null,
     doneAt: null,
+    approverStatus: null,
+    approverNotes: null,
     ...extra,
   };
 }
@@ -82,7 +90,7 @@ function done(
   actual: string,
   notes: string | null = null,
 ): ChecklistItemRow {
-  return { ...r, status: "Done", doneAt: `${actual}T10:30:00.000Z`, notes };
+  return { ...r, status: "done", doneAt: `${actual}T10:30:00.000Z`, notes };
 }
 
 function seed(): Data {
@@ -107,10 +115,10 @@ function seed(): Data {
     done(row(1, "Fix the date and book the auditorium", -30, "Rakesh Mehta", "Aarti Deshpande"), shiftYmd(today, -12)),
     done(row(2, "Circulate the theme and dress code on the group", -25, "Aarti Deshpande", "Priya Nair"), shiftYmd(today, -9)),
     done(row(3, "Collect headcount confirmations from every function", -21, "Priya Nair", "Sneha Kulkarni"), shiftYmd(today, -2), "Apps team still 4 short - chasing."),
-    { ...row(4, "Finalise the caterer and sign the quote", -14, "Sneha Kulkarni", "Kunal Joshi"), status: "Need Help", notes: "Two quotes 18% apart - need Rakesh to pick." },
+    { ...row(4, "Finalise the caterer and sign the quote", -14, "Sneha Kulkarni", "Kunal Joshi"), status: "need_info", notes: "Two quotes 18% apart - need Rakesh to pick." },
     row(5, "Order trophies and the long-service mementoes", -12, "Kunal Joshi", "Om Trivedi"),
     row(6, "Print the programme and the name badges", -7, "Om Trivedi", "Rudra Shah"),
-    { ...row(7, "Arrange transport for the Pune office", -5, "Rohan Choudhary", "Manan Vasa"), status: "Not Applicable", notes: "Pune office is attending on video this year." },
+    { ...row(7, "Arrange transport for the Pune office", -5, "Rohan Choudhary", "Manan Vasa"), status: "not_started", approverStatus: "cancelled", notes: "Pune office is attending on video this year." },
     row(8, "Rehearsal - sound, lights, running order", -2, "Manan Vasa", "Vinal Patil"),
     row(9, "Stage set-up and AV check", -1, "Vinal Patil", "Rudra Shah"),
     row(10, "Registration desk open from 09:30", 0, "Priya Nair", "Aarti Deshpande"),
@@ -129,14 +137,14 @@ function seed(): Data {
     done(row(5, "Print and sign the greeting cards", -7, "Aarti Deshpande", "Priya Nair"), shiftYmd(today, -14)),
     done(row(6, "Sort hampers by delivery route", -3, "Om Trivedi", "Rohan Choudhary"), shiftYmd(today, -13)),
     done(row(7, "Dispatch - courier outstation, hand delivery in the city", 0, "Rohan Choudhary", "Om Trivedi"), shiftYmd(today, -9)),
-    { ...row(8, "Confirm every delivery landed", 2, "Priya Nair", "Aarti Deshpande"), status: "Need Help", notes: "Three Nashik deliveries unconfirmed - courier not answering." },
+    { ...row(8, "Confirm every delivery landed", 2, "Priya Nair", "Aarti Deshpande"), status: "need_info", notes: "Three Nashik deliveries unconfirmed - courier not answering." },
     done(row(9, "File the bills with Accounts", 5, "Sneha Kulkarni", "Kunal Joshi"), shiftYmd(today, -3)),
   ];
 
   const auditItems: ChecklistItemRow[] = [
     done(row(1, "Confirm the audit date with the certifying body", -21, "Manan Vasa", "Rakesh Mehta"), shiftYmd(today, -18)),
     done(row(2, "Internal audit of every clause", -14, "Om Trivedi", "Rudra Shah"), shiftYmd(today, -8)),
-    { ...row(3, "Close last year's non-conformities", -10, "Rudra Shah", "Om Trivedi"), status: "Need Help", notes: "NC-3 needs a signed process change." },
+    { ...row(3, "Close last year's non-conformities", -10, "Rudra Shah", "Om Trivedi"), status: "need_info", notes: "NC-3 needs a signed process change." },
     row(4, "Refresh the document register", -7, "Priya Nair", "Sneha Kulkarni"),
     row(5, "Brief every department head", -3, "Rakesh Mehta", "Manan Vasa"),
     row(6, "Opening meeting, 09:00", 0, "Rakesh Mehta", "Om Trivedi"),
@@ -207,7 +215,7 @@ function seed(): Data {
   ];
 
   const strip = (r: ChecklistItemRow) => {
-    const { status: _s, notes: _n, doneAt: _d, ...rest } = r;
+    const { status: _s, notes: _n, doneAt: _d, approverStatus: _a, approverNotes: _an, ...rest } = r;
     return rest;
   };
 
@@ -333,9 +341,11 @@ export function demoCreateRun(v: {
   d.items[id] = from.map((r) => ({
     ...r,
     id: demoId("demo-item"),
-    status: "Pending" as CheckStatus,
+    status: "not_started" as CheckStatus,
     notes: null,
     doneAt: null,
+    approverStatus: null,
+    approverNotes: null,
   }));
   return id;
 }
@@ -390,11 +400,16 @@ export function demoCreateItem(v: {
     instructions: null,
     fileLink: null,
     jdEntryId: null,
+    client: null,
+    initiatorId: null,
+    recurrenceRule: null,
     sortOrder: (list.at(-1)?.sortOrder ?? 0) + 10,
     isActive: true,
-    status: "Pending",
+    status: "not_started",
     notes: null,
     doneAt: null,
+    approverStatus: null,
+    approverNotes: null,
   });
   return id;
 }
@@ -414,6 +429,9 @@ export function demoUpdateItem(v: Record<string, unknown> & { id: string }): boo
       "fileLink",
       "category",
       "code",
+      "client",
+      "initiatorId",
+      "recurrenceRule",
     ] as const) {
       if (v[k] !== undefined) (it as unknown as Record<string, unknown>)[k] = v[k];
     }
@@ -444,7 +462,7 @@ export function demoRemoveItem(id: string): boolean {
 
 export function demoSetCheck(v: {
   itemId: string;
-  status: CheckStatus;
+  status?: CheckStatus;
   notes?: string | null;
   doneAt?: string | null;
 }): boolean {
@@ -452,20 +470,47 @@ export function demoSetCheck(v: {
   for (const list of Object.values(d.items)) {
     const it = list.find((i) => i.id === v.itemId);
     if (!it) continue;
-    it.status = v.status;
     if (v.notes !== undefined) it.notes = v.notes;
+    if (v.status === undefined) return true;
+    it.status = v.status;
     if (v.doneAt !== undefined) {
       it.doneAt = v.doneAt;
-    } else if (v.status === "Done" && !it.doneAt) {
+    } else if (v.status === "done" && !it.doneAt) {
       it.doneAt = new Date().toISOString();
-    } else if (v.status !== "Done") {
+    } else if (v.status !== "done") {
       // Un-ticking clears the actual date, or the row reads as completed on a
       // day nobody completed it.
       it.doneAt = null;
+      if (it.approverStatus === "approved" || it.approverStatus === "not_approved") it.approverStatus = null;
     }
     return true;
   }
   return false;
+}
+
+export function demoSetApprover(v: {
+  itemId: string;
+  approverStatus?: string | null;
+  approverNotes?: string | null;
+}): boolean {
+  const d = store.get();
+  for (const list of Object.values(d.items)) {
+    const it = list.find((i) => i.id === v.itemId);
+    if (!it) continue;
+    if (v.approverStatus !== undefined) it.approverStatus = v.approverStatus;
+    if (v.approverNotes !== undefined) it.approverNotes = v.approverNotes;
+    return true;
+  }
+  return false;
+}
+
+/** The demo row, for the approver check. */
+export function demoFindItem(itemId: string): ChecklistItemRow | null {
+  for (const list of Object.values(store.get().items)) {
+    const it = list.find((i) => i.id === itemId);
+    if (it) return it;
+  }
+  return null;
 }
 
 export function demoSaveRunAsTemplate(runId: string, name: string): string | null {
@@ -482,6 +527,8 @@ export function demoSaveRunAsTemplate(runId: string, name: string): string | nul
     isActive: true,
     itemCount: rows.length,
   });
-  d.templateItems[id] = rows.map(({ status: _s, notes: _n, doneAt: _d, ...rest }) => rest);
+  d.templateItems[id] = rows.map(
+    ({ status: _s, notes: _n, doneAt: _d, approverStatus: _a, approverNotes: _an, ...rest }) => rest,
+  );
   return id;
 }

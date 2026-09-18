@@ -69,6 +69,9 @@ export function DccQuickNav() {
           );
         })}
 
+        {/* Sample data covers the SP1 dashboard and the masters. WCC and MCC
+            read the real checklists only, so the switch is not offered there. */}
+        {!(pathname.startsWith("/dcc/wcc") || pathname.startsWith("/dcc/mcc")) && (
         <Link
           href={toggleHref}
           aria-pressed={demo}
@@ -86,6 +89,7 @@ export function DccQuickNav() {
           <FlaskConical className="h-3.5 w-3.5" aria-hidden />
           {demo ? "Sample data — show real" : "Sample data"}
         </Link>
+        )}
       </div>
     </nav>
   );

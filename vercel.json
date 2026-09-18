@@ -38,6 +38,14 @@
       "schedule": "30 16 * * *"
     },
     {
+      "path": "/api/cron/compliance-reminders?job=daily",
+      "schedule": "31 16 * * *"
+    },
+    {
+      "path": "/api/cron/compliance-reminders?job=founder",
+      "schedule": "32 16 * * 3,6"
+    },
+    {
       "path": "/api/cron/calendar-sync",
       "schedule": "20 3 * * *"
     },

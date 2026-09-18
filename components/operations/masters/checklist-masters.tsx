@@ -3,7 +3,18 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArrowRight, Copy, ListChecks, Loader2, Plus, Search, Trash2, X } from "lucide-react";
+import {
+  Archive,
+  ArrowRight,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  FileSpreadsheet,
+  ListChecks,
+  Plus,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import type {
   ChecklistMasterItem,
@@ -20,9 +31,12 @@ import {
   phaseFor,
   type ChecklistPhase,
 } from "@/lib/operations/checklist-dates";
-import { CategoryInput, distinctCategories } from "@/components/operations/category-input";
+import { SubjectSelect } from "@/components/tasks/subject-select";
+import { ColumnGrip, headShadow, useColumnDrag, useSavedColumnOrder } from "@/components/ui/column-drag";
+import { ChecklistTaskDialog } from "@/components/operations/checklist/checklist-task-dialog";
+import { ChecklistBulkUpload } from "@/components/operations/checklist/checklist-bulk-upload";
+import { NewMasterDialog, TypeBadge, TypeToggle } from "@/components/operations/masters/checklist-master-picker";
 import {
-  createChecklistTemplate,
   createTemplateItem,
   duplicateChecklistTemplate,
   removeChecklistItem,
@@ -33,13 +47,20 @@ import {
 /**
  * CHECKLIST MASTERS — the reusable checklists, edited directly.
  *
- * Masters on the left (search, new), the open master on the right: its name,
- * type and description, then its rows. Rows save per cell on blur, like the
- * checklist grid — a master is edited a line at a time, and a whole-form Save
- * would lose one person's edit to another's refresh.
+ * Which master is open is a dropdown beside the page heading
+ * (checklist-master-picker.tsx); this is the open master, across the full
+ * width: its name, type and description, then its rows. Rows save per cell on
+ * blur, like the checklist grid — a master is edited a line at a time, and a
+ * whole-form Save would lose one person's edit to another's refresh.
+ *
+ * The rows are the checklist grid's twin (account holder, 2026-09-18): grouped
+ * Before / During / After on an event-linked master, "+ Add task" and Bulk
+ * upload on each group's bar, and columns each person can drag into their own
+ * order.
  */
 
 const ACCENT = "#B91C1C";
+const ACCENT_DEEP = "#A80400";
 const BASE = "/operations/masters/checklist";
 
 const CELL =
@@ -79,149 +100,112 @@ export function ChecklistMasters({
   items,
   people,
   canEdit,
+  meId,
+  subjects = [],
+  canAddRoster = false,
 }: {
   templates: ChecklistTemplateRow[];
   selected: ChecklistTemplateRow | null;
   items: ChecklistMasterItem[];
   people: ChecklistPersonRow[];
   canEdit: boolean;
+  /** Whose column order to remember. */
+  meId: string;
+  /** The WMS Tasks subject roster (Admin Panel → Subjects) — the Subject column's choices. */
+  subjects?: string[];
+  /** May this viewer add a subject to the roster from the picker? */
+  canAddRoster?: boolean;
 }) {
-  const [query, setQuery] = React.useState("");
-  const [creating, setCreating] = React.useState(canEdit && templates.length === 0);
+  const [creating, setCreating] = React.useState(false);
 
-  const q = query.trim().toLowerCase();
-  const shown = q
-    ? templates.filter(
-        (t) => t.name.toLowerCase().includes(q) || (t.description ?? "").toLowerCase().includes(q),
-      )
-    : templates;
-
-  return (
-    <div className="grid items-start gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
-      <aside className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 lg:sticky lg:top-4">
-        <div className="flex items-center justify-between gap-2 px-1">
-          <h2 className="text-[12px] font-bold uppercase tracking-wider text-slate-500">
-            Masters <span className="text-slate-400">{templates.length}</span>
-          </h2>
-          {canEdit && (
+  if (!selected) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
+        <ListChecks className="mx-auto h-8 w-8 text-slate-300" />
+        <p className="mt-2 text-[14px] font-semibold text-slate-700">
+          {templates.length === 0 ? "No master checklists yet" : "No master open"}
+        </p>
+        <p className="mt-1 text-[13px] text-slate-500">
+          A master is a reusable checklist. Build it once here; every new checklist copies its rows.
+          {!canEdit && templates.length === 0 && " An admin creates these."}
+        </p>
+        {canEdit && (
+          <>
             <button
               type="button"
-              onClick={() => setCreating((c) => !c)}
-              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-white"
+              onClick={() => setCreating(true)}
+              className="mt-4 inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-semibold text-white"
               style={{ background: ACCENT }}
             >
-              {creating ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-              {creating ? "Close" : "New master"}
+              <Plus className="h-4 w-4" /> New master
             </button>
-          )}
-        </div>
-
-        {creating && <NewMasterForm onDone={() => setCreating(false)} />}
-
-        {templates.length > 0 && (
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search masters"
-              className="w-full rounded-lg border border-slate-300 py-2 pl-8 pr-3 text-[13px]"
-            />
-          </div>
+            <NewMasterDialog open={creating} onOpenChange={setCreating} />
+          </>
         )}
-
-        <ul className="flex max-h-[62vh] flex-col gap-1 overflow-y-auto">
-          {shown.map((t) => {
-            const active = t.id === selected?.id;
-            return (
-              <li key={t.id}>
-                <Link
-                  href={`${BASE}?t=${t.id}`}
-                  aria-current={active ? "page" : undefined}
-                  className={`block rounded-xl border px-3 py-2.5 transition-colors ${
-                    active ? "border-red-200 bg-red-50" : "border-transparent hover:bg-slate-50"
-                  }`}
-                >
-                  <span className="block truncate text-[13.5px] font-semibold text-slate-900">{t.name}</span>
-                  <span className="mt-1 flex items-center gap-2 text-[11.5px] text-slate-500">
-                    <TypeBadge isEvent={t.isEvent} />
-                    {t.itemCount} row{t.itemCount === 1 ? "" : "s"}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-
-        {templates.length === 0 && (
-          <p className="px-2 py-3 text-[12.5px] text-slate-500">
-            No master checklists yet.{canEdit ? " Create the first one above." : " An admin creates these."}
-          </p>
-        )}
-        {templates.length > 0 && shown.length === 0 && (
-          <p className="px-2 py-3 text-[12.5px] text-slate-500">Nothing matches “{query}”.</p>
-        )}
-      </aside>
-
-      <section className="min-w-0">
-        {selected ? (
-          <MasterDetail master={selected} items={items} people={people} canEdit={canEdit} />
-        ) : (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
-            <ListChecks className="mx-auto h-8 w-8 text-slate-300" />
-            <p className="mt-2 text-[14px] font-semibold text-slate-700">No master open</p>
-            <p className="mt-1 text-[13px] text-slate-500">
-              A master is a reusable checklist. Build it once here; every new checklist copies its rows.
-            </p>
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-/* ── New master ───────────────────────────────────────────────────────────── */
-
-function NewMasterForm({ onDone }: { onDone: () => void }) {
-  const router = useRouter();
-  const { busy, run } = useAction();
-  const [name, setName] = React.useState("");
-  const [isEvent, setIsEvent] = React.useState(true);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const res = await run(() => createChecklistTemplate({ name, isEvent }), "Master created.");
-    if (res && res.ok) {
-      onDone();
-      router.push(`${BASE}?t=${res.id}`);
-    }
+      </div>
+    );
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500" htmlFor="new-master-name">
-        Name
-      </label>
-      <input
-        id="new-master-name"
-        autoFocus
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="e.g. Annual Day — standard plan"
-        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px]"
-      />
-      <TypeToggle isEvent={isEvent} onChange={setIsEvent} />
-      <button
-        type="submit"
-        disabled={busy || !name.trim()}
-        className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
-        style={{ background: ACCENT }}
-      >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-        Create master
-      </button>
-    </form>
+    <MasterDetail
+      master={selected}
+      items={items}
+      people={people}
+      canEdit={canEdit}
+      meId={meId}
+      subjects={subjects}
+      canAddRoster={canAddRoster}
+    />
   );
+}
+
+/* ── The columns ──────────────────────────────────────────────────────────── */
+
+type MasterCol = "sr" | "activity" | "subject" | "day" | "doer" | "backup" | "instructions" | "fileLink";
+
+const MASTER_COLUMNS: readonly MasterCol[] = [
+  "sr",
+  "activity",
+  "subject",
+  "day",
+  "doer",
+  "backup",
+  "instructions",
+  "fileLink",
+];
+
+/** The headings — the WMS words, as the checklist grid spells them. */
+const MASTER_LABEL: Record<MasterCol, string> = {
+  sr: "S. No.",
+  activity: "Task",
+  subject: "Subject",
+  day: "Day",
+  doer: "Doer",
+  backup: "Backup",
+  instructions: "Instructions",
+  fileLink: "File link",
+};
+
+const MASTER_WIDTH: Record<MasterCol, number> = {
+  sr: 84,
+  activity: 330,
+  subject: 190,
+  day: 150,
+  doer: 190,
+  backup: 190,
+  instructions: 260,
+  fileLink: 220,
+};
+const DELETE_COL = 56;
+
+/** A heading pinned to the top of the scroll box; its rule is a shadow (see headShadow). */
+const STICKY_HEAD =
+  "group/head sticky top-0 z-20 bg-slate-50 px-0 py-0 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500";
+
+/** The Day a task added from a group's bar starts on. */
+function phaseOffset(phase: ChecklistPhase | null, isEvent: boolean): number | null {
+  if (!isEvent || !phase || phase === "undated") return null;
+  return phase === "before" ? -1 : phase === "during" ? 0 : 1;
 }
 
 /* ── One master ───────────────────────────────────────────────────────────── */
@@ -231,15 +215,20 @@ function MasterDetail({
   items,
   people,
   canEdit,
+  meId,
+  subjects,
+  canAddRoster,
 }: {
   master: ChecklistTemplateRow;
   items: ChecklistMasterItem[];
   people: ChecklistPersonRow[];
   canEdit: boolean;
+  meId: string;
+  subjects: string[];
+  canAddRoster: boolean;
 }) {
   const router = useRouter();
   const { busy, run } = useAction();
-  const categories = React.useMemo(() => distinctCategories(items), [items]);
   const nameOf = React.useMemo(() => new Map(people.map((p) => [p.id, p.name])), [people]);
   const phaseCounts = React.useMemo(() => {
     const c: Record<ChecklistPhase, number> = { before: 0, during: 0, after: 0, undated: 0 };
@@ -247,6 +236,36 @@ function MasterDetail({
     return c;
   }, [items]);
   const withDoer = items.filter((i) => i.doerId).length;
+
+  /* Column order — each person's own, kept in their browser. Day only exists
+     on an event-linked master; its place in the order is kept either way. */
+  const columns = useSavedColumnOrder(`altus.checklist-masters.columnOrder.v1:${meId}`, MASTER_COLUMNS);
+  const drag = useColumnDrag(columns.order, columns.save);
+  const cols = columns.order.filter((k) => k !== "day" || master.isEvent);
+  const colSpan = cols.length + (canEdit ? 1 : 0);
+  const tableWidth = cols.reduce((n, k) => n + MASTER_WIDTH[k], 0) + (canEdit ? DELETE_COL : 0);
+
+  /* Groups — Before / During / After on an event-linked master, as on the
+     checklist grid; one list on a standing one. */
+  const groups: { key: ChecklistPhase; label: string; rows: ChecklistMasterItem[] }[] = master.isEvent
+    ? PHASE_ORDER.filter((p) => p !== "undated" || phaseCounts.undated > 0).map((p) => ({
+        key: p,
+        label: PHASE_LABELS[p],
+        rows: items.filter((i) => phaseFor(i.offsetDays) === p),
+      }))
+    : [{ key: "undated", label: "All tasks", rows: items }];
+  const [collapsed, setCollapsed] = React.useState<Set<ChecklistPhase>>(new Set());
+  const toggle = (p: ChecklistPhase) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+
+  const [adding, setAdding] = React.useState<ChecklistPhase | null>(null);
+  const [bulkFor, setBulkFor] = React.useState<ChecklistPhase | null>(null);
+  const groupLabel = (p: ChecklistPhase | null) => (p && master.isEvent ? PHASE_LABELS[p] : null);
 
   const saveMaster = (patch: { name?: string; isEvent?: boolean; description?: string | null }) =>
     run(() => updateChecklistTemplate({ id: master.id, ...patch }));
@@ -269,7 +288,117 @@ function MasterDetail({
     if (res) router.push(BASE);
   }
 
-  const colCount = 7 + (master.isEvent ? 1 : 0) + (canEdit ? 1 : 0);
+  /** One row's cells by column, so the row follows the dragged order. */
+  function cellsOf(it: ChecklistMasterItem, n: number): Record<MasterCol, React.ReactNode> {
+    return {
+      sr: (
+        <td key="sr" className="px-3 py-2.5 tabular-nums text-slate-400">
+          {n}
+        </td>
+      ),
+      activity: (
+        <td key="activity" className="px-1.5 py-1">
+          {canEdit ? (
+            <TextCell
+              value={it.title}
+              required
+              ariaLabel="Task"
+              onCommit={(v) => v && void saveRow(it.id, { title: v })}
+              className={`${CELL} font-medium`}
+            />
+          ) : (
+            <ReadCell>{it.title}</ReadCell>
+          )}
+        </td>
+      ),
+      subject: (
+        <td key="subject" className="px-1.5 py-1">
+          {canEdit ? (
+            <SubjectSelect
+              value={it.category ?? ""}
+              subjects={subjects}
+              canAdd={canAddRoster}
+              placeholder="—"
+              onChange={(v) => void saveRow(it.id, { category: v })}
+              className={CELL}
+            />
+          ) : (
+            <ReadCell>{it.category ?? "—"}</ReadCell>
+          )}
+        </td>
+      ),
+      day: (
+        <td key="day" className="px-1.5 py-1">
+          {canEdit ? (
+            <OffsetCell value={it.offsetDays} onCommit={(v) => void saveRow(it.id, { offsetDays: v })} />
+          ) : (
+            <ReadCell>{formatOffset(it.offsetDays)}</ReadCell>
+          )}
+          <span className="block px-2 text-[10.5px] font-semibold text-slate-400">
+            {PHASE_LABELS[phaseFor(it.offsetDays)]}
+          </span>
+        </td>
+      ),
+      doer: (
+        <td key="doer" className="px-1.5 py-1">
+          {canEdit ? (
+            <PersonSelect value={it.doerId} people={people} ariaLabel="Doer" onChange={(v) => void saveRow(it.id, { doerId: v })} />
+          ) : (
+            <ReadCell>{it.doerId ? (nameOf.get(it.doerId) ?? "—") : "—"}</ReadCell>
+          )}
+        </td>
+      ),
+      backup: (
+        <td key="backup" className="px-1.5 py-1">
+          {canEdit ? (
+            <PersonSelect
+              value={it.backupId}
+              people={people}
+              exclude={it.doerId}
+              ariaLabel="Backup"
+              onChange={(v) => void saveRow(it.id, { backupId: v })}
+            />
+          ) : (
+            <ReadCell>{it.backupId ? (nameOf.get(it.backupId) ?? "—") : "—"}</ReadCell>
+          )}
+        </td>
+      ),
+      instructions: (
+        <td key="instructions" className="px-1.5 py-1">
+          {canEdit ? (
+            <TextCell
+              value={it.instructions}
+              ariaLabel="Instructions"
+              placeholder="—"
+              onCommit={(v) => void saveRow(it.id, { instructions: v })}
+              className={CELL}
+            />
+          ) : (
+            <ReadCell>{it.instructions ?? "—"}</ReadCell>
+          )}
+        </td>
+      ),
+      fileLink: (
+        <td key="fileLink" className="px-1.5 py-1">
+          {canEdit ? (
+            <TextCell
+              value={it.fileLink}
+              ariaLabel="File link"
+              placeholder="https://…"
+              onCommit={(v) => void saveRow(it.id, { fileLink: v })}
+              className={CELL}
+            />
+          ) : it.fileLink ? (
+            <a href={it.fileLink} target="_blank" rel="noreferrer" className="block truncate px-2 py-1.5 text-blue-700 underline">
+              Open
+            </a>
+          ) : (
+            <ReadCell>—</ReadCell>
+          )}
+        </td>
+      ),
+    };
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -338,273 +467,186 @@ function MasterDetail({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-        <table className="w-full min-w-[1080px] text-[13px]">
+      {columns.reordered && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-[12.5px] text-slate-600">
+          <span>Columns in your own order — drag a heading by its grip to move it.</span>
+          <button
+            type="button"
+            onClick={columns.reset}
+            className="ml-auto inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <RotateCcw className="h-3 w-3" /> Reset columns
+          </button>
+        </div>
+      )}
+
+      {/* Its own scroll box, both ways, with the headings pinned — the grid's. */}
+      <div
+        className="table-scroll table-scroll-bold overflow-auto rounded-2xl border border-slate-200 bg-white"
+        style={{ maxHeight: "max(420px, calc(100vh - 230px))", overscrollBehaviorY: "auto" }}
+      >
+        <table className="border-collapse text-[13px]" style={{ tableLayout: "fixed", width: tableWidth }}>
+          <colgroup>
+            {cols.map((k) => (
+              <col key={k} style={{ width: MASTER_WIDTH[k] }} />
+            ))}
+            {canEdit && <col style={{ width: DELETE_COL }} />}
+          </colgroup>
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              <th className="w-10 px-3 py-2.5 text-right">#</th>
-              <th className="min-w-[240px] px-3 py-2.5">Activity</th>
-              <th className="w-40 px-3 py-2.5">Category</th>
-              {master.isEvent && <th className="w-28 px-3 py-2.5">Day</th>}
-              <th className="w-44 px-3 py-2.5">Doer</th>
-              <th className="w-44 px-3 py-2.5">Backup</th>
-              <th className="min-w-[180px] px-3 py-2.5">Instructions</th>
-              <th className="w-44 px-3 py-2.5">File link</th>
-              {canEdit && <th className="w-12 px-2 py-2.5" />}
+            <tr>
+              {cols.map((k) => (
+                <th
+                  key={k}
+                  scope="col"
+                  className={STICKY_HEAD}
+                  {...drag.headProps(k)}
+                  style={{ boxShadow: headShadow(drag.edge(k)), opacity: drag.dragging === k ? 0.45 : 1 }}
+                >
+                  <span className="flex items-center gap-1 whitespace-nowrap py-3 pl-1.5 pr-3">
+                    <ColumnGrip label={MASTER_LABEL[k]} {...drag.gripProps(k)} />
+                    {MASTER_LABEL[k]}
+                  </span>
+                </th>
+              ))}
+              {canEdit && <th className={STICKY_HEAD} style={{ boxShadow: headShadow(null) }} />}
             </tr>
           </thead>
           <tbody>
-            {items.length === 0 ? (
-              <tr>
-                <td colSpan={colCount} className="px-4 py-10 text-center text-[13px] text-slate-500">
-                  No rows yet.{canEdit ? " Add the first activity below." : ""}
-                </td>
-              </tr>
-            ) : (
-              items.map((it, i) => (
-                <tr key={it.id} className="border-b border-slate-100 align-top last:border-0">
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-400">{i + 1}</td>
-                  <td className="px-1.5 py-1">
-                    {canEdit ? (
-                      <TextCell
-                        value={it.title}
-                        required
-                        ariaLabel="Activity"
-                        onCommit={(v) => v && void saveRow(it.id, { title: v })}
-                        className={`${CELL} font-medium`}
-                      />
-                    ) : (
-                      <ReadCell>{it.title}</ReadCell>
-                    )}
-                  </td>
-                  <td className="px-1.5 py-1">
-                    {canEdit ? (
-                      <CategoryInput
-                        value={it.category}
-                        suggestions={categories}
-                        onCommit={(v) => void saveRow(it.id, { category: v })}
-                        className={CELL}
-                      />
-                    ) : (
-                      <ReadCell>{it.category ?? "—"}</ReadCell>
-                    )}
-                  </td>
-                  {master.isEvent && (
-                    <td className="px-1.5 py-1">
-                      {canEdit ? (
-                        <OffsetCell value={it.offsetDays} onCommit={(v) => void saveRow(it.id, { offsetDays: v })} />
-                      ) : (
-                        <ReadCell>{formatOffset(it.offsetDays)}</ReadCell>
-                      )}
-                      <span className="block px-2 text-[10.5px] font-semibold text-slate-400">
-                        {PHASE_LABELS[phaseFor(it.offsetDays)]}
-                      </span>
+            {groups.map((g) => {
+              const isShut = collapsed.has(g.key);
+              return (
+                <React.Fragment key={g.key}>
+                  {/* The group's bar: open / shut, "+ Add task" and Bulk upload. */}
+                  <tr>
+                    <td
+                      colSpan={colSpan}
+                      className="cursor-pointer p-0"
+                      style={{ background: "#FEF2F2" }}
+                      onClick={() => toggle(g.key)}
+                    >
+                      <div className="sticky left-0 flex w-max items-center gap-2 px-3 py-1.5">
+                        <button
+                          type="button"
+                          aria-expanded={!isShut}
+                          className="inline-flex h-7 items-center gap-2 text-[11px] font-semibold uppercase tracking-wider"
+                          style={{ color: ACCENT_DEEP }}
+                        >
+                          {isShut ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                          {g.label}
+                          <span className="font-normal normal-case tracking-normal opacity-70">
+                            · {g.rows.length} {g.rows.length === 1 ? "task" : "tasks"}
+                          </span>
+                        </button>
+                        {canEdit && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAdding(g.key);
+                              }}
+                              title={`Add a task${master.isEvent ? ` to ${g.label}` : ""}`}
+                              className="ml-2 inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[12px] font-bold text-white shadow-sm hover:brightness-110"
+                              style={{ background: "linear-gradient(135deg, #B91C1C, #A80400)" }}
+                            >
+                              <Plus className="h-3.5 w-3.5" strokeWidth={2.6} /> Add task
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setBulkFor(g.key);
+                              }}
+                              title="Add many tasks at once from an Excel sheet"
+                              className="inline-flex h-7 items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 text-[12px] font-semibold text-slate-700 hover:bg-red-50"
+                            >
+                              <FileSpreadsheet className="h-3.5 w-3.5" /> Bulk upload
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
+                  </tr>
+
+                  {!isShut &&
+                    g.rows.map((it, i) => {
+                      const cells = cellsOf(it, i + 1);
+                      return (
+                        <tr key={it.id} className="border-b border-slate-100 align-top last:border-0 hover:bg-slate-50/60">
+                          {cols.map((k) => cells[k])}
+                          {canEdit && (
+                            <td className="px-2 py-1.5">
+                              <button
+                                type="button"
+                                aria-label={`Remove ${it.title}`}
+                                disabled={busy}
+                                onClick={() => {
+                                  if (window.confirm(`Remove “${it.title}” from this master?`)) {
+                                    void run(() => removeChecklistItem({ id: it.id }), "Row removed.");
+                                  }
+                                }}
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+
+                  {!isShut && g.rows.length === 0 && (
+                    <tr>
+                      <td colSpan={colSpan} className="px-3 py-3 text-slate-400">
+                        <span className="sticky left-3">
+                          Nothing here yet.{canEdit ? " Use + Add task or Bulk upload on the bar above." : ""}
+                        </span>
+                      </td>
+                    </tr>
                   )}
-                  <td className="px-1.5 py-1">
-                    {canEdit ? (
-                      <PersonSelect
-                        value={it.doerId}
-                        people={people}
-                        ariaLabel="Doer"
-                        onChange={(v) => void saveRow(it.id, { doerId: v })}
-                      />
-                    ) : (
-                      <ReadCell>{it.doerId ? nameOf.get(it.doerId) ?? "—" : "—"}</ReadCell>
-                    )}
-                  </td>
-                  <td className="px-1.5 py-1">
-                    {canEdit ? (
-                      <PersonSelect
-                        value={it.backupId}
-                        people={people}
-                        exclude={it.doerId}
-                        ariaLabel="Backup"
-                        onChange={(v) => void saveRow(it.id, { backupId: v })}
-                      />
-                    ) : (
-                      <ReadCell>{it.backupId ? nameOf.get(it.backupId) ?? "—" : "—"}</ReadCell>
-                    )}
-                  </td>
-                  <td className="px-1.5 py-1">
-                    {canEdit ? (
-                      <TextCell
-                        value={it.instructions}
-                        ariaLabel="Instructions"
-                        placeholder="—"
-                        onCommit={(v) => void saveRow(it.id, { instructions: v })}
-                        className={CELL}
-                      />
-                    ) : (
-                      <ReadCell>{it.instructions ?? "—"}</ReadCell>
-                    )}
-                  </td>
-                  <td className="px-1.5 py-1">
-                    {canEdit ? (
-                      <TextCell
-                        value={it.fileLink}
-                        ariaLabel="File link"
-                        placeholder="https://…"
-                        onCommit={(v) => void saveRow(it.id, { fileLink: v })}
-                        className={CELL}
-                      />
-                    ) : it.fileLink ? (
-                      <a href={it.fileLink} target="_blank" rel="noreferrer" className="block truncate px-2 py-1.5 text-blue-700 underline">
-                        Open
-                      </a>
-                    ) : (
-                      <ReadCell>—</ReadCell>
-                    )}
-                  </td>
-                  {canEdit && (
-                    <td className="px-2 py-1.5">
-                      <button
-                        type="button"
-                        aria-label={`Remove ${it.title}`}
-                        disabled={busy}
-                        onClick={() => {
-                          if (window.confirm(`Remove “${it.title}” from this master?`)) {
-                            void run(() => removeChecklistItem({ id: it.id }), "Row removed.");
-                          }
-                        }}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))
-            )}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      {canEdit && <AddRowForm master={master} people={people} categories={categories} />}
-    </div>
-  );
-}
-
-/* ── Add a row ────────────────────────────────────────────────────────────── */
-
-function AddRowForm({
-  master,
-  people,
-  categories,
-}: {
-  master: ChecklistTemplateRow;
-  people: ChecklistPersonRow[];
-  categories: readonly string[];
-}) {
-  const { busy, run } = useAction();
-  const listId = React.useId();
-  const titleRef = React.useRef<HTMLInputElement>(null);
-  const [title, setTitle] = React.useState("");
-  const [category, setCategory] = React.useState("");
-  const [offset, setOffset] = React.useState("");
-  const [doerId, setDoerId] = React.useState("");
-  const [backupId, setBackupId] = React.useState("");
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const offsetDays = master.isEvent ? parseOffset(offset) : null;
-    if (master.isEvent && offset.trim() && offsetDays === null) {
-      fireToast({ message: `Day must be a whole number from ${OFFSET_MIN} to ${OFFSET_MAX} (e.g. -3, 0, +1).`, type: "error" });
-      return;
-    }
-    const res = await run(
-      () =>
-        createTemplateItem({
-          templateId: master.id,
-          title,
-          category: category.trim() || null,
-          offsetDays,
-          doerId: doerId || null,
-          backupId: backupId || null,
-        }),
-      "Row added.",
-    );
-    if (res) {
-      // Day, doer and backup stay: rows are usually entered in runs that share them.
-      setTitle("");
-      setCategory("");
-      titleRef.current?.focus();
-    }
-  }
-
-  const input = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px]";
-
-  return (
-    <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <p className="mb-3 text-[12px] font-bold uppercase tracking-wider text-slate-500">Add a row</p>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,2fr)_1fr_110px_1fr_1fr_auto]">
-        <input
-          ref={titleRef}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Activity"
-          aria-label="Activity"
-          className={input}
-        />
-        <input
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          placeholder="Category"
-          aria-label="Category"
-          list={listId}
-          className={input}
-        />
-        <datalist id={listId}>
-          {categories.map((c) => (
-            <option key={c} value={c} />
-          ))}
-        </datalist>
-        {master.isEvent ? (
-          <input
-            value={offset}
-            onChange={(e) => setOffset(e.target.value)}
-            placeholder="Day, e.g. -3"
-            aria-label="Day relative to the event"
-            inputMode="numeric"
-            className={input}
+      {canEdit && (
+        <>
+          <ChecklistTaskDialog
+            open={adding !== null}
+            onOpenChange={(o) => !o && setAdding(null)}
+            target="master"
+            isEvent={master.isEvent}
+            defaultOffset={phaseOffset(adding, master.isEvent)}
+            groupLabel={groupLabel(adding)}
+            containerName={master.name}
+            people={people}
+            subjects={subjects}
+            canAddRoster={canAddRoster}
+            onAdd={async (v) => {
+              const res = await createTemplateItem({ templateId: master.id, ...v });
+              if (!res.ok) return res;
+              if (adding) setCollapsed((prev) => (prev.has(adding) ? new Set([...prev].filter((p) => p !== adding)) : prev));
+              router.refresh();
+              return { ok: true };
+            }}
           />
-        ) : (
-          <span className="hidden xl:block" />
-        )}
-        <select value={doerId} onChange={(e) => setDoerId(e.target.value)} aria-label="Doer" className={input}>
-          <option value="">Doer —</option>
-          {people.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        <select value={backupId} onChange={(e) => setBackupId(e.target.value)} aria-label="Backup" className={input}>
-          <option value="">Backup —</option>
-          {people
-            .filter((p) => p.id !== doerId)
-            .map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-        </select>
-        <button
-          type="submit"
-          disabled={busy || !title.trim()}
-          className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
-          style={{ background: ACCENT }}
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          Add
-        </button>
-      </div>
-      {master.isEvent && (
-        <p className="mt-2 text-[12px] text-slate-500">
-          Day is counted from the event: -3 is three days before, 0 is the event day, +1 the day after.
-        </p>
+          <ChecklistBulkUpload
+            open={bulkFor !== null}
+            onOpenChange={(o) => !o && setBulkFor(null)}
+            target="master"
+            ownerId={master.id}
+            containerName={master.name}
+            isEvent={master.isEvent}
+            defaultOffset={phaseOffset(bulkFor, master.isEvent)}
+            groupLabel={groupLabel(bulkFor)}
+            people={people}
+            subjects={subjects}
+          />
+        </>
       )}
-    </form>
+    </div>
   );
 }
 
@@ -729,49 +771,6 @@ function PersonSelect({
 
 function ReadCell({ children }: { children: React.ReactNode }) {
   return <span className="block px-2 py-1.5 text-slate-700">{children}</span>;
-}
-
-function TypeBadge({ isEvent }: { isEvent: boolean }) {
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${
-        isEvent ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"
-      }`}
-    >
-      {isEvent ? "Event-linked" : "Standing"}
-    </span>
-  );
-}
-
-function TypeToggle({
-  isEvent,
-  onChange,
-  disabled = false,
-}: {
-  isEvent: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-}) {
-  const option = (v: boolean, label: string, hint: string) => (
-    <button
-      type="button"
-      title={hint}
-      disabled={disabled}
-      aria-pressed={isEvent === v}
-      onClick={() => onChange(v)}
-      className={`rounded-md px-2.5 py-1 text-[12px] font-semibold transition-colors ${
-        isEvent === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
-      }`}
-    >
-      {label}
-    </button>
-  );
-  return (
-    <div className="inline-flex rounded-lg bg-slate-100 p-0.5">
-      {option(true, "Event-linked", "Rows fall on a day counted from the event")}
-      {option(false, "Standing", "A standing list — each checklist sets its own dates")}
-    </div>
-  );
 }
 
 function SmallButton({
