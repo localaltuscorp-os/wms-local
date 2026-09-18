@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { HR_CONSOLE_MODULES, locateHrRoute } from "@/lib/hr/console-nav";
+import { visibleConsoleModules } from "@/lib/hr/console-visibility";
 import { cn } from "@/lib/utils";
 import { HrModuleRail } from "./hr-module-rail";
 import { HrStepList } from "./hr-step-list";
@@ -38,13 +39,30 @@ import { HrModuleGhost } from "./hr-module-ghost";
  */
 export function HrConsoleShell({
   user,
+  hiddenNodes = null,
   children,
 }: {
   user: { name: string; role: string };
+  /** Catalogue node keys this person has been DENIED (`hiddenModuleKeys()`),
+   *  resolved on the server. `null` means "not governed by the matrix" — a
+   *  master admin, or somebody the matrix does not cover — and shows everything.
+   *
+   *  The matrix has been ENFORCED all along (`requirePathView` in the (app)
+   *  layout refuses a denied route however it is reached). This is what stops
+   *  the console OFFERING one: without it the rail kept drawing steps that
+   *  bounced the person to the hub when clicked. */
+  hiddenNodes?: string[] | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname() ?? "/hr";
   const searchParams = useSearchParams();
+
+  // The ONE filter, applied to the module list this shell owns. Everything below
+  // reads `modules`, never the raw catalogue.
+  const modules = React.useMemo(
+    () => visibleConsoleModules(HR_CONSOLE_MODULES, hiddenNodes ? new Set(hiddenNodes) : null),
+    [hiddenNodes],
+  );
   // Two independently collapsible columns. The steps list is a real column again
   // (see below), so it gets its own toggle beside the rail's.
   const [railCollapsed, setRailCollapsed] = React.useState(false);
@@ -72,13 +90,13 @@ export function HrConsoleShell({
   // page used the same param to re-open its stage pop-up).
   const openParam = searchParams?.get("open") ?? null;
   React.useEffect(() => {
-    if (openParam && HR_CONSOLE_MODULES.some((m) => m.id === openParam)) {
+    if (openParam && modules.some((m) => m.id === openParam)) {
       setSelectedModuleId(openParam);
     }
   }, [openParam]);
 
   const selectedModule = React.useMemo(
-    () => HR_CONSOLE_MODULES.find((m) => m.id === selectedModuleId) ?? null,
+    () => modules.find((m) => m.id === selectedModuleId) ?? null,
     [selectedModuleId],
   );
 
@@ -146,6 +164,7 @@ export function HrConsoleShell({
         )}
       >
         <HrModuleRail
+          modules={modules}
           collapsed={railCollapsed}
           selectedModuleId={selectedModuleId}
           activeModuleId={activeModuleId}

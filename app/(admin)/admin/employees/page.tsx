@@ -1,5 +1,5 @@
 import { desc } from "drizzle-orm";
-import { Download, Users } from "lucide-react";
+import { Download, Users, ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { employees, salaryProfiles } from "@/db/schema";
 import { isCurrentStaff } from "@/lib/queries/employees";
@@ -118,6 +118,24 @@ export default async function EmployeesPage() {
             <Download size={14} strokeWidth={2.2} />
             Export CSV
           </a>
+          {/* THE WAY IN, from the section that grants the access it governs.
+              Module permissions is its own route and its own capability, so
+              until now the only way to reach it was to already know the URL —
+              which is fine for the two people who have always had it, and
+              useless for somebody who has just been given it. Drawn only for a
+              super-admin, matching the master-admin toggle below; the route has
+              its own gate either way. */}
+          {canManageMasterAdmin && (
+            <a
+              href="/master-admin"
+              className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-soft hover:text-ink-strong transition-colors px-3.5 py-2 rounded-pill border border-hairline bg-surface-card wg-btn"
+              style={{ boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)" }}
+              title="Decide who can see, read and edit each module"
+            >
+              <ShieldCheck size={14} strokeWidth={2.2} />
+              Module permissions
+            </a>
+          )}
           <InviteEmployeeDialog
             departmentOptions={departmentOptions}
             canManageAdmins={canManageAdmins}
