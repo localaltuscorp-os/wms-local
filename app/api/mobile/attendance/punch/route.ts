@@ -7,7 +7,6 @@ import { resolveMobileDevice } from "@/lib/attendance/mobile-devices";
 import { attendanceIntegrityMode } from "@/lib/attendance/integrity-mode";
 import { consumePunchNonce } from "@/lib/attendance/punch-nonce";
 import { verifyPlayIntegrity } from "@/lib/attendance/play-integrity";
-import { isDccFilledFor } from "@/lib/dcc/gate";
 
 import { isManagerWithReports, isMondayIST, managerMondayGoalState } from "@/lib/manager-gates";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
@@ -164,20 +163,9 @@ export async function POST(req: Request) {
   // Clocking out no longer requires today's commitments to be closed out, so
   // `needsCloseout` is never returned either.
 
-  // ── DCC punch-out block (fail-open; honors DCC_GATE_OFF) ──
-  // With the Sat commit gate live, DCC is enforced Mon–Fri only (Sat's ritual is
-  // the commit above). Default (Sat gate off) ⇒ unchanged: DCC blocks every day.
-  const dccBlockDay = satCommitGateOn() ? isWeekdayIST() : true;
-  if (body.kind === "out" && dccBlockDay && false /* gate force-off 2026-07-27 (attendance unblock) */) {
-    const today = localDateString(tz);
-    const dccDone = await isDccFilledFor(me.id, today).catch(() => true);
-    if (!dccDone) {
-      return NextResponse.json(
-        { ok: false, error: "Fill today's DCC before you clock out.", needsDcc: true },
-        { status: 409, headers: MOBILE_CORS },
-      );
-    }
-  }
+  // ── DCC punch-out block — REMOVED 2026-09-16 (mirrors the web punch) ──
+  // Force-off since 2026-07-27 and now deleted with the DCC module. The mobile
+  // client's `needsDcc` branch is therefore dead too.
 
   // ── Clock-IN planning gate — REMOVED 2026-09-09 ──────────────────────
   // Mirrored the web punch: Start My Day + MIN_ATTENDANCE_ITEMS planned +

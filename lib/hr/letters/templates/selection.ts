@@ -149,7 +149,7 @@ const template: LetterTemplate = {
       esign: true,
       // The founder signs the offer off directly — a baked scanned signature under
       // "For <entity>", NOT the generic HR-desk sign-off.
-      imageSrc: "/signatures/manan-sign.jpeg",
+      imageSrc: "/signatures/manan-sign.png",
       name: [t("CA Manan Vasa")],
       designation: [f("signatoryDesignation", "Designation", { defaultValue: "Founder" })],
       showDate: true,

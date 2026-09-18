@@ -133,3 +133,17 @@ export function checklistProgress(
     pct: total === 0 ? 100 : Math.round((done / total) * 100),
   };
 }
+
+/** One row of a MASTER checklist — the pattern: no tick, no date, only an offset. */
+export interface ChecklistMasterItem {
+  id: string;
+  code: string | null;
+  title: string;
+  category: string | null;
+  offsetDays: number | null;
+  doerId: string | null;
+  backupId: string | null;
+  instructions: string | null;
+  fileLink: string | null;
+  sortOrder: number;
+}

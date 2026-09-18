@@ -10,6 +10,7 @@ import {
   employees,
 } from "@/db/schema";
 import { readRecurrence, type Recurrence } from "@/lib/jd/recurrence";
+import type { TargetPeople } from "@/lib/jd/assignment-targets";
 import type { BusinessFunction } from "@/lib/org/functions";
 
 /**
@@ -52,10 +53,20 @@ export interface JdPositionRow {
 export interface JdEntryRow {
   id: string;
   serialNo: string;
-  positionId: string;
+  /** Null on a personal task, which belongs to `ownerEmployeeId` instead (0233). */
+  positionId: string | null;
+  /** The seat's title, or "Personal JD" for a personal task. */
   positionTitle: string;
+  /** Set on a PERSONAL task — the one person it belongs to. */
+  ownerEmployeeId?: string | null;
+  ownerName?: string | null;
   functionKey: string;
   task: string;
+  /** Free-text grouping the author types — Housekeeping, Internet, Vendors. */
+  category: string | null;
+  /** The Notes column. Written by the form since day one and, until now, never
+   *  read back — so every note anyone typed was invisible everywhere. */
+  notesHtml: string | null;
   recurrence: Recurrence;
   estimatedMinutes: number;
   videoUrl: string | null;
@@ -65,8 +76,13 @@ export interface JdEntryRow {
   pushWms: boolean;
   pushEvent: boolean;
   isActive: boolean;
-  /** Names of the people this JD is explicitly assigned to. */
+  /** Names of the people this JD is explicitly assigned to, across every
+   *  destination, once each — what the Bank's Add To Person column shows. */
   assignees: string[];
+  /** Employee IDS per destination — what the three assignment boxes hold.
+   *  Names are for reading, ids are for editing, and the two are kept apart so
+   *  a rename cannot silently unassign somebody. */
+  targetPeople: TargetPeople;
 }
 
 /** The ladder, lowest rank first. */
@@ -131,9 +147,13 @@ export async function listJdEntries(opts?: {
       id: jdEntries.id,
       serialNo: jdEntries.serialNo,
       positionId: jdEntries.positionId,
-      positionTitle: jdPositions.title,
+      positionTitle: sql<string>`coalesce(${jdPositions.title}, 'Personal JD')`,
+      ownerEmployeeId: jdEntries.ownerEmployeeId,
+      ownerName: sql<string | null>`(select ${employees.name} from ${employees} where ${employees.id} = ${jdEntries.ownerEmployeeId})`,
       functionKey: jdEntries.functionKey,
       task: jdEntries.task,
+      category: jdEntries.category,
+      notesHtml: jdEntries.notesHtml,
       recurrence: jdEntries.recurrence,
       estimatedMinutes: jdEntries.estimatedMinutes,
       videoUrl: jdEntries.videoUrl,
@@ -150,18 +170,50 @@ export async function listJdEntries(opts?: {
         where ${jdAssignments.jdId} = ${jdEntries.id}
           and ${jdAssignments.isActive} = true
       ), '{}')`,
+      /* One sub-select per destination. Ordered by NAME so the three boxes read
+         the way the roster does, even though what comes back is ids. */
+      dccIds: sql<string[]>`coalesce((
+        select array_agg(${jdAssignments.employeeId} order by ${employees.name})
+        from ${jdAssignments}
+        join ${employees} on ${employees.id} = ${jdAssignments.employeeId}
+        where ${jdAssignments.jdId} = ${jdEntries.id}
+          and ${jdAssignments.isActive} = true
+          and ${jdAssignments.forDcc} = true
+      ), '{}')`,
+      wmsIds: sql<string[]>`coalesce((
+        select array_agg(${jdAssignments.employeeId} order by ${employees.name})
+        from ${jdAssignments}
+        join ${employees} on ${employees.id} = ${jdAssignments.employeeId}
+        where ${jdAssignments.jdId} = ${jdEntries.id}
+          and ${jdAssignments.isActive} = true
+          and ${jdAssignments.forWms} = true
+      ), '{}')`,
+      eventIds: sql<string[]>`coalesce((
+        select array_agg(${jdAssignments.employeeId} order by ${employees.name})
+        from ${jdAssignments}
+        join ${employees} on ${employees.id} = ${jdAssignments.employeeId}
+        where ${jdAssignments.jdId} = ${jdEntries.id}
+          and ${jdAssignments.isActive} = true
+          and ${jdAssignments.forEvent} = true
+      ), '{}')`,
     })
     .from(jdEntries)
-    .innerJoin(jdPositions, eq(jdPositions.id, jdEntries.positionId))
+    // LEFT: a personal task has no position (0233).
+    .leftJoin(jdPositions, eq(jdPositions.id, jdEntries.positionId))
     .where(where.length > 0 ? and(...where) : undefined)
     .orderBy(asc(jdEntries.serialNo));
 
-  return rows.map((r) => ({
+  return rows.map(({ dccIds, wmsIds, eventIds, ...r }) => ({
     ...r,
     // The jsonb column is free-form to Postgres, so a row written by a future
     // version must not crash the Bank — fall back rather than throw.
     recurrence: readRecurrence(r.recurrence),
     assignees: r.assignees ?? [],
+    targetPeople: {
+      dcc: dccIds ?? [],
+      wms: wmsIds ?? [],
+      event: eventIds ?? [],
+    },
   }));
 }
 
@@ -177,6 +229,22 @@ export async function listJdPeople(): Promise<{ id: string; name: string }[]> {
     .select({ id: employees.id, name: employees.name })
     .from(employees)
     .where(eq(employees.isActive, true))
+    .orderBy(asc(employees.name));
+}
+
+/**
+ * Who sits in which seat — active holders who are active employees.
+ *
+ * The page never loaded these on real data, so every seat read as vacant and
+ * "who does it" could not resolve. The Person JD view is where a person is
+ * placed in a seat (setJdPositionHolder).
+ */
+export async function listJdHolders(): Promise<{ positionId: string; employeeId: string; name: string }[]> {
+  return db
+    .select({ positionId: jdPositionHolders.positionId, employeeId: jdPositionHolders.employeeId, name: employees.name })
+    .from(jdPositionHolders)
+    .innerJoin(employees, eq(employees.id, jdPositionHolders.employeeId))
+    .where(and(eq(jdPositionHolders.isActive, true), eq(employees.isActive, true)))
     .orderBy(asc(employees.name));
 }
 

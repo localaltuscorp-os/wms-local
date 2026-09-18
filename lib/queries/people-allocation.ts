@@ -1,7 +1,7 @@
 import "server-only";
 import { asc, desc, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { paPeople, paEntries, paCalls, paAmbassadors, hhAccessGrants, hhAccessActivity } from "@/db/schema";
+import { paPeople, paEntries, paCalls, paAmbassadors, hhAccessGrants, hhAccessActivity, employees } from "@/db/schema";
 
 /**
  * Read side of Hand-holding.
@@ -37,6 +37,9 @@ export interface HhPerson {
   id: string;
   name: string;
   kind: string;
+  /** The employee whose Daily Compliance this name shows (lib/hh/calendar.ts). */
+  employeeId: string | null;
+  employeeName: string | null;
 }
 
 export interface Ambassador {
@@ -55,8 +58,15 @@ export interface Ambassador {
 
 export async function listHhPeople(): Promise<HhPerson[]> {
   return db
-    .select({ id: paPeople.id, name: paPeople.name, kind: paPeople.kind })
+    .select({
+      id: paPeople.id,
+      name: paPeople.name,
+      kind: paPeople.kind,
+      employeeId: paPeople.employeeId,
+      employeeName: employees.name,
+    })
     .from(paPeople)
+    .leftJoin(employees, eq(employees.id, paPeople.employeeId))
     .where(eq(paPeople.isActive, true))
     .orderBy(asc(paPeople.createdAt));
 }

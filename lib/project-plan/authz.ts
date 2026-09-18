@@ -34,6 +34,8 @@ export async function actorFor(
     .orderBy(asc(tasks.createdAt))
     .limit(1);
   const isDoer = !!linked && linked.doerId === me.id;
+  // Raised by the person doing it: the row's owner is its linked task's doer.
+  const isSelfRaised = !!node.ownerId && !!linked?.doerId && node.ownerId === linked.doerId;
 
   // Supervisor = the owner or the doer sits somewhere in the caller's downline.
   // One downline lookup, then set membership — not a walk up the tree per row.
@@ -45,5 +47,5 @@ export async function actorFor(
       (!!linked?.doerId && downline.has(linked.doerId));
   }
 
-  return { id: me.id, isAdmin: me.isAdmin, isOwner, isDoer, isSupervisor };
+  return { id: me.id, isAdmin: me.isAdmin, isOwner, isDoer, isSupervisor, isSelfRaised };
 }

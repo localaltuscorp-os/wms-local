@@ -100,7 +100,34 @@ export type SecurityCapability =
    * covers the cases the hierarchy cannot express — a founder testing across
    * teams, or someone standing in while a manager is away.
    */
-  | "delegated_access.grant_any";
+  | "delegated_access.grant_any"
+  /**
+   * May change a DCC entry for a day that has CLOSED, for any employee.
+   *
+   * Everyone else's entries lock at 11:59 pm IST on the day itself (account
+   * holder, 2026-09-15; see lib/dcc/entry-lock.ts). Deliberately NOT a
+   * super-admin side effect: a second super-admin must not silently be able to
+   * rewrite last month's compliance record.
+   */
+  | "dcc.edit_past_entries"
+  /**
+   * A DCC KPI this person GIVES is protected: nobody else may delete it — not
+   * the Team Lead who manages the owner, not the owner, not another super-admin.
+   *
+   * Team Leads add and remove KPIs for themselves and their downline, but may
+   * not delete one Manan Sir gave (account holder, 2026-09-15; see
+   * lib/dcc/item-lock.ts).
+   */
+  | "dcc.protected_kpi_author"
+  /**
+   * May change the shared Subject and Client dropdowns — add, rename, reorder,
+   * hide or delete — in the Admin Panel and from the task form's "+ Add new".
+   *
+   * Manan Sir, Jeevan and Rohan only (account holder, 2026-09-15). Deliberately
+   * NOT "any admin": every task, goal, checklist and project files under these
+   * names, and one careless rename or duplicate splits that history in two.
+   */
+  | "task_rosters.manage";
 
 /**
  * WHO HOLDS WHAT. The single source of truth.
@@ -144,6 +171,19 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
      * this table, visible in review.
      */
     "daily_start.exempt",
+    /**
+     * Changes DCC entries for days that have closed, for any employee. Everyone
+     * else's entries lock at 11:59 pm IST on the day (account holder,
+     * 2026-09-15). Granted to this one address, not to super-admins.
+     */
+    "dcc.edit_past_entries",
+    /**
+     * A DCC KPI he gives can be deleted by him alone — Team Leads may add KPIs
+     * for their team but not remove his (account holder, 2026-09-15).
+     */
+    "dcc.protected_kpi_author",
+    /** Changes the Subject and Client dropdowns (2026-09-15). */
+    "task_rosters.manage",
   ],
 
   /**
@@ -184,7 +224,16 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
     "device.manage",
     "master_admin.manage",
     "delegated_access.grant_any",
+    /** Changes the Subject and Client dropdowns (2026-09-15). */
+    "task_rosters.manage",
   ],
+
+  /**
+   * Jeevan Bharambe — changes the Subject and Client dropdowns (account holder,
+   * 2026-09-15). Not an admin: this opens the Admin Panel's Subjects and Clients
+   * screens to him and nothing else (see app/(admin)/admin/layout.tsx).
+   */
+  "jeevanbharambe.altuscorp@gmail.com": ["task_rosters.manage"],
 
   /** Ruchita Ambre — device administrator + privileged attendance manager. */
   "ruchitaambre.altuscorp@gmail.com": [
@@ -294,6 +343,40 @@ export function canGrantAnyDelegatedAccess(email: string | null | undefined): bo
 export function isExemptFromDailyStart(email: string | null | undefined): boolean {
   return hasCapability(email, "daily_start.exempt");
 }
+
+/**
+ * MAY THIS PERSON CHANGE A DCC ENTRY FOR A DAY THAT HAS CLOSED?
+ *
+ * Read by the DCC write core (lib/dcc/write.ts), which both the website and the
+ * mobile app save through, and by the fill board to show a closed day as open
+ * for this person. Fails CLOSED: an unknown address may not edit the past.
+ */
+export function canEditPastDccEntries(email: string | null | undefined): boolean {
+  return hasCapability(email, "dcc.edit_past_entries");
+}
+
+/**
+ * ARE THE DCC KPIs THIS PERSON GIVES PROTECTED FROM DELETION BY OTHERS?
+ *
+ * Read by lib/dcc/item-lock.ts. Fails CLOSED toward the ordinary rule: an
+ * unknown creator (or a KPI with no recorded creator) is not protected.
+ */
+export function isProtectedDccKpiAuthor(email: string | null | undefined): boolean {
+  return hasCapability(email, "dcc.protected_kpi_author");
+}
+
+/**
+ * MAY THIS PERSON CHANGE THE SUBJECT AND CLIENT DROPDOWNS?
+ *
+ * Read by the Admin Panel's Subjects and Clients actions and pages, by the task
+ * form's "+ Add new client / subject" (lib/auth/roster-permission.ts), and by
+ * the Admin Panel layout. Fails CLOSED: being an admin grants nothing here.
+ */
+export function canManageTaskRosters(email: string | null | undefined): boolean {
+  return hasCapability(email, "task_rosters.manage");
+}
+
+export const TASK_ROSTER_REFUSAL = "Only Manan Sir, Jeevan and Rohan can change the Subject and Client lists.";
 
 export const MASTER_ADMIN_REFUSAL =
   "Only the master administrators can change module permissions.";

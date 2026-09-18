@@ -48,7 +48,7 @@ export function MyDayWorkspace({
   agendaTasks: AgendaTask[];
   rows: TaskListRow[];
   employees: { id: string; name: string }[];
-  me: { id: string; isAdmin: boolean; canChangeDoer?: boolean };
+  me: { id: string; isAdmin: boolean; canChangeDoer?: boolean; managedIds?: string[] };
   statusLabels?: Record<TaskStatus, string>;
   statusTones?: Record<TaskStatus, StatusColorToken>;
 }) {

@@ -122,15 +122,23 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
   {
     key: "employees",
     label: "Employees",
-    note: "The employee-facing room: attendance, leave, salary, reimbursements.",
+    note: "The employee-facing room: DCC, attendance, leave, salary, reimbursements.",
     children: [
       {
         key: "employees.dcc",
         label: "DCC",
         routes: ["/dcc"],
         children: [
-          { key: "employees.dcc.dashboard", label: "DCC Dashboard", routes: ["/dcc/dashboard"] },
-          { key: "employees.dcc.ranking", label: "DCC Ranking", routes: ["/dcc/ranking"] },
+          // The SP1 sheet IS the dashboard, and the call log is typed into that
+          // sheet (2026-09-17), so neither has a node of its own. Their old
+          // addresses are listed here because both still redirect, and a
+          // redirect must not become a hole in the matrix.
+          {
+            key: "employees.dcc.dashboard",
+            label: "DCC Dashboard",
+            routes: ["/dcc/dashboard", "/dcc/sp1", "/dcc/call-log"],
+          },
+          { key: "employees.dcc.masters", label: "DCC Masters", routes: ["/dcc/masters"] },
         ],
       },
       {
@@ -233,7 +241,13 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "hr.record", label: "HR Record", routes: ["/hr/record"] },
       { key: "hr.kpi", label: "HR KPI", routes: ["/hr/kpi"] },
       { key: "hr.ctc", label: "CTC", routes: ["/hr/ctc"] },
-      { key: "hr.salary-slip", label: "Salary Slip", routes: ["/hr/salary-slip"] },
+            /* MOVED TO THE EMPLOYEES ROOM (2026-09-12). Both paths are listed: the
+         new one is where the page lives, the old one still resolves as a
+         redirect and must stay governed by the same node rather than becoming
+         an ungoverned door. The KEY keeps its `hr.` prefix deliberately —
+         permission keys are persisted grants, so renaming it would revoke every
+         grant already written against it. */
+      { key: "hr.salary-slip", label: "Salary Slip", routes: ["/salary-slip", "/hr/salary-slip"] },
       { key: "hr.letters", label: "Letters", routes: ["/hr/letters"] },
       // These three have NO page at the bare segment — only children. Naming
       // the real paths keeps the catalogue test honest: a route listed here that
@@ -246,11 +260,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "Forms",
         routes: ["/hr/forms/[id]", "/hr/all-forms", "/hr/my-forms"],
       },
-      { key: "hr.exit", label: "Exit", routes: ["/hr/exit/interview"] },
+      { key: "hr.exit", label: "Exit Process", routes: ["/hr/exit/interview"] },
       { key: "hr.holidays", label: "Holiday List", routes: ["/hr/holidays", "/holidays"] },
       {
         key: "hr.helpdesk",
-        label: "Help Desk",
+        label: "HR Help Desk",
         routes: ["/support"],
         children: [
           { key: "hr.helpdesk.routing", label: "Ticket Routing", routes: ["/hr/routing"] },
@@ -513,6 +527,17 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "operations.home", label: "Operations Home", routes: ["/operations"] },
       { key: "operations.checklist", label: "Checklist", routes: ["/operations/checklist"] },
       { key: "operations.guidelines", label: "Guidelines", routes: ["/operations/guidelines"] },
+      /* One switch for all of Masters, including Recruitment JD — which moved
+         here from the HR rail on 2026-09-17 and gave up its own `hr.recruitment-jd`
+         node in the process. The old path is listed beside the new one for the
+         same reason Salary Slip's is: it still resolves, as a redirect, and a
+         door that redirects into a governed room must be governed by the same
+         switch rather than being an ungoverned way in. */
+      {
+        key: "operations.masters",
+        label: "Masters",
+        routes: ["/operations/masters", "/hr/recruitment-jd"],
+      },
     ],
   },
 

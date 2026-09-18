@@ -31,6 +31,7 @@
  */
 
 import { DOER_TASK_STATUSES, type TaskStatus } from "@/db/enums";
+import { canSetApproverStatus, type ApproverActor } from "@/lib/status/approver-status";
 
 /** The working flow — the six a doer reports against. */
 export const PLAN_WORKING_STATUSES = DOER_TASK_STATUSES;
@@ -119,6 +120,9 @@ export interface PlanActor {
   isDoer: boolean;
   /** True when the node's owner or doer reports to the caller, directly or not. */
   isSupervisor: boolean;
+  /** The node's owner IS the doer of its linked task — nobody is approving it,
+   *  so the Initiator Status reads "Not Applicable" and only an admin rules. */
+  isSelfRaised: boolean;
 }
 
 /**
@@ -131,19 +135,29 @@ export interface PlanActor {
 export function canSetPlanStatus(
   actor: PlanActor,
   next: string,
+  /** The row's Doer Status — Approved / Not Approved wait for Done. Callers
+   *  that only move the working flow may omit it. */
+  doerStatus: string | null = "done",
 ): { ok: true } | { ok: false; reason: string } {
   if (!isPlanStatus(next)) {
     return { ok: false, reason: `"${next}" is not a project status.` };
   }
 
   if (isRestrictedStatus(next)) {
-    // The authority decisions. Admin or the project owner, nobody else — not
-    // the doer who did the work, and not their supervisor.
-    if (actor.isAdmin || actor.isOwner) return { ok: true };
-    return {
-      ok: false,
-      reason: `Only the project owner or an administrator can set "${PLAN_STATUS_LABEL[next]}".`,
-    };
+    // Archiving cascades through children and linked tasks — the project owner
+    // or an administrator, as it always was.
+    if (next === "archived") {
+      if (actor.isAdmin || actor.isOwner) return { ok: true };
+      return {
+        ok: false,
+        reason: `Only the project owner or an administrator can set "${PLAN_STATUS_LABEL[next]}".`,
+      };
+    }
+    // The rulings — Approved · Not Approved · On Hold · Cancelled — follow the
+    // ONE Initiator Status rule WMS Tasks and Goals use (account holder,
+    // 2026-09-15): the owner (the initiator), the doer's manager or an admin,
+    // never the doer. See lib/status/approver-status.ts.
+    return canSetApproverStatus(approverActorOf(actor), next, doerStatus);
   }
 
   // The working flow — a progress report, so the people close to the work.
@@ -153,6 +167,35 @@ export function canSetPlanStatus(
   return {
     ok: false,
     reason: "Only the doer, their supervisor or the project owner can update progress.",
+  };
+}
+
+/**
+ * Raised by the person doing it — the row's owner IS its linked task's doer.
+ *
+ * One predicate, used by the cell, the board's read-only detail and its export,
+ * so the column, the dialog and the spreadsheet cannot disagree about which
+ * rows read "Not Applicable". The server re-derives it in `actorFor`, from the
+ * task it looks up itself rather than from anything the client sent.
+ */
+export function isSelfRaisedNode(node: {
+  ownerId: string | null;
+  task?: { doerId: string } | null;
+}): boolean {
+  return !!node.ownerId && !!node.task?.doerId && node.ownerId === node.task.doerId;
+}
+
+/** A plan actor in the shared Initiator Status terms: the project owner is
+ *  the initiator, a supervisor is the doer's manager. */
+export function approverActorOf(actor: PlanActor): ApproverActor {
+  return {
+    isAdmin: actor.isAdmin,
+    // On self-raised work the owner IS the doer, so "owner" confers no
+    // authority — the shared rule hands those rows to admins alone.
+    isInitiator: actor.isOwner && !actor.isSelfRaised,
+    isDoersManager: actor.isSupervisor,
+    isDoer: actor.isDoer,
+    isSelfRaised: actor.isSelfRaised,
   };
 }
 

@@ -363,6 +363,14 @@ function AadhaarField({
     };
   }, []);
 
+  /** Drop kyc/kyc_error from the URL so a refresh doesn't re-announce them. */
+  function stripKycParams() {
+    const u = new URL(window.location.href);
+    u.searchParams.delete("kyc");
+    u.searchParams.delete("kyc_error");
+    window.history.replaceState(null, "", u.toString());
+  }
+
   // Coming back from DigiLocker: `?kyc=1` means the callback parked this
   // person's demographics in a one-shot cookie. Read them once and fill.
   React.useEffect(() => {
@@ -395,14 +403,6 @@ function AadhaarField({
     // immediately, so re-running on `onFill` identity would be a no-op at best.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  /** Drop kyc/kyc_error from the URL so a refresh doesn't re-announce them. */
-  function stripKycParams() {
-    const u = new URL(window.location.href);
-    u.searchParams.delete("kyc");
-    u.searchParams.delete("kyc_error");
-    window.history.replaceState(null, "", u.toString());
-  }
 
   /** Hand off to DigiLocker. A full-page redirect is safe: the form autosaves
    *  its draft and `?draft=` brings us back to it. */

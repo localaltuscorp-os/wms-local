@@ -33,6 +33,9 @@ function shell(title: string, sub: string, inner: string): string {
  */
 export async function sendLetterPdfEmail(args: {
   to: string;
+  /** The company address to CC (an attached employee's official email). When
+   *  omitted, falls back to the HR desk address so every letter is still copied. */
+  cc?: string;
   recipientName?: string;
   letterTitle: string;
   entityName: string;
@@ -63,13 +66,14 @@ export async function sendLetterPdfEmail(args: {
       <p style="font-size:14px;margin:0 0 14px">Please find attached your <b>${esc(args.letterTitle)}</b> from <b>${esc(args.entityName)}</b>. The document is attached to this email as a PDF.</p>
       <p style="font-size:12.5px;color:#666;margin-top:10px">Kindly review the attached letter and reach out to the HR team for any questions.</p>`;
 
-    // Copy the HR desk explicitly (record), plus the company archive via BCC.
-    const cc = HR_CONTACT.email ? [HR_CONTACT.email] : undefined;
+    // CC the office address when one was passed (an attached employee's company
+    // address); otherwise copy the HR desk so every letter is still recorded.
+    const cc = args.cc?.trim() || HR_CONTACT.email || undefined;
 
     const { error } = await resend.emails.send({
       from: FROM,
       to: args.to,
-      ...(cc ? { cc } : {}),
+      ...(cc ? { cc: [cc] } : {}),
       subject: clampSubject(args.subject?.trim() || `${args.letterTitle} — ${args.entityName}`),
       html: shell(args.letterTitle, args.entityName, inner),
       attachments: [{ filename: args.filename, content: args.pdf }],

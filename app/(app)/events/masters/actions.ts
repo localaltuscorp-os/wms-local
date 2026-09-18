@@ -15,6 +15,11 @@ import { requireEventsAdmin } from "@/lib/monthly-events/access";
 import { rateLimitOrError } from "@/lib/rate-limit";
 
 const PATH = "/events/masters";
+/** Every page that shows these rows: the area's own page AND the Masters section. */
+function revalidateEventMasters() {
+  revalidatePath(PATH);
+  revalidatePath("/operations/masters", "layout");
+}
 
 export type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -64,7 +69,7 @@ export async function createCategory(
       .insert(eventCategories)
       .values({ name: parsed.data.name, color: parsed.data.color, sortOrder: next, createdById: me.id })
       .returning({ id: eventCategories.id });
-    revalidatePath(PATH);
+    revalidateEventMasters();
     return { ok: true, id: row!.id };
   } catch (err) {
     return dbError(err, "A category with that name already exists.");
@@ -85,7 +90,7 @@ export async function updateCategory(input: unknown): Promise<ActionResult> {
       .update(eventCategories)
       .set({ name, color, updatedById: me.id, updatedAt: new Date() })
       .where(eq(eventCategories.id, id));
-    revalidatePath(PATH);
+    revalidateEventMasters();
     return { ok: true };
   } catch (err) {
     return dbError(err, "A category with that name already exists.");
@@ -111,7 +116,7 @@ export async function reorderCategories(input: unknown): Promise<ActionResult> {
           .where(eq(eventCategories.id, id)),
       ),
     );
-    revalidatePath(PATH);
+    revalidateEventMasters();
     return { ok: true };
   } catch (err) {
     return fail(err instanceof Error ? err.message : String(err));
@@ -158,7 +163,7 @@ export async function archiveCategory(input: unknown): Promise<ActionResult> {
       .update(eventCategories)
       .set({ isActive: false, updatedById: me.id, updatedAt: new Date() })
       .where(eq(eventCategories.id, id));
-    revalidatePath(PATH);
+    revalidateEventMasters();
     return { ok: true };
   } catch (err) {
     return fail(err instanceof Error ? err.message : String(err));
@@ -176,7 +181,7 @@ export async function restoreCategory(id: unknown): Promise<ActionResult> {
       .update(eventCategories)
       .set({ isActive: true, updatedById: me.id, updatedAt: new Date() })
       .where(eq(eventCategories.id, parsed.data));
-    revalidatePath(PATH);
+    revalidateEventMasters();
     return { ok: true };
   } catch (err) {
     return fail(err instanceof Error ? err.message : String(err));
@@ -208,7 +213,7 @@ export async function createBatchType(
         createdById: me.id,
       })
       .returning({ id: eventBatchTypes.id });
-    revalidatePath(PATH);
+    revalidateEventMasters();
     return { ok: true, id: row!.id };
   } catch (err) {
     return dbError(err, "A batch type with that name already exists.");
@@ -233,7 +238,7 @@ export async function updateBatchType(input: unknown): Promise<ActionResult> {
       .update(eventBatchTypes)
       .set({ name, defaultCategoryId, updatedById: me.id, updatedAt: new Date() })
       .where(eq(eventBatchTypes.id, id));
-    revalidatePath(PATH);
+    revalidateEventMasters();
     return { ok: true };
   } catch (err) {
     return dbError(err, "A batch type with that name already exists.");
@@ -255,7 +260,7 @@ export async function setBatchTypeActive(input: unknown): Promise<ActionResult> 
       .update(eventBatchTypes)
       .set({ isActive, updatedById: me.id, updatedAt: new Date() })
       .where(eq(eventBatchTypes.id, id));
-    revalidatePath(PATH);
+    revalidateEventMasters();
     return { ok: true };
   } catch (err) {
     return fail(err instanceof Error ? err.message : String(err));

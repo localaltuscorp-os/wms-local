@@ -13,7 +13,7 @@ broken, what changed and why.
 
 ---
 
-## ✅ Database migrations 0215–0224 — APPLIED 2026-09-15
+## ✅ Database migrations 0215–0224 — APPLIED 2026-09-15 (`0216_incentive_eligibility`, `0225`, `0226` still pending — see below)
 
 > **This section is now a record, not a to-do.** All 15 migrations ran against
 > production and verified clean (74/74). See the 15 September (night) changelog
@@ -107,6 +107,28 @@ full filename — and it joins the 28 collisions already there back to `0019`.
 Do **not** reach for `npm run db:migrate`: the drizzle journal is stale at
 `0019`, so it would also apply two dozen unrelated pending migrations. Full
 detail and per-file notes are in [`HANDOFF-Om.md`](./HANDOFF-Om.md).
+
+### Four more, for Operations (added 2026-09-12)
+
+Not part of the `0216–0224` file above. Apply **in this order**, after it:
+
+| Migration | Gives you | Verified state |
+|---|---|---|
+| `0221_ops_event_checklist.sql` | Event Checklist templates, runs, items, ticks | **Never applied here** |
+| `0222_job_description.sql` | JD Bank: ranks, positions, entries, assignments | **Never applied here** |
+| `0225_jd_assignment_targets.sql` | Per-destination assignment flags on `jd_assignments` | New, unrun |
+| `0226_jd_rank_ladder_26.sql` | The 26-rank ladder, replacing fourteen | New, unrun |
+
+The first two were checked against `information_schema` on 2026-09-12 and **no
+`jd_*` or `ops_checklist_*` table exists in this database**. Until they run,
+both screens render from a seeded in-memory demo layer behind a banner naming
+the migration — fully usable, resets on restart, stores nothing.
+
+`0226` renumbers `rank_order`, **which is behaviour**: the vacancy resolver
+climbs it, so the numbers decide who covers a vacant seat. It renumbers in two
+passes (one pass collides with the unique index) and leaves `DGM` alone
+deliberately, raising a notice naming how many positions are stranded on it.
+All four are additive and idempotent — no `DROP`, no `DELETE`.
 
 ---
 
@@ -558,6 +580,256 @@ throughout; her Firebase UID is new.
 
 ## Changelog
 
+### 2026-09-16 (night) — DCC rebuilt from the account holder's brief
+
+Branch `Vinal`. The module was torn down earlier today (entry below) and is now
+rebuilt against a written specification: **[`docs/DCC-SPEC.md`](./docs/DCC-SPEC.md)**,
+which is authoritative and supersedes every earlier DCC note in this repo. Read
+it before changing anything here.
+
+**Three doors, generated from one list.** `/dcc` (My Day) · `/dcc/dashboard` ·
+`/dcc/masters`, first under Employees. The rail and the module's own quick-nav
+row both render `lib/dcc/nav.ts`, so they cannot advertise different doors —
+which is exactly how the old module ended up offering a page that no longer
+honoured it.
+
+**There is no SP1 door and no Call Log door** (account holder, 2026-09-17): the
+SP1 sheet *is* the dashboard, and the fifteen numbers are typed into that sheet,
+so either would have been a second route to one screen. `/dcc/sp1` and
+`/dcc/call-log` are now **redirects** to `/dcc/dashboard`, kept only because both
+addresses are in bookmarks and in mail already sent.
+
+**The SP1 half is new, and it is the half that was missing.** The old module
+could report call outcomes but had no way to ENTER them, so the report was
+permanently empty and looked broken.
+
+- `lib/dcc/sp1.ts` owns the fifteen outcomes, their eight sheet colours, the
+  Connected partition and all five ratios — **once**, so the screen, the grid and
+  the email cannot disagree about what "Connected" means.
+- The **top of `/dcc/dashboard`** is Jeevan's grid, full width: Monday→Saturday,
+  a Weekly Total, **no Sunday column**, rows numbered 1–23, drawn as a
+  spreadsheet because it is read aloud beside the sheet it replaces. The
+  WMS-style sections sit under it and share its window, which is measured in
+  weeks (`?weeks=1|2|4`, `?week=` steps back) so the two halves of the page can
+  never describe different stretches of time.
+- **You type into that sheet** — it is the call log. A cell is open only when one
+  person is selected and you may fill for them, the day has not closed at
+  11:59 pm IST, and the table exists; `saveCallLog` re-checks all three, so an
+  open cell is an affordance and never a permission. Row 16 and the Weekly Total
+  move as you type, rebuilt by the same `buildSp1Grid` the email uses.
+- `dcc_call_logs` (**migration 0235**, new) stores one count per person per day
+  per outcome, uniquely keyed, with no CHECK on the outcome — a sixteenth row on
+  the sheet is data, not a migration.
+
+**Two decisions worth challenging, both in one constant each:**
+
+1. **Rows 1–11 count as Connected**, including "Not Interested" and "DND" — a
+   person declining is not a call that failed to reach anybody. Rows 12–15
+   (No Busy, Ringing, Call Back, Wrong Number) did not reach a person.
+2. **A ratio with no denominator prints an em-dash, never `0%`.** The sheet's
+   `#DIV/0!` is the bug being fixed, not the behaviour being copied — 0% reports
+   a real failure on a day nobody worked, and would then be averaged into the
+   weekly total and the ranking. The weekly column is likewise **recomputed from
+   summed counts**, never by averaging the days.
+
+🟡 **Jeevan's reference sheet has drifted from the calendar.** It labels
+13-Sep-2026 "Monday"; that date is a **Sunday**. The sheet's Day row is one step
+off, so its six-day blocks are Sun–Fri while claiming Mon–Sat. This app derives
+the weekday from the date, so its columns will not line up with the sheet's
+labels. Worth telling Jeevan — the structure (six working days, then a weekly
+total, Sunday omitted) was copied; the typo was not.
+
+**The rest of the brief.**
+
+- **10 pm report** (`30 16 * * *` = 22:00 IST) now LEADS with the SP1 tables and
+  puts the compliance summary under them. Distribution is unchanged and still
+  tested: each person their own day, every Team Lead everyone below them
+  transitively, the owner everybody. Still **preview-only** until
+  `DCC_DAILY_REPORT_LIVE=true` — it is a nightly mail to the whole company.
+- **11:59 pm IST lock** governs the call log as well as compliance entries, via
+  the same `checkDccEntryWindow`, so "yesterday" means one thing module-wide.
+  Only `dcc.edit_past_entries` (Manan Sir) reaches a closed day.
+- **Team Leads author for their downline**; a compliance Manan authored is his
+  alone to delete (`dcc.protected_kpi_author`, fails closed toward the ordinary
+  rule). The Person view shows the author on every row so the refusal is legible
+  before anyone tries.
+- **DCC Masters** mirror Master JD / Person-specific JD: a Position tab whose
+  saves reconcile every holder, and a Person tab with a searchable dropdown
+  beside the heading — no left rail of names.
+- **Google Calendar** sync is back on the entry write and the nightly cron.
+  **The connect-gate is NOT back**: calendar sync is a benefit of connecting, not
+  a toll on entering the app.
+
+**What was reused, and why.** Everything visible is new. The pure, tested
+calculations were not re-derived: the 11:59 pm window, the delete guardrail, the
+schedule maths, the position-template reconciler, the report distribution
+planner and the calendar writer. They are invisible, and several are tied to
+unique indexes that already exist in the database — rewriting them blind would
+have added bugs, not removed them.
+
+🔴 **Three migrations are outstanding** and each feature degrades to an explicit
+"not set up yet" notice until its own is applied: **0229** (calendar events),
+**0230** (masters), **0235** (call logs, new).
+
+Verified: `npx tsc --noEmit` clean, `next build` clean with all five routes and
+both crons registered, ESLint clean on every new file, and the full unit suite
+green — **3146 passed, 7 skipped**, including 40 new tests across
+`dcc-sp1`, `dcc-sp1-email` and `dcc-nav`.
+
+
+### 2026-09-16 — DCC removed from the Employees module
+
+Branch `Vinal`. On the account holder's instruction ("remove all the dcc section
+from employees completely"), the Daily Compliance Checklist is gone from the web
+app. It will be rebuilt from scratch; this is a clean teardown, not a redesign.
+
+**What was deleted.** The four rail entries under Employees; the whole
+`app/(app)/dcc/` route tree (board, dashboard, masters, ranking, SP1); all of
+`components/dcc/`; the three crons (`dcc-reminder`, `dcc-daily-report`,
+`dcc-calendar-sync`) and their `vercel.json` schedules; the DCC branch of the
+permission matrix; the `/dcc` workspace mapping; and the inbox deep-link for
+`dcc_fill_reminder`.
+
+**Three gates came out with it**, and this is the part worth knowing:
+
+- The **post-login wall** in `app/(app)/layout.tsx` and `app/(app)/hub/page.tsx`
+  no longer has a DCC leg — not the "fill your DCC" wall, not the manager review
+  step, and not the **Google Calendar connect prompt**, which was mounted ahead
+  of every other gate and so was the first thing a person with DCC KPIs met on
+  login. The plan gate and the manager assign gate are untouched.
+- The **DCC punch-out block** is deleted from both the web action and
+  `/api/mobile/attendance/punch`. It had been force-off inline since
+  2026-07-27, so nothing changes in behaviour — but the dead branch and its
+  `isDccFilledFor` import are gone, and the mobile client's `needsDcc` response
+  can never fire again.
+- **Connecting Google Calendar no longer backfills DCC days.** The OAuth
+  callback and profile "Sync now" push tasks only; `syncGoogleCalendarNow` lost
+  its `dccChanged` field and the toast lost its second sentence.
+
+Also unwired: salary-profile edits and the salary import no longer call
+`scheduleDccMasterReconcile` when a designation changes.
+
+**What deliberately stayed.**
+
+- **Every `dcc_*` table and every DCC migration.** Nothing was dropped and no
+  data was touched. `0235_dcc_call_logs.sql` — written this session, never
+  applied anywhere — was deleted along with its `dccCallLogs` Drizzle table,
+  because it existed only for the SP1 grid that is also gone.
+- **The Android app and `/api/mobile/dcc/*`.** They are a separate client and
+  were not in scope. They still read and write DCC normally, which is why
+  `lib/dcc/{access,util,write,entry-lock,item-lock}.ts` and `lib/queries/dcc.ts`
+  survive.
+- **`lib/dcc/{dashboard,daily-report}.ts` and `lib/queries/dcc-dashboard.ts`.**
+  Despite the folder they live in, the Hand-holding week calendar and
+  People Allocation import `addDaysYmd`, `buildPersonReports` and `OUTCOME_LABEL`
+  from them. Deleting the folder wholesale would have taken those screens down.
+- **The JD "Add To → DCC" box.** It is in Operations, not Employees, and the
+  `push_dcc` / `for_dcc` flags it writes have never been read by anything (see
+  the 2026-09-12 entry). Left alone as a separate decision.
+
+Verified: `npx tsc --noEmit` clean, `next build` clean, ESLint clean on every
+touched file, and the full unit suite green (3085 passed, 7 skipped).
+
+
+### 2026-09-16 — Initiator Status: renamed, gains Archived, and N/A for self-raised work
+
+Branch `Vinal`. Three changes to the ruling column WMS Tasks, Goals and
+Projects share, on the account holder's instruction.
+
+**1 · Renamed.** "Approver / Initiator Status" is now **"Initiator Status"**
+everywhere it is read — the three column headers, the chip's accessible name,
+the column-picker entries, and every refusal message the server sends back.
+A label only; nothing in the database was renamed.
+
+**2 · Archived is a sixth verdict.** The list is now Pending · Approved · Not
+Approved · On Hold · **Archived** · Cancelled. Like On Hold and Cancelled it is
+a decision ABOUT the work rather than a judgement of finished work, so it does
+not wait for the Doer Status to reach Done — only Approved and Not Approved do.
+
+**3 · Self-raised work reads "Not Applicable".** When the initiator IS the doer
+— somebody raised the task, goal or project row for themselves — there is no
+approver to wait on, so the column says so instead of sitting on "Pending"
+forever. An admin or super-admin may still overrule; nobody else can, including
+the raiser and their manager.
+
+**The bug this fixed on the way.** Goals and Tasks had disagreed about
+self-raised work. Goals set `isDoer: false` for the raiser, which let somebody
+approve their own goal; Tasks refused. Both now go through one explicit
+`isSelfRaised` flag on `ApproverActor`, set from the module's own two ids rather
+than by fudging `isDoer` — which is what let the two drift apart unnoticed.
+
+Super-admin now rules on tasks as it already did on goals: the WMS task action
+checked `employees.is_admin` only, so a super-admin who was not also flagged
+admin was refused.
+
+**Migration `0234_initiator_status_archived.sql` — NOT YET APPLIED.** Until it
+runs, picking Archived fails at the database: `tasks.approval_status` is a
+Postgres enum and the two goal side tables carry a CHECK. The file is
+idempotent and safe to run before or after `0231` (the goal tables are only
+touched if they exist). The `project_nodes` constraint is re-added **NOT
+VALID**, exactly as `0204` wrote it — that table has rows older than the
+constraint which were never checked, and a validating constraint would scan the
+table and fail on one of them.
+
+Verified: `npx tsc --noEmit` clean in source; the full unit suite passes.
+
+
+### 2026-09-16 — The JD frequency picker becomes Google Calendar's, for real
+
+Branch `Vinal`. The Job Description form's **Frequency** section now asks the
+question the way Google Calendar asks it, on the account holder's instruction.
+
+**What was wrong**
+
+The menu was a fixed list — "Weekly on Saturday", "Monthly on the second
+Saturday", "Annually on [Date]". Google's list is a set of SENTENCES ABOUT THE
+START DATE, so ours was right one day in seven: a job starting on a Wednesday
+offered to repeat weekly on Saturday, and `[Date]` was a literal placeholder
+that was never a date. `Custom…` was a free-text box — a label nobody parsed,
+which `isDueOn` deliberately never fires, so a "custom" JD had to be pushed by
+hand forever.
+
+**What changed**
+
+- **The list is derived, not fixed.** `frequencyOptionsFor(startDate)` speaks
+  the seven about the day picked — "Weekly on Wednesday", "Monthly on the third
+  Wednesday", "Annually on September 16". A date in the last week of its month
+  reads "last", not "fifth".
+- **One "Starts on" date** replaces the form's three date inputs (the "once"
+  date, the "annually" date, the interval anchor), exactly as the calendar has
+  one. It anchors the whole menu.
+- **`Custom…` opens Google's dialog** — "Repeat every N day/week/month/year",
+  weekday chips, day-of-month vs nth-weekday, and Ends (Never / On a date /
+  After N occurrences). It is the SAME dialog the task Schedule section opens,
+  lifted to `components/recurrence/custom-recurrence-dialog.tsx`, with the
+  vocabulary behind it in `lib/recurrence/google-recurrence.ts`. Two copies of
+  "Monthly on the third Wednesday" is two chances to drift, and the drift is
+  invisible — each screen looks right on its own.
+- **A new recurrence shape, `{ kind: "rrule", rule, anchor }`**, carries what
+  the dialog can now say. `recurrence` is jsonb, so there is **no migration**.
+
+**Two traps worth knowing**
+
+- **The presets are NOT RRULEs.** Each maps to the structured shape it always
+  mapped to. `FREQ=DAILY` is seven days a week; this firm's "Daily" is Mon-Sat,
+  because a task firing on the weekly off becomes an overdue row nobody can
+  clear. Only `Custom…` produces an `rrule`.
+- **`isDueOn` matches the pattern directly; it does NOT generate occurrences.**
+  `lib/recurrence/rrule.ts` caps generation at 200 to stop a runaway rule
+  spawning rows. Used as an oracle, that cap would make a daily job anchored a
+  year back answer "not due" for every day after the 200th — the push job
+  stopping silently in month seven. There is a test pinning a date two years
+  out.
+
+The server action **parses** the rule rather than shape-checking it: an RRULE
+the generator cannot read is a JD that never comes due, the same silent
+months-later failure as a dateless "Does not repeat".
+
+Verified: `npx tsc --noEmit` clean in source; the JD, RRULE and JD-bulk unit
+suites pass (80 tests), including 12 new cases for the rrule shape —
+interval-counted-in-weeks, UNTIL, COUNT across a partial first week, the
+200-occurrence cap, and an unreadable rule firing never.
+
 ### 2026-09-15 (night) — Migrations 0215–0224 APPLIED; the team's merge deployed
 
 **The pending-migration section above is now history.** `0215`–`0224` ran
@@ -685,37 +957,54 @@ the three things that normally keep a dependency out of production say nothing
 at all about file tracing.** Only `outputFileTracingExcludes` does, and that is
 now set in `next.config.ts`.
 
-🔴 **FUNCTIONS STORAGE IS CUMULATIVE AND NEVER FALLS. Read the graph before
-theorising — Usage → Functions Storage → Total size.** It runs from **0 B on
-~30 August** in an unbroken climb to 10.6 GB, with no dip anywhere, including
-on 15 September when **80 of 84 deployments were deleted**. Deployment Storage
-fell to 1.76 GB that same afternoon; this meter did not move.
+**FUNCTIONS STORAGE: WHAT IS OBSERVED, AND WHAT IS STILL UNKNOWN.** Four
+theories were advanced about this meter on 15 September and every one was
+wrong, so this section records measurements and marks the rest as open.
 
-So it is not a gauge of what is currently stored. **Every deployment adds to it
-permanently for the billing period** — roughly **240 MB each**, measured from
-the 15 September step (~7.2 GB to 10.6 GB across about fourteen deployments).
-The three earlier theories in this section's history — delete old deployments,
-blame the letter routes, blame a tracing exclude — were all wrong, and the
-graph would have refuted each of them in one glance.
+**Observed, 15 September:** the Usage graph (Usage → Functions Storage → Total
+size) climbed from 0 B on ~30 August to **10.6 GB against a 10 GB allowance**,
+in an unbroken line with no dip — including through the afternoon when **80 of
+84 deployments were deleted**. Deployment Storage fell to 1.76 GB that same
+hour; this meter did not move. Deployments came in Preview/Production PAIRS at
+identical timestamps, because the same commit was being pushed to `main` and to
+`dev-integration` and Vercel built both.
 
-**What follows from that:**
+**Observed, 16 September:** it **dropped to zero**.
 
-- **The 10.6 GB does not come down.** It resets when the period rolls over
-  (the graph starts ~30 August, so expect ~30 September). Being over the line
-  risks the project being paused; the only ways out before the reset are to
-  stop deploying or to upgrade.
-- **Every deploy is ~240 MB. Batch ruthlessly.** Fifteen small pushes cost
-  3.6 GB of a 10 GB allowance for one afternoon's work. This is the single
-  biggest thing anyone can do about the bill.
-- **Pushing the same commit to `main` AND `dev-integration` built it TWICE** —
-  visible as Preview/Production pairs at identical timestamps in `vercel ls`.
-  `vercel.json` now sets `git.deploymentEnabled["dev-integration"] = false`, so
-  the branch still receives pushes and still works as the outside developer's
-  PR target but no longer produces a build. That halves the cost of every
-  change on its own.
-- **Making functions smaller still matters**, but only for FUTURE deploys —
-  the pglite fix reduces what each new deployment adds, it cannot refund the
-  10.6 GB already counted.
+**Why it dropped is NOT established.** Two candidates, and they imply opposite
+things:
+
+1. **The billing period rolled over on the 16th.** Then the allowance simply
+   refills monthly and the climb starts again with the next deploy.
+2. **The deletions were credited a day late.** Then deleting deployments IS a
+   real lever, it just settles slowly — and the "never falls" reading taken
+   from a single afternoon was an artefact of watching too short a window.
+
+A drop to *zero* rather than to the cost of the four surviving deployments
+leans towards (1), but that is an inference, not a measurement.
+
+**To settle it**, watch two things: whether the line resets again around 16
+October (→ monthly cycle), and whether deleting a deployment produces a drop a
+day later (→ deletions work, with a lag).
+
+**What to do is the same under both readings, which is why it is safe to act
+on now:**
+
+- **Batch pushes.** Fifteen small ones on 15 September cost ~3.4 GB in an
+  afternoon — about **240 MB per deployment**, which is the one number here
+  that was measured directly rather than inferred.
+- **Never push one commit to two branches that both build.** `vercel.json` now
+  sets `git.deploymentEnabled["dev-integration"] = false`; the branch still
+  takes pushes and still works as the outside developer's PR target, it just
+  stops producing a build. That halves the cost of every change on its own.
+- **Smaller functions still help**, but only from the next deploy onward — the
+  pglite change reduces what each new deployment adds and cannot refund
+  anything already counted.
+
+**And read the graph before theorising.** Deleting old deployments, the three
+Chromium letter routes, and an `outputFileTracingExcludes` glob were each
+confidently blamed and each innocent; one look at the shape of that line would
+have refuted all three.
 
 ⚠️ **DO NOT TRUST A LOCAL `.nft.json` MEASUREMENT, including the table above.**
 Three builds of essentially the same tree measured 10.30 GB, then 1.95 GB, then
@@ -1124,6 +1413,161 @@ punch and their own week, full width.
 **Still true**: no SQL to run for any of this. It is presentation plus five
 read-only queries, all caught individually — a dead panel costs a panel, a
 thrown one costs the front door.
+### 2026-09-12 — Operations room rebuilt, task timer fixed properly, default scope by role
+
+Branch `Vinal`, fast-forwarded to `ae58385b`. **Everything below is UNCOMMITTED
+working tree** — 59 modified files and 23 new ones. Nothing has been pushed.
+
+**What changed**
+
+- **Default scope is decided by role, in one place.** New
+  `lib/auth/default-scope.ts`: team member → their own work, admin → their own
+  work, super-admin → everyone. Feeds eight call sites that each used to write
+  `me.isAdmin ? undefined : me.id` for themselves — `/tasks`, `/tasks/agenda`,
+  `/tasks/kanban`, `/archived`, the three task export routes and `/dashboard`.
+- **The Scope segmented control is gone** from `components/layout/filter-bar.tsx`.
+  Whose work you are reading is now asked only by the Assignee dropdown, which
+  already carries an "All employees" row and your own name marked "(You)".
+- **The task timer has four states, not a boolean.** `idle · running · paused ·
+  stopped`, derived from the event log in `lib/tasks/time/phase.ts`. Stop is a
+  real persisted action (`stopWork` in the engine, `work_stopped` in the log);
+  Restart now clears the recorded time and counts from `00:00:00` again
+  (`timer_reset`); the hero band, the Time Spent card and the Time Log tab all
+  render one shared `components/tasks/time/timer-controls.tsx`.
+- **Operations is the room it was asked to be.** Training moved in from the hub,
+  Broadcasts and Job Description moved across from HR, Salary Slip moved to
+  Employees, the front-door card deck was deleted (the room opens on
+  Hand-holding), Help Desk → HR Help Desk, Exit → Exit Process, and the rail is
+  now **alphabetical** with the landing named outright
+  (`OPERATIONS_LANDING_AREA`) instead of being whatever sat at index 0.
+- **The JD Bank has its ten columns**: Sr. No., Position, Function, Job
+  Description, Frequency, Time Estimated, Attachment, Notes, Add To, Add To
+  Person — every one sortable, ascending → descending → back to serial order.
+- **Job descriptions are assigned per destination.** Three boxes — DCC, WMS,
+  Event Checklist — each with a searchable roster
+  (`components/operations/job-description/module-assign-boxes.tsx`), stored as
+  three flags on one `jd_assignments` row (**migration 0225**).
+- **The rank ladder is the account holder's 26**, replacing fourteen
+  (`lib/jd/ladder.ts`, **migration 0226**), and the JD/checklist function
+  pickers are restricted to seven (`lib/jd/functions.ts`).
+- **Frequency speaks Google Calendar**: Does not repeat · Daily · Weekly on
+  Saturday · Monthly on the second Saturday · Annually on [Date] · Every weekday
+  · Custom. Two new recurrence shapes, `once` and `yearly`.
+- **The Event Checklist grid** got sortable headings, the columns renamed to
+  Sr. No. / Doer / Activity / Due Date / Target Date / Backup / Doer Status /
+  Actual Date / Var, an inline **Add event** at the foot of the Event Name
+  dropdown, and the dead "Import from Job Description" button removed.
+- **A demo layer** (`lib/demo/`) renders the JD Bank and the Event Checklist
+  from seeded in-memory data whenever their tables are missing, behind a banner
+  naming the migration. See *Breaking* — this is currently the ONLY way either
+  screen has ever been seen.
+
+**Why**
+
+**1. The same rule written eight times had already drifted.** Before this,
+`/tasks` opened an admin on the whole company while `/dashboard` opened them on
+themselves; the agenda always defaulted to the viewer, including super-admins;
+and the **kanban passed `{}`, so every viewer's board opened on the whole
+company** — including team members who see only their own rows everywhere else.
+Nobody reported these, because a wrong default looks like data.
+
+**2. "Fix the timer" had been asked nine times, and the ninth fix was correct.**
+The engine, the store and the two surfaces were all right and all tested. What
+was wrong was what the buttons MEANT: Restart rewound only the open session and
+kept every banked minute, so a task with forty minutes on it read `40:00` the
+instant after a button promising zero. And the rail's "Stop" called the same
+action as the hero's "Pause" — one verb, two spellings, on one screen. No amount
+of shared state fixes a divergence that lives in the markup, which is why the
+controls are now one component with two skins.
+
+**3. The screenshots being reported do not come from this database.** Worth
+knowing before chasing the next bug report: `.env.local` holds one
+`DATABASE_URL` (`ifcdpjbdinvmtewmgceg`), and a read-only probe found **no task
+created in the last two days and no task titled "App"**, while the report showed
+one created "just now" with a running session. Whatever is being clicked is a
+different deployment. Fixes land here; the screen being checked is served by
+another build.
+
+**Also worth knowing**
+
+- **`jd_*` and `ops_checklist_*` do not exist in this database.** Verified
+  against `information_schema`: migrations 0221 and 0222 have never been
+  applied here. Both features run entirely on the demo layer, which is why it
+  exists — a "run the migration" card is accurate and completely unreviewable.
+- **The upstream pull disabled the WMS device gate.** `204c5781` comments out
+  `enforceWmsDeviceAccess` in `lib/auth/current.ts` because it was refusing
+  every login: the gate ran before capabilities were consulted, so anyone whose
+  one-per-kind slot was filled was bounced — including from the Registered
+  Devices screen that would have approved them. Device enrolment still runs.
+  **Before re-enabling, every active employee needs an approved device of the
+  kind they sign in from.**
+- **That pull also broke a test**, and it is not one of ours:
+  `delegated-access-authorization` greps `lib/auth/current.ts` for
+  `await enforceWmsDeviceAccess(real)` and no longer finds it.
+- **Sr. No. is a row ordinal, not the serial.** It renumbers when you filter.
+  The permanent `JD-0004` is on the number as a tooltip and in the drawer. If
+  the printed number is meant to be permanent, the column should show the serial
+  instead — the two cannot both be column one.
+- **Notes were write-only for months.** The JD form has written `notes_html`
+  since day one, but no query ever selected it and `JdEntryRow` did not carry
+  it, so every note anyone typed was invisible everywhere. It is now in the
+  grid as a stripped one-line preview and in full in the drawer.
+- **Sales and Others stay in the function master.** The JD pickers offer seven;
+  the firm still has nine, and editing the master down would strip the *label*
+  off employees who hold those keys rather than removing the function.
+- **Sorting is deliberately not remembered** on either grid. Collapse state
+  persists because that is a lasting preference; a sort is how you read a list
+  for a minute, and finding the grid still alphabetical next week reads as the
+  plan itself having been rearranged.
+- **Two specification documents** were written against this code and published
+  as artifacts: the JD Bank spec, and a two-part spec covering Job Description
+  and the Event/Non-Event Checklist. They mark every requirement Built /
+  Partial / To build against what actually exists.
+- **The JD auto-push still does not exist.** `push_dcc`, `push_wms`,
+  `push_event` and `jd_push_log` are all in place and **nothing reads them** —
+  ticking "Daily Compliance Checklist" records an intention and creates no task
+  anywhere. This is the largest remaining gap in the feature.
+
+**How to verify**
+
+```bash
+pnpm typecheck                       # clean
+pnpm exec eslint .                   # clean apart from known warnings
+pnpm exec vitest run --no-file-parallelism
+# 2912 passed, 5 failed — all five pre-existing or from the pull, see above
+```
+
+Click-path, all on the demo layer: `/operations` redirects to Hand-holding · the
+rail reads Broadcasts → Training alphabetically · `/operations/job-description`
+shows ten sortable columns and the three assignment boxes ·
+`/operations/checklist` sorts within each phase and offers **＋ Add event…** at
+the foot of the Event Name dropdown · open any task and Pause, Stop and Restart
+agree between the crimson band and the Time Spent card.
+
+**Breaking / migration notes**
+
+- 🔴 **Four migrations are unrun for these features**: `0221` (Event
+  Checklist), `0222` (Job Description), and the two written today —
+  **`0225_jd_assignment_targets.sql`** (per-destination assignment flags) and
+  **`0226_jd_rank_ladder_26.sql`** (the 26 ranks). Apply in that order. Both
+  new ones are additive and idempotent.
+- `0226` **renumbers `rank_order`, which is behaviour** — the vacancy resolver
+  climbs it. It does so in two passes because a single pass collides with the
+  unique index, and it deliberately **leaves DGM alone**: that rank has no
+  equivalent in the new list, and guessing between Deputy Director and General
+  Manager would reroute live work. The migration raises a notice naming how
+  many positions are stranded.
+- **The ladder as ordered puts the GM grades ABOVE the VP grades** — a vacant
+  Manager escalates through AVP, VP and President before reaching Assistant
+  General Manager. This is the account holder's stated order, pinned by a test
+  in `tests/unit/jd-ladder.test.ts`. If it is not intended, it is a two-line
+  edit plus the migration.
+- No new env vars.
+- Nothing is committed. `git status` shows 59 modified and 23 new files on
+  `Vinal`.
+
+**Author:** Vinal Patil (with Claude)
+
 
 ### 2026-09-11 — Schema drift closed, WMS team's second batch merged, id counters repaired
 

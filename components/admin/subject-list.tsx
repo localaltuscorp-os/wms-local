@@ -9,9 +9,11 @@ import { DataTable } from "@/components/admin/ui/data-table";
 
 interface Props {
   subjects: SubjectWithCount[];
+  /** Manan Sir, Jeevan and Rohan only — everyone else gets a read-only list. */
+  canEdit?: boolean;
 }
 
-export function SubjectList({ subjects }: Props) {
+export function SubjectList({ subjects, canEdit = false }: Props) {
   const [editing, setEditing] = useState<SubjectWithCount | null>(null);
 
   return (
@@ -68,9 +70,9 @@ export function SubjectList({ subjects }: Props) {
             render: (s) => <StatusChip active={s.isActive} />,
           },
         ]}
-        rowActions={(s) => (
-          <SubjectRowActions subject={s} onEdit={() => setEditing(s)} />
-        )}
+        rowActions={
+          canEdit ? (s) => <SubjectRowActions subject={s} onEdit={() => setEditing(s)} /> : undefined
+        }
         emptyState={
           <>
             <p

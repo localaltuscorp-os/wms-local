@@ -39,7 +39,7 @@
     "start:lan": "next start -H 0.0.0.0 -p 3000",
     "dummy:setup": "tsx --env-file=.env.local scripts/dummy-db-setup.ts",
     "dummy:reset": "tsx --env-file=.env.local scripts/dummy-db-setup.ts --reset",
-    "dev:dummy": "cross-env DUMMY_MODE=true next dev --turbopack -p 3002"
+    "dev:dummy": "cross-env DUMMY_MODE=true NEXT_DIST_DIR=.next-dummy DEVICE_ACCESS_ENFORCEMENT=off next dev --turbopack -p 3002"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

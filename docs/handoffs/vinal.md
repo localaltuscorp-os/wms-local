@@ -20,6 +20,8 @@ The standing list. Delete a row the moment it is applied and verified — a stal
 
 | Migration | Paste sheet | Creates | Status |
 |-----------|-------------|---------|--------|
+| `0236` | [`db/migrations/0236_recruitment_jd_roles.sql`](../../db/migrations/0236_recruitment_jd_roles.sql) | Recruitment JDs keyed by their own `slug` instead of an interview grade, plus `recruitment_jd_sends` | **Not run.** Self-contained and idempotent — it creates both tables whether or not `0232` was ever applied. Until it runs, Operations → Masters → Recruitment JD shows the eight originals read-only and names the migration |
+| `0228`–`0233` | [`db/RUN-IN-SUPABASE-0228-0233.sql`](../../db/RUN-IN-SUPABASE-0228-0233.sql) | JD Category, DCC Calendar Events, DCC Masters & Links, Approver Statuses, Recruitment JDs & Sends, Person-Specific JDs | **Not run.** Run before deploying 2026-09-15 changes |
 | `0221` + `0222` | [`db/RUN-IN-SUPABASE-0221-0222.sql`](../../db/RUN-IN-SUPABASE-0221-0222.sql) | Event Checklist (4 tables) + Job Description (8 tables, 14 seeded ranks) | **Not run.** Both pages detect the missing tables and render a setup notice rather than a 500 |
 | `0215`–`0224` | [`db/RUN-IN-SUPABASE-0215-0224-ALL.sql`](../../db/RUN-IN-SUPABASE-0215-0224-ALL.sql) | everything, the row above included — no `0216-0220` sheet ever existed | `0215`–`0220` **applied 2026-09-11** by hand; `0221`–`0224` outstanding |
 
@@ -57,6 +59,121 @@ The standing list. Delete a row the moment it is applied and verified — a stal
 **How to verify**
 - The command, URL or click-path that proves it works.
 ```
+
+---
+
+## 2026-09-17 — Recruitment JDs, and where they live
+
+**What changed**
+- **A Recruitment JD section**, for the JDs recruiters send *candidates* — separate
+  from the internal Job Description module, which describes a seat somebody already
+  holds. One template in `lib/operations/recruitment-jd.ts` (10 fact-box lines, 12
+  body sections) drives the editor, the preview, the WhatsApp text and the email,
+  so none of the four can drift from the others.
+- **The ten JDs Rutvisha wrote, as eight roles** (`lib/operations/recruitment-jd-seed.ts`).
+  Sales and Operations each arrived twice — a polished version and a longer
+  recruiter-facing one — and each pair was merged rather than left as two JDs for
+  one job.
+- **Master vs recruiter copy.** The master is the original; recruiters edit their own
+  copy and send that. A copy identical to the master stores `null`, so master edits
+  keep flowing through until somebody genuinely diverges. *Reset to master* drops
+  the copy; *Restore the original* puts the master back to the shipped text. The
+  seed is inserted once per slug and never re-applied, so a deploy cannot silently
+  undo an HR edit.
+- **ATS keywords are marked `internal`** — editable and copyable for job boards,
+  never included in a message to a candidate (`JD_SENT_FIELDS`).
+- **Its own role list, not `interview_positions`** (`0236`). That table is the
+  interview *grade* ladder — Executive, Senior Manager, First-Year Intern. Several
+  of these JDs span two grades at once ("Senior Sales Manager / Sales Manager") and
+  most grades will never have a JD, so a recruitment JD is now addressed by `slug`
+  with an optional link back to a grade.
+- **Moved to Operations → Masters** at the account holder's request, from the HR
+  rail it shipped on that morning:
+  `/hr/recruitment-jd` → `/operations/masters/recruitment-jd` (the old path
+  redirects), `lib/hr/recruitment-jd*.ts` → `lib/operations/`,
+  `components/hr/recruitment-jd/` → `components/operations/recruitment-jd/`.
+  It is the third job-description master, beside Master JD and Person-specific JD.
+
+**Why**
+- It is a master — the JD we advertise a role with — and the room already keeps
+  every other master in one section. Beside the other two job descriptions it also
+  reads as the distinction it is: those two say what a seat does once somebody is
+  in it, this one says what the seat is while we are still looking.
+- The move widened the audience, so the access rule changed with it. **Reading is
+  open to the Operations room**, like every other master — a JD we are advertising
+  is not confidential, and the people asked to refer candidates are exactly the
+  people who need to read it. **Editing and sending stay HR staff only**, enforced
+  in `actions.ts`; `canEdit` only decides whether the controls are drawn. This is
+  the same split the neighbouring Master JD already uses.
+- `hr.recruitment-jd` gave up its permission node to `operations.masters` rather
+  than keeping a second switch for one page in a section that already has one. The
+  key had existed for one day and had never been granted, so nothing was revoked.
+  `/hr/recruitment-jd` is listed on `operations.masters` beside the new path, for
+  the reason Salary Slip's old path is: a redirect into a governed room must be
+  governed by the same switch.
+
+**SQL to run before deploying**
+- `db/migrations/0236_recruitment_jd_roles.sql`. Until it is applied the section
+  reads fine — all eight JDs, read-only, with a banner naming the migration — but
+  saving and sending are refused.
+
+**How to verify**
+- `/operations/masters` lists **Recruitment JD** under Job Description; the rail's
+  Masters section and the tab strip on every masters page carry it too.
+- `/hr/recruitment-jd` redirects to it, and the HR rail no longer offers it.
+- `npx vitest run --no-file-parallelism tests/unit/recruitment-jd-seed.test.ts tests/unit/recruitment-jd.test.ts tests/unit/operations-masters-nav.test.ts`
+
+## 2026-09-15 — full day
+
+Eight major features & updates landed today.
+
+### 1 · Job Description Category Field & Person-Specific JDs
+- **What changed**: Added `category` column to `jd_entries` (`0228`) and added `owner_employee_id` with XOR check constraint (`0233`). Created person view tab and bulk CSV uploader.
+- **Why**: Allows job description items to be tagged by free-text categories (e.g. Vendors, Housekeeping) and assigned directly to a specific person in addition to position seats.
+- **SQL**: `db/migrations/0228_jd_entries_category.sql`, `db/migrations/0233_jd_person_specific.sql`.
+- **How to verify**: Open `/operations/job-description`, view Category filter/input, check Person View tab and Bulk Upload modal.
+
+### 2 · DCC Masters (Position Templates & Live Link Sync)
+- **What changed**: Created `dcc_master_items` & `dcc_master_links` (`0230`). Added `/dcc/masters` administration interface and automatic sync engine (`lib/dcc/master-sync.ts`).
+- **Why**: Enables defining a master Daily Compliance checklist per designation/position that automatically populates and updates active employee KPIs while preserving historical entries.
+- **SQL**: `db/migrations/0230_dcc_master_items.sql`.
+- **How to verify**: Visit `/dcc/masters`, create or edit a position master item, verify sync across team members.
+
+### 3 · DCC Dashboard, Detailed Breakdown & 10 PM Daily Automated Report
+- **What changed**: Created `/dcc/dashboard` with completion statistics, department filters, entry lock status, and cron endpoint `/api/cron/dcc-daily-report` for daily email digests.
+- **Why**: Gives management visibility into daily compliance across departments and sends nightly summary emails to leaders.
+- **SQL**: Uses `0230` master tables and existing DCC entry tables.
+- **How to verify**: Visit `/dcc/dashboard`, check metrics, and run unit tests `npx vitest run tests/unit/dcc-dashboard.test.ts`.
+
+### 4 · DCC Google Calendar Sync & Connect Gate
+- **What changed**: Created `dcc_calendar_events` (`0229`) and Google Calendar sync service (`lib/dcc/calendar-sync.ts`, `/api/cron/dcc-calendar-sync`). Added Calendar Connect Gate component.
+- **Why**: Keeps each employee's daily compliance tasks visible directly as an all-day event in their Altus Google Calendar without duplicate events.
+- **SQL**: `db/migrations/0229_dcc_calendar_events.sql`.
+- **How to verify**: Check calendar connection status in `/dcc` or profile, and run `npx vitest run tests/unit/dcc-calendar-event.test.ts`.
+
+### 5 · Approver / Initiator Status (Doer Status vs Approver Ruling)
+- **What changed**: Added `on_hold` value to `approval_status` enum, and created `goal_approver_statuses` & `weekly_goal_approver_statuses` tables (`0231`). Updated WMS tasks, Goals, and Weekly Goals boards to present independent Doer Status and Approver/Initiator Status rulings.
+- **Why**: Separates the doer's execution status (e.g. Not Started, Initiated, Done) from the approver/initiator's ruling (Pending, Approved, Not Approved, On Hold, Cancelled).
+- **SQL**: `db/migrations/0231_approver_initiator_status.sql`.
+- **How to verify**: Open `/tasks` or `/goals/weekly`, inspect status cells, and run `npx vitest run tests/unit/approver-status.test.ts`.
+
+### 6 · Recruitment JDs (HR Candidate Job Descriptions & WhatsApp / Email Sends)
+- **What changed**: Created `recruitment_jds` & `recruitment_jd_sends` (`0232`), added `/hr/recruitment-jd` management hub and recruiter share modal with WhatsApp deep link formatting and email delivery.
+- **Why**: Allows HR recruiters to view master candidate job descriptions, customize recruiter copies, and send formatted job overviews directly to applicants.
+- **SQL**: `db/migrations/0232_recruitment_jds.sql`.
+- **How to verify**: Open `/hr/recruitment-jd`, test editing recruiter content, click WhatsApp/Email send, and run `npx vitest run tests/unit/recruitment-jd.test.ts`.
+
+### 7 · Hand-Holding (HH) Week Calendar & Auto-Linking
+- **What changed**: Created HH Week Calendar view component and server actions (`app/(app)/people-allocation/calendar-actions.ts`, `components/people-allocation/hh-week-calendar.tsx`, `lib/hh/auto-link.ts`).
+- **Why**: Provides a week-by-week visual schedule for hand-holding allocations and automatically links team allocations to calendar events.
+- **SQL**: None (uses existing allocation tables).
+- **How to verify**: Open `/people-allocation`, switch to HH Week Calendar view, and run `npx vitest run tests/unit/hh-calendar.test.ts`.
+
+### 8 · Operations & Event Masters Navigation
+- **What changed**: Added masters administration routes for Operations (`/operations/masters`) and Events (`/events/masters`).
+- **Why**: Provides central administration for category options and checklist master items.
+- **SQL**: None.
+- **How to verify**: Visit `/operations/masters` and `/events/masters`.
 
 ---
 

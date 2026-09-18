@@ -3,6 +3,9 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   CalendarDays,
   ChevronDown,
   ChevronRight,
@@ -21,6 +24,14 @@ import {
   type ChecklistPersonRow,
   type ChecklistRunRow,
 } from "@/lib/operations/checklist";
+import {
+  ariaSort,
+  describeSort,
+  nextSort,
+  sortChecklistRows,
+  type SortKey,
+  type SortState,
+} from "@/lib/operations/checklist-sort";
 import {
   PHASE_LABELS,
   PHASE_ORDER,
@@ -41,6 +52,8 @@ import {
   updateChecklistItem,
   updateChecklistRun,
 } from "@/app/(app)/operations/checklist/actions";
+import { CategoryInput, distinctCategories } from "@/components/operations/category-input";
+import { VoiceNoteButton } from "@/components/ui/voice-note-button";
 
 const ACCENT = "#E10600";
 const ACCENT_DEEP = "#A80400";
@@ -100,6 +113,11 @@ export function ChecklistGrid({ run, items, people, canEdit }: ChecklistGridProp
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [collapsed, setCollapsed] = React.useState<Set<ChecklistPhase>>(new Set());
+  /* Null is the checklist's own order. Deliberately NOT persisted: a sort is a
+     way of reading the list for a minute, and finding the grid still alphabetical
+     next week would read as the plan itself having been rearranged. Collapse
+     state is remembered because that IS a lasting preference. */
+  const [sort, setSort] = React.useState<SortState>(null);
 
   /* Collapse state is a convenience, not data — a private window throws on
      localStorage access, so every touch is guarded and the page renders the
@@ -137,6 +155,11 @@ export function ChecklistGrid({ run, items, people, canEdit }: ChecklistGridProp
     });
   };
 
+  const toggleSort = React.useCallback(
+    (k: SortKey) => setSort((cur) => nextSort(cur, k)),
+    [],
+  );
+
   async function run_<T>(key: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
     setBusy(key);
     setError(null);
@@ -149,7 +172,16 @@ export function ChecklistGrid({ run, items, people, canEdit }: ChecklistGridProp
     }
   }
 
-  /* ── Grouping ───────────────────────────────────────────────────────────── */
+  /* ── Grouping, then sorting INSIDE each group ───────────────────────────
+     Phases are the plan's structure, not a convenience grouping: a task three
+     days before the event and one ten days after are not comparable work, and
+     interleaving them by doer name gives a list nobody can execute. So the sort
+     runs per phase and the phases keep their order. */
+  const nameById = React.useMemo(
+    () => new Map(people.map((p) => [p.id, p.name])),
+    [people],
+  );
+
   const grouped = React.useMemo(() => {
     const by = new Map<ChecklistPhase, ChecklistItemRow[]>();
     for (const p of PHASE_ORDER) by.set(p, []);
@@ -158,11 +190,24 @@ export function ChecklistGrid({ run, items, people, canEdit }: ChecklistGridProp
       const phase = run.isEvent ? phaseFor(it.offsetDays) : "undated";
       by.get(phase)!.push(it);
     }
-    for (const list of by.values()) list.sort(compareRows);
+    const ctx = {
+      nameOf: (id: string | null) => (id ? (nameById.get(id) ?? null) : null),
+      targetOf: (r: ChecklistItemRow) =>
+        run.isEvent ? targetDate(run.eventDate, r.offsetDays) : r.targetDate,
+      varianceOf: (r: ChecklistItemRow) =>
+        variance(
+          run.isEvent ? targetDate(run.eventDate, r.offsetDays) : r.targetDate,
+          r.doneAt ? r.doneAt.slice(0, 10) : null,
+          today,
+        ),
+      natural: compareRows,
+    };
+    for (const [phase, list] of by) by.set(phase, sortChecklistRows(list, sort, ctx));
     return by;
-  }, [items, run.isEvent]);
+  }, [items, run.isEvent, run.eventDate, sort, nameById, today]);
 
   const overall = checklistProgress(items.map((i) => i.status));
+  const categories = React.useMemo(() => distinctCategories(items), [items]);
 
   /** Which groups get a header. Undated only appears when it has rows. */
   const phases: ChecklistPhase[] = run.isEvent
@@ -233,20 +278,68 @@ export function ChecklistGrid({ run, items, people, canEdit }: ChecklistGridProp
         </span>
       </div>
 
+      {/* ── What the sort is doing, and how to undo it ──────────────────────
+          A third click on the same header clears the sort, which nobody
+          discovers on their own — so the state says so and offers the button.
+          It also says "within each phase", which is the one thing about this
+          sort that could otherwise surprise someone. */}
+      {sort && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-[12.5px] text-slate-600">
+          <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          <span>
+            Sorted by <b className="font-semibold text-slate-800">{describeSort(sort, labelOfSortKey)}</b>
+            {run.isEvent ? " within each phase" : ""}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSort(null)}
+            className="ml-auto rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Back to plan order
+          </button>
+        </div>
+      )}
+
       {/* ── The grid ───────────────────────────────────────────────────────── */}
       <div className="table-scroll overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-        <table className="w-full min-w-[980px] text-[13px]">
+        <table className="w-full min-w-[1120px] text-[13px]">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              <th className="w-12 px-3 py-2.5">S.No</th>
-              <th className="w-40 px-3 py-2.5">Doer</th>
-              <th className="px-3 py-2.5">Activity</th>
-              <th className="w-20 px-3 py-2.5">{run.isEvent ? "Offset" : ""}</th>
-              <th className="w-28 px-3 py-2.5">Target</th>
-              <th className="w-40 px-3 py-2.5">Backup</th>
-              <th className="w-16 px-3 py-2.5 text-center">Done</th>
-              <th className="w-36 px-3 py-2.5">Actual</th>
-              <th className="w-20 px-3 py-2.5 text-right">Var</th>
+              <SortTh k="sr" sort={sort} onSort={toggleSort} className="w-16" />
+              <SortTh k="doer" sort={sort} onSort={toggleSort} className="w-40" />
+              <SortTh k="activity" sort={sort} onSort={toggleSort} />
+              <SortTh k="category" sort={sort} onSort={toggleSort} className="w-36" />
+              {/* A non-event checklist has no anchor to offset from, so the
+                  column is blank — and a blank header is nothing to sort by. */}
+              {run.isEvent ? (
+                <SortTh
+                  k="offset"
+                  sort={sort}
+                  onSort={toggleSort}
+                  className="w-24"
+                  hint="Days relative to the event: -3 is three days before, 0 is event day."
+                />
+              ) : (
+                <th className="w-20 px-3 py-2.5" />
+              )}
+              <SortTh
+                k="target"
+                sort={sort}
+                onSort={toggleSort}
+                className="w-32"
+                hint="The event date plus the offset."
+              />
+              <SortTh k="backup" sort={sort} onSort={toggleSort} className="w-40" />
+              <SortTh k="done" sort={sort} onSort={toggleSort} className="w-28" align="center" />
+              <SortTh k="actual" sort={sort} onSort={toggleSort} className="w-36" />
+              <SortTh
+                k="var"
+                sort={sort}
+                onSort={toggleSort}
+                className="w-20"
+                align="right"
+                hint="Days between the target and the actual. Positive is late."
+              />
               {canEdit && <th className="w-10 px-2 py-2.5" />}
             </tr>
           </thead>
@@ -255,7 +348,7 @@ export function ChecklistGrid({ run, items, people, canEdit }: ChecklistGridProp
               const rows = grouped.get(phase) ?? [];
               const isShut = collapsed.has(phase);
               const prog = checklistProgress(rows.map((r) => r.status));
-              const colSpan = canEdit ? 10 : 9;
+              const colSpan = canEdit ? 11 : 10;
 
               return (
                 <React.Fragment key={phase}>
@@ -289,6 +382,7 @@ export function ChecklistGrid({ run, items, people, canEdit }: ChecklistGridProp
                         index={i + 1}
                         run={run}
                         people={people}
+                        categories={categories}
                         canEdit={canEdit}
                         today={today}
                         busy={busy}
@@ -326,11 +420,105 @@ export function ChecklistGrid({ run, items, people, canEdit }: ChecklistGridProp
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 
+/**
+ * The nine headings, spelled ONCE — the grid reads them, and so does the
+ * "Sorted by …" banner, so a column cannot be called one thing in the header
+ * and another in the sentence describing the sort.
+ *
+ * ── DUE DATE HOLDS THE OFFSET, TARGET DATE HOLDS THE DATE ────────────────
+ * The account holder's vocabulary (2026-09-12): Due Date is the number of days
+ * relative to the event — -3, 0, +10 — and Target Date is the calendar date
+ * that produces. Both cells carry a hint saying so, because a heading reading
+ * "Due Date" above "-20" is worth one line of explanation the first time
+ * somebody meets it.
+ */
+const SORT_LABELS: Record<SortKey, string> = {
+  sr: "Sr. No.",
+  doer: "Doer",
+  activity: "Activity",
+  category: "Category",
+  offset: "Due Date",
+  target: "Target Date",
+  backup: "Backup",
+  // The Done checkbox and the four-state menu behind it are one control, and
+  // what it records is the doer's own state — which is what it is now called.
+  done: "Doer Status",
+  actual: "Actual Date",
+  var: "Var",
+};
+const labelOfSortKey = (k: SortKey) => SORT_LABELS[k];
+
+/**
+ * A sortable column heading.
+ *
+ * The arrow is always in the DOM — faint until the column is the sorted one —
+ * so the header does not change width when you sort it, and so a reader can see
+ * which columns are sortable before clicking one.
+ */
+function SortTh({
+  k,
+  sort,
+  onSort,
+  className,
+  align = "left",
+  hint,
+}: {
+  k: SortKey;
+  sort: SortState;
+  onSort: (k: SortKey) => void;
+  className?: string;
+  align?: "left" | "center" | "right";
+  /** What the column means, on hover — for the three that need saying. */
+  hint?: string;
+}) {
+  const label = SORT_LABELS[k];
+  const active = sort?.key === k;
+  const dir = active ? sort!.dir : null;
+  const justify =
+    align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start";
+
+  return (
+    <th
+      scope="col"
+      aria-sort={ariaSort(sort, k)}
+      className={`px-0 py-0 ${className ?? ""}`}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(k)}
+        title={[
+          hint,
+          dir === "asc"
+            ? `Sorted by ${label}, ascending — click for descending`
+            : dir === "desc"
+              ? `Sorted by ${label}, descending — click to clear`
+              : `Sort by ${label}`,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+        className={`flex w-full items-center gap-1 px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider transition-colors hover:bg-slate-100 ${justify} ${
+          active ? "text-slate-900" : "text-slate-500"
+        }`}
+      >
+        <span>{label}</span>
+        {dir === "asc" ? (
+          <ArrowUp className="h-3 w-3 shrink-0" style={{ color: ACCENT_DEEP }} />
+        ) : dir === "desc" ? (
+          <ArrowDown className="h-3 w-3 shrink-0" style={{ color: ACCENT_DEEP }} />
+        ) : (
+          <ArrowUpDown className="h-3 w-3 shrink-0 text-slate-300" aria-hidden />
+        )}
+      </button>
+    </th>
+  );
+}
+
 function GridRow({
   item,
   index,
   run,
   people,
+  categories,
   canEdit,
   today,
   busy,
@@ -340,6 +528,7 @@ function GridRow({
   index: number;
   run: ChecklistRunRow;
   people: ChecklistPersonRow[];
+  categories: readonly string[];
   canEdit: boolean;
   today: string;
   busy: string | null;
@@ -376,17 +565,55 @@ function GridRow({
       </td>
 
       <td className="px-3 py-2">
-        <TextCell
-          value={item.title}
-          disabled={!canEdit || busy !== null}
-          onCommit={(v2) =>
-            onRun(`row:${item.id}`, () => updateChecklistItem({ id: item.id, title: v2 }))
-          }
-        />
+        <div className="relative">
+          <TextCell
+            value={item.title}
+            disabled={!canEdit || busy !== null}
+            padForMic={canEdit}
+            onCommit={(v2) =>
+              onRun(`row:${item.id}`, () => updateChecklistItem({ id: item.id, title: v2 }))
+            }
+          />
+          {/* In the cell's corner, but rendered OUTSIDE TextCell: that cell swaps
+              to plain text whenever ANY row is saving, which would unmount a
+              recording in progress. */}
+          {canEdit && (
+            <div className="absolute right-0.5 top-0.5">
+              <VoiceNoteButton
+                iconOnly
+                compact
+                label="Dictate with Voice"
+                onText={(t) =>
+                  onRun(`row:${item.id}`, () =>
+                    updateChecklistItem({ id: item.id, title: `${item.title.trimEnd()} ${t}` }),
+                  )
+                }
+              />
+            </div>
+          )}
+        </div>
         {item.jdEntryId && (
           <span className="mt-0.5 inline-block rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
             from JD
           </span>
+        )}
+      </td>
+
+      <td className="px-3 py-2">
+        {!canEdit || busy !== null ? (
+          <span className={item.category ? "text-slate-700" : "text-slate-300"}>
+            {item.category ?? "—"}
+          </span>
+        ) : (
+          <CategoryInput
+            value={item.category}
+            suggestions={categories}
+            placeholder="—"
+            onCommit={(v2) =>
+              onRun(`row:${item.id}`, () => updateChecklistItem({ id: item.id, category: v2 }))
+            }
+            className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] text-slate-800 outline-none placeholder:text-slate-300 hover:border-slate-200 focus:border-slate-300 focus:bg-white"
+          />
         )}
       </td>
 
@@ -498,10 +725,13 @@ function GridRow({
 function TextCell({
   value,
   disabled,
+  padForMic = false,
   onCommit,
 }: {
   value: string;
   disabled: boolean;
+  /** Leave room at the right for the Dictate mic sitting in the corner. */
+  padForMic?: boolean;
   onCommit: (v: string) => void;
 }) {
   /* The committed value is the source of truth; `draft` is what is being typed.
@@ -515,10 +745,24 @@ function TextCell({
     setDraft(value);
   }
 
+  /* GROW TO THE TEXT. `rows={1}` on its own clips an activity at one line, and
+     the clipped half is usually the half that says what the task actually is —
+     "Feedback form out, and a note of…". Sizing to scrollHeight in a layout
+     effect means the first paint is already the right height, so the grid does
+     not visibly reflow as rows settle. */
+  const ref = React.useRef<HTMLTextAreaElement>(null);
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft]);
+
   if (disabled) return <span className="text-slate-700">{value}</span>;
 
   return (
     <textarea
+      ref={ref}
       rows={1}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
@@ -539,7 +783,9 @@ function TextCell({
           e.currentTarget.blur();
         }
       }}
-      className="w-full resize-none rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] text-slate-800 outline-none hover:border-slate-200 focus:border-slate-300 focus:bg-white"
+      className={`w-full resize-none rounded border border-transparent bg-transparent py-0.5 pl-1 text-[13px] text-slate-800 outline-none hover:border-slate-200 focus:border-slate-300 focus:bg-white ${
+        padForMic ? "pr-8" : "pr-1"
+      }`}
     />
   );
 }
@@ -764,18 +1010,29 @@ function QuickAddRow({
         <Plus className="h-3.5 w-3.5" />
       </td>
       <td colSpan={colSpan - 2} className="px-3 py-1.5">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={`Add a task to ${isEvent ? PHASE_LABELS[phase] : "the checklist"} — press Enter`}
-          className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] text-slate-700 outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-slate-300 focus:bg-white"
-        />
+        <div className="relative">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            placeholder={`Add a task to ${isEvent ? PHASE_LABELS[phase] : "the checklist"} — type, or dictate, then press Enter`}
+            className="w-full rounded border border-transparent bg-transparent py-0.5 pl-1 pr-24 text-[13px] text-slate-700 outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-slate-300 focus:bg-white"
+          />
+          {/* In the box's right corner. Fills the field rather than adding the
+              row, so the words can be checked before Enter. */}
+          <div className="absolute right-0.5 top-1/2 -translate-y-1/2">
+            <VoiceNoteButton
+              compact
+              label="Dictate"
+              onText={(t) => setTitle((cur) => (cur.trim() ? `${cur.trimEnd()} ${t}` : t))}
+            />
+          </div>
+        </div>
       </td>
       <td className="px-3 py-1.5 text-right">
         {busy === `add:${phase}` ? (

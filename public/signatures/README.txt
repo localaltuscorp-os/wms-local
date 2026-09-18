@@ -13,8 +13,9 @@ hr-signature.png  -> THE HR DESK'S REAL SIGNATURE. Applied automatically to
                      so preview and PDF cannot drift apart.
 
 proprietor-signature.jpg -> the Director sign-off (ctc-breakup, appointment).
-manan-sign.jpeg          -> the Selection letter's founder block (per-template
+manan-sign.png           -> the Selection letter's founder block (per-template
                             imageSrc, which overrides everything below it).
+                            Manan Vasa's no-background scan (2026-09-17).
 
 PRECEDENCE, highest first:
   1. an uploaded scanned signature passed as `signatureImage` at issue time
@@ -31,5 +32,6 @@ showing a broken image.
 These are blank panels with a red baseline, NOT real signatures. See
 lib/salary/signatories.ts:
   manan.png     -> Manan Vasa   (Altus Corp, MJV HUF, JSV HUF)
+                   real no-background scan (2026-09-17), no longer a placeholder
   cmv.png       -> CMV          (Unleashed)
   rutvisha.png  -> Rutvisha     (all other entities)

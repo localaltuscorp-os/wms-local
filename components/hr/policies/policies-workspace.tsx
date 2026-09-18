@@ -2,7 +2,20 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Upload, FileText, Download, Trash2, X, ScrollText } from "lucide-react";
+import Link from "next/link";
+import type { Route } from "next";
+import {
+  Loader2,
+  Upload,
+  FileText,
+  Download,
+  Trash2,
+  X,
+  ScrollText,
+  ShieldCheck,
+  Check,
+  ArrowUpRight,
+} from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { POLICY_CATEGORIES } from "@/lib/hr/policy-types";
 import { uploadPolicy, deletePolicy } from "@/app/(app)/policies/actions";
@@ -29,6 +42,20 @@ interface Group {
   policies: Policy[];
 }
 
+/** An AUTHORED firm policy (POSH / Exit / …), as the section shows it — with the
+ *  viewer's own signed status so the page can badge "Signed" vs "Read & sign"
+ *  without opening the policy. Built server-side in app/(app)/policies/page.tsx. */
+export interface SignablePolicy {
+  key: string;
+  title: string;
+  blurb: string;
+  badge: string;
+  /** ISO signed-at, or null when the viewer hasn't signed this policy. */
+  signedAt: string | null;
+  /** Signed, but an OLDER version — a newer one has since been published. */
+  outdated: boolean;
+}
+
 function fmtSize(n: number | null): string {
   if (!n) return "";
   if (n < 1024) return `${n} B`;
@@ -39,13 +66,107 @@ function fmtDate(iso: string): string {
   return formatDateHr(iso);
 }
 
-export function PoliciesWorkspace({ groups, isAdmin }: { groups: Group[]; isAdmin: boolean }) {
+export function PoliciesWorkspace({
+  groups,
+  signable,
+  isAdmin,
+}: {
+  groups: Group[];
+  signable: SignablePolicy[];
+  isAdmin: boolean;
+}) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const total = groups.reduce((n, g) => n + g.policies.length, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* ── THE FIRM POLICIES — authored, versioned, signable ───────────────
+          These are the policies people actually sign (POSH, Exit, …). They are
+          ALWAYS present (the registry is code, not uploaded files), which is why
+          the empty-state below only concerns the uploaded-documents section —
+          a reader who has signed every firm policy must still see them here,
+          badged "Signed", never an empty page. */}
+      <section>
+        <div className="mb-3 flex items-center gap-2">
+          <ShieldCheck size={16} strokeWidth={2.4} style={{ color: RED }} aria-hidden />
+          <h2 className="text-[15px] font-bold text-ink-strong">Firm policies</h2>
+          <span className="text-[12px] font-semibold text-ink-soft">
+            {signable.filter((p) => p.signedAt && !p.outdated).length}/{signable.length} signed
+          </span>
+          {signable.some((p) => p.signedAt) && (
+            <a
+              href="/api/hr/policies/download-all"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:border-[var(--color-altus-red)]"
+            >
+              <Download size={13} strokeWidth={2.4} aria-hidden /> Download all
+            </a>
+          )}
+        </div>
+        <ul className="grid gap-2.5 sm:grid-cols-2">
+          {signable.map((p) => {
+            const signed = Boolean(p.signedAt) && !p.outdated;
+            return (
+              <li key={p.key}>
+                <div className="flex h-full items-start gap-3 rounded-2xl border border-hairline bg-surface-card px-4 py-3.5 transition-colors hover:border-[var(--color-altus-red)]">
+                  <Link
+                    href={`/hr/policies/${p.key}` as Route}
+                    className="flex min-w-0 flex-1 items-start gap-3"
+                  >
+                    <span
+                      className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg text-[12px] font-extrabold text-white"
+                      style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
+                      aria-hidden
+                    >
+                      {p.badge}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] font-semibold text-ink-strong">
+                        {p.title}
+                      </span>
+                      <span className="mt-0.5 line-clamp-2 block text-[12px] leading-snug text-ink-muted">
+                        {p.blurb}
+                      </span>
+                    </span>
+                  </Link>
+                  <span className="flex shrink-0 flex-col items-end gap-1.5">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11.5px] font-bold ${
+                        signed
+                          ? "bg-[color-mix(in_srgb,#16a34a_10%,white)] text-[#15803d]"
+                          : "bg-surface-soft text-ink-soft"
+                      }`}
+                    >
+                      {signed ? (
+                        <>
+                          <Check size={12} strokeWidth={3} aria-hidden /> Signed ·{" "}
+                          {formatDateHr(p.signedAt!)}
+                        </>
+                      ) : (
+                        <>
+                          {p.outdated ? "New version · sign again" : "Read & sign"}
+                          <ArrowUpRight size={12} strokeWidth={2.6} aria-hidden />
+                        </>
+                      )}
+                    </span>
+                    {p.signedAt && (
+                      <a
+                        href={`/api/hr/policies/download?key=${encodeURIComponent(p.key)}`}
+                        className="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-[var(--color-altus-red)]"
+                        title="Download your signed copy"
+                      >
+                        <Download size={12} strokeWidth={2.4} aria-hidden /> Download
+                      </a>
+                    )}
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      {/* ── UPLOADED POLICY DOCUMENTS (legacy file list) ──────────────────── */}
       {isAdmin && (
         <div className="flex justify-end">
           <button
@@ -62,8 +183,8 @@ export function PoliciesWorkspace({ groups, isAdmin }: { groups: Group[]; isAdmi
         <div className="rounded-2xl border border-hairline bg-surface-card px-4 py-14 text-center">
           <ScrollText size={30} className="mx-auto text-ink-soft" />
           <p className="mt-3 text-[14px] font-medium text-ink-muted">
-            No policies published yet.
-            {isAdmin ? " Upload the first one above." : " Check back soon."}
+            No uploaded policy documents yet.
+            {isAdmin ? " Upload one above." : " Check back soon."}
           </p>
         </div>
       ) : (

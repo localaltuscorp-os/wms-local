@@ -33,6 +33,28 @@ describe("the Operations room", () => {
     expect(workspaceForPath("/people-allocation/participants")).toBe("operations");
     expect(workspaceForPath("/events")).toBe("operations");
     expect(workspaceForPath("/events/calendar")).toBe("operations");
+    // 2026-09-12: Training, then Job Description and Broadcasts from HR.
+    expect(workspaceForPath("/training")).toBe("operations");
+    expect(workspaceForPath("/training/calendar")).toBe("operations");
+    expect(workspaceForPath("/operations/job-description")).toBe("operations");
+    expect(workspaceForPath("/communications")).toBe("operations");
+    expect(workspaceForPath("/communications/compose")).toBe("operations");
+  });
+
+  it("leaves the HR room the surfaces that did NOT move", () => {
+    expect(workspaceForPath("/hr")).toBe("hr");
+    expect(workspaceForPath("/policies")).toBe("hr");
+    expect(workspaceForPath("/support")).toBe("hr");
+  });
+
+  it("sends the employee's own payslips to the Employees room, not Accounts", () => {
+    /* THE TRAP: the Accounts rule claims the `/salary` prefix, and
+       "/salary-slip".startsWith("/salary") is true. Order is what keeps a
+       payslip out of the finance room's rail — assert both sides so a
+       re-ordering of those two branches fails here rather than in someone's
+       browser. */
+    expect(workspaceForPath("/salary-slip")).toBe("employees");
+    expect(workspaceForPath("/salary")).toBe("accounts");
   });
 
   it("does not swallow a prefix that merely starts the same way", () => {

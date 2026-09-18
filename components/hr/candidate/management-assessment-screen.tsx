@@ -748,7 +748,12 @@ function RecordingsCard({
     setSupported(typeof window !== "undefined" && typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia);
   }, []);
 
-  const drawBars = React.useCallback(() => {
+  /* A NAMED function expression, so the loop can schedule ITSELF. It used to
+     recurse through the outer `drawBars` const, which reads the binding before
+     the line that declares it — legal at runtime, but the React Compiler will
+     not analyse it and skipped optimising the whole screen. Same function,
+     same identity (the deps are empty), same frame loop. */
+  const drawBars = React.useCallback(function tick() {
     const analyser = analyserRef.current;
     const bars = barsRef.current;
     if (analyser) {
@@ -760,7 +765,7 @@ function RecordingsCard({
         el.style.transform = `scaleY(${(0.12 + v * 0.88).toFixed(3)})`;
       }
     }
-    rafRef.current = requestAnimationFrame(drawBars);
+    rafRef.current = requestAnimationFrame(tick);
   }, []);
 
   const cleanupEngine = React.useCallback(() => {

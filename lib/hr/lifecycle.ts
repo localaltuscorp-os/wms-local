@@ -126,7 +126,7 @@ export const HR_STAGES: HrStage[] = [
       { slug: "minor-intern-undertaking", label: "Undertaking - Minor Intern", Icon: ShieldCheck, kind: "doc", typeKey: "minor-internship-undertaking", blurb: "Parental-consent undertaking for a minor intern." },
       { slug: "ctc-breakup", label: "CTC Breakup", Icon: IndianRupee, kind: "link", href: "/hr/ctc", blurb: "Build the structured CTC breakup & compensation letters." },
       { slug: "all-policies-signatory", label: "Policy Signatures", Icon: ScrollText, kind: "link", href: "/hr?policies=1", blurb: "Every firm policy to acknowledge and sign." },
-      { slug: "employment-form", label: "Employee Onboarding Form", Icon: ClipboardList, kind: "link", href: "/dossier/onboarding", blurb: "The joining data form - the full onboarding intake." },
+      { slug: "employment-form", label: "Onboarding Form", Icon: ClipboardList, kind: "link", href: "/dossier/onboarding", blurb: "The joining data form - the full onboarding intake." },
     ],
   },
   {
@@ -169,7 +169,11 @@ export const HR_STAGES: HrStage[] = [
   {
     key: "exit",
     slug: "exit",
-    title: "Exit",
+    // "Exit Process", not "Exit" (2026-09-12): the rail row sat directly under
+    // "During Employment" and read as a verb — a button that ends someone's
+    // employment — rather than as the name of the paperwork trail below it.
+    // The SLUG is untouched, so /hr/exit and every link into it still resolve.
+    title: "Exit Process",
     blurb: "A clean separation - interview, settlement and closing documents.",
     Icon: LogOut,
     items: [

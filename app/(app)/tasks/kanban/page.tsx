@@ -13,6 +13,7 @@ import {
   resolveAdminColumnOrder,
   USER_COLUMN_ORDER,
 } from "@/lib/kanban-columns";
+import { defaultScopeId, opensOnEveryone } from "@/lib/auth/default-scope";
 import { TASK_STATUSES, isDeprecatedStatus } from "@/db/enums";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 import Link from "next/link";
@@ -32,7 +33,12 @@ export default async function KanbanPage({ searchParams }: PageProps) {
   if (!me.isAdmin) redirect("/tasks" as Route);
 
   const sp = await searchParams;
-  const filters = parseTaskFilters(sp, /*archived*/ false, {});
+  /* Was `{}` — every viewer's board opened on the WHOLE COMPANY, including a
+     team member who can only see their own rows everywhere else. The board is
+     the task list in another shape; it defaults the same way now. */
+  const filters = parseTaskFilters(sp, /*archived*/ false, {
+    defaultDoerId: defaultScopeId(me),
+  });
 
   // Kanban is admin-only, so the board shows everyone's goals unless the
   // assignee filter narrows the scope. They're injected as badged, link-out
@@ -85,7 +91,8 @@ export default async function KanbanPage({ searchParams }: PageProps) {
         subjects={subjects}
         statusOptions={statusOptions}
         clients={clients}
-        me={{ id: me.id, isAdmin: me.isAdmin }}
+        me={{ id: me.id, isAdmin: me.isAdmin, isSuperAdmin: opensOnEveryone(me) }}
+        offersScopeChoice
         assigneeMode={filters.assigneeMode}
         initial={{
           start:  isoDay(filters.startDate),

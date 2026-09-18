@@ -509,5 +509,11 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
   const { seedDummyHrRecords } = await import("./dummy-db-seed-hr-records");
   Object.assign(counts, await seedDummyHrRecords(pg, { admin: EMP.me, asha: EMP.asha, ravi: EMP.ravi }));
 
+  // The JD Bank and the Operations checklist — two features that only
+  // make sense together (a checklist item can point
+  // back at a JD entry), so they are seeded as one set.
+  const { seedJdChecklist } = await import("./dummy-db-seed-jd-checklist");
+  Object.assign(counts, await seedJdChecklist(pg));
+
   return counts;
 }

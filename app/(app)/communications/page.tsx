@@ -101,7 +101,7 @@ export default async function CommunicationsHomePage({
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <HrTitleBar />
+      <HrTitleBar title="Broadcasts" />
       <PageShell width="wide" style={{ maxWidth: "1180px" }}>
         <BroadcastTabs
           active={tab}
