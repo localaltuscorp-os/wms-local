@@ -13,7 +13,28 @@ broken, what changed and why.
 
 ---
 
-## ✅ Database migrations 0215–0224 — APPLIED 2026-09-15
+## ✅ Database migrations — APPLIED
+
+**`0215`–`0224` applied 2026-09-15** (74/74 verified). **`0225`–`0227` applied
+2026-09-18.** Outstanding: **`0216_incentive_eligibility.sql`** (self-heals at
+runtime; apply it properly).
+
+The 18 September batch, all additive and idempotent:
+
+| File | Adds | Notes |
+|---|---|---|
+| `0225_candidate_intake_merge.sql` | `candidate_intake.merged_into_id` + `candidate_intake_merge_events` | **Had to be applied BEFORE the deploy** — every candidate picker filters on the new column |
+| `0226_capability_grants.sql` | `capability_grants` + `capability_grant_events` | Master-admin membership as data. A CHECK constraint pins it to `master_admin.manage` alone |
+| `0227_permission_node_settings.sql` | `permission_node_settings` + `permission_catalog_events` | Tables only — the label/rename UI is **not built yet** |
+
+Running the code **before** 0225 would not have errored loudly: `listCandidateIntakes`
+is wrapped in a timeout + try/catch on the evaluation page, so the candidate list
+would simply have come back **empty**. A silent empty list is the failure mode to
+watch for after any migration that adds a column to a filtered query.
+
+---
+
+## (record) Migrations 0215–0224 — applied 2026-09-15
 
 > **This section is now a record, not a to-do.** All 15 migrations ran against
 > production and verified clean (74/74). See the 15 September (night) changelog
@@ -557,6 +578,100 @@ throughout; her Firebase UID is new.
 ---
 
 ## Changelog
+
+### 2026-09-18 — Wheel scroll restored app-wide; master admin becomes data; policy downloads carry the text
+
+**What changed**
+
+- **Wheel/trackpad scrolling worked only from the page gutter.** `app/globals.css`
+  applied the `overscroll-behavior` **shorthand** to every element with any
+  Tailwind overflow utility. Only that one rule changed — see *Why* below, it is
+  the single most useful thing in this entry.
+- **Master admin is now a database row, not a code constant.** `capability_grants`
+  (migration 0226), granted from **Admin → Employees → Master admin**, and
+  readable/editable without a deploy. `lib/security/capability-grants.ts`.
+- **A "Master admin" access chip** in the employee list and a matching checkbox in
+  the employee editor, drawn only for a super-admin.
+- **The HR console hides what the permission matrix has denied**
+  (`lib/hr/console-visibility.ts`). Its rail used to keep drawing steps that
+  bounced you to the hub.
+- **"Download policy" now returns the whole policy**, body then acknowledgement,
+  instead of the acknowledgement alone. Both `/api/hr/policies/download` and
+  `download-all`.
+- **`guardSuperAdminTarget` widened to `guardPrivilegedTarget`** at all seven call
+  sites (password reset, invite-link minting, deactivate, archive, delete) — see
+  *Why*.
+- **Candidates can be merged**: an evaluation created from a name + phone number
+  can be folded into the candidate's own interview-form record when the numbers
+  match. Migration 0225.
+- **Letters: the editing toolbar no longer overlaps itself** (`alw-toolbar` wraps
+  instead of crushing its own selects).
+
+**Why**
+
+- The scroll bug was **one CSS rule with a system-wide blast radius**, and it is
+  worth understanding before touching `globals.css` again. `overflow-x: auto` with
+  `overflow-y: visible` computes `overflow-y` to `auto`, so a horizontally
+  scrolling table **is** a vertical scroll container — with nothing to scroll.
+  `overscroll-behavior: contain` (shorthand ⇒ both axes) then forbids chaining a
+  vertical gesture out of it, and that element is the nearest vertical scroll
+  container under the pointer. So the wheel died over ~50 table wrappers, and it
+  looked like a per-page bug for weeks. **Fix: scope the behaviour to the axis the
+  element actually scrolls.** If you add a scroll container, set
+  `overscroll-behavior-x` or `-y`, never the bare shorthand.
+- Moving master-admin into the database gives up an audit property that
+  `capabilities.ts` documented on purpose ("a change shows up in code review and in
+  git history"). Kept instead: an append-only `capability_grant_events` trail
+  naming who granted what to whom, a code bootstrap (Manan, Rohan) that nothing at
+  runtime can edit, and a read that **fails closed** — a database hiccup can revoke
+  a granted master-admin but can never invent one.
+- Granting master admin is gated on **`isSuperAdmin`, never `isMasterAdmin`**.
+  Gating it on master-admin would let one promote another and the capability would
+  leak downward from the bootstrap accounts.
+- The priv-esc hole: `guardSuperAdminTarget` refused only when the **target** was a
+  super-admin, and that was sufficient **only because every master admin also was
+  one**. Making master-admin grantable split the two sets, and an ordinary admin
+  could then have reset a master admin's password, minted them a login link or
+  archived them. Widened in the same pass, which is the point worth remembering:
+  **when a capability becomes grantable, re-check every guard that assumed the
+  grantee set was fixed.**
+
+**How to verify**
+
+- Scroll: open any module with a wide table, put the pointer **over the table**,
+  and scroll. It must scroll the page.
+- Master admin: sign in as a super-admin → Admin → Employees → open a person →
+  "Master admin". The Access chip becomes **Master admin** and `/master-admin`
+  opens for them. As a plain admin the checkbox must be absent, and a hand-made
+  POST to `editEmployee` with `{ isMasterAdmin: false }` must return *"Only a
+  super-admin can change master admin access."*
+- Policies: sign one, then Policies → Download. The PDF opens with the policy text
+  and the signed acknowledgement at the end.
+- `pnpm test` — the 5 failures listed under *Known issues* are pre-existing.
+
+**Breaking / migration notes**
+
+- **Migrations 0225, 0226, 0227 applied to production on 2026-09-18.** 0225
+  (`candidate_intake.merged_into_id`) had to land **before** the deploy: every
+  candidate picker filters on that column, so deploying first would have emptied
+  the evaluation candidate list.
+- `isMasterAdmin` is **removed** from `lib/security/capabilities.ts`. Import it
+  from `lib/security/capability-grants.ts`; it is **async** now. It was removed
+  rather than kept as a synchronous shim on purpose — a leftover would compile,
+  return a plausible `false` for a database-granted master admin, and fail
+  silently.
+- `lib/security/capabilities.ts` GRANTS remains the authority for **every other**
+  capability. Only `master_admin.manage` is read from the database, and migration
+  0226's CHECK constraint enforces that.
+- Adds a **fourth** Chromium-capable function (`lib/pdf/chromium.ts`, shared with
+  the rich-letter renderer). Chromium is ~200 MB per function that can reach it —
+  a real deployment-size decision, not a free one.
+- The console's standalone **Policies** rail entry points at `/policies`, which the
+  catalogue claims for `platform.policies` — **not** `hr.policies`, which owns
+  `/hr/policies/[key]`. Hiding it from the rail means switching off
+  `platform.policies`.
+
+**Author:** Claude (with Rakesh Dubey)
 
 ### 2026-09-15 (night) — Migrations 0215–0224 APPLIED; the team's merge deployed
 

@@ -63,6 +63,41 @@ re-sync the sequences, or the next insert fails with a duplicate-key error on a
 column the application never sets. (Check the id type first — a `uuid` default
 has no counter and needs nothing.)
 
+## Four more traps, learned 18 September 2026
+
+**A CSS rule can be a system-wide bug, and it will look like a page bug.** Wheel
+scrolling died on every screen with a wide table, and looked per-page for weeks.
+One rule in `app/globals.css` set the `overscroll-behavior` **shorthand** on every
+element with any Tailwind overflow utility. `overflow-x: auto` computes
+`overflow-y` to `auto`, so a horizontally-scrolling table **is** a vertical scroll
+container with nothing to scroll — and `contain` on both axes forbids chaining a
+vertical gesture out of it. That element is the nearest vertical scroll container
+under the pointer, so the wheel did nothing over it. **Set `overscroll-behavior-x`
+or `-y`, never the bare shorthand.** When a bug is reported everywhere at once,
+suspect one global rule, not N pages.
+
+**A missing column does not error — it empties a list.** `0225` added
+`candidate_intake.merged_into_id`, which every candidate picker now filters on.
+Deploying the code first would not have thrown: `listCandidateIntakes` is wrapped
+in a timeout and a try/catch on the evaluation page, so the candidate list would
+just have come back **empty**. After any migration that adds a column to a
+filtered query, check the lists that query feeds, not just for errors.
+
+**Making a capability grantable invalidates every guard that assumed the grantee
+set was fixed.** `guardSuperAdminTarget` refused only when the *target* was a
+super-admin — sufficient for exactly one reason: every master admin also was one.
+The moment master admin became grantable from the admin panel, an ordinary admin
+could reset a master admin's password, mint them a login link or archive them.
+It is now `guardPrivilegedTarget`, at all seven call sites. **When a cap set can
+change at runtime, grep every guard that reads it.**
+
+**Remove the old helper; do not shim it.** `isMasterAdmin` became async when its
+data moved to a table, and it was deleted from `lib/security/capabilities.ts`
+rather than left as a synchronous wrapper. A wrapper would compile, return a
+plausible `false` for a database-granted master admin, and fail **silently**.
+Deleting it made the one stale import fail loudly at typecheck, which is how the
+last call site was found. `lib/auth/super-admin.ts` set the precedent.
+
 ## Vercel: three rules
 
 The free team plan pauses the project when a limit is hit, so these are not
