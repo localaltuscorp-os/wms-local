@@ -16,6 +16,7 @@ import {
   Link2,
 } from "lucide-react";
 import { createPortal } from "react-dom";
+import { joinCandidateName } from "@/lib/hr/candidate/name";
 import { useRouter } from "next/navigation";
 import { fireToast } from "@/lib/toast";
 import { PageShell } from "@/components/layout/page-shell";
@@ -151,7 +152,7 @@ export function EvaluationV2Screen({
   /** First + last, joined the way a single "Full name" box would have produced
    *  it — `full_name` is one column, and the letters, the candidate list and the
    *  merge dialog all print it verbatim. */
-  const addFullName = [addFirst, addLast].map((s) => s.trim()).filter(Boolean).join(" ");
+  const addFullName = joinCandidateName(addFirst, addLast);
 
   async function submitNewCandidate() {
     setAddBusy(true);
