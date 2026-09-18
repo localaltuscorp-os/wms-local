@@ -18,7 +18,9 @@ import { HrTitleBar } from "./hr-title-bar";
  * if it ever did.
  */
 export function HrStageGhost({ stage }: { stage: string }) {
-  const module = HR_CONSOLE_MODULES.find((m) => m.id === stage) ?? null;
+  // NOT `module`: that name is the CommonJS binding, and assigning to it is a
+  // build hazard Next lints against (@next/next/no-assign-module-variable).
+  const mod = HR_CONSOLE_MODULES.find((m) => m.id === stage) ?? null;
   return (
     <>
       {/* Names the module in the global top bar, the same as every other HR
@@ -26,7 +28,7 @@ export function HrStageGhost({ stage }: { stage: string }) {
           the room whose title bar sat empty. It takes no `title` prop - the
           rail's name for the route IS the module name. */}
       <HrTitleBar />
-      <HrModuleGhost module={module} />
+      <HrModuleGhost module={mod} />
     </>
   );
 }

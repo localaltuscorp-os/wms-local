@@ -129,9 +129,15 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "DCC",
         routes: ["/dcc"],
         children: [
-          { key: "employees.dcc.callLog", label: "Call Log", routes: ["/dcc/call-log"] },
-          { key: "employees.dcc.sp1", label: "SP1 Report", routes: ["/dcc/sp1"] },
-          { key: "employees.dcc.dashboard", label: "DCC Dashboard", routes: ["/dcc/dashboard"] },
+          // The SP1 sheet IS the dashboard, and the call log is typed into that
+          // sheet (2026-09-17), so neither has a node of its own. Their old
+          // addresses are listed here because both still redirect, and a
+          // redirect must not become a hole in the matrix.
+          {
+            key: "employees.dcc.dashboard",
+            label: "DCC Dashboard",
+            routes: ["/dcc/dashboard", "/dcc/sp1", "/dcc/call-log"],
+          },
           { key: "employees.dcc.masters", label: "DCC Masters", routes: ["/dcc/masters"] },
         ],
       },
@@ -241,7 +247,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
          grant already written against it. */
       { key: "hr.salary-slip", label: "Salary Slip", routes: ["/salary-slip", "/hr/salary-slip"] },
       { key: "hr.letters", label: "Letters", routes: ["/hr/letters"] },
-      { key: "hr.recruitment-jd", label: "Recruitment JDs", routes: ["/hr/recruitment-jd"] },
       // These three have NO page at the bare segment — only children. Naming
       // the real paths keeps the catalogue test honest: a route listed here that
       // does not exist on disk is a switch wired to nothing, which is worse than
@@ -520,7 +525,17 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "operations.home", label: "Operations Home", routes: ["/operations"] },
       { key: "operations.checklist", label: "Checklist", routes: ["/operations/checklist"] },
       { key: "operations.guidelines", label: "Guidelines", routes: ["/operations/guidelines"] },
-      { key: "operations.masters", label: "Masters", routes: ["/operations/masters"] },
+      /* One switch for all of Masters, including Recruitment JD — which moved
+         here from the HR rail on 2026-09-17 and gave up its own `hr.recruitment-jd`
+         node in the process. The old path is listed beside the new one for the
+         same reason Salary Slip's is: it still resolves, as a redirect, and a
+         door that redirects into a governed room must be governed by the same
+         switch rather than being an ungoverned way in. */
+      {
+        key: "operations.masters",
+        label: "Masters",
+        routes: ["/operations/masters", "/hr/recruitment-jd"],
+      },
     ],
   },
 

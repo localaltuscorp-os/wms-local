@@ -12,7 +12,6 @@ import {
   FolderOpen,
   Target,
   Files,
-  FileText,
   FolderArchive,
 } from "lucide-react";
 
@@ -107,10 +106,13 @@ const standalone: Array<{ id: string; title: string; Icon: LucideIcon; href: str
        Salary Slip     → Employees   (/salary-slip)
      Their routes moved too where they had to: anything under app/(app)/hr/ is
      wrapped in the HR console shell, so a rail row elsewhere would have opened a
-     page still wearing HR's chrome. The old paths redirect. */
-  // Recruitment JDs (2026-09-15) — what recruiters send candidates. Not the
-  // internal Job Description module, which moved to Operations (above).
-  { id: "recruitment-jd", title: "Recruitment JDs", Icon: FileText, href: "/hr/recruitment-jd" },
+     page still wearing HR's chrome. The old paths redirect.
+
+     A FOURTH LEFT ON 2026-09-17:
+       Recruitment JDs → Operations  (/operations/masters/recruitment-jd)
+     It is a master — the JD we advertise a role with — so the account holder put
+     it beside the other two job-description masters. Same rule as the three
+     above: the route moved out of app/(app)/hr/ and the old path redirects. */
   { id: "holiday-list", title: "Holiday List", Icon: CalendarDays, href: "/hr/holidays" },
   { id: "policies", title: "Policies", Icon: ScrollText, href: "/policies" },
   // "HR Help Desk", not "Help Desk" (2026-09-12): there is more than one help

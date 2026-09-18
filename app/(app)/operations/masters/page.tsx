@@ -41,6 +41,7 @@ export default async function OperationsMastersPage() {
       fmt(c.personalJds, "personal task", "personal tasks"),
       fmt(c.peopleWithPersonalJd, "person", "people"),
     ],
+    "/operations/masters/recruitment-jd": [fmt(c.recruitmentJds, "role", "roles")],
   };
 
   return (

@@ -1,8 +1,8 @@
 import type { LucideIcon } from "lucide-react";
-import { CalendarCheck2, Gauge, LayoutDashboard, Layers, Table2 } from "lucide-react";
+import { CalendarCheck2, LayoutDashboard, Layers } from "lucide-react";
 
 /**
- * THE FIVE DOORS OF DCC (DCC-SPEC §2) — one list, two consumers.
+ * THE THREE DOORS OF DCC (DCC-SPEC §2) — one list, two consumers.
  *
  * The global sidebar (components/layout/main-nav.tsx) renders them under
  * Employees, and the module's own quick-nav row renders them across the top of
@@ -36,23 +36,17 @@ export const DCC_DOORS: DccDoor[] = [
     blurb: "Today's compliances, and the four ways a day can end.",
     exact: true,
   },
-  {
-    href: "/dcc/call-log",
-    label: "Call Log",
-    Icon: Gauge,
-    blurb: "The fifteen call outcomes for a day — the numbers behind SP1.",
-  },
-  {
-    href: "/dcc/sp1",
-    label: "SP1 Report",
-    Icon: Table2,
-    blurb: "Monday to Saturday across, a weekly total, and the calculated block.",
-  },
+  /* NO "SP1 REPORT" AND NO "CALL LOG" DOOR (account holder, 2026-09-17). The
+     SP1 sheet IS the dashboard, and the fifteen numbers are typed straight into
+     it — so both would have been a second entry pointing at one screen, exactly
+     the duplicated door this list exists to prevent. `/dcc/sp1` and
+     `/dcc/call-log` redirect to the dashboard for the sake of old bookmarks;
+     neither is navigation any more. */
   {
     href: "/dcc/dashboard",
     label: "Dashboard",
     Icon: LayoutDashboard,
-    blurb: "Compliance and call performance across everyone you can see.",
+    blurb: "Jeevan's SP1 sheet — fill your calls, and read the whole org.",
   },
   {
     href: "/dcc/masters",

@@ -8,6 +8,7 @@ import {
   jdPositions,
   opsChecklistItems,
   opsChecklistTemplates,
+  recruitmentJds,
 } from "@/db/schema";
 
 /**
@@ -24,6 +25,8 @@ export interface MastersCounts {
   generalJds: number | null;
   personalJds: number | null;
   peopleWithPersonalJd: number | null;
+  /** Null until migration 0236 is applied — `count` swallows the missing table. */
+  recruitmentJds: number | null;
 }
 
 async function count(q: PromiseLike<{ n: number }[]>): Promise<number | null> {
@@ -47,6 +50,7 @@ export async function loadMastersCounts(): Promise<MastersCounts> {
     generalJds,
     personalJds,
     peopleWithPersonalJd,
+    recruitment,
   ] = await Promise.all([
     count(db.select({ n }).from(opsChecklistTemplates).where(eq(opsChecklistTemplates.isActive, true))),
     count(
@@ -67,6 +71,7 @@ export async function loadMastersCounts(): Promise<MastersCounts> {
         .from(jdEntries)
         .where(and(isNotNull(jdEntries.ownerEmployeeId), eq(jdEntries.isActive, true))),
     ),
+    count(db.select({ n }).from(recruitmentJds).where(eq(recruitmentJds.isActive, true))),
   ]);
 
   return {
@@ -78,5 +83,6 @@ export async function loadMastersCounts(): Promise<MastersCounts> {
     generalJds,
     personalJds,
     peopleWithPersonalJd,
+    recruitmentJds: recruitment,
   };
 }

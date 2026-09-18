@@ -54,17 +54,22 @@ compliances. The module shows both without pretending they are one thing.
 
 ## 2 · Navigation
 
-DCC is the **first** section under **Employees**, with five doors:
+DCC is the **first** section under **Employees**, with three doors:
 
 ```
 Employees
- ├─ DCC ─ My Day        /dcc                    ← fill your day
- │  ├─ Call Log         /dcc/call-log           ← enter today's 15 numbers
- │  ├─ SP1 Report       /dcc/sp1                ← Mon–Sat + weekly total
- │  ├─ Dashboard        /dcc/dashboard          ← the WMS-style dashboard
+ ├─ DCC ─ My Day        /dcc                    ← fill your compliances
+ │  ├─ Dashboard        /dcc/dashboard          ← the SP1 sheet: fill it, read it
  │  └─ DCC Masters      /dcc/masters            ← Position + Person templates
  …then Leaves, Attendance, and the rest
 ```
+
+**There is no SP1 door and no Call Log door** (account holder, 2026-09-17). The
+SP1 sheet *is* the dashboard, and the fifteen numbers are typed into that sheet,
+so either entry would be a second route to one screen — exactly the kind of
+duplicated door this list exists to prevent. `/dcc/sp1` and `/dcc/call-log`
+survive as **redirects** to `/dcc/dashboard`, because both addresses are in
+bookmarks and in mail already sent; neither is navigation.
 
 They are **siblings, not nested**. The board is where you fill your day; the
 dashboard is where you read the org. Burying the second inside the first hides it
@@ -74,8 +79,9 @@ The list lives once, in `lib/dcc/nav.ts`, and is rendered by both the global rai
 and the module's own quick-nav row — so the two can never advertise different
 doors.
 
-**Permission matrix:** `employees.dcc` with children `call-log`, `sp1`,
-`dashboard`, `masters`. Hiding a rail entry is presentation only; every page
+**Permission matrix:** `employees.dcc` with children `dashboard` and `masters`.
+The dashboard node owns `/dcc/sp1` and `/dcc/call-log` as well, so neither
+redirect becomes a hole in the matrix. Hiding a rail entry is presentation only; every page
 calls `requireModuleView` itself, so a hidden door is shut to a direct URL too.
 
 ---
@@ -121,6 +127,49 @@ downline if you are a Team Lead / manager; for anyone at all if you are an admin
 or super-admin. Downline is read transitively from `employees.manager_id` — never
 from a role flag.
 
+**What a new compliance reaches, and when.** Adding, editing or removing one
+now calls `scheduleDccCalendarSync(owner)` from the action — it did not before,
+so a compliance created at 10 am did not reach Google until the midday cron even
+though `lib/dcc/calendar-sync.ts` claimed "every KPI add / edit / delete
+schedules a sync". The Handholding calendar needs no call at all: it reads
+`dcc_kpi_items` live on every render.
+
+**Where.** Two doors onto one form (`components/dcc/compliance-form.tsx`):
+**My Day** carries "New compliance for myself", because that is the screen people
+already open daily; **DCC Masters → By Person** carries the same form for anyone
+you may author for. One component, so the two can never offer different fields.
+
+**Editing.** A compliance can be changed in place — title, section, code,
+schedule, target, unit. It passes **exactly the gates a delete passes**
+(`guardItemWrite`): a master row is refused, and a row Manan authored is refused
+to everyone but him. An edit free to rename a row to anything would otherwise be
+a way straight around the delete rule.
+
+**The schedule is picked, never typed.**
+
+> This closes a real bug. `frequency` is free text, and the old add form wrote
+> only that — leaving `weekdays` NULL and `schedule_kind` on its default. But
+> `scheduledDueOn` reads a NULL mask as **due every day**, so a compliance
+> created as "Every Friday" was due seven days a week and one created as "Adhoc"
+> was too. The row said one thing and the board did another.
+
+`lib/dcc/frequency.ts` now produces the text and both columns from one call, and
+the form prints the result back in plain words — "Due on Monday, Wednesday and
+Friday. Next on Friday, 18-Sep-2026." Three choices, all of which produce a
+`scheduled` row that actually reaches My Day:
+
+| Choice | Stored as | Mask |
+|---|---|---|
+| Every working day | `Daily` | Mon–Sat |
+| Every day | `Mon, Tue, Wed, Thu, Fri, Sat & Sun` | all seven |
+| Chosen days | `Mon, Wed & Fri` | those days |
+
+**Weekly, monthly and ad-hoc are deliberately not offered.** `scheduledDueOn`
+admits only `scheduled` items to a day and nothing in this module surfaces the
+other kinds, so those options would create a compliance that never appears
+anywhere — a worse failure than not offering them. Imported sheet rows still
+carry them; `parseFrequency` remains the reader for those.
+
 **Deleting.** The ordinary rule is: you may delete what you may add. One
 exception, and it is the whole point of this step:
 
@@ -158,9 +207,16 @@ alone would leave the app free to rewrite last week.
 
 ## 7 · The SP1 Call Log — entering the day
 
-Screen: `/dcc/call-log`. **This is the half the old module never had: it could
-report call outcomes but had no way to enter them, so the report was permanently
-empty and looked broken.**
+**Where it lives: the sheet at the top of `/dcc/dashboard`. You type into the
+sheet itself** (account holder, 2026-09-17: "add the call log in the dcc
+dashboard only, don't put it in the sidebar"), exactly as in the Google Sheet
+tab "2. Mitul Call Log" the screen replaces. It had its own screen until that
+date; it does not any more, and a separate entry form beside a grid of the same
+fifteen rows would have put two copies of one thing on one page.
+
+**This is the half the old module never had: it could report call outcomes but
+had no way to enter them, so the report was permanently empty and looked
+broken.**
 
 Fifteen outcomes, in the sheet's exact order and colour:
 
@@ -190,16 +246,28 @@ Fifteen outcomes, in the sheet's exact order and colour:
 > `lib/dcc/sp1.ts`.
 
 - One number per outcome per date. **Blank means zero.**
+- A cell is typeable only when all three hold: **one person is selected** and you
+  may fill for them, **the day has not closed**, and **the table exists**. Every
+  other cell is plain text. "Everyone" sums the roster into each cell and a
+  summed cell has no single owner to write back to, so it is never typeable.
 - The same 11:59 pm IST lock as Step 6, same capability for Manan Sir — so
-  "yesterday" means one thing across the whole module.
-- Totals update **as you type**, so the person sees their own day resolve.
+  "yesterday" means one thing across the whole module. The page computes which
+  columns are open; `saveCallLog` checks the same three conditions again, so the
+  open cell is an affordance and never a permission.
+- Totals update **as you type** — the eight calculated rows *and* the Weekly
+  Total column, rebuilt by the same `buildSp1Grid` the server and the 10 pm email
+  use, so the person sees their own day resolve.
+- **Save writes whole days**, one upsert each, and stops at the first refusal
+  rather than letting a rejected Tuesday vanish while Wednesday saves.
 - Storage is **one row per person per day per outcome**, uniquely keyed: a
   double-submit is harmless, and a sixteenth outcome is a data row, not a
   migration.
 
-## 8 · The SP1 Report — Jeevan's grid
+## 8 · The SP1 sheet — Jeevan's grid
 
-Screen: `/dcc/sp1`. Image 1 of the brief, reproduced.
+**Where it lives: the top of `/dcc/dashboard`,** at full width, as the first and
+largest thing on the page. Image 1 of the brief, reproduced. It had its own
+screen until 2026-09-17; it does not any more.
 
 - **Rows:** the fifteen outcomes in sheet order and sheet colour, numbered 1–15,
   then the calculated block numbered 16–23.
@@ -228,18 +296,31 @@ Screen: `/dcc/sp1`. Image 1 of the brief, reproduced.
 - The Weekly Total **recomputes its ratios from summed counts**, never by
   averaging days — averaging weights a 3-call day the same as a 60-call one.
 - Scope: yourself, your downline, everyone for a super-admin. `?person=` narrows,
-  `?week=` moves the window.
+  `?weeks=1|2|4` sets how many blocks are shown, `?week=` moves the window back.
+  A positive `?week=` is clamped to 0 — a window in the future is empty columns.
 - The table scrolls sideways in its own container; the page never does.
+- It is drawn as a **spreadsheet**, not as app furniture: a numbered gutter, a
+  `Date` row over a lavender `Day` row, the sheet's eight label colours and
+  hairline cell borders. It is read aloud beside the Google Sheet it replaces
+  — "row 19 is down" — so being recognisably the same sheet is the feature.
 
 ## 9 · The DCC Dashboard
 
-Screen: `/dcc/dashboard`. Image 2 is the shape of **one column**; the WMS
-Dashboard is the shape of **the page**. Both apply.
+Screen: `/dcc/dashboard`. **The dashboard is the SP1 sheet** (account holder,
+2026-09-17) — §8's grid, full width, first. Brief item 1 also asked for the WMS
+Dashboard's treatment of the same data; that lives **under** the sheet. Both
+instructions were given and both are kept: the sheet answers "what did the calls
+do", the sections answer "who is complying", and the sheet leads because it is
+the one read out on the evening call.
 
-**Top — the SP1 day card** (image 2 exactly): one date, twenty-three numbered
-rows, one value column.
+**It is also where the day is filled** — §7's call log is the sheet's open
+cells, not a second widget. **One window control governs the whole page**,
+measured in weeks rather than loose days, because the sheet's shape is Monday→Saturday plus a Weekly Total.
+Two controls would let the top and the bottom of one page describe two different
+stretches of time. The sections stop at today; the sheet still shows the rest of
+the current week as the empty columns it genuinely is.
 
-**Then the WMS-Dashboard treatment of the same data:**
+**Under the sheet:**
 
 | Section | What it answers |
 |---|---|
@@ -254,6 +335,23 @@ rows, one value column.
 
 Every section filters by person, team and window, and degrades to an empty state
 rather than taking the page down.
+
+**`?demo=1` — sample data, in memory only.** Every section is empty until the
+module has been in use for weeks, and an empty dashboard cannot be judged. The
+flag swaps BOTH reads for a generated fortnight of nine invented people
+(`lib/dcc/demo-data.ts`) and runs it through the same `computeDccDashboard`, so
+the sample page is the real page with different numbers rather than a second
+implementation that can drift.
+
+- **It writes nothing.** This repo points at the live database, so the only safe
+  place for invented employees is memory; closing the tab is the whole cleanup.
+- **It is deterministic** — seeded per person, date and field — so a screenshot
+  is reproducible and "the heatmap looks wrong" can be checked twice.
+- **The sheet is read-only in that mode**: there is no real person behind an
+  invented column to save against.
+- **It says so, loudly, at the top of the page.** A dashboard full of invented
+  numbers that does not announce itself is the most expensive thing this flag
+  could produce.
 
 ---
 
@@ -337,7 +435,9 @@ up yet" notice rather than throwing.
 
 ## 14 · Acceptance — how to know it is done
 
-1. The Employees rail opens on DCC, five doors, each one loads.
+1. The Employees rail opens on DCC, three doors, each one loads, and **neither
+   an SP1 nor a Call Log door is among them**. `/dcc/sp1` and `/dcc/call-log`
+   both redirect to the dashboard.
 2. A position master row saves and appears, read-only and badged, on every
    holder's person page.
 3. A Team Lead adds a compliance for a report; it shows on that person's board.
@@ -345,7 +445,10 @@ up yet" notice rather than throwing.
    message that says why.
 5. Today's entry saves; yesterday's is read-only and says so; Manan can edit
    yesterday's.
-6. Fifteen numbers entered on the Call Log appear as a column in the SP1 grid.
+6. Fifteen numbers typed into today's column of the sheet save, and row 16 and
+   the Weekly Total move as they are typed.
+7. With "Everyone" selected, or on a closed day, no cell accepts typing and the
+   sheet says why in one line.
 7. A day with no calls prints `—` in every ratio, not `0%`.
 8. The weekly column's Connected Ratio is computed from summed counts.
 9. The dashboard renders every section, and no section can take the page down.

@@ -20,6 +20,7 @@ The standing list. Delete a row the moment it is applied and verified — a stal
 
 | Migration | Paste sheet | Creates | Status |
 |-----------|-------------|---------|--------|
+| `0236` | [`db/migrations/0236_recruitment_jd_roles.sql`](../../db/migrations/0236_recruitment_jd_roles.sql) | Recruitment JDs keyed by their own `slug` instead of an interview grade, plus `recruitment_jd_sends` | **Not run.** Self-contained and idempotent — it creates both tables whether or not `0232` was ever applied. Until it runs, Operations → Masters → Recruitment JD shows the eight originals read-only and names the migration |
 | `0228`–`0233` | [`db/RUN-IN-SUPABASE-0228-0233.sql`](../../db/RUN-IN-SUPABASE-0228-0233.sql) | JD Category, DCC Calendar Events, DCC Masters & Links, Approver Statuses, Recruitment JDs & Sends, Person-Specific JDs | **Not run.** Run before deploying 2026-09-15 changes |
 | `0221` + `0222` | [`db/RUN-IN-SUPABASE-0221-0222.sql`](../../db/RUN-IN-SUPABASE-0221-0222.sql) | Event Checklist (4 tables) + Job Description (8 tables, 14 seeded ranks) | **Not run.** Both pages detect the missing tables and render a setup notice rather than a 500 |
 | `0215`–`0224` | [`db/RUN-IN-SUPABASE-0215-0224-ALL.sql`](../../db/RUN-IN-SUPABASE-0215-0224-ALL.sql) | everything, the row above included — no `0216-0220` sheet ever existed | `0215`–`0220` **applied 2026-09-11** by hand; `0221`–`0224` outstanding |
@@ -60,6 +61,67 @@ The standing list. Delete a row the moment it is applied and verified — a stal
 ```
 
 ---
+
+## 2026-09-17 — Recruitment JDs, and where they live
+
+**What changed**
+- **A Recruitment JD section**, for the JDs recruiters send *candidates* — separate
+  from the internal Job Description module, which describes a seat somebody already
+  holds. One template in `lib/operations/recruitment-jd.ts` (10 fact-box lines, 12
+  body sections) drives the editor, the preview, the WhatsApp text and the email,
+  so none of the four can drift from the others.
+- **The ten JDs Rutvisha wrote, as eight roles** (`lib/operations/recruitment-jd-seed.ts`).
+  Sales and Operations each arrived twice — a polished version and a longer
+  recruiter-facing one — and each pair was merged rather than left as two JDs for
+  one job.
+- **Master vs recruiter copy.** The master is the original; recruiters edit their own
+  copy and send that. A copy identical to the master stores `null`, so master edits
+  keep flowing through until somebody genuinely diverges. *Reset to master* drops
+  the copy; *Restore the original* puts the master back to the shipped text. The
+  seed is inserted once per slug and never re-applied, so a deploy cannot silently
+  undo an HR edit.
+- **ATS keywords are marked `internal`** — editable and copyable for job boards,
+  never included in a message to a candidate (`JD_SENT_FIELDS`).
+- **Its own role list, not `interview_positions`** (`0236`). That table is the
+  interview *grade* ladder — Executive, Senior Manager, First-Year Intern. Several
+  of these JDs span two grades at once ("Senior Sales Manager / Sales Manager") and
+  most grades will never have a JD, so a recruitment JD is now addressed by `slug`
+  with an optional link back to a grade.
+- **Moved to Operations → Masters** at the account holder's request, from the HR
+  rail it shipped on that morning:
+  `/hr/recruitment-jd` → `/operations/masters/recruitment-jd` (the old path
+  redirects), `lib/hr/recruitment-jd*.ts` → `lib/operations/`,
+  `components/hr/recruitment-jd/` → `components/operations/recruitment-jd/`.
+  It is the third job-description master, beside Master JD and Person-specific JD.
+
+**Why**
+- It is a master — the JD we advertise a role with — and the room already keeps
+  every other master in one section. Beside the other two job descriptions it also
+  reads as the distinction it is: those two say what a seat does once somebody is
+  in it, this one says what the seat is while we are still looking.
+- The move widened the audience, so the access rule changed with it. **Reading is
+  open to the Operations room**, like every other master — a JD we are advertising
+  is not confidential, and the people asked to refer candidates are exactly the
+  people who need to read it. **Editing and sending stay HR staff only**, enforced
+  in `actions.ts`; `canEdit` only decides whether the controls are drawn. This is
+  the same split the neighbouring Master JD already uses.
+- `hr.recruitment-jd` gave up its permission node to `operations.masters` rather
+  than keeping a second switch for one page in a section that already has one. The
+  key had existed for one day and had never been granted, so nothing was revoked.
+  `/hr/recruitment-jd` is listed on `operations.masters` beside the new path, for
+  the reason Salary Slip's old path is: a redirect into a governed room must be
+  governed by the same switch.
+
+**SQL to run before deploying**
+- `db/migrations/0236_recruitment_jd_roles.sql`. Until it is applied the section
+  reads fine — all eight JDs, read-only, with a banner naming the migration — but
+  saving and sending are refused.
+
+**How to verify**
+- `/operations/masters` lists **Recruitment JD** under Job Description; the rail's
+  Masters section and the tab strip on every masters page carry it too.
+- `/hr/recruitment-jd` redirects to it, and the HR rail no longer offers it.
+- `npx vitest run --no-file-parallelism tests/unit/recruitment-jd-seed.test.ts tests/unit/recruitment-jd.test.ts tests/unit/operations-masters-nav.test.ts`
 
 ## 2026-09-15 — full day
 

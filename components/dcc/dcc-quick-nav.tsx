@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { usePathname } from "next/navigation";
+import { FlaskConical } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { DCC_DOORS, activeDccDoor } from "@/lib/dcc/nav";
+import { DCC_DEMO_PARAM } from "@/lib/dcc/demo-data";
 
 /**
- * The five DCC doors as one row across the top of every DCC page.
+ * The DCC doors as one row across the top of every DCC page.
  *
  * Styling is lifted from components/hr/console/hr-step-nav.tsx on purpose — the
  * two bars do the same job in the same app and should be indistinguishable. Read
@@ -18,10 +20,27 @@ import { DCC_DOORS, activeDccDoor } from "@/lib/dcc/nav";
  * `overflow-x-auto` + `whitespace-nowrap`: a narrow viewport scrolls the row
  * sideways instead of wrapping it onto a second line, which would change the
  * height of the bar and shove the page under it.
+ *
+ * ── THE SAMPLE-DATA SWITCH LIVES HERE ──────────────────────────────────────
+ * It was on the dashboard only, which meant somebody landing on My Day — the
+ * module's front door, and the first thing an empty DCC shows you — saw a blank
+ * screen with no hint that a populated preview existed at all. The switch now
+ * sits in the bar that every DCC page carries, and **every door link keeps the
+ * flag**, so you can walk the whole module in sample mode instead of falling
+ * back to real (empty) data on the first click.
  */
 export function DccQuickNav() {
   const pathname = usePathname() ?? "";
+  const params = useSearchParams();
   const active = activeDccDoor(pathname);
+  const demo = params?.get(DCC_DEMO_PARAM) === "1";
+
+  /** A door's href, carrying the flag but none of the page-specific filters. */
+  const doorHref = (href: string) => (demo ? `${href}?${DCC_DEMO_PARAM}=1` : href) as Route;
+
+  /** The switch flips the flag and drops every other param with it: a `?person=`
+   *  from one side is meaningless on the other, where the ids are different. */
+  const toggleHref = (demo ? pathname : `${pathname}?${DCC_DEMO_PARAM}=1`) as Route;
 
   return (
     <nav
@@ -34,7 +53,7 @@ export function DccQuickNav() {
           return (
             <Link
               key={d.href}
-              href={d.href as Route}
+              href={doorHref(d.href)}
               aria-current={on ? "page" : undefined}
               title={d.blurb}
               className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs ${
@@ -49,6 +68,24 @@ export function DccQuickNav() {
             </Link>
           );
         })}
+
+        <Link
+          href={toggleHref}
+          aria-pressed={demo}
+          title={
+            demo
+              ? "Go back to the real data in this database"
+              : "Fill every DCC screen with invented people, so the layout can be seen before anyone has filled a real day"
+          }
+          className={`ml-auto inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold transition-colors ${
+            demo
+              ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+              : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+          }`}
+        >
+          <FlaskConical className="h-3.5 w-3.5" aria-hidden />
+          {demo ? "Sample data — show real" : "Sample data"}
+        </Link>
       </div>
     </nav>
   );

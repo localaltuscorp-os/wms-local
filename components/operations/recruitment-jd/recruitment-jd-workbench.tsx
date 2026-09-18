@@ -28,19 +28,26 @@ import {
   normalizeWhatsAppPhone,
   whatsAppLink,
   type JdContent,
-} from "@/lib/hr/recruitment-jd";
+} from "@/lib/operations/recruitment-jd";
 import type { RecruitmentJdRow, RecruitmentJdSendRow } from "@/lib/queries/recruitment-jd";
 import {
+  addRecruitmentJdRole,
   logRecruitmentJdWhatsApp,
   resetRecruitmentJd,
+  restoreRecruitmentJdMaster,
   saveRecruitmentJd,
   sendRecruitmentJdByEmail,
-} from "@/app/(app)/hr/recruitment-jd/actions";
-import { addInterviewPosition } from "@/app/(app)/hr/candidate-actions";
+} from "@/app/(app)/operations/masters/recruitment-jd/actions";
 
 /**
- * RECRUITMENT JDs — positions on the left; the selected position's Recruiter
- * JD, Master JD, Send and History on the right.
+ * RECRUITMENT JDs — roles on the left; the selected role's Recruiter JD, Master
+ * JD, Send and History on the right.
+ *
+ * `canEdit` (HR staff, resolved by the page) decides what is DRAWN, never what
+ * is allowed: every action re-checks for itself in actions.ts. Without it the
+ * whole thing reads, which is the point of the section sitting in Operations →
+ * Masters — anyone asked to refer a candidate can see what we are advertising
+ * without being handed buttons that would refuse them.
  */
 
 const ACCENT = "#E10600";
@@ -66,34 +73,37 @@ export function RecruitmentJdWorkbench({
   rows,
   sends,
   missing,
+  canEdit = true,
 }: {
   rows: RecruitmentJdRow[];
   sends: RecruitmentJdSendRow[];
   missing: boolean;
+  /** HR staff. False = read the JDs, change and send nothing. */
+  canEdit?: boolean;
 }) {
   const router = useRouter();
   const [query, setQuery] = React.useState("");
-  const [selectedId, setSelectedId] = React.useState<string>(rows[0]?.positionId ?? "");
+  const [selectedId, setSelectedId] = React.useState<string>(rows[0]?.slug ?? "");
   const [tab, setTab] = React.useState<Tab>("recruiter");
   const [adding, setAdding] = React.useState(false);
-  const [newLabel, setNewLabel] = React.useState("");
+  const [newTitle, setNewTitle] = React.useState("");
   const [pending, start] = React.useTransition();
 
-  const shown = rows.filter((r) => r.label.toLowerCase().includes(query.trim().toLowerCase()));
-  const selected = rows.find((r) => r.positionId === selectedId) ?? rows[0] ?? null;
-  const sendsFor = selected ? sends.filter((s) => s.positionLabel === selected.label) : [];
+  const shown = rows.filter((r) => r.title.toLowerCase().includes(query.trim().toLowerCase()));
+  const selected = rows.find((r) => r.slug === selectedId) ?? rows[0] ?? null;
+  const sendsFor = selected ? sends.filter((s) => s.positionLabel === selected.title) : [];
 
-  function addPosition() {
-    const label = newLabel.trim();
+  function addRole() {
+    const label = newTitle.trim();
     if (!label) return;
     start(async () => {
-      const res = await addInterviewPosition(label);
+      const res = await addRecruitmentJdRole({ title: label });
       if (!res.ok) {
         fireToast({ message: res.error, type: "error" });
         return;
       }
       fireToast({ message: `${label} added.`, type: "success" });
-      setNewLabel("");
+      setNewTitle("");
       setAdding(false);
       router.refresh();
     });
@@ -102,13 +112,20 @@ export function RecruitmentJdWorkbench({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-[13.5px] text-ink-muted">
-        The job descriptions recruiters send candidates — one per position. Each has a locked <b>Master</b> and a{" "}
-        <b>Recruiter</b> copy you can edit freely. Separate from the internal Job Description module.
+        The job descriptions recruiters send candidates — one per role we hire for. Each has an original <b>Master</b> and a{" "}
+        <b>Recruiter</b> copy that can be edited freely. Separate from the internal{" "}
+        <b>Master JD</b> and <b>Person-specific JD</b>, which describe a seat someone already holds.
       </p>
+
+      {!canEdit && (
+        <p className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] font-semibold" style={{ background: "#F1F5F9", color: "#334155", boxShadow: "inset 0 0 0 1px #CBD5E1" }}>
+          <Lock size={15} className="shrink-0" /> Read-only — HR writes these JDs and sends them. Everything here is yours to read and copy.
+        </p>
+      )}
 
       {missing && (
         <p className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] font-semibold" style={{ background: "#FFFBEB", color: "#92400E", boxShadow: "inset 0 0 0 1px #FCD34D" }}>
-          <TriangleAlert size={16} className="shrink-0" /> Saving and sending need migration 0232 applied to the database first.
+          <TriangleAlert size={16} className="shrink-0" /> Saving and sending need migration 0236_recruitment_jd_roles.sql applied to the database first.
         </p>
       )}
 
@@ -117,34 +134,34 @@ export function RecruitmentJdWorkbench({
         <aside className={`${CARD} flex flex-col p-3`}>
           <label className="relative mb-2 block">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search positions" className={`${INPUT} pl-9`} aria-label="Search positions" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search roles" className={`${INPUT} pl-9`} aria-label="Search roles" />
           </label>
           <ul className="flex max-h-[60vh] flex-col gap-1 overflow-y-auto max-lg:max-h-[240px]">
             {shown.map((r) => {
-              const on = r.positionId === selected?.positionId;
+              const on = r.slug === selected?.slug;
               const st = statusOf(r);
               return (
-                <li key={r.positionId}>
+                <li key={r.slug}>
                   <button
                     type="button"
-                    onClick={() => setSelectedId(r.positionId)}
+                    onClick={() => setSelectedId(r.slug)}
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left transition-colors hover:bg-black/[0.03]"
                     style={on ? { background: `color-mix(in srgb, ${ACCENT} 8%, transparent)`, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ACCENT} 30%, transparent)` } : undefined}
                     aria-current={on ? "true" : undefined}
                   >
-                    <span className="min-w-0 flex-1 truncate text-[14px] font-bold text-ink-strong">{r.label}</span>
+                    <span className="min-w-0 flex-1 truncate text-[14px] font-bold text-ink-strong">{r.title}</span>
                     <span className="size-2 shrink-0 rounded-full" style={{ background: st.tone }} title={st.label} />
                   </button>
                 </li>
               );
             })}
-            {shown.length === 0 && <li className="px-3 py-4 text-center text-[13px] text-ink-subtle">No position matches.</li>}
+            {shown.length === 0 && <li className="px-3 py-4 text-center text-[13px] text-ink-subtle">No role matches.</li>}
           </ul>
 
-          {adding ? (
+          {!canEdit ? null : adding ? (
             <div className="mt-2 flex gap-1.5">
-              <input autoFocus value={newLabel} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPosition()} placeholder="New position" className={INPUT} aria-label="New position" />
-              <button type="button" onClick={addPosition} disabled={pending || !newLabel.trim()} className="rounded-xl px-3 text-white disabled:opacity-50" style={{ background: ACCENT }} aria-label="Add position">
+              <input autoFocus value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addRole()} placeholder="New role" className={INPUT} aria-label="New role" />
+              <button type="button" onClick={addRole} disabled={pending || !newTitle.trim()} className="rounded-xl px-3 text-white disabled:opacity-50" style={{ background: ACCENT }} aria-label="Add role">
                 <Check size={16} />
               </button>
               <button type="button" onClick={() => setAdding(false)} className="rounded-xl px-2 text-ink-subtle hover:bg-black/5" aria-label="Cancel">
@@ -153,17 +170,19 @@ export function RecruitmentJdWorkbench({
             </div>
           ) : (
             <button type="button" onClick={() => setAdding(true)} className="mt-2 inline-flex items-center gap-1.5 self-start rounded-lg px-2 py-1.5 text-[13px] font-bold" style={{ color: ACCENT }}>
-              <Plus size={14} strokeWidth={2.6} /> Add position
+              <Plus size={14} strokeWidth={2.6} /> Add role
             </button>
           )}
-          <p className="mt-2 px-1 text-[11.5px] text-ink-subtle">Positions are the Candidate Interview Form&apos;s list — adding one here adds it there too.</p>
+          <p className="mt-2 px-1 text-[11.5px] text-ink-subtle">
+            Roles are this section&apos;s own list — the JDs Rutvisha wrote{canEdit ? ", plus anything you add here" : ""}.
+          </p>
         </aside>
 
         {/* ── The selected position ── */}
         {selected ? (
-          <section className={`${CARD} min-w-0 p-5 max-md:p-4`} key={selected.positionId}>
+          <section className={`${CARD} min-w-0 p-5 max-md:p-4`} key={selected.slug}>
             <div className="mb-4 flex flex-wrap items-center gap-3">
-              <h2 className="text-[20px] font-black tracking-tight text-ink-strong">{selected.label}</h2>
+              <h2 className="text-[20px] font-black tracking-tight text-ink-strong">{selected.title}</h2>
               <span className="rounded-full px-2.5 py-0.5 text-[12px] font-bold" style={{ background: `color-mix(in srgb, ${statusOf(selected).tone} 14%, transparent)`, color: statusOf(selected).tone }}>
                 {statusOf(selected).label}
               </span>
@@ -192,13 +211,13 @@ export function RecruitmentJdWorkbench({
               ))}
             </div>
 
-            {tab === "recruiter" && <RecruiterTab row={selected} />}
-            {tab === "master" && <MasterTab row={selected} />}
-            {tab === "send" && <SendTab row={selected} />}
+            {tab === "recruiter" && <RecruiterTab row={selected} canEdit={canEdit} />}
+            {tab === "master" && <MasterTab row={selected} canEdit={canEdit} />}
+            {tab === "send" && <SendTab row={selected} canEdit={canEdit} />}
             {tab === "history" && <HistoryTab sends={sendsFor} />}
           </section>
         ) : (
-          <section className={`${CARD} p-10 text-center text-[14px] text-ink-subtle`}>Add a position to start.</section>
+          <section className={`${CARD} p-10 text-center text-[14px] text-ink-subtle`}>Add a role to start.</section>
         )}
       </div>
     </div>
@@ -207,14 +226,14 @@ export function RecruitmentJdWorkbench({
 
 /* ── Recruiter JD ───────────────────────────────────────────────────────── */
 
-function RecruiterTab({ row }: { row: RecruitmentJdRow }) {
+function RecruiterTab({ row, canEdit }: { row: RecruitmentJdRow; canEdit: boolean }) {
   const router = useRouter();
-  const base = effectiveRecruiterJd(row.master, row.recruiter) ?? emptyJdContent(row.label);
+  const base = effectiveRecruiterJd(row.master, row.recruiter) ?? emptyJdContent(row.title);
   const [pending, start] = React.useTransition();
 
   function save(content: JdContent) {
     start(async () => {
-      const res = await saveRecruitmentJd({ positionId: row.positionId, which: "recruiter", content });
+      const res = await saveRecruitmentJd({ slug: row.slug, which: "recruiter", content });
       if (!res.ok) {
         fireToast({ message: res.error, type: "error" });
         return;
@@ -226,7 +245,7 @@ function RecruiterTab({ row }: { row: RecruitmentJdRow }) {
   function reset() {
     if (!window.confirm("Throw away the recruiter edits and go back to the master JD?")) return;
     start(async () => {
-      const res = await resetRecruitmentJd({ positionId: row.positionId });
+      const res = await resetRecruitmentJd({ slug: row.slug });
       if (!res.ok) {
         fireToast({ message: res.error, type: "error" });
         return;
@@ -245,6 +264,13 @@ function RecruiterTab({ row }: { row: RecruitmentJdRow }) {
             ? "Same as the master right now. Edit freely — the master stays as it is."
             : "No JD written yet. Write it here, or fill the Master JD first."}
       </p>
+      {!canEdit ? (
+        isJdBlank(base) ? (
+          <p className="rounded-xl bg-surface-soft px-4 py-6 text-center text-[14px] text-ink-subtle">No JD written for this role yet.</p>
+        ) : (
+          <JdPreview content={base} />
+        )
+      ) : (
       <JdEditor initial={base} pending={pending} saveLabel="Save recruiter JD" onSave={save}>
         {row.recruiter && row.master && (
           <button type="button" onClick={reset} disabled={pending} className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:bg-black/5">
@@ -252,20 +278,37 @@ function RecruiterTab({ row }: { row: RecruitmentJdRow }) {
           </button>
         )}
       </JdEditor>
+      )}
     </div>
   );
 }
 
 /* ── Master JD ──────────────────────────────────────────────────────────── */
 
-function MasterTab({ row }: { row: RecruitmentJdRow }) {
+function MasterTab({ row, canEdit }: { row: RecruitmentJdRow; canEdit: boolean }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState(false);
   const [pending, start] = React.useTransition();
 
+  /* THE ORIGINAL IS NEVER LOST. The seed in lib/operations/recruitment-jd-seed.ts is
+     applied on first load and never again, so an edit here is safe to make and
+     safe to undo — which is the whole point of keeping a master at all. */
+  function restore() {
+    if (!window.confirm(`Replace the master with the original ${row.title} JD? Any edits made to the master are lost. The recruiter copy is untouched.`)) return;
+    start(async () => {
+      const res = await restoreRecruitmentJdMaster({ slug: row.slug });
+      if (!res.ok) {
+        fireToast({ message: res.error, type: "error" });
+        return;
+      }
+      fireToast({ message: "Master restored to the original.", type: "success" });
+      router.refresh();
+    });
+  }
+
   function save(content: JdContent) {
     start(async () => {
-      const res = await saveRecruitmentJd({ positionId: row.positionId, which: "master", content });
+      const res = await saveRecruitmentJd({ slug: row.slug, which: "master", content });
       if (!res.ok) {
         fireToast({ message: res.error, type: "error" });
         return;
@@ -282,7 +325,7 @@ function MasterTab({ row }: { row: RecruitmentJdRow }) {
         <p className="flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-semibold" style={{ background: "#FEF2F2", color: "#991B1B" }}>
           <TriangleAlert size={15} /> You are editing the MASTER. {row.recruiter ? "The recruiter copy keeps its own edits." : "Recruiters will send the new version."}
         </p>
-        <JdEditor initial={row.master ?? emptyJdContent(row.label)} pending={pending} saveLabel="Save master" onSave={save}>
+        <JdEditor initial={row.master ?? emptyJdContent(row.title)} pending={pending} saveLabel="Save master" onSave={save}>
           <button type="button" onClick={() => setEditing(false)} className="rounded-xl px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:bg-black/5">
             Cancel
           </button>
@@ -299,6 +342,7 @@ function MasterTab({ row }: { row: RecruitmentJdRow }) {
             ? `The original${row.masterUpdatedBy ? ` — last changed by ${row.masterUpdatedBy}` : ""}${row.masterUpdatedAt ? `, ${fmtWhen(row.masterUpdatedAt)}` : ""}.`
             : "No master yet. Paste the original JD here once it arrives."}
         </p>
+        {canEdit && (
         <button
           type="button"
           onClick={() => {
@@ -309,6 +353,19 @@ function MasterTab({ row }: { row: RecruitmentJdRow }) {
         >
           <Lock size={14} /> {row.master ? "Edit master" : "Write master"}
         </button>
+        )}
+        {canEdit && row.hasSeed && (
+          <button
+            type="button"
+            onClick={restore}
+            disabled={pending}
+            title="Put the master back to the JD this section shipped with"
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[13.5px] font-bold text-ink-soft disabled:opacity-50"
+            style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}
+          >
+            <RotateCcw size={14} /> Restore the original
+          </button>
+        )}
       </div>
       {row.master ? <JdPreview content={row.master} /> : null}
     </div>
@@ -317,7 +374,7 @@ function MasterTab({ row }: { row: RecruitmentJdRow }) {
 
 /* ── Send ───────────────────────────────────────────────────────────────── */
 
-function SendTab({ row }: { row: RecruitmentJdRow }) {
+function SendTab({ row, canEdit }: { row: RecruitmentJdRow; canEdit: boolean }) {
   const router = useRouter();
   const content = effectiveRecruiterJd(row.master, row.recruiter);
   const [waName, setWaName] = React.useState("");
@@ -338,7 +395,7 @@ function SendTab({ row }: { row: RecruitmentJdRow }) {
   function openWhatsApp() {
     // Open from the click itself, or the browser blocks the popup.
     window.open(whatsAppLink(phone, text), "_blank", "noopener,noreferrer");
-    void logRecruitmentJdWhatsApp({ positionId: row.positionId, recipientName: waName, phone: waPhone }).then((res) => {
+    void logRecruitmentJdWhatsApp({ slug: row.slug, recipientName: waName, phone: waPhone }).then((res) => {
       if (!res.ok) fireToast({ message: `WhatsApp opened, but the send wasn't recorded: ${res.error}`, type: "error" });
       else router.refresh();
     });
@@ -350,7 +407,7 @@ function SendTab({ row }: { row: RecruitmentJdRow }) {
       return;
     }
     start(async () => {
-      const res = await sendRecruitmentJdByEmail({ positionId: row.positionId, to: mailTo, recipientName: mailName, note });
+      const res = await sendRecruitmentJdByEmail({ slug: row.slug, to: mailTo, recipientName: mailName, note });
       if (!res.ok) {
         fireToast({ message: res.error, type: "error" });
         return;
@@ -364,7 +421,8 @@ function SendTab({ row }: { row: RecruitmentJdRow }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4 max-xl:grid-cols-1">
+    <div className={`grid gap-4 ${canEdit ? "grid-cols-2 max-xl:grid-cols-1" : "grid-cols-1"}`}>
+      {canEdit && (
       <div className="flex flex-col gap-4">
         <div className="rounded-xl p-4" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}>
           <h3 className="mb-3 flex items-center gap-2 text-[14.5px] font-extrabold text-ink-strong">
@@ -411,6 +469,7 @@ function SendTab({ row }: { row: RecruitmentJdRow }) {
           </button>
         </div>
       </div>
+      )}
 
       <div className="flex min-w-0 flex-col gap-2">
         <div className="flex items-center gap-2">
