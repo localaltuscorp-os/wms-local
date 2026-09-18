@@ -121,7 +121,10 @@ export function EvaluationV2Screen({
   // "Add candidate" — pre-create a candidate by name (+ optional phone) so an
   // evaluation can start before they have filled the full interview form.
   const [addOpen, setAddOpen] = React.useState(false);
-  const [addName, setAddName] = React.useState("");
+  // Two fields, joined into the one `full_name` column on submit — see the
+  // dialog's own note on why they are split.
+  const [addFirst, setAddFirst] = React.useState("");
+  const [addLast, setAddLast] = React.useState("");
   const [addPhone, setAddPhone] = React.useState("");
   const [addBusy, setAddBusy] = React.useState(false);
   const [addError, setAddError] = React.useState<string | null>(null);
@@ -145,22 +148,31 @@ export function EvaluationV2Screen({
   const [linkOpen, setLinkOpen] = React.useState(false);
   const [linkQuery, setLinkQuery] = React.useState("");
 
+  /** First + last, joined the way a single "Full name" box would have produced
+   *  it — `full_name` is one column, and the letters, the candidate list and the
+   *  merge dialog all print it verbatim. */
+  const addFullName = [addFirst, addLast].map((s) => s.trim()).filter(Boolean).join(" ");
+
   async function submitNewCandidate() {
     setAddBusy(true);
     setAddError(null);
-    const res = await createQuickCandidate({ name: addName, phone: addPhone });
+    const res = await createQuickCandidate({ name: addFullName, phone: addPhone });
     setAddBusy(false);
     if (!res.ok) {
       setAddError(res.error);
       return;
     }
-    // Add to the local list (if it isn't already there) and select it.
+    // Add to the local list (if it isn't already there) and select it. On a
+    // `reused` result the row already exists — with the name it already had,
+    // which is the point of reusing it — so the local entry must not overwrite
+    // that with what was just typed.
     setCandList((prev) => {
       if (prev.some((c) => c.id === res.id)) return prev;
-      return [...prev, { id: res.id, fullName: addName.trim() }];
+      return [...prev, { id: res.id, fullName: addFullName }];
     });
     setAddOpen(false);
-    setAddName("");
+    setAddFirst("");
+    setAddLast("");
     setAddPhone("");
     void selectCandidate(res.id);
   }
@@ -827,18 +839,49 @@ export function EvaluationV2Screen({
               </div>
 
               <div className="space-y-3">
-                <div>
-                  <label htmlFor="ev2-add-name" className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-soft">
-                    Name
-                  </label>
-                  <input
-                    id="ev2-add-name"
-                    value={addName}
-                    onChange={(e) => setAddName(e.target.value)}
-                    autoFocus
-                    placeholder="Full name"
-                    className="w-full rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[14px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
-                  />
+                {/* FIRST + LAST, not one "Full name" box.
+                    Two reasons this matters rather than being cosmetic: the
+                    placeholder has to be RECOGNISABLE as the same person once
+                    their own form arrives (a merged record keeps the
+                    candidate's name, so a half-typed one is thrown away), and
+                    `candidate_intake.full_name` is a single column the letters
+                    and the candidate list both read — so the two parts are
+                    joined on the way in, and the stored value is exactly what
+                    a single box would have produced. */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="ev2-add-first" className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-soft">
+                      First name
+                    </label>
+                    <input
+                      id="ev2-add-first"
+                      value={addFirst}
+                      onChange={(e) => setAddFirst(e.target.value)}
+                      autoFocus
+                      autoComplete="off"
+                      placeholder="e.g. Priya"
+                      className="w-full rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[14px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="ev2-add-last" className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-soft">
+                      Last name
+                    </label>
+                    <input
+                      id="ev2-add-last"
+                      value={addLast}
+                      onChange={(e) => setAddLast(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void submitNewCandidate();
+                      }}
+                      autoComplete="off"
+                      // OPTIONAL, deliberately. Not everyone has two names, and
+                      // a required box would either block them or teach people
+                      // to type a placeholder into it.
+                      placeholder="e.g. Sharma"
+                      className="w-full rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[14px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label htmlFor="ev2-add-phone" className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-soft">
@@ -871,7 +914,7 @@ export function EvaluationV2Screen({
                 <button
                   type="button"
                   onClick={() => void submitNewCandidate()}
-                  disabled={addBusy || !addName.trim()}
+                  disabled={addBusy || !addFullName}
                   className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-[13px] font-bold text-white transition-colors disabled:opacity-60"
                   style={{ background: RED }}
                 >
