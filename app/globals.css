@@ -2794,12 +2794,49 @@ html {
  *                            behind once the container hits its end.
  *   -webkit-overflow-…     — legacy iOS Safari momentum. Inert elsewhere.
  *
+ * ── AND IT IS PER AXIS, WHICH IS THE WHOLE POINT (fixed 2026-09-18) ─────────
+ * This rule used to set the `overscroll-behavior` SHORTHAND on all five
+ * selectors, and that silently killed wheel scrolling across the entire
+ * application. The brief was "~50 table and grid wrappers carry a bare
+ * `overflow-x-auto`", and a wrapper like that is the trap it looks least like:
+ *
+ *   · `overflow-x: auto` with `overflow-y: visible` computes `overflow-y` to
+ *     `auto` — so a horizontally-scrolling table IS a vertical scroll container.
+ *   · It has nothing to scroll vertically, so it never *can* scroll.
+ *   · `overscroll-behavior: contain` (the shorthand covers BOTH axes) then says
+ *     "do not chain a vertical gesture out of here" — and the element is the
+ *     nearest vertical scroll container under the pointer.
+ *
+ * Net effect: with the pointer anywhere over a table, toolbar or grid wrapper,
+ * the wheel did NOTHING. Scrolling only worked with the pointer parked in the
+ * page gutter or on the scrollbar — which reads as "the page cannot scroll",
+ * on every screen, for everyone. Hence the report that it was unfixable per
+ * page: the cause was never on any one page.
+ *
+ * Scoping the behaviour to the axis the element actually scrolls keeps every
+ * original intent — a horizontal fling still does not ripple out sideways, and
+ * a real vertical panel still will not hand its leftover scroll to the page —
+ * while letting a vertical wheel chain past an X-only container to the page.
+ *
  * `:where()` keeps specificity at 0, so any component can still override any
  * of it with a plain class. */
 :where(.overflow-x-auto, .overflow-y-auto, .overflow-auto, .overflow-x-scroll, .overflow-y-scroll) {
   touch-action: pan-x pan-y;
-  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+/* X-ONLY scrollers: contain the horizontal gesture, and NOTHING on the vertical
+   axis. This is the line that restores wheel scrolling over every table. */
+:where(.overflow-x-auto, .overflow-x-scroll) {
+  overscroll-behavior-x: contain;
+}
+/* Y-ONLY scrollers: these really do scroll vertically, so containing the
+   vertical gesture here is the intended "don't scroll the page behind me". */
+:where(.overflow-y-auto, .overflow-y-scroll) {
+  overscroll-behavior-y: contain;
+}
+/* Both axes by declaration — the shorthand is correct for these. */
+:where(.overflow-auto) {
+  overscroll-behavior: contain;
 }
 
 .kanban-scroll {
