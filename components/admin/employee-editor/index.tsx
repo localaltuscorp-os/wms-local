@@ -67,6 +67,9 @@ export interface EditableEmployee {
   role: Role;
   departments: EmployeeDepartmentMembership[];
   isAdmin: boolean;
+  /** MASTER ADMIN — may rewrite the permission matrix. Not a column: a row in
+   *  `capability_grants`, resolved server-side and threaded down as a boolean. */
+  isMasterAdmin: boolean;
   phone: string | null;
   whatsappPhone: string | null;
   /** WhatsApp consent — gates whether we may message them at all. */
@@ -95,6 +98,10 @@ export type EmployeeEditorProps = {
   managerOptions: { value: string; label: string }[];
   /** True only for super-admins — gates the admin toggle (single mode only). */
   canManageAdmins: boolean;
+  /** True ONLY for a super-admin — gates the master-admin toggle. Deliberately a
+   *  separate prop from `canManageAdmins`, which any admin has: appointing a
+   *  master admin must not be reachable by somebody who merely administers. */
+  canManageMasterAdmin: boolean;
 } & (
   | { mode: "single"; employee: EditableEmployee; isSelf: boolean }
   | { mode: "bulk"; employees: EditableEmployee[] }
@@ -157,7 +164,14 @@ const WEEKDAY_NAMES = [
 ];
 
 export function EmployeeEditor(props: EmployeeEditorProps) {
-  const { open, onOpenChange, departmentOptions, managerOptions, canManageAdmins } = props;
+  const {
+    open,
+    onOpenChange,
+    departmentOptions,
+    managerOptions,
+    canManageAdmins,
+    canManageMasterAdmin,
+  } = props;
   const bulk = props.mode === "bulk";
   const targets = bulk ? props.employees : [props.employee];
   const one = bulk ? null : props.employee;
@@ -179,6 +193,9 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
     one?.departments.find((d) => d.isPrimary)?.id ?? one?.departments[0]?.id ?? null,
   );
   const [isAdmin, setIsAdmin] = useState(one?.isAdmin ?? false);
+  // Never true in bulk mode — `bulk ? null : ...` — because the bulk patch is
+  // sparse by construction and must not carry a privilege change.
+  const [isMasterAdmin, setIsMasterAdmin] = useState(one?.isMasterAdmin ?? false);
   const [waPhone, setWaPhone] = useState(one?.whatsappPhone ?? "");
   const [waOptIn, setWaOptIn] = useState<boolean | null>(
     bulk ? null : (one?.whatsappOptedIn ?? false),
@@ -325,6 +342,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
       patch.primaryDepartmentId = primaryId;
     }
     if (isAdmin !== e.isAdmin) patch.isAdmin = isAdmin;
+    if (isMasterAdmin !== e.isMasterAdmin) patch.isMasterAdmin = isMasterAdmin;
     if ((managerId ?? null) !== (e.managerId ?? null)) patch.managerId = managerId ?? null;
     if (quota !== null && quota !== (e.dailyTaskQuota ?? 3)) patch.dailyTaskQuota = quota;
     const trimmedPhone = waPhone.trim();
@@ -599,7 +617,53 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                         <span>
                           Admin
                           <span className="block text-[12px] text-ink-subtle">
-                            Only Hetesh or Manan can change admin access.
+                            Only an admin can change admin access.
+                          </span>
+                        </span>
+                      </div>
+                    ) : null}
+
+                    {/* ── MASTER ADMIN ────────────────────────────────────────
+                        Appointing one is SUPER-ADMIN ONLY, which is why this is
+                        gated on `canManageMasterAdmin` and not on
+                        `canManageAdmins` like the Admin box above — any admin
+                        can flip that one, and none but a super-admin may flip
+                        this.
+
+                        UX only. `editEmployee` re-checks `isSuperAdmin` on the
+                        server and refuses regardless of what renders here. */}
+                    {!bulk && canManageMasterAdmin ? (
+                      <label
+                        className="flex items-start gap-2.5 text-[14px] text-ink-soft"
+                        title="Master admins can rewrite the permission matrix — who may see, read and edit every module in the app."
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isMasterAdmin}
+                          onChange={(ev) => setIsMasterAdmin(ev.target.checked)}
+                          className="mt-0.5 size-4 accent-[var(--color-altus-red)]"
+                        />
+                        <span>
+                          Master admin
+                          <span className="block text-[12px] text-ink-subtle">
+                            Can open Master Admin and change anyone&apos;s module permissions.{" "}
+                            Only a super-admin can change this.
+                          </span>
+                        </span>
+                      </label>
+                    ) : !bulk && one?.isMasterAdmin ? (
+                      <div className="flex items-start gap-2.5 text-[14px] text-ink-soft opacity-70">
+                        <input
+                          type="checkbox"
+                          checked
+                          readOnly
+                          disabled
+                          className="mt-0.5 size-4"
+                        />
+                        <span>
+                          Master admin
+                          <span className="block text-[12px] text-ink-subtle">
+                            Only a super-admin can change master admin access.
                           </span>
                         </span>
                       </div>

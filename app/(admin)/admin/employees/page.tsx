@@ -11,6 +11,7 @@ import { PreviousEmployees } from "@/components/admin/previous-employees";
 import type { SalaryProfileRates } from "@/components/admin/employee-list";
 import { requireAdmin } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { masterAdminEmployeeIds } from "@/lib/security/capability-grants";
 import {
   listActiveDepartments,
   getEmployeeDepartmentMap,
@@ -78,6 +79,21 @@ export default async function EmployeesPage() {
   // visitor a precise target list. Ids are opaque and already on the page.
   const superAdminIds = all.filter((e) => isSuperAdmin(e.email)).map((e) => e.id);
 
+  // ── MASTER ADMIN — THE ONE CONTROL IN THIS SCREEN THAT IS SUPER-ADMIN ONLY ──
+  // `isSuperAdmin`, NOT `me.isAdmin`. Every other access control on this page is
+  // open to any admin (2026-08); this one must not be, or a master admin could
+  // be appointed by somebody who cannot be trusted with the permission matrix —
+  // and once appointed they can rewrite every other permission in the app.
+  //
+  // UX only. `editEmployee` re-checks `isSuperAdmin` on the server and refuses
+  // regardless of what this page drew, which is what makes hiding the control
+  // presentation rather than the boundary.
+  const canManageMasterAdmin = isSuperAdmin(me.email);
+
+  // Ids, never addresses — same reason as `superAdminIds` above. One read for
+  // the whole roster (the predicate is a database row now).
+  const masterAdminIds = [...(await masterAdminEmployeeIds())];
+
   return (
     <AdminSection
       eyebrow="Admin · Employees"
@@ -120,6 +136,8 @@ export default async function EmployeesPage() {
         currentEmployeeId={me.id}
         canManageAdmins={canManageAdmins}
         superAdminIds={superAdminIds}
+        canManageMasterAdmin={canManageMasterAdmin}
+        masterAdminIds={masterAdminIds}
         departmentOptions={departmentOptions}
         managerOptions={managerOptions}
       />

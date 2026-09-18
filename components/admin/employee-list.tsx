@@ -32,6 +32,11 @@ interface Props {
   /** Gates the admin toggle. Any admin may manage admins (see page.tsx);
    *  the server actions are the real boundary. */
   canManageAdmins: boolean;
+  /** True only for a super-admin — the ONE control on this screen that an
+   *  ordinary admin must not have. Resolved server-side; see the page. */
+  canManageMasterAdmin: boolean;
+  /** Employee ids, resolved server-side, for the same reason `superAdminIds` is. */
+  masterAdminIds: string[];
   /** Employee ids on the super-admin allow-list. Computed server-side so the
    *  email allow-list itself never reaches the browser. */
   superAdminIds: string[];
@@ -118,16 +123,23 @@ const ROLE_CHIP: Record<
   both:      { bg: "#F1F5F9", fg: "#334155", ring: "#CBD5E1", label: "Both" },
 };
 
-/** Access level shown per row: super-admin > admin > plain employee.
- *  Deliberately three visually distinct states rather than one "Admin" chip —
- *  super-admin is the only level that can change another person's admin flag,
- *  so conflating the two hides the privilege that actually matters. */
+/** Access level shown per row: super-admin > master admin > admin > plain.
+ *  Deliberately distinct states rather than one "Admin" chip — each level can
+ *  change something the one below it cannot, so conflating them hides the
+ *  privilege that actually matters.
+ *
+ *  MASTER ADMIN is drawn as its own chip because it is NOT a kind of admin: it
+ *  is the capability to rewrite the permission matrix (migration 0226), it is
+ *  granted from a different control, and only a super-admin can grant it. An
+ *  ordinary admin who cannot see the difference would reasonably assume they can
+ *  revoke it. */
 const ACCESS_CHIP = {
   super: { bg: "#FEF3C7", fg: "#92400E", ring: "#FDE68A", label: "Super-admin" },
+  master: { bg: "#EDE9FE", fg: "#5B21B6", ring: "#DDD6FE", label: "Master admin" },
   admin: { bg: "#ECFEFF", fg: "#0E7490", ring: "#A5F3FC", label: "Admin" },
 } as const;
 
-function AccessChip({ level }: { level: "super" | "admin" | "none" }) {
+function AccessChip({ level }: { level: "super" | "master" | "admin" | "none" }) {
   if (level === "none") return <span className="text-ink-subtle">—</span>;
   const c = ACCESS_CHIP[level];
   return (
@@ -177,6 +189,8 @@ export function EmployeeList({
   currentEmployeeId,
   canManageAdmins,
   superAdminIds,
+  canManageMasterAdmin,
+  masterAdminIds,
   departmentOptions,
   managerOptions,
 }: Props) {
@@ -184,6 +198,10 @@ export function EmployeeList({
   const superAdminSet = React.useMemo(
     () => new Set(superAdminIds),
     [superAdminIds],
+  );
+  const masterAdminSet = React.useMemo(
+    () => new Set(masterAdminIds),
+    [masterAdminIds],
   );
 
   const deptNames = (e: Employee) =>
@@ -203,6 +221,7 @@ export function EmployeeList({
       role: e.role,
       departments: membershipsByEmployee[e.id] ?? [],
       isAdmin: e.isAdmin,
+      isMasterAdmin: masterAdminSet.has(e.id),
       phone: e.phone,
       whatsappPhone: e.whatsappPhone,
       whatsappOptedIn: e.whatsappOptedIn,
@@ -334,10 +353,19 @@ export function EmployeeList({
           key: "access",
           label: "Access",
           // super-admins first, then admins, then everyone else
-          sortValue: (e) => (superAdminSet.has(e.id) ? 2 : e.isAdmin ? 1 : 0),
+          sortValue: (e) =>
+            superAdminSet.has(e.id) ? 3 : masterAdminSet.has(e.id) ? 2 : e.isAdmin ? 1 : 0,
           render: (e) => (
             <AccessChip
-              level={superAdminSet.has(e.id) ? "super" : e.isAdmin ? "admin" : "none"}
+              level={
+                superAdminSet.has(e.id)
+                  ? "super"
+                  : masterAdminSet.has(e.id)
+                    ? "master"
+                    : e.isAdmin
+                      ? "admin"
+                      : "none"
+              }
             />
           ),
         },
@@ -371,6 +399,7 @@ export function EmployeeList({
             employee={{ ...toEditable(e), isActive: e.isActive, joinedAt: e.joinedAt }}
             isSelf={e.id === currentEmployeeId}
             canManageAdmins={canManageAdmins}
+            canManageMasterAdmin={canManageMasterAdmin}
             departmentOptions={departmentOptions}
             managerOptions={managerOptions}
           />
@@ -406,6 +435,10 @@ export function EmployeeList({
         departmentOptions={departmentOptions}
         managerOptions={managerOptions}
         canManageAdmins={canManageAdmins}
+        // Carried but INERT in bulk mode: the toggle is `!bulk && ...`, and the
+        // bulk patch is built key-by-key without `isMasterAdmin` — a privilege
+        // change must never ride along with "edit these forty people".
+        canManageMasterAdmin={canManageMasterAdmin}
       />
     ) : null}
     </>

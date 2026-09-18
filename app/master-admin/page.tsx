@@ -5,7 +5,7 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { getSignedInEmployee } from "@/lib/auth/current";
-import { isMasterAdmin } from "@/lib/security/capabilities";
+import { masterAdminEmployeeIds } from "@/lib/security/capability-grants";
 import { storedOverridesFor } from "@/lib/permissions/resolve";
 import { allPermissionNodes } from "@/lib/permissions/catalog";
 import { PageShell } from "@/components/layout/page-shell";
@@ -40,13 +40,20 @@ export default async function MasterAdminPage() {
     .where(eq(employees.isActive, true))
     .orderBy(asc(employees.name));
 
+  // ONE read for the whole roster, not one per row. The predicate is async now
+  // (master-admin membership is a database row), so calling it inside this map
+  // would be a query per employee — the only N+1 shape in the codebase, and the
+  // `cache()` in capability-grants collapses it to a single statement anyway;
+  // taking the id set explicitly is what makes that visible at the call site.
+  const masterIds = await masterAdminEmployeeIds();
+
   const people: MatrixPerson[] = roster
     .filter((r) => r.accountType === "employee")
     .map((r) => ({
       id: r.id,
       name: r.name,
       email: r.email,
-      isMasterAdmin: isMasterAdmin(r.email),
+      isMasterAdmin: masterIds.has(r.id),
     }));
 
   // Open on the first person the matrix can actually govern, so the page shows

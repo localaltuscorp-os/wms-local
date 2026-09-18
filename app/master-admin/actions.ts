@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { employees, modulePermissionEvents, modulePermissions } from "@/db/schema";
 import { requireUser, getSignedInEmployee, forbiddenError } from "@/lib/auth/current";
-import { isMasterAdmin } from "@/lib/security/capabilities";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 import { isPermissionNodeKey } from "@/lib/permissions/catalog";
 import { isMeaningfulOverride } from "@/lib/permissions/effective";
 import { rateLimitOrError } from "@/lib/rate-limit";
@@ -54,7 +54,7 @@ export type MatrixResult = { ok: true } | { ok: false; error: string };
 async function requireMasterAdmin() {
   await requireUser();
   const me = await getSignedInEmployee();
-  if (!me || !isMasterAdmin(me.email)) throw forbiddenError();
+  if (!me || !(await isMasterAdmin(me.email))) throw forbiddenError();
   return me;
 }
 
@@ -102,7 +102,7 @@ export async function setModulePermission(input: ToggleInput): Promise<MatrixRes
   // (see `governedByMatrix`), so a row against them would be stored and then
   // ignored — which is worse than refusing, because the screen would show a
   // restriction that does nothing. Refuse it, and say why.
-  if (isMasterAdmin(target.email)) {
+  if (await isMasterAdmin(target.email)) {
     return {
       ok: false,
       error: `${target.name} is a master administrator, so module permissions do not apply to them. Remove their master_admin.manage capability first if that should change.`,

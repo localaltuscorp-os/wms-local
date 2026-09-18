@@ -7140,6 +7140,19 @@ export const candidateIntake = pgTable(
     evaluationV2: jsonb("evaluation_v2"),
     photoPath: text("photo_path"),
     signaturePath: text("signature_path"),
+    /**
+     * MERGE TOMBSTONE (migration 0225). Set on a placeholder row that has been
+     * folded into the candidate's own form row — the placeholder keeps its bytes
+     * (the merge COPIES, it never moves) but every picker filters it out.
+     *
+     * `onDelete: "set null"` is deliberate: if the survivor is ever deleted this
+     * row becomes visible again, and it still holds its own copy of the
+     * evaluation, so an interviewer's assessment can never be orphaned.
+     * Un-merging is one UPDATE to null.
+     */
+    mergedIntoId: uuid("merged_into_id").references((): AnyPgColumn => candidateIntake.id, {
+      onDelete: "set null",
+    }),
     createdById: uuid("created_by_id").references(() => employees.id, {
       onDelete: "set null",
     }),
@@ -7149,9 +7162,54 @@ export const candidateIntake = pgTable(
   (t) => [
     index("candidate_intake_created_at_idx").on(t.createdAt),
     index("candidate_intake_status_idx").on(t.status),
+    index("candidate_intake_merged_into_idx").on(t.mergedIntoId),
   ],
 );
 export type CandidateIntake = typeof candidateIntake.$inferSelect;
+
+/**
+ * CANDIDATE MERGE AUDIT (migration 0225) — append-only.
+ *
+ * "One candidate, one record" is achieved by folding a placeholder row into the
+ * candidate's own form row. This is the trail: who merged what into what, which
+ * blobs were written and which were skipped because the survivor already had
+ * them, and the bytes as they were — so the operation stays recoverable even if
+ * the retired row is later deleted outright.
+ */
+export const candidateIntakeMergeEvents = pgTable(
+  "candidate_intake_merge_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    retiredIntakeId: uuid("retired_intake_id").references(
+      (): AnyPgColumn => candidateIntake.id,
+      { onDelete: "set null" },
+    ),
+    survivorIntakeId: uuid("survivor_intake_id").references(
+      (): AnyPgColumn => candidateIntake.id,
+      { onDelete: "set null" },
+    ),
+    retiredName: text("retired_name"),
+    retiredMobile: text("retired_mobile"),
+    survivorName: text("survivor_name"),
+    survivorMobile: text("survivor_mobile"),
+    /** jsonb arrays of strings, e.g. ["evaluationV2:interviewer"]. */
+    transferred: jsonb("transferred").notNull().default([]),
+    skipped: jsonb("skipped").notNull().default([]),
+    restorePayload: jsonb("restore_payload"),
+    actorEmployeeId: uuid("actor_employee_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    undoneAt: timestamp("undone_at", { withTimezone: true }),
+    undoneById: uuid("undone_by_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => [
+    index("candidate_intake_merge_events_retired_idx").on(t.retiredIntakeId),
+    index("candidate_intake_merge_events_recent_idx").on(t.occurredAt),
+  ],
+);
 
 /**
  * Candidate ACCESS LINKS (migration 0221) — the HR forms without a login.
@@ -7935,6 +7993,109 @@ export const modulePermissionEvents = pgTable(
 export type ModulePermission = typeof modulePermissions.$inferSelect;
 export type NewModulePermission = typeof modulePermissions.$inferInsert;
 export type ModulePermissionEvent = typeof modulePermissionEvents.$inferSelect;
+
+/**
+ * CAPABILITY GRANTS AS DATA (migration 0226).
+ *
+ * Only `master_admin.manage` lives here. Every other capability stays in the
+ * code `GRANTS` table in lib/security/capabilities.ts, because their guards are
+ * consulted synchronously from render paths and a table read would put a query
+ * in the middle of one. The CHECK constraint in the migration — mirrored by
+ * `DB_BACKED_CAPABILITIES` in lib/security/capability-grants.ts — is what stops
+ * a second capability being added here by accident and silently ignored.
+ *
+ * The two code-listed bootstrap addresses are master admins regardless of this
+ * table, so there is always a way back in.
+ */
+export const capabilityGrants = pgTable(
+  "capability_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references((): AnyPgColumn => employees.id, { onDelete: "cascade" }),
+    employeeEmail: text("employee_email").notNull(),
+    capability: text("capability").notNull(),
+    grantedById: uuid("granted_by_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("capability_grants_uniq").on(t.employeeId, t.capability),
+    index("capability_grants_capability_idx").on(t.capability),
+  ],
+);
+
+/** Append-only trail for the above, both directions — mirrors
+ *  `module_permission_events`. Answers "who gave them that, and when". */
+export const capabilityGrantEvents = pgTable(
+  "capability_grant_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    employeeEmail: text("employee_email").notNull(),
+    capability: text("capability").notNull(),
+    action: text("action").notNull(),
+    actorEmployeeId: uuid("actor_employee_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    actorEmail: text("actor_email"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("capability_grant_events_employee_idx").on(t.employeeId, t.occurredAt),
+    index("capability_grant_events_recent_idx").on(t.occurredAt),
+  ],
+);
+
+/**
+ * PERMISSION-TREE PRESENTATION (migration 0227).
+ *
+ * The tree's SHAPE stays in code — a node is only meaningful if a route enforces
+ * it. This table only lets a master admin rename a node, rewrite its note,
+ * reorder it, or hide it FROM THE MATRIX SCREEN. Nothing here can grant access.
+ *
+ * `hiddenInMatrix` must never be read by `hiddenModuleKeys()` or
+ * `requireModuleView()`; if it is, "hidden in the matrix" silently becomes
+ * "hidden in the application".
+ */
+export const permissionNodeSettings = pgTable("permission_node_settings", {
+  nodeKey: text("node_key").primaryKey(),
+  labelOverride: text("label_override"),
+  noteOverride: text("note_override"),
+  hiddenInMatrix: boolean("hidden_in_matrix").notNull().default(false),
+  sortOrder: integer("sort_order"),
+  updatedById: uuid("updated_by_id").references((): AnyPgColumn => employees.id, {
+    onDelete: "set null",
+  }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Append-only trail for the above — the trail must show every rename and every
+ *  hide, not just the current label. */
+export const permissionCatalogEvents = pgTable(
+  "permission_catalog_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nodeKey: text("node_key").notNull(),
+    prevLabel: text("prev_label"),
+    nextLabel: text("next_label"),
+    prevNote: text("prev_note"),
+    nextNote: text("next_note"),
+    prevHidden: boolean("prev_hidden"),
+    nextHidden: boolean("next_hidden"),
+    prevSort: integer("prev_sort"),
+    nextSort: integer("next_sort"),
+    actorEmployeeId: uuid("actor_employee_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("permission_catalog_events_node_idx").on(t.nodeKey, t.occurredAt)],
+);
 
 /* ──────────────────────────────────────────────────────────────────────────
  * REPORTING-MANAGER HISTORY (migration 0220)

@@ -255,23 +255,28 @@ export function canViewAttendanceAuditLog(email: string | null | undefined): boo
 }
 
 /**
- * MAY OPEN THE MASTER ADMIN PERMISSION MATRIX.
+ * `isMasterAdmin` USED TO LIVE HERE. It has MOVED — import it from
+ * `lib/security/capability-grants.ts`.
  *
- * ── THIS IS THE WHOLE ANSWER TO "ONLY MANAN AND ROHAN" ─────────────────────
- * Read server-side by the /master-admin layout, by every one of its server
- * actions, and by the permission resolver. There is no client-side branch that
- * decides it: hiding the nav entry is presentation, and the entry is hidden
- * because this predicate said no, never the other way round.
+ * It is no longer a pure function over `GRANTS`: master-admin membership is now
+ * a row in `capability_grants` (migration 0226) so the owner can grant it from
+ * the Admin panel without a deploy. Reading that row makes the predicate
+ * ASYNC — one `React.cache()`d query per request.
  *
- * Environment-independent by construction. It matches on `employees.email`,
- * which is the same value in local development and on os.altuscorp.com, so the
- * rule cannot differ between the two — there is no env var, no host check and no
- * `NODE_ENV` branch anywhere in this decision. Typing the URL or POSTing to the
- * action reaches the same predicate as clicking the link.
+ * ── WHY THERE IS NO FUNCTION HERE TO KEEP OLD IMPORTS COMPILING ─────────────
+ * A synchronous `isMasterAdmin` left behind for compatibility would be a TRAP:
+ * it compiles, it returns a plausible `false` for a granted master admin, and
+ * it fails SILENTLY. That is exactly the failure this file's own header warns
+ * about, and it is why `lib/auth/super-admin.ts` removed its predecessor rather
+ * than keeping it: "an exported function still implementing the narrower rule is
+ * exactly the kind of thing a future caller imports by name and trusts." Let the
+ * import fail loudly instead.
+ *
+ * `GRANTS` above still names the two BOOTSTRAP master admins, and
+ * `emailsWithCapability("master_admin.manage")` still returns exactly them — that
+ * is the fallback the async reader uses when the table cannot be read, so there
+ * is always a way back into the permission matrix.
  */
-export function isMasterAdmin(email: string | null | undefined): boolean {
-  return hasCapability(email, "master_admin.manage");
-}
 
 /** May grant temporary delegated access to ANYONE, bypassing the hierarchy.
  *  Managers get a narrower version from the org chart — see

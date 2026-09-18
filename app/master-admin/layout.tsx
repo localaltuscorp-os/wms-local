@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { requireUser, getSignedInEmployee, forbiddenError } from "@/lib/auth/current";
-import { isMasterAdmin } from "@/lib/security/capabilities";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 
 /**
  * MASTER ADMIN — the route gate.
@@ -33,6 +33,6 @@ export default async function MasterAdminLayout({ children }: { children: ReactN
   // through a borrowed account. (Privileged accounts cannot be delegated at all,
   // so this is defence in depth.)
   const me = await getSignedInEmployee();
-  if (!me || !isMasterAdmin(me.email)) throw forbiddenError();
+  if (!me || !(await isMasterAdmin(me.email))) throw forbiddenError();
   return <>{children}</>;
 }
