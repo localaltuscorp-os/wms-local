@@ -1,8 +1,10 @@
 # Account lockout — build log and handover
 
 **Branch:** `feat/account-lockout`
-**Status:** Phase 1 of 4 complete. **Nothing user-facing has changed.**
-**Last rebased onto `main`:** 2026-09-17 (`4513a438`)
+**Status:** ALL FOUR PHASES COMPLETE, verified end to end against production Firebase
+(2026-09-18). Sign-in now goes through the server, wrong passwords are counted, the
+fifth locks the address, and only the four can release it.
+**Built on `main`:** 2026-09-18 (`bc80ebd9`)
 
 > **For whoever takes this to production:** jump to
 > [Going live](#going-live). It is the only section you must read.
@@ -27,15 +29,61 @@ There is **no timer**. A lock ends when a human ends it.
 | Phase | What | Status |
 |---|---|---|
 | **1** | Migration, capability module, state machine, tests | ✅ **done** |
-| **2** | `/api/auth/login` server route; login form rewritten to use it. Counting live, **locking disabled** | ⬜ not started |
-| **3** | Enable locking at 5; countdown messages; Forgot Password guard | ⬜ not started |
-| **4** | Unlock UI, audit trail, `scripts/unlock-account.ts` break-glass | ⬜ not started |
+| **2** | `/api/auth/login` server route; login form rewritten to use it | ✅ **done** |
+| **3** | Locking at 5; countdown messages; Forgot Password guard | ✅ **done** |
+| **4** | Unlock screen, `pnpm unlock` break-glass | ✅ **done** |
 
 Phases 2 and 3 are deliberately separate. Phase 2 moves **every login in the
 company** onto a new code path; that wants a few days of proving before the same
 path can also lock people out.
 
 ---
+
+## Phases 2–4 — what shipped (2026-09-18)
+
+| File | |
+|---|---|
+| `app/api/auth/login/route.ts` | The server-side credential exchange. Refuses a locked address BEFORE asking Firebase, counts every refusal, clears the streak on success, mints the session, and returns a one-time custom token |
+| `lib/auth/session-mint.ts` | The cookie minting, lifted out of `/api/auth/session` unchanged so both routes mint identically |
+| `lib/auth/lockout-copy.ts` | Every sentence the person reads, in one place (client-safe) |
+| `components/auth/login-form-canva.tsx` | Posts to the route; no longer calls Firebase with the password. Exchanges the custom token so sign-out / idle timer / change-password keep working |
+| `app/(auth)/forgot-password/actions.ts` | Refuses to send a reset link while the address is locked |
+| `app/(app)/account-locks/` + `components/auth/account-locks-screen.tsx` | The unlock screen |
+| `scripts/unlock-account.ts` + `pnpm unlock` | Break-glass |
+| `proxy.ts` | `/api/auth/login` added to `PUBLIC_API` — sign-in is by definition reached without a session |
+| `db/migrations/0237_account_lockouts.sql` | Renumbered from 0236, which Vinal's `0236_recruitment_jd_roles.sql` now owns on main |
+
+**Phase 1's counter never worked.** Every write failed with the driver's own
+complaint — *"the string argument must be of type string … Received an instance
+of Date"* — because `recordFailedAttempt` interpolated JS `Date` objects into raw
+SQL fragments, where a value carries no column type to map it by. The failures
+were caught and logged, so nothing surfaced: the countdown never appeared and no
+account could reach five. Postgres now does the window arithmetic (`now() -
+interval …`), which also removes app-vs-database clock skew.
+
+**`components/auth/login-form-glass.tsx` was deleted.** It was unreferenced and
+still held the old browser-side `signInWithEmailAndPassword`, i.e. a path that
+would have bypassed counting entirely if anyone had wired it up again.
+
+### Verified against production Firebase (not mocks)
+
+```
+attempt 1 → 401  Wrong password. Try again, or reset it below.
+attempt 2 → 401  Wrong password. 3 attempts left before your account locks.
+attempt 3 → 401  Wrong password. 2 attempts left before your account locks.
+attempt 4 → 401  Wrong password. 1 attempt left — the next wrong password locks your account.
+attempt 5 → 423  locked, naming Mohit, Rohan, Jeevan or Manan
+attempt 6 → 423  still locked
+```
+
+Then, with a throwaway Firebase user (created and deleted by the probe, no
+employees row): two wrong attempts recorded `failed_count=2`, the CORRECT
+password was accepted and reset it to `failed_count=0`. `pnpm unlock <email>
+--apply` cleared a real lock and the address could attempt again.
+
+Still true, and deliberate: Google sign-in has no password to count; the
+set-password screen signs in with the password the person just chose; the four
+unlockers cannot be locked out.
 
 ## Phase 1 — what shipped
 

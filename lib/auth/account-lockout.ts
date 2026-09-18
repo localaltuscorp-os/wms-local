@@ -134,7 +134,19 @@ export async function recordFailedAttempt(
   if (opts.ip) await recordIpFailure(opts.ip);
 
   const now = new Date();
-  const windowFloor = new Date(now.getTime() - FAILED_ATTEMPT_WINDOW_MS);
+
+  // THE WINDOW IS COMPUTED BY POSTGRES, NOT HERE.
+  //
+  // This used to interpolate a JS `Date` into the fragments below, and every
+  // single write failed with the driver's own complaint — "the string argument
+  // must be of type string … Received an instance of Date" — because a value
+  // embedded in a raw fragment carries no column type to map it by. The counter
+  // therefore counted nothing: each failure was logged and swallowed, and no
+  // account could ever reach five. Letting the database do the arithmetic also
+  // removes any clock skew between the app server and the database.
+  const outsideWindow = () =>
+    sql`${accountLockouts.lastFailedAt} is null
+        or ${accountLockouts.lastFailedAt} < now() - ${sql.raw(`interval '${FAILED_ATTEMPT_WINDOW_MS} milliseconds'`)}`;
 
   const [row] = await db
     .insert(accountLockouts)
@@ -151,8 +163,7 @@ export async function recordFailedAttempt(
         // otherwise add to it. Evaluated by Postgres against the stored row, so
         // concurrent attempts cannot both read the same starting value.
         failedCount: sql`case
-          when ${accountLockouts.lastFailedAt} is null
-            or ${accountLockouts.lastFailedAt} < ${windowFloor}
+          when ${outsideWindow()}
           then 1
           else ${accountLockouts.failedCount} + 1
         end`,
@@ -163,15 +174,14 @@ export async function recordFailedAttempt(
         lockedAt: sql`case
           when ${accountLockouts.lockedAt} is not null then ${accountLockouts.lockedAt}
           when (case
-                  when ${accountLockouts.lastFailedAt} is null
-                    or ${accountLockouts.lastFailedAt} < ${windowFloor}
+                  when ${outsideWindow()}
                   then 1
                   else ${accountLockouts.failedCount} + 1
                 end) >= ${MAX_FAILED_ATTEMPTS}
-          then ${now}
+          then now()
           else null
         end`,
-        employeeId: sql`coalesce(${accountLockouts.employeeId}, ${opts.employeeId ?? null})`,
+        employeeId: sql`coalesce(${accountLockouts.employeeId}, cast(${opts.employeeId ?? null} as uuid))`,
         updatedAt: now,
       },
     })

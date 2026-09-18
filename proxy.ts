@@ -22,6 +22,10 @@ const PUBLIC_PATHS = [
 ];
 
 const PUBLIC_API = [
+  // Sign-in itself: the server checks the password here (account lockout), so
+  // it is by definition reached WITHOUT a session. Without this exclusion the
+  // middleware redirects every sign-in attempt to /login and nobody can log in.
+  "/api/auth/login",
   "/api/auth/session",
   "/api/auth/signout",
   "/api/health",

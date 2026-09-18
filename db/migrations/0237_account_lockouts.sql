@@ -113,5 +113,5 @@ CREATE TABLE IF NOT EXISTS __schema_applied (
   applied_at  timestamptz NOT NULL DEFAULT now()
 );
 
-INSERT INTO __schema_applied (filename) VALUES ('0236_account_lockouts.sql')
+INSERT INTO __schema_applied (filename) VALUES ('0237_account_lockouts.sql')
 ON CONFLICT DO NOTHING;

@@ -3,10 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import {
-  signInWithEmailAndPassword,
-  signOut as firebaseSignOut,
-} from "firebase/auth";
+import { signInWithCustomToken } from "firebase/auth";
 import Link from "next/link";
 import type { Route } from "next";
 import { ArrowRight, Eye, EyeOff } from "lucide-react";
@@ -20,59 +17,6 @@ import { resetBrowserSessionId } from "@/lib/ecos/browser-session";
  * "jump back in" modal over the poster mosaic, Altus-red CTA). Kept separate
  * so the other auth surfaces keep their own styling.
  */
-function translateFirebaseError(code: string | undefined): string {
-  switch (code) {
-    case "auth/user-disabled":
-      return "This account has been deactivated. Reach out to your admin to reinstate access.";
-    case "auth/too-many-requests":
-      return "Too many attempts in a row — give it a minute, then try again.";
-    case "auth/wrong-password":
-    case "auth/invalid-credential":
-    case "auth/invalid-login-credentials":
-      return "Wrong password. Try again, or reset it below.";
-    case "auth/user-not-found":
-    case "auth/invalid-email":
-      return "We couldn't find that email. Double-check the address your admin sent.";
-    case "auth/network-request-failed":
-      return "Network hiccup. Check your connection and try once more.";
-    default:
-      return "Email or password didn't match. Try again.";
-  }
-}
-
-/** A refused DEVICE, as distinct from refused credentials. Its own class so the
- *  handler can show the server's message verbatim without string-matching. */
-class DeviceNotAuthorizedError extends Error {}
-
-async function exchangeIdTokenForSession(idToken: string): Promise<void> {
-  const res = await fetch("/api/auth/session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken }),
-  });
-  if (res.ok) return;
-  let payload: { error?: string; message?: string } = {};
-  try {
-    payload = await res.json();
-  } catch {
-    /* non-JSON */
-  }
-  if (res.status === 403 && payload.error === "not-enrolled") {
-    throw new Error("not-enrolled");
-  }
-  // DEVICE ACCESS. The sign-in was valid; the DEVICE is not registered for WMS
-  // use, so the server refused before minting a session (see
-  // app/api/auth/session/route.ts). Carry the server's own sentence through —
-  // it distinguishes "never registered" from "waiting for approval" from
-  // "revoked", and the generic "couldn't sign you in" hides exactly the
-  // information the person needs to get unblocked.
-  if (res.status === 403 && payload.error === "device-not-authorized") {
-    throw new DeviceNotAuthorizedError(
-      payload.message ?? "This device is not authorized to use Altus.",
-    );
-  }
-  throw new Error("session-exchange-failed");
-}
 
 export function LoginFormCanva() {
   const params = useSearchParams();
@@ -105,52 +49,63 @@ export function LoginFormCanva() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    // Long-password DoS guard: reject before any auth/hashing work touches it.
+    // Long-password DoS guard: reject before any auth work touches it.
     if (password.length > 128) {
       setError("That password is too long (max 128 characters).");
       return;
     }
     startTransition(async () => {
       try {
-        const cred = await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
-        const idToken = await cred.user.getIdToken();
-        await exchangeIdTokenForSession(idToken);
+        // THE SERVER CHECKS THE PASSWORD (app/api/auth/login/route.ts).
+        //
+        // It used to happen here, in the browser, against Firebase — so a wrong
+        // password never reached us and nothing could count it. The server now
+        // does the exchange, counts each refusal, locks the account on the fifth,
+        // and mints the session cookies in the same response.
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim(), password }),
+        });
+        const payload = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          message?: string;
+          customToken?: string | null;
+        };
+
+        if (!res.ok) {
+          // An administrator-set password is a different problem from a wrong
+          // one, and the person cannot tell the two apart without being told.
+          if (payload.error === "bad-credentials" && (await wasPasswordResetByAdmin(email.trim()))) {
+            setError("Your password was changed by an administrator. Please use the new password, or contact support.");
+            return;
+          }
+          // The server writes these sentences — the attempts-left countdown, the
+          // locked message naming who can unlock, the device refusal — so the
+          // wording lives in one place (lib/auth/lockout-copy.ts).
+          setError(payload.message ?? "Email or password didn't match. Try again.");
+          return;
+        }
+
+        // Sign the browser's Firebase SDK in with the one-time token, so sign-out,
+        // the idle timer and "change password" keep working. The app's own session
+        // is already set by the response above, so a failure here is not a failed
+        // login — only those client-SDK features would need a reload.
+        if (payload.customToken) {
+          try {
+            await signInWithCustomToken(getFirebaseAuth(), payload.customToken);
+          } catch (err) {
+            console.error("client sign-in with custom token failed", err);
+          }
+        }
+
         // HARD navigation (not router.replace): wipes Next's client Router
         // Cache so this freshly-signed-in user never sees a PREVIOUS user's
         // cached pages (e.g. the admin panel) lingering in this browser tab.
         window.location.replace(requestedNext);
-      } catch (err: unknown) {
-        const code = (err as { code?: string })?.code;
-        if (err instanceof DeviceNotAuthorizedError) {
-          setError(err.message);
-          // Sign out of Firebase too. The server issued no session cookie, so
-          // leaving a live Firebase credential behind would let the next page
-          // load silently re-attempt the exchange and fail the same way.
-          try {
-            await firebaseSignOut(getFirebaseAuth());
-          } catch {
-            /* best effort */
-          }
-          return;
-        }
-        if ((err as Error)?.message === "not-enrolled") {
-          setError("This email isn't enrolled in Altus Corp. Ask your admin to invite you.");
-          try {
-            await firebaseSignOut(getFirebaseAuth());
-          } catch {
-            /* best effort */
-          }
-          return;
-        }
-        const credentialFail =
-          code === "auth/wrong-password" ||
-          code === "auth/invalid-credential" ||
-          code === "auth/invalid-login-credentials";
-        if (credentialFail && (await wasPasswordResetByAdmin(email))) {
-          setError("Your password was changed by an administrator. Please use the new password, or contact support.");
-          return;
-        }
-        setError(translateFirebaseError(code));
+      } catch {
+        setError("Network hiccup. Check your connection and try once more.");
       }
     });
   }
