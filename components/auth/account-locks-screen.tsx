@@ -55,13 +55,11 @@ const ROLE = SECURITY_ROLE_DEFS.account_unlock;
 
 export function AccountLocksScreen({
   rows,
-  maxAttempts,
   canGrant,
   holders,
   grantable,
 }: {
   rows: LockedRow[];
-  maxAttempts: number;
   canGrant: boolean;
   holders: Holder[];
   grantable: Grantable[];
@@ -172,10 +170,6 @@ export function AccountLocksScreen({
         >
           Locked accounts
         </h1>
-        <p className="mt-1 max-w-2xl text-[13.5px] font-medium leading-relaxed text-ink-muted">
-          An account locks after {maxAttempts} wrong passwords in a row. While it is locked the person cannot sign in and
-          cannot reset their own password. Anyone with the “{ROLE.label}” role can release it.
-        </p>
       </div>
 
       <div className="grid gap-5">

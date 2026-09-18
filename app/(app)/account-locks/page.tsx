@@ -3,7 +3,6 @@ import { asc, eq, ne, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
-import { MAX_FAILED_ATTEMPTS } from "@/lib/auth/unlock-permission";
 import { listLockedAccounts } from "@/lib/auth/account-lockout";
 import { listRoleHolders, mayGrantSecurityRoles, mayUnlockAccounts } from "@/lib/auth/security-roles";
 import { DashboardHeader } from "@/components/layout/header";
@@ -47,7 +46,6 @@ export default async function AccountLocksPage() {
       <DashboardHeader generatedAt={new Date()} />
       <PageShell width="narrow" style={{ maxWidth: "900px" }}>
         <AccountLocksScreen
-          maxAttempts={MAX_FAILED_ATTEMPTS}
           canGrant={canGrant}
           rows={locked.map((r) => ({
             email: r.email,
