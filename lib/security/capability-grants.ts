@@ -3,6 +3,7 @@ import { cache } from "react";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { capabilityGrantEvents, capabilityGrants, employees } from "@/db/schema";
+import { dbErrorAdvice, logDbError } from "@/lib/db/error";
 import { emailsWithCapability } from "./capabilities";
 
 /**
@@ -225,8 +226,13 @@ export async function setCapabilityGrant(input: {
 
     return { ok: true };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: `Could not save the grant: ${msg}` };
+    // The verbatim failure goes to the log; the human gets the diagnosis. On
+    // 2026-09-18 the owner was shown the INSERT statement and its parameters
+    // — including an employee's email address, which was a second, quieter bug
+    // — instead of "the database still forbids this capability". `dbErrorAdvice`
+    // prefers the REMEDY and never prints bound parameters.
+    logDbError(`capability-grants:${capability}`, err);
+    return { ok: false, error: `Could not save the grant: ${dbErrorAdvice(err)}` };
   }
 }
 
@@ -330,7 +336,7 @@ export async function setMasterAdminGrant(input: {
 
     return { ok: true };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: `Could not save the grant: ${msg}` };
+    logDbError(`capability-grants:${MASTER_ADMIN}`, err);
+    return { ok: false, error: `Could not save the grant: ${dbErrorAdvice(err)}` };
   }
 }

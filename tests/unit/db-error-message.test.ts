@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dbErrorMessage } from "@/lib/db/error";
+import { dbErrorAdvice, dbErrorMessage, dbErrorRemedy, schemaIsBehind } from "@/lib/db/error";
 
 /**
  * THE BLIND TOAST.
@@ -27,7 +27,14 @@ function drizzleQueryError(query: string, params: unknown[], cause?: Error): Err
 /** postgres.js copies Postgres' fields onto the error in wire snake_case. */
 function postgresError(
   message: string,
-  fields: { code?: string; detail?: string; hint?: string } = {},
+  fields: {
+    code?: string;
+    detail?: string;
+    hint?: string;
+    constraint_name?: string;
+    table_name?: string;
+    column_name?: string;
+  } = {},
 ): Error {
   return Object.assign(new Error(message), { severity: "ERROR", ...fields });
 }
@@ -120,5 +127,141 @@ describe("dbErrorMessage", () => {
 
     expect(dbErrorMessage(top)).toContain("deadlock detected");
     expect(dbErrorMessage(top)).toContain("40P01");
+  });
+});
+
+/**
+ * ── FROM "WHAT WENT WRONG" TO "WHICH MIGRATION IS MISSING" ─────────────────
+ *
+ * On 2026-09-18 the owner ticked "Issue letters" on an employee record and got:
+ *
+ *   Failed query: insert into "capability_grants" (...) values (default, $1, …)
+ *   params: 733b3a89-…,mansimedhekar.altuscorp@gmail.com,hr.letters.issue,…
+ *
+ * The answer — "this database still forbids that value, because migration 0228
+ * has not been applied" — was one step from the cause and unreachable from the
+ * screen. Two bugs in one message: it named no remedy, and by echoing the bound
+ * parameters it put an employee's email address in a UI toast.
+ */
+describe("dbErrorRemedy", () => {
+  it("names the missing migration for a CHECK violation, and the constraint", () => {
+    const err = drizzleQueryError(
+      'insert into "capability_grants" ("id", "employee_id") values (default, $1, $2)',
+      [],
+      postgresError('new row for relation "capability_grants" violates check constraint "capability_grants_capability_chk"', {
+        code: "23514",
+        constraint_name: "capability_grants_capability_chk",
+      }),
+    );
+
+    const remedy = dbErrorRemedy(err);
+    expect(remedy).toMatch(/migration/i);
+    expect(remedy).toContain("capability_grants_capability_chk");
+    expect(remedy).toMatch(/refused/i);
+  });
+
+  it("names the table when the migration that creates it never ran", () => {
+    const err = drizzleQueryError(
+      'select 1 from "capability_grants"',
+      [],
+      postgresError('relation "capability_grants" does not exist', {
+        code: "42P01",
+        table_name: "capability_grants",
+      }),
+    );
+
+    expect(dbErrorRemedy(err)).toMatch(/migration/i);
+    expect(dbErrorRemedy(err)).toContain("capability_grants");
+  });
+
+  it("names the column when only that is missing", () => {
+    const err = drizzleQueryError(
+      "select merged_into_id from candidate_intake",
+      [],
+      postgresError('column "merged_into_id" does not exist', {
+        code: "42703",
+        column_name: "merged_into_id",
+      }),
+    );
+
+    expect(dbErrorRemedy(err)).toContain("merged_into_id");
+    expect(dbErrorRemedy(err)).toMatch(/migration/i);
+  });
+
+  it("returns null for anything a migration would not fix", () => {
+    // A unique violation is a DATA problem. Telling the reader to run a
+    // migration would send them somewhere useless, which is worse than silence.
+    const unique = drizzleQueryError(
+      "insert into employees (email) values ($1)",
+      [],
+      postgresError("duplicate key value violates unique constraint", { code: "23505" }),
+    );
+    expect(dbErrorRemedy(unique)).toBeNull();
+    expect(schemaIsBehind(unique)).toBe(false);
+  });
+
+  it("does not mistake a Node error code for a SQLSTATE", () => {
+    // `ENOENT` and `ECONNREFUSED` are STRINGS. A bare `typeof code === "string"`
+    // check would read a dead socket as a schema problem — and a file-not-found
+    // as a missing migration. SQLSTATEs are exactly five characters.
+    expect(schemaIsBehind(Object.assign(new Error("no such file"), { code: "ENOENT" }))).toBe(false);
+    expect(schemaIsBehind(Object.assign(new Error("refused"), { code: "ECONNREFUSED" }))).toBe(false);
+    expect(dbErrorRemedy(Object.assign(new Error("bad url"), { code: "ERR_INVALID_URL" }))).toBeNull();
+    // …and a numeric code must not qualify either.
+    expect(schemaIsBehind(Object.assign(new Error("numeric"), { code: 42_001 }))).toBe(false);
+  });
+
+  it("recognises a migration run twice, which is harmless but confusing", () => {
+    const twice = drizzleQueryError(
+      "create table capability_grants ()",
+      [],
+      postgresError('relation "capability_grants" already exists', { code: "42P07" }),
+    );
+    expect(dbErrorRemedy(twice)).toMatch(/already exists/i);
+  });
+});
+
+describe("dbErrorAdvice — what an administrator is shown", () => {
+  it("leads with the remedy for a schema-behind failure", () => {
+    const err = drizzleQueryError(
+      'insert into "capability_grants" ("id") values (default)',
+      [],
+      postgresError('violates check constraint "capability_grants_capability_chk"', {
+        code: "23514",
+        constraint_name: "capability_grants_capability_chk",
+      }),
+    );
+
+    const advice = dbErrorAdvice(err);
+    expect(advice).toMatch(/migration/i);
+    expect(advice.startsWith("Failed query")).toBe(false);
+  });
+
+  it("NEVER includes bound parameters — the second bug in that message", () => {
+    // The params carried an employee's email address, and this string goes into
+    // a toast on an admin screen. `dbErrorMessage` deliberately omits them; this
+    // asserts the omission survives the new code path too.
+    const err = drizzleQueryError(
+      'insert into "capability_grants" ("employee_email", "capability") values ($1, $2)',
+      ["mansimedhekar.altuscorp@gmail.com", "hr.letters.issue"],
+      postgresError('violates check constraint "capability_grants_capability_chk"', {
+        code: "23514",
+        constraint_name: "capability_grants_capability_chk",
+      }),
+    );
+
+    expect(dbErrorAdvice(err)).not.toContain("mansimedhekar.altuscorp@gmail.com");
+  });
+
+  it("falls back to the cause when there is no remedy to offer", () => {
+    const err = drizzleQueryError(
+      'delete from "attendance_week_ack"',
+      [],
+      postgresError('relation "attendance_week_ack" does not exist', { code: "42P01" }),
+    );
+    // 42P01 HAS a remedy, so this one is the fallback case instead:
+    const plain = new Error("fetch failed");
+    expect(dbErrorAdvice(plain)).toBe("fetch failed");
+    expect(dbErrorAdvice(err)).toMatch(/migration/i);
   });
 });

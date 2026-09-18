@@ -579,6 +579,94 @@ throughout; her Firebase UID is new.
 
 ## Changelog
 
+### 2026-09-18 (later) — Functions Storage: one import was costing ~10 GB
+
+**What changed**
+
+- **`lib/db/index.ts` no longer imports `drizzle-orm/pglite` as a value.**
+  `import { drizzle as drizzlePglite } from "drizzle-orm/pglite"` became a
+  type-only reference plus a variable-specifier `require()` inside `dummyDb()`,
+  next to the identical treatment PGlite itself already had.
+
+**Why — 14 GB against a 10 GB allowance**
+
+Vercel sums the uncompressed size of every deployed serverless function. PGlite
+(PostgreSQL-as-WASM, used only by the local DUMMY_MODE sandbox) is ~25 MB, and
+it was in **428 of 1066** built server files.
+
+The 15 September fix hid the direct `require("@electric-sql/pglite")` behind a
+variable specifier, which a static analyser cannot follow. That fix was correct
+and it did nothing, because a **static import on line 2 of the same file** put
+the package back in the graph by another door:
+
+- `drizzle-orm/pglite` is **not** in `serverExternalPackages`, so webpack
+  **bundled** that driver into the chunk that owns `lib/db` — the chunk every
+  database-touching route depends on.
+- The driver's own `import("@electric-sql/pglite")` **is** externalized, so
+  webpack emitted it as a runtime `a.exports = import("@electric-sql/pglite")`
+  — a **literal** specifier, which Next's tracer follows exactly as it follows a
+  literal `require()`.
+- Verified in the build output, not inferred: the string appeared in 428 files
+  under `.next/server`. After the fix: **0**.
+
+This also explains why the number went **up** rather than down after the
+September 15 fix — the count never dropped, and `@electric-sql/pglite` grew from
+17.2 MB to ~25 MB.
+
+**The generalisable lesson (the second time this bug has appeared)**
+
+Hiding ONE reference is not fixing the leak. Grep the **build output** for the
+specifier — `pnpm build && node scripts/measure-functions-storage.mjs --leaks`.
+A leak you cannot see in the source is still a leak.
+
+**New tooling**
+
+- `scripts/measure-functions-storage.mjs` — `--leaks` scans the built server
+  output for literal `require()`/`import()` specifiers and reports how many
+  functions each one reaches. It reads webpack output, so it is valid from a
+  local build (a local build compiles fine; it only fails later at page-data
+  collection without `.env.local`). The default mode sums `.nft.json` traces and
+  **refuses to report a total** when the traces are empty of `node_modules` —
+  those numbers are meaningless, and three previous investigations were misled by
+  them. **Run `--leaks` locally; confirm the number on Vercel.**
+- `pnpm check:leaks` / `pnpm measure:functions`.
+- `tests/unit/db-trace-leaks.test.ts` — asserts the fix in the normal unit run,
+  so the next innocent-looking one-line import fails a test rather than a bill.
+
+**Also fixed: the error message that sent the owner on a detour**
+
+Ticking "Issue letters" showed him the raw `INSERT` statement and its bound
+parameters — which included an employee's email address — instead of the actual
+cause. `lib/db/error.ts` already existed for exactly this (see its header, and
+the 2026-08-30 attendance airstrike); the handler was reading `err.message` and
+never calling it. Both grant handlers now use `dbErrorAdvice()`, which names the
+**remedy** for the SQLSTATEs a migration explains (23514/42P01/42703/42P07) and
+otherwise falls back to the cause. Bound parameters are never shown.
+
+**Still ahead, and not a blocker**
+
+After this fix Functions Storage should land near **3–4 GB**. Remaining
+specifiers, reported by `--leaks` and deliberately left alone:
+
+| Specifier | Functions | Roughly | Why it stays |
+|---|---|---|---|
+| `firebase-admin` | 92 | ~2 GB | Genuinely needed for token verification on authed routes. Reducing it means replacing the SDK with JWKS verification — a real project, not a tweak |
+| `pdfkit` | 35 | ~290 MB | Structured letter PDFs |
+| `@sparticuz/chromium` | 6 | ~400 MB | Rich letters + policy PDFs; expected, and the 67 MB binary is what makes those routes work |
+
+**SQL to run before deploying:** none. This is a code-only change.
+
+**How to verify**
+
+1. `node scripts/measure-functions-storage.mjs --leaks` → `@electric-sql/pglite`
+   must read **0 files**.
+2. After the deploy: Vercel → Usage → Functions Storage. Expect ~3–4 GB.
+3. `corepack pnpm exec vitest run` → 2927 passed, 6 failed (all pre-existing:
+   `task-actions` ×2, `task-stat-counts`, `delegated-access-authorization`,
+   `done-on-time`, `global-search-provider`).
+
+---
+
 ### 2026-09-18 — Wheel scroll restored app-wide; master admin becomes data; policy downloads carry the text
 
 **What changed**
