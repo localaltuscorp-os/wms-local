@@ -70,6 +70,9 @@ export interface EditableEmployee {
   /** MASTER ADMIN — may rewrite the permission matrix. Not a column: a row in
    *  `capability_grants`, resolved server-side and threaded down as a boolean. */
   isMasterAdmin: boolean;
+  /** May create, issue and email HR letters WITHOUT being an admin. A row in
+   *  `capability_grants`, resolved server-side. */
+  canIssueLetters: boolean;
   phone: string | null;
   whatsappPhone: string | null;
   /** WhatsApp consent — gates whether we may message them at all. */
@@ -196,6 +199,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
   // Never true in bulk mode — `bulk ? null : ...` — because the bulk patch is
   // sparse by construction and must not carry a privilege change.
   const [isMasterAdmin, setIsMasterAdmin] = useState(one?.isMasterAdmin ?? false);
+  const [canIssueLetters, setCanIssueLetters] = useState(one?.canIssueLetters ?? false);
   const [waPhone, setWaPhone] = useState(one?.whatsappPhone ?? "");
   const [waOptIn, setWaOptIn] = useState<boolean | null>(
     bulk ? null : (one?.whatsappOptedIn ?? false),
@@ -343,6 +347,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
     }
     if (isAdmin !== e.isAdmin) patch.isAdmin = isAdmin;
     if (isMasterAdmin !== e.isMasterAdmin) patch.isMasterAdmin = isMasterAdmin;
+    if (canIssueLetters !== e.canIssueLetters) patch.canIssueLetters = canIssueLetters;
     if ((managerId ?? null) !== (e.managerId ?? null)) patch.managerId = managerId ?? null;
     if (quota !== null && quota !== (e.dailyTaskQuota ?? 3)) patch.dailyTaskQuota = quota;
     const trimmedPhone = waPhone.trim();
@@ -621,6 +626,41 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                           </span>
                         </span>
                       </div>
+                    ) : null}
+
+                    {/* ── ISSUE LETTERS ───────────────────────────────────────
+                        The narrow alternative to the Admin box above, and the
+                        reason it exists: sending an appointment letter used to
+                        require being a full admin — able to manage every
+                        employee and setting in the app. Any admin may grant
+                        this one (see editEmployee); it is an operational duty,
+                        not a security boundary. */}
+                    {!bulk && one ? (
+                      <label
+                        className="flex items-start gap-2.5 text-[14px] text-ink-soft"
+                        title="Create, issue and email HR letters — appointment, increment, experience, full & final — without full admin access."
+                      >
+                        <input
+                          type="checkbox"
+                          checked={canIssueLetters}
+                          // Meaningless while they are an admin: admins hold it
+                          // automatically, so the box would be a control that
+                          // changes nothing. Shown ticked-and-disabled rather
+                          // than hidden, so the state is visible rather than
+                          // appearing to have been lost.
+                          disabled={isAdmin}
+                          onChange={(ev) => setCanIssueLetters(ev.target.checked)}
+                          className="mt-0.5 size-4 accent-[var(--color-altus-red)]"
+                        />
+                        <span>
+                          Issue letters
+                          <span className="block text-[12px] text-ink-subtle">
+                            {isAdmin
+                              ? "Included with admin access."
+                              : "Can create, issue and email HR letters, without managing employees or settings."}
+                          </span>
+                        </span>
+                      </label>
                     ) : null}
 
                     {/* ── MASTER ADMIN ────────────────────────────────────────

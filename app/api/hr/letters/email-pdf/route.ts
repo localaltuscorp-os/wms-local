@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { canIssueLetters, LETTER_ISSUE_REFUSAL } from "@/lib/hr/letters/issue-access";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getEntity } from "@/lib/hr/entities";
 import { getLetter } from "@/lib/hr/letters/registry";
@@ -50,8 +50,10 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
-  if (!(me.isAdmin || isSuperAdmin(me.email))) {
-    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  // Same decision as the issue route, from the same place. This was one of three
+  // copies of "is this person an admin?" — see lib/hr/letters/issue-access.ts.
+  if (!(await canIssueLetters(me))) {
+    return NextResponse.json({ ok: false, error: LETTER_ISSUE_REFUSAL }, { status: 403 });
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return NextResponse.json(limited);

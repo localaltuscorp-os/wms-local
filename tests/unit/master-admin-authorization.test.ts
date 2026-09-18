@@ -100,14 +100,50 @@ describe("who holds master_admin.manage", () => {
 });
 
 describe("only capabilities whose guards can wait for a read are stored as data", () => {
-  it("is exactly master_admin.manage", () => {
-    // Every other capability is consulted SYNCHRONOUSLY, including from inside a
-    // `.filter()`. A database row for one of those would be a grant the
-    // application silently ignores — somebody told they hold a power they do
-    // not have, which is worse than no grant at all. Widening this list means
-    // making that capability's guards async first. Migration 0226 mirrors this
-    // in a CHECK constraint.
-    expect([...DB_BACKED_CAPABILITIES]).toEqual(["master_admin.manage"]);
+  /**
+   * THE RULE, NOT JUST THE LIST.
+   *
+   * Every capability NOT named here is consulted synchronously, including from
+   * inside a `.filter()` (see `isPrivilegedAccount`). A database row for one of
+   * those would be a grant the application SILENTLY IGNORES — somebody told they
+   * hold a power they do not have, which is worse than no grant at all.
+   *
+   * So this list is short on purpose and each entry has to earn its place. The
+   * second test below is the one that makes adding a name a deliberate act
+   * rather than a one-line edit: the capability must be REFERENCED by guards,
+   * and those guards must be asynchronous.
+   */
+  it("is exactly these two, and each is here for a reason", () => {
+    expect([...DB_BACKED_CAPABILITIES].sort()).toEqual([
+      "hr.letters.issue",
+      "master_admin.manage",
+    ]);
+  });
+
+  it("every listed capability is actually read by an async guard", () => {
+    // A capability in this list that nothing consults is a row that does
+    // nothing. A capability in this list whose guard is SYNCHRONOUS is worse:
+    // the guard would answer from the code table and ignore the grant.
+    const guardSources = [
+      codeOf("lib/security/capability-grants.ts"),
+      codeOf("lib/hr/letters/issue-access.ts"),
+      codeOf("lib/permissions/resolve.ts"),
+      codeOf("app/master-admin/layout.tsx"),
+      codeOf("app/(app)/hr/letters/[key]/page.tsx"),
+    ].join("\n");
+
+    for (const capability of DB_BACKED_CAPABILITIES) {
+      expect(guardSources, `${capability} must be read somewhere`).toContain(capability);
+    }
+    // Both of this list's guards are ASYNCHRONOUS — that is what makes them
+    // legal here, and the synchronous `.filter()` case is why the rule exists.
+    const letterAccess = codeOf("lib/hr/letters/issue-access.ts");
+    expect(letterAccess).toContain("hasCapabilityGrant(");
+    expect(letterAccess).toMatch(/export async function canIssueLetters/);
+
+    const grants = codeOf("lib/security/capability-grants.ts");
+    expect(grants).toMatch(/export async function hasCapabilityGrant/);
+    expect(grants).toMatch(/export async function isMasterAdmin/);
   });
 });
 

@@ -11,7 +11,7 @@ import { PreviousEmployees } from "@/components/admin/previous-employees";
 import type { SalaryProfileRates } from "@/components/admin/employee-list";
 import { requireAdmin } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
-import { masterAdminEmployeeIds } from "@/lib/security/capability-grants";
+import { grantsFor, masterAdminEmployeeIds } from "@/lib/security/capability-grants";
 import {
   listActiveDepartments,
   getEmployeeDepartmentMap,
@@ -94,6 +94,14 @@ export default async function EmployeesPage() {
   // the whole roster (the predicate is a database row now).
   const masterAdminIds = [...(await masterAdminEmployeeIds())];
 
+  // Who may issue HR letters without being an admin. Ids only, same reason as
+  // the two lists above — and resolved here rather than in the client so the
+  // capability table never reaches the browser.
+  const letterIssuerEmails = await grantsFor("hr.letters.issue");
+  const letterIssuerIds = all
+    .filter((e) => letterIssuerEmails.has((e.email ?? "").trim().toLowerCase()))
+    .map((e) => e.id);
+
   return (
     <AdminSection
       eyebrow="Admin · Employees"
@@ -156,6 +164,7 @@ export default async function EmployeesPage() {
         superAdminIds={superAdminIds}
         canManageMasterAdmin={canManageMasterAdmin}
         masterAdminIds={masterAdminIds}
+        letterIssuerIds={letterIssuerIds}
         departmentOptions={departmentOptions}
         managerOptions={managerOptions}
       />

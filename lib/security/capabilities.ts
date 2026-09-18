@@ -72,6 +72,29 @@ export type SecurityCapability =
    */
   | "master_admin.manage"
   /**
+   * MAY CREATE, ISSUE AND EMAIL HR LETTERS WITHOUT BEING AN ADMIN.
+   *
+   * Appointment, increment, experience and full-and-final letters were all
+   * gated on `isAdmin`, which is far broader than the job. HR staff who need to
+   * send one had to be made full admins — able to manage employees and settings
+   * across the whole application — to do it.
+   *
+   * This is the narrow alternative. Admins and super-admins hold it
+   * automatically (nothing about their behaviour changes); anybody else gets it
+   * as a grant on their employee record.
+   *
+   * ── WHY IT IS IN THE DATABASE AND NOT HERE ────────────────────────────────
+   * It is `DB_BACKED_CAPABILITIES` in lib/security/capability-grants.ts, for the
+   * same reason `master_admin.manage` is: the point of the capability is that an
+   * owner can hand it to somebody without a deploy. Granting it through the
+   * GRANTS table below would defeat that.
+   *
+   * Its guards are a page and two route handlers, all already async — which is
+   * the precondition for a capability being stored as data (see migration 0226's
+   * CHECK constraint; migration 0228 widens it to admit this one).
+   */
+  | "hr.letters.issue"
+  /**
    * EXEMPT FROM THE COMPULSORY DAILY-START GATES.
    *
    * The holder is never blocked from using the WMS by the post-login walls:

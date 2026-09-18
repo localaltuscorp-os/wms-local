@@ -27,8 +27,10 @@ import { recordManagerChange, wouldCreateCycle } from "@/lib/employees/manager-h
 import { getSignedInEmployee, requireAdmin } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import {
+  hasCapabilityGrant,
   isMasterAdmin,
   masterAdminEmployeeIds,
+  setCapabilityGrant,
   setMasterAdminGrant,
 } from "@/lib/security/capability-grants";
 import {
@@ -447,6 +449,33 @@ export async function editEmployee(
         employeeId: emp.id,
         employeeEmail: emp.email,
         grant: parsed.data.isMasterAdmin,
+        actorId: signedIn?.id ?? me.id,
+        actorEmail: signedIn?.email ?? me.email,
+      });
+      if (!res.ok) return { ok: false, error: res.error };
+    }
+  }
+
+  // ── ISSUE LETTERS: ANY ADMIN MAY GRANT THIS ────────────────────────────────
+  // Deliberately NOT super-admin-only, unlike master-admin above. It hands
+  // somebody the ability to send appointment and increment letters — a real
+  // operational duty, not a security boundary — and holding it cannot be used to
+  // acquire anything else. Gating it on a super-admin would put a routine HR
+  // staffing decision behind the two owners.
+  //
+  // No `guardPrivilegedTarget` here either, on purpose: granting it to a
+  // super-admin or a master admin is a harmless no-op (they can already issue),
+  // and refusing to record it would be ceremony rather than protection. The
+  // audit row below names the actor regardless.
+  if (parsed.data.canIssueLetters !== undefined) {
+    const currently = await hasCapabilityGrant(emp.email, "hr.letters.issue");
+    if (parsed.data.canIssueLetters !== currently) {
+      const signedIn = await getSignedInEmployee();
+      const res = await setCapabilityGrant({
+        employeeId: emp.id,
+        employeeEmail: emp.email,
+        capability: "hr.letters.issue",
+        grant: parsed.data.canIssueLetters,
         actorId: signedIn?.id ?? me.id,
         actorEmail: signedIn?.email ?? me.email,
       });

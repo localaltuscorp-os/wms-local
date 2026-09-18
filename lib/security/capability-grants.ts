@@ -25,7 +25,10 @@ import { emailsWithCapability } from "./capabilities";
  * power they do not have.
  */
 
-export const DB_BACKED_CAPABILITIES = ["master_admin.manage"] as const;
+export const DB_BACKED_CAPABILITIES = [
+  "master_admin.manage",
+  "hr.letters.issue",
+] as const;
 export type DbBackedCapability = (typeof DB_BACKED_CAPABILITIES)[number];
 
 const MASTER_ADMIN: DbBackedCapability = "master_admin.manage";
@@ -34,6 +37,48 @@ const MASTER_ADMIN: DbBackedCapability = "master_admin.manage";
  *  else in this codebase; this is that rule, in one place. */
 function normalizeEmail(email: string | null | undefined): string {
   return (email ?? "").trim().toLowerCase();
+}
+
+/**
+ * WHO HOLDS ONE DB-BACKED CAPABILITY — one query per capability per request.
+ *
+ * `cache()` on a function that takes the capability keys the memo per argument,
+ * so asking about two capabilities is two statements and asking about one twice
+ * is one.
+ *
+ * A code-baseline entry (`GRANTS` in lib/security/capabilities.ts) is included
+ * on top of the rows, and is what a read failure falls back to. That matters
+ * differently per capability: for master admin it guarantees the owner can never
+ * be locked out of the tool that fixes it, and for letter-issuing it is simply
+ * empty — nobody holds it by code, so losing the read means losing the granted
+ * capability and never inventing one.
+ */
+export const grantsFor = cache(
+  async (capability: DbBackedCapability): Promise<ReadonlySet<string>> => {
+    const emails = new Set<string>(emailsWithCapability(capability).map(normalizeEmail));
+    try {
+      const rows = await db
+        .select({ email: capabilityGrants.employeeEmail })
+        .from(capabilityGrants)
+        .where(eq(capabilityGrants.capability, capability));
+      for (const r of rows) emails.add(normalizeEmail(r.email));
+    } catch (err) {
+      console.error(
+        `[capability-grants] read failed for "${capability}"; using the code baseline alone`,
+        err,
+      );
+    }
+    return emails;
+  },
+);
+
+/** Does this address hold this capability? The one question a guard asks. */
+export async function hasCapabilityGrant(
+  email: string | null | undefined,
+  capability: DbBackedCapability,
+): Promise<boolean> {
+  if (!email) return false;
+  return (await grantsFor(capability)).has(normalizeEmail(email));
 }
 
 /**
@@ -103,11 +148,13 @@ export const masterAdminSnapshot = cache(async (): Promise<MasterAdminSnapshot> 
   return { emails, employeeIds };
 });
 
-/** Is this address a master admin? The one question every guard asks. */
+/** Is this address a master admin? The one question every guard asks.
+ *
+ *  Delegates to the general reader rather than consulting `masterAdminSnapshot`
+ *  directly, so there is ONE definition of "who holds this capability" and the
+ *  snapshot below is left with a single job: resolving the ids the roster needs. */
 export async function isMasterAdmin(email: string | null | undefined): Promise<boolean> {
-  if (!email) return false;
-  const { emails } = await masterAdminSnapshot();
-  return emails.has(normalizeEmail(email));
+  return hasCapabilityGrant(email, MASTER_ADMIN);
 }
 
 /**
@@ -122,6 +169,66 @@ export async function masterAdminEmployeeIds(): Promise<ReadonlySet<string>> {
 }
 
 export type GrantResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * GRANT OR REVOKE ONE DB-BACKED CAPABILITY — the general path.
+ *
+ * No policy beyond the data itself. The caller owns the authorization question
+ * ("may this person hand that capability out?"), which differs per capability
+ * and belongs next to the action that knows who is asking: master-admin granting
+ * is super-admin-only, letter-issuing is an ordinary admin decision.
+ *
+ * `setMasterAdminGrant` below is NOT this function with a flag. It carries two
+ * rules that are specific to that capability — a code bootstrap that cannot be
+ * revoked through the database, and a last-holder guard — and folding them in
+ * behind a boolean would make both invisible at the call site.
+ */
+export async function setCapabilityGrant(input: {
+  employeeId: string;
+  employeeEmail: string;
+  capability: DbBackedCapability;
+  grant: boolean;
+  actorId: string;
+  actorEmail: string;
+}): Promise<GrantResult> {
+  const { employeeId, employeeEmail, capability, grant, actorId, actorEmail } = input;
+  const normalized = normalizeEmail(employeeEmail);
+
+  try {
+    if (grant) {
+      await db
+        .insert(capabilityGrants)
+        .values({ employeeId, employeeEmail: normalized, capability, grantedById: actorId })
+        .onConflictDoNothing({
+          target: [capabilityGrants.employeeId, capabilityGrants.capability],
+        });
+    } else {
+      await db
+        .delete(capabilityGrants)
+        .where(
+          and(
+            eq(capabilityGrants.capability, capability),
+            eq(capabilityGrants.employeeId, employeeId),
+          ),
+        );
+    }
+
+    // Written either way, so the trail shows the attempt as well as the change.
+    await db.insert(capabilityGrantEvents).values({
+      employeeId,
+      employeeEmail: normalized,
+      capability,
+      action: grant ? "granted" : "revoked",
+      actorEmployeeId: actorId,
+      actorEmail: normalizeEmail(actorEmail),
+    });
+
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: `Could not save the grant: ${msg}` };
+  }
+}
 
 /**
  * GRANT OR REVOKE `master_admin.manage`.

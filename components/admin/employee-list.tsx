@@ -37,6 +37,8 @@ interface Props {
   canManageMasterAdmin: boolean;
   /** Employee ids, resolved server-side, for the same reason `superAdminIds` is. */
   masterAdminIds: string[];
+  /** Employee ids holding the narrow `hr.letters.issue` grant. */
+  letterIssuerIds: string[];
   /** Employee ids on the super-admin allow-list. Computed server-side so the
    *  email allow-list itself never reaches the browser. */
   superAdminIds: string[];
@@ -191,6 +193,7 @@ export function EmployeeList({
   superAdminIds,
   canManageMasterAdmin,
   masterAdminIds,
+  letterIssuerIds,
   departmentOptions,
   managerOptions,
 }: Props) {
@@ -202,6 +205,10 @@ export function EmployeeList({
   const masterAdminSet = React.useMemo(
     () => new Set(masterAdminIds),
     [masterAdminIds],
+  );
+  const letterIssuerSet = React.useMemo(
+    () => new Set(letterIssuerIds),
+    [letterIssuerIds],
   );
 
   const deptNames = (e: Employee) =>
@@ -222,6 +229,7 @@ export function EmployeeList({
       departments: membershipsByEmployee[e.id] ?? [],
       isAdmin: e.isAdmin,
       isMasterAdmin: masterAdminSet.has(e.id),
+      canIssueLetters: letterIssuerSet.has(e.id),
       phone: e.phone,
       whatsappPhone: e.whatsappPhone,
       whatsappOptedIn: e.whatsappOptedIn,

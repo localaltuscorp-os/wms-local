@@ -95,6 +95,14 @@ export const EditEmployeeSchema = z
     // built key-by-key and must never carry a privilege change, for the same
     // reason it has never carried `isAdmin`.
     isMasterAdmin: z.boolean().optional(),
+    // ISSUE LETTERS — may create, issue and email HR letters without being an
+    // admin. A row in `capability_grants` (migrations 0226/0228), so this is a
+    // REQUEST to change that grant rather than a column to write.
+    //
+    // Deliberately absent from BulkEditEmployeesSchema for the same reason
+    // `isAdmin` is: that patch is built key-by-key and must not carry a
+    // privilege change.
+    canIssueLetters: z.boolean().optional(),
     // The number you CALL (0204). Deliberately LOOSER than `whatsappPhone`:
     // that one is fed to the WhatsApp API and must be E.164, whereas this is
     // only ever read by a human or handed to a `tel:` link. Rejecting a locally
