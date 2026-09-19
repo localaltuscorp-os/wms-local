@@ -24,7 +24,8 @@ async function main() {
   if (!url) throw new Error("DATABASE_URL is not set — run with --env-file=.env.local");
   const sql = postgres(url, { prepare: false, max: 1, onnotice: () => {} });
   try {
-    const [{ db, v }] = await sql`select current_database() as db, current_setting('server_version') as v`;
+    const [who] = await sql<{ db: string; v: string }[]>`select current_database() as db, current_setting('server_version') as v`;
+    const { db, v } = who ?? { db: "?", v: "?" };
     console.log(`connected: ${db}, Postgres ${v}  (${new URL(url).hostname})`);
 
     const t0 = Date.now();
