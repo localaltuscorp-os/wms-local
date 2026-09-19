@@ -1,5 +1,21 @@
 # SQL — production database changes for the `Om` branch
 
+> **SUPERSEDED (merge, 2026-09-19). Do not run the files in this folder on production.**
+>
+> Everything below was checked against `aws-0-ap-south-1`, which is **not** production
+> (production is Supabase project `fjopgyqytfvbudkwhdto`, `aws-0-ap-northeast-1`), so
+> "everything is already applied" does not hold there. And `0232` has changed since:
+> it no longer creates its own `incentive_eligibility` (Rohan's 0216 table is kept).
+>
+> Use instead, in order, from the repository's `db/` folder:
+> 1. `PREFLIGHT-OM-0225-0241.sql` — read-only; nothing may say STOP
+> 2. `RUN-IN-SUPABASE-OM-0225-0241.sql` — the change, one transaction
+> 3. `VERIFY-OM-0225-0241.sql` — read-only; every row PASS, HR count not lower
+>
+> Those were built from the merged migrations and tested on Postgres 18 against a
+> production-shaped schema, including a column-by-column comparison with a database
+> built from every migration in order.
+
 **Read this before running anything.**
 
 | File | What it is |
