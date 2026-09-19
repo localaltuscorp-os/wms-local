@@ -4,22 +4,10 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { UserPlus, ClipboardList, Phone, Mail, Search, PenLine, PlayCircle, ClipboardCheck, Trash2, Loader2, MoreVertical, Send, Link2Off, ScrollText } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { UserPlus, ClipboardList, Phone, Mail, Search, PenLine, PlayCircle, ClipboardCheck, Trash2, Loader2, ScrollText } from "lucide-react";
 import type { CandidateRow } from "@/app/(app)/hr/candidate-actions";
 import { deleteCandidateIntake } from "@/app/(app)/hr/candidate-actions";
-import { CreateCandidateLogin } from "@/components/hr/candidate/create-candidate-login";
 import { InviteCandidateDialog } from "@/components/hr/candidate/invite-candidate-dialog";
-import {
-  resendCandidateFormLink,
-  revokeCandidateFormLink,
-} from "@/app/(app)/hr/candidate-invite-actions";
 import { fireToast } from "@/lib/toast";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
@@ -85,22 +73,52 @@ const SELECT_CLS =
 const ACTION_CLS =
   `${CONTROL_H} inline-flex items-center gap-2 px-4 text-[13.5px] font-bold text-white transition-transform hover:-translate-y-0.5`;
 
+/**
+ * ONE WIDTH FOR THE THREE TOOLBAR ACTIONS. Left to size themselves, "Send
+ * policies", "Candidate login" and "New candidate" came out three different
+ * widths purely because their labels differ in length, which reads as three
+ * unrelated controls rather than one set. 176px is the widest of the three
+ * (`CreateCandidateLogin` already used it), so nothing has to truncate; the
+ * labels centre inside it instead of hugging the icon.
+ */
+const ACTION_W = "w-[176px] justify-center";
+
+/**
+ * ONE ROW ACTION. The five per-candidate actions used to hide behind a kebab;
+ * they are now visible, which means five controls per row and no room for
+ * labels. So each is an icon with a `title` AND an `aria-label` — the tooltip
+ * carries the wording the menu item used to, and the accessible name is never
+ * left to the icon alone.
+ */
+const ROW_BTN =
+  "inline-flex size-8 items-center justify-center rounded-lg border border-hairline-strong bg-white text-ink-muted transition-colors hover:border-ink-soft hover:text-ink disabled:opacity-50";
+
 export function BasicDetailsScreen({
   candidates,
   canDelete = false,
+  lockedStatus,
 }: {
   candidates: CandidateRow[];
   canDelete?: boolean;
+  /**
+   * OUTCOME-LOCKED LIST. Set by Pre-Interview > Selected / Rejected Candidates,
+   * which are this same table pinned to one pipeline status.
+   *
+   * A pinned list is for reading a decision that has already been made, so the
+   * status dropdown is hidden (it could only ever contradict the page's own
+   * title) and so are the three act-on-a-new-candidate buttons - "New
+   * candidate" on a rejected list, in particular, offered to start a hire from
+   * the page that says they were turned down.
+   */
+  lockedStatus?: "hired" | "rejected";
 }) {
   const router = useRouter();
   const [q, setQ] = React.useState("");
-  const [status, setStatus] = React.useState("all");
+  const [status, setStatus] = React.useState(lockedStatus ?? "all");
   const [position, setPosition] = React.useState("all");
   const [form, setForm] = React.useState("all");
   const [deleted, setDeleted] = React.useState<Set<string>>(() => new Set());
   const [busyId, setBusyId] = React.useState<string | null>(null);
-  // The show-once URL from the last "Send form link" — see the panel below.
-  const [linkSent, setLinkSent] = React.useState<string | null>(null);
 
   // Distinct positions for the filter dropdown (from the loaded rows — no query).
   const positions = React.useMemo(
@@ -120,33 +138,6 @@ export function BasicDetailsScreen({
     }
     return true;
   });
-
-  /**
-   * Send this candidate a fresh no-login link to their own form. Always a NEW
-   * link — the plaintext of the old one no longer exists anywhere, so "copy the
-   * link again" is not a thing that can be offered. Minting one revokes the
-   * previous, so a candidate never holds two working URLs.
-   */
-  function onSendLink(c: CandidateRow) {
-    if (busyId) return;
-    setBusyId(c.id);
-    void resendCandidateFormLink(c.id)
-      .then((r) => {
-        if (!r.ok) { fireToast({ message: r.error, type: "error" }); return; }
-        setLinkSent(r.url);
-        fireToast({ message: r.warning ?? `Form link emailed to ${c.email ?? "the candidate"}.`, type: r.warning ? "error" : "success" });
-      })
-      .finally(() => setBusyId(null));
-  }
-
-  function onRevokeLink(c: CandidateRow) {
-    if (busyId) return;
-    if (!window.confirm(`Cancel ${c.fullName || "this candidate"}'s form link? They won't be able to open or edit their form until you send a new one.`)) return;
-    setBusyId(c.id);
-    void revokeCandidateFormLink(c.id)
-      .then((r) => fireToast(r.ok ? { message: "Link cancelled." } : { message: r.error, type: "error" }))
-      .finally(() => setBusyId(null));
-  }
 
   function onDelete(c: CandidateRow) {
     if (busyId) return;
@@ -176,13 +167,15 @@ export function BasicDetailsScreen({
           `flex-1` field here would have eaten the `ml-auto` free space and left
           the buttons stranded mid-row. */}
       <div className="mb-6 flex flex-wrap items-center gap-2">
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLS} aria-label="Filter by status">
-          <option value="all">All statuses</option>
-          <option value="new">New</option>
-          <option value="shortlisted">Shortlisted</option>
-          <option value="hired">Hired</option>
-          <option value="rejected">Rejected</option>
-        </select>
+        {lockedStatus ? null : (
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLS} aria-label="Filter by status">
+            <option value="all">All statuses</option>
+            <option value="new">New</option>
+            <option value="shortlisted">Shortlisted</option>
+            <option value="hired">Hired</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        )}
         <select value={form} onChange={(e) => setForm(e.target.value)} className={SELECT_CLS} aria-label="Filter by form state">
           <option value="all">All forms</option>
           <option value="complete">Complete</option>
@@ -204,6 +197,8 @@ export function BasicDetailsScreen({
             screen (components/hr/candidate/intake-chooser.tsx). What stays is
             the policies invite, which is Post-Interview's own errand. */}
         <div className="ml-auto shrink-0" />
+        {lockedStatus ? null : (
+        <>
         {/* POST-INTERVIEW: the same four fields, but the link lands the
             candidate on the policies instead of the form. Sending this does NOT
             revoke a form link they may still be filling in. */}
@@ -214,7 +209,7 @@ export function BasicDetailsScreen({
               <button
                 type="button"
                 onClick={open}
-                className={`${ACTION_CLS} border border-hairline-strong !text-ink-strong`}
+                className={`${ACTION_CLS} ${ACTION_W} border border-hairline-strong !text-ink-strong`}
                 style={{ background: "#fff" }}
               >
                 <ScrollText size={16} strokeWidth={2.4} /> Send policies
@@ -222,16 +217,13 @@ export function BasicDetailsScreen({
             )}
           />
         </div>
-        <div className="w-[176px] shrink-0 [&>button]:h-10 [&>button]:rounded-lg">
-          <CreateCandidateLogin />
-        </div>
-        <Link
-          href={"/hr/intake?new=1" as Route}
-          className={ACTION_CLS}
-          style={{ background: `linear-gradient(135deg, ${RED}, var(--color-altus-red-deep))` }}
-        >
-          <UserPlus size={16} strokeWidth={2.4} /> New candidate
-        </Link>
+        {/* NO "Candidate login" and NO "New candidate" here. Starting a
+            candidate is a PRE-INTERVIEW act - the Candidate Interview Form owns
+            it - and this records table is where you come to read what has
+            already been filled. The empty state still links to the form, which
+            is the one moment the shortcut is actually useful. */}
+        </>
+        )}
         <CollapsibleSearch scope="candidates">
           <div className="relative w-[280px] max-w-[52vw]">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
@@ -245,55 +237,29 @@ export function BasicDetailsScreen({
         </CollapsibleSearch>
       </div>
 
-      {/* SHOW-ONCE LINK. The row menu's "Send form link" mails the candidate, but
-          HR often needs to paste it into WhatsApp as well — and the plaintext
-          token is never stored, so this render is the only chance to copy it.
-          Dismissing it is final, which the copy says out loud. */}
-      {linkSent && (
-        <div
-          className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border p-3.5"
-          style={{
-            background: "color-mix(in srgb, var(--color-green) 8%, white)",
-            borderColor: "color-mix(in srgb, var(--color-green) 28%, white)",
-          }}
-        >
-          <span className="text-[13px] font-bold text-ink-strong">Form link sent — copy it now if you need it:</span>
-          <input
-            readOnly
-            value={linkSent}
-            onFocus={(e) => e.currentTarget.select()}
-            className="min-w-[240px] flex-1 rounded-lg border border-hairline-strong bg-white px-3 py-1.5 font-mono text-[12px] text-ink-strong outline-none"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              void navigator.clipboard.writeText(linkSent).then(
-                () => fireToast({ message: "Link copied." }),
-                () => fireToast({ message: "Couldn't copy — select it and copy manually.", type: "error" }),
-              );
-            }}
-            className="rounded-lg border border-hairline-strong bg-white px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:border-ink-soft"
-          >
-            Copy
-          </button>
-          <button
-            type="button"
-            onClick={() => setLinkSent(null)}
-            className="text-[12.5px] font-bold text-ink-muted hover:text-ink-strong"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
 
       {rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-solid border-hairline-strong bg-surface-card px-6 py-16 text-center">
           <span className="grid h-14 w-14 place-items-center rounded-2xl" style={{ background: "color-mix(in srgb, var(--color-altus-red) 12%, white)", color: "var(--color-altus-red-deep)" }}>
             <ClipboardList size={26} strokeWidth={2.1} />
           </span>
-          <h3 className="mt-4 text-[18px] font-bold text-ink-strong">{candidates.length === 0 ? "No candidates yet" : "No matches"}</h3>
-          <p className="mt-1 max-w-[42ch] text-[13.5px] text-ink-muted">{candidates.length === 0 ? "Fill a candidate's interview form to see them here." : "Try a different search."}</p>
-          {candidates.length === 0 && (
+          <h3 className="mt-4 text-[18px] font-bold text-ink-strong">
+            {lockedStatus
+              ? lockedStatus === "hired"
+                ? "Nobody selected yet"
+                : "Nobody rejected yet"
+              : candidates.length === 0
+                ? "No candidates yet"
+                : "No matches"}
+          </h3>
+          <p className="mt-1 max-w-[42ch] text-[13.5px] text-ink-muted">
+            {lockedStatus
+              ? "A candidate lands here once the Management Assessment records that outcome."
+              : candidates.length === 0
+                ? "Fill a candidate's interview form to see them here."
+                : "Try a different search."}
+          </p>
+          {!lockedStatus && candidates.length === 0 && (
             <Link href={"/hr/intake?new=1" as Route} className="mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${RED}, var(--color-altus-red-deep))` }}>
               <UserPlus size={15} strokeWidth={2.4} /> Fill interview form
             </Link>
@@ -324,10 +290,15 @@ export function BasicDetailsScreen({
                 <th className="whitespace-nowrap py-3 pl-4 pr-5">Candidate</th>
                 <th className="whitespace-nowrap px-5 py-3 max-md:hidden">Position</th>
                 {/* THE SLACK COLUMN - see the note above the table. */}
-                <th className="w-full py-3 pl-5 pr-4 max-md:hidden">Contact</th>
+                <th className="whitespace-nowrap py-3 pl-5 pr-4 max-md:hidden">Contact</th>
                 <th className="whitespace-nowrap py-3 pl-4 pr-5">Form</th>
                 <th className="whitespace-nowrap py-3 pl-5 pr-2 max-md:hidden">Status</th>
-                <th className="w-px py-3 pl-2 pr-4"><span className="sr-only">Actions</span></th>
+                {/* THE SLACK COLUMN. It used to be Contact, which pushed
+                    Form, Status and the actions hard against the right
+                    edge. Naming the actions cell instead pulls all three
+                    back to the left and leaves the surplus width after
+                    them, where nothing has to line up against it. */}
+                <th className="w-full py-3 pl-2 pr-4">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -342,7 +313,7 @@ export function BasicDetailsScreen({
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-5 py-3 text-[13.5px] text-ink-muted max-md:hidden">{c.positionApplied || "-"}</td>
-                    <td className="py-3 pl-5 pr-4 text-[12.5px] text-ink-muted max-md:hidden">
+                    <td className="whitespace-nowrap py-3 pl-5 pr-4 text-[12.5px] text-ink-muted max-md:hidden">
                       <div className="flex flex-col gap-0.5">
                         {c.mobile && <span className="inline-flex items-center gap-1"><Phone size={11} /> {c.mobile}</span>}
                         {c.email && <span className="inline-flex items-center gap-1 truncate"><Mail size={11} /> {c.email}</span>}
@@ -358,58 +329,53 @@ export function BasicDetailsScreen({
                     <td className="whitespace-nowrap py-3 pl-5 pr-2 max-md:hidden">
                       <span className="rounded-pill px-2.5 py-0.5 text-[11px] font-bold capitalize" style={{ background: tone.bg, color: tone.fg }}>{c.status}</span>
                     </td>
-                    {/* One kebab instead of a row of buttons: the actions are
-                        the same three every row, and a fixed-width menu button
-                        cannot be knocked out of alignment by its own label the
-                        way "Edit" vs "Resume" used to be. */}
-                    <td className="w-px py-3 pl-2 pr-4">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                    {/* THE ACTIONS, OUT IN THE OPEN. A kebab hid five things
+                        behind a click and gave no clue which of them existed
+                        for this candidate; inline, the row shows what can be
+                        done to it. Icon-only with tooltips, because five
+                        labelled buttons per row would not fit and would make
+                        the table scroll sideways on a laptop. */}
+                    <td className="w-full py-3 pl-2 pr-4">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Link
+                          href={`/hr/candidates/${c.id}/evaluation` as Route}
+                          className={ROW_BTN}
+                          title="Evaluation Record"
+                          aria-label={`Evaluation record for ${c.fullName || "candidate"}`}
+                        >
+                          <ClipboardCheck size={15} style={{ color: RED }} />
+                        </Link>
+                        {/* Same destination either way — the intake form. The
+                            wording follows the form state, so the tooltip says
+                            what opening it will actually do. */}
+                        <Link
+                          href={`/hr/intake?draft=${c.id}` as Route}
+                          className={ROW_BTN}
+                          title={c.submitted ? "Edit the form" : "Resume the form"}
+                          aria-label={`${c.submitted ? "Edit" : "Resume"} the form for ${c.fullName || "candidate"}`}
+                        >
+                          {c.submitted ? (
+                            <PenLine size={15} style={{ color: RED }} />
+                          ) : (
+                            <PlayCircle size={15} style={{ color: RED }} />
+                          )}
+                        </Link>
+                        {canDelete && (
                           <button
                             type="button"
-                            aria-label={`Actions for ${c.fullName || "candidate"}`}
-                            title="Actions"
+                            onClick={() => onDelete(c)}
                             disabled={busyId === c.id}
-                            className="inline-flex size-8 items-center justify-center rounded-lg border border-hairline-strong bg-white text-ink-muted transition-colors hover:border-ink-soft hover:text-ink disabled:opacity-50"
+                            /* The one destructive action, and the only one
+                               tinted as such — it sits beside four harmless
+                               ones now that nothing separates them. */
+                            className={`${ROW_BTN} hover:!border-red-300 hover:!text-red-600`}
+                            title="Delete candidate"
+                            aria-label={`Delete ${c.fullName || "candidate"}`}
                           >
-                            {busyId === c.id ? <Loader2 size={15} className="animate-spin" /> : <MoreVertical size={15} />}
+                            <Trash2 size={15} />
                           </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-52">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/hr/candidates/${c.id}/evaluation` as Route}>
-                              <ClipboardCheck size={14} style={{ color: RED }} /> Evaluation Record
-                            </Link>
-                          </DropdownMenuItem>
-                          {/* Same destination either way — the intake form. The
-                              wording follows the form state so the menu says what
-                              opening it will actually do. */}
-                          <DropdownMenuItem asChild>
-                            <Link href={`/hr/intake?draft=${c.id}` as Route}>
-                              {c.submitted ? (
-                                <><PenLine size={14} style={{ color: RED }} /> Edit</>
-                              ) : (
-                                <><PlayCircle size={14} style={{ color: RED }} /> Resume</>
-                              )}
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onSelect={() => onSendLink(c)}>
-                            <Send size={14} style={{ color: RED }} /> Send form link
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => onRevokeLink(c)}>
-                            <Link2Off size={14} style={{ color: RED }} /> Cancel form link
-                          </DropdownMenuItem>
-                          {canDelete && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem danger onSelect={() => onDelete(c)}>
-                                <Trash2 size={14} /> Delete candidate
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        )}
+                      </span>
                     </td>
                   </tr>
                 );

@@ -18,6 +18,7 @@ export type JdBulkField =
   | "position"
   | "person"
   | "function"
+  | "client"
   | "category"
   | "task"
   | "frequency"
@@ -43,7 +44,10 @@ export const JD_BULK_COLUMNS: JdBulkColumn[] = [
   { field: "position", header: "Position", aliases: ["seat", "role", "position title", "master jd", "general jd"], hint: "For a Master JD — the position's title" },
   { field: "person", header: "Person", aliases: ["employee", "specific person", "for person", "personal jd"], hint: "For a personal JD — the employee's name" },
   { field: "function", header: "Function", aliases: ["department", "dept", "department function"], hint: "Only needed for a personal JD" },
-  { field: "category", header: "Category", aliases: ["area", "type"], hint: "e.g. Housekeeping" },
+  { field: "client", header: "Client", aliases: ["client name", "customer"], hint: "Optional — as in Admin Panel → Clients" },
+  /* "Subject" since 2026-09-18 — the WMS Tasks roster. A sheet made from the
+     old template still says "Category", which reads the same column. */
+  { field: "category", header: "Subject", aliases: ["category", "area", "type"], hint: "As in Admin Panel → Subjects" },
   { field: "task", header: "Task", aliases: ["job description", "jd", "description", "activity", "work", "task job description"], hint: "Required" },
   { field: "frequency", header: "Frequency", aliases: ["how often", "schedule", "repeat", "recurrence"], hint: "Daily · Weekly on Saturday · 2nd Saturday of month · Every 15 days" },
   { field: "minutes", header: "Time (mins)", aliases: ["time", "time estimated", "estimated time", "minutes", "mins", "duration"], hint: "Minutes, or 1h 30m" },
@@ -212,6 +216,8 @@ export interface JdBulkRow {
   /** "Operations · Executive" or "Personal · Neha Shah". */
   ownerLabel: string;
   functionKey: string | null;
+  client: string | null;
+  /** The Subject. */
   category: string | null;
   recurrence: Recurrence;
   estimatedMinutes: number;
@@ -340,7 +346,8 @@ export function readJdMatrix(matrix: unknown[][], ctx: JdBulkContext): { rows: J
       }
     }
 
-    const category = at("category").slice(0, 80) || null;
+    const category = at("category").slice(0, 120) || null;
+    const client = at("client").slice(0, 200) || null;
     const key = `${norm(task)}|${positionId ?? ownerEmployeeId}`;
     if (task && seen.has(key)) warnings.push("Same task appears earlier in this sheet");
     seen.add(key);
@@ -352,6 +359,7 @@ export function readJdMatrix(matrix: unknown[][], ctx: JdBulkContext): { rows: J
       ownerEmployeeId,
       ownerLabel,
       functionKey,
+      client,
       category,
       recurrence,
       estimatedMinutes,
@@ -383,6 +391,7 @@ export function jdBulkPayload(row: JdBulkRow) {
     ...(row.ownerEmployeeId ? { ownerEmployeeId: row.ownerEmployeeId, functionKey: row.functionKey ?? undefined } : {}),
     task: row.task,
     category: row.category,
+    client: row.client,
     notesHtml: row.notes,
     recurrence: row.recurrence,
     estimatedMinutes: row.estimatedMinutes,
@@ -404,7 +413,7 @@ export function jdBulkPayload(row: JdBulkRow) {
 export function jdTemplateMatrix(personName?: string | null): string[][] {
   const header = JD_BULK_COLUMNS.map((c) => c.header);
   const hints = JD_BULK_COLUMNS.map((c) => `(${c.hint})`);
-  const general = ["Operations · Executive", "", "", "Vendors", "Call vendors to confirm next day's deliveries", "Every weekday", "20", "", "", "", "", "Yes", "No", "No", ""];
-  const personal = ["", personName ?? "Employee Name", "Operations", "Reporting", "Send the weekly MIS to Manan Sir", "Weekly on Saturday", "1h", "", "", "", "Before 6 pm", "No", "Yes", "No", ""];
+  const general = ["Operations · Executive", "", "", "", "Vendors", "Call vendors to confirm next day's deliveries", "Every weekday", "20", "", "", "", "", "Yes", "No", "No", ""];
+  const personal = ["", personName ?? "Employee Name", "Operations", "", "Reporting", "Send the weekly MIS to Manan Sir", "Weekly on Saturday", "1h", "", "", "", "Before 6 pm", "No", "Yes", "No", ""];
   return [header, hints, general, personal];
 }

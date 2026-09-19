@@ -6,14 +6,14 @@ import type { Route } from "next";
 import { Search, FolderOpen, FileText } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import type { DossierEmployeeCard } from "@/lib/queries/dossier";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 function fmtDate(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return formatDate(iso);
+  return formatDateHr(iso);
 }
 
 export function EmployeeGrid({ employees }: { employees: DossierEmployeeCard[] }) {

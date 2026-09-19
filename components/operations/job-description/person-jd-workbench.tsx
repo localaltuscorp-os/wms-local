@@ -9,8 +9,9 @@ import {
   rememberPersonInUrl,
 } from "@/components/operations/job-description/jd-person-picker";
 import { buildPersonIndex } from "@/lib/jd/person-index";
-import type { JdEntryRow, JdPositionRow, JdRankRow } from "@/lib/queries/job-description";
+import type { JdEntryRow, JdEventOption, JdPositionRow, JdRankRow } from "@/lib/queries/job-description";
 import type { SeatHolder } from "@/components/operations/job-description/jd-detail";
+import type { JdRosters } from "@/components/operations/job-description/jd-rosters";
 
 /**
  * OPERATIONS → MASTERS → Person-specific JD, as one client island.
@@ -29,6 +30,8 @@ export function PersonJdWorkbench({
   ranks,
   people,
   holders,
+  events = [],
+  rosters,
   initialPersonId,
 }: {
   entries: JdEntryRow[];
@@ -36,6 +39,8 @@ export function PersonJdWorkbench({
   ranks: JdRankRow[];
   people: { id: string; name: string }[];
   holders: SeatHolder[];
+  events?: JdEventOption[];
+  rosters?: JdRosters;
   initialPersonId: string | null;
 }) {
   const [personId, setPersonId] = React.useState(() =>
@@ -60,7 +65,7 @@ export function PersonJdWorkbench({
       <MastersHeader
         Icon={UserRound}
         topic="Job Description"
-        title="Person-specific JD"
+        title="JD-Specific Person"
         description="One person's whole Job Description — their seat's tasks, tasks given to them by name, and tasks written for them alone."
         actions={
           people.length > 0 ? (
@@ -80,6 +85,8 @@ export function PersonJdWorkbench({
         ranks={ranks}
         people={people}
         holders={holders}
+        events={events}
+        rosters={rosters}
         mode="person"
         personId={personId}
         onPersonChange={choose}

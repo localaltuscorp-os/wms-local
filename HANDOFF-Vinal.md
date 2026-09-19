@@ -1,6 +1,6 @@
 # HANDOFF — `Vinal` branch
 
-**Updated:** 2026-09-17
+**Updated:** 2026-09-18
 **Repo:** `https://github.com/localaltuscorp-os/wms-local` · branch `Vinal`
 **Audience:** team, lead, and whoever runs the SQL in Supabase.
 
@@ -8,35 +8,30 @@
 
 ## 1. Branch state
 
-**Everything described below is committed and pushed.** `Vinal` and
-`origin/Vinal` are the same commit — nothing is parked in a working tree, a
-stash or a second checkout. `git fetch && git checkout Vinal` gets you all of
-it.
-
 | Commit | When | What |
 |---|---|---|
+| `HEAD` | 18 Sep | WCC / MCC compliance checklists, Event Checklist WMS Tasks column alignment, JD Client field & per-person Doer Notes (`0237`, `0238`) |
+| `ffc8406a` | 17 Sep, 20:10 | feat: move Recruitment JDs to Operations Masters, update DCC spec implementation, and update handoff-vinal.md |
 | `35497680` | 17 Sep, 13:13 | Tailwind reads three directories, not the whole project |
 | `49fc490e` | 17 Sep, 12:41 | Stop Tailwind reading documentation as a source of classes |
-| `f7c7bc42` | 16 Sep, 22:47 | Rebuild DCC from a written spec; Initiator Status gains Archived; JD speaks Google Calendar — 131 files, +7724 / −7133 |
-| `0b7b3807` | 16 Sep, 13:14 | Merge `origin/main` into `Vinal` |
-
-> **The code is on the branch; the database is not.** Section 2 lists four
-> migrations that still have to be run by hand. Until they are, the DCC screens
-> show an explicit "not set up yet" notice and picking **Archived** fails at the
-> database. That is the only thing standing between this branch and working
-> software.
 
 ---
 
 ## 2. Run this SQL in Supabase
 
-Three of these five are new on this branch (`0234`, `0235`, `0236`); the other two have been outstanding since 15 September. **All are idempotent** (`if not exists` / `do $$` guards), so they are safe to run twice.
+Five migrations on this branch (`0234`, `0235`, `0236`, `0237`, `0238`); consolidated in `db/RUN-IN-SUPABASE-0237-0238.sql`. **All are idempotent** (`if not exists` / `do $$` guards), so they are safe to run twice.
 
 | File | What it does | Needed before |
 |---|---|---|
 | `db/migrations/0234_initiator_status_archived.sql` | Adds **Archived** as a sixth Initiator Status verdict | Picking "Archived" on a task / goal / project |
-| `db/migrations/0235_dcc_call_logs.sql` | Creates `dcc_call_logs` — the SP1 call log | The SP1 sheet on the DCC Dashboard, which is both where calls are typed and where they are read |
-| `db/migrations/0236_recruitment_jd_roles.sql` | Creates `recruitment_jds` and `recruitment_jd_sends`, keyed by the role's own `slug` | Saving or sending anything in Operations → Masters → Recruitment JD. Until it runs, the page shows all eight JDs read-only and names the file |
+| `db/migrations/0235_dcc_call_logs.sql` | Creates `dcc_call_logs` — the SP1 call log | SP1 call logging on DCC Dashboard |
+| `db/migrations/0236_recruitment_jd_roles.sql` | Creates `recruitment_jds` and `recruitment_jd_sends` | Operations → Masters → Recruitment JD |
+| `db/migrations/0237_checklist_wms_columns_jd_client.sql` | Aligns Event Checklist with WMS Tasks columns, adds Client & Doer Notes to JDs | Event Checklist & JD Person View |
+| `db/migrations/0238_wcc_mcc.sql` | Replaces DCC with WCC / MCC: `month_day` on compliances, WMS Doer/Approver statuses on fills | Weekly & Monthly Compliance Checklists (`/dcc/wcc`, `/dcc/mcc`) |
+
+Supabase Dashboard → SQL Editor → New query → paste `db/RUN-IN-SUPABASE-0237-0238.sql` → Run.
+
+**Order to run:** `0229` → `0230` → `0234` → `0235` → `0236` → `0237` → `0238`.
 
 Supabase Dashboard → SQL Editor → New query → paste the file → Run.
 

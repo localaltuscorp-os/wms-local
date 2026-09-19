@@ -12,9 +12,8 @@ import {
   eventCategories,
 } from "@/db/schema";
 import {
-  DEFAULT_STATUS,
-  isCheckStatus,
   isRunStatus,
+  readCheckStatus,
   type ChecklistEventRow,
   type ChecklistItemRow,
   type ChecklistPersonRow,
@@ -135,45 +134,76 @@ function toRunRow(r: {
  * LEFT JOIN on the checks, because a row that nobody has touched has no check
  * row at all — inner-joining would silently hide every untouched item, which is
  * most of a fresh checklist.
+ *
+ * The WMS Tasks columns (Client, Initiator, the repeat rule, Approver Status)
+ * arrive with migration 0237, applied by hand. Until it runs they read as blank
+ * rather than taking the whole grid down with a missing-column error.
  */
 export async function listRunItems(runId: string): Promise<ChecklistItemRow[]> {
-  const rows = await db
-    .select({
-      id: opsChecklistItems.id,
-      code: opsChecklistItems.code,
-      title: opsChecklistItems.title,
-      category: opsChecklistItems.category,
-      offsetDays: opsChecklistItems.offsetDays,
-      targetDate: opsChecklistItems.targetDate,
-      doerId: opsChecklistItems.doerId,
-      doerName: doer.name,
-      backupId: opsChecklistItems.backupId,
-      backupName: backup.name,
-      instructions: opsChecklistItems.instructions,
-      fileLink: opsChecklistItems.fileLink,
-      jdEntryId: opsChecklistItems.jdEntryId,
-      sortOrder: opsChecklistItems.sortOrder,
-      isActive: opsChecklistItems.isActive,
-      status: opsChecklistChecks.status,
-      notes: opsChecklistChecks.notes,
-      doneAt: opsChecklistChecks.doneAt,
-    })
-    .from(opsChecklistItems)
-    .leftJoin(doer, eq(doer.id, opsChecklistItems.doerId))
-    .leftJoin(backup, eq(backup.id, opsChecklistItems.backupId))
-    .leftJoin(
-      opsChecklistChecks,
-      and(
-        eq(opsChecklistChecks.itemId, opsChecklistItems.id),
-        eq(opsChecklistChecks.runId, runId),
-      ),
-    )
-    .where(and(eq(opsChecklistItems.runId, runId), eq(opsChecklistItems.isActive, true)))
-    .orderBy(asc(opsChecklistItems.offsetDays), asc(opsChecklistItems.sortOrder));
+  const base = {
+    id: opsChecklistItems.id,
+    code: opsChecklistItems.code,
+    title: opsChecklistItems.title,
+    category: opsChecklistItems.category,
+    offsetDays: opsChecklistItems.offsetDays,
+    targetDate: opsChecklistItems.targetDate,
+    doerId: opsChecklistItems.doerId,
+    doerName: doer.name,
+    backupId: opsChecklistItems.backupId,
+    backupName: backup.name,
+    instructions: opsChecklistItems.instructions,
+    fileLink: opsChecklistItems.fileLink,
+    jdEntryId: opsChecklistItems.jdEntryId,
+    sortOrder: opsChecklistItems.sortOrder,
+    isActive: opsChecklistItems.isActive,
+    status: opsChecklistChecks.status,
+    notes: opsChecklistChecks.notes,
+    doneAt: opsChecklistChecks.doneAt,
+  };
+  const since0237 = {
+    client: opsChecklistItems.client,
+    initiatorId: opsChecklistItems.initiatorId,
+    recurrenceRule: opsChecklistItems.recurrenceRule,
+    approverStatus: opsChecklistChecks.approverStatus,
+    approverNotes: opsChecklistChecks.approverNotes,
+  };
+
+  /* Typed as the base shape: drizzle selects whatever it is handed, and the
+     0237 fields ride along on the first attempt only. */
+  const read = (fields: typeof base) =>
+    db
+      .select(fields)
+      .from(opsChecklistItems)
+      .leftJoin(doer, eq(doer.id, opsChecklistItems.doerId))
+      .leftJoin(backup, eq(backup.id, opsChecklistItems.backupId))
+      .leftJoin(
+        opsChecklistChecks,
+        and(
+          eq(opsChecklistChecks.itemId, opsChecklistItems.id),
+          eq(opsChecklistChecks.runId, runId),
+        ),
+      )
+      .where(and(eq(opsChecklistItems.runId, runId), eq(opsChecklistItems.isActive, true)))
+      .orderBy(asc(opsChecklistItems.offsetDays), asc(opsChecklistItems.sortOrder));
+
+  type Row = Awaited<ReturnType<typeof read>>[number] &
+    Partial<Record<keyof typeof since0237, string | null>>;
+  let rows: Row[];
+  try {
+    rows = (await read({ ...base, ...since0237 } as typeof base)) as Row[];
+  } catch (e) {
+    if (!isMissingChecklistTable(e)) throw e;
+    rows = await read(base);
+  }
 
   return rows.map((r) => ({
     ...r,
-    status: isCheckStatus(r.status) ? r.status : DEFAULT_STATUS,
+    client: r.client ?? null,
+    initiatorId: r.initiatorId ?? null,
+    recurrenceRule: r.recurrenceRule ?? null,
+    approverStatus: r.approverStatus ?? null,
+    approverNotes: r.approverNotes ?? null,
+    status: readCheckStatus(r.status),
     doneAt: r.doneAt ? r.doneAt.toISOString() : null,
   }));
 }

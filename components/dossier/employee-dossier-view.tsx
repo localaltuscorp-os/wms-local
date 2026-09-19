@@ -12,7 +12,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { fireToast } from "@/lib/toast";
 import { DOC_TYPES, docTypeMeta, type DossierDocType } from "@/lib/dossier/types";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import type { EmployeeDossier, DossierDoc } from "@/lib/queries/dossier";
 import { DocViewer, type ViewerDoc } from "./doc-viewer";
 import { UploadDialog } from "./upload-dialog";
@@ -26,7 +26,7 @@ function fmtDate(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return formatDate(iso);
+  return formatDateHr(iso);
 }
 function fmtSize(n: number | null): string {
   if (!n) return "";

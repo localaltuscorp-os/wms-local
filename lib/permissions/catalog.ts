@@ -129,6 +129,10 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "DCC",
         routes: ["/dcc"],
         children: [
+          // WCC and MCC replaced My Day (account holder, 2026-09-18); `/dcc`
+          // itself now redirects to WCC.
+          { key: "employees.dcc.wcc", label: "WCC — Weekly Compliance Checklist", routes: ["/dcc/wcc"] },
+          { key: "employees.dcc.mcc", label: "MCC — Monthly Compliance Checklist", routes: ["/dcc/mcc"] },
           // The SP1 sheet IS the dashboard, and the call log is typed into that
           // sheet (2026-09-17), so neither has a node of its own. Their old
           // addresses are listed here because both still redirect, and a
@@ -235,6 +239,8 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         routes: ["/hr/management-assessment"],
       },
       { key: "hr.hiring-analytics", label: "Hiring Analytics", routes: ["/hr/hiring-analytics"] },
+      { key: "hr.selected-candidates", label: "Selected Candidates", routes: ["/hr/selected-candidates"] },
+      { key: "hr.rejected-candidates", label: "Rejected Candidates", routes: ["/hr/rejected-candidates"] },
       { key: "hr.induction", label: "Induction", routes: ["/hr/induction"] },
       { key: "hr.record", label: "HR Record", routes: ["/hr/record"] },
       { key: "hr.kpi", label: "HR KPI", routes: ["/hr/kpi"] },
