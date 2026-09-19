@@ -12,6 +12,14 @@ import {
   DEVICE_COOKIE_MAX_AGE_SECONDS,
 } from "@/lib/security/device-access";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
+import {
+  TWO_STEP_PASS_COOKIE,
+  createTwoStepPass,
+  isValidTwoStepPass,
+  twoStepEnabled,
+  twoStepPassSetCookie,
+} from "@/lib/auth/two-step-pass";
+import { issueTwoStepChallenge, requestMeta } from "@/lib/auth/two-step";
 
 // 14 days — users stay signed in across browser restarts (matches the
 // middleware cookie maxAge + browserLocalPersistence on the client).
@@ -30,10 +38,19 @@ const SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60;
  *   · /api/auth/session  — the older client-side flow (Google sign-in, the
  *                         set-password screen) hands over a token it already has.
  *
- * Returns the response to send: 403 `not-enrolled`, 403 `device-not-authorized`,
- * 401 on a bad token, or 200 carrying the Set-Cookie headers.
+ * Returns the response to send: 403 `not-enrolled`, 403 `two-step-required`
+ * (a code has just been emailed), 403 `device-not-authorized`, 401 on a bad
+ * token, or 200 carrying the Set-Cookie headers.
+ *
+ * `twoStepVerification` is passed ONLY by /api/auth/two-step/verify, after the
+ * emailed code checked out; it makes this response also carry the pass cookie
+ * that spares the browser another code until midnight IST.
  */
-export async function mintSessionForIdToken(req: Request, idToken: string): Promise<NextResponse> {
+export async function mintSessionForIdToken(
+  req: Request,
+  idToken: string,
+  opts: { twoStepVerification?: { id: string } } = {},
+): Promise<NextResponse> {
   // Verify the ID token ourselves so we can (1) confirm the email belongs to an
   // active employee BEFORE issuing the session cookie, and (2) reconcile the
   // employees.firebase_uid column when an existing employee signs in through a
@@ -79,6 +96,46 @@ export async function mintSessionForIdToken(req: Request, idToken: string): Prom
         ...(needsJoinedStamp ? { joinedAt: new Date() } : {}),
       })
       .where(eq(employees.id, emp.id));
+  }
+
+  // ── TWO-STEP VERIFICATION ────────────────────────────────────────────────
+  //
+  // A right password (or any Firebase token) is not enough on its own: the
+  // person must also enter a code emailed to them. Once per browser per day —
+  // a valid pass cookie from earlier today skips the code. Checked BEFORE the
+  // device step so an unverified browser never registers itself as a device.
+  //
+  // This sits in the SHARED mint, so every way of getting a session — password
+  // login, set-password, a client-held token posted to /api/auth/session —
+  // goes through it. A gate on one entry point only would be a gate with a
+  // side door.
+  let passSetCookie: string | null = null;
+  if (twoStepEnabled() && !DUMMY_MODE) {
+    if (opts.twoStepVerification) {
+      const pass = await createTwoStepPass(decoded.uid, opts.twoStepVerification.id);
+      passSetCookie = twoStepPassSetCookie(pass.value, pass.expiresAt);
+    } else {
+      const existing = readCookie(req, TWO_STEP_PASS_COOKIE);
+      if (!(await isValidTwoStepPass(existing, decoded.uid))) {
+        const issued = await issueTwoStepChallenge(emp, requestMeta(req));
+        if (!issued.ok) {
+          return NextResponse.json(
+            { error: issued.error, message: issued.message },
+            { status: issued.error === "too-many-codes" ? 429 : 502 },
+          );
+        }
+        return NextResponse.json(
+          {
+            error: "two-step-required",
+            challenge: issued.token,
+            maskedEmail: issued.maskedEmail,
+            expiresInSeconds: issued.expiresInSeconds,
+            message: `We've emailed a 6-digit code to ${issued.maskedEmail}.`,
+          },
+          { status: 403 },
+        );
+      }
+    }
   }
 
   // ── DEVICE ACCESS ────────────────────────────────────────────────────────
@@ -184,9 +241,22 @@ export async function mintSessionForIdToken(req: Request, idToken: string): Prom
         `${DEVICE_COOKIE}=${deviceCookieId}; Path=/; Max-Age=${DEVICE_COOKIE_MAX_AGE_SECONDS}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`,
       );
     }
+    // Same rule as the device cookie: a raw appended header, never res.cookies.set().
+    if (passSetCookie) res.headers.append("Set-Cookie", passSetCookie);
     return res;
   } catch (err) {
     console.error("setAuthCookies failed", err);
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
+}
+
+/** One cookie's value from the request's Cookie header. */
+function readCookie(req: Request, name: string): string | null {
+  const header = req.headers.get("cookie");
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq > 0 && part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim();
+  }
+  return null;
 }

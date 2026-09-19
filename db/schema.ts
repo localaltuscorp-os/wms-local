@@ -8772,3 +8772,62 @@ export const securityRoleEvents = pgTable(
   (t) => [index("security_role_events_role_idx").on(t.role, t.occurredAt.desc())],
 );
 export type SecurityRoleEvent = typeof securityRoleEvents.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Two-step sign-in (migration 0242). After the password, a 6-digit code is
+// emailed; entering it gives the browser a pass until the next midnight IST
+// (lib/auth/two-step-pass.ts). These two tables are the server's half: the codes
+// that were sent, and the record of who verified. Nothing in the app shows the
+// verification log yet — it is kept for audit, on request.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One emailed code. The code and the browser's handle are stored hashed only. */
+export const twoStepChallenges = pgTable(
+  "two_step_challenges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** SHA-256 of the random handle the browser holds between the two steps. */
+    tokenHash: text("token_hash").notNull(),
+    /** HMAC of the 6-digit code. The code itself is only ever in the email. */
+    codeHash: text("code_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    /** Set once, when the right code is entered. A used code never works twice. */
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("two_step_challenges_token_uniq").on(t.tokenHash),
+    index("two_step_challenges_employee_created_idx").on(t.employeeId, t.createdAt),
+  ],
+);
+export type TwoStepChallenge = typeof twoStepChallenges.$inferSelect;
+
+/** Who passed two-step verification, when, from where, and until when. Audit only. */
+export const twoStepVerifications = pgTable(
+  "two_step_verifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** The address the code went to, as it was at the time. */
+    email: text("email").notNull(),
+    method: text("method").notNull().default("email"),
+    challengeId: uuid("challenge_id").references(() => twoStepChallenges.id, {
+      onDelete: "set null",
+    }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull().defaultNow(),
+    /** The next midnight IST — when this browser is asked again. */
+    validUntil: timestamp("valid_until", { withTimezone: true }).notNull(),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+  },
+  (t) => [index("two_step_verifications_employee_idx").on(t.employeeId, t.verifiedAt)],
+);
+export type TwoStepVerification = typeof twoStepVerifications.$inferSelect;

@@ -10,6 +10,7 @@ import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/firebase/client";
 import { wasPasswordResetByAdmin } from "@/app/(auth)/login/actions";
 import { resetBrowserSessionId } from "@/lib/ecos/browser-session";
+import { TwoStepCodeStep } from "@/components/auth/two-step-code-step";
 
 /**
  * Canva-style login: a compact dark card form. Same Firebase email/password +
@@ -36,6 +37,30 @@ export function LoginFormCanva() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Set when the password was right and a code has been emailed (step two).
+  const [twoStep, setTwoStep] = useState<{ challenge: string; maskedEmail: string } | null>(null);
+  // proxy.ts sends people back here with reason=two-step when yesterday's
+  // two-step pass has run out, so the page can say why they were signed out.
+  const passExpired = params.get("reason") === "two-step";
+
+  // After a successful sign-in, whichever step it finished on.
+  async function finishSignIn(customToken: string | null | undefined) {
+    // Sign the browser's Firebase SDK in with the one-time token, so sign-out,
+    // the idle timer and "change password" keep working. The app's own session
+    // is already set by the response, so a failure here is not a failed login —
+    // only those client-SDK features would need a reload.
+    if (customToken) {
+      try {
+        await signInWithCustomToken(getFirebaseAuth(), customToken);
+      } catch (err) {
+        console.error("client sign-in with custom token failed", err);
+      }
+    }
+    // HARD navigation (not router.replace): wipes Next's client Router
+    // Cache so this freshly-signed-in user never sees a PREVIOUS user's
+    // cached pages (e.g. the admin panel) lingering in this browser tab.
+    window.location.replace(requestedNext);
+  }
 
   // Broadcasts (0215): closing a broadcast popup with its X snoozes it "until
   // next login", and the marker for a login is this browser-session id. Being
@@ -72,7 +97,16 @@ export function LoginFormCanva() {
           error?: string;
           message?: string;
           customToken?: string | null;
+          challenge?: string;
+          maskedEmail?: string;
         };
+
+        // Password accepted; a code is on its way. Move to step two.
+        if (payload.error === "two-step-required" && payload.challenge) {
+          setPassword("");
+          setTwoStep({ challenge: payload.challenge, maskedEmail: payload.maskedEmail ?? "your email" });
+          return;
+        }
 
         if (!res.ok) {
           // An administrator-set password is a different problem from a wrong
@@ -88,26 +122,25 @@ export function LoginFormCanva() {
           return;
         }
 
-        // Sign the browser's Firebase SDK in with the one-time token, so sign-out,
-        // the idle timer and "change password" keep working. The app's own session
-        // is already set by the response above, so a failure here is not a failed
-        // login — only those client-SDK features would need a reload.
-        if (payload.customToken) {
-          try {
-            await signInWithCustomToken(getFirebaseAuth(), payload.customToken);
-          } catch (err) {
-            console.error("client sign-in with custom token failed", err);
-          }
-        }
-
-        // HARD navigation (not router.replace): wipes Next's client Router
-        // Cache so this freshly-signed-in user never sees a PREVIOUS user's
-        // cached pages (e.g. the admin panel) lingering in this browser tab.
-        window.location.replace(requestedNext);
+        await finishSignIn(payload.customToken);
       } catch {
         setError("Network hiccup. Check your connection and try once more.");
       }
     });
+  }
+
+  if (twoStep) {
+    return (
+      <TwoStepCodeStep
+        challenge={twoStep.challenge}
+        maskedEmail={twoStep.maskedEmail}
+        onVerified={finishSignIn}
+        onCancel={() => {
+          setTwoStep(null);
+          setError(null);
+        }}
+      />
+    );
   }
 
   return (
@@ -133,6 +166,16 @@ export function LoginFormCanva() {
       <p className="mt-2 text-center" style={{ fontSize: 14.5, color: "rgba(255,255,255,0.55)" }}>
         Sign in to your Altus workspace.
       </p>
+
+      {passExpired && (
+        <div
+          role="status"
+          className="mt-5 rounded-xl px-4 py-3 text-center"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", color: "rgba(255,255,255,0.8)", fontSize: 13.5, lineHeight: 1.5 }}
+        >
+          Your sign-in for today has ended. Sign in again to continue.
+        </div>
+      )}
 
       <div className="mt-7 space-y-4">
         <Field label="Work Email" type="email" autoComplete="email" required value={email} onChange={setEmail} placeholder="you@altuscorp.com" />
