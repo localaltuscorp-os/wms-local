@@ -99,16 +99,21 @@ export function getResend(): Resend | null {
 }
 
 /**
- * The sender. Fixed to altuscorp.in on purpose (39ca644b): a stale
- * RESEND_FROM_EMAIL was sending as mananvasa.com, so that variable is ignored.
+ * The sender, from RESEND_FROM_EMAIL — each environment sets its own:
  *
- * EMAIL_FROM_OVERRIDE is a DIFFERENT, deliberately named variable for one case
- * only: the staging project (wms-local.vercel.app) uses a Resend account where
- * altuscorp.in is NOT verified, so every mail there failed — and with two-step
- * sign-in, that meant nobody could log in to staging. Set it on staging only;
- * production must leave it unset.
+ *   local + staging (wms-local)  "Altus Corp Dashboard <noreply@mananvasa.com>"
+ *                                — the only domain that Resend account has
+ *                                verified. Sending as altuscorp.in there failed
+ *                                every mail, and with two-step sign-in nobody
+ *                                could log in.
+ *   production (Altus-OS)        noreply@altuscorp.in — set it there, or leave
+ *                                it unset and this default applies.
+ *
+ * 39ca644b had hardcoded altuscorp.in because production's value was once a
+ * stale mananvasa.com address; production's RESEND_FROM_EMAIL must be correct
+ * (or removed) before this reaches it.
  */
-export const FROM = process.env.EMAIL_FROM_OVERRIDE?.trim() || "Altus Corp <noreply@altuscorp.in>";
+export const FROM = process.env.RESEND_FROM_EMAIL?.trim() || "Altus Corp <noreply@altuscorp.in>";
 
 /**
  * D12 (WMS overhaul Phase 6) — company-record BCC. When `EMAIL_BCC_ADDRESS` is
