@@ -8,6 +8,7 @@ import { employees, notifications, tasks } from "@/db/schema";
 import type { NotificationKind } from "@/db/schema";
 import { InviteEmail } from "@/emails/invite";
 import { ResetPasswordEmail } from "@/emails/reset-password";
+import { TwoStepCodeEmail } from "@/emails/two-step-code";
 import { CredentialsInviteEmail } from "@/emails/credentials-invite";
 import { WelcomeOfficialEmail } from "@/emails/welcome-official";
 import { AdminResetPasswordEmail } from "@/emails/admin-reset-password";
@@ -241,6 +242,37 @@ export async function sendResetPasswordEmail(args: {
       subject: `Reset your Altus Corp password`,
       react: ResetPasswordEmail({
         link: args.resetLink,
+        recipientName: args.recipientName,
+      }),
+    });
+    if (error) return { id: null, error: error.message };
+    return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}
+
+/**
+ * The two-step sign-in code. Never blind-copied to the company archive — like
+ * the reset link, it is a credential, and a copy in another inbox would be a
+ * second way in.
+ */
+export async function sendTwoStepCodeEmail(args: {
+  email: string;
+  code: string;
+  minutes: number;
+  recipientName?: string;
+}): Promise<{ id: string | null; error: string | null }> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: "RESEND_API_KEY not set" };
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: args.email,
+      subject: `${args.code} is your Altus Corp sign-in code`,
+      react: TwoStepCodeEmail({
+        code: args.code,
+        minutes: args.minutes,
         recipientName: args.recipientName,
       }),
     });

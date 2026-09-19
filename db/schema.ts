@@ -9320,3 +9320,183 @@ export const templateFiles = pgTable(
 );
 export type TemplateFile = typeof templateFiles.$inferSelect;
 export type NewTemplateFile = typeof templateFiles.$inferInsert;
+
+/**
+ * ACCOUNT LOCKOUT after consecutive failed sign-ins (migration 0236).
+ *
+ * Five wrong passwords locks the account. While locked the person can neither
+ * sign in nor use Forgot Password; only the four in
+ * lib/auth/unlock-permission.ts can clear it.
+ *
+ * KEYED BY EMAIL, NOT employee id. A failed attempt proves someone typed an
+ * address, not who they are, and the address may belong to nobody — the
+ * attempts worth counting most are the ones against addresses that do not
+ * exist. `employeeId` below is a nullable convenience for the admin screen,
+ * filled in when the address happens to match a row; it is not this record's
+ * identity. See the migration for the longer argument.
+ *
+ * `lockedAt` IS the lock — one nullable timestamp rather than a boolean and a
+ * date that can disagree. There is deliberately no `lockedUntil`: a timed
+ * release would let a brute-force attempt simply wait, and the requirement is
+ * that a human approves each one.
+ */
+export const accountLockouts = pgTable(
+  "account_lockouts",
+  {
+    /** Lower-cased by every call site. */
+    email: text("email").primaryKey(),
+    /** Consecutive failures inside FAILED_ATTEMPT_WINDOW_MS. */
+    failedCount: integer("failed_count").notNull().default(0),
+    lastFailedAt: timestamp("last_failed_at", { withTimezone: true }),
+    /** NULL = not locked. */
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    /** Kept after release, so "has this account been locked before?" stays answerable. */
+    unlockedAt: timestamp("unlocked_at", { withTimezone: true }),
+    unlockedById: uuid("unlocked_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    employeeId: uuid("employee_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("account_lockouts_count_nonneg", sql`${t.failedCount} >= 0`),
+    // The admin screen's only query: everyone currently locked, newest first.
+    index("account_lockouts_locked_idx").on(t.lockedAt).where(sql`${t.lockedAt} is not null`),
+    index("account_lockouts_employee_idx")
+      .on(t.employeeId)
+      .where(sql`${t.employeeId} is not null`),
+  ],
+);
+
+export type AccountLockout = typeof accountLockouts.$inferSelect;
+
+/**
+ * PER-IP LOGIN THROTTLE (migration 0236).
+ *
+ * The per-email counter cannot see the attack that matters most here: one
+ * failure each against fifty addresses trips no per-email threshold, yet that is
+ * exactly how an address list gets swept. This table prices that.
+ *
+ * DELIBERATELY NOT A LOCKOUT. An office NAT is one address for everybody, so
+ * tripping this throttles and refuses — it never locks a person out. Rows are
+ * disposable; anything older than the window can be pruned.
+ */
+export const loginAttemptIps = pgTable(
+  "login_attempt_ips",
+  {
+    ip: text("ip").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
+    failedCount: integer("failed_count").notNull().default(0),
+    lastFailedAt: timestamp("last_failed_at", { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.ip, t.windowStart] }),
+    index("login_attempt_ips_window_idx").on(t.windowStart),
+  ],
+);
+
+export type LoginAttemptIp = typeof loginAttemptIps.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assignable security roles (migration 0238) — the role LIST lives in
+// lib/auth/security-roles-catalog.ts so every role is one a route enforces;
+// these rows are who HOLDS one. See the migration for why neither
+// module_permissions (restrict-by-default) nor the code-only capability table
+// fits: this has to be grantable from the app, without a deploy.
+// ─────────────────────────────────────────────────────────────────────────────
+export const securityRoleGrants = pgTable(
+  "security_role_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** A key from SECURITY_ROLES. Text on purpose — a new role is a code change, not a migration. */
+    role: text("role").notNull(),
+    grantedById: uuid("granted_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("security_role_grants_employee_role_uniq").on(t.employeeId, t.role),
+    index("security_role_grants_role_idx").on(t.role),
+  ],
+);
+export type SecurityRoleGrant = typeof securityRoleGrants.$inferSelect;
+
+/** Who gave or took a role away. Kept when the grant itself is revoked. */
+export const securityRoleEvents = pgTable(
+  "security_role_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    role: text("role").notNull(),
+    /** granted | revoked */
+    action: text("action").notNull(),
+    actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("security_role_events_role_idx").on(t.role, t.occurredAt.desc())],
+);
+export type SecurityRoleEvent = typeof securityRoleEvents.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Two-step sign-in (migration 0242). After the password, a 6-digit code is
+// emailed; entering it gives the browser a pass until the next midnight IST
+// (lib/auth/two-step-pass.ts). These two tables are the server's half: the codes
+// that were sent, and the record of who verified. Nothing in the app shows the
+// verification log yet — it is kept for audit, on request.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One emailed code. The code and the browser's handle are stored hashed only. */
+export const twoStepChallenges = pgTable(
+  "two_step_challenges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** SHA-256 of the random handle the browser holds between the two steps. */
+    tokenHash: text("token_hash").notNull(),
+    /** HMAC of the 6-digit code. The code itself is only ever in the email. */
+    codeHash: text("code_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    /** Set once, when the right code is entered. A used code never works twice. */
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("two_step_challenges_token_uniq").on(t.tokenHash),
+    index("two_step_challenges_employee_created_idx").on(t.employeeId, t.createdAt),
+  ],
+);
+export type TwoStepChallenge = typeof twoStepChallenges.$inferSelect;
+
+/** Who passed two-step verification, when, from where, and until when. Audit only. */
+export const twoStepVerifications = pgTable(
+  "two_step_verifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** The address the code went to, as it was at the time. */
+    email: text("email").notNull(),
+    method: text("method").notNull().default("email"),
+    challengeId: uuid("challenge_id").references(() => twoStepChallenges.id, {
+      onDelete: "set null",
+    }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull().defaultNow(),
+    /** The next midnight IST — when this browser is asked again. */
+    validUntil: timestamp("valid_until", { withTimezone: true }).notNull(),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+  },
+  (t) => [index("two_step_verifications_employee_idx").on(t.employeeId, t.verifiedAt)],
+);
+export type TwoStepVerification = typeof twoStepVerifications.$inferSelect;
