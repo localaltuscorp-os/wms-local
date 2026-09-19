@@ -12,7 +12,7 @@ import { FocusModeToggle } from "@/components/layout/focus-mode-toggle";
 import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
 import { MODULE_THEME } from "@/lib/module-theme";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
-import type { AuraRoom } from "@/lib/aura-rooms";
+import { tabsAndMore, type AuraRoom } from "@/lib/aura-rooms";
 
 /**
  * THE APP-WIDE TOP BAR, in the Aura language — one glass strip on every screen
@@ -24,11 +24,17 @@ import type { AuraRoom } from "@/lib/aura-rooms";
  * strip that is on every screen on something already said. This bar now does
  * the thing nothing else did — SWITCH ROOMS.
  *
- *   [rail toggle] [Altus] [module tabs · More ▾] [———— search ————] [+ ◑ 🔔 ●]
+ *   [rail toggle] [Altus] [WMS · Goals · Project · More ▾] [—— search ——] [+ ◑ 🔔 ●]
  *
- * TABS AND "MORE" ARE EXACT COMPLEMENTS. The tabs are the first few rooms and
- * drop out one at a time as the bar narrows; "More" holds precisely the ones
- * that did not get a tab, and nothing else. Both are computed from the same
+ * THREE TABS, THE REST UNDER "MORE" (account holder, 2026-09-19: "3 options —
+ * WMS, Goals, Project — and a More dropdown, which will look clean; do this
+ * all over"). Those three have a tab on every screen; every other room is in
+ * More — the room you are in included, which then lights More up rather than
+ * pushing in a tab of its own (lib/aura-rooms.ts, TAB_ROOMS).
+ *
+ * TABS AND "MORE" ARE EXACT COMPLEMENTS. On a window too narrow even for the
+ * three, the last ones move to the front of More, one at a time; "More" holds
+ * precisely the rooms without a tab, and nothing else. Both come from the same
  * `useTabCount()`, which is why the count is measured in JS rather than faked
  * by hiding tabs in CSS — a hidden tab would leave its room in neither place.
  * The menu opens on hover, on click and on keyboard focus; hover alone is
@@ -46,8 +52,8 @@ import type { AuraRoom } from "@/lib/aura-rooms";
  */
 
 /**
- * How many rooms get a tab, MEASURED from the real DOM instead of guessed from
- * the viewport.
+ * How many of the tab rooms get their tab, MEASURED from the real DOM instead
+ * of guessed from the viewport.
  *
  * The old approach was a fixed `min-width` breakpoint ladder (8 tabs ≥1720px,
  * 7 ≥1580px, …). It broke because those numbers assumed the tabs had the whole
@@ -56,19 +62,20 @@ import type { AuraRoom } from "@/lib/aura-rooms";
  * create + focus + bell + the account menu) all eat width that the ladder never
  * counted. At a width the ladder said "8 tabs fit", they ran into the search bar.
  *
- * Now we measure: render every room's tab into an off-screen strip to learn its
- * true pixel width, watch the nav's real width with a ResizeObserver, and show
- * exactly as many tabs — plus the "More" button — as actually fit. Tabs and
- * "More" remain exact complements, so no room is ever unreachable.
+ * Now we measure: render each tab room's tab into an off-screen strip to learn
+ * its true pixel width, watch the nav's real width with a ResizeObserver, and
+ * show as many of them — plus the "More" button — as actually fit, up to all
+ * three. Before the first measurement (and on the server) all of them show.
  */
-
-/** The count rendered on the server / before the first measurement lands. */
-const TAB_COUNT_SSR = 6;
 
 /** The flex gap between tabs (mirrors `.aura-tabs` in aura.css). */
 const TAB_GAP = 4;
 
-function useTabCount(rooms: AuraRoom[]): {
+function useTabCount(
+  rooms: AuraRoom[],
+  /** Whether More has rooms of its own, so its button is there whatever fits. */
+  hasMore: boolean,
+): {
   navRef: React.RefObject<HTMLElement | null>;
   tabCount: number;
 } {
@@ -155,14 +162,14 @@ function useTabCount(rooms: AuraRoom[]): {
   return {
     navRef,
     tabCount: React.useMemo(() => {
-      // Not measured yet — fall back to the SSR count so server and first paint
-      // agree, then the measurement above replaces it.
+      // Not measured yet — every tab, as the server rendered them, so server and
+      // first paint agree; the measurement above then replaces it.
       if (!tabWidths || tabWidths.length !== rooms.length || available <= 0) {
-        return TAB_COUNT_SSR;
+        return rooms.length;
       }
-      // Every room fits without a More button? Show all of them.
+      // No More button needed and every tab fits? Show all of them.
       const total = tabWidths.reduce((s, w, i) => s + w + (i > 0 ? TAB_GAP : 0), 0);
-      if (total <= available) return rooms.length;
+      if (!hasMore && total <= available) return rooms.length;
       // Otherwise reserve the More button and fit as many tabs as possible.
       const budget = available - moreWidth - TAB_GAP;
       let used = 0;
@@ -173,10 +180,9 @@ function useTabCount(rooms: AuraRoom[]): {
         used += w;
         count = i + 1;
       }
-      // The room you are in is force-shown downstream; keep at least one tab so
-      // the bar never collapses to nothing on a very narrow window.
-      return Math.max(1, count);
-    }, [tabWidths, moreWidth, available, rooms]),
+      // None fits on a very narrow window: More alone, which then holds them all.
+      return count;
+    }, [tabWidths, moreWidth, available, rooms, hasMore]),
   };
 }
 
@@ -202,24 +208,16 @@ export function AuraTopBar({
      first page landed. */
   const onDashboard = pathname === "/hub";
 
-  const { navRef, tabCount } = useTabCount(rooms);
+  /* The tab rooms — WMS, Goals, Project, those this person may enter — and the
+     rest, which are always under More. */
+  const all = React.useMemo(() => tabsAndMore(rooms), [rooms]);
+  const { navRef, tabCount } = useTabCount(all.tabs, all.more.length > 0);
 
-  /* The first `tabCount` rooms get tabs — except that the room you are IN always
-     does, even when it sits past the cut. A bar whose active tab is invisible
-     tells you less than no tabs at all.
-
-     `overflow` is the exact complement: every room that did NOT get a tab, and
-     nothing else. That is what "More" holds. Because both come from the same
-     `tabCount`, every room is in exactly one of the two at every width. */
-  const { tabs, overflow } = React.useMemo(() => {
-    let shown = rooms.slice(0, tabCount);
-    if (ws && tabCount > 0 && !shown.some((r) => r.id === ws)) {
-      const current = rooms.find((r) => r.id === ws);
-      if (current) shown = [...shown.slice(0, tabCount - 1), current];
-    }
-    const ids = new Set(shown.map((r) => r.id));
-    return { tabs: shown, overflow: rooms.filter((r) => !ids.has(r.id)) };
-  }, [rooms, ws, tabCount]);
+  /* As many tab rooms as fit get their tab; `overflow` is the exact complement,
+     every room without a tab and nothing else — what "More" holds. The room
+     you are in gets no tab of its own: when it is under More, More lights up. */
+  const { tabs, more: overflow } = React.useMemo(() => tabsAndMore(rooms, tabCount), [rooms, tabCount]);
+  const inMore = overflow.find((r) => r.id === ws) ?? null;
 
   return (
     // Phones already carry a fixed 56px bar from DashboardSidebar, so off the
@@ -253,7 +251,7 @@ export function AuraTopBar({
             {r.label}
           </a>
         ))}
-        <MoreMenu rooms={overflow} current={ws} />
+        <MoreMenu rooms={overflow} current={ws} active={inMore} />
       </nav>
 
       {/* ONE RIGHT-HAND CLUSTER: search, then the page's own controls, then the
@@ -310,13 +308,22 @@ function setActiveWorkspaceCookie(id: WorkspaceId): void {
 
 /**
  * The "More" menu — the rooms that did NOT get a tab, with their colour, their
- * tagline and the digit that opens them.
+ * tagline and the key that opens them. `active` is the room you are in when it
+ * is one of them: the button then shows as the current tab, and says which.
  *
  * Open on hover, on click, and whenever anything inside has keyboard focus.
  * The close is delayed ~120ms so the diagonal mouse path from the button to the
  * first item does not dismiss the thing you are reaching for.
  */
-function MoreMenu({ rooms, current }: { rooms: AuraRoom[]; current: WorkspaceId | null | undefined }) {
+function MoreMenu({
+  rooms,
+  current,
+  active,
+}: {
+  rooms: AuraRoom[];
+  current: WorkspaceId | null | undefined;
+  active: AuraRoom | null;
+}) {
   const [open, setOpen] = React.useState(false);
   const closeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrap = React.useRef<HTMLDivElement>(null);
@@ -371,6 +378,9 @@ function MoreMenu({ rooms, current }: { rooms: AuraRoom[]; current: WorkspaceId 
         className="aura-tab"
         aria-haspopup="menu"
         aria-expanded={open}
+        data-active={active ? "true" : undefined}
+        aria-label={active ? `More — you are in ${active.label}` : undefined}
+        title={active ? `You are in ${active.label}` : undefined}
         onClick={() => setOpen((o) => !o)}
       >
         More

@@ -6,8 +6,16 @@
  *
  * The doer's side is the WMS Tasks six (account holder, 2026-09-18) — Not Read
  * · Not Started · Initiated · Follow Up · Need Info · Done — so a compliance and
- * a task are graded in one vocabulary. The approver's side is the WMS Approver
- * Status, from lib/status/approver-status.ts, unchanged.
+ * a task are graded in one vocabulary, plus WCC / MCC's own seventh, ABANDONED
+ * (2026-09-19, migration 0241): the doer has given it up. Abandoned is not
+ * Done — it never counts as done — but it is ACCOUNTED FOR: it is not carried
+ * forward, and when its time runs out it reads Abandoned, not Lapsed.
+ *
+ * The approver's side is the WMS Approver Status (lib/status/approver-status.ts)
+ * narrowed for WCC / MCC to four rulings — Approved · Not Approved · On Hold ·
+ * Archive (2026-09-19) — with no Cancelled. "Pending" is the absence of a
+ * ruling and stays what an unruled row reads; older rows already Cancelled
+ * still read so.
  *
  * ── WHY THE OLD `status` IS STILL WRITTEN ────────────────────────────────
  * dcc_entries.status (Done / Not done / NA / Pending) is read by the DCC
@@ -19,9 +27,21 @@
 
 import { DOER_TASK_STATUSES, type TaskStatus } from "@/db/enums";
 import { STATUS_LABELS_FALLBACK, STATUS_TONES_FALLBACK, statusBadgeStyle } from "@/lib/format";
+import {
+  canSetApproverStatus,
+  type ApproverActor,
+  type ApproverChoice,
+  type ApproverShown,
+} from "@/lib/status/approver-status";
 
-export const DOER_STATUSES = DOER_TASK_STATUSES;
+/** In the order the dropdown lists them: Not Read … Done, then Abandoned. */
+export const DOER_STATUSES = [...DOER_TASK_STATUSES, "abandoned"] as const;
 export type DoerStatus = (typeof DOER_STATUSES)[number];
+
+/** Done, or given up — nothing more is expected of the doer. */
+export function isClosed(s: DoerStatus | null | undefined): boolean {
+  return s === "done" || s === "abandoned";
+}
 
 export function isDoerStatus(v: unknown): v is DoerStatus {
   return typeof v === "string" && (DOER_STATUSES as readonly string[]).includes(v);
@@ -84,16 +104,36 @@ export function legacyStatusFor(
   if (isRuledOut(approver)) return "NA";
   if (doer === "done") return "Done";
   if (doer === "initiated" || doer === "follow_up" || doer === "need_info") return "Pending";
-  if (doer === "not_started" || doer === "dont_know") return "Not done";
+  // Given up is, to DCC's readers, simply not done.
+  if (doer === "not_started" || doer === "dont_know" || doer === "abandoned") return "Not done";
   return null;
 }
 
 /** The WMS label ("Not Read" for dont_know). */
 export function doerLabel(s: DoerStatus): string {
+  if (s === "abandoned") return "Abandoned";
   return STATUS_LABELS_FALLBACK[s as TaskStatus] ?? s;
 }
 
-/** The WMS badge colours for a Doer Status. */
+/** The WMS badge colours for a Doer Status — Abandoned in brown, apart from Not Read's grey. */
 export function doerStyle(s: DoerStatus) {
-  return statusBadgeStyle(STATUS_TONES_FALLBACK[s as TaskStatus]);
+  return statusBadgeStyle(s === "abandoned" ? "brown" : STATUS_TONES_FALLBACK[s as TaskStatus]);
+}
+
+/* ── WCC / MCC's Approver Status ────────────────────────────────────────── */
+
+/** The rulings WCC / MCC offer, in order. */
+export const COMPLIANCE_APPROVER_CHOICES = ["approved", "not_approved", "on_hold", "archived"] as const satisfies readonly ApproverChoice[];
+export type ComplianceApproverChoice = (typeof COMPLIANCE_APPROVER_CHOICES)[number];
+
+/** WCC / MCC's own words where they differ from WMS Tasks' — "Archive". */
+export const COMPLIANCE_APPROVER_LABEL: Partial<Record<ApproverShown, string>> = { archived: "Archive" };
+
+export function isComplianceApproverChoice(v: unknown): v is ComplianceApproverChoice {
+  return typeof v === "string" && (COMPLIANCE_APPROVER_CHOICES as readonly string[]).includes(v);
+}
+
+/** The rulings this actor may pick on this row now — the WMS rule, over WCC / MCC's four. */
+export function complianceApproverChoices(actor: ApproverActor, doer: DoerStatus | null): ComplianceApproverChoice[] {
+  return COMPLIANCE_APPROVER_CHOICES.filter((c) => canSetApproverStatus(actor, c, doer).ok);
 }

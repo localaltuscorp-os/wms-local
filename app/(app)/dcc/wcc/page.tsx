@@ -69,7 +69,6 @@ export default async function WccPage({
         kind="wcc"
         rows={board.rows}
         groups={board.groups}
-        summary={board.summary}
         multiPerson={board.multiPerson}
         manageable={board.manageable}
         defaultOwnerId={board.who === "me" || board.who === "team" ? me.id : board.who}
