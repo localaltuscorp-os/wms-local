@@ -703,6 +703,7 @@ export interface IncentiveEntryAdminRow {
   paid: boolean;
   paidAmt: number;
   paidDate: string | null;
+  reversed: boolean;
   note: string | null;
 }
 
@@ -723,6 +724,7 @@ function toAdminRow(e: IncentiveEntry): IncentiveEntryAdminRow {
     paid: e.paid,
     paidAmt: num(e.paidAmt),
     paidDate: e.paidDate,
+    reversed: e.reversed,
     note: e.note,
   };
 }

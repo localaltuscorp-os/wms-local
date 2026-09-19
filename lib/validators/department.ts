@@ -3,10 +3,10 @@ import { z } from "zod";
 const NameSchema = z
   .string()
   .trim()
-  .min(1, "Department name is required")
-  .max(80, "Department name is too long");
+  .min(1, "Function name is required")
+  .max(80, "Function name is too long");
 
-export const DepartmentIdSchema = z.string().uuid("Invalid department id");
+export const DepartmentIdSchema = z.string().uuid("Invalid Function id");
 
 export const CreateDepartmentSchema = z.object({
   name: NameSchema,

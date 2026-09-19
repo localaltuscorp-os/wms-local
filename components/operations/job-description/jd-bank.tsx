@@ -934,7 +934,7 @@ function JdForm({
             </select>
           </Field>
         ) : (
-          <Field label="Department / Function" hint="Comes from the position.">
+          <Field label="Function" hint="Comes from the position.">
             <div className="truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-600">
               {chosen
                 ? (FUNCTION_LABELS[chosen.functionKey as BusinessFunction] ?? chosen.functionKey)

@@ -1,9 +1,18 @@
 "use server";
 
+/**
+ * ADMIN PANEL → PEOPLE → FUNCTIONS.
+ *
+ * The admin-managed list of organisational units an employee belongs to. It was
+ * called "Departments" until migration 0234; the rows, the ids and the screen
+ * are the same, and `employees.department_id` still points at them. Only the
+ * word changed — and the table it lives in, which is now `functions`.
+ */
+
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { departments, employees, settingsEvents } from "@/db/schema";
+import { employees, functions, settingsEvents } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth/current";
 import {
   CreateDepartmentSchema,
@@ -29,17 +38,22 @@ export async function createDepartment(
 
   // Reject case-insensitive duplicates so the unique constraint never
   // fires with a raw DB error in the UI.
-  const existing = await db.query.departments.findFirst({
-    where: eq(departments.name, parsed.data.name),
-  });
+  // CASE-INSENSITIVE, matching the `functions_name_uq` index. The old check
+  // compared exactly, so "sales" slipped past it and then failed on the
+  // constraint with a raw database error in the UI.
+  const [existing] = await db
+    .select({ id: functions.id })
+    .from(functions)
+    .where(sql`lower(${functions.name}) = lower(${parsed.data.name})`)
+    .limit(1);
   if (existing) {
-    return { ok: false, error: "A department with this name already exists." };
+    return { ok: false, error: "A Function with this name already exists." };
   }
 
   let inserted;
   try {
     [inserted] = await db
-      .insert(departments)
+      .insert(functions)
       .values({
         name: parsed.data.name,
         sortOrder: parsed.data.sortOrder ?? 100,
@@ -55,16 +69,17 @@ export async function createDepartment(
 
   try {
     await db.insert(settingsEvents).values({
-      scope: "department",
+      scope: "function",
       targetId: inserted.id,
       actorId: me.id,
       eventType: "created",
       toValue: { name: inserted.name, sortOrder: inserted.sortOrder },
     });
   } catch (err) {
-    console.error("[createDepartment] audit write failed", err);
+    console.error("[createFunction] audit write failed", err);
   }
 
+  revalidatePath("/admin/functions");
   revalidatePath("/admin/departments");
   revalidatePath("/admin/employees");
   return { ok: true, id: inserted.id };
@@ -78,7 +93,7 @@ export async function updateDepartment(
 
   const parsedId = DepartmentIdSchema.safeParse(departmentId);
   if (!parsedId.success) {
-    return { ok: false, error: parsedId.error.issues[0]?.message ?? "Invalid department id" };
+    return { ok: false, error: parsedId.error.issues[0]?.message ?? "Invalid Function id" };
   }
 
   const parsed = UpdateDepartmentSchema.safeParse(fields);
@@ -86,12 +101,14 @@ export async function updateDepartment(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const dept = await db.query.departments.findFirst({
-    where: eq(departments.id, parsedId.data),
-  });
-  if (!dept) return { ok: false, error: "Department not found" };
+  const [dept] = await db
+    .select()
+    .from(functions)
+    .where(eq(functions.id, parsedId.data))
+    .limit(1);
+  if (!dept) return { ok: false, error: "Function not found" };
 
-  const patch: Partial<typeof departments.$inferInsert> = {
+  const patch: Partial<typeof functions.$inferInsert> = {
     updatedAt: new Date(),
   };
   if (parsed.data.name !== undefined) patch.name = parsed.data.name;
@@ -99,20 +116,23 @@ export async function updateDepartment(
   if (parsed.data.sortOrder !== undefined) patch.sortOrder = parsed.data.sortOrder;
 
   try {
-    await db.update(departments).set(patch).where(eq(departments.id, dept.id));
+    await db.update(functions).set(patch).where(eq(functions.id, dept.id));
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     // Surface the unique-constraint violation as a friendly message.
-    if (msg.includes("departments_name_unique")) {
-      return { ok: false, error: "A department with this name already exists." };
+    // The real index is `functions_name_uq` (case-insensitive). The old code
+    // looked for `departments_name_unique`, which never matched, so a duplicate
+    // reached the user as a raw database error.
+    if (/functions_name_uq|duplicate key/i.test(msg)) {
+      return { ok: false, error: "A Function with this name already exists." };
     }
     return { ok: false, error: `DB: ${msg}` };
   }
 
   // If the name changed, propagate to the legacy text column on every
-  // employee linked to this department.  Soft migration: keep
-  // employees.department in sync with the FK name during the
-  // transition period.
+  // employee linked to this Function. Still worth doing: that column is what
+  // migration 0234 used to repair 19 employees whose Function id pointed at
+  // nothing, so keeping it accurate keeps that recovery route open.
   if (parsed.data.name !== undefined && parsed.data.name !== dept.name) {
     try {
       await db
@@ -123,7 +143,7 @@ export async function updateDepartment(
       // Non-fatal: the FK is still correct; only the legacy text column
       // is stale.  Log + continue.
       console.error(
-        "[updateDepartment] failed to propagate name to employees.department",
+        "[updateFunction] failed to propagate name to employees.department",
         err,
       );
     }
@@ -146,7 +166,7 @@ export async function updateDepartment(
     }
     if (Object.keys(toValue).length > 0) {
       await db.insert(settingsEvents).values({
-        scope: "department",
+        scope: "function",
         targetId: dept.id,
         actorId: me.id,
         eventType: "updated",
@@ -155,9 +175,10 @@ export async function updateDepartment(
       });
     }
   } catch (err) {
-    console.error("[updateDepartment] audit write failed", err);
+    console.error("[updateFunction] audit write failed", err);
   }
 
+  revalidatePath("/admin/functions");
   revalidatePath("/admin/departments");
   revalidatePath("/admin/employees");
   return { ok: true };

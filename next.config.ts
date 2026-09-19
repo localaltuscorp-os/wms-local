@@ -194,6 +194,10 @@ const nextConfig: NextConfig = {
   // to be on the function filesystem, so a bare readFile would 500 in prod).
   outputFileTracingIncludes: {
     "/goals/template.xlsx": ["./public/templates/Altus-Goals-Template.xlsx"],
+    // The Upload Master download route serves the same built-in Goals workbook
+    // (via lib/templates/goals.ts) without module access, so it needs the file
+    // traced into its own function too.
+    "/admin/upload-master/download/[key]": ["./public/templates/Altus-Goals-Template.xlsx"],
     // @sparticuz/chromium's binary lives in its `bin/` dir and is unpacked at
     // RUNTIME by executablePath() — nothing statically imports it, so Vercel's
     // file-tracing drops it from the function ("input directory …/bin does not

@@ -34,6 +34,10 @@
       "schedule": "0 5 1 * *"
     },
     {
+      "path": "/api/cron/incentive-weekly-report",
+      "schedule": "30 5 * * 0"
+    },
+    {
       "path": "/api/cron/dcc-daily-report",
       "schedule": "30 16 * * *"
     },

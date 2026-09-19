@@ -12,6 +12,9 @@ import {
   type EmployeePayrollMonth,
 } from "@/lib/attendance/payroll-month";
 import {
+  attendanceScheduleForWeekday,
+  isAttendanceGraded,
+  isWorkingDay,
   resolveEffectiveConfig,
   toAttendanceSchedule,
   type EffectiveAttendanceConfig,
@@ -180,6 +183,17 @@ export interface ScheduleEmpColumns {
   attFullDayMinutes?: number | null;
   attHalfDayMinutes?: number | null;
   weeklyTargetMinutes?: number | null;
+  // Employee schedule settings (0228). Optional so a caller that has not been
+  // updated to select them still compiles — and resolves to the pre-0228
+  // behaviour, because an absent value falls back to the column default.
+  attendanceApplicable?: boolean | null;
+  sat1Working?: boolean | null;
+  sat2Working?: boolean | null;
+  sat3Working?: boolean | null;
+  sat4Working?: boolean | null;
+  sat5Working?: boolean | null;
+  satOfficialStart?: string | null;
+  satOfficialEnd?: string | null;
 }
 
 /**
@@ -223,6 +237,28 @@ export function employeeSchedule(
       attFullDayHours: defaults.fullDayMinutes / 60,
       attHalfDayHours: defaults.halfDayMinutes / 60,
     }),
+  );
+}
+
+/**
+ * `employeeSchedule` for a specific weekday (0228): Saturday's own clock when
+ * this employee has one, otherwise exactly `employeeSchedule`. Same org
+ * defaults, same resolver — the grader and the punch alerts both call this, so
+ * a Saturday email and the Saturday day code can never disagree.
+ */
+export function employeeScheduleForWeekday(
+  emp: ScheduleEmpColumns,
+  defaults: AttendanceSchedule,
+  dayOfWeek: number,
+): AttendanceSchedule {
+  return attendanceScheduleForWeekday(
+    resolveEffectiveConfig(emp, {
+      attLateAfter: defaults.lateAfter,
+      attEarlyBefore: defaults.earlyBefore,
+      attFullDayHours: defaults.fullDayMinutes / 60,
+      attHalfDayHours: defaults.halfDayMinutes / 60,
+    }),
+    dayOfWeek,
   );
 }
 
@@ -369,6 +405,11 @@ interface DayContextInputs {
   redeemed: Set<string>;
   /** Approved remote-work dates for this employee → mode. Display only. */
   remote: Map<string, RemoteWorkMode>;
+  /**
+   * Saturday's grading schedule, when this employee's Saturday has its own
+   * clock (0228). Omitted = grade Saturday against `sched`, as before.
+   */
+  saturdaySched?: AttendanceSchedule;
 }
 
 /** What an approved leave says about one date: the kind, and whether it covers
@@ -416,6 +457,18 @@ interface EmpSlice {
   attFullDayMinutes: number | null;
   attHalfDayMinutes: number | null;
   weeklyTargetMinutes: number | null;
+  // Employee schedule settings (0228): whether attendance is graded at all,
+  // which Saturdays are working days, and Saturday's own clock. Optional so a
+  // row that omits them grades exactly as before — every default is the
+  // pre-0228 behaviour.
+  attendanceApplicable?: boolean | null;
+  sat1Working?: boolean | null;
+  sat2Working?: boolean | null;
+  sat3Working?: boolean | null;
+  sat4Working?: boolean | null;
+  sat5Working?: boolean | null;
+  satOfficialStart?: string | null;
+  satOfficialEnd?: string | null;
 }
 
 /**
@@ -435,6 +488,11 @@ function gradeMonth(
   dayCtx: DayContextInputs,
 ): EmployeeMonthStatus {
   const tz = emp.timezone || "Asia/Kolkata";
+  // Resolved once for the month. Weekly off, the Saturday flags, applicability
+  // and the day length are all properties of the person, and none of them
+  // depend on org settings, so the org-less resolve is exact for all four.
+  const cfg = resolveEffectiveConfig(emp);
+  const attendanceGraded = isAttendanceGraded(cfg);
 
   const { first, last } = monthBounds(year, month);
   // The employee's local join day. Fall back to createdAt if joinedAt is null.
@@ -469,7 +527,17 @@ function gradeMonth(
       continue;
     }
 
-    const isWeeklyOff = wd === emp.weeklyOff;
+    // A day is OFF — graded W/O, credited a full day, owing no hours — when it
+    // is the weekly off, a Saturday this person's flags exclude (0228), or ANY
+    // day for someone whose attendance is not applicable (0228). That last case
+    // is what makes "not required to punch" true all the way down: no day owes
+    // hours, so the hours rule, the reconciliation and the payslip have no
+    // absence to find.
+    const isWeeklyOff = attendanceGraded
+      ? !isWorkingDay(cfg, wd, Number(ymd.slice(8, 10)))
+      : true;
+    // Saturday grades against its own clock when it has one.
+    const daySched = wd === 6 && dayCtx.saturdaySched ? dayCtx.saturdaySched : sched;
     const refNow = ymd === refTodayISO ? nowHHmm : "23:59";
 
     // ── Phase-B dayContext assembly ──────────────────────────────────────
@@ -494,14 +562,19 @@ function gradeMonth(
       // (and any later CO redemption) lives in comp_off_credits.
       graded = computeDayCode(
         { inAt: null, outAt: null },
-        sched,
+        daySched,
         { isWeeklyOff, isHoliday, leave, leaveHalf, compOffRedeemed: isRedeemed },
         refNow,
       );
     } else {
       graded = computeDayCode(
-        { inAt: folded.inAt, outAt: folded.outAt },
-        sched,
+        // Not applicable (0228): grade as though unpunched. Every such day is
+        // already off, and a real punch on an off day would otherwise grade
+        // HP — holiday pay at 2× — for simply turning up.
+        attendanceGraded
+          ? { inAt: folded.inAt, outAt: folded.outAt }
+          : { inAt: null, outAt: null },
+        daySched,
         {
           isWeeklyOff,
           isHoliday,
@@ -542,7 +615,7 @@ function gradeMonth(
   // than the 3 it would score against a full-timer's 9h. `resolveEffectiveConfig`
   // needs no org settings for this — the daily target comes from the employee's
   // own scheduled span or their worker-type default.
-  const dayMinutes = resolveEffectiveConfig(emp).dailyTargetMinutes;
+  const dayMinutes = cfg.dailyTargetMinutes;
   summary.payableDays = payableDaysByHours(
     days
       .filter((d) => d.code !== NOT_JOINED_CODE)
@@ -588,6 +661,17 @@ export async function getEmployeeMonthStatus(
         attFullDayMinutes: employees.attFullDayMinutes,
         attHalfDayMinutes: employees.attHalfDayMinutes,
         weeklyTargetMinutes: employees.weeklyTargetMinutes,
+        // 0228 — see EmpSlice. Selected here so every surface built on this
+        // function (My Salary, the self-view, the KPI bar, the alerts' deduction
+        // check) grades Saturdays and applicability the same way.
+        attendanceApplicable: employees.attendanceApplicable,
+        sat1Working: employees.sat1Working,
+        sat2Working: employees.sat2Working,
+        sat3Working: employees.sat3Working,
+        sat4Working: employees.sat4Working,
+        sat5Working: employees.sat5Working,
+        satOfficialStart: employees.satOfficialStart,
+        satOfficialEnd: employees.satOfficialEnd,
       })
       .from(employees)
       .where(eq(employees.id, employeeId))
@@ -634,6 +718,7 @@ export async function getEmployeeMonthStatus(
   const sched = employeeSchedule(emp, defaults);
   const byDay = foldPunches(rows, tz);
   return gradeMonth(emp, sched, byDay, year, month, refTodayISO, {
+    saturdaySched: employeeScheduleForWeekday(emp, defaults, 6),
     holidaySet,
     leaves,
     converted: compOff.convertedByEmp.get(employeeId) ?? new Set<string>(),
@@ -718,6 +803,15 @@ export async function getMonthDashboard(
         attFullDayMinutes: employees.attFullDayMinutes,
         attHalfDayMinutes: employees.attHalfDayMinutes,
         weeklyTargetMinutes: employees.weeklyTargetMinutes,
+        // 0228 — see EmpSlice.
+        attendanceApplicable: employees.attendanceApplicable,
+        sat1Working: employees.sat1Working,
+        sat2Working: employees.sat2Working,
+        sat3Working: employees.sat3Working,
+        sat4Working: employees.sat4Working,
+        sat5Working: employees.sat5Working,
+        satOfficialStart: employees.satOfficialStart,
+        satOfficialEnd: employees.satOfficialEnd,
         department: employees.department,
         managerId: employees.managerId,
       })
@@ -793,6 +887,7 @@ export async function getMonthDashboard(
     const sched = employeeSchedule(p, defaults);
     const byDay = foldPunches(rowsByEmp.get(p.id) ?? [], tz);
     const { summary, days } = gradeMonth(p, sched, byDay, year, month, refTodayISO, {
+      saturdaySched: employeeScheduleForWeekday(p, defaults, 6),
       holidaySet,
       leaves: leavesByEmp.get(p.id) ?? [],
       converted: compOff.convertedByEmp.get(p.id) ?? new Set<string>(),

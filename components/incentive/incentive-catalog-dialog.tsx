@@ -36,15 +36,18 @@ export function IncentiveCatalogDialog({
   rows,
   isAdmin,
   people = [],
+  defaultOpen = false,
 }: {
   rows: CatalogRow[];
   isAdmin: boolean;
   /** Everyone an incentive can be assigned to. Admins only — the roster
    *  has no business in a non-admin’s browser. */
   people?: EligibilityPerson[];
+  /** Opened from an Incentive Table notification (`/incentive?view=table`). */
+  defaultOpen?: boolean;
 }) {
   const router = useRouter();
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(defaultOpen);
   const [editing, setEditing] = React.useState<Draft | null>(null); // row being edited / new
   const [saving, setSaving] = React.useState(false);
 

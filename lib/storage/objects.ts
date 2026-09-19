@@ -158,3 +158,22 @@ export async function readDummyObject(
     return null;
   }
 }
+
+/**
+ * Read an object's bytes back, or null when there is none.
+ *
+ * The read twin of `putObject`/`createSignedObjectUrl`: dummy mode reads off
+ * disk, production downloads from Supabase Storage. Callers that only ever need
+ * to SERVE a stored file (never hand out a URL) use this — e.g. the Upload
+ * Master template download route.
+ */
+export async function getObject(
+  bucket: string,
+  path: string,
+): Promise<Buffer | null> {
+  if (DUMMY_MODE) return readDummyObject(bucket, path);
+  const { data, error } = await getSupabaseAdmin().storage.from(bucket).download(path);
+  if (error || !data) return null;
+  const buf = Buffer.from(await data.arrayBuffer());
+  return buf;
+}

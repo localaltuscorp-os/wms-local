@@ -84,6 +84,18 @@ export interface EmployeeConfigInput {
   attFullDayMinutes?: number | null;
   attHalfDayMinutes?: number | null;
   weeklyTargetMinutes?: number | null;
+  // ── Employee schedule settings (0228) ───────────────────────────────────
+  // All optional, and every absent value resolves to the behaviour that was in
+  // force before the columns existed, so a caller that has not been updated to
+  // select them grades exactly as it did before.
+  attendanceApplicable?: boolean | null;
+  sat1Working?: boolean | null;
+  sat2Working?: boolean | null;
+  sat3Working?: boolean | null;
+  sat4Working?: boolean | null;
+  sat5Working?: boolean | null;
+  satOfficialStart?: string | null;
+  satOfficialEnd?: string | null;
 }
 
 /** The org_settings columns this resolver reads. */
@@ -121,6 +133,29 @@ export interface EffectiveAttendanceConfig {
   waiverThresholdMinutes: number;
   /** True when day-code grading applies (false for project/session workers). */
   dayGraded: boolean;
+  /**
+   * FALSE = this person is not required to punch (0228).
+   *
+   * Read it as "there is no attendance expectation here", not as "they are
+   * absent but forgiven": a day with no punches is not graded absent and can
+   * therefore never reach a salary deduction. Callers check this FIRST, before
+   * any day-code or hours arithmetic — see `isAttendanceGraded`.
+   */
+  attendanceApplicable: boolean;
+  /**
+   * Which Saturdays of the month are working days, indexed 1–5.
+   * Index 0 is unused and always false so `satWorking[n]` reads naturally.
+   */
+  saturdayWorking: readonly boolean[];
+  /** Saturday's own schedule. Equal to officialStart/End unless overridden. */
+  saturdayStart: string;
+  saturdayEnd: string;
+  /**
+   * True when either Saturday column is set, i.e. Saturday has a clock of its
+   * own. When false, a Saturday grades against the weekday schedule exactly as
+   * it did before 0228 — same late-after, same cutoffs.
+   */
+  saturdayOverridden: boolean;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -214,13 +249,30 @@ export function resolveEffectiveConfig(
       : rawEarlyBefore;
 
   // ── Daily target ─────────────────────────────────────────────────────────
-  // The scheduled span (end − start) is the employee's real day when it is set;
-  // otherwise fall back to the worker-type default. This is what makes
-  // "10:00 → 14:30" a 4.5h part-time day without anyone typing 4.5 anywhere.
-  const scheduledSpan =
-    normClock(emp.attOfficialStart) && normClock(emp.attOfficialEnd)
-      ? clockToMinutes(officialEnd) - clockToMinutes(officialStart)
-      : null;
+  //
+  // ── A FULL-TIMER'S DAY IS CONTRACTUAL, NOT SCHEDULED (0228) ──────────────
+  // This used to be the scheduled span (end − start) whenever one was set. That
+  // one number feeds three things that are not the schedule at all:
+  //
+  //   · the hours-rule divisor — "9h worked = 1 day of attendance"
+  //     (payableDaysByHours / daysFromMinutes);
+  //   · the minutes a paid leave or comp-off is credited
+  //     (payableHoursForMonth);
+  //   · the full/half-day cutoffs, as 7.5/9 and 4.5/9 of it.
+  //
+  // So widening someone's timings silently re-priced their attendance. Parvez
+  // Khan, scheduled 07:30–19:30, had a 12h "day": a complete 54h week earned
+  // 54 ÷ 12 = 4.5 days, and a Full Day needed 10 hours on the clock. Nobody
+  // chose either number; they fell out of a start and an end time.
+  //
+  // The brief states the rule outright: employee timings only define the
+  // scheduled working period, and 54 h/week stays the governing full-time
+  // target. So the day is the worker type's contractual one (9h, i.e. 54 ÷ 6)
+  // and the timings keep driving what they are actually for — late-after and
+  // early-before, resolved above.
+  //
+  // The hourly shifts are unchanged: their day was already derived from their
+  // week just below, never from the window.
 
   // ── THE HOURLY SHIFTS ARE MEASURED BY THE WEEK, NOT BY THE WINDOW ────────
   // For part-time and afternoon/college shift the official start/end is the
@@ -244,11 +296,11 @@ export function resolveEffectiveConfig(
     ? (adminWeekly ?? defaultDailyMinutesFor(workerType) * WORKING_DAYS_PER_WEEK)
     : null; // resolved below from the day, for span-driven types
 
+  // Contractual for every type that is not an hourly shift (see the 0228 note
+  // above): never the scheduled span, so timings cannot re-price attendance.
   const dailyTargetMinutes = hourlyShift
     ? weeklyTargetMinutes! / WORKING_DAYS_PER_WEEK
-    : scheduledSpan != null && scheduledSpan > 0
-      ? scheduledSpan
-      : defaultDailyMinutesFor(workerType);
+    : defaultDailyMinutesFor(workerType);
 
   // ── Day-grade cutoffs ────────────────────────────────────────────────────
   let fullDayMinutes: number;
@@ -276,10 +328,57 @@ export function resolveEffectiveConfig(
   if (halfDayMinutes > fullDayMinutes) halfDayMinutes = fullDayMinutes;
 
   // ── Weekly target ────────────────────────────────────────────────────────
-  // Span-driven types get target × 6; the hourly shifts already resolved theirs
-  // above, week-first. NEVER a hardcoded 54, and never a hardcoded 27.
+  //
+  // ── THE 54-HOUR RULE GOVERNS, AND TIMINGS DO NOT MOVE IT (0228) ──────────
+  // This used to read `dailyTargetMinutes × 6` for every span-driven type,
+  // which quietly made the weekly requirement a FUNCTION OF THE SCHEDULE: an
+  // admin who set 07:30–19:30 turned a 54-hour week into a 72-hour one without
+  // touching anything labelled "target", and that number is the waiver
+  // threshold the salary deduction is computed against.
+  //
+  // It was not hypothetical — Parvez Khan is scheduled 07:30–19:30 and was
+  // being measured against 72h/week.
+  //
+  // The rule is the brief's: employee timings define WHEN the scheduled period
+  // is; the contractual week stays 9h × 6 = 54h for a full-timer. An admin who
+  // genuinely wants a different weekly requirement still sets
+  // `weeklyTargetMinutes` explicitly, which continues to win — that is the one
+  // field that means "this person's week is different".
+  //
+  // The hourly shifts are untouched: they already resolved week-first above,
+  // and their per-person target comes from `weeklyTargetMinutes` anyway.
+  //
+  // The DAY is contractual as well — see the 0228 note on `dailyTargetMinutes`
+  // above. It briefly stayed schedule-driven after the week was fixed, and that
+  // let a 12h timing make a complete 54h week earn only 4.5 days: the same rule
+  // overridden by timings, just through the hours-rule divisor instead.
+  //
+  // ── AND `adminWeekly` IS STILL IGNORED HERE, ON PURPOSE ──────────────────
+  // The obvious-looking `?? adminWeekly` belongs in neither branch. A stored
+  // `weekly_target_minutes` is the HOURLY shifts' field; when somebody moves
+  // from part-time to full-time the old 1800 stays in the column, and reading
+  // it here would silently measure the new full-timer against a 30-hour week.
+  // `tests/unit/attendance-worker-config.test.ts` guards exactly that ("a stale
+  // hourly-shift weekly target cannot leak into a full-timer") and it caught
+  // this when the clause was briefly added. A full-timer's week is 54h,
+  // full stop.
   const resolvedWeeklyMinutes =
-    weeklyTargetMinutes ?? dailyTargetMinutes * WORKING_DAYS_PER_WEEK;
+    weeklyTargetMinutes ?? defaultDailyMinutesFor(workerType) * WORKING_DAYS_PER_WEEK;
+
+  // ── Saturday (0228) ──────────────────────────────────────────────────────
+  // Null means "same as Mon–Fri", which is why adding these columns changed
+  // nothing for anybody. A one-sided override is honoured: setting only an end
+  // time shortens Saturday and leaves its start alone.
+  const saturdayStart = normClock(emp.satOfficialStart) ?? officialStart;
+  const rawSaturdayEnd = normClock(emp.satOfficialEnd) ?? officialEnd;
+  // Same defence the weekday pair gets: a Saturday that ends before it starts
+  // would produce a negative span in every consumer. The database CHECK refuses
+  // this, so reaching it means a row written before 0228 — fall back rather
+  // than propagate nonsense.
+  const saturdayEnd =
+    clockToMinutes(rawSaturdayEnd) > clockToMinutes(saturdayStart)
+      ? rawSaturdayEnd
+      : officialEnd;
 
   return {
     workerType,
@@ -296,7 +395,92 @@ export function resolveEffectiveConfig(
     // The waiver threshold IS the employee's own weekly requirement (spec §6).
     waiverThresholdMinutes: resolvedWeeklyMinutes,
     dayGraded,
+    // Absent (an un-updated caller) means applicable, which is the pre-0228
+    // behaviour for everyone.
+    attendanceApplicable: emp.attendanceApplicable ?? true,
+    saturdayWorking: [
+      false, // index 0 unused, so saturdayWorking[ordinal] reads directly
+      emp.sat1Working ?? true,
+      emp.sat2Working ?? true,
+      emp.sat3Working ?? true,
+      emp.sat4Working ?? true,
+      emp.sat5Working ?? true,
+    ],
+    saturdayStart,
+    saturdayEnd,
+    saturdayOverridden:
+      normClock(emp.satOfficialStart) != null || normClock(emp.satOfficialEnd) != null,
   };
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Schedule questions about a SPECIFIC DATE (0228)
+
+   Pure and date-only — they take the calendar fields rather than a Date, for
+   the same reason the rest of this file is pure: the grader, the salary engine
+   and the reports must all get the same answer, and a timezone is the classic
+   way for two callers to disagree about which day it is.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Which Saturday of its month a date is: 1–5, or 0 when it is not a Saturday.
+ *
+ * "1st Saturday" is the first Saturday BY DATE in that calendar month — the
+ * ordinary reading, and the one an employee means when they say they work
+ * alternate Saturdays. Day 1–7 is the 1st, 8–14 the 2nd, and so on, which is
+ * exact because Saturdays are 7 days apart.
+ *
+ * A 5th Saturday exists only in months whose Saturdays fall on the 29th, 30th
+ * or 31st — roughly four or five months a year — which is why it is a separate
+ * flag rather than folded into the 1st.
+ */
+export function saturdayOrdinal(dayOfWeek: number, dayOfMonth: number): number {
+  if (dayOfWeek !== 6) return 0;
+  return Math.floor((dayOfMonth - 1) / 7) + 1;
+}
+
+/**
+ * Is this date a scheduled working day for this employee?
+ *
+ * Three ways it is not: their weekly off, a Saturday their flags exclude, or
+ * attendance not applying to them at all. Holidays are NOT decided here — they
+ * are org-level and already resolved by the events calendar upstream.
+ */
+export function isWorkingDay(
+  cfg: EffectiveAttendanceConfig,
+  dayOfWeek: number,
+  dayOfMonth: number,
+): boolean {
+  if (!cfg.attendanceApplicable) return false;
+  if (dayOfWeek === cfg.weeklyOff) return false;
+  const ordinal = saturdayOrdinal(dayOfWeek, dayOfMonth);
+  if (ordinal > 0) return cfg.saturdayWorking[ordinal] ?? true;
+  return true;
+}
+
+/**
+ * The scheduled start and end for a given weekday — Saturday's own pair when it
+ * is a Saturday, the Mon–Fri pair otherwise.
+ */
+export function scheduleForDay(
+  cfg: EffectiveAttendanceConfig,
+  dayOfWeek: number,
+): { start: string; end: string } {
+  return dayOfWeek === 6
+    ? { start: cfg.saturdayStart, end: cfg.saturdayEnd }
+    : { start: cfg.officialStart, end: cfg.officialEnd };
+}
+
+/**
+ * Should this employee's attendance be graded at all?
+ *
+ * The single question every consumer should ask before computing a day code, an
+ * absence or a deduction. It exists as a named function rather than a bare
+ * `cfg.attendanceApplicable` read so that the intent is greppable and so the
+ * rule has one place to change.
+ */
+export function isAttendanceGraded(cfg: EffectiveAttendanceConfig): boolean {
+  return cfg.attendanceApplicable;
 }
 
 /** Adapter: the legacy `AttendanceSchedule` shape the grader already takes. */
@@ -312,4 +496,63 @@ export function toAttendanceSchedule(cfg: EffectiveAttendanceConfig): {
     fullDayMinutes: cfg.fullDayMinutes,
     halfDayMinutes: cfg.halfDayMinutes,
   };
+}
+
+/**
+ * The grading schedule for one WEEKDAY (0228): Saturday's own clock when it has
+ * one, the ordinary schedule otherwise.
+ *
+ * Returns `toAttendanceSchedule(cfg)` UNCHANGED unless the day is a Saturday
+ * and `saturdayOverridden` is set, so nobody without a Saturday override grades
+ * any differently than they did before.
+ *
+ * On an overridden Saturday:
+ *
+ *   · late-after   — Saturday's start plus the flat grace, when Saturday starts
+ *                    at a different time; otherwise the weekday late-after.
+ *   · early-before — Saturday's end, when it ends at a different time; never
+ *                    later than that end either way, for the same reason the
+ *                    weekday clamp exists: leaving on time is not leaving early.
+ *   · cutoffs      — scaled to Saturday's span, never above the weekday ones.
+ *                    A 10:30–16:00 Saturday is 5.5h scheduled, and holding it to
+ *                    a 7.5h Full Day would code every complete Saturday a half
+ *                    day. This moves the DAY CODE only: pay on ordinary days is
+ *                    the week's pooled hours against 54h (hours-rule.ts), which
+ *                    this does not touch.
+ *
+ * The hourly shifts keep their own cutoffs — their shift already is their day.
+ */
+export function attendanceScheduleForWeekday(
+  cfg: EffectiveAttendanceConfig,
+  dayOfWeek: number,
+): { lateAfter: string; earlyBefore: string; fullDayMinutes: number; halfDayMinutes: number } {
+  const base = toAttendanceSchedule(cfg);
+  if (dayOfWeek !== 6 || !cfg.saturdayOverridden) return base;
+
+  const lateAfter =
+    cfg.saturdayStart !== cfg.officialStart
+      ? minutesToClock(clockToMinutes(cfg.saturdayStart) + LATE_GRACE_MINUTES)
+      : base.lateAfter;
+
+  const earlyBefore =
+    cfg.saturdayEnd !== cfg.officialEnd ||
+    clockToMinutes(base.earlyBefore) > clockToMinutes(cfg.saturdayEnd)
+      ? cfg.saturdayEnd
+      : base.earlyBefore;
+
+  const span = clockToMinutes(cfg.saturdayEnd) - clockToMinutes(cfg.saturdayStart);
+  // A span that is not positive can only come from a row the resolver already
+  // had to repair (see `saturdayEnd` there). Scaling cutoffs off it would make
+  // them zero or negative, so keep the weekday cutoffs and move only the clock.
+  if (isHourlyShift(cfg.workerType) || span <= 0) {
+    return { ...base, lateAfter, earlyBefore };
+  }
+
+  const fullDayMinutes = Math.min(base.fullDayMinutes, Math.round(span * FULL_DAY_RATIO));
+  const halfDayMinutes = Math.min(
+    base.halfDayMinutes,
+    fullDayMinutes,
+    Math.round(span * HALF_DAY_RATIO),
+  );
+  return { lateAfter, earlyBefore, fullDayMinutes, halfDayMinutes };
 }

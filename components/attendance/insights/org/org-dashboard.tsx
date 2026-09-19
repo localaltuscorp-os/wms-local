@@ -110,7 +110,7 @@ export function OrgDashboard({
           </div>
           <HBars bars={hoursBars} unit="ppl" />
         </ChartCard>
-        <ChartCard title="Department Breakdown" subtitle="Attendance, punctuality & hours per department" icon={<Building2 size={18} strokeWidth={2.2} />}>
+        <ChartCard title="Function Breakdown" subtitle="Attendance, punctuality & hours per Function" icon={<Building2 size={18} strokeWidth={2.2} />}>
           <DepartmentTable departments={data.departments} />
         </ChartCard>
       </div>

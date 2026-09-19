@@ -82,6 +82,15 @@ export const DEV_BYPASS_EMPLOYEE: Employee = {
   managerId: null,
   dailyTaskQuota: 3,
   designationId: null,
+  // Employee Master (0225). The synthetic employee fills EVERY column on
+  // purpose — see this object's own header — so downstream code that reads a
+  // new field gets a plausible value rather than crashing on undefined.
+  worksOutsideOffice: null,
+  employeeCode: null,
+  functionId: null,
+  shiftTypeId: null,
+  isTeamLead: false,
+  trainPass: false,
   payingEntityId: null,
   mentionEscalation: true,
   googleRefreshToken: null,
@@ -96,6 +105,20 @@ export const DEV_BYPASS_EMPLOYEE: Employee = {
   attFullDayMinutes: null,
   attHalfDayMinutes: null,
   weeklyTargetMinutes: null,
+  // Employee schedule settings (0228). Filled with the column defaults, not
+  // `undefined` — this object's whole contract is that every column is present
+  // with a plausible value, so downstream code reading a new field gets the
+  // same answer a real employee row would.
+  attendanceApplicable: true,
+  sat1Working: true,
+  sat2Working: true,
+  sat3Working: true,
+  sat4Working: true,
+  sat5Working: true,
+  satOfficialStart: null,
+  satOfficialEnd: null,
+  wfhFullTimeAllowed: false,
+  wfhPartTimeAllowed: false,
   probationEnd: null,
   religion: null,
   // Added when this merged onto main beside Shreya's and Vinal's schema

@@ -511,23 +511,71 @@ export const INCENTIVE_TYPES = [
   "sales_pitch",
   "client_happiness",
   "group_intro",
+  "leads_referrals",
 ] as const;
 export type IncentiveType = (typeof INCENTIVE_TYPES)[number];
 
+/**
+ * `bss_conversion` READS "Conversion" — the product is now its own field on
+ * that form (lib/incentive-fields.ts), so the type no longer names one. The
+ * stored key is unchanged: existing rows carry it, and `incentiveLabel` maps it
+ * to the catalog's "BSS Convert …" scheme names.
+ */
 export const INCENTIVE_TYPE_LABELS: Record<IncentiveType, string> = {
-  bss_conversion:   "BSS Conversion",
+  bss_conversion:   "Conversion",
   sales_pitch:      "Sales Pitch",
   client_happiness: "Client Happiness",
   group_intro:      "Group Introduction",
+  leads_referrals:  "Leads / Referrals",
 };
 
-export const INCENTIVE_STATUSES = ["pending", "approved", "rejected"] as const;
+/**
+ * How long an Incentive Master scheme runs (migration 0232).
+ *
+ * `permanent` — part of the standing scheme; runs until switched off.
+ * `one_time`  — a single campaign or drive.
+ *
+ * Deliberately separate from `valid_until` and from `active`: the duration is
+ * the INTENT, the date is when it stops applying, and `active` is whether it is
+ * on offer right now. A one-time incentive with no end date is a real thing (a
+ * drive that runs until it is switched off), and so is a permanent scheme with
+ * a review date.
+ */
+export const INCENTIVE_DURATIONS = ["permanent", "one_time"] as const;
+export type IncentiveDuration = (typeof INCENTIVE_DURATIONS)[number];
+
+export const INCENTIVE_DURATION_LABELS: Record<IncentiveDuration, string> = {
+  permanent: "Permanent",
+  one_time:  "One-Time",
+};
+
+/**
+ * Incentive request states (migration 0230 — the approval workflow).
+ *
+ * `rejected` is the stored value for NOT APPROVED. It was not renamed: it
+ * already meant that, existing rows and readers use it, and the brief's wording
+ * is a label, which lives below. Which state may follow which, and who may move
+ * a request between them, is in lib/incentive/workflow.ts.
+ */
+export const INCENTIVE_STATUSES = [
+  "pending",
+  "approved",
+  "rejected",
+  "due",
+  "not_due",
+  "reversed",
+  "revision_requested",
+] as const;
 export type IncentiveStatus = (typeof INCENTIVE_STATUSES)[number];
 
 export const INCENTIVE_STATUS_LABELS: Record<IncentiveStatus, string> = {
-  pending:  "Pending",
-  approved: "Approved",
-  rejected: "Rejected",
+  pending:            "Pending Approval",
+  approved:           "Approved",
+  rejected:           "Not Approved",
+  due:                "Due",
+  not_due:            "Not Due",
+  reversed:           "Reversed",
+  revision_requested: "Revision Requested",
 };
 
 export const OUTSTANDING_STATUSES = [

@@ -30,7 +30,7 @@ interface FieldDef {
 const FIELDS: Record<AgreementType, FieldDef[]> = {
   appointment: [
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
-    { key: "department", label: "Department", kind: "text", placeholder: "e.g. Operations" },
+    { key: "department", label: "Function", kind: "text", placeholder: "e.g. Operations" },
     { key: "joiningDate", label: "Joining date", kind: "date" },
     { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. ₹6,00,000" },
     { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: ₹3,00,000\nHRA: ₹1,20,000\nSpecial allowance: ₹1,80,000" },
@@ -42,7 +42,7 @@ const FIELDS: Record<AgreementType, FieldDef[]> = {
   ],
   employment: [
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
-    { key: "department", label: "Department", kind: "text", placeholder: "e.g. Operations" },
+    { key: "department", label: "Function", kind: "text", placeholder: "e.g. Operations" },
     { key: "joiningDate", label: "Effective date", kind: "date" },
     { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. ₹6,00,000" },
     { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: ₹3,00,000\nHRA: ₹1,20,000" },
@@ -63,7 +63,7 @@ const FIELDS: Record<AgreementType, FieldDef[]> = {
   ],
   probation_confirmation: [
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
-    { key: "department", label: "Department", kind: "text", placeholder: "e.g. Operations" },
+    { key: "department", label: "Function", kind: "text", placeholder: "e.g. Operations" },
     { key: "probationEndDate", label: "Probation ended on", kind: "date" },
     { key: "effectiveDate", label: "Confirmed with effect from", kind: "date" },
     { key: "noticePeriod", label: "Notice period", kind: "text", placeholder: "e.g. 30 days" },

@@ -33,7 +33,7 @@ function cell(value: unknown): string {
 const HEADERS = [
   "Name",
   "Email",
-  "Department",
+  "Function",
   "Role",
   "Date of joining",
   "Resignation date",

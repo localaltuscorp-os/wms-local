@@ -36,6 +36,9 @@ import { AttendanceLateWaivedEmail } from "@/emails/notifications/attendance-lat
 import { AttendanceHalfDayEmail } from "@/emails/notifications/attendance-half-day";
 import { AttendanceLateDeductionEmail } from "@/emails/notifications/attendance-late-deduction";
 import { IncentiveDecisionEmail } from "@/emails/notifications/IncentiveDecision";
+import { IncentiveNoticeEmail } from "@/emails/notifications/IncentiveNotice";
+import { incentiveEmailContent } from "@/lib/incentive/notifications/content";
+import { isIncentiveNotificationKind, parseIncentiveMeta } from "@/lib/incentive/notifications/kinds";
 import {
   HrTicketNoticeEmail,
   ticketThreadUrl,
@@ -44,6 +47,11 @@ import {
   IncentiveMonthlyDigestEmail,
   type IncentiveDigestEntry,
 } from "@/emails/notifications/IncentiveMonthlyDigest";
+import { IncentiveWeeklyReportCardEmail } from "@/emails/notifications/IncentiveWeeklyReportCard";
+import {
+  rankMovementLabel,
+  type WeeklyReportCard,
+} from "@/lib/incentive/analytics/weekly-report";
 import type {
   NotificationMeta,
   OverdueDigestTask,
@@ -414,13 +422,18 @@ export async function sendNotificationEmail(
 
   if (!template) return;
 
-  await resend.emails.send({
+  // The Resend SDK reports API failures (rejected address, rate limit, bad key)
+  // as `{ error }` rather than throwing. Throw it, so the dispatcher records the
+  // email arm as FAILED — logged in notification_dispatch_log and picked up by
+  // the retry cron — instead of as sent.
+  const { error } = await resend.emails.send({
     from: FROM,
     to: recipient.email,
     subject: clampSubject(n.title),
     react: template,
     ...companyBcc(),
   });
+  if (error) throw new Error(`Resend: ${error.message}`);
 }
 
 /**
@@ -682,6 +695,43 @@ export async function sendIncentiveMonthlyDigestEmail(args: {
   }
 }
 
+/** Weekly Sunday report card — a recipient's per-period incentive figures. */
+export async function sendIncentiveWeeklyReportEmail(args: {
+  recipient: { email: string; name: string };
+  weekLabel: string;
+  card: WeeklyReportCard;
+  siteUrl: string | undefined;
+}): Promise<EmailSendResult> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: null };
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: args.recipient.email,
+      subject: clampSubject(`Your weekly incentive report card — ${args.weekLabel}`),
+      react: IncentiveWeeklyReportCardEmail({
+        recipientName: args.recipient.name,
+        weekLabel: args.weekLabel,
+        grade: args.card.grade,
+        pctOfCtc: args.card.pctOfCtc,
+        periods: args.card.periods.map((p) => ({ label: p.label, earned: p.earned })),
+        target: args.card.target,
+        actual: args.card.actual,
+        difference: args.card.difference,
+        rank: args.card.rank,
+        previousRank: args.card.previousRank,
+        movementLabel: rankMovementLabel(args.card.movement),
+        siteUrl: args.siteUrl ?? "",
+      }),
+      ...companyBcc(),
+    });
+    if (error) return { id: null, error: error.message };
+    return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Enterprise Communications (ECOS, mig 0179) — broadcast email         */
 /* ------------------------------------------------------------------ */
@@ -815,6 +865,17 @@ function attendanceDateLabel(ymd: string | undefined): string {
 }
 
 function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
+  // Incentive notifications (mig 0231) — every kind renders the one shared
+  // IncentiveNoticeEmail from the meta stored on the row, so a retry renders
+  // exactly what the first attempt did. Kinds without an email (Not Due) and
+  // malformed meta render nothing; the in-app row still stands.
+  if (isIncentiveNotificationKind(ctx.notification.kind)) {
+    const content = incentiveEmailContent(ctx.notification.kind, parseIncentiveMeta(ctx.notification.body));
+    return content
+      ? IncentiveNoticeEmail({ ...content, recipientName: ctx.recipient.name, siteUrl: ctx.siteUrl })
+      : null;
+  }
+
   const meta = parseMeta(ctx.notification.body);
   const actor = ctx.actorName ?? "Someone";
   const subject = ctx.taskSubject ?? "your task";
