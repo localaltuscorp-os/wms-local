@@ -88,6 +88,12 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "25mb",
     },
+    // THE VERCEL BUILD RAN OUT OF MEMORY (19 Sep). On the 2-core / 8 GB build
+    // machine the webpack compile stalled after "Compiled with warnings" and
+    // was killed at Vercel's 45-minute limit, twice, on code that had built
+    // in 7 minutes an hour earlier. Trades a little build speed for a lower
+    // peak heap. Paired with the heap size in package.json's build script.
+    webpackMemoryOptimizations: true,
   },
   /**
    * TYPED ROUTES ARE OFF — the app outgrew them.
