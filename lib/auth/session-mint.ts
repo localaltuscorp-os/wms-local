@@ -117,7 +117,24 @@ export async function mintSessionForIdToken(
     } else {
       const existing = readCookie(req, TWO_STEP_PASS_COOKIE);
       if (!(await isValidTwoStepPass(existing, decoded.uid))) {
-        const issued = await issueTwoStepChallenge(emp, requestMeta(req));
+        // FAIL CLOSED, BUT SAY SO. If the code cannot be created (database
+        // down, migration 0242 not applied) nobody gets in without it — that is
+        // the point of a second step — but the person is told it is our fault,
+        // not handed a bare 500 their form renders as "wrong password".
+        // TWO_STEP_VERIFICATION=off is the way round it in an emergency.
+        let issued: Awaited<ReturnType<typeof issueTwoStepChallenge>>;
+        try {
+          issued = await issueTwoStepChallenge(emp, requestMeta(req));
+        } catch (err) {
+          console.error("[two-step] could not create a sign-in code", err);
+          return NextResponse.json(
+            {
+              error: "two-step-unavailable",
+              message: "Sign-in codes aren't working right now. Try again in a few minutes, or contact your admin.",
+            },
+            { status: 503 },
+          );
+        }
         if (!issued.ok) {
           return NextResponse.json(
             { error: issued.error, message: issued.message },

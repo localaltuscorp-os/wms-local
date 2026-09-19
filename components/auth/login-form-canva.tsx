@@ -118,7 +118,15 @@ export function LoginFormCanva() {
           // The server writes these sentences — the attempts-left countdown, the
           // locked message naming who can unlock, the device refusal — so the
           // wording lives in one place (lib/auth/lockout-copy.ts).
-          setError(payload.message ?? "Email or password didn't match. Try again.");
+          // Only a credential refusal may say "didn't match". A server fault with
+          // no message of its own must not read as a wrong password — on
+          // 19 Sep a missing table made a correct password look wrong.
+          setError(
+            payload.message ??
+              (payload.error === "bad-credentials"
+                ? "Email or password didn't match. Try again."
+                : "Sign-in is having trouble right now. Try again in a minute."),
+          );
           return;
         }
 
