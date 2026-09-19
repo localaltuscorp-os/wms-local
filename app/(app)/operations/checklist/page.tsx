@@ -15,6 +15,10 @@ import {
   demoRunItems,
 } from "@/lib/demo/ops-checklist-demo";
 import { formatDMY } from "@/lib/operations/checklist-dates";
+import { canAddTaskRoster } from "@/lib/auth/roster-permission";
+import { listActiveClientNames } from "@/lib/queries/clients";
+import { listActiveSubjectNames } from "@/lib/queries/subjects";
+import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 import {
   getChecklistRun,
   isMissingChecklistTable,
@@ -77,6 +81,17 @@ export default async function OperationsChecklistPage({
     : null;
   const items = openRun ? (demo ? demoRunItems(openRun.id) : await listRunItems(openRun.id)) : [];
 
+  /* The WMS Tasks rosters (Admin Panel → Clients / Subjects) for the Client and
+     Subject pickers, and the viewer's reports for who may rule on a row. Only
+     an open checklist needs them. */
+  const [clients, subjects, managedIds] = openRun
+    ? await Promise.all([
+        listActiveClientNames().catch(() => [] as string[]),
+        listActiveSubjectNames().catch(() => [] as string[]),
+        getDownlineIds(me.id).catch(() => [] as string[]),
+      ])
+    : [[], [], []];
+
   return (
     <PageShell>
       {demo && <DemoBanner migration="0221" what="Event Checklist" />}
@@ -109,7 +124,16 @@ export default async function OperationsChecklistPage({
             </Link>
             <h2 className="text-[17px] font-bold text-slate-900">{openRun.title}</h2>
           </div>
-          <ChecklistGrid run={openRun} items={items} people={people} canEdit={canEdit} />
+          <ChecklistGrid
+            run={openRun}
+            items={items}
+            people={people}
+            canEdit={canEdit}
+            me={{ id: me.id, isAdmin: canEdit, managedIds }}
+            clients={clients}
+            subjects={subjects}
+            canAddRoster={canAddTaskRoster(me)}
+          />
         </div>
       ) : (
         <div className="flex flex-col gap-6">

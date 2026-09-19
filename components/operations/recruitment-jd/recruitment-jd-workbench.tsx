@@ -3,7 +3,9 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  Briefcase,
   Check,
+  ChevronDown,
   Copy,
   History,
   Lock,
@@ -14,9 +16,11 @@ import {
   RotateCcw,
   Search,
   TriangleAlert,
+  UserPlus,
   X,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
+import { MastersHeader } from "@/components/operations/masters/masters-header";
 import {
   JD_FIELDS,
   WHATSAPP_SOFT_LIMIT,
@@ -40,8 +44,8 @@ import {
 } from "@/app/(app)/operations/masters/recruitment-jd/actions";
 
 /**
- * RECRUITMENT JDs — roles on the left; the selected role's Recruiter JD, Master
- * JD, Send and History on the right.
+ * RECRUITMENT JDs — the page heading with the role dropdown beside it, and the
+ * selected role's Recruiter JD, Master JD, Send and History below.
  *
  * `canEdit` (HR staff, resolved by the page) decides what is DRAWN, never what
  * is allowed: every action re-checks for itself in actions.ts. Without it the
@@ -81,104 +85,37 @@ export function RecruitmentJdWorkbench({
   /** HR staff. False = read the JDs, change and send nothing. */
   canEdit?: boolean;
 }) {
-  const router = useRouter();
-  const [query, setQuery] = React.useState("");
   const [selectedId, setSelectedId] = React.useState<string>(rows[0]?.slug ?? "");
   const [tab, setTab] = React.useState<Tab>("recruiter");
-  const [adding, setAdding] = React.useState(false);
-  const [newTitle, setNewTitle] = React.useState("");
-  const [pending, start] = React.useTransition();
 
-  const shown = rows.filter((r) => r.title.toLowerCase().includes(query.trim().toLowerCase()));
   const selected = rows.find((r) => r.slug === selectedId) ?? rows[0] ?? null;
   const sendsFor = selected ? sends.filter((s) => s.positionLabel === selected.title) : [];
 
-  function addRole() {
-    const label = newTitle.trim();
-    if (!label) return;
-    start(async () => {
-      const res = await addRecruitmentJdRole({ title: label });
-      if (!res.ok) {
-        fireToast({ message: res.error, type: "error" });
-        return;
-      }
-      fireToast({ message: `${label} added.`, type: "success" });
-      setNewTitle("");
-      setAdding(false);
-      router.refresh();
-    });
-  }
-
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-[13.5px] text-ink-muted">
-        The job descriptions recruiters send candidates — one per role we hire for. Each has an original <b>Master</b> and a{" "}
-        <b>Recruiter</b> copy that can be edited freely. Separate from the internal{" "}
-        <b>Master JD</b> and <b>Person-specific JD</b>, which describe a seat someone already holds.
-      </p>
+    <>
+      <MastersHeader
+        Icon={UserPlus}
+        topic="Job Description"
+        title="JD-For Recruitment"
+        actions={
+          <RolePicker rows={rows} selectedSlug={selected?.slug ?? ""} onChange={setSelectedId} canEdit={canEdit} />
+        }
+      />
 
-      {!canEdit && (
-        <p className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] font-semibold" style={{ background: "#F1F5F9", color: "#334155", boxShadow: "inset 0 0 0 1px #CBD5E1" }}>
-          <Lock size={15} className="shrink-0" /> Read-only — HR writes these JDs and sends them. Everything here is yours to read and copy.
-        </p>
-      )}
-
-      {missing && (
-        <p className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] font-semibold" style={{ background: "#FFFBEB", color: "#92400E", boxShadow: "inset 0 0 0 1px #FCD34D" }}>
-          <TriangleAlert size={16} className="shrink-0" /> Saving and sending need migration 0236_recruitment_jd_roles.sql applied to the database first.
-        </p>
-      )}
-
-      <div className="grid grid-cols-[300px_1fr] gap-4 max-lg:grid-cols-1">
-        {/* ── Positions ── */}
-        <aside className={`${CARD} flex flex-col p-3`}>
-          <label className="relative mb-2 block">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search roles" className={`${INPUT} pl-9`} aria-label="Search roles" />
-          </label>
-          <ul className="flex max-h-[60vh] flex-col gap-1 overflow-y-auto max-lg:max-h-[240px]">
-            {shown.map((r) => {
-              const on = r.slug === selected?.slug;
-              const st = statusOf(r);
-              return (
-                <li key={r.slug}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(r.slug)}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left transition-colors hover:bg-black/[0.03]"
-                    style={on ? { background: `color-mix(in srgb, ${ACCENT} 8%, transparent)`, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${ACCENT} 30%, transparent)` } : undefined}
-                    aria-current={on ? "true" : undefined}
-                  >
-                    <span className="min-w-0 flex-1 truncate text-[14px] font-bold text-ink-strong">{r.title}</span>
-                    <span className="size-2 shrink-0 rounded-full" style={{ background: st.tone }} title={st.label} />
-                  </button>
-                </li>
-              );
-            })}
-            {shown.length === 0 && <li className="px-3 py-4 text-center text-[13px] text-ink-subtle">No role matches.</li>}
-          </ul>
-
-          {!canEdit ? null : adding ? (
-            <div className="mt-2 flex gap-1.5">
-              <input autoFocus value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addRole()} placeholder="New role" className={INPUT} aria-label="New role" />
-              <button type="button" onClick={addRole} disabled={pending || !newTitle.trim()} className="rounded-xl px-3 text-white disabled:opacity-50" style={{ background: ACCENT }} aria-label="Add role">
-                <Check size={16} />
-              </button>
-              <button type="button" onClick={() => setAdding(false)} className="rounded-xl px-2 text-ink-subtle hover:bg-black/5" aria-label="Cancel">
-                <X size={16} />
-              </button>
-            </div>
-          ) : (
-            <button type="button" onClick={() => setAdding(true)} className="mt-2 inline-flex items-center gap-1.5 self-start rounded-lg px-2 py-1.5 text-[13px] font-bold" style={{ color: ACCENT }}>
-              <Plus size={14} strokeWidth={2.6} /> Add role
-            </button>
-          )}
-          <p className="mt-2 px-1 text-[11.5px] text-ink-subtle">
-            Roles are this section&apos;s own list — the JDs Rutvisha wrote{canEdit ? ", plus anything you add here" : ""}.
+      <div className="flex flex-col gap-4">
+        {!canEdit && (
+          <p className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] font-semibold" style={{ background: "#F1F5F9", color: "#334155", boxShadow: "inset 0 0 0 1px #CBD5E1" }}>
+            <Lock size={15} className="shrink-0" /> Read-only — HR writes these JDs and sends them. Everything here is yours to read and copy.
           </p>
-        </aside>
+        )}
 
-        {/* ── The selected position ── */}
+        {missing && (
+          <p className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] font-semibold" style={{ background: "#FFFBEB", color: "#92400E", boxShadow: "inset 0 0 0 1px #FCD34D" }}>
+            <TriangleAlert size={16} className="shrink-0" /> Saving and sending need migration 0236_recruitment_jd_roles.sql applied to the database first.
+          </p>
+        )}
+
+        {/* ── The selected role ── */}
         {selected ? (
           <section className={`${CARD} min-w-0 p-5 max-md:p-4`} key={selected.slug}>
             <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -217,9 +154,291 @@ export function RecruitmentJdWorkbench({
             {tab === "history" && <HistoryTab sends={sendsFor} />}
           </section>
         ) : (
-          <section className={`${CARD} p-10 text-center text-[14px] text-ink-subtle`}>Add a role to start.</section>
+          <section className={`${CARD} p-10 text-center text-[14px] text-ink-subtle`}>
+            {canEdit ? "No roles yet — add one from the dropdown above." : "No roles yet."}
+          </section>
         )}
       </div>
+    </>
+  );
+}
+
+/* ── Role picker ────────────────────────────────────────────────────────── */
+
+/**
+ * WHICH ROLE — the role list as a dropdown beside the page heading (account
+ * holder, 2026-09-18). It was a 300px column down the left of the page; like
+ * the person picker on JD-Specific Person, it is touched once and then ignored,
+ * and it was taking that width away from the JD itself.
+ *
+ * Built by hand for the same reason as JdPersonPicker — a native <select>
+ * cannot carry the search box, the status under each role, or Add role — and
+ * with the same keyboard:
+ *   ↑ ↓        move the highlight, scrolling it into view
+ *   Enter      choose the highlighted role
+ *   Escape     close and hand focus back to the button
+ *   click-away close
+ * Add role sits in the footer, drawn for HR staff only; the action re-checks.
+ */
+function RolePicker({
+  rows,
+  selectedSlug,
+  onChange,
+  canEdit,
+}: {
+  rows: RecruitmentJdRow[];
+  selectedSlug: string;
+  onChange: (slug: string) => void;
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const [active, setActive] = React.useState(0);
+  const [adding, setAdding] = React.useState(false);
+  const [newTitle, setNewTitle] = React.useState("");
+  const [pending, start] = React.useTransition();
+
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  const listRef = React.useRef<HTMLUListElement>(null);
+
+  const selected = rows.find((r) => r.slug === selectedSlug) ?? null;
+  const list = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? rows.filter((r) => r.title.toLowerCase().includes(q)) : rows;
+  }, [rows, query]);
+
+  // Derived, not corrected by an effect — see JdPersonPicker.
+  const activeIdx = list.length === 0 ? -1 : Math.min(active, list.length - 1);
+
+  const close = React.useCallback(() => {
+    setOpen(false);
+    setQuery("");
+    setAdding(false);
+    setNewTitle("");
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) close();
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open, close]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const t = window.setTimeout(() => searchRef.current?.focus(), 0);
+    return () => window.clearTimeout(t);
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    listRef.current
+      ?.querySelector<HTMLElement>(`[data-idx="${activeIdx}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [activeIdx, open]);
+
+  function openNow() {
+    const at = list.findIndex((r) => r.slug === selectedSlug);
+    setActive(at >= 0 ? at : 0);
+    setOpen(true);
+  }
+
+  function choose(slug: string) {
+    onChange(slug);
+    close();
+    buttonRef.current?.focus();
+  }
+
+  function onSearchKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (list.length === 0) return;
+      const from = activeIdx < 0 ? 0 : activeIdx;
+      setActive(e.key === "ArrowDown" ? (from + 1) % list.length : (from - 1 + list.length) % list.length);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const r = activeIdx >= 0 ? list[activeIdx] : undefined;
+      if (r) choose(r.slug);
+    }
+  }
+
+  function addRole() {
+    const label = newTitle.trim();
+    if (!label) return;
+    start(async () => {
+      const res = await addRecruitmentJdRole({ title: label });
+      if (!res.ok) {
+        fireToast({ message: res.error, type: "error" });
+        return;
+      }
+      fireToast({ message: `${label} added.`, type: "success" });
+      // Open the new role: it lands in `rows` once the refresh arrives.
+      onChange(res.slug);
+      close();
+      router.refresh();
+    });
+  }
+
+
+  return (
+    <div ref={rootRef} className="relative max-w-full">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => (open ? close() : openNow())}
+        onKeyDown={(e) => {
+          // Arrowing from the closed trigger opens it, as a select does.
+          if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            openNow();
+          }
+        }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls="rjd-role-listbox"
+        aria-label={selected ? `Showing ${selected.title}. Change role` : "Choose a role"}
+        className="inline-flex w-[340px] max-w-full items-center gap-2.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-left shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+      >
+        {/* The same trigger as JD-Specific Person's picker — circle, SHOWING,
+            name, chevron — so the two JD pages read as one family. */}
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600">
+          <Briefcase className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Showing</span>
+          <span className="block truncate text-[14px] font-bold text-slate-900">
+            {selected ? selected.title : rows.length > 0 ? "Choose a role" : "No roles yet"}
+          </span>
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              close();
+              buttonRef.current?.focus();
+            }
+          }}
+          className="absolute right-0 z-50 mt-1.5 w-[380px] max-w-[calc(100vw-32px)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+        >
+          <div className="border-b border-slate-100 p-2.5">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={onSearchKeyDown}
+                placeholder={`Search ${rows.length} roles`}
+                aria-label="Search roles"
+                aria-controls="rjd-role-listbox"
+                className="w-full rounded-lg border border-slate-300 py-2 pl-8 pr-3 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
+              />
+            </div>
+          </div>
+
+          {/* max-h in rem, not vh, so the popover cannot outgrow a laptop screen
+              and lose its Add role footer. */}
+          <ul
+            ref={listRef}
+            id="rjd-role-listbox"
+            role="listbox"
+            aria-label="Roles"
+            className="max-h-[22rem] overflow-y-auto overscroll-contain p-1.5"
+          >
+            {list.map((r, i) => {
+              const s = statusOf(r);
+              const isSelected = r.slug === selectedSlug;
+              return (
+                <li key={r.slug}>
+                  <button
+                    type="button"
+                    data-idx={i}
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={() => choose(r.slug)}
+                    onPointerMove={() => setActive(i)}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                      i === activeIdx ? "bg-slate-100" : ""
+                    } ${isSelected ? "ring-1 ring-red-200" : ""}`}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-semibold text-slate-800">{r.title}</span>
+                      <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+                        <span className="size-1.5 shrink-0 rounded-full" style={{ background: s.tone }} />
+                        {s.label}
+                      </span>
+                    </span>
+                    {isSelected && <Check className="h-4 w-4 shrink-0 text-red-600" />}
+                  </button>
+                </li>
+              );
+            })}
+            {list.length === 0 && (
+              <li className="px-2 py-6 text-center text-[12.5px] text-slate-500">
+                {rows.length === 0 ? "No roles yet." : "No role matches."}
+              </li>
+            )}
+          </ul>
+
+          {canEdit && (
+            <div className="border-t border-slate-100 p-2">
+              {adding ? (
+                <div className="flex gap-1.5">
+                  <input
+                    autoFocus
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addRole();
+                      } else if (e.key === "Escape") {
+                        // Cancel the new role, not the whole dropdown.
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setAdding(false);
+                        setNewTitle("");
+                      }
+                    }}
+                    placeholder="New role"
+                    aria-label="New role"
+                    className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
+                  />
+                  <button type="button" onClick={addRole} disabled={pending || !newTitle.trim()} className="rounded-lg px-3 text-white disabled:opacity-50" style={{ background: ACCENT }} aria-label="Add role">
+                    <Check size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdding(false);
+                      setNewTitle("");
+                    }}
+                    className="rounded-lg px-2 text-slate-400 hover:bg-slate-100"
+                    aria-label="Cancel"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setAdding(true)} className="inline-flex w-full items-center gap-1.5 rounded-lg px-2.5 py-2 text-[13px] font-bold hover:bg-slate-50" style={{ color: ACCENT }}>
+                  <Plus size={14} strokeWidth={2.6} /> Add role
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -8,6 +8,57 @@ import {
   type JdTarget,
   type TargetPeople,
 } from "@/lib/jd/assignment-targets";
+import type { JdEventOption } from "@/lib/queries/job-description";
+
+/** One tickable line in a box: a person, or (Event Checklist) an event. */
+interface BoxOption {
+  id: string;
+  label: string;
+  /** Second, quieter text — the event's date. */
+  sub?: string | null;
+}
+
+/** What a box calls the things it lists. */
+interface BoxWords {
+  search: string;
+  noMatch: (q: string) => string;
+  /** Footer when nothing is ticked. */
+  none: string;
+  /** "…and choose who does it." / "…and choose the events." */
+  offHint: string;
+  held: (n: number) => string;
+  /** The list itself is empty. */
+  emptyList: string;
+}
+
+const PEOPLE_WORDS: BoxWords = {
+  search: "Search people…",
+  noMatch: (q) => `Nobody matches “${q}”.`,
+  /* Not "none": an empty roster is a legitimate answer meaning the seat's
+     holder does it, and calling that "none" reads as an omission. */
+  none: "By position",
+  offHint: "choose who does it",
+  held: (n) => `${n} ${n === 1 ? "person is" : "people are"} still selected here and will be saved if you tick it back on.`,
+  emptyList: "No active employees.",
+};
+
+/* THE EVENT CHECKLIST LISTS EVENTS, NOT PEOPLE (account holder, 2026-09-18).
+   Ticking an event puts this job into that event's checklist as a row, where
+   the event's own Doer column says who does it there. */
+const EVENT_WORDS: BoxWords = {
+  search: "Search events…",
+  noMatch: (q) => `No event matches “${q}”.`,
+  none: "No event chosen",
+  offHint: "choose the events",
+  held: (n) => `${n} ${n === 1 ? "event is" : "events are"} still selected here and will be saved if you tick it back on.`,
+  emptyList: "No upcoming event checklists. Create one in Operations → Event Checklist.",
+};
+
+const fmtEventDate = (ymd: string | null) => {
+  if (!ymd) return null;
+  const [y, m, d] = ymd.slice(0, 10).split("-").map(Number);
+  return new Date(y!, (m ?? 1) - 1, d ?? 1).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+};
 
 const ACCENT = "#B91C1C";
 
@@ -45,6 +96,9 @@ export function ModuleAssignBoxes({
   onToggleTarget,
   selected,
   onChangeTarget,
+  events = [],
+  selectedEvents = [],
+  onChangeEvents,
   layout = "row",
   readOnly = false,
 }: {
@@ -52,12 +106,25 @@ export function ModuleAssignBoxes({
   /** Which destinations this JD pushes to. */
   enabled: Record<JdTarget, boolean>;
   onToggleTarget: (target: JdTarget, on: boolean) => void;
-  /** Employee ids chosen per destination. */
+  /** Employee ids chosen per destination (DCC and WMS; the Event box lists events). */
   selected: TargetPeople;
   onChangeTarget: (target: JdTarget, ids: string[]) => void;
+  /** The live event checklists — the Event Checklist box's options. */
+  events?: JdEventOption[];
+  /** Event checklist (run) ids chosen. */
+  selectedEvents?: string[];
+  onChangeEvents?: (ids: string[]) => void;
   layout?: "row" | "stack";
   readOnly?: boolean;
 }) {
+  const peopleOptions = React.useMemo<BoxOption[]>(
+    () => people.map((p) => ({ id: p.id, label: p.name })),
+    [people],
+  );
+  const eventOptions = React.useMemo<BoxOption[]>(
+    () => events.map((e) => ({ id: e.id, label: e.title, sub: fmtEventDate(e.eventDate) })),
+    [events],
+  );
   return (
     <div
       className={
@@ -66,26 +133,43 @@ export function ModuleAssignBoxes({
           : "flex flex-col gap-3"
       }
     >
-      {JD_TARGETS.map((target) => (
-        <AssignBox
-          key={target}
-          target={target}
-          people={people}
-          on={enabled[target]}
-          onToggle={(v) => onToggleTarget(target, v)}
-          selected={selected[target]}
-          onChange={(ids) => onChangeTarget(target, ids)}
-          compact={layout === "stack"}
-          readOnly={readOnly}
-        />
-      ))}
+      {JD_TARGETS.map((target) =>
+        target === "event" ? (
+          <AssignBox
+            key={target}
+            target={target}
+            options={eventOptions}
+            words={EVENT_WORDS}
+            on={enabled.event}
+            onToggle={(v) => onToggleTarget("event", v)}
+            selected={selectedEvents}
+            onChange={(ids) => onChangeEvents?.(ids)}
+            compact={layout === "stack"}
+            readOnly={readOnly}
+          />
+        ) : (
+          <AssignBox
+            key={target}
+            target={target}
+            options={peopleOptions}
+            words={PEOPLE_WORDS}
+            on={enabled[target]}
+            onToggle={(v) => onToggleTarget(target, v)}
+            selected={selected[target]}
+            onChange={(ids) => onChangeTarget(target, ids)}
+            compact={layout === "stack"}
+            readOnly={readOnly}
+          />
+        ),
+      )}
     </div>
   );
 }
 
 function AssignBox({
   target,
-  people,
+  options,
+  words,
   on,
   onToggle,
   selected,
@@ -94,7 +178,8 @@ function AssignBox({
   readOnly,
 }: {
   target: JdTarget;
-  people: { id: string; name: string }[];
+  options: BoxOption[];
+  words: BoxWords;
   on: boolean;
   onToggle: (on: boolean) => void;
   selected: string[];
@@ -109,19 +194,21 @@ function AssignBox({
 
   const matches = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return people;
-    return people.filter((p) => p.name.toLowerCase().includes(q));
-  }, [people, query]);
+    if (!q) return options;
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, query]);
 
   const chosen = new Set(selected);
+  // Only what is still on offer counts — an event since completed drops out.
+  const chosenCount = options.filter((o) => chosen.has(o.id)).length;
 
-  function toggleEmployee(id: string) {
+  function toggleOption(id: string) {
     const next = new Set(chosen);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    // Roster order, not click order: a list that reshuffles as you tick it is a
+    // List order, not click order: a list that reshuffles as you tick it is a
     // list you lose your place in.
-    onChange(people.filter((p) => next.has(p.id)).map((p) => p.id));
+    onChange(options.filter((o) => next.has(o.id)).map((o) => o.id));
   }
 
   return (
@@ -166,8 +253,8 @@ function AssignBox({
               id={searchId}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search people…"
-              aria-label={`Search people for ${label}`}
+              placeholder={words.search}
+              aria-label={`${words.search.replace("…", "")} for ${label}`}
               className="w-full rounded-lg border border-slate-200 py-1.5 pl-7 pr-7 text-[12.5px] text-slate-800 placeholder:text-slate-400"
             />
             {query && (
@@ -187,14 +274,14 @@ function AssignBox({
           >
             {matches.length === 0 ? (
               <p className="px-3.5 py-4 text-center text-[12.5px] text-slate-400">
-                Nobody matches “{query}”.
+                {query ? words.noMatch(query) : words.emptyList}
               </p>
             ) : (
               <ul className="flex flex-col py-1">
-                {matches.map((p) => {
-                  const isOn = chosen.has(p.id);
+                {matches.map((o) => {
+                  const isOn = chosen.has(o.id);
                   return (
-                    <li key={p.id}>
+                    <li key={o.id}>
                       <label
                         className={`flex cursor-pointer items-center gap-2.5 px-3.5 py-1.5 text-[12.5px] hover:bg-slate-50 ${
                           isOn ? "font-semibold text-slate-900" : "text-slate-600"
@@ -204,10 +291,11 @@ function AssignBox({
                           type="checkbox"
                           checked={isOn}
                           disabled={readOnly}
-                          onChange={() => toggleEmployee(p.id)}
+                          onChange={() => toggleOption(o.id)}
                           className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#B91C1C] disabled:cursor-default"
                         />
-                        {p.name}
+                        <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                        {o.sub && <span className="shrink-0 text-[11px] font-normal text-slate-400">{o.sub}</span>}
                       </label>
                     </li>
                   );
@@ -217,15 +305,10 @@ function AssignBox({
           </div>
 
           <footer className="mt-auto flex items-center justify-between border-t border-slate-100 bg-slate-50/60 px-3.5 py-2 text-[11.5px]">
-            <span className={selected.length > 0 ? "font-semibold text-slate-700" : "text-slate-400"}>
-              {selected.length > 0
-                ? `${selected.length} selected`
-                : /* Not "none": an empty roster is a legitimate answer meaning
-                     the seat's holder does it, and calling that "none" reads as
-                     an omission. */
-                  "By position"}
+            <span className={chosenCount > 0 ? "font-semibold text-slate-700" : "text-slate-400"}>
+              {chosenCount > 0 ? `${chosenCount} selected` : words.none}
             </span>
-            {selected.length > 0 && !readOnly && (
+            {chosenCount > 0 && !readOnly && (
               <button
                 type="button"
                 onClick={() => onChange([])}
@@ -239,15 +322,12 @@ function AssignBox({
       ) : (
         <div className="flex flex-1 flex-col justify-center px-3.5 py-6">
           <p className="text-[12.5px] leading-relaxed text-slate-400">
-            Tick the box to send this job to {JD_TARGET_LABELS[target]} and choose who does it.
+            Tick the box to send this job to {JD_TARGET_LABELS[target]} and {words.offHint}.
           </p>
-          {selected.length > 0 && (
-            /* The names are still held — say so, or somebody re-ticks expecting
-               an empty list and finds six people they forgot about. */
-            <p className="mt-2 text-[11.5px] font-semibold text-amber-700">
-              {selected.length} {selected.length === 1 ? "person is" : "people are"} still
-              selected here and will be saved if you tick it back on.
-            </p>
+          {chosenCount > 0 && (
+            /* The choices are still held — say so, or somebody re-ticks expecting
+               an empty list and finds six they forgot about. */
+            <p className="mt-2 text-[11.5px] font-semibold text-amber-700">{words.held(chosenCount)}</p>
           )}
         </div>
       )}

@@ -22,13 +22,13 @@ export default async function JobDescriptionPage() {
      that runs the work, so the register is readable by anyone who can enter
      Operations. Every mutation in ./actions.ts still calls requireHrStaff(), so
      nobody gained the ability to change a job description. */
-  await requireWorkspace("operations");
+  const me = await requireWorkspace("operations");
 
   /* THE MIGRATION MAY NOT HAVE RUN YET. This repo applies migrations by hand in
      Supabase, so there is a real window where this page is deployed and its
      tables do not exist. Without this the window looks like a 500 with a stack
      trace; with it, it says what to do. */
-  const { entries, positions, ranks, people, holders, demo } = await loadJdBank();
+  const { entries, positions, ranks, people, holders, events, rosters, demo } = await loadJdBank(me);
 
   return (
     <PageShell>
@@ -56,6 +56,8 @@ export default async function JobDescriptionPage() {
         ranks={ranks}
         people={people}
         holders={holders}
+        events={events}
+        rosters={rosters}
       />
     </PageShell>
   );

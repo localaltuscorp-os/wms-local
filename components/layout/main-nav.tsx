@@ -355,15 +355,15 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // attendance page before — Leave as a link, Live Status as a rail panel —
       // which put a whole-team snapshot on the screen an individual visits to
       // clock in. Each now has its own door.
-      /* DCC IS FIRST IN THIS ROOM (account holder, 2026-09-16, DCC-SPEC §2).
-         The five doors are generated from lib/dcc/nav.ts — the SAME list the
+      /* DASHBOARD, WCC, MCC LEAD THIS ROOM, in that order (account holder,
+         2026-09-18) — the SP1 dashboard, then the Weekly and Monthly Compliance
+         Checklists that replaced DCC's My Day.
+         The doors are generated from lib/dcc/nav.ts — the SAME list the
          module's own quick-nav row renders — so the rail can never advertise a
-         door the pages have stopped honouring, which is what went wrong before.
-         The parent excludes its children, or /dcc stays lit while you stand on
-         one of them. */
+         door the pages have stopped honouring. DCC Masters is no longer one. */
       ...DCC_DOORS.map((d) => ({
         href: d.href as Route,
-        label: d.href === "/dcc" ? "DCC" : d.label,
+        label: d.label,
         Icon: d.Icon,
         ...(d.exact ? { not: DCC_CHILD_ROUTES } : {}),
       })),

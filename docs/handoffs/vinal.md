@@ -20,10 +20,9 @@ The standing list. Delete a row the moment it is applied and verified — a stal
 
 | Migration | Paste sheet | Creates | Status |
 |-----------|-------------|---------|--------|
-| `0236` | [`db/migrations/0236_recruitment_jd_roles.sql`](../../db/migrations/0236_recruitment_jd_roles.sql) | Recruitment JDs keyed by their own `slug` instead of an interview grade, plus `recruitment_jd_sends` | **Not run.** Self-contained and idempotent — it creates both tables whether or not `0232` was ever applied. Until it runs, Operations → Masters → Recruitment JD shows the eight originals read-only and names the migration |
-| `0228`–`0233` | [`db/RUN-IN-SUPABASE-0228-0233.sql`](../../db/RUN-IN-SUPABASE-0228-0233.sql) | JD Category, DCC Calendar Events, DCC Masters & Links, Approver Statuses, Recruitment JDs & Sends, Person-Specific JDs | **Not run.** Run before deploying 2026-09-15 changes |
-| `0221` + `0222` | [`db/RUN-IN-SUPABASE-0221-0222.sql`](../../db/RUN-IN-SUPABASE-0221-0222.sql) | Event Checklist (4 tables) + Job Description (8 tables, 14 seeded ranks) | **Not run.** Both pages detect the missing tables and render a setup notice rather than a 500 |
-| `0215`–`0224` | [`db/RUN-IN-SUPABASE-0215-0224-ALL.sql`](../../db/RUN-IN-SUPABASE-0215-0224-ALL.sql) | everything, the row above included — no `0216-0220` sheet ever existed | `0215`–`0220` **applied 2026-09-11** by hand; `0221`–`0224` outstanding |
+| `0237`–`0238` | [`db/RUN-IN-SUPABASE-0237-0238.sql`](../../db/RUN-IN-SUPABASE-0237-0238.sql) | WCC/MCC columns (`month_day`, WMS Doer & Approver statuses, `done_at`), Event Checklist WMS Task alignment, JD Client field & `jd_doer_notes` table | **Not run.** Run before deploying 2026-09-18 changes |
+| `0236` | [`db/migrations/0236_recruitment_jd_roles.sql`](../../db/migrations/0236_recruitment_jd_roles.sql) | Recruitment JDs keyed by their own `slug` instead of an interview grade, plus `recruitment_jd_sends` | **Not run.** Self-contained and idempotent |
+| `0228`–`0233` | [`db/RUN-IN-SUPABASE-0228-0233.sql`](../../db/RUN-IN-SUPABASE-0228-0233.sql) | JD Category, DCC Calendar Events, DCC Masters & Links, Approver Statuses, Recruitment JDs & Sends, Person-Specific JDs | **Not run.** |
 
 > `0221` was **amended in place**, not superseded. It had never been applied or
 > committed, so reshaping it for the offset model cost nothing — and a migration
@@ -42,23 +41,22 @@ The standing list. Delete a row the moment it is applied and verified — a stal
 
 ---
 
-## Template — copy this for a new day
-
-```markdown
-## YYYY-MM-DD — short summary
+## 2026-09-18 — WCC / MCC, Event Checklist WMS Column Order, JD Client & Doer Notes
 
 **What changed**
-- One bullet per user-visible or structural change. Name the files.
+- **DCC evolved to WCC (Weekly) & MCC (Monthly)**: `/dcc/wcc` (or `/dcc`) for weekly compliances, `/dcc/mcc` for monthly compliances. Fills now store full WMS Doer Status (`dont_know`, `not_started`, `initiated`, `follow_up`, `need_info`, `done`), `done_at` server timestamp, WMS Approver Status, and Approver Notes. Compliances gain optional `month_day` (1-31).
+- **Event Checklist aligned with WMS Tasks columns**: Re-ordered grid columns to match WMS Tasks (`S. No.`, `Client`, `Subject`, `Task`, `Doer`, `Initiator`, `Target Date`, `Frequency`, `Doer Status`, `Doer Notes`, `Actual Date`, `+/- Days`, `Approver Status`, `Approver Notes`). Subject uses the `subjects` roster. Added `client`, `initiator_id`, and `recurrence_rule` to checklist items, and `approver_status` / `approver_notes` to checks.
+- **Job Description Client & Doer Notes**: Added `client` field to `jd_entries` (from `clients` catalog) and created per-person `jd_doer_notes` table for seat-holders to store notes without mutating shared position JDs.
+- **JD Attachments & Column Drag Utility**: Added attachment upload actions and reusable UI components (`column-drag.tsx`, `use-auto-height.ts`).
 
 **Why**
-- The reason. Assume the reader has no context and was not in the room.
+- Replaces legacy 4-state DCC buttons with standard WMS Doer and Approver status workflows, aligning all compliance, checklist, and task interfaces across Altus OS.
 
 **SQL to run before deploying**
-- The statements, or "None".
+- `db/RUN-IN-SUPABASE-0237-0238.sql` (combines `0237_checklist_wms_columns_jd_client.sql` and `0238_wcc_mcc.sql`).
 
 **How to verify**
-- The command, URL or click-path that proves it works.
-```
+- `npx vitest run tests/unit/compliance-wcc-mcc.test.ts tests/unit/compliance-columns.test.ts tests/unit/checklist-sort.test.ts tests/unit/jd-attachments.test.ts`
 
 ---
 

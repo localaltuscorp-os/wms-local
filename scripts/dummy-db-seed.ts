@@ -273,5 +273,21 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
   const { seedJdChecklist } = await import("./dummy-db-seed-jd-checklist");
   Object.assign(counts, await seedJdChecklist(pg));
 
+  // A month of a full team on top of the above — Operations (Checklist, JD
+  // Bank, JD-Master, JD-Specific Person, JD-For Recruitment) and DCC, so each
+  // table can be judged the way it looks in use rather than just non-empty.
+  const { seedShowcase } = await import("./dummy-db-seed-showcase");
+  Object.assign(counts, await seedShowcase(pg));
+
+  // The WMS Tasks columns on the checklist and a person's JD (migration 0237):
+  // Client, Subject, Initiator, Frequency, the Approver columns, Doer Notes.
+  const { seedWmsColumns } = await import("./dummy-db-seed-wms-columns");
+  Object.assign(counts, await seedWmsColumns(pg));
+
+  // WCC and MCC (migration 0238): monthly compliances with history, the actual
+  // date on every Done, and the Team Leads' rulings.
+  const { seedWccMcc } = await import("./dummy-db-seed-wcc-mcc");
+  Object.assign(counts, await seedWccMcc(pg));
+
   return counts;
 }

@@ -197,6 +197,7 @@ function seed(): Data {
       functionKey: fn,
       task,
       category: DEMO_CATEGORY[task] ?? null,
+      client: null,
       notesHtml: null,
       recurrence,
       estimatedMinutes: minutes,
@@ -278,6 +279,7 @@ export function demoCreateEntry(v: {
   positionId: string;
   task: string;
   category?: string | null;
+  client?: string | null;
   notesHtml?: string | null;
   /* Loose on the way in: the action hands over its zod output, whose weekday
      array widens to number[]. readRecurrence narrows it back. */
@@ -307,6 +309,7 @@ export function demoCreateEntry(v: {
     functionKey: pos.functionKey,
     task: v.task,
     category: v.category ?? null,
+    client: v.client ?? null,
     notesHtml: v.notesHtml ?? null,
     recurrence: readRecurrence(v.recurrence),
     estimatedMinutes: v.estimatedMinutes,
@@ -334,6 +337,7 @@ export function demoUpdateEntry(v: Record<string, unknown> & { id: string }): bo
   for (const k of [
     "task",
     "category",
+    "client",
     "estimatedMinutes",
     "videoUrl",
     "guidelinesUrl",

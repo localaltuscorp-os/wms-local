@@ -1,19 +1,20 @@
 import type { LucideIcon } from "lucide-react";
-import { CalendarCheck2, LayoutDashboard, Layers } from "lucide-react";
+import { CalendarCheck2, CalendarRange, LayoutDashboard } from "lucide-react";
 
 /**
- * THE THREE DOORS OF DCC (DCC-SPEC §2) — one list, two consumers.
+ * THE DOORS OF DCC — one list, two consumers.
  *
  * The global sidebar (components/layout/main-nav.tsx) renders them under
  * Employees, and the module's own quick-nav row renders them across the top of
  * every DCC page. Two separate copies of "what is in DCC" would be two separate
- * chances for them to disagree, which is exactly what went wrong in the old
- * module: the rail advertised a door the pages had stopped honouring.
+ * chances for them to disagree.
  *
- * SIBLINGS, NOT NESTED, on purpose. The board is where you fill your day; the
- * dashboard is where you read the org; the masters are where a position's
- * template is built. Nesting the last two inside the first hid them behind a
- * screen most people open once a day and leave.
+ * ── WCC AND MCC REPLACE MY DAY (account holder, 2026-09-18) ──────────────
+ * DCC's daily board became two checklists built the Accounts way — the Weekly
+ * Compliance Checklist and the Monthly Compliance Checklist — and `/dcc` now
+ * redirects to WCC. DCC MASTERS IS OFF THE SIDEBAR on the same instruction; the
+ * page still exists at /dcc/masters, because the position templates it edits
+ * are still what gives people their compliances.
  *
  * PURE and free of `server-only` — the quick nav is a client component.
  */
@@ -29,19 +30,10 @@ export interface DccDoor {
 }
 
 export const DCC_DOORS: DccDoor[] = [
-  {
-    href: "/dcc",
-    label: "My Day",
-    Icon: CalendarCheck2,
-    blurb: "Today's compliances, and the four ways a day can end.",
-    exact: true,
-  },
-  /* NO "SP1 REPORT" AND NO "CALL LOG" DOOR (account holder, 2026-09-17). The
-     SP1 sheet IS the dashboard, and the fifteen numbers are typed straight into
-     it — so both would have been a second entry pointing at one screen, exactly
-     the duplicated door this list exists to prevent. `/dcc/sp1` and
-     `/dcc/call-log` redirect to the dashboard for the sake of old bookmarks;
-     neither is navigation any more. */
+  /* DASHBOARD FIRST, then WCC and MCC (account holder, 2026-09-18). NO "SP1
+     REPORT" AND NO "CALL LOG" DOOR (2026-09-17): the SP1 sheet IS the dashboard,
+     and the fifteen numbers are typed straight into it. `/dcc/sp1` and
+     `/dcc/call-log` redirect to the dashboard. */
   {
     href: "/dcc/dashboard",
     label: "Dashboard",
@@ -49,10 +41,16 @@ export const DCC_DOORS: DccDoor[] = [
     blurb: "Jeevan's SP1 sheet — fill your calls, and read the whole org.",
   },
   {
-    href: "/dcc/masters",
-    label: "DCC Masters",
-    Icon: Layers,
-    blurb: "The template a position carries, and one person's whole DCC.",
+    href: "/dcc/wcc",
+    label: "WCC",
+    Icon: CalendarCheck2,
+    blurb: "Weekly Compliance Checklist — today, the last 3 days or the last 6.",
+  },
+  {
+    href: "/dcc/mcc",
+    label: "MCC",
+    Icon: CalendarRange,
+    blurb: "Monthly Compliance Checklist — by month or by quarter.",
   },
 ];
 

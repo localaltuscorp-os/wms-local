@@ -129,6 +129,10 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "DCC",
         routes: ["/dcc"],
         children: [
+          // WCC and MCC replaced My Day (account holder, 2026-09-18); `/dcc`
+          // itself now redirects to WCC.
+          { key: "employees.dcc.wcc", label: "WCC — Weekly Compliance Checklist", routes: ["/dcc/wcc"] },
+          { key: "employees.dcc.mcc", label: "MCC — Monthly Compliance Checklist", routes: ["/dcc/mcc"] },
           // The SP1 sheet IS the dashboard, and the call log is typed into that
           // sheet (2026-09-17), so neither has a node of its own. Their old
           // addresses are listed here because both still redirect, and a

@@ -2800,6 +2800,33 @@ html {
   background: #94a3b8;
 }
 
+/* A WIDE, TALL GRID'S scrollbars — the Event Checklist and WCC / MCC, which
+   scroll both ways inside their own box (account holder, 2026-09-18: "add a
+   scrollbar on both horizontal and vertical"). Thicker than `table-scroll`,
+   on a visible track, so it is obvious at a glance that the grid goes on in
+   both directions. Add it beside `table-scroll`. */
+.table-scroll.table-scroll-bold {
+  scrollbar-width: auto;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border: 2px solid #f1f5f9;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-corner {
+  background: #f1f5f9;
+}
+
 /* Premium, slim scrollbar for the kanban board — smooth horizontal scroll
    with a subtle pill thumb instead of the chunky native bar (sir's #1). */
 /* ── Trackpad / touch panning, applied to every scroll container ────────────

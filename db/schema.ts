@@ -3829,6 +3829,9 @@ export const dccKpiItems = pgTable(
     needsReview: boolean("needs_review").notNull().default(false),
     targetNumber: numeric("target_number", { precision: 14, scale: 2 }),
     unit: text("unit"),
+    /** MCC deadline — the day of the month a 'monthly' compliance is due
+     *  (1–31; NULL = the month's last day). Migration 0238. */
+    monthDay: smallint("month_day"),
     sortOrder: integer("sort_order"),
     archived: boolean("archived").notNull().default(false),
     createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
@@ -3853,6 +3856,17 @@ export const dccEntries = pgTable(
     filledById: uuid("filled_by_id").references(() => employees.id, { onDelete: "set null" }),
     // DCC v2 — participant axis. NULL for every simple/normal KPI (all history).
     subjectId: uuid("subject_id").references(() => dccSubjects.id, { onDelete: "cascade" }),
+    /* ── WCC / MCC (migration 0238) — the WMS columns. `status` above stays,
+       written alongside, for the readers that still speak Done / Not done. ── */
+    /** WMS Doer Status (DOER_TASK_STATUSES). */
+    doerStatus: text("doer_status"),
+    /** The actual date — stamped by the server when the doer marks Done. */
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    /** WMS Approver Status; NULL = Pending. */
+    approverStatus: text("approver_status"),
+    approverNotes: text("approver_notes"),
+    approverId: uuid("approver_id").references(() => employees.id, { onDelete: "set null" }),
+    approverAt: timestamp("approver_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -8227,6 +8241,13 @@ export const opsChecklistItems = pgTable(
     fileLink: text("file_link"),
     /** Provenance for a row pulled from the JD Bank. FK added when 0222 lands. */
     jdEntryId: uuid("jd_entry_id"),
+    /* ── WMS Tasks columns (migration 0237) ── */
+    /** Free text like tasks.client, picked from the `clients` roster. */
+    client: text("client"),
+    /** Who asked for the row. Backfilled from created_by_id. */
+    initiatorId: uuid("initiator_id").references(() => employees.id, { onDelete: "set null" }),
+    /** Google Calendar's RRULE; null = does not repeat. Frequency reads from it. */
+    recurrenceRule: text("recurrence_rule"),
     sortOrder: integer("sort_order").notNull().default(100),
     isActive: boolean("is_active").notNull().default(true),
     createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
@@ -8261,9 +8282,16 @@ export const opsChecklistChecks = pgTable(
     itemId: uuid("item_id")
       .notNull()
       .references((): AnyPgColumn => opsChecklistItems.id, { onDelete: "cascade" }),
-    status: text("status").notNull().default("Pending"),
+    /** The WMS Doer Status (DOER_TASK_STATUSES) since 0237. */
+    status: text("status").notNull().default("not_started"),
+    /** Doer Notes. */
     notes: text("notes"),
     doneAt: timestamp("done_at", { withTimezone: true }),
+    /* ── Approver Status (migration 0237) — null is Pending, as on a task ── */
+    approverStatus: text("approver_status"),
+    approverNotes: text("approver_notes"),
+    approverId: uuid("approver_id").references(() => employees.id, { onDelete: "set null" }),
+    approverAt: timestamp("approver_at", { withTimezone: true }),
     updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -8357,8 +8385,11 @@ export const jdEntries = pgTable(
     /** Denormalised from the position so the Bank filters without a join. */
     functionKey: text("function_key").notNull(),
     task: text("task").notNull(),
-    /** Free text the author types — Housekeeping, Internet, Vendors. Migration 0228. */
+    /** Shown as SUBJECT, picked from the `subjects` roster WMS Tasks uses
+     *  (migration 0228 made it; 0237 relabelled it — the column kept its name). */
     category: text("category"),
+    /** Free text like tasks.client, picked from the `clients` roster. Migration 0237. */
+    client: text("client"),
     notesHtml: text("notes_html"),
     /** Structured, never a label string. Shape in lib/jd/recurrence.ts. */
     recurrence: jsonb("recurrence").notNull().default({ kind: "daily" }),
@@ -8443,6 +8474,31 @@ export const jdAttachments = pgTable(
 );
 export type JdAttachment = typeof jdAttachments.$inferSelect;
 export type NewJdAttachment = typeof jdAttachments.$inferInsert;
+
+/**
+ * DOER NOTES — what the person doing a JD writes against it (migration 0237).
+ * Per person: a seat's JD is shared by everyone in the seat, and one holder's
+ * notes are not another's.
+ */
+export const jdDoerNotes = pgTable(
+  "jd_doer_notes",
+  {
+    jdId: uuid("jd_id")
+      .notNull()
+      .references(() => jdEntries.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    notes: text("notes"),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.jdId, t.employeeId] }),
+    index("jd_doer_notes_employee_idx").on(t.employeeId),
+  ],
+);
+export type JdDoerNote = typeof jdDoerNotes.$inferSelect;
 
 /** Which people hold which JD. `source` decides whether a holder change revokes it. */
 export const jdAssignments = pgTable(
