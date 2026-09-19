@@ -2448,7 +2448,14 @@ export const mobileDevices = pgTable(
     registeredAt: timestamp("registered_at", { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex("mobile_devices_device_id_uq").on(t.deviceId),
+    // ONE MACHINE, SEVERAL PEOPLE (0243): a row is one person's registration of
+    // a machine, so the PAIR is unique — colleagues on a shared PC each keep
+    // their own row under its one id. A phone id stays single-owner on its own
+    // (the proxy-punching rule), via the partial index below.
+    uniqueIndex("mobile_devices_device_employee_uq").on(t.deviceId, t.employeeId),
+    uniqueIndex("mobile_devices_native_device_id_uq")
+      .on(t.deviceId)
+      .where(sql`${t.deviceId} not like 'web\\_%'`),
     index("mobile_devices_employee_idx").on(t.employeeId),
     index("mobile_devices_kind_idx").on(t.kind),
     // ONE approved device per kind (0215) — the device-access rule is one
@@ -2463,11 +2470,12 @@ export const mobileDevices = pgTable(
       .where(sql`${t.status} = 'approved'`),
     index("mobile_devices_employee_status_idx").on(t.employeeId, t.status),
     check("mobile_devices_kind_chk", sql`${t.kind} in ('laptop', 'phone')`),
-    // One physical laptop, one registration (0222). Partial and lower-cased:
-    // phones never carry a serial, and the employee types the value so casing
-    // cannot be trusted to be stable.
-    uniqueIndex("mobile_devices_device_name_uq")
-      .on(sql`lower(${t.deviceName})`)
+    // A laptop name is unique PER PERSON (0243; it was global from 0222/0224).
+    // A shared PC has one Windows name that each colleague registers; what is
+    // refused is the same person registering the same name twice. Partial and
+    // lower-cased: phones never carry one, and the employee types it.
+    uniqueIndex("mobile_devices_device_name_employee_uq")
+      .on(t.employeeId, sql`lower(${t.deviceName})`)
       .where(sql`${t.deviceName} is not null and ${t.kind} = 'laptop'`),
   ],
 );
