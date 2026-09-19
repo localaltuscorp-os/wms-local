@@ -8,6 +8,7 @@ import { splitAddress } from "@/lib/hr/candidate/aadhaar-kyc";
 import { fireToast } from "@/lib/toast";
 import { IntakePositionSelect } from "@/components/hr/candidate/intake-position-select";
 import { IntakeField, IntakeReadonlyField } from "@/components/hr/candidate/intake-field";
+import { CandidatePhotoField, type PhotoUploadUrlFn } from "@/components/hr/candidate/candidate-photo-field";
 
 /**
  * Resolve a `compute` field's value from its sibling inputs. `prefix` is the
@@ -40,6 +41,7 @@ export function IntakeSectionStep({
   positions,
   departments,
   canManagePositions,
+  photoUploadUrl,
 }: {
   section: IntakeSection;
   values: Record<string, string>;
@@ -51,6 +53,7 @@ export function IntakeSectionStep({
   positions: string[];
   departments: string[];
   canManagePositions: boolean;
+  photoUploadUrl: PhotoUploadUrlFn;
 }) {
   const RequiredMsg = () => (
     <p className="mt-1.5 text-[12px] font-semibold text-altus-red">This field is required.</p>
@@ -119,6 +122,21 @@ export function IntakeSectionStep({
         {section.title}
       </h3>
       {section.subtitle && <p className="mt-2 text-[15px] leading-relaxed text-ink-muted">{section.subtitle}</p>}
+
+      {/* PERSONAL DETAILS OPENS WITH THE PHOTO, above Position Applied For.
+          It is rendered here rather than added to intake-schema as a new field
+          type: the schema's field types are shared with the generic form
+          renderer and the admin form builder, and a "photo" type would have to
+          mean something in both. The value is still an ordinary answer key
+          (`personal.photo`), so it autosaves, survives a resumed draft and
+          lands in the same jsonb as every other answer. */}
+      {section.id === "personal" && (
+        <CandidatePhotoField
+          value={values[vkey(section.id, "photo")] ?? ""}
+          onChange={(path) => set(vkey(section.id, "photo"), path)}
+          uploadUrl={photoUploadUrl}
+        />
+      )}
 
       {/* Declaration statement.
           The Passport-size Photograph and Candidate's Signature upload tiles

@@ -14,6 +14,7 @@ import {
   ListChecks,
   Megaphone,
   MessageSquareHeart,
+  Network,
   Palette,
   ScrollText,
   Share2,
@@ -61,7 +62,8 @@ export type OperationsAreaId =
   | "handholding"
   | "jobdescription"
   | "events"
-  | "training";
+  | "training"
+  | "team-reporting";
 
 export interface OperationsSubItem {
   href: string;
@@ -209,6 +211,24 @@ export const OPERATIONS_AREAS: OperationsArea[] = [
       { href: "/events/batches", label: "Batches", Icon: CalendarClock, adminOnly: true },
       { href: "/events/obligations", label: "Obligations", Icon: Gauge, adminOnly: true },
     ],
+  },
+  {
+    // WHO REPORTS TO WHOM. The board itself already existed, under Admin >
+    // Reporting Hierarchy, where only admins ever saw it. Operations is where
+    // the question actually gets asked, so the area points at the same board
+    // rather than a second copy of the org chart that could disagree with it.
+    //
+    // Sits here, between Monthly Events Master and Training, because the rail is
+    // ALPHABETICAL BY LABEL — it arrived beside Checklist in the branch that
+    // added it, which predates the sort.
+    id: "team-reporting",
+    label: "Team Reporting",
+    href: "/operations/team-reporting",
+    Icon: Network,
+    tagline: "Every team member and their direct reporting manager, in one board.",
+    prefixes: ["/operations/team-reporting"],
+    // One board, no sub-pages - so no quick-access row (see OperationsQuickNav).
+    items: [],
   },
   {
     id: "training",

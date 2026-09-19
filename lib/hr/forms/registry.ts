@@ -38,7 +38,7 @@ export type HrSectionKey = HrStageKey;
 export const HR_SECTION_LABEL: Record<HrSectionKey, string> = {
   "pre-interview": "Pre-Interview",
   "post-interview": "Post-Interview",
-  "pre-joining": "Pre-Joining",
+  "pre-joining": "Post-Appointment",
   during: "During Employment",
   appraisal: "Appraisal",
   exit: "Exit",
@@ -81,7 +81,7 @@ export const HR_FORMS: HrFormDef[] = [
     // onboarding form never reached My/All Filled Forms — the HR module read it
     // as "not filled" however many times the employee had actually sent it.
     key: "onboarding",
-    name: "Onboarding Form",
+    name: "Employee Onboarding Form",
     section: "pre-joining",
     href: "/dossier/onboarding",
     sourceTable: "onboarding_submissions",

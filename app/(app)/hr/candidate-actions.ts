@@ -15,12 +15,63 @@ import { ALL_CRITERION_IDS } from "@/lib/hr/candidate/evaluation-checklist";
 import { intakeProgress } from "@/lib/hr/candidate/intake-schema";
 import { sendRecruiterIntakeEmail } from "@/lib/email/hr-recruiter-email";
 import { disableCandidateAccountByIntakeId } from "@/lib/hr/candidate/account-lifecycle";
+import { revokeAccessLinks } from "@/lib/hr/candidate/access-link";
 import { recordHrFormSubmission } from "@/lib/hr/forms/record";
 import { intakeResponses } from "@/lib/hr/candidate/intake-responses";
+import { listEmployeeOptions } from "@/lib/queries/employees";
 
 type Result<T> = ({ ok: true } & T) | { ok: false; error: string };
 
 const CANDIDATE_STATUSES = ["new", "shortlisted", "rejected", "hired"] as const;
+
+/** Candidate photo: a portrait, not an archive. */
+const PHOTO_MAX_BYTES = 8 * 1024 * 1024;
+const PHOTO_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
+const PHOTO_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/heic": "heic",
+  "image/heif": "heif",
+};
+
+/**
+ * Mint a one-shot signed URL so the BROWSER uploads the candidate's photo
+ * STRAIGHT TO SUPABASE STORAGE.
+ *
+ * The bytes never pass through the Next server: a Server Action body would
+ * carry a multi-megabyte photo through Vercel's function, which is both the
+ * slow path and the one with a hard body-size limit on it. This hands back a
+ * path and a token; the client PUTs to Supabase and posts back only the key.
+ *
+ * The PATH IS MINTED HERE, never accepted from the client - a caller-chosen key
+ * is how one candidate's upload lands on top of another's record. The shape
+ * matches the reader in app/api/hr/candidate-resume/pdf (CANDIDATE_ASSET_PATH),
+ * so a photo taken here is one the resume can render.
+ */
+export async function createCandidatePhotoUploadUrl(input: {
+  mime?: string | null;
+  size?: number | null;
+}): Promise<Result<{ path: string; token: string; bucket: string }>> {
+  const me = await requireHrIntake();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const mime = (input.mime ?? "").toLowerCase();
+  if (!PHOTO_MIME.has(mime)) return { ok: false, error: "Please choose a JPG, PNG or WebP image." };
+  if (Number(input.size ?? 0) > PHOTO_MAX_BYTES) return { ok: false, error: "That photo is over 8 MB." };
+
+  const path = `candidate-intake/photo/${randomUUID()}.${PHOTO_EXT[mime]}`;
+  try {
+    const { data, error } = await getSupabaseAdmin()
+      .storage.from(DOCUMENTS_BUCKET)
+      .createSignedUploadUrl(path);
+    if (error || !data) return { ok: false, error: error?.message ?? "Could not start the upload." };
+    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not start the upload." };
+  }
+}
 
 const DraftSchema = z.object({
   id: z.string().uuid().optional(),
@@ -52,7 +103,15 @@ export async function saveCandidateDraft(input: z.input<typeof DraftSchema>): Pr
     email: values["personal.email"] || null,
     data: values as Record<string, unknown>,
     instances: v.instances as Record<string, unknown>,
-    photoPath: v.photoPath ?? null,
+    // CANDIDATE PHOTO. The wizard keeps the storage key in the answers blob
+    // (`personal.photo`), so mirror it onto the column every existing reader
+    // already uses - the records list avatar, the resume PDF - instead of
+    // teaching each of them about the new key. `v.photoPath` still wins so the
+    // older explicit-path callers keep working.
+    //
+    // `?? null` on its own was also a quiet bug waiting for this field: an
+    // autosave that did not resend photoPath would NULL a stored photo.
+    photoPath: v.photoPath ?? values["personal.photo"] ?? null,
     signaturePath: v.signaturePath ?? null,
     updatedAt: new Date(),
   };
@@ -251,6 +310,24 @@ export async function getCandidateDraft(id: string): Promise<CandidateDraftState
   };
 }
 
+/**
+ * The names offered by the evaluation's "Interviewed By" picker.
+ *
+ * Reads the shared, cached {id,name} roster projection rather than a query of
+ * its own, so the picker costs one cache hit. Gated at intake level - the same
+ * bar as the checklist the picker sits on, not HR-staff: the narrow grantees
+ * who fill evaluations must be able to say who was in the room.
+ */
+export async function listInterviewerNames(): Promise<Result<{ names: string[] }>> {
+  await requireHrIntake();
+  try {
+    const rows = await listEmployeeOptions();
+    return { ok: true, names: rows.map((r) => r.name).filter(Boolean) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not load people." };
+  }
+}
+
 /** Update a candidate's pipeline status. */
 export async function setCandidateStatus(
   id: string,
@@ -264,6 +341,20 @@ export async function setCandidateStatus(
   // Close the candidate's guest login once the outcome is decided (best-effort).
   if (status === "hired" || status === "rejected") {
     await disableCandidateAccountByIntakeId(id, status).catch(() => {});
+  }
+  // REJECTED CUTS THE NO-LOGIN LINKS TOO.
+  //
+  // The guest login above and the access link are two different doors into the
+  // same record: disabling the account leaves a live /c/<token> link working,
+  // because that link authenticates by the token in a cookie and never consults
+  // the employees row. So a rejected candidate could still open and edit their
+  // interview form. Revoking here closes both.
+  //
+  // Purpose is deliberately NOT passed - every live link goes, form and
+  // policies alike. Best-effort for the same reason as the line above: the
+  // status change is the thing HR asked for and must not fail on this.
+  if (status === "rejected") {
+    await revokeAccessLinks(id).catch(() => {});
   }
   revalidatePath("/hr/pre-interview/basic-details");
   return { ok: true };

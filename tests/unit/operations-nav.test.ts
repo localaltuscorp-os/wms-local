@@ -7,12 +7,12 @@ import {
 } from "@/lib/operations/nav";
 
 /**
- * The room's shape: a FIXED rail of seven areas, and the current area's pages as
+ * The room's shape: a FIXED rail of eight areas, and the current area's pages as
  * a quick-access row on top. These pin the matching, which is what decides
  * which row appears and which button in it reads active.
  */
 describe("OPERATIONS_AREAS", () => {
-  it("holds the seven areas in alphabetical rail order", () => {
+  it("holds the eight areas in alphabetical rail order", () => {
     /* ALPHABETICAL BY LABEL since 2026-09-12, replacing an order-by-importance
        that only its author could predict. Written out rather than computed so
        the expectation is readable — the next test is the one that enforces the
@@ -24,11 +24,12 @@ describe("OPERATIONS_AREAS", () => {
       "handholding",
       "jobdescription",
       "events", // Monthly Events Master — sorted by the LABEL, not the id
+      "team-reporting",
       "training",
     ]);
   });
 
-  it("stays sorted when somebody adds the eighth area", () => {
+  it("stays sorted when somebody adds the ninth area", () => {
     /* The point of the alphabet is that it needs no argument — but only if the
        next arrival actually lands in place. A new area appended to the end of
        the array fails here rather than quietly reintroducing an order nobody

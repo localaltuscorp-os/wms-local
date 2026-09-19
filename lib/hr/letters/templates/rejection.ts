@@ -16,7 +16,7 @@ import { type LetterTemplate, t, f, para, signature } from "../types";
 
 const template: LetterTemplate = {
   key: "rejection",
-  title: "Rejection Letter",
+  title: "Regret Letter",
   category: "recruitment",
   entityDefault: "altus-corp",
   signature: "none",

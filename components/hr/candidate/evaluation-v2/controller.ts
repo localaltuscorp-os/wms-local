@@ -40,4 +40,6 @@ export interface EvalController {
   /** Store the generated / edited AI insight blob. */
   setAiInsights: (insights: InterviewAiInsights | null) => void;
   setTextbox: (id: TextboxId, v: string) => void;
+  /** Replace the Interviewed By list (names). */
+  setInterviewedBy: (names: string[]) => void;
 }

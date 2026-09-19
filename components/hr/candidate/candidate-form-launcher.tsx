@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { PenLine } from "lucide-react";
 import type { IntakeInitial, IntakeActions } from "@/components/hr/candidate/intake-wizard";
 import {
+  createOwnCandidatePhotoUploadUrl,
   saveOwnCandidateDraft,
   submitOwnCandidateForm,
 } from "@/app/candidate/candidate-self-actions";
@@ -19,6 +20,7 @@ const IntakeWizard = dynamic(
 const CANDIDATE_ACTIONS: IntakeActions = {
   save: saveOwnCandidateDraft,
   submit: submitOwnCandidateForm,
+  photoUploadUrl: createOwnCandidatePhotoUploadUrl,
 };
 
 /**

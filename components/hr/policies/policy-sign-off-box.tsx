@@ -4,63 +4,55 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Check, Loader2, PenLine, Upload, Trash2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
-import { getSupabaseClient } from "@/lib/supabase/browser";
-import { signPolicyAsCandidate, createPolicySignatureUploadUrl } from "@/app/c/policies/actions";
 import { formatDateHr } from "@/lib/format";
+import { getSupabaseClient } from "@/lib/supabase/browser";
+import {
+  createPolicySignOffUploadUrl,
+  signPolicyWithSignature,
+} from "@/app/(app)/hr/policies/sign-off-actions";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif";
 
 /**
- * THE CANDIDATE'S SIGN BOX — a typed name AND a photo of their signature, no
- * login.
+ * EMPLOYEE POLICY SIGN-OFF — print your name, the date, attach your signature.
  *
- * Deliberately NOT the employee's <PolicyView> signing control: that one starts
- * a DigiLocker-verified signature and archives a signed PDF, neither of which an
- * account-less candidate can do. This states plainly what is being recorded —
- * their name, their signature image, the policy, the moment — so nobody signs
- * believing they did something stronger than they did.
+ * Sits UNDER the policy body, beside the DigiLocker "Sign" action in the
+ * toolbar rather than instead of it: DigiLocker yields a verified identity and
+ * an archived PDF and stays the stronger route, and this is the one that always
+ * works. The heading says which is which so nobody thinks they have done the
+ * other.
  *
- * ── THE IMAGE IS REQUIRED, AND THE BROWSER IS NOT WHERE THAT IS DECIDED ───
- * Sign stays disabled until both a name and an uploaded signature exist, but
- * the rule itself lives in `signPolicyAsCandidate` — a disabled button is a
- * courtesy, not an enforcement point.
+ * The same three lines, in the same order, as the letters a person signs
+ * (lib/hr/letters/sign-off.ts) and the candidate policy box — one shape for
+ * "how this firm takes a signature".
  *
- * ── THE UPLOAD GOES STRAIGHT TO SUPABASE ─────────────────────────────────
- * The file is PUT to a one-shot signed URL and only its storage key is sent
- * back with the signature. The bytes never cross the Next server: candidates
- * fill this on a phone, and pushing a camera photo through a Server Action is
- * the slow path and the one with a hard body limit.
- *
- * ── ALREADY SIGNED IS NOT LOCKED ─────────────────────────────────────────
- * The box keeps showing what they signed as and when, with the name pre-filled
- * and the stored signature counted as present, because the promise made at the
- * top of this flow is that a candidate may come back and correct what they
- * sent. Signing again updates the one row, image included.
+ * The image goes STRAIGHT to Supabase on a one-shot signed URL; only its
+ * storage key is posted with the signature. The date is shown, not typed: what
+ * is filed is the moment the signature is recorded, and an editable date would
+ * let somebody put a different day on their own acknowledgement while the row
+ * said otherwise.
  */
-export function CandidatePolicySignBox({
+export function PolicySignOffBox({
   policyKey,
   title,
-  signedAt,
   signedName,
-  signaturePath,
-  outdated,
+  signedAt,
+  hasSignature,
 }: {
   policyKey: string;
   title: string;
-  signedAt: string | null;
+  /** From a previous sign-off, so the box shows what they signed as. */
   signedName: string | null;
-  /** Storage key of a signature already on file, if any. */
-  signaturePath: string | null;
-  outdated: boolean;
+  signedAt: string | null;
+  hasSignature: boolean;
 }) {
   const router = useRouter();
   const [name, setName] = React.useState(signedName ?? "");
-  const [path, setPath] = React.useState(signaturePath ?? "");
+  const [path, setPath] = React.useState(hasSignature ? "on-file" : "");
   const [preview, setPreview] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement | null>(null);
-  const signed = !!signedAt && !outdated;
 
   React.useEffect(() => {
     return () => {
@@ -72,7 +64,7 @@ export function CandidatePolicySignBox({
     if (uploading) return;
     setUploading(true);
     try {
-      const url = await createPolicySignatureUploadUrl({ mime: file.type || null, size: file.size });
+      const url = await createPolicySignOffUploadUrl({ mime: file.type || null, size: file.size });
       if (!url.ok) {
         fireToast({ message: url.error, type: "error" });
         return;
@@ -109,12 +101,15 @@ export function CandidatePolicySignBox({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
+    // "on-file" is a marker, not a path: a previous signature cannot be
+    // re-submitted from the browser (the server would refuse the prefix
+    // anyway), so signing again means attaching again.
+    if (path === "on-file") {
+      fireToast({ message: "Attach your signature again to re-sign.", type: "error" });
+      return;
+    }
     setBusy(true);
-    const res = await signPolicyAsCandidate({
-      key: policyKey,
-      signedName: name,
-      signaturePath: path,
-    });
+    const res = await signPolicyWithSignature({ key: policyKey, signedName: name, signaturePath: path });
     setBusy(false);
     if (!res.ok) {
       fireToast({ message: res.error, type: "error" });
@@ -124,52 +119,40 @@ export function CandidatePolicySignBox({
     router.refresh();
   }
 
-  const ready = name.trim().length >= 2 && path.trim().length > 0;
+  const ready = name.trim().length >= 2 && path.length > 0 && path !== "on-file";
 
   return (
     <form
       onSubmit={submit}
-      className="mt-6 rounded-2xl border border-hairline-strong bg-white p-5"
+      className="no-print mt-6 rounded-2xl border border-hairline-strong bg-white p-5"
       aria-label={`Sign the ${title}`}
     >
-      {signed ? (
-        <p className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-[13px] font-bold text-emerald-800">
+      <h3 className="text-[15px] font-bold text-ink-strong">Sign with your signature</h3>
+      <p className="mt-1 text-[12.5px] leading-[1.55] text-ink-muted">
+        Print your name, check the date, and attach an image of your signature. If you would
+        rather sign with DigiLocker, use <strong>Sign</strong> at the top of this page — that
+        route verifies your identity and files a signed PDF.
+      </p>
+
+      {signedName && signedAt ? (
+        <p className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-[13px] font-bold text-emerald-800">
           <Check size={16} />
-          Signed as {signedName} on {formatDateHr(signedAt)}. You can change this below.
-        </p>
-      ) : outdated ? (
-        <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-[13px] font-bold text-amber-900">
-          You signed an earlier version of this policy. Please read it again and sign.
+          Signed as {signedName} on {formatDateHr(signedAt)}.
         </p>
       ) : null}
 
-      <label htmlFor={`sign-${policyKey}`} className="block text-[13px] font-bold text-ink-strong">
+      <label htmlFor={`pso-${policyKey}`} className="mt-4 block text-[13px] font-bold text-ink-strong">
         Print your name
       </label>
-      <p className="mt-1 text-[12.5px] leading-[1.55] text-ink-muted">
-        By typing your name you confirm you have read the {title} and agree to it. We record your
-        name, your signature, the policy version and the date and time.
-      </p>
-
       <input
-        id={`sign-${policyKey}`}
+        id={`pso-${policyKey}`}
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Your full name"
         autoComplete="name"
-        className="mt-3 w-full rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] text-ink-strong outline-none focus:border-altus-red"
+        className="mt-1.5 w-full rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] text-ink-strong outline-none focus:border-altus-red"
       />
 
-      {/* ── THE DATE ──────────────────────────────────────────────────────
-          Today's date, stated in the module's DD-MMM-YYYY form, and NOT an
-          input.
-
-          What gets filed is the moment the signature is actually recorded
-          (`signed_at`, set server-side). Offering an editable date here would
-          let somebody type a different day onto their own acknowledgement -
-          a backdated consent, agreed at a date nobody can check - while the
-          row said something else. So the line shows the date this signature
-          will carry, and the record and the page cannot disagree. */}
       <div className="mt-4">
         <p className="text-[13px] font-bold text-ink-strong">Date</p>
         <p className="mt-1 text-[14px] font-semibold tabular-nums text-ink-strong">
@@ -177,13 +160,9 @@ export function CandidatePolicySignBox({
         </p>
       </div>
 
-      {/* ── THE SIGNATURE IMAGE ───────────────────────────────────────────
-          Its own block under the name, with the requirement said out loud:
-          the Sign button is disabled without it, and a disabled button that
-          does not explain itself reads as a broken page. */}
-      <div className="mt-5 border-t border-hairline pt-4">
+      <div className="mt-4">
         <p className="text-[13px] font-bold text-ink-strong">
-          Upload your signature{" "}
+          Attach your signature{" "}
           <span style={{ color: "var(--color-altus-red)" }} aria-hidden>
             *
           </span>
@@ -191,7 +170,7 @@ export function CandidatePolicySignBox({
         </p>
         <p className="mt-1 text-[12.5px] leading-[1.55] text-ink-muted">
           Sign on a plain sheet of paper, photograph it, and upload the photo. JPG, PNG or WebP,
-          up to 8 MB. This is required — the policy cannot be signed without it.
+          up to 8 MB. A printed name on its own is not a signature.
         </p>
 
         <div className="mt-3 flex flex-wrap items-center gap-4">
@@ -201,7 +180,7 @@ export function CandidatePolicySignBox({
             ) : preview ? (
               // eslint-disable-next-line @next/next/no-img-element -- a blob: URL from the picked File; next/image cannot optimise it.
               <img src={preview} alt="The signature you just uploaded" className="h-full w-full object-contain" />
-            ) : path ? (
+            ) : path === "on-file" ? (
               <span className="px-2 text-center text-[11.5px] font-semibold text-ink-muted">
                 Signature on file
               </span>
@@ -230,7 +209,7 @@ export function CandidatePolicySignBox({
               <Upload size={15} strokeWidth={2.3} />
               {path ? "Replace signature" : "Upload signature"}
             </button>
-            {path && (
+            {path && path !== "on-file" && (
               <button
                 type="button"
                 disabled={uploading}
@@ -252,13 +231,13 @@ export function CandidatePolicySignBox({
           style={{ background: "var(--color-altus-red)" }}
         >
           {busy ? <Loader2 size={15} className="animate-spin" /> : <PenLine size={15} />}
-          {signed ? "Update signature" : "Sign"}
+          {signedAt ? "Re-sign" : "Sign"}
         </button>
         {!ready && (
           <span className="text-[12.5px] font-semibold text-ink-muted">
             {name.trim().length < 2
-              ? "Type your full name and upload your signature to sign."
-              : "Upload your signature to sign."}
+              ? "Print your name and attach your signature to sign."
+              : "Attach your signature to sign."}
           </span>
         )}
       </div>

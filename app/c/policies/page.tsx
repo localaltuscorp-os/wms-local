@@ -43,10 +43,68 @@ export default async function CandidatePoliciesPage() {
         <strong>no login needed</strong>.
       </p>
 
-      <div className="mt-4 flex items-center gap-2 text-[13px] font-bold text-ink-muted">
-        <ShieldCheck size={15} />
-        {done} of {policies.length} signed
-      </div>
+      {/* ── PROGRESS, STATED PROPERLY ────────────────────────────────────
+          This was a 13px grey line that read as a caption, on a page whose
+          entire purpose is "how many of these have I done?". It is now the
+          loudest thing under the heading: the count at display size, a bar
+          that shows the same fact at a glance, and a colour that changes when
+          there is nothing left to do — so a candidate can tell they have
+          finished without counting green ticks down the list.
+
+          The bar is `aria-hidden` and the count is real text, so a screen
+          reader hears the number once rather than the number and a widget
+          saying it again. */}
+      {policies.length > 0 ? (
+        <div
+          className="mt-5 rounded-2xl border p-4"
+          style={
+            done === policies.length
+              ? { borderColor: "color-mix(in srgb, #16a34a 35%, white)", background: "color-mix(in srgb, #16a34a 7%, white)" }
+              : { borderColor: "var(--color-hairline-strong)", background: "#fff" }
+          }
+        >
+          <div className="flex items-center gap-2.5">
+            <span
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-white"
+              style={{ background: done === policies.length ? "#16a34a" : "var(--color-altus-red)" }}
+            >
+              <ShieldCheck size={17} strokeWidth={2.4} />
+            </span>
+            <p
+              className="text-[19px] font-black leading-none text-ink-strong"
+              style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}
+            >
+              {done} of {policies.length} signed
+            </p>
+            {done === policies.length ? (
+              <span
+                className="ml-auto shrink-0 rounded-pill px-2.5 py-1 text-[11.5px] font-black uppercase tracking-wide"
+                style={{ background: "color-mix(in srgb, #16a34a 14%, white)", color: "#15803d" }}
+              >
+                All done
+              </span>
+            ) : (
+              <span className="ml-auto shrink-0 text-[12.5px] font-bold text-ink-muted">
+                {policies.length - done} left
+              </span>
+            )}
+          </div>
+
+          <div
+            aria-hidden
+            className="mt-3 h-2 w-full overflow-hidden rounded-pill"
+            style={{ background: "var(--color-surface-soft)" }}
+          >
+            <div
+              className="h-full rounded-pill transition-[width]"
+              style={{
+                width: `${Math.round((done / policies.length) * 100)}%`,
+                background: done === policies.length ? "#16a34a" : "var(--color-altus-red)",
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
 
       <ul className="mt-6 flex flex-col gap-3">
         {policies.map((p) => {

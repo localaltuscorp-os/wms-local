@@ -41,6 +41,7 @@ import {
 } from "@/lib/hr/ctc/local-store";
 import { fireToast } from "@/lib/toast";
 import { CtcSheet } from "./ctc-sheet";
+import { DateField } from "@/components/ui/date-field";
 import {
   loadCtcVersions,
   saveCtcVersion,
@@ -400,8 +401,8 @@ export function CtcWorkbench({ roster, isAdmin }: { roster: CtcRosterOption[]; i
         <label className="ctcw-pick">
           <CalendarDays size={15} strokeWidth={2.2} aria-hidden />
           <span className="ctcw-pick-label">Effective Date</span>
-          <input
-            type="date"
+          <DateField
+          
             value={effectiveDate}
             onChange={(e) => {
               setEffectiveDate(e.target.value);
@@ -498,8 +499,8 @@ export function CtcWorkbench({ roster, isAdmin }: { roster: CtcRosterOption[]; i
                 growth.map((n) => (
                   <div key={n.id} className="ctcw-note">
                     <div className="ctcw-note-row">
-                      <input
-                        type="date"
+                      <DateField
+          
                         className="ctcw-note-date"
                         value={n.date}
                         onChange={(e) => updateGrowthNote(n.id, { date: e.target.value })}
