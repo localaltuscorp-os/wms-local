@@ -29,6 +29,10 @@ export function defaultIncentiveAmount(
         case "LinkedIn Testimonial": return 75;
         default: return 0;
       }
+    case "leads_referrals":
+      // The chart pays these per batch ("10 Qualified Leads", "10 Referrals"),
+      // not per request, so a single request has no default — an admin sets it.
+      return 0;
   }
 }
 
@@ -39,6 +43,7 @@ export function incentiveLabel(type: IncentiveType, d: Record<string, string>): 
     case "sales_pitch": return "Consulting Pitch";
     case "group_intro": return d.event_type || "Group Introduction";
     case "client_happiness": return d.happiness_type || "Client Happiness";
+    case "leads_referrals": return "Leads / Referrals";
   }
 }
 
@@ -69,6 +74,9 @@ export const INCENTIVE_CONDITION_FIELDS: Record<IncentiveType, readonly Conditio
   group_intro: [
     { key: "event_done", label: "Event Done?", options: ["Yes", "No"] },
   ],
+  // No gating columns defined for the new type yet — Approval/Accounts are out
+  // of scope for the form change that introduced it.
+  leads_referrals: [],
 };
 
 /** Unpaid only accrues once approved (matches the sheet's Approved-Amt − Paid). */

@@ -57,7 +57,16 @@ const row = (over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   cookieValue = "dev-1";
   deviceRow = row();
-  delete process.env.DEVICE_ACCESS_ENFORCEMENT;
+  // ENFORCEMENT IS NAMED, not inherited from the default.
+  //
+  // Almost every test in this file asserts what happens to someone on an
+  // unregistered, pending, revoked or someone-else's device — questions that
+  // only exist while restriction is enforced. This used to `delete` the
+  // variable and lean on the default being "enforcing"; on 2026-09-15 that
+  // default was reversed (see `deviceAccessEnforced()`) and every one of those
+  // assertions inverted at once. The tests that are specifically ABOUT the
+  // switch set their own value below and are unaffected by this line.
+  process.env.DEVICE_ACCESS_ENFORCEMENT = "on";
 });
 
 afterEach(() => {
@@ -186,20 +195,33 @@ describe("the native app's device id", () => {
 });
 
 describe("the enforcement switch", () => {
-  it("enforces by DEFAULT, with the variable unset", async () => {
-    // A security control that has to be switched on ships as documentation.
+  // ── THE DEFAULT WAS REVERSED ON 2026-09-15 ───────────────────────────────
+  // These two tests are the contract for `deviceAccessEnforced()`, so they are
+  // rewritten rather than deleted: the switch still has exactly one enabling
+  // value and everything else is the other state — only which state is which
+  // has swapped. The previous pair asserted "enforces by DEFAULT" and "only
+  // disables on the exact value 'off'", and the comment on the first read "a
+  // security control that has to be switched on ships as documentation". That
+  // is still the argument against this default, and it is recorded here so the
+  // change is legible to whoever reads these tests next.
+
+  it("is OFF by DEFAULT, with the variable unset", async () => {
     deviceRow = null;
-    expect((await resolveDeviceContext(om)).allowed).toBe(false);
+    delete process.env.DEVICE_ACCESS_ENFORCEMENT;
+    expect((await resolveDeviceContext(om)).allowed).toBe(true);
   });
 
-  it("only disables on the exact value 'off'", async () => {
+  it("only enables on the exact value 'on'", async () => {
     deviceRow = null;
-    for (const v of ["", "false", "no", "OFF", "0", "true"]) {
+    // Everything that is not exactly "on" leaves the gate open — including the
+    // old enabling states, so a stale `=off` in some environment's variables
+    // cannot accidentally mean something new.
+    for (const v of ["", "false", "no", "ON", "0", "true", "off", "enforce"]) {
       process.env.DEVICE_ACCESS_ENFORCEMENT = v;
-      expect((await resolveDeviceContext(om)).allowed).toBe(false);
+      expect((await resolveDeviceContext(om)).allowed).toBe(true);
     }
-    process.env.DEVICE_ACCESS_ENFORCEMENT = "off";
-    expect((await resolveDeviceContext(om)).allowed).toBe(true);
+    process.env.DEVICE_ACCESS_ENFORCEMENT = "on";
+    expect((await resolveDeviceContext(om)).allowed).toBe(false);
   });
 
   it("does not claim an exemption while enforcement is off", async () => {

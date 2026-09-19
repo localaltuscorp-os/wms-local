@@ -111,7 +111,7 @@ export const INTAKE_SECTIONS: IntakeSection[] = [
     fields: [
       // Row 1 — Position · Department · Aadhaar (three across).
       { key: "position", label: "Position Applied For", type: "select", optionsFrom: "positions", required: true, span: 4 },
-      { key: "department", label: "Department", type: "select", optionsFrom: "departments", required: true, span: 4 },
+      { key: "department", label: "Function", type: "select", optionsFrom: "departments", required: true, span: 4 },
       { key: "aadhaar", label: "Aadhaar Card Number", type: "text", placeholder: "12-digit Aadhaar number", aadhaarLookup: true, required: true, span: 4 },
       // Row 2 — Full Name (wide) · Date of Birth · Age.
       { key: "fullName", label: "Full Name", type: "text", required: true, span: 6 },

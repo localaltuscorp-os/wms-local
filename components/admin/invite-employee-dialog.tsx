@@ -116,7 +116,7 @@ export function InviteEmployeeDialog({
                 ]}
               />
             </Field>
-            <Field label="Departments (optional)">
+            <Field label="Functions (optional)">
               <DepartmentMultiSelect
                 options={departmentOptions}
                 selectedIds={deptIds}

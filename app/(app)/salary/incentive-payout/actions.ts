@@ -21,6 +21,9 @@ import {
   sourcesForPerson,
 } from "@/lib/incentive/payout-sources";
 import { planIncentivePayout, round2 } from "@/lib/incentive/payout-math";
+import { afterResponse } from "@/lib/after";
+import { notifyIncentivesPaid, type PaidNotificationInput } from "@/lib/incentive/notifications/service";
+import { mailIncentiveBreakup } from "@/lib/incentive/notify-breakup";
 
 export type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -153,6 +156,23 @@ export async function payIncentivesWithRun(
       );
       const bySource = new Map(mine.map((s) => [s.key, s] as const));
 
+      // Labels for the "incentive paid" notices only — read off the rows already
+      // loaded above; nothing below this changes what is paid.
+      const entryName = new Map(entries.map((e) => [e.id, e.incentiveName] as const));
+      const projectName = new Map(
+        projects.map((p) => [p.id, p.projectName ?? p.subject ?? "Project incentive"] as const),
+      );
+      const participantById = new Map(participants.map((p) => [p.id, p] as const));
+      const labelFor = (src: (typeof mine)[number]): string | null => {
+        if (src.table === "entry") return entryName.get(src.rowId) ?? null;
+        if (src.table === "project") return projectName.get(src.rowId) ?? null;
+        const part = participantById.get(src.rowId);
+        if (part?.entryId) return entryName.get(part.entryId) ?? null;
+        if (part?.projectId) return projectName.get(part.projectId) ?? null;
+        return null;
+      };
+      const paidNotices: PaidNotificationInput[] = [];
+
       let paidCount = 0;
       let totalPaid = 0;
       let skipped = 0;
@@ -206,18 +226,34 @@ export async function payIncentivesWithRun(
         }
 
         // 2) audit event.
-        await tx.insert(incentivePayoutEvents).values({
-          employeeId: src.employeeId ?? run.employeeId ?? null,
-          empName: src.empName,
-          source: src.table,
-          sourceId: src.rowId,
-          salaryRunId: v.salaryRunId,
-          periodMonth: src.periodMonth ?? `${month}-01`,
-          amount: money2(leg.payNow),
-          paidDate,
-          createdById: me.id,
-          note: [src.leg ? `${src.leg} leg` : null, v.note ?? null].filter(Boolean).join(" · ") || null,
-        });
+        const [audit] = await tx
+          .insert(incentivePayoutEvents)
+          .values({
+            employeeId: src.employeeId ?? run.employeeId ?? null,
+            empName: src.empName,
+            source: src.table,
+            sourceId: src.rowId,
+            salaryRunId: v.salaryRunId,
+            periodMonth: src.periodMonth ?? `${month}-01`,
+            amount: money2(leg.payNow),
+            paidDate,
+            createdById: me.id,
+            note: [src.leg ? `${src.leg} leg` : null, v.note ?? null].filter(Boolean).join(" · ") || null,
+          })
+          .returning({ id: incentivePayoutEvents.id });
+        if (audit) {
+          // The payout event IS the "paid" event: its id versions the notice.
+          paidNotices.push({
+            employeeId: src.employeeId ?? run.employeeId ?? null,
+            subjectId: src.rowId,
+            versionKey: `payout-event:${audit.id}`,
+            label: labelFor(src),
+            amount: leg.payNow,
+            paidDate,
+            periodMonth: src.periodMonth ?? `${month}-01`,
+            actorId: me.id,
+          });
+        }
 
         // 3) salary ledger row (kind='incentive'), linked to the same run.
         await tx.insert(salaryPayments).values({
@@ -243,10 +279,32 @@ export async function payIncentivesWithRun(
         totalPaid,
         skipped,
         remainderAfter: plan.remainderAfter,
+        paidNotices,
+        // Carried out of the transaction so the breakup mail (which runs after
+        // the response) can name the person and the month without re-reading
+        // either — `run` and `month` are scoped to this callback.
+        breakup: { employeeId: run.employeeId, month },
       };
     });
 
     if (result.kind === "err") return { ok: false, error: result.error };
+
+    // Committed — tell each paid employee, after the response.
+    if (result.paidNotices.length > 0) {
+      const notices = result.paidNotices;
+      afterResponse(() => notifyIncentivesPaid(notices));
+    }
+
+    // The document that goes WITH the money: the Incentive Breakup Letter, on
+    // the same edge and also after the response. It re-renders the same PDF the
+    // employee can download later from /salary/incentive-breakup, is claimed in
+    // the delivery table so a replay sends nothing, and cannot fail this action.
+    const breakupFor = result.breakup.employeeId;
+    if (result.paidCount > 0 && breakupFor) {
+      const { month } = result.breakup;
+      const paidTotal = result.totalPaid;
+      afterResponse(() => mailIncentiveBreakup({ employeeId: breakupFor, month, paidTotal }));
+    }
 
     revalidatePath("/salary/incentive-payout");
     revalidatePath("/salary");

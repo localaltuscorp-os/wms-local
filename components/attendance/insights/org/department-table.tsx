@@ -16,7 +16,7 @@ type SortKey = keyof Pick<
 >;
 
 const COLUMNS: { key: SortKey; label: string; numeric: boolean; align: "left" | "right" }[] = [
-  { key: "department", label: "Department", numeric: false, align: "left" },
+  { key: "department", label: "Function", numeric: false, align: "left" },
   { key: "headcount", label: "Headcount", numeric: true, align: "right" },
   { key: "attendanceRatePct", label: "Attendance", numeric: true, align: "right" },
   { key: "punctualityRatePct", label: "Punctuality", numeric: true, align: "right" },
@@ -55,7 +55,7 @@ export function DepartmentTable({ departments }: { departments: DepartmentRollup
   if (departments.length === 0) {
     return (
       <div className="flex min-h-[120px] items-center justify-center rounded-chip border border-solid border-hairline-strong bg-surface-soft px-4 py-8 text-center">
-        <p className="text-[13.5px] font-medium text-ink-muted">No department data for this month.</p>
+        <p className="text-[13.5px] font-medium text-ink-muted">No Function data for this month.</p>
       </div>
     );
   }

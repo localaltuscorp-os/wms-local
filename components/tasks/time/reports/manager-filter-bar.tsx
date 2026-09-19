@@ -85,9 +85,9 @@ export function ManagerFilterBar({
         </label>
 
         <label>
-          <Label>Department</Label>
+          <Label>Function</Label>
           <select className={FIELD} value={department} onChange={(e) => setDepartment(e.target.value)}>
-            <option value="">All departments</option>
+            <option value="">All Functions</option>
             {options.departments.map((d) => (
               <option key={d} value={d}>{d}</option>
             ))}

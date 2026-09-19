@@ -56,14 +56,14 @@ export function DrillTable({
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <CollapsibleSearch scope="people or departments">
+          <CollapsibleSearch scope="people or Functions">
           <label className="relative inline-flex items-center">
             <Search size={15} strokeWidth={2.3} className="absolute left-3 text-ink-soft" aria-hidden />
             <input
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Local search - people or departments" title="Local search - filters only the list on this page" aria-label="Local search - people or departments - this page only"
+              placeholder="Local search - people or Functions" title="Local search - filters only the list on this page" aria-label="Local search - people or Functions - this page only"
               className="h-9 w-[260px] max-sm:w-[200px] rounded-full border border-hairline bg-surface-soft pl-9 pr-3 text-[13.5px] font-medium text-ink-strong placeholder:text-ink-soft outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/50"
             />
           </label>

@@ -40,6 +40,7 @@ const PAL: Record<WorkspaceId, { from: string; to: string; ink: string }> = {
   operations: { from: "#F3ECD8", to: "#F3ECD8", ink: "#886920" }, // a · gold, matching its card (the room is red inside)
   accounts: { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B" }, // shadows `admin`
   "project-plan": { from: "#A5F3FC", to: "#67E8F9", ink: "#0E7490" }, // 12 · cyan (its own hub identity)
+  incentive: { from: "#F6E3F4", to: "#F6E3F4", ink: "#8E298E" }, // I · magenta, matching its card (the room is red inside)
 };
 
 function Glyph({ id, ink, light }: { id: WorkspaceId; ink: string; light: string }) {
@@ -245,6 +246,25 @@ function Glyph({ id, ink, light }: { id: WorkspaceId; ink: string; light: string
           ))}
           <circle cx="32" cy="32" r="12" />
           <circle cx="32" cy="32" r="5" fill={light} />
+        </g>
+      );
+    // Incentive — an award medal: a ribbon crossing below a struck disc. The
+    // same mark lucide's `Award` draws, which is the icon the Incentive rail
+    // entry has used all along, redrawn SOLID in the deep ink like every other
+    // tile here — a 2px outline glyph goes grey and disappears at 24px, which
+    // is the size these are read at on the module bar.
+    case "incentive":
+      return (
+        <g>
+          {/* Ribbon tails, crossing under the disc. Drawn first so the medal
+              sits on top of them and the join needs no mitre. */}
+          <path d="M24.4 39.5 L18.5 53.5 L26.4 50.2 L30.4 45.6 Z" fill={ink} opacity="0.72" />
+          <path d="M39.6 39.5 L45.5 53.5 L37.6 50.2 L33.6 45.6 Z" fill={ink} opacity="0.72" />
+          {/* The medal, with a white ring cut out so the disc does not read as
+              a plain blob at small sizes. */}
+          <circle cx="32" cy="27.5" r="14" fill={ink} />
+          <circle cx="32" cy="27.5" r="9.2" fill="none" stroke={light} strokeWidth="2.6" />
+          <circle cx="32" cy="27.5" r="3.6" fill={light} />
         </g>
       );
     default:

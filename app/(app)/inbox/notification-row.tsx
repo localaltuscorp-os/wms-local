@@ -15,6 +15,7 @@ import {
   formatShortTime,
   notificationPeriod,
 } from "@/lib/notifications/categories";
+import { incentiveNotificationHref } from "@/lib/incentive/notifications/kinds";
 import { markNotificationRead } from "./actions";
 
 interface Props {
@@ -75,6 +76,8 @@ export function parseBody(
       const from = typeof o.fromStatus === "string" ? (o.fromStatus as TaskStatus) : null;
       const to = typeof o.toStatus === "string" ? (o.toStatus as TaskStatus) : null;
       if (from || to) return { from, to };
+      // Incentive notifications carry a one-line, user-facing `summary`.
+      if (typeof o.summary === "string" && o.summary.trim()) return { text: o.summary.trim() };
     } catch {
       /* fall through */
     }
@@ -152,7 +155,11 @@ export function NotificationRow({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const unread = row.readAt === null;
-  const href = (KIND_HREF[row.kind] ?? (row.taskId ? `/tasks/${row.taskId}` : "/inbox")) as Route;
+  // Incentive notifications open the request (or the Incentive Table) they are
+  // about; the incentive page only shows a request its viewer may already see.
+  const href = (incentiveNotificationHref(row.kind, row.body) ??
+    KIND_HREF[row.kind] ??
+    (row.taskId ? `/tasks/${row.taskId}` : "/inbox")) as Route;
   const who = row.actorName ?? "System";
   const meta = parseBody(row.body);
   const category = CATEGORY_LABELS[categoryOfKind(row.kind)];

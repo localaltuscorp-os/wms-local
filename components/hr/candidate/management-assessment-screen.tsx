@@ -1110,7 +1110,7 @@ function RoleDesignationCard({
       <CardHead n={1} icon={<IdCard size={17} />} title="Role & Designation" sub="Confirm the offered designation and joining date." />
       <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
         <ReadField label="Role (applied)" value={role || "-"} />
-        <ReadField label="Department" value={department || "-"} />
+        <ReadField label="Function" value={department || "-"} />
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
         <FieldLabel label="Designation">

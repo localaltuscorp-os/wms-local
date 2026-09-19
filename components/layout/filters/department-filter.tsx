@@ -21,8 +21,8 @@ export function DepartmentFilter({
       renderTrigger={({ selectedLabels }) => (
         <FilterPill
           icon={<Users2 size={16} strokeWidth={2} />}
-          name="Department"
-          value={summarizeSelection(selectedLabels, "All Departments")}
+          name="Function"
+          value={summarizeSelection(selectedLabels, "All Functions")}
           tint="#8b5cf6"
           active={selected.length > 0}
         />

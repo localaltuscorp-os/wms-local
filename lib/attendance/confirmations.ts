@@ -9,6 +9,7 @@ import { employeeDepartmentNames } from "@/lib/queries/departments";
 import { matchesDepartment, ACCOUNTS_DEPARTMENT } from "@/lib/workspaces";
 import { loadDccScope } from "@/lib/dcc/access";
 import { localDateString } from "@/lib/format";
+import { isWorkingDay, resolveEffectiveConfig } from "@/lib/attendance/effective-config";
 
 /**
  * WS-5 — Monday attendance confirmations.
@@ -179,6 +180,15 @@ export async function getMondayConfirmQueue(me: Employee, now: Date = new Date()
         department: employees.department,
         weeklyOff: employees.weeklyOff,
         managerId: employees.managerId,
+        // 0228 — which days are actually working days for this person, so a
+        // Saturday they do not work is not counted as an absence to confirm,
+        // and someone not required to punch is not in the queue at all.
+        attendanceApplicable: employees.attendanceApplicable,
+        sat1Working: employees.sat1Working,
+        sat2Working: employees.sat2Working,
+        sat3Working: employees.sat3Working,
+        sat4Working: employees.sat4Working,
+        sat5Working: employees.sat5Working,
       })
       .from(employees)
       .where(eq(employees.isActive, true));
@@ -204,6 +214,13 @@ export async function getMondayConfirmQueue(me: Employee, now: Date = new Date()
         targetIds = roster.filter((r) => outsideDownline.has(r.id)).map((r) => r.id);
       }
     }
+
+    // 0228 — someone who is not required to punch has no attendance for a
+    // manager to vouch for, so they never enter the queue.
+    const notApplicable = new Set(
+      roster.filter((r) => r.attendanceApplicable === false).map((r) => r.id),
+    );
+    targetIds = targetIds.filter((id) => !notApplicable.has(id));
 
     if (mode === "none" || targetIds.length === 0) {
       return { ...empty, mode };
@@ -251,9 +268,15 @@ export async function getMondayConfirmQueue(me: Employee, now: Date = new Date()
       .filter((r): r is NonNullable<typeof r> => !!r)
       .map((r) => {
         const present = presentByEmp.get(r.id) ?? new Set<string>();
+        // `weeklyOff` on a cell means "not a working day for this person": the
+        // weekly off itself or, since 0228, a Saturday their flags exclude.
+        // Resolved through the grader's own `isWorkingDay`, so this queue can
+        // never ask a manager to vouch for an absence the payslip does not see.
+        const cfg = resolveEffectiveConfig(r);
         const cells: DayCell[] = week.days.map((date) => {
           const wd = weekdayOf(date);
-          return { date, weekday: wd, weeklyOff: wd === r.weeklyOff, present: present.has(date) };
+          const off = !isWorkingDay(cfg, wd, Number(date.slice(8, 10)));
+          return { date, weekday: wd, weeklyOff: off, present: present.has(date) };
         });
         const presentDays = cells.filter((c) => c.present).length;
         const absentDays = cells.filter((c) => !c.weeklyOff && !c.present).length;

@@ -23,7 +23,7 @@ const STRING_FIELDS: { key: keyof InterviewAiInsights; label: string; full?: boo
   { key: "leadershipPotential", label: "Leadership Potential" },
   { key: "cultureMatch", label: "Culture Match" },
   { key: "roleSuitability", label: "Role Suitability" },
-  { key: "recommendedDepartment", label: "Recommended Department" },
+  { key: "recommendedDepartment", label: "Recommended Function" },
   { key: "salaryRange", label: "Salary Range" },
   { key: "nextRound", label: "Next Round" },
 ];

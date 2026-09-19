@@ -25,6 +25,7 @@ export const WORKSPACE_IDS = [
   "people-allocation",
   "project-plan",
   "operations",
+  "incentive",
 ] as const;
 
 export type WorkspaceId = (typeof WORKSPACE_IDS)[number];
@@ -48,6 +49,7 @@ export const WORKSPACE_LABEL: Record<WorkspaceId, string> = {
   "people-allocation": "Hand-holding",
   "project-plan": "Project",
   operations: "Operations",
+  incentive: "Incentive",
 };
 
 /** Where each card drops you when you enter the workspace. */
@@ -91,6 +93,11 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   // place deciding where the room opens, and so this entry, the `aw` cookie and
   // the permission catalog all keep naming the same path.
   operations: "/operations",
+  // Incentive — its own room (2026-09-16). The landing is the route the module
+  // has ALWAYS been on, deliberately: every incentive notification, every email
+  // deep link and the two export routes already point at `/incentive`, so
+  // reusing it means the extraction needs no redirect and breaks no bookmark.
+  incentive: "/incentive",
 };
 
 export const ACTIVE_WORKSPACE_COOKIE = "aw";
@@ -207,6 +214,20 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
   if (p.startsWith("/appraisal")) return "productivity";
   if (p.startsWith("/weekly-goals") || p.startsWith("/daily-checklist")) return "goals";
 
+  // INCENTIVE — its own room (2026-09-16), lifted out of Employees.
+  //
+  // Matched HERE, above the Employees block that used to claim this prefix, for
+  // the same reason `/project-plan` is matched above `/projects`: the rule that
+  // must win goes first, and keeping the two apart is what stops a later edit
+  // widening one over the other. The path itself did not move — only the room
+  // that owns it — so the sidebar now shows the Incentive rail instead of the
+  // Employees rail while you are inside the module.
+  //
+  // `/salary/incentive-payout` is NOT caught by this: it does not start with
+  // `/incentive`. It stays an Accounts surface, claimed by the Accounts block
+  // below, which is correct — paying an incentive is the Accounts team's job.
+  if (p.startsWith("/incentive")) return "incentive";
+
   // WMS — the work loop (the dashboard now lives at /dashboard). Important
   // Links (/index-hub) moved here from the retired Marketing room.
   // `/my-day` IS Plan My Day (2026-08) — the planner moved out of Goals and
@@ -245,7 +266,8 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
        in the finance room's rail. */
     p.startsWith("/salary-slip") ||
     p.startsWith("/dcc") ||
-    p.startsWith("/incentive") ||
+    // `/incentive` is NOT here any more — Incentive became its own room and is
+    // claimed by the rule above.
     p.startsWith("/reimbursements") ||
     p.startsWith("/leave") ||
     p.startsWith("/pms") ||

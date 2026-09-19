@@ -203,6 +203,16 @@ export async function loadEmployeeAttendanceAnalytics(
         attFullDayMinutes: employees.attFullDayMinutes,
         attHalfDayMinutes: employees.attHalfDayMinutes,
         weeklyTargetMinutes: employees.weeklyTargetMinutes,
+        // 0228 — so the targets this page shows come from the same resolved
+        // config the grader now applies, Saturdays and applicability included.
+        attendanceApplicable: employees.attendanceApplicable,
+        sat1Working: employees.sat1Working,
+        sat2Working: employees.sat2Working,
+        sat3Working: employees.sat3Working,
+        sat4Working: employees.sat4Working,
+        sat5Working: employees.sat5Working,
+        satOfficialStart: employees.satOfficialStart,
+        satOfficialEnd: employees.satOfficialEnd,
       })
       .from(employees)
       .where(eq(employees.id, employeeId))

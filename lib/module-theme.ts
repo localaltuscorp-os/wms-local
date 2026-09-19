@@ -10,6 +10,7 @@ import {
   ReceiptIndianRupee,
   type LucideIcon,
   Gauge,
+  Award,
   Users2,
   FolderTree,
   ShieldAlert,
@@ -269,6 +270,32 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
     accentDeep: "#A80400",
     image: null,
   },
+  // INCENTIVE — its own room (2026-09-16), lifted out of Employees where it had
+  // been one rail entry among nine.
+  //
+  // IT KEEPS THE ALTUS RED INSIDE, and that is not an oversight. The module's
+  // own chrome — the year pills, the active tab, the request badges — is already
+  // built on #E10600 / #A80400, so the accent pair here simply names the colour
+  // the room has always worn. Nothing inside the module changes appearance.
+  //
+  // Its HUB CARD is magenta, which is a different question with a different
+  // answer: see HUB_PASTEL in app/(app)/hub/page.tsx. The front door must be
+  // able to tell twelve cards apart, and a fourth red one could not be — the
+  // same reason Operations wears gold on the hub and red inside.
+  //
+  // `Award` is the icon the Employees rail has always used for Incentive, kept
+  // so the module is recognisable by the mark people already know it by.
+  incentive: {
+    id: "incentive",
+    label: "Incentive",
+    shortcut: "I",
+    tagline: "Requests, approvals, targets & payouts - earned and tracked.",
+    href: "/ws/incentive" as Route,
+    Icon: Award,
+    accent: "#E10600",
+    accentDeep: "#A80400",
+    image: null,
+  },
 };
 
 /** Hub display order. */
@@ -304,6 +331,10 @@ export const MODULE_ORDER: WorkspaceId[] = [
   // scheme: three moves in two days, each one shuffling keys nobody had asked
   // to change. Letters are mnemonic now and a fourth move would cost none.
   "operations",        // O  — "Operations" (D belongs to the Admin Panel)
+  // INCENTIVE, its own room since 2026-09-16. It was added on a branch that
+  // still lettered by position (it had "f"); under the mnemonic scheme it takes
+  // I, which nothing else holds. Appended, so no other module's letter moves.
+  "incentive",         // I  — "Incentive"
 ];
 
 /**

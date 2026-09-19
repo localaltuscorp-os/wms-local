@@ -45,7 +45,7 @@ export function InductionProgress({ items }: { items: InductionItem[] }) {
   if (items.length === 0) {
     return <div className="rounded-section border border-hairline bg-surface-card p-10 text-center" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
       <GraduationCap size={36} strokeWidth={1.6} className="mx-auto mb-3" style={{ color: "var(--color-ink-subtle)" }} />
-      <p className="text-[15px] font-semibold text-ink-muted">No induction assigned to your department yet.</p>
+      <p className="text-[15px] font-semibold text-ink-muted">No induction assigned to your Function yet.</p>
     </div>;
   }
 

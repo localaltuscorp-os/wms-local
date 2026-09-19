@@ -88,6 +88,12 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "25mb",
     },
+    // THE VERCEL BUILD RAN OUT OF MEMORY (19 Sep). On the 2-core / 8 GB build
+    // machine the webpack compile stalled after "Compiled with warnings" and
+    // was killed at Vercel's 45-minute limit, twice, on code that had built
+    // in 7 minutes an hour earlier. Trades a little build speed for a lower
+    // peak heap. Paired with the heap size in package.json's build script.
+    webpackMemoryOptimizations: true,
   },
   /**
    * TYPED ROUTES ARE OFF — the app outgrew them.
@@ -194,6 +200,10 @@ const nextConfig: NextConfig = {
   // to be on the function filesystem, so a bare readFile would 500 in prod).
   outputFileTracingIncludes: {
     "/goals/template.xlsx": ["./public/templates/Altus-Goals-Template.xlsx"],
+    // The Upload Master download route serves the same built-in Goals workbook
+    // (via lib/templates/goals.ts) without module access, so it needs the file
+    // traced into its own function too.
+    "/admin/upload-master/download/[key]": ["./public/templates/Altus-Goals-Template.xlsx"],
     // @sparticuz/chromium's binary lives in its `bin/` dir and is unpacked at
     // RUNTIME by executablePath() — nothing statically imports it, so Vercel's
     // file-tracing drops it from the function ("input directory …/bin does not

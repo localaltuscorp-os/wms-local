@@ -1,7 +1,15 @@
 "use client";
 
-import { useId, useMemo, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Search } from "lucide-react";
+import { Fragment, useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+  Search,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
@@ -58,6 +66,24 @@ export interface DataTableProps<T> {
   /** Placeholder for the search input. */
   searchPlaceholder?: string;
   className?: string;
+  /**
+   * EXPANDABLE ROWS (opt-in). Return the detail to show under a row and the
+   * table grows a leading chevron column; the row itself becomes the toggle.
+   * Omitted — which is every existing caller — and nothing changes.
+   */
+  renderRowDetail?: (row: T) => ReactNode;
+  /** Row keys open on first render (deep links). Only honoured with `renderRowDetail`. */
+  initiallyExpandedKeys?: string[];
+  /**
+   * PAGINATION (opt-in). Rows per page; a footer appears only once the filtered
+   * set is longer than this. Search/filter/sort run over the WHOLE set first, so
+   * paging never hides a match — it only chunks what is already matching.
+   */
+  pageSize?: number;
+  /** Pin the first data column while the table scrolls sideways. */
+  stickyFirstColumn?: boolean;
+  /** A totals row rendered after the body. Give it the same cell count. */
+  footerRow?: ReactNode;
 }
 
 type SortState = { key: string; dir: "asc" | "desc" } | null;
@@ -104,11 +130,20 @@ export function DataTable<T>({
   dense = false,
   searchPlaceholder = "Search…",
   className,
+  renderRowDetail,
+  initiallyExpandedKeys,
+  pageSize,
+  stickyFirstColumn = false,
+  footerRow,
 }: DataTableProps<T>) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState>(initialSort ?? null);
   const [filterValues, setFilterValues] = useState<Record<number, string>>({});
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(
+    () => new Set(initiallyExpandedKeys ?? []),
+  );
+  const [page, setPage] = useState(0);
   const searchInputId = useId();
 
   const colByKey = useMemo(() => {
@@ -170,10 +205,44 @@ export function DataTable<T>({
   }
 
   const showSelect = Boolean(bulkActions) || selectable;
+  const expandable = Boolean(renderRowDetail);
   const hasToolbar =
     Boolean(searchText) || (filters && filters.length > 0) || Boolean(toolbarActions);
-  const totalCols = columns.length + (rowActions ? 1 : 0) + (showSelect ? 1 : 0);
+  const totalCols =
+    columns.length + (rowActions ? 1 : 0) + (showSelect ? 1 : 0) + (expandable ? 1 : 0);
   const cellPadY = dense ? "py-2.5" : "py-4";
+
+  /* ── Paging ──────────────────────────────────────────────────────────
+     Runs AFTER search, filters and sort, so a match is never paged out of
+     existence — the count in the toolbar still reports the whole match set.
+     Narrowing the rows resets to page 1, which is what stops a filter from
+     landing someone on an empty page 4. */
+  const pageCount = pageSize ? Math.max(1, Math.ceil(filtered.length / pageSize)) : 1;
+  const safePage = Math.min(page, pageCount - 1);
+  useEffect(() => {
+    setPage(0);
+  }, [query, filterValues, pageSize]);
+  const visible = useMemo(
+    () => (pageSize ? filtered.slice(safePage * pageSize, safePage * pageSize + pageSize) : filtered),
+    [filtered, pageSize, safePage],
+  );
+
+  function toggleExpanded(key: string) {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  /** Pinned first column — needs its own background or the scrolled cells show through. */
+  const stickyCell = (isFirstData: boolean, head: boolean): string =>
+    stickyFirstColumn && isFirstData ? (head ? "sticky left-0 z-20" : "sticky left-0 z-[1]") : "";
+  const stickyStyle = (isFirstData: boolean, head: boolean) =>
+    stickyFirstColumn && isFirstData
+      ? { background: head ? "rgba(248, 250, 252, 0.95)" : "var(--color-surface-card)" }
+      : undefined;
 
   // ── Bulk selection (opt-in) ──────────────────────────────────────────
   // Scoped to `filtered`, so "selected" always means "selected AND currently
@@ -352,7 +421,12 @@ export function DataTable<T>({
                   />
                 </th>
               ) : null}
-              {columns.map((c) => {
+              {expandable ? (
+                <th scope="col" className="sticky top-0 z-10 w-9 px-2 py-4" style={{ background: "rgba(248, 250, 252, 0.82)" }}>
+                  <span className="sr-only">Expand</span>
+                </th>
+              ) : null}
+              {columns.map((c, ci) => {
                 const sortable = Boolean(c.sortValue);
                 const active = sort?.key === c.key;
                 return (
@@ -362,9 +436,10 @@ export function DataTable<T>({
                     className={cn(
                       "sticky top-0 z-10 px-5 py-4 backdrop-blur",
                       c.align === "right" && "text-right",
+                      stickyCell(ci === 0, true),
                       c.className,
                     )}
-                    style={{ background: "rgba(248, 250, 252, 0.82)" }}
+                    style={stickyStyle(ci === 0, true) ?? { background: "rgba(248, 250, 252, 0.82)" }}
                     aria-sort={
                       active
                         ? sort!.dir === "asc"
@@ -422,46 +497,125 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              filtered.map((row) => (
-                <tr
-                  key={getRowKey(row)}
-                  className="admin-row border-b border-hairline last:border-b-0"
-                >
-                  {showSelect ? (
-                    <td className={cn("w-10 px-4 align-middle", cellPadY)}>
-                      <input
-                        type="checkbox"
-                        aria-label="Select row"
-                        checked={selectedKeys.has(getRowKey(row))}
-                        onChange={() => toggleRow(getRowKey(row))}
-                        className="size-4 cursor-pointer accent-[var(--color-altus-red)]"
-                      />
-                    </td>
-                  ) : null}
-                  {columns.map((c) => (
-                    <td
-                      key={c.key}
+              visible.map((row) => {
+                const key = getRowKey(row);
+                const open = expandable && expandedKeys.has(key);
+                return (
+                  <Fragment key={key}>
+                    <tr
                       className={cn(
-                        "px-5 align-middle text-ink-soft",
-                        cellPadY,
-                        c.align === "right" && "text-right",
-                        c.className,
+                        "admin-row border-b border-hairline",
+                        !open && "last:border-b-0",
+                        expandable && "cursor-pointer",
                       )}
+                      onClick={expandable ? () => toggleExpanded(key) : undefined}
+                      data-expanded={open || undefined}
                     >
-                      {c.render(row)}
-                    </td>
-                  ))}
-                  {rowActions ? (
-                    <td className={cn("px-5 text-right", cellPadY)}>
-                      {rowActions(row)}
-                    </td>
-                  ) : null}
-                </tr>
-              ))
+                      {showSelect ? (
+                        <td
+                          className={cn("w-10 px-4 align-middle", cellPadY)}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            aria-label="Select row"
+                            checked={selectedKeys.has(key)}
+                            onChange={() => toggleRow(key)}
+                            className="size-4 cursor-pointer accent-[var(--color-altus-red)]"
+                          />
+                        </td>
+                      ) : null}
+                      {expandable ? (
+                        <td className={cn("w-9 px-2 align-middle", cellPadY)}>
+                          <button
+                            type="button"
+                            aria-expanded={open}
+                            aria-label={open ? "Hide details" : "Show details"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpanded(key);
+                            }}
+                            className="grid size-7 place-items-center rounded-lg text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong"
+                          >
+                            <ChevronDown
+                              size={15}
+                              strokeWidth={2.4}
+                              className={cn("transition-transform", open && "rotate-180")}
+                            />
+                          </button>
+                        </td>
+                      ) : null}
+                      {columns.map((c, ci) => (
+                        <td
+                          key={c.key}
+                          className={cn(
+                            "px-5 align-middle text-ink-soft",
+                            cellPadY,
+                            c.align === "right" && "text-right",
+                            stickyCell(ci === 0, false),
+                            c.className,
+                          )}
+                          style={stickyStyle(ci === 0, false)}
+                        >
+                          {c.render(row)}
+                        </td>
+                      ))}
+                      {rowActions ? (
+                        <td
+                          className={cn("px-5 text-right", cellPadY)}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {rowActions(row)}
+                        </td>
+                      ) : null}
+                    </tr>
+                    {open ? (
+                      <tr className="border-b border-hairline last:border-b-0">
+                        <td colSpan={totalCols} className="px-5 py-4" style={{ background: "var(--color-surface-soft)" }}>
+                          {renderRowDetail!(row)}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })
             )}
           </tbody>
+          {footerRow ? <tfoot>{footerRow}</tfoot> : null}
         </table>
       </div>
+
+      {pageSize && filtered.length > pageSize ? (
+        <div className="flex flex-wrap items-center gap-3 border-t border-hairline px-5 py-2.5">
+          <span className="text-[12.5px] font-semibold text-ink-subtle tabular-nums">
+            {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, filtered.length)} of{" "}
+            {filtered.length}
+          </span>
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={safePage === 0}
+              aria-label="Previous page"
+              className="grid size-8 place-items-center rounded-lg border border-hairline bg-surface-card text-ink-muted transition-colors hover:border-hairline-strong hover:text-ink-strong disabled:opacity-40"
+            >
+              <ChevronLeft size={15} strokeWidth={2.4} />
+            </button>
+            <span className="text-[12.5px] font-bold text-ink-soft tabular-nums">
+              {safePage + 1} / {pageCount}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              disabled={safePage >= pageCount - 1}
+              aria-label="Next page"
+              className="grid size-8 place-items-center rounded-lg border border-hairline bg-surface-card text-ink-muted transition-colors hover:border-hairline-strong hover:text-ink-strong disabled:opacity-40"
+            >
+              <ChevronRight size={15} strokeWidth={2.4} />
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

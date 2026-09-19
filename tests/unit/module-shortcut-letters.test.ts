@@ -42,6 +42,9 @@ const EXPECTED: [string, string][] = [
   ["admin", "A"],
   ["employees", "E"],
   ["operations", "O"],
+  // INCENTIVE, its own room since 2026-09-16. Its branch still lettered by
+  // position and gave it "F"; under the mnemonic scheme it takes I.
+  ["incentive", "I"],
 ];
 
 
@@ -100,9 +103,9 @@ describe("module shortcuts — mnemonic, one per module", () => {
     // twelfth does not fail this on a number that was never the point.
     const last = MODULE_ORDER.length - 1;
     expect(moduleShortcutHint(0)).toBe("⌥W");
-    expect(moduleShortcutHint(last)).toBe("⌥O");
+    expect(moduleShortcutHint(last)).toBe("⌥I");
     expect(moduleShortcutLabel(0)).toBe("Alt+W");
-    expect(moduleShortcutLabel(last)).toBe("Alt+O");
+    expect(moduleShortcutLabel(last)).toBe("Alt+I");
     for (let i = 0; i < MODULE_ORDER.length; i++) {
       expect(moduleShortcutHint(i)).toHaveLength(2);
     }
@@ -112,7 +115,7 @@ describe("module shortcuts — mnemonic, one per module", () => {
     /* The empty string is in here deliberately. Four themed rooms have no hub
        card and carry `shortcut: ""` — empty is falsy, not a letter, and a naive
        comparison would match ALL of them and open whichever came first. */
-    for (const k of ["z", "n", "q", "1", "0", "", "  ", "Enter", "ArrowLeft"]) {
+    for (const k of ["z", "n", "q", "f", "1", "0", "", "  ", "Enter", "ArrowLeft"]) {
       expect(moduleForShortcut(k), k + " must open nothing").toBeUndefined();
     }
   });
