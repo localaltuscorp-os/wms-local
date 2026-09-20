@@ -35,6 +35,8 @@ function task(p: Partial<Task>): Task {
     taskNo: null,
     tags: null,
     approvalStatus: null,
+    approvalById: null,
+    approvalAt: null,
     // Two-stage approval (mig 0185) — defaults keep these fixtures on the
     // un-approved path, so no existing assertion changes meaning.
     approvalLevel: "none",

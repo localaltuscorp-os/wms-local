@@ -483,8 +483,8 @@ function AutoMetaForm({ item, kind }: { item: ClientItem; kind: "incentive" | "k
         {kind === "incentive" ? "Admin: incentive inputs (auto-scored)" : "Admin: training counts (auto-scored)"}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <input type="number" value={a} onChange={(e) => setA(e.target.value)} placeholder={kind === "incentive" ? "Earned ₹" : "Sessions attended"} className={inputCls} style={{ maxWidth: 160, ["--accent" as string]: ACCENT }} />
-        <input type="number" value={b} onChange={(e) => setB(e.target.value)} placeholder={kind === "incentive" ? "Base salary ₹" : "Sessions delivered"} className={inputCls} style={{ maxWidth: 160, ["--accent" as string]: ACCENT }} />
+        <input type="number" value={a} onChange={(e) => setA(e.target.value)} placeholder={kind === "incentive" ? "Earned Rs." : "Sessions attended"} className={inputCls} style={{ maxWidth: 160, ["--accent" as string]: ACCENT }} />
+        <input type="number" value={b} onChange={(e) => setB(e.target.value)} placeholder={kind === "incentive" ? "Base salary Rs." : "Sessions delivered"} className={inputCls} style={{ maxWidth: 160, ["--accent" as string]: ACCENT }} />
         {kind === "incentive" && (
           <input type="number" value={c} onChange={(e) => setC(e.target.value)} placeholder="Target %" className={inputCls} style={{ maxWidth: 120, ["--accent" as string]: ACCENT }} />
         )}

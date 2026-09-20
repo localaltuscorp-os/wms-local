@@ -166,7 +166,7 @@ export function LoansPanel({ loans, periods, cells, entityOptions }: {
                     const id = `${ck(r.id, p.id)}:emi`;
                     return <td key={p.id} className="px-1.5 py-2"><input value={val(r.id, p.id).emi} disabled={cellBusy === id} inputMode="numeric" onChange={(e) => setGrid((g) => ({ ...g, [ck(r.id, p.id)]: { ...val(r.id, p.id), emi: e.target.value } }))} onBlur={(e) => commit(r.id, p.id, "emi", e.target.value)} className={CELL + " disabled:opacity-60"} style={{ minWidth: 88 }} aria-label="EMI" placeholder="—" /></td>;
                   })}
-                  <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{ytdEmi(r.id) ? `₹${formatINR(ytdEmi(r.id))}` : <Dim />}</Td>
+                  <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{ytdEmi(r.id) ? `Rs. ${formatINR(ytdEmi(r.id))}` : <Dim />}</Td>
                   <Td className="text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => removeLoan(r.id)} busy={busy} /></Td>
                 </tr>
               ))}
@@ -196,7 +196,7 @@ export function LoansPanel({ loans, periods, cells, entityOptions }: {
                       const id = `${ck(r.id, p.id)}:closing`;
                       return <td key={p.id} className="px-1.5 py-2"><input value={val(r.id, p.id).closing} disabled={cellBusy === id} inputMode="numeric" onChange={(e) => setGrid((g) => ({ ...g, [ck(r.id, p.id)]: { ...val(r.id, p.id), closing: e.target.value } }))} onBlur={(e) => commit(r.id, p.id, "closing", e.target.value)} className={CELL + " disabled:opacity-60"} style={{ minWidth: 88 }} aria-label="Closing balance" placeholder="—" /></td>;
                     })}
-                    <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{latestClosing(r.id) !== null ? `₹${formatINR(latestClosing(r.id))}` : <Dim />}</Td>
+                    <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{latestClosing(r.id) !== null ? `Rs. ${formatINR(latestClosing(r.id))}` : <Dim />}</Td>
                   </tr>
                 ))}
               </tbody>

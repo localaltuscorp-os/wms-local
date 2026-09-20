@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, weeklyGoals } from "@/db/schema";
 import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
@@ -98,6 +98,11 @@ export async function loadCommitData(me: {
           inArray(weeklyGoals.employeeId, memberIds),
           inArray(weeklyGoals.weekStart, [weekStart, nextWeek]),
           eq(weeklyGoals.archived, false),
+          // Put away (migration 0215) — and the commit ritual rides on the same
+          // screen as the board, so it has to agree with it. Without this an
+          // archived goal vanished from the table above but was still counted
+          // and listed here as something left to commit.
+          isNull(weeklyGoals.archivedAt),
         ),
       )
       .orderBy(asc(weeklyGoals.position)),

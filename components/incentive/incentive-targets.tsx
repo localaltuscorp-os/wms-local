@@ -360,7 +360,7 @@ function SetTargetDialog({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!empName) return;
-    const amount = Number(value.replace(/[₹,\s]/g, ""));
+    const amount = Number(value.replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, ""));
     if (!Number.isFinite(amount) || amount < 0) {
       fireToast({ message: "Enter a valid amount.", type: "error" });
       return;
@@ -407,7 +407,7 @@ function SetTargetDialog({
           <form onSubmit={submit} className="space-y-4">
             <label className="block">
               <span className="block font-semibold text-ink-strong mb-1.5" style={{ fontSize: 13.5 }}>
-                Target Amount (₹)
+                Target Amount (Rs.)
               </span>
               <input
                 autoFocus

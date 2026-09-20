@@ -807,7 +807,7 @@ export function LetterEditor({
         </label>
 
         {/* Recipient picker — OUR employee list (roster). Quick-fills the name +
-            designation (and CTC ₹ figures for CTC letters) and attaches the
+            designation (and CTC Rs. figures for CTC letters) and attaches the
             letter to that employee. Replaces the old Candidate + Attach-Employee
             dropdowns. */}
         {isAdmin && roster.length > 0 && (
@@ -1153,7 +1153,7 @@ function CtcCalculator({
         <label className="alw-calc-total">
           <span className="alw-calc-lbl">Total CTC (per annum)</span>
           <div className="alw-calc-rupee">
-            <span aria-hidden>₹</span>
+            <span aria-hidden>Rs.</span>
             <input
               type="text"
               inputMode="numeric"
@@ -1858,7 +1858,7 @@ function Field({
         placeholder={spec.label}
         aria-label={spec.label}
         data-filled={filled || undefined}
-        onChange={(e) => ctx.setValue(spec.id, e.target.value.replace(/[^0-9₹,.\s]/g, ""))}
+        onChange={(e) => ctx.setValue(spec.id, e.target.value.replace(/[^0-9₹RSrs,.\s]/g, ""))}
         className={`alw-input${boldCls}`}
         style={{ minWidth: filled ? 0 : `${Math.max(spec.label.length, 2)}ch`, maxWidth: "100%" }}
       />

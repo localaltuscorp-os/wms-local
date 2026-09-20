@@ -17,7 +17,7 @@ const GREEN = "#E10600";
 const GREEN_DEEP = "#A80400";
 const RED = "#e10600";
 
-const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+const inr = (n: number) => `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
 
 export interface CtcFormEmployee {
   employeeId: string;

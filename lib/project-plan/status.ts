@@ -31,31 +31,50 @@
  */
 
 import { DOER_TASK_STATUSES, type TaskStatus } from "@/db/enums";
+import {
+  INITIATOR_STATUSES,
+  INITIATOR_STATUS_LABEL,
+  INITIATOR_STATUS_TONE,
+  DOER_STATUS_LABEL,
+  DOER_STATUS_TONE,
+  type InitiatorStatus,
+} from "@/lib/status/axes";
 
 /** The working flow — the six a doer reports against. */
 export const PLAN_WORKING_STATUSES = DOER_TASK_STATUSES;
 export type PlanWorkingStatus = (typeof PLAN_WORKING_STATUSES)[number];
 
 /**
- * The restricted flow. `archived` is included as a status VALUE here because
- * the brief lists it beside the approval verdicts, but it is stored as the
- * existing `project_nodes.is_archived` boolean rather than as a seventh string
- * — archiving already has a column, a filter and an index, and a parallel
- * status string that could disagree with it would be a bug waiting to happen.
+ * The restricted flow — now the app-wide INITIATOR AXIS, imported rather than
+ * redeclared (2026-09-14). `archived` is a status VALUE here and the
+ * `project_nodes.is_archived` boolean underneath, for the reason the shared
+ * module gives: archiving already has a column, a filter and an index, and a
+ * parallel status string free to disagree with it would be a bug waiting to
+ * happen.
+ *
+ * CANCELLED LEFT THE LIST. Manan's four are Approved · Not Approved · On Hold ·
+ * Archived, and cancelling a plan row is spelled Archived. The value is still
+ * accepted on the way IN (`isRestrictedStatus`) and still renders, because rows
+ * written before the split carry it — it is simply never offered again.
  */
-export const PLAN_RESTRICTED_STATUSES = [
-  "not_approved",
-  "approved",
-  "on_hold",
-  "cancelled",
-  "archived",
-] as const;
-export type PlanRestrictedStatus = (typeof PLAN_RESTRICTED_STATUSES)[number];
+export const PLAN_RESTRICTED_STATUSES = INITIATOR_STATUSES;
+export type PlanRestrictedStatus = InitiatorStatus;
 
-export type PlanStatus = PlanWorkingStatus | PlanRestrictedStatus;
+/** Pre-split values that must still parse and render, but are never offered. */
+export const PLAN_LEGACY_RESTRICTED = ["cancelled"] as const;
+
+export type PlanStatus =
+  | PlanWorkingStatus
+  | PlanRestrictedStatus
+  | (typeof PLAN_LEGACY_RESTRICTED)[number];
 
 const WORKING_SET: ReadonlySet<string> = new Set(PLAN_WORKING_STATUSES);
-const RESTRICTED_SET: ReadonlySet<string> = new Set(PLAN_RESTRICTED_STATUSES);
+// The legacy values join the ACCEPT set but not the OFFER list, so a pre-split
+// row still parses, renders and can be moved off — it just cannot be chosen.
+const RESTRICTED_SET: ReadonlySet<string> = new Set<string>([
+  ...PLAN_RESTRICTED_STATUSES,
+  ...PLAN_LEGACY_RESTRICTED,
+]);
 
 export function isWorkingStatus(v: string): v is PlanWorkingStatus {
   return WORKING_SET.has(v);
@@ -72,32 +91,17 @@ export function isPlanStatus(v: string | null | undefined): v is PlanStatus {
 /** Display labels. The working six borrow the WMS wording so the two screens
  *  name the same state identically — "Not Read", not "Don't know". */
 export const PLAN_STATUS_LABEL: Record<PlanStatus, string> = {
-  dont_know: "Not Read",
-  not_started: "Not Started",
-  initiated: "Initiated",
-  follow_up: "Follow Up",
-  need_info: "Need Info",
-  done: "Done",
-  not_approved: "Not Approved",
-  approved: "Approved",
-  on_hold: "On Hold",
+  ...DOER_STATUS_LABEL,
+  ...INITIATOR_STATUS_LABEL,
+  // Pre-split. Named for what it meant, so an old row does not read as blank.
   cancelled: "Cancelled",
-  archived: "Archived",
 };
 
 /** Chip colours, reusing the palette the plan board already draws with. */
 export const PLAN_STATUS_TONE: Record<PlanStatus, string> = {
-  dont_know: "#94A3B8",
-  not_started: "#64748B",
-  initiated: "#0891B2",
-  follow_up: "#F59E0B",
-  need_info: "#7C3AED",
-  done: "#16A34A",
-  not_approved: "#DC2626",
-  approved: "#15803D",
-  on_hold: "#B45309",
+  ...DOER_STATUS_TONE,
+  ...INITIATOR_STATUS_TONE,
   cancelled: "#78716C",
-  archived: "#57534E",
 };
 
 /** The status a row is treated as having before anyone has touched it. */

@@ -91,7 +91,7 @@ export function AttendanceKpiStrip({
 }) {
   const [period, setPeriod] = React.useState<SelfPeriodKey>("thisWeek");
   const s: SelfPeriod = data[period];
-  const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+  const inr = (n: number) => `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
 
   const workedAhead = s.requiredElapsedHours <= 0 || s.workedHours >= s.requiredElapsedHours;
   const graceCondoned = s.graceDays + s.condonedDays;

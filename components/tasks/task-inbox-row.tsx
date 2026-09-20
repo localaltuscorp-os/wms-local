@@ -7,6 +7,7 @@ import { InlineDoerCell, InlinePriorityCell } from "./inline-edit-cells";
 import { canEditTaskFields } from "@/lib/auth/task-permissions";
 import type { TaskListRow } from "@/lib/types";
 import type { TaskStatus, TaskPriority, StatusColorToken } from "@/db/enums";
+import { formatDate as formatDateDMY } from "@/lib/format";
 
 /**
  * One row of the inbox feed, carrying the full column set:
@@ -333,16 +334,17 @@ function IconAction({
   );
 }
 
-/** Compact date: "12 Aug" in-year, "12/08/25" otherwise. */
+/**
+ * "12-Aug-2026" — the app-wide DD-MMM-YYYY, same as everywhere else.
+ *
+ * This used to shorten to "12 Aug" in-year and fall back to "12/08/25", i.e.
+ * two formats, one of them slashed and ambiguous (12 August or 8 December?).
+ * Both are out under the 2026-09-15 rule; the row is wide enough for the real
+ * thing. Kept as a local wrapper only because ~6 call sites in this file name
+ * it and it still has to swallow an invalid Date as an em dash.
+ */
 function formatDate(d: Date): string {
   const date = d instanceof Date ? d : new Date(d);
   if (Number.isNaN(date.getTime())) return "—";
-  const now = new Date();
-  if (date.getFullYear() === now.getFullYear())
-    return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-  return date.toLocaleDateString(undefined, {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-  });
+  return formatDateDMY(date);
 }

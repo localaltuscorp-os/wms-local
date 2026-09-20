@@ -141,7 +141,7 @@ async function resolveRoster(
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 function inr(n: number): string {
-  return "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  return "Rs." + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 function lakhs(n: number): string {
   return (n / 100000).toFixed(2) + "L";
@@ -179,7 +179,7 @@ async function main() {
   console.log(`Total scheduled (installments): ${inr(totalScheduled)}  (${lakhs(totalScheduled)})`);
   console.log(`Total collected:                ${inr(totalCollected)}  (${lakhs(totalCollected)})`);
   console.log(`Derived outstanding balance:    ${inr(totalOutstanding)}  (${lakhs(totalOutstanding)})`);
-  console.log(`  (reconcile against the source dashboard: ~₹97.48L outstanding / ~₹19.61L collected)\n`);
+  console.log(`  (reconcile against the source dashboard: ~Rs. 97.48L outstanding / ~Rs. 19.61L collected)\n`);
 
   // 3. Resolve roster + responsible names.
   const createdRoster = new Set<string>();

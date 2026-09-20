@@ -6,10 +6,11 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
 import {
-  ChevronDown, ChevronRight, Plus, Trash2, Copy, ArrowUp, ArrowDown,
+  ChevronDown, ChevronRight, Plus, Trash2, Archive, Copy, ArrowUp, ArrowDown,
   Loader2, CalendarCheck2, CircleDashed, FolderPlus, SlidersHorizontal,
   Maximize2, Minimize2, X, Layers, Search, Download, ArrowUpDown,
   Columns3, Check, GripVertical, Pencil, ChevronUp, Eye, List, LayoutGrid, Table2, Link2,
+  User, ShieldCheck,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import {
@@ -17,12 +18,15 @@ import {
   combineDateTime, toHm, toYmd,
   levelTextStyle, formatPlanDate, durationDays, type PlanKind,
 } from "@/lib/project-plan/levels";
+import { PlanPlacePanel } from "@/components/project-plan/plan-place-panel";
 import { describeProgress, toPercent, nodeFraction, formatCompletion, milestoneCompletion } from "@/lib/project-plan/progress";
 import { PLAN_STATUS_LABEL, effectivePlanStatus } from "@/lib/project-plan/status";
 import {
-  createPlanNode, updatePlanNode, deletePlanNode, duplicatePlanNode,
-  movePlanNode, planDeleteImpact,
+  createPlanNode, updatePlanNode, deletePlanNode, purgePlanNode, duplicatePlanNode,
+  movePlanNode, planDeleteImpact, planMoveImpact, reparentPlanNode,
 } from "@/app/(app)/project-plan/actions";
+import { MoveConfirmDialog } from "@/components/project-plan/move-confirm-dialog";
+import type { PlanMovePlan } from "@/lib/project-plan/move";
 import { PRIORITY_LABELS, TASK_PRIORITIES, type TaskStatus, type TaskPriority } from "@/db/enums";
 // The SAME three cells the WMS task table renders. Reused rather than restyled
 // so a status chip, a priority flag and a doer name look and behave identically
@@ -31,6 +35,11 @@ import { InlineDoerCell, InlinePriorityCell, PriorityPill } from "@/components/t
 import { CriticalBadge } from "@/components/ui/critical-badge";
 import { BulkActionBar } from "@/components/tasks/bulk-action-bar";
 import { PlanKanban, kanbanCards } from "./plan-kanban";
+import {
+  STATUS_AXES,
+  STATUS_AXIS_LABEL,
+  type StatusAxis,
+} from "@/lib/status/axes";
 import { NewNodeDialog } from "./new-node-dialog";
 import { NewItemButtons, usePlanCreateShortcuts } from "./new-item-buttons";
 import { PlanBulkUpload } from "./plan-bulk-upload";
@@ -75,6 +84,9 @@ export interface PlanRow {
   priority: TaskPriority | null;
   /** Reference links (migration 0214). Empty when there are none. */
   links: string[];
+  /** The client, HELD on the Project; null on the rows beneath it, which
+   *  inherit it rather than repeat it. */
+  clientName: string | null;
   /** "YYYY-MM-DD" */
   targetDate: string | null;
   durationMinutes: number | null;
@@ -126,6 +138,9 @@ interface Props {
    *  once. Used by the bulk bar's status dropdown; the per-row chips get their
    *  own vocabulary from lib/project-plan/status.ts. */
   labels: Record<TaskStatus, string>;
+  /** The client roster, for the Client column's picker. A project's client is
+   *  free text in the column, so this is a convenience list, not a constraint. */
+  clients: string[];
   isAdmin: boolean;
   /** The viewer, and everyone who reports to them — the two inputs the status
    *  picker needs to work out what this person may set on a given row. Exactly
@@ -166,11 +181,31 @@ const ALL_COLUMNS = [
   { key: "ref", label: "Ref", width: "w-[124px]", fixed: true },
   { key: "controls", label: "Controls", width: "w-[156px]", fixed: true },
   { key: "name", label: "Result / Action", width: "", fixed: true },
+  // DESCRIPTION SITS BESIDE THE NAME, not at the far end of the row.
+  //
+  // It was the last column, on the reasoning that it is "a paragraph in a row
+  // of short cells". Two things changed: it is required before an executable
+  // row can be scheduled, and it is the text that becomes the task's own
+  // description — the line the WMS Task column actually renders. That makes it
+  // the second thing you read about a row, right after what the row is called,
+  // and a required field parked past ten other columns is one nobody finds.
+  { key: "description", label: "Description", width: "w-[280px]", fixed: false },
   { key: "owner", label: "Owner", width: "w-[176px]", fixed: false },
+  // THE CLIENT. Held on the PROJECT and inherited by everything under it, so
+  // the cell is editable on a project row and a read-only echo elsewhere. It is
+  // here rather than only in the create dialog because a project made before
+  // clients existed — or through the inline "+ New project" — had no way to get
+  // one, which left every task under it filed against nothing.
+  { key: "client", label: "Client", width: "w-[168px]", fixed: false },
   // Status and Progress work on EVERY level — one vocabulary for the module,
   // per brief §6/§8. Where the value lands differs by level, but that is
   // `setPlanNodeStatus`'s business, not this table's.
-  { key: "status", label: "Status", width: "w-[188px]", fixed: false },
+  // THE TWO AXES, side by side (lib/status/axes.ts). One combined Status cell
+  // used to hold both flows in a single select, which could only ever show
+  // whichever outranked the other: a project put On Hold hid the fact that its
+  // work had started, and one reporting progress hid the hold. Two questions,
+  // two columns, both answered at once.
+  { key: "status", label: "Doer Status", width: "w-[172px]", fixed: false },
   { key: "progress", label: "Progress", width: "w-[136px]", fixed: false },
   // The two task-side columns. They render only on executable rows, because a
   // Project or a Milestone has no task to carry a doer or a flag.
@@ -212,7 +247,6 @@ const ALL_COLUMNS = [
   { key: "from", label: "From", width: "w-[144px]", fixed: false },
   { key: "to", label: "To", width: "w-[144px]", fixed: false },
   { key: "wms", label: "WMS", width: "w-[148px]", fixed: false },
-  { key: "description", label: "Description", width: "w-[280px]", fixed: false },
 ] as const;
 
 type ColKey = (typeof ALL_COLUMNS)[number]["key"];
@@ -234,8 +268,15 @@ const ALL_COLS = new Set<ColKey>(OPTIONAL_COLUMNS.map((c) => c.key));
  * is visible without opening a menu.
  */
 const HIDDEN_BY_DEFAULT: ReadonlySet<ColKey> = new Set<ColKey>([
-  "from", "to", "description", "wms",
+  "from", "to", "wms",
 ]);
+
+// DESCRIPTION IS VISIBLE BY DEFAULT (2026-09-14). It was hidden as "a paragraph
+// in a row of short cells", which was fair while it was optional. It is no
+// longer optional: an executable row cannot be scheduled without one (see
+// `updatePlanNode`), and it is the text that becomes the task's own description
+// and shows in the WMS Task column. A required field behind a menu is a dead
+// end — you would meet the refusal with no visible way to satisfy it.
 
 const DEFAULT_COLS = new Set<ColKey>(
   [...ALL_COLS].filter((k) => !HIDDEN_BY_DEFAULT.has(k)),
@@ -369,8 +410,28 @@ function csvCell(v: string): string {
   return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
-/** What the detail dialog needs: the row plus the two things only the flatten
- *  pass knows — its derived REF and its ancestor names. */
+/**
+ * The three NAMED levels above (or including) a row, each with the number the
+ * board gives it — what the detail dialog's "Plan location" panel reads.
+ *
+ * Derived in the flatten pass, beside `ref` and `fullRef`, from the same
+ * sibling positions. That is the whole reason it is computed HERE rather than
+ * queried: the dialog must name the same M3 the row above it is labelled M3,
+ * and two derivations of a derived number are two chances to disagree.
+ *
+ * A row is its OWN level — open a Milestone and `milestone` is that milestone,
+ * not a blank. Levels below the row are null, as are levels the row skipped.
+ */
+export interface PlanAncestry {
+  project: { ref: string; name: string } | null;
+  milestone: { ref: string; name: string } | null;
+  result: { ref: string; name: string } | null;
+}
+
+const EMPTY_ANCESTRY: PlanAncestry = { project: null, milestone: null, result: null };
+
+/** What the detail dialog needs: the row plus the things only the flatten
+ *  pass knows — its derived REF, its ancestor names and its plan address. */
 export interface DetailTarget {
   node: PlanRow;
   ref: string;
@@ -378,6 +439,7 @@ export interface DetailTarget {
    *  shown in the detail dialog and the export, never in a table cell. */
   fullRef: string;
   path: string[];
+  ancestry: PlanAncestry;
 }
 
 /** One flattened, visible row: the node plus everything the render needs. */
@@ -396,6 +458,9 @@ interface FlatRow {
   isLast: boolean;
   /** Ancestor names, outermost first — the hover card's breadcrumb. */
   path: string[];
+  /** Project / Milestone / Result, named and numbered — the detail dialog's
+   *  "Plan location" panel. */
+  ancestry: PlanAncestry;
 }
 
 function flatten(
@@ -405,11 +470,21 @@ function flatten(
   out: FlatRow[],
   parentPath: string[] = [],
   parentFullRef: string | null = null,
+  parentAncestry: PlanAncestry = EMPTY_ANCESTRY,
 ): void {
   nodes.forEach((node, i) => {
     const ref = refFor(node.kind, i + 1, parentRef);
     const fullRef = fullRefFor(node.kind, i + 1, parentFullRef);
     const hasChildren = node.children.length > 0;
+    // The row overwrites its OWN level and inherits the rest. `ref` is already
+    // the label the table prints for this row — P1 / M3 / RB — so the panel and
+    // the row can only ever show the same number.
+    const self = { ref, name: node.name };
+    const ancestry: PlanAncestry = {
+      project: node.kind === "project" ? self : parentAncestry.project,
+      milestone: node.kind === "milestone" ? self : parentAncestry.milestone,
+      result: node.kind === "result" ? self : parentAncestry.result,
+    };
     out.push({
       node,
       depth: KIND_DEPTH[node.kind],
@@ -419,9 +494,10 @@ function flatten(
       isFirst: i === 0,
       isLast: i === nodes.length - 1,
       path: parentPath,
+      ancestry,
     });
     if (hasChildren && !collapsed.has(node.id)) {
-      flatten(node.children, collapsed, ref, out, [...parentPath, node.name], fullRef);
+      flatten(node.children, collapsed, ref, out, [...parentPath, node.name], fullRef, ancestry);
     }
   });
 }
@@ -453,13 +529,40 @@ function initialCollapsed(nodes: PlanRow[]): Set<string> {
   return out;
 }
 
-export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, me, downline, initialView = "list" }: Props) {
+export function PlanBoard({ level, tree, employees, canManage, labels, clients, isAdmin, me, downline, initialView = "list" }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   /** The viewer's downline as a set — rebuilt only when the list itself does,
    *  because every row's status picker asks it two questions on every render. */
   const downlineSet = React.useMemo(() => new Set(downline), [downline]);
   const [collapsed, setCollapsed] = React.useState<Set<string>>(() => initialCollapsed(tree));
+
+  /**
+   * WHICH CLIENT A ROW IS FOR — the browser's copy of `clientForNode`.
+   *
+   * Walked down from each project rather than up from each row: one pass over
+   * the tree fills every descendant, where an upward walk per row would re-walk
+   * the same spine once per cell. A row inherits the NEAREST ancestor that
+   * actually holds a client, which is the same rule the server applies, so the
+   * cell and the task it produces can never disagree.
+   */
+  const clientByNode = React.useMemo(() => {
+    const out = new Map<string, string | null>();
+    const walk = (ns: PlanRow[], inherited: string | null) => {
+      for (const nd of ns) {
+        const own = nd.clientName?.trim() || null;
+        const effective = own ?? inherited;
+        out.set(nd.id, effective);
+        walk(nd.children, effective);
+      }
+    };
+    walk(tree, null);
+    return out;
+  }, [tree]);
+  const clientOf = React.useCallback(
+    (nodeId: string) => clientByNode.get(nodeId) ?? null,
+    [clientByNode],
+  );
   const [busy, setBusy] = React.useState<string | null>(null);
   /**
    * `pending` matters, not just `startTransition`: it stays true through the
@@ -542,6 +645,11 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
    */
   const [bulkEditing, setBulkEditing] = React.useState<DetailTarget[] | null>(null);
   const [view, setView] = React.useState<"list" | "kanban">(initialView);
+  // Which axis the KANBAN columns answer for. Local state, unlike the WMS
+  // board's URL param, because this board's view/level/filter state is all
+  // local here already — putting one of them in the URL and not the others
+  // would make Back behave differently depending on which control you touched.
+  const [axis, setAxis] = React.useState<StatusAxis>("doer");
   /**
    * Open the full WMS record for an executable row.
    *
@@ -586,6 +694,182 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
     },
     [remember],
   );
+
+  /* ── DRAG A ROW TO ANOTHER PROJECT ──────────────────────────────────────
+   *
+   * Manan, 2026-09-15: drag a milestone / result / action / sub-action onto
+   * another project and the whole branch under it goes too, after a popup that
+   * says so.
+   *
+   * POINTER EVENTS, NOT HTML5 `draggable` — the same choice, for the same
+   * reason, as the column drag above: a `<tr>` full of inputs, selects and
+   * buttons inside a horizontally-scrolling container does not reliably start a
+   * native drag, because the focusable children swallow the gesture at
+   * pointerdown. The grip is the only handle, so dragging never fights an
+   * inline editor for the same press.
+   *
+   * The drop target is resolved from the DOM (`elementFromPoint` +
+   * `data-plan-row-id`) rather than from per-row enter/leave handlers: there
+   * are up to a few hundred rows, and hanging four listeners on each of them to
+   * answer one question about the pointer is a lot of bookkeeping for a fact
+   * the browser already knows.
+   */
+  const [dragId, setDragId] = React.useState<string | null>(null);
+  const [dropId, setDropId] = React.useState<string | null>(null);
+  /** The resolved move, waiting on the popup. Null when nothing is pending. */
+  const [movePlan, setMovePlan] = React.useState<PlanMovePlan | null>(null);
+  const [movePair, setMovePair] = React.useState<{ id: string; targetId: string } | null>(null);
+  const [moveBusy, setMoveBusy] = React.useState(false);
+  const [moveError, setMoveError] = React.useState<string | null>(null);
+  // Refs so the window-level handlers read the LIVE ids rather than the ones
+  // captured when the gesture began.
+  const dragIdRef = React.useRef<string | null>(null);
+  const dropIdRef = React.useRef<string | null>(null);
+  /** The table's own scroll box — the thing edge auto-scroll drives. */
+  const scrollBoxRef = React.useRef<HTMLDivElement | null>(null);
+
+  const startRowDrag = React.useCallback((id: string) => {
+    dragIdRef.current = id;
+    dropIdRef.current = null;
+    setDragId(id);
+    setDropId(null);
+  }, []);
+
+  React.useEffect(() => {
+    if (!dragId) return;
+
+    const rowUnder = (x: number, y: number): string | null => {
+      const el = document.elementFromPoint(x, y);
+      const tr = el?.closest<HTMLElement>("[data-plan-row-id]");
+      return tr?.dataset.planRowId ?? null;
+    };
+
+    /**
+     * EDGE AUTO-SCROLL. The table has its own scroll box, and the destination
+     * project is very often not on screen beside the row being dragged — which
+     * would make "drag it to another project" a gesture you can only perform
+     * when the plan happens to be short. Holding near the top or bottom edge
+     * scrolls the box, faster the closer to the edge.
+     *
+     * Driven by rAF rather than by pointermove: a pointer parked at the edge
+     * emits no events, and that is exactly when the scrolling has to continue.
+     */
+    const EDGE = 56; // px from an edge where auto-scroll kicks in
+    const MAX_STEP = 18; // px per frame at the very edge
+    let speed = 0;
+    let raf = 0;
+    const tick = () => {
+      raf = 0;
+      if (speed !== 0) {
+        scrollBoxRef.current?.scrollBy({ top: speed });
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    const setSpeed = (v: number) => {
+      speed = v;
+      if (speed !== 0 && !raf) raf = requestAnimationFrame(tick);
+    };
+
+    const onMove = (e: PointerEvent) => {
+      // Without this the browser starts a text selection across the table the
+      // moment the pointer moves, and the drop lands on a highlighted mess.
+      e.preventDefault();
+
+      const box = scrollBoxRef.current?.getBoundingClientRect();
+      if (box) {
+        const above = e.clientY - box.top;
+        const below = box.bottom - e.clientY;
+        if (above < EDGE && above > -EDGE) {
+          setSpeed(-Math.ceil(((EDGE - above) / EDGE) * MAX_STEP));
+        } else if (below < EDGE && below > -EDGE) {
+          setSpeed(Math.ceil(((EDGE - below) / EDGE) * MAX_STEP));
+        } else {
+          setSpeed(0);
+        }
+      }
+
+      const over = rowUnder(e.clientX, e.clientY);
+      const next = over && over !== dragIdRef.current ? over : null;
+      if (next !== dropIdRef.current) {
+        dropIdRef.current = next;
+        setDropId(next);
+      }
+    };
+
+    const onUp = (e: PointerEvent) => {
+      setSpeed(0);
+      const from = dragIdRef.current;
+      const to = rowUnder(e.clientX, e.clientY);
+      dragIdRef.current = null;
+      dropIdRef.current = null;
+      setDragId(null);
+      setDropId(null);
+      if (!from || !to || from === to) return;
+      // NOTHING IS WRITTEN HERE. The drop only asks the server what the move
+      // WOULD do; the popup then asks the person.
+      setMoveError(null);
+      startTransition(async () => {
+        const res = await planMoveImpact({ id: from, targetId: to });
+        if (!res.ok) {
+          fireToast({ message: res.error, type: "error" });
+          return;
+        }
+        setMovePair({ id: from, targetId: to });
+        setMovePlan(res.plan);
+      });
+    };
+
+    const onCancel = () => {
+      setSpeed(0);
+      dragIdRef.current = null;
+      dropIdRef.current = null;
+      setDragId(null);
+      setDropId(null);
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+    return () => {
+      speed = 0;
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+    };
+  }, [dragId, startTransition]);
+
+  const closeMove = React.useCallback(() => {
+    setMovePlan(null);
+    setMovePair(null);
+    setMoveError(null);
+  }, []);
+
+  /** The popup's "Yes, move it". The server re-resolves the move before it
+   *  writes, so a tree that changed while the popup was open is caught. */
+  const confirmMove = React.useCallback(() => {
+    if (!movePair) return;
+    setMoveBusy(true);
+    setMoveError(null);
+    startTransition(async () => {
+      const res = await reparentPlanNode(movePair);
+      setMoveBusy(false);
+      if (!res.ok) {
+        setMoveError(res.error);
+        return;
+      }
+      closeMove();
+      remember(movePair.id);
+      fireToast({
+        message:
+          res.moved === 1
+            ? "Moved."
+            : `Moved, with ${res.moved - 1} row${res.moved - 1 === 1 ? "" : "s"} beneath it.`,
+        type: "success",
+      });
+      router.refresh();
+    });
+  }, [movePair, closeMove, remember, router, startTransition]);
 
   /**
    * P · M · R · T · S open the matching create dialog. Held back while anything
@@ -678,7 +962,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
       return;
     }
     const row = shownRows.find((r) => r.node.id === id);
-    if (row) openDetail({ node: row.node, ref: row.ref, fullRef: row.fullRef, path: row.path });
+    if (row) openDetail({ node: row.node, ref: row.ref, fullRef: row.fullRef, path: row.path, ancestry: row.ancestry });
   }
 
   /** Header tick: select everything on screen, or clear it. */
@@ -738,13 +1022,16 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
     [selectedRows],
   );
 
+  /** The same archive as the row control, over a selection. */
   function bulkDelete() {
     const n = selectedRows.length;
     const kids = selectedRows.reduce((a, r) => a + countBelow(r.node), 0);
-    const lines = [`Delete ${n} selected row${n === 1 ? "" : "s"}?`];
-    if (kids > 0) lines.push(`This also removes ${kids} row${kids === 1 ? "" : "s"} beneath them, and archives any linked WMS tasks.`);
+    const lines = [`Archive ${n} selected row${n === 1 ? "" : "s"}?`];
+        if (kids > 0)
+      lines.push(`This also archives ${kids} row${kids === 1 ? "" : "s"} beneath them, and any linked WMS tasks.`);
+    lines.push("Nothing is deleted — archived rows can be brought back.");
     if (!window.confirm(lines.join("\n\n"))) return;
-    bulk("delete", (id) => deletePlanNode(id), "Deleted");
+    bulk("archive", (id) => deletePlanNode(id), "Archived");
   }
 
   /** Collapse every row at or below `depth` — backs the "show down to…" select. */
@@ -890,6 +1177,11 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
         controls: "",
         name: n.name,
         owner: n.ownerName ?? "",
+        // The EFFECTIVE client — what the row is actually filed under, project
+        // or inherited — because that is what the cell shows and what its task
+        // carries. Exporting only the project's own value would leave every
+        // other line blank.
+        client: clientOf(n.id) ?? "",
         // Same fallback the Doer column draws: a container has no task, so the
         // person on it is its owner.
         doer: n.task?.doerName ?? n.ownerName ?? "",
@@ -907,13 +1199,15 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
         from: hm(n.startsAt),
         to: hm(n.endsAt),
         wms: n.task ? n.task.statusLabel : isExecutable(n.kind) ? "Not scheduled" : "",
-        // The same three derivations the screen shows, from the same functions
-        // — so an exported number can never disagree with the cell it came from.
-        status: PLAN_STATUS_LABEL[effectivePlanStatus(
-          isExecutable(n.kind) && n.task ? n.task.status : n.status,
-          n.approvalStatus,
-          false,
-        )],
+        // The same derivations the screen shows, from the same functions — so an
+        // exported number can never disagree with the cell it came from. The CSV
+        // follows `shownCols`, so the Initiator Status column's removal took its
+        // export column with it; nothing here has to know.
+        status:
+          PLAN_STATUS_LABEL[
+            ((isExecutable(n.kind) && n.task ? n.task.status : n.status) ??
+              "not_started") as keyof typeof PLAN_STATUS_LABEL
+          ] ?? "",
         progress: isExecutable(n.kind)
           ? ""
           : n.kind === "project"
@@ -937,12 +1231,55 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  }, [rows, shownCols]);
+  }, [rows, shownCols, clientOf]);
 
+  /**
+   * ARCHIVE this row — at EVERY level: project, milestone, result, action,
+   * sub-action and sub-sub-action.
+   *
+   * IT WAS ALWAYS AN ARCHIVE, and it was always on every level; it was labelled
+   * "Delete" and asked "Delete …?", which is why there appeared to be no
+   * archive. `deletePlanNode` sets `is_archived` on the row and everything
+   * beneath it and archives their linked tasks — it removes nothing. The
+   * control now says what it does.
+   */
   async function remove(node: PlanRow) {
     // This call sits OUTSIDE run(), so it needs the same guard: on an expired
     // session it rejects, and an unhandled rejection here would take the board
     // down before the confirmation dialog ever opened.
+    let impact: Awaited<ReturnType<typeof planDeleteImpact>>;
+    try {
+      impact = await planDeleteImpact(node.id);
+    } catch {
+      fireToast({
+        message: "Couldn't check what this archive affects — your session may have expired. Sign in again.",
+        type: "error",
+      });
+      router.refresh();
+      return;
+    }
+    const childCount = impact.ok ? impact.nodes : 0;
+    const taskCount = impact.ok ? impact.tasks : 0;
+    const parts = [`Archive ${KIND_LABEL[node.kind].toLowerCase()} “${node.name}”?`];
+    // `planDeleteImpact` already subtracts the row itself, so this count is
+    // the descendants and needs no adjusting here.
+    if (childCount > 0)
+      parts.push(`This also archives ${childCount} row${childCount === 1 ? "" : "s"} beneath it.`);
+    if (taskCount > 0) parts.push(`${taskCount} linked task${taskCount === 1 ? "" : "s"} will be archived and removed from WMS and the calendar.`);
+    parts.push("Nothing is deleted — archived rows can be brought back.");
+    if (!window.confirm(parts.join("\n\n"))) return;
+    run(`del:${node.id}`, () => deletePlanNode(node.id), "Archived.");
+  }
+
+  /**
+   * PERMANENTLY DELETE this row — the pair to Archive, same as the WMS task
+   * list carries. Archive is for work that is finished with; this is for a row
+   * that should never have existed.
+   *
+   * Admin-only on the server. The confirmation spells out that it cannot be
+   * undone AND offers Archive by name, because the two are one mis-click apart.
+   */
+  async function purge(node: PlanRow) {
     let impact: Awaited<ReturnType<typeof planDeleteImpact>>;
     try {
       impact = await planDeleteImpact(node.id);
@@ -956,15 +1293,27 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
     }
     const childCount = impact.ok ? impact.nodes : 0;
     const taskCount = impact.ok ? impact.tasks : 0;
-    const parts = [`Delete ${KIND_LABEL[node.kind].toLowerCase()} “${node.name}”?`];
-    if (childCount > 0) parts.push(`This also removes ${childCount} row${childCount === 1 ? "" : "s"} beneath it.`);
-    if (taskCount > 0) parts.push(`${taskCount} linked task${taskCount === 1 ? "" : "s"} will be archived and removed from WMS and the calendar.`);
+    const parts = [`Permanently delete ${KIND_LABEL[node.kind].toLowerCase()} “${node.name}”?`];
+    if (childCount > 0)
+      parts.push(`This also deletes ${childCount} row${childCount === 1 ? "" : "s"} beneath it.`);
+    if (taskCount > 0)
+      parts.push(`${taskCount} linked task${taskCount === 1 ? "" : "s"} will be deleted from WMS, with their history.`);
+    parts.push("This cannot be undone. Use Archive instead if you only want it off the board.");
     if (!window.confirm(parts.join("\n\n"))) return;
-    run(`del:${node.id}`, () => deletePlanNode(node.id), "Deleted.");
+    run(`purge:${node.id}`, () => purgePlanNode(node.id), "Deleted.");
   }
 
   const board = (
     <section className={fullscreen ? "flex h-full flex-col" : "flex flex-col"}>
+      {/* The Client column's suggestions. ONE datalist for the whole table
+          rather than one per row: the roster is the same for every project, and
+          a copy per row on a 200-row plan is 200 identical option lists in the
+          DOM. Free text either way — the roster suggests, it does not refuse. */}
+      <datalist id="plan-client-roster">
+        {clients.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
       {/* ── Title row — name, the shape of what is on screen, full screen. ── */}
       <header className="mb-3 flex flex-wrap items-center gap-3">
         <h1
@@ -1041,7 +1390,11 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
           the left, how much of it on the right. Filters narrow the tree, the
           level select drives the collapse set, and the count chip reports what
           is actually rendered — so the bar always describes the table below it. */}
-      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-hairline-strong bg-white px-3 py-2">
+      {/* ONE LINE on desktop (2026-09-19: "i want this in one line") — every
+          control below is compact-sized so the whole bar fits; it only wraps
+          on narrow screens, where one line cannot fit at any size. No
+          overflow-x scroll here: it would clip the Rows / Columns menus. */}
+      <div className="mb-4 flex flex-wrap items-center gap-1.5 rounded-2xl border border-hairline-strong bg-white px-2.5 py-1.5 lg:flex-nowrap">
         {/* View toggle — the same List / Kanban pair the Goals board uses. */}
         <div role="group" aria-label="Board view" className="inline-flex shrink-0 overflow-hidden rounded-lg border border-hairline-strong">
           <ViewTab active={view === "list"} onClick={() => setView("list")} icon={<List size={13} strokeWidth={2.4} />}>
@@ -1052,13 +1405,40 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
           </ViewTab>
         </div>
 
+        {/* The axis switch, shown only with the board it re-columns. Same two
+            questions, same wording, as the WMS kanban's toggle. */}
+        {view === "kanban" && (
+          <div
+            role="group"
+            aria-label="Status axis"
+            className="inline-flex shrink-0 overflow-hidden rounded-lg border border-hairline-strong"
+          >
+            {STATUS_AXES.map((a) => (
+              <ViewTab
+                key={a}
+                active={axis === a}
+                onClick={() => setAxis(a)}
+                icon={
+                  a === "doer" ? (
+                    <User size={13} strokeWidth={2.4} />
+                  ) : (
+                    <ShieldCheck size={13} strokeWidth={2.4} />
+                  )
+                }
+              >
+                {STATUS_AXIS_LABEL[a]}
+              </ViewTab>
+            ))}
+          </div>
+        )}
+
         {/* The way back to the REGISTER. The register has always linked here;
             without this the hierarchy was a one-way door — you could reach the
             tree but only the browser's Back button returned you to the table. */}
         <Link
           href={registerHref as Route}
           title={`See every ${LEVEL_KIND[level] ? KIND_LABEL[LEVEL_KIND[level]!].toLowerCase() : "row"} as a table`}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-hairline-strong px-2.5 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+          className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-hairline-strong px-2 py-1 text-[12px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
         >
           <Table2 size={13} strokeWidth={2.4} aria-hidden />
           Table view
@@ -1075,7 +1455,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
           onClick={addProject}
           disabled={pending}
           title="Add a project — or press P"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12.5px] font-bold transition-colors disabled:opacity-50"
+          className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border px-2 py-1 text-[12px] font-bold transition-colors disabled:opacity-50"
           style={{ borderColor: ACCENT_SOFT, color: ACCENT_DEEP, background: "#FDF0F0" }}
         >
           {busy === "add:project" ? (
@@ -1086,8 +1466,8 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
           New project
         </button>
 
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg text-ink-subtle" aria-hidden>
-          <SlidersHorizontal size={16} strokeWidth={2.2} />
+        <span className="grid size-6 shrink-0 place-items-center rounded-lg text-ink-subtle" aria-hidden>
+          <SlidersHorizontal size={14} strokeWidth={2.2} />
         </span>
 
         <BarSelect
@@ -1131,7 +1511,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
 
 
         {/* Right-hand group. */}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {view === "list" && <RowsPicker value={rowLimit} onChange={setRowLimit} total={rows.length} />}
 
           {/* Active-filter pill — tinted only when a filter is really on, and
@@ -1139,7 +1519,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
           {projectId !== "all" && (
             <button
               onClick={() => setProjectId("all")}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold transition-opacity hover:opacity-80"
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1 text-[12px] font-bold transition-opacity hover:opacity-80"
               style={{ background: ACCENT_SOFT, color: ACCENT_DEEP }}
               title="Clear the project filter"
             >
@@ -1151,7 +1531,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
             <ColumnsPicker visible={cols} onChange={setCols} order={colOrder} onReorder={setColOrder} />
           )}
 
-          <BarButton onClick={exportCsv} icon={<Download size={14} strokeWidth={2.2} />}>
+          <BarButton compact onClick={exportCsv} icon={<Download size={13} strokeWidth={2.2} />}>
             Export
           </BarButton>
 
@@ -1201,7 +1581,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
                   icon={<Eye size={14} strokeWidth={2.2} />}
                   onClick={() => {
                     const r = selectedRows[0]!;
-                    openDetail({ node: r.node, ref: r.ref, fullRef: r.fullRef, path: r.path });
+                    openDetail({ node: r.node, ref: r.ref, fullRef: r.fullRef, path: r.path, ancestry: r.ancestry });
                   }}
                 >
                   View detail
@@ -1211,7 +1591,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
                 icon={<Pencil size={14} strokeWidth={2.2} />}
                 onClick={() => {
                   const targets = selectedRows.map((r) => ({
-                    node: r.node, ref: r.ref, fullRef: r.fullRef, path: r.path,
+                    node: r.node, ref: r.ref, fullRef: r.fullRef, path: r.path, ancestry: r.ancestry,
                   }));
                   if (targets.length === 1) setEditing(targets[0]!);
                   else setBulkEditing(targets);
@@ -1258,7 +1638,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
       )}
 
       {view === "kanban" ? (
-        <PlanKanban cards={cards} me={me} downlineSet={downlineSet} />
+        <PlanKanban cards={cards} me={me} downlineSet={downlineSet} axis={axis} />
       ) : (
       <>
       {/* ── Table ────────────────────────────────────────────────────────────
@@ -1268,6 +1648,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
           plan. In full screen the box takes whatever height is left; otherwise
           it is capped against the viewport. */}
       <div
+        ref={scrollBoxRef}
         className={`overflow-auto rounded-xl border border-hairline-strong bg-white ${
           fullscreen ? "min-h-0 flex-1" : "max-h-[calc(100vh-300px)] min-h-[220px]"
         }`}
@@ -1377,6 +1758,9 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
                 onAddChild={addChild}
                 onRun={run}
                 onDelete={remove}
+                onPurge={purge}
+                canPurge={canManage}
+                clientOf={clientOf}
                 detailOpen={detail?.node.id === row.node.id}
                 onOpenDetail={openDetail}
                 shownCols={shownCols}
@@ -1387,6 +1771,9 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
                 canManage={canManage}
                 me={me}
                 downlineSet={downlineSet}
+                onDragStart={startRowDrag}
+                dragging={dragId === row.node.id}
+                dropTarget={dropId === row.node.id}
               />
             ))}
 
@@ -1458,6 +1845,15 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
           onEdit={() => { setEditing(detail); setDetail(null); }}
         />
       )}
+      {movePlan && (
+        <MoveConfirmDialog
+          plan={movePlan}
+          busy={moveBusy}
+          error={moveError}
+          onCancel={closeMove}
+          onConfirm={confirmMove}
+        />
+      )}
       {/* `key` remounts per level so the dialog's internal kind/parent state
           starts clean rather than carrying the previous level's half-filled
           chain of ancestor pickers. */}
@@ -1522,9 +1918,10 @@ function Th({ children, className = "" }: { children: React.ReactNode; className
 /* ────────────────────────────── One row ────────────────────────────── */
 
 function Row({
-  row, collapsed, employees, busyKey, treeBusy, onToggle, onAddChild, onRun, onDelete,
+  row, collapsed, employees, busyKey, treeBusy, onToggle, onAddChild, onRun, onDelete, onPurge, canPurge,
   detailOpen, onOpenDetail, shownCols, selected, onToggleSelect, onOpenTask,
-  isAdmin, canManage, me, downlineSet,
+  isAdmin, canManage, me, downlineSet, clientOf,
+  onDragStart, dragging, dropTarget,
 }: {
   row: FlatRow;
   collapsed: boolean;
@@ -1541,7 +1938,15 @@ function Row({
   onToggle: (id: string) => void;
   onAddChild: (node: PlanRow) => void;
   onRun: (key: string, fn: () => Promise<{ ok: boolean; error?: string }>, okMessage?: string) => void;
+  /** The client this row inherits from its project — for the read-only echo in
+   *  the Client column on every level below Project. */
+  clientOf: (nodeId: string) => string | null;
+  /** Archive — the row and its tasks leave the board; every record survives. */
   onDelete: (node: PlanRow) => void;
+  /** Permanent delete. Admin-only on the server; hidden here for everyone else
+   *  rather than shown and refused. */
+  onPurge: (node: PlanRow) => void;
+  canPurge: boolean;
   detailOpen: boolean;
   onOpenDetail: (t: DetailTarget | null) => void;
   shownCols: ColKey[];
@@ -1553,8 +1958,14 @@ function Row({
   canManage: boolean;
   me: { id: string; isAdmin: boolean };
   downlineSet: ReadonlySet<string>;
+  /** Begins a drag-to-move from this row's grip. */
+  onDragStart: (id: string) => void;
+  /** This row is the one being dragged. */
+  dragging: boolean;
+  /** The pointer is currently over this row and it is a candidate drop. */
+  dropTarget: boolean;
 }) {
-  const { node, depth, ref: rowRef, fullRef, hasChildren, isFirst, isLast, path } = row;
+  const { node, depth, ref: rowRef, fullRef, hasChildren, isFirst, isLast, path, ancestry } = row;
   const childKind = CHILD_KIND[node.kind];
   const executable = isExecutable(node.kind);
   /**
@@ -1638,20 +2049,63 @@ function Row({
 
   return (
     <tr
-      className="border-b border-hairline transition-colors last:border-b-0 hover:bg-[color:var(--color-surface-soft,#f6f8fb)]"
-      style={depth === 0 ? { background: "color-mix(in srgb, #E10600 4%, transparent)" } : undefined}
+      // The drop resolver reads this off `elementFromPoint` — see the drag
+      // block in the board above.
+      data-plan-row-id={node.id}
+      className={`border-b border-hairline transition-colors last:border-b-0 hover:bg-[color:var(--color-surface-soft,#f6f8fb)] ${
+        dragging ? "opacity-45" : ""
+      }`}
+      style={{
+        ...(depth === 0
+          ? { background: "color-mix(in srgb, #E10600 4%, transparent)" }
+          : undefined),
+        // A drop candidate is marked with an inset rule rather than a border:
+        // a real border on a <tr> shifts every cell in the row by a pixel, and
+        // the whole table jitters as the pointer sweeps down it.
+        ...(dropTarget
+          ? {
+              background: ACCENT_SOFT,
+              boxShadow: `inset 0 0 0 2px ${ACCENT}`,
+            }
+          : undefined),
+      }}
     >
       {/* Tick to SELECT — the selection bar above then acts on the whole
           selection. The detail view moved to the REF badge (and to the bar's
           "View detail"), so one checkbox is not doing two different jobs. */}
       <td className="px-2 py-1.5 pl-3 align-middle">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={() => onToggleSelect(node.id)}
-          className="size-[15px] cursor-pointer accent-[#E10600]"
-          aria-label={`Select ${node.name || KIND_LABEL[node.kind]}`}
-        />
+        <div className="flex items-center gap-1">
+          {/* DRAG HANDLE. A project has nothing above it to be re-parented to,
+              so it gets a spacer instead of a grip rather than a grip that
+              refuses — see `reparentPlanNode`. */}
+          {node.kind === "project" ? (
+            <span className="inline-block size-4 shrink-0" aria-hidden />
+          ) : (
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                // Left button only, and never let the press reach the row (it
+                // would start a text selection across the table).
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                onDragStart(node.id);
+              }}
+              className="grid size-4 shrink-0 cursor-grab place-items-center rounded text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong active:cursor-grabbing"
+              title={`Drag ${node.name || KIND_LABEL[node.kind]} onto another project, milestone or result to move it — everything underneath moves with it`}
+              aria-label={`Move ${node.name || KIND_LABEL[node.kind]} to another branch`}
+            >
+              <GripVertical size={13} />
+            </button>
+          )}
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(node.id)}
+            className="size-[15px] cursor-pointer accent-[#E10600]"
+            aria-label={`Select ${node.name || KIND_LABEL[node.kind]}`}
+          />
+        </div>
       </td>
 
       {/* Every cell, rendered in the user's column order — the three structural
@@ -1682,7 +2136,7 @@ function Row({
                     <span className="mr-1 inline-block size-5 shrink-0" aria-hidden />
                   )}
                   <button
-                    onClick={() => onOpenDetail(detailOpen ? null : { node, ref: rowRef, fullRef, path })}
+                    onClick={() => onOpenDetail(detailOpen ? null : { node, ref: rowRef, fullRef, path, ancestry })}
                     className="rounded px-1.5 py-0.5 text-[12px] font-bold tabular-nums transition-opacity hover:opacity-75"
                     style={
                       detailOpen
@@ -1725,8 +2179,17 @@ function Row({
                   <IconBtn label="Duplicate" onClick={() => onRun(`dup:${node.id}`, () => duplicatePlanNode(node.id), "Duplicated.")} disabled={rowBusy}>
                     <Copy size={13} />
                   </IconBtn>
-                  <IconBtn label="Delete" onClick={() => onDelete(node)} disabled={rowBusy} danger>
-                    <Trash2 size={13} />
+                  {/* DELETE then ARCHIVE — the same pair, in the same order,
+                      as the WMS task list's row actions. Two different
+                      questions: "this should never have existed" and "this is
+                      finished with". Both on every level. */}
+                  {canPurge && (
+                    <IconBtn label="Delete permanently" onClick={() => onPurge(node)} disabled={rowBusy} danger>
+                      <Trash2 size={13} />
+                    </IconBtn>
+                  )}
+                  <IconBtn label="Archive" onClick={() => onDelete(node)} disabled={rowBusy} danger>
+                    <Archive size={13} />
                   </IconBtn>
                   {rowBusy && <Loader2 size={13} className="ml-0.5 animate-spin text-ink-subtle" />}
                 </div>
@@ -1779,9 +2242,16 @@ function Row({
           case "status":
             return (
               <td key={key} className={pad}>
-                <PlanStatusCell node={node} actor={actor} linkedToTask={!!node.task} />
+                <PlanStatusCell node={node} actor={actor} linkedToTask={!!node.task} axis="doer" />
               </td>
             );
+
+          /* INITIATOR STATUS WAS A COLUMN HERE, removed on request (Manan,
+             2026-09-15) along with the same column on the Tasks and Goals
+             tables. The axis itself is untouched: `PlanStatusCell` still
+             renders it with axis="initiator" wherever else it is asked for,
+             and the verdict is still stored on project_nodes.approval_status.
+             Only the column is gone. */
 
           // ── Progress ──────────────────────────────────────────────────────
           // Computed from this row's subtree on every render — a percent, and
@@ -1905,6 +2375,46 @@ function Row({
                 </select>
               </td>
             );
+
+          // ── Client ────────────────────────────────────────────────────────
+          // Editable ON THE PROJECT and nowhere else: everything below inherits
+          // it, and a second copy on a milestone is how one plan ends up naming
+          // two clients. The lower rows echo the inherited value, greyed, so it
+          // is visible without being editable — a blank cell there would read as
+          // "no client" when the answer is "the project's".
+          //
+          // A datalist, not a select: `tasks.client` is free text (the clients
+          // table is a picker roster, not a constraint), so the roster suggests
+          // without refusing a name that is not on it yet.
+          case "client": {
+            if (node.kind !== "project") {
+              const inherited = clientOf(node.id);
+              return (
+                <td key={key} className={pad}>
+                  <span className="block truncate px-1 py-1 text-[13px] font-medium text-ink-soft" title={inherited ?? undefined}>
+                    {inherited ?? "—"}
+                  </span>
+                </td>
+              );
+            }
+            return (
+              <td key={key} className={pad}>
+                <input
+                  list="plan-client-roster"
+                  defaultValue={node.clientName ?? ""}
+                  key={`${node.id}:c:${node.clientName ?? ""}`}
+                  onBlur={(e) => {
+                    const v = e.target.value.trim();
+                    if (v === (node.clientName ?? "")) return;
+                    patch({ clientName: v || null });
+                  }}
+                  placeholder="Client…"
+                  className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-[13px] font-medium text-ink-strong outline-none transition-colors hover:border-hairline-strong focus:border-[#E10600] focus:bg-white"
+                  aria-label="Client"
+                />
+              </td>
+            );
+          }
 
           case "target":
             return (
@@ -2376,7 +2886,7 @@ function ViewTab({
     <button
       onClick={onClick}
       aria-pressed={active}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-bold transition-colors"
+      className="inline-flex items-center gap-1 whitespace-nowrap px-2.5 py-1 text-[12px] font-bold transition-colors"
       style={active
         ? { background: ACCENT, color: "white" }
         : { background: "white", color: "var(--color-ink-soft)" }}
@@ -2407,7 +2917,7 @@ function RowsPicker({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         title={`${total} row${total === 1 ? "" : "s"} match right now`}
-        className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong px-3 py-1.5 text-[13px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
+        className="shrink-0 whitespace-nowrap inline-flex items-center gap-1 rounded-lg border border-hairline-strong px-2 py-1 text-[12px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
       >
         Rows <strong className="font-bold tabular-nums text-ink-strong">{value === "all" ? "All" : value}</strong>
         {open ? <ChevronUp size={13} strokeWidth={2.4} /> : <ChevronDown size={13} strokeWidth={2.4} />}
@@ -2450,13 +2960,13 @@ function BarSelect({
   icon?: React.ReactNode;
 }) {
   return (
-    <label className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong px-2.5 py-1.5 transition-colors focus-within:border-[#E10600] hover:bg-surface-soft">
+    <label className="inline-flex min-w-0 shrink items-center gap-1 rounded-lg border border-hairline-strong px-2 py-1 transition-colors focus-within:border-[#E10600] hover:bg-surface-soft">
       {icon && <span className="text-ink-subtle">{icon}</span>}
       <select
         value={value}
         aria-label={label}
         onChange={(e) => onChange(e.target.value)}
-        className="max-w-[190px] cursor-pointer truncate bg-transparent text-[13px] font-semibold text-ink-strong outline-none"
+        className="min-w-0 max-w-[150px] cursor-pointer truncate bg-transparent text-[12px] font-semibold text-ink-strong outline-none"
       >
         {placeholder && <option value="">{placeholder}</option>}
         {options.map((o) => (
@@ -2468,16 +2978,20 @@ function BarSelect({
 }
 
 export function BarButton({
-  children, onClick, icon,
+  children, onClick, icon, compact,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   icon?: React.ReactNode;
+  /** The one-line control bar's smaller size; selection bars keep the default. */
+  compact?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong px-3 py-1.5 text-[13px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
+      className={`shrink-0 whitespace-nowrap inline-flex items-center rounded-lg border border-hairline-strong font-semibold text-ink-soft transition-colors hover:bg-surface-soft ${
+        compact ? "gap-1 px-2 py-1 text-[12px]" : "gap-1.5 px-3 py-1.5 text-[13px]"
+      }`}
     >
       {icon}
       {children}
@@ -2558,9 +3072,9 @@ function ColumnsPicker({
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong px-3 py-1.5 text-[13px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
+        className="shrink-0 whitespace-nowrap inline-flex items-center gap-1 rounded-lg border border-hairline-strong px-2 py-1 text-[12px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
       >
-        <Columns3 size={14} strokeWidth={2.2} />
+        <Columns3 size={13} strokeWidth={2.2} />
         Columns <span className="tabular-nums text-ink-strong">{visible.size}/{OPTIONAL_COLUMNS.length}</span>
       </button>
       {open && (
@@ -2667,7 +3181,7 @@ function DetailDialog({
   onClose: () => void;
   onEdit: () => void;
 }) {
-  const { node, ref: rowRef, fullRef, path } = target;
+  const { node, ref: rowRef, fullRef, path, ancestry } = target;
   const executable = isExecutable(node.kind);
   const below = countBelow(node);
   // The effective status — a restricted verdict outranks a progress report, so
@@ -2715,6 +3229,20 @@ function DetailDialog({
           </button>
         </div>
 
+        {/* WHERE THIS ROW SITS — first, above its own fields (Manan,
+            2026-09-15). Opening an Action from a task list or a kanban card
+            tells you what the row is and nothing about which project,
+            milestone and result it belongs to, and that is the first thing
+            anyone asks. The long `fullRef` moves up here with it, since this
+            panel is now the plan-address block. */}
+        <PlanPlacePanel
+          className="mb-4"
+          project={ancestry.project}
+          milestone={ancestry.milestone}
+          result={ancestry.result}
+          fullRef={fullRef}
+        />
+
         {/* The fields, inside one bordered panel. */}
         <div className="rounded-xl border border-hairline-strong p-4 max-md:p-3">
           <ReadField label={KIND_LABEL[node.kind]} value={node.name} wide />
@@ -2727,9 +3255,9 @@ function DetailDialog({
 
           <div className="mt-3.5 grid grid-cols-3 gap-3.5 max-md:grid-cols-1">
             <ReadField label="Ref" value={rowRef} />
-            {/* The ONLY place the long path is shown — brief §3 keeps it out of
-                the table, but a detail panel is exactly where it belongs. */}
-            <ReadField label="Full ref" value={fullRef} />
+            {/* `Full ref` used to sit here. It moved into the Plan location
+                panel above, which is the block about where this row lives —
+                printing it in both places is the same string twice. */}
             <ReadField label="Owner" value={node.ownerName} />
           </div>
 

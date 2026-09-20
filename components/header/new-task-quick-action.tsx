@@ -35,8 +35,14 @@ export function NewTaskQuickAction({ className = "" }: { className?: string }) {
       aria-label="New task"
       title="New task (N)"
       className={
+        // NOT RED any more (Manan, 2026-09-15: "remove the red colour in + sign").
+        // It now wears the same neutral chrome as the search box beside it — a
+        // hairline border on the soft surface — so the top bar reads as one row
+        // of tools instead of one shouting button next to three quiet ones. The
+        // red focus ring stays: that is the app accent doing its actual job.
         "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md p-1.5 " +
-        "bg-red-600 text-white shadow-sm transition-colors hover:bg-red-700 " +
+        "border border-hairline bg-surface-soft text-ink-strong transition-colors " +
+        "hover:bg-surface-card hover:border-hairline-strong " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40 " +
         className
       }

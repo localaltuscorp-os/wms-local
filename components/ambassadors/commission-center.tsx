@@ -453,7 +453,7 @@ function PayoutModal({
 
         {/* body */}
         <div className="space-y-4 px-5 py-5">
-          <Field label="Amount (₹)">
+          <Field label="Amount (Rs.)">
             <input
               ref={amountRef}
               type="number"

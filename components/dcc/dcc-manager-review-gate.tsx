@@ -8,10 +8,13 @@ import { Avatar } from "@/components/ui/avatar";
 import { dccStatusTone } from "@/lib/dcc/util";
 import type { DccManagerReviewState } from "@/lib/dcc/gate";
 import { setDccReview, approveAllDccReviews, getDccReviewDetail, type DccReviewItem } from "@/app/(app)/dcc/actions";
+import { formatDate } from "@/lib/format";
 
 function fmtLong(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y!, (m ?? 1) - 1, d ?? 1).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+  const dt = new Date(y!, (m ?? 1) - 1, d ?? 1);
+  // Weekday spelled out (this is a greeting), date in the app-wide DD-MMM-YYYY.
+  return `${dt.toLocaleDateString("en-IN", { weekday: "long" })}, ${formatDate(dt)}`;
 }
 
 export function DccManagerReviewGate({ greetingName, state }: { greetingName: string; state: DccManagerReviewState }) {

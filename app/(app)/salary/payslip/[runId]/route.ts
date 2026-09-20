@@ -40,7 +40,7 @@ const LOGO_PATH = path.join(process.cwd(), "public", "logo.png");
 const MARK_PATH = path.join(process.cwd(), "public", "logo-mark.png");
 
 const inr = (n: number) =>
-  "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  "Rs." + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 // ── Number → Indian-system words (for the net-payable amount) ──────────────
 const ONES = [

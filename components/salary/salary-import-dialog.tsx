@@ -202,7 +202,7 @@ export function SalaryImportDialog() {
                         <th className="py-1.5 pr-3 font-semibold">Month</th>
                         <th className="py-1.5 pr-3 font-semibold text-right">Payable d.</th>
                         <th className="py-1.5 pr-3 font-semibold text-right">Days</th>
-                        <th className="py-1.5 font-semibold text-right">Net (₹)</th>
+                        <th className="py-1.5 font-semibold text-right">Net (Rs.)</th>
                       </tr>
                     </thead>
                     <tbody>

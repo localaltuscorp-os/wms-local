@@ -130,6 +130,11 @@ const UpdateFieldsSchema = z.object({
   teamDependencyPct: z.number().int().min(0).max(100).nullable().optional(),
   evidenceUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
   monthGoalId: z.string().uuid().nullable().optional(),
+  // The NOTES column + the edit dialog's Notes box. Same 4000 as the cascade's
+  // EditGoalSchema. Without this key the table's patchNotes() reached the
+  // weekly adapter, matched nothing, and reported success having written
+  // nothing — notes looked saved until the page was reloaded.
+  notes: z.string().max(4000).nullable().optional(),
   // Column parity with Y/Q/M (all real weekly_goals columns).
   weight: z.number().int().min(0).max(1000).optional(),
   goalType: z.enum(GOAL_TYPES).nullable().optional(),
@@ -188,6 +193,7 @@ export async function updateWeeklyCascadeFields(
   if ("teamDependencyPct" in d) set.teamDependencyPct = d.teamDependencyPct ?? null;
   if ("evidenceUrl" in d) set.evidenceUrl = d.evidenceUrl ? d.evidenceUrl : null;
   if ("monthGoalId" in d) set.monthGoalId = d.monthGoalId ?? null;
+  if ("notes" in d) set.notes = d.notes ?? null;
   // Column parity with Y/Q/M.
   if ("weight" in d && d.weight !== undefined) set.weight = d.weight;
   if ("goalType" in d) set.goalType = d.goalType ?? null;

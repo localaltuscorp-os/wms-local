@@ -218,21 +218,44 @@ export function MultiSelect({
             <CommandInput placeholder="Search…" className="h-11 flex-1 border-0 px-0" />
           </div>
 
-          {/* Selected count + clear */}
-          {selected.length > 0 && (
-            <div className="flex items-center justify-between px-3 py-2 border-b border-hairline bg-black/[0.02]">
-              <span className="text-[11.5px] font-bold uppercase tracking-[0.06em] text-ink-subtle">
-                {selected.length} selected
-              </span>
-              <button
-                type="button"
-                onClick={() => onChange([])}
-                className="text-[12px] font-bold text-altus-red hover:underline"
-              >
-                Clear
-              </button>
-            </div>
-          )}
+          {/* Count + SELECT ALL + clear.
+              Always on screen, where it used to appear only once something was
+              ticked (Manan, 2026-09-15: "give feature to select all filters in
+              one go"). Ticking twenty clients one at a time was the only way to
+              say "all but these two", and an empty filter means "no filter", not
+              "everything selected" — so the two are not interchangeable and the
+              long way round was the only way round.
+
+              SELECT ALL TAKES THE WHOLE LIST, not what the search box has
+              narrowed it to: cmdk filters inside itself and never tells us what
+              survived, so honouring the query here would need a second matcher
+              that is guaranteed to disagree with the one drawing the rows. The
+              count in the label says exactly what the click will do. */}
+          <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-hairline bg-black/[0.02]">
+            <span className="text-[11.5px] font-bold uppercase tracking-[0.06em] text-ink-subtle">
+              {selected.length > 0 ? `${selected.length} selected` : "None selected"}
+            </span>
+            <span className="flex items-center gap-2.5">
+              {selected.length < options.length && (
+                <button
+                  type="button"
+                  onClick={() => onChange(options.map((o) => o.value))}
+                  className="text-[12px] font-bold text-ink-soft hover:text-ink-strong hover:underline"
+                >
+                  Select all ({options.length})
+                </button>
+              )}
+              {selected.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onChange([])}
+                  className="text-[12px] font-bold text-altus-red hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </span>
+          </div>
 
           <CommandList className="max-h-72 overflow-auto p-1.5">
             <CommandEmpty className="px-3 py-6 text-center text-[14px] text-ink-subtle">

@@ -2382,6 +2382,88 @@ export async function bulkArchiveGoals(
   return { ok: true, archived: n };
 }
 
+/* ------------------------------------------------------------------ */
+/* ARCHIVE — "put this away", which is NOT Delete.                      */
+/*                                                                      */
+/* Delete (archiveGoal above) sets `archived` and the goal lands in the  */
+/* Recycle Bin. ARCHIVE stamps `archived_at` (migration 0215) and the    */
+/* goal lands in Archive > Goals, where it can be restored to the board  */
+/* or deleted for good. Two gestures, two states, two screens — asked    */
+/* for on the selection bar beside Delete (Sir, 2026-09).                */
+/*                                                                      */
+/* Same permission rule as Delete, and for the same reason: archiving    */
+/* somebody else's goal is a structural act, so it takes the owner, an   */
+/* admin, or a manager the policy gate allows.                          */
+/* ------------------------------------------------------------------ */
+
+export async function archiveGoalToArchive(
+  input: z.infer<typeof IdSchema>,
+): Promise<ActionResult<{ row: GoalDTO }>> {
+  const { me, isAdmin } = await requireGoalsAccess();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = IdSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
+
+  const loaded = await loadWritableGoalRow(parsed.data.id, { id: me.id, isAdmin });
+  if (!loaded.ok) return loaded;
+  if (loaded.row.employeeId !== me.id) {
+    const pol = await policyGate({ id: me.id, isAdmin }, loaded.row.employeeId);
+    if (pol && !pol.canDeleteOthers) return { ok: false, error: POLICY_REASONS.deleteOthers };
+  }
+
+  const [row] = await db
+    .update(goals)
+    .set({ archivedAt: new Date(), updatedById: me.id, updatedAt: new Date() })
+    .where(eq(goals.id, parsed.data.id))
+    .returning();
+  if (!row) return { ok: false, error: "Goal not found" };
+  revalidateGoals(loaded.row.periodKey);
+  revalidatePath("/archive/goals");
+  return { ok: true, row: toGoalDTO(row) };
+}
+
+/** Put the goal back on its board — the Archive's Unarchive button. */
+export async function restoreGoalFromArchive(
+  input: z.infer<typeof IdSchema>,
+): Promise<ActionResult<{ row: GoalDTO }>> {
+  const { me, isAdmin } = await requireGoalsAccess();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = IdSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
+
+  const loaded = await loadWritableGoalRow(parsed.data.id, { id: me.id, isAdmin });
+  if (!loaded.ok) return loaded;
+
+  const [row] = await db
+    .update(goals)
+    .set({ archivedAt: null, updatedById: me.id, updatedAt: new Date() })
+    .where(eq(goals.id, parsed.data.id))
+    .returning();
+  if (!row) return { ok: false, error: "Goal not found" };
+  revalidateGoals(loaded.row.periodKey);
+  revalidatePath("/archive/goals");
+  return { ok: true, row: toGoalDTO(row) };
+}
+
+/** The selection bar's Archive button — one call, many goals. */
+export async function bulkArchiveGoalsToArchive(
+  input: z.infer<typeof IdsSchema>,
+): Promise<ActionResult<{ archived: number }>> {
+  const parsed = IdsSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
+  let n = 0;
+  let lastErr = "";
+  for (const id of parsed.data.ids) {
+    const r = await archiveGoalToArchive({ id });
+    if (r.ok) n++;
+    else lastErr = r.error;
+  }
+  if (n === 0) return { ok: false, error: lastErr || "Nothing was archived." };
+  return { ok: true, archived: n };
+}
+
 const BulkShareSchema = z.object({
   ids: z.array(z.string().uuid()).min(1).max(500),
   shareWithTeam: z.boolean(),

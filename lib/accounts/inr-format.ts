@@ -7,11 +7,11 @@
  * off, which on a reconciliation sheet is the one failure that matters.
  *
  * The unit rule is the brief's, taken literally:
- *   ₹0 – ₹99,99,999        → Lakh   (₹75,50,000 → ₹75.50 Lakh)
- *   ₹1,00,00,000 and above → Crore  (₹1,25,00,000 → ₹1.25 Crore)
+ *   Rs. 0 – Rs. 99,99,999        → Lakh   (Rs. 75,50,000 → Rs. 75.50 Lakh)
+ *   Rs. 1,00,00,000 and above → Crore  (Rs. 1,25,00,000 → Rs. 1.25 Crore)
  *
  * Two decimals always, so a column of figures stays aligned on the point.
- * Negatives keep their sign OUTSIDE the rupee symbol (−₹25.00 Lakh) — that is
+ * Negatives keep their sign OUTSIDE the rupee symbol (−Rs. 25.00 Lakh) — that is
  * how a debit reads, and the matrix's red/green already carries the meaning.
  */
 
@@ -33,10 +33,20 @@ const groupIn = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
  * the format can actually draw.
  */
 export type InrGlyphs = { rupee: string; minus: string };
-export const INR_SCREEN: InrGlyphs = { rupee: "₹", minus: "−" };
-export const INR_PDF: InrGlyphs = { rupee: "Rs.", minus: "-" };
+/**
+ * BOTH SETS SPELL THE RUPEE "Rs." NOW (Manan, 2026-09-15). The screen set kept
+ * the ₹ glyph and the PDF set spelled it out, which meant the emailed report
+ * and the screen it was read off disagreed about the one character every figure
+ * on the page starts with. One spelling, everywhere.
+ *
+ * The pair survives because the MINUS still differs: the browser gets the
+ * typographic − (which lines up with the digits in a tabular-nums column) and
+ * pdfkit's WinAnsi Helvetica, which has no glyph for it, gets an ASCII hyphen.
+ */
+export const INR_SCREEN: InrGlyphs = { rupee: "Rs. ", minus: "−" };
+export const INR_PDF: InrGlyphs = { rupee: "Rs. ", minus: "-" };
 
-/** `₹1,25,00,000` — the exact figure, for tooltips and any full-value display. */
+/** `Rs. 1,25,00,000` — the exact figure, for tooltips and any full-value display. */
 export function formatFullInr(n: number, g: InrGlyphs = INR_SCREEN): string {
   const sign = n < 0 ? g.minus : "";
   return `${sign}${g.rupee}${groupIn.format(Math.abs(Math.round(n)))}`;
@@ -50,13 +60,13 @@ const groupPaise = new Intl.NumberFormat("en-IN", {
 });
 
 /**
- * `₹26,19,630.22` — the figure to the paise, grouping and all.
+ * `Rs. 26,19,630.22` — the figure to the paise, grouping and all.
  *
  * `formatFullInr` rounds to whole rupees, which is right for a grid but wrong
  * wherever the paise ARE the message. The Vasa matrix's real disagreements are
  * sub-rupee: 26,19,630.00 against 26,19,630.22 prints as the same number under
  * the rounding formatter, so a cell would explain its red by quoting a
- * difference of "₹0". Paise are dropped only when there are none, so an ordinary
+ * difference of "Rs. 0". Paise are dropped only when there are none, so an ordinary
  * whole-rupee balance still reads as one.
  */
 export function formatPreciseInr(n: number, g: InrGlyphs = INR_SCREEN): string {
@@ -67,16 +77,19 @@ export function formatPreciseInr(n: number, g: InrGlyphs = INR_SCREEN): string {
 }
 
 /**
- * `₹25.00 Lakh` / `₹1.25 Crore` — the abbreviated figure.
+ * `Rs. 25.00 Lakh` / `Rs. 1.25 Crore` — the abbreviated figure.
  *
- * NO LONGER USED ON SCREEN (Sir): the Vasa Family section now prints full
- * figures via formatFullInr, because "₹1.72 Crore" hides the digits a
- * reconciliation is checked against. Kept because it is the only implementation
- * of the Lakh/Crore rule and any surface that wants the short form should use
- * this rather than write a second one.
+ * NOT USED ANYWHERE, and deliberately so: the Vasa Family section prints full
+ * figures via formatFullInr because "Rs. 1.72 Crore" hides the digits a
+ * reconciliation is checked against, and the 2026-09-15 brief made that the
+ * rule for the whole app. Kept because it is the only implementation of the
+ * Lakh/Crore split, and a surface that genuinely needs the short form should
+ * call this rather than grow a second one — but reach for `formatFullInr`
+ * first, which is what "wherever there is amount" now means.
  *
- * Zero returns a plain `₹0` rather than "₹0.00 Lakh": the matrix is mostly
- * empty cells, and a grid of "0.00 Lakh" is noise standing in for nothing.
+ * Zero returns a plain `Rs. 0` rather than "Rs. 0.00 Lakh": the matrix is
+ * mostly empty cells, and a grid of "0.00 Lakh" is noise standing in for
+ * nothing.
  */
 export function formatCompactInr(n: number, g: InrGlyphs = INR_SCREEN): string {
   if (!Number.isFinite(n)) return "—";

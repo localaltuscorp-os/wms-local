@@ -352,7 +352,7 @@ function windowsChromeCandidates(): string[] {
 }
 
 /** Launch a headless browser appropriate to the runtime. Throws on failure. */
-async function launchBrowser(): Promise<any> {
+export async function launchBrowser(): Promise<any> {
   const puppeteer = await import("puppeteer-core");
   const onVercel = !!process.env.VERCEL || process.env.NODE_ENV === "production";
 

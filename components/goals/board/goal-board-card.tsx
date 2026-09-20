@@ -691,7 +691,7 @@ function GoalBoardCardImpl({
                 {goal.targetQty != null
                   ? `Qty ${fmtNum(goal.actualQty ?? 0)} / ${fmtNum(goal.targetQty)}${goal.uom ? ` ${goal.uom}` : ""}`
                   : goal.targetAmount != null
-                    ? `₹ ${fmtNum(goal.actualAmount ?? 0)} / ${fmtNum(goal.targetAmount)}`
+                    ? `Rs. ${fmtNum(goal.actualAmount ?? 0)} / ${fmtNum(goal.targetAmount)}`
                     : ""}
               </span>
               {goal.delegatedTo && goal.delegatedTo.length > 0 && (
@@ -1281,7 +1281,7 @@ export function IncentiveField({
 
       {enabled && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="How Much (₹)">
+          <Field label="How Much (Rs.)">
             <MoneyInput
               value={amount}
               disabled={disabled}

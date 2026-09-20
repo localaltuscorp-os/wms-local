@@ -201,6 +201,14 @@ const nextConfig: NextConfig = {
     "/api/hr/letters/issue-rich": [CHROMIUM_BIN, "./public/letter-fonts/**", "./public/letterhead/**", "./public/logos/**"],
     "/api/hr/letters/pdf": [CHROMIUM_BIN, "./public/letter-fonts/**", "./public/letterhead/**", "./public/logos/**"],
     "/api/hr/letters/email-pdf": [CHROMIUM_BIN, "./public/letter-fonts/**", "./public/letterhead/**", "./public/logos/**"],
+    // BILLING — the invoice is the on-screen sheet printed by headless Chromium
+    // (lib/billing/invoice-sheet-render.ts). It reads its CSS out of
+    // app/globals.css and inlines the logo and signature from public/, none of
+    // which a function gets by default — trace them into every route that
+    // renders the sheet (PDF download, email picture, email send).
+    "/billing/documents/[id]/pdf": [CHROMIUM_BIN, "./app/globals.css", "./public/logos/**", "./public/signatures/**", "./public/billing/**"],
+    "/billing/documents/[id]/png": [CHROMIUM_BIN, "./app/globals.css", "./public/logos/**", "./public/signatures/**", "./public/billing/**"],
+    "/billing/documents/[id]/email": [CHROMIUM_BIN, "./app/globals.css", "./public/logos/**", "./public/signatures/**", "./public/billing/**"],
   },
   // Externalize heavy server packages so the bundler does NOT compile their huge
   // trees into every route (the Sentry + OpenTelemetry + Prisma-instrumentation
@@ -224,6 +232,10 @@ const nextConfig: NextConfig = {
     // client one). Imported lazily inside the server function that runs them.
     "puppeteer-core",
     "@sparticuz/chromium",
+    // Invoice PDF → PNG for the email body (lib/billing/pdf-to-png.ts): a
+    // native canvas binding and pdf.js, loaded lazily on the send path only.
+    "pdfjs-dist",
+    "@napi-rs/canvas",
     "@sentry/nextjs",
     "@sentry/node",
     "@opentelemetry/instrumentation",

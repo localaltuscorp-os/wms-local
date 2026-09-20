@@ -90,30 +90,30 @@ describe("vasaDelta", () => {
 
 describe("formatFullInr — the display the brief asked for", () => {
   it("writes full figures in Indian grouping, not Lakh/Crore words", () => {
-    expect(formatFullInr(3_025_000)).toBe("₹30,25,000");
-    expect(formatFullInr(17_200_000)).toBe("₹1,72,00,000");
-    expect(formatFullInr(5_522_000)).toBe("₹55,22,000");
+    expect(formatFullInr(3_025_000)).toBe("Rs. 30,25,000");
+    expect(formatFullInr(17_200_000)).toBe("Rs. 1,72,00,000");
+    expect(formatFullInr(5_522_000)).toBe("Rs. 55,22,000");
   });
 
   it("keeps the sign outside the rupee symbol", () => {
-    expect(formatFullInr(-3_025_000)).toBe("−₹30,25,000");
+    expect(formatFullInr(-3_025_000)).toBe("−Rs. 30,25,000");
   });
 });
 
 describe("formatPreciseInr — what a mismatch tooltip quotes", () => {
   it("keeps the paise, which is where the disagreements actually are", () => {
-    expect(formatPreciseInr(2_619_630.22)).toBe("₹26,19,630.22");
-    expect(formatPreciseInr(0.22)).toBe("₹0.22");
-    expect(formatPreciseInr(0.7)).toBe("₹0.70");
+    expect(formatPreciseInr(2_619_630.22)).toBe("Rs. 26,19,630.22");
+    expect(formatPreciseInr(0.22)).toBe("Rs. 0.22");
+    expect(formatPreciseInr(0.7)).toBe("Rs. 0.70");
   });
 
   it("drops them when there are none, so a plain balance still reads as one", () => {
-    expect(formatPreciseInr(2_619_630)).toBe("₹26,19,630");
+    expect(formatPreciseInr(2_619_630)).toBe("Rs. 26,19,630");
   });
 
   it("would otherwise report a real difference as zero", () => {
     // The bug this formatter exists to prevent.
-    expect(formatFullInr(0.22)).toBe("₹0");
-    expect(formatPreciseInr(0.22)).not.toBe("₹0");
+    expect(formatFullInr(0.22)).toBe("Rs. 0");
+    expect(formatPreciseInr(0.22)).not.toBe("Rs. 0");
   });
 });

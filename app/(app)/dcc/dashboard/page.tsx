@@ -5,6 +5,7 @@ import { loadDccScope } from "@/lib/dcc/access";
 import { listDccPeople, listItemsForOwners, listEntriesForOwners, listReviewsForOwners } from "@/lib/queries/dcc";
 import { isoDate } from "@/lib/dcc/util";
 import { DccDashboard } from "@/components/dcc/dcc-dashboard";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -77,5 +78,7 @@ export default async function DccDashboardPage() {
 
 function fmt(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y!, (m ?? 1) - 1, d ?? 1).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+  const dt = new Date(y!, (m ?? 1) - 1, d ?? 1);
+  // Weekday spelled out (this is a greeting), date in the app-wide DD-MMM-YYYY.
+  return `${dt.toLocaleDateString("en-IN", { weekday: "long" })}, ${formatDate(dt)}`;
 }

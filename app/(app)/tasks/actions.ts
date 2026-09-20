@@ -58,6 +58,7 @@ import { listEmployees } from "@/lib/queries/employees";
 import { listActiveClientNames } from "@/lib/queries/clients";
 import { listActiveSubjectNames } from "@/lib/queries/subjects";
 import { listProjectNodeOptions } from "@/lib/queries/projects";
+import { listPlanPickerNodes, type PlanPickerNode } from "@/lib/queries/project-plan";
 import {
   canManagerApprove,
   canAdminApprove,
@@ -65,6 +66,12 @@ import {
   canAdminSendBack,
 } from "@/lib/tasks/approval-permissions";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import {
+  canSetInitiatorStatus,
+  effectiveInitiatorStatus,
+  initiatorWrite,
+  isInitiatorStatus,
+} from "@/lib/status/axes";
 import {
   canEditTaskFields,
   canApprove,
@@ -2264,22 +2271,136 @@ export async function loadNewTaskOptions(): Promise<{
   clients: string[];
   subjects: string[];
   projectNodes: { id: string; label: string }[];
+  /** The rows behind the cascading Project → Milestone → Result → Action
+   *  picker. Loaded beside `projectNodes` rather than instead of it: the flat
+   *  list still backs the callers that have not moved to the cascade. */
+  planNodes: PlanPickerNode[];
   /** May this user create a new client/subject from the pickers?
    *  Admins and super-admins only — see `canAddTaskRoster`. */
   canAddRoster: boolean;
 }> {
   const me = await requireUser();
-  const [all, clientNames, subjectNames, projectNodes] = await Promise.all([
+  const [all, clientNames, subjectNames, projectNodes, planNodes] = await Promise.all([
     listEmployees(),
     listActiveClientNames(),
     listActiveSubjectNames(),
     listProjectNodeOptions(),
+    listPlanPickerNodes(),
   ]);
   return {
     employees: all.map((e) => ({ id: e.id, name: e.name })),
     clients: clientNames,
     subjects: subjectNames,
     projectNodes,
+    planNodes,
     canAddRoster: canAddTaskRoster(me),
   };
+}
+
+/**
+ * Set a task's INITIATOR STATUS — Approved · Not Approved · On Hold · Archived.
+ *
+ * The other half of the two-axis split (lib/status/axes.ts). `setTaskStatus`
+ * above answers "where is this work?"; this answers "what do we do about it?",
+ * and the two never write each other's column: a task can be Initiated AND On
+ * Hold, and both facts stay readable, which is the entire point of splitting
+ * them.
+ *
+ * WHO. The initiator or an admin, enforced HERE and not merely in the dropdown
+ * — a doer POSTing "approved" at their own task is refused even though the
+ * board never renders the option for them.
+ *
+ * ARCHIVED IS THE BOOLEAN. Picking it sets `archived` and leaves the verdict
+ * intact, so un-archiving does not silently discard the fact that something was
+ * Approved. Picking a live verdict un-archives, because setting a ruling on a
+ * filed-away row is how a row gets pulled back out. See `initiatorWrite`.
+ */
+export async function setTaskInitiatorStatus(
+  taskId: string,
+  next: string,
+  expectedUpdatedAt?: string,
+): Promise<
+  | { ok: true; updatedAt: string }
+  | { ok: false; error: "invalid" | "not-found" | "forbidden" | "stale"; message?: string }
+> {
+  if (!isUuid(taskId)) return { ok: false, error: "invalid", message: "Invalid task id." };
+  if (!isInitiatorStatus(next)) {
+    return { ok: false, error: "invalid", message: `"${next}" is not an initiator status.` };
+  }
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return { ok: false, error: "invalid", message: limited.error };
+
+  const row = await db.query.tasks.findFirst({
+    where: eq(tasks.id, taskId),
+    columns: {
+      id: true,
+      doerId: true,
+      initiatorId: true,
+      approvalStatus: true,
+      archived: true,
+      updatedAt: true,
+    },
+  });
+  if (!row) return { ok: false, error: "not-found", message: "Task not found." };
+
+  const actor = {
+    id: me.id,
+    isAdmin: me.isAdmin,
+    isInitiator: row.initiatorId === me.id,
+    isDoer: row.doerId === me.id,
+    isSupervisor: false,
+  };
+  const allowed = canSetInitiatorStatus(actor, next);
+  if (!allowed.ok) return { ok: false, error: "forbidden", message: allowed.reason };
+
+  // Optimistic lock, same contract as setTaskStatus: only checked when the
+  // caller supplies a token, so a plain dropdown that has not tracked one still
+  // works while the board's drag — which has — still cannot clobber.
+  if (expectedUpdatedAt && row.updatedAt.toISOString() !== expectedUpdatedAt) {
+    return {
+      ok: false,
+      error: "stale",
+      message: "Someone changed this task while you were looking at it. Refresh and try again.",
+    };
+  }
+
+  const before = effectiveInitiatorStatus(row.approvalStatus, row.archived);
+  if (before === next) {
+    return { ok: true, updatedAt: row.updatedAt.toISOString() };
+  }
+  const write = initiatorWrite(next);
+
+  let updatedAt: Date;
+  try {
+    updatedAt = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(tasks)
+        .set({
+          approvalStatus: write.approvalStatus,
+          archived: write.archived,
+          approvalById: me.id,
+          approvalAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(tasks.id, taskId))
+        .returning({ updatedAt: tasks.updatedAt });
+      await tx.insert(taskEvents).values({
+        taskId,
+        actorId: me.id,
+        eventType: "initiator_status_changed",
+        fromValue: before,
+        toValue: next,
+      });
+      return updated!.updatedAt;
+    });
+  } catch (err) {
+    logDbError("tasks:initiator-status", err);
+    return { ok: false, error: "invalid", message: `Could not update: ${dbErrorMessage(err)}` };
+  }
+
+  nudgeRelay();
+  revalidateTaskRoutes();
+  revalidatePath(`/tasks/${taskId}`);
+  return { ok: true, updatedAt: updatedAt.toISOString() };
 }

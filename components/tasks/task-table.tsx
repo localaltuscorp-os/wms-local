@@ -506,26 +506,22 @@ function buildColumns(
         );
       },
     },
-    /* MANAGER STATUS WAS HERE, and is removed on request (2026-09-07).
+    /* INITIATOR STATUS WAS HERE, and was removed on request (Manan,
+     * 2026-09-15): "remove initiator status from task table, goals tables and
+     * project tables as well — don't remove from kanban section".
      *
-     * It rendered `approval_status` — the admin's verdict — immediately right
-     * of Doer Status, and it was added because without it "Mark Approved" in
-     * the bulk bar looked broken: the verdict is stored in a DIFFERENT column
-     * from `status`, so approving a selection wrote the rows correctly and
-     * changed nothing on screen.
+     * THE AXIS IS NOT GONE, only this column. The verdict is still stored
+     * (`tasks.approval_status`, migration 0225), still set from the Kanban's
+     * Initiator Status board and the bulk bar, still filterable from the
+     * Approved pill, and still shown on the task's own detail view. What went
+     * is ~150px of table width on a table whose width is contested — the same
+     * objection that removed the older Manager Status column here in 2026-09.
      *
-     * THAT IS AGAIN TRUE. Approving from the bulk bar now has no visible effect
-     * on the row it applied to — the only feedback is the Approved pill's count
-     * ticking up at the top of the page. The verdict is still recorded, still
-     * filterable from that pill, and still shown on the task's own detail view;
-     * it is only this column that is gone. Flagged rather than argued: the
-     * column was carrying ~150px of a table whose width is contested, and every
-     * row in it read "—".
-     *
-     * `APPROVAL_LOOK` / `APPROVAL_RANK` / `ApprovalCell` went with it. All three
-     * were module-private and this column was their only caller, so keeping them
-     * would have left three definitions that compile, read as live code and
-     * render nothing. Git has them if the column is ever wanted back.
+     * The picker itself is untouched: `InitiatorStatusSelect` lives in
+     * components/status/status-select.tsx and is still what the Kanban and the
+     * detail view render, so nothing had to be deleted to make this column
+     * disappear — only its three imports here. Git has the column if it is ever
+     * wanted back.
      */
     {
       accessorKey: "createdAt",
@@ -769,8 +765,34 @@ export function TaskTable({
       // had ever reordered, which is a silent data-loss bug.
       const known = new Set(defaultOrder);
       const kept = saved.filter((id) => known.has(id));
-      const added = defaultOrder.filter((id) => !kept.includes(id));
-      setColumnOrder([...kept, ...added]);
+
+      // A NEW COLUMN IS SPLICED IN AT ITS DEFAULT POSITION, NOT APPENDED.
+      //
+      // Appending was the bug that put Initiator Status at the far right of the
+      // table for everyone who had ever dragged a header, instead of beside
+      // Doer Status where it belongs — the two axes are only worth splitting if
+      // they can be read together. Anyone who had never reordered saw it in the
+      // right place, which is exactly the kind of difference nobody reproduces.
+      //
+      // Each missing id lands directly after the nearest column that precedes
+      // it in the default order AND is actually present, so a column added
+      // between two others arrives between them. The user's own arrangement of
+      // every column they HAVE moved is untouched.
+      const merged = [...kept];
+      defaultOrder.forEach((id, i) => {
+        if (merged.includes(id)) return;
+        let at = 0;
+        for (let j = i - 1; j >= 0; j--) {
+          const before = defaultOrder[j];
+          const idx = before === undefined ? -1 : merged.indexOf(before);
+          if (idx !== -1) {
+            at = idx + 1;
+            break;
+          }
+        }
+        merged.splice(at, 0, id);
+      });
+      setColumnOrder(merged);
     } catch {
       /* ignore malformed storage */
     }
@@ -1156,13 +1178,27 @@ export function TaskTable({
         //     one, and capping it there would put a scrollbar on a list that
         //     has nothing to scroll. At 20+ the cap is what keeps the page
         //     itself from growing and pushing the footer off-screen.
+        //
+        // THE CAP IS MEASURED, AND IT IS NOT SET HERE. It was `max-h-[600px]`,
+        // and 600 is a guess about the room left below the toolbar above —
+        // which moves with the window width, because the filter chips wrap.
+        // When the guess ran taller than the real gap, the last few rows and
+        // the footer under them sat below the fold, and `overscroll-behavior:
+        // contain` on this very element meant a wheel gesture would not chain
+        // out to the page to reach them (Manan, 2026-09-16: "last 3,4 rows I
+        // can't see … I scroll down but I can't").
+        // TableViewportSizer now measures this wrapper — and every other
+        // table's — against the window and subtracts the footer below, writing
+        // `--table-scroll-max-h` that globals.css reads. Nothing to set here,
+        // and nothing to keep in step when the toolbar above changes.
+        //
         // `max-h`, deliberately, NOT a fixed `h-`: a short list must shrink to
         // its rows rather than leave a tall empty box below the last one.
         // The header row is `sticky top-0 z-20` (see the <th> below), so it
         // stays put while rows move under it.
         // `overscroll-x-contain` stops a sideways fling from also triggering the
         // browser's back-navigation gesture.
-        className={`table-scroll overflow-x-auto overflow-y-auto overscroll-x-contain ${pageSize > 10 ? "max-h-[600px]" : ""}`}
+        className="table-scroll overflow-x-auto overflow-y-auto overscroll-x-contain"
       >
       <table className="min-w-full">
         <thead>

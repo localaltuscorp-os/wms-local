@@ -98,10 +98,10 @@ export interface SalaryRow {
 // net-to-pay can never drift between the table, CSV, payroll PDF and mobile.
 
 const inr = (v: string | null) =>
-  v == null || v === "" ? "-" : `₹${Math.round(Number(v)).toLocaleString("en-IN")}`;
+  v == null || v === "" ? "-" : `Rs. ${Math.round(Number(v)).toLocaleString("en-IN")}`;
 /** Rupees from an already-computed number. The payment columns are derived, so
  *  they never have the "missing" case `inr` renders as an em dash. */
-const inrN = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+const inrN = (n: number) => `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
 /** The effective net to pay — base + wave-off add-back + adjustment. Aliased to
  *  the shared `totalPayable` so the table cannot drift from the server action. */
 const netToPay = (r: SalaryRow) => totalPayable(r);
@@ -178,7 +178,7 @@ function MoneyTotal({ rows, pick, tone }: { rows: SalaryRow[]; pick: (r: SalaryR
               "var(--color-ink-strong)",
       }}
     >
-      {tone === "deduction" && sum > 0 ? "− " : ""}₹{Math.round(sum).toLocaleString("en-IN")}
+      {tone === "deduction" && sum > 0 ? "− " : ""}Rs. {Math.round(sum).toLocaleString("en-IN")}
     </span>
   );
 }
@@ -200,7 +200,7 @@ function NetTotal({
       className="tabular-nums text-[13.5px] font-black"
       style={{ color: tone === "due" && sum > 0 ? "#b91c1c" : "var(--color-ink-strong)" }}
     >
-      ₹{Math.round(sum).toLocaleString("en-IN")}
+      Rs. {Math.round(sum).toLocaleString("en-IN")}
     </span>
   );
 }
@@ -300,7 +300,7 @@ const COLUMNS: Col[] = [
       if (sum === 0) return null;
       return (
         <span className="tabular-nums text-[13px] font-black" style={{ color: sum >= 0 ? "#166534" : "#b91c1c" }}>
-          {sum >= 0 ? "+" : "−"} ₹{Math.abs(Math.round(sum)).toLocaleString("en-IN")}
+          {sum >= 0 ? "+" : "−"} Rs. {Math.abs(Math.round(sum)).toLocaleString("en-IN")}
         </span>
       );
     },
@@ -532,7 +532,7 @@ function AmountToPayCell({ row, editable }: { row: SalaryRow; editable: boolean 
   async function clearPayment() {
     if (busy) return;
     const ok = window.confirm(
-      `Clear the recorded payment for ${row.employeeName}?\n\nAmount paid goes back to ₹0 and the row returns to Unpaid. No email is sent. Paying again afterwards WILL email the salary slip a second time.`,
+      `Clear the recorded payment for ${row.employeeName}?\n\nAmount paid goes back to Rs. 0 and the row returns to Unpaid. No email is sent. Paying again afterwards WILL email the salary slip a second time.`,
     );
     if (!ok) return;
     setBusy(true);
@@ -823,14 +823,14 @@ function WaiveOffCell({ row, editable }: { row: SalaryRow; editable: boolean }) 
     addBack > 0 ? (
       <div className="mt-1 leading-tight">
         <span className="tabular-nums text-[11.5px] font-bold" style={{ color: "#166534" }}>
-          + ₹{Math.round(addBack).toLocaleString("en-IN")} waived
+          + Rs. {Math.round(addBack).toLocaleString("en-IN")} waived
         </span>
         <span
           className="ml-1.5 tabular-nums text-[11.5px] font-black"
           style={{ color: BRAND_RED_DEEP }}
           title="Net after wave-off (final payment + condoned days)"
         >
-          → ₹{Math.round(newNet).toLocaleString("en-IN")}
+          → Rs. {Math.round(newNet).toLocaleString("en-IN")}
         </span>
       </div>
     ) : null;
@@ -915,7 +915,7 @@ function AdjustmentCell({ row, editable }: { row: SalaryRow; editable: boolean }
     amount !== 0 ? (
       <div className="mt-1 leading-tight">
         <span className="tabular-nums text-[11.5px] font-black" style={{ color: amount >= 0 ? "#166534" : "#b91c1c" }}>
-          {amount >= 0 ? "+" : "−"} ₹{Math.abs(Math.round(amount)).toLocaleString("en-IN")} {amount >= 0 ? "extra" : "deducted"}
+          {amount >= 0 ? "+" : "−"} Rs. {Math.abs(Math.round(amount)).toLocaleString("en-IN")} {amount >= 0 ? "extra" : "deducted"}
         </span>
       </div>
     ) : null;
@@ -946,7 +946,7 @@ function AdjustmentCell({ row, editable }: { row: SalaryRow; editable: boolean }
   return (
     <div>
       <div className="inline-flex items-center gap-1.5">
-        <span className="text-[11px] font-bold text-ink-subtle">₹</span>
+        <span className="text-[11px] font-bold text-ink-subtle">Rs.</span>
         <input
           type="number"
           step="100"

@@ -14,7 +14,8 @@ import { uploadPlanAttachment } from "@/app/(app)/project-plan/attachment-action
 // Result / Action / Sub-Action / Sub-Sub-Action because it IS a task, and a
 // Project / Milestone because the create buttons are one gesture and should
 // not open two different dialogs depending on which one you pressed.
-import { NewTaskForm } from "@/components/tasks/new-task-form";
+import { NewTaskForm, Field as FormField } from "@/components/tasks/new-task-form";
+import { ClientSelect } from "@/components/tasks/client-select";
 import { loadNewTaskOptions } from "@/app/(app)/tasks/actions";
 import {
   ParentPickers, parentIdFor, parentMissing, type PickedAncestors,
@@ -55,6 +56,17 @@ import type { PlanRow, EmployeeOption } from "./plan-board";
  * selects. Every pick stays editable; it is a default, not a lock, and the
  * "last opened" chip on a seeded select says where the value came from.
  */
+
+/** Depth-first lookup by id — the tree is small (a plan, not a dataset) and
+ *  this runs only while the dialog is open. */
+function findRow(rows: PlanRow[], id: string): PlanRow | null {
+  for (const r of rows) {
+    if (r.id === id) return r;
+    const hit = findRow(r.children, id);
+    if (hit) return hit;
+  }
+  return null;
+}
 
 interface Props {
   tree: PlanRow[];
@@ -117,12 +129,44 @@ export function NewNodeDialog({ tree, onCreated, open, onOpenChange, initialKind
 
   const parentId = parentIdFor(kind, picked);
   const missingParent = parentMissing(kind, picked);
+
+  /**
+   * THE CLIENT — asked once, on the Project, and inherited by everything below.
+   *
+   * Only a Project has this field. A Milestone, Result or Action already has a
+   * client: the one on the Project it is being filed under. Asking again would
+   * let a plan name two clients and leave `clientForNode` picking between them,
+   * so the lower levels show the inherited value instead of a second picker.
+   */
+  const [client, setClient] = React.useState("");
+
+  /** The client the chosen parent chain already carries, for the read-only line
+   *  the non-project levels show. Read off the tree, so it is whatever the plan
+   *  really holds rather than a guess. */
+  const inheritedClient = React.useMemo(() => {
+    if (kind === "project" || !parentId) return null;
+    // planPathTo returns root → … → parent, so the LAST row that holds a client
+    // is the nearest one. Matches `clientForNode` on the server, which takes
+    // the nearest ancestor with a value for the same reason: a project created
+    // before clients existed must not blank out one set further down by hand.
+    const path = planPathTo(tree, parentId);
+    let found: string | null = null;
+    for (const link of path) {
+      const name = findRow(tree, link.id)?.clientName?.trim();
+      if (name) found = name;
+    }
+    return found;
+  }, [kind, parentId, tree]);
   /** Result and the three executable levels are tasks (see TASK_KINDS);
    *  Project and Milestone are plan rows with no task. */
   const isTaskLevel = hasTask(kind);
 
   function reset() {
     setChosen(null);
+    // Cleared here rather than in an effect on `open`: reset() already runs on
+    // every close and after every create, so an effect would be a second place
+    // that has to agree with this one.
+    setClient("");
   }
 
   /**
@@ -304,6 +348,44 @@ export function NewNodeDialog({ tree, onCreated, open, onOpenChange, initialKind
                   // and on the ones that do not it disappears.
                   titleLabel={`${KIND_LABEL[kind]} Name`}
                   titleFreeText
+                  // CLIENT NAME, beside the row's own name in Basics.
+                  //
+                  // Asked on the PROJECT and nowhere else. Everything under a
+                  // project inherits its client — that is what `clientForNode`
+                  // resolves and what every task scheduled out of the branch is
+                  // filed against — so the lower levels show the inherited
+                  // value rather than a second picker that could disagree with
+                  // it. Read-only text, not a disabled select: a disabled
+                  // control invites you to try, and there is nothing to change.
+                  extraBasics={
+                    kind === "project" ? (
+                      <FormField id="pn-client" label="Client Name" required>
+                        <ClientSelect
+                          id="pn-client"
+                          value={client}
+                          onChange={setClient}
+                          clients={opts.clients}
+                          canAdd={opts.canAddRoster}
+                          className="nt-input"
+                        />
+                      </FormField>
+                    ) : (
+                      <FormField id="pn-client-inherited" label="Client Name">
+                        <p
+                          id="pn-client-inherited"
+                          className="flex h-[38px] items-center rounded-lg bg-surface-soft px-3 text-[13.5px] font-semibold text-ink-soft"
+                        >
+                          {inheritedClient ?? (
+                            <span className="font-medium text-ink-faint">
+                              {parentId
+                                ? "The project above has no client yet"
+                                : "Pick where this sits first"}
+                            </span>
+                          )}
+                        </p>
+                      </FormField>
+                    )
+                  }
                   descriptionLabel={`${KIND_LABEL[kind]} Description`}
                   hideSubject={!isTaskLevel}
                   hideTags
@@ -328,6 +410,13 @@ export function NewNodeDialog({ tree, onCreated, open, onOpenChange, initialKind
                             targetDate: v.dueAt.slice(0, 10),
                             startsAt: v.startsAt,
                             endsAt: v.endsAt,
+                            // The row and its task are ONE record, so the row
+                            // gets the same three fields the task is about to
+                            // be created with. Omitting them left every Action
+                            // added here with an empty Description column.
+                            description: v.description,
+                            subject: v.subject,
+                            priority: v.priority,
                             links: v.links,
                           });
                           if (!res.ok) return { ok: false as const, error: res.error };
@@ -350,6 +439,9 @@ export function NewNodeDialog({ tree, onCreated, open, onOpenChange, initialKind
                             // — the form asks for "Project Name", not a client
                             // — so the register reads the name someone typed.
                             name: v.title,
+                            // Only a project actually holds one; the server
+                            // requires it there and ignores it elsewhere.
+                            clientName: kind === "project" ? client.trim() || null : null,
                             priority: v.priority,
                             initiatorId: v.initiatorId || null,
                             // The FIRST doer owns the row, matching the task path.

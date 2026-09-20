@@ -142,6 +142,45 @@ function withPostgresJsResultShape<T extends object>(instance: T): T {
   });
 }
 
+/**
+ * SAY IT BEFORE PGlite SWALLOWS IT.
+ *
+ * PGlite keeps a `postmaster.pid` in its data directory, and it is removed on a
+ * clean shutdown. Kill the dev server instead — which is exactly what happens
+ * when the OS reaps it for memory, or when Next's render worker dies and takes
+ * the process with it — and the file survives. The next `pnpm dev:dummy` then
+ * fails deep inside the first query with nothing but
+ *
+ *   [cause]: Error: PGlite failed to initialize properly
+ *
+ * which says nothing about a lock file and sends you looking at your own query.
+ * We do NOT delete it here: if a second dev server really is running, that file
+ * is the only thing keeping two processes off one data directory. A line of
+ * warning at the moment of the attempt is the honest half of the trade.
+ */
+function warnOnStaleDummyLock(): void {
+  try {
+    const { existsSync } = require("node:fs") as typeof import("node:fs");
+    const { join } = require("node:path") as typeof import("node:path");
+    const { statSync } = require("node:fs") as typeof import("node:fs");
+    const lock = join(DUMMY_DB_DIR, "postmaster.pid");
+    if (!existsSync(lock)) return;
+    // EMPTY is the stale signature. A live PGlite writes its pid and data path
+    // into this file (~55 bytes); a killed one leaves the zero-byte husk it had
+    // opened with. Warning on mere existence cried wolf on every re-init inside
+    // a healthy dev server, which is the fastest way to teach someone to ignore
+    // the one message that matters.
+    if (statSync(lock).size > 0) return;
+    console.warn(
+      `[dummy-mode] ${lock} is a STALE LOCK — the last dev server was killed rather than stopped, ` +
+        `and PGlite is about to fail to start ("PGlite failed to initialize properly"). Delete that ` +
+        `file, or run \`pnpm dummy:setup --reset\` to rebuild the fixture database, then start again.`,
+    );
+  } catch {
+    // Never let a diagnostic stop the database from opening.
+  }
+}
+
 function dummyDb() {
   if (globalForDummy.__pglite) return globalForDummy.__pglite;
   /* Required at call time, not imported at module scope: this pulls in a
@@ -180,6 +219,7 @@ function dummyDb() {
   const { PGlite } = require(PGLITE) as typeof import("@electric-sql/pglite");
   const { pg_trgm } = require(`${PGLITE}/contrib/pg_trgm`);
   const { unaccent } = require(`${PGLITE}/contrib/unaccent`);
+  warnOnStaleDummyLock();
   const instance = withPostgresJsResultShape(
     drizzlePglite(new PGlite({ dataDir: DUMMY_DB_DIR, extensions: { pg_trgm, unaccent } }), {
       schema,

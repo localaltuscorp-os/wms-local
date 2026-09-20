@@ -142,7 +142,7 @@ async function main() {
 
     console.log(
       `  ${APPLY ? "WRITE" : "would"}  ${emp.name.padEnd(22)} ` +
-        `${String(e.unusedDays).padStart(4)} day(s) x ₹${Math.round(e.perDayRate)} = ₹${e.amount.toLocaleString("en-IN")}`,
+        `${String(e.unusedDays).padStart(4)} day(s) x Rs. ${Math.round(e.perDayRate)} = Rs. ${e.amount.toLocaleString("en-IN")}`,
     );
     totalRupees += e.amount;
     if (!APPLY) continue;
@@ -176,7 +176,7 @@ async function main() {
 
   console.log(
     `\n${APPLY ? `Wrote ${written} pending adjustment(s)` : "Dry run complete"}` +
-      ` — ₹${totalRupees.toLocaleString("en-IN")} total.` +
+      ` — Rs. ${totalRupees.toLocaleString("en-IN")} total.` +
       ` ${skipped} employee(s) skipped (no paid-leave entitlement).\n`,
   );
 }

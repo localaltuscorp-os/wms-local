@@ -197,7 +197,7 @@ export function CashWithdrawal({ fyStartYear, cols, currentMonth, items, months,
                           <span className="font-bold text-ink-strong">{r.nameOnCheque || <span className="text-ink-subtle font-semibold">(no payee)</span>}</span>
                         </div>
                         <div className="mt-0.5 text-[12px] font-semibold text-ink-subtle">
-                          {[r.entity, r.chequeNo && `#${r.chequeNo}`, r.chqDate, r.amount && `₹${formatINR(parseAmount(r.amount))}`].filter(Boolean).join(" · ")}
+                          {[r.entity, r.chequeNo && `#${r.chequeNo}`, r.chqDate, r.amount && `Rs. ${formatINR(parseAmount(r.amount))}`].filter(Boolean).join(" · ")}
                         </div>
                       </div>
                     </Td>
@@ -209,7 +209,7 @@ export function CashWithdrawal({ fyStartYear, cols, currentMonth, items, months,
                         </td>
                       );
                     })}
-                    <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{ytd(r.id) ? `₹${formatINR(ytd(r.id))}` : <Dim />}</Td>
+                    <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{ytd(r.id) ? `Rs. ${formatINR(ytd(r.id))}` : <Dim />}</Td>
                     <Td className="text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => remove(r.id)} busy={busy} /></Td>
                   </tr>
                 ))
@@ -218,7 +218,7 @@ export function CashWithdrawal({ fyStartYear, cols, currentMonth, items, months,
                 <tr style={{ borderTop: "2px solid var(--color-hairline-strong)", background: "var(--color-surface-soft)" }}>
                   <Td className="font-bold uppercase text-[12px] tracking-[0.08em] text-ink-soft">Grand total</Td>
                   {cols.map((c) => (<td key={c.month} className="px-2 py-3 text-right text-[12.5px] font-bold text-ink-strong whitespace-nowrap">{monthTotal(c.month) ? formatINR(monthTotal(c.month)) : ""}</td>))}
-                  <Td className="text-right font-extrabold text-altus-red whitespace-nowrap">₹{formatINR(grandTotal)}</Td>
+                  <Td className="text-right font-extrabold text-altus-red whitespace-nowrap">Rs. {formatINR(grandTotal)}</Td>
                   <Td>{""}</Td>
                 </tr>
               )}
@@ -278,14 +278,14 @@ function CapsPanel({ fyStartYear, limits, withdrawnByEntity, entityOptions }: {
                 {over && <span className="text-[10px] font-bold uppercase tracking-[0.08em] rounded-pill px-2 py-0.5" style={{ background: "color-mix(in srgb, var(--color-altus-red) 14%, transparent)", color: "var(--color-altus-red-deep)" }}>Over</span>}
               </div>
               <div className="mt-2 text-[13px] font-semibold text-ink-soft">
-                ₹{formatINR(withdrawn)} <span className="text-ink-subtle">withdrawn</span>
+                Rs. {formatINR(withdrawn)} <span className="text-ink-subtle">withdrawn</span>
               </div>
               <div className="mt-2 h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--color-surface-track, #eef2f7)" }}>
                 <div className="h-full rounded-full transition-[width]" style={{ width: `${pct}%`, background: bar }} />
               </div>
               <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
                 <label className="flex items-center gap-1.5 text-ink-subtle">
-                  Max ₹
+                  Max Rs.
                   <input
                     defaultValue={max != null ? String(max) : ""}
                     inputMode="numeric"
@@ -299,7 +299,7 @@ function CapsPanel({ fyStartYear, limits, withdrawnByEntity, entityOptions }: {
                 </label>
                 {remaining != null && (
                   <span className="font-bold whitespace-nowrap" style={{ color: over ? "var(--color-altus-red-deep)" : "var(--color-green-deep)" }}>
-                    {over ? `−₹${formatINR(Math.abs(remaining))}` : `₹${formatINR(remaining)} left`}
+                    {over ? `−Rs. ${formatINR(Math.abs(remaining))}` : `Rs. ${formatINR(remaining)} left`}
                   </span>
                 )}
               </div>
@@ -346,7 +346,7 @@ function EditorRow({ colSpan, draft, setDraft, entityOptions, payeeOptions, onSa
           <Field label="Name on cheque" className="col-span-5 max-lg:col-span-3 max-md:col-span-1"><ValueSelect label="payee" kind="cash_payee" options={payeeOptions} value={draft.nameOnCheque} onChange={(v) => set({ nameOnCheque: v })} placeholder="Payee…" /></Field>
           <Field label="Cheque no" className="col-span-3 max-lg:col-span-2 max-md:col-span-1"><input value={draft.chequeNo} onChange={(e) => set({ chequeNo: e.target.value })} className={INPUT} placeholder="000679" aria-label="Cheque no" /></Field>
           <Field label="Cheque date" className="col-span-3 max-lg:col-span-2 max-md:col-span-1"><input value={draft.chqDate} onChange={(e) => set({ chqDate: e.target.value })} className={INPUT} placeholder="dd/mm/yy" aria-label="Cheque date" /></Field>
-          <Field label="Cheque amount (₹)" className="col-span-3 max-lg:col-span-2 max-md:col-span-2"><input value={draft.amount} onChange={(e) => set({ amount: e.target.value })} className={INPUT} inputMode="numeric" placeholder="195000" aria-label="Cheque amount" /></Field>
+          <Field label="Cheque amount (Rs.)" className="col-span-3 max-lg:col-span-2 max-md:col-span-2"><input value={draft.amount} onChange={(e) => set({ amount: e.target.value })} className={INPUT} inputMode="numeric" placeholder="195000" aria-label="Cheque amount" /></Field>
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button type="button" onClick={onCancel} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-4 py-2 text-[14px] font-bold text-ink-muted hover:bg-surface-soft disabled:opacity-50"><X size={16} strokeWidth={2.4} /> Cancel</button>

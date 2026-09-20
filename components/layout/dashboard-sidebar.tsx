@@ -5,7 +5,7 @@ import { MainNavServer } from "./main-nav-server";
 import { AuraRailLens } from "@/components/layout/aura-rail-lens";
 import { NavHistoryButtons } from "./nav-history-buttons";
 import { MobileMenuServer } from "./mobile-menu-server";
-import { MobileModuleLabel, SidebarNewTask, SidebarSearch, SidebarGoalsSpace } from "./sidebar-route-chrome";
+import { MobileModuleLabel, SidebarArchive, SidebarNewTask, SidebarSearch, SidebarGoalsSpace } from "./sidebar-route-chrome";
 import { NewTaskRailButton } from "@/components/tasks/new-task-rail-button";
 import { NotificationBell } from "@/components/header/notification-bell";
 import { NewTaskQuickAction } from "@/components/header/new-task-quick-action";
@@ -135,6 +135,15 @@ export async function DashboardSidebar() {
           the top bar now, on the right, on every screen — so a second copy at
           the foot of the rail was the same avatar twice on one page. The rail
           is the module's section list and nothing else. */}
+      {/* ARCHIVE stays pinned at the foot: it is a destination you want in the
+          same place in every room, which the scrolling nav above cannot promise
+          once a rail runs past the fold. `sidebar-nav` is for the CLASS, not the
+          scroller — the rail's flat pill styling is scoped to
+          `.sidebar-rail .sidebar-nav .nav-pill`, so without it this one pill
+          would wear the default bordered look while every pill above stayed flat. */}
+      <div className="sidebar-nav mt-auto px-3 pt-1 pb-3">
+        <SidebarArchive isAdmin={isAdmin} />
+      </div>
     </SidebarRail>
    </>
   );

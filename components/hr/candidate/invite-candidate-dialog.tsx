@@ -7,6 +7,7 @@ import {
   inviteCandidateByLink,
   type CandidateInvite,
 } from "@/app/(app)/hr/candidate-invite-actions";
+import { formatDate } from "@/lib/format";
 
 const RED = "var(--color-altus-red)";
 const INPUT =
@@ -262,11 +263,7 @@ function SentPanel({ invite, onDone }: { invite: CandidateInvite; onDone: () => 
       .catch(() => fireToast({ message: "Couldn't copy — select the link and copy it manually.", type: "error" }));
   }
 
-  const expiry = new Date(invite.expiresAt).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  const expiry = formatDate(new Date(invite.expiresAt));
 
   return (
     <div className="flex flex-col gap-3">

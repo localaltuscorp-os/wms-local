@@ -41,8 +41,8 @@ const template: LetterTemplate = {
     term("Reporting Manager", f("reportingManager", "Reporting Manager", { placeholder: "e.g. CA Manan Vasa" })),
 
     heading("Revised Compensation", 2),
-    term("Previous Cost to Firm (per annum)", f("previousCtc", "Previous CTC (per year)", { placeholder: "₹0" })),
-    term("Revised Cost to Firm (per annum)", f("revisedCtc", "Revised CTC (per year)", { placeholder: "₹0" })),
+    term("Previous Cost to Firm (per annum)", f("previousCtc", "Previous CTC (per year)", { placeholder: "Rs. 0" })),
+    term("Revised Cost to Firm (per annum)", f("revisedCtc", "Revised CTC (per year)", { placeholder: "Rs. 0" })),
 
     heading("Revised CTC Structure with Break-up", 2),
     table(["COMPONENTS", "PER MONTH", "PER ANNUM"], ctcRows()),

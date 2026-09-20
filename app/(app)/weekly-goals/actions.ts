@@ -39,6 +39,10 @@ import {
   type ApproveWeeklyGoalInput,
   ArchiveWeeklyGoalSchema,
   type ArchiveWeeklyGoalInput,
+  PutWeeklyGoalInArchiveSchema,
+  type PutWeeklyGoalInArchiveInput,
+  BulkPutWeeklyGoalsInArchiveSchema,
+  type BulkPutWeeklyGoalsInArchiveInput,
   DuplicateWeeklyGoalSchema,
   type DuplicateWeeklyGoalInput,
 } from "@/lib/validators/weekly-goal";
@@ -1090,6 +1094,81 @@ export async function archiveWeeklyGoal(
   } catch (err) {
     return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
   }
+}
+
+/**
+ * ARCHIVE — "put away", the selection bar's Archive button beside Delete.
+ *
+ * NOT `archiveWeeklyGoal` above, however much the names suggest otherwise. That
+ * one flips `archived`, which in this module is the soft-DELETE behind the
+ * Recycle Bin. This one stamps `archived_at` (migration 0215): the goal leaves
+ * the weekly board and is read back under Archive › Goals in its OWN table,
+ * "Archived weekly goals" — kept separate from the yearly/quarterly/monthly
+ * one so a week's work is never mixed into the cascade's. Taking it back out is
+ * the Archive's Unarchive button, which clears the stamp.
+ *
+ * The exact counterpart of archiveGoalToArchive() in
+ * app/(app)/goals/cascade/actions.ts, and it keeps THIS module's gate rather
+ * than borrowing that one's: `loadManageableGoal` is the manager tier every
+ * other privileged weekly write already goes through (an admin, a super-admin,
+ * or the owner's manager — never the owner of the goal themselves), and archive
+ * is listed in its own doc comment as one of the writes it guards.
+ */
+export async function putWeeklyGoalInArchive(
+  input: PutWeeklyGoalInArchiveInput,
+): Promise<ActionResult> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = PutWeeklyGoalInArchiveSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const loaded = await loadManageableGoal(parsed.data.id, me);
+  if (!loaded.ok) return loaded;
+
+  try {
+    await db
+      .update(weeklyGoals)
+      .set({ archivedAt: new Date(), updatedById: me.id, updatedAt: new Date() })
+      .where(eq(weeklyGoals.id, parsed.data.id));
+    revalidateWeeklyGoals();
+    // The Archive reads this row the moment it is stamped.
+    revalidatePath("/archive/goals");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+/**
+ * The weekly selection bar's Archive button — many goals, one click.
+ *
+ * Row-at-a-time on purpose, exactly like bulkArchiveGoalsToArchive on the
+ * cascade side: each goal re-runs the manager gate, so a selection that spans
+ * people archives only the ones this user may touch instead of failing whole.
+ * A partial result still reports success with the count; only an all-fail
+ * returns the last error, which is the one the toast can act on.
+ */
+export async function bulkPutWeeklyGoalsInArchive(
+  input: BulkPutWeeklyGoalsInArchiveInput,
+): Promise<ActionResult<{ archived: number }>> {
+  const parsed = BulkPutWeeklyGoalsInArchiveSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  let n = 0;
+  let lastErr = "";
+  for (const id of parsed.data.ids) {
+    const r = await putWeeklyGoalInArchive({ id });
+    if (r.ok) n++;
+    else lastErr = r.error;
+  }
+  if (n === 0) return { ok: false, error: lastErr || "Nothing was archived." };
+  return { ok: true, archived: n };
 }
 
 /**

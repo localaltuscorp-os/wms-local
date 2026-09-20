@@ -212,7 +212,7 @@ function EntryDialog({
   }
 
   function num(s: string): number {
-    const n = Number(s.replace(/[₹,\s]/g, ""));
+    const n = Number(s.replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, ""));
     return Number.isFinite(n) ? n : 0;
   }
 
@@ -295,13 +295,13 @@ function EntryDialog({
               />
             </Field>
             <div className="grid grid-cols-3 gap-3 max-sm:grid-cols-1">
-              <Field label="Amount (₹)">
+              <Field label="Amount (Rs.)">
                 <Input value={amount} onChange={setAmount} placeholder="0" numeric />
               </Field>
-              <Field label="Approved Amt (₹)">
+              <Field label="Approved Amt (Rs.)">
                 <Input value={approvedAmt} onChange={setApprovedAmt} placeholder="0" numeric />
               </Field>
-              <Field label="Paid Amt (₹)">
+              <Field label="Paid Amt (Rs.)">
                 <Input value={paidAmt} onChange={setPaidAmt} placeholder="0" numeric />
               </Field>
             </div>

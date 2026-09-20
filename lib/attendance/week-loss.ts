@@ -303,10 +303,10 @@ export function weekLabel(weekStart: string, weekEnd: string): string {
   return `${shortDate(weekStart)} – ${shortDate(weekEnd)} ${weekEnd.slice(0, 4)}`;
 }
 
-/** "₹3,240" — whole rupees, Indian digit grouping. Paise are noise on a figure
+/** "Rs. 3,240" — whole rupees, Indian digit grouping. Paise are noise on a figure
  *  whose job is to land. */
 export function rupees(n: number): string {
-  return `₹${Math.round(n).toLocaleString("en-IN")}`;
+  return `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
 }
 
 /** "1.5 days" / "1 day" / "half a day" */

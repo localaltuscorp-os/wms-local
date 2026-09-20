@@ -65,7 +65,7 @@ function parseIntOr(v: unknown, fallback: number | null): number | null {
 }
 
 function parseMoney(v: unknown): string | null {
-  const raw = String(v ?? "").replace(/[₹,\s]/g, "");
+  const raw = String(v ?? "").replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, "");
   if (raw === "") return null;
   const n = Number(raw);
   return Number.isFinite(n) ? n.toFixed(2) : null;

@@ -251,7 +251,7 @@ export function DueDatesChecklist({
                         </div>
                         {(r.paidDate || r.paidAmt) && (
                           <div className="text-[12px] font-semibold text-ink-soft whitespace-nowrap">
-                            {r.paidDate ?? ""}{r.paidAmt ? ` · ₹${r.paidAmt}` : ""}
+                            {r.paidDate ?? ""}{r.paidAmt ? ` · Rs. ${r.paidAmt}` : ""}
                           </div>
                         )}
                       </div>

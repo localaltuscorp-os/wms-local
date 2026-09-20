@@ -31,7 +31,18 @@ export interface CascadeWeeklyGoal {
   /** Column parity with Y/Q/M goals — the inline table's Type/Status/Reviewer/
    *  Share/Delegated columns render + edit these on the Weekly board too. */
   goalType: string | null;
+  /** The DOER axis — "where is this work?", reported by whoever holds it. */
   status: string | null;
+  /**
+   * The INITIATOR axis — "what do we do about it?", ruled by whoever asked for
+   * it. `weekly_goals` has carried these two columns since migration 0225; the
+   * board simply never read them, so its Initiator Status cell showed "No
+   * Verdict" on every row however many times someone had ruled (Manan,
+   * 2026-09-15). `archivedAt` is "put away", NOT the `archived` soft-delete
+   * flag behind the Recycle Bin — see the warning in lib/status/axes.ts.
+   */
+  approvalStatus: string | null;
+  isPutAway: boolean;
   reviewedById: string | null;
   shareWithTeam: boolean;
   delegatedTo: Array<{ employeeId: string; name?: string; pct: number }> | null;

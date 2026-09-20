@@ -93,7 +93,7 @@ export interface SalaryBreakupMapResult {
 const numOrNull = (v: unknown): number | null => {
   if (v == null) return null;
   // The Sheets API returns formatted strings — strip ₹ / commas / spaces.
-  const s = String(v).replace(/[₹,\s]/g, "").trim();
+  const s = String(v).replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, "").trim();
   if (s === "" || s === "-") return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;

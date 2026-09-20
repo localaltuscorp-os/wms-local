@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, ne, or, gte, lte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { goals, weeklyGoals, employees } from "@/db/schema";
 import { withRetry } from "@/lib/db/with-timeout";
@@ -57,7 +57,7 @@ export async function getYearBoard(
         .where(
           and(
             eq(goals.employeeId, employeeId),
-            eq(goals.archived, false),
+            eq(goals.archived, false), isNull(goals.archivedAt),
             eq(goals.scope, scope),
             or(
               inArray(goals.periodKey, keys),
@@ -114,7 +114,7 @@ export async function getAssignedGoals(employeeId: string, fyStartYear: number):
         .innerJoin(employees, eq(employees.id, goals.employeeId))
         .where(
           and(
-            eq(goals.archived, false),
+            eq(goals.archived, false), isNull(goals.archivedAt),
             ne(goals.employeeId, employeeId),
             inArray(goals.periodKey, keys),
             sql`${goals.teamInvolved} @> ${JSON.stringify([{ employeeId }])}::jsonb`,
@@ -148,7 +148,7 @@ export async function getSharedGoals(
         .from(goals)
         .where(
           and(
-            eq(goals.archived, false),
+            eq(goals.archived, false), isNull(goals.archivedAt),
             eq(goals.scope, scope),
             ne(goals.employeeId, employeeId),
             inArray(goals.periodKey, keys),
@@ -192,7 +192,7 @@ export async function getBoardWeeklyGoals(
         .where(
           and(
             eq(weeklyGoals.employeeId, employeeId),
-            eq(weeklyGoals.archived, false),
+            eq(weeklyGoals.archived, false), isNull(weeklyGoals.archivedAt),
             gte(weeklyGoals.weekStart, fyStart),
             lte(weeklyGoals.weekStart, fyEnd),
           ),
@@ -218,7 +218,7 @@ export async function getPeriodGoals(
             eq(goals.employeeId, employeeId),
             eq(goals.period, period),
             eq(goals.periodKey, periodKey),
-            eq(goals.archived, false),
+            eq(goals.archived, false), isNull(goals.archivedAt),
           ),
         ),
     { timeoutMs: [...READ_BUDGET], label: "goals.getPeriodGoals" },
@@ -242,7 +242,7 @@ export async function getReviewBundle(employeeId: string, fyStartYear: number): 
         .where(
           and(
             eq(goals.employeeId, employeeId),
-            eq(goals.archived, false),
+            eq(goals.archived, false), isNull(goals.archivedAt),
             inArray(goals.periodKey, keys),
           ),
         ),
@@ -276,7 +276,7 @@ export async function getWeekCommitState(
           and(
             eq(weeklyGoals.employeeId, employeeId),
             eq(weeklyGoals.weekStart, weekStart),
-            eq(weeklyGoals.archived, false),
+            eq(weeklyGoals.archived, false), isNull(weeklyGoals.archivedAt),
             eq(weeklyGoals.adopted, true),
           ),
         ),
@@ -324,7 +324,7 @@ export async function getManagerApproveState(
         .where(
           and(
             eq(weeklyGoals.weekStart, weekStart),
-            eq(weeklyGoals.archived, false),
+            eq(weeklyGoals.archived, false), isNull(weeklyGoals.archivedAt),
             eq(weeklyGoals.adopted, true),
             inArray(weeklyGoals.employeeId, downline),
           ),
@@ -376,19 +376,19 @@ export async function getDashboard(employeeId: string, fyStartYear: number): Pro
             and(
               eq(weeklyGoals.employeeId, employeeId),
               eq(weeklyGoals.weekStart, weekStart),
-              eq(weeklyGoals.archived, false),
+              eq(weeklyGoals.archived, false), isNull(weeklyGoals.archivedAt),
             ),
           ),
         db
           .select({ acceptPct: weeklyGoals.acceptPct, pctDone: weeklyGoals.pctDone })
           .from(weeklyGoals)
           .where(
-            and(eq(weeklyGoals.employeeId, employeeId), eq(weeklyGoals.archived, false)),
+            and(eq(weeklyGoals.employeeId, employeeId), eq(weeklyGoals.archived, false), isNull(weeklyGoals.archivedAt)),
           ),
         db
           .select({ n: sql<number>`count(*)::int` })
           .from(goals)
-          .where(and(eq(goals.employeeId, employeeId), eq(goals.archived, false))),
+          .where(and(eq(goals.employeeId, employeeId), eq(goals.archived, false), isNull(goals.archivedAt))),
       ]),
     { timeoutMs: [...READ_BUDGET], label: "goals.getDashboard" },
   );

@@ -7,13 +7,14 @@ import type { Route } from "next";
 import Link from "next/link";
 import {
   ChevronLeft, ChevronRight, ChevronDown, Flame, CheckCircle2, Loader2, StickyNote, Plus, Pencil,
-  Trash2, X, Check, Trophy, Sparkles, ListChecks, PenLine, ShieldCheck, CalendarDays, Users, CalendarClock,
+  Trash2, X, Check, Trophy, Sparkles, ListChecks, PenLine, ShieldCheck, CalendarDays, Users, CalendarClock, Archive,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { Avatar } from "@/components/ui/avatar";
 import type { DccItemRow, DccEntryRow, DccPerson, DccClientRow, DccSubjectRow, DccItemSubjectRow } from "@/lib/queries/dcc";
 import { DCC_STATUSES, dccStatusTone, scheduledDueOn, slotKey, isoDate, maskLabel, isDueOn } from "@/lib/dcc/util";
 import { setDccEntry, setParticipantEntries, createDccItem, updateDccItem, deleteDccItem, setDccReview, summarizeDccDay, addParticipant, removeParticipant, renameParticipant } from "@/app/(app)/dcc/actions";
+import { formatDate } from "@/lib/format";
 
 type ReviewRow = { ownerEmployeeId: string; reviewDate: string; status: string | null; note: string | null };
 
@@ -57,7 +58,9 @@ function dateToObj(iso: string): Date {
   return new Date(y!, (m ?? 1) - 1, d ?? 1);
 }
 function fmtLong(iso: string): string {
-  return dateToObj(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  const d = dateToObj(iso);
+  const weekday = d.toLocaleDateString("en-IN", { weekday: "short" });
+  return `${weekday}, ${formatDate(d)}`;
 }
 
 export function DccBoard({ ownerId, ownerName, meId, canFill, canReview, canManage, people, items, entries, reviews, clients = [], subjects = [], itemSubjects = [], today }: Props) {
@@ -848,12 +851,35 @@ function ItemEditor({ ownerId, mode, item, compact, allItems, presetSection, sec
       router.refresh();
     });
   }
-  function remove() {
+  /**
+   * ARCHIVE the KPI — which is what this has always done.
+   *
+   * `deleteDccItem` sets `dcc_kpi_items.archived`; it has never deleted
+   * anything. The button said "Delete" and wore a bin, the toast said
+   * "removed", and the row was in fact sitting in Archive — DCC the whole
+   * time, restorable, with nothing on this screen saying so (Manan,
+   * 2026-09-15: "give archive for this").
+   *
+   * AND IT HAD NO CONFIRM. A single mis-click took a KPI, its whole entry
+   * history and its reviews off the board with no warning and no undo offered.
+   * A confirm costs one keystroke and is the difference between a reversible
+   * action and one that feels like a loss.
+   */
+  function archive() {
     if (!item) return;
+    if (
+      !window.confirm(
+        `Archive "${item.title}"?
+
+It comes off the board along with the entries and reviews under it. Nothing is deleted — you can restore it from Archive > DCC.`,
+      )
+    ) {
+      return;
+    }
     startTransition(async () => {
       const res = await deleteDccItem(item.id);
       if (!res.ok) { fireToast({ message: res.error, type: "error" }); return; }
-      fireToast({ message: "KPI removed.", type: "info" });
+      fireToast({ message: "KPI archived — restore it from Archive > DCC.", type: "success" });
       setOpen(false);
       router.refresh();
     });
@@ -902,7 +928,7 @@ function ItemEditor({ ownerId, mode, item, compact, allItems, presetSection, sec
             </div>
             <div className="mt-4 flex items-center justify-between">
               {mode === "edit" ? (
-                <button onClick={remove} className="bg-surface-card inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-bold text-altus-red transition-colors hover:bg-[color:color-mix(in_srgb,var(--color-altus-red)_8%,transparent)]"><Trash2 size={14} /> Delete</button>
+                <button onClick={archive} title="Take this KPI off the board. Nothing is deleted - restore it from Archive > DCC." className="bg-surface-card inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-bold text-ink-soft transition-colors hover:text-altus-red hover:bg-[color:color-mix(in_srgb,var(--color-altus-red)_8%,transparent)]"><Archive size={14} /> Archive</button>
               ) : <span />}
               <button onClick={submit} className="wg-btn inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[14px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DEEP})` }}><Check size={15} /> Save</button>
             </div>

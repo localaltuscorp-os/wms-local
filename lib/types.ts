@@ -1,5 +1,5 @@
 import type { FineBucketKey } from "@/lib/transforms/aging-buckets-fine";
-import type { TaskStatus, AgeBucketId, Department } from "@/db/enums";
+import type { TaskStatus, ApprovalStatus, AgeBucketId, Department } from "@/db/enums";
 
 export type ViewMode = "doer" | "initiator";
 
@@ -112,6 +112,7 @@ export type StatusCellBucket =
   | "notStarted"
   | "dontKnow"
   | "onHold"
+  | "abandoned"
   | "pendingTotal"
   | "total";
 
@@ -152,8 +153,16 @@ export interface EmployeeStatusRow {
   dontKnow: number;
   /** Paused work. It had no sub-bucket and lived only inside pendingTotal, so
    *  once the Pending aggregate stopped being rendered it would have counted
-   *  toward Total while appearing in no column at all. */
+   *  toward Total while appearing in no column at all.
+   *
+   *  SINCE 0225 this counts only pre-split stragglers: On Hold is an INITIATOR
+   *  verdict now (`approval_status`), not a doer status, so a healthy database
+   *  reads 0 here. The bucket stays because a row the migration could not reach
+   *  must still land in a column rather than vanish from the table. */
   onHold: number;
+  /** "I am not going to do this" — the doer axis's second terminal, beside
+   *  `done`. Never part of pendingTotal: nothing further is owed. */
+  abandoned: number;
   total: number;
   /** tasks with priority = imp_urgent */
   criticalCount: number;
@@ -506,7 +515,7 @@ export interface TaskListRow {
   archived: boolean;
   createdById: string | null;
   updatedAt: Date;
-  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | null;
+  approvalStatus: ApprovalStatus | null;
   firstReadAt: Date | null;
   /** When work was FIRST started on this task — task_time_rollup.first_started_at,
    *  i.e. the first `work_started` time event. Null until someone hits Start.

@@ -602,6 +602,12 @@ export interface BoardTask {
   dueAt: Date;
   updatedAt: Date;
   completedAt: Date | null;
+  // The INITIATOR AXIS (migration 0225). Carried on the same payload as the
+  // doer axis because the board's [ Doer | Initiator ] toggle re-columns the
+  // SAME cards — fetching a second, near-identical row set per axis would make
+  // the two views able to disagree about a task they are both showing.
+  initiatorId: string;
+  approvalStatus: ApprovalStatus | null;
 }
 
 /**
@@ -671,6 +677,8 @@ async function listBoardTasksUncached(filters?: TaskListFilters): Promise<BoardT
       archived: tasks.archived,
       completedAt: tasks.completedAt,
       doerName: employees.name,
+      initiatorId: tasks.initiatorId,
+      approvalStatus: tasks.approvalStatus,
     })
     .from(tasks)
     .leftJoin(employees, eq(tasks.doerId, employees.id))
@@ -721,6 +729,8 @@ async function listAgendaTasksUncached(employeeId: string): Promise<BoardTask[]>
       archived: tasks.archived,
       completedAt: tasks.completedAt,
       doerName: employees.name,
+      initiatorId: tasks.initiatorId,
+      approvalStatus: tasks.approvalStatus,
     })
     .from(tasks)
     .leftJoin(employees, eq(tasks.doerId, employees.id))
@@ -759,7 +769,7 @@ export interface TaskExportRow {
   archived: boolean;
   // Tier-3 (2026-05-20) additions — surfaced for XLSX/PDF exports.
   tags: string[] | null;
-  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | null;
+  approvalStatus: ApprovalStatus | null;
   revisedTargetDate: Date | null;
 }
 
@@ -920,7 +930,7 @@ export type TaskDetail = {
   updatedAt: Date;
   // Tier-3 (2026-05-20) additions
   tags: string[] | null;
-  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | null;
+  approvalStatus: ApprovalStatus | null;
   // Two-stage approval (mig 0185): which level, if any, this task is signed off at.
   approvalLevel: "none" | "manager" | "admin";
   revisedTargetDate: Date | null;

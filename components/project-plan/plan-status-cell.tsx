@@ -16,6 +16,8 @@ import {
   type PlanStatus,
 } from "@/lib/project-plan/status";
 import { isExecutable, type PlanKind } from "@/lib/project-plan/levels";
+import type { StatusAxis, StatusActor } from "@/lib/status/axes";
+import { DoerStatusSelect, InitiatorStatusSelect } from "@/components/status/status-select";
 import { setPlanNodeStatus } from "@/app/(app)/project-plan/actions";
 
 /**
@@ -88,32 +90,101 @@ export function planActorFor(
   return { id: me.id, isAdmin: me.isAdmin, isOwner, isDoer, isSupervisor };
 }
 
+/**
+ * A `PlanActor` as the shared controls' `StatusActor`.
+ *
+ * The two vocabularies differ by ONE word: the plan module calls the person who
+ * raised the work its OWNER, the app-wide axes call them the INITIATOR. Same
+ * person, same rule ("you are never your own initiator" is `canSetPlanStatus`'s
+ * owner test), so this is a rename and not a conversion.
+ */
+function statusActorFrom(a: PlanActor): StatusActor {
+  return {
+    id: a.id,
+    isAdmin: a.isAdmin,
+    isInitiator: a.isOwner,
+    isDoer: a.isDoer,
+    isSupervisor: a.isSupervisor,
+  };
+}
+
 export function PlanStatusCell({
   node,
   actor,
   /** True when the row's working status lives on a linked task — the cell then
    *  says so in its tooltip, because the change will show up in WMS too. */
   linkedToTask,
+  /**
+   * WHICH AXIS THIS CELL EDITS.
+   *
+   * The table used to render ONE cell holding both flows in a single select
+   * with two <optgroup>s, on the reasoning that a second chip would show the
+   * same value twice. That reasoning ended when the two axes became one shared
+   * vocabulary (lib/status/axes.ts) and stopped overlapping: a row is now
+   * "Initiated" AND "On Hold" at the same time, and one select could only ever
+   * show whichever outranked the other — so a project that had been put on hold
+   * hid the fact that its work had started, and a project reporting progress
+   * hid the hold.
+   *
+   * Two cells, side by side, each answering its own question. "both" keeps the
+   * old combined control for any caller that still wants one.
+   */
+  axis = "both",
 }: {
   node: PlanStatusNode;
   actor: PlanActor;
   linkedToTask: boolean;
+  axis?: StatusAxis | "both";
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
 
-  const current = effectivePlanStatus(workingStatusOf(node), node.approvalStatus, false);
+  // The COMBINED value — the only one this component still computes itself,
+  // because the "both" mode below is the only rendering it still owns. Each
+  // single axis is handed whole to its shared control (see the two early
+  // returns), which reads the row for itself.
+  const current: PlanStatus = effectivePlanStatus(
+    workingStatusOf(node),
+    node.approvalStatus,
+    false,
+  );
   const tone = PLAN_STATUS_TONE[current];
 
   // Split rather than filtered flat: the two flows are different decisions and
-  // the <optgroup> labels are what say so.
+  // the <optgroup> labels are what say so. Both lists are for the "both" mode
+  // below — each single axis is handed to its shared control, which builds its
+  // own list from lib/status/axes.ts.
   const working = PLAN_WORKING_STATUSES.filter((s) => canSetPlanStatus(actor, s).ok);
   const restricted = PLAN_RESTRICTED_STATUSES.filter(
     // 'archived' is deliberately absent: archiving cascades through children and
-    // linked tasks, and the row's own Delete control is the one path to it.
+    // linked tasks, so it stays behind the row's own Archive control, which says
+    // how much it will take with it before it runs. (The shared initiator
+    // control hides it here for the same reason — see `hideArchived`.)
     (s) => s !== "archived" && canSetPlanStatus(actor, s).ok,
   );
   const readOnly = working.length === 0 && restricted.length === 0;
+
+  /**
+   * The write, as a promise — what the two shared controls await.
+   *
+   * `choose` below is the "both" mode's fire-and-forget twin, kept because that
+   * control is a bare <select> with no optimistic state of its own.
+   */
+  async function commitStatus(next: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    // Checked here purely to fail fast with the server's own wording; the
+    // server re-runs this exact call before it writes.
+    const verdict = canSetPlanStatus(actor, next);
+    if (!verdict.ok) return { ok: false, error: verdict.reason };
+    try {
+      const res = await setPlanNodeStatus({ id: node.id, status: next });
+      return res.ok ? { ok: true } : { ok: false, error: res.error };
+    } catch {
+      return {
+        ok: false,
+        error: "Couldn't save that status — your session may have expired. Sign in again and retry.",
+      };
+    }
+  }
 
   function choose(next: string) {
     if (next === current) return;
@@ -145,6 +216,47 @@ export function PlanStatusCell({
     })();
   }
 
+  /* ── THE TWO SINGLE-AXIS MODES render the SHARED control ──────────────────
+     components/status/status-select.tsx, so a plan row's Doer Status and
+     Initiator Status look and behave exactly like the ones on Tasks, Goals,
+     Weekly Goals and Daily Goals (Manan, 2026-09-15). The vocabulary was
+     already shared — PLAN_WORKING_STATUSES and PLAN_RESTRICTED_STATUSES are
+     literally the axes module's lists — so this is the last copy of the
+     rendering to go.
+
+     The "both" mode below keeps its own combined <select> with optgroups:
+     it is one control showing two different kinds of decision at once, which
+     is not what either shared control is. */
+  if (axis === "doer") {
+    return (
+      <DoerStatusSelect
+        status={workingStatusOf(node)}
+        actor={statusActorFrom(actor)}
+        onCommit={(next) => commitStatus(next)}
+      />
+    );
+  }
+  if (axis === "initiator") {
+    return (
+      <InitiatorStatusSelect
+        approvalStatus={node.approvalStatus}
+        // The board already filters archived rows out, and `archived` here is
+        // the node's `is_archived` — which this cell is never handed. False is
+        // the truth for every row it draws.
+        archived={false}
+        actor={statusActorFrom(actor)}
+        // ARCHIVING CASCADES on this board — it takes every row beneath and
+        // their linked WMS tasks. It stays behind the row's own Archive control,
+        // which counts what it is about to take and says so first.
+        hideArchived
+        onCommit={(next) => commitStatus(next)}
+      />
+    );
+  }
+
+  // BELOW HERE IS THE "both" MODE ONLY — the two single-axis returns above have
+  // already handled the other cases, which is why nothing here asks about the
+  // axis any more.
   if (readOnly) {
     return (
       <span
@@ -178,9 +290,10 @@ export function PlanStatusCell({
         {/* The row's own value always appears, even when this actor may not
             re-select it — otherwise the select would render blank on a status
             someone with more authority set. */}
-        {!working.includes(current as never) && !restricted.includes(current as never) && (
-          <option value={current}>{PLAN_STATUS_LABEL[current]}</option>
-        )}
+        {!working.includes(current as never) &&
+          !restricted.includes(current as never) && (
+            <option value={current}>{PLAN_STATUS_LABEL[current]}</option>
+          )}
         {working.length > 0 && (
           <optgroup label="Progress">
             {working.map((s) => (

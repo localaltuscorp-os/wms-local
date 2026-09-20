@@ -391,7 +391,7 @@ export async function recordPayout(input: unknown): Promise<Result<{ id: string 
       await tx.insert(ambActivities).values({
         ambassadorId: v.ambassadorId,
         type: "commission",
-        title: `Payout recorded: ₹${num(v.amount)}`,
+        title: `Payout recorded: Rs. ${num(v.amount)}`,
         body: v.reference ? `Ref: ${v.reference}` : null,
         createdById: me.id,
       });

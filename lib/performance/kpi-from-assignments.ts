@@ -58,7 +58,7 @@ function toPeriod(frequency: string): KpiPeriod {
   return frequency === "weekly" ? "week" : "month";
 }
 
-/** Parse a free-text target ("40", "₹1,20,000", "e.g. 40") to a number, or 0. */
+/** Parse a free-text target ("40", "Rs. 1,20,000", "e.g. 40") to a number, or 0. */
 function parseTarget(raw: string): number {
   const n = Number(String(raw).replace(/[^0-9.]/g, ""));
   return Number.isFinite(n) ? n : 0;

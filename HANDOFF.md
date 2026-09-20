@@ -6,6 +6,7 @@ broken, what changed and why.
 - Setup instructions → [`SETUP.md`](./SETUP.md)
 - Replicating this system for a new client → [`docs/WMS_BLUEPRINT.md`](./docs/WMS_BLUEPRINT.md)
 - **`Om` branch handoff + unrun SQL migrations** → [`HANDOFF-Om.md`](./HANDOFF-Om.md)
+- **`Shreya` branch handoff + its Supabase file** → [`handoff-shreya.md`](./handoff-shreya.md)
 
 > **Every developer and intern must append to the changelog below before their
 > work is considered done.** A PR without a changelog entry is incomplete. See

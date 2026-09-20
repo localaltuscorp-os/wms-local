@@ -251,7 +251,7 @@ function MeasurePairChip(props: {
     }
   }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const show = (n: number | null) => (n == null ? "-" : props.rupee ? `₹${fmtNum(n)}` : fmtNum(n));
+  const show = (n: number | null) => (n == null ? "-" : props.rupee ? `Rs. ${fmtNum(n)}` : fmtNum(n));
 
   if (!editing) {
     return (

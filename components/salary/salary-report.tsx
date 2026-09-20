@@ -193,9 +193,9 @@ export function SalaryReport({ month, monthLabel, rows }: Props) {
                 <td className="px-4 py-4" colSpan={5}>
                   Totals ({rows.length})
                 </td>
-                <td className="px-4 py-4 text-right tabular-nums">₹{inr(totals.gross)}</td>
+                <td className="px-4 py-4 text-right tabular-nums">Rs. {inr(totals.gross)}</td>
                 <td className="px-4 py-4" colSpan={4} />
-                <td className="px-4 py-4 text-right tabular-nums">₹{inr(totals.net)}</td>
+                <td className="px-4 py-4 text-right tabular-nums">Rs. {inr(totals.net)}</td>
                 <td className="px-4 py-4" colSpan={2} />
               </tr>
             </tfoot>
@@ -243,7 +243,7 @@ function SalaryRow({ row, rowIndex }: { row: SalaryRunRow; rowIndex: number }) {
         {row.designationName ?? "—"}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-soft">
-        ₹{inr(monthlyCtc)}
+        Rs. {inr(monthlyCtc)}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-soft">
         {days(row.payableDays)}
@@ -252,22 +252,22 @@ function SalaryRow({ row, rowIndex }: { row: SalaryRunRow; rowIndex: number }) {
         {row.lateDeductionDays > 0 ? days(row.lateDeductionDays) : "—"}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-strong">
-        ₹{inr(row.gross)}
+        Rs. {inr(row.gross)}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-soft">
-        {row.pt > 0 ? `₹${inr(row.pt)}` : "—"}
+        {row.pt > 0 ? `Rs. ${inr(row.pt)}` : "—"}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-soft">
-        {row.tds > 0 ? `₹${inr(row.tds)}` : "—"}
+        {row.tds > 0 ? `Rs. ${inr(row.tds)}` : "—"}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-soft">
-        {row.advances > 0 ? `₹${inr(row.advances)}` : "—"}
+        {row.advances > 0 ? `Rs. ${inr(row.advances)}` : "—"}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-soft">
-        {row.pendingBalanceIn !== 0 ? `₹${inr(row.pendingBalanceIn)}` : "—"}
+        {row.pendingBalanceIn !== 0 ? `Rs. ${inr(row.pendingBalanceIn)}` : "—"}
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums font-bold text-ink-strong">
-        ₹{inr(row.netPayable)}
+        Rs. {inr(row.netPayable)}
       </td>
       <td className="px-4 py-3.5 text-center">
         <button

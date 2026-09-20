@@ -206,7 +206,7 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
                         <span className="font-bold text-ink-strong">{r.fundName}</span>
                       </div>
                       <div className="mt-0.5 text-[12px] font-semibold text-ink-subtle">
-                        {[r.entity, r.location, r.sipDate && `SIP ${r.sipDate}`, r.type, r.amount && `₹${formatINR(parseAmount(r.amount))}`].filter(Boolean).join(" · ")}
+                        {[r.entity, r.location, r.sipDate && `SIP ${r.sipDate}`, r.type, r.amount && `Rs. ${formatINR(parseAmount(r.amount))}`].filter(Boolean).join(" · ")}
                       </div>
                     </div>
                   </Td>
@@ -218,7 +218,7 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
                       </td>
                     );
                   })}
-                  <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{ytd(r.id) ? `₹${formatINR(ytd(r.id))}` : <Dim />}</Td>
+                  <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{ytd(r.id) ? `Rs. ${formatINR(ytd(r.id))}` : <Dim />}</Td>
                   <Td className="text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => remove(r.id)} busy={busy} /></Td>
                 </tr>
               ))
@@ -229,7 +229,7 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
                 {cols.map((c) => (
                   <td key={c.month} className="px-2 py-3 text-right text-[12.5px] font-bold text-ink-strong whitespace-nowrap">{monthTotal(c.month) ? formatINR(monthTotal(c.month)) : ""}</td>
                 ))}
-                <Td className="text-right font-extrabold text-altus-red whitespace-nowrap">₹{formatINR(grandTotal)}</Td>
+                <Td className="text-right font-extrabold text-altus-red whitespace-nowrap">Rs. {formatINR(grandTotal)}</Td>
                 <Td>{""}</Td>
               </tr>
             )}
@@ -276,7 +276,7 @@ function EditorRow({ colSpan, draft, setDraft, entityOptions, typeOptions, onSav
           <Field label="Location" className="col-span-4 max-lg:col-span-3 max-md:col-span-1"><input value={draft.location} onChange={(e) => set({ location: e.target.value })} className={INPUT} placeholder="Demat / account" aria-label="Location" /></Field>
           <Field label="SIP date" className="col-span-2 max-lg:col-span-1 max-md:col-span-1"><input value={draft.sipDate} onChange={(e) => set({ sipDate: e.target.value })} className={INPUT} placeholder="1st" aria-label="SIP date" /></Field>
           <Field label="Type" className="col-span-3 max-lg:col-span-2 max-md:col-span-1"><ValueSelect label="type" kind="sip_type" options={typeOptions} value={draft.type} onChange={(v) => set({ type: v })} placeholder="SIP…" /></Field>
-          <Field label="Installment amount (₹)" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><input value={draft.amount} onChange={(e) => set({ amount: e.target.value })} className={INPUT} inputMode="numeric" placeholder="125000" aria-label="Installment amount" /></Field>
+          <Field label="Installment amount (Rs.)" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><input value={draft.amount} onChange={(e) => set({ amount: e.target.value })} className={INPUT} inputMode="numeric" placeholder="125000" aria-label="Installment amount" /></Field>
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button type="button" onClick={onCancel} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-4 py-2 text-[14px] font-bold text-ink-muted hover:bg-surface-soft disabled:opacity-50"><X size={16} strokeWidth={2.4} /> Cancel</button>

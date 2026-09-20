@@ -146,7 +146,7 @@ admin`
 | **Hub** | `/hub` | Workspace launcher; landing after login |
 | **My Day** | `/my-day`, `/daily-checklist` | Personal daily loop |
 | **Tasks (WMS)** | `/tasks`, `/kanban`, `/[id]`, `/[id]/focus`, `/new`, `/import`, `/duplicates`, `/time` | The core module |
-| **Projects** | `/projects`, `/projects/[id]` | Task grouping, members, nodes |
+| **Project Plan** | `/project-plan/*` | Project → Milestone → Result → Action hierarchy (the `/projects` board was removed) |
 | **Inbox** | `/inbox` | Notifications |
 | **Admin** | `/admin/*` | Employees, departments, designations, clients, holidays, leave categories, subjects, settings |
 

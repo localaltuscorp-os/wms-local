@@ -112,6 +112,9 @@ export default async function MyDayPage({
             The Goals canvas day drawer mounts the same board without it. */}
         <PlanBoard
           target={target}
+          // WHO IS LOOKING — the two status controls in a card's detail view need
+          // it to tell "my own day" from "a downline member's day I am ruling on".
+          me={{ id: me.id, isAdmin }}
           payload={payload}
           dashboardHref={"/my-day/dashboard" as Route}
           quickDock

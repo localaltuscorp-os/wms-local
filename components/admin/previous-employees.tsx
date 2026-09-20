@@ -11,6 +11,7 @@ import {
 } from "@/db/enums";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { getFormerActivity } from "@/app/(admin)/admin/employees/offboarding-actions";
+import { formatDate } from "@/lib/format";
 
 /**
  * PREVIOUS EMPLOYEES — the record that used to be a delete.
@@ -53,7 +54,7 @@ function fmtDate(v: string | null): string {
   if (!v) return "—";
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return v;
-  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDate(d);
 }
 
 /** Whole months between two dates, rendered as "2y 4m". */

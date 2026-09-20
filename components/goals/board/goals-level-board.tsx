@@ -667,7 +667,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
       const pct = effectiveGoalPct(g);
       const status = pct >= 100 ? "Done" : pct >= 50 ? "On track" : "At risk";
       const incentive = g.incentiveEnabled
-        ? `Yes${g.incentiveAmount ? ` ₹${g.incentiveAmount}` : ""}${g.incentiveKind ? ` (${g.incentiveKind})` : ""}`
+        ? `Yes${g.incentiveAmount ? ` Rs. ${g.incentiveAmount}` : ""}${g.incentiveKind ? ` (${g.incentiveKind})` : ""}`
         : "No";
       return [
         String(i + 1),
@@ -1644,6 +1644,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                   goals={pagedGoals}
                   canWrite={canWrite}
                   isAdmin={props.isAdmin}
+                  meId={props.myEmployeeId}
                   roster={props.roster}
                   projects={props.projects}
                   vendors={props.vendors}

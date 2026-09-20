@@ -82,6 +82,7 @@ export function computeEmployeeStatusTable(
         notStarted: 0,
         dontKnow: 0,
         onHold: 0,
+        abandoned: 0,
         total: 0,
         criticalCount: 0,
         previews: {},
@@ -184,6 +185,13 @@ export function computeEmployeeStatusTable(
         row.pendingTotal += 1;
         addTo(rowKey, "onHold", t);
         addTo(rowKey, "pendingTotal", t);
+        break;
+      // Terminal, so NOT in pendingTotal — abandoned work is not owed, exactly
+      // like done. It gets its own column for the same reason every other
+      // status did: a bucket-less status makes the columns sum short of Total.
+      case "abandoned":
+        row.abandoned += 1;
+        addTo(rowKey, "abandoned", t);
         break;
       default: {
         // THE BUG THIS REPLACES: the switch had no case for dont_know,

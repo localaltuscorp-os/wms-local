@@ -355,7 +355,7 @@ function ReviewCard({
     item.targetQty != null
       ? `Tgt ${fmtNum(item.targetQty)} · Act ${fmtNum(item.actualQty)}`
       : item.targetAmount != null
-        ? `Tgt ₹${fmtNum(item.targetAmount)} · Act ₹${fmtNum(item.actualAmount)}`
+        ? `Tgt Rs. ${fmtNum(item.targetAmount)} · Act Rs. ${fmtNum(item.actualAmount)}`
         : null;
 
   /** Push an unfinished day item onto another planner day. transferPlanItem

@@ -139,6 +139,7 @@ const STATUS_COLUMNS: StatusCol[] = [
   { key: "notStarted", label: "Not Started", preview: "notStarted" },
   { key: "dontKnow", label: "Not Read", preview: "dontKnow" },
   { key: "onHold", label: "On Hold", tone: "amber", preview: "onHold" },
+  { key: "abandoned", label: "Abandoned", preview: "abandoned" },
   { key: "transferred", label: "Transferred", preview: "transferred" },
   { key: "cancelled", label: "Cancelled", tone: "rose", preview: "cancelled" },
 ];

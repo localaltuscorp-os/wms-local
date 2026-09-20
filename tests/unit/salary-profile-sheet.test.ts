@@ -19,9 +19,9 @@ describe("parseSheetMonth", () => {
 });
 
 describe("parseRupees", () => {
-  it("strips ₹ and commas", () => {
-    expect(parseRupees("₹228,000")).toBe(228000);
-    expect(parseRupees("₹0")).toBe(0);
+  it("strips Rs. and commas", () => {
+    expect(parseRupees("Rs. 228,000")).toBe(228000);
+    expect(parseRupees("Rs. 0")).toBe(0);
     expect(parseRupees("6000")).toBe(6000);
   });
   it("returns null for blank/non-numeric", () => {
@@ -53,9 +53,9 @@ describe("mapSalaryProfileRows", () => {
 
   it("keeps the latest month per employee and parses CTC + PT-exempt", () => {
     const out = mapSalaryProfileRows([
-      row({ month: "Apr-2026", name: "Devraj Kadam", ctc: "₹400,000", pt: "₹200" }),
-      row({ month: "May-2026", name: "Devraj Kadam", ctc: "₹444,000", pt: "₹200", designation: "Business Consultant", entity: "Altus Corp" }),
-      row({ month: "May-2026", name: "Dattaram Kap", ctc: "₹228,000", pt: "", designation: "Office Boy", entity: "Unleashed" }),
+      row({ month: "Apr-2026", name: "Devraj Kadam", ctc: "Rs. 400,000", pt: "Rs. 200" }),
+      row({ month: "May-2026", name: "Devraj Kadam", ctc: "Rs. 444,000", pt: "Rs. 200", designation: "Business Consultant", entity: "Altus Corp" }),
+      row({ month: "May-2026", name: "Dattaram Kap", ctc: "Rs. 228,000", pt: "", designation: "Office Boy", entity: "Unleashed" }),
     ]);
     expect(out).toHaveLength(2);
     const devraj = out.find((r) => r.employeeName === "Devraj Kadam")!;
@@ -72,10 +72,10 @@ describe("mapSalaryProfileRows", () => {
   it("collapses stray whitespace in names and skips junk/header/zero-CTC rows", () => {
     const out = mapSalaryProfileRows([
       [], // empty
-      row({ month: "Auto", name: "x", ctc: "₹1" }), // bad month → skip
+      row({ month: "Auto", name: "x", ctc: "Rs. 1" }), // bad month → skip
       row({ month: "MM-YY", name: "Employee Name", ctc: "" }), // header → skip
-      row({ month: "May-2026", name: "Rahul A", ctc: "₹0" }), // zero CTC → skip
-      row({ month: "May-2026", name: "Satish  Sonawane", ctc: "₹600,000", pt: "₹200" }),
+      row({ month: "May-2026", name: "Rahul A", ctc: "Rs. 0" }), // zero CTC → skip
+      row({ month: "May-2026", name: "Satish  Sonawane", ctc: "Rs. 600,000", pt: "Rs. 200" }),
     ]);
     expect(out).toHaveLength(1);
     expect(out[0]!.employeeName).toBe("Satish Sonawane"); // collapsed

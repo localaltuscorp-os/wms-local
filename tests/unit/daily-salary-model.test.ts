@@ -168,7 +168,7 @@ describe("the daily rate divides by CALENDAR days in THAT month", () => {
   ];
 
   for (const c of cases) {
-    it(`${c.label} divides by ${c.days}, giving ₹1,000/day`, () => {
+    it(`${c.label} divides by ${c.days}, giving Rs. 1,000/day`, () => {
       expect(daysInMonth(c.month)).toBe(c.days);
       const b = computeDailySalary({
         monthlySalary: c.salary,
@@ -214,7 +214,7 @@ describe("the daily rate divides by CALENDAR days in THAT month", () => {
    TEST 1 (continued) — WHAT EACH KIND OF DAY EARNS
    ══════════════════════════════════════════════════════════════════════════ */
 
-describe("₹31,000 over 31 days — every day type earns exactly what it should", () => {
+describe("Rs. 31,000 over 31 days — every day type earns exactly what it should", () => {
   const MONTH = "2026-08";
   const SALARY = 31_000;
   const RATE = 1000;
@@ -240,7 +240,7 @@ describe("₹31,000 over 31 days — every day type earns exactly what it should
     expect(earn(0.5)).toBe(RATE / 2);
   });
 
-  it("Absent (A) earns ₹0 — one full daily salary is lost", () => {
+  it("Absent (A) earns Rs. 0 — one full daily salary is lost", () => {
     expect(earn(0)).toBe(0);
     expect(RATE - earn(0)).toBe(RATE);
   });
@@ -270,7 +270,7 @@ describe("₹31,000 over 31 days — every day type earns exactly what it should
     expect(earn(pl.dayValue)).toBe(RATE);
   });
 
-  it("Unpaid Leave (LWP) earns ₹0", () => {
+  it("Unpaid Leave (LWP) earns Rs. 0", () => {
     const days = gradeMonth({ month: MONTH, leave: { "2026-08-19": "unpaid" } });
     const lwp = days.find((d) => d.logDate === "2026-08-19")!;
     expect(lwp.code).toBe("LWP");
@@ -278,7 +278,7 @@ describe("₹31,000 over 31 days — every day type earns exactly what it should
     expect(earn(lwp.dayValue)).toBe(0);
   });
 
-  it("a perfect month pays exactly ₹31,000 — offs and holidays included", () => {
+  it("a perfect month pays exactly Rs. 31,000 — offs and holidays included", () => {
     const days = gradeMonth({ month: MONTH, holidays: ["2026-08-19"] });
     const b = payFor(days, { month: MONTH, monthlySalary: SALARY, refTodayISO: EOM });
     expect(b.gross).toBeCloseTo(SALARY, 2);
@@ -737,7 +737,7 @@ describe("holidays and leave move the target and the pay correctly", () => {
     expect(b.gross).toBeCloseTo(SALARY, 2);
   });
 
-  it("TEST 11 — approved UNPAID leave earns ₹0 and deducts exactly one daily salary", () => {
+  it("TEST 11 — approved UNPAID leave earns Rs. 0 and deducts exactly one daily salary", () => {
     const clean = gradeMonth({ month: MONTH });
     const unpaid = gradeMonth({ month: MONTH, leave: { "2026-08-19": "unpaid" } });
 

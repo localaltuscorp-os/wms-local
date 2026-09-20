@@ -96,7 +96,7 @@ export async function getPinnedItems(
             itemId: r.itemId,
             sortOrder: r.sortOrder,
             title: found?.name ?? "Project no longer exists",
-            href: `/projects/${r.itemId}`,
+            href: "/project-plan",
             exists: !!found,
             pinnedAt: r.pinnedAt,
           };
