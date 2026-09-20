@@ -228,42 +228,119 @@ unrelated areas (tasks, plan-sync, device login) and were not touched here.
 
 ## 4. Not done
 
-- **`git pull` from `wms/main` has NOT been run.** `wms/main` is 55 commits
-  ahead and HEAD is a strict ancestor, so it fast-forwards cleanly — but the
-  working tree carries 376 uncommitted changes and **60 of them are files the
-  incoming commits also touch**, including `db/schema.ts`, `package.json`,
-  `lib/permissions/catalog.ts`, `components/layout/main-nav.tsx` and
-  `app/globals.css`. Git will refuse to start the merge rather than overwrite
-  them. This needs a decision about the uncommitted work first — see §5.
+- **The merge from `wms/main` is NOT done.** The work IS committed (see §5) and
+  the tree is clean, but the merge was attempted, hit 23 conflicts that are
+  product decisions rather than merge mechanics, and was aborted. §5 lists them.
 - **The ten drifted tables in §1a** are unexplained and unowned.
 - **A custom company has no logo** until one is set on its profile, and no
   display name separate from its legal name (§2b).
 
 ---
 
-## 5. The pull, and what it is waiting on
+## 5. The merge from `wms/main`, and why it stopped
+
+### 5a. What was done
+
+The 376 uncommitted changes in the tree were committed to a new local branch
+`Shreya` at `63407627`. **Nothing was pushed.** `main` is untouched and still
+sits at `0a6c5db3`.
 
 ```
-wms/main .. HEAD   0 commits    (HEAD is an ancestor — fast-forward is possible)
-HEAD .. wms/main   55 commits   (695 files changed)
-working tree       376 uncommitted changes
-overlap            60 files changed on BOTH sides
+Shreya  63407627  Billing: one place for master data, companies you can add, …
+main    0a6c5db3  (unchanged, tracks wms/main, behind 55)
 ```
 
 `origin` (`MananVasa-support/Manan-Vasa`) returns **"Repository not found"** —
 no access from this machine. The live remote is `wms`
 (`localaltuscorp-os/wms-local`). The stale `origin/main` ref still in this clone
-is **887 commits** from HEAD and is not the branch anyone means by "main";
+is 887 commits from HEAD and is **not** the branch anyone means by "main";
 merging it would be a mistake.
 
-Three ways forward, none of which should be picked without the person who owns
-the uncommitted work:
+### 5b. What happened when the merge ran
 
-1. **Commit the 376 changes on `Shreya` first, then pull.** Safest. The merge
-   then resolves as a normal merge with real history on both sides.
-2. **Stash, pull, pop.** Fastest, but the 60 overlapping files come back as
-   conflicts with no commit to fall back to.
-3. **Pull into a fresh clone** and port the work across deliberately.
+`git merge wms/main` — 55 commits, 695 files — produced **23 conflicts**, then
+`git merge --abort` restored the tree. Three resolved cleanly before the abort
+and are recorded here so the next attempt does not re-litigate them:
+
+- `components/dcc/dcc-board.tsx`, `dcc-gate-view.tsx`,
+  `dcc-manager-review-gate.tsx` — **accept the delete.** Upstream `f7c7bc42`
+  ("Rebuild DCC from a written spec") removed them deliberately, and the only
+  surviving local reference is a comment in `lib/dcc/dashboard.ts`.
+
+### 5c. The 20 that need an owner
+
+These are not merge mechanics. **The two branches made opposite decisions and
+each recorded a reason**, so picking a side by hand would silently revert
+somebody's explicit instruction.
+
+**The big one — two incompatible status architectures.** They collide across
+tasks, goals and project-plan:
+
+| | this branch (HEAD) | `wms/main` |
+|---|---|---|
+| module | `lib/status/axes` | `lib/status/approver-status` |
+| control | `DoerStatusSelect`, `InitiatorStatusSelect` | `ApproverChip` |
+| server action | `setGoalInitiatorStatus` (`initiator-actions.ts`) | `setGoalApproverStatus` (`approver-actions.ts`) |
+| helpers | `INITIATOR_STATUSES`, `INITIATOR_STATUS_LABEL`, `STATUS_TONE` | `approverDisplay`, `approverStored`, `selectableApproverChoices`, `canSetApproverStatus` |
+
+Resolving it means choosing which survives and rewriting the other side's call
+sites. That is a piece of work, not a conflict resolution.
+
+**A directly contradictory product instruction.** `components/tasks/task-table.tsx`:
+this branch REMOVED the Initiator Status column, citing Manan on 2026-09-15 —
+*"remove initiator status from task table, goals tables and project tables as
+well — don't remove from kanban section"*. `wms/main` ADDS IT BACK, citing the
+same date. One of those is current and the file cannot say which.
+
+Others in the same category:
+
+- `components/hr/letters/letter-editor.tsx` — this branch removed the Candidate
+  dropdown ("Replaces the old Candidate + Attach-Employee dropdowns"); upstream
+  keeps and expands it.
+- `app/(app)/tasks/kanban/page.tsx` — two different implementations of the same
+  fix (default the board's scope to the viewer): `defaultDoerId` conditioned on
+  `me.isAdmin` here, `defaultScopeId(me)` upstream.
+- `components/attendance/insights/finance/finance-dashboard.tsx` — "Payroll Loss
+  by **Department**" vs "by **Function**". A vocabulary decision.
+- `components/incentive/incentive-targets.tsx`, `incentive-entries.tsx` — "Rs."
+  vs "₹", and a different field set on the entry form.
+- `components/hr/candidate/invite-candidate-dialog.tsx` — `formatDate` vs
+  `formatDateHr` (upstream states every HR date as DD-MMM-YYYY).
+- `package.json` — `dev:dummy` differs: this branch runs `dummy:setup` first,
+  upstream sets `NEXT_DIST_DIR=.next-dummy` and
+  `DEVICE_ACCESS_ENFORCEMENT=off`. Probably wants both.
+- `lib/types.ts`, `lib/queries/tasks.ts` — `ApprovalStatus` (named type here)
+  vs the inlined union upstream. Mechanical, but it follows the architecture
+  decision above.
+- `db/schema.ts`, `lib/permissions/catalog.ts`, `components/layout/main-nav.tsx`,
+  `lib/attendance/confirmations.ts`, `scripts/dummy-db-seed.ts` — genuinely
+  additive on both sides; keep both halves.
+
+Full list: `app/(app)/dcc/dashboard/page.tsx`, `app/(app)/tasks/kanban/page.tsx`,
+`components/attendance/insights/finance/finance-dashboard.tsx`,
+`components/goals/board/goal-table-view.tsx`,
+`components/hr/candidate/invite-candidate-dialog.tsx`,
+`components/hr/letters/letter-editor.tsx`,
+`components/incentive/incentive-entries.tsx`,
+`components/incentive/incentive-targets.tsx`,
+`components/layout/main-nav.tsx`, `components/project-plan/plan-board.tsx`,
+`components/project-plan/plan-status-cell.tsx`,
+`components/tasks/task-table.tsx`, `db/schema.ts`,
+`lib/attendance/confirmations.ts`, `lib/permissions/catalog.ts`,
+`lib/project-plan/status.ts`, `lib/queries/tasks.ts`, `lib/types.ts`,
+`package.json`, `scripts/dummy-db-seed.ts`.
+
+### 5d. To pick it up again
+
+```bash
+git switch Shreya          # already there; tree is clean at 63407627
+git merge wms/main         # same 23 conflicts, reproducibly
+# ... resolve, with the status-architecture decision made first ...
+git merge --abort          # any time; 63407627 is the fallback
+```
+
+Settle the status-axes question before touching anything else — a dozen of the
+twenty follow from it.
 
 ---
 
