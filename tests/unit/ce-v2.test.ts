@@ -31,9 +31,18 @@ describe("who may transfer", () => {
     expect(canManageCe(OTHER_ADMIN)).toBe(false);
   });
 
-  it("matches the first name as a whole word only", () => {
+  it("reads the ADDRESS and never the name", () => {
+    // There was a first-name fallback here until 2026-09-21. It also admitted
+    // any colleague whose first name happened to be one of the two, so a new
+    // Ruchita on the roster would have silently been able to reassign accounts
+    // and edit anyone else's calls.
+    expect(canManageCe({ email: "x@y.z", name: "Ruchita" })).toBe(false);
+    expect(canManageCe({ email: "x@y.z", name: "Ruchita Nair" })).toBe(false);
+    expect(canManageCe({ email: "x@y.z", name: "Manan Rao" })).toBe(false);
     expect(canManageCe({ email: "x@y.z", name: "Mananjay Rao" })).toBe(false);
-    expect(canManageCe({ email: "x@y.z", name: "Ruchita" })).toBe(true);
+    // The two who do hold it are admitted by their address.
+    expect(canManageCe({ email: "manan@unleashed.in", name: "" })).toBe(true);
+    expect(canManageCe({ email: "ruchitaambre.altuscorp@gmail.com", name: "" })).toBe(true);
   });
 
   it("admits the dummy admin only in dummy mode", () => {

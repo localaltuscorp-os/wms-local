@@ -10,7 +10,8 @@ import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { encryptSecret, decryptSecret } from "@/lib/accounts/crypto";
-import { assetPrefix, canEditHrRegisters, formatAssetCode, isAssetType } from "@/lib/hr/registers";
+import { assetPrefix, formatAssetCode, isAssetType } from "@/lib/hr/registers";
+import { isHrStaff } from "@/lib/hr/access";
 
 type R<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -20,8 +21,8 @@ type R<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
  */
 async function editor(): Promise<R<{ id: string }>> {
   const me = await requireUser();
-  if (!canEditHrRegisters(me.email)) {
-    return { ok: false, error: "Only Ruchita, Rutvisha and Manan can change the Asset Register." };
+  if (!(await isHrStaff(me))) {
+    return { ok: false, error: "Only HR and super-admins can change the Asset Register." };
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };

@@ -19,8 +19,12 @@
  * These are enforced in the server actions; hiding a control is a convenience,
  * never the control.
  *
- * Matched by EMAIL first — the identity a namesake cannot borrow — with a
- * first-name fallback for an account whose address differs from the one here.
+ * Matched by EMAIL, and by email alone — the identity a namesake cannot borrow.
+ * There WAS a first-name fallback, for an account signing in with an address
+ * other than the one here. It also handed the module to any new colleague whose
+ * first name happened to be Manan or Ruchita, which is not a thing to leave
+ * waiting in a roster (account holder, 2026-09-21). If one of them signs in as
+ * someone else, add that address above.
  *
  * PURE: reads no database and no environment, so the rules are unit-tested.
  */
@@ -33,9 +37,6 @@ export interface CeActor {
 }
 
 const MANAGERS_BY_EMAIL: readonly string[] = ["manan@unleashed.in", "ruchitaambre.altuscorp@gmail.com"];
-
-/** First names, matched as whole words so "Mananjay" is not Manan. */
-const MANAGERS_BY_NAME: readonly string[] = ["manan", "ruchita"];
 
 /** Dummy mode signs in as this account; it may manage so the module is usable there. */
 const DUMMY_EMAIL = "dummy.admin@example.invalid";
@@ -50,9 +51,7 @@ function norm(v: string | null | undefined): string {
 export function canManageCe(actor: CeActor, dummyMode = false): boolean {
   const email = norm(actor.email);
   if (dummyMode && email === DUMMY_EMAIL) return true;
-  if (email && MANAGERS_BY_EMAIL.includes(email)) return true;
-  const firstName = norm(actor.name).split(/\s+/)[0] ?? "";
-  return firstName.length > 0 && MANAGERS_BY_NAME.includes(firstName);
+  return Boolean(email) && MANAGERS_BY_EMAIL.includes(email);
 }
 
 /** May this person pick any employee's calendar, not just their own? */
