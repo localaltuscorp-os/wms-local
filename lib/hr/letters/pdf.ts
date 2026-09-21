@@ -6,7 +6,7 @@ import PDFDocument from "pdfkit";
 import { formatDateHr } from "@/lib/format";
 import { getEntity, type EntityId, type Entity } from "@/lib/hr/entities";
 import { applyPronouns, type Gender } from "@/lib/hr/pronouns";
-import { applyFirm, HR_SIGNATORY, HR_SIGNATURE_IMAGE } from "@/lib/hr/firm";
+import { applyFirm, HR_SIGNATORY, HR_SIGNATURE_IMAGE, PROPRIETOR_SIGNATURE_IMAGE } from "@/lib/hr/firm";
 import {
   type LetterTemplate,
   type Block,
@@ -17,6 +17,7 @@ import {
   signatoryOf,
   tableRowVisible,
 } from "./types";
+import { FIT_COMPACT_SPACING, FIT_PLAN } from "./fit";
 
 /**
  * HR LETTERS — server-only (Node) PDF renderer, pdfkit.
@@ -28,6 +29,12 @@ import {
  * (contact line + solid address bar). Mirrors the proven pattern in
  * lib/hr/candidate/resume-pdf.ts — default Helvetica fonts, guarded image embeds,
  * every asset read wrapped so bad input never breaks the PDF.
+ *
+ * FIT TO ONE PAGE (lib/hr/letters/fit): body font sizes are multiplied by a scale
+ * `k`, and vertical gaps by `sp` (= k, or k × FIT_COMPACT_SPACING in compact
+ * spacing). With `fitOnePage` the letter is rendered at each FIT_PLAN step until
+ * it lands on a single page. The header band and footer are never scaled — they
+ * are the letterhead.
  *
  * Imported LAZILY by the /api/hr/letters/pdf + issue routes so pdfkit (which
  * bundles thousands of font glyphs) never reaches a client graph. Load-neutral.
@@ -63,7 +70,7 @@ export interface RenderLetterInput {
   entity?: EntityId | string | null;
   /** field-id → filled value (the red text). */
   values: Record<string, string>;
-  /** Formatted letter date, e.g. "25 July 2026" (defaults to today). */
+  /** Formatted letter date, e.g. "25-Jul-2026" (defaults to today). */
   date?: string;
   /** Candidate gender — resolves pronoun/salutation tokens (Mr./Ms., his/her…). */
   gender?: Gender;
@@ -81,6 +88,8 @@ export interface RenderLetterInput {
    * the one HR approved on screen.
    */
   signatory?: LetterSignatory;
+  /** Shrink the body step by step until the letter fits one A4 page. */
+  fitOnePage?: boolean;
 }
 
 /** Decode a `data:image/...;base64,…` URL into a Buffer pdfkit can embed. */
@@ -97,6 +106,24 @@ function dataUrlToBuffer(dataUrl?: string): Buffer | null {
 
 /** Render a filled letter to a print-ready A4 PDF Buffer. */
 export async function renderLetterPdf(input: RenderLetterInput): Promise<Buffer> {
+  if (!input.fitOnePage) return (await renderOnce(input, 1, false)).pdf;
+
+  // First plan step that fits on one page; the floor if none does.
+  let last: { pdf: Buffer; pages: number } | null = null;
+  for (const step of FIT_PLAN) {
+    last = await renderOnce(input, step.scale, step.compact);
+    if (last.pages <= 1) return last.pdf;
+  }
+  return last!.pdf;
+}
+
+/** One render at text scale `k` (compact spacing or not), reporting how many pages it took. */
+async function renderOnce(
+  input: RenderLetterInput,
+  k: number,
+  compact: boolean,
+): Promise<{ pdf: Buffer; pages: number }> {
+  const sp = k * (compact ? FIT_COMPACT_SPACING : 1);
   const entity = getEntity(input.entity ?? input.template.entityDefault ?? null);
   const values = input.values ?? {};
   const gender: Gender = input.gender ?? "neutral";
@@ -130,6 +157,7 @@ export async function renderLetterPdf(input: RenderLetterInput): Promise<Buffer>
   const left = MARGIN_X;
   const right = PAGE_W - MARGIN_X;
   const width = right - left;
+  let pages = 1;
 
   const paintFrame = (): void => {
     // Collapse the page margins while stamping the FIXED header/footer. Their
@@ -146,6 +174,7 @@ export async function renderLetterPdf(input: RenderLetterInput): Promise<Buffer>
     setMargins();
   };
   doc.on("pageAdded", () => {
+    pages += 1;
     paintFrame();
     doc.y = TOP;
   });
@@ -164,10 +193,10 @@ export async function renderLetterPdf(input: RenderLetterInput): Promise<Buffer>
   if (!hasBodyDateField(input.template)) {
     doc
       .font("Helvetica")
-      .fontSize(10)
+      .fontSize(10 * k)
       .fillColor(INK_MUTED)
       .text(letterDate, left, doc.y, { width, align: "right", lineBreak: false });
-    doc.y += 22;
+    doc.y += 22 * sp;
   }
 
   /* ---- Body blocks ---- */
@@ -184,11 +213,13 @@ export async function renderLetterPdf(input: RenderLetterInput): Promise<Buffer>
       gender,
       signatory,
       signatureImage: input.signatureImage,
+      k,
+      sp,
     });
   }
 
   doc.end();
-  return done;
+  return { pdf: await done, pages };
 }
 
 /* ------------------------------------------------------------------ */
@@ -207,49 +238,53 @@ interface Ctx {
   signatory: LetterSignatory;
   /** Optional uploaded scanned-signature image (data URL). */
   signatureImage?: string;
+  /** Text scale: every body font size is multiplied by this. */
+  k: number;
+  /** Spacing scale: every vertical gap and line gap is multiplied by this. */
+  sp: number;
 }
 
 function renderBlock(doc: PDFKit.PDFDocument, block: Block, ctx: Ctx): void {
-  const { left, width, values, gender, entity } = ctx;
+  const { left, width, values, gender, entity, k, sp } = ctx;
   /** Resolve a span array AND its gendered + firm-name tokens. */
   const resolve = (spans: Span[]): string =>
     applyFirm(applyPronouns(resolveSpans(spans, values), gender), entity);
   switch (block.kind) {
     case "spacer": {
-      doc.y += block.size === "lg" ? 22 : block.size === "sm" ? 6 : 12;
+      doc.y += (block.size === "lg" ? 22 : block.size === "sm" ? 6 : 12) * sp;
       return;
     }
     case "heading": {
-      const size = block.level === 1 ? 15 : block.level === 3 ? 11 : 12.5;
+      const size = (block.level === 1 ? 15 : block.level === 3 ? 11 : 12.5) * k;
       // Keep-with-next: reserve the heading PLUS ~2 lines of body (11pt on a
       // 3pt lead is ~17pt each). Reserving only the heading's own height let one
       // land as the last thing on a page with the text it introduces starting
       // overleaf — a heading alone at the foot of a page says nothing.
-      ctx.ensure(size + 16 + 34);
-      doc.y += 6;
+      ctx.ensure(size + (16 + 34) * k);
+      doc.y += 6 * sp;
       doc
         .font("Helvetica-Bold")
         .fontSize(size)
         .fillColor(INK)
-        .text(applyFirm(applyPronouns(block.text, gender), entity), left, doc.y, { width, lineGap: 2 });
-      doc.y += 6;
+        .text(applyFirm(applyPronouns(block.text, gender), entity), left, doc.y, { width, lineGap: 2 * sp });
+      doc.y += 6 * sp;
       return;
     }
     case "paragraph": {
       const text = resolve(block.spans);
       if (!text.trim()) {
-        doc.y += 8;
+        doc.y += 8 * sp;
         return;
       }
-      const h = doc.fontSize(11).heightOfString(text, { width, lineGap: 3 });
-      ctx.ensure(h + 6);
+      const h = doc.fontSize(11 * k).heightOfString(text, { width, lineGap: 3 * sp });
+      ctx.ensure(h + 6 * sp);
       doc
         .font("Helvetica")
-        .fontSize(11)
+        .fontSize(11 * k)
         .fillColor(INK_MUTED)
         .text(text, left, doc.y, {
           width,
-          lineGap: 3,
+          lineGap: 3 * sp,
           align:
             block.align === "center"
               ? "center"
@@ -257,7 +292,7 @@ function renderBlock(doc: PDFKit.PDFDocument, block: Block, ctx: Ctx): void {
                 ? "right"
                 : "left",
         });
-      doc.y += 8;
+      doc.y += 8 * sp;
       return;
     }
     case "term": {
@@ -267,10 +302,10 @@ function renderBlock(doc: PDFKit.PDFDocument, block: Block, ctx: Ctx): void {
       const label = applyFirm(applyPronouns(block.label, gender), entity);
       const LABEL_W = Math.round(width * 0.38);
       const VAL_W = width - LABEL_W;
-      const PAD = 7;
-      doc.font("Helvetica-Bold").fontSize(10.5);
+      const PAD = 7 * sp;
+      doc.font("Helvetica-Bold").fontSize(10.5 * k);
       const lh = doc.heightOfString(label, { width: LABEL_W - PAD * 2 });
-      doc.font("Helvetica").fontSize(10.5);
+      doc.font("Helvetica").fontSize(10.5 * k);
       const vh = doc.heightOfString(value || " ", { width: VAL_W - PAD * 2 });
       const rowH = Math.max(lh, vh) + PAD * 2;
       ctx.ensure(rowH);
@@ -282,9 +317,9 @@ function renderBlock(doc: PDFKit.PDFDocument, block: Block, ctx: Ctx): void {
       doc.lineWidth(0.7).strokeColor("#d4d4d8");
       doc.rect(left, top, LABEL_W, rowH).stroke();
       doc.rect(left + LABEL_W, top, VAL_W, rowH).stroke();
-      doc.font("Helvetica-Bold").fontSize(10.5).fillColor(INK)
+      doc.font("Helvetica-Bold").fontSize(10.5 * k).fillColor(INK)
         .text(label, left + PAD, top + PAD, { width: LABEL_W - PAD * 2 });
-      doc.font("Helvetica").fontSize(10.5).fillColor(INK)
+      doc.font("Helvetica").fontSize(10.5 * k).fillColor(INK)
         .text(value, left + LABEL_W + PAD, top + PAD, { width: VAL_W - PAD * 2 });
       doc.y = top + rowH;
       return;
@@ -293,21 +328,21 @@ function renderBlock(doc: PDFKit.PDFDocument, block: Block, ctx: Ctx): void {
       for (const item of block.items) {
         const text = resolve(item);
         const bw = width - 16;
-        const h = doc.fontSize(11).heightOfString(text, { width: bw, lineGap: 2 });
-        ctx.ensure(h + 5);
+        const h = doc.fontSize(11 * k).heightOfString(text, { width: bw, lineGap: 2 * sp });
+        ctx.ensure(h + 5 * sp);
         const top = doc.y;
-        doc.font("Helvetica-Bold").fontSize(11).fillColor(RED).text("•", left, top, {
+        doc.font("Helvetica-Bold").fontSize(11 * k).fillColor(RED).text("•", left, top, {
           width: 10,
           lineBreak: false,
         });
         doc
           .font("Helvetica")
-          .fontSize(11)
+          .fontSize(11 * k)
           .fillColor(INK_MUTED)
-          .text(text, left + 16, top, { width: bw, lineGap: 2 });
-        doc.y = Math.max(doc.y, top + h) + 4;
+          .text(text, left + 16, top, { width: bw, lineGap: 2 * sp });
+        doc.y = Math.max(doc.y, top + h) + 4 * sp;
       }
-      doc.y += 4;
+      doc.y += 4 * sp;
       return;
     }
     case "table": {
@@ -332,7 +367,7 @@ function renderTable(
   block: Extract<Block, { kind: "table" }>,
   ctx: Ctx,
 ): void {
-  const { left, width, values, gender, entity } = ctx;
+  const { left, width, values, gender, entity, k, sp } = ctx;
   const resolve = (spans: Span[]): string =>
     applyFirm(applyPronouns(resolveSpans(spans, values), gender), entity);
   const cols = block.columns.length;
@@ -340,10 +375,10 @@ function renderTable(
   const restW = cols > 1 ? (width - firstW) / (cols - 1) : 0;
   const colX = (i: number): number => left + (i === 0 ? 0 : firstW + restW * (i - 1));
   const colW = (i: number): number => (i === 0 ? firstW : restW);
-  const padX = 9;
-  const padY = 6;
+  const padX = 9 * k;
+  const padY = 6 * sp;
 
-  doc.y += 6;
+  doc.y += 6 * sp;
 
   const drawBorders = (y: number, h: number, top: boolean): void => {
     doc.save();
@@ -358,15 +393,15 @@ function renderTable(
   };
 
   /* ---- Header ---- */
-  const headerH = 20;
-  ctx.ensure(headerH + 20);
+  const headerH = 20 * k;
+  ctx.ensure(headerH + 20 * k);
   let y = doc.y;
   doc.save();
   doc.rect(left, y, width, headerH).fill("#F2F3F6");
   doc.restore();
-  doc.font("Helvetica-Bold").fontSize(8).fillColor(INK_MUTED);
+  doc.font("Helvetica-Bold").fontSize(8 * k).fillColor(INK_MUTED);
   for (let i = 0; i < cols; i++) {
-    doc.text((block.columns[i] ?? "").toUpperCase(), colX(i) + padX, y + 7, {
+    doc.text((block.columns[i] ?? "").toUpperCase(), colX(i) + padX, y + 7 * k, {
       width: colW(i) - padX * 2,
       align: i === 0 ? "left" : "right",
       lineBreak: false,
@@ -385,16 +420,16 @@ function renderTable(
     // Measure the tallest cell to size the row.
     let contentH = 0;
     if (isGroup) {
-      doc.font("Helvetica-Bold").fontSize(8.5);
+      doc.font("Helvetica-Bold").fontSize(8.5 * k);
       contentH = doc.heightOfString(cellText(0) || " ", { width: width - padX * 2 });
     } else {
       for (let i = 0; i < cols; i++) {
-        doc.font(i === 0 && kind === "normal" ? "Helvetica" : "Helvetica-Bold").fontSize(9.5);
+        doc.font(i === 0 && kind === "normal" ? "Helvetica" : "Helvetica-Bold").fontSize(9.5 * k);
         const h = doc.heightOfString(cellText(i) || " ", { width: colW(i) - padX * 2 });
         if (h > contentH) contentH = h;
       }
     }
-    const rowH = Math.max(contentH + padY * 2, 18);
+    const rowH = Math.max(contentH + padY * 2, 18 * k);
     ctx.ensure(rowH);
     y = doc.y;
 
@@ -408,7 +443,7 @@ function renderTable(
     if (isGroup) {
       doc
         .font("Helvetica-Bold")
-        .fontSize(8.5)
+        .fontSize(8.5 * k)
         .fillColor(RED_DEEP)
         .text(cellText(0).toUpperCase(), left + padX, y + padY, { width: width - padX * 2 });
     } else {
@@ -417,7 +452,7 @@ function renderTable(
         const bold = kind === "grand" || kind === "total" || i > 0;
         doc
           .font(bold ? "Helvetica-Bold" : "Helvetica")
-          .fontSize(9.5)
+          .fontSize(9.5 * k)
           .fillColor(color)
           .text(cellText(i), colX(i) + padX, y + padY, {
             width: colW(i) - padX * 2,
@@ -428,7 +463,7 @@ function renderTable(
     drawBorders(y, rowH, false);
     doc.y = y + rowH;
   }
-  doc.y += 8;
+  doc.y += 8 * sp;
 }
 
 function renderSignature(
@@ -436,23 +471,23 @@ function renderSignature(
   block: Extract<Block, { kind: "signature" }>,
   ctx: Ctx,
 ): void {
-  const { left, values, entity, letterDate, gender } = ctx;
+  const { left, values, entity, letterDate, gender, k, sp } = ctx;
   const resolve = (spans: Span[]): string =>
     applyFirm(applyPronouns(resolveSpans(spans, values), gender), entity);
   const line = (text: string, opts: { bold?: boolean; color?: string; size?: number; gap?: number } = {}) => {
     if (!text.trim()) return;
     doc
       .font(opts.bold ? "Helvetica-Bold" : "Helvetica")
-      .fontSize(opts.size ?? 11)
+      .fontSize((opts.size ?? 11) * k)
       .fillColor(opts.color ?? INK)
       .text(text, left, doc.y, { lineBreak: false });
-    doc.y += opts.gap ?? 15;
+    doc.y += (opts.gap ?? 15) * k;
   };
 
   const isHr = ctx.signatory === "hr";
   // A block carrying its OWN baked signature (e.g. the Selection letter's founder
   // sign-off) prints its own name + designation, never the generic HR-desk block.
-  const bakedRel = block.imageSrc; // e.g. "/signatures/manan-sign.jpeg"
+  const bakedRel = block.imageSrc; // e.g. "/signatures/manan-vasa-sign.png"
   const ownSignatory = Boolean(bakedRel) || !isHr;
   void INK_FAINT;
 
@@ -476,26 +511,26 @@ function renderSignature(
   let mark: Buffer | string | null = null;
   // Height the mark occupies: 52 for a real image, 30 for the blank hand-signing
   // strip an HR letter falls back to when the file is missing, 8 for no mark.
-  let markH = 8;
+  let markH = 8 * k;
   try {
     const uploaded = dataUrlToBuffer(ctx.signatureImage);
-    const standingRel = isHr ? HR_SIGNATURE_IMAGE : "/signatures/proprietor-signature.jpg";
+    const standingRel = isHr ? HR_SIGNATURE_IMAGE : PROPRIETOR_SIGNATURE_IMAGE;
     const rel = bakedRel ?? standingRel;
     const bakedPath = path.join(process.cwd(), "public", ...rel.replace(/^\//, "").split("/"));
     if (uploaded) {
       mark = uploaded;
-      markH = 52;
+      markH = 52 * k;
     } else if (existsSync(bakedPath)) {
       mark = bakedPath;
-      markH = 52;
+      markH = 52 * k;
     } else if (isHr) {
       // File missing at runtime — reserve the blank strip rather than collapsing
       // the layout, so the letter can still be signed by hand.
-      markH = 30;
+      markH = 30 * k;
     }
   } catch {
     mark = null;
-    markH = 8;
+    markH = 8 * k;
   }
 
   const forLine = block.forEntity ? `For ${entity.displayName}` : "";
@@ -512,13 +547,13 @@ function renderSignature(
   // 16pt lead-in + the mark + 15pt per line that will actually print (`line()`
   // skips blank text, so count the lines the same way it draws them).
   const textLines = [forLine, name, desig, dateLine, placeLine].filter((v) => v.trim()).length;
-  ctx.ensure(16 + markH + textLines * 15);
+  ctx.ensure(16 * sp + markH + textLines * 15 * k);
 
-  doc.y += 16;
+  doc.y += 16 * sp;
   line(forLine, { bold: true, color: RED_DEEP });
   if (mark) {
     try {
-      doc.image(mark, left, doc.y, { height: 46 });
+      doc.image(mark, left, doc.y, { height: 46 * k });
     } catch {
       // Unreadable / corrupt image — leave the reserved strip blank rather than
       // breaking the PDF. Its space is already accounted for in markH.

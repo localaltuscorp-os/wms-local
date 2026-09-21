@@ -3,6 +3,7 @@ import { and, eq, inArray, or, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, employeeDepartments } from "@/db/schema";
 import type { WorkerType, EmployeeRole } from "@/db/enums";
+import { resolveTeamScopes } from "@/lib/queries/team-scope";
 
 /**
  * Enterprise Communications (ECOS, migration 0179) — audience resolver.
@@ -22,6 +23,8 @@ import type { WorkerType, EmployeeRole } from "@/db/enums";
  *       • workerTypes    — their `worker_type`
  *       • roles          — their `role`
  *       • managerId      — their `manager_id` (direct reports of one manager)
+ *       • teamValues     — a standing team (lib/teams/roster, "t1".."t6"): its
+ *                          manager plus that manager's whole branch
  *       • employeeIds    — hand-picked individuals
  *     Empty/omitted lists contribute nothing. A custom rule with no lists at
  *     all resolves to ZERO recipients (nobody was selected).
@@ -35,6 +38,8 @@ export interface AudienceRule {
   roles?: string[];
   managerId?: string;
   employeeIds?: string[];
+  /** Standing teams, "t1".."t6" (lib/teams/roster). */
+  teamValues?: string[];
 }
 
 /** Trim, drop empties, de-dupe a string list (or return [] for undefined). */
@@ -70,6 +75,10 @@ export async function resolveAudience(
   const roles = clean(rule.roles);
   const employeeIds = clean(rule.employeeIds);
   const managerId = (rule.managerId ?? "").trim();
+  // A standing team is its manager's whole branch. An unrecognised value
+  // resolves to null and contributes nothing — never "everyone".
+  const teamValues = clean(rule.teamValues);
+  const teamIds = teamValues.length > 0 ? ((await resolveTeamScopes(teamValues, null)) ?? []) : [];
 
   // Conditions evaluated directly against the employees row (OR'd together).
   const orConds: SQL[] = [];
@@ -79,6 +88,7 @@ export async function resolveAudience(
   if (roles.length) orConds.push(inArray(employees.role, roles as EmployeeRole[]));
   if (managerId) orConds.push(eq(employees.managerId, managerId));
   if (employeeIds.length) orConds.push(inArray(employees.id, employeeIds));
+  if (teamIds.length) orConds.push(inArray(employees.id, teamIds));
 
   if (orConds.length > 0) {
     const combined = orConds.length === 1 ? orConds[0]! : or(...orConds)!;

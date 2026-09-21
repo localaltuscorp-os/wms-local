@@ -5,7 +5,8 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { getEntity, DEFAULT_ENTITY_ID, type Entity, type EntityId } from "@/lib/hr/entities";
 import { letterFontsUsedIn } from "@/lib/hr/letters/fonts";
-import { renderHtmlToPdf } from "@/lib/pdf/chromium";
+import { renderHtmlToPdf, renderHtmlUntil } from "@/lib/pdf/chromium";
+import { FIT_PLAN, RICH_COMPACT_CSS, countPdfPages } from "@/lib/hr/letters/fit";
 
 /**
  * HR LETTERS — server-only headless-Chromium PDF renderer for RICH ("Edit
@@ -321,6 +322,15 @@ html,body{margin:0;padding:0;background:#ffffff;}
    in step: the preview quietly diverging from the issued PDF is exactly the
    class of bug this file's own comments warn about. */
 .alh-body p{orphans:3;widows:3;}
+  /* A paragraph is ONE unit. orphans/widows only stopped a single stray line,
+     so a numbered clause ("4.1 Consent for Participation: ...") still tore
+     across the page edge with its second half on the next sheet - which is
+     what made a printed letter read as broken. A paragraph that fits on a page
+     now moves whole; one taller than a page still splits (browsers ignore
+     'avoid' for content that cannot fit), so nothing is ever lost. */
+  .alh-body p{break-inside:avoid;}
+  /* The line that introduces a list or table belongs with it. */
+  .alh-body p:has(+ ul),.alh-body p:has(+ ol),.alh-body p:has(+ table){break-after:avoid;}
 .alh-body h1,.alh-body h2,.alh-body h3{break-after:avoid;break-inside:avoid;}
 .alh-body li{break-inside:avoid;}
 /* Tables MAY span pages (a long CTC breakdown has to) — but a row may not, and
@@ -350,6 +360,8 @@ export interface RenderRichLetterInput {
   entity: string;
   /** The rich letter body — arbitrary TipTap HTML. */
   bodyHtml: string;
+  /** Shrink the body (CSS zoom) step by step until the letter fits one A4 page. */
+  fitOnePage?: boolean;
 }
 
 /**
@@ -359,6 +371,7 @@ export interface RenderRichLetterInput {
 export async function renderRichLetterPdf({
   entity,
   bodyHtml,
+  fitOnePage,
 }: RenderRichLetterInput): Promise<Uint8Array> {
   const e = getEntity((entity as EntityId | string) ?? null);
   const overlayLogo = e.id !== DEFAULT_ENTITY_ID;
@@ -384,7 +397,25 @@ export async function renderRichLetterPdf({
   try {
     // The browser launch, the JavaScript-off policy and the request allowlist all
     // live in lib/pdf/chromium.ts now, shared with the policy renderer.
-    return await renderHtmlToPdf(html);
+    if (!fitOnePage) return await renderHtmlToPdf(html);
+
+    // FIT TO ONE PAGE. Each step zooms the BODY and tightens its spacing; the
+    // letterhead strips are left alone, because shrinking those would print a
+    // letter on a slightly smaller letterhead than the one beside it in a file.
+    // The steps share one browser and stop at the first that lands on one page;
+    // if none does, the tightest render is what comes back.
+    const attempts = FIT_PLAN.map((step) => {
+      const extra =
+        (step.compact ? RICH_COMPACT_CSS : "") +
+        (step.scale === 1 ? "" : `.alh-body{zoom:${step.scale};}`);
+      return extra ? html.replace("</style>", `${extra}\n</style>`) : html;
+    });
+    // A count of 0 means the page count could not be read — keep that render
+    // rather than tightening a letter on a number we do not trust.
+    return await renderHtmlUntil(attempts, (pdf) => {
+      const pages = countPdfPages(pdf);
+      return pages > 0 && pages <= 1;
+    });
   } catch (err) {
     throw new Error(
       `Rich letter PDF render failed: ${err instanceof Error ? err.message : String(err)}`,

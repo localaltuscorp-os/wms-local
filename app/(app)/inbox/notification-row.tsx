@@ -31,6 +31,7 @@ interface Props {
 // Kinds that deep-link somewhere other than the related task / inbox.
 const KIND_HREF: Partial<Record<string, string>> = {
   ambassador_reminder: "/ambassadors",
+  ce_reference_reminder: "/operations/client-engagement/references",
   weekly_goals_assigned: "/goals/weekly",
   weekly_goals_fill_reminder: "/goals/weekly",
   weekly_goals_incomplete: "/goals/weekly",

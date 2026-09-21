@@ -51,6 +51,8 @@ const Schema = z.object({
   candidateName: z.string().trim().max(200).optional(),
   /** Optional uploaded scanned-signature image (data URL) for the sign-off. */
   signatureImage: z.string().max(3_000_000).optional(),
+  /** Shrink the letter step by step until it fits one A4 page (lib/hr/letters/fit). */
+  fitOnePage: z.boolean().optional(),
 });
 
 export async function POST(req: Request): Promise<Response> {
@@ -106,7 +108,7 @@ export async function POST(req: Request): Promise<Response> {
   try {
     if (b.contentKind === "rich" && b.bodyHtml) {
       const { renderRichLetterPdf } = await import("@/lib/hr/letters/render-rich");
-      pdf = Buffer.from(await renderRichLetterPdf({ entity: entity.id, bodyHtml: b.bodyHtml }));
+      pdf = Buffer.from(await renderRichLetterPdf({ entity: entity.id, bodyHtml: b.bodyHtml, fitOnePage: b.fitOnePage === true }));
     } else {
       const { renderLetterPdf } = await import("@/lib/hr/letters/pdf");
       pdf = await renderLetterPdf({
@@ -116,6 +118,7 @@ export async function POST(req: Request): Promise<Response> {
         date: b.date?.trim() || letterDate(),
         gender: normalizeGender(b.gender),
         signatureImage: b.signatureImage,
+        fitOnePage: b.fitOnePage === true,
       });
     }
   } catch {

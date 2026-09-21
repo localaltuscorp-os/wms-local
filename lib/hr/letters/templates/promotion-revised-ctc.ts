@@ -31,7 +31,7 @@ const template: LetterTemplate = {
       t(" to "),
       f("newDesignation", "New Designation", { placeholder: "e.g. Senior Business Development Manager" }),
       t(", effective "),
-      f("effectiveDate", "Effective Date", { placeholder: "e.g. 1 August 2026", date: true }),
+      f("effectiveDate", "Effective Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t("."),
     ),
 

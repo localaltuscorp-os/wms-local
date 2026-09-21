@@ -61,6 +61,28 @@ const nextConfig: NextConfig = {
    * Defaults to `.next`, so every existing build and deploy is unchanged.
    */
   distDir: process.env.NEXT_DIST_DIR || ".next",
+
+  // LAN ACCESS IN DEV — let a phone (or a second machine) open the dev server.
+  //
+  // `next dev` already listens on 0.0.0.0, so http://<lan-ip>:3002 CONNECTS and
+  // the server-rendered HTML arrives intact. But Next blocks cross-origin
+  // requests to its dev-only assets: anything under `/_next/*` or `/__nextjs*`
+  // whose Origin/Referer host isn't on the allowlist gets a bare 403
+  // "Unauthorized" (server/lib/router-utils/block-cross-site-dev.ts). The
+  // allowlist defaults to `localhost` alone, so over a LAN IP every JS chunk
+  // 403s while the HTML still renders — the page loads as a BLANK gradient with
+  // no error on screen, because nothing ever hydrates.
+  //
+  // The patterns are wildcards over the private IPv4 ranges rather than one
+  // pinned address, because the address is not stable: this machine alone
+  // exposes Wi-Fi (192.168.1.x) alongside two VMware adapters (192.168.17.1,
+  // 192.168.247.1), and DHCP moves the Wi-Fi one. Next matches a host by
+  // splitting on "." and allowing `*` per segment (app-render/csrf-protection.ts),
+  // which is why an IP wildcard works here at all.
+  //
+  // DEV ONLY by construction — `next build` / `next start` never consult this,
+  // so it cannot widen anything in production.
+  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.*.*.*"],
   // THIS DIRECTORY IS THE WORKSPACE, full stop.
   //
   // Turbopack infers the root by walking UP for a lockfile, and there is a stray

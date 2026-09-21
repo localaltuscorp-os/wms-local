@@ -1865,6 +1865,10 @@ export const NOTIFICATION_KINDS = [
   // column, no DB change; sent directly by app/api/cron/ambassador-reminders
   // (bypasses the matrix), routed to /ambassadors.
   "ambassador_reminder",
+  // Client Engagement (0238) — the weekly "collect your references" nudge for an
+  // Every Week quota not yet met. Text column, no DB change; sent directly by
+  // app/api/cron/ce-reference-reminders (bypasses the matrix).
+  "ce_reference_reminder",
   // Goals Cascade (migration 0131) — Saturday commit + Monday approval flow.
   // Text column, no DB change; the commit/approve reminders are sent directly by
   // app/api/cron/goals (bypasses the matrix); the committed/approved acks are
@@ -6775,7 +6779,14 @@ export const broadcasts = pgTable(
     // Scheduling / recurrence (0180). recurrence: none|daily|weekly|monthly.
     recurrence: text("recurrence").notNull().default("none").$type<BroadcastRecurrence>(),
     recurrenceUntil: date("recurrence_until"),
+    // Custom repeats (0229): the ISO instants a "custom" broadcast goes out on.
+    recurrenceDates: jsonb("recurrence_dates").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    // Monthly / annual repeats (0229): the first send, whose day of month is kept.
+    recurrenceAnchor: timestamp("recurrence_anchor", { withTimezone: true }),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    // Held while a sweep publishes this scheduled broadcast (0229) — see
+    // lib/ecos/publish-due.
+    publishClaimedAt: timestamp("publish_claimed_at", { withTimezone: true }),
     // Reminder / escalation policy (0180). reminderAfterDays null = off.
     reminderAfterDays: integer("reminder_after_days"),
     escalateToManager: boolean("escalate_to_manager").notNull().default(false),
@@ -6825,6 +6836,9 @@ export const broadcastRecipients = pgTable(
     snoozeSession: text("snooze_session"),
     snoozeCount: integer("snooze_count").notNull().default(0),
     popupSeenAt: timestamp("popup_seen_at", { withTimezone: true }),
+    // Per channel, what happened for this person (0229). Today only WhatsApp:
+    // {"whatsapp":{"status":"sent|skipped|failed",...}} — lib/ecos/whatsapp-params.
+    channelOutcomes: jsonb("channel_outcomes").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -8197,7 +8211,7 @@ export const candidateAccessLinks = pgTable(
 export type CandidateAccessLink = typeof candidateAccessLinks.$inferSelect;
 
 /** Where `/c/<token>` puts the candidate down (0222). */
-export type CandidateLinkPurpose = "form" | "policies";
+export type CandidateLinkPurpose = "form" | "policies" | "onboarding";
 
 /**
  * A candidate's typed acceptance of one policy (0222).
@@ -8573,6 +8587,8 @@ export const paPeople = pgTable("pa_people", {
   id: uuid("id").primaryKey().defaultRandom(),
   /** employee | intern — interns exist only for Ecosystem / App Development. */
   kind: text("kind").notNull().default("employee"),
+  /** A Client Engagement team lead (0230) — carries participants and clients. */
+  isCeLead: boolean("is_ce_lead").notNull().default(false),
   /** Always the display name, whether picked from the roster or typed in. */
   name: text("name").notNull(),
   /** Set when the person came from the employee roster; null when typed. */
@@ -8610,6 +8626,10 @@ export const paAmbassadors = pgTable("pa_ambassadors", {
   startDate: date("start_date"),
   endDate: date("end_date"),
   onHold: boolean("on_hold").notNull().default(false),
+  /** The lead who carries them; null while unassigned (0230). */
+  ownerPersonId: uuid("owner_person_id").references(() => paPeople.id, { onDelete: "set null" }),
+  /** active | barter | revenue_share; null until set (0230). */
+  status: text("status"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -8620,10 +8640,9 @@ export const paEntries = pgTable(
   "pa_entries",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    personId: uuid("person_id")
-      .notNull()
-      .references(() => paPeople.id, { onDelete: "cascade" }),
-    /** ps | bss | retainer | ecosystem, or null until a Product is chosen. */
+    /** The lead who carries it; NULL while it sits in the unassigned pool (0230). */
+    personId: uuid("person_id").references(() => paPeople.id, { onDelete: "cascade" }),
+    /** ps | bss | os | retainer | ecosystem, or null until a Product is chosen. */
     section: text("section"),
     name: text("name").notNull(),
     startDate: date("start_date"),
@@ -8638,6 +8657,18 @@ export const paEntries = pgTable(
     callType: text("call_type"),
     /** That call's length in MINUTES. Shown as HH:MM; stored as a quantity. */
     durationMin: integer("duration_min"),
+    /**
+     * 0194's active | inactive flag — which of the paired tables the row sits in.
+     * Client Engagement does NOT write this; it reads and writes `highlight`.
+     */
+    status: text("status").notNull().default("active"),
+    /** The colour band (0194), carrying the Client Engagement status (0230):
+     *  active | barter | revenue_share, or null for a plain row. */
+    highlight: text("highlight"),
+    /** 0194's free note on a row. */
+    note: text("note"),
+    /** Set when the engagement is over — archived, never deleted (0230). */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -8709,10 +8740,194 @@ export const paCalls = pgTable(
     /** mon..sun */
     day: text("day").notNull(),
     durationMin: integer("duration_min").notNull().default(0),
+    /** The call's window, 10:00–20:00 (0230). Null on calls that predate times. */
+    startTime: time("start_time"),
+    endTime: time("end_time"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("pa_calls_entry_idx").on(t.entryId)],
 );
+
+/**
+ * CLIENT ENGAGEMENT — who moved a participant / client / ambassador, and when
+ * (0230). Assigning from the unassigned pool is a transfer from nobody.
+ */
+export const paAssignmentEvents = pgTable(
+  "pa_assignment_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** entry | ambassador */
+    entityType: text("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    fromPersonId: uuid("from_person_id").references(() => paPeople.id, { onDelete: "set null" }),
+    toPersonId: uuid("to_person_id").references(() => paPeople.id, { onDelete: "set null" }),
+    actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("pa_assignment_events_entity_idx").on(t.entityType, t.entityId, t.createdAt)],
+);
+
+/**
+ * DD MASTER (0230) — the dropdown lists the Client Engagement forms offer:
+ * products, call types and batch numbers. The code constants
+ * (lib/client-engagement/constants) stay the fallback, so an empty table changes
+ * nothing.
+ */
+export const ceDropdownOptions = pgTable(
+  "ce_dropdown_options",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** product | call_type | batch */
+    listKey: text("list_key").notNull(),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdBy: uuid("created_by").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("ce_dropdown_options_key_code_uidx").on(t.listKey, t.code)],
+);
+
+/* ── CLIENT ENGAGEMENT v2 (0238) ─────────────────────────────────────────
+ * The rebuild's own tables. Linked to Hand-holding (employee_id / hh_entry_id),
+ * never sharing its rows. Vocabulary and rules: lib/client-engagement/. */
+
+/** A coach / account manager who carries accounts. */
+export const ceTeamMembers = pgTable(
+  "ce_team_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    /** Their login, when they have one — drives "my calendar" and the HH overlay. */
+    employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    email: text("email"),
+    /** coach | consultant | account_manager | admin */
+    role: text("role").notNull().default("coach"),
+    /** The capacity cap the KPI bar measures active accounts against. */
+    activeClientLimit: integer("active_client_limit").notNull().default(20),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdBy: uuid("created_by").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ce_team_members_employee_uidx").on(t.employeeId).where(sql`employee_id IS NOT NULL`),
+  ],
+);
+export type CeTeamMember = typeof ceTeamMembers.$inferSelect;
+
+/** One participant, client or ambassador. `assignedTo` null = Unassigned. */
+export const ceAccounts = pgTable(
+  "ce_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fullName: text("full_name").notNull(),
+    organization: text("organization"),
+    /** ps | bss | retainer | corporate | ambassador */
+    category: text("category").notNull(),
+    /** PS / BSS only (DB CHECK). */
+    batchCode: text("batch_code"),
+    assignedTo: uuid("assigned_to").references(() => ceTeamMembers.id, { onDelete: "set null" }),
+    /** active | inactive | churned | completed */
+    lifecycleStatus: text("lifecycle_status").notNull().default("active"),
+    /** standard | revenue_share | fee_recovery | not_started | on_hold */
+    hhStatus: text("hh_status").notNull().default("standard"),
+    startDate: date("start_date"),
+    endDate: date("end_date"),
+    tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+    notes: text("notes"),
+    /** The Hand-holding row this account corresponds to, if any. */
+    hhEntryId: uuid("hh_entry_id").references(() => paEntries.id, { onDelete: "set null" }),
+    createdBy: uuid("created_by").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ce_accounts_assigned_idx").on(t.assignedTo, t.category),
+    index("ce_accounts_category_idx").on(t.category, t.batchCode),
+  ],
+);
+export type CeAccount = typeof ceAccounts.$inferSelect;
+
+/** A weekly call slot: weekday + from/to (10:00–20:00) over a date range. */
+export const ceEngagements = pgTable(
+  "ce_engagements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id").notNull().references(() => ceAccounts.id, { onDelete: "cascade" }),
+    teamMemberId: uuid("team_member_id").notNull().references(() => ceTeamMembers.id, { onDelete: "cascade" }),
+    /** hh | tool | checkin | reference */
+    callType: text("call_type").notNull(),
+    /** mon..sun */
+    dayOfWeek: text("day_of_week").notNull(),
+    startTime: time("start_time").notNull(),
+    endTime: time("end_time").notNull(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date"),
+    notes: text("notes"),
+    createdBy: uuid("created_by").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ce_engagements_member_idx").on(t.teamMemberId, t.dayOfWeek, t.startTime),
+    index("ce_engagements_account_idx").on(t.accountId),
+  ],
+);
+export type CeEngagement = typeof ceEngagements.$inferSelect;
+
+/** Reference Pipeline — a quota of referrals to collect from one account. */
+export const ceReferences = pgTable(
+  "ce_references",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id").notNull().references(() => ceAccounts.id, { onDelete: "cascade" }),
+    collectorId: uuid("collector_id").references(() => ceTeamMembers.id, { onDelete: "set null" }),
+    /** bss | bss_c | general */
+    targetProgram: text("target_program").notNull().default("general"),
+    targetCount: integer("target_count").notNull(),
+    actualCollected: integer("actual_collected").notNull().default(0),
+    /** one_time | every_week */
+    frequency: text("frequency").notNull().default("one_time"),
+    dueDate: date("due_date"),
+    notes: text("notes"),
+    lastRemindedOn: date("last_reminded_on"),
+    createdBy: uuid("created_by").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ce_references_collector_idx").on(t.collectorId),
+    index("ce_references_account_idx").on(t.accountId),
+  ],
+);
+export type CeReference = typeof ceReferences.$inferSelect;
+
+/** Who changed what in Client Engagement, and when. */
+export const ceAuditLog = pgTable(
+  "ce_audit_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** account | engagement | reference | team_member */
+    entityType: text("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    /** create | update | assign | transfer | status | reference_count | delete */
+    action: text("action").notNull(),
+    summary: text("summary").notNull(),
+    before: jsonb("before"),
+    after: jsonb("after"),
+    actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ce_audit_log_entity_idx").on(t.entityType, t.entityId, t.createdAt),
+    index("ce_audit_log_recent_idx").on(t.createdAt),
+  ],
+);
+export type CeAuditLog = typeof ceAuditLog.$inferSelect;
 /**
  * EXIT RECORD (migration 0212) — one row per departure.
  *
@@ -10447,3 +10662,208 @@ export const billingContractPdcs = pgTable(
   (t) => [index("billing_contract_pdcs_contract_idx").on(t.contractId, t.srNo)],
 );
 export type BillingContractPdc = typeof billingContractPdcs.$inferSelect;
+// ─────────────────────────────────────────────────────────────────────────────
+// HR · Address Book of Resources + Asset Register (migration 0227).
+// Editors: lib/hr/registers.ts (Ruchita, Rutvisha, Manan); everyone in HR views.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Outside resources — vendors and service people. Employees are read live, not stored here. */
+export const hrContacts = pgTable(
+  "hr_contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyName: text("company_name"),
+    personName: text("person_name").notNull(),
+    cellNo: text("cell_no"),
+    alternateNo: text("alternate_no"),
+    email: text("email"),
+    service: text("service").notNull().default("Other"),
+    notes: text("notes"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("hr_contacts_active_idx").on(t.isActive), index("hr_contacts_service_idx").on(t.service)],
+);
+export type HrContact = typeof hrContacts.$inferSelect;
+
+/** Operations → Directory: every outside vendor, with postal address + AMC (migration 0228). */
+export const opsVendors = pgTable(
+  "ops_vendors",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    category: text("category").notNull().default("Other"),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name"),
+    cellNo: text("cell_no"),
+    email: text("email"),
+    addressLine1: text("address_line1"),
+    addressLine2: text("address_line2"),
+    addressLine3: text("address_line3"),
+    addressLine4: text("address_line4"),
+    landmark: text("landmark"),
+    city: text("city"),
+    state: text("state"),
+    pincode: text("pincode"),
+    website: text("website"),
+    amc: boolean("amc").notNull().default(false),
+    notes: text("notes"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ops_vendors_active_idx").on(t.isActive), index("ops_vendors_category_idx").on(t.category)],
+);
+export type OpsVendor = typeof opsVendors.$inferSelect;
+
+/** Per-type running number behind hr_assets.asset_code (LAP-0001, MON-0001, …). */
+export const hrAssetCounters = pgTable("hr_asset_counters", {
+  prefix: text("prefix").primaryKey(),
+  last: integer("last").notNull().default(0),
+});
+
+export type HrAssetIssuedKind = "person" | "office" | "none";
+
+export const hrAssets = pgTable(
+  "hr_assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Assigned by the save action from hr_asset_counters — never typed by a person.
+    assetCode: text("asset_code").notNull().unique(),
+    assetType: text("asset_type").notNull(),
+    assetName: text("asset_name").notNull(),
+    location: text("location"),
+    serialNo: text("serial_no"),
+    model: text("model"),
+    make: text("make"),
+    description: text("description"),
+    specifications: text("specifications"),
+    warrantyUntil: date("warranty_until"),
+    underAmc: boolean("under_amc").notNull().default(false),
+    vendorName: text("vendor_name"),
+    photoPath: text("photo_path"),
+    invoicePath: text("invoice_path"),
+    issuedKind: text("issued_kind").notNull().default("none").$type<HrAssetIssuedKind>(),
+    issuedEmployeeId: uuid("issued_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    issuedOffice: text("issued_office"),
+    notes: text("notes"),
+    username: text("username"),
+    /** AES-256-GCM ciphertext (lib/accounts/crypto.ts) — never plaintext. */
+    passwordEnc: text("password_enc"),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("hr_assets_type_idx").on(t.assetType), index("hr_assets_issued_employee_idx").on(t.issuedEmployeeId)],
+);
+export type HrAsset = typeof hrAssets.$inferSelect;
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EXECUTIVE MASTER CALENDAR (0231)
+
+   One executive's master schedule. Deliberately SEPARATE from `calendarEvents`
+   and its five friends, which are the shared company calendar several modules
+   read: these rows carry an owner and a visibility, and mixing the two would
+   make every existing consumer responsible for filtering private blocks it
+   never had to think about. See db/migrations/0231_exec_calendar.sql.
+
+   Times are integer minutes-from-midnight and dates are plain `date` — never a
+   timestamptz, which is what makes a 07:00 block render at 01:30 for the next
+   person who opens it.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** public | busy | private — see lib/exec-calendar/privacy.ts. */
+export type ExecVisibilityCol = "public" | "busy" | "private";
+
+export const execCalendarRoutines = pgTable(
+  "exec_calendar_routines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: uuid("owner_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    categoryKey: text("category_key").notNull(),
+    /** 0=Mon … 6=Sun; empty = every day in the range. */
+    daysOfWeek: integer("days_of_week").array().notNull().default([]),
+    startMin: integer("start_min").notNull(),
+    endMin: integer("end_min").notNull(),
+    fromDate: date("from_date").notNull(),
+    toDate: date("to_date").notNull(),
+    visibility: text("visibility").notNull().default("public").$type<ExecVisibilityCol>(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("exec_calendar_routines_owner_idx").on(t.ownerId, t.isActive)],
+);
+export type ExecCalendarRoutine = typeof execCalendarRoutines.$inferSelect;
+
+export const execCalendarEvents = pgTable(
+  "exec_calendar_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: uuid("owner_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    categoryKey: text("category_key").notNull(),
+    eventDate: date("event_date").notNull(),
+    startMin: integer("start_min"),
+    endMin: integer("end_min"),
+    allDay: boolean("all_day").notNull().default(false),
+    visibility: text("visibility").notNull().default("public").$type<ExecVisibilityCol>(),
+    location: text("location"),
+    notes: text("notes"),
+    /** The Client Engagement record this consulting slot is for (§4A). */
+    clientEntryId: uuid("client_entry_id").references(() => paEntries.id, { onDelete: "set null" }),
+    /** Which client from the fixed list (lib/exec-calendar/clients.ts), migration 0237. */
+    clientKey: text("client_key"),
+    batchLabel: text("batch_label"),
+    routineId: uuid("routine_id").references(() => execCalendarRoutines.id, { onDelete: "set null" }),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("exec_calendar_events_owner_date_idx").on(t.ownerId, t.eventDate),
+    index("exec_calendar_events_date_idx").on(t.eventDate),
+    index("exec_calendar_events_client_idx").on(t.clientEntryId),
+    index("exec_calendar_events_routine_idx").on(t.routineId),
+  ],
+);
+export type ExecCalendarEvent = typeof execCalendarEvents.$inferSelect;
+
+/**
+ * DAY MARKERS (migration 0237): a label ("Final exam", "Exam week") on one day,
+ * a run of days, or hand-picked days. `dates` is the expanded list; `mode`
+ * records how it was entered so the editor reopens it the same way.
+ */
+export const execCalendarDayMarkers = pgTable(
+  "exec_calendar_day_markers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: uuid("owner_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    mode: text("mode").notNull().default("day").$type<"day" | "range" | "dates">(),
+    dates: date("dates").array().notNull().default([]),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("exec_calendar_day_markers_owner_idx").on(t.ownerId)],
+);
+export type ExecCalendarDayMarker = typeof execCalendarDayMarkers.$inferSelect;
+
+/** The grid window, per person, so "configurable" survives a browser change. */
+export const execCalendarPrefs = pgTable("exec_calendar_prefs", {
+  employeeId: uuid("employee_id").primaryKey().references(() => employees.id, { onDelete: "cascade" }),
+  startMin: integer("start_min").notNull().default(420),
+  endMin: integer("end_min").notNull().default(1320),
+  slotMin: integer("slot_min").notNull().default(30),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarPrefs = typeof execCalendarPrefs.$inferSelect;

@@ -1,9 +1,79 @@
 import { requireWorkspaceAdmin } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
 import { canEditModule } from "@/lib/permissions/resolve";
-import { getHierarchy } from "@/lib/queries/hierarchy";
+import { getHierarchy, type HierarchySnapshot } from "@/lib/queries/hierarchy";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { HierarchyBoard, HierarchyNote } from "@/components/admin/hierarchy-board";
 import { TeamTransferPanel } from "@/components/operations/team-transfer-panel";
+
+/**
+ * The fixture people the local dummy database seeds for every OTHER module
+ * (tasks, clients, goals…) — ids from scripts/dummy-db-seed.ts.
+ *
+ * Team Reporting is tested against a real org chart instead, so they are kept
+ * off THIS board only. Every other module still sees them, which is the point:
+ * nothing else in dummy mode changes shape.
+ *
+ * `DUMMY_MODE` is false in any production build (lib/db/dummy-dir.ts), so this
+ * filter cannot remove anybody from the real board. And no production employee
+ * can carry one of these ids: they are hand-written all-zero UUIDs that
+ * `gen_random_uuid()` never produces.
+ */
+const DUMMY_FIXTURE_IDS = new Set([
+  "00000000-0000-4000-8000-000000000001",
+  "00000000-0000-4000-8000-000000000002",
+  "00000000-0000-4000-8000-000000000003",
+  "00000000-0000-4000-8000-000000000004",
+  "00000000-0000-4000-8000-000000000005",
+  "00000000-0000-4000-8000-000000000006",
+]);
+
+function withoutDummyFixtures(snapshot: HierarchySnapshot): HierarchySnapshot {
+  const keep = (id: string) => !DUMMY_FIXTURE_IDS.has(id);
+  const columns = snapshot.columns
+    .filter((c) => c.managerId === null || keep(c.managerId))
+    .map((c) => ({ ...c, reports: c.reports.filter((p) => keep(p.id)) }));
+  const unassigned = columns.find((c) => c.managerId === null)?.reports ?? [];
+  return {
+    people: snapshot.people.filter((p) => keep(p.id)),
+    columns,
+    unassignedCount: unassigned.filter((p) => p.reportCount === 0).length,
+  };
+}
+
+/**
+ * Team Reporting colours (2026-09): each manager's box OUTLINE and HEADING text.
+ * Matched on the manager's FIRST NAME (case-insensitive), because that is how the
+ * board names them; a manager not listed here — and the "No manager assigned"
+ * column — keeps the default look. Rename a manager's first name and their
+ * colour needs updating here.
+ */
+const BLACK = "#111111";
+const RED = "#E10600";
+const LIGHT_GRAY = "#9CA3AF";
+const DARK_GRAY = "#4B5563";
+const MANAGER_ACCENTS: Record<string, string> = {
+  manan: BLACK,
+  rohan: RED,
+  mitul: RED,
+  ruchita: LIGHT_GRAY,
+  rashmi: LIGHT_GRAY,
+  rutvisha: LIGHT_GRAY,
+  jeevan: DARK_GRAY,
+  mohit: DARK_GRAY,
+};
+
+/** managerId → colour, for the columns whose manager has one. */
+function managerAccentsFor(snapshot: HierarchySnapshot): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const c of snapshot.columns) {
+    if (!c.managerId) continue;
+    const first = c.managerName.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+    const color = MANAGER_ACCENTS[first];
+    if (color) out[c.managerId] = color;
+  }
+  return out;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +108,11 @@ export const dynamic = "force-dynamic";
 export default async function TeamReportingPage() {
   await requireWorkspaceAdmin("operations");
 
-  const [snapshot, canEdit] = await Promise.all([
-    getHierarchy(),
+  const [rawSnapshot, canEdit] = await Promise.all([
+    getHierarchy({ layout: "tree" }),
     canEditModule("admin.people.hierarchy"),
   ]);
+  const snapshot = DUMMY_MODE ? withoutDummyFixtures(rawSnapshot) : rawSnapshot;
 
   return (
     <PageShell width="wide">
@@ -74,6 +145,8 @@ export default async function TeamReportingPage() {
         canEdit={canEdit}
         showNote={false}
         compact
+        grid
+        managerAccents={managerAccentsFor(snapshot)}
       />
     </PageShell>
   );

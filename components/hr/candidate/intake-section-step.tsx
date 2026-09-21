@@ -9,6 +9,12 @@ import { fireToast } from "@/lib/toast";
 import { IntakePositionSelect } from "@/components/hr/candidate/intake-position-select";
 import { IntakeField, IntakeReadonlyField } from "@/components/hr/candidate/intake-field";
 import { CandidatePhotoField, type PhotoUploadUrlFn } from "@/components/hr/candidate/candidate-photo-field";
+import {
+  CandidateWorkSamplesField,
+  type WorkFileUrlFn,
+  type WorkUploadUrlFn,
+} from "@/components/hr/candidate/candidate-work-samples-field";
+import { WORK_SAMPLES_KEY } from "@/lib/hr/candidate/work-samples";
 
 /**
  * Resolve a `compute` field's value from its sibling inputs. `prefix` is the
@@ -42,6 +48,8 @@ export function IntakeSectionStep({
   departments,
   canManagePositions,
   photoUploadUrl,
+  workUploadUrl,
+  workFileUrl,
 }: {
   section: IntakeSection;
   values: Record<string, string>;
@@ -54,6 +62,8 @@ export function IntakeSectionStep({
   departments: string[];
   canManagePositions: boolean;
   photoUploadUrl: PhotoUploadUrlFn;
+  workUploadUrl: WorkUploadUrlFn;
+  workFileUrl: WorkFileUrlFn;
 }) {
   const RequiredMsg = () => (
     <p className="mt-1.5 text-[12px] font-semibold text-altus-red">This field is required.</p>
@@ -256,6 +266,18 @@ export function IntakeSectionStep({
             return out;
           })()}
         </div>
+      )}
+
+      {/* WORK SAMPLES & LINKS close Personal Details (2026-09-18). Optional and
+          outside the schema for the same reason as the photo above; the value
+          is the `personal.workSamples` answer key. */}
+      {section.id === "personal" && (
+        <CandidateWorkSamplesField
+          value={values[WORK_SAMPLES_KEY] ?? ""}
+          onChange={(json) => set(WORK_SAMPLES_KEY, json)}
+          uploadUrl={workUploadUrl}
+          fileUrl={workFileUrl}
+        />
       )}
     </div>
   );

@@ -85,7 +85,12 @@ export function HhWeekCalendar({
   }
 
   const occurrencesFor = React.useCallback(
-    (personId: string, date: string) => callOccurrences(entries.filter((e) => e.personId === personId), calls, date),
+    (personId: string, date: string) => callOccurrences(
+        // Unassigned entries (personId null, Client Engagement's pool) never match.
+        entries.filter((e): e is HhEntry & { personId: string } => e.personId === personId),
+        calls,
+        date,
+      ),
     [entries, calls],
   );
   const dccFor = (p: HhPerson, date: string): HhDccDay | null =>

@@ -1,7 +1,6 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
@@ -77,39 +76,51 @@ export function HrModuleRail({
       className="flex h-full w-full shrink-0 flex-col border-r border-hairline bg-surface-card"
     >
       {/* Box 1 — navigation controls + brand */}
-      <div className="border-b border-hairline px-3 pb-4 pt-3">
-        <div className={cn("flex items-center gap-1.5", collapsed && "justify-center")}>
-          {/* Back/Forward hide when collapsed — only the toggle (the one
-              control that must always be reachable) stays. */}
+      {/* Matches components/layout/dashboard-sidebar.tsx box for box: the same
+          padding, the same control row, the same brand block. HR draws its own
+          rail (it has three columns) and had drifted into a look of its own -
+          round buttons, a smaller logo, a "MODULES" caption and denser rows -
+          so moving between HR and any other module read as two applications. */}
+      <div className="flex flex-col gap-3 px-4 pb-3 pt-4">
+        {/* History on the left, divider, collapse toggle pinned right - the
+            WMS / Operations row. Collapsed, only the toggle remains, because it
+            is the one control that must always be reachable. */}
+        <div className={cn("flex items-center gap-2", collapsed && "justify-center")}>
           {!collapsed && (
-            <>
+            <div className="flex min-w-0 flex-1 items-center gap-1">
               <RailControl label="Back" onClick={() => router.back()}>
-                <ChevronLeft className="h-3.5 w-3.5" />
+                <ChevronLeft size={18} strokeWidth={2.3} />
               </RailControl>
               <RailControl label="Forward" onClick={() => router.forward()}>
-                <ChevronRight className="h-3.5 w-3.5" />
+                <ChevronRight size={18} strokeWidth={2.3} />
               </RailControl>
-            </>
+              <span aria-hidden className="ml-2 mr-1 inline-block h-6 w-px bg-hairline" />
+            </div>
           )}
-          <RailControl
-            label={collapsed ? "Expand module list" : "Collapse module list"}
+          <button
+            type="button"
             onClick={onToggleRail}
+            aria-label={collapsed ? "Expand module list" : "Collapse module list"}
+            title={collapsed ? "Expand module list" : "Collapse module list"}
+            aria-pressed={collapsed}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-hairline bg-surface-card text-ink-soft transition-colors hover:border-hairline-strong hover:text-ink-strong"
           >
-            {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeft className="h-3.5 w-3.5" />}
-          </RailControl>
+            {collapsed ? <PanelLeftOpen size={15} strokeWidth={2.3} /> : <PanelLeft size={15} strokeWidth={2.3} />}
+          </button>
         </div>
 
         <Link
           href={"/hub" as Route}
-          className="mt-4 flex flex-col items-center gap-2 rounded-xl py-1 transition-colors hover:bg-surface-soft"
+          className="flex flex-col items-center gap-3 rounded-xl py-1 text-center transition-opacity hover:opacity-80"
           title="Back to Hub"
         >
-          <Image
-            src="/altus-corp-logo.png"
+          {/* The same /logo.png at the same height as the other rails. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
             alt="Altus Corp"
-            width={56}
-            height={56}
-            className={cn("object-contain", collapsed ? "h-9 w-9" : "h-14 w-14")}
+            className={cn("w-auto", collapsed ? "h-12" : "h-[68px]")}
+            style={{ display: "block" }}
           />
           {/* Hidden when collapsed: the 64px strip has room for the Altus mark
               alone, and this lockup would wrap to nothing legible there. */}
@@ -181,7 +192,7 @@ export function HrModuleRail({
             const inner = (
               <>
                 <mod.Icon
-                  className={cn("h-4 w-4 shrink-0", selected ? "text-altus-red" : "text-ink-muted")}
+                  className={cn("h-[18px] w-[18px] shrink-0", selected ? "text-altus-red" : "text-ink-soft")}
                 />
                 {/* min-w-0 so `truncate` can still shrink it: a flex item's
                     default min-width:auto would otherwise refuse to go below
@@ -206,7 +217,7 @@ export function HrModuleRail({
             // the rail to its content. Flex lets the label size to its own
             // text; the external-link arrow right-aligns itself via ml-auto.
             const className = cn(
-              "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] font-semibold transition-colors",
+              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] font-semibold transition-colors",
               collapsed && "justify-center",
               selected
                 ? "bg-[color-mix(in_srgb,var(--color-altus-red-soft)_35%,var(--color-altus-red-wash))] text-altus-red"
@@ -280,14 +291,14 @@ export function HrModuleRail({
             collapsed ? "grid-cols-[auto] justify-center" : "grid-cols-[auto_minmax(0,1fr)_auto]",
           )}
         >
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-altus-red text-xs font-bold text-white">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-altus-red text-[13px] font-bold text-white">
             {initials}
           </span>
           {!collapsed && (
             <>
               <span className="min-w-0">
-                <span className="block truncate text-[13px] font-bold text-ink">{user.name}</span>
-                <span className="block truncate text-[11px] text-ink-muted">{user.role}</span>
+                <span className="block truncate text-[14px] font-bold text-ink">{user.name}</span>
+                <span className="block truncate text-[12px] text-ink-muted">{user.role}</span>
               </span>
               <ChevronUp className="h-4 w-4 shrink-0 text-ink-muted" />
             </>
@@ -313,7 +324,7 @@ function RailControl({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="grid h-8 w-8 place-items-center rounded-full border border-hairline text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink"
+      className="inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-hairline bg-surface-soft text-ink-subtle transition-colors hover:border-hairline-strong hover:bg-surface-card hover:text-ink-strong"
     >
       {children}
     </button>

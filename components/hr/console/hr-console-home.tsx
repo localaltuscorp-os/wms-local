@@ -21,7 +21,7 @@ const AllPoliciesPopup = dynamic(
  * It still honours /hr?policies=1 (the "Policy Signatures" step), which used to
  * open the all-policies sheet from the landing page.
  */
-export function HrConsoleHome({ isHrStaff }: { isHrStaff: boolean }) {
+export function HrConsoleHome() {
   const searchParams = useSearchParams();
   const wantsPolicies = Boolean(searchParams?.get("policies"));
   const [policiesOpen, setPoliciesOpen] = React.useState(false);
@@ -33,10 +33,14 @@ export function HrConsoleHome({ isHrStaff }: { isHrStaff: boolean }) {
   const previewed = useHrConsolePreviewedModule();
 
   React.useEffect(() => {
-    // Staff-only, matching the old landing page — a normal employee never gets
-    // this surface, even via a hand-crafted URL.
-    if (isHrStaff && wantsPolicies) setPoliciesOpen(true);
-  }, [isHrStaff, wantsPolicies]);
+    // OPEN TO EVERY EMPLOYEE (2026-09-17). This was staff-only, which made the
+    // firm's own policies unreadable by the people they bind: the individual
+    // pages (/hr/policies/<key>) were already open to all, so the gate hid the
+    // LIST, not the content. A policy nobody outside HR can find is not
+    // published. Authoring and editing stay staff-only — that gate is on
+    // /hr/policies/<key>/edit, not here.
+    if (wantsPolicies) setPoliciesOpen(true);
+  }, [wantsPolicies]);
 
   // The card itself is HrModuleGhost — shared with HrConsoleShell, which
   // shows the SAME pane when you pick a module while another module's page

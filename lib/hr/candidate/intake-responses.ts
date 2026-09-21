@@ -1,5 +1,6 @@
 import { INTAKE_SECTIONS } from "@/lib/hr/candidate/intake-schema";
 import type { HrFormResponse } from "@/lib/hr/forms/schema";
+import { WORK_SAMPLES_KEY, describeWorkSamples } from "@/lib/hr/candidate/work-samples";
 
 /**
  * Flatten a saved Candidate Intake row into the question/answer shape the HR
@@ -52,6 +53,9 @@ export function intakeResponses(
     for (const f of section.fields) {
       push(f.label, v[`${section.id}.${f.key}`], section.title);
     }
+    // Work samples live outside the schema (lib/hr/candidate/work-samples.ts),
+    // so they are added by hand at the end of their section.
+    if (section.id === "personal") push("Work samples & links", describeWorkSamples(v[WORK_SAMPLES_KEY]), section.title);
   }
 
   return out;

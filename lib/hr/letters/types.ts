@@ -200,6 +200,16 @@ export interface ParagraphBlock {
    * overrides (e.g. a right-aligned Designation in the CTC header).
    */
   align?: "left" | "center" | "right";
+  /**
+   * KEEP WITH THE NEXT BLOCK when the page breaks.
+   *
+   * For lines that mean nothing apart - a sign-off's "Print your name / Date /
+   * Attach your signature" printed with the name on one page and the
+   * signature box on the next is a sign-off nobody can use. Rendered as
+   * `break-after: avoid` in the field view's print CSS and in the free-edit
+   * HTML (and so the issued PDF).
+   */
+  keepWithNext?: boolean;
 }
 
 /** A "Label : value" term row — e.g. `Department : <field>`. */

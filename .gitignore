@@ -170,3 +170,9 @@ AGENTS.md
 # Read by scripts/dummy-db-seed.ts when present; never committed, so the
 # test org chart cannot reach the repository or production.
 scripts/dummy-team-tree.local.json
+
+# Quarantined modules being rebuilt from scratch — kept on the developer's
+# machine for reference and copy-paste, never committed. Git history is the
+# real archive (`git show <sha>:<path>`); this is the convenience copy.
+# Excluded from tsconfig too, so nothing in here is compiled or typechecked.
+_archive/

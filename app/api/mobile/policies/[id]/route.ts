@@ -7,9 +7,10 @@ import { authenticateMobileRequest, MOBILE_CORS } from "@/lib/auth/mobile";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { canAccessWorkspace } from "@/lib/workspaces";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { hrSupportEnabled } from "@/lib/hr/flag";
+import { canPublishPolicies } from "@/lib/hr/policies/access";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { POLICY_STORAGE_PREFIX } from "@/lib/hr/sections";
 
 export const runtime = "nodejs";
@@ -19,8 +20,10 @@ export function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: MOBILE_CORS });
 }
 
+/** The exact web rule (lib/hr/policies/access.ts): only Manan, Ruchita and
+ *  Rutvisha publish or remove a policy, so phone and browser cannot drift. */
 function isAdmin(me: Employee): boolean {
-  return me.isAdmin || isSuperAdmin(me.email);
+  return canPublishPolicies(me, DUMMY_MODE);
 }
 
 async function inHrRoom(me: Employee): Promise<boolean> {

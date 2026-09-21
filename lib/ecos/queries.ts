@@ -3,6 +3,7 @@ import { and, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { broadcasts, broadcastRecipients, broadcastSegments, broadcastPollResponses, broadcastTemplates, employees, type Broadcast, type BroadcastRecipient, type BroadcastTemplate } from "@/db/schema";
 import type { AudienceRule } from "@/lib/ecos/audience";
+import { whatsappOutcomeOf, type WhatsAppOutcome } from "@/lib/ecos/whatsapp-params";
 import type {
   BroadcastCategory,
   BroadcastPriority,
@@ -126,6 +127,8 @@ export interface BroadcastStats {
   read: number;
   acknowledged: number;
   pending: number;
+  /** The automatic WhatsApp channel, across recipients. */
+  whatsapp: { sent: number; skipped: number; failed: number };
 }
 
 export interface BroadcastRecipientRow {
@@ -142,6 +145,8 @@ export interface BroadcastRecipientRow {
   deliveredChannels: string[];
   snoozeCount: number;
   snoozedAt: Date | null;
+  /** What the automatic WhatsApp channel did for this person, if it ran. */
+  whatsapp: WhatsAppOutcome | null;
 }
 
 /**
@@ -178,6 +183,7 @@ export async function getBroadcastWithStats(id: string): Promise<{
       deliveredChannels: broadcastRecipients.deliveredChannels,
       snoozeCount: broadcastRecipients.snoozeCount,
       snoozedAt: broadcastRecipients.snoozedAt,
+      channelOutcomes: broadcastRecipients.channelOutcomes,
     })
     .from(broadcastRecipients)
     .innerJoin(employees, eq(employees.id, broadcastRecipients.employeeId))
@@ -199,6 +205,7 @@ export async function getBroadcastWithStats(id: string): Promise<{
       : [],
     snoozeCount: r.snoozeCount ?? 0,
     snoozedAt: r.snoozedAt,
+    whatsapp: whatsappOutcomeOf(r.channelOutcomes),
   }));
 
   const stats: BroadcastStats = {
@@ -206,11 +213,13 @@ export async function getBroadcastWithStats(id: string): Promise<{
     read: 0,
     acknowledged: 0,
     pending: 0,
+    whatsapp: { sent: 0, skipped: 0, failed: 0 },
   };
   for (const r of recips) {
     if (r.status === "acknowledged") stats.acknowledged += 1;
     else if (r.status === "read") stats.read += 1;
     else stats.pending += 1;
+    if (r.whatsapp) stats.whatsapp[r.whatsapp.status] += 1;
   }
 
   return { broadcast, stats, recipients: recips };

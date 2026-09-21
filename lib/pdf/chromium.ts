@@ -187,3 +187,43 @@ export async function renderHtmlBatchToPdf(htmls: readonly string[]): Promise<Ui
     }
   }
 }
+
+/**
+ * PRINT CANDIDATES UNTIL ONE PASSES, ON ONE BROWSER.
+ *
+ * The HR letter editor can be asked to shrink a letter until it lands on a
+ * single A4 page (lib/hr/letters/fit.ts): render at full size, and if that runs
+ * to two pages, render again tighter, and again, until it fits. Each attempt is
+ * a full print, so doing it with `renderHtmlToPdf` would launch Chromium once
+ * per step — seconds each, on the slowest path there is.
+ *
+ * So the attempts share one browser, and the loop STOPS at the first candidate
+ * `accept` is happy with. The last render is returned when none passes, because
+ * the floor of the plan is still the best answer available — a letter that will
+ * not fit is printed at the tightest setting, not refused.
+ */
+export async function renderHtmlUntil(
+  htmls: readonly string[],
+  accept: (pdf: Uint8Array) => boolean,
+): Promise<Uint8Array> {
+  if (htmls.length === 0) throw new Error("renderHtmlUntil: nothing to render");
+
+  let browser: any = null;
+  try {
+    browser = await launchBrowser();
+    let last: Uint8Array | null = null;
+    for (const html of htmls) {
+      last = await printHtml(browser, html);
+      if (accept(last)) return last;
+    }
+    return last as Uint8Array;
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {
+        /* ignore close errors — the PDF is already in memory */
+      }
+    }
+  }
+}

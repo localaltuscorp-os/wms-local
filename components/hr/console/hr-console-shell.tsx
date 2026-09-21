@@ -7,19 +7,19 @@ import { HR_CONSOLE_MODULES, locateHrRoute } from "@/lib/hr/console-nav";
 import { visibleConsoleModules } from "@/lib/hr/console-visibility";
 import { cn } from "@/lib/utils";
 import { HrModuleRail } from "./hr-module-rail";
-import { HrStepList } from "./hr-step-list";
+import { HrStepNav } from "./hr-step-nav";
 import { HrConsoleContextProvider } from "./hr-console-context";
 import { HrModuleGhost } from "./hr-module-ghost";
 
 /**
- * The HR workspace — a three-column console wrapping every /hr surface:
+ * The HR workspace — a two-column console wrapping every /hr surface:
  *
- *   module rail (256px) │ steps (320px) │ the page itself
+ *   module rail (256px) │ the page itself
  *
- * The middle column (HrStepList) lists the selected module's steps/letters as a
- * vertical list, so a letter is one click away. It was briefly replaced by a
- * horizontal quick-access nav pinned under the top bar; that bar is gone and the
- * column is back, with its own collapse toggle beside the rail's.
+ * The module's steps used to be a third column, a 320px sidebar between the
+ * two. They are now a horizontal QUICK-ACCESS NAV (HrStepNav) pinned at the top
+ * of the content column instead — same links, one row, and no column of its own
+ * to collapse, which is why the collapse control and its shared state are gone.
  *
  * Applied from app/(app)/hr/layout.tsx, so `children` is the real Next.js page
  * for the current route and the console never renders placeholder content. The
@@ -66,7 +66,6 @@ export function HrConsoleShell({
   // Two independently collapsible columns. The steps list is a real column again
   // (see below), so it gets its own toggle beside the rail's.
   const [railCollapsed, setRailCollapsed] = React.useState(false);
-  const [stepsCollapsed, setStepsCollapsed] = React.useState(false);
 
 
 
@@ -174,32 +173,6 @@ export function HrConsoleShell({
         />
       </div>
 
-      {/* THE STEP LIST — column 2, the module's letters/forms as a vertical list
-          so a letter is one click away without hunting the horizontal bar. When
-          collapsed it is 0-wide and a slim expander sits beside the rail. */}
-      {!stepsCollapsed && (
-        <div className="max-lg:hidden">
-          <HrStepList
-            module={selectedModule}
-            activeHref={previewingOtherModule ? null : (located.subModule?.href ?? null)}
-            onCollapse={() => setStepsCollapsed(true)}
-          />
-        </div>
-      )}
-      {stepsCollapsed && (
-        <button
-          type="button"
-          onClick={() => setStepsCollapsed(false)}
-          aria-label="Show steps"
-          title="Show steps"
-          className="my-2 shrink-0 rounded-r-lg border border-l-0 border-hairline bg-surface-card px-1.5 py-2 text-ink-muted transition-colors hover:text-ink max-lg:hidden"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-        </button>
-      )}
-
       <div className="flex min-w-0 flex-1 flex-col">
         {/* The CONTENT column: the page itself. The full-width top bar lives
             above this shell (ChromeShell), and the steps live in column 2
@@ -218,6 +191,28 @@ export function HrConsoleShell({
               (matters for pages not yet migrated to HrTitleBar, which still
               use that utility for their own inline sticky header). */}
           <HrConsoleContextProvider value={consoleContext}>
+            {/* THE STEP NAV SITS OUTSIDE THE SCROLLER, as its own row.
+                It used to be `sticky top-0` INSIDE the scroll container, which
+                looked the same but measured differently: the nav then occupied
+                the top of the scrolling flow, so a page asking for `min-h-full`
+                got the FULL container height starting BELOW the nav and
+                overflowed by exactly the nav's height. That is what pushed the
+                module's centred pane down by ~45px while the same pane sat dead
+                centre on /hr, where there is no nav. As a flex row above the
+                scroller it is still permanently visible, and the space below it
+                is now honestly 100% of what a page can use.
+
+                Z-INDEX BAND - page code must respect both sides of it:
+                  <= z-40   in-flow page content (cards, their dropdowns).
+                  z-45      this row.
+                  >= z-50   `fixed inset-0` overlays - the letter, policy and
+                            assessment modals, which MUST paint over it. */}
+            <div className="z-[45] shrink-0">
+              <HrStepNav
+                module={selectedModule}
+                activeHref={previewingOtherModule ? null : (located.subModule?.href ?? null)}
+              />
+            </div>
             <div
               className="hr-shell-scroll min-h-0 min-w-0 flex-1 overflow-y-auto bg-canvas-base"
               style={{ "--app-topbar-h": "0px" } as React.CSSProperties}

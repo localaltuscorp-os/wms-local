@@ -44,7 +44,8 @@ export async function GET(
   // Where the link was issued to go (0222). Read from the ROW, never from the
   // URL — a candidate editing their own link must not be able to point it at a
   // surface HR did not send them to.
-  const landing = link.purpose === "policies" ? "/c/policies" : "/c/form";
+  const landing =
+    link.purpose === "policies" ? "/c/policies" : link.purpose === "onboarding" ? "/c/onboarding" : "/c/form";
   const res = NextResponse.redirect(new URL(landing, req.url), 303);
   res.cookies.set(CANDIDATE_LINK_COOKIE, token, candidateLinkCookieOptions(link.expiresAt));
   return res;

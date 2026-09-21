@@ -169,9 +169,16 @@ export interface DateFieldProps
    * it) pass a callback here and both get it.
    */
   inputRef?: (el: HTMLInputElement | null) => void;
+  /**
+   * Classes for the OUTER wrapper, which is a block by default (it sits alone
+   * in a form row everywhere else). A date written INSIDE a sentence - "Date:
+   * 21-Jan-1984" in a letter - needs it inline, or the box breaks onto its own
+   * line under its label.
+   */
+  wrapperClassName?: string;
 }
 
-export function DateField({ value, onChange, className, disabled, inputRef: outerRef, ...rest }: DateFieldProps) {
+export function DateField({ value, onChange, className, disabled, inputRef: outerRef, wrapperClassName, ...rest }: DateFieldProps) {
   const iso0 = value ?? "";
   const [text, setText] = React.useState(() => (iso0 ? formatDMonY(iso0) : ""));
   const [focused, setFocused] = React.useState(false);
@@ -204,7 +211,7 @@ export function DateField({ value, onChange, className, disabled, inputRef: oute
   }
 
   return (
-    <span className="relative block">
+    <span className={wrapperClassName ?? "relative block"}>
       <input
         {...rest}
         ref={(el) => {
@@ -217,7 +224,7 @@ export function DateField({ value, onChange, className, disabled, inputRef: oute
         disabled={disabled}
         className={className}
         value={text}
-        placeholder={rest.placeholder ?? "dd-mmm-yyyy"}
+        placeholder={rest.placeholder ?? "DD-MMM-YYYY"}
         onFocus={(e) => {
           setFocused(true);
           rest.onFocus?.(e);

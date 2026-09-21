@@ -219,7 +219,10 @@ function parseMeta(body: string | null): NotificationMeta {
  * usually read on a phone, and must survive every mail client unstyled.
  */
 export async function sendPlainEmail(args: {
-  to: string;
+  /** One address or several — every address in the list receives it. */
+  to: string | string[];
+  cc?: string[];
+  bcc?: string[];
   subject: string;
   text: string;
 }): Promise<{ id: string | null; error: string | null }> {
@@ -229,6 +232,8 @@ export async function sendPlainEmail(args: {
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.to,
+      ...(args.cc?.length ? { cc: args.cc } : null),
+      ...(args.bcc?.length ? { bcc: args.bcc } : null),
       subject: clampSubject(args.subject),
       text: args.text,
     });

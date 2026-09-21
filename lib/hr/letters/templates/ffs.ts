@@ -22,7 +22,7 @@ const template: LetterTemplate = {
   blocks: [
     heading("FULL AND FINAL SETTLEMENT LETTER", 1),
 
-    para(t("Date: "), f("date", "Date", { placeholder: "DD/MM/YYYY", date: true })),
+    para(t("Date: "), f("date", "Date", { placeholder: "DD-MMM-YYYY", date: true })),
 
     para(t("To:")),
     para(t("Employee Name: "), f("employeeName", "Employee Name", { placeholder: "Full name" })),
@@ -34,7 +34,7 @@ const template: LetterTemplate = {
       t("This letter confirms that you have been relieved from the services of "),
       f("company", "Firm Name", { defaultValue: "Altus Corp" }),
       t(" effective "),
-      f("lastWorkingDate", "Last Working Date", { placeholder: "e.g. 31 July 2026", date: true }),
+      f("lastWorkingDate", "Last Working Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t(", following the completion of all exit formalities."),
     ),
 
@@ -44,27 +44,27 @@ const template: LetterTemplate = {
       ),
     ),
 
-    /* Particulars / Amount (₹) ledger — each row a "Particular : ₹<field>". */
-    term("Salary up to Last Working Date", [t("Rs."), f("salaryToLWD", "Amount")]),
-    term("Leave Encashment", [t("Rs."), f("leaveEncashment", "Amount")]),
-    term("Incentives/Bonus (if applicable)", [t("Rs."), f("incentivesBonus", "Amount")]),
-    term("Reimbursements", [t("Rs."), f("reimbursements", "Amount")]),
-    term("Other Earnings", [t("Rs."), f("otherEarnings", "Amount")]),
-    term("Gross Payable", [t("Rs."), f("grossPayable", "Amount")]),
-    term("Notice Pay Recovery (if applicable)", [t("Rs."), f("noticePayRecovery", "Amount")]),
-    term("Loan/Advance Recovery", [t("Rs."), f("loanAdvanceRecovery", "Amount")]),
-    term("Tax/Statutory Deductions", [t("Rs."), f("taxDeductions", "Amount")]),
-    term("Other Deductions", [t("Rs."), f("otherDeductions", "Amount")]),
-    term("Total Deductions", [t("Rs."), f("totalDeductions", "Amount")]),
-    term("Net Amount Payable", [t("Rs."), f("netPayable", "Amount")]),
+    /* Particulars / Amount (Rs.) ledger — each row a "Particular : Rs. <field>". */
+    term("Salary up to Last Working Date", [t("Rs. "), f("salaryToLWD", "Amount")]),
+    term("Leave Encashment", [t("Rs. "), f("leaveEncashment", "Amount")]),
+    term("Incentives/Bonus (if applicable)", [t("Rs. "), f("incentivesBonus", "Amount")]),
+    term("Reimbursements", [t("Rs. "), f("reimbursements", "Amount")]),
+    term("Other Earnings", [t("Rs. "), f("otherEarnings", "Amount")]),
+    term("Gross Payable", [t("Rs. "), f("grossPayable", "Amount")]),
+    term("Notice Pay Recovery (if applicable)", [t("Rs. "), f("noticePayRecovery", "Amount")]),
+    term("Loan/Advance Recovery", [t("Rs. "), f("loanAdvanceRecovery", "Amount")]),
+    term("Tax/Statutory Deductions", [t("Rs. "), f("taxDeductions", "Amount")]),
+    term("Other Deductions", [t("Rs. "), f("otherDeductions", "Amount")]),
+    term("Total Deductions", [t("Rs. "), f("totalDeductions", "Amount")]),
+    term("Net Amount Payable", [t("Rs. "), f("netPayable", "Amount")]),
 
     para(
-      t("The net settlement amount of Rs."),
+      t("The net settlement amount of Rs. "),
       f("netPayable", "Net Amount"),
       t(" has been paid to you through "),
       f("paymentMethod", "Payment Method", { placeholder: "Bank Transfer/Cheque/Other" }),
       t(" on "),
-      f("paymentDate", "Payment Date", { placeholder: "DD/MM/YYYY", date: true }),
+      f("paymentDate", "Payment Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t("."),
     ),
 

@@ -11,7 +11,8 @@ import {
   hhAccessGrants,
   hhAccessActivity,
 } from "@/db/schema";
-import { and, lt, eq as eqOp } from "drizzle-orm";
+import { and, isNull, lt, eq as eqOp } from "drizzle-orm";
+import { localDateString } from "@/lib/format";
 import {
   canAddPerson,
   canEditPerson,
@@ -91,7 +92,15 @@ export interface WeeklyCallInput {
   callType: string;
   day: string;
   durationMin: number;
+  /** "HH:MM". When both are sent, the duration is DERIVED from them and the
+   *  sent `durationMin` is ignored — two sources of truth for one length is
+   *  how they end up disagreeing (2026-09-18). */
+  startTime?: string | null;
+  endTime?: string | null;
 }
+
+const HM_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const hmToMin = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
 
 /**
  * `personId` when the row is added under an already-open person; otherwise
@@ -113,7 +122,12 @@ export async function addEntry(input: {
   const limited = await guard();
   if (limited) return limited;
 
-  const name = (input.name ?? "").trim();
+  // The entry's name defaults to the person it is filed under — the dialog no
+  // longer carries a name field of its own.
+  let name = (input.name ?? "").trim();
+  if (!name && !input.personId && !(input.personName ?? "").trim()) {
+    name = (await requireUser()).name;
+  }
   if (!name) return { ok: false, error: "Name is required" };
   if (!SECTIONS.includes(input.section)) return { ok: false, error: "Unknown section" };
 
@@ -127,21 +141,43 @@ export async function addEntry(input: {
       // this name is already there, and add it if not. Matching on name AND
       // kind means an employee and an intern may share a first name without
       // one being filed under the other.
-      const pName = (input.personName ?? "").trim();
-      if (!pName) return { ok: false, error: "Select an employee or intern" };
+      // NO NAME SENT = YOU (2026-09-18). The dialog used to make the signed-in
+      // person pick themselves from a list; now it doesn't ask, and the row is
+      // filed under whoever is logged in. Matched by employee id first (the link
+      // that survives a name change), then by name + kind, else created LINKED.
       const kind = input.personKind === "intern" ? "intern" : "employee";
-      const [existing] = await db
-        .select()
-        .from(paPeople)
-        .where(and(eqOp(paPeople.name, pName), eqOp(paPeople.kind, kind)))
-        .limit(1);
-      if (existing) personId = existing.id;
-      else {
-        const [created] = await db
-          .insert(paPeople)
-          .values({ name: pName, kind })
-          .returning({ id: paPeople.id });
-        personId = created!.id;
+      let pName = (input.personName ?? "").trim();
+      let linkEmployeeId: string | null = null;
+      if (!pName) {
+        const me = await requireUser();
+        pName = me.name;
+        linkEmployeeId = me.id;
+        const [mine] = await db
+          .select({ id: paPeople.id })
+          .from(paPeople)
+          .where(eqOp(paPeople.employeeId, me.id))
+          .limit(1);
+        if (mine) personId = mine.id;
+      }
+      if (!personId) {
+        const [existing] = await db
+          .select()
+          .from(paPeople)
+          .where(and(eqOp(paPeople.name, pName), eqOp(paPeople.kind, kind)))
+          .limit(1);
+        if (existing) {
+          personId = existing.id;
+          // Link it on the way past, so next time the id match finds it.
+          if (linkEmployeeId && !existing.employeeId) {
+            await db.update(paPeople).set({ employeeId: linkEmployeeId }).where(eqOp(paPeople.id, existing.id));
+          }
+        } else {
+          const [created] = await db
+            .insert(paPeople)
+            .values({ name: pName, kind, employeeId: linkEmployeeId })
+            .returning({ id: paPeople.id });
+          personId = created!.id;
+        }
       }
     }
 
@@ -164,15 +200,33 @@ export async function addEntry(input: {
       .returning({ id: paEntries.id });
 
     const calls = (input.calls ?? []).filter((c) => c.callType && c.day);
+    for (const c of calls) {
+      if (c.startTime && c.endTime && HM_RE.test(c.startTime) && HM_RE.test(c.endTime)) {
+        if (hmToMin(c.endTime) <= hmToMin(c.startTime)) {
+          return { ok: false, error: "A call has to end after it starts" };
+        }
+      }
+    }
     if (calls.length > 0) {
       await db.insert(paCalls).values(
-        calls.map((c, i) => ({
-          entryId: row!.id,
-          seq: i + 1,
-          callType: c.callType,
-          day: c.day,
-          durationMin: Number.isFinite(c.durationMin) ? Math.max(0, Math.trunc(c.durationMin)) : 0,
-        })),
+        calls.map((c, i) => {
+          const timed = c.startTime && c.endTime && HM_RE.test(c.startTime) && HM_RE.test(c.endTime);
+          const derived = timed ? hmToMin(c.endTime!) - hmToMin(c.startTime!) : null;
+          return {
+            entryId: row!.id,
+            seq: i + 1,
+            callType: c.callType,
+            day: c.day,
+            startTime: timed ? c.startTime! : null,
+            endTime: timed ? c.endTime! : null,
+            durationMin:
+              derived !== null && derived > 0
+                ? derived
+                : Number.isFinite(c.durationMin)
+                  ? Math.max(0, Math.trunc(c.durationMin))
+                  : 0,
+          };
+        }),
       );
     }
     revalidatePath("/people-allocation");
@@ -187,6 +241,9 @@ export async function setEntryHold(id: string, onHold: boolean): Promise<Result>
   const limited = await guard();
   if (limited) return limited;
   try {
+    // Client Engagement reads a status alongside this flag (0230): putting a row
+    // back to work clears an "on hold" status rather than leaving the two to
+    // disagree. The status column itself only ever holds the manual values.
     await db.update(paEntries).set({ onHold, updatedAt: new Date() }).where(eq(paEntries.id, id));
     revalidatePath("/people-allocation");
     return { ok: true };
@@ -196,7 +253,15 @@ export async function setEntryHold(id: string, onHold: boolean): Promise<Result>
 }
 
 /**
- * Remove entries whose batch is over — an End Date strictly in the past.
+ * Retire entries whose batch is over — an End Date strictly in the past.
+ *
+ * ARCHIVED, NOT DELETED (0230). This used to DELETE the row, which took its
+ * weekly calls with it by cascade and left the Client Engagement grids and the
+ * transfer log pointing at nothing. Setting `archived_at` keeps the record and
+ * still takes the row off every board (the reads filter it out).
+ *
+ * The cut-off is the INDIA calendar day: `toISOString()` is UTC, which retires a
+ * batch five and a half hours early for anyone in Mumbai.
  *
  * Run on page load rather than by cron: the module is the only reader, so the
  * sweep is cheap and there is nowhere for a stale row to be seen first.
@@ -204,10 +269,17 @@ export async function setEntryHold(id: string, onHold: boolean): Promise<Result>
 export async function sweepExpiredEntries(): Promise<Result<{ removed: number }>> {
   await requireUser();
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateString("Asia/Kolkata");
     const gone = await db
-      .delete(paEntries)
-      .where(and(lt(paEntries.endDate, today), eqOp(paEntries.onHold, false)))
+      .update(paEntries)
+      .set({ archivedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          lt(paEntries.endDate, today),
+          eqOp(paEntries.onHold, false),
+          isNull(paEntries.archivedAt),
+        ),
+      )
       .returning({ id: paEntries.id });
     if (gone.length) revalidatePath("/people-allocation");
     return { ok: true, removed: gone.length };

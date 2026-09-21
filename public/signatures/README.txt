@@ -1,7 +1,8 @@
 SIGNATURE ASSETS
 ================
 
-hr-signature.png  -> THE HR DESK'S REAL SIGNATURE. Applied automatically to
+hr-signature.png  -> THE HR DESK'S REAL SIGNATURE (Rutvisha, replaced
+                     2026-09-17). Applied automatically to
                      every HR-signed letter (that is every template except
                      ctc-breakup and appointment, which the Director signs --
                      see signatoryOf in lib/hr/letters/types.ts).
@@ -12,10 +13,20 @@ hr-signature.png  -> THE HR DESK'S REAL SIGNATURE. Applied automatically to
                      issued PDF (lib/hr/letters/pdf.ts) read that one constant,
                      so preview and PDF cannot drift apart.
 
-proprietor-signature.jpg -> the Director sign-off (ctc-breakup, appointment).
-manan-sign.png           -> the Selection letter's founder block (per-template
-                            imageSrc, which overrides everything below it).
-                            Manan Vasa's no-background scan (2026-09-17).
+manan-vasa-sign.png      -> MANAN VASA'S REAL SIGNATURE. Backs BOTH the Director
+                            sign-off (ctc-breakup, appointment, via
+                            PROPRIETOR_SIGNATURE_IMAGE in lib/hr/firm.ts) and the
+                            Selection letter's founder block (per-template
+                            imageSrc). Transparent PNG.
+
+proprietor-signature.jpg -> SUPERSEDED 2026-09-17, no longer referenced by any
+manan-sign.jpeg             code. Kept only so an old issued PDF can be traced
+proprietor-signature.png    back to the mark it was stamped with.
+
+manan-sign.png           -> the same Manan Vasa scan, untrimmed (added upstream
+manan.png                   2026-09-17). manan.png backs the salary signatory
+                            (lib/salary/signatories.ts); manan-sign.png is unused.
+                            Letters use the trimmed manan-vasa-sign.png.
 
 PRECEDENCE, highest first:
   1. an uploaded scanned signature passed as `signatureImage` at issue time

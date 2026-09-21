@@ -8,7 +8,9 @@ import { HrComingSoon } from "@/components/hr/coming-soon";
 import { HrBackButton } from "@/components/hr/hr-back-button";
 import { DashboardHeader } from "@/components/layout/header";
 import { hrSupportEnabled } from "@/lib/hr/flag";
-import { listHolidays } from "@/lib/queries/monthly-events";
+import { listCompanyHolidaysForFy } from "@/lib/queries/company-holidays";
+import { fyStartYearForYmd } from "@/lib/hr/company-holidays";
+import { localDateString } from "@/lib/format";
 import { personalisedHolidays } from "@/components/events/holidays/personalise";
 import { RELIGION_LABELS } from "@/db/enums";
 import type { ReligionCode } from "@/lib/monthly-events/types";
@@ -20,9 +22,10 @@ const ACCENT_DEEP = "#A80400";
 const VALID_FY = new Set([2026, 2027]);
 
 /**
- * HR → Holiday List. A read-only, religion-personalised view of the SAME company
- * holiday data owned by the Monthly Events Master module (event_holidays, via
- * listHolidays) — no duplication. Open to every employee (HR is an open room).
+ * HR → Holiday List. A read-only, religion-personalised view of the company
+ * holiday list: the Monthly Events Master, the published calendar and the ad-hoc
+ * days HR declares, merged by lib/queries/company-holidays so this list matches
+ * what attendance grades. Open to every employee (HR is an open room).
  */
 export default async function HolidayListPage({
   searchParams,
@@ -42,9 +45,10 @@ export default async function HolidayListPage({
 
   const sp = await searchParams;
   const parsedFy = Number(sp.fy);
-  const fyStartYear = VALID_FY.has(parsedFy) ? parsedFy : 2026;
+  const currentFy = fyStartYearForYmd(localDateString("Asia/Kolkata"));
+  const fyStartYear = VALID_FY.has(parsedFy) ? parsedFy : VALID_FY.has(currentFy) ? currentFy : 2026;
 
-  const all = await listHolidays(fyStartYear);
+  const all = await listCompanyHolidaysForFy(fyStartYear);
   const religion = (me.religion as ReligionCode | null) ?? null;
   const hasReligion = religion !== null && religion !== "unspecified" && religion !== "other";
   const list = personalisedHolidays(all, religion);

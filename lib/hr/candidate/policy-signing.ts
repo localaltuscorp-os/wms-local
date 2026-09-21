@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { candidatePolicySignatures, policyCompliance } from "@/db/schema";
 import { POLICY_CARDS, getPolicy, isPolicyKey } from "@/lib/hr/policies/registry";
 import { currentPolicyVersion } from "@/lib/hr/policies/compliance-sync";
+import { policiesCompleteSnapshot, notifyIfPoliciesJustCompleted } from "@/lib/hr/policies/signed-notify";
 
 /**
  * CANDIDATE POLICY SIGNING (migration 0222) — the acknowledgements, without a
@@ -108,6 +109,9 @@ export async function signCandidatePolicy(args: {
   const { intakeId, employeeId, policyKey, signedName, signaturePath } = args;
   const version = await currentPolicyVersion(policyKey);
   const now = new Date();
+  // Snapshot BEFORE the write, so HR + Manan are mailed only when THIS signature
+  // completes the set (lib/hr/policies/signed-notify.ts).
+  const completeBefore = await policiesCompleteSnapshot(employeeId);
 
   await db
     .insert(candidatePolicySignatures)
@@ -128,6 +132,8 @@ export async function signCandidatePolicy(args: {
       target: [policyCompliance.policyKey, policyCompliance.employeeId],
       set: { status: "signed", signedAt: now, version, updatedAt: now },
     });
+
+  await notifyIfPoliciesJustCompleted(employeeId, completeBefore);
 }
 
 /** One candidate's acceptance of one policy, or null. */

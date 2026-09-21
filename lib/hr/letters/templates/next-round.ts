@@ -31,7 +31,7 @@ const template: LetterTemplate = {
       ),
     ),
     heading("Interview Details:", 3),
-    term("Date", f("date", "Date", { placeholder: "e.g. 25 July 2026", date: true })),
+    term("Date", f("date", "Date", { placeholder: "DD-MMM-YYYY", date: true })),
     term("Time", f("time", "Time", { placeholder: "e.g. 11:00 AM" })),
     term("Venue", f("venue", "Venue", { placeholder: "Location / Online Meeting Link" })),
     para(t("Kindly confirm your availability by replying to this email.")),

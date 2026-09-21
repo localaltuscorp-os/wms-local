@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
@@ -63,7 +63,14 @@ const InviteSchema = z.object({
     }, "Enter a valid cell number."),
   email: z.string().trim().toLowerCase().email("Enter a valid email address."),
   positionApplied: z.string().trim().max(160).optional(),
+  // Extra addresses from the send dialog: more "To" addresses (comma-separated
+  // there), CC and BCC. Capped so the dialog can't become a bulk mailer.
+  extraTo: z.array(z.string().trim().toLowerCase().email("One of the To addresses isn't valid.")).max(10).optional(),
+  cc: z.array(z.string().trim().toLowerCase().email("One of the CC addresses isn't valid.")).max(10).optional(),
+  bcc: z.array(z.string().trim().toLowerCase().email("One of the BCC addresses isn't valid.")).max(10).optional(),
 });
+
+type Recipients = { to?: string[]; cc?: string[]; bcc?: string[] };
 
 export interface CandidateInvite {
   intakeId: string;
@@ -107,8 +114,12 @@ export async function inviteCandidateByLink(input: {
    * hiring decision, and it must not be reachable by typing an address.
    */
   reopenClosed?: boolean;
-  /** 'form' (default) or 'policies' — which errand this link is for. */
+  /** 'form' (default), 'policies' or 'onboarding' — which errand this link is for. */
   purpose?: Purpose;
+  /** Extra To addresses (beyond the candidate's own), CC and BCC. */
+  extraTo?: string[];
+  cc?: string[];
+  bcc?: string[];
 }): Promise<Result<CandidateInvite>> {
   const me = await requireHrStaff();
   const limited = rateLimitOrError(me.id, "write");
@@ -117,7 +128,9 @@ export async function inviteCandidateByLink(input: {
   const parsed = InviteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid details." };
   const { firstName, lastName, email, positionApplied } = parsed.data;
-  const purpose: Purpose = input.purpose === "policies" ? "policies" : "form";
+  const recipients: Recipients = { to: parsed.data.extraTo, cc: parsed.data.cc, bcc: parsed.data.bcc };
+  const purpose: Purpose =
+    input.purpose === "policies" || input.purpose === "onboarding" ? input.purpose : "form";
   const mobile = parsed.data.mobile.replace(/[^\d+]/g, "");
   // Shared with the quick-add dialog on the evaluation form, which asks for the
   // same two fields — see lib/hr/candidate/name.ts for why the join is not
@@ -164,7 +177,7 @@ export async function inviteCandidateByLink(input: {
         .set({ candidateActive: true, deactivatedAt: null })
         .where(eq(employees.id, existing.id));
     }
-    return issueAndMail(existing.candidateIntakeId, me.id, purpose);
+    return issueAndMail(existing.candidateIntakeId, me.id, purpose, recipients);
   }
 
   // ── New candidate ──
@@ -225,7 +238,7 @@ export async function inviteCandidateByLink(input: {
     return { ok: false, error: `Could not create the candidate: ${e?.message ?? String(err)}` };
   }
 
-  return issueAndMail(intakeId, me.id, purpose);
+  return issueAndMail(intakeId, me.id, purpose, recipients);
 }
 
 /**
@@ -238,11 +251,12 @@ async function issueAndMail(
   intakeId: string,
   createdById: string,
   purpose: Purpose = "form",
+  recipients: Recipients = {},
 ): Promise<Result<CandidateInvite>> {
   const { token, expiresAt } = await issueAccessLink(intakeId, createdById, { purpose });
   const url = formUrl(token);
 
-  const mailed = await sendCandidateAccessLink(intakeId, token, expiresAt, purpose).catch(() => false);
+  const mailed = await sendCandidateAccessLink(intakeId, token, expiresAt, purpose, recipients).catch(() => false);
 
   revalidatePath("/hr/candidates");
   revalidatePath("/hr/pre-interview/basic-details");
@@ -319,4 +333,53 @@ export async function revokeCandidateFormLink(
   await revokeAccessLinks(intakeId);
   revalidatePath("/hr/candidates");
   return { ok: true };
+}
+
+
+export interface CandidateMatch {
+  intakeId: string;
+  fullName: string;
+  email: string | null;
+  mobile: string | null;
+}
+
+/**
+ * Look a candidate up by first + last name, so the send dialog can fill in the
+ * email and cell they already gave on the Candidate Form instead of HR retyping
+ * them. HR-staff only — it reads applicants' contact details.
+ */
+export async function findCandidatesByName(input: {
+  firstName: string;
+  lastName: string;
+}): Promise<{ ok: true; matches: CandidateMatch[] } | { ok: false; error: string }> {
+  const me = await requireHrStaff();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return { ok: false, error: limited.error };
+
+  // Escape LIKE wildcards so a typed "%" or "_" matches literally.
+  const clean = (v: string) =>
+    (v ?? "").trim().replace(/\s+/g, " ").slice(0, 80).replace(/[\\%_]/g, (c) => "\\" + c);
+  const first = clean(input.firstName);
+  const last = clean(input.lastName);
+  if (!first && !last) return { ok: true, matches: [] };
+
+  const rows = await db
+    .select({
+      intakeId: candidateIntake.id,
+      fullName: candidateIntake.fullName,
+      email: candidateIntake.email,
+      mobile: candidateIntake.mobile,
+    })
+    .from(candidateIntake)
+    .where(
+      and(
+        isNotNull(candidateIntake.email),
+        ...(first ? [ilike(candidateIntake.fullName, first + "%")] : []),
+        ...(last ? [ilike(candidateIntake.fullName, "%" + last + "%")] : []),
+      ),
+    )
+    .orderBy(desc(candidateIntake.updatedAt))
+    .limit(6);
+
+  return { ok: true, matches: rows.map((r) => ({ ...r, fullName: r.fullName ?? "" })) };
 }
