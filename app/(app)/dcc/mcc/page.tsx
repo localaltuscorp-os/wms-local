@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 export default async function MccPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; m?: string; q?: string; who?: string }>;
+  searchParams: Promise<{ view?: string; m?: string; q?: string; who?: string; status?: string; find?: string }>;
 }) {
   const me = await requireUser();
   const sp = await searchParams;
@@ -67,6 +67,10 @@ export default async function MccPage({
         defaultOwnerId={board.who === "me" || board.who === "team" ? me.id : board.who}
         today={today}
         viewerId={me.id}
+        /* Deep links from the Compliance Dashboard: a figure you click opens
+           this board already showing exactly the rows behind it. */
+        initialStatuses={sp.status ? sp.status.split(",") : undefined}
+        initialQuery={sp.find}
       />
     </PageShell>
   );

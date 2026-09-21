@@ -65,11 +65,11 @@ export function ScopePicker({ picker, who, meId }: { picker: PickerOption[]; who
       <select
         value={who}
         onChange={(e) => router.push(href({ who: e.target.value === "me" ? null : e.target.value }))}
-        className="max-w-[260px] bg-transparent text-[13.5px] font-bold text-ink-strong outline-none"
+        className="w-[132px] truncate bg-transparent text-[13.5px] font-bold text-ink-strong outline-none"
         aria-label="Whose checklist"
       >
         <option value="me">Only me</option>
-        <option value="team">Full team — me and {others} below me</option>
+        <option value="team">Full team · me +{others}</option>
         {groups.map((g) => (
           <optgroup key={g.label} label={g.label}>
             {g.people.map((p) => (

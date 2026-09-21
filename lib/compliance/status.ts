@@ -34,8 +34,15 @@ import {
   type ApproverShown,
 } from "@/lib/status/approver-status";
 
-/** In the order the dropdown lists them: Not Read … Done, then Abandoned. */
-export const DOER_STATUSES = [...DOER_TASK_STATUSES, "abandoned"] as const;
+/** In the order the dropdown lists them: Not Read … Done, then Abandoned.
+ *
+ *  It APPENDED "abandoned" until the 2026-09-21 merge. Both sides had added the
+ *  status independently — this branch by appending here, main by putting it in
+ *  `DOER_TASK_STATUSES` itself — and git kept both, so the picker listed
+ *  Abandoned twice and `isDoerStatus` was doing a duplicate lookup. The base
+ *  list owns it now; this is a straight re-export, exactly as `lib/status/axes.ts`
+ *  already does it. */
+export const DOER_STATUSES = DOER_TASK_STATUSES;
 export type DoerStatus = (typeof DOER_STATUSES)[number];
 
 /** Done, or given up — nothing more is expected of the doer. */

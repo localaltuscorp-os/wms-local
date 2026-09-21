@@ -24,7 +24,7 @@ import {
 import { fireToast } from "@/lib/toast";
 import { ApproverChip } from "@/components/status/approver-chip";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
-import { COMPLIANCE_APPROVER_LABEL, DOER_STATUSES, doerLabel, doerStyle, type DoerStatus } from "@/lib/compliance/status";
+import { COMPLIANCE_APPROVER_LABEL, DOER_STATUSES, doerLabel, doerStyle, isDoerStatus, type DoerStatus } from "@/lib/compliance/status";
 import { addDays, formatDeadline, shortDay, type ComplianceKind } from "@/lib/compliance/schedule";
 import { MAX_QUANTITY, checkQuantity, quantityText, targetFromTitle, type QuantityTarget } from "@/lib/compliance/quantity";
 import { MINUTES_WORDS, hoursText, minutesText, parseMinutes, totalMinutes } from "@/lib/compliance/minutes";
@@ -120,6 +120,18 @@ export interface ComplianceBoardProps {
   today: string;
   /** Who is looking — their column order is saved under their id. */
   viewerId: string;
+  /**
+   * Status chips to open already pressed, and a search to open already typed —
+   * both from the URL, so the Compliance Dashboard can hand you the exact rows
+   * behind a figure you clicked.
+   *
+   * SEEDS, not controlled values: once the board is open the chips are yours,
+   * and clicking one must not have to round-trip through the router. Unknown
+   * keys are dropped rather than trusted (`asStatusFilter`) — a hand-edited
+   * `?status=` should show everything, never nothing.
+   */
+  initialStatuses?: readonly string[];
+  initialQuery?: string;
 }
 
 /** A heading pinned to the top of the scroll box, as the Tasks table's read:
@@ -138,14 +150,18 @@ export function ComplianceBoard({
   defaultOwnerId,
   today,
   viewerId,
+  initialStatuses,
+  initialQuery,
 }: ComplianceBoardProps) {
   const router = useRouter();
-  const [q, setQ] = React.useState("");
+  const [q, setQ] = React.useState(initialQuery ?? "");
   const [busy, setBusy] = React.useState<string | null>(null);
   const [editing, setEditing] = React.useState<ComplianceRow | "new" | null>(null);
   const [bulkOpen, setBulkOpen] = React.useState(false);
   /* The status chips are filters — any number of them at once. Empty = all. */
-  const [statuses, setStatuses] = React.useState<Set<StatusFilter>>(new Set());
+  const [statuses, setStatuses] = React.useState<Set<StatusFilter>>(
+    () => new Set((initialStatuses ?? []).map(asStatusFilter).filter((k): k is StatusFilter => k !== null)),
+  );
   /* Which groups start open: every one for one person; for a whole team —
      thousands of cells — only the first. A click is kept as a difference from
      that, so the groups of a month or week stepped to arrive open too. */
@@ -600,6 +616,12 @@ function HeadCell({
 }
 
 type StatusFilter = DoerStatus | "none" | "carried" | "lapsed";
+
+/** A `?status=` value, or null if it names no chip this board has. */
+function asStatusFilter(v: string): StatusFilter | null {
+  if (v === "none" || v === "carried" || v === "lapsed") return v;
+  return isDoerStatus(v) ? v : null;
+}
 
 /** The chips a row answers to: its Doer Status, and whether it is carried forward or lapsed. */
 function filterKeysOf(r: ComplianceRow): StatusFilter[] {
