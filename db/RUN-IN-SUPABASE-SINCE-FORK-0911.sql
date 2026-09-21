@@ -9,6 +9,7 @@
 -- PART 1 adds enum values. Postgres refuses to use a value added in the same
 -- transaction, so run PART 1 first, on its own, then PART 2.
 -- PART 2 is one transaction: if any statement fails, nothing changes.
+-- PART 3 is realtime publication config, which no migration performs.
 -- Everything is idempotent - safe to run on a database that already has some.
 
 -- ============================ PART 1 ============================
@@ -2245,3 +2246,22 @@ INSERT INTO __schema_applied (filename) VALUES ('0242_two_step_verification.sql'
 ON CONFLICT DO NOTHING;
 
 COMMIT;
+
+-- ============================ PART 3 ============================
+-- Live updates for the Broadcasts screen. No migration does this.
+
+do $realtime$
+begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    raise notice 'no supabase_realtime publication here - skipping';
+  elsif exists (
+    select 1 from pg_publication_tables
+     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'broadcasts'
+  ) then
+    raise notice 'broadcasts already in supabase_realtime - nothing to do';
+  else
+    alter publication supabase_realtime add table broadcasts;
+    raise notice 'broadcasts added to supabase_realtime';
+  end if;
+end
+$realtime$;
