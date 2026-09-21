@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import type { Route } from "next";
-import { ShieldCheck } from "lucide-react";
+import { eq } from "drizzle-orm";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { db } from "@/lib/db";
+import { documentInstances } from "@/db/schema";
 import { DashboardHeader } from "@/components/layout/header";
 import { getSignatureState } from "@/app/(app)/documents/sign/actions";
 import { SignDocument } from "@/components/documents/sign/sign-document";
@@ -9,6 +13,19 @@ import { HrShellSidebar } from "@/components/hr/hr-shell-sidebar";
 import { HrBackButton } from "@/components/hr/hr-back-button";
 
 export const dynamic = "force-dynamic";
+
+/** Is this letter a policy acknowledgement? Best-effort: false on any failure. */
+async function isPolicyLetter(docId: string): Promise<boolean> {
+  try {
+    const row = await db.query.documentInstances.findFirst({
+      where: eq(documentInstances.id, docId),
+      columns: { bodySnapshotMd: true },
+    });
+    return JSON.parse(row?.bodySnapshotMd ?? "{}")?.kind === "policy";
+  } catch {
+    return false;
+  }
+}
 
 const RED = "var(--color-altus-red)";
 const RED_DEEP = "var(--color-altus-red-deep)";
@@ -50,6 +67,11 @@ export default async function DocumentSignPage({
   }
 
   const label = DOC_KIND_LABELS[kind];
+  // A policy signed through DigiLocker comes back here from an external
+  // redirect, so "Back" in the browser history leads into DigiLocker, not to the
+  // policy list. Offer the list directly (policy letters are tagged
+  // kind:"policy" by lib/hr/policies/acknowledge-core.ts).
+  const fromPolicy = kind === "letter" ? await isPolicyLetter(docId) : false;
 
   return (
     <div className="flex min-h-dvh">
@@ -59,7 +81,16 @@ export default async function DocumentSignPage({
       <div className="flex min-w-0 flex-1 flex-col">
       <DashboardHeader generatedAt={new Date()} />
       <main className="mx-auto w-full max-w-[720px] px-8 max-md:px-4 pt-8 pb-16">
-        <HrBackButton fallbackHref="/hr" />
+        {fromPolicy ? (
+          <Link
+            href={"/policies" as Route}
+            className="mb-4 inline-flex items-center gap-2 rounded-pill border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition hover:border-altus-red"
+          >
+            <ArrowLeft size={15} strokeWidth={2.4} /> Back to policies
+          </Link>
+        ) : (
+          <HrBackButton fallbackHref="/hr" />
+        )}
         <header className="mb-6 wg-rise">
           <span
             className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white"
@@ -92,6 +123,8 @@ export default async function DocumentSignPage({
           initialState={state}
           justVerified={verified}
           callbackError={callbackError}
+          doneHref={fromPolicy ? "/policies" : undefined}
+          doneLabel={fromPolicy ? "Back to policies" : undefined}
         />
       </main>
       </div>

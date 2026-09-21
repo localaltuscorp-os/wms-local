@@ -14,6 +14,14 @@ import { getPlanDayPayload, displayTitle } from "./payload";
 import { resolvePlanTarget, plannerOpenToAll } from "@/lib/goals/plan-target";
 import { goalScopeFor, canManageGoalFor } from "@/lib/weekly-goals/hierarchy";
 import type { PlanDayPayload, PlanItem, PlanKind } from "@/components/goals/plan/types";
+import {
+  canSetDoerStatus,
+  canSetInitiatorStatus,
+  initiatorWrite,
+  isDoerStatus,
+  isInitiatorStatus,
+  type StatusActor,
+} from "@/lib/status/axes";
 
 /**
  * Server actions for the redesigned Plan-Your-Day planner (Module 4).
@@ -1247,6 +1255,119 @@ export async function renamePlanItem(itemId: string, titleRaw: string): Promise<
     const updated = await db
       .update(dailyChecklist)
       .set({ title, updatedAt: new Date() })
+      .where(and(eq(dailyChecklist.id, itemId), eq(dailyChecklist.employeeId, ownerId)))
+      .returning({ id: dailyChecklist.id });
+    if (updated.length === 0) return { ok: false, error: "That item isn't on your plan." };
+    return { ok: true };
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/* ─────────────── The two status axes on a daily commitment ─────────────── */
+
+/**
+ * WHO THE CALLER IS relative to one daily commitment.
+ *
+ * A daily row's DOER is the person whose plan it is on — that is what a plan
+ * is. Its INITIATOR is therefore anyone else who is allowed to be looking at
+ * that plan: an admin, or the manager `ownerIfPermitted` already lets through.
+ * You are never your own initiator, which is the rule that stops a person
+ * approving their own day.
+ */
+async function dailyStatusActor(
+  me: { id: string; isAdmin: boolean },
+  ownerId: string,
+): Promise<StatusActor> {
+  return {
+    id: me.id,
+    isAdmin: me.isAdmin,
+    isInitiator: ownerId !== me.id,
+    isDoer: ownerId === me.id,
+    isSupervisor: false,
+  };
+}
+
+/**
+ * Report where a daily commitment is — the DOER axis.
+ *
+ * SEPARATE FROM `done`, deliberately. `done` is the planner's own yes/no for
+ * the night close-out and the day's rituals are counted on it; this is the
+ * seven-value progress report every other module reads. Writing one from the
+ * other would make the close-out lie the moment someone set "Follow Up".
+ */
+export async function setPlanItemDoerStatus(
+  itemId: string,
+  next: string,
+): Promise<ActionResult> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  if (!UUID.safeParse(itemId).success) return { ok: false, error: "Invalid item." };
+  if (!isDoerStatus(next)) return { ok: false, error: `"${next}" is not a doer status.` };
+
+  const ownerId = await ownerIfPermitted(me, itemId);
+  if (!ownerId) return { ok: false, error: "That item isn't on your plan." };
+
+  const allowed = canSetDoerStatus(await dailyStatusActor(me, ownerId), next);
+  if (!allowed.ok) return { ok: false, error: allowed.reason };
+
+  try {
+    const updated = await db
+      .update(dailyChecklist)
+      .set({ status: next, updatedAt: new Date() })
+      .where(and(eq(dailyChecklist.id, itemId), eq(dailyChecklist.employeeId, ownerId)))
+      .returning({ id: dailyChecklist.id });
+    if (updated.length === 0) return { ok: false, error: "That item isn't on your plan." };
+    return { ok: true };
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Rule on a daily commitment — the INITIATOR axis (migration 0230).
+ *
+ * MIND THE ARCHIVE COLUMN. Archived writes `archived_at` ("put away"), NEVER
+ * `abandoned_at`, which is this module's Recycle Bin — filing a commitment must
+ * not delete it. Same two-column split as goals and weekly goals; see the
+ * warning in lib/status/axes.ts.
+ *
+ * A database without 0230 fails here rather than silently doing nothing: the
+ * control only appears once the read succeeded, so a write that cannot land is
+ * a real error the person should see.
+ */
+export async function setPlanItemInitiatorStatus(
+  itemId: string,
+  next: string,
+): Promise<ActionResult> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  if (!UUID.safeParse(itemId).success) return { ok: false, error: "Invalid item." };
+  if (!isInitiatorStatus(next)) {
+    return { ok: false, error: `"${next}" is not an initiator status.` };
+  }
+
+  const ownerId = await ownerIfPermitted(me, itemId);
+  if (!ownerId) return { ok: false, error: "That item isn't on your plan." };
+
+  const allowed = canSetInitiatorStatus(await dailyStatusActor(me, ownerId), next);
+  if (!allowed.ok) return { ok: false, error: allowed.reason };
+
+  const write = initiatorWrite(next);
+  try {
+    const updated = await db
+      .update(dailyChecklist)
+      .set({
+        approvalStatus: write.approvalStatus,
+        // Un-archiving must not discard the fact that something was Approved,
+        // and re-archiving must not restamp the date it was filed.
+        archivedAt: write.archived ? sql`COALESCE(${dailyChecklist.archivedAt}, now())` : null,
+        approvalById: me.id,
+        approvalAt: new Date(),
+        updatedAt: new Date(),
+      })
       .where(and(eq(dailyChecklist.id, itemId), eq(dailyChecklist.employeeId, ownerId)))
       .returning({ id: dailyChecklist.id });
     if (updated.length === 0) return { ok: false, error: "That item isn't on your plan." };

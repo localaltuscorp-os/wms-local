@@ -51,9 +51,18 @@ export const CLAIM_FILTER_LABELS: Record<ClaimFilter, string> = {
   rejected: "Rejected",
 };
 
-/** Claim ₹ as a number — module fields are stored as strings. */
+/**
+ * Claim amount as a number — module fields are stored as strings.
+ *
+ * The currency PREFIX is stripped before the digit filter, not by it. Filtering
+ * to `[^0-9.-]` alone leaves the dot in "Rs." behind, so "Rs. 1,500" came
+ * through as ".1500" → 0.15 — a claim quietly worth fifteen paise. The ₹ glyph
+ * never had a dot, which is why this only became wrong when the app started
+ * spelling money "Rs." (2026-09-15).
+ */
 export function claimAmount(r: ModuleSubmissionRow): number {
-  const n = Number(String(r.fields.amount ?? "").replace(/[^0-9.-]/g, ""));
+  const raw = String(r.fields.amount ?? "").replace(/\brs\.?/gi, "");
+  const n = Number(raw.replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
 

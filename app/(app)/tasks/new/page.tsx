@@ -3,7 +3,7 @@ import { NewTaskForm } from "@/components/tasks/new-task-form";
 import { listEmployees } from "@/lib/queries/employees";
 import { listActiveClientNames } from "@/lib/queries/clients";
 import { listActiveSubjectNames } from "@/lib/queries/subjects";
-import { listProjectNodeOptions } from "@/lib/queries/projects";
+import { listPlanPickerNodes } from "@/lib/queries/project-plan";
 import { getTaskById } from "@/lib/queries/tasks";
 import { requireUser } from "@/lib/auth/current";
 import { canAddTaskRoster } from "@/lib/auth/roster-permission";
@@ -24,11 +24,11 @@ interface PageProps {
 export default async function NewTaskPage({ searchParams }: PageProps) {
   const me = await requireUser();
   const { from, doer } = await searchParams;
-  const [all, clients, subjects, projectNodes] = await Promise.all([
+  const [all, clients, subjects, planNodes] = await Promise.all([
     withRetry(() => listEmployees(), { ...RETRY, label: "nt-employees" }),
     withRetry(() => listActiveClientNames(), { ...RETRY, label: "nt-clients" }),
     withRetry(() => listActiveSubjectNames(), { ...RETRY, label: "nt-subjects" }),
-    withRetry(() => listProjectNodeOptions(), { ...RETRY, label: "nt-projects" }),
+    withRetry(() => listPlanPickerNodes(), { ...RETRY, label: "nt-plan-nodes" }),
   ]);
   const options = all.map((e) => ({ id: e.id, name: e.name }));
 
@@ -138,7 +138,7 @@ export default async function NewTaskPage({ searchParams }: PageProps) {
             employees={options}
             clients={clients}
             subjects={subjects}
-            projectNodes={projectNodes}
+            planNodes={planNodes}
             canAddRoster={canAddTaskRoster(me)}
             defaults={defaults}
           />

@@ -94,7 +94,16 @@ export function stripComments(source: string): string {
   return out;
 }
 
-/** A repo-relative source file, comments removed. */
+/**
+ * A repo-relative source file, comments removed and line endings normalised.
+ *
+ * CRLF, not LF, is what a Windows checkout of this repo holds — there is no
+ * .gitattributes, so git converts on the way out. Every caller writes its
+ * expected snippet with plain newlines, so without this the same assertion
+ * passes on one machine and fails on another for a reason that has nothing to
+ * do with the code being asserted.
+ */
 export function codeOf(relPath: string): string {
-  return stripComments(readFileSync(join(process.cwd(), relPath), "utf8"));
+  const raw = readFileSync(join(process.cwd(), relPath), "utf8");
+  return stripComments(raw.split("\r\n").join("\n"));
 }

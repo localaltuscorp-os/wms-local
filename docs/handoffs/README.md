@@ -63,48 +63,127 @@ re-sync the sequences, or the next insert fails with a duplicate-key error on a
 column the application never sets. (Check the id type first — a `uuid` default
 has no counter and needs nothing.)
 
+## Six more traps, learned 18 September 2026
+
+**`tsc` and 2900 passing tests do not mean it builds.** A route handler needs HTML
+from a React component, so it imported `renderToStaticMarkup` from
+`react-dom/server` — and `next build` refuses that outright:
+
+```
+x You're importing a component that imports react-dom/server.
+```
+
+The check walks the **whole chain** from the route, so moving the import into its
+own component-free file does not help. What does is a **dynamic** import inside
+the function (`await import("react-dom/server")`), which keeps it out of the
+static graph. Typecheck passed, the full suite passed, and it failed only on
+Vercel. **Run `pnpm build` before pushing anything that touches how a route
+renders.** Locally it will then stop at "collecting page data" for an unrelated
+route because `.env.local` has no `NEXT_PUBLIC_SUPABASE_*` — compilation
+succeeding is the signal you want; the env failure is expected and does not
+happen on Vercel.
+
+**A CSS rule can be a system-wide bug, and it will look like a page bug.** Wheel
+scrolling died on every screen with a wide table, and looked per-page for weeks.
+One rule in `app/globals.css` set the `overscroll-behavior` **shorthand** on every
+element with any Tailwind overflow utility. `overflow-x: auto` computes
+`overflow-y` to `auto`, so a horizontally-scrolling table **is** a vertical scroll
+container with nothing to scroll — and `contain` on both axes forbids chaining a
+vertical gesture out of it. That element is the nearest vertical scroll container
+under the pointer, so the wheel did nothing over it. **Set `overscroll-behavior-x`
+or `-y`, never the bare shorthand.** When a bug is reported everywhere at once,
+suspect one global rule, not N pages.
+
+**A missing column does not error — it empties a list.** `0225` added
+`candidate_intake.merged_into_id`, which every candidate picker now filters on.
+Deploying the code first would not have thrown: `listCandidateIntakes` is wrapped
+in a timeout and a try/catch on the evaluation page, so the candidate list would
+just have come back **empty**. After any migration that adds a column to a
+filtered query, check the lists that query feeds, not just for errors.
+
+**Making a capability grantable invalidates every guard that assumed the grantee
+set was fixed.** `guardSuperAdminTarget` refused only when the *target* was a
+super-admin — sufficient for exactly one reason: every master admin also was one.
+The moment master admin became grantable from the admin panel, an ordinary admin
+could reset a master admin's password, mint them a login link or archive them.
+It is now `guardPrivilegedTarget`, at all seven call sites. **When a cap set can
+change at runtime, grep every guard that reads it.**
+
+**Remove the old helper; do not shim it.** `isMasterAdmin` became async when its
+data moved to a table, and it was deleted from `lib/security/capabilities.ts`
+rather than left as a synchronous wrapper. A wrapper would compile, return a
+plausible `false` for a database-granted master admin, and fail **silently**.
+Deleting it made the one stale import fail loudly at typecheck, which is how the
+last call site was found. `lib/auth/super-admin.ts` set the precedent.
+
 ## Vercel: three rules
 
 The free team plan pauses the project when a limit is hit, so these are not
 housekeeping.
 
 **1. A dependency kept out of production three different ways can still be in
-every function.** Functions Storage hit 10.6 GB of 10 GB, and 7.14 GB of it was
+every function — and HIDING ONE REFERENCE IS NOT FIXING THE LEAK.**
+
+Functions Storage hit 10.6 GB of 10 GB, and 7.14 GB of it was
 `@electric-sql/pglite` — the local sandbox database — sitting in 426 of 431
 functions. It is a devDependency, it is in `serverExternalPackages`, and it is
 `require()`d at call time behind a `DUMMY_MODE` check. **None of those affect
-file tracing.** `serverExternalPackages` stops bundling, not tracing; a literal
-`require("pkg")` is statically analysable wherever it sits. Only
-`outputFileTracingExcludes` keeps a package out of the deployed function, and
-only `.nft.json` tells you what is actually in there:
+file tracing.**
 
-```bash
-# what is really inside every function, by package
-python - <<'PY'
-import json,io,os,glob,collections
-b=collections.Counter(); n=collections.Counter(); sz={}
-for f in glob.glob(".next/server/**/*.nft.json", recursive=True):
-    r=os.path.dirname(f); seen=set()
-    for rel in json.load(io.open(f,encoding="utf-8")).get("files",[]):
-        p=os.path.normpath(os.path.join(r,rel))
-        if p not in sz:
-            try: sz[p]=os.path.getsize(p)
-            except OSError: sz[p]=0
-        k=p.replace("\\","/")
-        k=k.split("/node_modules/")[-1].split("/") if "/node_modules/" in k else ["(app)"]
-        k="/".join(k[:2]) if k[0].startswith("@") else k[0]
-        b[k]+=sz[p]
-        if k not in seen: seen.add(k); n[k]+=1
-for k,v in b.most_common(12): print(f"{k:<40}{v/2**30:7.2f} GB  in {n[k]} fns")
-PY
+- `serverExternalPackages` stops the package being **bundled**. It does not stop
+  it being **traced** — keeping it a plain runtime require out of `node_modules`
+  is the entire point of that option.
+- `devDependencies` governs **install**, and Vercel installs dev dependencies to
+  build with, so the files are right there to be traced.
+- A call-time `require()` behind an `if` is still statically analysable. A
+  function body is no different from module scope to a static analyser.
+
+**What actually works: a variable specifier.** Static analysers cannot resolve
+`require(PGLITE)` where `const PGLITE = "@electric-sql/pglite"`, so nothing is
+traced; Node resolves it fine at runtime. `lib/db/index.ts` uses this for PGlite
+and for the drizzle PGlite driver. ⚠️ `outputFileTracingExcludes` is **not** the
+answer and was tried and abandoned here — the full reasoning is in
+`next.config.ts`, but the short version is that a variable specifier is precise
+by construction, with no glob to get wrong.
+
+### The second failure, 18 September 2026 — read this before "fixing" a leak
+
+The above was applied on 15 September and the bill went **UP**, to 14 GB of 10 GB.
+
+The `require()` was hidden correctly. A **static import on line 2 of the same
+file** put the package back:
+
+```ts
+import { drizzle as drizzlePglite } from "drizzle-orm/pglite";   // ← the leak
 ```
 
-⚠️ **Sanity-check that script's output before believing it.** Three local
-builds of the same tree gave 10.30 GB, 1.95 GB and 1.95 GB, and the two small
-ones traced no `node_modules` whatsoever — no database driver, no
-`firebase-admin`. That is a broken trace, not a win. **The test: if a package
-the app cannot start without is missing from the trace, throw the measurement
-away.** Vercel → Usage → Functions Storage is the only authority.
+`drizzle-orm/pglite` was not in `serverExternalPackages`, so webpack bundled it
+into the chunk that owns `lib/db`, which every database-touching route depends
+on — and the driver's own `import("@electric-sql/pglite")` was externalized into
+a runtime `a.exports = import("@electric-sql/pglite")`, a **literal** specifier
+the tracer follows exactly as it follows a literal require. Measured: 428 of
+1066 built server files. After the fix: 0.
+
+**So do not stop at the source. Grep the BUILD OUTPUT for the specifier:**
+
+```bash
+pnpm check:leaks        # scans .next/server for literal require()/import() specifiers
+```
+
+It reads **webpack output**, so unlike a trace measurement it is valid from a
+local build — a local `pnpm build` compiles successfully and only fails later,
+at page-data collection, when `.env.local` has no Supabase keys. It reports how
+many built files each watched package reaches: a package one feature uses should
+appear in a few files, not hundreds.
+
+⚠️ **Do not quote a local SIZE total to anybody.** `pnpm measure:functions` sums
+`.nft.json` traces and will refuse to print a number when the traces are empty of
+`node_modules` — because three separate investigations have been misled by
+exactly that: builds of the same tree reporting 10.30 GB, then 1.95 GB, then
+1.95 GB, the small ones having traced no database driver and no `firebase-admin`.
+**The test: if a package the app cannot start without is missing from the trace,
+throw the measurement away.** Vercel → Usage → Functions Storage is the only
+authority on the real number.
 
 **Every deployment costs about 240 MB of the 10 GB Functions Storage
 allowance.** Fifteen small pushes on 15 Sep cost ~3.4 GB in one afternoon and

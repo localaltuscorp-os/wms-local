@@ -23,7 +23,7 @@ describe("computeSalary", () => {
     expect(r.pt).toBe(200);
     expect(r.net).toBe(99800);
   });
-  it("PT exemption removes the ₹200", () => {
+  it("PT exemption removes the Rs. 200", () => {
     expect(computeSalary({ ...base, ptExempt: true }).pt).toBe(0);
     expect(computeSalary({ ...base, ptExempt: true }).net).toBe(100000);
   });
@@ -90,7 +90,7 @@ describe("computeHourlySalary (hourly shifts)", () => {
     const r = computeHourlySalary({ ...h, workedMinutes: (target / 2) * 60 });
     expect(r.gross).toBeCloseTo(rate * Math.floor(target / 2), 2);
   });
-  it("over target is CAPPED at ₹3,500 when no surplus is earned", () => {
+  it("over target is CAPPED at Rs. 3,500 when no surplus is earned", () => {
     expect(computeHourlySalary({ ...h, workedMinutes: 300 * 60 }).gross).toBe(3500);
   });
   it("zero hours → zero gross", () => {

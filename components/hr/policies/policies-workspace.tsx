@@ -97,6 +97,7 @@ export function PoliciesWorkspace({
           {signable.some((p) => p.signedAt) && (
             <a
               href="/api/hr/policies/download-all"
+              title="Every signed policy — full text, then your acknowledgement"
               className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:border-[var(--color-altus-red)]"
             >
               <Download size={13} strokeWidth={2.4} aria-hidden /> Download all
@@ -153,7 +154,7 @@ export function PoliciesWorkspace({
                       <a
                         href={`/api/hr/policies/download?key=${encodeURIComponent(p.key)}`}
                         className="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-[var(--color-altus-red)]"
-                        title="Download your signed copy"
+                        title="Download the whole policy, with your signed acknowledgement at the end"
                       >
                         <Download size={12} strokeWidth={2.4} aria-hidden /> Download
                       </a>

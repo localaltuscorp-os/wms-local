@@ -43,15 +43,24 @@ export function personSignOff(opts: { prefix: string; who: string }): Block[] {
   return [
     spacer("lg"),
     heading(who, 2),
-    para(
-      t("Print your name: "),
-      f(`${prefix}PrintName`, "Print your name", { placeholder: "Full name" }),
-    ),
-    para(
-      t("Date: "),
-      f(`${prefix}SignDate`, "Date", { date: true, todayDefault: true }),
-    ),
-    para(t("Attach your signature: ")),
+    // Each line keeps with the next, so the heading, the three lines and the
+    // blank below them always land on the same page: a sign-off with the name
+    // on one sheet and the signature space on the next cannot be signed.
+    {
+      ...para(
+        t("Print your name: "),
+        f(`${prefix}PrintName`, "Print your name", { placeholder: "Full name" }),
+      ),
+      keepWithNext: true,
+    },
+    {
+      ...para(
+        t("Date: "),
+        f(`${prefix}SignDate`, "Date", { placeholder: "DD-MMM-YYYY", date: true, todayDefault: true }),
+      ),
+      keepWithNext: true,
+    },
+    { ...para(t("Attach your signature: ")), keepWithNext: true },
     // The blank the signature image occupies. A spacer rather than a rule of
     // underscores: the letter is also exported as a PDF and printed, and an
     // underscore rule and a pasted image fight for the same line.

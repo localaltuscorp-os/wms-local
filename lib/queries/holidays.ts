@@ -3,6 +3,7 @@ import { and, asc, gte, inArray, lte, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { eventHolidays, holidays } from "@/db/schema";
 import { publishedHolidayDates } from "@/lib/hr/holidays-2026";
+import { yearsInRange } from "@/lib/hr/holiday-calendar";
 
 export interface HolidayRow {
   id: string;
@@ -132,4 +133,31 @@ export async function listHolidayDateSet(year: number): Promise<Set<string>> {
   ];
 
   return new Set(dates.filter((d) => !suppressed.has(d)));
+}
+
+/**
+ * `listHolidayDateSet` over a yyyy-mm-dd range, inclusive — the same merged,
+ * suppression-aware calendar the attendance grader uses, for readers whose
+ * window can cross a year boundary (the task and manager reports).
+ */
+export async function listHolidayDateSetBetween(fromYmd: string, toYmd: string): Promise<Set<string>> {
+  const sets = await Promise.all(yearsInRange(fromYmd, toYmd).map((y) => listHolidayDateSet(y)));
+  const out = new Set<string>();
+  for (const set of sets) {
+    for (const d of set) if (d >= fromYmd && d <= toYmd) out.add(d);
+  }
+  return out;
+}
+
+/**
+ * The same range as `{ holidayDate }` rows, date-sorted — the shape the reports
+ * already consumed from the raw table. `toYmd` defaults to the end of next year
+ * for the readers that only ever had a lower bound.
+ */
+export async function listHolidayRowsBetween(
+  fromYmd: string,
+  toYmd: string = `${new Date().getUTCFullYear() + 1}-12-31`,
+): Promise<{ holidayDate: string }[]> {
+  const set = await listHolidayDateSetBetween(fromYmd, toYmd);
+  return [...set].sort().map((holidayDate) => ({ holidayDate }));
 }

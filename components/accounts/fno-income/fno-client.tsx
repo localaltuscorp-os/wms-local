@@ -146,7 +146,7 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
         </button>
       </div>
 
-      <div className="text-[13px] font-semibold text-ink-subtle">{filtered.length} {filtered.length === 1 ? "agency" : "agencies"}{hasFilters ? ` · filtered from ${items.length}` : ""}{totalCapital ? ` · ₹${formatINR(totalCapital)} capital` : ""}</div>
+      <div className="text-[13px] font-semibold text-ink-subtle">{filtered.length} {filtered.length === 1 ? "agency" : "agencies"}{hasFilters ? ` · filtered from ${items.length}` : ""}{totalCapital ? ` · Rs. ${formatINR(totalCapital)} capital` : ""}</div>
 
       <div className="overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
         <table className="w-full border-collapse text-left" style={{ minWidth: 1080 + cols.length * 96 }}>
@@ -183,7 +183,7 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
                           <span className="font-bold text-ink-strong">{r.agency}</span>
                         </div>
                         <div className="mt-0.5 text-[12px] font-semibold text-ink-subtle">
-                          {[r.entity, capital != null && `₹${formatINR(capital)} capital`].filter(Boolean).join(" · ")}
+                          {[r.entity, capital != null && `Rs. ${formatINR(capital)} capital`].filter(Boolean).join(" · ")}
                         </div>
                       </div>
                     </Td>
@@ -211,7 +211,7 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
                     <Td className="text-right whitespace-nowrap">
                       {ytd(r.id) ? (
                         <div>
-                          <div className="font-bold text-ink-strong">₹{formatINR(ytd(r.id))}</div>
+                          <div className="font-bold text-ink-strong">Rs. {formatINR(ytd(r.id))}</div>
                           {pctOf(ytd(r.id), capital) && <div className="text-[11px] font-bold" style={{ color: "var(--color-green-deep)" }}>{pctOf(ytd(r.id), capital)}</div>}
                         </div>
                       ) : <Dim />}
@@ -227,7 +227,7 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
                 {cols.map((c) => (
                   <td key={c.month} className="px-2 py-3 text-right text-[12.5px] font-bold text-ink-strong whitespace-nowrap">{monthTotal(c.month) ? formatINR(monthTotal(c.month)) : ""}</td>
                 ))}
-                <Td className="text-right font-extrabold text-altus-red whitespace-nowrap">₹{formatINR(grandTotal)}{pctOf(grandTotal, totalCapital) ? ` · ${pctOf(grandTotal, totalCapital)}` : ""}</Td>
+                <Td className="text-right font-extrabold text-altus-red whitespace-nowrap">Rs. {formatINR(grandTotal)}{pctOf(grandTotal, totalCapital) ? ` · ${pctOf(grandTotal, totalCapital)}` : ""}</Td>
                 <Td>{""}</Td>
               </tr>
             )}
@@ -271,7 +271,7 @@ function EditorRow({ colSpan, draft, setDraft, entityOptions, agencyOptions, onS
           <Field label="S. No" className="col-span-2 max-md:col-span-1"><input value={draft.code} onChange={(e) => set({ code: e.target.value })} className={INPUT} placeholder="1" aria-label="S. No" autoFocus /></Field>
           <Field label="Entity" className="col-span-4 max-lg:col-span-2 max-md:col-span-1"><ValueSelect label="entity" kind="fno_entity" options={entityOptions} value={draft.entity} onChange={(v) => set({ entity: v })} placeholder="Entity…" /></Field>
           <Field label="Agency" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><ValueSelect label="agency" kind="fno_agency" options={agencyOptions} value={draft.agency || null} onChange={(v) => set({ agency: v ?? "" })} placeholder="Agency…" /></Field>
-          <Field label="Capital (₹)" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><input value={draft.capital} onChange={(e) => set({ capital: e.target.value })} className={INPUT} inputMode="numeric" placeholder="23000000" aria-label="Capital" /></Field>
+          <Field label="Capital (Rs.)" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><input value={draft.capital} onChange={(e) => set({ capital: e.target.value })} className={INPUT} inputMode="numeric" placeholder="23000000" aria-label="Capital" /></Field>
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button type="button" onClick={onCancel} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-4 py-2 text-[14px] font-bold text-ink-muted hover:bg-surface-soft disabled:opacity-50"><X size={16} strokeWidth={2.4} /> Cancel</button>

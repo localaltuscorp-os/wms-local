@@ -258,7 +258,7 @@ async function main(): Promise<void> {
     if (!ok) {
       failures.push({
         who,
-        what: `residual ₹${rec.residual.toFixed(2)} against the LIVE engine — the attribution is wrong`,
+        what: `residual Rs. ${rec.residual.toFixed(2)} against the LIVE engine — the attribution is wrong`,
       });
     }
 

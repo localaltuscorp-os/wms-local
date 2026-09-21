@@ -133,7 +133,8 @@ async function searchClients(q: string, like: string): Promise<ClientHit[]> {
 
 async function searchProjects(q: string, like: string): Promise<ProjectHit[]> {
   // Match any node by name/description, then climb parent_id to the kind='project'
-  // root so every hit navigates to /projects/<rootId>.
+  // root. The hit lands on the plan register (/project-plan) — the /projects
+  // board that used to own `rootId` deep links was removed.
   const rows = (await db.execute(sql`
     WITH matched AS (
       SELECT id, name, kind, parent_id,

@@ -21,7 +21,7 @@ export function HrModuleGhost({ module }: { module: HrConsoleModule | null }) {
   const Icon = module?.Icon ?? PanelsTopLeft;
   const heading = module ? module.title : "Welcome to Human Resources";
   const body = module ? (
-    <>Choose a step from the list in the middle to open it here.</>
+    <>Choose a step from the bar above to open it here.</>
   ) : (
     <>
       Pick a module on the left to see its steps, then choose a step to open it here.

@@ -877,7 +877,7 @@ function GoalCard(props: {
         <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[12.5px] text-ink-muted">
           {g.area && <span>{g.area}</span>}
           {g.targetQty != null && <span className="tabular-nums">{fmtNum(g.targetQty)} {g.uom ?? ""}</span>}
-          {g.targetAmount != null && <span className="tabular-nums">₹{fmtNum(g.targetAmount)}</span>}
+          {g.targetAmount != null && <span className="tabular-nums">Rs. {fmtNum(g.targetAmount)}</span>}
         </div>
       )}
 
@@ -1040,7 +1040,7 @@ function CockpitGoalCard({
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-ink-muted">
               {g.area && <span>{g.area}</span>}
               {g.targetQty != null && <span className="tabular-nums">{fmtNum(g.targetQty)} {g.uom ?? ""}</span>}
-              {g.targetAmount != null && <span className="tabular-nums">₹{fmtNum(g.targetAmount)}</span>}
+              {g.targetAmount != null && <span className="tabular-nums">Rs. {fmtNum(g.targetAmount)}</span>}
             </div>
           )}
         </div>

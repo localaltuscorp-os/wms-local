@@ -47,7 +47,7 @@ const RED = "#E10600";
 const RED_DEEP = "#A80400";
 const DISPLAY = "var(--font-display), system-ui, sans-serif";
 
-const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
+const inr = (n: number) => "Rs. " + Math.round(n).toLocaleString("en-IN");
 
 const ALL_YEARS = "__all__";
 

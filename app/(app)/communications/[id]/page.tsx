@@ -243,7 +243,14 @@ export default async function BroadcastReadPage({ params }: PageProps) {
           </article>
 
           {/* ── Author analytics ────────────────────────────────────── */}
-          {stats && <AnalyticsPanel id={b.id} status={b.status} stats={stats} />}
+          {stats && (
+            <AnalyticsPanel
+              id={b.id}
+              status={b.status}
+              stats={stats}
+              whatsappOn={normChannels(b.channels).includes("whatsapp")}
+            />
+          )}
         </div>
 
         {/* ── Who read it, and the manual WhatsApp send ─────────────── */}
@@ -296,10 +303,12 @@ function AnalyticsPanel({
   id,
   status,
   stats,
+  whatsappOn,
 }: {
   id: string;
   status: string;
   stats: NonNullable<Awaited<ReturnType<typeof getBroadcastWithStats>>>;
+  whatsappOn: boolean;
 }) {
   const { total, read, acknowledged, pending } = stats.stats;
   // `read` from getBroadcastWithStats is the read-but-not-acked bucket; the
@@ -370,6 +379,8 @@ function AnalyticsPanel({
         </div>
       )}
 
+      {whatsappOn && <WhatsAppSummary recipients={stats.recipients} counts={stats.stats.whatsapp} />}
+
       <div className="border-t border-hairline pt-4">
         <AdminActions broadcastId={id} status={status} pendingCount={pending} />
       </div>
@@ -407,6 +418,50 @@ function AnalyticsPanel({
 /* ------------------------------------------------------------------ */
 /* Helpers                                                              */
 /* ------------------------------------------------------------------ */
+
+const SKIP_REASON_LABELS: Record<"not_opted_in" | "no_phone" | "not_configured", string> = {
+  not_opted_in: "not opted in to WhatsApp",
+  no_phone: "no WhatsApp number on file",
+  not_configured: "WhatsApp broadcast template not set up",
+};
+
+/** The automatic WhatsApp channel: how many it reached, and why the rest were not. */
+function WhatsAppSummary({
+  recipients,
+  counts,
+}: {
+  recipients: NonNullable<Awaited<ReturnType<typeof getBroadcastWithStats>>>["recipients"];
+  counts: { sent: number; skipped: number; failed: number };
+}) {
+  const reasons = new Map<string, number>();
+  for (const r of recipients) {
+    const o = r.whatsapp;
+    if (!o || o.status === "sent") continue;
+    const label = o.status === "skipped" ? SKIP_REASON_LABELS[o.reason] : "Meta refused the message";
+    reasons.set(label, (reasons.get(label) ?? 0) + 1);
+  }
+  return (
+    <div className="rounded-xl border border-hairline bg-white px-3 py-2.5 text-[12.5px]">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-semibold text-ink-soft">WhatsApp</span>
+        <span className="font-bold tabular-nums text-ink-strong">
+          {counts.sent} sent
+          {counts.skipped > 0 ? ` · ${counts.skipped} skipped` : ""}
+          {counts.failed > 0 ? ` · ${counts.failed} failed` : ""}
+        </span>
+      </div>
+      {reasons.size > 0 && (
+        <ul className="mt-1.5 grid gap-0.5 text-[12px] text-ink-muted">
+          {[...reasons.entries()].map(([label, n]) => (
+            <li key={label}>
+              {n} · {label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 /** "2h 15m" / "45m" / "3d 4h" from a minute count (delivery latency display). */
 function humanizeMins(mins: number): string {

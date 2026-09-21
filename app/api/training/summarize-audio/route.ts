@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/current";
 import { transcribeAndSummarize, GeminiNotConfiguredError } from "@/lib/ai/gemini";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,6 +15,12 @@ const ALLOWED = new Set(["audio/wav", "audio/mp3", "audio/mpeg", "audio/ogg", "a
  * → { ok, language, transcript, summary }
  */
 export async function POST(req: Request) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   try {
     await requireUser();
   } catch {

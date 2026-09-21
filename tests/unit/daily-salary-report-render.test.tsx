@@ -198,7 +198,7 @@ describe("the report renders", () => {
       expect(btn.textContent).toContain(w.rangeLabel);
     }
     // August 2026 opens on a Saturday, so the first week is a two-day portion.
-    expect(weekButton(1).textContent).toContain("01 Aug – 02 Aug");
+    expect(weekButton(1).textContent).toContain("01-Aug-2026 – 02-Aug-2026");
   });
 
   it("carries every column the spec names, with WORK HOURS spelled that way", () => {
@@ -295,7 +295,7 @@ describe("day rows", () => {
     render(<DailySalaryReport ledger={LEDGER} />);
     const row = rowFor("2026-08-10");
     const cells = Array.from(row.querySelectorAll("td")).map((c) => c.textContent!.trim());
-    expect(cells[0]).toBe("10 Aug"); // no year, no month name in full
+    expect(cells[0]).toBe("10-Aug-2026"); // the app-wide DD-MMM-YYYY
     expect(cells[1]).toBe("Mon");
     expect(cells[3]).toBe("10:21");
     expect(cells[4]).toBe("19:21");
@@ -328,7 +328,7 @@ describe("day rows", () => {
       (c) => c.textContent!.trim(),
     );
     expect(unpaid[2]).toBe("Unpaid Leave");
-    expect(unpaid[7]).toMatch(/^−₹/); // a real deduction, negative
+    expect(unpaid[7]).toMatch(/^−Rs./); // a real deduction, negative
 
     const paid = Array.from(rowFor("2026-08-11").querySelectorAll("td")).map(
       (c) => c.textContent!.trim(),
@@ -382,8 +382,8 @@ describe("expanding a day", () => {
     render(<DailySalaryReport ledger={LEDGER} />);
     openWeek(weekOf("2026-08-03"));
     const before = tableRows().length;
-    fireEvent.click(expandButton("03 Aug"));
-    expect(expandButton("03 Aug").getAttribute("aria-label")).toContain("Hide");
+    fireEvent.click(expandButton("03-Aug-2026"));
+    expect(expandButton("03-Aug-2026").getAttribute("aria-label")).toContain("Hide");
     expect(screen.queryByRole("dialog")).toBeNull();
     // A detail row appeared inside the same table.
     expect(document.querySelectorAll("table tbody tr").length).toBe(before + 1);
@@ -392,7 +392,7 @@ describe("expanding a day", () => {
   it("shows the day's own workings, compactly", () => {
     render(<DailySalaryReport ledger={LEDGER} />);
     openWeek(weekOf("2026-08-03"));
-    fireEvent.click(expandButton("03 Aug"));
+    fireEvent.click(expandButton("03-Aug-2026"));
     for (const label of [
       "Attendance",
       "Required",
@@ -409,26 +409,26 @@ describe("expanding a day", () => {
   it("allows several days open at once in one week (spec §9)", () => {
     render(<DailySalaryReport ledger={LEDGER} />);
     openWeek(weekOf("2026-08-03"));
-    fireEvent.click(expandButton("03 Aug"));
-    fireEvent.click(expandButton("04 Aug"));
-    expect(expandButton("03 Aug").getAttribute("aria-label")).toContain("Hide");
-    expect(expandButton("04 Aug").getAttribute("aria-label")).toContain("Hide");
+    fireEvent.click(expandButton("03-Aug-2026"));
+    fireEvent.click(expandButton("04-Aug-2026"));
+    expect(expandButton("03-Aug-2026").getAttribute("aria-label")).toContain("Hide");
+    expect(expandButton("04-Aug-2026").getAttribute("aria-label")).toContain("Hide");
   });
 
   it("explains WHY a special day cost or earned nothing", () => {
     render(<DailySalaryReport ledger={LEDGER} />);
     openWeek(weekOf("2026-08-15")); // the week with the holiday
-    fireEvent.click(expandButton("15 Aug"));
+    fireEvent.click(expandButton("15-Aug-2026"));
     expect(screen.getAllByText(/No hours were required/).length).toBeGreaterThan(0);
   });
 
   it("closes again on a second click", () => {
     render(<DailySalaryReport ledger={LEDGER} />);
     openWeek(weekOf("2026-08-03"));
-    fireEvent.click(expandButton("03 Aug"));
-    expect(expandButton("03 Aug").getAttribute("aria-expanded")).toBe("true");
-    fireEvent.click(expandButton("03 Aug"));
-    expect(expandButton("03 Aug").getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(expandButton("03-Aug-2026"));
+    expect(expandButton("03-Aug-2026").getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(expandButton("03-Aug-2026"));
+    expect(expandButton("03-Aug-2026").getAttribute("aria-expanded")).toBe("false");
   });
 });
 
@@ -476,7 +476,7 @@ describe("filters", () => {
     fireEvent.change(statusSelect(), { target: { value: "half_day" } });
     fireEvent.change(weekSelect(), { target: { value: String(halfDayWeek) } });
     expect(tableRows()).toHaveLength(1);
-    expect(tableRows()[0]!.querySelector("td")!.textContent).toBe("18 Aug");
+    expect(tableRows()[0]!.querySelector("td")!.textContent).toBe("18-Aug-2026");
 
     // The same status in a week that has none: handled cleanly, not an empty
     // accordion (§12).
@@ -493,7 +493,7 @@ describe("filters", () => {
     expect(values).not.toContain("client_site"); // nobody was at a client site
     fireEvent.change(place, { target: { value: "wfh" } });
     expect(tableRows()).toHaveLength(1);
-    expect(tableRows()[0]!.querySelector("td")!.textContent).toBe("10 Aug");
+    expect(tableRows()[0]!.querySelector("td")!.textContent).toBe("10-Aug-2026");
   });
 
   it("says a filter is on, and offers a clear way back to All", () => {
@@ -516,11 +516,11 @@ describe("filters", () => {
     fireEvent.change(statusSelect(), { target: { value: "half_day" } });
     const shown = tableRows();
     const earned = shown
-      .map((tr) => tr.querySelectorAll("td")[8]!.textContent!.replace(/[₹,]/g, ""))
+      .map((tr) => tr.querySelectorAll("td")[8]!.textContent!.replace(/Rs\.\s*/g, "").replace(/[₹,]/g, ""))
       .reduce((s, v) => s + Number(v), 0);
     const totalText = screen
       .getByText("Week total")
-      .parentElement!.textContent!.match(/Earned\s*₹([\d,.]+)/)?.[1];
+      .parentElement!.textContent!.match(/Earned\s*Rs\.\s*([\d,.]+)/)?.[1];
     expect(Number(totalText!.replace(/,/g, ""))).toBeCloseTo(earned, 0);
   });
 });
@@ -628,10 +628,10 @@ describe("a month whose pay does not break down by day", () => {
     expect(screen.getByRole("columnheader", { name: "Work Hours" })).toBeTruthy();
   });
 
-  it("shows the money columns as unknown, never as ₹0", () => {
+  it("shows the money columns as unknown, never as Rs. 0", () => {
     render(<DailySalaryReport ledger={bare()} />);
     const earned = tableRows().map((tr) => tr.querySelectorAll("td")[8]!.textContent!.trim());
     expect(earned.every((v) => v === "—")).toBe(true);
-    expect(earned.some((v) => v === "₹0")).toBe(false);
+    expect(earned.some((v) => v === "Rs. 0")).toBe(false);
   });
 });

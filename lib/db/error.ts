@@ -51,7 +51,14 @@ type PostgresErrorFields = {
   code?: unknown;
   detail?: unknown;
   hint?: unknown;
+  /** The rule that refused the row — the actionable part of a 23514. */
+  constraint_name?: unknown;
+  table_name?: unknown;
+  column_name?: unknown;
 };
+
+/** SQLSTATE for unique_violation — the one duplicate-key failure. */
+const UNIQUE_VIOLATION = "23505";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -134,4 +141,134 @@ export function logDbError(scope: string, err: unknown): void {
     statement: failingStatement(err),
     stack: root instanceof Error ? root.stack : undefined,
   });
+}
+
+/**
+ * ── FROM "WHAT WENT WRONG" TO "WHICH MIGRATION IS MISSING" ─────────────────
+ *
+ * `dbErrorMessage` answers WHAT happened. For a handful of SQLSTATEs we can also
+ * answer WHICH FIX applies, and that is the difference between an administrator
+ * resolving something in a minute and reporting it as a bug.
+ *
+ * ── THE CASE THAT PROMPTED THIS (2026-09-18) ───────────────────────────────
+ * The owner ticked "Issue letters" on an employee record. He was shown:
+ *
+ *   Failed query: insert into "capability_grants" (...) values (default, $1, …)
+ *   params: 733b3a89-…,mansimedhekar.altuscorp@gmail.com,hr.letters.issue,…
+ *
+ * The actual cause was a CHECK constraint that migration 0228 widens. Note that
+ * the handler at the time did not even reach `dbErrorMessage`: it read
+ * `err.message`, so it printed drizzle's wrapper AND, by echoing the params,
+ * leaked an employee's email address into a UI toast. Both failures are
+ * avoided by naming the remedy here.
+ */
+
+/**
+ * SQLSTATEs that mean "the database is older than the code".
+ *
+ *   42P01  undefined_table   — the migration that creates it never ran
+ *   42703  undefined_column  — a migration is missing a column
+ *   23514  check_violation   — a CHECK still lists the old set of values
+ *   42P07  duplicate_table   — the migration ran twice (harmless)
+ *   42710  duplicate_object  — likewise
+ *
+ * Anything else — a unique violation, a deadlock, a bad connection — is a data
+ * or infrastructure problem, and telling the reader to run a migration would be
+ * worse than saying nothing.
+ */
+const SCHEMA_BEHIND_CODES = new Set(["42P01", "42703", "23514", "42P07", "42710"]);
+
+/**
+ * SQLSTATEs are EXACTLY five characters of `[0-9A-Z]`.
+ *
+ * That precision is load-bearing: Node's own error codes (`ENOENT`,
+ * `ECONNREFUSED`, `ERR_INVALID_URL`) are also strings, so a bare
+ * `typeof code === "string"` check would classify a dead socket as a schema
+ * problem and send somebody hunting for a migration that was never missing.
+ */
+const SQLSTATE = /^[0-9A-Z]{5}$/;
+
+/** The driver's fields, or an empty object when this is not a Postgres error. */
+function postgresFields(err: unknown): PostgresErrorFields {
+  const root = rootCause(err);
+  if (typeof root !== "object" || root === null) return {};
+  const fields = root as PostgresErrorFields;
+  return typeof fields.code === "string" && SQLSTATE.test(fields.code) ? fields : {};
+}
+
+/**
+ * True when the failure means an expected migration has not been applied.
+ * Use it to decide whether to name a remedy at all.
+ */
+export function schemaIsBehind(err: unknown): boolean {
+  const code = postgresFields(err).code;
+  return typeof code === "string" && SCHEMA_BEHIND_CODES.has(code);
+}
+
+/**
+ * One sentence naming the FIX, or `null` when we do not recognise the failure
+ * (in which case use `dbErrorMessage`, which is always right).
+ *
+ * Returned as a sentence rather than a replacement message, so a caller can
+ * choose to lead with it — which is what an admin-facing control should do,
+ * because the remedy is more use to a human than the SQLSTATE is.
+ */
+export function dbErrorRemedy(err: unknown): string | null {
+  const fields = postgresFields(err);
+  const code = typeof fields.code === "string" ? fields.code : "";
+  const name = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
+
+  if (code === "23514") {
+    const constraint = name(fields.constraint_name);
+    return (
+      `The database refused this value because of a rule it still enforces` +
+      `${constraint ? ` ("${constraint}")` : ""} — a migration that widens it has probably not been applied yet.`
+    );
+  }
+  if (code === "42P01") {
+    const table = name(fields.table_name);
+    return (
+      `The table${table ? ` "${table}"` : ""} this needs does not exist in this database — ` +
+      `a migration has not been applied yet.`
+    );
+  }
+  if (code === "42703") {
+    const column = name(fields.column_name);
+    return (
+      `A column this needs${column ? ` ("${column}")` : ""} is missing — ` +
+      `a migration has not been applied yet.`
+    );
+  }
+  if (code === "42P07" || code === "42710") {
+    return "That object already exists — the migration creating it looks to have been run twice.";
+  }
+  return null;
+}
+
+/**
+ * The best single line for an ADMIN-FACING error: the remedy when we have one,
+ * otherwise the cause. Never the bound parameters — see the note in
+ * `dbErrorMessage`.
+ */
+export function dbErrorAdvice(err: unknown): string {
+  return dbErrorRemedy(err) ?? dbErrorMessage(err);
+}
+
+/**
+ * THE INDEX A DUPLICATE-KEY FAILURE LANDED ON, or null if that is not what
+ * this error was.
+ *
+ * A caller that knows its own uniques can turn "23505 on
+ * billing_customers_name_uq" into the sentence the person actually needs — "a
+ * client of that name already exists" — instead of `dbErrorMessage`'s honest
+ * but unhelpful report of the Postgres text. Reaches the driver's error through
+ * the same cause walk, because drizzle's wrapper carries neither the SQLSTATE
+ * nor the constraint name.
+ */
+export function uniqueViolationConstraint(err: unknown): string | null {
+  const root = rootCause(err);
+  if (typeof root !== "object" || root === null) return null;
+  const fields = root as PostgresErrorFields;
+  if (text(fields.code) !== UNIQUE_VIOLATION) return null;
+  return text(fields.constraint_name) || "";
 }

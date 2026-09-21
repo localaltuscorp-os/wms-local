@@ -10,6 +10,7 @@ import { rateLimitOrError } from "@/lib/rate-limit";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { getPolicy, isPolicyKey } from "@/lib/hr/policies/registry";
 import { currentPolicyVersion } from "@/lib/hr/policies/compliance-sync";
+import { policiesCompleteSnapshot, notifyIfPoliciesJustCompleted } from "@/lib/hr/policies/signed-notify";
 
 type R<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -72,6 +73,7 @@ export async function signPolicyWithSignature(input: {
 
   const version = await currentPolicyVersion(key);
   const now = new Date();
+  const completeBefore = await policiesCompleteSnapshot(me.id);
 
   // The honest record first, the ledger second: a failure can then only leave
   // the ledger BEHIND this table, never claiming a signature never taken.
@@ -100,6 +102,9 @@ export async function signPolicyWithSignature(input: {
       target: [policyCompliance.policyKey, policyCompliance.employeeId],
       set: { status: "signed", signedAt: now, version, updatedAt: now },
     });
+
+  // Mail HR + Manan when this signature completes the full set.
+  await notifyIfPoliciesJustCompleted(me.id, completeBefore);
 
   revalidatePath("/hr/policies");
   revalidatePath(`/hr/policies/${key}`);

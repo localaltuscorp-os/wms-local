@@ -5,6 +5,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { AppToaster } from "@/components/ui/sonner-toaster";
+import { TableViewportSizer } from "@/components/layout/table-viewport-sizer";
 import { Providers } from "@/components/providers";
 import { DisplayScaleProvider } from "@/components/layout/display-scale-provider";
 import { RegisterSW } from "@/components/pwa/register-sw";
@@ -191,6 +192,11 @@ export default async function RootLayout({
             takeover prompt interrupting either tab. */}
         <SingleWindowGuard enabled={false} />
         <AppToaster />
+        {/* Sizes every table's scrollport to the room actually left below it,
+            so the last rows and the pagination footer land on screen instead of
+            under the fold. Renders nothing; see the component for why this is
+            one mount rather than an edit to ~129 tables. */}
+        <TableViewportSizer />
         <RegisterSW />
         {/* Phase 0.3 — Vercel Speed Insights. Auto-no-ops outside Vercel
             (no env vars needed); on Vercel it records real-user Core Web

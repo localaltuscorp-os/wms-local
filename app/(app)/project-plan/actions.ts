@@ -12,16 +12,24 @@ import { CACHE_TAGS } from "@/lib/cache-tags";
 import { afterResponse } from "@/lib/after";
 import { createTasksCore } from "@/lib/tasks/create-task";
 import { reconcileTaskEvent } from "@/lib/google/sync";
-import { descendantIds } from "@/lib/queries/project-plan";
+import { clientForNode, descendantIds } from "@/lib/queries/project-plan";
+// A "use server" file may export nothing but async functions, so the two
+// placeholder names live in the levels module with the rest of the plan's
+// vocabulary rather than here beside the function that uses them.
+import { UNCLASSIFIED_MILESTONE, UNCLASSIFIED_RESULT } from "@/lib/project-plan/levels";
 import { MAX_BULK_ROWS } from "@/lib/project-plan/bulk";
 import {
   PLAN_KINDS,
   PARENT_KIND,
+  CHILD_KIND,
+  KIND_DEPTH,
   KIND_LABEL,
   isExecutable,
   hasTask,
+  unclassifiedName,
   type PlanKind,
 } from "@/lib/project-plan/levels";
+import type { PlanMovePlan } from "@/lib/project-plan/move";
 import {
   approverActorOf,
   canSetPlanStatus,
@@ -50,10 +58,10 @@ const fail = (error: string): { ok: false; error: string } => ({ ok: false, erro
 
 const PATH = "/project-plan";
 
-/** Both project surfaces read the same rows, so both caches drop together. */
+/** The plan is the only project surface now (the older /projects board is
+ *  gone), so its path plus the shared node cache is the whole drop. */
 function revalidatePlanSurfaces() {
   revalidatePath(PATH);
-  revalidatePath("/projects");
   updateTag(CACHE_TAGS.projectNodes);
 }
 
@@ -113,6 +121,20 @@ async function syncNodeTask(nodeId: string, actor: { id: string; name: string })
     // Result now gets a task too (see TASK_KINDS) — Project and Milestone
     // still never do, and neither does any row whose level lost its task.
     if (!hasTask(node.kind as PlanKind)) return;
+    // Belt and braces for the description rule (`updatePlanNode` is where it is
+    // ENFORCED, with a message). A row that reached here without one — the bulk
+    // upload, or anything added before the rule — gets no task built rather
+    // than one that says nothing. An EXISTING task is left alone: the update
+    // branch below never sees this return, because it is above it only for the
+    // create path.
+    if (!node.description?.trim()) {
+      const [already] = await db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(eq(tasks.projectNodeId, nodeId), eq(tasks.archived, false)))
+        .limit(1);
+      if (!already) return;
+    }
 
     const [existing] = await db
       .select({ id: tasks.id })
@@ -128,7 +150,24 @@ async function syncNodeTask(nodeId: string, actor: { id: string; name: string })
     // than tearing it down because a field was momentarily cleared.
     if (!owner || !due) return;
 
+    // THE FIELDS THE PLAN OWNS, resolved once and written the same way whether
+    // the task is being created or brought back into step.
+    //
+    //   client       from the PROJECT, walked up the tree — one client per plan
+    //                (lib/queries/project-plan.ts: clientForNode).
+    //   description  what someone wrote on the row. It is the same sentence in
+    //                both places; typing it twice is how they end up different.
+    //   subject      the row's own (0213), which the executable levels require.
+    //   priority     likewise, defaulting to the module's old constant only
+    //                when the row has none.
+    const client = await clientForNode(node.id);
+    const priority = node.priority ?? ("imp_not_urgent" as const);
+
     if (existing) {
+      // UPDATE, NEVER A SECOND ROW. Re-assign the doer, change the date, retype
+      // the description — the task the plan row already owns is the task that
+      // changes. `existing` is looked up by project_node_id above precisely so
+      // this path can never fork into a duplicate.
       await db
         .update(tasks)
         .set({
@@ -138,6 +177,20 @@ async function syncNodeTask(nodeId: string, actor: { id: string; name: string })
           startsAt: node.startsAt ?? null,
           endsAt: node.endsAt ?? null,
           estimatedMinutes: node.durationMinutes ?? null,
+          // ONLY WHAT THE ROW ACTUALLY CARRIES. A plan row with no description
+          // means "nothing said here", not "blank the task" — and a task's
+          // description is editable in WMS too, so writing null through would
+          // be the sync destroying someone's wording rather than propagating
+          // the row's. Same rule as subject and priority below.
+          ...(node.description ? { description: node.description } : {}),
+          client,
+          // Subject and priority follow the row only when the row HAS one:
+          // these two are editable on the WMS side as well, and blanking a
+          // subject someone set in the task list because the plan row never
+          // carried one would be the sync destroying data rather than
+          // propagating it.
+          ...(node.subject ? { subject: node.subject } : {}),
+          ...(node.priority ? { priority: node.priority } : {}),
           updatedAt: new Date(),
         })
         .where(eq(tasks.id, existing.id));
@@ -151,12 +204,17 @@ async function syncNodeTask(nodeId: string, actor: { id: string; name: string })
     await createTasksCore(actor, {
       title: node.name,
       doerId: owner,
-      initiatorId: actor.id,
-      priority: "imp_not_urgent",
+      initiatorId: node.initiatorId ?? actor.id,
+      priority,
       dueAt: due.toISOString(),
       startsAt: node.startsAt ? node.startsAt.toISOString() : null,
       endsAt: node.endsAt ? node.endsAt.toISOString() : null,
       projectNodeId: node.id,
+      description: node.description ?? undefined,
+      // Passed even when null: `undefined` would read as "no opinion" and take
+      // the task's title — the action's own name — as its client.
+      client,
+      subject: node.subject ?? undefined,
     });
   } catch (err) {
     console.error("[project-plan] task sync failed for node", nodeId, err);
@@ -204,17 +262,23 @@ export async function createPlanNode(input: unknown): Promise<Result<{ id: strin
           : sql`${projectNodes.parentId} IS NULL AND ${projectNodes.kind} = 'project'`,
       )) as Array<{ next: number }>;
 
-    // EVERY EXECUTABLE ROW BECOMES A TASK, including one added by the bare "+"
-    // on a row, which collects nothing. `tasks.doer_id` and `tasks.due_at` are
-    // both NOT NULL, so a task cannot exist without the two — and this path has
-    // neither. Rather than leave the row out of WMS until somebody fills them
-    // in, it opens with the two safe answers: the person adding the row, and
-    // today. Both are ordinary editable cells the moment the row lands, so a
-    // wrong guess costs one click and the work is never invisible.
+    // NOTHING IS PRE-SCHEDULED ANY MORE (2026-09-14).
     //
-    // Containers get neither: a project has no doer and no deadline of its own,
-    // and `syncNodeTask` refuses to build a task for one anyway.
-    const seedTask = hasTask(kind);
+    // This used to open an executable row with an owner (whoever pressed "+")
+    // and a target date (today), so the row appeared in WMS immediately rather
+    // than waiting for someone to fill the two NOT NULL columns a task needs.
+    // That was the right trade while a row needed nothing else.
+    //
+    // A description is now REQUIRED before an executable row may be scheduled —
+    // it becomes the task's description and is what the WMS Task column shows,
+    // so a task built from a bare "+" had nothing in it but a name. Seeding the
+    // pair here would have scheduled the row before the description could
+    // possibly exist, i.e. it would have routed straight around the new rule.
+    //
+    // So "+" now drops an unscheduled row: name it, describe it, then give it
+    // an owner and a date. It reads as "Not scheduled" until then, which is
+    // true, and `syncNodeTask` builds nothing for it.
+
     const [row] = await db
       .insert(projectNodes)
       .values({
@@ -223,14 +287,13 @@ export async function createPlanNode(input: unknown): Promise<Result<{ id: strin
         parentId,
         sortOrder: maxRow?.next ?? 10,
         createdById: me.id,
-        ownerId: seedTask ? me.id : null,
-        targetDate: seedTask ? startOfToday() : null,
+        ownerId: null,
+        targetDate: null,
       })
       .returning({ id: projectNodes.id });
     if (!row) return fail("Insert returned no row.");
-    // After the insert, and never in a way that can fail the create: the plan
-    // row is saved either way, and `syncNodeTask` swallows its own errors.
-    if (seedTask) await syncNodeTask(row.id, { id: me.id, name: me.name });
+    // No `syncNodeTask` here: the row has neither an owner nor a date, so there
+    // is nothing to build. It runs from `updatePlanNode` once both are set.
     revalidatePlanSurfaces();
     return { ok: true, id: row.id };
   } catch (err) {
@@ -279,6 +342,22 @@ const CreateForTaskSchema = z.object({
   startsAt: z.string().datetime().nullable().optional(),
   endsAt: z.string().datetime().nullable().optional(),
   links: LinksSchema,
+  /**
+   * THE ROW'S DESCRIPTION — and it was missing, which is the bug this closes.
+   *
+   * The "+ Action" / "+ Sub-Action" dialog collects a description, hands it to
+   * the TASK, and used to drop it on the floor here: the plan row it created
+   * alongside had none, so the Description column in the hierarchy read empty
+   * for every row added that way, and `syncNodeTask` on the next edit had
+   * nothing to carry back.
+   *
+   * The container path (`createPlanContainer`) has always taken it. This is the
+   * task path catching up, along with the two other fields the same form
+   * collects and this path was also discarding.
+   */
+  description: z.string().trim().max(2000).nullable().optional(),
+  subject: z.string().trim().max(200).nullable().optional(),
+  priority: z.enum(TASK_PRIORITIES).nullable().optional(),
 });
 
 export async function createPlanNodeForTask(input: unknown): Promise<Result<{ id: string }>> {
@@ -323,6 +402,9 @@ export async function createPlanNodeForTask(input: unknown): Promise<Result<{ id
       sortOrder: maxRow?.next ?? 10,
       createdById: me.id,
       ownerId,
+      description: parsed.data.description || null,
+      subject: parsed.data.subject || null,
+      priority: parsed.data.priority ?? null,
       // The plan's own copy of the schedule. `syncNodeTask` mirrors these onto
       // the task on every later edit, so they must match what the task is
       // about to be created with.
@@ -415,6 +497,21 @@ export async function createPlanContainer(input: unknown): Promise<Result<{ id: 
   // on the calendar. Result is now one of them, so it goes down that path too.
   if (hasTask(kind)) {
     return fail(`A ${KIND_LABEL[kind].toLowerCase()} is a task — it can't be created as a container.`);
+  }
+
+  // A PROJECT MUST NAME ITS CLIENT. Everything under it inherits that one
+  // answer and every task scheduled out of it is filed against it
+  // (`clientForNode`), so a project without one produces a whole branch of
+  // unfilable work. Checked on the server, not only in the dialog, because the
+  // bulk upload reaches this same function.
+  //
+  // ONLY PROJECT. A milestone already has a client — its project's — and asking
+  // again is exactly how a plan ends up naming two.
+  //
+  // NOT the inline "+ Add project" path (`createPlanNode`), which deliberately
+  // drops an untitled row you complete in place; it has no field to demand.
+  if (kind === "project" && !parsed.data.clientName?.trim()) {
+    return fail("Pick the client this project is for.");
   }
 
   const needsParent = PARENT_KIND[kind];
@@ -666,6 +763,15 @@ const UpdateSchema = z.object({
    *  `project_nodes.description` has existed since #13, so this only opens the
    *  write path the hierarchy table needs. */
   description: z.string().trim().max(2000).nullable().optional(),
+  /**
+   * The client, or null to clear it. Editable ONLY on a project — everything
+   * below inherits it, and a milestone with its own would let one plan name two
+   * clients (see `clientForNode`).
+   *
+   * Without this, a project created before the field existed could never GET a
+   * client, so every task under it stayed filed against nothing.
+   */
+  clientName: z.string().trim().max(200).nullable().optional(),
   ownerId: z.string().uuid().nullable().optional(),
   /** "YYYY-MM-DD" or null to clear. */
   targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u).nullable().optional(),
@@ -711,6 +817,14 @@ export async function updatePlanNode(input: unknown): Promise<Result> {
   // count it as absent while the column claimed otherwise.
   if (patch.description !== undefined) set.description = patch.description || null;
   if (patch.ownerId !== undefined) set.ownerId = patch.ownerId;
+  if (patch.clientName !== undefined) {
+    if (auth.node.kind !== "project") {
+      return fail(
+        `A ${KIND_LABEL[auth.node.kind as PlanKind].toLowerCase()} takes its client from its project — set it there.`,
+      );
+    }
+    set.clientName = patch.clientName || null;
+  }
   if (patch.durationMinutes !== undefined) set.durationMinutes = patch.durationMinutes;
   if (patch.targetDate !== undefined) {
     // Noon local, not midnight: a midnight timestamp lands on the previous day
@@ -745,6 +859,47 @@ export async function updatePlanNode(input: unknown): Promise<Result> {
     if (!person) return fail("That person no longer exists.");
   }
 
+  /**
+   * A DESCRIPTION IS REQUIRED BEFORE AN EXECUTABLE ROW MAY BE SCHEDULED.
+   *
+   * Scheduling means giving the row an owner AND a target date — the two
+   * columns `tasks` cannot be null on — and the moment both are set this row
+   * becomes a task in WMS and on someone's calendar. Its description is what
+   * the WMS Task column renders, so a row scheduled without one arrives in
+   * somebody's queue as a bare name with no statement of what to do.
+   *
+   * WHY IT GUARDS THE EDIT RATHER THAN THE SYNC. `syncNodeTask` swallows its
+   * own errors by design — it must never roll back a plan edit — so a refusal
+   * there would be silent: the date would save and the task simply would not
+   * appear, with nothing said. Refusing the edit is the only place the person
+   * doing it can be told why.
+   *
+   * ONLY WHILE IT IS STILL UNSCHEDULED. A row that already has its task is past
+   * this gate; re-dating it is an ordinary edit and blocking that would strand
+   * anything created before the rule existed.
+   */
+  if (isExecutable(auth.node.kind as PlanKind)) {
+    const settingOwner = patch.ownerId !== undefined && patch.ownerId !== null;
+    const settingDate = patch.targetDate !== undefined && patch.targetDate !== null;
+    if (settingOwner || settingDate) {
+      // The description AFTER this edit — the same request may be setting it.
+      const description =
+        patch.description !== undefined ? patch.description : auth.node.description;
+      if (!description?.trim()) {
+        const [linked] = await db
+          .select({ id: tasks.id })
+          .from(tasks)
+          .where(and(eq(tasks.projectNodeId, id), eq(tasks.archived, false)))
+          .limit(1);
+        if (!linked) {
+          return fail(
+            `Give this ${KIND_LABEL[auth.node.kind as PlanKind].toLowerCase()} a description before scheduling it — it becomes the task's description in WMS. Fill the Description column first.`,
+          );
+        }
+      }
+    }
+  }
+
   try {
     try {
       await db.update(projectNodes).set(set).where(eq(projectNodes.id, id));
@@ -757,10 +912,43 @@ export async function updatePlanNode(input: unknown): Promise<Result> {
       await db.update(projectNodes).set(rest).where(eq(projectNodes.id, id));
     }
     await syncNodeTask(id, { id: me.id, name: me.name });
+    // A CHANGED CLIENT REACHES THE WHOLE BRANCH. `syncNodeTask` only touches
+    // the row it was given, and a project has no task of its own — so without
+    // this, setting the client on a project left every already-scheduled action
+    // under it still showing "—" in the WMS Client column, which is exactly the
+    // gap that made the field look broken.
+    if (patch.clientName !== undefined) {
+      await resyncBranchClient(id);
+    }
     revalidatePlanSurfaces();
     return { ok: true };
   } catch (err) {
     return fail(err instanceof Error ? err.message : String(err));
+  }
+}
+
+/**
+ * Push a project's client onto every task already scheduled beneath it.
+ *
+ * One UPDATE over the subtree rather than a `syncNodeTask` per row: the client
+ * is the only field changing, the other fields are already in step, and a
+ * hundred-row plan should not become a hundred round-trips plus a hundred
+ * calendar reconciliations for a value the calendar does not carry.
+ *
+ * Never throws — same contract as `syncNodeTask`. The client's edit is
+ * committed by the time this runs and must not be rolled back by it.
+ */
+async function resyncBranchClient(projectId: string): Promise<void> {
+  try {
+    const client = await clientForNode(projectId);
+    const ids = await descendantIds(projectId);
+    if (ids.length === 0) return;
+    await db
+      .update(tasks)
+      .set({ client, updatedAt: new Date() })
+      .where(and(inArray(tasks.projectNodeId, ids), eq(tasks.archived, false)));
+  } catch (err) {
+    console.error("[project-plan] client re-sync failed for project", projectId, err);
   }
 }
 
@@ -1010,6 +1198,67 @@ export async function deletePlanNode(id: string): Promise<Result<{ nodes: number
   }
 }
 
+/**
+ * PERMANENTLY DELETE a plan row and everything under it.
+ *
+ * The counterpart to `deletePlanNode`, which despite its name only ARCHIVES.
+ * Both controls now sit on every row, in the same order the WMS task list puts
+ * them (Delete, then Archive), because they answer different questions:
+ *
+ *   Archive  "this is finished with" — the row and its tasks leave the board,
+ *            WMS and the calendar, and every record survives.
+ *   Delete   "this should never have existed" — a typo, a duplicate, a test
+ *            row. The rows and their tasks are gone.
+ *
+ * ADMIN-ONLY, exactly like `deleteTask`: it is irreversible and it cascades
+ * through a subtree, so it is not something an owner should be able to do to a
+ * branch by mis-clicking.
+ *
+ * ORDER MATTERS. Tasks go first: `tasks.project_node_id` references the node,
+ * and its FK is not a cascade, so deleting the nodes first would either fail or
+ * strand rows. Task deletion itself relies on the same FK cascades `deleteTask`
+ * does — task_events and notifications go with the row, documents unlink.
+ */
+export async function purgePlanNode(id: string): Promise<Result<{ nodes: number; tasks: number }>> {
+  const me = await requireUser();
+  if (!me.isAdmin) return fail("Only an administrator can permanently delete a plan row.");
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const auth = await loadNode(id);
+  if (!auth.ok) return auth;
+
+  try {
+    const ids = await descendantIds(id);
+    if (ids.length === 0) return fail("Row not found.");
+
+    // Every linked task, archived ones included — a purge leaves nothing.
+    const doomed = await db
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(inArray(tasks.projectNodeId, ids));
+
+    if (doomed.length > 0) {
+      const taskIds = doomed.map((t) => t.id);
+      // Off the calendar BEFORE the rows go: reconcile reads the task to know
+      // which event to remove, and it cannot do that once it is deleted.
+      await Promise.allSettled(taskIds.map((tid) => reconcileTaskEvent(tid)));
+      await db.delete(tasks).where(inArray(tasks.id, taskIds));
+    }
+
+    // Children first, so a parent is never removed out from under a row that
+    // still points at it. descendantIds returns the root first, so reverse.
+    for (const nodeId of [...ids].reverse()) {
+      await db.delete(projectNodes).where(eq(projectNodes.id, nodeId));
+    }
+
+    revalidatePlanSurfaces();
+    return { ok: true, nodes: ids.length, tasks: doomed.length };
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : String(err));
+  }
+}
+
 /** How much a delete would take with it — the confirmation dialog's numbers. */
 export async function planDeleteImpact(id: string): Promise<Result<{ nodes: number; tasks: number }>> {
   await requireUser();
@@ -1218,6 +1467,529 @@ export async function movePlanNode(input: unknown): Promise<Result> {
 
     revalidatePlanSurfaces();
     return { ok: true };
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : String(err));
+  }
+}
+
+/* ── Drag a branch to another project ─────────────────────────────────────── */
+
+const ReparentSchema = z.object({
+  /** The row being dragged. */
+  id: z.string().uuid(),
+  /** The row it was dropped on — any level, including the project itself. */
+  targetId: z.string().uuid(),
+});
+
+/** Ancestors of a row, NEAREST FIRST (the row itself is index 0). */
+async function ancestorChain(
+  nodeId: string,
+): Promise<Array<{ id: string; kind: PlanKind; name: string }>> {
+  const rows = (await db.execute(sql`
+    WITH RECURSIVE up AS (
+      SELECT id, parent_id, kind, name, 0 AS depth
+        FROM project_nodes WHERE id = ${nodeId}
+      UNION ALL
+      SELECT n.id, n.parent_id, n.kind, n.name, up.depth + 1
+        FROM project_nodes n JOIN up ON up.parent_id = n.id
+    )
+    SELECT id, kind, name FROM up ORDER BY depth ASC
+  `)) as unknown as Array<{ id: string; kind: string; name: string }>;
+  return rows.map((r) => ({ id: r.id, kind: r.kind as PlanKind, name: r.name }));
+}
+
+/** The project a row sits under — or the row itself, when it is one. */
+async function projectOf(nodeId: string): Promise<{ id: string; name: string } | null> {
+  const chain = await ancestorChain(nodeId);
+  const p = chain.find((c) => c.kind === "project");
+  return p ? { id: p.id, name: p.name } : null;
+}
+
+/**
+ * A child of `parentId` at `kind` with exactly this name, or undefined.
+ *
+ * The READ half of `findOrCreateChild`, so the dry run and the write agree on
+ * what counts as "already there" — if these two ever disagreed, the dialog
+ * would promise a placeholder the write then reused, or the other way round.
+ */
+async function findChildNamed(
+  parentId: string,
+  kind: PlanKind,
+  name: string,
+): Promise<{ id: string; name: string } | undefined> {
+  const [found] = await db
+    .select({ id: projectNodes.id, name: projectNodes.name })
+    .from(projectNodes)
+    .where(
+      and(
+        eq(projectNodes.parentId, parentId),
+        eq(projectNodes.kind, kind),
+        eq(projectNodes.name, name),
+        eq(projectNodes.isArchived, false),
+      ),
+    )
+    .limit(1);
+  return found;
+}
+
+/** Everything under a row, counted per level — the dialog's "and this comes
+ *  with it" line. Excludes the row itself. */
+async function countBelowByKind(rootId: string): Promise<Array<{ kind: PlanKind; count: number }>> {
+  const rows = (await db.execute(sql`
+    WITH RECURSIVE sub AS (
+      SELECT id, kind, 0 AS depth FROM project_nodes WHERE id = ${rootId}
+      UNION ALL
+      SELECT n.id, n.kind, sub.depth + 1
+        FROM project_nodes n JOIN sub ON n.parent_id = sub.id
+       WHERE n.is_archived = false
+    )
+    SELECT kind, COUNT(*)::int AS count FROM sub WHERE depth > 0 GROUP BY kind
+  `)) as unknown as Array<{ kind: string; count: number }>;
+  const byKind = new Map(rows.map((r) => [r.kind, Number(r.count)]));
+  // Emitted in tree order, so the dialog reads top-down like the plan does.
+  return PLAN_KINDS.flatMap((k) => {
+    const n = byKind.get(k) ?? 0;
+    return n > 0 ? [{ kind: k, count: n }] : [];
+  });
+}
+
+/** Live WMS tasks linked to any row in the branch. */
+async function countLinkedTasks(nodeIds: string[]): Promise<number> {
+  if (nodeIds.length === 0) return 0;
+  const [row] = (await db
+    .select({ n: sql<number>`COUNT(*)::int` })
+    .from(tasks)
+    .where(and(inArray(tasks.projectNodeId, nodeIds), eq(tasks.archived, false)))) as Array<{
+    n: number;
+  }>;
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Work out where a drop would land — WITHOUT writing anything.
+ *
+ * The confirm dialog is the whole point of the feature ("when I drag then give
+ * me one popup you really want to shift"), and a dialog that says "this will
+ * create an Unclassified Milestone and move 3 Actions" has to have actually
+ * resolved the move in order to say so.
+ *
+ * So the resolution runs TWICE: once dry, to be read, and once for real when
+ * the person says yes. It is not one function with a `dryRun` flag because the
+ * dry pass must not create the placeholder rows it reports — it walks as far as
+ * rows exist and then describes the rest.
+ *
+ * Returns the ANCHOR alongside the plan: the existing row the new parent chain
+ * hangs off, which is where the write picks up.
+ */
+async function planTheMove(
+  nodeId: string,
+  targetId: string,
+): Promise<
+  | { ok: true; plan: PlanMovePlan; anchorId: string; anchorKind: PlanKind }
+  | { ok: false; error: string }
+> {
+  if (nodeId === targetId) return fail("A row cannot be moved onto itself.");
+
+  const nodeRes = await loadNode(nodeId);
+  if (!nodeRes.ok) return nodeRes;
+  const targetRes = await loadNode(targetId);
+  if (!targetRes.ok) return fail("The row you dropped on no longer exists.");
+
+  const node = nodeRes.node;
+  const target = targetRes.node;
+  const nodeKind = node.kind as PlanKind;
+  const targetKind = target.kind as PlanKind;
+
+  if (node.isArchived) return fail("That row is archived.");
+  if (target.isArchived) return fail("You cannot drop a row into an archived branch.");
+
+  const parentKind = PARENT_KIND[nodeKind];
+  if (!parentKind) {
+    // A project is the top of the tree; there is nothing to re-parent it to.
+    return fail("A project has nothing above it, so it cannot be moved into another project.");
+  }
+
+  // ── The cycle guard ──────────────────────────────────────────────────────
+  // Dropping a row inside its own subtree would detach that branch from the
+  // tree and leave it pointing at itself. `descendantIds` includes the root, so
+  // this also catches the drop-on-self case a second time.
+  const own = await descendantIds(nodeId);
+  if (own.includes(targetId)) {
+    return fail("You cannot move a row into something that sits underneath it.");
+  }
+
+  // ── Find the ANCHOR: the existing row the new parent chain hangs off ──────
+  //
+  // Two cases, and both are ordinary gestures:
+  //
+  //   dropped on something ABOVE the needed parent (a Result onto a Project)
+  //     → descend from it, creating the levels in between
+  //   dropped on something AT OR BELOW the same level (a Result onto a Result)
+  //     → read it as "put it where that row is": walk UP to the level a parent
+  //       has to be, and use that
+  let anchor: { id: string; kind: PlanKind; name: string };
+  if (KIND_DEPTH[targetKind] <= KIND_DEPTH[parentKind]) {
+    anchor = { id: target.id, kind: targetKind, name: target.name };
+  } else {
+    const up = (await ancestorChain(targetId)).find((c) => c.kind === parentKind);
+    if (!up) return fail("That row's branch is incomplete — drop onto the project instead.");
+    anchor = up;
+  }
+
+  // ── Walk down from the anchor, noting what does not exist yet ─────────────
+  let cursorId: string | null = anchor.id;
+  let cursorKind: PlanKind = anchor.kind;
+  let cursorName = anchor.name;
+  const creates: Array<{ kind: PlanKind; name: string }> = [];
+  while (cursorKind !== parentKind) {
+    const nextKind: PlanKind | null = CHILD_KIND[cursorKind];
+    if (!nextKind) return fail("That drop target is too deep for this row.");
+    const wanted = unclassifiedName(nextKind);
+    const existing: { id: string; name: string } | undefined = cursorId
+      ? await findChildNamed(cursorId, nextKind, wanted)
+      : undefined;
+    if (existing) {
+      cursorId = existing.id;
+      cursorName = existing.name;
+    } else {
+      // From here down NOTHING exists yet, so every remaining level is a
+      // create. `cursorId` goes null: there is no row to look under.
+      cursorId = null;
+      cursorName = wanted;
+      creates.push({ kind: nextKind, name: wanted });
+    }
+    cursorKind = nextKind;
+  }
+
+  // Already where the drop would put it — refused as a no-op rather than
+  // written, so the row does not silently jump to the end of its own run.
+  if (cursorId && cursorId === node.parentId) {
+    return fail("That row is already there.");
+  }
+
+  const [fromProject, toProject] = await Promise.all([projectOf(nodeId), projectOf(targetId)]);
+  if (!toProject) return fail("Could not work out which project that row is in.");
+
+  const [carries, taskCount] = await Promise.all([
+    countBelowByKind(nodeId),
+    countLinkedTasks(own),
+  ]);
+
+  return {
+    ok: true,
+    anchorId: anchor.id,
+    anchorKind: anchor.kind,
+    plan: {
+      nodeKind,
+      nodeName: node.name,
+      fromProjectId: fromProject?.id ?? "",
+      fromProjectName: fromProject?.name ?? "—",
+      toProjectId: toProject.id,
+      toProjectName: toProject.name,
+      sameProject: fromProject?.id === toProject.id,
+      parentKind,
+      parentName: cursorName,
+      creates,
+      carries,
+      taskCount,
+    },
+  };
+}
+
+/**
+ * WHAT WOULD HAPPEN if this row were dropped there — read-only.
+ *
+ * The drag calls this on drop and shows the answer in the confirm dialog; the
+ * person then either cancels or calls `reparentPlanNode` with the same pair.
+ * Nothing is written here, the placeholder rows it reports included.
+ */
+export async function planMoveImpact(input: unknown): Promise<Result<{ plan: PlanMovePlan }>> {
+  await requireUser();
+  const parsed = ReparentSchema.safeParse(input);
+  if (!parsed.success) return fail("Invalid input.");
+  try {
+    const res = await planTheMove(parsed.data.id, parsed.data.targetId);
+    if (!res.ok) return res;
+    return { ok: true, plan: res.plan };
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : String(err));
+  }
+}
+
+/**
+ * MOVE A BRANCH — the drag-and-drop write.
+ *
+ * Manan, 2026-09-15: "in project section i want drag and drop feature — if i
+ * drag my milestone, result, action and subaction to another project then it
+ * will go to another … and if the milestone have the result, action and
+ * subaction will also go to another project".
+ *
+ * THE CHILDREN COME FOR FREE, and that is not luck — it is why the tree is
+ * stored as `parent_id` and nothing else. A milestone's results, their actions
+ * and their sub-actions all point at rows that point at the milestone, so
+ * re-pointing the ONE row moves the whole branch. There is no recursive update
+ * here and there must never be one: a second pass over the descendants could
+ * half-succeed and split a branch across two projects.
+ *
+ * WHAT DOES need doing, because it is not `parent_id`:
+ *   · the placeholder levels, when the target has nowhere to put the row —
+ *     a Result dropped on a Project needs a Milestone to sit under
+ *   · sort_order at BOTH ends: out of the old run, onto the end of the new
+ *   · tasks.client for every linked task in the branch — the client belongs to
+ *     the PROJECT, so crossing projects changes it for the whole subtree
+ *
+ * The linked WMS tasks are otherwise untouched. An action IS its task; moving
+ * the plan row must not re-create, re-date or re-assign the work.
+ *
+ * The move is RE-RESOLVED here rather than trusted from the dialog: the browser
+ * has been holding a plan while a person read it, and the tree may have moved
+ * underneath them.
+ */
+export async function reparentPlanNode(input: unknown): Promise<Result<{ moved: number }>> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = ReparentSchema.safeParse(input);
+  if (!parsed.success) return fail("Invalid input.");
+  const { id, targetId } = parsed.data;
+
+  try {
+    const res = await planTheMove(id, targetId);
+    if (!res.ok) return res;
+    const { plan } = res;
+
+    const nodeRes = await loadNode(id);
+    if (!nodeRes.ok) return nodeRes;
+    const oldParentId = nodeRes.node.parentId;
+
+    // Materialise the chain for real this time, top-down from the anchor.
+    let parentId = res.anchorId;
+    let kind: PlanKind = res.anchorKind;
+    while (kind !== plan.parentKind) {
+      const next: PlanKind | null = CHILD_KIND[kind];
+      if (!next) return fail("That drop target is too deep for this row.");
+      parentId = await findOrCreateChild(parentId, next, unclassifiedName(next), me.id);
+      kind = next;
+    }
+
+    // Onto the END of the new run, so the move never silently reorders the rows
+    // that were already there.
+    const [maxRow] = (await db
+      .select({ next: sql<number>`COALESCE(MAX(${projectNodes.sortOrder}), 0) + 10` })
+      .from(projectNodes)
+      .where(eq(projectNodes.parentId, parentId))) as Array<{ next: number }>;
+
+    await db
+      .update(projectNodes)
+      .set({ parentId, sortOrder: maxRow?.next ?? 10, updatedAt: new Date() })
+      .where(eq(projectNodes.id, id));
+
+    // Close the gap the row left behind, so the old run's refs stay contiguous.
+    await renumberSiblings(oldParentId, plan.nodeKind);
+
+    // Same-project re-filing cannot change the client, so it is skipped rather
+    // than rewriting every task in the branch to the value it already holds.
+    if (!plan.sameProject) {
+      await resyncBranchClientForSubtree(plan.toProjectId, id);
+    }
+
+    revalidatePlanSurfaces();
+    return { ok: true, moved: 1 + plan.carries.reduce((n, c) => n + c.count, 0) };
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : String(err));
+  }
+}
+
+/**
+ * Re-stamp the client on the tasks of ONE moved branch.
+ *
+ * `resyncBranchClient` rewrites every task in a whole project, which is right
+ * when the project's own client changes and wrong here: the move touched one
+ * subtree, and sweeping the destination project would rewrite hundreds of rows
+ * that did not move.
+ */
+async function resyncBranchClientForSubtree(projectId: string, rootId: string): Promise<void> {
+  try {
+    const client = await clientForNode(projectId);
+    const ids = await descendantIds(rootId);
+    if (ids.length === 0) return;
+    await db
+      .update(tasks)
+      .set({ client, updatedAt: new Date() })
+      .where(and(inArray(tasks.projectNodeId, ids), eq(tasks.archived, false)));
+  } catch (err) {
+    console.error("[project-plan] client re-sync failed for moved branch", rootId, err);
+  }
+}
+
+/* ── Filing a WMS task into the plan ──────────────────────────────────────── */
+
+const PlanTargetSchema = z.object({
+  projectId: z.string().uuid(),
+  milestoneId: z.string().uuid().nullable().optional(),
+  resultId: z.string().uuid().nullable().optional(),
+  actionId: z.string().uuid().nullable().optional(),
+  /** The new row's name — what the Project Plan will show it as. */
+  name: z.string().trim().min(1, "Give the new row a name.").max(160),
+  description: z.string().trim().max(2000).nullable().optional(),
+  /** The task's doer and due date, copied onto the row so the plan shows it as
+   *  scheduled rather than as a row waiting to be filled in. */
+  ownerId: z.string().uuid().nullable().optional(),
+  targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u).nullable().optional(),
+});
+
+/** Find a child of `parentId` at `kind` named `name`, or make one. */
+async function findOrCreateChild(
+  parentId: string,
+  kind: PlanKind,
+  name: string,
+  createdById: string,
+): Promise<string> {
+  const [found] = await db
+    .select({ id: projectNodes.id })
+    .from(projectNodes)
+    .where(
+      and(
+        eq(projectNodes.parentId, parentId),
+        eq(projectNodes.kind, kind),
+        eq(projectNodes.name, name),
+        eq(projectNodes.isArchived, false),
+      ),
+    )
+    .limit(1);
+  if (found) return found.id;
+
+  const [maxRow] = (await db
+    .select({ next: sql<number>`COALESCE(MAX(${projectNodes.sortOrder}), 0) + 10` })
+    .from(projectNodes)
+    .where(eq(projectNodes.parentId, parentId))) as Array<{ next: number }>;
+
+  const [row] = await db
+    .insert(projectNodes)
+    .values({
+      name,
+      kind,
+      parentId,
+      sortOrder: maxRow?.next ?? 10,
+      createdById,
+    })
+    .returning({ id: projectNodes.id });
+  if (!row) throw new Error(`Could not create the ${KIND_LABEL[kind].toLowerCase()}.`);
+  return row.id;
+}
+
+/**
+ * FILE A NEW WMS TASK INTO THE PLAN — the task form's Project / Milestone /
+ * Result / Action cascade.
+ *
+ * Returns the id of the row the task should link to. The caller creates the
+ * task straight afterwards with that id, so the plan row and the task are one
+ * record from the moment both exist.
+ *
+ * THE RULE, in the words it was asked in:
+ *
+ *   pick a project                        required — everything hangs off it
+ *   milestone blank  → "Unclassified Milestone" under that project
+ *   result blank     → "Unclassified Result" under that milestone
+ *   action PICKED    → the task becomes a SUB-ACTION of it
+ *   action blank     → the task becomes a new ACTION under the result
+ *
+ * The placeholders are REAL ROWS, not a rendering trick. That is the point: a
+ * task filed in a hurry still appears in the plan, under something you can
+ * rename or move its work out of later, instead of belonging to a project in
+ * the abstract with no place in its tree. Find-or-create, so a project
+ * accumulates one of each rather than one per task.
+ *
+ * EVERY PICK IS VERIFIED AGAINST ITS PARENT. A milestone id that belongs to a
+ * different project, or a result that is not under the chosen milestone, is
+ * refused — the browser assembled this chain from four selects and a stale one
+ * must not be able to graft a row onto the wrong branch.
+ */
+export async function resolvePlanTargetForTask(
+  input: unknown,
+): Promise<Result<{ id: string; createdKind: PlanKind }>> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = PlanTargetSchema.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid input.");
+  const { projectId, name, description } = parsed.data;
+
+  try {
+    const project = await db.query.projectNodes.findFirst({
+      where: eq(projectNodes.id, projectId),
+    });
+    if (!project || project.kind !== "project") return fail("Pick a project.");
+    if (project.isArchived) return fail("That project is archived.");
+
+    // ── Milestone ──────────────────────────────────────────────────────────
+    let milestoneId = parsed.data.milestoneId ?? null;
+    if (milestoneId) {
+      const m = await db.query.projectNodes.findFirst({
+        where: eq(projectNodes.id, milestoneId),
+      });
+      if (!m || m.kind !== "milestone" || m.parentId !== projectId) {
+        return fail("That milestone is not in this project.");
+      }
+    } else {
+      milestoneId = await findOrCreateChild(projectId, "milestone", UNCLASSIFIED_MILESTONE, me.id);
+    }
+
+    // ── Result ─────────────────────────────────────────────────────────────
+    let resultId = parsed.data.resultId ?? null;
+    if (resultId) {
+      const r = await db.query.projectNodes.findFirst({ where: eq(projectNodes.id, resultId) });
+      if (!r || r.kind !== "result" || r.parentId !== milestoneId) {
+        return fail("That result is not under this milestone.");
+      }
+    } else {
+      resultId = await findOrCreateChild(milestoneId, "result", UNCLASSIFIED_RESULT, me.id);
+    }
+
+    // ── The row the task becomes ───────────────────────────────────────────
+    const actionId = parsed.data.actionId ?? null;
+    let parentId: string;
+    let kind: PlanKind;
+    if (actionId) {
+      const a = await db.query.projectNodes.findFirst({ where: eq(projectNodes.id, actionId) });
+      if (!a || a.kind !== "action" || a.parentId !== resultId) {
+        return fail("That action is not under this result.");
+      }
+      parentId = actionId;
+      kind = "sub_action";
+    } else {
+      parentId = resultId;
+      kind = "action";
+    }
+
+    const [maxRow] = (await db
+      .select({ next: sql<number>`COALESCE(MAX(${projectNodes.sortOrder}), 0) + 10` })
+      .from(projectNodes)
+      .where(eq(projectNodes.parentId, parentId))) as Array<{ next: number }>;
+
+    const [row] = await db
+      .insert(projectNodes)
+      .values({
+        name,
+        kind,
+        parentId,
+        sortOrder: maxRow?.next ?? 10,
+        createdById: me.id,
+        description: description || null,
+        // The task's own doer and date, so the plan shows this row as scheduled
+        // the moment it appears. NOT written through `updatePlanNode`, so the
+        // description-before-scheduling gate does not apply — and should not:
+        // that gate exists to stop a row reaching WMS as a bare name, and this
+        // row is born WITH its task, carrying the full task form's title,
+        // subject, client, priority and description.
+        ownerId: parsed.data.ownerId ?? null,
+        targetDate: parsed.data.targetDate ? new Date(`${parsed.data.targetDate}T12:00:00`) : null,
+      })
+      .returning({ id: projectNodes.id });
+    if (!row) return fail("Could not create the plan row.");
+
+    revalidatePlanSurfaces();
+    return { ok: true, id: row.id, createdKind: kind };
   } catch (err) {
     return fail(err instanceof Error ? err.message : String(err));
   }

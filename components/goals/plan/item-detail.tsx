@@ -9,6 +9,8 @@ import { istYmd } from "@/lib/weekly-goals/week";
 import type { PlanItem, SourceItem } from "./types";
 import { SourceTag, fmtYmd } from "./source-tag";
 import { overdueLabel } from "./wms-filters";
+import { DoerStatusSelect, InitiatorStatusSelect } from "@/components/status/status-select";
+import { setPlanItemDoerStatus, setPlanItemInitiatorStatus } from "@/app/(app)/goals/plan/actions";
 
 /**
  * The shared "full item" surface for the planner — one field set rendered two
@@ -615,11 +617,16 @@ export function ItemDetailModal({
  */
 export function PlanItemDetailModal({
   item,
+  me,
   onClose,
   onRename,
   onSetTime,
 }: {
   item: PlanItem;
+  /** The viewer — what the two status controls test against. OPTIONAL, because
+   *  a caller that does not know who is looking gets read-only chips, which is
+   *  the safe way to be wrong. The server actions re-check regardless. */
+  me?: { id: string; isAdmin: boolean };
   onClose: () => void;
   onRename?: (id: string, title: string) => void;
   onSetTime?: (item: PlanItem, time: { startMin: number | null; durationMin: number | null }) => void;
@@ -649,6 +656,22 @@ export function PlanItemDetailModal({
   };
 
   const late = item.overdueDays != null && item.overdueDays > 0 ? item.overdueDays : null;
+
+  /**
+   * WHO THE VIEWER IS relative to this commitment — the mirror of
+   * `dailyStatusActor` on the server, which re-derives it before any write.
+   *
+   * A daily row's DOER is whoever's plan it is on; its INITIATOR is anyone else
+   * allowed to be looking at that plan (an admin, or the manager the planner
+   * already lets through). You are never your own initiator.
+   */
+  const statusActor = {
+    id: me?.id ?? "",
+    isAdmin: me?.isAdmin ?? false,
+    isInitiator: !!me && !!item.ownerId && item.ownerId !== me.id,
+    isDoer: !!me && !!item.ownerId && item.ownerId === me.id,
+    isSupervisor: false,
+  };
 
   if (typeof document === "undefined") return null;
   return createPortal(
@@ -773,7 +796,7 @@ export function PlanItemDetailModal({
                 ) : null}
               </Field>
             ) : null}
-            <Field label="Status">
+            <Field label="Plan">
               {item.done ? (
                 <span style={{ color: "var(--color-green-deep)" }}>Done</span>
               ) : item.pending ? (
@@ -781,6 +804,38 @@ export function PlanItemDetailModal({
               ) : (
                 "To do"
               )}
+            </Field>
+          </div>
+
+          {/* ── THE TWO STATUS AXES ─────────────────────────────────────────
+              Added 2026-09-15 ("in goals section there is a weekly goals and
+              daily goals please add doer and initiator status there also").
+
+              They sit BELOW the Plan line, not instead of it: `done` is the
+              planner's own yes/no that the day's rituals are counted on, and
+              these two are the report and the ruling the rest of the app reads.
+              Three different questions, three lines. */}
+          <div className="mt-3 flex flex-col gap-2 border-t border-hairline pt-3">
+            <Field label="Doer Status">
+              <DoerStatusSelect
+                status={item.status ?? null}
+                actor={statusActor}
+                onCommit={async (next) => {
+                  const res = await setPlanItemDoerStatus(item.id, next);
+                  return res.ok ? { ok: true } : { ok: false, error: res.error };
+                }}
+              />
+            </Field>
+            <Field label="Initiator Status">
+              <InitiatorStatusSelect
+                approvalStatus={item.approvalStatus ?? null}
+                archived={item.isPutAway ?? false}
+                actor={statusActor}
+                onCommit={async (next) => {
+                  const res = await setPlanItemInitiatorStatus(item.id, next);
+                  return res.ok ? { ok: true } : { ok: false, error: res.error };
+                }}
+              />
             </Field>
           </div>
         </div>

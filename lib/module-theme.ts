@@ -205,8 +205,8 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
     tagline: "Invoices, payments, billing cycles & revenue management.",
     href: "/billing" as Route,
     Icon: ReceiptIndianRupee,
-    accent: "#9333ea",
-    accentDeep: "#7e22ce",
+    accent: "#E10600",
+    accentDeep: "#A80400",
     image: null,
   },
   // Hand-holding — who is staffed on which client. Orange, its own identity:

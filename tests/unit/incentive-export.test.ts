@@ -184,7 +184,7 @@ describe("Excel export", () => {
     const amount = ws.getRow(3).getCell(2);
     expect(typeof amount.value).toBe("number");
     expect(amount.value).toBe(137.5);
-    expect(amount.numFmt).toContain("₹");
+    expect(amount.numFmt).toContain("Rs.");
   });
 
   it("wraps the long prose columns and sets sensible column widths", async () => {
@@ -409,7 +409,7 @@ describe("PDF export", () => {
       row({ name: "Zero value", amount: 0, description: null, notes: null }),
       row({ name: "Neither eligible", salesEligible: false, internsEligible: false }),
       row({ name: "Retired", active: false }),
-      row({ name: "₹ in the name · dash — and “quotes”", notes: "Line one\nLine two" }),
+      row({ name: "Rs. in the name · dash — and “quotes”", notes: "Line one\nLine two" }),
       row({ name: "A".repeat(400), description: LONG_TEXT }),
     ];
     const pdf = await renderIncentiveCatalogPdf(awkward, META);

@@ -230,8 +230,8 @@ describe("labels", () => {
   });
 
   it("formats rupees in Indian grouping, whole", () => {
-    expect(rupees(3240.4)).toBe("₹3,240");
-    expect(rupees(141020)).toBe("₹1,41,020");
+    expect(rupees(3240.4)).toBe("Rs. 3,240");
+    expect(rupees(141020)).toBe("Rs. 1,41,020");
   });
 
   it("keeps the skip delay short enough to be read, long enough to be felt", () => {

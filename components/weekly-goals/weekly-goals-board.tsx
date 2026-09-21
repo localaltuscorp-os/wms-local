@@ -1038,7 +1038,7 @@ function IncentiveCell({
       <YesNo value={incentive} disabled={!canEdit || pending} onChange={toggle} />
       {incentive && isAdmin && (
         <span className="inline-flex items-center gap-0.5">
-          <span className="text-[11px] text-ink-muted">₹</span>
+          <span className="text-[11px] text-ink-muted">Rs.</span>
           <input
             type="number" min={0} value={amt}
             onChange={(e) => setAmt(e.target.value)}
@@ -1049,7 +1049,7 @@ function IncentiveCell({
         </span>
       )}
       {incentive && !isAdmin && amount > 0 && (
-        <span className="text-[11px] font-bold text-ink-soft tabular-nums">₹{amount.toLocaleString("en-IN")}</span>
+        <span className="text-[11px] font-bold text-ink-soft tabular-nums">Rs. {amount.toLocaleString("en-IN")}</span>
       )}
     </div>
   );

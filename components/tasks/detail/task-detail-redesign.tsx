@@ -55,6 +55,8 @@ import {
   TeamMembersCard,
 } from "@/components/tasks/detail/detail-rail";
 import { useElapsedSeconds } from "@/components/tasks/time/use-elapsed";
+import { PlanPlacePanel } from "@/components/project-plan/plan-place-panel";
+import type { PlanBreadcrumb } from "@/lib/queries/project-plan";
 
 type Me = { id: string; name: string; avatarUrl: string | null; department: string | null; isAdmin: boolean };
 
@@ -67,6 +69,16 @@ interface Props {
   clients: string[];
   subjects: string[];
   projectNodes?: { id: string; label: string }[];
+  /**
+   * The project / milestone / result this task is filed under, each named and
+   * numbered (`planBreadcrumbForNode`). Null for a task that is not filed into
+   * a plan, which is most of them.
+   *
+   * IT WAS ALREADY BEING PASSED AND SILENTLY DROPPED. The loader has computed
+   * it since the breadcrumb query was written; this component never declared
+   * the prop, so the answer was fetched on every task open and thrown away.
+   */
+  planCrumb?: PlanBreadcrumb | null;
   statusLabels: Record<TaskStatus, string>;
   timePanel: TaskTimePanelData | null;
   checklist: ChecklistItemView[];
@@ -95,7 +107,7 @@ function Avatar({ name, url, size = 28 }: { name: string | null; url?: string | 
 }
 
 export function TaskDetailRedesign(props: Props) {
-  const { task, me, canEdit, canManageContent, events, clients, subjects, projectNodes, statusLabels, timePanel, checklist, attachments, insight } = props;
+  const { task, me, canEdit, canManageContent, events, clients, subjects, projectNodes, planCrumb, statusLabels, timePanel, checklist, attachments, insight } = props;
   const router = useRouter();
   const [tab, setTab] = React.useState<Tab>("overview");
   const [editing, setEditing] = React.useState(false);
@@ -402,6 +414,30 @@ export function TaskDetailRedesign(props: Props) {
                   <p className="text-[13.5px] text-ink-muted">No description.</p>
                 )}
               </section>
+
+              {/* WHERE THIS TASK SITS. Above the fields grid, not inside it:
+                  the grid is this task's own attributes, and the plan address
+                  is three OTHER rows. Only for a task that is filed into a
+                  plan — an unfiled task has no address to show. */}
+              {planCrumb && (
+                <PlanPlacePanel
+                  // NOT LINKED. The plan board filters by project from its own
+                  // local state, not from the URL, so there is no address that
+                  // opens it on this project — and a link that lands on the
+                  // unfiltered board is worse than none.
+                  project={{ ref: planCrumb.projectRef, name: planCrumb.projectName }}
+                  milestone={
+                    planCrumb.milestoneName
+                      ? { ref: planCrumb.milestoneRef, name: planCrumb.milestoneName }
+                      : null
+                  }
+                  result={
+                    planCrumb.resultName
+                      ? { ref: planCrumb.resultRef, name: planCrumb.resultName }
+                      : null
+                  }
+                />
+              )}
 
               <TaskFieldsGrid
                 task={task}

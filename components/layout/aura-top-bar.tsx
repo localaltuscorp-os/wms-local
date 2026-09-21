@@ -67,6 +67,16 @@ import { tabsAndMore, type AuraRoom } from "@/lib/aura-rooms";
  * show as many of them — plus the "More" button — as actually fit, up to all
  * three. Before the first measurement (and on the server) all of them show.
  */
+const TAB_BREAKPOINTS: readonly { min: number; tabs: number }[] = [
+  { min: 1720, tabs: 8 },
+  { min: 1580, tabs: 7 },
+  { min: 1440, tabs: 6 },
+  { min: 1280, tabs: 5 },
+  { min: 1120, tabs: 4 },
+  { min: 1000, tabs: 3 },
+  { min: 860, tabs: 2 },
+  { min: 0, tabs: 0 },
+];
 
 /** The flex gap between tabs (mirrors `.aura-tabs` in aura.css). */
 const TAB_GAP = 4;
@@ -236,9 +246,9 @@ export function AuraTopBar({
       {/* A page's OWN title, portaled in (the HR console names itself more
           precisely than its route can be read). `empty:hidden` so it costs no
           space on the pages that set none. */}
-      <div ref={slots?.setTitle} className="flex min-w-0 items-center empty:hidden" />
+      <div ref={slots?.setTitle} className="aura-title-slot flex min-w-0 items-center empty:hidden" />
 
-      <nav ref={navRef} className="aura-tabs" aria-label="Workspaces">
+      <nav className="aura-tabs" aria-label="Workspaces">
         {tabs.map((r) => (
           <a
             key={r.id}
@@ -261,13 +271,20 @@ export function AuraTopBar({
         <div className="aura-search-slot">
           <GlobalSearch
             workspace={ws}
+            /* AN ICON, NOT A BOX (2026-09-18). The ~280px search box collided
+               with the last tabs and "More" at ordinary widths — "HR [search]
+               More" drew on top of each other — and squeezed page titles into
+               "Employee Onboardi…". The icon opens the SAME floating palette
+               the box did (GlobalSearch is a Radix dialog that floats below the
+               bar), and ⌘K / Ctrl+K still opens it from anywhere. */
             trigger={
-              <button type="button" className="aura-searchbox" aria-label="Search the whole app">
-                <Search size={15} strokeWidth={2.2} aria-hidden />
-                <span>Search tasks, clients, people, documents</span>
-                <span className="aura-kbd" aria-hidden>
-                  ⌘K
-                </span>
+              <button
+                type="button"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-hairline bg-white/70 text-ink-muted transition hover:border-hairline-strong hover:text-ink-strong"
+                aria-label="Search the whole app (Ctrl+K)"
+                title="Search · Ctrl+K"
+              >
+                <Search size={16} strokeWidth={2.2} aria-hidden />
               </button>
             }
           />

@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { resolveAudience, type AudienceRule } from "@/lib/ecos/audience";
 import { publishBroadcastCore, deliverBroadcast } from "@/lib/ecos/publish";
+import { firstUpcomingCustomDate, normaliseCustomDates } from "@/lib/ecos/recurrence";
 import { canManageBroadcast, canUseAppLock, isBroadcastAdmin } from "@/lib/ecos/permissions";
 import { sanitizeRichHtml } from "@/lib/security/sanitize-rich-html";
 import type { SaveBroadcastDraftInput } from "./actions-types";
@@ -79,7 +80,14 @@ export async function saveBroadcastDraft(
     return { ok: false, error: "Only HR can lock the app until a broadcast is acknowledged." };
   }
 
-  const sched = input.scheduledFor ? new Date(input.scheduledFor) : null;
+  const recurrence = input.recurrence ?? "none";
+  const recurrenceDates = recurrence === "custom" ? normaliseCustomDates(input.recurrenceDates) : [];
+  // A custom repeat starts on its earliest upcoming date; everything else on the
+  // date and time picked.
+  const customStart = recurrence === "custom" ? firstUpcomingCustomDate(recurrenceDates, new Date()) : null;
+  const picked = input.scheduledFor ? new Date(input.scheduledFor) : null;
+  const sched = customStart ?? picked;
+  const scheduledFor = sched && !Number.isNaN(sched.getTime()) ? sched : null;
   const values = {
     title,
     // Sanitise stored HTML — it is rendered with dangerouslySetInnerHTML into
@@ -96,9 +104,12 @@ export async function saveBroadcastDraft(
     attachments: input.attachments ?? [],
     audience: input.audience ?? { scope: "org" },
     channels: input.channels && input.channels.length > 0 ? input.channels : ["in_app", "email"],
-    scheduledFor: sched && !Number.isNaN(sched.getTime()) ? sched : null,
-    recurrence: input.recurrence ?? "none",
-    recurrenceUntil: input.recurrenceUntil || null,
+    scheduledFor,
+    recurrence,
+    recurrenceUntil: recurrence === "none" || recurrence === "custom" ? null : input.recurrenceUntil || null,
+    recurrenceDates,
+    // Monthly / annual repeats keep the day of the month of their first send.
+    recurrenceAnchor: recurrence === "monthly" || recurrence === "annually" ? scheduledFor : null,
     reminderAfterDays:
       input.reminderAfterDays && input.reminderAfterDays > 0 ? input.reminderAfterDays : null,
     escalateToManager: input.escalateToManager ?? false,
@@ -206,6 +217,8 @@ export async function duplicateBroadcast(id: string): Promise<Ok<{ id: string }>
         escalateToManager: src.escalateToManager,
         recurrence: src.recurrence,
         recurrenceUntil: src.recurrenceUntil,
+        recurrenceDates: src.recurrenceDates,
+        recurrenceAnchor: src.recurrenceAnchor,
         status: "draft",
       })
       .returning({ id: broadcasts.id });
@@ -217,9 +230,10 @@ export async function duplicateBroadcast(id: string): Promise<Ok<{ id: string }>
 }
 
 /**
- * Queue a saved broadcast for later — sets status "scheduled". The daily
- * `/api/cron/ecos-publish` job publishes it once `scheduled_for` is due, and
- * re-arms it for the next occurrence when it recurs.
+ * Queue a saved broadcast for later — sets status "scheduled". It is published
+ * within about a minute of `scheduled_for` (lib/ecos/publish-due-trigger, with
+ * the daily `/api/cron/ecos-publish` job as the backstop), and re-armed for its
+ * next occurrence when it repeats.
  */
 export async function scheduleBroadcast(id: string): Promise<VoidResult> {
   const gate = await requireManager(id);
@@ -232,14 +246,17 @@ export async function scheduleBroadcast(id: string): Promise<VoidResult> {
     return { ok: false, error: "Only a draft can be scheduled." };
   }
   if (!b.title.trim()) return { ok: false, error: "Give the broadcast a title first." };
+  if (b.recurrence === "custom" && !firstUpcomingCustomDate(b.recurrenceDates, new Date())) {
+    return { ok: false, error: "Add at least one future date for the custom repeat." };
+  }
   if (!b.scheduledFor) return { ok: false, error: "Pick a date & time to schedule for." };
-  if (b.recurrence === "none" && b.scheduledFor.getTime() <= Date.now()) {
+  if ((b.recurrence === "none" || b.recurrence === "custom") && b.scheduledFor.getTime() <= Date.now()) {
     return { ok: false, error: "That time is in the past — publish now instead." };
   }
   try {
     await db
       .update(broadcasts)
-      .set({ status: "scheduled", updatedAt: new Date() })
+      .set({ status: "scheduled", publishClaimedAt: null, updatedAt: new Date() })
       .where(eq(broadcasts.id, id));
     return { ok: true };
   } catch (e) {

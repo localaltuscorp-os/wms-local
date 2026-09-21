@@ -71,6 +71,8 @@ const STATUS_RANK: Record<CheckStatus, number> = {
   follow_up: 3,
   initiated: 4,
   done: 5,
+  // Terminal like Done, but a dead end — it sorts past it, never before.
+  abandoned: 6,
 };
 
 /** The fields of a row this module reads. Anything wider is the caller's. */

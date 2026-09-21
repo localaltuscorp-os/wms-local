@@ -36,7 +36,7 @@ const HAIRLINE = "FFE2E8F0";
 const HEADER_BG = "FFF8FAFC";
 
 /** ₹ with thousands separators and 2dp, negative in brackets. */
-const INR_FORMAT = '"₹"#,##0.00;[Red]("₹"#,##0.00)';
+const INR_FORMAT = '"Rs. "#,##0.00;[Red]("Rs. "#,##0.00)';
 
 /** Build the workbook. Returns the raw .xlsx bytes. */
 export async function renderIncentiveCatalogXlsx(
@@ -106,7 +106,7 @@ export async function renderIncentiveCatalogXlsx(
     ws.mergeCells(empty.number, 1, empty.number, INCENTIVE_EXPORT_HEADERS.length);
     empty.getCell(1).font = { italic: true, size: 10, color: { argb: INK_SOFT } };
   } else {
-    // Total row — the reason the amount column is a number and not "₹1,500".
+    // Total row — the reason the amount column is a number and not "Rs. 1,500".
     const total = ws.addRow([]);
     total.getCell(1).value = "Total";
     total.getCell(1).font = { bold: true, size: 10, color: { argb: INK } };

@@ -30,9 +30,15 @@ export function boardColumnFor(t: {
 }
 
 // Default admin board order (sir's changes #7): the working lane, then the
-// terminal verdicts, then Archived, with On Hold pulled out to the very end —
-// "On Hold has to be placed after Archived". Deprecated statuses
-// (follow_up_1/2/3, cancelled, transferred) are intentionally absent.
+// terminal verdicts, then Archived.
+//
+// ON HOLD LEFT THIS BOARD on 2026-09-14. It used to be pinned past Archived at
+// the far right — "On Hold has to be placed after Archived" — because it was an
+// odd one out on a doer board, which is exactly what it was: a ruling among
+// progress reports. It is now a column on the INITIATOR board
+// (INITIATOR_COLUMN_ORDER in lib/status/axes.ts) and `abandoned` takes its place
+// here, beside Done, as the doer axis's second terminal. Deprecated statuses
+// (follow_up_1/2/3, cancelled, transferred, on_hold) are intentionally absent.
 export const DEFAULT_ADMIN_COLUMN_ORDER: ColId[] = [
   "dont_know",
   "not_started",
@@ -40,12 +46,12 @@ export const DEFAULT_ADMIN_COLUMN_ORDER: ColId[] = [
   "follow_up",
   "need_info",
   "done",
+  "abandoned",
   "not_approved",
   // Approved sits with the other terminal verdict, straight after Done /
   // Not Approved and before Archived.
   "approved",
   ARCHIVE_COL,
-  "on_hold",
 ];
 
 // Non-admins: their curated lifecycle list, plus the terminal verdicts. They can

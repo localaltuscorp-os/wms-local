@@ -5,7 +5,6 @@ import {
   canManageIncentiveEligibility,
   emailsWithCapability,
   hasCapability,
-  isMasterAdmin,
   canManageDevices,
 } from "@/lib/security/capabilities";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
@@ -83,7 +82,7 @@ describe("changing eligibility is Manan's alone", () => {
 
   it("being a master admin or a super-admin is not enough", () => {
     // Rohan is the most privileged person who is not Manan.
-    expect(isMasterAdmin(ROHAN)).toBe(true);
+    expect(hasCapability(ROHAN, "master_admin.manage")).toBe(true);
     expect(isSuperAdmin(ROHAN)).toBe(true);
     expect(canManageIncentiveEligibility(ROHAN)).toBe(false);
   });

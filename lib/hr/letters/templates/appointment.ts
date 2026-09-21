@@ -49,7 +49,7 @@ const template: LetterTemplate = {
     heading("1. Appointment", 3),
     para(
       t("This appointment is effective from "),
-      f("effectiveDate", "Effective Date", { placeholder: "e.g. 15 March 2026", date: true }),
+      f("effectiveDate", "Effective Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t("."),
     ),
 

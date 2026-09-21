@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { isManager } from "@/lib/queries/training";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,12 @@ const SAFE_EXT = /\.(mp4|webm|mov|mkv|pdf|xls|xlsx)$/i;
  * use the video-URL field instead.
  */
 export async function POST(req: Request) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   let me;
   try {
     me = await requireUser();

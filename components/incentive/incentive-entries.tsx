@@ -382,7 +382,7 @@ function EntryDialog({
   }
 
   function num(s: string): number {
-    const n = Number(s.replace(/[₹,\s]/g, ""));
+    const n = Number(s.replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, ""));
     return Number.isFinite(n) ? n : 0;
   }
 

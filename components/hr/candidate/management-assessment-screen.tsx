@@ -60,19 +60,35 @@ import type { SkillLookupOptions } from "@/lib/hr/skills";
 import { type Ratings } from "@/lib/hr/candidate/evaluation-checklist";
 import { weightedOverall, type EvaluationWeights } from "@/lib/hr/candidate/evaluation-weights";
 import { DateField } from "@/components/ui/date-field";
+import { SectionIndex } from "@/components/ui/section-index";
 
 const UPLOAD_URL = "/api/hr/management-assessment/upload";
 
-/** outcome → { pipeline status, letter key, compose label }. */
+/**
+ * Management Verdict → { pipeline status, letter key, compose label }.
+ *
+ * One More Round, Free Training and Assignment Needed all keep the candidate IN
+ * the pipeline (status "shortlisted") and each points at its own letter.
+ * "shortlisted" is the stored value for One More Round, kept so older verdicts
+ * still read correctly.
+ */
 const OUTCOME_MAP: Record<
   Exclude<MgmtOutcome, null>,
   { status: string; letterKey: string; letterLabel: string; label: string }
 > = {
   selected: { status: "hired", letterKey: "selection", letterLabel: "Selection letter", label: "Selected" },
-  shortlisted: { status: "shortlisted", letterKey: "next-round", letterLabel: "Next-round letter", label: "Shortlisted" },
   rejected: { status: "rejected", letterKey: "rejection", letterLabel: "Regret letter", label: "Rejected" },
+  shortlisted: { status: "shortlisted", letterKey: "next-round", letterLabel: "One More Interview letter", label: "One More Round" },
+  free_training: { status: "shortlisted", letterKey: "free-training", letterLabel: "Free Training letter", label: "Free Training" },
+  assignment_needed: { status: "shortlisted", letterKey: "assignment", letterLabel: "Assignment Needed letter", label: "Assignment Needed" },
 };
-const OUTCOME_ORDER: Exclude<MgmtOutcome, null>[] = ["selected", "shortlisted", "rejected"];
+const OUTCOME_ORDER: Exclude<MgmtOutcome, null>[] = [
+  "selected",
+  "rejected",
+  "shortlisted",
+  "free_training",
+  "assignment_needed",
+];
 
 const EMPTY_SKILLS: SkillSelection = { technical: [], nonTechnical: [] };
 const BAR_COUNT = 32;
@@ -181,6 +197,26 @@ export function ManagementAssessmentScreen({
   // Refs mirror state so saveNow() always persists the freshest blob.
   const notesRef = React.useRef(notes); notesRef.current = notes;
   const recRef = React.useRef(recordings); recRef.current = recordings;
+
+  /**
+   * THE CANDIDATE BAR'S HEIGHT, for the section index.
+   *
+   * The index decides "which section is on screen" from the line just below
+   * this sticky bar, and a jump scrolls a section to that same line. A fixed
+   * guess drifted as soon as the bar wrapped to two rows on a narrower pane,
+   * which is part of why the highlighted section and the visible one parted
+   * company. Measured by a ResizeObserver, whose callback also runs once on
+   * observe, so there is no synchronous setState in the effect itself.
+   */
+  const barRef = React.useRef<HTMLDivElement | null>(null);
+  const [barH, setBarH] = React.useState(64);
+  React.useEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setBarH(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const attRef = React.useRef(attachments); attRef.current = attachments;
   const cidRef = React.useRef(candidateId); cidRef.current = candidateId;
   const designationRef = React.useRef(designation); designationRef.current = designation;
@@ -329,7 +365,8 @@ export function ManagementAssessmentScreen({
   async function emailRecruiter() {
     const email = recruiterEmailRef.current.trim();
     const oc = outcomeRef.current;
-    if (!oc || oc === "shortlisted" || !email) return;
+    // Only a final verdict is shared with a recruiter.
+    if (!oc || (oc !== "selected" && oc !== "rejected") || !email) return;
     setEmailingRecruiter(true);
     try {
       const res = await sendRecruiterOutcome(cidRef.current, {
@@ -413,7 +450,13 @@ export function ManagementAssessmentScreen({
             The opaque background and the ring are load-bearing, not decoration:
             cards scroll UNDER this, and a translucent bar would show them
             through the candidate name. */}
-        <div className="sticky top-[76px] z-30 mb-5 rounded-2xl border border-hairline bg-white px-4 py-3 shadow-[0_10px_24px_-20px_rgba(15,23,42,0.5)]">
+        {/* top-0, NOT top-[76px]. The 76px was copied from a rail that sticks
+            inside the WINDOW, where it clears the app's top bar. This bar sticks
+            inside the HR shell's own scroll box, which already begins below
+            that top bar - so 76px pushed it down by an empty lane at rest, and
+            because sticky offsets apply immediately, it rode down over the
+            first card ("Role & Designation") before anything had scrolled. */}
+        <div ref={barRef} className="sticky top-0 z-30 mb-5 rounded-2xl border border-hairline bg-white px-4 py-3 shadow-[0_10px_24px_-20px_rgba(15,23,42,0.5)]">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
             <label htmlFor="ma-candidate" className="sr-only">
               Candidate
@@ -435,6 +478,10 @@ export function ManagementAssessmentScreen({
               </select>
             </div>
 
+            {/* flex-1 + justify-center: the candidate details take all the
+                width between the dropdown and the save group and centre in it,
+                so the space either side of them is always equal. */}
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-x-4 gap-y-2">
             {selected ? (
               <>
                 <div className="ma-fade flex min-w-0 items-center gap-2.5">
@@ -466,10 +513,11 @@ export function ManagementAssessmentScreen({
             ) : (
               <p className="text-[13px] text-ink-subtle">Choose who you assessed to begin.</p>
             )}
+            </div>
 
             {/* Save state and Save keep the right end whatever is to their
                 left, so the button never moves as a candidate is picked. */}
-            <span className="ml-auto flex shrink-0 items-center gap-3">
+            <span className="flex shrink-0 items-center gap-3">
               <span className="flex items-center gap-2 text-[12.5px] font-semibold text-ink-muted">
                 {saving ? (
                   <><Loader2 size={14} className="animate-spin" style={{ color: "var(--color-altus-red)" }} /> Saving…</>
@@ -497,7 +545,13 @@ export function ManagementAssessmentScreen({
         <div className="grid grid-cols-[260px_1fr] gap-6 max-lg:grid-cols-1">
           {/* LEFT — the index of the ten sections */}
           <aside className="max-lg:order-1">
-            <SectionIndex disabled={noCandidate || loading} />
+            <SectionIndex
+              items={MA_SECTIONS.map((sec) => ({ id: SECTION_ANCHOR(sec.n), label: sec.title }))}
+              disabled={noCandidate || loading}
+              // The bar plus its 20px bottom margin: content is read from there.
+              offset={barH + 20}
+              stickyTop={barH + 20}
+            />
           </aside>
 
           {/* RIGHT — workspace */}
@@ -513,7 +567,7 @@ export function ManagementAssessmentScreen({
               <>
                 {/* Anchor for the section index. `scroll-mt` clears the
                     frozen candidate bar, or a jump lands the heading behind it. */}
-                <div id={SECTION_ANCHOR(1)} className="scroll-mt-[150px]">
+                <div id={SECTION_ANCHOR(1)} className="scroll-mt-24">
                   <RoleDesignationCard
                     role={selected?.position ?? selected?.positionApplied ?? ""}
                     department={selected?.department ?? ""}
@@ -526,13 +580,13 @@ export function ManagementAssessmentScreen({
 
                 {/* Anchor for the section index. `scroll-mt` clears the
                     frozen candidate bar, or a jump lands the heading behind it. */}
-                <div id={SECTION_ANCHOR(2)} className="scroll-mt-[150px]">
+                <div id={SECTION_ANCHOR(2)} className="scroll-mt-24">
                   <EvaluationCard candidateId={candidateId} />
                 </div>
 
                 {/* Anchor for the section index. `scroll-mt` clears the
                     frozen candidate bar, or a jump lands the heading behind it. */}
-                <div id={SECTION_ANCHOR(3)} className="scroll-mt-[150px]">
+                <div id={SECTION_ANCHOR(3)} className="scroll-mt-24">
                   <ScoresCard
                     hrScore={overall.rated ? overall.avg : null}
                     hrRated={overall.rated}
@@ -543,13 +597,13 @@ export function ManagementAssessmentScreen({
 
                 {/* Anchor for the section index. `scroll-mt` clears the
                     frozen candidate bar, or a jump lands the heading behind it. */}
-                <div id={SECTION_ANCHOR(4)} className="scroll-mt-[150px]">
+                <div id={SECTION_ANCHOR(4)} className="scroll-mt-24">
                   <SkillsSummaryCard value={skills} />
                 </div>
 
                 {/* Anchor for the section index. `scroll-mt` clears the
                     frozen candidate bar, or a jump lands the heading behind it. */}
-                <div id={SECTION_ANCHOR(5)} className="scroll-mt-[150px]">
+                <div id={SECTION_ANCHOR(5)} className="scroll-mt-24">
                   <RecruiterCard
                     via={recruiterVia}
                     name={recruiterName}
@@ -567,7 +621,7 @@ export function ManagementAssessmentScreen({
 
                 {/* Anchor for the section index. `scroll-mt` clears the
                     frozen candidate bar, or a jump lands the heading behind it. */}
-                <div id={SECTION_ANCHOR(6)} className="scroll-mt-[150px]">
+                <div id={SECTION_ANCHOR(6)} className="scroll-mt-24">
                   <AssignmentCard
                     enabled={oneMore}
                     brief={assignmentBrief}
@@ -581,24 +635,24 @@ export function ManagementAssessmentScreen({
 
                 {/* Anchor for the section index. `scroll-mt` clears the
                     frozen candidate bar, or a jump lands the heading behind it. */}
-                <div id={SECTION_ANCHOR(7)} className="scroll-mt-[150px]">
+                <div id={SECTION_ANCHOR(7)} className="scroll-mt-24">
                   <NotesCard value={notes} onChange={onNotesChange} />
                 </div>
                 {/* Anchor for the section index. `scroll-mt` clears the
                     frozen candidate bar, or a jump lands the heading behind it. */}
-                <div id={SECTION_ANCHOR(8)} className="scroll-mt-[150px]">
+                <div id={SECTION_ANCHOR(8)} className="scroll-mt-24">
                   <RecordingsCard recordings={recordings} candidateId={candidateId} onAdd={addRecording} onRemove={removeRecording} />
                 </div>
                 {/* Anchor for the section index. `scroll-mt` clears the
                     frozen candidate bar, or a jump lands the heading behind it. */}
-                <div id={SECTION_ANCHOR(9)} className="scroll-mt-[150px]">
+                <div id={SECTION_ANCHOR(9)} className="scroll-mt-24">
                   <AttachmentsCard attachments={attachments} onAdd={addAttachments} onRemove={removeAttachment} onPreview={setPreview} />
                 </div>
 
-                {/* Outcome — the management verdict is the FINAL step. */}
+                {/* Management Verdict — the FINAL step. */}
                 {/* Anchor for the section index. `scroll-mt` clears the
                     frozen candidate bar, or a jump lands the heading behind it. */}
-                <div id={SECTION_ANCHOR(10)} className="scroll-mt-[150px]">
+                <div id={SECTION_ANCHOR(10)} className="scroll-mt-24">
                   <OutcomeCard
                     outcome={outcome}
                     onChoose={chooseOutcome}
@@ -1152,12 +1206,12 @@ function OutcomeCard({
   const active = outcome ? OUTCOME_MAP[outcome] : null;
   return (
     <Card>
-      <CardHead n={10} icon={<Trophy size={17} />} title="Outcome" sub="The final step - record the management verdict; it updates the candidate's pipeline status." />
-      <div className="grid grid-cols-3 gap-2 max-sm:grid-cols-1">
+      <CardHead n={10} icon={<Trophy size={17} />} title="Management Verdict" sub="The final step - record the management verdict; it updates the candidate's pipeline status." />
+      <div className="grid grid-cols-3 gap-2 max-sm:grid-cols-2">
         {OUTCOME_ORDER.map((o) => {
           const on = outcome === o;
           const tone =
-            o === "selected" ? "#15803d" : o === "shortlisted" ? "#b45309" : "var(--color-altus-red-deep)";
+            o === "selected" ? "#15803d" : o === "rejected" ? "var(--color-altus-red-deep)" : "#b45309";
           return (
             <button
               key={o}
@@ -1182,7 +1236,7 @@ function OutcomeCard({
         <div className="mt-4">
           <FieldLabel label="Proposed Salary" icon={<IndianRupee size={13} />}>
             <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-bold text-ink-subtle">₹</span>
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-bold text-ink-subtle">Rs.</span>
               <input
                 type="text"
                 value={proposedSalary}
@@ -1191,7 +1245,7 @@ function OutcomeCard({
                 maxLength={60}
                 inputMode="numeric"
                 className="ma-inp"
-                style={{ paddingLeft: 28 }}
+                style={{ paddingLeft: 40 }}
               />
             </div>
           </FieldLabel>
@@ -1443,7 +1497,7 @@ function RecruiterCard({
             disabled={!canEmail || emailing}
             className="inline-flex items-center gap-2 rounded-pill px-4 py-2 text-[13px] font-bold text-white transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
             style={{ background: "linear-gradient(135deg,#E10600,#A80400)" }}
-            title={outcome === "shortlisted" ? "Available for Selected or Rejected outcomes" : undefined}
+            title={outcome && outcome !== "selected" && outcome !== "rejected" ? "Available for Selected or Rejected verdicts" : undefined}
           >
             {emailing ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Email Recruiter the Outcome
           </button>
@@ -1568,97 +1622,11 @@ const MA_SECTIONS: { n: number; title: string }[] = [
   { n: 7, title: "Assessment Notes" },
   { n: 8, title: "Voice Recordings" },
   { n: 9, title: "Attachments" },
-  { n: 10, title: "Outcome" },
+  { n: 10, title: "Management Verdict" },
 ];
 
 /** One id shape, used by both the anchor and the index that scrolls to it. */
 const SECTION_ANCHOR = (n: number) => `ma-section-${n}`;
-
-/**
- * THE INDEX — the ten sections, with the one you are in marked.
- *
- * `IntersectionObserver` rather than a scroll handler: the browser reports
- * which anchors are on screen, so this costs nothing per frame and needs no
- * knowledge of the scroll container - which on this page is not the window.
- *
- * The active section is the TOPMOST one intersecting, not the last callback to
- * fire: entries arrive in whatever order they cross the threshold, and taking
- * the last one made the marker jump backwards when two cards were visible.
- *
- * `rootMargin` pulls the detection line down past the frozen candidate bar, so
- * the marked section is the one you can actually read rather than the one
- * hidden behind it.
- */
-function SectionIndex({ disabled }: { disabled: boolean }) {
-  const [active, setActive] = React.useState(1);
-
-  React.useEffect(() => {
-    if (disabled) return;
-    const nodes = MA_SECTIONS.map((s) => document.getElementById(SECTION_ANCHOR(s.n))).filter(
-      (n): n is HTMLElement => n !== null,
-    );
-    if (!nodes.length) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting);
-        if (!visible.length) return;
-        const top = visible.reduce((a, b) =>
-          a.boundingClientRect.top <= b.boundingClientRect.top ? a : b,
-        );
-        const n = Number(top.target.id.replace("ma-section-", ""));
-        if (n) setActive(n);
-      },
-      { rootMargin: "-150px 0px -55% 0px", threshold: 0 },
-    );
-    nodes.forEach((n) => io.observe(n));
-    return () => io.disconnect();
-  }, [disabled]);
-
-  function jump(n: number) {
-    document.getElementById(SECTION_ANCHOR(n))?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  return (
-    <div className="lg:sticky lg:top-[164px] rounded-2xl border border-hairline bg-white p-3">
-      <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-[0.16em] text-ink-soft">
-        Sections
-      </p>
-      <nav className="flex flex-col gap-0.5">
-        {MA_SECTIONS.map((sec) => {
-          const on = !disabled && active === sec.n;
-          return (
-            <button
-              key={sec.n}
-              type="button"
-              onClick={() => jump(sec.n)}
-              disabled={disabled}
-              aria-current={on ? "true" : undefined}
-              className="flex items-center gap-2.5 rounded-xl px-2 py-2 text-left transition-colors hover:bg-surface-soft disabled:opacity-45 disabled:hover:bg-transparent"
-              style={on ? { background: "color-mix(in srgb, var(--color-altus-red) 8%, white)" } : undefined}
-            >
-              <span
-                className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-[11.5px] font-black"
-                style={
-                  on
-                    ? { background: "linear-gradient(135deg,#E10600,#A80400)", color: "#fff" }
-                    : { background: "var(--color-surface-soft)", color: "var(--color-ink-muted)" }
-                }
-              >
-                {sec.n}
-              </span>
-              <span
-                className="min-w-0 flex-1 truncate text-[13px] font-semibold"
-                style={{ color: on ? "var(--color-altus-red-deep)" : "var(--color-ink-strong)" }}
-              >
-                {sec.title}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
-    </div>
-  );
-}
 
 /** A count and its word, for the frozen candidate bar. */
 function InlineStat({ icon, n, label }: { icon: React.ReactNode; n: number; label: string }) {

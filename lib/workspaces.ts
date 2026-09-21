@@ -10,6 +10,7 @@
  * This module is intentionally PURE — no icons, no `server-only` — so both the
  * `/ws` route handler (server) and the client nav can import it.
  */
+import { archiveWorkspaceForPath } from "@/lib/archive/map";
 export const WORKSPACE_IDS = [
   "wms",
   "admin",
@@ -188,6 +189,13 @@ export const WORKSPACE_COMING_SOON: Partial<Record<WorkspaceId, boolean>> = {};
 export function workspaceForPath(pathname: string): WorkspaceId | null {
   // "/" is the hub launcher (redirects to /hub) — it belongs to no workspace.
   const p = pathname;
+
+  // THE ARCHIVE — `/archive/<section>` belongs to the room whose records it
+  // holds, so reading Archive DCC keeps the Employees rail and Archive Goals
+  // keeps the Goals rail instead of falling back to the `aw` cookie. Matched
+  // FIRST and segment-exactly: `/archived` is the older, unrelated WMS page
+  // (admin archived tasks) and a `startsWith("/archive")` would swallow it.
+  if (p === "/archive" || p.startsWith("/archive/")) return archiveWorkspaceForPath(p);
 
   // Goals — the Y→Q→M→W cascade + commit/approve/plan/review surfaces, plus the
   // Weekly Goals + Daily Checklist modules (re-parented here from WMS).

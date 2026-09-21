@@ -9,6 +9,7 @@ import {
 import { getCurrentEmployee, isCandidateAccount } from "@/lib/auth/current";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { goalsCanvasOn } from "@/lib/goals/flag";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 // This handler reads cookies + auth and redirects — it is ALWAYS dynamic. Without
 // this, Turbopack tries to statically generate paths for /ws/[id] and the worker
@@ -30,6 +31,12 @@ export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   const { id } = await ctx.params;
   if (!isWorkspaceId(id) || WORKSPACE_COMING_SOON[id]) {
     return NextResponse.redirect(new URL("/hub", req.url));

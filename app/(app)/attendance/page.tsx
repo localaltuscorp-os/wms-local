@@ -75,13 +75,15 @@ function labelForDate(date: string): string {
   return formatDate(date);
 }
 
-/** "2026-06-10" → { dow: "Wed", dm: "10 Jun" } for the timeline rail. */
+/** "2026-06-10" → { dow: "Wed", dm: "10-Jun-2026" } for the timeline rail. */
 function splitDateLabel(date: string): { dow: string; dm: string } {
   const [y, m, d] = date.split("-").map(Number);
   const dt = new Date(Date.UTC(y ?? 2026, (m ?? 1) - 1, d ?? 1, 12));
   return {
     dow: new Intl.DateTimeFormat("en-IN", { weekday: "short" }).format(dt),
-    dm: new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short" }).format(dt),
+    // The rail is one row per day, so it carries the whole date rather than the
+    // "10 Jun" it used to — same DD-MMM-YYYY as the rest of the app.
+    dm: formatDate(date),
   };
 }
 

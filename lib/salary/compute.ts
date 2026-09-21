@@ -345,7 +345,7 @@ export function payableDayValue(
    were never expected of them.
 
    Works for full-time and part-time alike — the formula is identical, only the
-   inputs differ (₹40,000 over 216h vs ₹3,500 over 108h). Project/remote staff
+   inputs differ (Rs. 40,000 over 216h vs Rs. 3,500 over 108h). Project/remote staff
    keep `computeFixedFeeSalary`: a retainer is not hours.
    ──────────────────────────────────────────────────────────────────────────── */
 

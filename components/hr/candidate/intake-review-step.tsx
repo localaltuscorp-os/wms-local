@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { Download, Loader2, Mail, MapPin, Phone, User, Calendar, PencilLine } from "lucide-react";
+import { Download, ExternalLink, FileText, Link2, Loader2, Mail, MapPin, Phone, User, Calendar, PencilLine } from "lucide-react";
 import type { IntakeSection } from "@/lib/hr/candidate/intake-schema";
 import { resumeHeader, resumeGroups } from "@/lib/hr/candidate/resume-model";
 import { fireToast } from "@/lib/toast";
+import { WORK_SAMPLES_KEY, parseWorkSamples, type WorkSample } from "@/lib/hr/candidate/work-samples";
+import type { WorkFileUrlFn } from "./candidate-work-samples-field";
 
 const ALTUS_RED = "#E10600";
 const INK = "#18181b";
@@ -23,12 +25,29 @@ export function IntakeReviewStep({
   values,
   instances,
   onEdit,
+  workFileUrl,
 }: {
   sections: IntakeSection[];
   values: Record<string, string>;
   instances: Record<string, string[]>;
   onEdit: (i: number) => void;
+  workFileUrl?: WorkFileUrlFn;
 }) {
+  const samples = parseWorkSamples(values[WORK_SAMPLES_KEY]);
+
+  async function openSample(s: WorkSample) {
+    if (s.kind === "link") {
+      window.open(s.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (!workFileUrl) return;
+    const res = await workFileUrl(s.path);
+    if (!res.ok) {
+      fireToast({ message: res.error, type: "error" });
+      return;
+    }
+    window.open(res.url, "_blank", "noopener,noreferrer");
+  }
   const header = resumeHeader(values);
   const groups = resumeGroups(values, instances);
   const [busy, setBusy] = React.useState(false);
@@ -221,6 +240,42 @@ export function IntakeReviewStep({
             </div>
           </section>
         ))}
+
+        {/* Work samples & links (optional; Personal Details). */}
+        {samples.length > 0 && (
+          <section className="overflow-hidden rounded-2xl border border-hairline bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+            <header className="border-b border-hairline px-6 py-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: ALTUS_RED }}>
+                Section
+              </p>
+              <h3
+                className="mt-0.5 text-ink-strong"
+                style={{ ...DISPLAY_FONT, fontWeight: 800, fontSize: 18, letterSpacing: "-0.01em" }}
+              >
+                Work samples &amp; links
+              </h3>
+            </header>
+            <ul className="divide-y divide-hairline" role="list">
+              {samples.map((s) => (
+                <li key={s.kind === "link" ? s.url : s.path}>
+                  <button
+                    type="button"
+                    onClick={() => void openSample(s)}
+                    className="group flex w-full items-center gap-3 px-6 py-3 text-left"
+                  >
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-neutral-50" style={{ color: ALTUS_RED }}>
+                      {s.kind === "link" ? <Link2 size={15} /> : <FileText size={15} />}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[14.5px] text-ink-strong group-hover:underline">
+                      {s.kind === "link" ? s.url : s.name}
+                    </span>
+                    <ExternalLink size={14} className="shrink-0 text-ink-subtle" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
 
       {/* FOOTER ACTIONS */}

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { Route } from "next";
-import { Search, X, FolderPlus, ArrowUpDown, Rows3, SquareArrowOutUpRight, Pencil, Copy, Loader2 } from "lucide-react";
+import { Search, X, FolderPlus, ArrowUpDown, Rows3, SquareArrowOutUpRight, Pencil, Copy, Archive, Loader2 } from "lucide-react";
 import {
   KIND_LABEL,
   levelTextStyle,
@@ -28,13 +28,13 @@ import {
   ROLLUP_KIND,
   type RegisterLevel,
 } from "@/lib/project-plan/register";
-import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-cell";
+import { PlanStatusCell, planActorFor } from "./plan-status-cell";
 import { PlanProgressCell } from "./plan-progress-cell";
 import { PlanAttachmentCell } from "./plan-attachment-cell";
 import { PlanLinksCell } from "./plan-links-cell";
 import { BulkActionBar } from "@/components/tasks/bulk-action-bar";
 import { fireToast } from "@/lib/toast";
-import { deletePlanNode, duplicatePlanNode } from "@/app/(app)/project-plan/actions";
+import { deletePlanNode, duplicatePlanNode, purgePlanNode } from "@/app/(app)/project-plan/actions";
 import type { TaskStatus } from "@/db/enums";
 import {
   EditDialog, BarButton, countBelow,
@@ -422,27 +422,78 @@ export function PlanRegister({
     });
   }
 
-  /** Delete = archive the row, everything under it, and their linked tasks. */
-  function bulkDelete() {
+  /**
+   * ARCHIVE — the row, everything under it, and their linked WMS tasks leave
+   * the board. Every record survives and can be restored.
+   *
+   * THIS IS WHAT THE BUTTON LABELLED "DELETE" USED TO DO (Manan, 2026-09-15:
+   * "add archive button beside the delete button"). The register had ONE
+   * button, called Delete, that archived — while the hierarchy board beside it
+   * had offered the honest pair (Archive / Delete permanently) all along. So
+   * this gesture did not change; its NAME did, and the real delete joined it.
+   */
+  function bulkArchiveRows() {
     const n = pickedRows.length;
     const kids = pickedRows.reduce((a, r) => a + countBelow(r.node), 0);
-    const lines = [`Delete ${n} selected row${n === 1 ? "" : "s"}?`];
+    const lines = [`Archive ${n} selected row${n === 1 ? "" : "s"}?`];
     if (kids > 0) {
       lines.push(
-        `This also removes ${kids} row${kids === 1 ? "" : "s"} beneath them, and archives any linked WMS tasks.`,
+        `This also archives ${kids} row${kids === 1 ? "" : "s"} beneath them, and any linked WMS tasks.`,
       );
     }
+    lines.push("Nothing is deleted — archived rows can be restored.");
     if (!window.confirm(lines.join("\n\n"))) return;
-    bulk("delete", (id) => deletePlanNode(id), "Deleted");
+    bulk("delete", (id) => deletePlanNode(id), "Archived");
+  }
+
+  /**
+   * DELETE — permanently, the way the hierarchy board's row menu spells it.
+   *
+   * `purgePlanNode` removes the rows AND their tasks outright, history
+   * included, and refuses anyone who is not an administrator. The button is
+   * hidden for everyone else (`showDelete` below) rather than shown and then
+   * refused.
+   *
+   * The confirm NAMES THE COUNT and says it cannot be undone, because the same
+   * red button archived until today and muscle memory is exactly the risk.
+   */
+  function bulkPurgeRows() {
+    const n = pickedRows.length;
+    const kids = pickedRows.reduce((a, r) => a + countBelow(r.node), 0);
+    const lines = [`Permanently delete ${n} selected row${n === 1 ? "" : "s"}?`];
+    if (kids > 0) {
+      lines.push(`This also deletes ${kids} row${kids === 1 ? "" : "s"} beneath them.`);
+    }
+    lines.push(
+      "Their linked WMS tasks and history go too. THIS CANNOT BE UNDONE — use Archive if you only want them off the board.",
+    );
+    if (!window.confirm(lines.join("\n\n"))) return;
+    bulk("purge", (id) => purgePlanNode(id), "Deleted permanently");
   }
 
   /** The shape EditDialog wants, built from the row the flatten pass produced. */
   function targetFor(row: (typeof rows)[number]): DetailTarget {
+    // The row is its OWN level when the register IS that level: on the
+    // Milestones register the milestone is the row, not an ancestor of it. So
+    // each of the three is looked up among the ancestors and falls back to the
+    // row itself when the kinds match — the same rule the hierarchy board's
+    // flatten pass follows, so the two detail dialogs cannot disagree.
+    const self = { ref: row.ownRef, name: row.node.name };
+    const level = (k: "project" | "milestone" | "result") => {
+      if (row.node.kind === k) return self;
+      const a = row.ancestors.find((x) => x.kind === k);
+      return a ? { ref: a.ref, name: a.name } : null;
+    };
     return {
       node: row.node,
       ref: row.ownRef,
       fullRef: row.fullRef,
       path: row.ancestors.map((a) => a.name),
+      ancestry: {
+        project: level("project"),
+        milestone: level("milestone"),
+        result: level("result"),
+      },
     };
   }
 
@@ -462,12 +513,11 @@ export function PlanRegister({
   const levelLabel = KIND_LABEL[kind];
   const rollupLabel = `${KIND_LABEL[rollupKind]}s Completion`;
   // The tick column, two columns per ancestor (No + Name), then: own No, own
-  // Name, Description, Doer Status, Initiator Status, the
-  // level-dependent column (own Completion on a container / Task on an
-  // executable row), the rollup, Attachments, Links and Initiator Notes — plus
-  // Start / End / Duration on the scheduled levels.
+  // Name, Description, Doer Status, the level-dependent column (own Completion
+  // on a container / Task on an executable row), the rollup, Attachments, Links
+  // and Initiator Notes — plus Start / End / Duration on the scheduled levels.
   const colCount =
-    1 + ancestorKinds.length * 2 + 10 + (showsSchedule ? 3 : 0);
+    1 + ancestorKinds.length * 2 + 9 + (showsSchedule ? 3 : 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -560,8 +610,11 @@ export function PlanRegister({
             count             ROWS are ticked, but `selectedIds` carries the
                               TASKS behind them — a container has none, so the
                               chip would read "0 selected" while rows are lit.
-            showArchive=false Delete here already archives the row AND its task
-                              (`deletePlanNode`), so Archive would duplicate it.
+            showArchive=false the bar's own Archive archives TASKS; a plan row
+                              is not a task and its children must travel with
+                              it, so this screen supplies its own in `extras`.
+            showDelete        admin only — Delete is a permanent purge now,
+                              and `purgePlanNode` refuses everyone else.
             onDeleteOverride  the task-only delete would strand the plan rows.
 
           EDIT TAKES ONE ROW: the dialog edits a single node's own name,
@@ -577,7 +630,8 @@ export function PlanRegister({
           onClear={() => setPicked(new Set())}
           showArchive={false}
           showTaskActions={false}
-          onDeleteOverride={bulkDelete}
+          showDelete={me.isAdmin}
+          onDeleteOverride={bulkPurgeRows}
           extras={
             <>
               {pickedRows.length === 1 && (
@@ -594,6 +648,12 @@ export function PlanRegister({
                 onClick={() => bulk("duplicate", (id) => duplicatePlanNode(id), "Duplicated")}
               >
                 Duplicate
+              </BarButton>
+
+              {/* LAST in `extras`, so it sits immediately left of the bar's own
+                  Delete — the two are a pair and are read as one. */}
+              <BarButton icon={<Archive size={14} strokeWidth={2.2} />} onClick={bulkArchiveRows}>
+                Archive
               </BarButton>
 
               {busy && <Loader2 size={15} className="animate-spin text-ink-subtle" />}
@@ -653,7 +713,6 @@ export function PlanRegister({
               </SortTh>
               <Th className="w-[240px]">{levelLabel} Description</Th>
               <Th className="w-[150px]">Doer Status</Th>
-              <Th className="w-[180px]">Initiator Status</Th>
               {/* Only on the levels that own a schedule — see `showsSchedule`. */}
               {showsSchedule && (
                 <>
@@ -808,9 +867,6 @@ export function PlanRegister({
 
                   <Td>
                     <PlanStatusCell node={n} actor={actor} linkedToTask={false} />
-                  </Td>
-                  <Td>
-                    <PlanApproverCell node={n} actor={actor} />
                   </Td>
 
                   {showsSchedule && (

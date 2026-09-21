@@ -44,12 +44,17 @@ export function CollapsibleSearch({
   scope = "this page",
   /** Extra classes for the COLLAPSED button only. */
   className = "",
+  /** Start open — for a page that arrives with its search already filled in
+   *  (a deep link, say). A collapsed box over a filtered table is the one
+   *  case this component's red dot exists to soften; opening it is better. */
+  defaultOpen = false,
 }: {
   children: React.ReactNode;
   scope?: string;
   className?: string;
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(defaultOpen);
   // Whether the field still held text when it closed. Read off the DOM at
   // collapse time rather than taken as a prop: 40 call sites, 40 differently
   // named query variables, and none of them need to know this component exists.

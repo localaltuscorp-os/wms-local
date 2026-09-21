@@ -37,6 +37,22 @@ export interface OnbField {
   seed?: number;
   /** repeater only — singular noun for a row ("Emergency Contact"). */
   itemLabel?: string;
+  /**
+   * Conditionally compulsory — required only while another field holds a value
+   * (a Passport copy is required only when the person said they HAVE one).
+   * Takes precedence over `required`. Read through {@link isOnbFieldRequired}.
+   */
+  requiredWhen?: { key: string; equals: string };
+  /** Hidden (and never required) while another field holds a value. */
+  hiddenWhen?: { key: string; equals: string };
+  /** Shown ONLY while another field holds this value (e.g. the "Other" text box). */
+  shownWhen?: { key: string; equals: string };
+  /**
+   * A file requirement another attachment meets: when `whenKey` = `equals`, the
+   * file at `fileKey` stands in for this one (Address Proof → the Aadhaar Card
+   * attachment). The server links that file in on save.
+   */
+  satisfiedBy?: { whenKey: string; equals: string; fileKey: string };
 }
 
 export interface OnbSection {
@@ -49,6 +65,15 @@ export interface OnbSection {
 // Every field compulsory (r = required:true), width sized to its data.
 const r = true;
 
+/** The two answers for a document not everyone holds (Passport, Driving Licence). */
+export const ONB_HAVE = "Have";
+export const ONB_DONT_HAVE = "Don't have";
+
+/** Address Proof choices. "Aadhaar Card" reuses the Aadhaar attachment; "Other" asks what it is. */
+export const ONB_PROOF_AADHAAR = "Aadhaar Card";
+export const ONB_PROOF_ELECTRIC = "Electric Bill";
+export const ONB_PROOF_OTHER = "Other";
+
 export const ONBOARDING_SECTIONS: OnbSection[] = [
   {
     key: "personal",
@@ -59,19 +84,28 @@ export const ONBOARDING_SECTIONS: OnbSection[] = [
       { key: "lastName", label: "Last Name", type: "text", required: r, w: "sm" },
       { key: "phone", label: "Phone No", type: "tel", required: r, w: "md" },
       { key: "selfie", label: "Selfie (FaceCut · Plain BG)", type: "file", required: r, w: "lg" },
+      // OPTIONAL (2026-09-18): a CV is useful to have on file but not everyone
+      // joining has an up-to-date one, and a required upload would block the
+      // whole form on a document HR can collect later. PDF / Word accepted
+      // (ONB_ACCEPT already covers both).
+      { key: "cv", label: "CV", type: "file", required: false, hint: "Optional · PDF or Word", w: "lg" },
     ],
   },
   {
     key: "previous",
     title: "Previous Employment",
-    hint: "Write NA everywhere if this is your first job.",
+    // OPTIONAL, all six. A first job has no previous employer, and a required
+    // field there could only be satisfied by typing "NA" into it - and for the
+    // two attachments, not at all: you cannot attach a salary certificate that
+    // does not exist, so the form could never be submitted.
+    hint: "Optional - leave blank if this is your first job.",
     fields: [
-      { key: "lastCtc", label: "Last Drawn CTC (₹/yr)", type: "text", required: r, hint: "NA if first job", w: "md" },
-      { key: "lastDesignation", label: "Designation", type: "text", required: r, w: "md" },
-      { key: "lastCompanyName", label: "Last Company Name", type: "text", required: r, w: "lg" },
-      { key: "lastCompanyAddress", label: "Last Company Address", type: "text", required: r, w: "xl" },
-      { key: "lastSalaryCertificate", label: "Last Salary Certificate", type: "file", required: r, w: "lg" },
-      { key: "lastSalaryBankProof", label: "Last Salary — bank proof", type: "file", required: r, w: "lg" },
+      { key: "lastCtc", label: "Last Drawn CTC (Rs./yr)", type: "text", required: false, hint: "NA if first job", w: "md" },
+      { key: "lastDesignation", label: "Designation", type: "text", required: false, w: "md" },
+      { key: "lastCompanyName", label: "Last Company Name", type: "text", required: false, w: "lg" },
+      { key: "lastCompanyAddress", label: "Last Company Address", type: "text", required: false, w: "xl" },
+      { key: "lastSalaryCertificate", label: "Last Salary Certificate", type: "file", required: false, w: "lg" },
+      { key: "lastSalaryBankProof", label: "Last Salary — bank proof", type: "file", required: false, w: "lg" },
     ],
   },
   {
@@ -159,12 +193,27 @@ export const ONBOARDING_SECTIONS: OnbSection[] = [
     key: "identification",
     title: "Identification Details",
     fields: [
+      // Order = the on-screen rows (HR, 2026-09): selfie + signature; Aadhaar
+      // no + copy; PAN no + copy; address proof; passport; driving licence.
       { key: "latestSelfie", label: "Latest Selfie", type: "file", required: r, w: "lg" },
-      { key: "addressProof", label: "Address Proof", type: "file", required: r, w: "lg" },
+      { key: "signaturePhoto", label: "Photo of your Signature", type: "file", required: r, hint: "Mandatory · sign on plain white paper and upload a clear photo", w: "lg" },
       { key: "aadharNo", label: "Aadhar Card No", type: "text", required: r, w: "md" },
       { key: "aadharCopy", label: "Aadhaar Card", type: "file", required: r, hint: "Mandatory · clear scan/photo of your Aadhaar card", w: "lg" },
       { key: "panNo", label: "PAN Card No", type: "text", required: r, w: "sm" },
       { key: "panCopy", label: "PAN Card", type: "file", required: r, hint: "Mandatory · clear scan/photo of your PAN card", w: "lg" },
+      // Address proof: pick what it is first. "Aadhaar Card" reuses the Aadhaar
+      // attachment above (no second upload); "Other" asks what is being attached.
+      { key: "addressProofType", label: "Address Proof", type: "select", required: r, options: [ONB_PROOF_AADHAAR, ONB_PROOF_ELECTRIC, ONB_PROOF_OTHER], w: "md" },
+      { key: "addressProofOther", label: "What are you attaching?", type: "text", requiredWhen: { key: "addressProofType", equals: ONB_PROOF_OTHER }, shownWhen: { key: "addressProofType", equals: ONB_PROOF_OTHER }, w: "md" },
+      { key: "addressProof", label: "Address Proof Attachment", type: "file", required: r, satisfiedBy: { whenKey: "addressProofType", equals: ONB_PROOF_AADHAAR, fileKey: "aadharCopy" }, w: "lg" },
+      // Passport + Driving Licence (HR, 2026-09): not everyone holds one, so the
+      // person answers Have / Don't have first and the attachment is compulsory
+      // only for "Have" — never a dead-end required upload for a document that
+      // does not exist.
+      { key: "passportStatus", label: "Passport", type: "select", required: r, options: [ONB_HAVE, ONB_DONT_HAVE], w: "md" },
+      { key: "passportCopy", label: "Passport Copy", type: "file", requiredWhen: { key: "passportStatus", equals: ONB_HAVE }, hiddenWhen: { key: "passportStatus", equals: ONB_DONT_HAVE }, hint: "Clear scan/photo of the photo + address pages", w: "lg" },
+      { key: "dlStatus", label: "Driving Licence", type: "select", required: r, options: [ONB_HAVE, ONB_DONT_HAVE], w: "md" },
+      { key: "dlCopy", label: "Driving Licence Copy", type: "file", requiredWhen: { key: "dlStatus", equals: ONB_HAVE }, hiddenWhen: { key: "dlStatus", equals: ONB_DONT_HAVE }, hint: "Clear scan/photo of both sides", w: "lg" },
     ],
   },
   {
@@ -202,6 +251,23 @@ export const ONB_ALL_FIELDS: OnbField[] = ONBOARDING_SECTIONS.flatMap((s) => s.f
 export const ONB_FILE_KEYS: string[] = ONB_ALL_FIELDS.filter((f) => f.type === "file").map((f) => f.key);
 export const ONB_TEXT_FIELDS: OnbField[] = ONB_ALL_FIELDS.filter((f) => f.type !== "file");
 export const ONB_FIELD_BY_KEY = new Map<string, OnbField>(ONB_ALL_FIELDS.map((f) => [f.key, f]));
+
+/** Is this field hidden given the current answers? Hidden fields are never required. */
+export function isOnbFieldHidden(field: OnbField, values: Record<string, string | undefined>): boolean {
+  if (field.hiddenWhen && (values[field.hiddenWhen.key] ?? "") === field.hiddenWhen.equals) return true;
+  if (field.shownWhen && (values[field.shownWhen.key] ?? "") !== field.shownWhen.equals) return true;
+  return false;
+}
+
+/**
+ * Is this field compulsory given the current answers? The ONE rule the client
+ * gate and the server guard both read, so they cannot disagree.
+ */
+export function isOnbFieldRequired(field: OnbField, values: Record<string, string | undefined>): boolean {
+  if (isOnbFieldHidden(field, values)) return false;
+  if (field.requiredWhen) return (values[field.requiredWhen.key] ?? "") === field.requiredWhen.equals;
+  return !!field.required;
+}
 
 /** Parse a repeater field's stored JSON string into rows (safe — never throws). */
 export function parseRepeaterRows(raw: string | null | undefined): Record<string, string>[] {
@@ -254,6 +320,8 @@ export interface OnboardingFileRef {
   fileName?: string;
   mime?: string | null;
   size?: number | null;
+  /** Set when this ref is LINKED from another attachment (Address Proof → `aadharCopy`), not uploaded here. */
+  fromKey?: string;
 }
 
 /** Accept list for the file picker — image / PDF / Word / Excel. */

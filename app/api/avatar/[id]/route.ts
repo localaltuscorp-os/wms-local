@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { getSupabaseAdmin, AVATARS_BUCKET } from "@/lib/supabase/admin";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 
@@ -42,7 +43,13 @@ export const runtime = "nodejs";
 const SIGN_TTL_SECONDS = 60 * 60; // 1 hour
 const REDIRECT_MAX_AGE = SIGN_TTL_SECONDS / 2; // 30 min — always < the TTL
 
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   await requireUser();
   const { id } = await ctx.params;
 

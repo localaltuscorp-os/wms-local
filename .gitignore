@@ -144,7 +144,12 @@ __claude-*.mjs
 
 # Local PGlite dev database — a 67 MB Postgres data dir, never source. Must stay
 # ignored or ship.sh's `git add -A` sweeps the whole thing into a commit.
+#
+# The glob covers the throwaway copies too: PGlite takes an EXCLUSIVE lock on
+# its directory, so any test that writes (tests/integration/plan-move.test.ts)
+# needs its own rather than sharing the one the dev server is holding open.
 .pglite/
+.pglite-*/
 
 # legacy mobile drop - removed 2026-09-02
 mobile_LEGACY_DROP_*/
@@ -166,3 +171,9 @@ AGENTS.md
 # Read by scripts/dummy-db-seed.ts when present; never committed, so the
 # test org chart cannot reach the repository or production.
 scripts/dummy-team-tree.local.json
+
+# Quarantined modules being rebuilt from scratch — kept on the developer's
+# machine for reference and copy-paste, never committed. Git history is the
+# real archive (`git show <sha>:<path>`); this is the convenience copy.
+# Excluded from tsconfig too, so nothing in here is compiled or typechecked.
+_archive/

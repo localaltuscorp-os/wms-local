@@ -23,7 +23,7 @@ export const PRIORITY_TONE: Record<HrTicketPriority, { fg: string; label: string
 };
 
 export const CATEGORY_GLYPH: Record<HrTicketCategory, string> = {
-  payroll: "₹",
+  payroll: "Rs.",
   leave_attendance: "🗓",
   reimbursement: "🧾",
   it_access: "🔑",

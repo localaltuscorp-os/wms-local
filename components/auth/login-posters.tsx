@@ -337,7 +337,7 @@ function PayslipTile() {
     <Tile h={205} bg="linear-gradient(160deg,#1a1310,#100b09)" pad={16}>
       <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.18em", color: "rgba(255,255,255,0.45)" }}>PAYSLIP · JUN</div>
       <div style={{ marginTop: 16, fontFamily: SANS, fontSize: 11, color: "rgba(255,255,255,0.5)" }}>Net payable</div>
-      <div style={{ fontFamily: SANS, fontWeight: 900, color: "#fff", fontSize: 34, letterSpacing: "-0.02em" }}>₹1,24,800</div>
+      <div style={{ fontFamily: SANS, fontWeight: 900, color: "#fff", fontSize: 34, letterSpacing: "-0.02em" }}>Rs. 1,24,800</div>
       <div style={{ marginTop: 12, height: 1, background: "rgba(255,255,255,0.1)" }} />
       <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", fontFamily: SANS, fontSize: 10.5, color: "rgba(255,255,255,0.55)" }}>
         <span>Payable days 26</span>

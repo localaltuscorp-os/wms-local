@@ -14,7 +14,7 @@
  * Column layout (fixed index, matches lib/salary/altus-log-import.ts):
  *   [2]  C  MM-YY ("May-2026")      [3]  D  Employee Name
  *   [4]  E  Designation             [5]  F  Company Name (paying entity)
- *   [18] S  Annually CTC ("₹228,000")   [21] V  PT ("₹200" or blank → exempt)
+ *   [18] S  Annually CTC ("Rs. 228,000")   [21] V  PT ("Rs. 200" or blank → exempt)
  */
 
 const COL = { month: 2, name: 3, designation: 4, entity: 5, ctc: 18, pt: 21 } as const;
@@ -33,10 +33,10 @@ export function parseSheetMonth(raw: string): string | null {
   return mm ? `${m[2]}-${mm}` : null;
 }
 
-/** "₹228,000" / "228000" → 228000. Blank/non-numeric → null. */
+/** "Rs. 228,000" / "228000" → 228000. Blank/non-numeric → null. */
 export function parseRupees(raw: string): number | null {
   if (raw == null) return null;
-  const s = String(raw).replace(/[₹,\s]/g, "").trim();
+  const s = String(raw).replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, "").trim();
   if (s === "") return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;

@@ -112,7 +112,7 @@ export function buildMatrix(
  * A FORMAT, not a text conversion (Sir). The cell keeps its real number, so the
  * figures still add up, sort and feed formulas — Excel only paints them with
  * Indian grouping (`##,##,##0`) and red-in-brackets for negatives, matching the
- * red the screen and the PDF use. Writing "₹25.00 Lakh" as a string instead
+ * red the screen and the PDF use. Writing "Rs. 25.00 Lakh" as a string instead
  * would look right and be useless: every downstream SUM would return zero.
  */
 const INR_FMT = '#,##,##0;[Red](#,##,##0);"—"';

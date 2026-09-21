@@ -17,6 +17,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+import { formatDate } from "@/lib/format";
 
 export function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: MOBILE_CORS });
@@ -36,7 +37,9 @@ async function loadBoard(employeeId: string) {
   ]);
   const now = new Date();
   const weekday = now.toLocaleDateString("en-US", { weekday: "long", timeZone: TZ });
-  const date = now.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: TZ });
+  const date = formatDate(
+    now.toLocaleDateString("en-CA", { timeZone: TZ }), // the IST calendar day
+  );
   return {
     date,
     weekday,

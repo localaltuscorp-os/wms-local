@@ -4,7 +4,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { canIssueLetters, LETTER_ISSUE_REFUSAL } from "@/lib/hr/letters/issue-access";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getEntity } from "@/lib/hr/entities";
 import { getLetter } from "@/lib/hr/letters/registry";
@@ -41,6 +42,8 @@ const Schema = z.object({
   candidateEmail: z.string().trim().email().max(200).optional(),
   /** Optional uploaded scanned-signature image (data URL) for the sign-off. */
   signatureImage: z.string().max(3_000_000).optional(),
+  /** Shrink the letter step by step until it fits one A4 page (lib/hr/letters/fit). */
+  fitOnePage: z.boolean().optional(),
 });
 
 export async function POST(req: Request): Promise<Response> {
@@ -50,8 +53,19 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
-  if (!(me.isAdmin || isSuperAdmin(me.email))) {
-    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  // THE MODULE GATE, before the capability gate. If an administrator has revoked
+  // "Letters" for this person, the endpoint refuses outright whatever the
+  // narrower issue-letters permission says. A route handler renders no layout,
+  // so `requirePathView` never runs for it and this is the only place the matrix
+  // can reach the endpoint — without it, revoking Letters hid the screen and
+  // left this route sending mail.
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
+
+  // Same decision as the issue route, from the same place. This was one of three
+  // copies of "is this person an admin?" — see lib/hr/letters/issue-access.ts.
+  if (!(await canIssueLetters(me))) {
+    return NextResponse.json({ ok: false, error: LETTER_ISSUE_REFUSAL }, { status: 403 });
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return NextResponse.json(limited);
@@ -93,7 +107,7 @@ export async function POST(req: Request): Promise<Response> {
   try {
     if (b.contentKind === "rich" && b.bodyHtml) {
       const { renderRichLetterPdf } = await import("@/lib/hr/letters/render-rich");
-      pdf = Buffer.from(await renderRichLetterPdf({ entity: entity.id, bodyHtml: b.bodyHtml }));
+      pdf = Buffer.from(await renderRichLetterPdf({ entity: entity.id, bodyHtml: b.bodyHtml, fitOnePage: b.fitOnePage === true }));
     } else {
       const { renderLetterPdf } = await import("@/lib/hr/letters/pdf");
       pdf = await renderLetterPdf({
@@ -103,6 +117,7 @@ export async function POST(req: Request): Promise<Response> {
         date: b.date?.trim() || letterDate(),
         gender: normalizeGender(b.gender),
         signatureImage: b.signatureImage,
+        fitOnePage: b.fitOnePage === true,
       });
     }
   } catch {
