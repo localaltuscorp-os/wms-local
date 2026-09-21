@@ -8,6 +8,10 @@ import { exchangeCode, fetchGoogleEmail, revokeToken } from "@/lib/google/calend
 import { backfillDoerCalendar } from "@/lib/google/sync";
 import { isSameGoogleAccount } from "@/lib/google/account-match";
 import { HR_DRIVE_STATE_PREFIX, finishHrDriveConnect } from "@/lib/hr/records-export/oauth";
+import {
+  MODULE_DRIVE_STATE_PREFIX,
+  finishModuleDriveConnect,
+} from "@/lib/modules/backup/oauth";
 
 export const dynamic = "force-dynamic";
 // The post-redirect task backfill runs inside this budget.
@@ -21,6 +25,11 @@ export async function GET(req: NextRequest) {
   // state is prefixed so it never touches the signed-in employee's calendar.
   if ((url.searchParams.get("state") ?? "").startsWith(HR_DRIVE_STATE_PREFIX)) {
     return finishHrDriveConnect(req);
+  }
+  // The module-wise backup connects a DIFFERENT Google account through the same
+  // registered redirect URI; its own state prefix keeps the two apart.
+  if ((url.searchParams.get("state") ?? "").startsWith(MODULE_DRIVE_STATE_PREFIX)) {
+    return finishModuleDriveConnect(req);
   }
   const origin = url.origin;
   const back = `${origin}/profile`;
