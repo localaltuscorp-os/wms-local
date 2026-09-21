@@ -17,40 +17,60 @@
 -- not moved yet — 'Executive' going from 30 to 40 while 40 is still 'Sr.
 -- Executive'. Parking every existing rank in a range nothing else uses makes
 -- the second pass unconditional.
-update jd_ranks set rank_order = rank_order + 10000 where rank_order < 10000;
+-- GUARDED SO A SECOND RUN IS A NO-OP (added 2026-09-21).
+--
+-- The header above promises idempotence and the two passes did not deliver it:
+-- the parking pass moves every rank below 10000 up by 10000, so on a SECOND
+-- run it moves the 26 just-installed rungs (10..260) to 10010..10260 — straight
+-- on top of the legacy ranks parked there by the first run. The unique index on
+-- rank_order then refuses the insert:
+--     duplicate key value violates unique constraint jd_ranks_rank_order_key
+-- Found by running this file twice while bundling every migration since the
+-- 11 Sep fork push. Already-applied databases are unaffected: the guard sees
+-- the ladder in place and does nothing.
+do $ladder$
+begin
+  if exists (select 1 from jd_ranks where name = 'Chairman' and rank_order = 260) then
+    raise notice '0226: the 26-rank ladder is already in place; nothing to do.';
+    return;
+  end if;
 
-insert into jd_ranks (name, rank_order, band, is_active) values
-  ('Intern - First Year',         10,  'Trainee',            true),
-  ('Intern - Second Year',        20,  'Trainee',            true),
-  ('Intern - Third Year',         30,  'Trainee',            true),
-  ('Executive',                   40,  'Individual',         true),
-  ('Sr. Executive',               50,  'Individual',         true),
-  ('Consultant',                  60,  'Individual',         true),
-  ('Sr. Consultant',              70,  'Individual',         true),
-  ('Assistant Manager',           80,  'Management',         true),
-  ('Deputy Manager',              90,  'Management',         true),
-  ('Manager',                     100, 'Management',         true),
-  ('Associate Vice President',    110, 'Leadership',         true),
-  ('Deputy Vice President',       120, 'Leadership',         true),
-  ('Vice President',              130, 'Leadership',         true),
-  ('Senior Vice President',       140, 'Leadership',         true),
-  ('President',                   150, 'Leadership',         true),
-  ('Sr President',                160, 'Leadership',         true),
-  ('Assistant General Manager',   170, 'General Management', true),
-  ('General Manager',             180, 'General Management', true),
-  ('Sr. General Manager',         190, 'General Management', true),
-  ('Associate Director',          200, 'Director',           true),
-  ('Deputy Director',             210, 'Director',           true),
-  ('Director',                    220, 'Director',           true),
-  ('Senior Director',             230, 'Director',           true),
-  ('CEO',                         240, 'Board',              true),
-  ('Managing Director',           250, 'Board',              true),
-  ('Chairman',                    260, 'Board',              true)
-on conflict (name) do update
-  set rank_order = excluded.rank_order,
-      band       = excluded.band,
-      is_active  = true,
-      updated_at = now();
+  update jd_ranks set rank_order = rank_order + 10000 where rank_order < 10000;
+
+  insert into jd_ranks (name, rank_order, band, is_active) values
+    ('Intern - First Year',         10,  'Trainee',            true),
+    ('Intern - Second Year',        20,  'Trainee',            true),
+    ('Intern - Third Year',         30,  'Trainee',            true),
+    ('Executive',                   40,  'Individual',         true),
+    ('Sr. Executive',               50,  'Individual',         true),
+    ('Consultant',                  60,  'Individual',         true),
+    ('Sr. Consultant',              70,  'Individual',         true),
+    ('Assistant Manager',           80,  'Management',         true),
+    ('Deputy Manager',              90,  'Management',         true),
+    ('Manager',                     100, 'Management',         true),
+    ('Associate Vice President',    110, 'Leadership',         true),
+    ('Deputy Vice President',       120, 'Leadership',         true),
+    ('Vice President',              130, 'Leadership',         true),
+    ('Senior Vice President',       140, 'Leadership',         true),
+    ('President',                   150, 'Leadership',         true),
+    ('Sr President',                160, 'Leadership',         true),
+    ('Assistant General Manager',   170, 'General Management', true),
+    ('General Manager',             180, 'General Management', true),
+    ('Sr. General Manager',         190, 'General Management', true),
+    ('Associate Director',          200, 'Director',           true),
+    ('Deputy Director',             210, 'Director',           true),
+    ('Director',                    220, 'Director',           true),
+    ('Senior Director',             230, 'Director',           true),
+    ('CEO',                         240, 'Board',              true),
+    ('Managing Director',           250, 'Board',              true),
+    ('Chairman',                    260, 'Board',              true)
+  on conflict (name) do update
+    set rank_order = excluded.rank_order,
+        band       = excluded.band,
+        is_active  = true,
+        updated_at = now();
+end
+$ladder$;
 
 -- The four renamed intern rungs. Their old names were parked above, so the seats
 -- pointing at them move across intact rather than being orphaned.
