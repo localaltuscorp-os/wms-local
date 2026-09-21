@@ -142,3 +142,41 @@ describe("wiring", () => {
     expect(run).toMatch(/if \(run\.kind !== "manual"\)[\s\S]{0,120}markExported/);
   });
 });
+
+describe("the screens", () => {
+  const read = (p: string) => readFileSync(p, "utf8");
+
+  it("puts the Export button in every room, from one place", () => {
+    const layout = read("app/(app)/layout.tsx");
+    expect(layout).toContain("ModuleExportBar");
+    // The modules are resolved on the SERVER for this person — a list decided
+    // in the browser would be a permission decided in the browser.
+    expect(layout).toContain("exportableModules(me, BACKUP_MODULE_IDS)");
+  });
+
+  it("hides the button rather than showing one that fails", () => {
+    expect(read("components/modules/module-export-bar.tsx")).toContain("allowed.includes(moduleId)");
+    expect(read("components/modules/module-export-slot.tsx")).toContain("canExportModule");
+  });
+
+  it("keeps the Module Backups page for managers only", () => {
+    const page = read("app/(admin)/admin/module-backups/page.tsx");
+    expect(page).toContain("canManageModuleBackups(me)");
+    // notFound, not a redirect: a "forbidden" screen confirms the page exists.
+    expect(page).toContain("notFound()");
+  });
+
+  it("checks permission inside every action, not just on the page", () => {
+    const actions = read("app/(admin)/admin/module-backups/actions.ts");
+    const exported = actions.match(/export async function \w+/g) ?? [];
+    expect(exported.length).toBeGreaterThan(5);
+    // Every one goes through manager(), which re-reads the signed-in person —
+    // a page-level check alone would leave the actions callable on their own.
+    const guarded = actions.match(/await manager\(\)/g) ?? [];
+    expect(guarded.length).toBe(exported.length);
+  });
+
+  it("is reachable from the admin rail", () => {
+    expect(read("components/admin/admin-nav-config.ts")).toContain("/admin/module-backups");
+  });
+});
