@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { HrMark } from "./hr-mark";
-import { HR_CONSOLE_MODULES } from "@/lib/hr/console-nav";
+import type { HrConsoleModule } from "@/lib/hr/console-nav";
 import { cn } from "@/lib/utils";
 
 /**
@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
  * the collapse/expand toggle stays visible so collapsing is never a trap.
  */
 export function HrModuleRail({
+  modules,
   collapsed,
   selectedModuleId,
   activeModuleId,
@@ -39,6 +40,11 @@ export function HrModuleRail({
   onToggleRail,
   user,
 }: {
+  /** The modules to draw — ALREADY FILTERED by the permission matrix.
+   *  Passed in rather than read from `HR_CONSOLE_MODULES` so this component
+   *  cannot accidentally draw something the current person has been denied;
+   *  see lib/hr/console-visibility.ts. */
+  modules: readonly HrConsoleModule[];
   /** Icon-strip mode — see the block comment above. */
   collapsed: boolean;
   /** The module whose steps column 2 is showing. */
@@ -160,7 +166,7 @@ export function HrModuleRail({
           </p>
         )}
         <ul className="space-y-0.5">
-          {HR_CONSOLE_MODULES.map((mod) => {
+          {modules.map((mod) => {
             // `onRoute` is real navigation (drives aria-current, for a11y —
             // not paint). `selected` is what's actually highlighted: the
             // module previewed in column 2, which is `activeModuleId` at

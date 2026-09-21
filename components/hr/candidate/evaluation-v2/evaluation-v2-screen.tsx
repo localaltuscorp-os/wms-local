@@ -13,12 +13,20 @@ import {
   Printer,
   Share2,
   Trash2,
+  Link2,
 } from "lucide-react";
 import { createPortal } from "react-dom";
+import { joinCandidateName } from "@/lib/hr/candidate/name";
+import { useRouter } from "next/navigation";
 import { fireToast } from "@/lib/toast";
 import { PageShell } from "@/components/layout/page-shell";
 import { LookupSelect } from "@/components/ui/lookup-select";
 import { deleteCandidateIntake, createQuickCandidate } from "@/app/(app)/hr/candidate-actions";
+import {
+  findCandidateMatch,
+  mergeCandidateIntake,
+  type IntakeMatch,
+} from "@/app/(app)/hr/candidate-merge-actions";
 import {
   EVAL_SECTIONS,
   type EvaluationInstance,
@@ -82,11 +90,16 @@ export function EvaluationV2Screen({
   candidates,
   role,
   isSuperAdmin,
+  canMerge,
   fixedCandidateId,
 }: {
   candidates: Candidate[];
   role: EvaluatorRole;
   isSuperAdmin: boolean;
+  /** May fold a started interview form into this evaluation. False for narrow
+   *  intake grantees, who can still SEE the banner and open the form — merging
+   *  is a write to two candidate records and is `requireHrStaff` on the server. */
+  canMerge: boolean;
   fixedCandidateId?: string;
 }) {
   const [candidateId, setCandidateId] = React.useState("");
@@ -109,31 +122,65 @@ export function EvaluationV2Screen({
   // "Add candidate" — pre-create a candidate by name (+ optional phone) so an
   // evaluation can start before they have filled the full interview form.
   const [addOpen, setAddOpen] = React.useState(false);
-  const [addName, setAddName] = React.useState("");
+  // Two fields, joined into the one `full_name` column on submit — see the
+  // dialog's own note on why they are split.
+  const [addFirst, setAddFirst] = React.useState("");
+  const [addLast, setAddLast] = React.useState("");
   const [addPhone, setAddPhone] = React.useState("");
   const [addBusy, setAddBusy] = React.useState(false);
   const [addError, setAddError] = React.useState<string | null>(null);
 
+  /* ── "The number I attached has started filling the form" ────────────────
+     `mergeMatch` is what `findCandidateMatch` last said about the SELECTED
+     candidate. It is fetched per selection rather than pre-loaded for the whole
+     roster: the answer changes mid-session (the candidate submits while this
+     screen is open), and a page prop could not be re-asked. */
+  const [mergeMatch, setMergeMatch] = React.useState<{
+    aHasForm: boolean;
+    aMobile: string | null;
+    matches: IntakeMatch[];
+  } | null>(null);
+  /** The row pending confirmation in the merge dialog. */
+  const [mergeTarget, setMergeTarget] = React.useState<IntakeMatch | null>(null);
+  const [mergeBusy, setMergeBusy] = React.useState(false);
+  const [mergeError, setMergeError] = React.useState<string | null>(null);
+  /** The MANUAL path — for when the phone does not match, which is the whole
+   *  reason it exists. */
+  const [linkOpen, setLinkOpen] = React.useState(false);
+  const [linkQuery, setLinkQuery] = React.useState("");
+
+  /** First + last, joined the way a single "Full name" box would have produced
+   *  it — `full_name` is one column, and the letters, the candidate list and the
+   *  merge dialog all print it verbatim. */
+  const addFullName = joinCandidateName(addFirst, addLast);
+
   async function submitNewCandidate() {
     setAddBusy(true);
     setAddError(null);
-    const res = await createQuickCandidate({ name: addName, phone: addPhone });
+    const res = await createQuickCandidate({ name: addFullName, phone: addPhone });
     setAddBusy(false);
     if (!res.ok) {
       setAddError(res.error);
       return;
     }
-    // Add to the local list (if it isn't already there) and select it.
+    // Add to the local list (if it isn't already there) and select it. On a
+    // `reused` result the row already exists — with the name it already had,
+    // which is the point of reusing it — so the local entry must not overwrite
+    // that with what was just typed.
     setCandList((prev) => {
       if (prev.some((c) => c.id === res.id)) return prev;
-      return [...prev, { id: res.id, fullName: addName.trim() }];
+      return [...prev, { id: res.id, fullName: addFullName }];
     });
     setAddOpen(false);
-    setAddName("");
+    setAddFirst("");
+    setAddLast("");
     setAddPhone("");
     void selectCandidate(res.id);
   }
 
+  // Used after a merge: the retired row has to disappear from the SERVER-rendered
+  // candidate list too, or the props-sync effect puts it back.
+  const router = useRouter();
   const cidRef = React.useRef(candidateId); cidRef.current = candidateId;
   const instRef = React.useRef(instance); instRef.current = instance;
   const saveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -226,17 +273,69 @@ export function EvaluationV2Screen({
     setActiveId(null);
     if (!id) return;
     setLoading(true);
+    setMergeMatch(null);
     try {
-      const res = await getEvaluationV2(id, role);
+      // IN PARALLEL, so the match costs no perceived latency. A failure here is
+      // swallowed to null: the banner is an offer, and losing it must never stop
+      // the evaluation itself from opening.
+      const [res, match] = await Promise.all([
+        getEvaluationV2(id, role),
+        findCandidateMatch(id).catch(() => null),
+      ]);
       if (cidRef.current !== id) return;
       if (!res.ok) { setError(res.error); return; }
       setLoad(res.load);
       setInstance(res.load.instance); instRef.current = res.load.instance;
       setDesignation(res.load.suggestedDesignation || "default");
+      setMergeMatch(match?.ok ? { aHasForm: match.aHasForm, aMobile: match.aMobile, matches: match.matches } : null);
     } catch {
       if (cidRef.current === id) setError("Couldn't load this candidate's evaluation.");
     } finally {
       if (cidRef.current === id) setLoading(false);
+    }
+  }
+
+  /**
+   * FOLD THE STARTED FORM INTO THIS EVALUATION.
+   *
+   * The order of the first two steps is load-bearing. A pending debounced
+   * autosave MUST be flushed before the merge, or it would fire afterwards
+   * against the retired placeholder and silently diverge it from the survivor —
+   * the exact failure this feature exists to prevent.
+   *
+   * Afterwards the screen switches to the survivor: the placeholder is retired,
+   * so staying on it would show a record no picker lists any more. That reload
+   * is also what makes the moved assessment visible on the record that now owns
+   * it.
+   */
+  async function doMerge(target: IntakeMatch) {
+    setMergeBusy(true);
+    setMergeError(null);
+    try {
+      if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
+      await saveNow();
+
+      const res = await mergeCandidateIntake({ retiredId: candidateId, survivorId: target.id });
+      if (!res.ok) { setMergeError(res.error); return; }
+
+      const retiredId = candidateId;
+      setMergeTarget(null);
+      setMergeMatch(null);
+      await selectCandidate(res.survivorId);
+      // Drop the retired row locally, then refresh so the server's list — which
+      // now excludes it — agrees. Without both, the props-sync effect restores it.
+      setCandList((prev) => prev.filter((c) => c.id !== retiredId));
+      router.refresh();
+      fireToast({
+        message:
+          `Merged into ${res.survivorName || "the candidate"}. Their evaluation is on that record now.` +
+          (res.skipped.length ? ` Kept the existing ${res.skipped.join(", ")}.` : ""),
+        type: "success",
+      });
+    } catch {
+      setMergeError("Couldn't merge these records.");
+    } finally {
+      setMergeBusy(false);
     }
   }
 
@@ -466,6 +565,85 @@ export function EvaluationV2Screen({
             </div>
           )}
 
+          {/* ── "THE NUMBER I ATTACHED HAS STARTED FILLING THE FORM" ──────────
+              This is the whole point of attaching a number to a quick
+              candidate: HR can see that the person they evaluated has begun
+              their own interview form, and fold the two records into one —
+              the candidate's details and the interviewer's assessment on a
+              single row, which is what the owner asked to be able to read.
+
+              Offered, never automatic. The person who filled the form writes
+              the correct name; a placeholder holds whatever was typed in a
+              hurry. Merging keeps THEIR row. */}
+          {canMerge && selected && mergeMatch && mergeMatch.matches.length > 0 && (
+            <div
+              className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3.5 py-3"
+              style={{
+                background: "color-mix(in srgb, #2563eb 5%, white)",
+                borderColor: "color-mix(in srgb, #2563eb 22%, transparent)",
+              }}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-bold text-ink-strong">
+                  {mergeMatch.aMobile
+                    ? `${mergeMatch.aMobile} has started the interview form`
+                    : "This number has started the interview form"}
+                  {" — "}
+                  {mergeMatch.matches[0]!.fullName || "Unnamed"}
+                  {mergeMatch.matches[0]!.pct > 0 && (
+                    <span className="font-medium text-ink-muted">
+                      {" "}
+                      ({mergeMatch.matches[0]!.pct}% filled
+                      {mergeMatch.matches[0]!.submitted ? ", submitted" : ", in progress"})
+                    </span>
+                  )}
+                </p>
+                <p className="mt-0.5 text-[11.5px] font-medium text-ink-muted">
+                  Merging moves this evaluation onto their record and keeps their name.
+                  Nothing is deleted.
+                </p>
+              </div>
+              <a
+                href={`/hr/intake?draft=${mergeMatch.matches[0]!.id}`}
+                className="shrink-0 rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[12px] font-bold text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red"
+              >
+                View form
+              </a>
+              <button
+                type="button"
+                onClick={() => { setMergeError(null); setMergeTarget(mergeMatch.matches[0]!); }}
+                className="shrink-0 rounded-lg px-3 py-2 text-[12px] font-bold text-white transition-transform hover:-translate-y-px"
+                style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
+              >
+                Merge their details
+              </button>
+              {mergeMatch.matches.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => { setLinkQuery(""); setLinkOpen(true); }}
+                  className="shrink-0 text-[11.5px] font-bold text-altus-red underline-offset-2 hover:underline"
+                >
+                  {mergeMatch.matches.length - 1} more match
+                  {mergeMatch.matches.length - 1 === 1 ? "" : "es"} — choose
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* The MANUAL path, for when the number does not match — a different
+              number on the form, or one typed differently enough to miss. */}
+          {canMerge && selected && instance && (
+            <div className="mt-3 text-right">
+              <button
+                type="button"
+                onClick={() => { setLinkQuery(""); setLinkOpen(true); }}
+                className="text-[11.5px] font-semibold text-ink-muted underline-offset-2 hover:text-altus-red hover:underline"
+              >
+                Can&apos;t find it? Link an interview form manually
+              </button>
+            </div>
+          )}
+
           {isSuperAdmin && load && (
             <p className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-ink-subtle">
               <ShieldCheck size={12} /> Custom weight tuning is temporarily disabled - scoring uses the default section weights (pending the Department → Role → Designation mapping).
@@ -663,18 +841,49 @@ export function EvaluationV2Screen({
               </div>
 
               <div className="space-y-3">
-                <div>
-                  <label htmlFor="ev2-add-name" className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-soft">
-                    Name
-                  </label>
-                  <input
-                    id="ev2-add-name"
-                    value={addName}
-                    onChange={(e) => setAddName(e.target.value)}
-                    autoFocus
-                    placeholder="Full name"
-                    className="w-full rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[14px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
-                  />
+                {/* FIRST + LAST, not one "Full name" box.
+                    Two reasons this matters rather than being cosmetic: the
+                    placeholder has to be RECOGNISABLE as the same person once
+                    their own form arrives (a merged record keeps the
+                    candidate's name, so a half-typed one is thrown away), and
+                    `candidate_intake.full_name` is a single column the letters
+                    and the candidate list both read — so the two parts are
+                    joined on the way in, and the stored value is exactly what
+                    a single box would have produced. */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="ev2-add-first" className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-soft">
+                      First name
+                    </label>
+                    <input
+                      id="ev2-add-first"
+                      value={addFirst}
+                      onChange={(e) => setAddFirst(e.target.value)}
+                      autoFocus
+                      autoComplete="off"
+                      placeholder="e.g. Priya"
+                      className="w-full rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[14px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="ev2-add-last" className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-soft">
+                      Last name
+                    </label>
+                    <input
+                      id="ev2-add-last"
+                      value={addLast}
+                      onChange={(e) => setAddLast(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void submitNewCandidate();
+                      }}
+                      autoComplete="off"
+                      // OPTIONAL, deliberately. Not everyone has two names, and
+                      // a required box would either block them or teach people
+                      // to type a placeholder into it.
+                      placeholder="e.g. Sharma"
+                      className="w-full rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[14px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label htmlFor="ev2-add-phone" className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-soft">
@@ -707,12 +916,194 @@ export function EvaluationV2Screen({
                 <button
                   type="button"
                   onClick={() => void submitNewCandidate()}
-                  disabled={addBusy || !addName.trim()}
+                  disabled={addBusy || !addFullName}
                   className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-[13px] font-bold text-white transition-colors disabled:opacity-60"
                   style={{ background: RED }}
                 >
                   {addBusy ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} strokeWidth={2.5} />}
                   Add candidate
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* ── MERGE CONFIRMATION ─────────────────────────────────────────────
+          Explicit about which row survives and that nothing is destroyed,
+          because "merge" reads as destructive to anyone who has been burnt by
+          one. The two records are NOT symmetric and the copy says so. */}
+      {mergeTarget &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] grid place-items-center bg-black/45 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ev2-merge-title"
+            onClick={() => { if (!mergeBusy) { setMergeTarget(null); setMergeError(null); } }}
+          >
+            <div
+              className="w-full max-w-[470px] rounded-2xl bg-white p-6 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.55)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-4 flex items-start gap-3.5">
+                <span
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full"
+                  style={{ background: "color-mix(in srgb, var(--color-altus-red) 12%, white)", color: RED_DEEP }}
+                >
+                  <Link2 size={22} strokeWidth={2.4} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h2 id="ev2-merge-title" className="text-[17px] font-black text-ink-strong" style={{ fontFamily: DISPLAY }}>
+                    Merge this into {mergeTarget.fullName || "the candidate"}
+                  </h2>
+                  <p className="mt-1 text-[13.5px] leading-relaxed text-ink-muted">
+                    The evaluation you have filled in moves onto{" "}
+                    <strong className="text-ink-strong">{mergeTarget.fullName || "their record"}</strong>
+                    , and the name becomes theirs — they typed it themselves.
+                    {" "}
+                    <strong className="text-ink-strong">
+                      {selected?.fullName || "This record"}
+                    </strong>{" "}
+                    then disappears from every candidate list.
+                  </p>
+                  <p className="mt-2 text-[12.5px] font-semibold leading-relaxed text-ink-soft">
+                    Nothing is deleted. Their form answers stay theirs, and this can be undone.
+                  </p>
+                  {mergeMatch?.aHasForm && (
+                    <p
+                      className="mt-3 flex items-start gap-2 rounded-lg px-3 py-2 text-[12px] font-medium"
+                      style={{ background: "color-mix(in srgb, #d97706 9%, white)", color: "#92400e" }}
+                    >
+                      <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                      <span>
+                        This record has form answers of its own. They stay on it and will no
+                        longer be shown — the candidate&apos;s own form is the one that is kept.
+                      </span>
+                    </p>
+                  )}
+                  {mergeError && (
+                    <p className="mt-3 text-[12.5px] font-semibold text-altus-red">{mergeError}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={mergeBusy}
+                  onClick={() => { setMergeTarget(null); setMergeError(null); }}
+                  className="rounded-xl border border-hairline-strong bg-white px-4 py-2.5 text-[13px] font-bold text-ink-soft transition-colors hover:border-ink-subtle disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={mergeBusy}
+                  onClick={() => void doMerge(mergeTarget)}
+                  className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-bold text-white transition-transform hover:-translate-y-px disabled:opacity-60"
+                  style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
+                >
+                  {mergeBusy ? <Loader2 size={15} className="animate-spin" /> : <Link2 size={15} />}
+                  {mergeBusy ? "Merging…" : "Merge"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* ── MANUAL LINK PICKER ───────────────────────────────────────────────
+          The path for a number that does not match. Options come from `candList`
+          — already loaded — so this costs no round trip, and the list is the
+          same one the picker above shows. */}
+      {linkOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] grid place-items-center bg-black/45 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ev2-link-title"
+            onClick={() => setLinkOpen(false)}
+          >
+            <div
+              className="w-full max-w-[520px] rounded-2xl bg-white p-6 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.55)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-3">
+                <h2 id="ev2-link-title" className="text-[17px] font-black text-ink-strong" style={{ fontFamily: DISPLAY }}>
+                  Link an interview form
+                </h2>
+                <p className="mt-1 text-[13.5px] leading-relaxed text-ink-muted">
+                  Pick the candidate who filled the form. Their record is the one that is
+                  kept, and this evaluation moves onto it.
+                </p>
+              </div>
+              <input
+                autoFocus
+                value={linkQuery}
+                onChange={(e) => setLinkQuery(e.target.value)}
+                placeholder="Search by name or number…"
+                className="mb-3 w-full rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[14px] font-semibold text-ink-strong outline-none transition-colors focus:border-altus-red"
+              />
+              <div className="max-h-[46vh] overflow-y-auto rounded-xl border border-hairline">
+                {(() => {
+                  const q = linkQuery.trim().toLowerCase();
+                  const options = candList.filter((c) => {
+                    if (c.id === candidateId) return false;
+                    if (!q) return true;
+                    return (
+                      (c.fullName ?? "").toLowerCase().includes(q) ||
+                      (c.positionApplied ?? "").toLowerCase().includes(q)
+                    );
+                  });
+                  if (options.length === 0) {
+                    return (
+                      <p className="px-4 py-6 text-center text-[13px] text-ink-muted">
+                        No other candidates match. If they have not filled any part of the
+                        form yet, there is nothing to link to.
+                      </p>
+                    );
+                  }
+                  return options.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setLinkOpen(false);
+                        setMergeError(null);
+                        setMergeTarget({
+                          id: c.id,
+                          fullName: c.fullName,
+                          positionApplied: c.positionApplied ?? null,
+                          mobile: null,
+                          submitted: false,
+                          pct: 0,
+                          updatedAt: new Date(),
+                        });
+                      }}
+                      className="block w-full border-b border-hairline px-4 py-2.5 text-left transition-colors last:border-b-0 hover:bg-[color-mix(in_srgb,var(--color-altus-red)_5%,white)]"
+                    >
+                      <span className="block text-[13.5px] font-bold text-ink-strong">
+                        {c.fullName || "Unnamed"}
+                      </span>
+                      {c.positionApplied && (
+                        <span className="block text-[11.5px] font-medium text-ink-muted">
+                          {c.positionApplied}
+                        </span>
+                      )}
+                    </button>
+                  ));
+                })()}
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setLinkOpen(false)}
+                  className="rounded-xl border border-hairline-strong bg-white px-4 py-2.5 text-[13px] font-bold text-ink-soft transition-colors hover:border-ink-subtle"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

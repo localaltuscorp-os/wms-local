@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { workspaceForPath } from "@/lib/workspaces";
 import { PageChromeSlotsProvider } from "@/components/layout/page-chrome-slots";
-import { InsetTopBarProvider } from "@/components/layout/inset-top-bar";
 
 /**
  * Decides the app chrome CLIENT-side so it stays correct across SOFT navigations.
@@ -139,16 +138,17 @@ export function ChromeShell({
 
   if (!showSidebar) {
     return (
-      // h-dvh + overflow-hidden for the HR console: it owns its own internal
-      // scrolling, so the page around it must not scroll at all. Every other
-      // full-bleed route keeps min-h-dvh and grows normally.
+      // The top bar is FULL-WIDTH on every route, HR included. The HR console
+      // (isHrFullBleed) used to receive the bar through InsetTopBarProvider and
+      // draw it inside its own CONTENT column, which shrank it to the column's
+      // width and pushed the rail up beside it — a different-looking bar. Now it
+      // renders here, full-width, and the console sits below it, sized to the
+      // remaining height. `hr-shell-frame` is a PRINT HOOK (globals.css unclips
+      // it under @media print); keep the name.
       <div
         className={
           isHrFullBleed
-            // `hr-shell-frame` is a PRINT HOOK: this h-dvh/overflow-hidden
-            // frame is the OUTERMOST clip on a printed HR page, and
-            // app/globals.css undoes it under @media print. Keep the name.
-            ? "hr-shell-frame flex h-dvh flex-col overflow-hidden"
+            ? "hr-shell-frame flex min-h-dvh flex-col"
             : `flex min-h-dvh flex-col ${bottomPad}`
         }
       >
@@ -156,22 +156,8 @@ export function ChromeShell({
             and its own controls up into the bar, and the two are siblings, so a
             context above both is their only meeting point. */}
         <PageChromeSlotsProvider>
-          {isHrFullBleed ? (
-            /* The HR console carries its OWN left rail inside `children`, so a
-               bar rendered here would sit ON TOP of that rail — a full-width
-               strip across the screen, the rail's controls pushed down below
-               it, and the page's title floating above the rail instead of
-               above the page. Hand the bar down instead: HrConsoleShell drops
-               it at the top of its CONTENT column, which is where every other
-               module's bar starts, and the rail then runs the full height of
-               the viewport like every other module's rail. */
-            <InsetTopBarProvider bar={bar}>{children}</InsetTopBarProvider>
-          ) : (
-            <>
-              {bar}
-              {children}
-            </>
-          )}
+          {bar}
+          {children}
         </PageChromeSlotsProvider>
         {dock}
       </div>

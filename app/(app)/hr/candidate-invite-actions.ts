@@ -10,6 +10,7 @@ import { rateLimitOrError } from "@/lib/rate-limit";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { siteUrl } from "@/lib/site-url";
 import { issueAccessLink, revokeAccessLinks } from "@/lib/hr/candidate/access-link";
+import { joinCandidateName } from "@/lib/hr/candidate/name";
 import type { CandidateLinkPurpose } from "@/db/schema";
 import { sendCandidateAccessLink } from "@/lib/hr/candidate/access-link-email";
 
@@ -118,7 +119,10 @@ export async function inviteCandidateByLink(input: {
   const { firstName, lastName, email, positionApplied } = parsed.data;
   const purpose: Purpose = input.purpose === "policies" ? "policies" : "form";
   const mobile = parsed.data.mobile.replace(/[^\d+]/g, "");
-  const fullName = `${firstName} ${lastName}`.replace(/\s+/g, " ").trim();
+  // Shared with the quick-add dialog on the evaluation form, which asks for the
+  // same two fields — see lib/hr/candidate/name.ts for why the join is not
+  // inlined here.
+  const fullName = joinCandidateName(firstName, lastName);
 
   // A super-admin address must never be turned into a candidate (priv-esc guard,
   // same as createCandidateAccount).

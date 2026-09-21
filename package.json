@@ -13,6 +13,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "check:leaks": "node scripts/measure-functions-storage.mjs --leaks",
+    "measure:functions": "node scripts/measure-functions-storage.mjs",
     "test:watch": "vitest",
     "test:visual": "playwright test",
     "db:generate": "drizzle-kit generate",

@@ -4,7 +4,6 @@ import {
   canDeleteBillingEntity,
   emailsWithCapability,
   hasCapability,
-  isMasterAdmin,
   canManageDevices,
 } from "@/lib/security/capabilities";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
@@ -54,7 +53,7 @@ describe("deleting an entity is Manan's alone", () => {
     // The brief: "Even if another user has Entity Edit, Admin access, File
     // Manage, or other Billing Master permissions, they must NOT be able to
     // delete an entity." Rohan is the most privileged person who is not Manan.
-    expect(isMasterAdmin(ROHAN)).toBe(true);
+    expect(hasCapability(ROHAN, "master_admin.manage")).toBe(true);
     expect(canDeleteBillingEntity(ROHAN)).toBe(false);
   });
 
