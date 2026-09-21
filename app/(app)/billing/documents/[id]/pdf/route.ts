@@ -4,6 +4,7 @@ import { billingDocumentLines, billingDocuments } from "@/db/schema";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { renderInvoiceFiles } from "@/lib/billing/invoice-files";
 import { invoiceFilename } from "@/lib/billing/view-model";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /billing/documents/[id]/pdf
@@ -23,6 +24,12 @@ export async function GET(
   request: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<Response> {
+  // THE MODULE GATE. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking Billing hides its screens while
+  // this endpoint still hands over the invoice. First in the body, so a denied
+  // caller is refused before any rendering happens.
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   await requireWorkspace("billing");
   const { id } = await ctx.params;
 

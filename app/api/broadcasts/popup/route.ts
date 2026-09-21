@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { getCurrentEmployee } from "@/lib/auth/current";
 import { nextPopupBroadcastForEmployee } from "@/lib/ecos/queries";
 import { maybePublishDue } from "@/lib/ecos/publish-due-trigger";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * "Is there a broadcast I should be seeing right now?"
@@ -30,6 +31,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<NextResponse> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   try {
     const me = await getCurrentEmployee();
     if (!me) return NextResponse.json({ broadcast: null });

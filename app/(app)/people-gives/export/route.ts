@@ -1,6 +1,7 @@
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { listIntroductions } from "@/lib/queries/people-gives";
 import { csvResponse, exportFilename } from "@/lib/exports/csv";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /people-gives/export
@@ -38,7 +39,13 @@ const EXPORT_HEADERS = [
   "created_at",
 ];
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   // requireWorkspace redirects non-members to /hub; a redirect Response is a
   // perfectly valid 3xx for a direct-URL hit, so we let it propagate.
   await requireWorkspace("sales");

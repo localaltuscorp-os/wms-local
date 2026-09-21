@@ -9,6 +9,7 @@ import {
   richExportFilename,
 } from "@/lib/exports/tasks-rich";
 import { defaultScopeId } from "@/lib/auth/default-scope";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /tasks/export.xlsx
@@ -22,6 +23,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   // Admin-only. requireAdmin throws if not an admin → renders error.tsx
   // (HTTP 500). We catch and re-respond as a clean 403 below.
   let me;

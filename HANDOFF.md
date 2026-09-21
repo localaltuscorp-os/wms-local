@@ -17,8 +17,15 @@ broken, what changed and why.
 ## ✅ Database migrations — APPLIED
 
 **`0215`–`0224` applied 2026-09-15** (74/74 verified). **`0225`–`0227` applied
-2026-09-18.** Outstanding: **`0216_incentive_eligibility.sql`** (self-heals at
-runtime; apply it properly).
+2026-09-18.** **The since-fork bundle applied 2026-09-21** —
+`db/RUN-IN-SUPABASE-SINCE-FORK-0911.sql` (50 migrations) then
+`db/VERIFY-SINCE-FORK-0911.sql`, **132/132 PASS** on production
+`mwaijzxuyicysvimzspx`. That run is what unblocked deploying the fork merge: the
+code reads `two_step_*` tables that migration `0242` creates, and
+`lib/auth/session-mint.ts` is in the sign-in path. Outstanding:
+**`0216_incentive_eligibility.sql`** (self-heals at runtime; apply it properly).
+
+See `db/fork-handover-2026-09-21/INDEX.md` for which commit brought each file.
 
 The 18 September batch, all additive and idempotent:
 
@@ -622,6 +629,142 @@ throughout; her Firebase UID is new.
 ---
 
 ## Changelog
+
+### 2026-09-21 (later) — The permission matrix now covers every route handler
+
+**What changed**
+
+- **All 62 remaining route handlers are wired** — every `route.ts` in the app now
+  asks the matrix before answering. The debt recorded as 28/2/26 before the fork
+  merge, then 29/3/30 after it, is **zero**.
+- **28 catalogue entries added** (`apiRoutes` on HR, goals, training,
+  productivity, operations, platform and dashboard nodes), so each handler is
+  actually governed rather than merely wired.
+- **5 handlers are exempt by design**, each with its reason recorded.
+- **`tests/unit/api-guard.test.ts`** — the guard had no test of its own, only a
+  grep for its name in the coverage test.
+- **`route-handler-coverage.test.ts`** drops the "known debt, exact counts" list
+  for a stronger assertion: no handler may be unguarded at all.
+
+**The gap this closes**
+
+Revoking a module hid its screen while its endpoints kept answering, because
+`requirePathView` runs once in a layout and a layout never runs for a `route.ts`.
+The exports were the worst of it: `/salary/export.xlsx`, `/tasks/export.pdf` and
+`/attendance/export.xlsx` handed over exactly the data the hidden screen showed.
+
+**A trap worth naming: wired is not the same as enforced.** The guard returns
+`null` for a path no node claims, so a handler can call `apiViewDenial`, look
+covered, and enforce nothing — the two states are identical from outside. That is
+why the wiring and the catalogue entries had to land together, and why a new test
+asserts that every guarded handler resolves to a node or is on the exempt list.
+Without it, this whole tranche could have gone green while changing nothing.
+
+**How the wiring was done, and why it is trustworthy**
+
+62 hand-edits would have been 62 chances to differ. A codemod inserted the guard
+as the first statement of each handler body and added a `Request` parameter where
+a handler had none (Next always passes one; 9 handlers ignored it).
+
+It was **dry-run on three copies first, and the first version was wrong** — it
+applied the added parameter before the guard, shifting the insertion point and
+planting the guard *inside the signature*: `Promise<Response>` became
+`Pro` + guard + `mise<Response>`. Fixed by inserting the guard before the
+parameter, since the parameter edit sits earlier in the string.
+
+Verified after: `tsc` clean, eslint clean on all 65 changed files, suite 4177
+passed. The one failure is the known `device-exemption-login` 5s timeout
+(5021ms), unchanged from the merge and passing when given room.
+
+**One test needed fixing, and it is instructive.** `incentive-export-routes.test.ts`
+called its handlers with no arguments, which only compiled because those handlers
+took no `Request`. It now passes one, as Next does — and stubs the guard, because
+importing it drags in `lib/env.ts` and its parse of `DATABASE_URL` at module load.
+
+**Left undone, deliberately**
+
+- **EDIT is still wired in only 2 of ~108 action files.** VIEW is now enforced in
+  pages, handlers and the Admin Panel's exports; EDIT remains cosmetic outside
+  those two, which is the next tranche.
+- **The Admin Panel's 19 unwired pages** — `app/(admin)/admin/layout.tsx` still
+  checks only `isAdmin`.
+- **78 `/api/mobile/*` routes** stay exempt: wiring them needs CORS headers on
+  the refusal or the native app reports a network failure instead of a 403.
+
+### 2026-09-21 — The fork's 54 commits land, and the matrix reaches API endpoints
+
+**What changed**
+
+- **The team's fork is merged into `main`** (`fe4f44a3`, 54 commits from
+  `localaltuscorp-os/Altus-OS` at `da534f7c`). Account lockout with a grantable
+  unlock role, two-step emailed sign-in codes, the incentive rework (Accounts
+  payable ledger, billing, breakup letter), DCC masters and calendar sync, HR
+  Records Backup as one ZIP per person plus a scheduled Drive save, WCC/MCC
+  checklists, employee and billing master, the `departments`→`functions` rename,
+  and per-person device identity.
+- **`lib/permissions/catalog.ts` gains `apiRoutes`**, and the four
+  `/api/hr/letters/*` handlers are now governed by the matrix through the new
+  `lib/permissions/api-guard.ts`.
+- **`tests/unit/route-handler-coverage.test.ts`** walks every `route.ts` and
+  requires it to be governed or exempt-with-a-reason.
+
+**Why the matrix needed to reach handlers**
+
+`requirePathView` ran in one place — `app/(app)/layout.tsx` — and a layout never
+runs for a `route.ts`. So revoking a module hid its screen while its endpoints
+answered anyway. Letters was the worst case: four handlers that mint, email and
+render through headless Chromium, all reachable whatever the matrix said. The
+guard **returns** its refusal rather than throwing, because a route handler has
+no error boundary, so `forbiddenError()`'s digest becomes a 500 — a refusal that
+reports itself as the app being broken.
+
+Interesting consequence, now locked with tests: a handler nested under a page
+prefix is *already* governed by longest-prefix matching, so most export endpoints
+need one guard call and no catalogue entry. `apiRoutes` exists only for a handler
+outside its page's path.
+
+**The one conflict, and how it was resolved**
+
+`lib/permissions/catalog.ts` — both sides edited the same HR block. Theirs moved
+Salary Slip to the Employees room and listed **both** paths so the old
+`/hr/salary-slip` stays governed rather than becoming an ungoverned door; ours
+added the Letters `apiRoutes`. Neither contradicts the other, so both were kept.
+Nothing was dropped from either side.
+
+**Verified after merging**
+
+`tsc --noEmit` clean across 788 files. Catalogue tests 26/26, including the
+filesystem check that every claimed route still resolves after the rename. Full
+suite 4157 passed. Raw failure counts varied between runs (4, then 10), so each
+file was re-run in isolation instead of being called flake — only **one** is
+genuine: `device-exemption-login` times out at 5021ms against a 5s limit and
+passes when given room (5.80s of work). The other 16 tests in that file call the
+same path and are fast, so it is the new two-step flow's cold-start import cost,
+not a logic break. Sign-in is slower, not wrong.
+
+**Route-handler debt rose 28/2/26 → 29/3/30.** Every increase is a handler this
+merge *added*; no existing guard was removed. The coverage test caught them on
+its first run, which is the test doing its job.
+
+**The migration run — do not reorder this**
+
+The merged code reads `two_step_challenges` / `two_step_verifications`, which
+exist only after `0242`. `lib/auth/session-mint.ts` is **in the sign-in path**, so
+deploying before the tables existed would have meant nobody could log in. The
+merge therefore sat unpushed until the SQL had run. Mohit's bundle was dry-run
+first against PGlite (real Postgres, already a dependency): PART 2 applied clean
+as one transaction and `VERIFY-SINCE-FORK-0911.sql` returned **132/132 PASS**
+before the same files were run against production `mwaijzxuyicysvimzspx`.
+
+Two traps worth remembering:
+
+- **PART 1 must run alone.** It adds enum values, and Postgres refuses to *use* a
+  value added in the same transaction — reproduced in the dry run, which is
+  exactly why the bundle splits it out.
+- **Supabase's editor runs a SELECTION, not the file.** The first VERIFY attempt
+  failed with `syntax error at or near 'recruitment_jds.is_active'` at *LINE 2* —
+  the button said "Run selected" and two highlighted rows of a `VALUES` list are
+  not a statement. The SQL was correct; the selection was not. Ctrl+A before Run.
 
 ### 2026-09-18 (later) — Functions Storage: one import was costing ~10 GB
 

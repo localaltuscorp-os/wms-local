@@ -3,6 +3,7 @@ import { getCurrentEmployee, isCandidateAccount } from "@/lib/auth/current";
 import { canExportModule } from "@/lib/modules/backup/access";
 import { buildModuleDownload } from "@/lib/modules/backup/download";
 import { moduleBackup } from "@/lib/modules/backup/registry";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,12 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ moduleId: string }> },
 ) {
+  // THE MODULE GATE, on top of the canExportModule check below: that one asks
+  // whether this person may export this module, this one whether the module is
+  // still granted to them at all. A handler renders no layout, so nothing else
+  // applies the matrix here.
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   const { moduleId } = await params;
   const def = moduleBackup(moduleId);
   if (!def) return NextResponse.json({ error: "unknown-module" }, { status: 404 });

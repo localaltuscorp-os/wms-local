@@ -5,6 +5,7 @@ import { jdAttachments } from "@/db/schema";
 import { getCurrentEmployee } from "@/lib/auth/current";
 import { DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { createSignedObjectUrl } from "@/lib/storage/objects";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * In dummy mode the signed URL is the dev-only /api/dummy-storage route.
  */
 export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   const me = await getCurrentEmployee();
   if (!me) return NextResponse.redirect(new URL("/login", request.url));
 

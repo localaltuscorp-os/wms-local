@@ -2,6 +2,7 @@ import { requireGoalsAccess } from "@/lib/goals/access";
 import { resolveTemplate } from "@/lib/templates/resolve";
 import { XLSX_CONTENT_TYPE } from "@/lib/templates/registry";
 import { buildGoalsTemplate } from "@/lib/templates/goals";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +19,12 @@ export const dynamic = "force-dynamic";
  * the built-in download filename.
  */
 export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   await requireGoalsAccess();
 
   const url = new URL(request.url);

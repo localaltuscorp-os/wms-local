@@ -7,6 +7,7 @@ import { renderPolicyPdfs } from "@/lib/hr/policies/policy-pdf";
 import { getEntity } from "@/lib/hr/entities";
 import type { PolicyDoc } from "@/lib/hr/policies/types";
 import { listSignedPolicyPdfs } from "@/app/(app)/hr/policies/signed-pdf";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,12 @@ export const maxDuration = 120;
  * is, and it is visible to whoever is scripting the download.
  */
 export async function GET(request: Request): Promise<NextResponse> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   const me = await getCurrentEmployee();
   if (!me) return NextResponse.redirect(new URL("/login", request.url));
 

@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { requireUser } from "@/lib/auth/current";
 import { isFinanceViewer } from "@/lib/auth/finance-access";
 import { listRunsForMonth } from "@/lib/queries/salary";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /salary/export.xlsx?month=YYYY-MM
@@ -36,6 +37,12 @@ function currentMonthIST(): string {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   let me;
   try {
     me = await requireUser();

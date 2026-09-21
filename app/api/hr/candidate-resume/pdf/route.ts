@@ -3,6 +3,7 @@ import { isHrStaff } from "@/lib/hr/access";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { renderCandidateResumePdf } from "@/lib/hr/candidate/resume-pdf";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,12 @@ const CANDIDATE_ASSET_PATH = /^candidate-intake\/(?:photo|sign)\/[0-9a-f-]{36}\.
  * the intended audience: this renders one candidate's full interview record.
  */
 export async function POST(req: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   let me;
   try {
     me = await requireUser();

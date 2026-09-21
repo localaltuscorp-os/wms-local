@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { loadAuthorisedSubmission, submissionFilename } from "@/lib/hr/forms/load";
 import { sendHrFormPdfEmail } from "@/lib/email/hr-form-email";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,13 @@ export const dynamic = "force-dynamic";
  * — the same rule as the View page and the PDF route — because this endpoint is
  * directly addressable.
  */
-export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   const { id } = await ctx.params;
 
   const me = await requireUser();
