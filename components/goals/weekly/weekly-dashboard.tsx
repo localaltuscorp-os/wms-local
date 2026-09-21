@@ -56,6 +56,7 @@ import {
   type DashboardFilters,
 } from "@/components/goals/board/dashboard-model";
 import { formatWeekRangeShort } from "./week-select";
+import { formatDate } from "@/lib/format";
 
 const FOCUS_RING =
   "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-surface-soft)]";
@@ -908,16 +909,17 @@ function StatusText({ band }: { band: DisplayBand }) {
   );
 }
 
-/** "24 Aug" — the year only when it is not the current one. */
+/**
+ * "24-Aug-2026" — the app-wide DD-MMM-YYYY.
+ *
+ * It used to hide the year inside the current one ("24 Aug"). Dropped with the
+ * 2026-09-15 format rule: a due date that omits its year is the form the rule
+ * exists to remove, and a weekly board straddles a year boundary every
+ * December, which is exactly when the omission misleads.
+ */
 function formatDue(iso: string | null | undefined): string {
   if (!iso) return "—";
-  const d = new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
-  const sameYear = d.getFullYear() === new Date().getFullYear();
-  return d.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    ...(sameYear ? {} : { year: "numeric" }),
-  });
+  return formatDate(iso);
 }
 
 /* ====================================================================== */
@@ -1044,8 +1046,8 @@ function Breakdown({
             <dl className="mt-2 flex flex-col gap-1.5">
               {model.rupee && (
                 <FactRow
-                  label="₹ value"
-                  value={`₹${fmtNum(model.rupee.actual)} / ₹${fmtNum(model.rupee.target)}`}
+                  label="Rs. value"
+                  value={`Rs. ${fmtNum(model.rupee.actual)} / Rs. ${fmtNum(model.rupee.target)}`}
                   hint={`${pctOf(model.rupee.actual, model.rupee.target)}%`}
                 />
               )}
@@ -1059,7 +1061,7 @@ function Breakdown({
             </dl>
           ) : (
             <p className="mt-2 text-[12px] leading-relaxed text-ink-muted">
-              No ₹ or quantity targets on this week&apos;s goals — attainment comes from self-rated
+              No Rs. or quantity targets on this week&apos;s goals — attainment comes from self-rated
               and reviewed progress only.
             </p>
           )}

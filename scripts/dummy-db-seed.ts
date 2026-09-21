@@ -532,5 +532,181 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
   await seedCandidates(pg);
   await bump("candidate_intake");
 
+  // ── FILE TWO TASKS INTO THE PLAN ─────────────────────────────────────────
+  //
+  // An executable plan row IS a WMS task (tasks.project_node_id), and until now
+  // the fixture had plan rows and tasks but nothing joining them — so every
+  // surface that reads the join rendered its empty state in dummy mode. The
+  // task drawer's "Plan location" panel is the one that made this visible: with
+  // no filed task there is no way to see it at all.
+  //
+  // Done here rather than in the TASKS loop because that runs BEFORE the nodes
+  // exist, and project_node_id is a foreign key.
+  const FILED: Array<[task: string, node: string]> = [
+    // A full Project · Milestone · Result chain above an Action.
+    ["00000000-0000-4000-8004-000000000001", "00000000-0000-4000-8003-000000000005"],
+    // One level deeper, so the panel is exercised on a Sub-Action too.
+    ["00000000-0000-4000-8004-000000000002", "00000000-0000-4000-8003-000000000006"],
+  ];
+  for (const [taskId, nodeId] of FILED) {
+    await pg.query(`update tasks set project_node_id = $2 where id = $1`, [taskId, nodeId]);
+  }
+
+  // ── BILLING ──────────────────────────────────────────────────────────────
+  //
+  // The document engine is useless until an issuing entity has a GSTIN, a bank
+  // and a signatory, so dummy mode seeds one — otherwise the first thing a
+  // developer meets is "this entity cannot issue a tax invoice" and an empty
+  // product picker. Everything below is INVENTED: a fake PAN, a fake GSTIN, a
+  // fake account number. It exists so the screens have something to render.
+  await pg.query(
+    `insert into billing_entity_profiles
+       (entity_id, legal_name, pan, gstin, state_name, state_code, address_line,
+        email, phone, website, bank_name, bank_account_name, bank_account_no,
+        bank_ifsc, bank_branch, default_sac_code, signatory_name,
+        signatory_designation, interest_clause)
+     values ('altus-corp', 'Altus Corp', 'AAAPA1111A', '27AAAPA1111A1Z5',
+             'Maharashtra', '27',
+             'Sacred Space, C-6, Gambhir Estates, Kotkar Road, Goregaon (E), Mumbai 63',
+             'billing@example.invalid', '+91 80970 10410', 'www.example.invalid',
+             'Dummy Bank', 'Altus Corp (Current Account)', '0000000000',
+             'DUMM0000001', 'Goregaon East', '998311', 'The Proprietor', 'Proprietor',
+             'Interest will be charged at 24% p.a. at actuals for delay in payment after due date.')
+     on conflict (entity_id) do nothing`,
+  );
+  await bump("billing_entity_profiles");
+
+  for (const [code, description, rate] of [
+    ["998311", "Management consulting and management services", "18"],
+    ["998313", "Information technology consulting and support services", "18"],
+    ["998365", "Sale of advertising space or time", "18"],
+  ] as const) {
+    await pg.query(
+      `insert into billing_sac_codes (code, description, default_gst_rate)
+       values ($1,$2,$3) on conflict (code) do nothing`,
+      [code, description, rate],
+    );
+  }
+  await bump("billing_sac_codes");
+
+  // Fill in the BILLING columns of products migration 0217 already created, so
+  // picking one on a line really does bring its SAC, rate and GST rate with it.
+  // UPDATE, never insert: the product master is real data with real codes, and
+  // the dummy fixture has no business inventing rows in it.
+  for (const [name, sac, rate] of [
+    ["Graduate Programs", "998311", "75000.00"],
+    ["BSS", "998313", "45000.00"],
+    ["Retainer", "998365", "25000.00"],
+  ] as const) {
+    await pg.query(
+      `update outstanding_products
+          set sac_code = $2, default_rate = $3, default_gst_rate = '18', is_billable = true
+        where name = $1`,
+      [name, sac, rate],
+    );
+  }
+  await bump("outstanding_products");
+
+  // Two customers, deliberately one of each kind: GST-registered in the
+  // seller's own state (so CGST+SGST is exercised) and unregistered (so the
+  // no-tax-rows document is one click away).
+  await pg.query(
+    `insert into billing_customers
+       (id, name, contact_name, email, whatsapp, gstin, address_line1, city, state_name, state_code, pincode)
+     values ('00000000-0000-4000-8009-000000000001', 'Northwind Systems LLP', 'The Director',
+             'accounts@northwind.invalid', '+919000000001', '27AAACN1111N1Z5',
+             '4th Floor, Prabhadevi', 'Mumbai', 'Maharashtra', '27', '400025')
+     on conflict do nothing`,
+  );
+  await pg.query(
+    `insert into billing_customers
+       (id, name, contact_name, email, address_line1, city, state_name, state_code)
+     values ('00000000-0000-4000-8009-000000000002', 'Sunil Raut', 'Sunil Raut',
+             'sunil.raut@example.invalid', 'Shivaji Park', 'Mumbai', 'Maharashtra', '27')
+     on conflict do nothing`,
+  );
+  await bump("billing_customers");
+
+  // ── GOALS ───────────────────────────────────────────────────────
+  //
+  // The Goals workspace had NO fixture at all, so every one of its boards
+  // rendered its empty state in dummy mode and none of them could be looked at
+  // — which is the whole point of dummy mode (see scripts/dummy-db-setup.ts).
+  //
+  // Deliberately small and deliberately VARIED on the two status axes: some
+  // rows carry an initiator verdict and the rest are unruled, because "No
+  // Verdict" beside "Approved" is what those two columns are for, and a fixture
+  // where every row looks the same tests nothing.
+  const fyNow = new Date();
+  const fy = fyNow.getFullYear();
+  const mk = `${fy}-${String(fyNow.getMonth() + 1).padStart(2, "0")}`;
+  const qk = `${fy}-Q${Math.floor(fyNow.getMonth() / 3) + 1}`;
+
+  const GOALS: Array<[id: string, period: string, key: string, title: string, area: string, status: string, approval: string | null, pct: number]> = [
+    ["00000000-0000-4000-8005-000000000001", "year",    String(fy), "Attendance live on every site", "Operations", "initiated",   null,        35],
+    ["00000000-0000-4000-8005-000000000002", "quarter", qk,         "Biometric readers at 4 plants", "Operations", "follow_up",   "approved",  50],
+    ["00000000-0000-4000-8005-000000000003", "month",   mk,         "Plant 2 reader install",        "Operations", "not_started", null,         0],
+    ["00000000-0000-4000-8005-000000000004", "month",   mk,         "Retire the muster register",    "Compliance", "need_info",   "on_hold",   20],
+  ];
+  for (const [id, period, key, title, area, status, approval, pct] of GOALS) {
+    await pg.query(
+      `insert into goals
+         (id, employee_id, period, period_key, title, area, status, approval_status, pct_done,
+          created_by_id, scope)
+       values ($1,$2,$3,$4,$5,$6,$7::task_status,$8::approval_status,$9,$10,'professional')
+       on conflict (id) do nothing`,
+      [id, EMP.me, period, key, title, area, status, approval, pct, EMP.asha],
+    );
+  }
+  await bump("goals");
+
+  // ── WEEKLY GOALS ─────────────────────────────────────────────
+  // Anchored to the CURRENT Monday so the week board opens on them whenever the
+  // fixture is built, rather than on a week that has already gone by.
+  const monday = (() => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const WEEKLY: Array<[id: string, subject: string, area: string, status: string, approval: string | null, pct: number]> = [
+    ["00000000-0000-4000-8006-000000000001", "Site survey at Plant 2", "Operations", "initiated",   null,        60],
+    ["00000000-0000-4000-8006-000000000002", "Raise the cabling PO",   "Operations", "not_started", null,         0],
+    ["00000000-0000-4000-8006-000000000003", "Vendor demo write-up",   "Operations", "done",        "approved", 100],
+  ];
+  for (const [id, subject, area, status, approval, pct] of WEEKLY) {
+    await pg.query(
+      `insert into weekly_goals
+         (id, employee_id, week_start, subject, target_done, area, status, approval_status,
+          pct_done, created_by_id)
+       values ($1,$2,$3,$4,$4,$5,$6::task_status,$7::approval_status,$8,$9)
+       on conflict (id) do nothing`,
+      [id, EMP.me, monday, subject, area, status, approval, pct, EMP.me],
+    );
+  }
+  await bump("weekly_goals");
+
+  // ── DAILY GOALS ──────────────────────────────────────────────
+  // Today's plan. Two rows carry a verdict so the Initiator Status control in a
+  // card's detail view has something to show besides "No Verdict".
+  const planYmd = new Date().toISOString().slice(0, 10);
+  const DAILY: Array<[id: string, title: string, status: string, approval: string | null, done: boolean, pos: number]> = [
+    ["00000000-0000-4000-8007-000000000001", "Walk the Plant 2 cable route", "initiated", null,       false, 1],
+    ["00000000-0000-4000-8007-000000000002", "Send the vendor comparison",   "done",      "approved", true,  2],
+    ["00000000-0000-4000-8007-000000000003", "Chase the cabling quote",      "follow_up", "on_hold",  false, 3],
+  ];
+  for (const [id, title, status, approval, done, pos] of DAILY) {
+    await pg.query(
+      `insert into daily_checklist
+         (id, employee_id, plan_date, title, origin, position, status, approval_status, done)
+       values ($1,$2,$3,$4,'standalone',$5,$6::task_status,$7::approval_status,$8)
+       on conflict (id) do nothing`,
+      [id, EMP.me, planYmd, title, pos, status, approval, done],
+    );
+  }
+  await bump("daily_checklist");
+
   return counts;
 }
+

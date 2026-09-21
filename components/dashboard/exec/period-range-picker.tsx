@@ -7,6 +7,7 @@ import {
   ACTIVITY_PERIODS,
   type ActivityPeriod,
 } from "@/lib/dashboard/manager-activity-contract";
+import { formatDate } from "@/lib/format";
 
 /**
  * The window control for both delegation boards: presets and a custom range in
@@ -20,12 +21,9 @@ import {
 
 export function formatYmd(ymd: string): string {
   if (!ymd) return "";
-  return new Date(`${ymd}T00:00:00Z`).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  // `formatDate` reads a bare YYYY-MM-DD as a LOCAL calendar day, which is what
+  // the UTC-midnight + timeZone:"UTC" dance here was working around.
+  return formatDate(ymd);
 }
 
 /** What the trigger says it is showing. */

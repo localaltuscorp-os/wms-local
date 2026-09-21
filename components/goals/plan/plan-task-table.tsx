@@ -41,12 +41,12 @@ function ageTone(days: number): { bg: string; fg: string } {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "2026-08-18" → "18 Aug 2026". Date only — never a time string. */
+/** "2026-08-18" → "18-Aug-2026" — the app-wide format. Date only, never a time. */
 function fmtDay(ymd: string | null | undefined): string | null {
   if (!ymd) return null;
   const [y, m, d] = ymd.split("-").map(Number);
   if (!y || !m || !d) return null;
-  return `${String(d).padStart(2, "0")} ${MONTHS[m - 1]} ${y}`;
+  return `${String(d).padStart(2, "0")}-${MONTHS[m - 1]}-${y}`;
 }
 
 function Dash() {

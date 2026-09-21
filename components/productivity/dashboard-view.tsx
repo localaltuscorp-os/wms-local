@@ -82,7 +82,7 @@ export function ProductivityDashboardView({
 
           <Card theme={KPI} title="Incentive % of Salary">
             <Hero>{formatPctCompact(kpi.incentivePct)}</Hero>
-            {/* A missing salary profile is stated, never rendered as ₹0 — that
+            {/* A missing salary profile is stated, never rendered as Rs. 0 — that
                 would read as "earns nothing" instead of "not on record". */}
             <Sub>
               {kpi.baseSalary > 0 ? `of ${formatMoney(kpi.baseSalary)} salary` : "No salary on record"}

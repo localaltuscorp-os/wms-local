@@ -21,7 +21,7 @@ const optionalNumber = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
   .transform((v) => {
     if (v == null || v === "") return null;
-    const n = typeof v === "number" ? v : Number(String(v).replace(/[,₹\s]/g, ""));
+    const n = typeof v === "number" ? v : Number(String(v).replace(/\brs\.?/gi, "").replace(/[,₹\s]/g, ""));
     return Number.isFinite(n) ? n : null;
   });
 

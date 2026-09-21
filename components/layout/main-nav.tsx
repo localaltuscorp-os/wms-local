@@ -7,7 +7,6 @@ import {
   ListTodo,
   ClipboardList,
   CalendarDays,
-  FolderKanban,
   FolderTree,
   SquareKanban,
   Target,
@@ -28,7 +27,9 @@ import {
   Wallet,
   Compass,
   Receipt,
-  ReceiptIndianRupee,
+  UserPlus,
+  BookUser,
+  FileText,
   Timer,
   Sparkles,
   BookMarked,
@@ -51,7 +52,6 @@ import {
   Palette,
   PartyPopper,
   FileSignature,
-  FileText,
   Trash2,
   Trophy,
   ScrollText,
@@ -70,6 +70,7 @@ import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
 import { OPERATIONS_AREAS, OPERATIONS_MASTERS, type OperationsAreaId } from "@/lib/operations/nav";
 import { DCC_CHILD_ROUTES, DCC_DOORS } from "@/lib/dcc/nav";
 import { nodeKeyForPath } from "@/lib/permissions/catalog";
+import { archiveSection, isArchiveSectionId } from "@/lib/archive/sections";
 import { HR_STAGES, hrItemHref, type HrStage, type HrStageKey } from "@/lib/hr/lifecycle";
 
 interface Props {
@@ -367,7 +368,6 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // entry is the live board. Admin/manager only, matching the page's own
       // gate — a doer following this link would be redirected straight back.
       { href: "/dashboard/done" as Route, label: "Done Dashboard", Icon: CheckCircle2, adminOnly: true },
-      { href: "/projects" as Route, label: "Projects", Icon: FolderKanban },
       // Important Links — the curated directory (was the Marketing room's only
       // surface; Marketing retired as a workspace 2026-07).
       { href: "/index-hub" as Route, label: "Important Links", Icon: Compass },
@@ -530,9 +530,45 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
     groups: [],
   },
   billing: {
-    // Billing — the revenue ledger. One surface today (the live billing sheet);
-    // invoices / payments / cycles join here as they ship.
-    top: [{ href: "/billing" as Route, label: "Billing", Icon: ReceiptIndianRupee, exact: true }],
+    // Billing — two surfaces. The revenue ledger (the live billing sheet) stays
+    // the room's front door; Documents is the quotation → proforma → tax-invoice
+    // engine that issues, numbers, prints and emails the actual paperwork.
+    //
+    // These two came off the rail on 2026-09-16 ("remove this") and went back
+    // on the same day, when the Documents engine turned out to be the module
+    // being built on rather than replaced. Nothing about the routes changed in
+    // between — only whether they were offered here.
+    top: [
+      /* ── CUSTOMERS, ABOVE THE BILLING SURFACES ─────────────────────────
+         Manan, 2026-09-17: "I want that in side panel above the billing
+         section ... I want a separate new section for it."
+
+         Deliberately FIRST in the rail, and in the order the work is done:
+         you KYC a customer, then it appears in the master, its addresses in
+         the address book, the dropdowns those forms read are configured in
+         the DD, and anything removed waits in the bin. Billing's own four
+         surfaces follow, because a document cannot be raised until there is
+         a customer to raise it against. */
+      { href: "/billing/customers/new" as Route, label: "New Customer KYC", Icon: UserPlus, exact: true },
+      { href: "/billing/customers" as Route, label: "Customer Master", Icon: Users, exact: true },
+      { href: "/billing/customers/addresses" as Route, label: "Customer Address Book", Icon: BookUser, exact: true },
+
+      { href: "/billing/documents" as Route, label: "Billing Document", Icon: FileText, exact: false },
+      /* ── CONTRACTS, ABOVE ADMIN MASTER ────────────────────────────────
+         2026-09-19: "create new section in side panel above admin master".
+         A contract caps what may be billed to a client and raises its bills
+         as ordinary tax invoices in Documents — so it sits after Documents
+         and before the masters. All Contracts stays lit on a contract's own
+         pages, but not on Create Contract, which lights up on its own. */
+      { href: "/billing/contracts" as Route, label: "All Contracts", Icon: ScrollText, exact: false, not: ["/billing/contracts/new"] },
+      /* NO MASTERS RAIL IN THIS ROOM (2026-09-20). Admin Master and Customer
+         Master DD both went: the only master data Billing owns is the customer
+         itself, in Customer Master. Everything else an invoice is built from —
+         the issuing company's PAN, GSTIN, bank, signatory and number series —
+         is a BILLING PROFILE, and those are entered in the Admin Panel under
+         Admin › Billing Profiles. One place to edit, one place to look. */
+      { href: "/billing/recycle-bin" as Route, label: "Recycle Bin", Icon: Trash2, exact: true },
+    ],
     groups: [],
   },
   // Hand-holding is an AREA INSIDE OPERATIONS now — same arrangement as `events`
@@ -543,9 +579,10 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
   // OPERATIONS_SECTION_NAV — this is the front door, and the fallback for any
   // /operations route that grows later without its own section.
   operations: OPERATIONS_NAV,
-  // Project — a single-surface room: the hierarchy planning table. The older
-  // /projects board is deliberately NOT listed here; it stays a WMS rail item,
-  // so neither room's sidebar changes shape.
+  // Project — a single-surface room: the hierarchy planning table. This is the
+  // ONLY project surface left: the older /projects board (a WMS rail item) was
+  // removed, so every door into the Project → Milestone → Result → Action tree
+  // is one of the level items below.
   "project-plan": {
     // One room, one board, six ways in. Each level item is the SAME hierarchy
     // table scoped to that level (app/(app)/project-plan/plan-page.tsx) rather
@@ -734,6 +771,15 @@ const TITLE_OVERRIDES: Record<string, string> = {
 export function navTitleFor(pathname: string): string | null {
   const override = TITLE_OVERRIDES[pathname];
   if (override) return override;
+  // The Archive is not a WORKSPACE_NAV entry (it is pinned in the rail's foot,
+  // not the nav list), so the loop below cannot name it and every section would
+  // fall back to the room's own label — "WMS" over Archive Tasks. Its registry
+  // is the same source of truth the rail item reads.
+  if (pathname === "/archive") return "Archive";
+  if (pathname.startsWith("/archive/")) {
+    const id = pathname.slice("/archive/".length).split("/")[0];
+    if (isArchiveSectionId(id)) return archiveSection(id).label;
+  }
   let best: string | null = null;
   let bestLen = -1;
   for (const [href, label] of NAV_TITLE_ENTRIES) {

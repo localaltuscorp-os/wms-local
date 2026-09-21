@@ -57,7 +57,7 @@ export function PdcPanel({
               <tr>
                 <Th>Employee (Responsible)</Th>
                 <Th align="right">Entries</Th>
-                <Th align="right">Amount (₹)</Th>
+                <Th align="right">Amount (Rs.)</Th>
               </tr>
             </thead>
             <tbody>

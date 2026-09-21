@@ -226,7 +226,7 @@ describe("who an Incentive Master change reaches", () => {
     expect(plan.removed).toEqual([]);
     expect(plan.newlyEligible).toEqual([]);
     expect(diffCatalog(snap(), snap({ amount: 750 }))).toEqual([
-      { field: "amount", label: "Amount", from: "₹500", to: "₹750" },
+      { field: "amount", label: "Amount", from: "Rs. 500", to: "Rs. 750" },
     ]);
   });
 
@@ -277,7 +277,7 @@ describe("decision notifications", () => {
     const n = decision("approve", null)!;
     const email = incentiveEmailContent(n.kind, n.meta)!;
     const row = (l: string) => email.details.find((d) => d.label === l)?.value;
-    expect(row("Approved amount")).toBe("₹250");
+    expect(row("Approved amount")).toBe("Rs. 250");
     expect(row("Status")).toBe("Approved");
     expect(row("Approval date")).toMatch(/15-Sep-2026/);
   });
@@ -335,7 +335,7 @@ describe("resubmission, catalog and payment notices", () => {
       changes: diffCatalog(snap(), snap({ amount: 750 })),
     });
     expect(updated.meta.summary).toContain("Please check the Incentive Table for the latest details.");
-    expect(incentiveEmailContent(updated.kind, updated.meta)!.changes).toEqual([{ label: "Amount", from: "₹500", to: "₹750" }]);
+    expect(incentiveEmailContent(updated.kind, updated.meta)!.changes).toEqual([{ label: "Amount", from: "Rs. 500", to: "Rs. 750" }]);
     const deleted = buildCatalogNotification({ kind: "incentive_deleted", snapshot: snap(), effectiveDate: "2026-09-15", changes: [] });
     expect(incentiveEmailContent(deleted.kind, deleted.meta)!.headline).toBe("Key Note is no longer available.");
   });
@@ -345,7 +345,7 @@ describe("resubmission, catalog and payment notices", () => {
     const email = incentiveEmailContent(n.kind, n.meta)!;
     expect(email.details).toEqual([
       { label: "Incentive", value: "Consulting Pitch" },
-      { label: "Amount paid", value: "₹250" },
+      { label: "Amount paid", value: "Rs. 250" },
       { label: "Paid on", value: "30-Sep-2026" },
       { label: "For", value: "Sep 2026" },
     ]);
@@ -376,7 +376,7 @@ describe("the email itself", () => {
     expect(html).toContain(`href="https://wms.example/incentive?request=${REQ}"`);
     expect(html).toContain("Justify &amp; Resubmit");
     expect(html).toContain("INC-3F2A9C1B");
-    expect(html).toContain("₹250");
+    expect(html).toContain("Rs. 250");
   });
 });
 

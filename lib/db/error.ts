@@ -57,6 +57,9 @@ type PostgresErrorFields = {
   column_name?: unknown;
 };
 
+/** SQLSTATE for unique_violation — the one duplicate-key failure. */
+const UNIQUE_VIOLATION = "23505";
+
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -249,4 +252,23 @@ export function dbErrorRemedy(err: unknown): string | null {
  */
 export function dbErrorAdvice(err: unknown): string {
   return dbErrorRemedy(err) ?? dbErrorMessage(err);
+}
+
+/**
+ * THE INDEX A DUPLICATE-KEY FAILURE LANDED ON, or null if that is not what
+ * this error was.
+ *
+ * A caller that knows its own uniques can turn "23505 on
+ * billing_customers_name_uq" into the sentence the person actually needs — "a
+ * client of that name already exists" — instead of `dbErrorMessage`'s honest
+ * but unhelpful report of the Postgres text. Reaches the driver's error through
+ * the same cause walk, because drizzle's wrapper carries neither the SQLSTATE
+ * nor the constraint name.
+ */
+export function uniqueViolationConstraint(err: unknown): string | null {
+  const root = rootCause(err);
+  if (typeof root !== "object" || root === null) return null;
+  const fields = root as PostgresErrorFields;
+  if (text(fields.code) !== UNIQUE_VIOLATION) return null;
+  return text(fields.constraint_name) || "";
 }

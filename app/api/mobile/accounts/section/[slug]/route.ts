@@ -52,7 +52,7 @@ async function build(slug: string): Promise<Section | null> {
         stats: [{ label: "Entries", value: String(rows.length) }],
         rows: rows.map((r) => ({
           title: [r.party, r.direction, r.counterparty].filter(Boolean).join(" ") || "Entry",
-          subtitle: r.amount ? `₹${r.amount}` : null,
+          subtitle: r.amount ? `Rs. ${r.amount}` : null,
           link: null,
           fields: fields(kv("As on", r.asOn), kv("Notes", r.notes)),
         })),
@@ -103,7 +103,7 @@ async function build(slug: string): Promise<Section | null> {
           title: r.fundName || r.code || "SIP",
           subtitle: r.entity ?? null,
           link: null,
-          fields: fields(kv("Monthly", r.amount ? `₹${r.amount}` : null), kv("Type", r.type), kv("SIP date", r.sipDate), kv("Location", r.location)),
+          fields: fields(kv("Monthly", r.amount ? `Rs. ${r.amount}` : null), kv("Type", r.type), kv("SIP date", r.sipDate), kv("Location", r.location)),
         })),
       };
     }
@@ -115,7 +115,7 @@ async function build(slug: string): Promise<Section | null> {
         stats: [{ label: "Accounts", value: String(rows.length) }],
         rows: rows.map((r) => ({
           title: r.entity || r.code || "Account",
-          subtitle: r.targetBalance ? `Target ₹${r.targetBalance}` : null,
+          subtitle: r.targetBalance ? `Target Rs. ${r.targetBalance}` : null,
           link: null,
           fields: fields(kv("Code", r.code)),
         })),
@@ -131,7 +131,7 @@ async function build(slug: string): Promise<Section | null> {
           title: r.agency || r.code || "F&O",
           subtitle: r.entity ?? null,
           link: null,
-          fields: fields(kv("Capital", r.capital ? `₹${r.capital}` : null), kv("Code", r.code)),
+          fields: fields(kv("Capital", r.capital ? `Rs. ${r.capital}` : null), kv("Code", r.code)),
         })),
       };
     }
@@ -143,7 +143,7 @@ async function build(slug: string): Promise<Section | null> {
         stats: [{ label: "Cheques", value: String(rows.length) }],
         rows: rows.map((r) => ({
           title: r.nameOnCheque || r.entity || "Cheque",
-          subtitle: r.amount ? `₹${r.amount}` : null,
+          subtitle: r.amount ? `Rs. ${r.amount}` : null,
           link: null,
           fields: fields(kv("Entity", r.entity), kv("Cheque no", r.chequeNo), kv("Date", r.chqDate)),
         })),

@@ -276,7 +276,7 @@ export default async function Page() {
               block={data.approved}
               tone="green"
               icon={CheckCircle2}
-              sub={<span style={{ color: "var(--color-green-deep)" }}>{approvalRate}% of ₹ submitted</span>}
+              sub={<span style={{ color: "var(--color-green-deep)" }}>{approvalRate}% of Rs. submitted</span>}
             />
             <KpiCard
               label="Pending"
@@ -295,7 +295,7 @@ export default async function Page() {
           </div>
 
           {/* Trend */}
-          <Panel title="Month-over-Month" description="Reimbursed (paid) vs submitted ₹ per month - last 12 months" tone="red">
+          <Panel title="Month-over-Month" description="Reimbursed (paid) vs submitted Rs. per month - last 12 months" tone="red">
             <TrendChart rows={data.trend} />
           </Panel>
 

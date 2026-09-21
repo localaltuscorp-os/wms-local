@@ -15,7 +15,11 @@ import {
   setWeeklyTitle,
   setWeeklyTeamInvolved,
 } from "@/app/(app)/goals/weekly/actions";
-import { setWeeklyGoalPct, archiveWeeklyGoal } from "@/app/(app)/weekly-goals/actions";
+import {
+  setWeeklyGoalPct,
+  archiveWeeklyGoal,
+  bulkPutWeeklyGoalsInArchive,
+} from "@/app/(app)/weekly-goals/actions";
 
 function toNum(v: unknown): number | null {
   if (v == null || v === "") return null;
@@ -24,19 +28,36 @@ function toNum(v: unknown): number | null {
 }
 
 export const WEEKLY_TABLE_ACTIONS: GoalTableActions = {
+  /**
+   * ONE PAYLOAD, THREE WRITERS — and no early return.
+   *
+   * Weekly's fields live behind three different server actions (the title is a
+   * column of its own, team members are JSON with their own validation, the
+   * rest are the additive cascade columns), so this fans one patch out across
+   * them and stops at the first failure.
+   *
+   * It used to `return` on the first key it recognised, which was correct while
+   * the only caller was an inline cell (always exactly one field). The Edit
+   * DIALOG sends the whole row at once — title AND area AND target AND notes —
+   * and against that shape an early return saved the title and silently dropped
+   * everything else, reporting success. Hence: match every group present.
+   */
   async editGoal(input) {
     const id = input.id;
+
     // Goal title → target_done.
     if ("title" in input && typeof input.title === "string") {
-      return setWeeklyTitle({ id, title: input.title });
+      const res = await setWeeklyTitle({ id, title: input.title });
+      if (!res.ok) return res;
     }
     // Team members (weekly stores employeeId/name; weights aren't persisted here).
     if ("teamInvolved" in input) {
       const team = (input.teamInvolved as Array<{ employeeId?: string; name?: string }> | null) ?? [];
-      return setWeeklyTeamInvolved({
+      const res = await setWeeklyTeamInvolved({
         id,
         members: team.map((m) => ({ employeeId: m.employeeId, name: m.name })),
       });
+      if (!res.ok) return res;
     }
     // Additive cascade fields — full column parity with Y/Q/M: area / measure /
     // target / actual / team-dependency / weight / type / status / reviewer /
@@ -53,10 +74,17 @@ export const WEEKLY_TABLE_ACTIONS: GoalTableActions = {
     if ("reviewedById" in input) fields.reviewedById = (input.reviewedById as string | null) ?? null;
     if ("shareWithTeam" in input) fields.shareWithTeam = input.shareWithTeam;
     if ("delegatedTo" in input) fields.delegatedTo = (input.delegatedTo as unknown) ?? null;
+    // The NOTES column and the dialog's Notes box (a real weekly_goals column).
+    if ("notes" in input) fields.notes = (input.notes as string | null) ?? null;
+    // `targetAmount` / `actualAmount` — the money twins of the qty pair, sent by
+    // the edit dialog and accepted by updateWeeklyCascadeFields.
+    if ("targetAmount" in input) fields.targetAmount = toNum(input.targetAmount);
+    if ("actualAmount" in input) fields.actualAmount = toNum(input.actualAmount);
     if (Object.keys(fields).length > 0) {
       return updateWeeklyCascadeFields({ id, ...fields } as Parameters<typeof updateWeeklyCascadeFields>[0]);
     }
-    // category (legacy free-text tag) isn't a weekly column — no-op.
+    // category (legacy free-text tag) and targetDate (month-only) aren't weekly
+    // columns — nothing left to write.
     return { ok: true } as GoalTableActionRes;
   },
   setGoalPctDone(input) {
@@ -72,4 +100,14 @@ export const WEEKLY_TABLE_ACTIONS: GoalTableActions = {
     }
     return { ok: true } as GoalTableActionRes;
   },
+  // ARCHIVE (migration 0215) — "put away", the button beside Delete. Distinct
+  // from bulkArchiveGoals above, which despite its name is this module's DELETE
+  // (it sets `archived` and the row lands in the Recycle Bin). Stamping
+  // `archived_at` instead takes the goal off the board and files it under
+  // Archive › Goals in its own "Archived weekly goals" table.
+  bulkPutInArchive: (input) => bulkPutWeeklyGoalsInArchive(input),
+  // NO `setInitiatorStatus` HERE. The verdict for a weekly goal is written by
+  // setWeeklyGoalInitiatorStatus in app/(app)/goals/initiator-actions.ts — the
+  // goals TABLE stopped carrying the Initiator Status column (account holder,
+  // 2026-09-21), so the table actions no longer need a writer for it.
 };

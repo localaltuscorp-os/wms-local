@@ -59,12 +59,12 @@ const template: LetterTemplate = {
     term("Designation", f("designation", "Designation", { placeholder: "e.g. Executive" })),
     term("Probation Period", t("6 Months")),
     term("Salary During Probation", [
-      t("₹"),
+      t("Rs."),
       f("salaryProbation", "Monthly Salary (Probation)", { placeholder: "e.g. 25,000" }),
       t(" per month"),
     ]),
     term("Salary After Probation", [
-      t("₹"),
+      t("Rs."),
       f("salaryConfirmed", "Monthly Salary (Confirmed)", { placeholder: "e.g. 30,000" }),
       t(" per month"),
     ]),
@@ -87,7 +87,7 @@ const template: LetterTemplate = {
       ),
     ),
     para(
-      t("During your probation period, your Monthly Business Target will be ₹"),
+      t("During your probation period, your Monthly Business Target will be Rs."),
       f("monthlyTarget", "Monthly Business Target", { placeholder: "e.g. 2,00,000" }),
       t("."),
     ),

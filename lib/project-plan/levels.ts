@@ -72,30 +72,33 @@ export function isExecutable(kind: PlanKind): boolean {
 }
 
 /**
- * The levels that get a LINKED WMS TASK — the three executable ones, plus
- * Result.
+ * The levels that get a LINKED WMS TASK — the three executable ones, and only
+ * those.
  *
- * DELIBERATELY NOT THE SAME SET AS `EXECUTABLE_KINDS`, and the difference is
- * the whole point. A Result was asked to show up in the task list: people put
- * an owner and a target date on one and expect to see it in WMS. But a Result
- * is still the level whose PROGRESS is counted from the actions underneath it
- * ("0 out of 3 actions"), and that number is only trustworthy while it is
- * derived rather than self-reported.
+ * RESULT WAS IN THIS SET AND IS NOT ANY MORE (Manan, 2026-09-14: "only action
+ * and sub action will go to task section"). It had been added on the opposite
+ * request — people put an owner and a target date on a Result and expected to
+ * find it in WMS — and that reading is preserved here rather than deleted,
+ * because it is the argument someone will make again:
  *
- * So the two questions were split:
+ *     A Result carries an owner and a date, so it looks schedulable.
  *
- *   hasTask()       does this row get a `tasks` record?   result + executables
- *   isExecutable()  does this row report its own status,  executables only
- *                   priority, notes and progress from
- *                   that task rather than from the plan?
+ * What settled it the other way is that a Result is the level whose PROGRESS is
+ * counted from the actions underneath it ("0 out of 3 actions"). Giving it a
+ * task of its own put a second, self-reported answer beside a derived one, and
+ * put a row in the task list that nobody actually does — the work under it is
+ * what gets done. A Result keeps its owner, its date and its derived progress
+ * on the plan row.
  *
- * A Result therefore gains a task carrying its title, doer, due date and
- * schedule, and keeps its status, priority, notes and derived progress on the
- * plan row where the rest of the module already reads them. Widening
- * `isExecutable` instead would have moved all four in one go and made a
- * container's progress a self-report competing with its own children.
+ * `hasTask` and `isExecutable` now agree, and the pair is kept as two names
+ * rather than collapsed into one because they still ask different questions —
+ * "does this row get a `tasks` record?" and "does this row report its own
+ * status, priority, notes and progress from that task?" — and the next level
+ * that wants one without the other should not have to re-separate them.
+ *
+ * MIGRATION 0226 archives the Result tasks that already existed.
  */
-export const TASK_KINDS: readonly PlanKind[] = ["result", ...EXECUTABLE_KINDS];
+export const TASK_KINDS: readonly PlanKind[] = [...EXECUTABLE_KINDS];
 
 export function hasTask(kind: PlanKind): boolean {
   return TASK_KINDS.includes(kind);
@@ -431,4 +434,46 @@ export function durationDays(
   const da = new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime();
   const db = new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime();
   return Math.round((db - da) / 86_400_000) + 1;
+}
+
+/**
+ * The names the task form's cascade gives the rows it auto-creates when a level
+ * is left blank.
+ *
+ * CONSTANTS BECAUSE THE FIND-OR-CREATE MATCHES ON THEM. `resolvePlanTargetForTask`
+ * looks for a child with exactly this name before making one, so a project
+ * accumulates ONE "Unclassified Milestone" rather than one per task filed in a
+ * hurry. Renaming either of these without a migration would start a second
+ * placeholder beside every existing one.
+ *
+ * They are ordinary rows once created — rename them, move work out of them,
+ * archive them. That is the whole reason the blank materialises a row instead
+ * of leaving the task attached to a project in the abstract.
+ */
+export const UNCLASSIFIED_MILESTONE = "Unclassified Milestone";
+export const UNCLASSIFIED_RESULT = "Unclassified Result";
+export const UNCLASSIFIED_ACTION = "Unclassified Action";
+export const UNCLASSIFIED_SUB_ACTION = "Unclassified Sub-Action";
+
+/**
+ * The placeholder name for a level, used by BOTH find-or-create callers: the
+ * task form's cascade and the drag-to-another-project move.
+ *
+ * DRAGGING NEEDED THE DEEPER TWO. Dropping a Sub-Action straight onto a
+ * Project has to materialise a Milestone, a Result AND an Action before there
+ * is anywhere to put it — the cascade only ever needed the first two, because
+ * it always knew which action (or none) the task belonged to.
+ *
+ * Project has none: a project is the top of the tree, so nothing ever needs one
+ * created above it. Sub-Sub-Action has none for the mirror reason — nothing
+ * sits below it to need a placeholder parent at that level.
+ */
+export function unclassifiedName(kind: PlanKind): string {
+  switch (kind) {
+    case "milestone": return UNCLASSIFIED_MILESTONE;
+    case "result": return UNCLASSIFIED_RESULT;
+    case "action": return UNCLASSIFIED_ACTION;
+    case "sub_action": return UNCLASSIFIED_SUB_ACTION;
+    default: return `Unclassified ${KIND_LABEL[kind]}`;
+  }
 }

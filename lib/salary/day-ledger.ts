@@ -238,7 +238,7 @@ export type LedgerPay =
        * by construction rather than by tolerance.
        *
        * DEDUCTIONS ARE NOT HIDDEN IN THE EARNING (spec §5). An absence earns
-       * ₹0 and a half day earns half — that IS the day's earning, and it reads
+       * Rs. 0 and a half day earns half — that IS the day's earning, and it reads
        * as one on the row beside its status. PT, TDS and advances are monthly
        * and appear in the month summary, never smeared across days.
        */
@@ -564,10 +564,18 @@ const MONTH_ABBR = [
 ];
 const DOW_ABBR = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/** "2026-08-10" → "10 Aug". Compact by design (spec §4). */
+/**
+ * "2026-08-10" → "10-Aug-2026".
+ *
+ * Spec §4 asked for a COMPACT "10 Aug" here, and this is the one place that
+ * overrides it: the 2026-09-15 rule is DD-MMM-YYYY everywhere, and a payroll
+ * ledger is the last sheet that should carry a date without its year — it is
+ * printed, filed and re-read months later, away from the page that said which
+ * month it was.
+ */
 export function shortDate(ymd: string): string {
   const mi = Number(ymd.slice(5, 7)) - 1;
-  return `${ymd.slice(8, 10)} ${MONTH_ABBR[mi] ?? "?"}`;
+  return `${ymd.slice(8, 10)}-${MONTH_ABBR[mi] ?? "?"}-${ymd.slice(0, 4)}`;
 }
 
 /** 0=Sun..6=Sat → "Sun".."Sat". */
@@ -604,7 +612,7 @@ export function inr(n: number): string {
   const r = Math.round(n * 100) / 100;
   const whole = Number.isInteger(r);
   return (
-    "₹" +
+    "Rs. " +
     Math.abs(r).toLocaleString(
       "en-IN",
       whole ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 },
@@ -612,7 +620,7 @@ export function inr(n: number): string {
   );
 }
 
-/** Signed rupees: "+₹120" / "−₹450" / "—" for exactly zero or unknown. */
+/** Signed rupees: "+Rs. 120" / "−Rs. 450" / "—" for exactly zero or unknown. */
 export function signedInr(n: number | null): string {
   if (n == null) return "—";
   const r = Math.round(n * 100) / 100;
@@ -712,14 +720,14 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
 
     // ── WHAT THIS DAY EARNED ─────────────────────────────────────────────
     // DAILY model: the day's own value × the daily rate. Full day ₹R, half day
-    // ₹R/2, absent ₹0, holiday / weekly off / paid leave / comp-off ₹R, unpaid
-    // leave ₹0 — the day-value table IS the pay policy (spec §4). A day that has
+    // ₹R/2, absent Rs. 0, holiday / weekly off / paid leave / comp-off ₹R, unpaid
+    // leave Rs. 0 — the day-value table IS the pay policy (spec §4). A day that has
     // not happened has earned nothing YET, which is a different statement from
-    // ₹0 and is rendered as a blank.
+    // Rs. 0 and is rendered as a blank.
     //
     // HOUR-PRICED models: rate × the minutes that day made payable.
     // A day the month has not reached has earned nothing YET, which is not the
-    // same sentence as ₹0 — so it reads as a blank on every path. On the two
+    // same sentence as Rs. 0 — so it reads as a blank on every path. On the two
     // hour-priced ones the test is `payableMinutes === 0` rather than `future`
     // alone, and deliberately: `hours_schedule` credits an approved FUTURE paid
     // leave at the daily target, that credit is already inside the month's
@@ -1067,8 +1075,8 @@ function notesFor(
 /**
  * The one sentence under the ADJ. figure, when there is one.
  *
- * Says what the difference IS in the pay model's own terms, because "−₹145.85"
- * on a leave day and "−₹145.85" on a day somebody left early are the same
+ * Says what the difference IS in the pay model's own terms, because "−Rs. 145.85"
+ * on a leave day and "−Rs. 145.85" on a day somebody left early are the same
  * number and completely different facts. Null when the day is flat, so a
  * perfectly ordinary row carries no explanation it does not need.
  */
@@ -1469,8 +1477,8 @@ export function viewTotals(weeks: readonly LedgerWeekView[], hasMoney: boolean):
  * Each visible row is rounded to two decimals so the column adds up on screen,
  * and the engine's own arithmetic rounds at different points, so a perfect
  * month still lands a few paise out. Measured across every real employee-month
- * in August and September 2026 (30 of them, grosses from ₹318 to ₹71,212) the
- * largest honest residual was ₹0.73.
+ * in August and September 2026 (30 of them, grosses from Rs. 318 to Rs. 71,212) the
+ * largest honest residual was Rs. 0.73.
  *
  * ── WHY IT MATTERS THAT IT IS SMALL ────────────────────────────────────────
  * Anything above this is not rounding — it means the stored run was computed
@@ -1484,8 +1492,8 @@ export function viewTotals(weeks: readonly LedgerWeekView[], hasMoney: boolean):
  *
  * When that is the case the honest answer is to show the attendance and WITHHOLD
  * the money, not to print per-day figures that contradict the payslip on the
- * same screen. ₹2 leaves comfortable headroom over the observed noise while
- * catching every real divergence seen (the smallest was ₹7.17).
+ * same screen. Rs. 2 leaves comfortable headroom over the observed noise while
+ * catching every real divergence seen (the smallest was Rs. 7.17).
  */
 export const LEDGER_RECONCILE_TOLERANCE = 2;
 

@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tax Invoice — Sample Template</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   TAX INVOICE — SAMPLE TEMPLATE
+   A4 portrait, self-contained, no external dependencies.
+
+   EVERYTHING EDITABLE IS A [PLACEHOLDER]. The sheet is contenteditable, so in a
+   browser you can click any field and type over it. Placeholders are tinted so
+   an unfilled one is obvious at a glance — and that tint is print-only-visible
+   by design: see `.ph` below.
+
+   TUNING. The dimensions that matter are CSS variables on :root. Change --red
+   and every red element follows; change --pad and the page margin moves as one.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* A4 is 210 × 297mm. The sheet is drawn at exactly that size so what you see
+     in the browser is what comes out of the printer. */
+  --page-w: 210mm;
+  --page-h: 297mm;
+  --pad: 14mm;          /* page margin on all four sides */
+
+  --red: #c1272d;       /* the brand red — masthead flash and footer bar */
+  --red-dark: #9e1f24;  /* the shaded half of the masthead wedge */
+  --ink: #111111;       /* body text */
+  --ink-soft: #3a3a3a;  /* labels */
+  --ink-faint: #6b6b6b; /* the quiet grey in the footer */
+  --rule: #9a9a9a;      /* the thin horizontal dividers */
+  --rule-strong: #4a4a4a;
+
+  --fs-base: 8.6pt;
+  --fs-title: 17pt;
+  --fs-small: 7.2pt;
+}
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #f1f2f4;          /* the grey around the sheet, screen only */
+  font-family: Arial, Helvetica, "Liberation Sans", sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── THE SHEET ────────────────────────────────────────────────────────────
+   One A4 page. `position: relative` so the watermark and the footer can be
+   placed against it rather than against the viewport. */
+.sheet {
+  position: relative;
+  width: var(--page-w);
+  min-height: var(--page-h);
+  margin: 16px auto;
+  padding: var(--pad);
+  background: #fff;
+  box-shadow: 0 2px 18px rgba(0, 0, 0, 0.16);   /* screen only */
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── SAMPLE WATERMARK ─────────────────────────────────────────────────────
+   Deliberately unobtrusive: a pale diagonal behind the content, never over the
+   numbers hard enough to obscure them. `z-index: 0` with the content at 1, so
+   it sits under every row.
+
+   It prints. That is the point — a printed copy of a template must still
+   announce itself as one. */
+.watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  overflow: hidden;
+}
+.watermark span {
+  transform: rotate(-32deg);
+  font-size: 58pt;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: rgba(193, 39, 45, 0.07);
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.content { position: relative; z-index: 1; display: flex; flex-direction: column; flex: 1; }
+
+/* ── MASTHEAD ─────────────────────────────────────────────────────────────
+   Logo left, red geometric flash filling the rest of the line.
+
+   The flash is DRAWN, not an image: two clip-path wedges plus a notch at the
+   right end. Built this way it rescales with the page and needs no asset. */
+.masthead {
+  display: flex;
+  align-items: center;
+  gap: 6mm;
+  height: 22mm;
+}
+.logo {
+  width: 34mm;
+  flex: 0 0 34mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1mm;
+}
+/* The chevron mark. A placeholder shape — swap the whole .logo block for an
+   <img src="..."> when a real mark is available. */
+.logo-mark {
+  width: 15mm;
+  height: 10mm;
+  background: linear-gradient(160deg, var(--red) 0%, var(--red-dark) 100%);
+  clip-path: polygon(0% 0%, 100% 0%, 50% 100%, 50% 62%, 22% 12%, 78% 12%, 50% 62%, 50% 100%);
+}
+.logo-text {
+  font-size: 9.5pt;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  text-align: center;
+  line-height: 1.05;
+}
+.flash { position: relative; flex: 1; height: 13mm; }
+.flash i {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+/* Upper wedge — thin at the left, full height at the right. */
+.flash i:nth-child(1) {
+  background: var(--red);
+  clip-path: polygon(0% 46%, 100% 0%, 100% 52%);
+}
+/* Lower sliver, a shade darker, separated by a hairline of white. */
+.flash i:nth-child(2) {
+  background: var(--red-dark);
+  clip-path: polygon(0% 52%, 100% 60%, 100% 100%, 30% 86%);
+}
+/* The notch at the right end that turns the wedge into an arrow head. */
+.flash i:nth-child(3) {
+  background: #fff;
+  clip-path: polygon(92% 12%, 100% 12%, 100% 46%);
+}
+
+/* ── TITLE ────────────────────────────────────────────────────────────────── */
+.title {
+  text-align: center;
+  font-size: var(--fs-title);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin: 9mm 0 4mm;
+}
+
+/* ── RULES ────────────────────────────────────────────────────────────────
+   Every divider on the sheet is one of these two weights. Kept as classes
+   rather than per-section borders so the whole sheet stays consistent. */
+.rule { border: 0; border-top: 0.6pt solid var(--rule); margin: 0; }
+.rule-strong { border: 0; border-top: 0.9pt solid var(--rule-strong); margin: 0; }
+
+/* ── LABELLED ROWS ────────────────────────────────────────────────────────
+   label · colon · value, used by four different blocks. A grid rather than a
+   table so the colon column stays a fixed width and every colon on the sheet
+   lines up vertically, which is what makes the reference look ordered. */
+.rows { display: grid; grid-template-columns: auto 4mm 1fr; row-gap: 1.1mm; }
+.rows .lbl { font-size: var(--fs-base); color: var(--ink-soft); white-space: nowrap; }
+.rows .sep { font-size: var(--fs-base); color: var(--ink-soft); }
+.rows .val { font-size: var(--fs-base); color: var(--ink); }
+.rows .val.b { font-weight: 700; }
+
+/* ── PARTIES ──────────────────────────────────────────────────────────────
+   Two columns: the customer on the left, the document's own identifiers on the
+   right. 58/42 matches the reference's split. */
+.parties {
+  display: grid;
+  grid-template-columns: 58% 42%;
+  gap: 4mm;
+  padding: 3mm 0 3.5mm;
+}
+.parties .right .rows { row-gap: 3.2mm; }  /* the right column breathes more */
+
+/* ── LINE TABLE ───────────────────────────────────────────────────────────── */
+.lines { width: 100%; border-collapse: collapse; }
+.lines th {
+  font-size: var(--fs-base);
+  font-weight: 400;
+  color: var(--ink);
+  padding: 2mm 0 2.5mm;
+  text-align: center;
+  line-height: 1.25;
+}
+.lines th.amt { text-align: center; width: 42mm; }
+.lines td { font-size: var(--fs-base); padding: 2.2mm 0; vertical-align: top; }
+.lines td.amt { text-align: right; width: 42mm; white-space: nowrap; }
+
+/* The tax ladder — labels sit hard against the amount column, not out at the
+   left margin, exactly as the reference stacks them. */
+.tax td.lbl { text-align: right; padding: 0.6mm 4mm 0.6mm 0; color: var(--ink); }
+.tax td.amt { padding: 0.6mm 0; }
+.tax tr:first-child td { padding-top: 3mm; }
+
+.total td { font-size: var(--fs-base); font-weight: 700; padding: 2.6mm 0; }
+.total td.lbl { text-align: right; padding-right: 4mm; }
+.total td.amt { text-align: right; width: 42mm; }
+
+/* ── BLOCKS ───────────────────────────────────────────────────────────────── */
+.block { padding: 3mm 0; }
+.interest { font-size: var(--fs-base); padding-top: 1.5mm; }
+
+/* ── SIGNATURE ────────────────────────────────────────────────────────────── */
+.sign { padding: 10mm 0 0; }
+.sign .for { font-size: var(--fs-base); font-weight: 700; }
+.sign .space {
+  height: 16mm;                       /* room for a signature image or ink */
+  width: 52mm;
+  margin: 1mm 0 0.5mm;
+  border-bottom: 0.6pt dotted #bdbdbd;
+}
+.sign .role { font-size: var(--fs-base); font-weight: 700; }
+
+/* ── FOOTER ───────────────────────────────────────────────────────────────
+   Pinned to the bottom of the sheet by `margin-top: auto` on the flex column,
+   so a short invoice still puts the bar where a long one does. */
+.footer { margin-top: auto; padding-top: 8mm; }
+.footer .contact {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 3mm;
+  font-size: var(--fs-small);
+  color: var(--ink-faint);
+  padding-bottom: 2mm;
+}
+.footer .contact .dot { color: var(--red); font-size: 6.5pt; }
+.footer .bar {
+  background: var(--red);
+  color: #fff;
+  text-align: center;
+  font-size: var(--fs-small);
+  padding: 1.6mm 3mm;
+  letter-spacing: 0.01em;
+}
+
+/* ── PLACEHOLDERS ─────────────────────────────────────────────────────────
+   A faint tint so an unfilled field is obvious while editing. It is removed at
+   print time: a template printed for layout review should show the bracketed
+   text, not a page of grey boxes. */
+.ph {
+  background: rgba(193, 39, 45, 0.07);
+  border-radius: 1px;
+  padding: 0 0.6mm;
+}
+
+/* ── PRINT ────────────────────────────────────────────────────────────────
+   `@page` with a zero margin because the sheet supplies its own padding —
+   letting the printer add its margin on top of ours is what pushes the footer
+   onto a second page. */
+@page { size: A4 portrait; margin: 0; }
+
+@media print {
+  html, body { background: #fff; }
+  .sheet {
+    margin: 0;
+    box-shadow: none;
+    width: var(--page-w);
+    height: var(--page-h);
+    page-break-after: avoid;
+  }
+  .ph { background: none; padding: 0; }
+  .hint { display: none !important; }
+  /* Backgrounds and the red bar must survive the print dialog's default of
+     dropping them, or the footer prints as white text on white. */
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* ── SCREEN PREVIEW ───────────────────────────────────────────────────────
+   Below A4 width the sheet is scaled down rather than reflowed: reflowing it
+   would no longer be a preview of the printed page, which is the only thing
+   this document is for. */
+@media screen and (max-width: 230mm) {
+  .sheet { transform-origin: top center; transform: scale(0.78); margin-bottom: -60mm; }
+}
+@media screen and (max-width: 170mm) {
+  .sheet { transform: scale(0.54); margin-bottom: -130mm; }
+}
+
+.hint {
+  max-width: var(--page-w);
+  margin: 14px auto 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #55585e;
+  background: #fff;
+  border: 1px solid #dfe1e5;
+  border-left: 3px solid var(--red);
+  padding: 10px 12px;
+}
+.hint b { color: #222; }
+</style>
+</head>
+<body>
+
+<div class="hint">
+  <b>Sample template.</b> Every bracketed field is editable — click it and type.
+  Placeholders are tinted on screen and print clean. Use your browser's
+  <b>Print → Save as PDF</b> at A4 with margins set to <b>None</b>.
+</div>
+
+<div class="sheet" contenteditable="true" spellcheck="false">
+
+  <div class="watermark" contenteditable="false"><span>Sample&nbsp;·&nbsp;Template</span></div>
+
+  <div class="content">
+
+    <!-- ── MASTHEAD ─────────────────────────────────────────────────────── -->
+    <div class="masthead">
+      <div class="logo">
+        <div class="logo-mark" contenteditable="false"></div>
+        <div class="logo-text">[COMPANY NAME]</div>
+      </div>
+      <div class="flash" contenteditable="false"><i></i><i></i><i></i></div>
+    </div>
+
+    <!-- ── TITLE ────────────────────────────────────────────────────────── -->
+    <div class="title">TAX INVOICE</div>
+
+    <hr class="rule-strong" />
+
+    <!-- ── PARTIES ──────────────────────────────────────────────────────── -->
+    <div class="parties">
+      <div class="left">
+        <div class="rows">
+          <div class="lbl">To</div><div class="sep">:</div>
+          <div class="val b"><span class="ph">[CUSTOMER NAME]</span></div>
+
+          <div class="lbl">Kind Attn.</div><div class="sep">:</div>
+          <div class="val"><span class="ph">[CONTACT PERSON]</span></div>
+
+          <div class="lbl">Address</div><div class="sep">:</div>
+          <div class="val">
+            <span class="ph">[ADDRESS LINE 1]</span><br />
+            <span class="ph">[ADDRESS LINE 2, CITY]</span>
+          </div>
+
+          <div class="lbl">Contact No.</div><div class="sep">:</div>
+          <div class="val"><span class="ph">[PHONE]</span></div>
+
+          <div class="lbl">GSTIN</div><div class="sep">:</div>
+          <div class="val"><span class="ph">[CUSTOMER GSTIN]</span></div>
+        </div>
+      </div>
+
+      <div class="right">
+        <div class="rows">
+          <div class="lbl">Code</div><div class="sep">:</div>
+          <div class="val"><span class="ph">[CODE]</span></div>
+
+          <div class="lbl">Invoice No</div><div class="sep">:</div>
+          <div class="val"><span class="ph">[INVOICE NUMBER]</span></div>
+
+          <div class="lbl">Invoice Date</div><div class="sep">:</div>
+          <div class="val"><span class="ph">[INVOICE DATE]</span></div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="rule" />
+
+    <!-- ── LINES + TAX ──────────────────────────────────────────────────── -->
+    <table class="lines">
+      <thead>
+        <tr>
+          <th>Service<br />Description</th>
+          <th class="amt">Total<br />Amount Due</th>
+        </tr>
+      </thead>
+    </table>
+
+    <hr class="rule" />
+
+    <table class="lines">
+      <tbody>
+        <tr>
+          <td><span class="ph">[SERVICE DESCRIPTION]</span></td>
+          <td class="amt"><span class="ph">[AMOUNT]</span></td>
+        </tr>
+      </tbody>
+      <tbody class="tax">
+        <tr>
+          <td class="lbl">CGST@<span class="ph">[RATE]</span>%</td>
+          <td class="amt"><span class="ph">[CGST AMOUNT]</span></td>
+        </tr>
+        <tr>
+          <td class="lbl">SGST@<span class="ph">[RATE]</span>%</td>
+          <td class="amt"><span class="ph">[SGST AMOUNT]</span></td>
+        </tr>
+        <tr>
+          <td class="lbl">IGST@<span class="ph">[RATE]</span>%</td>
+          <td class="amt"><span class="ph">[IGST AMOUNT]</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <hr class="rule" />
+
+    <table class="lines total">
+      <tbody>
+        <tr>
+          <td class="lbl">Total Amount Payable</td>
+          <td class="amt"><span class="ph">[TOTAL AMOUNT]</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <hr class="rule" />
+
+    <!-- ── IDENTITY ─────────────────────────────────────────────────────── -->
+    <div class="block">
+      <div class="rows">
+        <div class="lbl">Total Amount in Words</div><div class="sep">:</div>
+        <div class="val"><span class="ph">[AMOUNT IN WORDS]</span></div>
+
+        <div class="lbl">Permanent Account Number</div><div class="sep">:</div>
+        <div class="val"><span class="ph">[PAN]</span></div>
+
+        <div class="lbl">GSTIN</div><div class="sep">:</div>
+        <div class="val"><span class="ph">[COMPANY GSTIN]</span></div>
+
+        <div class="lbl">SAC Code</div><div class="sep">:</div>
+        <div class="val"><span class="ph">[SAC CODE]</span></div>
+      </div>
+    </div>
+
+    <hr class="rule" />
+
+    <!-- ── PAYMENT / BANK ───────────────────────────────────────────────── -->
+    <div class="block">
+      <div class="rows">
+        <div class="lbl">Cheque to be issued in favour of</div><div class="sep">:</div>
+        <div class="val"><span class="ph">[COMPANY NAME]</span></div>
+
+        <div class="lbl">Account name for online transfer</div><div class="sep">:</div>
+        <div class="val"><span class="ph">[ACCOUNT NAME]</span></div>
+
+        <div class="lbl">Bank Account Number</div><div class="sep">:</div>
+        <div class="val"><span class="ph">[BANK ACCOUNT]</span></div>
+
+        <div class="lbl">Bank IFS Code</div><div class="sep">:</div>
+        <div class="val"><span class="ph">[IFSC]</span> (<span class="ph">[BRANCH]</span>)</div>
+
+        <div class="lbl">Payment Terms</div><div class="sep">:</div>
+        <div class="val"><span class="ph">[PAYMENT TERMS]</span></div>
+      </div>
+      <div class="interest">
+        Interest will be charged at <span class="ph">[RATE]</span>% p.a. at actuals for delay in
+        payment after due date.
+      </div>
+    </div>
+
+    <hr class="rule" />
+
+    <!-- ── SIGNATURE ────────────────────────────────────────────────────── -->
+    <div class="sign">
+      <div class="for">For <span class="ph">[COMPANY NAME]</span></div>
+      <div class="space" contenteditable="false"></div>
+      <div class="role"><span class="ph">[DESIGNATION]</span></div>
+    </div>
+
+    <!-- ── FOOTER ───────────────────────────────────────────────────────── -->
+    <div class="footer">
+      <div class="contact">
+        <span class="dot">&#9654;</span><span class="ph">[PHONE]</span>
+        <span class="dot">&#9654;</span><span class="ph">[EMAIL]</span>
+        <span class="dot">&#9654;</span><span class="ph">[WEBSITE]</span>
+      </div>
+      <div class="bar"><span class="ph">[REGISTERED OFFICE ADDRESS]</span></div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

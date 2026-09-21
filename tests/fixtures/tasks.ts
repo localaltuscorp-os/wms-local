@@ -226,6 +226,10 @@ export function task(partial: Partial<Task>): Task {
     // fixtures keep working without per-task overrides.
     tags: partial.tags ?? null,
     approvalStatus: partial.approvalStatus ?? null,
+    // Who ruled, and when (mig 0225). Null by default so every existing
+    // fixture keeps meaning "nobody has ruled on this".
+    approvalById: partial.approvalById ?? null,
+    approvalAt: partial.approvalAt ?? null,
     // Two-stage approval (mig 0185) — defaults keep every existing fixture on
     // the un-approved path, so no test changes meaning.
     approvalLevel: partial.approvalLevel ?? "none",

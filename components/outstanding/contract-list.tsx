@@ -485,7 +485,7 @@ function EditContractDialog({
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Base Amount (₹)" required>
+              <Field label="Base Amount (Rs.)" required>
                 <input
                   type="number"
                   min={0}

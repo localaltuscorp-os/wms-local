@@ -36,12 +36,12 @@ export function computeCommission(input: CommissionInput): CommissionResult {
   const { payoutType, payoutValue, dealAmount, override } = input;
 
   if (override != null && Number.isFinite(override)) {
-    return { amount: round2(override), basis: `override ₹${round2(override)}` };
+    return { amount: round2(override), basis: `override Rs. ${round2(override)}` };
   }
 
   if (payoutType === "flat") {
     const amount = round2(payoutValue || 0);
-    return { amount, basis: `flat ₹${amount}` };
+    return { amount, basis: `flat Rs. ${amount}` };
   }
 
   // percent

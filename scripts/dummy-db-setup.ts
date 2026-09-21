@@ -30,6 +30,14 @@
  *   pnpm dummy:setup          # build it (idempotent — safe to re-run)
  *   pnpm dummy:setup --reset  # delete the data directory and rebuild
  *
+ * `pnpm dev:dummy` RUNS THIS FIRST, every time. The ledger means an up-to-date
+ * directory costs a second and applies nothing; the case it exists for is the
+ * one that kept biting — a `.pglite/` built last week, a migration added since,
+ * and a screen failing with `column billing_documents.archived does not exist`
+ * because the dummy schema had silently fallen behind the repo's. The dev
+ * server holds an exclusive lock on the directory, so the catch-up cannot
+ * happen once the server is up: before it starts is the only moment there is.
+ *
  * NOTHING HERE SHIPS. The data directory is gitignored, and lib/db/index.ts
  * only reaches for PGlite when DUMMY_MODE=true, which is refused outside
  * development. Delete `.pglite/` and unset DUMMY_MODE to go back to the real

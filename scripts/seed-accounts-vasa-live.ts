@@ -22,7 +22,7 @@ function canon(raw: string): string {
   return s;
 }
 function parseAmt(s: unknown): number | null {
-  const t = clean(s).replace(/[,₹\s]/g, "");
+  const t = clean(s).replace(/\brs\.?/gi, "").replace(/[,₹\s]/g, "");
   if (!t || t === "-") return null;
   const n = Number(t);
   return Number.isFinite(n) && n !== 0 ? n : null;

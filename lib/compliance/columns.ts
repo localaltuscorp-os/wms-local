@@ -170,6 +170,8 @@ const DOER_RANK: Record<DoerStatus | "none", number> = {
   follow_up: 4,
   initiated: 5,
   done: 6,
+  // Terminal like Done, but a dead end — it sorts past it, never before.
+  abandoned: 7,
 };
 
 function valueOf(r: ComplianceRow, key: ColKey): string | number | null {

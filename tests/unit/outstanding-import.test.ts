@@ -10,10 +10,10 @@ import {
 
 describe("parseAmount", () => {
   it("strips currency symbols and commas", () => {
-    expect(parseAmount("₹25,000")).toBe(25000);
+    expect(parseAmount("Rs. 25,000")).toBe(25000);
     expect(parseAmount("25000")).toBe(25000);
     expect(parseAmount("25,000.00")).toBe(25000);
-    expect(parseAmount("₹ 5,000.50")).toBe(5000.5);
+    expect(parseAmount("Rs. 5,000.50")).toBe(5000.5);
     expect(parseAmount("Rs. 1,00,000")).toBe(100000);
   });
   it("returns 0 for blank / non-numeric", () => {
@@ -54,7 +54,7 @@ describe("mapOutstandingRows", () => {
         entity: "Altus Corp",
         responsible: "Anand Singh",
         dueDate: "01-Sep-2025",
-        amount: "₹5,000",
+        amount: "Rs. 5,000",
         pdcReceived: "Yes",
       },
       {
@@ -64,7 +64,7 @@ describe("mapOutstandingRows", () => {
         entity: "Altus Corp",
         responsible: "Anand Singh",
         dueDate: "01-Oct-2025",
-        amount: "₹25,000",
+        amount: "Rs. 25,000",
         pdcReceived: "Yes",
       },
       {
@@ -74,7 +74,7 @@ describe("mapOutstandingRows", () => {
         entity: "Altus Corp",
         responsible: "Anand Singh",
         dueDate: "01-Nov-2025",
-        amount: "₹25,000",
+        amount: "Rs. 25,000",
         pdcReceived: "Yes",
       },
     ];
@@ -142,7 +142,7 @@ describe("mapCollectionRows", () => {
     const rows: RawCollectionRow[] = [
       {
         clientName: "Acme Pvt Ltd",
-        amount: "₹25,000",
+        amount: "Rs. 25,000",
         paymentMode: "Altus Kotak",
         responsible: "Anand Singh",
         collectedAt: "05-Sep-2025",

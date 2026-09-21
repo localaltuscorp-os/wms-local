@@ -128,7 +128,7 @@ export function SalaryProfileList({
               if (b === "hourly") {
                 return (
                   <span className="tabular-nums text-ink-strong font-medium">
-                    ₹{inr(r.monthlyPayAtTarget)}
+                    Rs. {inr(r.monthlyPayAtTarget)}
                     <span className="text-[11px] text-ink-subtle font-normal"> /mo cap</span>
                   </span>
                 );
@@ -136,13 +136,13 @@ export function SalaryProfileList({
               if (b === "fixed_fee") {
                 return (
                   <span className="tabular-nums text-ink-strong font-medium">
-                    {r.monthlyFee > 0 ? <>₹{inr(r.monthlyFee)}<span className="text-[11px] text-ink-subtle font-normal"> /mo fee</span></> : "-"}
+                    {r.monthlyFee > 0 ? <>Rs. {inr(r.monthlyFee)}<span className="text-[11px] text-ink-subtle font-normal"> /mo fee</span></> : "-"}
                   </span>
                 );
               }
               return (
                 <span className="tabular-nums text-ink-strong font-medium">
-                  {r.annualCtc > 0 ? `₹${inr(r.annualCtc)}` : "-"}
+                  {r.annualCtc > 0 ? `Rs. ${inr(r.annualCtc)}` : "-"}
                 </span>
               );
             },
@@ -154,7 +154,7 @@ export function SalaryProfileList({
             sortValue: (r) => r.tdsMonthly,
             render: (r) => (
               <span className="tabular-nums text-ink-soft">
-                {r.tdsMonthly > 0 ? `₹${inr(r.tdsMonthly)}` : "-"}
+                {r.tdsMonthly > 0 ? `Rs. ${inr(r.tdsMonthly)}` : "-"}
               </span>
             ),
           },
@@ -354,7 +354,7 @@ function AdvancesDialog({
                     >
                       <div className="min-w-0">
                         <div className="text-[15px] font-semibold tabular-nums text-ink-strong">
-                          ₹{inr(a.amount)}
+                          Rs. {inr(a.amount)}
                         </div>
                         {a.note && (
                           <div className="text-[13px] text-ink-subtle truncate">{a.note}</div>
@@ -373,7 +373,7 @@ function AdvancesDialog({
                   ))}
                   <li className="flex items-center justify-between pt-1 text-[14px] font-semibold text-ink-strong tabular-nums">
                     <span>Total</span>
-                    <span>₹{inr(total)}</span>
+                    <span>Rs. {inr(total)}</span>
                   </li>
                 </ul>
               )}
@@ -383,7 +383,7 @@ function AdvancesDialog({
               <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
                 <div>
                   <label className="block text-[14px] font-semibold text-[#0F172A] mb-1.5">
-                    Amount (₹)
+                    Amount (Rs.)
                   </label>
                   <input
                     type="number"

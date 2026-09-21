@@ -5,6 +5,7 @@ import { candidateIntake, type CandidateLinkPurpose } from "@/db/schema";
 import { siteUrl } from "@/lib/site-url";
 import { sendPlainEmail } from "@/lib/email/resend";
 import { ACCESS_LINK_TTL_DAYS } from "@/lib/hr/candidate/access-link";
+import { formatDate } from "@/lib/format";
 
 /**
  * Mail a candidate their access link.
@@ -38,11 +39,7 @@ export async function sendCandidateAccessLink(
     // an HttpOnly cookie on first open — see access-link-cookie.ts.
     const link = `${siteUrl()}/c/${encodeURIComponent(token)}`;
     const name = (row.fullName ?? "").trim().split(/\s+/)[0] || "there";
-    const expires = expiresAt.toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+    const expires = formatDate(expiresAt);
 
     // The two errands read differently to the person receiving them: one asks
     // for their details, the other asks them to read and sign. A single generic

@@ -19,8 +19,15 @@ const MONTHS_TITLE = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "S
 
 /**
  * CANONICAL Altus date format — the ONE way every user-facing date renders,
- * across all modules: `dd MMM yyyy` with a TITLE-CASE 3-letter month, e.g.
- * `01 Jan 2026`, `07 Aug 2026`. (Permanent rule — never dd-mm-yyyy or slashes.)
+ * across all modules: `DD-MMM-YYYY` with a TITLE-CASE 3-letter month, e.g.
+ * `16-Jan-2026`, `07-Aug-2026`. (Permanent rule — never dd-mm-yyyy, never
+ * slashes, and never the spaced `16 Jan 2026` this used to emit.)
+ *
+ * THE SEPARATOR CHANGED (Manan, 2026-09-15: "date everywhere should be
+ * DD-MMM-YYYY ie 16-Jan-2026"). It was `dd MMM yyyy` for ~90 files and
+ * `formatDateHr` existed purely to hyphenate it for the HR module. That split
+ * is gone: there is one format now, so `formatDateHr` and `formatDMonY` are
+ * kept only as aliases for the call sites that already name them.
  *
  * Accepts a Date, an ISO / `YYYY-MM-DD` string, or ms. A `YYYY-MM-DD` string is
  * parsed as a LOCAL calendar day (no UTC-midnight day-shift). Empty / invalid
@@ -39,26 +46,19 @@ export function formatDate(input: Date | string | number | null | undefined): st
   }
   if (Number.isNaN(date.getTime())) return typeof input === "string" ? input : "";
   const dd = String(date.getDate()).padStart(2, "0");
-  return `${dd} ${MONTHS_TITLE[date.getMonth()]} ${date.getFullYear()}`;
+  return `${dd}-${MONTHS_TITLE[date.getMonth()]}-${date.getFullYear()}`;
 }
 
 /**
- * HR MODULE date format — `DD-MMM-YYYY`, e.g. `21-Jan-1984`. Identical to
- * {@link formatDate} in every respect except the separator, so the parsing
- * rules above (local calendar day for `YYYY-MM-DD`, "" for empty, the original
- * string for unparseable input) all still hold.
+ * ALIAS of {@link formatDate}, kept because ~40 HR call sites name it.
  *
- * Deliberately a SEPARATE function rather than a change to `formatDate`: the
- * hyphenated form was asked for across the HR module specifically, and
- * `formatDate` is the canonical app-wide format used by ~90 files outside HR
- * that must keep rendering `21 Jan 1984`.
+ * It used to be the ONE hyphenated formatter in a codebase whose canonical
+ * format was spaced; now `formatDate` itself is hyphenated, so this adds
+ * nothing but a name. Left in place rather than swept out of every HR file:
+ * the rename would touch a lot of code to change zero output, and a second
+ * name for the same rule cannot drift while it is literally this function.
  */
-export function formatDateHr(input: Date | string | number | null | undefined): string {
-  const spaced = formatDate(input);
-  // Only rewrite our own `dd MMM yyyy` output; a passed-through unparseable
-  // string must survive untouched rather than have its spaces mangled.
-  return /^\d{2} [A-Z][a-z]{2} -?\d+$/.test(spaced) ? spaced.replace(/ /g, "-") : spaced;
-}
+export const formatDateHr = formatDate;
 
 /**
  * Calendar day (YYYY-MM-DD) of `d` in the given IANA timezone. Used by
@@ -85,15 +85,61 @@ export function formatTimeInTz(d: Date, timeZone: string): string {
   }).format(d);
 }
 
-const inrFmt = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 0,
+/**
+ * THE ONE MONEY FORMAT — `Rs. 10,12,11,999`.
+ *
+ * Manan, 2026-09-15: "wherever there is amount it should be Rs. — the commas
+ * have to be Rs. in Crores ie 10,12,11,999". Read literally off the example:
+ * every digit stays on screen and the commas are INDIAN (crore, lakh, thousand
+ * — 2,2,3 grouping), not the western 3,3,3. The figure is NOT divided by a
+ * crore: `10,12,11,999` is the whole number, spelled the way an Indian reader
+ * counts it.
+ *
+ * "Rs." AND NOT "₹". The rupee sign was already a liability outside the
+ * browser — pdfkit's Helvetica has no glyph for U+20B9 and printed every figure
+ * as "¹25.00 Lakh" (see lib/accounts/inr-format.ts) — so one prefix that
+ * renders identically on screen, in a PDF and in an email is strictly better
+ * than two that disagree.
+ *
+ * Non-finite input returns "—" rather than "Rs. NaN": a missing amount is a
+ * blank cell, not a broken one.
+ */
+const groupInr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+
+/** The rupee prefix, exported so nothing has to re-type it. */
+export const RUPEE_PREFIX = "Rs. ";
+
+/** `Rs. 1,25,000` — whole rupees, Indian digit grouping. */
+export function formatInr(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  const sign = n < 0 ? "-" : "";
+  return `${sign}${RUPEE_PREFIX}${groupInr.format(Math.abs(Math.round(n)))}`;
+}
+
+const groupInrPaise = new Intl.NumberFormat("en-IN", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 
-/** ₹ amount in Indian digit grouping, no paise (e.g. "₹1,25,000"). */
-export function formatInr(n: number): string {
-  return inrFmt.format(n);
+/**
+ * `Rs. 26,19,630.22` — the same format, to the paise.
+ *
+ * Paise are shown ONLY when there are some, so an ordinary whole-rupee figure
+ * still reads as `Rs. 1,25,000` and a column does not fill with ".00".
+ */
+export function formatInrPaise(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  const whole = Math.round(abs * 100) % 100 === 0;
+  return `${sign}${RUPEE_PREFIX}${whole ? groupInr.format(Math.round(abs)) : groupInrPaise.format(abs)}`;
+}
+
+/** Indian digit grouping with NO prefix — for a cell whose column header
+ *  already says "Rs.", and for inputs that must round-trip what is typed. */
+export function formatInrBare(n: number): string {
+  if (!Number.isFinite(n)) return "";
+  return groupInr.format(Math.round(n));
 }
 
 export function formatDelta(n: number): string {
@@ -120,6 +166,7 @@ export const STATUS_LABELS_FALLBACK: Record<TaskStatus, string> = {
   follow_up_2:  "Follow Up 2",       // Tier-3 NEW
   follow_up_3:  "Follow Up 3",       // Tier-3 NEW
   done:         "Done",
+  abandoned:    "Abandoned",         // 2026-09-14 — the doer axis's 2nd terminal
   approved:     "Approved",
   not_approved: "Not Approved",
   cancelled:    "Cancelled",
@@ -142,6 +189,16 @@ export const STATUS_TONES_FALLBACK: Record<TaskStatus, StatusColorToken> = {
   follow_up_2:  "orange",
   follow_up_3:  "orange",
   done:         "green",
+  // SKY, asked for by name (Manan, 2026-09-15), and its own token rather than a
+  // reuse: `dont_know` above is stone and the two sat side by side in the doer
+  // picker as the same grey dot, which is what prompted this. Sky is the only
+  // doer colour that is not also a temperature reading — nothing else in the
+  // set says "stopped" without also saying "failed", which Abandoned is not.
+  //
+  // It is a BLUE beside `not_started`'s indigo (#0EA5E9 vs #4F46E5): far enough
+  // apart at dot size, and the two are at opposite ends of the lifecycle where
+  // they are rarely read against each other.
+  abandoned:    "sky",               // terminal, but a dead end — not a win
   approved:     "purple",
   not_approved: "rose",
   cancelled:    "slate",
@@ -199,7 +256,7 @@ export interface StatusBadgeStyle {
  */
 export const STATUS_BADGE_STYLES: Record<StatusColorToken, StatusBadgeStyle> = {
   // ── Named in the spec ────────────────────────────────────────────────────
-  yellow: { bg: "#FEF3C7", ink: "#78350F", border: "#FCD34D", dot: "#D97706" }, // amber
+  yellow: { bg: "#FEF9C3", ink: "#713F12", border: "#FDE047", dot: "#EAB308" }, // true yellow — see note
   blue:   { bg: "#E0E7FF", ink: "#1E1B4B", border: "#C7D2FE", dot: "#4F46E5" }, // indigo
   green:  { bg: "#D1FAE5", ink: "#022C22", border: "#6EE7B7", dot: "#059669" }, // emerald
   red:    { bg: "#FEE2E2", ink: "#450A0A", border: "#FCA5A5", dot: "#DC2626" },
@@ -211,6 +268,7 @@ export const STATUS_BADGE_STYLES: Record<StatusColorToken, StatusBadgeStyle> = {
   slate:  { bg: "#E2E8F0", ink: "#0F172A", border: "#CBD5E1", dot: "#475569" },
   stone:  { bg: "#E7E5E4", ink: "#292524", border: "#D6D3D1", dot: "#78716C" },
   brown:  { bg: "#EDE0CF", ink: "#3F2A15", border: "#D3B892", dot: "#8A6234" },
+  sky:    { bg: "#E0F2FE", ink: "#082F49", border: "#7DD3FC", dot: "#0EA5E9" },
 };
 
 /**

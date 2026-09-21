@@ -185,9 +185,13 @@ describe("the permission matrix carries Billing Master", () => {
 
   it("stays within the catalogue's three levels", () => {
     // A fourth level throws at module load, which is why the files node is a
-    // sibling rather than a child.
+    // sibling rather than a child. The Billing masters that arrived with the
+    // Billing module — profiles, customers, payment terms, SAC codes, product
+    // billing fields — are siblings for the same reason, so the rule to hold
+    // is the DEPTH, not how many of them there are.
     const nodes = allPermissionNodes().filter((n) => n.key.startsWith("admin.masters.billing"));
-    expect(nodes).toHaveLength(2);
+    expect(nodes.map((n) => n.key)).toContain("admin.masters.billing");
+    expect(nodes.map((n) => n.key)).toContain("admin.masters.billing-files");
     for (const n of nodes) expect(n.depth).toBe(3);
   });
 

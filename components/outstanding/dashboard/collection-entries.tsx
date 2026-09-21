@@ -62,7 +62,7 @@ export function CollectionEntriesTable({ rows }: { rows: CollectionDisplayRow[] 
                 <tr>
                   <Th align="right">S.No</Th>
                   <Th>Client Name</Th>
-                  <Th align="right">Amount (₹)</Th>
+                  <Th align="right">Amount (Rs.)</Th>
                   <Th>Payment Mode</Th>
                   <Th>Responsible</Th>
                   <Th>Comments</Th>

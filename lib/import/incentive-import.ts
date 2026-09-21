@@ -63,7 +63,7 @@ function coerceNum(value: unknown): number {
   const s = String(value ?? "").trim();
   if (!s) return 0;
   // Strip ₹, commas, spaces.
-  const cleaned = s.replace(/[₹,\s]/g, "");
+  const cleaned = s.replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, "");
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : 0;
 }

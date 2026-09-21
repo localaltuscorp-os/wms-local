@@ -9,6 +9,7 @@ import {
   type DetailReview,
 } from "@/lib/queries/pms-detail";
 import type { ScoreBreakdown } from "@/lib/pms/engines/score";
+import { formatDate } from "@/lib/format";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,7 +62,7 @@ const RELATION_ORDER: ReviewRelation[] = ["manager", "subordinate", "peer", "sel
 /** en-IN friendly date, wrapped in `new Date()` so a string bound never leaks. */
 function fmtDate(d: Date | null): string | null {
   if (!d) return null;
-  return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDate(new Date(d));
 }
 
 function reviewDto(r: DetailReview) {

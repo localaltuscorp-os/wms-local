@@ -17,7 +17,7 @@ interface PageProps {
 const GREEN = "#E10600";
 const GREEN_DEEP = "#A80400";
 const MONTH_RE = /^\d{4}-\d{2}$/;
-const inr = (v: number) => `₹${Math.round(v).toLocaleString("en-IN")}`;
+const inr = (v: number) => `Rs. ${Math.round(v).toLocaleString("en-IN")}`;
 
 function monthLabel(ym: string, style: "long" | "short" = "long"): string {
   const [y, m] = ym.split("-").map(Number);

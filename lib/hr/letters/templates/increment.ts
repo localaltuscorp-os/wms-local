@@ -43,8 +43,8 @@ const template: LetterTemplate = {
       f("effectiveDate", "Effective Date", { placeholder: "e.g. 1 April 2026", date: true }),
       t(". The revised details of your compensation are set out below."),
     ),
-    term("Present CTC (₹/annum)", f("presentCtc", "Present CTC", { placeholder: "e.g. 6,00,000" })),
-    term("Revised CTC (₹/annum)", f("revisedCtc", "Revised CTC", { placeholder: "e.g. 7,20,000" })),
+    term("Present CTC (Rs./annum)", f("presentCtc", "Present CTC", { placeholder: "e.g. 6,00,000" })),
+    term("Revised CTC (Rs./annum)", f("revisedCtc", "Revised CTC", { placeholder: "e.g. 7,20,000" })),
     term("Effective Date", f("effectiveDate", "Effective Date", { placeholder: "e.g. 1 April 2026", date: true })),
     term("Designation", f("designation", "Designation", { placeholder: "e.g. Accounts Executive" })),
     para(

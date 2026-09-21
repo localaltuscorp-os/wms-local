@@ -421,8 +421,35 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
   {
     key: "billing",
     label: "Billing",
-    note: "The revenue ledger. Product selection reads the product master.",
-    children: [{ key: "billing.ledger", label: "Billing Ledger", routes: ["/billing"] }],
+    note:
+      "The revenue ledger plus the document engine — quotations, proforma " +
+      "invoices and tax invoices. Product selection reads the product master.",
+    children: [
+      { key: "billing.ledger", label: "Billing Ledger", routes: ["/billing"] },
+      { key: "billing.documents", label: "Documents", routes: ["/billing/documents"] },
+      {
+        key: "billing.documents.new",
+        label: "New Document",
+        routes: ["/billing/documents/new"],
+      },
+      {
+        key: "billing.documents.detail",
+        label: "Document Detail",
+        routes: ["/billing/documents/[id]"],
+      },
+      {
+        key: "billing.documents.email",
+        label: "Email a Document",
+        routes: ["/billing/documents/[id]/email"],
+      },
+      { key: "billing.contracts", label: "All Contracts", routes: ["/billing/contracts"] },
+      { key: "billing.contracts.new", label: "Create Contract", routes: ["/billing/contracts/new"] },
+      {
+        key: "billing.contracts.detail",
+        label: "Contract Detail",
+        routes: ["/billing/contracts/[id]", "/billing/contracts/[id]/edit"],
+      },
+    ],
   },
 
   {
@@ -714,6 +741,34 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             label: "Upload Master",
             routes: ["/admin/upload-master"],
             note: "The bulk-import template files (Tasks, Goals, Accounts). View = download; Edit = upload/replace and delete, applied sitewide.",
+          },
+          {
+            key: "admin.masters.billing-profiles",
+            label: "Billing Profiles",
+            routes: ["/admin/billing-profiles"],
+          },
+          {
+            key: "admin.masters.billing-customers",
+            label: "Billing Customers",
+            routes: ["/admin/billing-customers"],
+          },
+          {
+            key: "admin.masters.billing-payment-terms",
+            label: "Payment Terms",
+            routes: ["/admin/billing-payment-terms"],
+          },
+          {
+            key: "admin.masters.billing-sac-codes",
+            label: "SAC Codes",
+            routes: ["/admin/billing-sac-codes"],
+          },
+          {
+            // Same `outstanding_products` rows as the Product Master above —
+            // this node governs the BILLING columns view of them, so it rides
+            // on the product master's own edit right.
+            key: "admin.masters.billing-products",
+            label: "Product Billing Fields",
+            routes: ["/admin/billing-products"],
           },
           {
             key: "admin.masters.client-locations",

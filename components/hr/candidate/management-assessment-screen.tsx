@@ -1182,7 +1182,7 @@ function OutcomeCard({
         <div className="mt-4">
           <FieldLabel label="Proposed Salary" icon={<IndianRupee size={13} />}>
             <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-bold text-ink-subtle">₹</span>
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-bold text-ink-subtle">Rs.</span>
               <input
                 type="text"
                 value={proposedSalary}

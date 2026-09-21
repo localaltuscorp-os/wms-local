@@ -25,12 +25,12 @@ import {
 } from "./cycle-fields";
 
 // Live total wants paise precision (an 18% GST total is rarely round), so use a
-// local 2-dp formatter rather than lib/format's whole-rupee formatInr.
-const totalFmt = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 2,
-});
+// local 2-dp formatter rather than lib/format's whole-rupee formatInr. Same
+// "Rs. " prefix and Indian grouping as formatInr — only the decimals differ.
+const totalFmt = {
+  format: (n: number) =>
+    `Rs. ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(n)}`,
+};
 
 // iter-2: the New Contract form offers only 0% / 18% GST.
 const GST_OPTIONS = [
@@ -406,7 +406,7 @@ export function OutstandingFormDialog({
 
             {/* Amount & GST */}
             <Section title="Amount & GST">
-              <Field label="Amount (₹)" required>
+              <Field label="Amount (Rs.)" required>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -716,7 +716,7 @@ function CycleSubForm(p: SubFormProps) {
               />
             </Field>
           </div>
-          <Field label="Amount (₹)" required>
+          <Field label="Amount (Rs.)" required>
             <input
               type="number"
               inputMode="decimal"

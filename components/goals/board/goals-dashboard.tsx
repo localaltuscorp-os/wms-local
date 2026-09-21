@@ -1556,10 +1556,10 @@ function AccountabilityCallout({ model }: { model: Model }) {
       <SectionHeader
         icon={<Target size={17} strokeWidth={2.2} />}
         title="Measures"
-        subtitle="₹ and quantity targets across these goals"
+        subtitle="Rs. and quantity targets across these goals"
       />
       <p className="text-[13px] font-semibold text-ink-subtle">
-        No ₹ or quantity targets set on these goals - attainment is tracked by self-rated / reviewed progress
+        No Rs. or quantity targets set on these goals - attainment is tracked by self-rated / reviewed progress
         only.
       </p>
       <div className="mt-3 flex items-center gap-2">
@@ -1641,7 +1641,7 @@ function ActualVsTargetPanel({ rows }: { rows: Row[] }) {
       ) : (
         <ul className="flex flex-col gap-4">
           {bars.map((b) => {
-            const fmt = (n: number) => (b.isRupee ? `₹${fmtNum(n)}` : fmtNum(n));
+            const fmt = (n: number) => (b.isRupee ? `Rs. ${fmtNum(n)}` : fmtNum(n));
             const tone = b.pct >= 100 ? GREEN : b.pct >= 60 ? AMBER : "var(--color-altus-red-deep)";
             return (
               <li key={b.label}>

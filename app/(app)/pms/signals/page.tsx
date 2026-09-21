@@ -36,7 +36,7 @@ function currentPeriod(): string {
 
 const INR = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 function rupee(n: number): string {
-  return `₹${INR.format(Math.round(n))}`;
+  return `Rs. ${INR.format(Math.round(n))}`;
 }
 
 const RECOGNITION_STATUS: Record<RecognitionRow["status"], { label: string; color: string }> = {

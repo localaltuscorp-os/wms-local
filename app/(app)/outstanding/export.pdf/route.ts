@@ -26,7 +26,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const inr = (n: number) =>
-  "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  "Rs." + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 export async function GET(request: Request): Promise<Response> {
   let me;
@@ -255,7 +255,7 @@ function drawStatBand(
     { value: String(total), label: "ENTRIES", accent: COLORS.ink },
     { value: inr(totalBalance), label: "BALANCE", accent: "#D97706" },
     { value: String(overdue), label: "OVERDUE", accent: COLORS.brand },
-    { value: inr(overdueAmt), label: "OVERDUE ₹", accent: COLORS.brand },
+    { value: inr(overdueAmt), label: "OVERDUE Rs.", accent: COLORS.brand },
   ];
 
   const y = doc.y + 12;

@@ -66,7 +66,7 @@ export const ONBOARDING_SECTIONS: OnbSection[] = [
     title: "Previous Employment",
     hint: "Write NA everywhere if this is your first job.",
     fields: [
-      { key: "lastCtc", label: "Last Drawn CTC (₹/yr)", type: "text", required: r, hint: "NA if first job", w: "md" },
+      { key: "lastCtc", label: "Last Drawn CTC (Rs./yr)", type: "text", required: r, hint: "NA if first job", w: "md" },
       { key: "lastDesignation", label: "Designation", type: "text", required: r, w: "md" },
       { key: "lastCompanyName", label: "Last Company Name", type: "text", required: r, w: "lg" },
       { key: "lastCompanyAddress", label: "Last Company Address", type: "text", required: r, w: "xl" },

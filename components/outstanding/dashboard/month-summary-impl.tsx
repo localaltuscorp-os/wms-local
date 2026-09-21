@@ -133,7 +133,7 @@ export function MonthSummaryPanel({
                 <tr>
                   <Th>Month</Th>
                   <Th align="right">No. of Cases</Th>
-                  <Th align="right">Value (₹)</Th>
+                  <Th align="right">Value (Rs.)</Th>
                 </tr>
               </thead>
               <tbody>

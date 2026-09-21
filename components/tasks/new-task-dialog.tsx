@@ -8,6 +8,7 @@ import { X, Upload, Loader2 } from "lucide-react";
 import { NewTaskForm } from "./new-task-form";
 import { TasksBulkEntry } from "./tasks-bulk-entry";
 import { loadNewTaskOptions } from "@/app/(app)/tasks/actions";
+import type { PlanPickerNode } from "@/lib/queries/project-plan";
 
 interface Props {
   /** Optional defaults — usually pre-fill initiator = current user. */
@@ -21,6 +22,8 @@ type Options = {
   clients: string[];
   subjects: string[];
   projectNodes: { id: string; label: string }[];
+  /** The cascading Project → Milestone → Result → Action picker's rows. */
+  planNodes: PlanPickerNode[];
   /** Admin-only: may create a new client/subject from the pickers. */
   canAddRoster: boolean;
 };
@@ -216,7 +219,7 @@ export function NewTaskDialog({ defaultInitiatorId }: Props) {
                 employees={opts.employees}
                 clients={opts.clients}
                 subjects={opts.subjects}
-                projectNodes={opts.projectNodes}
+                planNodes={opts.planNodes}
                 canAddRoster={opts.canAddRoster}
                 onSuccess={onSuccess}
                 defaults={{ initiatorId: defaultInitiatorId }}

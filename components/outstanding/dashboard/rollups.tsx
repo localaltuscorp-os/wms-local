@@ -74,7 +74,7 @@ function RollupCard({
                 <Th>{nameLabel}</Th>
                 <Th align="right">Not Due</Th>
                 <Th align="right">Overdue</Th>
-                <Th align="right">Balance (₹)</Th>
+                <Th align="right">Balance (Rs.)</Th>
               </tr>
             </thead>
             <tbody>

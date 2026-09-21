@@ -254,7 +254,7 @@ describe("checklistProgress", () => {
 });
 
 describe("the Doer Status vocabulary", () => {
-  it("is the WMS Tasks six, and a fresh row is Not Started", () => {
+  it("is the WMS Tasks doer list, and a fresh row is Not Started", () => {
     expect([...CHECK_STATUSES]).toEqual([
       "dont_know",
       "not_started",
@@ -262,6 +262,9 @@ describe("the Doer Status vocabulary", () => {
       "follow_up",
       "need_info",
       "done",
+      // Joined the doer axis with the two-axis split — "I am not going to do
+      // this" is a report, not a ruling. See lib/status/axes.ts.
+      "abandoned",
     ]);
     expect(DEFAULT_STATUS).toBe("not_started");
     expect(checkStatusLabel("dont_know")).toBe("Not Read");

@@ -4,7 +4,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import { projectNodes, tasks, employees, taskTimeRollup } from "@/db/schema";
 import type { TaskStatus, TaskPriority } from "@/db/enums";
-import type { PlanKind } from "@/lib/project-plan/levels";
+import { type PlanKind, toLetters } from "@/lib/project-plan/levels";
 
 /**
  * Project Plan — the read side.
@@ -80,6 +80,10 @@ export interface PlanNode {
   /** Reference links (migration 0214). Empty when there are none — and empty
    *  for EVERY row when the migrations are unapplied, see `loadPlanExtras`. */
   links: string[];
+  /** The client, HELD on the Project and null on every row that merely inherits
+   *  it. `clientForNode` is the walk that answers "which client is this row
+   *  for"; this field only says whether the row is the one that decides. */
+  clientName: string | null;
   /** The shared WMS/Calendar task record. Null on containers and unscheduled rows. */
   task: PlanTaskRef | null;
   children: PlanNode[];
@@ -153,21 +157,26 @@ interface PlanExtras {
   /** The CONTAINER row's own priority. An executable row's lives on its task. */
   priority: TaskPriority | null;
   links: string[];
+  /** The client, set on the PROJECT and inherited by everything below it. Null
+   *  on the rows that inherit rather than hold it — resolve those with
+   *  `clientForNode`, which walks up to the one that does. */
+  clientName: string | null;
 }
 
-const EMPTY_EXTRAS: PlanExtras = { priority: null, links: [] };
+const EMPTY_EXTRAS: PlanExtras = { priority: null, links: [], clientName: null };
 
 async function loadPlanExtras(): Promise<Map<string, PlanExtras>> {
   const out = new Map<string, PlanExtras>();
   try {
     const rows = (await db.execute(sql`
-      SELECT id, priority, links
+      SELECT id, priority, links, client_name
       FROM project_nodes
       WHERE is_archived = false
     `)) as unknown as Array<{
       id: string;
       priority: string | null;
       links: string[] | null;
+      client_name: string | null;
     }>;
     for (const r of rows) {
       out.set(r.id, {
@@ -175,6 +184,7 @@ async function loadPlanExtras(): Promise<Map<string, PlanExtras>> {
         // A text[] arrives as a JS array; guard anyway so a driver that hands
         // back a string can't put a bare character per "link" on screen.
         links: Array.isArray(r.links) ? r.links : [],
+        clientName: r.client_name?.trim() ? r.client_name : null,
       });
     }
   } catch {
@@ -290,6 +300,7 @@ export async function listPlanTree(): Promise<PlanNode[]> {
       progressPercent: meta.progressPercent,
       priority: extras.priority,
       links: extras.links,
+      clientName: extras.clientName,
       task: taskByNode.get(r.id) ?? null,
       children: [],
     });
@@ -362,4 +373,201 @@ export async function tasksForNodes(nodeIds: string[]): Promise<Array<{ id: stri
     .from(tasks)
     .where(and(inArray(tasks.projectNodeId, nodeIds), eq(tasks.archived, false)));
   return rows.flatMap((r) => (r.nodeId ? [{ id: r.id, nodeId: r.nodeId }] : []));
+}
+
+/**
+ * THE CLIENT A ROW BELONGS TO — walked up to the Project that owns it.
+ *
+ * A client is set once, on the Project (see the New item dialog), and every row
+ * beneath it inherits that one answer. This is the walk that resolves it, and
+ * it is deliberately a walk rather than a copied column on each row: a copy
+ * would let a milestone disagree with its own project the moment someone
+ * corrected the project's client, and a plan whose rows name two clients cannot
+ * be filed against either.
+ *
+ * Returns the NEAREST ancestor's client that is actually set — so a project
+ * created before clients existed (they are null on every pre-0226 row) does not
+ * blank out a client someone later put on a milestone by hand.
+ *
+ * Null when nothing in the chain has one, which is a real answer: an unfiled
+ * plan. The task sync writes that null through rather than inventing a value.
+ */
+export async function clientForNode(nodeId: string): Promise<string | null> {
+  const rows = (await db.execute(sql`
+    WITH RECURSIVE up AS (
+      SELECT id, parent_id, client_name, 0 AS depth
+        FROM project_nodes WHERE id = ${nodeId}
+      UNION ALL
+      SELECT n.id, n.parent_id, n.client_name, up.depth + 1
+        FROM project_nodes n JOIN up ON up.parent_id = n.id
+    )
+    SELECT client_name FROM up
+     WHERE client_name IS NOT NULL AND btrim(client_name) <> ''
+     ORDER BY depth ASC
+     LIMIT 1
+  `)) as unknown as Array<{ client_name: string | null }>;
+  return rows[0]?.client_name ?? null;
+}
+
+/** One row in the task form's cascading Project → Milestone → Result → Action
+ *  picker. Flat on purpose: the cascade is four filters over one list, which is
+ *  one query instead of four round-trips as the user works down the chain. */
+export interface PlanPickerNode {
+  id: string;
+  kind: PlanKind;
+  parentId: string | null;
+  name: string;
+}
+
+/**
+ * Every live plan row a task can be filed under, down to Action.
+ *
+ * SUB-ACTIONS AND BELOW ARE EXCLUDED. The picker's deepest choice is an Action,
+ * because choosing one means "make this task a SUB-action of it" — there is
+ * nothing to pick below that, and offering a sub-action would imply a level the
+ * hierarchy does not have room for under it.
+ */
+export async function listPlanPickerNodes(): Promise<PlanPickerNode[]> {
+  const rows = await db
+    .select({
+      id: projectNodes.id,
+      kind: projectNodes.kind,
+      parentId: projectNodes.parentId,
+      name: projectNodes.name,
+    })
+    .from(projectNodes)
+    .where(
+      and(
+        eq(projectNodes.isArchived, false),
+        inArray(projectNodes.kind, ["project", "milestone", "result", "action"]),
+      ),
+    )
+    .orderBy(asc(projectNodes.sortOrder), asc(projectNodes.name));
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind as PlanKind,
+    parentId: r.parentId,
+    name: r.name,
+  }));
+}
+
+/**
+ * WHERE A ROW SITS — the project, milestone and result above it, each named and
+ * numbered.
+ *
+ * For the detail views. A task or an action tells you what it is; it does not
+ * tell you which project it belongs to, and "which project is this, and which
+ * milestone and result under it?" is the first question anyone asks of a row
+ * they opened from a task list.
+ *
+ * THE RESULT JOINED THE PROJECT AND MILESTONE (Manan, 2026-09-15: "in Detailed
+ * View of any Task or Action I should see the names of project, milestone with
+ * milestone no and results with results no"). It was project + milestone only,
+ * which named the top and the middle of the chain and left out the level the
+ * work is actually counted against.
+ *
+ * EVERY NUMBER IS DERIVED, NOT STORED — the same rule the whole module follows
+ * for refs (`refFor`): each is the 1-based position among its siblings, in the
+ * plan's own order. Storing them would give a row a number that disagrees with
+ * the table the moment anything is reordered, so this recomputes them from the
+ * same ordering the board sorts by. The result uses spreadsheet LETTERS (RA,
+ * RB … RZ, RAA) because that is what the board labels it.
+ *
+ * ONE recursive walk up plus one sibling query per named level — three small
+ * indexed reads, not a read per ancestor.
+ *
+ * Null for a task that is not filed into a plan, which is most of them.
+ */
+export interface PlanBreadcrumb {
+  projectId: string;
+  projectName: string;
+  /** "P2" — the project's own ref, numbered among all projects. */
+  projectRef: string;
+  milestoneId: string | null;
+  milestoneName: string | null;
+  /** "M3". Null when the row sits directly under its project. */
+  milestoneRef: string | null;
+  resultId: string | null;
+  resultName: string | null;
+  /** "RB" — spreadsheet letters, as the plan board labels results. Null when
+   *  the row sits above the result level or was filed without one. */
+  resultRef: string | null;
+}
+
+export async function planBreadcrumbForNode(
+  nodeId: string,
+): Promise<PlanBreadcrumb | null> {
+  // Walk up to the root, keeping every step — the project, milestone and result
+  // are three known kinds on that chain rather than three more queries.
+  const chain = (await db.execute(sql`
+    WITH RECURSIVE up AS (
+      SELECT id, parent_id, kind, name, 0 AS depth
+        FROM project_nodes WHERE id = ${nodeId}
+      UNION ALL
+      SELECT n.id, n.parent_id, n.kind, n.name, up.depth + 1
+        FROM project_nodes n JOIN up ON up.parent_id = n.id
+    )
+    SELECT id, kind, name FROM up ORDER BY depth DESC
+  `)) as unknown as Array<{ id: string; kind: string; name: string }>;
+
+  const project = chain.find((r) => r.kind === "project");
+  if (!project) return null;
+  const milestone = chain.find((r) => r.kind === "milestone") ?? null;
+  const result = chain.find((r) => r.kind === "result") ?? null;
+
+  // The ordinals, each read from the same ordering the board renders in.
+  const projects = (await db.execute(sql`
+    SELECT id FROM project_nodes
+     WHERE parent_id IS NULL AND kind = 'project' AND is_archived = false
+     ORDER BY sort_order ASC, name ASC
+  `)) as unknown as Array<{ id: string }>;
+  const projectIndex = projects.findIndex((p) => p.id === project.id);
+
+  let milestoneRef: string | null = null;
+  if (milestone) {
+    const i = await ordinalAmongSiblings(project.id, "milestone", milestone.id);
+    milestoneRef = i === null ? null : `M${i}`;
+  }
+
+  let resultRef: string | null = null;
+  if (result && milestone) {
+    // Numbered among its OWN milestone's results — the parent is the milestone,
+    // never the project, so RA under M1 and RA under M2 are different rows and
+    // both are correct.
+    const i = await ordinalAmongSiblings(milestone.id, "result", result.id);
+    resultRef = i === null ? null : `R${toLetters(i)}`;
+  }
+
+  return {
+    projectId: project.id,
+    projectName: project.name,
+    projectRef: projectIndex === -1 ? "P?" : `P${projectIndex + 1}`,
+    milestoneId: milestone?.id ?? null,
+    milestoneName: milestone?.name ?? null,
+    milestoneRef,
+    resultId: result?.id ?? null,
+    resultName: result?.name ?? null,
+    resultRef,
+  };
+}
+
+/**
+ * The 1-based position of `childId` among the `kind` children of `parentId`, or
+ * null when it is not among them.
+ *
+ * An archived-out-from-under row is not in the list; it keeps its name and
+ * loses only its number, rather than claiming someone else's.
+ */
+async function ordinalAmongSiblings(
+  parentId: string,
+  kind: string,
+  childId: string,
+): Promise<number | null> {
+  const siblings = (await db.execute(sql`
+    SELECT id FROM project_nodes
+     WHERE parent_id = ${parentId} AND kind = ${kind} AND is_archived = false
+     ORDER BY sort_order ASC, name ASC
+  `)) as unknown as Array<{ id: string }>;
+  const i = siblings.findIndex((s) => s.id === childId);
+  return i === -1 ? null : i + 1;
 }

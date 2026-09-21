@@ -314,7 +314,7 @@ export function CcMaster({
                     <CellTd><CellSelect value={rec.tallyEntry} options={CC_TALLY} busy={rb} onChange={(v) => setField(c.id, "tallyEntry", v, true)} /></CellTd>
                     <CellTd><CellSelect value={rec.balanceTally} options={CC_BALANCE} busy={rb} onChange={(v) => setField(c.id, "balanceTally", v, true)} /></CellTd>
                     <CellTd><CellText value={rec.ccPaidDate} busy={rb} placeholder="date" onChange={(v) => setField(c.id, "ccPaidDate", v, false)} onCommit={(v) => setField(c.id, "ccPaidDate", v, true)} /></CellTd>
-                    <CellTd><CellText value={rec.ccPaidAmt} busy={rb} placeholder="₹" onChange={(v) => setField(c.id, "ccPaidAmt", v, false)} onCommit={(v) => setField(c.id, "ccPaidAmt", v, true)} /></CellTd>
+                    <CellTd><CellText value={rec.ccPaidAmt} busy={rb} placeholder="Rs." onChange={(v) => setField(c.id, "ccPaidAmt", v, false)} onCommit={(v) => setField(c.id, "ccPaidAmt", v, true)} /></CellTd>
                     <CellTd><CellText value={rec.intFinChgs} busy={rb} placeholder="0" onChange={(v) => setField(c.id, "intFinChgs", v, false)} onCommit={(v) => setField(c.id, "intFinChgs", v, true)} /></CellTd>
                     <CellTd><CellSelect value={rec.chgReversed} options={CC_YESNO} busy={rb} onChange={(v) => setField(c.id, "chgReversed", v, true)} /></CellTd>
                     <CellTd><CellText value={rec.notes} busy={rb} placeholder="notes" wide onChange={(v) => setField(c.id, "notes", v, false)} onCommit={(v) => setField(c.id, "notes", v, true)} /></CellTd>
@@ -445,7 +445,7 @@ function CardYearDrawer({ card, fyStartYear, monthRows, onClose }: {
                     <CellTd><CellSelect value={rec.tallyEntry} options={CC_TALLY} busy={rb} onChange={(v) => setField(col.month, "tallyEntry", v, true)} /></CellTd>
                     <CellTd><CellSelect value={rec.balanceTally} options={CC_BALANCE} busy={rb} onChange={(v) => setField(col.month, "balanceTally", v, true)} /></CellTd>
                     <CellTd><CellText value={rec.ccPaidDate} busy={rb} placeholder="date" onChange={(v) => setField(col.month, "ccPaidDate", v, false)} onCommit={(v) => setField(col.month, "ccPaidDate", v, true)} /></CellTd>
-                    <CellTd><CellText value={rec.ccPaidAmt} busy={rb} placeholder="₹" onChange={(v) => setField(col.month, "ccPaidAmt", v, false)} onCommit={(v) => setField(col.month, "ccPaidAmt", v, true)} /></CellTd>
+                    <CellTd><CellText value={rec.ccPaidAmt} busy={rb} placeholder="Rs." onChange={(v) => setField(col.month, "ccPaidAmt", v, false)} onCommit={(v) => setField(col.month, "ccPaidAmt", v, true)} /></CellTd>
                     <CellTd><CellText value={rec.intFinChgs} busy={rb} placeholder="0" onChange={(v) => setField(col.month, "intFinChgs", v, false)} onCommit={(v) => setField(col.month, "intFinChgs", v, true)} /></CellTd>
                     <CellTd><CellSelect value={rec.chgReversed} options={CC_YESNO} busy={rb} onChange={(v) => setField(col.month, "chgReversed", v, true)} /></CellTd>
                     <CellTd><CellText value={rec.notes} busy={rb} placeholder="notes" wide onChange={(v) => setField(col.month, "notes", v, false)} onCommit={(v) => setField(col.month, "notes", v, true)} /></CellTd>

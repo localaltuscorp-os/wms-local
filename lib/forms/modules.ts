@@ -115,7 +115,7 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
     icon: "Receipt",
     requestFields: [
       { key: "expense_for", label: "Expense For", type: "text", required: true, placeholder: "What was this spend for?" },
-      { key: "amount", label: "Amount ₹", type: "number", required: true, placeholder: "e.g. 1500" },
+      { key: "amount", label: "Amount Rs.", type: "number", required: true, placeholder: "e.g. 1500" },
       { key: "expense_date", label: "Expense Date", type: "date", required: true },
       { key: "product", label: "Product Name", type: "product" },
       /**

@@ -9,6 +9,7 @@ import {
   type InductionItem,
 } from "@/lib/queries/training";
 import { listEmployeeOptions } from "@/lib/queries/employees";
+import { formatDate } from "@/lib/format";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,18 +18,11 @@ export function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: MOBILE_CORS });
 }
 
-/** `YYYY-MM-DD` → "3 Jun 2026". Wrapped in `new Date` (noon UTC) so a bare
- *  date string never trips a timezone / string→Date bug. */
+/** `YYYY-MM-DD` → "03-Jun-2026". `formatDate` reads a bare date string as a
+ *  LOCAL calendar day, which is what the noon-UTC wrapper here used to buy. */
 function fmtDate(iso: string | null): string {
   if (!iso) return "";
-  const d = new Date(`${iso}T12:00:00Z`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  return formatDate(iso);
 }
 
 /** Which material kind the row is — drives the mobile screen's leading glyph.
