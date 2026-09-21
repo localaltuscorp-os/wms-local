@@ -19,7 +19,7 @@ partial bundles used on the way here, kept for reference.
 one-time wipe that already ran on 17 Sep. It is in `migrations/` for the
 record and is deliberately NOT in the combined bundle. Do not run it.
 
-## Migrations (46)
+## Migrations (51)
 
 | File | Came with | When | Who |
 |---|---|---|---|
@@ -39,16 +39,20 @@ record and is deliberately NOT in the combined bundle. Do not run it.
 | `0222_job_description.sql` | 703aec68 | 11 Sep 19:33 | MananVasa-support |
 | `0223_clear_registered_devices.sql` | 3debc41f | 11 Sep 19:18 | OMJ |
 | `0224_device_name_replaces_bios_serial.sql` | 3debc41f | 11 Sep 19:18 | OMJ |
+| `0225_candidate_intake_merge.sql` | 88c2a053 | 18 Sep 13:10 | Rakesh Dubey |
 | `0225_candidate_policy_signature_image.sql` | 43b4bba0 | 13 Sep 05:39 | Rudra |
 | `0225_employee_master.sql` | 96cca2c7 | 16 Sep 10:59 | OMJ |
 | `0225_hr_records_drive.sql` | a1861cbb | 16 Sep 11:45 | localaltuscorp-os |
 | `0225_jd_assignment_targets.sql` | 45c0b275 | 12 Sep 18:50 | MananVasa-support |
 | `0226_billing_master.sql` | 96cca2c7 | 16 Sep 10:59 | OMJ |
+| `0226_capability_grants.sql` | 88c2a053 | 18 Sep 13:10 | Rakesh Dubey |
 | `0226_employee_policy_typed_signatures.sql` | 43b4bba0 | 13 Sep 05:39 | Rudra |
 | `0226_jd_rank_ladder_26.sql` | 45c0b275 | 12 Sep 18:50 | MananVasa-support |
 | `0227_entity_code_prefixes.sql` | 96cca2c7 | 16 Sep 10:59 | OMJ |
+| `0227_permission_node_settings.sql` | 88c2a053 | 18 Sep 13:10 | Rakesh Dubey |
 | `0228_employee_schedule_settings.sql` | 96cca2c7 | 16 Sep 10:59 | OMJ |
 | `0228_jd_entries_category.sql` | 71bdb87b | 15 Sep 18:50 | MananVasa-support |
+| `0228_letter_issue_capability.sql` | a405f56c | 18 Sep 17:34 | Rakesh Dubey |
 | `0229_dcc_calendar_events.sql` | 71bdb87b | 15 Sep 18:50 | MananVasa-support |
 | `0229_incentive_request_split.sql` | 96cca2c7 | 16 Sep 10:59 | OMJ |
 | `0230_dcc_master_items.sql` | 71bdb87b | 15 Sep 18:50 | MananVasa-support |
@@ -69,8 +73,9 @@ record and is deliberately NOT in the combined bundle. Do not run it.
 | `0240_incentive_entry_reversal.sql` | bd28dfda | 17 Sep 13:53 | OMJ |
 | `0241_template_files.sql` | 4259de0e | 17 Sep 19:21 | OMJ |
 | `0242_two_step_verification.sql` | 05ccb52e | 19 Sep 12:10 | localaltuscorp-os |
+| `0243_device_per_person.sql` | 2ebc6c6d | 19 Sep 17:30 | localaltuscorp-os |
 
-## Bundles and helper SQL (19)
+## Bundles and helper SQL (21)
 
 | File | Came with | When | Who |
 |---|---|---|---|
@@ -87,11 +92,13 @@ record and is deliberately NOT in the combined bundle. Do not run it.
 | `RUN-IN-SUPABASE-0237-0238.sql` | a416c839 | 18 Sep 20:16 | MananVasa-support |
 | `RUN-IN-SUPABASE-MAIN-MISSING-0204-0236.sql` | bc80ebd9 | 18 Sep 10:59 | localaltuscorp-os |
 | `RUN-IN-SUPABASE-OM-0225-0241.sql` | b68d5177 | 19 Sep 12:56 | localaltuscorp-os |
+| `RUN-IN-SUPABASE-SINCE-FORK-0911.sql` | 390b98a9 | 21 Sep 11:09 | localaltuscorp-os |
 | `SEED-CLIENTS-AND-SUBJECTS.sql` | 4ad12304 | 15 Sep 18:25 | Rakesh Dubey |
 | `VERIFY-0215-0224.sql` | eb83766b | 15 Sep 11:36 | localaltuscorp-os |
 | `VERIFY-0225-0226-0237-0238.sql` | 864255cf | 19 Sep 11:26 | localaltuscorp-os |
 | `VERIFY-MAIN-MISSING-0204-0236.sql` | bc80ebd9 | 18 Sep 10:59 | localaltuscorp-os |
 | `VERIFY-OM-0225-0241.sql` | b68d5177 | 19 Sep 12:56 | localaltuscorp-os |
+| `VERIFY-SINCE-FORK-0911.sql` | 390b98a9 | 21 Sep 11:09 | localaltuscorp-os |
 | `incentive-production.sql` | 96cca2c7 | 16 Sep 10:59 | OMJ |
 
 ## Not copied (6) — history and superseded material

@@ -1,5 +1,5 @@
 -- EVERY DATABASE CHANGE ON wms-local main SINCE THE FORK PUSH OF 11 SEP 2026.
--- 45 migrations, in filename order. Generated from git, comments removed
+-- 50 migrations, in filename order. Generated from git, comments removed
 -- on purpose: the Supabase SQL editor misreads an apostrophe inside a comment.
 --
 -- EXCLUDED: 0223_clear_registered_devices.sql. It is DELETE FROM mobile_devices,
@@ -1045,6 +1045,42 @@ CREATE UNIQUE INDEX IF NOT EXISTS mobile_devices_device_name_uq
   ON mobile_devices (lower(device_name))
   WHERE device_name IS NOT NULL AND kind = 'laptop';
 
+-- 0225_candidate_intake_merge.sql
+ALTER TABLE candidate_intake
+  ADD COLUMN IF NOT EXISTS merged_into_id uuid
+    REFERENCES candidate_intake(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS candidate_intake_merged_into_idx
+  ON candidate_intake (merged_into_id);
+
+CREATE TABLE IF NOT EXISTS candidate_intake_merge_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  
+  
+  retired_intake_id  uuid REFERENCES candidate_intake(id) ON DELETE SET NULL,
+  survivor_intake_id uuid REFERENCES candidate_intake(id) ON DELETE SET NULL,
+  retired_name text,  retired_mobile text,
+  survivor_name text, survivor_mobile text,
+  
+  
+  
+  transferred jsonb NOT NULL DEFAULT '[]'::jsonb,
+  skipped     jsonb NOT NULL DEFAULT '[]'::jsonb,
+  
+  
+  
+  restore_payload jsonb,
+  actor_employee_id uuid REFERENCES employees(id) ON DELETE SET NULL,
+  occurred_at timestamptz NOT NULL DEFAULT now(),
+  undone_at timestamptz,
+  undone_by_id uuid REFERENCES employees(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS candidate_intake_merge_events_retired_idx
+  ON candidate_intake_merge_events (retired_intake_id);
+CREATE INDEX IF NOT EXISTS candidate_intake_merge_events_recent_idx
+  ON candidate_intake_merge_events (occurred_at DESC);
+
 -- 0225_candidate_policy_signature_image.sql
 ALTER TABLE candidate_policy_signatures
   ADD COLUMN IF NOT EXISTS signature_path text;
@@ -1319,6 +1355,40 @@ CREATE TABLE IF NOT EXISTS billing_entity_versions (
 CREATE INDEX IF NOT EXISTS billing_entity_versions_entity_created_idx
   ON billing_entity_versions (entity_id, created_at DESC);
 
+-- 0226_capability_grants.sql
+CREATE TABLE IF NOT EXISTS capability_grants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  
+  
+  employee_email text NOT NULL,
+  capability text NOT NULL,
+  granted_by_id uuid REFERENCES employees(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT capability_grants_capability_chk
+    CHECK (capability IN ('master_admin.manage')),
+  CONSTRAINT capability_grants_uniq UNIQUE (employee_id, capability)
+);
+
+CREATE INDEX IF NOT EXISTS capability_grants_capability_idx
+  ON capability_grants (capability);
+
+CREATE TABLE IF NOT EXISTS capability_grant_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid REFERENCES employees(id) ON DELETE SET NULL,
+  employee_email text NOT NULL,
+  capability text NOT NULL,
+  action text NOT NULL CHECK (action IN ('granted','revoked')),
+  actor_employee_id uuid REFERENCES employees(id) ON DELETE SET NULL,
+  actor_email text,
+  occurred_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS capability_grant_events_employee_idx
+  ON capability_grant_events (employee_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS capability_grant_events_recent_idx
+  ON capability_grant_events (occurred_at DESC);
+
 -- 0226_employee_policy_typed_signatures.sql
 CREATE TABLE IF NOT EXISTS employee_policy_signatures (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1426,6 +1496,31 @@ ALTER TABLE paying_entities
   ADD CONSTRAINT paying_entities_code_prefix_chk
   CHECK (code_prefix IS NULL OR code_prefix ~ '^[A-Za-z]$');
 
+-- 0227_permission_node_settings.sql
+CREATE TABLE IF NOT EXISTS permission_node_settings (
+  node_key text PRIMARY KEY,                   
+  label_override text,                         
+  note_override  text,                         
+  hidden_in_matrix boolean NOT NULL DEFAULT false,  
+  sort_order integer,                          
+  updated_by_id uuid REFERENCES employees(id) ON DELETE SET NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS permission_catalog_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  node_key text NOT NULL,
+  prev_label text,  next_label text,
+  prev_note  text,  next_note  text,
+  prev_hidden boolean, next_hidden boolean,
+  prev_sort integer,   next_sort integer,
+  actor_employee_id uuid REFERENCES employees(id) ON DELETE SET NULL,
+  occurred_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS permission_catalog_events_node_idx
+  ON permission_catalog_events (node_key, occurred_at DESC);
+
 -- 0228_employee_schedule_settings.sql
 ALTER TABLE employees
   ADD COLUMN IF NOT EXISTS attendance_applicable boolean NOT NULL DEFAULT true;
@@ -1478,6 +1573,14 @@ COMMENT ON COLUMN employees.wfh_part_time_allowed IS
 
 -- 0228_jd_entries_category.sql
 alter table jd_entries add column if not exists category text;
+
+-- 0228_letter_issue_capability.sql
+ALTER TABLE capability_grants
+  DROP CONSTRAINT IF EXISTS capability_grants_capability_chk;
+
+ALTER TABLE capability_grants
+  ADD CONSTRAINT capability_grants_capability_chk
+    CHECK (capability IN ('master_admin.manage', 'hr.letters.issue'));
 
 -- 0229_dcc_calendar_events.sql
 create table if not exists dcc_calendar_events (
@@ -2244,6 +2347,22 @@ CREATE TABLE IF NOT EXISTS __schema_applied (
 
 INSERT INTO __schema_applied (filename) VALUES ('0242_two_step_verification.sql')
 ON CONFLICT DO NOTHING;
+
+-- 0243_device_per_person.sql
+DROP INDEX IF EXISTS mobile_devices_device_id_uq;
+
+CREATE UNIQUE INDEX IF NOT EXISTS mobile_devices_device_employee_uq
+  ON mobile_devices (device_id, employee_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS mobile_devices_native_device_id_uq
+  ON mobile_devices (device_id)
+  WHERE device_id NOT LIKE 'web\_%';
+
+DROP INDEX IF EXISTS mobile_devices_device_name_uq;
+
+CREATE UNIQUE INDEX IF NOT EXISTS mobile_devices_device_name_employee_uq
+  ON mobile_devices (employee_id, lower(device_name))
+  WHERE device_name IS NOT NULL AND kind = 'laptop';
 
 COMMIT;
 
