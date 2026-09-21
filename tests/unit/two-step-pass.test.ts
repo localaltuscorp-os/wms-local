@@ -130,3 +130,26 @@ describe("wiring — every way in goes through the code", () => {
     expect(fn.slice(0, fn.indexOf("\nexport "))).not.toMatch(/companyBcc|bcc:/);
   });
 });
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WHO THE SIGN-IN CODE COMES FROM
+   ════════════════════════════════════════════════════════════════════════════ */
+
+describe("the sender of the sign-in code", () => {
+  const src = readFileSync("lib/email/resend.ts", "utf8");
+
+  it("is noreply@altuscorp.in, not the environment's notification sender", () => {
+    // Asked for on 21 Sep: the one email a person reads BEFORE they are inside
+    // the app carries the company's own address.
+    expect(src).toMatch(/export const SIGN_IN_FROM =[\s\S]{0,160}noreply@altuscorp\.in/);
+    const fn = src.slice(src.indexOf("export async function sendTwoStepCodeEmail"));
+    expect(fn.slice(0, fn.indexOf("});"))).toMatch(/from:\s*SIGN_IN_FROM/);
+  });
+
+  it("can still be overridden where that domain is not verified", () => {
+    /* Resend refuses a `from` on an unverified domain and the failure is total:
+       no code arrives, so nobody can sign in. wms-local has only mananvasa.com
+       verified, which is exactly how that outage happened before. */
+    expect(src).toMatch(/process\.env\.RESEND_SIGNIN_FROM/);
+  });
+});

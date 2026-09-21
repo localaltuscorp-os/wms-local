@@ -116,6 +116,24 @@ export function getResend(): Resend | null {
 export const FROM = process.env.RESEND_FROM_EMAIL?.trim() || "Altus Corp <noreply@altuscorp.in>";
 
 /**
+ * THE SIGN-IN CODE IS SENT FROM noreply@altuscorp.in, whatever the rest of the
+ * mail uses (account holder, 21 Sep, on the fork).
+ *
+ * It is the one email a person reads before they are inside the application, so
+ * it carries the company's own address rather than whichever domain an
+ * environment happens to have verified for its notifications.
+ *
+ * ── THE ESCAPE HATCH, AND WHY IT IS NOT OPTIONAL ───────────────────────────
+ * Resend refuses a `from` on an unverified domain, and this particular failure
+ * is total: no code arrives, so NOBODY CAN SIGN IN. That is not hypothetical —
+ * it is what the note above records happening on wms-local, where only
+ * mananvasa.com is verified. So anywhere altuscorp.in is not verified, set
+ * `RESEND_SIGNIN_FROM` to a sender that is, and this yields to it.
+ */
+export const SIGN_IN_FROM =
+  process.env.RESEND_SIGNIN_FROM?.trim() || "Altus Corp <noreply@altuscorp.in>";
+
+/**
  * D12 (WMS overhaul Phase 6) — company-record BCC. When `EMAIL_BCC_ADDRESS` is
  * set (comma-separated allowed), every piece of OUTGOING CORRESPONDENCE
  * (notifications, digests, weekly-goals planner mails) is blind-copied to the
@@ -282,7 +300,8 @@ export async function sendTwoStepCodeEmail(args: {
     const resend = getResend();
     if (!resend) return { id: null, error: "RESEND_API_KEY not set" };
     const { data, error } = await resend.emails.send({
-      from: FROM,
+      // SIGN_IN_FROM, not FROM: the sign-in code comes from the company address.
+      from: SIGN_IN_FROM,
       to: args.email,
       subject: `${args.code} is your Altus Corp sign-in code`,
       react: TwoStepCodeEmail({
