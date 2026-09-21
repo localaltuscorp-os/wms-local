@@ -6,6 +6,7 @@ import {
   PERMISSION_ACTIONS,
   PERMISSION_ACTION_LABELS,
   allPermissionNodes,
+  allCatalogApiRoutes,
   allCatalogRoutes,
   isPermissionNodeKey,
   nodeChain,
@@ -43,6 +44,33 @@ function routeExists(route: string): boolean {
   for (const g of groups) {
     const dir = g ? join(ROOT, "app", g, rel) : join(ROOT, "app", rel);
     if (existsSync(join(dir, "page.tsx")) || existsSync(join(dir, "page.ts"))) return true;
+  }
+  return false;
+}
+
+/**
+ * Does a handler path resolve to a real `route.ts`?
+ *
+ * EXACT, not a prefix — deliberately stricter than `routeExists`, which accepts
+ * a prefix because a page node owns a whole subtree of URLs.
+ *
+ * An `apiRoutes` entry is one specific endpoint. If it were allowed to be a
+ * prefix, renaming `/api/hr/letters/email-pdf` to `/api/hr/letters/send` would
+ * leave the entry still "resolving" because a sibling handler exists beneath it,
+ * and the switch would name an endpoint that no longer exists. Exact paths mean
+ * that rename fails HERE. New handlers are caught from the other direction by
+ * `tests/unit/route-handler-coverage.test.ts`, which requires every `route.ts`
+ * to be governed or explicitly exempted.
+ *
+ * A dynamic segment is checked literally, matching how the page catalogue names
+ * `/hr/[stage]` — brackets ARE the directory name on disk.
+ */
+function apiRouteExists(route: string): boolean {
+  const rel = route.replace(/^\//, "");
+  const groups = ["(app)", "(admin)", ""];
+  for (const g of groups) {
+    const dir = g ? join(ROOT, "app", g, rel) : join(ROOT, "app", rel);
+    if (existsSync(join(dir, "route.ts")) || existsSync(join(dir, "route.js"))) return true;
   }
   return false;
 }
@@ -129,6 +157,54 @@ describe("permission catalogue — routes match the application", () => {
   });
 });
 
+describe("permission catalogue — API routes match the application", () => {
+  it("EVERY route-handler path the catalogue claims resolves to a real route.ts", () => {
+    // The mirror of the page check above, and the check that stops a switch
+    // naming an endpoint that has been renamed away. Named individually so the
+    // failure says WHICH endpoint moved.
+    const missing = allCatalogApiRoutes().filter((r) => !apiRouteExists(r));
+    expect(missing).toEqual([]);
+  });
+
+  it("no API route is claimed by two different nodes", () => {
+    const seen = new Map<string, string>();
+    const clashes: string[] = [];
+    for (const n of allPermissionNodes()) {
+      for (const r of n.apiRoutes ?? []) {
+        const prev = seen.get(r);
+        if (prev) clashes.push(`${r}: ${prev} and ${n.key}`);
+        else seen.set(r, n.key);
+      }
+    }
+    expect(clashes).toEqual([]);
+  });
+
+  it("no path is claimed as BOTH a page and an API route", () => {
+    // A path in both lists means two different guards read the same URL and the
+    // effective permission depends on which one the caller happened to use — the
+    // same hazard the two-nodes check exists to prevent. A path that renders a
+    // page is not a handler, and vice versa.
+    const pages = new Set(allCatalogRoutes());
+    const both = allCatalogApiRoutes().filter((r) => pages.has(r));
+    expect(both).toEqual([]);
+  });
+
+  it("every API route is absolute and has no trailing slash", () => {
+    for (const r of allCatalogApiRoutes()) {
+      expect(r.startsWith("/")).toBe(true);
+      expect(!r.endsWith("/")).toBe(true);
+    }
+  });
+
+  it("is not vacuously empty — the Letters handlers are claimed", () => {
+    // Guard against the whole feature being silently un-wired: an `apiRoutes`
+    // list nobody populates passes every assertion above while closing nothing.
+    // Letters is the worked example; if it disappears, this fails.
+    expect(allCatalogApiRoutes()).toContain("/api/hr/letters/email-pdf");
+    expect(allCatalogApiRoutes().length).toBeGreaterThanOrEqual(4);
+  });
+});
+
 describe("nodeKeyForPath", () => {
   it("prefers the most specific node", () => {
     // Both `/tasks` and `/tasks/kanban` are claimed; the child must win.
@@ -163,6 +239,48 @@ describe("nodeKeyForPath", () => {
     // The matrix simply has no opinion; the resolver treats that as allowed.
     expect(nodeKeyForPath("/some/route/nobody/classified")).toBeNull();
     expect(nodeKeyForPath("/")).toBeNull();
+  });
+
+  it("resolves a route HANDLER path to the node that governs its screen", () => {
+    // The point of apiRoutes: an endpoint is governed by the same node as the
+    // screen it serves, so revoking a module refuses its pages AND its handlers
+    // from one switch.
+    expect(nodeKeyForPath("/api/hr/letters/email-pdf")).toBe("hr.letters");
+    expect(nodeKeyForPath("/api/hr/letters/issue")).toBe("hr.letters");
+    // Query strings are stripped here too — endpoints carry them routinely.
+    expect(nodeKeyForPath("/api/hr/letters/pdf?template=appointment")).toBe("hr.letters");
+  });
+
+  it("ALREADY governs a handler nested under a page prefix — no apiRoutes entry needed", () => {
+    // This is why most of the export/download endpoints needed no catalogue
+    // change at all: they live under the page they export from, and the
+    // existing prefix rule already reaches them. `apiRoutes` exists only for a
+    // handler that sits OUTSIDE its page's path — `/api/hr/letters/*` serves
+    // `/hr/letters`, which is a different URL subtree entirely.
+    //
+    // Asserted rather than assumed, because a future tidy-up that restricted
+    // prefix matching to pages would silently un-govern ~29 endpoints that had
+    // no explicit entry to catch it.
+    expect(nodeKeyForPath("/salary/export.pdf")).toBe("accounts.payroll");
+    expect(nodeKeyForPath("/tasks/export.xlsx")).toBe("wms.tasks");
+    // A more specific sibling still wins: `/salary/documents/pdf` is governed by
+    // the Documents node, not by Payroll. Longest-prefix is preserved.
+    expect(nodeKeyForPath("/salary/documents/pdf")).toBe("accounts.payroll.documents");
+  });
+
+  it("does not let an API path match a PAGE prefix", () => {
+    // `/hr` is a page node's prefix. An endpoint under /api/hr must not be
+    // governed by it, or revoking the HR overview would take the whole API with
+    // it — and vice versa, an endpoint could never be reached by its own node.
+    expect(nodeKeyForPath("/api/hr/nothing-claims-this")).toBeNull();
+  });
+
+  it("still prefers the most specific match when a page and a handler nest", () => {
+    // `/tasks` is a page node; a deeper handler must win over its parent prefix.
+    // Asserted with real data rather than a synthetic pair: the letters node
+    // claims both `/hr/letters` (page) and the four endpoints beneath it.
+    expect(nodeKeyForPath("/hr/letters")).toBe("hr.letters");
+    expect(nodeKeyForPath("/api/hr/letters/issue-rich")).toBe("hr.letters");
   });
 });
 

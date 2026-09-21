@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth/current";
 import { isHrStaff } from "@/lib/hr/access";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getLetter } from "@/lib/hr/letters/registry";
 import type { ContentKind } from "@/lib/hr/letters/rich";
@@ -49,6 +50,12 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return new Response("Unauthorized", { status: 401 });
   }
+  // The MODULE gate, before the HR-staff gate below. `isHrStaff` admits the
+  // whole department; the matrix is what lets an administrator revoke Letters
+  // from one person inside it.
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
+
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return new Response("Too many requests", { status: 429 });
   if (!(await isHrStaff(me))) {

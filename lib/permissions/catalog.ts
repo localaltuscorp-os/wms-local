@@ -17,8 +17,17 @@
  *
  * Keeping the tree here makes the catalogue checkable: `tests/unit/
  * permission-catalog.test.ts` walks every node and asserts its routes resolve to
- * real page files on disk, that no route is claimed by two nodes, and that every
- * key is unique. A node cannot drift from the app without a test going red.
+ * real page files on disk, its route handler paths resolve to real `route.ts`
+ * files, that no route is claimed by two nodes, and that every key is unique. A
+ * node cannot drift from the app without a test going red.
+ *
+ * ── PAGES AND ENDPOINTS ARE TWO LISTS, ON PURPOSE ──────────────────────────
+ * `routes` governs pages, `apiRoutes` governs route handlers. They are separate
+ * because their integrity checks differ (a page must exist, a handler must
+ * exist) and because they are read by different guards — the `(app)` layout's
+ * `requirePathView` for pages, an explicit `requireApiView` inside each handler
+ * for endpoints, since a handler never renders a layout. See
+ * `PermissionNode.apiRoutes` for the full reasoning.
  *
  * ── THREE LEVELS, BECAUSE THE APP HAS THREE ────────────────────────────────
  * Module = a workspace (the hub cards, `lib/workspaces.ts`). Sub-module = a rail
@@ -35,6 +44,13 @@
  * Add the node, list its routes, run the tests. If a route you name does not
  * exist the catalogue test fails; if you forget to name a route it stays
  * governed by its parent, which is the safe default rather than ungoverned.
+ *
+ * Also list any ENDPOINTS behind it under `apiRoutes`. Forgetting those is the
+ * more dangerous omission of the two: a module's pages would refuse while its
+ * data endpoints kept answering, so the module would look revoked and not be
+ * revoked. `tests/unit/route-handler-coverage.test.ts` is what makes forgetting
+ * a red test rather than a silent hole — every `route.ts` must be governed by a
+ * node or appear on an allow-list with a stated reason.
  */
 
 /** The three actions the brief names. */
@@ -67,6 +83,31 @@ export interface PermissionNode {
    * Empty is legal for a pure grouping node that owns no route of its own.
    */
   routes?: readonly string[];
+  /**
+   * ROUTE-HANDLER prefixes this node governs — the same idea as `routes`, for
+   * endpoints rather than pages.
+   *
+   * ── WHY ENDPOINTS NEED THEIR OWN FIELD ─────────────────────────────────────
+   * A route handler never renders a layout, so the single `requirePathView` in
+   * `app/(app)/layout.tsx` cannot reach it. Before this field existed, revoking
+   * a module hid its pages while its endpoints kept answering: the matrix was a
+   * navigation-level restriction wearing the appearance of a security boundary.
+   * Handlers are guarded by `requireApiView` instead, resolving the node from
+   * the request path through this list.
+   *
+   * ── WHY NOT MERGE IT INTO `routes` ─────────────────────────────────────────
+   * `tests/unit/permission-catalog.test.ts` proves every `routes` entry resolves
+   * to a real `page.tsx` on disk. An API path has no page, so folding these in
+   * would either break that test or force it to weaken into meaninglessness —
+   * and that test is the reason a renamed route cannot leave a switch wired to
+   * nothing. Two lists, two integrity checks, each still meaning something.
+   *
+   * ── NOT LIMITED TO /api/** ────────────────────────────────────────────────
+   * Several handlers live under the page tree — `/accounts/cc-tracker/export`,
+   * `/events/export.xlsx`, `/goals/report.pdf` — and are just as unreachable by
+   * the layout guard. Any path that resolves to a `route.ts` belongs here.
+   */
+  apiRoutes?: readonly string[];
   /** One line for the Master Admin screen, where an administrator decides. */
   note?: string;
   children?: readonly PermissionNode[];
@@ -232,7 +273,27 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "hr.kpi", label: "HR KPI", routes: ["/hr/kpi"] },
       { key: "hr.ctc", label: "CTC", routes: ["/hr/ctc"] },
       { key: "hr.salary-slip", label: "Salary Slip", routes: ["/hr/salary-slip"] },
-      { key: "hr.letters", label: "Letters", routes: ["/hr/letters"] },
+      {
+        key: "hr.letters",
+        label: "Letters",
+        routes: ["/hr/letters"],
+        // THE HANDLERS BEHIND THE SCREEN, and the reason `apiRoutes` exists.
+        // A route handler never renders a layout, so `requirePathView` cannot
+        // reach it. Before these were listed, revoking "Letters" hid the screen
+        // while these four endpoints kept issuing, emailing and rendering PDFs
+        // — a module that looked revoked and was not. `requireApiView` reads
+        // this list from inside each handler.
+        //
+        // Note `issue-rich` and `pdf` render through headless Chromium, and
+        // `email-pdf` sends mail: the three most consequential endpoints in the
+        // module, and exactly the ones a page-only guard leaves open.
+        apiRoutes: [
+          "/api/hr/letters/email-pdf",
+          "/api/hr/letters/issue",
+          "/api/hr/letters/issue-rich",
+          "/api/hr/letters/pdf",
+        ],
+      },
       // These three have NO page at the bare segment — only children. Naming
       // the real paths keeps the catalogue test honest: a route listed here that
       // does not exist on disk is a switch wired to nothing, which is worse than
@@ -756,15 +817,31 @@ export function isPermissionNodeKey(key: string): boolean {
 }
 
 /**
- * Route prefix → node key, longest prefix first.
+ * Route prefix → node key. Page prefixes and handler prefixes are kept in
+ * separate lists (their integrity checks differ — see `PermissionNode.routes`)
+ * but are SCANNED as one, longest prefix first.
+ *
+ * Why one scan: a page and a handler can nest — `/accounts/cc-tracker` is a page
+ * and `/accounts/cc-tracker/export` is a handler — and the rule that has always
+ * held is "the MOST SPECIFIC node wins". Merging only for the lookup keeps that
+ * rule true across both kinds of route, with no special case for `/api/`.
  *
  * Sorted by descending length so `/tasks/kanban` matches `wms.tasks.kanban`
- * before `wms.tasks`. Built once; the lookup is a linear scan of ~200 entries,
+ * before `wms.tasks`. Built once; the lookup is a linear scan of ~250 entries,
  * which is far cheaper than the query it guards.
  */
-const ROUTE_INDEX: readonly { route: string; key: string }[] = FLAT.flatMap((n) =>
+const PAGE_ROUTE_INDEX: readonly { route: string; key: string }[] = FLAT.flatMap((n) =>
   (n.routes ?? []).map((route) => ({ route, key: n.key })),
-).sort((a, b) => b.route.length - a.route.length);
+);
+
+const API_ROUTE_INDEX: readonly { route: string; key: string }[] = FLAT.flatMap((n) =>
+  (n.apiRoutes ?? []).map((route) => ({ route, key: n.key })),
+);
+
+const ROUTE_INDEX: readonly { route: string; key: string }[] = [
+  ...PAGE_ROUTE_INDEX,
+  ...API_ROUTE_INDEX,
+].sort((a, b) => b.route.length - a.route.length);
 
 /**
  * The most specific node governing `pathname`, or null when nothing does.
@@ -796,7 +873,14 @@ export function nodeChain(key: string): readonly string[] {
   return [...n.ancestors, n.key];
 }
 
-/** Every route the catalogue claims — used by the catalogue test. */
+/** Every PAGE route the catalogue claims — used by the catalogue test, which
+ *  asserts each one resolves to a real `page.tsx`. */
 export function allCatalogRoutes(): readonly string[] {
-  return ROUTE_INDEX.map((r) => r.route);
+  return PAGE_ROUTE_INDEX.map((r) => r.route);
+}
+
+/** Every ROUTE-HANDLER path the catalogue claims — used by the catalogue test,
+ *  which asserts each one resolves to a real `route.ts`. */
+export function allCatalogApiRoutes(): readonly string[] {
+  return API_ROUTE_INDEX.map((r) => r.route);
 }
