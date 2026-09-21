@@ -614,6 +614,67 @@ throughout; her Firebase UID is new.
 
 ## Changelog
 
+### 2026-09-21 (later) — The permission matrix now covers every route handler
+
+**What changed**
+
+- **All 62 remaining route handlers are wired** — every `route.ts` in the app now
+  asks the matrix before answering. The debt recorded as 28/2/26 before the fork
+  merge, then 29/3/30 after it, is **zero**.
+- **28 catalogue entries added** (`apiRoutes` on HR, goals, training,
+  productivity, operations, platform and dashboard nodes), so each handler is
+  actually governed rather than merely wired.
+- **5 handlers are exempt by design**, each with its reason recorded.
+- **`tests/unit/api-guard.test.ts`** — the guard had no test of its own, only a
+  grep for its name in the coverage test.
+- **`route-handler-coverage.test.ts`** drops the "known debt, exact counts" list
+  for a stronger assertion: no handler may be unguarded at all.
+
+**The gap this closes**
+
+Revoking a module hid its screen while its endpoints kept answering, because
+`requirePathView` runs once in a layout and a layout never runs for a `route.ts`.
+The exports were the worst of it: `/salary/export.xlsx`, `/tasks/export.pdf` and
+`/attendance/export.xlsx` handed over exactly the data the hidden screen showed.
+
+**A trap worth naming: wired is not the same as enforced.** The guard returns
+`null` for a path no node claims, so a handler can call `apiViewDenial`, look
+covered, and enforce nothing — the two states are identical from outside. That is
+why the wiring and the catalogue entries had to land together, and why a new test
+asserts that every guarded handler resolves to a node or is on the exempt list.
+Without it, this whole tranche could have gone green while changing nothing.
+
+**How the wiring was done, and why it is trustworthy**
+
+62 hand-edits would have been 62 chances to differ. A codemod inserted the guard
+as the first statement of each handler body and added a `Request` parameter where
+a handler had none (Next always passes one; 9 handlers ignored it).
+
+It was **dry-run on three copies first, and the first version was wrong** — it
+applied the added parameter before the guard, shifting the insertion point and
+planting the guard *inside the signature*: `Promise<Response>` became
+`Pro` + guard + `mise<Response>`. Fixed by inserting the guard before the
+parameter, since the parameter edit sits earlier in the string.
+
+Verified after: `tsc` clean, eslint clean on all 65 changed files, suite 4177
+passed. The one failure is the known `device-exemption-login` 5s timeout
+(5021ms), unchanged from the merge and passing when given room.
+
+**One test needed fixing, and it is instructive.** `incentive-export-routes.test.ts`
+called its handlers with no arguments, which only compiled because those handlers
+took no `Request`. It now passes one, as Next does — and stubs the guard, because
+importing it drags in `lib/env.ts` and its parse of `DATABASE_URL` at module load.
+
+**Left undone, deliberately**
+
+- **EDIT is still wired in only 2 of ~108 action files.** VIEW is now enforced in
+  pages, handlers and the Admin Panel's exports; EDIT remains cosmetic outside
+  those two, which is the next tranche.
+- **The Admin Panel's 19 unwired pages** — `app/(admin)/admin/layout.tsx` still
+  checks only `isAdmin`.
+- **78 `/api/mobile/*` routes** stay exempt: wiring them needs CORS headers on
+  the refusal or the native app reports a network failure instead of a 403.
+
 ### 2026-09-21 — The fork's 54 commits land, and the matrix reaches API endpoints
 
 **What changed**

@@ -16,6 +16,7 @@ import {
   slotIndexFromMin,
 } from "@/lib/monthly-events/types";
 import type { CalendarEvent, EventCategory } from "@/lib/monthly-events/types";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /events/export.xlsx?month=YYYY-MM
@@ -66,6 +67,12 @@ function chunkWeeks<T>(days: T[]): T[][] {
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   if (!monthlyEventsEnabled()) return new Response("Not found", { status: 404 });
 
   const access = await eventsAccess();

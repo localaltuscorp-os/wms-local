@@ -5,6 +5,7 @@ import { canAccessWorkspace } from "@/lib/workspaces";
 import { parseOutstandingFilters } from "@/lib/outstanding/filters";
 import { loadOutstandingDashboard } from "@/lib/queries/outstanding";
 import { todayISO, rollingHorizon } from "@/lib/outstanding/horizon";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 import {
   OUTSTANDING_ENTRY_HEADERS,
   COLLECTION_EXPORT_HEADERS,
@@ -45,6 +46,12 @@ function xlsxResponse(wb: XLSX.WorkBook, filename: string): Response {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   // Sales room — the whole receivables dataset lives behind this route, so it
   // must enforce Sales access itself (the layout gate never runs for routes).
   let me;

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { codeOf } from "../fixtures/source-code";
+import { nodeKeyForPath } from "@/lib/permissions/catalog";
 
 /**
  * EVERY ROUTE HANDLER MUST BE GOVERNED, OR EXPLICITLY EXEMPTED WITH A REASON.
@@ -143,32 +144,44 @@ const EXEMPT: readonly Exemption[] = [
 ];
 
 /**
- * KNOWN DEBT. Exact counts, so this can only be reduced by wiring handlers.
- * Update the number as each tranche lands.
+ * GUARDED, BUT NO SINGLE MODULE OWNS THEM.
  *
- * ⚠️ A COUNT THAT ROSE IS NOT NECESSARILY A REGRESSION. These numbers went UP by
- * 1/1/4 on 2026-09-21 because the fork merge (ad554486 → da534f7c) landed six new
- * unguarded handlers, not because an existing guard was removed — see the reason
- * on each entry. A DROP is always work done. When a count changes, say which.
+ * These five handlers ARE wired — each calls `apiViewDenial` — but their paths
+ * resolve to no catalogue node, so the guard returns `null` and lets them
+ * through. That turns out to be right for every one of them, for a different
+ * reason each time.
+ *
+ * They are listed rather than left implicit because a guard on a path nobody
+ * claims is INDISTINGUISHABLE from a guard that works: both leave the handler
+ * running. This is the one way the suite could go green while enforcing nothing,
+ * so the test below fails on any handler that is guarded AND unowned AND not on
+ * this list. The distinction cannot rot quietly.
  */
-const PENDING: readonly { prefix: string; count: number; reason: string }[] = [
+const UNOWNED_BY_DESIGN: readonly Exemption[] = [
   {
-    prefix: "app/(app)/",
-    count: 29,
+    prefix: "app/api/ai/transcribe/",
     reason:
-      "TRANCHES 1–2 — the export/download handlers. These are the highest-value remaining: revoking a module hides its screen while `/salary/export.xlsx`, `/tasks/export.pdf` and their siblings still hand over the same data. Most resolve to a node already (they sit under the page's prefix), so wiring is one guard call each with no catalogue change. 29 = 28 before the fork merge + `salary/incentive-breakup/[employeeId]`, which hands over one person's incentive breakdown.",
+      "Module-AGNOSTIC by construction: every module's Notes mic posts here (tasks, accounts, …). No single node owns it, and pinning it to one would revoke transcription for every other module instead of revoking a module.",
   },
   {
-    prefix: "app/(admin)/",
-    count: 3,
+    prefix: "app/api/avatar/[id]/",
     reason:
-      "TRANCHE 2 — the admin activity and employee exports, alongside closing the Admin Panel pages. 3 = 2 before the fork merge + `admin/upload-master/download/[key]`, which serves a bulk-import template by key.",
+      "Redirects to a signed URL for ONE COLLEAGUE's picture, and avatars render in every list in the app. A 403 here paints a broken image into an unrelated module rather than enforcing a boundary.",
   },
   {
-    prefix: "app/api/",
-    count: 30,
+    prefix: "app/api/broadcasts/popup/",
     reason:
-      "TRANCHE 3 — the HR, reports, training and media endpoints, including the policy downloads and the PDF/email renderers. Several render through headless Chromium or send mail, so they matter as much as the Letters four that are already closed. 30 = 26 before the fork merge + 4 the merge added: `hr/records/[personId]/zip` (one person's WHOLE HR record), `hr/records/drive/{connect,run}` (Drive OAuth + the job that writes to it) and `jd/attachments/[id]`. The zip and the two Drive handlers are the most sensitive of the four and want wiring first.",
+      "DELIBERATELY always-200 and says so: it is polled every few seconds on every authed page, so a refusal would make every open tab log a 403 forever. Its scope is the signed-in employee, fixed inside the handler rather than by a module switch.",
+  },
+  {
+    prefix: "app/api/meet/events/",
+    reason:
+      "Inbound Google Pub/Sub webhook, verified by its own request auth. The caller is Google's infrastructure, not an employee, so there is nobody for the matrix to deny.",
+  },
+  {
+    prefix: "app/api/push/subscribe/",
+    reason:
+      "The caller's OWN Web Push subscription for this device. Revoking a module must not stop someone receiving notifications they are still entitled to.",
   },
 ];
 
@@ -184,66 +197,74 @@ describe("route handler coverage", () => {
     });
   }
 
+  /** `app/(app)/salary/export.xlsx/route.ts` -> `/salary/export.xlsx` */
+  function urlOf(rel: string): string {
+    const path = rel
+      .replace(/^app\//, "")
+      .replace(/\/route\.tsx?$/, "")
+      .replace(/\/route\.jsx?$/, "");
+    return "/" + path.split("/").filter((s) => !/^\(.*\)$/.test(s)).join("/");
+  }
+
+  /**
+   * Guarded, but the path they guard resolves to no node — so the guard allows.
+   */
+  function guardedButUnowned(): string[] {
+    return handlers.filter((rel) => {
+      if (EXEMPT.some((e) => rel.startsWith(e.prefix))) return false;
+      if (UNOWNED_BY_DESIGN.some((e) => rel.startsWith(e.prefix))) return false;
+      if (!codeOf(rel).includes("apiViewDenial")) return false;
+      return nodeKeyForPath(urlOf(rel)) === null;
+    });
+  }
+
   it("finds the handlers at all — a walk that silently finds nothing proves nothing", () => {
     expect(handlers.length).toBeGreaterThan(100);
   });
 
-  it("every exemption and pending entry states a real reason", () => {
-    for (const e of EXEMPT) {
+  it("every exemption states a real reason", () => {
+    for (const e of [...EXEMPT, ...UNOWNED_BY_DESIGN]) {
       expect(e.reason.length, `${e.prefix} needs a real reason`).toBeGreaterThan(40);
     }
-    for (const p of PENDING) {
-      expect(p.reason.length, `${p.prefix} needs a real reason`).toBeGreaterThan(40);
-    }
   });
 
-  it("the debt is EXACTLY the recorded size — drift in either direction fails", () => {
-    // A new unguarded handler raises a count; wiring one lowers it. Both are
-    // failures until the numbers are updated, so this list cannot rot into a
-    // rubber stamp and cannot be quietly ignored.
-    const open = unguarded();
-    const actual = new Map<string, number>();
-    for (const rel of open) {
-      for (const p of PENDING) {
-        if (rel.startsWith(p.prefix)) {
-          actual.set(p.prefix, (actual.get(p.prefix) ?? 0) + 1);
-          break;
-        }
-      }
-    }
-
-    const mismatches: string[] = [];
-    for (const p of PENDING) {
-      const got = actual.get(p.prefix) ?? 0;
-      if (got !== p.count) {
-        mismatches.push(`${p.prefix}: recorded ${p.count}, found ${got}`);
-      }
-    }
-    // Anything unguarded that belongs to NO pending area is a handler nobody has
-    // classified — the failure this test exists for.
-    const unclassified = open.filter((rel) => !PENDING.some((p) => rel.startsWith(p.prefix)));
-
-    expect(unclassified).toEqual([]);
-    expect(mismatches).toEqual([]);
+  it("NO handler is left unguarded — the debt is paid, and this is what keeps it paid", () => {
+    // This list was 56, then 62 after the fork merge. It is now empty, so the
+    // assertion is the strong one: any handler that arrives without a guard
+    // fails immediately, rather than incrementing a number somebody has to
+    // remember to update.
+    expect(unguarded()).toEqual([]);
   });
 
-  it("prints the live inventory, so the next tranche is planned from real counts", () => {
+  it("every guard actually enforces — a guarded handler must resolve to a node", () => {
+    // THE HOLE THIS CLOSES. The test above is satisfied by the mere PRESENCE of
+    // `apiViewDenial(...)`. But the guard returns `null` for a path no node
+    // claims, so a handler can be wired, look covered, and enforce nothing at
+    // all. The two states are identical from the outside.
+    //
+    // Asserted over the whole app rather than by reading a diff: every guarded
+    // handler either resolves to a node or is one of the five that genuinely has
+    // no owning module, each with its reason recorded above.
+    expect(guardedButUnowned()).toEqual([]);
+  });
+
+  it("reports the working set, so a failure above is actionable without a search", () => {
     const open = unguarded();
-    const byArea = new Map<string, string[]>();
-    for (const rel of open) {
-      const area = rel.split("/").slice(0, 3).join("/");
-      const list = byArea.get(area) ?? [];
-      list.push(rel);
-      byArea.set(area, list);
-    }
+    const unowned = guardedButUnowned();
+    const guarded = handlers.length - EXEMPT.filter((e) => handlers.some((h) => h.startsWith(e.prefix))).length;
+
+    console.log(
+      `\n[route-handler-coverage] ${handlers.length} handlers:` +
+        `\n  ${guarded - open.length} guarded` +
+        `\n  ${handlers.length - guarded} exempt (no employee identity to govern)` +
+        `\n  ${UNOWNED_BY_DESIGN.length} guarded but module-agnostic (listed by design)` +
+        `\n  ${open.length + unowned.length} OUTSTANDING`,
+    );
     if (open.length) {
-      console.log(
-        `\n[route-handler-coverage] ${open.length} handler(s) still to wire:\n` +
-          [...byArea.entries()]
-            .sort((a, b) => b[1].length - a[1].length)
-            .map(([area, list]) => `  ${String(list.length).padStart(3)}  ${area}`)
-            .join("\n"),
-      );
+      console.log("  unguarded:\n" + open.map((r) => "    " + r).join("\n"));
+    }
+    if (unowned.length) {
+      console.log("  guarded-but-unowned:\n" + unowned.map((r) => "    " + r).join("\n"));
     }
     expect(true).toBe(true);
   });

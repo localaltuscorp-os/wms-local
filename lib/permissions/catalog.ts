@@ -129,6 +129,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         key: "wms.dashboard",
         label: "WMS Dashboard",
         routes: ["/dashboard"],
+        // The share icons every dashboard SECTION carries. One pair of
+        // endpoints serves the aging heatmap, delivery spread, bottom
+        // performers and the exec tables alike, so they are governed by the
+        // dashboard rather than by any one section.
+        apiRoutes: ["/api/reports/section-pdf", "/api/reports/send-email"],
         children: [
           { key: "wms.dashboard.done", label: "Done Dashboard", routes: ["/dashboard/done"] },
           {
@@ -272,18 +277,48 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "hr.overview", label: "HR Overview", routes: ["/hr", "/hr/overview"] },
       { key: "hr.stages", label: "Lifecycle Stages", routes: ["/hr/[stage]"] },
       { key: "hr.candidates", label: "Candidates", routes: ["/hr/candidates"] },
-      { key: "hr.intake", label: "Candidate Intake", routes: ["/hr/intake"] },
+      {
+        key: "hr.intake",
+        label: "Candidate Intake",
+        routes: ["/hr/intake"],
+        // The Aadhaar auto-fill flow and the resume renderer all serve this ONE
+        // screen, and all of them sit under `/api/hr/` — outside the page's own
+        // path, so prefix matching alone would never reach them. The DigiLocker
+        // pair returns to `?return=/hr/intake?draft=…`, which is what fixes the
+        // owner node rather than a guess.
+        apiRoutes: [
+          "/api/hr/aadhaar-lookup",
+          "/api/hr/aadhaar/digilocker/result",
+          "/api/hr/aadhaar/digilocker/start",
+          "/api/hr/aadhaar/methods",
+          "/api/hr/candidate-resume/pdf",
+        ],
+      },
       { key: "hr.evaluation", label: "Evaluation", routes: ["/hr/evaluation"] },
       {
         key: "hr.management-assessment",
         label: "Management Assessment",
         routes: ["/hr/management-assessment"],
+        apiRoutes: ["/api/hr/management-assessment/upload"],
       },
       { key: "hr.hiring-analytics", label: "Hiring Analytics", routes: ["/hr/hiring-analytics"] },
       { key: "hr.selected-candidates", label: "Selected Candidates", routes: ["/hr/selected-candidates"] },
       { key: "hr.rejected-candidates", label: "Rejected Candidates", routes: ["/hr/rejected-candidates"] },
       { key: "hr.induction", label: "Induction", routes: ["/hr/induction"] },
-      { key: "hr.record", label: "HR Record", routes: ["/hr/record"] },
+      {
+        key: "hr.record",
+        label: "HR Record",
+        routes: ["/hr/record"],
+        // One person's ENTIRE HR record leaves through `/zip`, and the two Drive
+        // handlers are what write it out of the building. All four belong to the
+        // record screen, so revoking HR Record must close them together.
+        apiRoutes: [
+          "/api/hr/docket",
+          "/api/hr/records/[personId]/zip",
+          "/api/hr/records/drive/connect",
+          "/api/hr/records/drive/run",
+        ],
+      },
       { key: "hr.kpi", label: "HR KPI", routes: ["/hr/kpi"] },
       { key: "hr.ctc", label: "CTC", routes: ["/hr/ctc"] },
       /* MOVED TO THE EMPLOYEES ROOM (2026-09-12). Both paths are listed: the
@@ -312,6 +347,10 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
           "/api/hr/letters/issue",
           "/api/hr/letters/issue-rich",
           "/api/hr/letters/pdf",
+          // The editor's own "Send Email" composer. It sits at a different
+          // prefix from its four siblings, which is exactly why it was missed:
+          // a name-based sweep of `/api/hr/letters/*` would not have caught it.
+          "/api/hr/send-letter-email",
         ],
       },
       // These three have NO page at the bare segment — only children. Naming
@@ -319,13 +358,33 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       // does not exist on disk is a switch wired to nothing, which is worse than
       // no switch. `/hr/policies/[key]` is the literal directory name, and the
       // prefix match means it governs every policy under it.
-      { key: "hr.policies", label: "Policies", routes: ["/hr/policies/[key]"] },
+      {
+        key: "hr.policies",
+        label: "Policies",
+        routes: ["/hr/policies/[key]"],
+        // Three handlers, not one: `download-all` is the whole policy library as
+        // a ZIP, and `acknowledge` writes. A screen-only guard leaves all three
+        // answering after the module is revoked.
+        apiRoutes: [
+          "/api/hr/policies/acknowledge",
+          "/api/hr/policies/download",
+          "/api/hr/policies/download-all",
+        ],
+      },
       {
         key: "hr.forms",
         label: "Forms",
         routes: ["/hr/forms/[id]", "/hr/all-forms", "/hr/my-forms"],
+        apiRoutes: ["/api/hr/forms/[id]/email", "/api/hr/forms/[id]/pdf"],
       },
-      { key: "hr.exit", label: "Exit Process", routes: ["/hr/exit/interview"] },
+      {
+        key: "hr.exit",
+        label: "Exit Process",
+        routes: ["/hr/exit/interview"],
+        // The register lives under /api/admin/ but reports the same departures
+        // this module owns, so it is governed here rather than by an admin node.
+        apiRoutes: ["/api/admin/exit-register"],
+      },
       { key: "hr.holidays", label: "Holiday List", routes: ["/hr/holidays", "/holidays"] },
       {
         key: "hr.helpdesk",
@@ -498,6 +557,8 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         key: "goals.weekly",
         label: "Weekly Goals",
         routes: ["/goals/weekly", "/goals/week", "/weekly-goals"],
+        // `?employeeId=&weekStart=` — one week of one person's goals, rendered.
+        apiRoutes: ["/goals/report.pdf"],
         children: [
           {
             key: "goals.weekly.team",
@@ -514,7 +575,12 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "goals.review", label: "Goals Review", routes: ["/goals/review"] },
       { key: "goals.approve", label: "Goals Approve", routes: ["/goals/approve"] },
       { key: "goals.commit", label: "Commit", routes: ["/goals/commit"] },
-      { key: "goals.import", label: "Import", routes: ["/goals/import"] },
+      {
+        key: "goals.import",
+        label: "Import",
+        routes: ["/goals/import"],
+        apiRoutes: ["/goals/template.xlsx"],
+      },
       { key: "goals.cascade", label: "Cascade", routes: ["/goals/cascade"] },
       { key: "goals.plan", label: "Plan", routes: ["/goals/plan"] },
       { key: "goals.recycle-bin", label: "Recycle Bin", routes: ["/goals/recycle-bin"] },
@@ -542,7 +608,12 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
           { key: "productivity.appraisal.culture", label: "Culture", routes: ["/appraisal/culture"] },
         ],
       },
-      { key: "productivity.report", label: "Report", routes: ["/productivity/report"] },
+      {
+        key: "productivity.report",
+        label: "Report",
+        routes: ["/productivity/report"],
+        apiRoutes: ["/api/productivity/report/[id]/pdf"],
+      },
     ],
   },
 
@@ -562,13 +633,26 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     key: "training",
     label: "Training",
     children: [
-      { key: "training.library", label: "Library", routes: ["/training"] },
+      {
+        key: "training.library",
+        label: "Library",
+        routes: ["/training"],
+        apiRoutes: ["/api/training/upload"],
+      },
       { key: "training.calendar", label: "Calendar", routes: ["/training/calendar"] },
       { key: "training.self-learning", label: "Self-Learning", routes: ["/training/self-learning"] },
       { key: "training.share", label: "Share", routes: ["/training/share"] },
       { key: "training.obligations", label: "Obligations", routes: ["/training/obligations"] },
       { key: "training.induction", label: "Induction", routes: ["/training/induction"] },
-      { key: "training.feedback", label: "Feedback", routes: ["/training/feedback"] },
+      {
+        key: "training.feedback",
+        label: "Feedback",
+        routes: ["/training/feedback"],
+        // Both are called from the feedback form/detail, and both are module
+        // DOCUMENTS rather than a bare upload: one stores the recording, the
+        // other transcribes it.
+        apiRoutes: ["/api/training/feedback-upload", "/api/training/summarize-audio"],
+      },
       { key: "training.dashboard", label: "Training Dashboard", routes: ["/training/dashboard"] },
       { key: "training.new", label: "New Training", routes: ["/training/new"] },
     ],
@@ -602,6 +686,9 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         key: "operations.masters",
         label: "Masters",
         routes: ["/operations/masters", "/hr/recruitment-jd"],
+        // SOP files hang off a job description, and the JDs live here since the
+        // Recruitment JDs move — hence this node rather than an `hr.*` one.
+        apiRoutes: ["/api/jd/attachments/[id]"],
       },
     ],
   },
@@ -850,8 +937,21 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     label: "Platform",
     note: "Surfaces that belong to no single room and are reached from the avatar menu.",
     children: [
-      { key: "platform.hub", label: "Hub", routes: ["/hub"] },
-      { key: "platform.profile", label: "Profile", routes: ["/profile"] },
+      {
+        key: "platform.hub",
+        label: "Hub",
+        routes: ["/hub"],
+        // Entering a workspace from the hub. The handler applies the workspace's
+        // own rule as well; this is the module-level half, so revoking the Hub
+        // closes the way in rather than only hiding the tiles.
+        apiRoutes: ["/ws/[id]"],
+      },
+      {
+        key: "platform.profile",
+        label: "Profile",
+        routes: ["/profile"],
+        apiRoutes: ["/api/profile/avatar"],
+      },
       { key: "platform.inbox", label: "Inbox", routes: ["/inbox"] },
       { key: "platform.archived", label: "Archived", routes: ["/archived"] },
       { key: "platform.documents", label: "Documents", routes: ["/documents"] },

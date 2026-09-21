@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { pushSubscriptions } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * M4 Commit 3c — Web Push subscribe / unsubscribe.
@@ -33,6 +34,12 @@ const SubSchema = z.object({
 });
 
 export async function POST(req: Request) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   const me = await requireUser();
   const json = (await req.json().catch(() => ({}))) as unknown;
   const parsed = SubSchema.safeParse(json);
@@ -59,6 +66,12 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   const me = await requireUser();
   const json = (await req.json().catch(() => ({}))) as { endpoint?: unknown };
   const endpoint = typeof json?.endpoint === "string" ? json.endpoint : null;

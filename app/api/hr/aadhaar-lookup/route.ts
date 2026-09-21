@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 import {
   mapKycResponse,
   resolveProvider,
@@ -56,6 +57,12 @@ const AUTH_HEADER_DEFAULT = "authorization";
 const REQUEST_TIMEOUT_MS = 12_000;
 
 export async function POST(req: Request) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   let me;
   try {
     me = await requireUser();

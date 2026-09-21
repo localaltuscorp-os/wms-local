@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { db, workSessions, employees } from "@/lib/db";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * Google Meet participant webhook — Phase-2 "project / remote work sessions",
@@ -40,6 +41,12 @@ interface PubSubEnvelope {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   // Verify the caller is Google's Pub/Sub push (OIDC bearer + audience). Until a
   // Pub/Sub subscription is wired to this endpoint no requests arrive, so this
   // route is naturally inert — no on/off flag needed.

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/current";
 import { isHrStaff } from "@/lib/hr/access";
 import { isDigiLockerConfigured } from "@/lib/digilocker/config";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /api/hr/aadhaar/methods — which Aadhaar auto-fill routes are live.
@@ -17,7 +18,13 @@ import { isDigiLockerConfigured } from "@/lib/digilocker/config";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   try {
     const me = await requireUser();
     if (!(await isHrStaff(me))) {

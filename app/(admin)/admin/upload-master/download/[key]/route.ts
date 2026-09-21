@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth/current";
 import { templateDef } from "@/lib/templates/registry";
 import { buildTemplate, resolveTemplate } from "@/lib/templates/resolve";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,9 +15,15 @@ export const dynamic = "force-dynamic";
  * a member of the Goals/Accounts/Tasks room.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ key: string }> },
 ): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   await requireAdmin();
 
   const { key } = await params;

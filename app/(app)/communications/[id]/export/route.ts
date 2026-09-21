@@ -2,6 +2,7 @@ import { csvResponse, exportFilename } from "@/lib/exports/csv";
 import { getBroadcastWithStats } from "@/lib/ecos/queries";
 import { RECEIPT_STATUS_LABELS } from "@/lib/ecos/labels";
 import { formatDate } from "@/lib/format";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /communications/[id]/export
@@ -16,9 +17,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   const { id } = await params;
   const data = await getBroadcastWithStats(id);
   if (!data) {

@@ -11,6 +11,7 @@ import { getLetter } from "@/lib/hr/letters/registry";
 import { normalizeGender } from "@/lib/hr/pronouns";
 import { letterDate } from "@/lib/hr/letters/roster";
 import { sendLetterPdfEmail } from "@/lib/email/hr-letter-email";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,12 @@ const Schema = z.object({
 });
 
 export async function POST(req: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   let me;
   try {
     me = await requireUser();

@@ -4,6 +4,7 @@ import { goalsCascadeEnabled } from "@/lib/goals/flag";
 import { goalScopeFor } from "@/lib/goals/scope";
 import { renderGoalsReportPdf } from "@/lib/goals/whatsapp-dispatch";
 import { weekNoOf } from "@/lib/goals/fy-calendar";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /goals/report.pdf?employeeId=<uuid>&weekStart=<yyyy-mm-dd>
@@ -22,6 +23,12 @@ const Query = z.object({
 });
 
 export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   if (!goalsCascadeEnabled()) return new Response("Not found", { status: 404 });
 
   let me;
