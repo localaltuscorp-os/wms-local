@@ -246,7 +246,7 @@ export function DailyGoalsDashboard({ payload }: { payload: DashPayload }) {
         {individual ? null : (
           <div className="flex flex-wrap items-center gap-2">
             <Picker
-              label="Department"
+              label="Function"
               value={filters.department ?? ""}
               options={options.departments.map((d) => ({ value: d, label: d }))}
               onChange={(v) => go({ dept: v || null, lead: null, emp: null })}

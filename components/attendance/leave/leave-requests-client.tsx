@@ -144,13 +144,13 @@ export function LeaveRequestsClient({
 
         {departmentOptions.length > 0 && (
           <select
-            aria-label="Filter by department"
+            aria-label="Filter by Function"
             value={filters.departmentId}
             onChange={(e) => setParam("dept", e.target.value)}
             className={`${LEAVE_INPUT_CLASS} w-auto min-w-[140px] py-1.5`}
             style={LEAVE_INPUT_RING}
           >
-            <option value="">All departments</option>
+            <option value="">All Functions</option>
             {departmentOptions.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}

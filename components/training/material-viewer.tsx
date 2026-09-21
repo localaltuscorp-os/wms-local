@@ -143,7 +143,7 @@ export function MaterialViewer({
         {assistedByNames.length > 0 && <Meta label="Assisted by">{assistedByNames.join(", ")}</Meta>}
         {material.partOfInduction && (
           <Meta label="Induction">
-            <span className="inline-flex items-center gap-1.5"><GraduationCap size={15} style={{ color: "var(--color-purple-deep)" }} /> {inductionDeptNames.length ? inductionDeptNames.join(", ") : "All flagged departments"}</span>
+            <span className="inline-flex items-center gap-1.5"><GraduationCap size={15} style={{ color: "var(--color-purple-deep)" }} /> {inductionDeptNames.length ? inductionDeptNames.join(", ") : "All flagged Functions"}</span>
           </Meta>
         )}
         <Meta label="Added on">{material.addedOn}</Meta>

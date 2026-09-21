@@ -221,7 +221,7 @@ export function BottomPerformersSection({
       columns: [
         { label: "Rank", weight: 0.6, align: "right" },
         { label: "Member", weight: 3, align: "left" },
-        { label: "Department", weight: 2, align: "left" },
+        { label: "Function", weight: 2, align: "left" },
         { label: "Total tasks", weight: 1, align: "right", tone: "count" },
         { label: "On-time rate", weight: 1.2, align: "right" },
         { label: "Avg delay", weight: 1.2, align: "right" },

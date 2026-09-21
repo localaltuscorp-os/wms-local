@@ -180,11 +180,11 @@ export function AiInsightsPanel({
 
           {insights.departmentCallouts.length > 0 && (
             <PointList
-              title="Department call-outs"
+              title="Function call-outs"
               icon={<Building2 size={13} strokeWidth={2.5} />}
               accent={TEAL}
               points={insights.departmentCallouts}
-              emptyText="No department stood out."
+              emptyText="No Function stood out."
             />
           )}
         </div>

@@ -99,6 +99,7 @@ function weeklyToGoalDTO(
     goalType: g.goalType ?? null,
     status: g.status ?? null,
     reviewedById: g.reviewedById ?? null,
+    approverStatus: g.approverStatus ?? null,
     delegatedTo: g.delegatedTo ?? null,
     clonedFromId: g.carriedFromId ?? null,
     incentiveEnabled: false,
@@ -734,6 +735,9 @@ export function WeeklyCascadeBoard({
             variant="weekly"
             actions={WEEKLY_TABLE_ACTIONS}
             detailKind="weekly"
+            meId={me.id}
+            // Viewing someone else's week means managing them (the page scopes it).
+            managesViewed={scopeEmp !== me.id}
             visibleCols={visibleCols}
             colOrder={colOrder}
             onColOrderChange={setColOrder}

@@ -10,13 +10,13 @@
  * `checkoutCloseoutGateOn` (Finish Day ⇒ may clock OUT). Both read a real env
  * kill-switch and have NO role exemptions, so those switches are the only way
  * to unblock attendance if it jams again — keep them settable in prod without
- * a deploy. The DCC punch-path gates stay force-disabled inline in
+ * a deploy. The punch-path gates stay force-disabled inline in
  * app/(app)/attendance/actions.ts and the mobile punch route.
  *
  * TWO polarities, by design (design §10, locked decision 1):
  *  - The **cascade module** itself ships ENABLED behind `GOALS_CASCADE_OFF`
  *    (set it to `'true'` to 404 the whole `/goals` surface) — mirrors the house
- *    convention (MONTHLY_EVENTS_OFF / DCC_GATE_OFF). NOT a login/attendance gate,
+ *    convention (MONTHLY_EVENTS_OFF). NOT a login/attendance gate,
  *    left untouched.
  *  - Every **daily-flow GATE** ships DISABLED (default OFF) — now hard-off.
  *
@@ -71,19 +71,11 @@ export function managerTaskGateOn(): boolean {
   return false;
 }
 
-/** The DCC manager-review login gate ("Review your team"). FORCE-OFF. */
-export function dccReviewGateOn(): boolean {
-  return false;
-}
-
 /**
- * The two remaining COMPULSORY login walls (plan/DCC before you start).
+ * The COMPULSORY "plan your day before you start" login wall.
  * FORCE-OFF so nothing blocks login/attendance.
  */
 export function loginPlanGateOn(): boolean {
-  return false;
-}
-export function loginDccGateOn(): boolean {
   return false;
 }
 

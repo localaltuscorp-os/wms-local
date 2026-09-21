@@ -302,6 +302,16 @@ export async function getSelfAttendanceSummary(
         attFullDayMinutes: employees.attFullDayMinutes,
         attHalfDayMinutes: employees.attHalfDayMinutes,
         weeklyTargetMinutes: employees.weeklyTargetMinutes,
+        // 0228 — the resolver needs these to know whether this person's
+        // attendance is graded at all, and which Saturdays they owe.
+        attendanceApplicable: employees.attendanceApplicable,
+        sat1Working: employees.sat1Working,
+        sat2Working: employees.sat2Working,
+        sat3Working: employees.sat3Working,
+        sat4Working: employees.sat4Working,
+        sat5Working: employees.sat5Working,
+        satOfficialStart: employees.satOfficialStart,
+        satOfficialEnd: employees.satOfficialEnd,
       })
       .from(employees)
       .where(eq(employees.id, employeeId))
@@ -371,6 +381,12 @@ export async function getSelfAttendanceSummary(
     payBasis === "monthly_ctc" && profile ? Number(profile.annualCtc) / 12 : 0;
 
   const salaryLostForMonth = (rows: DayRow[], monthKey: string): number => {
+    // Attendance not applicable (0228): nothing about this person's punches can
+    // cost them salary, so there is no loss to project. The grader already
+    // credits their days and the sum below would come out at ₹0 regardless —
+    // stating it here keeps the rule readable at the one place that talks
+    // about loss, and immune to a future change in how those days are coded.
+    if (!cfg.attendanceApplicable) return 0;
     // Frozen/legacy months keep the figure they were paid — see
     // PAYROLL_HOURS_FROM for why re-deriving them would rewrite history.
     if (monthKey < PAYROLL_HOURS_FROM) return 0;

@@ -145,25 +145,30 @@ const EXEMPT: readonly Exemption[] = [
 /**
  * KNOWN DEBT. Exact counts, so this can only be reduced by wiring handlers.
  * Update the number as each tranche lands.
+ *
+ * ⚠️ A COUNT THAT ROSE IS NOT NECESSARILY A REGRESSION. These numbers went UP by
+ * 1/1/4 on 2026-09-21 because the fork merge (ad554486 → da534f7c) landed six new
+ * unguarded handlers, not because an existing guard was removed — see the reason
+ * on each entry. A DROP is always work done. When a count changes, say which.
  */
 const PENDING: readonly { prefix: string; count: number; reason: string }[] = [
   {
     prefix: "app/(app)/",
-    count: 28,
+    count: 29,
     reason:
-      "TRANCHES 1–2 — the export/download handlers. These are the highest-value remaining: revoking a module hides its screen while `/salary/export.xlsx`, `/tasks/export.pdf` and their siblings still hand over the same data. Most resolve to a node already (they sit under the page's prefix), so wiring is one guard call each with no catalogue change.",
+      "TRANCHES 1–2 — the export/download handlers. These are the highest-value remaining: revoking a module hides its screen while `/salary/export.xlsx`, `/tasks/export.pdf` and their siblings still hand over the same data. Most resolve to a node already (they sit under the page's prefix), so wiring is one guard call each with no catalogue change. 29 = 28 before the fork merge + `salary/incentive-breakup/[employeeId]`, which hands over one person's incentive breakdown.",
   },
   {
     prefix: "app/(admin)/",
-    count: 2,
+    count: 3,
     reason:
-      "TRANCHE 2 — the admin activity and employee exports, alongside closing the 19 unwired Admin Panel pages.",
+      "TRANCHE 2 — the admin activity and employee exports, alongside closing the Admin Panel pages. 3 = 2 before the fork merge + `admin/upload-master/download/[key]`, which serves a bulk-import template by key.",
   },
   {
     prefix: "app/api/",
-    count: 26,
+    count: 30,
     reason:
-      "TRANCHE 3 — the HR, reports, training and media endpoints, including the policy downloads and the PDF/email renderers. Several render through headless Chromium or send mail, so they matter as much as the Letters four that are already closed.",
+      "TRANCHE 3 — the HR, reports, training and media endpoints, including the policy downloads and the PDF/email renderers. Several render through headless Chromium or send mail, so they matter as much as the Letters four that are already closed. 30 = 26 before the fork merge + 4 the merge added: `hr/records/[personId]/zip` (one person's WHOLE HR record), `hr/records/drive/{connect,run}` (Drive OAuth + the job that writes to it) and `jd/attachments/[id]`. The zip and the two Drive handlers are the most sensitive of the four and want wiring first.",
   },
 ];
 

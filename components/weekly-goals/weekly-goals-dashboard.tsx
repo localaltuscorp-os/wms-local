@@ -323,7 +323,7 @@ const STAR_FRAMEWORK: { title: string; points: string[] }[] = [
     "Attendance and punctuality",
   ] },
   { title: "Selection process", points: [
-    "Department heads submit employee nominations",
+    "Function heads submit employee nominations",
     "Nominations are reviewed by the Evaluation Committee",
     "Employees are assessed against the defined evaluation criteria",
     "Scores are consolidated and reviewed",
@@ -442,7 +442,7 @@ function StarOfMonth({ star }: { star: GlobalRanking | null }) {
           </div>
 
           <div className="mt-7 pt-5" style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}>
-            <h4 className="text-[12px] font-black uppercase tracking-[0.08em] mb-3" style={{ color: "#FFD66B" }}>Department-specific considerations</h4>
+            <h4 className="text-[12px] font-black uppercase tracking-[0.08em] mb-3" style={{ color: "#FFD66B" }}>Function-specific considerations</h4>
             <div className="grid grid-cols-3 max-md:grid-cols-1 gap-x-5 gap-y-4">
               {STAR_DEPARTMENTS.map((d) => (
                 <div key={d.dept}>

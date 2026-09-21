@@ -1,7 +1,7 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { onboardingSubmissions, employees, designations } from "@/db/schema";
+import { onboardingSubmissions, employees, designations, candidateIntake } from "@/db/schema";
 import { getCurrentEmployee } from "@/lib/auth/current";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { withRetry } from "@/lib/db/with-timeout";
@@ -67,6 +67,9 @@ export async function listOnboardingInviteTargets(): Promise<
 }
 
 export interface OnboardingFileView {
+  /** True when this file was carried over from another record (the candidate
+   *  intake photo), not attached on this form. */
+  carriedOver?: boolean;
   fileName: string;
   mime: string | null;
   size: number | null;
@@ -94,9 +97,17 @@ export async function getOnboarding(employeeId: string): Promise<OnboardingView 
           avatarUrl: employees.avatarUrl,
           designation: designations.name,
           sub: onboardingSubmissions,
+          /**
+           * The photo this person already gave us as a CANDIDATE, if they came
+           * through hiring. Joined here rather than fetched separately because
+           * it is one nullable column on a row this query already reaches
+           * through `employees.candidate_intake_id`.
+           */
+          candidatePhotoPath: candidateIntake.photoPath,
         })
         .from(employees)
         .leftJoin(designations, eq(employees.designationId, designations.id))
+        .leftJoin(candidateIntake, eq(employees.candidateIntakeId, candidateIntake.id))
         .leftJoin(onboardingSubmissions, eq(onboardingSubmissions.employeeId, employees.id))
         .where(eq(employees.id, employeeId))
         .limit(1),
@@ -108,6 +119,27 @@ export async function getOnboarding(employeeId: string): Promise<OnboardingView 
   const sub = row.sub;
   const rawFiles = (sub?.files as Record<string, OnboardingFileRef> | null) ?? {};
   const paths = Object.values(rawFiles).map((f) => f.path).filter((p): p is string => !!p);
+
+  /**
+   * THE SELFIE CARRIES OVER FROM THE INTERVIEW FORM.
+   *
+   * A candidate uploads their photo on the Candidate Interview Form before
+   * they are hired; asking the same person for the same photograph again on
+   * day one is a question we already know the answer to.
+   *
+   * Only when they have NOT attached one here. An uploaded selfie always wins:
+   * the carried-over photo is a default, not an override, or editing your own
+   * onboarding form would silently revert to the hiring photo.
+   *
+   * It is signed and shown but NOT copied into `onboarding_submissions.files`.
+   * The candidate intake row owns that object, and duplicating the key into a
+   * second table would leave two records pointing at one file with nothing
+   * saying which may delete it. On submit the employee either keeps what is
+   * shown or attaches their own; the stored form is unchanged by merely
+   * displaying this.
+   */
+  const carriedSelfie = row.candidatePhotoPath;
+  if (carriedSelfie && !rawFiles.selfie) paths.push(carriedSelfie);
 
   const signed = new Map<string, string>();
   if (paths.length) {
@@ -128,6 +160,19 @@ export async function getOnboarding(employeeId: string): Promise<OnboardingView 
       size: f.size ?? null,
       signedUrl: f.path ? signed.get(f.path) ?? null : f.link ?? null,
       isLink,
+    };
+  }
+
+  if (carriedSelfie && !files.selfie) {
+    files.selfie = {
+      fileName: "Photo from your interview form",
+      mime: null,
+      size: null,
+      signedUrl: signed.get(carriedSelfie) ?? null,
+      isLink: false,
+      /** Says where it came from, so the form can label it rather than imply
+       *  the employee attached it themselves. */
+      carriedOver: true,
     };
   }
 

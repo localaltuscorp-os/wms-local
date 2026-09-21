@@ -558,6 +558,74 @@ export async function editEmployee(
     patch.attendanceBiometricExempt = parsed.data.attendanceBiometricExempt;
   }
 
+  /* ── EMPLOYEE MASTER (0225) ─────────────────────────────────────────────
+     The consolidated master saves through THIS action rather than a second
+     one, so these fields get the same validation, the same audit event and the
+     same cache invalidation as every other employee edit.
+
+     Each is written only when the key is PRESENT. Absent means "leave it
+     alone"; an explicit null means "clear it". Collapsing those two would let
+     the workspace blank a field simply by not rendering it, which is exactly
+     what the bulk-edit safety note above warns against. */
+  const D = parsed.data;
+  if (D.functionId !== undefined) patch.functionId = D.functionId;
+  if (D.shiftTypeId !== undefined) patch.shiftTypeId = D.shiftTypeId;
+  if (D.payingEntityId !== undefined) patch.payingEntityId = D.payingEntityId;
+  if (D.designationId !== undefined) patch.designationId = D.designationId;
+  if (D.isTeamLead !== undefined) patch.isTeamLead = D.isTeamLead;
+  if (D.trainPass !== undefined) patch.trainPass = D.trainPass;
+  // Dates arrive as yyyy-mm-dd or "" / null to clear. `joinedAt` is a timestamp
+  // column while the other two are `date`, so only it is widened to a Date —
+  // handing a bare string to a timestamptz column stores midnight UTC, which
+  // reads back a day early east of Greenwich.
+  if (D.joinedAt !== undefined) {
+    patch.joinedAt = D.joinedAt === null || D.joinedAt === "" ? null : new Date(`${D.joinedAt}T00:00:00+05:30`);
+  }
+  if (D.probationEnd !== undefined) {
+    patch.probationEnd = D.probationEnd === null || D.probationEnd === "" ? null : D.probationEnd;
+  }
+  if (D.lastWorkingDay !== undefined) {
+    patch.lastWorkingDay = D.lastWorkingDay === null || D.lastWorkingDay === "" ? null : D.lastWorkingDay;
+  }
+  // The two mails. NOTE neither is the LOGIN address (`employees.email`), which
+  // is bound to the Firebase account and changes through the invite flow only —
+  // editing it here would silently break sign-in.
+  if (D.officialEmail !== undefined) {
+    const v = D.officialEmail;
+    patch.officialEmail = v === null || v === "" ? null : v.toLowerCase();
+  }
+  if (D.personalEmail !== undefined) {
+    const v = D.personalEmail;
+    patch.personalEmail = v === null || v === "" ? null : v.toLowerCase();
+  }
+
+  /* ── Employee schedule settings (0228) ───────────────────────────────────
+     Same `!== undefined` gate as every field above, and for the same reason:
+     these arrive from a workspace that renders one section at a time, so a
+     section the admin never opened must contribute no keys at all. Writing a
+     `false` for an absent boolean would silently switch attendance off for
+     somebody who only came in to fix a phone number.
+
+     The two Mon–Fri columns are the SAME ones the Attendance schedule screen
+     writes (`updateEmployeeAttendanceSchedule`). That is deliberate: one
+     concept, one pair of columns, so the two screens cannot disagree about
+     when this person's day starts. `""` clears back to the org default,
+     matching how that screen normalises.                                    */
+  if (D.attendanceApplicable !== undefined) patch.attendanceApplicable = D.attendanceApplicable;
+  if (D.sat1Working !== undefined) patch.sat1Working = D.sat1Working;
+  if (D.sat2Working !== undefined) patch.sat2Working = D.sat2Working;
+  if (D.sat3Working !== undefined) patch.sat3Working = D.sat3Working;
+  if (D.sat4Working !== undefined) patch.sat4Working = D.sat4Working;
+  if (D.sat5Working !== undefined) patch.sat5Working = D.sat5Working;
+  if (D.wfhFullTimeAllowed !== undefined) patch.wfhFullTimeAllowed = D.wfhFullTimeAllowed;
+  if (D.wfhPartTimeAllowed !== undefined) patch.wfhPartTimeAllowed = D.wfhPartTimeAllowed;
+
+  const clock = (v: string | null | undefined) => (v === null || v === "" ? null : v);
+  if (D.attOfficialStart !== undefined) patch.attOfficialStart = clock(D.attOfficialStart);
+  if (D.attOfficialEnd !== undefined) patch.attOfficialEnd = clock(D.attOfficialEnd);
+  if (D.satOfficialStart !== undefined) patch.satOfficialStart = clock(D.satOfficialStart);
+  if (D.satOfficialEnd !== undefined) patch.satOfficialEnd = clock(D.satOfficialEnd);
+
   if (Object.keys(patch).length === 0) {
     return { ok: false, error: "No changes to save." };
   }
@@ -1390,6 +1458,19 @@ export async function bulkEditEmployees(
     "managerId",
     "dailyTaskQuota",
     "whatsappOptedIn",
+    // Employee Master (0225). MUST be listed here: `touchesIdentity` is what
+    // decides whether `editEmployee` is called at all, so a patch that changed
+    // only, say, Entity would otherwise be computed, validated — and silently
+    // dropped without a single write.
+    "functionId",
+    "shiftTypeId",
+    "payingEntityId",
+    "designationId",
+    "isTeamLead",
+    "trainPass",
+    "joinedAt",
+    "probationEnd",
+    "lastWorkingDay",
   ] as const;
   const scheduleKeys = [
     "workerType",
@@ -1445,6 +1526,20 @@ export async function bulkEditEmployees(
         fields.departmentIds = p.departmentIds;
         fields.primaryDepartmentId = p.primaryDepartmentId ?? null;
       }
+      // Employee Master fields (0225). Forwarded key by key, and ONLY when the
+      // key is present — the bulk editor omits anything left on "No change", so
+      // an unchecked Function must arrive here as `undefined` and never as null.
+      // Copying the whole patch object across would turn every untouched field
+      // into an explicit null and blank the roster.
+      if (p.functionId !== undefined) fields.functionId = p.functionId;
+      if (p.shiftTypeId !== undefined) fields.shiftTypeId = p.shiftTypeId;
+      if (p.payingEntityId !== undefined) fields.payingEntityId = p.payingEntityId;
+      if (p.designationId !== undefined) fields.designationId = p.designationId;
+      if (p.isTeamLead !== undefined) fields.isTeamLead = p.isTeamLead;
+      if (p.trainPass !== undefined) fields.trainPass = p.trainPass;
+      if (p.joinedAt !== undefined) fields.joinedAt = p.joinedAt;
+      if (p.probationEnd !== undefined) fields.probationEnd = p.probationEnd;
+      if (p.lastWorkingDay !== undefined) fields.lastWorkingDay = p.lastWorkingDay;
       if (Object.keys(fields).length > 0) {
         const res = await editEmployee(id, fields);
         if (!res.ok) {

@@ -9,7 +9,9 @@ import { listActiveClientNames } from "@/lib/queries/clients";
 import { parseTaskFilters } from "@/lib/task-filters";
 import { isDoneLate } from "@/lib/task-late";
 import { requireUser } from "@/lib/auth/current";
+import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
+import { defaultScopeId, opensOnEveryone } from "@/lib/auth/default-scope";
 import { TASK_STATUSES, isDeprecatedStatus } from "@/db/enums";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 
@@ -31,14 +33,21 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   const me = await requireUser();
   // "My Day" scopes to the signed-in user by default (admins too); the same
   // FilterBar as the Tasks tab can widen/redirect it from there.
-  const filters = parseTaskFilters(sp, /*archived*/ false, { defaultDoerId: me.id });
+  /* Was a hardcoded `me.id`, so a super-admin's agenda opened on themselves
+     while their /tasks opened on the company. Same helper as every other
+     surface now. */
+  const filters = parseTaskFilters(sp, /*archived*/ false, {
+    defaultDoerId: defaultScopeId(me),
+  });
 
-  const [allEmployees, rows, subjects, clients, statusDisplay] = await Promise.all([
+  const [allEmployees, rows, subjects, clients, statusDisplay, managedIds] = await Promise.all([
     listEmployeeOptions(),
     listTasks(filters),
     listDistinctSubjects(),
     listActiveClientNames(),
     getStatusDisplayMap(),
+    // Everyone below the viewer, for the Initiator Status chip.
+    getDownlineIds(me.id).catch(() => [] as string[]),
   ]);
 
   const statusLabels = Object.fromEntries(
@@ -88,7 +97,8 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         subjects={subjects}
         statusOptions={statusOptions}
         clients={clients}
-        me={{ id: me.id, isAdmin: me.isAdmin }}
+        me={{ id: me.id, isAdmin: me.isAdmin, isSuperAdmin: opensOnEveryone(me) }}
+        offersScopeChoice
         assigneeMode={filters.assigneeMode}
         initial={{
           start:  isoDay(filters.startDate),
@@ -110,7 +120,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         agendaTasks={agendaTasks}
         rows={rows}
         employees={allEmployees}
-        me={{ id: me.id, isAdmin: me.isAdmin }}
+        me={{ id: me.id, isAdmin: me.isAdmin, managedIds }}
         statusLabels={statusLabels}
         statusTones={statusTones}
       />

@@ -3,7 +3,7 @@ import "server-only";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { DUMMY_MODE, DUMMY_STORAGE_DIR } from "@/lib/db/dummy-dir";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin, storageErrorMessage } from "@/lib/supabase/admin";
 
 /**
  * Object storage, with ONE seam for dummy mode.
@@ -124,6 +124,27 @@ export async function removeObjects(bucket: string, paths: string[]): Promise<vo
   await getSupabaseAdmin().storage.from(bucket).remove(paths);
 }
 
+/**
+ * The object's bytes, for server-side consumers that bundle files (the HR
+ * records ZIP and Drive save). Null when the object does not exist in dummy
+ * mode; in production any storage error throws, translated by
+ * storageErrorMessage so "the API keys need renewing" is not reported as a
+ * missing file.
+ */
+export async function getObjectBytes(bucket: string, path: string): Promise<Uint8Array | null> {
+  if (DUMMY_MODE) {
+    const buf = await readDummyObject(bucket, path);
+    return buf ? new Uint8Array(buf) : null;
+  }
+  const { data, error } = await getSupabaseAdmin().storage.from(bucket).download(path);
+  if (error) {
+    const raw = error.message || "Storage download failed";
+    if (/not.?found/i.test(raw)) return null;
+    throw new Error(storageErrorMessage(raw).replace(/^Upload failed: /, ""));
+  }
+  return data ? new Uint8Array(await data.arrayBuffer()) : null;
+}
+
 /** Read one dummy object back. Only the dev-only serving route calls this. */
 export async function readDummyObject(
   bucket: string,
@@ -136,4 +157,23 @@ export async function readDummyObject(
   } catch {
     return null;
   }
+}
+
+/**
+ * Read an object's bytes back, or null when there is none.
+ *
+ * The read twin of `putObject`/`createSignedObjectUrl`: dummy mode reads off
+ * disk, production downloads from Supabase Storage. Callers that only ever need
+ * to SERVE a stored file (never hand out a URL) use this — e.g. the Upload
+ * Master template download route.
+ */
+export async function getObject(
+  bucket: string,
+  path: string,
+): Promise<Buffer | null> {
+  if (DUMMY_MODE) return readDummyObject(bucket, path);
+  const { data, error } = await getSupabaseAdmin().storage.from(bucket).download(path);
+  if (error || !data) return null;
+  const buf = Buffer.from(await data.arrayBuffer());
+  return buf;
 }

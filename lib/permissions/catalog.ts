@@ -163,15 +163,27 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
   {
     key: "employees",
     label: "Employees",
-    note: "The employee-facing room: attendance, leave, salary, reimbursements.",
+    note: "The employee-facing room: DCC, attendance, leave, salary, reimbursements.",
     children: [
       {
         key: "employees.dcc",
         label: "DCC",
         routes: ["/dcc"],
         children: [
-          { key: "employees.dcc.dashboard", label: "DCC Dashboard", routes: ["/dcc/dashboard"] },
-          { key: "employees.dcc.ranking", label: "DCC Ranking", routes: ["/dcc/ranking"] },
+          // WCC and MCC replaced My Day (account holder, 2026-09-18); `/dcc`
+          // itself now redirects to WCC.
+          { key: "employees.dcc.wcc", label: "WCC — Weekly Compliance Checklist", routes: ["/dcc/wcc"] },
+          { key: "employees.dcc.mcc", label: "MCC — Monthly Compliance Checklist", routes: ["/dcc/mcc"] },
+          // The SP1 sheet IS the dashboard, and the call log is typed into that
+          // sheet (2026-09-17), so neither has a node of its own. Their old
+          // addresses are listed here because both still redirect, and a
+          // redirect must not become a hole in the matrix.
+          {
+            key: "employees.dcc.dashboard",
+            label: "DCC Dashboard",
+            routes: ["/dcc/dashboard", "/dcc/sp1", "/dcc/call-log"],
+          },
+          { key: "employees.dcc.masters", label: "DCC Masters", routes: ["/dcc/masters"] },
         ],
       },
       {
@@ -268,11 +280,19 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         routes: ["/hr/management-assessment"],
       },
       { key: "hr.hiring-analytics", label: "Hiring Analytics", routes: ["/hr/hiring-analytics"] },
+      { key: "hr.selected-candidates", label: "Selected Candidates", routes: ["/hr/selected-candidates"] },
+      { key: "hr.rejected-candidates", label: "Rejected Candidates", routes: ["/hr/rejected-candidates"] },
       { key: "hr.induction", label: "Induction", routes: ["/hr/induction"] },
       { key: "hr.record", label: "HR Record", routes: ["/hr/record"] },
       { key: "hr.kpi", label: "HR KPI", routes: ["/hr/kpi"] },
       { key: "hr.ctc", label: "CTC", routes: ["/hr/ctc"] },
-      { key: "hr.salary-slip", label: "Salary Slip", routes: ["/hr/salary-slip"] },
+      /* MOVED TO THE EMPLOYEES ROOM (2026-09-12). Both paths are listed: the
+         new one is where the page lives, the old one still resolves as a
+         redirect and must stay governed by the same node rather than becoming
+         an ungoverned door. The KEY keeps its `hr.` prefix deliberately —
+         permission keys are persisted grants, so renaming it would revoke every
+         grant already written against it. */
+      { key: "hr.salary-slip", label: "Salary Slip", routes: ["/salary-slip", "/hr/salary-slip"] },
       {
         key: "hr.letters",
         label: "Letters",
@@ -305,11 +325,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "Forms",
         routes: ["/hr/forms/[id]", "/hr/all-forms", "/hr/my-forms"],
       },
-      { key: "hr.exit", label: "Exit", routes: ["/hr/exit/interview"] },
+      { key: "hr.exit", label: "Exit Process", routes: ["/hr/exit/interview"] },
       { key: "hr.holidays", label: "Holiday List", routes: ["/hr/holidays", "/holidays"] },
       {
         key: "hr.helpdesk",
-        label: "Help Desk",
+        label: "HR Help Desk",
         routes: ["/support"],
         children: [
           { key: "hr.helpdesk.routing", label: "Ticket Routing", routes: ["/hr/routing"] },
@@ -572,6 +592,17 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "operations.home", label: "Operations Home", routes: ["/operations"] },
       { key: "operations.checklist", label: "Checklist", routes: ["/operations/checklist"] },
       { key: "operations.guidelines", label: "Guidelines", routes: ["/operations/guidelines"] },
+      /* One switch for all of Masters, including Recruitment JD — which moved
+         here from the HR rail on 2026-09-17 and gave up its own `hr.recruitment-jd`
+         node in the process. The old path is listed beside the new one for the
+         same reason Salary Slip's is: it still resolves, as a redirect, and a
+         door that redirects into a governed room must be governed by the same
+         switch rather than being an ungoverned way in. */
+      {
+        key: "operations.masters",
+        label: "Masters",
+        routes: ["/operations/masters", "/hr/recruitment-jd"],
+      },
     ],
   },
 
@@ -651,7 +682,15 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             label: "Reporting Hierarchy",
             routes: ["/admin/hierarchy"],
           },
-          { key: "admin.people.departments", label: "Departments", routes: ["/admin/departments"] },
+          {
+            // The KEY is unchanged on purpose: it is stored in
+            // `module_permissions.node_key`, so renaming it would orphan every
+            // grant anybody has already made. Only the label and the route move.
+            key: "admin.people.departments",
+            label: "Functions",
+            routes: ["/admin/functions"],
+            note: "Called Departments until migration 0234. The permission key still reads `departments`; the rows, the screen and this node are the same thing.",
+          },
           {
             key: "admin.people.designations",
             label: "Designations",
@@ -669,6 +708,40 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         key: "admin.masters",
         label: "Masters",
         children: [
+          /**
+           * BILLING MASTER — TWO nodes, giving the four capabilities the brief
+           * names: Entity View, Entity Edit, File View, File Manage.
+           *
+           * VIEW/EDIT on `billing` are Entity View and Entity Edit. VIEW/EDIT on
+           * `billing-files` are File View and File Manage. So the brief's
+           * requirement — "a user may have entity edit access without
+           * automatically receiving file-management access" — is one switch,
+           * inside the permission system the application already has, rather
+           * than a parallel table of billing-specific roles.
+           *
+           * ── WHY SIBLINGS AND NOT PARENT/CHILD ───────────────────────────
+           * A child of `admin.masters.billing` would be the FOURTH level, and
+           * this catalogue is three by design — `flatten()` throws rather than
+           * render a fourth level as a third. So the files node is a sibling,
+           * and the cascade the nesting would have given (no entity view ⇒ no
+           * file view) is applied explicitly by `billingFilePermission()` in
+           * lib/queries/billing-entities.ts, which ANDs the two.
+           *
+           * `billing-files` owns no route: the files live inside the entity
+           * workspace, and its guard is called by node key from the
+           * upload/replace/remove actions rather than resolved from a URL.
+           */
+          {
+            key: "admin.masters.billing",
+            label: "Billing Master",
+            routes: ["/admin/billing-master"],
+            note: "Entity details Billing bills from — GST, PAN, SAC, banking. View/Edit here are Entity View and Entity Edit. Deleting an entity is separately restricted and this cannot widen it.",
+          },
+          {
+            key: "admin.masters.billing-files",
+            label: "Billing Master · Files",
+            note: "The logo, signature and billing documents. View = see them; Edit = upload, replace and remove. Deliberately separate from entity edit, and additionally requires Billing Master view.",
+          },
           { key: "admin.masters.clients", label: "Client Master", routes: ["/admin/clients"] },
           { key: "admin.masters.subjects", label: "Subject Master", routes: ["/admin/subjects"] },
           { key: "admin.masters.products", label: "Product Master", routes: ["/admin/products"] },
@@ -698,6 +771,12 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             routes: ["/admin/paying-entities"],
           },
           {
+            key: "admin.masters.upload-master",
+            label: "Upload Master",
+            routes: ["/admin/upload-master"],
+            note: "The bulk-import template files (Tasks, Goals, Accounts). View = download; Edit = upload/replace and delete, applied sitewide.",
+          },
+          {
             key: "admin.masters.client-locations",
             label: "Client Locations",
             routes: ["/admin/client-locations"],
@@ -706,6 +785,30 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             key: "admin.masters.leave-categories",
             label: "Leave Categories",
             routes: ["/admin/leave-categories"],
+          },
+        ],
+      },
+      /**
+       * ADMIN PANEL → INCENTIVE. Its own group, as the brief's structure asks
+       * ("Admin Panel → Incentive → Incentive Master"), rather than a child of
+       * Masters: the Incentive Master is not only a lookup list — it carries
+       * the Incentive Chart, which decides who may earn money — and the group
+       * is where any further incentive administration belongs.
+       *
+       * VIEW opens the screen; EDIT creates, edits, activates and deletes an
+       * incentive. Neither confers the right to change ELIGIBILITY: that is
+       * `incentive_eligibility.manage`, held by Manan alone
+       * (lib/security/capabilities.ts), and this node cannot widen it.
+       */
+      {
+        key: "admin.incentive",
+        label: "Incentive",
+        children: [
+          {
+            key: "admin.incentive.master",
+            label: "Incentive Master",
+            routes: ["/admin/incentive-master"],
+            note: "The incentive schemes and who is eligible for them. Edit here covers the incentives themselves; changing eligibility is separately restricted to Manan Vasa and this cannot widen it.",
           },
         ],
       },

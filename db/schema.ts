@@ -39,6 +39,8 @@ import {
   type TaskStatus,
   type AccountType,
   type EmploymentStatus,
+  type IncentiveType,
+  type IncentiveDuration,
   type ExitReason,
   type RehireEligibility,
   type ReligionCode,
@@ -101,11 +103,233 @@ export const payingEntities = pgTable(
     name: text("name").notNull().unique(),
     isActive: boolean("is_active").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(100),
+    /**
+     * The letter an employee code starts with for this entity (0225) —
+     * A = Altus Corp, U = Unleashed, K = Khushboo Shah, M = MJV HUF, J = JSV HUF.
+     *
+     * On the ENTITY rather than hardcoded in the allocator, for the same reason
+     * this is a table and not a union: a sixth entity must not need a deploy.
+     * NULL until an administrator assigns it — the migration deliberately
+     * guessed none, because two entities currently carry a Khushboo name and
+     * which of them owns "K" is not a migration's decision.
+     */
+    codePrefix: text("code_prefix"),
+
+    /* ── BILLING MASTER (0226) ──────────────────────────────────────────────
+     * The legal entity's billing identity — everything a tax invoice prints.
+     *
+     * These live HERE, on the table that already holds the five legal entities,
+     * rather than on a new `billing_entities` table. A second row per company
+     * would be free to drift from this one, and then there would be two answers
+     * to "what is Unleashed's GST number". The table's NAME says "paying"
+     * because payroll needed it first; what it stores is the legal entity.
+     *
+     * All nullable. An entity is created with a name and filled in as the
+     * details are gathered — a master that demands a complete GST registration
+     * before it will save anything is a master nobody uses.
+     *
+     * THERE IS DELIBERATELY NO ENTITY CODE. `codePrefix` above is the letter an
+     * EMPLOYEE code starts with, owned by the employee-code allocator; Billing
+     * Master neither reads nor shows it.
+     * ──────────────────────────────────────────────────────────────────────── */
+
+    proprietorName: text("proprietor_name"),
+    proprietorDesignation: text("proprietor_designation"),
+
+    address: text("address"),
+    cellNo: text("cell_no"),
+    email: text("email"),
+    website: text("website"),
+
+    /** Stored uppercase and unspaced — see lib/billing/entity-master.ts. */
+    panNo: text("pan_no"),
+    gstNo: text("gst_no"),
+
+    /**
+     * SAC codes, MULTIPLE (the brief requires it).
+     *
+     * A `text[]` rather than a child table: these are bare six-digit codes with
+     * no attributes of their own and nothing references an individual one, so a
+     * join table would add a migration, a query and a join to store a list of
+     * strings. Defaults to `{}`, never null, so every reader can iterate
+     * without a null check.
+     */
+    sacCodes: text("sac_codes").array().notNull().default([]),
+
+    bankName: text("bank_name"),
+    accountName: text("account_name"),
+    accountNumber: text("account_number"),
+    ifsc: text("ifsc"),
+    branch: text("branch"),
+
+    /**
+     * Who last changed the billing record. `updatedAt` already existed.
+     *
+     * `(): AnyPgColumn` is REQUIRED here, not decoration. `employees` already
+     * points back at this table (`paying_entity_id`), so an untyped thunk makes
+     * the two tables mutually recursive for the type checker — it gives up,
+     * infers `any` for BOTH, and Drizzle's column inference then collapses in
+     * every file that queries either one. That failure shows up as dozens of
+     * errors in unrelated modules and says nothing about this line, which is
+     * why the repo already uses this annotation for every circular reference.
+     */
+    updatedById: uuid("updated_by_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("paying_entities_active_name_idx").on(t.isActive, t.name)],
 );
+// `PayingEntity` / `NewPayingEntity` are already exported further down, beside
+// the other roster types — not re-declared here.
+
+/**
+ * BILLING MASTER FILES (0226) — the entity logo, the proprietor signature, and
+ * billing documents.
+ *
+ * One ROW per file; the BYTES live in the Supabase `documents` bucket addressed
+ * by `storagePath`, exactly as `employee_documents` (0125) has always done it.
+ * The brief's rule — do not put large files in the database when the
+ * application has proper object storage — is that table's rule too, and
+ * lib/storage/objects.ts is the mechanism both use.
+ *
+ * The ROLE is a column on the file rather than `logo_file_id` columns on the
+ * entity: "Replace the logo" is then one write to this table instead of a
+ * two-table dance that can half-fail and leave an entity pointing at an object
+ * that is no longer there. A partial unique index keeps it to one logo and one
+ * signature per entity; documents are unlimited.
+ */
+export const billingEntityFiles = pgTable(
+  "billing_entity_files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** CASCADE: the brief permits deleting an entity, and its file rows must
+     *  not outlive it as orphans. The delete action removes the objects too. */
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => payingEntities.id, { onDelete: "cascade" }),
+    /** 'logo' | 'signature' | 'document' — constrained in the database. */
+    kind: text("kind").$type<"logo" | "signature" | "document">().notNull(),
+    storagePath: text("storage_path").notNull(),
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    uploadedById: uuid("uploaded_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("billing_entity_files_entity_idx").on(t.entityId, t.kind, t.createdAt)],
+);
+export type BillingEntityFile = typeof billingEntityFiles.$inferSelect;
+
+/**
+ * BILLING ENTITY VERSIONS (0226) — the append-only history that makes a
+ * historical invoice snapshot possible.
+ *
+ * ── WHY THIS EXISTS WHEN THERE ARE NO INVOICES ─────────────────────────────
+ * The brief asks that an invoice preserve the entity details it was actually
+ * issued with, so that changing a GST number or a bank account later does not
+ * silently rewrite last year's invoices. There is no invoice table in this
+ * application — /billing is a read-only dashboard over a Google Sheet — so
+ * there is no invoice row to hang a snapshot on, and inventing an invoicing
+ * module to hold one would be well outside this brief.
+ *
+ * What CAN be built now, and has to be built now or the history is already
+ * lost, is the record of what each entity looked like at each point in time.
+ * Every Billing Master write appends the COMPLETE entity as it stood after the
+ * change. `snapshotBillingEntity()` produces the payload an invoice must embed;
+ * this table proves what that payload was on any past date.
+ *
+ * APPEND-ONLY, and `entityId` carries NO foreign key on purpose: a deleted
+ * entity's versions must survive it. The brief explicitly allows deleting an
+ * entity that invoices already reference, and that is precisely the case where
+ * these rows are the only surviving record of what those invoices printed.
+ */
+export const billingEntityVersions = pgTable(
+  "billing_entity_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** No FK — see the note above. A deleted entity keeps its history. */
+    entityId: uuid("entity_id").notNull(),
+    /** Denormalised so a version still reads sensibly once the entity is gone. */
+    entityName: text("entity_name").notNull(),
+    /** The complete snapshot — every field an invoice prints, plus the storage
+     *  paths of the logo and signature as they stood at that moment. */
+    snapshot: jsonb("snapshot").notNull(),
+    /** 'created' | 'updated' | 'files_changed' | 'deleted' */
+    reason: text("reason").notNull(),
+    actorId: uuid("actor_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("billing_entity_versions_entity_created_idx").on(t.entityId, t.createdAt)],
+);
+export type BillingEntityVersion = typeof billingEntityVersions.$inferSelect;
+
+/**
+ * FUNCTIONS (0225) — what a person does, as opposed to where they sit.
+ *
+ * THE FUNCTION MASTER — the one admin-managed list of organisational units, and
+ * what `employees.department_id` points at (migration 0234).
+ *
+ * It began as a second, empty list alongside `departments`, on the theory that a
+ * department and a function answered different questions. In practice they never
+ * did: this table stayed empty, nothing ever set `employees.function_id`, and
+ * Employee Master relabelled the DEPARTMENT record as "Function" because that is
+ * the only list with rows and assignments. Migration 0234 finished the job by
+ * copying all 18 rows here WITH THEIR ORIGINAL IDS and re-pointing every foreign
+ * key, so no employee changed unit and no screen changed what it says.
+ *
+ * `departments` is kept as a frozen backup — see `departmentsBackup` below.
+ */
+export const functions = pgTable(
+  "functions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(100),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // Case-insensitive: "Sales" and "sales" must not both exist and split a filter.
+    uniqueIndex("functions_name_uq").on(sql`lower(${t.name})`),
+    index("functions_active_idx").on(t.isActive, t.sortOrder),
+  ],
+);
+export type EmployeeFunction = typeof functions.$inferSelect;
+
+/**
+ * SHIFT TYPES (0225) — when a person works.
+ *
+ * DISTINCT FROM `worker_type`, which the spec calls Employee Type and lists
+ * separately. `worker_type` decides how somebody is PAID: it routes
+ * `payBasisFor` to monthly_ctc / hourly / fixed_fee and is load-bearing inside
+ * the salary engine. Overloading it with a shift label would put a
+ * presentation concern in the payroll branch, and its three values cannot
+ * express "Night" or "Flexible" without changing what the engine reads.
+ */
+export const shiftTypes = pgTable(
+  "shift_types",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(100),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("shift_types_name_uq").on(sql`lower(${t.name})`),
+    index("shift_types_active_idx").on(t.isActive, t.sortOrder),
+  ],
+);
+export type ShiftType = typeof shiftTypes.$inferSelect;
 
 export const employees = pgTable("employees", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -127,7 +351,10 @@ export const employees = pgTable("employees", {
   department: text("department"),
   // M3: canonical FK into `departments`.  Source of truth for the
   // admin-managed list; nullable until an admin picks one.
-  departmentId: uuid("department_id").references(() => departments.id, {
+  // The employee's FUNCTION. The COLUMN keeps its old name (0234 renamed the
+  // list, not 1,289 identifiers); the constraint is what says which table the
+  // value must exist in, and it points at `functions`.
+  departmentId: uuid("department_id").references(() => functions.id, {
     onDelete: "set null",
   }),
   // Performance criteria — "how we measure it" (mig 0061) — and KRA — "what we
@@ -254,6 +481,16 @@ export const employees = pgTable("employees", {
   // #11 compulsory gates — how many tasks this person must RECEIVE from their
   // manager each working day (admin-configurable per employee; default 3).
   dailyTaskQuota: integer("daily_task_quota").notNull().default(3),
+  /**
+   * Whether this person's work is expected to happen away from the office.
+   *
+   * The COLUMN has existed for some time; this mapping had not, so nothing in
+   * the application could read it. Added with the Employee Master (0225), whose
+   * Work & Attendance section shows the configuration rather than the punches
+   * (spec §13) and would otherwise have had to omit it. No migration: the
+   * column is already there.
+   */
+  worksOutsideOffice: boolean("works_outside_office"),
   // Salary module (migration 0062) — admin-managed roster FKs.
   designationId: uuid("designation_id").references(() => designations.id, {
     onDelete: "set null",
@@ -261,6 +498,50 @@ export const employees = pgTable("employees", {
   payingEntityId: uuid("paying_entity_id").references(() => payingEntities.id, {
     onDelete: "set null",
   }),
+
+  /* ── EMPLOYEE MASTER (0225) ──────────────────────────────────────────────
+     The five fields the employee record genuinely did not have. Everything
+     else the Employee Master shows already existed somewhere and is read from
+     there — see the migration's header for the full map. */
+
+  /**
+   * The displayed employee code, e.g. "A-101" or "UI-103".
+   *
+   * Denormalised onto the employee so the master table can sort and filter on
+   * it without a join. `employee_code_registry` is what ALLOCATES it and what
+   * makes a number permanently retired; this column is only the current value.
+   * Unique case-insensitively, and only among rows that have one.
+   */
+  employeeCode: text("employee_code"),
+  /** What this person does, as opposed to where they sit (see `functions`). */
+  /**
+   * DEAD COLUMN — never set on any row, and nothing reads it.
+   *
+   * It was added by 0225 for a second "function" concept that never
+   * materialised. The employee's Function is `departmentId` above, which points
+   * at `functions` since 0234. Left in place rather than dropped because
+   * dropping a column is irreversible and this one costs nothing; do NOT start
+   * writing to it.
+   */
+  functionId: uuid("function_id").references(() => functions.id, {
+    onDelete: "set null",
+  }),
+  /** When they work. NOT `workerType`, which is how they are PAID. */
+  shiftTypeId: uuid("shift_type_id").references(() => shiftTypes.id, {
+    onDelete: "set null",
+  }),
+  /**
+   * DESCRIPTIVE ONLY, and deliberately so.
+   *
+   * It is not a permission and grants nothing: authorization keeps coming from
+   * `isAdmin`, the capability registry (lib/security/capabilities.ts) and
+   * `managerId`. The spec also keeps it out of the main table (§2) — it is a
+   * filter and a workspace field, not a column.
+   */
+  isTeamLead: boolean("is_team_lead").notNull().default(false),
+  /** Whether the company funds a season rail pass for this person. */
+  trainPass: boolean("train_pass").notNull().default(false),
+
   // Profile v2 (migration 0038) — mention escalation override scalar.
   mentionEscalation: boolean("mention_escalation").notNull().default(true),
   // Google Calendar sync (migration 0043) — per-user OAuth. The refresh token
@@ -284,6 +565,35 @@ export const employees = pgTable("employees", {
   attFullDayMinutes: integer("att_full_day_minutes"),
   attHalfDayMinutes: integer("att_half_day_minutes"),
   weeklyTargetMinutes: integer("weekly_target_minutes"),
+  // Employee schedule settings (0228). Every default reproduces the behaviour
+  // that was policy-by-convention before these columns existed, so introducing
+  // them moved nobody's grading — see the migration header.
+  //
+  // `attendanceApplicable` false means the person is not required to punch and
+  // their missing punches are not absence. It is read in
+  // `resolveEffectiveConfig`, so every consumer of that resolver — the grader,
+  // the weekly reconciler, the reports and the salary engine — honours it from
+  // one place rather than each remembering to check.
+  attendanceApplicable: boolean("attendance_applicable").notNull().default(true),
+  // Which Saturdays of the month this person works. Five independent flags
+  // because the brief asks for five controls; `saturdayOrdinal()` maps a date
+  // to 1–5 by counting Saturdays from the start of the calendar month.
+  sat1Working: boolean("sat1_working").notNull().default(true),
+  sat2Working: boolean("sat2_working").notNull().default(true),
+  sat3Working: boolean("sat3_working").notNull().default(true),
+  sat4Working: boolean("sat4_working").notNull().default(true),
+  sat5Working: boolean("sat5_working").notNull().default(true),
+  // Saturday timings. NULL = follow the Mon–Fri pair above, which is why
+  // adding these columns changed nothing. Mon–Fri deliberately has NO new
+  // columns: `attOfficialStart`/`attOfficialEnd` already are that value, and a
+  // second pair for one concept is the exact drift effective-config.ts exists
+  // to prevent.
+  satOfficialStart: time("sat_official_start"),
+  satOfficialEnd: time("sat_official_end"),
+  // Work-from-home entitlement. Independent, not a single enum: an occasional
+  // remote day and a fully remote hire are different permissions.
+  wfhFullTimeAllowed: boolean("wfh_full_time_allowed").notNull().default(false),
+  wfhPartTimeAllowed: boolean("wfh_part_time_allowed").notNull().default(false),
   // Attendance Phase B (0060) — probation-end anchor for the paid-leave cycle.
   // Pulled forward from Phase C (salary): the leave allowance accrues from this
   // date and nothing accrues before it. Null => no anchor yet (0 paid leaves).
@@ -431,13 +741,35 @@ export const auditDataExports = pgTable(
 );
 
 /**
- * M3 — admin-managed list of departments.  The seed migration backfills
- * one row per distinct existing `employees.department` value; from then
- * on admins maintain the list via /admin/departments.  `is_active`
- * controls whether the dept shows up in pickers; we never hard-delete
- * (employees keep their FK reference).
+ * `departments` IS `functions`.
+ *
+ * An ALIAS, not a table — every query written against `departments` now reads
+ * and writes the Function master (migration 0234). That is deliberately one line
+ * rather than an edit to each of the ~30 modules that import this symbol:
+ * renaming them all would have been ~1,289 identifier changes across ~180 files
+ * for no behavioural gain, and the risk that mattered was MISSING one, which
+ * would have left a screen silently reading the frozen backup.
+ *
+ * The two tables are shaped identically (id, name, is_active, sort_order,
+ * created_at, updated_at), so this alias is type-compatible; `functions` is in
+ * fact stricter, because its unique index is case-insensitive.
+ *
+ * New code should say `functions`. This stays for the existing callers.
  */
-export const departments = pgTable(
+export const departments = functions;
+
+/**
+ * THE FROZEN BACKUP of the old `departments` table (migration 0234).
+ *
+ * Still holds all 18 rows as they were before the move. Nothing reads or writes
+ * it, and no screen renders it.
+ *
+ * It is declared here for one concrete reason: `drizzle-kit generate` diffs this
+ * schema against the database, so a table that exists in the database but not in
+ * the schema is a table it will offer to DROP. Declaring it keeps the backup
+ * safe from a future generated migration.
+ */
+export const departmentsBackup = pgTable(
   "departments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -508,7 +840,7 @@ export const employeeDepartments = pgTable(
       .references(() => employees.id, { onDelete: "cascade" }),
     departmentId: uuid("department_id")
       .notNull()
-      .references(() => departments.id, { onDelete: "cascade" }),
+      .references(() => functions.id, { onDelete: "cascade" }),
     isPrimary: boolean("is_primary").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -911,7 +1243,7 @@ export const projectNodes = pgTable(
     >(),
     /** Restricted flow — an owner/admin verdict layered on top of `status`. */
     approvalStatus: text("approval_status").$type<
-      "not_approved" | "approved" | "on_hold" | "cancelled"
+      "not_approved" | "approved" | "on_hold" | "archived" | "cancelled"
     >(),
     /** Recorded partial completion 0–100. NULL = derive it from the work below. */
     progressPercent: integer("progress_percent"),
@@ -1531,6 +1863,23 @@ export const NOTIFICATION_KINDS = [
   // this kind, so it's inbox-only through the dispatcher). Deep-links to
   // /communications/<broadcastId>.
   "broadcast",
+  // Incentive notifications & emails (migration 0231) — text column, no DB
+  // change. Created only by lib/incentive/notifications/service.ts through
+  // notify(); the body is the JSON meta in lib/incentive/notifications/kinds.ts
+  // and the email is emails/notifications/IncentiveNotice.tsx.
+  "incentive_created",             // → employees eligible for a new incentive
+  "incentive_updated",             // → employees still eligible after a material edit
+  "incentive_eligibility_removed", // → employees an edit removed
+  "incentive_deleted",             // → employees who were eligible
+  "incentive_request_approved",    // → the request's employee
+  "incentive_request_published",   // → the request's employee
+  "incentive_request_not_approved",// → the request's employee (with the reason)
+  "incentive_request_revision",    // → the request's employee (with the revision note)
+  "incentive_request_due",         // → the request's employee
+  "incentive_request_not_due",     // → the request's employee (in-app only)
+  "incentive_request_reversed",    // → the request's employee (with the reason)
+  "incentive_request_resubmitted", // → the incentive reviewer
+  "incentive_paid",                // → the paid employee
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -2099,7 +2448,14 @@ export const mobileDevices = pgTable(
     registeredAt: timestamp("registered_at", { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex("mobile_devices_device_id_uq").on(t.deviceId),
+    // ONE MACHINE, SEVERAL PEOPLE (0243): a row is one person's registration of
+    // a machine, so the PAIR is unique — colleagues on a shared PC each keep
+    // their own row under its one id. A phone id stays single-owner on its own
+    // (the proxy-punching rule), via the partial index below.
+    uniqueIndex("mobile_devices_device_employee_uq").on(t.deviceId, t.employeeId),
+    uniqueIndex("mobile_devices_native_device_id_uq")
+      .on(t.deviceId)
+      .where(sql`${t.deviceId} not like 'web\\_%'`),
     index("mobile_devices_employee_idx").on(t.employeeId),
     index("mobile_devices_kind_idx").on(t.kind),
     // ONE approved device per kind (0215) — the device-access rule is one
@@ -2114,11 +2470,12 @@ export const mobileDevices = pgTable(
       .where(sql`${t.status} = 'approved'`),
     index("mobile_devices_employee_status_idx").on(t.employeeId, t.status),
     check("mobile_devices_kind_chk", sql`${t.kind} in ('laptop', 'phone')`),
-    // One physical laptop, one registration (0222). Partial and lower-cased:
-    // phones never carry a serial, and the employee types the value so casing
-    // cannot be trusted to be stable.
-    uniqueIndex("mobile_devices_device_name_uq")
-      .on(sql`lower(${t.deviceName})`)
+    // A laptop name is unique PER PERSON (0243; it was global from 0222/0224).
+    // A shared PC has one Windows name that each colleague registers; what is
+    // refused is the same person registering the same name twice. Partial and
+    // lower-cased: phones never carry one, and the employee types it.
+    uniqueIndex("mobile_devices_device_name_employee_uq")
+      .on(t.employeeId, sql`lower(${t.deviceName})`)
       .where(sql`${t.deviceName} is not null and ${t.kind} = 'laptop'`),
   ],
 );
@@ -2280,17 +2637,40 @@ export const incentiveRequests = pgTable(
       .references(() => employees.id, { onDelete: "cascade" }),
     type: text("type")
       .$type<
-        "bss_conversion" | "sales_pitch" | "client_happiness" | "group_intro"
+        | "bss_conversion"
+        | "sales_pitch"
+        | "client_happiness"
+        | "group_intro"
+        | "leads_referrals"
       >()
       .notNull(),
+    /** Approval workflow state (0230). Values and labels: db/enums.ts
+     *  INCENTIVE_STATUSES; allowed transitions: lib/incentive/workflow.ts.
+     *  `rejected` is stored for Not Approved. */
     status: text("status")
-      .$type<"pending" | "approved" | "rejected">()
+      .$type<
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "due"
+        | "not_due"
+        | "reversed"
+        | "revision_requested"
+      >()
       .notNull()
       .default("pending"),
     details: jsonb("details")
       .notNull()
       .$type<Record<string, string>>()
       .default({}),
+    /** Split Incentive (migration 0229): 2–5 shares totalling 100%, the
+     *  requester among them. NULL = not split. Rules: lib/incentive/split.ts. */
+    split: jsonb("split").$type<{ employeeId: string; name: string; pct: number }[] | null>(),
+    /** Which submission this row currently holds (0230). 1 until the employee
+     *  resubmits; every version is snapshotted in incentive_request_submissions. */
+    submissionNo: integer("submission_no").notNull().default(1),
+    /** When the latest resubmission landed. NULL = never resubmitted. */
+    resubmittedAt: timestamp("resubmitted_at", { withTimezone: true }),
     decidedById: uuid("decided_by_id").references(() => employees.id, {
       onDelete: "set null",
     }),
@@ -2309,6 +2689,136 @@ export const incentiveRequests = pgTable(
       t.createdAt,
     ),
     index("incentive_requests_status_created_idx").on(t.status, t.createdAt),
+  ],
+);
+
+/**
+ * Incentive request SUBMISSIONS (migration 0230) — one immutable snapshot per
+ * version of a request. Submission 1 is what the employee first filed; every
+ * Justify & Resubmit adds the next, with its justification. The live row in
+ * `incentive_requests` holds the current version; this holds all of them.
+ * Append-only: a DB trigger refuses UPDATE.
+ */
+export const incentiveRequestSubmissions = pgTable(
+  "incentive_request_submissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => incentiveRequests.id, { onDelete: "cascade" }),
+    submissionNo: integer("submission_no").notNull(),
+    type: text("type").$type<(typeof incentiveRequests.$inferSelect)["type"]>().notNull(),
+    details: jsonb("details").notNull().$type<Record<string, string>>().default({}),
+    split: jsonb("split").$type<{ employeeId: string; name: string; pct: number }[] | null>(),
+    /** NULL on Submission 1; required on every resubmission. */
+    justification: text("justification"),
+    submittedById: uuid("submitted_by_id").references(() => employees.id, { onDelete: "set null" }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // Mirrors migration 0230.
+  (t) => [
+    uniqueIndex("incentive_request_submissions_request_no_uq").on(t.requestId, t.submissionNo),
+    check("incentive_request_submissions_no_chk", sql`${t.submissionNo} >= 1`),
+    check(
+      "incentive_request_submissions_justification_chk",
+      sql`${t.submissionNo} = 1 or (${t.justification} is not null and length(btrim(${t.justification})) > 0)`,
+    ),
+  ],
+);
+
+/**
+ * Incentive request DECISIONS (migration 0230) — the audit trail. One row per
+ * decision Manan makes: which submission, the state before and after, the
+ * action, who, when and why. `incentive_requests.decided_*` caches the latest;
+ * this keeps every one. Append-only: a DB trigger refuses UPDATE.
+ */
+export const incentiveRequestDecisions = pgTable(
+  "incentive_request_decisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => incentiveRequests.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    submissionNo: integer("submission_no").notNull(),
+    previousStatus: text("previous_status").$type<(typeof incentiveRequests.$inferSelect)["status"]>().notNull(),
+    newStatus: text("new_status").$type<(typeof incentiveRequests.$inferSelect)["status"]>().notNull(),
+    action: text("action")
+      .$type<"approve" | "not_approve" | "due" | "not_due" | "reverse" | "publish" | "revise" | "legacy">()
+      .notNull(),
+    reviewerId: uuid("reviewer_id").references(() => employees.id, { onDelete: "set null" }),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // Mirrors migration 0230.
+  (t) => [
+    index("incentive_request_decisions_request_idx").on(t.requestId, t.createdAt),
+    check(
+      "incentive_request_decisions_action_chk",
+      sql`${t.action} in ('approve', 'not_approve', 'due', 'not_due', 'reverse', 'publish', 'revise', 'legacy')`,
+    ),
+    check(
+      "incentive_request_decisions_note_chk",
+      sql`${t.action} not in ('not_approve', 'reverse', 'revise') or (${t.note} is not null and length(btrim(${t.note})) > 0)`,
+    ),
+  ],
+);
+
+/**
+ * Incentive Master CHANGE RECORDS (migration 0231) — one append-only row per
+ * material create / update / delete of `incentive_catalog`, written in the same
+ * transaction as the change. `created_at` is the effective date of any
+ * eligibility change it carries; `id` versions the notifications it produces.
+ * `catalog_id` is not a foreign key so a deleted incentive's event survives.
+ */
+export const incentiveCatalogEvents = pgTable(
+  "incentive_catalog_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    catalogId: uuid("catalog_id"),
+    catalogName: text("catalog_name").notNull(),
+    eventType: text("event_type").$type<"created" | "updated" | "deleted">().notNull(),
+    before: jsonb("before"),
+    after: jsonb("after"),
+    changes: jsonb("changes").notNull().default(sql`'[]'::jsonb`),
+    actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+    /**
+     * The date the change TAKES EFFECT, when it is not the moment of the edit
+     * (migration 0232). Eligibility is granted and removed with a chosen date,
+     * and the notification has to say the chosen one. Null on every event
+     * written before 0232, and readers fall back to `created_at`.
+     */
+    effectiveDate: date("effective_date"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // Mirrors migrations 0231 and 0232.
+  (t) => [
+    index("incentive_catalog_events_catalog_idx").on(t.catalogId, t.createdAt),
+    check("incentive_catalog_events_type_chk", sql`${t.eventType} in ('created', 'updated', 'deleted')`),
+  ],
+);
+
+/**
+ * Incentive notification DELIVERIES (migration 0231) — the idempotency ledger.
+ * A delivery is claimed here (unique on event type + subject + recipient +
+ * version) before it is sent, so the same event never notifies the same person
+ * twice. See lib/incentive/notifications/service.ts.
+ */
+export const incentiveNotificationDeliveries = pgTable(
+  "incentive_notification_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventType: text("event_type").notNull(),
+    subjectId: uuid("subject_id").notNull(),
+    recipientId: uuid("recipient_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    versionKey: text("version_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("incentive_notification_deliveries_uq").on(t.eventType, t.subjectId, t.recipientId, t.versionKey),
+    index("incentive_notification_deliveries_recipient_idx").on(t.recipientId, t.createdAt),
   ],
 );
 
@@ -2386,6 +2896,80 @@ export const outstandingFollowups = pgTable(
 );
 
 export type Employee = typeof employees.$inferSelect;
+
+/**
+ * EMPLOYEE CODE REGISTRY (0225) — one row per code EVER issued.
+ *
+ * ── THE RULE THIS TABLE EXISTS FOR ─────────────────────────────────────────
+ * "Whoever leaves the organisation — that number cannot be given to any new
+ * person — it is permanently retired."
+ *
+ * A unique index on `employees.employee_code` cannot express that. It stops two
+ * LIVE employees sharing a code, but the moment a leaver is archived,
+ * anonymised, or simply has their code cleared, the number is free again and
+ * the next allocation hands it straight back out. The guarantee needs a record
+ * that outlives the employment — this one.
+ *
+ * So `nextEmployeeCode` takes `max(seq)` over EVERY row for a prefix, RETIRED
+ * ONES INCLUDED, and never over the employees table. A number is issued once
+ * and once only, for the life of the database.
+ *
+ * ── IT IS ALSO WHAT MAKES THE INTERN CONVERSION HONEST ─────────────────────
+ * "UI will become U — UI will be retired permanently." That is two operations
+ * here, not an UPDATE: retire UI-101, then issue the next free U-nnn. The
+ * person's history keeps both rows, and neither number is ever reused. An
+ * UPDATE would have quietly freed the UI number.
+ */
+export const employeeCodeRegistry = pgTable(
+  "employee_code_registry",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The whole code as displayed, e.g. "A-101", "UI-103". */
+    code: text("code").notNull(),
+    /** Split out so allocation is an integer max(), not string parsing. */
+    prefix: text("prefix").notNull(),
+    seq: integer("seq").notNull(),
+    /**
+     * NULLABLE, and `onDelete: "set null"` rather than cascade — deliberately.
+     * Cascading would delete the registry row along with the employee, which is
+     * exactly the act that was supposed to retire the number forever; the
+     * number would become reissuable by the deletion itself.
+     */
+    employeeId: uuid("employee_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    /** Denormalised, so a deleted employee's code is still attributable. */
+    employeeName: text("employee_name"),
+    status: text("status").notNull().default("active"), // active | retired
+    issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+    issuedById: uuid("issued_by_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    retiredAt: timestamp("retired_at", { withTimezone: true }),
+    retiredById: uuid("retired_by_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    retiredReason: text("retired_reason"),
+  },
+  (t) => [
+    // A code is unique across ALL TIME, whatever its status. The guarantee.
+    uniqueIndex("employee_code_registry_code_uq").on(sql`upper(${t.code})`),
+    // And the pair likewise, so two administrators clicking at the same moment
+    // cannot both be handed "A-101".
+    uniqueIndex("employee_code_registry_prefix_seq_uq").on(sql`upper(${t.prefix})`, t.seq),
+    index("employee_code_registry_employee_idx").on(t.employeeId),
+    index("employee_code_registry_status_idx").on(t.status),
+    check("employee_code_registry_status_chk", sql`${t.status} in ('active', 'retired')`),
+    // AT MOST ONE ACTIVE CODE PER PERSON. An intern conversion retires the old
+    // row before writing the new one; this is what stops a half-finished
+    // conversion leaving somebody holding two. Partial, so retired codes
+    // accumulate freely as history.
+    uniqueIndex("employee_code_registry_one_active_uq")
+      .on(t.employeeId)
+      .where(sql`${t.status} = 'active' and ${t.employeeId} is not null`),
+  ],
+);
+export type EmployeeCodeRegistryRow = typeof employeeCodeRegistry.$inferSelect;
 export type NewEmployee = typeof employees.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
@@ -2854,6 +3438,37 @@ export const salaryProfiles = pgTable("salary_profiles", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * COMPONENT-WISE CTC (migration 0122), mapped for the first time by the
+ * Employee Master (0225).
+ *
+ * The table has existed since 0122 and was never added to this schema, so
+ * nothing in the application could read or write it and it stands empty. The
+ * Employee Master's Payroll section is the first surface that needs a breakup
+ * rather than a single number (spec §9: "Do NOT treat CTC as only one number"),
+ * so it is wired up here rather than a second CTC store being invented beside
+ * it.
+ *
+ * `annual_ctc` HERE IS NOT THE PAYROLL FIGURE. `salary_profiles.annual_ctc` is
+ * what the salary engine reads and remains the authority; this row is the
+ * split. `readCtcBreakup` reconciles them and reports when only a total exists.
+ */
+export const salaryCtcBreakup = pgTable("salary_ctc_breakup", {
+  employeeId: uuid("employee_id")
+    .primaryKey()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  payingEntityId: uuid("paying_entity_id"),
+  annualCtc: numeric("annual_ctc", { precision: 14, scale: 2 }).notNull().default("0"),
+  /** `[{ label, annual }]`. A list rather than fixed columns so Basic / HRA /
+   *  Allowance / Other can be renamed or extended without a migration. */
+  components: jsonb("components").notNull().default([]),
+  updatedById: uuid("updated_by_id").references((): AnyPgColumn => employees.id, {
+    onDelete: "set null",
+  }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type SalaryCtcBreakup = typeof salaryCtcBreakup.$inferSelect;
+
 export const salaryAdvances = pgTable(
   "salary_advances",
   {
@@ -2987,6 +3602,23 @@ export type NewSalaryPolicyConsent = typeof salaryPolicyConsents.$inferInsert;
 // incentive_requests table (migration 0053) is unrelated and left untouched.
 // ---------------------------------------------------------------------------
 
+/**
+ * THE INCENTIVE MASTER (Admin Panel → Incentive → Incentive Master).
+ *
+ * One row per incentive scheme. This single table answers "what does a Google
+ * Review pay" for the Incentive Table dialog, for the dashboard that values
+ * approvals (lib/incentive/analytics/model.ts), and for
+ * `weekly_goals.incentive_catalog_id` — which is why migration 0232 added the
+ * Master's extra fields here instead of creating a second incentive table.
+ *
+ * ── TWO WAYS TO BE ELIGIBLE, ONE OF THEM AUTHORITATIVE ─────────────────────
+ * `salesEligible` / `internsEligible` are the original GROUP flags, resolved
+ * against an employee's designation. `appliesToAll` = false (Rohan's 0216)
+ * restricts an incentive to the people named in `incentiveEligibility`; while
+ * it is true the named list is empty and the Incentive Master shows the group
+ * flags. See `resolveEligibility` in lib/incentive/master.ts, which takes the
+ * flag as its `named` input.
+ */
 export const incentiveCatalog = pgTable("incentive_catalog", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull().unique(),
@@ -3007,6 +3639,16 @@ export const incentiveCatalog = pgTable("incentive_catalog", {
    * import path still writes them and the catalog popup still shows them.
    */
   appliesToAll: boolean("applies_to_all").notNull().default(true),
+  /** Which request type this scheme prices. Null for project / sheet /
+   *  weekly-goal incentives, which map to no request form. */
+  incentiveType: text("incentive_type").$type<IncentiveType>(),
+  /** The product master every other dropdown reads — never a name copy. */
+  productId: uuid("product_id").references(() => outstandingProducts.id, {
+    onDelete: "set null",
+  }),
+  duration: text("duration").notNull().default("permanent").$type<IncentiveDuration>(),
+  /** Last day the incentive applies. Independent of `active`. */
+  validUntil: date("valid_until"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -3068,6 +3710,11 @@ export const incentiveEntries = pgTable(
     clientStatus: text("client_status"),
     payoutRunId: uuid("payout_run_id").references(() => salaryRuns.id, { onDelete: "set null" }),
     paidById: uuid("paid_by_id").references(() => employees.id, { onDelete: "set null" }),
+    // WS-6 · reversal (migration 0240). `reversed` guards against duplicate
+    // reversal adjustments; the paid amount is kept as the historical record.
+    reversed: boolean("reversed").notNull().default(false),
+    reversedAt: timestamp("reversed_at", { withTimezone: true }),
+    reversedById: uuid("reversed_by_id").references(() => employees.id, { onDelete: "set null" }),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -3075,6 +3722,7 @@ export const incentiveEntries = pgTable(
   (t) => [
     index("incentive_entries_period_idx").on(t.periodMonth),
     index("incentive_entries_employee_idx").on(t.employeeId),
+    index("incentive_entries_reversed_idx").on(t.reversed),
   ],
 );
 
@@ -3829,6 +4477,9 @@ export const dccKpiItems = pgTable(
     needsReview: boolean("needs_review").notNull().default(false),
     targetNumber: numeric("target_number", { precision: 14, scale: 2 }),
     unit: text("unit"),
+    /** MCC deadline — the day of the month a 'monthly' compliance is due
+     *  (1–31; NULL = the month's last day). Migration 0238. */
+    monthDay: smallint("month_day"),
     sortOrder: integer("sort_order"),
     archived: boolean("archived").notNull().default(false),
     createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
@@ -3853,6 +4504,17 @@ export const dccEntries = pgTable(
     filledById: uuid("filled_by_id").references(() => employees.id, { onDelete: "set null" }),
     // DCC v2 — participant axis. NULL for every simple/normal KPI (all history).
     subjectId: uuid("subject_id").references(() => dccSubjects.id, { onDelete: "cascade" }),
+    /* ── WCC / MCC (migration 0238) — the WMS columns. `status` above stays,
+       written alongside, for the readers that still speak Done / Not done. ── */
+    /** WMS Doer Status (DOER_TASK_STATUSES). */
+    doerStatus: text("doer_status"),
+    /** The actual date — stamped by the server when the doer marks Done. */
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    /** WMS Approver Status; NULL = Pending. */
+    approverStatus: text("approver_status"),
+    approverNotes: text("approver_notes"),
+    approverId: uuid("approver_id").references(() => employees.id, { onDelete: "set null" }),
+    approverAt: timestamp("approver_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -3897,6 +4559,156 @@ export const dccReviews = pgTable(
   (t) => [uniqueIndex("dcc_reviews_uq").on(t.ownerEmployeeId, t.reviewDate)],
 );
 
+// Migration 0229 — each person-day's DCC event in their Google Calendar
+// (lib/dcc/calendar-sync.ts). A row with a null event id records a day whose
+// event was removed, keeping its snapshot time so an older sync cannot revive it.
+export const dccCalendarEvents = pgTable(
+  "dcc_calendar_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    eventDate: date("event_date").notNull(),
+    googleEventId: text("google_event_id"),
+    syncedHash: text("synced_hash"),
+    snapshotAt: timestamp("snapshot_at", { withTimezone: true }),
+    syncedAt: timestamp("synced_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    attempts: integer("attempts").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("dcc_calendar_events_uq").on(t.employeeId, t.eventDate)],
+);
+
+// Migration 0230 — DCC Masters: the Daily Compliance template for a designation
+// (lib/dcc/master.ts, lib/dcc/master-sync.ts).
+export const dccMasterItems = pgTable(
+  "dcc_master_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    designationId: uuid("designation_id").notNull().references(() => designations.id, { onDelete: "cascade" }),
+    section: text("section"),
+    code: text("code"),
+    title: text("title").notNull(),
+    frequency: text("frequency"),
+    targetNumber: numeric("target_number", { precision: 14, scale: 2 }),
+    unit: text("unit"),
+    sortOrder: integer("sort_order").notNull().default(100),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("dcc_master_items_designation_idx").on(t.designationId, t.isActive, t.sortOrder)],
+);
+
+// Which of a person's KPIs came from a master. A separate table, NOT a column on
+// dcc_kpi_items — see migration 0230 for why. No row = a person-specific KPI.
+export const dccMasterLinks = pgTable(
+  "dcc_master_links",
+  {
+    itemId: uuid("item_id").primaryKey().references(() => dccKpiItems.id, { onDelete: "cascade" }),
+    masterItemId: uuid("master_item_id").notNull().references(() => dccMasterItems.id, { onDelete: "cascade" }),
+    ownerEmployeeId: uuid("owner_employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("dcc_master_links_owner_master_uq").on(t.ownerEmployeeId, t.masterItemId)],
+);
+
+/**
+ * Migration 0235 — the SP1 call log (lib/dcc/sp1.ts, DCC-SPEC §7).
+ *
+ * One row per employee per day per outcome, carrying a COUNT. The fifteen
+ * outcomes and every ratio derived from them live in lib/dcc/sp1.ts; nothing
+ * here constrains the disposition text, so the sheet can gain a row without a
+ * migration.
+ */
+export const dccCallLogs = pgTable(
+  "dcc_call_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    logDate: date("log_date").notNull(),
+    disposition: text("disposition").notNull(),
+    count: integer("count").notNull().default(0),
+    note: text("note"),
+    filledById: uuid("filled_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // dcc_call_logs_uq — the unique index on (employee_id, log_date,
+    // disposition) — is managed in the migration; it is what makes the fill
+    // screen's upsert safe.
+    index("dcc_call_logs_date_idx").on(t.logDate, t.employeeId),
+  ],
+);
+export type DccCallLog = typeof dccCallLogs.$inferSelect;
+
+// Migration 0231 — the Initiator Status of a goal (lib/status/
+// approver-status.ts). Side tables, NOT columns on goals / weekly_goals: those
+// are read with bare select()/returning() across the Goals module. No row = Pending.
+export const goalApproverStatuses = pgTable("goal_approver_statuses", {
+  goalId: uuid("goal_id").primaryKey().references(() => goals.id, { onDelete: "cascade" }),
+  approvalStatus: text("approval_status").notNull().$type<"approved" | "not_approved" | "on_hold" | "archived" | "cancelled">(),
+  setById: uuid("set_by_id").references(() => employees.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Migration 0232 — Recruitment JDs (HR). Not the internal JD Bank (jd_*): these
+// are what recruiters send candidates. Content shape: lib/operations/recruitment-jd.ts.
+export const recruitmentJds = pgTable("recruitment_jds", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /**
+   * Migration 0236 — the JD's own identity.
+   *
+   * It used to be keyed to `interview_positions`, which is the interview GRADE
+   * ladder (Executive, Senior Manager, First-Year Intern). The JDs are per
+   * HIRING ROLE, several span two grades at once, and most grades have no JD —
+   * so the slug identifies the role and the grade link is optional.
+   */
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  sortOrder: integer("sort_order").notNull().default(100),
+  isActive: boolean("is_active").notNull().default(true),
+  positionId: uuid("position_id").references(() => interviewPositions.id, { onDelete: "set null" }),
+  masterContent: jsonb("master_content"),
+  masterUpdatedById: uuid("master_updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+  masterUpdatedAt: timestamp("master_updated_at", { withTimezone: true }),
+  /** NULL = the same as the master. */
+  recruiterContent: jsonb("recruiter_content"),
+  recruiterUpdatedById: uuid("recruiter_updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+  recruiterUpdatedAt: timestamp("recruiter_updated_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const recruitmentJdSends = pgTable(
+  "recruitment_jd_sends",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jdId: uuid("jd_id").references(() => recruitmentJds.id, { onDelete: "set null" }),
+    positionLabel: text("position_label").notNull(),
+    channel: text("channel").notNull().$type<"whatsapp" | "email">(),
+    recipientName: text("recipient_name"),
+    recipientPhone: text("recipient_phone"),
+    recipientEmail: text("recipient_email"),
+    content: jsonb("content").notNull(),
+    status: text("status").notNull().$type<"opened" | "sent" | "failed">(),
+    error: text("error"),
+    sentById: uuid("sent_by_id").references(() => employees.id, { onDelete: "set null" }),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("recruitment_jd_sends_jd_idx").on(t.jdId, t.sentAt)],
+);
+
+export const weeklyGoalApproverStatuses = pgTable("weekly_goal_approver_statuses", {
+  weeklyGoalId: uuid("weekly_goal_id").primaryKey().references(() => weeklyGoals.id, { onDelete: "cascade" }),
+  approvalStatus: text("approval_status").notNull().$type<"approved" | "not_approved" | "on_hold" | "archived" | "cancelled">(),
+  setById: uuid("set_by_id").references(() => employees.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type DccKpiItem = typeof dccKpiItems.$inferSelect;
 export type DccEntry = typeof dccEntries.$inferSelect;
 export type DccReview = typeof dccReviews.$inferSelect;
@@ -3912,6 +4724,8 @@ export type AccountsLookup = typeof accountsLookups.$inferSelect;
 
 export type IncentiveCatalog = typeof incentiveCatalog.$inferSelect;
 export type NewIncentiveCatalog = typeof incentiveCatalog.$inferInsert;
+export type IncentiveEligibility = typeof incentiveEligibility.$inferSelect;
+export type NewIncentiveEligibility = typeof incentiveEligibility.$inferInsert;
 export type IncentiveEntry = typeof incentiveEntries.$inferSelect;
 export type NewIncentiveEntry = typeof incentiveEntries.$inferInsert;
 export type IncentiveProject = typeof incentiveProjects.$inferSelect;
@@ -7292,6 +8106,15 @@ export const candidatePolicySignatures = pgTable(
     version: integer("version").notNull().default(1),
     /** What they typed, verbatim. */
     signedName: text("signed_name").notNull(),
+    /**
+     * Storage key of the signature IMAGE they uploaded (private documents
+     * bucket, under their own candidate-intake prefix).
+     *
+     * Nullable because rows written before 0225 were signed when a typed name
+     * was the whole requirement; a null says "typed-only", which is the truth
+     * about those rows rather than a blank standing in for a photo.
+     */
+    signaturePath: text("signature_path"),
     signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -7301,6 +8124,46 @@ export const candidatePolicySignatures = pgTable(
   ],
 );
 export type CandidatePolicySignature = typeof candidatePolicySignatures.$inferSelect;
+
+/**
+ * EMPLOYEE POLICY SIGN-OFF (migration 0226) — printed name + date + signature
+ * image, the second way an employee can sign a policy.
+ *
+ * DigiLocker remains: it produces Aadhaar-verified identity and an archived
+ * signed PDF, and those rows live in `document_signatures`. This table holds
+ * the typed-and-uploaded kind, separately, for the same reason
+ * `candidatePolicySignatures` is separate — the two are not equivalent
+ * evidence, and a reader of the ledger a year from now must be able to tell
+ * which one they are looking at. Both mirror into `policyCompliance`, where the
+ * null `docInstanceId` is the marker.
+ *
+ * `signaturePath` is NOT NULL here, unlike the candidate table: there was never
+ * a period when this table accepted a name alone, so nothing has to be left
+ * nullable to describe history honestly.
+ */
+export const employeePolicySignatures = pgTable(
+  "employee_policy_signatures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    policyKey: text("policy_key").notNull(),
+    /** The published version that was on screen when they signed. */
+    version: integer("version").notNull().default(1),
+    /** What they printed, verbatim. */
+    signedName: text("signed_name").notNull(),
+    /** Storage key of the signature image (private documents bucket). */
+    signaturePath: text("signature_path").notNull(),
+    signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("employee_policy_signature_uq").on(t.employeeId, t.policyKey),
+    index("employee_policy_signatures_employee_idx").on(t.employeeId),
+  ],
+);
+export type EmployeePolicySignature = typeof employeePolicySignatures.$inferSelect;
 
 /**
  * Per-designation weight profiles for Candidate Evaluation v2. One row per
@@ -8249,6 +9112,13 @@ export const opsChecklistItems = pgTable(
     fileLink: text("file_link"),
     /** Provenance for a row pulled from the JD Bank. FK added when 0222 lands. */
     jdEntryId: uuid("jd_entry_id"),
+    /* ── WMS Tasks columns (migration 0237) ── */
+    /** Free text like tasks.client, picked from the `clients` roster. */
+    client: text("client"),
+    /** Who asked for the row. Backfilled from created_by_id. */
+    initiatorId: uuid("initiator_id").references(() => employees.id, { onDelete: "set null" }),
+    /** Google Calendar's RRULE; null = does not repeat. Frequency reads from it. */
+    recurrenceRule: text("recurrence_rule"),
     sortOrder: integer("sort_order").notNull().default(100),
     isActive: boolean("is_active").notNull().default(true),
     createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
@@ -8283,9 +9153,16 @@ export const opsChecklistChecks = pgTable(
     itemId: uuid("item_id")
       .notNull()
       .references((): AnyPgColumn => opsChecklistItems.id, { onDelete: "cascade" }),
-    status: text("status").notNull().default("Pending"),
+    /** The WMS Doer Status (DOER_TASK_STATUSES) since 0237. */
+    status: text("status").notNull().default("not_started"),
+    /** Doer Notes. */
     notes: text("notes"),
     doneAt: timestamp("done_at", { withTimezone: true }),
+    /* ── Approver Status (migration 0237) — null is Pending, as on a task ── */
+    approverStatus: text("approver_status"),
+    approverNotes: text("approver_notes"),
+    approverId: uuid("approver_id").references(() => employees.id, { onDelete: "set null" }),
+    approverAt: timestamp("approver_at", { withTimezone: true }),
     updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -8337,7 +9214,7 @@ export const jdPositions = pgTable(
       .references(() => jdRanks.id, { onDelete: "restrict" }),
     variant: text("variant"),
     title: text("title").notNull(),
-    departmentId: uuid("department_id").references(() => departments.id, { onDelete: "set null" }),
+    departmentId: uuid("department_id").references(() => functions.id, { onDelete: "set null" }),
     isActive: boolean("is_active").notNull().default(true),
     createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -8372,12 +9249,18 @@ export const jdEntries = pgTable(
       .notNull()
       .unique()
       .default(sql`'JD-' || lpad(nextval('jd_entries_serial_seq')::text, 4, '0')`),
-    positionId: uuid("position_id")
-      .notNull()
-      .references(() => jdPositions.id, { onDelete: "restrict" }),
+    /* EXACTLY ONE OWNER (migration 0233): a position (the Master JD) or a
+       person (their personal JD). A CHECK in the database enforces it. */
+    positionId: uuid("position_id").references(() => jdPositions.id, { onDelete: "restrict" }),
+    ownerEmployeeId: uuid("owner_employee_id").references(() => employees.id, { onDelete: "cascade" }),
     /** Denormalised from the position so the Bank filters without a join. */
     functionKey: text("function_key").notNull(),
     task: text("task").notNull(),
+    /** Shown as SUBJECT, picked from the `subjects` roster WMS Tasks uses
+     *  (migration 0228 made it; 0237 relabelled it — the column kept its name). */
+    category: text("category"),
+    /** Free text like tasks.client, picked from the `clients` roster. Migration 0237. */
+    client: text("client"),
     notesHtml: text("notes_html"),
     /** Structured, never a label string. Shape in lib/jd/recurrence.ts. */
     recurrence: jsonb("recurrence").notNull().default({ kind: "daily" }),
@@ -8463,6 +9346,31 @@ export const jdAttachments = pgTable(
 export type JdAttachment = typeof jdAttachments.$inferSelect;
 export type NewJdAttachment = typeof jdAttachments.$inferInsert;
 
+/**
+ * DOER NOTES — what the person doing a JD writes against it (migration 0237).
+ * Per person: a seat's JD is shared by everyone in the seat, and one holder's
+ * notes are not another's.
+ */
+export const jdDoerNotes = pgTable(
+  "jd_doer_notes",
+  {
+    jdId: uuid("jd_id")
+      .notNull()
+      .references(() => jdEntries.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    notes: text("notes"),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.jdId, t.employeeId] }),
+    index("jd_doer_notes_employee_idx").on(t.employeeId),
+  ],
+);
+export type JdDoerNote = typeof jdDoerNotes.$inferSelect;
+
 /** Which people hold which JD. `source` decides whether a holder change revokes it. */
 export const jdAssignments = pgTable(
   "jd_assignments",
@@ -8475,6 +9383,15 @@ export const jdAssignments = pgTable(
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
     source: text("source").notNull().default("position"),
+    /* WHICH DESTINATIONS this person is assigned for (migration 0225).
+       Three flags on ONE row rather than one row per destination: a person who
+       does the job for both the DCC and the WMS is one assignment with two
+       boxes ticked, which keeps the (jd_id, employee_id) unique index — and
+       that index is what stops the same person being assigned twice and
+       receiving the task twice. */
+    forDcc: boolean("for_dcc").notNull().default(false),
+    forWms: boolean("for_wms").notNull().default(false),
+    forEvent: boolean("for_event").notNull().default(false),
     assignedById: uuid("assigned_by_id").references(() => employees.id, { onDelete: "set null" }),
     effectiveFrom: date("effective_from").notNull().default(sql`CURRENT_DATE`),
     effectiveTo: date("effective_to"),
@@ -8556,3 +9473,210 @@ export const jdPushLog = pgTable(
 );
 export type JdPushLog = typeof jdPushLog.$inferSelect;
 export type NewJdPushLog = typeof jdPushLog.$inferInsert;
+
+/**
+ * Upload Master — the uploaded override for a bulk-import template.
+ *
+ * One row per overridden template, keyed by the template registry `key`
+ * (lib/templates/registry.ts). No row = the built-in template is served. The
+ * file bytes live in Supabase Storage (DOCUMENTS_BUCKET under a `templates/`
+ * prefix); this row records where they are and who replaced them last.
+ */
+export const templateFiles = pgTable(
+  "template_files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    key: text("key").notNull().unique(),
+    storagePath: text("storage_path").notNull(),
+    contentType: text("content_type").notNull(),
+    fileName: text("file_name").notNull(),
+    fileSize: integer("file_size").notNull(),
+    updatedById: uuid("updated_by_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+export type TemplateFile = typeof templateFiles.$inferSelect;
+export type NewTemplateFile = typeof templateFiles.$inferInsert;
+
+/**
+ * ACCOUNT LOCKOUT after consecutive failed sign-ins (migration 0236).
+ *
+ * Five wrong passwords locks the account. While locked the person can neither
+ * sign in nor use Forgot Password; only the four in
+ * lib/auth/unlock-permission.ts can clear it.
+ *
+ * KEYED BY EMAIL, NOT employee id. A failed attempt proves someone typed an
+ * address, not who they are, and the address may belong to nobody — the
+ * attempts worth counting most are the ones against addresses that do not
+ * exist. `employeeId` below is a nullable convenience for the admin screen,
+ * filled in when the address happens to match a row; it is not this record's
+ * identity. See the migration for the longer argument.
+ *
+ * `lockedAt` IS the lock — one nullable timestamp rather than a boolean and a
+ * date that can disagree. There is deliberately no `lockedUntil`: a timed
+ * release would let a brute-force attempt simply wait, and the requirement is
+ * that a human approves each one.
+ */
+export const accountLockouts = pgTable(
+  "account_lockouts",
+  {
+    /** Lower-cased by every call site. */
+    email: text("email").primaryKey(),
+    /** Consecutive failures inside FAILED_ATTEMPT_WINDOW_MS. */
+    failedCount: integer("failed_count").notNull().default(0),
+    lastFailedAt: timestamp("last_failed_at", { withTimezone: true }),
+    /** NULL = not locked. */
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    /** Kept after release, so "has this account been locked before?" stays answerable. */
+    unlockedAt: timestamp("unlocked_at", { withTimezone: true }),
+    unlockedById: uuid("unlocked_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    employeeId: uuid("employee_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("account_lockouts_count_nonneg", sql`${t.failedCount} >= 0`),
+    // The admin screen's only query: everyone currently locked, newest first.
+    index("account_lockouts_locked_idx").on(t.lockedAt).where(sql`${t.lockedAt} is not null`),
+    index("account_lockouts_employee_idx")
+      .on(t.employeeId)
+      .where(sql`${t.employeeId} is not null`),
+  ],
+);
+
+export type AccountLockout = typeof accountLockouts.$inferSelect;
+
+/**
+ * PER-IP LOGIN THROTTLE (migration 0236).
+ *
+ * The per-email counter cannot see the attack that matters most here: one
+ * failure each against fifty addresses trips no per-email threshold, yet that is
+ * exactly how an address list gets swept. This table prices that.
+ *
+ * DELIBERATELY NOT A LOCKOUT. An office NAT is one address for everybody, so
+ * tripping this throttles and refuses — it never locks a person out. Rows are
+ * disposable; anything older than the window can be pruned.
+ */
+export const loginAttemptIps = pgTable(
+  "login_attempt_ips",
+  {
+    ip: text("ip").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
+    failedCount: integer("failed_count").notNull().default(0),
+    lastFailedAt: timestamp("last_failed_at", { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.ip, t.windowStart] }),
+    index("login_attempt_ips_window_idx").on(t.windowStart),
+  ],
+);
+
+export type LoginAttemptIp = typeof loginAttemptIps.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assignable security roles (migration 0238) — the role LIST lives in
+// lib/auth/security-roles-catalog.ts so every role is one a route enforces;
+// these rows are who HOLDS one. See the migration for why neither
+// module_permissions (restrict-by-default) nor the code-only capability table
+// fits: this has to be grantable from the app, without a deploy.
+// ─────────────────────────────────────────────────────────────────────────────
+export const securityRoleGrants = pgTable(
+  "security_role_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** A key from SECURITY_ROLES. Text on purpose — a new role is a code change, not a migration. */
+    role: text("role").notNull(),
+    grantedById: uuid("granted_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("security_role_grants_employee_role_uniq").on(t.employeeId, t.role),
+    index("security_role_grants_role_idx").on(t.role),
+  ],
+);
+export type SecurityRoleGrant = typeof securityRoleGrants.$inferSelect;
+
+/** Who gave or took a role away. Kept when the grant itself is revoked. */
+export const securityRoleEvents = pgTable(
+  "security_role_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    role: text("role").notNull(),
+    /** granted | revoked */
+    action: text("action").notNull(),
+    actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("security_role_events_role_idx").on(t.role, t.occurredAt.desc())],
+);
+export type SecurityRoleEvent = typeof securityRoleEvents.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Two-step sign-in (migration 0242). After the password, a 6-digit code is
+// emailed; entering it gives the browser a pass until the next midnight IST
+// (lib/auth/two-step-pass.ts). These two tables are the server's half: the codes
+// that were sent, and the record of who verified. Nothing in the app shows the
+// verification log yet — it is kept for audit, on request.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One emailed code. The code and the browser's handle are stored hashed only. */
+export const twoStepChallenges = pgTable(
+  "two_step_challenges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** SHA-256 of the random handle the browser holds between the two steps. */
+    tokenHash: text("token_hash").notNull(),
+    /** HMAC of the 6-digit code. The code itself is only ever in the email. */
+    codeHash: text("code_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    /** Set once, when the right code is entered. A used code never works twice. */
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("two_step_challenges_token_uniq").on(t.tokenHash),
+    index("two_step_challenges_employee_created_idx").on(t.employeeId, t.createdAt),
+  ],
+);
+export type TwoStepChallenge = typeof twoStepChallenges.$inferSelect;
+
+/** Who passed two-step verification, when, from where, and until when. Audit only. */
+export const twoStepVerifications = pgTable(
+  "two_step_verifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** The address the code went to, as it was at the time. */
+    email: text("email").notNull(),
+    method: text("method").notNull().default("email"),
+    challengeId: uuid("challenge_id").references(() => twoStepChallenges.id, {
+      onDelete: "set null",
+    }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull().defaultNow(),
+    /** The next midnight IST — when this browser is asked again. */
+    validUntil: timestamp("valid_until", { withTimezone: true }).notNull(),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+  },
+  (t) => [index("two_step_verifications_employee_idx").on(t.employeeId, t.verifiedAt)],
+);
+export type TwoStepVerification = typeof twoStepVerifications.$inferSelect;

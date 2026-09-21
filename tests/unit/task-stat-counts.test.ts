@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 // task-list-page imports task-table → server actions → server-only + @/lib/db
 // (which validates env at import). Mock those so the module loads in vitest.
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/db", () => ({ db: {}, tasks: {} }));
+vi.mock("@/lib/db", () => ({ db: {}, tasks: {}, employees: {} }));
 
 import { computeStatCounts } from "@/components/tasks/task-list-page";
 import type { TaskListRow } from "@/lib/types";

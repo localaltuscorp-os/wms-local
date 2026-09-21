@@ -63,14 +63,31 @@ const TITLES: Record<NotificationKind, (actor: string) => string> = {
   // Enterprise Communications (mig 0179) — ECOS owns its own delivery; generic
   // push copy placeholder to satisfy the exhaustive map.
   broadcast: () => `New company communication`,
+  // Incentive (mig 0231) — the banner body is the notification's one-line
+  // summary and the click goes to `ctx.url` (an /incentive path).
+  incentive_created: () => `New incentive available`,
+  incentive_updated: () => `An incentive was updated`,
+  incentive_eligibility_removed: () => `Incentive eligibility changed`,
+  incentive_deleted: () => `An incentive was removed`,
+  incentive_request_approved: () => `Incentive approved`,
+  incentive_request_published: () => `Incentive published`,
+  incentive_request_not_approved: () => `Incentive not approved`,
+  incentive_request_revision: () => `Incentive revision required`,
+  incentive_request_due: () => `Incentive marked Due`,
+  incentive_request_not_due: () => `Incentive marked Not Due`,
+  incentive_request_reversed: () => `Incentive reversed`,
+  incentive_request_resubmitted: () => `Incentive request resubmitted`,
+  incentive_paid: () => `Incentive paid`,
 };
 
 export interface PushCtx {
   actorName: string;
   taskSubject: string;
-  body?: string;
+  body?: string | undefined;
   shortId: string;
   taskId: string;
+  /** Click-through for notifications that are not about a task. */
+  url?: string | undefined;
 }
 
 export interface PushPayload {
@@ -88,8 +105,8 @@ export function buildPushPayload(
   return {
     title: TITLES[kind](ctx.actorName),
     body: ctx.body ? `${ctx.taskSubject} — ${ctx.body}` : ctx.taskSubject,
-    url: `/tasks/${ctx.taskId}`,
-    tag: `task:${ctx.taskId}`,
+    url: ctx.url ?? `/tasks/${ctx.taskId}`,
+    tag: ctx.url ? `${kind}:${ctx.url}` : `task:${ctx.taskId}`,
     kind,
   };
 }

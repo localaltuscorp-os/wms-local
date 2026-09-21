@@ -19,6 +19,7 @@ import {
   FileText,
   Archive,
   ShieldCheck,
+  LockKeyholeOpen,
   ChevronUp,
 } from "lucide-react";
 
@@ -29,6 +30,10 @@ type Props = {
   /** Holds the `master_admin.manage` capability. Resolved server-side in
    *  UserMenuServer; this only decides whether the link is drawn. */
   isMasterAdmin: boolean;
+  /** Holds the `account_unlock` role, so the lockout screen is worth offering.
+   *  Resolved server-side (the role lives in the database, not in the session),
+   *  and deliberately NOT tied to `isAdmin` — a holder need not be an admin. */
+  canUnlockAccounts: boolean;
   avatarUrl: string | null;
   inboxUnread: number;
   archivedTasks: number;
@@ -42,6 +47,7 @@ export function UserMenu({
   email,
   isAdmin,
   isMasterAdmin,
+  canUnlockAccounts,
   avatarUrl,
   inboxUnread,
   archivedTasks,
@@ -241,6 +247,35 @@ export function UserMenu({
                 <span className="inline-flex items-center gap-2">
                   <ShieldCheck size={14} strokeWidth={2.2} style={{ color: "#4338CA" }} />
                   <span className="font-medium">Master Admin</span>
+                </span>
+                <ChevronRight size={14} strokeWidth={2.2} style={{ color: "#64748B" }} />
+              </Link>
+            </DropdownMenu.Item>
+          )}
+
+          {/*
+            ACCOUNT LOCKS — release someone locked out by five wrong passwords,
+            and hand out the role that lets others do it.
+
+            Shown to whoever holds `account_unlock`, which is NOT the same set as
+            admins: this lives here rather than in the admin nav precisely
+            because one of the intended holders is not an admin, and the admin
+            area redirects them. Hiding the link is presentation only — the page
+            and each of its server actions re-check the role.
+          */}
+          {canUnlockAccounts && (
+            <DropdownMenu.Item asChild>
+              <Link
+                href={"/account-locks" as Route}
+                className="mt-1 flex items-center justify-between gap-2.5 px-3.5 py-2.5 text-[15px] rounded-lg cursor-pointer outline-none"
+                style={{
+                  background: "linear-gradient(135deg, rgba(13,148,136,0.08), rgba(20,184,166,0.04))",
+                  color: "#0F172A",
+                }}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <LockKeyholeOpen size={14} strokeWidth={2.2} style={{ color: "#0D9488" }} />
+                  <span className="font-medium">Account Locks</span>
                 </span>
                 <ChevronRight size={14} strokeWidth={2.2} style={{ color: "#64748B" }} />
               </Link>

@@ -310,7 +310,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
       const names = p.departmentIds
         .map((id) => departmentOptions.find((d) => d.id === id)?.name ?? id)
         .join(", ");
-      out.push({ label: "Departments", value: names || "None" });
+      out.push({ label: "Functions", value: names || "None" });
     }
     if (p.workerType) {
       out.push({
@@ -556,8 +556,8 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
 
                   <Card title="Organization">
                     <Field
-                      label="Departments"
-                      hint="The starred department is the primary one."
+                      label="Functions"
+                      hint="The starred Function is the primary one."
                     >
                       {bulk && !changeDepts ? (
                         <button

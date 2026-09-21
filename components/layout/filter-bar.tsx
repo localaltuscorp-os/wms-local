@@ -54,16 +54,38 @@ interface Props {
   subjects?: string[];
   statusOptions?: { value: string; label: string }[];
   clients?: string[];
-  me?: { id: string; isAdmin: boolean };
+  me?: {
+    id: string;
+    isAdmin: boolean;
+    /**
+     * Super-admins OPEN ON THE WHOLE COMPANY; everyone else opens on
+     * themselves — admins included (account holder, 2026-09-12). The server
+     * decides this with lib/auth/default-scope.ts and passes the answer down,
+     * rather than this client component learning the e-mail allow-list.
+     *
+     * It is what "the default" means here, and the default is not a filter:
+     * the bar suppresses the active-filter chip for whichever selection the
+     * viewer's page opened on, because nobody chose it and "Clear All" would
+     * be offering to undo nothing.
+     */
+    isSuperAdmin?: boolean;
+  };
   /**
-   * True on surfaces that OPEN on the viewer's own data (the WMS dashboard).
-   * It adds two rows to the Assignee dropdown — "All employees" and the
-   * viewer's own name pinned at the top and marked "(You)" — and makes an
-   * empty selection mean "me" rather than "everyone".
+   * The assignee dropdown offers a SCOPE CHOICE: an "All employees" row and the
+   * viewer's own name pinned at the top marked "(You)", with an empty selection
+   * meaning the viewer's default rather than everyone.
    *
-   * Off everywhere else, so /tasks keeps the behaviour it has today.
+   * On every task surface and the dashboard. It used to be the dashboard alone
+   * (as `scopeDefaultsToMe`), which was fine while admins opened /tasks on the
+   * whole company — they had nothing to widen TO. Now that an admin opens on
+   * their own work, a list with no "All employees" row would be a list they
+   * could never widen, only narrow one name at a time.
+   *
+   * Since the Scope segmented control was deleted, this dropdown is the ONLY
+   * way to change whose work you are reading — so turning it off on a
+   * surface that has a `me` would strand that viewer on their own rows.
    */
-  scopeDefaultsToMe?: boolean;
+  offersScopeChoice?: boolean;
   assigneeMode?: AssigneeMode;
   /** Number of tasks matching the current filters (shown in the summary row). */
   taskCount?: number;
@@ -92,7 +114,7 @@ export function FilterBar({
   statusOptions,
   clients,
   me,
-  scopeDefaultsToMe = false,
+  offersScopeChoice = false,
   assigneeMode: initialAssigneeMode = "all",
 }: Props) {
   const router = useRouter();
@@ -100,15 +122,25 @@ export function FilterBar({
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
-  const showScopeChip = Boolean(me && !me.isAdmin);
   /* "All employees" is a ROW IN THE LIST, not a separate control: the ask was
      for it to sit in the same checkbox dropdown as the individual names, and a
      reader who has just learned to pick a person there should not have to
      learn a second widget to un-pick them. It is a synthetic option — no
      employee has this id — intercepted in `handleEmpChange` below. */
   const ALL_EMP = "__all__";
-  const selfScope = scopeDefaultsToMe && Boolean(me);
+  const selfScope = offersScopeChoice && Boolean(me);
   const selfId = me?.id;
+  /* WHAT "NO CHOICE YET" MEANS FOR THIS VIEWER — the single fact the label, the
+     chips, the empty-selection branch and Clear All all read, so the four
+     cannot disagree about whether the page has been filtered.
+
+     `opensOnSelf` was `!me.isAdmin` and is now `!me.isSuperAdmin`: that is the
+     whole role change, expressed once. An admin is a person with a workload and
+     opens on it, exactly like a team member. (It was named after a Scope toggle
+     whose visibility it decided; that control is gone — see the render — so
+     the name now says what it actually decides.) */
+  const opensOnEveryone = Boolean(me?.isSuperAdmin);
+  const opensOnSelf = Boolean(me && !opensOnEveryone);
   // Overdue has no picker of its own — it arrives from a drill-through link
   // (e.g. the Task Report's sent-back-by-person rows) and is cleared from its
   // chip. A dropdown for a single boolean would be a worse control than the
@@ -120,8 +152,11 @@ export function FilterBar({
 
   const [start, setStart] = React.useState(initial.start);
   const [end, setEnd] = React.useState(initial.end);
+  /* On a scope-choice surface the viewer's own row is TICKED at the default, so
+     the dropdown shows what the pill says. Elsewhere there is no row to tick and
+     the default stays an empty selection. */
   const [emp, setEmp] = React.useState<string[]>(
-    showScopeChip && initialAssigneeMode === "default" ? [] : initial.emp,
+    initialAssigneeMode === "default" && !(offersScopeChoice && me) ? [] : initial.emp,
   );
   const [assigneeMode, setAssigneeMode] = React.useState<AssigneeMode>(initialAssigneeMode);
   const [view, setView] = React.useState<"doer" | "initiator">(initial.view);
@@ -186,7 +221,7 @@ export function FilterBar({
     sp.set("view", view);
     if (emp.length > 0) {
       sp.set("emp", emp.join(","));
-    } else if ((showScopeChip || selfScope) && assigneeMode === "all") {
+    } else if ((opensOnSelf || selfScope) && assigneeMode === "all") {
       // Explicit, because an ABSENT `emp` is what means "the viewer" now.
       sp.set("emp", "all");
     } else {
@@ -214,12 +249,22 @@ export function FilterBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [start, end, view, emp, assigneeMode, dept, prio, subj, status, client, overdue, ageRange, team]);
 
+  /** Put the assignee scope back to whatever this viewer's page opened on. */
+  function resetScope() {
+    if (opensOnEveryone || !selfId) {
+      setAssigneeMode("all");
+      setEmp([]);
+      return;
+    }
+    setAssigneeMode("default");
+    setEmp(selfScope ? [selfId] : []);
+  }
+
   function reset() {
     const today = new Date();
     setStart(format(new Date(today.getTime() - 30 * ONE_DAY), "yyyy-MM-dd"));
     setEnd(format(today, "yyyy-MM-dd"));
-    setEmp(selfScope && selfId ? [selfId] : []);
-    setAssigneeMode(showScopeChip || selfScope ? "default" : "all");
+    resetScope();
     setView("doer");
     setDept([]);
     setPrio([]);
@@ -260,13 +305,14 @@ export function FilterBar({
         return;
       }
       // Nothing left ticked — including un-ticking "All employees" — returns
-      // to the default this surface opens on: you.
-      setAssigneeMode(selfId ? "default" : "all");
-      setEmp(selfId ? [selfId] : []);
+      // to the default this VIEWER opens on: their own work, or the whole
+      // company for a super-admin. It used to hardcode "you", which would have
+      // dropped a super-admin somewhere they never started.
+      resetScope();
       return;
     }
     setEmp(next);
-    if (showScopeChip) setAssigneeMode(next.length > 0 ? "specific" : "default");
+    if (opensOnSelf) setAssigneeMode(next.length > 0 ? "specific" : "default");
   }
 
   /* The list the dropdown actually renders. Ordered deliberately: the widest
@@ -292,21 +338,30 @@ export function FilterBar({
   const statusLabel = (v: string) =>
     statusOptions?.find((o) => o.value === v)?.label ?? v;
 
+  /* IS THE SCOPE STILL WHERE THE PAGE PUT IT?
+     One predicate, three readers (the pill's highlight, the chip row, and the
+     label below). A super-admin starts on everyone, so "all" is their default
+     and must not chip; everyone else starts on themselves. */
+  const atDefaultScope = !me
+    ? emp.length === 0 && assigneeMode !== "specific"
+    : opensOnEveryone
+      ? assigneeMode === "all" && emp.length === 0
+      : assigneeMode === "default" &&
+        (selfScope ? emp.length === 1 && emp[0] === selfId : emp.length === 0);
+
   const assigneeValue =
-    selfScope && assigneeMode === "all"
+    assigneeMode === "all"
       ? "All Employees"
       : // "Only Me" rather than your own name: the pill is answering "whose
         // numbers am I looking at", and your name alone reads like a filter
         // someone else applied.
-        selfScope && emp.length === 1 && emp[0] === selfId
+        atDefaultScope && !opensOnEveryone
         ? "Only Me"
         : emp.length > 0
           ? summarizeSelection(emp.map(empLabel), "All Employees")
-          : showScopeChip && assigneeMode === "default"
-            ? "My Tasks"
-            : "All Employees";
-  const assigneeActive =
-    emp.length > 0 || ((showScopeChip || selfScope) && assigneeMode === "all");
+          : "All Employees";
+  // Highlighted only once the viewer has actually moved off their default.
+  const assigneeActive = !atDefaultScope;
 
   // ── Active-filter chips (the summary row) ──────────────────────────────
   type ActivePill = { key: string; label: string; color: string; remove: () => void };
@@ -317,37 +372,35 @@ export function FilterBar({
     activePills.push({ key: `p-${p}`, label: PRIORITY_LABELS[p as TaskPriority] ?? p, color: TINT.priority, remove: () => setPrio(prio.filter((x) => x !== p)) });
   /* THE DEFAULT SCOPE IS NOT A FILTER.
 
-     A self-scoped page opens with `emp = [you]` — nobody chose that, it is
-     just where the page starts, and the assignee pill already says "Only Me"
-     rather than your name for exactly that reason. Pushing a chip for it made
-     the summary row read "1 active · Vinal Patil · Clear All" on a page you
-     had not touched: an active-filter count of one before any filter existed,
-     your own name presented as though someone had filtered you, and a
-     "Clear All" offering to undo nothing.
+     A page opens on SOMETHING — your own work, or the whole company if you are
+     the super-admin. Nobody chose that, which is why the pill says "Only Me"
+     rather than your name. Pushing a chip for it made the summary row read
+     "1 active · Vinal Patil · Clear All" on a page nobody had touched: a filter
+     count of one before any filter existed, your own name presented as though
+     somebody had filtered you, and a "Clear All" offering to undo nothing.
 
-     So the row stays hidden in that one state. The moment the selection is
-     anything else — a colleague, several people, you AND someone else — every
-     name chips as before, including yours, because then it IS a choice. Same
-     condition as `assigneeValue`'s "Only Me" branch above; the two readings of
-     "this is the default" must not drift apart. */
-  const selfOnlyDefault = selfScope && emp.length === 1 && emp[0] === selfId;
-  if (!selfOnlyDefault)
+     So the whole row stays hidden at the default — for every role, now that
+     the default differs by role. The moment the selection is anything else —
+     a colleague, several people, you AND someone else, or a super-admin
+     narrowing to one person — every name chips as before, including yours,
+     because then it IS a choice.
+
+     `atDefaultScope` is the same predicate the pill's label reads. They used to
+     be two separately-written conditions and drifted for anyone whose default
+     was not "you". */
+  if (!atDefaultScope) {
     for (const id of emp)
       activePills.push({ key: `e-${id}`, label: empLabel(id), color: TINT.assignee, remove: () => handleEmpChange(emp.filter((x) => x !== id)) });
-  if (showScopeChip && assigneeMode === "all" && emp.length === 0)
-    activePills.push({ key: "scope-all", label: "All Tasks", color: TINT.assignee, remove: () => setAssigneeMode("default") });
-  // The dashboard's equivalent: says the view has been widened off you, and
-  // removing the chip puts it back.
-  if (selfScope && assigneeMode === "all")
-    activePills.push({
-      key: "scope-all-emp",
-      label: "All Employees",
-      color: TINT.assignee,
-      remove: () => {
-        setAssigneeMode(selfId ? "default" : "all");
-        setEmp(selfId ? [selfId] : []);
-      },
-    });
+    // ONE chip for "widened off my default", not the two this used to push
+    // (a "All Tasks" chip and an "All Employees" chip, which could both fire).
+    if (assigneeMode === "all" && emp.length === 0)
+      activePills.push({
+        key: "scope-all",
+        label: "All Employees",
+        color: TINT.assignee,
+        remove: resetScope,
+      });
+  }
   for (const c of client)
     activePills.push({ key: `c-${c}`, label: c, color: TINT.client, remove: () => setClient(client.filter((x) => x !== c)) });
   for (const d of dept)
@@ -506,21 +559,26 @@ export function FilterBar({
             <SubjectFilter options={subjects} selected={subj} onChange={setSubj} />
           )}
 
-          {/* Scope (non-admins) + View — always shown */}
-          {showScopeChip && (
-            <SegGroup label="Scope">
-              <SegButton active={assigneeMode === "default" && emp.length === 0} onClick={() => { setAssigneeMode("default"); setEmp([]); }}>My Tasks</SegButton>
-              <SegButton active={assigneeMode === "all" && emp.length === 0} onClick={() => { setAssigneeMode("all"); setEmp([]); }}>All Tasks</SegButton>
-            </SegGroup>
-          )}
+          {/* A "Scope: My Tasks | All Tasks" segmented control used to sit
+              here. REMOVED on request (2026-09-12): whose work you are reading
+              is ONE question, and two controls were asking it — this toggle
+              and the Assignee dropdown, which already carries an "All
+              employees" row and your own name pinned at the top as "(You)".
+
+              Two controls for one question could also disagree, and did.
+              "My Tasks" wrote `assigneeMode: "default"` with an EMPTY
+              selection, while the default on these surfaces ticks your own id
+              — so clicking "My Tasks" left the pill beside it reading "All
+              Employees" and the dropdown showing nothing ticked. Deleting the
+              second control is the fix; another branch reconciling the two
+              would not have been. */}
           {/* SOLID, not the frosted white pill the other segmented controls
               use. This toggle decides WHICH LIST you are reading — your own
               work, or work you handed out — and the two answers share a row
               count, a column set and a layout, so a 4% shift in background
-              was the only thing telling them apart. Scope (My/All Tasks) keeps
-              the subtle treatment: it narrows one list rather than swapping it
-              for a different one, and making every segmented control shout
-              would leave none of them emphatic. */}
+              was the only thing telling them apart. It is now the bar's ONLY
+              segmented control — Scope was deleted just above — which is the
+              other half of why it can afford to shout. */}
           <SegGroup label="View">
             <SegButton
               layoutId="view-seg-active"
@@ -740,7 +798,7 @@ function SegButton({
   active,
   onClick,
   children,
-  layoutId = "scope-seg-active",
+  layoutId = "seg-active",
   tone = "subtle",
   solidColor,
   title,
@@ -753,8 +811,10 @@ function SegButton({
   title?: string;
   /** `subtle` is the frosted white pill every segmented control has always
    *  used. `solid` fills the active pill with `solidColor` and sets the label
-   *  white — opt-in per group, so raising the contrast on the View toggle does
-   *  not silently restyle Scope, which shares this component. */
+   *  white. Opt-in per group: it was added for the View toggle alone, back
+   *  when Scope shared this component and had to keep the quieter look. View
+   *  is the only group left, but the choice stays opt-in so the next group
+   *  added does not inherit the loud treatment by accident. */
   tone?: "subtle" | "solid";
   /** Any CSS colour. Only read when `tone` is "solid" and this pill is active. */
   solidColor?: string;

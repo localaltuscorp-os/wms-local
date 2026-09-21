@@ -1,12 +1,7 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { employees } from "@/db/schema";
 import { requireGoalsAccess } from "@/lib/goals/access";
-import { listActiveClientNames } from "@/lib/queries/clients";
-import { listGoalLookups } from "@/lib/goals/lookups";
-import { decorateGoalsTemplate } from "@/lib/goals/template-workbook";
+import { resolveTemplate } from "@/lib/templates/resolve";
+import { XLSX_CONTENT_TYPE } from "@/lib/templates/registry";
+import { buildGoalsTemplate } from "@/lib/templates/goals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,31 +9,14 @@ export const dynamic = "force-dynamic";
 /**
  * GET /goals/template.xlsx?level=…&periodKey=…
  *
- * Serves the hand-crafted Altus Goals bulk-import workbook
- * (public/templates/Altus-Goals-Template.xlsx). Four sheets:
- *   1. "Goals"      — the entry grid the import reads. Header row 3:
- *                     Area · Client · Goal Title · Target Date · Measure ·
- *                     Actual · Target · Delegated · Type · Weight.
- *   2. "Examples"   — two pre-filled reference rows (never imported).
- *   3. "How to use" — column glossary.
- *   4. "Lists"      — dropdown master data.
+ * The Goals bulk-import workbook. Serves the admin's uploaded replacement if one
+ * exists (Upload Master), else the built-in hand-crafted workbook decorated with
+ * live master data — see lib/templates/goals.ts.
  *
  * One template serves every level (the columns are level-agnostic; the level is
  * taken from the board context at upload time). `level`/`periodKey` only flavour
- * the download filename. The upload parser lives in app/(app)/goals/import.
- *
- * The file is force-included in this function's bundle via
- * `outputFileTracingIncludes` in next.config.ts, so the runtime readFile is safe
- * on Vercel (public/ assets are otherwise CDN-only, not on the function disk).
+ * the built-in download filename.
  */
-const LEVEL_FILE_LABEL: Record<string, string> = {
-  year: "Yearly",
-  quarter: "Quarterly",
-  month: "Monthly",
-  week: "Weekly",
-  day: "Daily",
-};
-
 export async function GET(request: Request): Promise<Response> {
   await requireGoalsAccess();
 
@@ -46,38 +24,16 @@ export async function GET(request: Request): Promise<Response> {
   const level = url.searchParams.get("level") ?? "";
   const periodKey = url.searchParams.get("periodKey") ?? "";
 
-  const [baseFile, clients, lookups, roster] = await Promise.all([
-    readFile(path.join(process.cwd(), "public", "templates", "Altus-Goals-Template.xlsx")),
-    listActiveClientNames(),
-    listGoalLookups(),
-    db
-      .select({ name: employees.name })
-      .from(employees)
-      .where(eq(employees.isActive, true))
-      .orderBy(employees.name),
-  ]);
-
-  const buffer = await decorateGoalsTemplate(baseFile, {
-    clients,
-    areas: lookups.areas,
-    measures: lookups.measures,
-    types: lookups.types,
-    roster: roster.map((r) => r.name).filter(Boolean),
+  const { buffer, contentType, fileName } = await resolveTemplate("goals", async () => {
+    const built = await buildGoalsTemplate({ level, periodKey });
+    return { buffer: built.buffer, contentType: XLSX_CONTENT_TYPE, fileName: built.fileName };
   });
-
-  const levelLabel = level
-    ? LEVEL_FILE_LABEL[level] ?? level.charAt(0).toUpperCase() + level.slice(1)
-    : "";
-  const fname = `Altus-Goals-Template${levelLabel ? `-${levelLabel}` : ""}${
-    periodKey ? `-${periodKey}` : ""
-  }.xlsx`;
 
   return new Response(new Uint8Array(buffer), {
     status: 200,
     headers: {
-      "content-type":
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "content-disposition": `attachment; filename="${fname}"`,
+      "content-type": contentType,
+      "content-disposition": `attachment; filename="${fileName}"`,
       "cache-control": "no-store",
     },
   });

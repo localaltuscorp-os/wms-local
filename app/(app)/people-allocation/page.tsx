@@ -13,6 +13,10 @@ import { AllocationScreen } from "@/components/people-allocation/allocation-scre
 import { AllocationHero } from "./hero";
 import { sweepExpiredEntries } from "./actions";
 import { withRetry, withTimeoutOr } from "@/lib/db/with-timeout";
+import { localDateString } from "@/lib/format";
+import { mondayOf } from "@/lib/hh/calendar";
+import { autoLinkHhPeople } from "@/lib/hh/auto-link";
+import { loadHhCalendarWeek, listHhEmployeeOptions } from "@/lib/queries/hh-calendar";
 
 /** HAND-HOLDING — employees and interns, and the sections each carries. */
 export const dynamic = "force-dynamic";
@@ -26,6 +30,9 @@ export default async function HandHoldingPage() {
   // Housekeeping, so it fails OPEN: if the DB is slow the page must still paint,
   // and a skipped sweep corrects itself on the next load.
   await withTimeoutOr(sweepExpiredEntries().then(() => undefined), 6000, undefined, "hh.sweep");
+  // Names that exactly match an employee get linked, so their Daily Compliance
+  // shows on the calendar. Housekeeping too: fails open like the sweep.
+  await withTimeoutOr(autoLinkHhPeople().then(() => undefined), 6000, undefined, "hh.autolink");
 
   // Every read runs under a timeout with one retry. Against the Supabase
   // transaction pooler a warm instance can be handed a connection the pooler
@@ -46,6 +53,18 @@ export default async function HandHoldingPage() {
     withRetry(() => listAccessActivity(), { ...budget, label: "hh.accessActivity" }),
   ]);
 
+  // The calendar's DCC for this week. A failure leaves the calendar showing
+  // calls only, rather than taking the whole Hand-holding page down.
+  const today = localDateString("Asia/Kolkata");
+  const thisMonday = mondayOf(today);
+  const [calendarWeek, employeeOptions] = await Promise.all([
+    loadHhCalendarWeek(me, thisMonday).catch((err: unknown) => {
+      console.error("[hh] calendar DCC failed", err instanceof Error ? err.message : err);
+      return { weekStart: thisMonday, dcc: {}, hiddenEmployeeIds: [] };
+    }),
+    canEditPerson(me) ? listHhEmployeeOptions().catch(() => []) : Promise.resolve([]),
+  ]);
+
   // Ambassadors on hold count no more than participants on hold do, so the
   // dashboard is handed the live ones and their calls, and nothing else.
   const liveAmbassadors = ambassadors.filter((a) => !a.onHold);
@@ -64,6 +83,9 @@ export default async function HandHoldingPage() {
         canEdit={canEditPerson(me)}
         canDeleteEntry={canDeleteSectionEntry(me)}
         accessActivity={accessActivity}
+        calendarWeek={calendarWeek}
+        today={today}
+        employeeOptions={employeeOptions}
       />
     </PageShell>
   );

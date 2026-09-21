@@ -1,4 +1,30 @@
-@import "tailwindcss";
+/* ── TAILWIND SCANS EXACTLY THREE DIRECTORIES, AND NOTHING ELSE ────────────
+   `source(none)` switches OFF Tailwind v4's automatic source detection. The
+   `@source` lines below are then the COMPLETE list of what it reads.
+
+   WHY THIS IS NOT OPTIONAL. Auto-detection walks the whole project, and it
+   was reading `.next/dev/cache/turbopack/*.sst` — Turbopack's BINARY cache.
+   Those files hold compressed copies of this codebase, so scanning them
+   yields class names with raw control bytes spliced through the middle.
+   Tailwind emitted those as real utilities, the CSS parser rejected them, and
+   every page died with "Parsing CSS source code failed", pointing at a line in
+   this file that nobody wrote.
+
+   It came back after every fix because it is regenerated the moment the
+   Turbopack cache refills — a cold start was always clean, and stayed clean
+   only until the cache grew again. No example of a broken class is written out
+   here on purpose: this file is the one place where quoting one could recreate
+   it. That is not hypothetical; a handoff note quoting one did exactly that.
+
+   IF YOU ADD A DIRECTORY containing className strings, add it here or its
+   classes will silently not be generated. Today that is app/, components/ and
+   lib/ — `grep -rl 'className=' <dir>` is the check. */
+@import "tailwindcss" source(none);
+
+@source "../app/**/*.{ts,tsx,js,jsx,mdx}";
+@source "../components/**/*.{ts,tsx,js,jsx,mdx}";
+@source "../lib/**/*.{ts,tsx,js,jsx}";
+
 @import "react-day-picker/style.css";
 /* Aura — the liquid-glass design language (.claude/skills/aura). Scoped to
    `.aura-app`; see app/aura.css for why every class carries the prefix. */
@@ -2772,6 +2798,33 @@ html {
 }
 .table-scroll::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* A WIDE, TALL GRID'S scrollbars — the Event Checklist and WCC / MCC, which
+   scroll both ways inside their own box (account holder, 2026-09-18: "add a
+   scrollbar on both horizontal and vertical"). Thicker than `table-scroll`,
+   on a visible track, so it is obvious at a glance that the grid goes on in
+   both directions. Add it beside `table-scroll`. */
+.table-scroll.table-scroll-bold {
+  scrollbar-width: auto;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border: 2px solid #f1f5f9;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-corner {
+  background: #f1f5f9;
 }
 
 /* Premium, slim scrollbar for the kanban board — smooth horizontal scroll

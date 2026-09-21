@@ -1,5 +1,14 @@
 # WMS Device-Lock / Device-Identification Audit
 
+> **⚠ STATUS UPDATE, 2026-09-15 — THIS AUDIT DESCRIBES AN ENFORCING SYSTEM. IT IS CURRENTLY OFF.**
+>
+> `deviceAccessEnforced()` had its default reversed at the account holder's
+> instruction: device restriction is now **off unless `DEVICE_ACCESS_ENFORCEMENT="on"`**,
+> in every environment including production. Everything below still describes the
+> mechanism accurately and is what comes back when the switch is turned on — but
+> as of today no employee is asked to register a device and nobody is refused for
+> being on an unregistered one.
+
 **Date:** 2026-09-11
 **Scope:** Device identification, device approval and device-based access control — web/laptop first, phone secondary.
 **Type:** Read-only investigation. **No code, schema, configuration, authentication behaviour or UI was changed.**
@@ -831,7 +840,7 @@ There is no primary/active flag today, and with a cap of one approved per kind t
 
 | Variable | Default | Effect |
 |---|---|---|
-| `DEVICE_ACCESS_ENFORCEMENT` | unset → **enforcing** | `"off"` disables the gate entirely, web **and** native. The only master switch. `.env.example:234` |
+| `DEVICE_ACCESS_ENFORCEMENT` | unset → **OFF** (default reversed 2026-09-15) | Set to exactly `"on"` to enforce. While off the gate is disabled entirely, web **and** native — no registration modal, no `/device-blocked`. The only master switch. `.env.example:234` |
 | `DEVICE_AUTO_ADOPT` | unset → **open** | `"off"` closes first-device self-approval; every new device then needs an administrator. `.env.example:248` |
 | `DEVICE_ACCESS_MOBILE_GRACE_UNTIL` | unset → **no grace** | A **date**. While in the future, a native request with **no** device id is allowed. Unparseable → treated as off, with a warning |
 | `ALLOW_INSECURE_COOKIES` | unset | `"true"` drops the `secure` flag in production |

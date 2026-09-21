@@ -33,7 +33,7 @@ const CARDS: { kind: Kind; title: string; desc: string; annex: string; Icon: typ
   {
     kind: "handover",
     title: "Handover & Clearance Checklist",
-    desc: "Reporting Manager, IT and HR clearance items with per-department sign-off before F&F.",
+    desc: "Reporting Manager, IT and HR clearance items with per-Function sign-off before F&F.",
     annex: "Annexure A",
     Icon: ClipboardCheck,
   },

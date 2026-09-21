@@ -20,6 +20,7 @@ import {
   CircleCheck,
   Circle,
   FileDown,
+  FolderArchive,
   LogOut,
   MessagesSquare,
   ClipboardCheck,
@@ -74,6 +75,7 @@ import { SkillMultiSelect, type SkillSelection } from "@/components/hr/candidate
 import type { SkillLookupOptions } from "@/lib/hr/skills";
 import { formatDateHr } from "@/lib/format";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { downloadRecordsZip } from "@/components/hr/records-backup/download-records-zip";
 
 const EMPTY_SKILLS: SkillSelection = { technical: [], nonTechnical: [] };
 
@@ -158,6 +160,7 @@ export function HrRecordScreen({
   const [policy, setPolicy] = React.useState<PolicySignStatus | null>(null);
   const [policyLoading, setPolicyLoading] = React.useState(false);
   const [docketLoading, setDocketLoading] = React.useState(false);
+  const [zipLoading, setZipLoading] = React.useState(false);
   const [exit, setExit] = React.useState<ExitSummary | null>(null);
   const [exitLoading, setExitLoading] = React.useState(false);
   const [workflow, setWorkflow] = React.useState<WorkflowStatus | null>(null);
@@ -301,6 +304,19 @@ export function HrRecordScreen({
       fireToast({ message: "Couldn't build the docket.", type: "error" });
     } finally {
       setDocketLoading(false);
+    }
+  }
+
+  /** Everything on file for this person — forms as PDF, scans, letters — as one ZIP. */
+  async function downloadAllRecords() {
+    const id = cidRef.current;
+    if (!id || zipLoading) return;
+    setZipLoading(true);
+    try {
+      const res = await downloadRecordsZip(id, selected?.fullName || "person");
+      fireToast(res.ok ? { message: "Records downloaded.", type: "success" } : { message: res.error, type: "error" });
+    } finally {
+      setZipLoading(false);
     }
   }
 
@@ -585,9 +601,36 @@ export function HrRecordScreen({
                     )}
                   </button>
                 )}
+                {/* Admin-only, like the vault above: the ZIP carries ID scans. */}
+                {selected && isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => void downloadAllRecords()}
+                    disabled={zipLoading}
+                    className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-hairline-strong bg-white px-4 py-3 text-[13.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft disabled:opacity-50"
+                  >
+                    {zipLoading ? (
+                      <><Loader2 size={15} className="animate-spin" /> Collecting every file…</>
+                    ) : (
+                      <><FolderArchive size={15} /> Download All Records (ZIP)</>
+                    )}
+                  </button>
+                )}
                 <p className="mt-3 flex items-start gap-2 text-[12px] leading-relaxed text-ink-subtle">
                   <UserRound size={13} className="mt-0.5 shrink-0" />
-                  The docket merges every archived, signed document into one PDF packet. Files also live in the dossier vault.
+                  <span>
+                    The docket merges every archived, signed document into one PDF packet.
+                    {isAdmin ? (
+                      <>
+                        {" "}The ZIP has everything on file: each filled form as a PDF, scanned documents and letters.{" "}
+                        <Link href={"/hr/records-backup" as Route} className="font-bold text-ink-strong underline underline-offset-2">
+                          Google Drive backup
+                        </Link>
+                      </>
+                    ) : (
+                      " Files also live in the dossier vault."
+                    )}
+                  </span>
                 </p>
               </RecordCard>
             </section>
@@ -1635,14 +1678,14 @@ function Roster({
             Open anyone to work their whole file A–Z - letters, email, assets, policies, documents and exit.
           </p>
         </div>
-        <CollapsibleSearch scope="name, role or department">
+        <CollapsibleSearch scope="name, role or Function">
         <div className="relative w-full max-w-[320px]">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input
             type="text"
             value={query}
             onChange={(e) => onQuery(e.target.value)}
-            placeholder="Local search - name, role or department" title="Local search - filters only the list on this page" aria-label="Local search - name, role or department - this page only"
+            placeholder="Local search - name, role or Function" title="Local search - filters only the list on this page" aria-label="Local search - name, role or Function - this page only"
             className="w-full rounded-xl border border-hairline-strong bg-white py-2.5 pl-9 pr-3 text-[13.5px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
           />
         </div>
@@ -1658,7 +1701,7 @@ function Roster({
             {candidates.length === 0 ? "No people on file yet" : "No one matches that search"}
           </p>
           <p className="mt-1 text-[13px] font-medium text-ink-muted">
-            {candidates.length === 0 ? "People appear here as candidates are entered." : "Try a different name, role or department."}
+            {candidates.length === 0 ? "People appear here as candidates are entered." : "Try a different name, role or Function."}
           </p>
         </div>
       ) : (
@@ -1797,7 +1840,7 @@ function PersonPicker({
       {open && (
         <div className="rec-panel absolute left-0 right-0 top-[calc(100%+8px)] z-40 overflow-hidden rounded-2xl border border-hairline-strong bg-white shadow-[0_24px_60px_-24px_rgba(24,24,27,0.5)]">
           <div className="border-b border-hairline p-2.5">
-            <CollapsibleSearch scope="name, role or department">
+            <CollapsibleSearch scope="name, role or Function">
             <div className="relative">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
               <input
@@ -1806,7 +1849,7 @@ function PersonPicker({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Local search - name, role or department" title="Local search - filters only the list on this page" aria-label="Local search - name, role or department - this page only"
+                placeholder="Local search - name, role or Function" title="Local search - filters only the list on this page" aria-label="Local search - name, role or Function - this page only"
                 className="w-full rounded-lg border border-hairline-strong bg-surface-soft py-2.5 pl-9 pr-8 text-[13.5px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red focus:bg-white"
               />
               {query && (

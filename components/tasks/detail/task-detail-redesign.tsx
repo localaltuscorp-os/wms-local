@@ -182,6 +182,12 @@ export function TaskDetailRedesign(props: Props) {
       taskId={task.id}
       live={timePanel?.state.live ?? null}
       baseSeconds={timePanel?.state.rollup.totalActiveSeconds ?? 0}
+      /* The PHASE, not a boolean: idle · running · paused · stopped. Both
+         surfaces branch on it, so neither can invent its own reading of
+         "stopped" — which is how one of them came to show Start Work while the
+         other showed Pause. */
+      phase={timePanel?.state.phase ?? "idle"}
+      stamp={timePanel?.state.lastEventAt ?? null}
     >
     <div className="relative">
       {/* ── CRIMSON HERO BAND ──
@@ -641,6 +647,9 @@ function SessionHistory({
     endedAt: string | null;
     durationSeconds: number | null;
     live: boolean;
+    /** Cleared by a Restart. Still listed — the history is the audit trail —
+     *  but greyed and struck, and excluded from every total on the screen. */
+    discarded: boolean;
   }[];
   liveStartedAt: string | null;
   byName: string;
@@ -675,8 +684,13 @@ function SessionHistory({
                 <tr
                   key={r.id}
                   className={`border-t border-slate-100 ${
-                    r.live ? "bg-red-50/70 font-semibold text-red-600" : "text-slate-700"
+                    r.live
+                      ? "bg-red-50/70 font-semibold text-red-600"
+                      : r.discarded
+                        ? "text-slate-400 line-through"
+                        : "text-slate-700"
                   }`}
+                  title={r.discarded ? "Cleared by a Restart — not counted in the total" : undefined}
                 >
                   <td className="px-4 py-2 text-[12.5px]">{stampOf(r.startedAt)}</td>
                   <td className="px-4 py-2 text-[12.5px]">

@@ -15,7 +15,8 @@ import {
   taskWorkSessions,
   taskTimeRollup,
 } from "@/db/schema";
-import type { TimeEventKind, SessionEndReason } from "@/lib/tasks/time/types";
+import type { TimeEventKind, SessionEndReason, TimerPhase } from "@/lib/tasks/time/types";
+import { derivePhase } from "@/lib/tasks/time/phase";
 
 export interface SessionRow {
   id: string;
@@ -25,6 +26,10 @@ export interface SessionRow {
   durationSeconds: number | null;
   endReason: SessionEndReason | null;
   live: boolean;
+  /** Thrown away by a Restart: still in the ledger, no longer in the total.
+   *  The Start/Stop history greys these rather than hiding them — a stopwatch
+   *  you can silently empty is not an audit trail. */
+  discarded: boolean;
 }
 
 export interface TimelineEntry {
@@ -51,6 +56,21 @@ export interface TaskTimeState {
   taskId: string;
   doerId: string;
   live: { sessionId: string; startedAt: string; revision: number } | null;
+  /**
+   * WHERE THE TIMER IS, decided once on the server and read by every control.
+   *
+   * The hero band and the rail card used to each work this out from whatever
+   * props they happened to hold — one from `live`, the other from
+   * `rollup.sessionCount` — which is how the screen ended up showing Pause at
+   * the top and Start Work down the side at the same instant. There is now one
+   * answer and both read it.
+   */
+  phase: TimerPhase;
+  /** When the timer was last reset to zero; sessions before it are discarded. */
+  resetAt: string | null;
+  /** The newest event's stamp. The client uses it to tell whether the server
+   *  has caught up with a click it already painted optimistically. */
+  lastEventAt: string | null;
   rollup: {
     totalActiveSeconds: number;
     originalSeconds: number;
@@ -126,6 +146,12 @@ export async function getTaskTimeState(taskId: string): Promise<TaskTimeState | 
     ? await db.select({ name: employees.name }).from(employees).where(eq(employees.id, task.createdById)).limit(1)
     : [];
 
+  /* The line a Restart drew. Sessions that started before it are history, not
+     total — the same cutoff the rollup applies in SQL, so the card's big number
+     and the rows underneath it can never tell different stories. */
+  const resetEvents = eventRows.filter((e) => e.kind === "timer_reset");
+  const resetAt = resetEvents.length > 0 ? toIso(resetEvents[resetEvents.length - 1]!.at) : null;
+
   const sessions: SessionRow[] = sessionRows.map((s) => ({
     id: s.id,
     revision: s.revision,
@@ -134,6 +160,7 @@ export async function getTaskTimeState(taskId: string): Promise<TaskTimeState | 
     durationSeconds: s.durationSeconds,
     endReason: (s.endReason as SessionEndReason | null) ?? null,
     live: s.endedAt === null,
+    discarded: resetAt != null && toIso(s.startedAt) < resetAt,
   }));
 
   const live = sessions.find((s) => s.live) ?? null;
@@ -192,10 +219,23 @@ export async function getTaskTimeState(taskId: string): Promise<TaskTimeState | 
   const sessionCount = rollupRow?.sessionCount ?? 0;
   const total = rollupRow?.totalActiveSeconds ?? 0;
 
+  /* ── THE PHASE ─────────────────────────────────────────────────────────
+     One word, derived from the log (lib/tasks/time/phase.ts), read by every
+     control on the screen so none of them has to guess. */
+  const sinceReset = sessions.filter((s) => !s.discarded);
+  const phase: TimerPhase = derivePhase({
+    hasLiveSession: live != null,
+    lastEventKind: eventRows.length > 0 ? (eventRows[eventRows.length - 1]!.kind as TimeEventKind) : null,
+    sessionsSinceReset: sinceReset.length,
+  });
+
   return {
     taskId,
     doerId: task.doerId,
     live: live ? { sessionId: live.id, startedAt: live.startedAt, revision: live.revision } : null,
+    phase,
+    resetAt,
+    lastEventAt: eventRows.length > 0 ? toIso(eventRows[eventRows.length - 1]!.at) : null,
     rollup: {
       totalActiveSeconds: total,
       originalSeconds: rollupRow?.originalSeconds ?? 0,

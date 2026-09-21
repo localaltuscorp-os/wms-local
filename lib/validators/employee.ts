@@ -69,6 +69,12 @@ export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>;
  * absent — those are immutable identity. Reject empty patches so callers
  * don't burn a round-trip on a no-op.
  */
+/** yyyy-mm-dd, the shape every `date` column in this schema stores. */
+const ISO_DATE = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "Use a date like 2026-04-01");
+
 export const EditEmployeeSchema = z
   .object({
     name:       z
@@ -132,8 +138,89 @@ export const EditEmployeeSchema = z
     // Anti-proxy attendance: exempt employees whose device has no biometric
     // sensor from the mandatory-fingerprint punch rule (they fall back to GPS).
     attendanceBiometricExempt: z.boolean().optional(),
+    /* ── EMPLOYEE MASTER (0225) ───────────────────────────────────────────
+       The consolidated master edits these in its workspace. They are added to
+       the EXISTING schema and the EXISTING action rather than given a second
+       write path: one validator, one audit trail, one cache invalidation.
+       Every key stays optional, so the sparse-patch guarantee above is intact. */
+    /** FK to `functions`. Null clears it. */
+    functionId: z.string().uuid().nullable().optional(),
+    /** FK to `shift_types`. NOT the pay basis — see `workerType`. */
+    shiftTypeId: z.string().uuid().nullable().optional(),
+    /** FK to `paying_entities`. */
+    payingEntityId: z.string().uuid().nullable().optional(),
+    /** FK to `designations`. */
+    designationId: z.string().uuid().nullable().optional(),
+    /** Descriptive only — grants no permission. */
+    isTeamLead: z.boolean().optional(),
+    trainPass: z.boolean().optional(),
+    /** Date of Joining. */
+    joinedAt: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
+    probationEnd: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
+    /** Date of Completion — the last working day. */
+    lastWorkingDay: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
+    /** Office mail. Distinct from `email`, which is the LOGIN address and is
+     *  changed through the invite flow, not here. */
+    officialEmail: z.union([z.string().trim().email().max(160), z.literal(""), z.null()]).optional(),
+    personalEmail: z.union([z.string().trim().email().max(160), z.literal(""), z.null()]).optional(),
+
+    /* ── Employee schedule settings (0228) ─────────────────────────────────
+       Every one is `.optional()`, which is what carries the sparse-patch
+       contract through to the server: absent means LEAVE ALONE, and only a key
+       that is actually present is written. A boolean here has no `null` form on
+       purpose — the columns are NOT NULL, so "clear it" is not a state they
+       have; the only two answers are Yes and No.                            */
+
+    /** No = not required to punch; absence never reaches a deduction. */
+    attendanceApplicable: z.boolean().optional(),
+
+    /** Which Saturdays of the month this person works. */
+    sat1Working: z.boolean().optional(),
+    sat2Working: z.boolean().optional(),
+    sat3Working: z.boolean().optional(),
+    sat4Working: z.boolean().optional(),
+    sat5Working: z.boolean().optional(),
+
+    /** Monday–Friday timings. These are the EXISTING columns the attendance
+     *  engine already grades against — deliberately not a new pair, so the
+     *  Employee Master and the Attendance schedule screen cannot drift apart
+     *  about what this employee's day is. "" clears back to the org default. */
+    attOfficialStart: z.union([TIME_HHMM, z.literal(""), z.null()]).optional(),
+    attOfficialEnd: z.union([TIME_HHMM, z.literal(""), z.null()]).optional(),
+
+    /** Saturday timings. Null/"" means "same as Monday–Friday". */
+    satOfficialStart: z.union([TIME_HHMM, z.literal(""), z.null()]).optional(),
+    satOfficialEnd: z.union([TIME_HHMM, z.literal(""), z.null()]).optional(),
+
+    /** Work-from-home entitlement. Independent of each other. */
+    wfhFullTimeAllowed: z.boolean().optional(),
+    wfhPartTimeAllowed: z.boolean().optional(),
   })
   .strict()
+  .refine(
+    // Saturday cannot end before it starts. Mirrors the database CHECK
+    // `employees_sat_hours_ordered` so the admin gets a sentence instead of a
+    // constraint violation, and so the rule holds even if a future caller
+    // writes the columns without going through the database.
+    (v) =>
+      !v.satOfficialStart ||
+      !v.satOfficialEnd ||
+      v.satOfficialStart < v.satOfficialEnd,
+    {
+      message: "Saturday's end time must be after its start time.",
+      path: ["satOfficialEnd"],
+    },
+  )
+  .refine(
+    (v) =>
+      !v.attOfficialStart ||
+      !v.attOfficialEnd ||
+      v.attOfficialStart < v.attOfficialEnd,
+    {
+      message: "The end time must be after the start time.",
+      path: ["attOfficialEnd"],
+    },
+  )
   .refine(
     (v) => Object.keys(v).length > 0,
     { message: "No changes to save." },
@@ -175,6 +262,27 @@ export const BulkEditEmployeesSchema = z
     attLateAfter: z.union([TIME_HHMM, z.literal(""), z.null()]).optional(),
     attOfficialEnd: z.union([TIME_HHMM, z.literal(""), z.null()]).optional(),
     attEarlyBefore: z.union([TIME_HHMM, z.literal(""), z.null()]).optional(),
+    /* ── EMPLOYEE MASTER (0225) ───────────────────────────────────────────
+       The consolidated master edits these in its workspace. They are added to
+       the EXISTING schema and the EXISTING action rather than given a second
+       write path: one validator, one audit trail, one cache invalidation.
+       Every key stays optional, so the sparse-patch guarantee above is intact. */
+    /** FK to `functions`. Null clears it. */
+    functionId: z.string().uuid().nullable().optional(),
+    /** FK to `shift_types`. NOT the pay basis — see `workerType`. */
+    shiftTypeId: z.string().uuid().nullable().optional(),
+    /** FK to `paying_entities`. */
+    payingEntityId: z.string().uuid().nullable().optional(),
+    /** FK to `designations`. */
+    designationId: z.string().uuid().nullable().optional(),
+    /** Descriptive only — grants no permission. */
+    isTeamLead: z.boolean().optional(),
+    trainPass: z.boolean().optional(),
+    /** Date of Joining. */
+    joinedAt: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
+    probationEnd: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
+    /** Date of Completion — the last working day. */
+    lastWorkingDay: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, {

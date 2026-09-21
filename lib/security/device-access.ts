@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { mobileDevices, type Employee, type MobileDevice } from "@/db/schema";
 import type { DeviceKind } from "@/db/enums";
 import { deviceRestrictionRequired } from "@/lib/security/capabilities";
+import { isShareableDeviceId } from "@/lib/security/device-id";
 
 /**
  * DEVICE-BASED WMS ACCESS — the server-side gate.
@@ -33,8 +34,9 @@ import { deviceRestrictionRequired } from "@/lib/security/capabilities";
  * — it names a device, it does not authenticate a person. Authentication is the
  * session, checked before any of this runs. What the cookie does buy is the
  * property actually asked for: you cannot use the WMS from a colleague's
- * laptop, because their browser carries their cookie and a cookie already bound
- * to another employee is refused outright.
+ * laptop — your registration of THEIR machine is pending, because your own
+ * laptop slot is already taken. (Since 0243 the cookie names the machine and
+ * each person has their own row for it; see {@link isShareableDeviceId}.)
  *
  * ── READ-ONLY HERE, WRITES AT THE EDGES ────────────────────────────────────
  * Next only permits setting a cookie in a Route Handler or Server Action, and
@@ -55,6 +57,52 @@ export const DEVICE_COOKIE_MAX_AGE_SECONDS = 10 * 365 * 24 * 60 * 60;
 
 /** Header the native app sends its keystore device id on. */
 export const DEVICE_ID_HEADER = "x-altus-device-id";
+
+/**
+ * ONE MACHINE, SEVERAL PEOPLE (migration 0243).
+ *
+ * A browser id — the `web_…` value this module mints into the cookie — names a
+ * MACHINE, and a device row is one PERSON's registration of it, unique on
+ * (device_id, employee_id). Several colleagues who sign in on one shared office
+ * PC each get their own row under the same id.
+ *
+ * It used to be one row per id, and a browser whose cookie belonged to someone
+ * else had its cookie REPLACED with a fresh id. So two people sharing a browser
+ * erased each other's identity at every sign-in, and each came back as a
+ * "new laptop" — pending, because their one laptop slot was already filled —
+ * day after day: 17 rows for one person in a fortnight. Keeping the id and
+ * adding a row per person ends that, and records the fact that matters for
+ * proxy punching: the same machine used by more than one person.
+ *
+ * NATIVE (phone) ids stay SINGLE-OWNER. The phone is the punch device; one
+ * phone presenting for two people is exactly the proxy case, and it is still
+ * refused as `other_employee` — here, and by a partial unique index in 0243.
+ *
+ * Nothing about access is loosened. With enforcement on, a colleague's machine
+ * still refuses you: your row for it is `pending`, because your laptop slot is
+ * already taken. The rule itself lives in lib/security/device-id.ts.
+ */
+export { isShareableDeviceId };
+
+/** THIS person's row for a device id — never somebody else's. The ownership is
+ *  checked on the row as well as in the query, so a row belonging to another
+ *  employee can never be mistaken for this one's. */
+async function ownDeviceRow(deviceId: string, employeeId: string): Promise<MobileDevice | null> {
+  const row = await db.query.mobileDevices.findFirst({
+    where: and(eq(mobileDevices.deviceId, deviceId), eq(mobileDevices.employeeId, employeeId)),
+  });
+  return row && row.employeeId === employeeId ? row : null;
+}
+
+/** Is this single-owner (native) id already somebody else's? Always false for a
+ *  shareable browser id — several people on one machine is allowed. */
+async function heldBySomeoneElse(deviceId: string, employeeId: string): Promise<boolean> {
+  if (isShareableDeviceId(deviceId)) return false;
+  const row = await db.query.mobileDevices.findFirst({
+    where: eq(mobileDevices.deviceId, deviceId),
+  });
+  return !!row && row.employeeId !== employeeId;
+}
 
 /** Why a device may not use the WMS. The UI maps these to distinct screens. */
 export type DeviceDenyReason =
@@ -101,20 +149,42 @@ const DENY_MESSAGES: Record<DeviceDenyReason, string> = {
 /* ── Enforcement switches ─────────────────────────────────────────────────── */
 
 /**
- * The master switch. ENFORCING BY DEFAULT — the whole point of this work is
- * that the rule holds without anyone having to remember to switch it on, and a
- * security control that defaults off ships as documentation.
+ * The master switch. **DEFAULT REVERSED ON 2026-09-15 — NOW OFF UNLESS ASKED
+ * FOR**, at the account holder's explicit instruction, everywhere including
+ * production.
  *
- * `DEVICE_ACCESS_ENFORCEMENT=off` is a deliberate operator escape hatch for one
- * situation: the native Android app sends its device id on a header
- * ({@link DEVICE_ID_HEADER}) that only builds after this change include, so
- * every phone still running an older build presents no id and is refused.
- * Turning enforcement off for the length of that app rollout is a considered
- * trade, not a bypass — and it is the ONLY way to disable this, so its use is
- * visible in one environment variable rather than spread across the code.
+ * ── WHAT THIS MEANS RIGHT NOW ──────────────────────────────────────────────
+ * Device restriction is DISABLED. Nobody is asked to register a device at first
+ * login, nobody is sent to /device-blocked, and an employee signs in from any
+ * machine. Every branch that reads this already handles the off state — the
+ * sign-in path too (see `adoptDeviceOnLogin`), so no one is refused at the door
+ * while it is off. Rows in `mobile_devices` are still written and the admin
+ * screen still lists them; they simply stop being an access decision.
+ *
+ * ── HOW TO TURN IT BACK ON ─────────────────────────────────────────────────
+ *   DEVICE_ACCESS_ENFORCEMENT=on
+ * in the environment — one variable, no code change, no deploy if your host can
+ * set it live. Any other value, and no value at all, leaves it off.
+ *
+ * ── WHY THE DEFAULT MOVED, RATHER THAN SETTING THE OLD VAR ─────────────────
+ * Because "off everywhere" was the instruction, and the previous default made
+ * that depend on someone remembering to set `=off` in each environment. A
+ * production deployment whose env var was missed would have kept enforcing and
+ * kept locking people out, which is the exact outcome being removed. Putting
+ * the state in code makes it true in every environment at once and visible in
+ * review.
+ *
+ * ── THE PRIOR REASONING, KEPT DELIBERATELY ─────────────────────────────────
+ * This used to read: "ENFORCING BY DEFAULT — the whole point of this work is
+ * that the rule holds without anyone having to remember to switch it on, and a
+ * security control that defaults off ships as documentation." That argument was
+ * right when it was written and is the argument for reverting this line. It is
+ * left here so whoever turns enforcement back on knows what they are restoring
+ * and why it was built that way — and so this reads as a decision that was
+ * taken, not a default that quietly rotted.
  */
 export function deviceAccessEnforced(): boolean {
-  return process.env.DEVICE_ACCESS_ENFORCEMENT !== "off";
+  return process.env.DEVICE_ACCESS_ENFORCEMENT === "on";
 }
 
 /**
@@ -217,29 +287,28 @@ export async function resolveDeviceContext(
     return { allowed: false, reason: "unidentified", error: DENY_MESSAGES.unidentified, device: null };
   }
 
-  const row = await db.query.mobileDevices.findFirst({
-    where: eq(mobileDevices.deviceId, deviceId),
-  });
+  // THIS person's registration of the device — never a colleague's row for the
+  // same shared machine (0243).
+  const row = await ownDeviceRow(deviceId, employee.id);
 
   if (!row) {
+    // A SINGLE-OWNER (phone) id held by somebody else is refused as such, even
+    // for an exempt actor's audit trail: the exemption is "you need not register
+    // your devices", not "you may present another employee's phone". A shared
+    // browser is not this case — it is simply not registered to you yet.
+    if (await heldBySomeoneElse(deviceId, employee.id)) {
+      if (exempt) return { allowed: true, device: null, exempt: true, kind: null };
+      if (!deviceAccessEnforced()) return unenforced(null);
+      return {
+        allowed: false,
+        reason: "other_employee",
+        error: DENY_MESSAGES.other_employee,
+        device: null,
+      };
+    }
     if (exempt) return { allowed: true, device: null, exempt: true, kind: null };
     if (!deviceAccessEnforced()) return unenforced(null);
     return { allowed: false, reason: "unregistered", error: DENY_MESSAGES.unregistered, device: null };
-  }
-
-  // A row belonging to somebody else is refused even for an exempt actor: the
-  // exemption is "you need not register your devices", not "you may present
-  // another employee's device identity". Letting it through would also file the
-  // audit trail under the wrong device.
-  if (row.employeeId !== employee.id) {
-    if (exempt) return { allowed: true, device: null, exempt: true, kind: null };
-    if (!deviceAccessEnforced()) return unenforced(null);
-    return {
-      allowed: false,
-      reason: "other_employee",
-      error: DENY_MESSAGES.other_employee,
-      device: null,
-    };
   }
 
   if (row.status === "approved") {
@@ -328,17 +397,13 @@ export async function adoptDeviceOnLogin(employee: Employee): Promise<AdoptResul
   }
 
   if (existingId) {
-    const row = await db.query.mobileDevices.findFirst({
-      where: eq(mobileDevices.deviceId, existingId),
-    });
+    // THIS person's row for the machine. A colleague's row for the same browser
+    // is not a reason to touch the cookie any more (0243): that used to replace
+    // it with a fresh id, which erased the colleague's identity and made each of
+    // them a "new laptop" at every sign-in. Now the id stays, and a person with
+    // no row for this machine yet is enrolled under it below.
+    const row = await ownDeviceRow(existingId, employee.id);
     if (row) {
-      if (row.employeeId !== employee.id) {
-        // Two people sharing one browser profile. The SECOND person must not
-        // inherit the first person's device row, and must not silently take a
-        // fresh slot under the first person's cookie either — so the cookie is
-        // replaced with a new identity below rather than reused.
-        return await enroll(employee, `web_${randomUUID()}`, kind, label);
-      }
       await touchLastSeen(row.id);
       // SIGN-IN NO LONGER REFUSES ON DEVICE STATUS (0222).
       //
@@ -356,12 +421,19 @@ export async function adoptDeviceOnLogin(employee: Employee): Promise<AdoptResul
       // instead of a dead end on the sign-in screen.
       return { ok: true, device: row, adopted: false, deviceId: existingId };
     }
-    // A cookie naming a device that no longer exists (revoked and purged, or a
-    // restored database). Fall through and let it be enrolled or refused on the
-    // same terms as a browser with no cookie at all.
+    // No row of THEIRS for this machine: a first sign-in here, a colleague's
+    // browser, or a row that was purged. Fall through and enroll them under the
+    // SAME id — on the same terms as a browser with no cookie at all.
   }
 
-  return await enroll(employee, existingId || `web_${randomUUID()}`, kind, label);
+  // A single-owner id in a cookie is not something a browser should carry; if
+  // one somehow belongs to someone else, mint a fresh browser id rather than
+  // colliding with the phone's owner.
+  const enrollId =
+    existingId && !(await heldBySomeoneElse(existingId, employee.id))
+      ? existingId
+      : `web_${randomUUID()}`;
+  return await enroll(employee, enrollId, kind, label);
 }
 
 /**
@@ -380,9 +452,10 @@ export async function adoptDeviceOnLogin(employee: Employee): Promise<AdoptResul
  *    next time. It is enrolled only when a slot happens to be free — an exempt
  *    person must not silently consume, or be blocked by, a cap they are not
  *    subject to. When no slot is free the cookie is set and no row is written.
- *  · A device belonging to SOMEBODY ELSE is not adopted and not reused: a fresh
- *    identity is minted instead, so an exempt actor on a colleague's browser is
- *    never recorded as that colleague's device.
+ *  · A colleague's browser keeps its id; the actor gets their OWN row for that
+ *    machine (0243), so they are never recorded as the colleague's device and
+ *    the colleague's identity is never erased. Only a single-owner phone id
+ *    belonging to someone else is replaced with a fresh one.
  */
 async function resolveWithoutRefusing(
   employee: Employee,
@@ -391,17 +464,17 @@ async function resolveWithoutRefusing(
   label: string,
 ): Promise<AdoptResult> {
   if (existingId) {
-    const row = await db.query.mobileDevices.findFirst({
-      where: eq(mobileDevices.deviceId, existingId),
-    });
-    if (row && row.employeeId === employee.id && row.status === "approved") {
+    const row = await ownDeviceRow(existingId, employee.id);
+    if (row && row.status === "approved") {
       await touchLastSeen(row.id);
       return { ok: true, device: row, adopted: false, deviceId: existingId };
     }
   }
 
+  // Keep the machine's id even when a colleague also uses it (0243); only a
+  // single-owner phone id belonging to someone else is replaced.
   const deviceId =
-    existingId && !(await deviceBelongsToAnotherEmployee(existingId, employee.id))
+    existingId && !(await heldBySomeoneElse(existingId, employee.id))
       ? existingId
       : `web_${randomUUID()}`;
 
@@ -427,27 +500,13 @@ async function resolveWithoutRefusing(
 
   await setDeviceCookie(deviceId);
 
-  const row = await db.query.mobileDevices.findFirst({
-    where: eq(mobileDevices.deviceId, deviceId),
-  });
-  return row && row.employeeId === employee.id
+  const row = await ownDeviceRow(deviceId, employee.id);
+  return row
     ? { ok: true, device: row, adopted: true, deviceId }
     : // No row, and that is fine: both slots are full and this actor is not
       // subject to the cap. `resolveDeviceContext` reports them as exempt on
       // every subsequent request regardless.
       { ok: true, device: null, adopted: false, deviceId };
-}
-
-/** Is this device id already somebody else's? Used only to decide whether an
- *  exempt actor may keep the cookie in front of them or needs a fresh one. */
-async function deviceBelongsToAnotherEmployee(
-  deviceId: string,
-  employeeId: string,
-): Promise<boolean> {
-  const row = await db.query.mobileDevices.findFirst({
-    where: eq(mobileDevices.deviceId, deviceId),
-  });
-  return !!row && row.employeeId !== employeeId;
 }
 
 /**
@@ -485,10 +544,16 @@ async function enroll(
     // read the winner's row rather than reporting a failure. Same for a race on
     // the approved-per-kind unique index — the other transaction took the slot,
     // so this one is pending, which is the correct answer, not an error.
-    const existing = await db.query.mobileDevices.findFirst({
-      where: eq(mobileDevices.deviceId, deviceId),
-    });
-    if (existing && existing.employeeId === employee.id) {
+    // THE PRE-0243 DATABASE. Until the migration runs, device_id is still
+    // unique on its own, so a second person on a shared browser cannot have a
+    // row under the same id. Rather than fail the sign-in, do what the old code
+    // did — a fresh id for this person — so deploying the code before the SQL
+    // costs the old behaviour, never a lock-out.
+    if (msg.includes("mobile_devices_device_id_uq") && isShareableDeviceId(deviceId)) {
+      return await enroll(employee, `web_${randomUUID()}`, kind, label);
+    }
+    const existing = await ownDeviceRow(deviceId, employee.id);
+    if (existing) {
       await setDeviceCookie(deviceId);
       // Whatever its status, the person signs in — see the note in
       // adoptDeviceOnLogin. `resolveDeviceContext` refuses afterwards if it must.
@@ -513,19 +578,15 @@ async function enroll(
            gate decides on the next request. */
       }
       await setDeviceCookie(deviceId);
-      const written = await db.query.mobileDevices.findFirst({
-        where: eq(mobileDevices.deviceId, deviceId),
-      });
-      return { ok: true, device: written ?? null, adopted: false, deviceId };
+      const written = await ownDeviceRow(deviceId, employee.id);
+      return { ok: true, device: written, adopted: false, deviceId };
     }
     throw err;
   }
 
   await setDeviceCookie(deviceId);
 
-  const row = await db.query.mobileDevices.findFirst({
-    where: eq(mobileDevices.deviceId, deviceId),
-  });
+  const row = await ownDeviceRow(deviceId, employee.id);
   // Sign-in proceeds either way (0222). The admin alert still fires for a
   // pending device — administrators keep the visibility they had — but the
   // person is no longer held at the login form waiting for it to be actioned.

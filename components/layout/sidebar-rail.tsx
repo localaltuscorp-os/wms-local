@@ -35,7 +35,18 @@ export function SidebarRail({
 
   const pathname = usePathname();
   const ws = workspaceForPath(pathname ?? "/");
-  const expandedWidth = ws === "hr" ? "w-[288px]" : ws === "goals" ? "w-[228px]" : "w-[212px]";
+  // Operations sits between the default and HR: it carries five areas and
+  // the longest label in the app ("Monthly Events Master"), which wrapped to
+  // two lines at 212px and left the module tile fighting the wordmark for
+  // the same row.
+  const expandedWidth =
+    ws === "hr"
+      ? "w-[288px]"
+      : ws === "operations"
+        ? "w-[248px]"
+        : ws === "goals"
+          ? "w-[228px]"
+          : "w-[212px]";
 
   // Once the user hits the toggle we stop auto-managing (never fight a manual choice).
   const userTouchedRef = React.useRef(false);

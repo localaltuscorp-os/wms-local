@@ -187,15 +187,15 @@ export function MaterialForm({
         </div>
       </Section>
 
-      <Section title="Induction" hint="Flag this as induction material and choose which departments' new hires get it automatically.">
+      <Section title="Induction" hint="Flag this as induction material and choose which Functions' new hires get it automatically.">
         <label className="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" checked={partOfInduction} onChange={(e) => setPartOfInduction(e.target.checked)} className="size-5 rounded accent-[var(--color-altus-red)]" />
           <span className="text-[15px] font-semibold text-ink-strong">Part of Induction</span>
         </label>
         {partOfInduction && (
           <div className="mt-4">
-            <label className={LABEL}>Applies to Departments</label>
-            <MultiSelect options={departmentOptions} selected={inductionDeptIds} onChange={setInductionDeptIds} placeholder="Select departments…" className={FIELD} />
+            <label className={LABEL}>Applies to Functions</label>
+            <MultiSelect options={departmentOptions} selected={inductionDeptIds} onChange={setInductionDeptIds} placeholder="Select Functions…" className={FIELD} />
           </div>
         )}
       </Section>

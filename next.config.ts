@@ -47,6 +47,20 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  /**
+   * WHERE THE BUILD OUTPUT GOES — overridable, so DUMMY MODE can run BESIDE the
+   * real dev server instead of instead of it.
+   *
+   * Next refuses to start a second `next dev` from the same directory ("Another
+   * next dev server is already running"), because both would fight over
+   * `.next/`. That made the dummy sandbox an either/or: stop the server pointed
+   * at the real database, or do not look at dummy data. Giving the sandbox its
+   * own output directory lets both run — :3000 on the real data, :3002 on
+   * PGlite (see `pnpm dev:dummy`).
+   *
+   * Defaults to `.next`, so every existing build and deploy is unchanged.
+   */
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // THIS DIRECTORY IS THE WORKSPACE, full stop.
   //
   // Turbopack infers the root by walking UP for a lockfile, and there is a stray
@@ -74,6 +88,12 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "25mb",
     },
+    // THE VERCEL BUILD RAN OUT OF MEMORY (19 Sep). On the 2-core / 8 GB build
+    // machine the webpack compile stalled after "Compiled with warnings" and
+    // was killed at Vercel's 45-minute limit, twice, on code that had built
+    // in 7 minutes an hour earlier. Trades a little build speed for a lower
+    // peak heap. Paired with the heap size in package.json's build script.
+    webpackMemoryOptimizations: true,
   },
   /**
    * TYPED ROUTES ARE OFF — the app outgrew them.
@@ -180,6 +200,10 @@ const nextConfig: NextConfig = {
   // to be on the function filesystem, so a bare readFile would 500 in prod).
   outputFileTracingIncludes: {
     "/goals/template.xlsx": ["./public/templates/Altus-Goals-Template.xlsx"],
+    // The Upload Master download route serves the same built-in Goals workbook
+    // (via lib/templates/goals.ts) without module access, so it needs the file
+    // traced into its own function too.
+    "/admin/upload-master/download/[key]": ["./public/templates/Altus-Goals-Template.xlsx"],
     // @sparticuz/chromium's binary lives in its `bin/` dir and is unpacked at
     // RUNTIME by executablePath() — nothing statically imports it, so Vercel's
     // file-tracing drops it from the function ("input directory …/bin does not

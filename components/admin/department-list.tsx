@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { fireToast } from "@/lib/toast";
 import { DataTable } from "@/components/admin/ui/data-table";
-import { updateDepartment } from "@/app/(admin)/admin/departments/actions";
+import { updateDepartment } from "@/app/(admin)/admin/functions/actions";
 import type { DepartmentWithCount } from "@/lib/queries/departments";
 
 interface Props {
@@ -90,7 +90,7 @@ export function DepartmentList({ departments }: Props) {
         rows={departments}
         getRowKey={(d) => d.id}
         searchText={(d) => d.name}
-        searchPlaceholder="Search departments"
+        searchPlaceholder="Search Functions"
         initialSort={{ key: "sort", dir: "asc" }}
         filters={[
           {
@@ -148,7 +148,7 @@ export function DepartmentList({ departments }: Props) {
                 letterSpacing: "-0.015em",
               }}
             >
-              No departments yet
+              No Functions yet
             </p>
             <p className="mt-2 text-[14px] text-ink-subtle max-w-sm mx-auto" style={{ lineHeight: 1.5 }}>
               Create your first one with the button above. Employees pick from this

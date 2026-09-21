@@ -188,7 +188,7 @@ export function ExitHandoverForm({
           rows={[
             { label: "Employee", value: fields.header_employeeName || employeeName },
             { label: "Employee ID", value: fields.header_employeeId },
-            { label: "Department", value: fields.header_department },
+            { label: "Function", value: fields.header_department },
             { label: "Form", value: "Handover & Clearance · Annexure A" },
           ]}
         />
@@ -206,7 +206,7 @@ export function ExitHandoverForm({
       </div>
       <div className="mb-8 grid grid-cols-2 gap-4 max-md:grid-cols-1">
         <AutoFillField label="Employee ID" value={fields.header_employeeId ?? ""} onChange={(v) => setF("header_employeeId", v)} />
-        <AutoFillField label="Department" value={fields.header_department ?? ""} onChange={(v) => setF("header_department", v)} />
+        <AutoFillField label="Function" value={fields.header_department ?? ""} onChange={(v) => setF("header_department", v)} />
         <FloatingInput label="Last Working Day" type="date" fieldKey="header_lastWorkingDay" value={fields.header_lastWorkingDay ?? ""} onChange={(v) => setF("header_lastWorkingDay", v)} />
       </div>
 

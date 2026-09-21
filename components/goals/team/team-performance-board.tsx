@@ -467,13 +467,13 @@ export function TeamPerformanceBoard({
         <Select
           value={dept}
           onValueChange={setDept}
-          ariaLabel="Filter by department"
+          ariaLabel="Filter by Function"
           searchable={departments.length > 8}
-          searchPlaceholder="Search departments…"
+          searchPlaceholder="Search Functions…"
           unstyled
           className={FIELD}
           options={[
-            { value: ALL, label: "All departments" },
+            { value: ALL, label: "All Functions" },
             ...departments.map((d) => ({ value: d, label: d })),
           ]}
         />
@@ -583,7 +583,7 @@ export function TeamPerformanceBoard({
           body={
             query.trim()
               ? "Check the spelling, or clear the search to see the whole team."
-              : "Try a different department, team or status - or reset to see the whole team."
+              : "Try a different Function, team or status - or reset to see the whole team."
           }
           action={
             <button
@@ -601,7 +601,7 @@ export function TeamPerformanceBoard({
             <thead>
               <tr className="border-b border-hairline">
                 <Th className="pl-4">Employee</Th>
-                <Th className="max-lg:hidden">Department · Team</Th>
+                <Th className="max-lg:hidden">Function · Team</Th>
                 <Th align="right">Goal</Th>
                 {showGrades && <Th align="right">Grade</Th>}
                 <Th align="right" className="max-xl:hidden">Goals</Th>
@@ -757,7 +757,7 @@ function EmployeeDetail({ row, variant }: { row: TeamRow; variant: TeamBoardVari
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-ink-subtle">
         <span className="inline-flex items-center gap-1.5">
           <Users size={13} strokeWidth={2.2} />
-          {row.department || "No department"}
+          {row.department || "No Function"}
         </span>
         {row.managerName && <span>Reports to {row.managerName}</span>}
         <span className="inline-flex items-center gap-1.5">

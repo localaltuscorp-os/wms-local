@@ -34,8 +34,20 @@
       "schedule": "0 5 1 * *"
     },
     {
-      "path": "/api/cron/dcc-reminder",
-      "schedule": "0 14 * * *"
+      "path": "/api/cron/incentive-weekly-report",
+      "schedule": "30 5 * * 0"
+    },
+    {
+      "path": "/api/cron/dcc-daily-report",
+      "schedule": "30 16 * * *"
+    },
+    {
+      "path": "/api/cron/compliance-reminders?job=daily",
+      "schedule": "31 16 * * *"
+    },
+    {
+      "path": "/api/cron/compliance-reminders?job=founder",
+      "schedule": "32 16 * * 3,6"
     },
     {
       "path": "/api/cron/calendar-sync",
@@ -148,6 +160,18 @@
     {
       "path": "/api/cron/retention-anonymise",
       "schedule": "0 21 * * 0"
+    },
+    {
+      "path": "/api/cron/dcc-calendar-sync",
+      "schedule": "35 18 * * *"
+    },
+    {
+      "path": "/api/cron/dcc-calendar-sync",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/hr-records-drive",
+      "schedule": "30 21 * * *"
     }
   ]
 }

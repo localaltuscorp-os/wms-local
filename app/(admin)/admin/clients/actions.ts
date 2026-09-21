@@ -4,7 +4,8 @@ import { revalidatePath, updateTag } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { clients, tasks, settingsEvents } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth/current";
+import { requireUser } from "@/lib/auth/current";
+import { TASK_ROSTER_REFUSAL, canManageTaskRosters } from "@/lib/security/capabilities";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import {
   CreateClientSchema,
@@ -37,7 +38,9 @@ function revalidateClientSurfaces() {
 export async function createClient(
   input: CreateClientInput,
 ): Promise<ActionResult<{ id: string }>> {
-  const me = await requireAdmin();
+  const me = await requireUser();
+  // Locked to Manan Sir, Jeevan and Rohan (2026-09-15) — not every admin.
+  if (!canManageTaskRosters(me.email)) return { ok: false, error: TASK_ROSTER_REFUSAL };
 
   const parsed = CreateClientSchema.safeParse(input);
   if (!parsed.success) {
@@ -89,7 +92,9 @@ export async function createClient(
 export async function deleteClient(
   clientId: string,
 ): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const me = await requireUser();
+  // Locked to Manan Sir, Jeevan and Rohan (2026-09-15) — not every admin.
+  if (!canManageTaskRosters(me.email)) return { ok: false, error: TASK_ROSTER_REFUSAL };
 
   const parsedId = ClientIdSchema.safeParse(clientId);
   if (!parsedId.success) {
@@ -132,7 +137,9 @@ export async function updateClient(
   clientId: string,
   fields: UpdateClientInput,
 ): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const me = await requireUser();
+  // Locked to Manan Sir, Jeevan and Rohan (2026-09-15) — not every admin.
+  if (!canManageTaskRosters(me.email)) return { ok: false, error: TASK_ROSTER_REFUSAL };
 
   const parsedId = ClientIdSchema.safeParse(clientId);
   if (!parsedId.success) {

@@ -301,21 +301,21 @@ export function FinanceDashboard({ data }: { data: FinanceAttendanceAnalytics })
         </Card>
 
         <Card
-          title="Payroll Loss by Department"
-          subtitle="Total ₹ lost per department (top 12)"
+          title="Payroll Loss by Function"
+          subtitle="Total ₹ lost per Function (top 12)"
           icon={<BadgeIndianRupee size={18} strokeWidth={2.4} />}
         >
           {deptBars.length > 0 ? (
             <HBars data={deptBars} height={Math.max(200, deptBars.length * 34 + 40)} />
           ) : (
-            <EmptyBox label="No department-level losses this month." />
+            <EmptyBox label="No Function-level losses this month." />
           )}
         </Card>
       </div>
 
       {/* ── Per-department table ────────────────────────────────────── */}
       <Card
-        title="Department Breakdown"
+        title="Function Breakdown"
         subtitle={`Loss is ${lossPct.toFixed(1)}% of ${compactInr(data.totalMonthlyCtc)} monthly CTC`}
         icon={<BadgeIndianRupee size={18} strokeWidth={2.4} />}
       >
@@ -323,7 +323,7 @@ export function FinanceDashboard({ data }: { data: FinanceAttendanceAnalytics })
           <table className="w-full min-w-[520px] border-collapse text-[14px]">
             <thead>
               <tr className="border-b border-hairline-strong text-left">
-                <Th>Department</Th>
+                <Th>Function</Th>
                 <Th align="right">People</Th>
                 <Th align="right">Salary lost</Th>
                 <Th align="right">Projected pay</Th>
@@ -343,7 +343,7 @@ export function FinanceDashboard({ data }: { data: FinanceAttendanceAnalytics })
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-hairline-strong">
-                <Td className="font-black text-ink-strong">All departments</Td>
+                <Td className="font-black text-ink-strong">All Functions</Td>
                 <Td align="right" className="tabular-nums font-bold text-ink-strong">{data.headcount}</Td>
                 <Td align="right" className="tabular-nums font-black" style={{ color: "var(--color-altus-red-deep)" }}>
                   {formatInr(data.totalSalaryLost)}
