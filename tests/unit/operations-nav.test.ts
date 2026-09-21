@@ -7,12 +7,12 @@ import {
 } from "@/lib/operations/nav";
 
 /**
- * The room's shape: a FIXED rail of eight areas, and the current area's pages as
+ * The room's shape: a FIXED rail of ten areas, and the current area's pages as
  * a quick-access row on top. These pin the matching, which is what decides
  * which row appears and which button in it reads active.
  */
 describe("OPERATIONS_AREAS", () => {
-  it("holds the eight areas in alphabetical rail order", () => {
+  it("holds the ten areas in alphabetical rail order", () => {
     /* ALPHABETICAL BY LABEL since 2026-09-12, replacing an order-by-importance
        that only its author could predict. Written out rather than computed so
        the expectation is readable — the next test is the one that enforces the
@@ -20,6 +20,8 @@ describe("OPERATIONS_AREAS", () => {
     expect(OPERATIONS_AREAS.map((a) => a.id)).toEqual([
       "broadcasts",
       "checklist",
+      "client-engagement",
+      "directory",
       "guidelines",
       "handholding",
       "jobdescription",
@@ -29,7 +31,7 @@ describe("OPERATIONS_AREAS", () => {
     ]);
   });
 
-  it("stays sorted when somebody adds the eighth area", () => {
+  it("stays sorted when somebody adds the eleventh area", () => {
     /* The point of the alphabet is that it needs no argument — but only if the
        next arrival actually lands in place. A new area appended to the end of
        the array fails here rather than quietly reintroducing an order nobody
@@ -62,6 +64,9 @@ describe("OPERATIONS_AREAS", () => {
     expect(OPERATIONS_AREAS.find((a) => a.id === "handholding")!.href).toBe(
       "/people-allocation",
     );
+    // /events outlived the module that made it: the Monthly Events Master was
+    // archived on 2026-09-17 and the Executive Master Calendar took the route,
+    // so every old link lands on its replacement rather than a 404.
     expect(OPERATIONS_AREAS.find((a) => a.id === "events")!.href).toBe("/events");
     // Training absorbed 2026-09-12. Its pages did NOT move under /operations —
     // every bookmark, every link in a sent email and every `/training/<id>`
@@ -101,7 +106,6 @@ describe("operationsAreaForPath", () => {
     expect(operationsAreaForPath("/people-allocation")?.id).toBe("handholding");
     expect(operationsAreaForPath("/people-allocation/participants")?.id).toBe("handholding");
     expect(operationsAreaForPath("/events")?.id).toBe("events");
-    expect(operationsAreaForPath("/events/calendar")?.id).toBe("events");
     expect(operationsAreaForPath("/operations/checklist")?.id).toBe("checklist");
     expect(operationsAreaForPath("/operations/guidelines")?.id).toBe("guidelines");
     expect(operationsAreaForPath("/training")?.id).toBe("training");
@@ -109,6 +113,7 @@ describe("operationsAreaForPath", () => {
     expect(operationsAreaForPath("/operations/job-description")?.id).toBe("jobdescription");
     expect(operationsAreaForPath("/communications")?.id).toBe("broadcasts");
     expect(operationsAreaForPath("/communications/compose")?.id).toBe("broadcasts");
+    expect(operationsAreaForPath("/operations/directory")?.id).toBe("directory");
   });
 
   it("returns null on /operations itself — it is a forwarder, not an area", () => {
@@ -162,13 +167,13 @@ describe("isOperationsItemActive", () => {
 describe("the quick-access row only appears where there is a choice", () => {
   it("gives the multi-page areas a row", () => {
     // OperationsQuickNav renders nothing below two items.
-    for (const id of ["handholding", "events", "training"] as const) {
+    for (const id of ["handholding", "client-engagement", "training"] as const) {
       expect(OPERATIONS_AREAS.find((a) => a.id === id)!.items.length).toBeGreaterThan(1);
     }
   });
 
   it("gives the single-page areas none", () => {
-    for (const id of ["jobdescription", "broadcasts", "checklist", "guidelines"] as const) {
+    for (const id of ["jobdescription", "broadcasts", "checklist", "directory", "guidelines", "events"] as const) {
       expect(OPERATIONS_AREAS.find((a) => a.id === id)!.items.length).toBeLessThan(2);
     }
   });

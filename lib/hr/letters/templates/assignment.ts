@@ -48,7 +48,7 @@ const template: LetterTemplate = {
       ),
     ),
     bullets(
-      [t("Kindly submit your completed assignment by "), f("submissionDeadline", "Submission Deadline", { placeholder: "e.g. 5 August 2026, 6:00 PM IST" }), t(".")],
+      [t("Kindly submit your completed assignment by "), f("submissionDeadline", "Submission Deadline", { placeholder: "e.g. 05-Aug-2026, 6:00 PM IST" }), t(".")],
       [t("Share your submission via "), f("submissionMethod", "How to Submit", { placeholder: "e.g. reply to this email with the file attached" }), t(".")],
     ),
     para(

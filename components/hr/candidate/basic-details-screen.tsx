@@ -10,6 +10,7 @@ import { deleteCandidateIntake } from "@/app/(app)/hr/candidate-actions";
 import { InviteCandidateDialog } from "@/components/hr/candidate/invite-candidate-dialog";
 import { fireToast } from "@/lib/toast";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { Chevroned } from "@/components/ui/chevroned-select";
 
 /** The candidate's intake photo, falling back to their initials. Kept small and
  *  local — this is the only table that shows it. */
@@ -68,7 +69,7 @@ const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
 const CONTROL_H = "h-10 shrink-0 rounded-lg";
 
 const SELECT_CLS =
-  `${CONTROL_H} border border-hairline-strong bg-white px-3 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-altus-red`;
+  `${CONTROL_H} border border-hairline-strong bg-white px-3 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-altus-red appearance-none !pr-9`;
 
 const ACTION_CLS =
   `${CONTROL_H} inline-flex items-center gap-2 px-4 text-[13.5px] font-bold text-white transition-transform hover:-translate-y-0.5`;
@@ -79,9 +80,11 @@ const ACTION_CLS =
  * widths purely because their labels differ in length, which reads as three
  * unrelated controls rather than one set. 176px is the widest of the three
  * (`CreateCandidateLogin` already used it), so nothing has to truncate; the
- * labels centre inside it instead of hugging the icon.
+ * labels centre inside it instead of hugging the icon. A MINIMUM, not a fixed
+ * width: "Send onboarding form" is wider than 176px and wrapped onto two lines
+ * inside the button (2026-09-19) - it now grows and never wraps.
  */
-const ACTION_W = "w-[176px] justify-center";
+const ACTION_W = "min-w-[176px] justify-center whitespace-nowrap";
 
 /**
  * ONE ROW ACTION. The five per-candidate actions used to hide behind a kebab;
@@ -168,26 +171,26 @@ export function BasicDetailsScreen({
           the buttons stranded mid-row. */}
       <div className="mb-6 flex flex-wrap items-center gap-2">
         {lockedStatus ? null : (
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLS} aria-label="Filter by status">
+          <Chevroned><select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLS} aria-label="Filter by status">
             <option value="all">All statuses</option>
             <option value="new">New</option>
             <option value="shortlisted">Shortlisted</option>
             <option value="hired">Hired</option>
             <option value="rejected">Rejected</option>
-          </select>
+          </select></Chevroned>
         )}
-        <select value={form} onChange={(e) => setForm(e.target.value)} className={SELECT_CLS} aria-label="Filter by form state">
+        <Chevroned><select value={form} onChange={(e) => setForm(e.target.value)} className={SELECT_CLS} aria-label="Filter by form state">
           <option value="all">All forms</option>
           <option value="complete">Complete</option>
           <option value="draft">Draft</option>
-        </select>
+        </select></Chevroned>
         {positions.length > 0 && (
-          <select value={position} onChange={(e) => setPosition(e.target.value)} className={SELECT_CLS} aria-label="Filter by position">
+          <Chevroned><select value={position} onChange={(e) => setPosition(e.target.value)} className={SELECT_CLS} aria-label="Filter by position">
             <option value="all">All positions</option>
             {positions.map((p) => (
               <option key={p} value={p}>{p}</option>
             ))}
-          </select>
+          </select></Chevroned>
         )}
 
         {/* The child button is w-full, so the wrapper sets its width; the
@@ -213,6 +216,24 @@ export function BasicDetailsScreen({
                 style={{ background: "#fff" }}
               >
                 <ScrollText size={16} strokeWidth={2.4} /> Send policies
+              </button>
+            )}
+          />
+        </div>
+        {/* PRE-JOINING: the Employee Onboarding Form, sent before the candidate
+            joins or has a login. Its own link purpose, so it never revokes the
+            form or policies links. */}
+        <div className="shrink-0">
+          <InviteCandidateDialog
+            purpose="onboarding"
+            trigger={(open) => (
+              <button
+                type="button"
+                onClick={open}
+                className={`${ACTION_CLS} ${ACTION_W} border border-hairline-strong !text-ink-strong`}
+                style={{ background: "#fff" }}
+              >
+                <ScrollText size={16} strokeWidth={2.4} /> Send onboarding form
               </button>
             )}
           />

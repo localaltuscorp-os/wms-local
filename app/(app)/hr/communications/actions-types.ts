@@ -37,13 +37,15 @@ export interface SaveBroadcastDraftInput {
   senderName?: string;
   attachments: BroadcastAttachment[];
   audience: AudienceRule;
-  /** Delivery channels — subset of ["in_app","email","push"]. Defaults applied if empty. */
+  /** Delivery channels — subset of ["in_app","email","push","whatsapp"]. Defaults applied if empty. */
   channels: string[];
   /** Scheduling (Phase 2). ISO datetime string, or null to send immediately. */
   scheduledFor?: string | null;
   recurrence?: BroadcastRecurrence;
   /** YYYY-MM-DD inclusive stop for a recurring schedule (null = open-ended). */
   recurrenceUntil?: string | null;
+  /** Custom repeats: the ISO datetimes it goes out on (recurrence "custom"). */
+  recurrenceDates?: string[];
   /** Reminders / escalation (Phase 3). null/0 = off. */
   reminderAfterDays?: number | null;
   escalateToManager?: boolean;

@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { getEntity, DEFAULT_ENTITY_ID, type Entity, type EntityId } from "@/lib/hr/entities";
 import { letterFontsUsedIn } from "@/lib/hr/letters/fonts";
+import { FIT_PLAN, RICH_COMPACT_CSS, countPdfPages } from "@/lib/hr/letters/fit";
 
 /**
  * HR LETTERS — server-only headless-Chromium PDF renderer for RICH ("Edit
@@ -320,6 +321,15 @@ html,body{margin:0;padding:0;background:#ffffff;}
    in step: the preview quietly diverging from the issued PDF is exactly the
    class of bug this file's own comments warn about. */
 .alh-body p{orphans:3;widows:3;}
+  /* A paragraph is ONE unit. orphans/widows only stopped a single stray line,
+     so a numbered clause ("4.1 Consent for Participation: ...") still tore
+     across the page edge with its second half on the next sheet - which is
+     what made a printed letter read as broken. A paragraph that fits on a page
+     now moves whole; one taller than a page still splits (browsers ignore
+     'avoid' for content that cannot fit), so nothing is ever lost. */
+  .alh-body p{break-inside:avoid;}
+  /* The line that introduces a list or table belongs with it. */
+  .alh-body p:has(+ ul),.alh-body p:has(+ ol),.alh-body p:has(+ table){break-after:avoid;}
 .alh-body h1,.alh-body h2,.alh-body h3{break-after:avoid;break-inside:avoid;}
 .alh-body li{break-inside:avoid;}
 /* Tables MAY span pages (a long CTC breakdown has to) — but a row may not, and
@@ -393,6 +403,8 @@ export interface RenderRichLetterInput {
   entity: string;
   /** The rich letter body — arbitrary TipTap HTML. */
   bodyHtml: string;
+  /** Shrink the body (CSS zoom) step by step until the letter fits one A4 page. */
+  fitOnePage?: boolean;
 }
 
 /**
@@ -402,6 +414,7 @@ export interface RenderRichLetterInput {
 export async function renderRichLetterPdf({
   entity,
   bodyHtml,
+  fitOnePage,
 }: RenderRichLetterInput): Promise<Uint8Array> {
   const e = getEntity((entity as EntityId | string) ?? null);
   const overlayLogo = e.id !== DEFAULT_ENTITY_ID;
@@ -464,14 +477,30 @@ export async function renderRichLetterPdf({
     // `networkidle0` waited for ALL sub-resource loads (part of the SSRF risk).
     // With interception in place only allowlisted resources load; `load` is
     // sufficient and avoids hanging on aborted requests.
-    await page.setContent(html, { waitUntil: "load" });
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: "0", right: "0", bottom: "0", left: "0" },
-    });
-    return new Uint8Array(pdf);
+    const renderAt = async (zoom: number, compact: boolean): Promise<Uint8Array> => {
+      // Fit to one page: the body is zoomed and its spacing tightened; the letterhead strips are not.
+      const extra = (compact ? RICH_COMPACT_CSS : "") + (zoom === 1 ? "" : `.alh-body{zoom:${zoom};}`);
+      const doc = extra ? html.replace("</style>", `${extra}
+</style>`) : html;
+      await page.setContent(doc, { waitUntil: "load" });
+      const pdf = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: "0", right: "0", bottom: "0", left: "0" },
+      });
+      return new Uint8Array(pdf);
+    };
+
+    if (!fitOnePage) return await renderAt(1, false);
+    // First plan step that lands on one page; the floor if none does. A count of
+    // 0 means the page count could not be read — keep that render as it is.
+    let last: Uint8Array | null = null;
+    for (const step of FIT_PLAN) {
+      last = await renderAt(step.scale, step.compact);
+      if (countPdfPages(last) <= 1) return last;
+    }
+    return last as Uint8Array;
   } catch (err) {
     throw new Error(
       `Rich letter PDF render failed: ${err instanceof Error ? err.message : String(err)}`,

@@ -109,8 +109,8 @@ export function ctcRows(): TableRow[] {
     rows.push(
       tcomponent(
         nameCell(c),
-        [f(c.pmId, "Per month", { placeholder: "₹0" })],
-        [f(c.paId, "Per annum", { placeholder: "₹0" })],
+        [f(c.pmId, "Per month", { placeholder: "Rs. 0" })],
+        [f(c.paId, "Per annum", { placeholder: "Rs. 0" })],
         c.pmId,
       ),
     );
@@ -118,8 +118,8 @@ export function ctcRows(): TableRow[] {
   rows.push(
     ttotal([
       [t("Gross Salary")],
-      [f(CTC_LETTER_TOTALS.subtotalPm, "Per month", { placeholder: "₹0" })],
-      [f(CTC_LETTER_TOTALS.subtotalPa, "Per annum", { placeholder: "₹0" })],
+      [f(CTC_LETTER_TOTALS.subtotalPm, "Per month", { placeholder: "Rs. 0" })],
+      [f(CTC_LETTER_TOTALS.subtotalPa, "Per annum", { placeholder: "Rs. 0" })],
     ]),
   );
 
@@ -128,24 +128,24 @@ export function ctcRows(): TableRow[] {
   rows.push(
     tcomponent(
       [t("Professional Tax (PT)")],
-      [f(CTC_LETTER_DEDUCTIONS.ptPm, "Per month", { placeholder: "₹0" })],
-      [f(CTC_LETTER_DEDUCTIONS.ptPa, "Per annum", { placeholder: "₹0" })],
+      [f(CTC_LETTER_DEDUCTIONS.ptPm, "Per month", { placeholder: "Rs. 0" })],
+      [f(CTC_LETTER_DEDUCTIONS.ptPa, "Per annum", { placeholder: "Rs. 0" })],
       CTC_LETTER_DEDUCTIONS.ptPm,
     ),
   );
   rows.push(
     ttotal([
       [t("Total Deductions")],
-      [f(CTC_LETTER_DEDUCTIONS.totalDedPm, "Per month", { placeholder: "₹0" })],
-      [f(CTC_LETTER_DEDUCTIONS.totalDedPa, "Per annum", { placeholder: "₹0" })],
+      [f(CTC_LETTER_DEDUCTIONS.totalDedPm, "Per month", { placeholder: "Rs. 0" })],
+      [f(CTC_LETTER_DEDUCTIONS.totalDedPa, "Per annum", { placeholder: "Rs. 0" })],
     ]),
   );
 
   rows.push(
     tgrand([
       [t("Net Monthly Take-Home")],
-      [f(CTC_LETTER_TOTALS.netPm, "Per month", { placeholder: "₹0" })],
-      [f(CTC_LETTER_TOTALS.netPa, "Per annum", { placeholder: "₹0" })],
+      [f(CTC_LETTER_TOTALS.netPm, "Per month", { placeholder: "Rs. 0" })],
+      [f(CTC_LETTER_TOTALS.netPa, "Per annum", { placeholder: "Rs. 0" })],
     ]),
   );
   return rows;

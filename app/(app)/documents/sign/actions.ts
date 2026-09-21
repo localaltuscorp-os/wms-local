@@ -657,7 +657,8 @@ interface SignedPdfInput {
 }
 
 function fmtStamp(d: Date): string {
-  return format(d, "EEE, dd MMM yyyy · HH:mm");
+  // DD-MMM-YYYY like every other HR date; the weekday and time stay.
+  return format(d, "EEE, dd-MMM-yyyy · HH:mm");
 }
 
 async function buildSignedPdf(input: SignedPdfInput): Promise<Buffer> {

@@ -36,7 +36,7 @@ const template: LetterTemplate = {
       t(" was employed with {firm} as "),
       f("designation", "Designation", { placeholder: "e.g. Research Analyst Intern" }),
       t(", from "),
-      f("tenure", "Tenure", { placeholder: "e.g. 14th May to 10th July 2026" }),
+      f("tenure", "Tenure", { placeholder: "e.g. 14-May-2026 to 10-Jul-2026" }),
       t("."),
     ),
     para(t("{he} has done the following work:")),

@@ -56,6 +56,7 @@ import {
   BROADCAST_ACK_MODES,
   BROADCAST_AUTHOR_IDENTITIES,
   BROADCAST_RECURRENCES,
+  BROADCAST_RECURRENCE_LABELS,
   WORKER_TYPES,
   EMPLOYEE_ROLES,
   type BroadcastCategory,
@@ -86,6 +87,9 @@ import type { SegmentRow } from "@/lib/ecos/queries";
 import type { BroadcastTemplate } from "@/db/schema";
 import { uploadBroadcastAttachment } from "@/app/(app)/communications/attachment-actions";
 import { Avatar } from "@/components/ui/avatar";
+import { Chevroned } from "@/components/ui/chevroned-select";
+import { TEAM_ROSTER } from "@/lib/teams/roster";
+import { MAX_CUSTOM_DATES } from "@/lib/ecos/recurrence";
 import { fireToast } from "@/lib/toast";
 import type { RichBodyValue } from "./rich-body-editor";
 
@@ -182,6 +186,7 @@ export interface ComposerDraft {
   scheduledFor?: string | null; // ISO string
   recurrence?: BroadcastRecurrence;
   recurrenceUntil?: string | null; // YYYY-MM-DD
+  recurrenceDates?: string[]; // ISO instants, custom repeats
   poll?: BroadcastPoll | null;
   reminderAfterDays?: number | null;
   escalateToManager?: boolean;
@@ -311,14 +316,12 @@ export function BroadcastComposer({
   const [pushChannel, setPushChannel] = useState(
     draft ? draft.channels.includes("push") : false,
   );
-  // WhatsApp is a MANUAL channel: nothing is sent automatically. Turning it on
-  // flags the broadcast so its read view offers a one-tap "send this on
-  // WhatsApp" list of the recipients, pre-filled — the sender still presses
-  // send in WhatsApp themselves. Deliberately not automated: the org's
-  // WhatsApp sending goes through approved Business templates, and a free-text
-  // announcement is not one.
+  // WhatsApp — sent AUTOMATICALLY through the approved broadcast template
+  // (lib/ecos/whatsapp-params) to everyone who has opted in with a number; the
+  // broadcast page shows who it reached and why the rest were skipped. A draft
+  // saved with the retired manual flag opens with this switched on.
   const [whatsappChannel, setWhatsappChannel] = useState(
-    draft ? draft.channels.includes("whatsapp_manual") : false,
+    draft ? draft.channels.includes("whatsapp") || draft.channels.includes("whatsapp_manual") : false,
   );
   // Flash it as a centre-screen popup in the app (default on).
   const [popup, setPopup] = useState(draft?.popup ?? true);
@@ -332,6 +335,10 @@ export function BroadcastComposer({
   );
   const [recurrence, setRecurrence] = useState<BroadcastRecurrence>(draft?.recurrence ?? "none");
   const [recurrenceUntil, setRecurrenceUntil] = useState(draft?.recurrenceUntil ?? "");
+  // Custom repeats: one datetime-local value per send.
+  const [customDates, setCustomDates] = useState<string[]>(
+    draft?.recurrenceDates?.length ? draft.recurrenceDates.map((d) => toLocalInput(new Date(d))) : [""],
+  );
   // Inline poll / quiz
   const [pollEnabled, setPollEnabled] = useState(Boolean(draft?.poll));
   const [pollMode, setPollMode] = useState<"poll" | "quiz">(draft?.poll?.mode ?? "poll");
@@ -363,6 +370,7 @@ export function BroadcastComposer({
   const [workerTypes, setWorkerTypes] = useState<string[]>(initAud?.workerTypes ?? []);
   const [roles, setRoles] = useState<string[]>(initAud?.roles ?? []);
   const [employeeIds, setEmployeeIds] = useState<string[]>(initAud?.employeeIds ?? []);
+  const [teamValues, setTeamValues] = useState<string[]>(initAud?.teamValues ?? []);
   const [empQuery, setEmpQuery] = useState("");
 
   const [recipientCount, setRecipientCount] = useState<number | null>(null);
@@ -413,8 +421,9 @@ export function BroadcastComposer({
       workerTypes,
       roles,
       employeeIds,
+      teamValues,
     };
-  }, [scope, departmentIds, designationIds, workerTypes, roles, employeeIds]);
+  }, [scope, departmentIds, designationIds, workerTypes, roles, employeeIds, teamValues]);
 
   const audienceKey = JSON.stringify(audience);
 
@@ -519,6 +528,16 @@ export function BroadcastComposer({
     [aiPrompt, aiLang, bodyText, bodyHtml],
   );
 
+  // Custom repeat dates as ISO instants — blanks and unreadable values dropped.
+  const customIsoDates = useMemo(
+    () =>
+      customDates
+        .map((v) => (v ? new Date(v) : null))
+        .filter((d): d is Date => d !== null && !Number.isNaN(d.getTime()))
+        .map((d) => d.toISOString()),
+    [customDates],
+  );
+
   /* ---- Build the save payload ---- */
   const buildInput = useCallback(
     (): SaveBroadcastDraftInput => ({
@@ -540,13 +559,14 @@ export function BroadcastComposer({
         "in_app",
         ...(emailChannel ? ["email"] : []),
         ...(pushChannel ? ["push"] : []),
-        ...(whatsappChannel ? ["whatsapp_manual"] : []),
+        ...(whatsappChannel ? ["whatsapp"] : []),
       ],
       popup,
       // datetime-local is client-local; toISOString normalises to UTC for the server.
       scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : null,
       recurrence,
-      recurrenceUntil: recurrence !== "none" ? recurrenceUntil || null : null,
+      recurrenceUntil: recurrence !== "none" && recurrence !== "custom" ? recurrenceUntil || null : null,
+      recurrenceDates: recurrence === "custom" ? customIsoDates : [],
       poll:
         pollEnabled && pollQuestion.trim() && pollOptions.filter((o) => o.trim()).length >= 2
           ? {
@@ -580,6 +600,7 @@ export function BroadcastComposer({
       scheduledFor,
       recurrence,
       recurrenceUntil,
+      customIsoDates,
       pollEnabled,
       pollMode,
       pollQuestion,
@@ -591,7 +612,11 @@ export function BroadcastComposer({
   );
 
   // Whether this broadcast is set to go out later (a valid future datetime).
-  const isScheduled = Boolean(scheduledFor) && new Date(scheduledFor).getTime() > Date.now();
+  // A custom repeat is "later" when any listed date is still ahead.
+  const isScheduled =
+    recurrence === "custom"
+      ? customIsoDates.some((d) => Date.parse(d) > Date.now())
+      : Boolean(scheduledFor) && new Date(scheduledFor).getTime() > Date.now();
 
   /* ---- Saved segments ---- */
   const applySegment = useCallback((rule: AudienceRule) => {
@@ -601,6 +626,7 @@ export function BroadcastComposer({
     setWorkerTypes(rule.workerTypes ?? []);
     setRoles(rule.roles ?? []);
     setEmployeeIds(rule.employeeIds ?? []);
+    setTeamValues(rule.teamValues ?? []);
   }, []);
 
   const onSaveSegment = useCallback(async () => {
@@ -640,7 +666,7 @@ export function BroadcastComposer({
       "in_app",
       ...(emailChannel ? ["email"] : []),
       ...(pushChannel ? ["push"] : []),
-      ...(whatsappChannel ? ["whatsapp_manual"] : []),
+      ...(whatsappChannel ? ["whatsapp"] : []),
     ],
     [emailChannel, pushChannel, whatsappChannel],
   );
@@ -656,7 +682,7 @@ export function BroadcastComposer({
     const ch = Array.isArray(t.channels) ? (t.channels as string[]) : [];
     setEmailChannel(ch.includes("email"));
     setPushChannel(ch.includes("push"));
-    setWhatsappChannel(ch.includes("whatsapp_manual"));
+    setWhatsappChannel(ch.includes("whatsapp") || ch.includes("whatsapp_manual"));
     fireToast({ message: `Loaded template "${t.name}".`, type: "success" });
   }, []);
 
@@ -727,11 +753,13 @@ export function BroadcastComposer({
     if (!title.trim()) return "Give the broadcast a subject.";
     if (!bodyText.trim()) return "Write the message body.";
     if (scope === "custom" &&
-      departmentIds.length + designationIds.length + workerTypes.length + roles.length + employeeIds.length === 0)
+      departmentIds.length + designationIds.length + workerTypes.length + roles.length + employeeIds.length + teamValues.length === 0)
       return "Pick at least one audience filter, or switch to Whole Organization.";
+    if (scheduledFor && recurrence === "custom" && !customIsoDates.some((d) => Date.parse(d) > Date.now()))
+      return "Add at least one future date for the custom repeat.";
     if (!recipientCount || recipientCount === 0) return "This audience reaches nobody.";
     return null;
-  }, [uploading, title, bodyText, scope, departmentIds, designationIds, workerTypes, roles, employeeIds, recipientCount]);
+  }, [uploading, title, bodyText, scope, departmentIds, designationIds, workerTypes, roles, employeeIds, teamValues, scheduledFor, recurrence, customIsoDates, recipientCount]);
 
   const onPublishClick = useCallback(() => {
     const err = validatePublish();
@@ -762,9 +790,11 @@ export function BroadcastComposer({
         }
         fireToast({
           message:
-            recurrence !== "none"
-              ? `Scheduled to recur ${recurrence}.`
-              : "Scheduled - it'll publish automatically.",
+            recurrence === "custom"
+              ? `Scheduled for ${customIsoDates.length} date${customIsoDates.length === 1 ? "" : "s"}.`
+              : recurrence !== "none"
+                ? `Scheduled to repeat ${BROADCAST_RECURRENCE_LABELS[recurrence].toLowerCase()}.`
+                : "Scheduled - it'll publish automatically.",
           type: "success",
         });
         setConfirmOpen(false);
@@ -783,7 +813,7 @@ export function BroadcastComposer({
     } finally {
       setPublishing(false);
     }
-  }, [buildInput, router, isScheduled, recurrence]);
+  }, [buildInput, router, isScheduled, recurrence, customIsoDates]);
 
   // Esc closes the confirm dialog.
   useEffect(() => {
@@ -1149,35 +1179,39 @@ export function BroadcastComposer({
                 <label htmlFor="bc-cat" className={LABEL}>
                   Category
                 </label>
-                <select
-                  id="bc-cat"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as BroadcastCategory)}
-                  className={FIELD}
-                >
-                  {BROADCAST_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {CATEGORY_LABELS[c]}
-                    </option>
-                  ))}
-                </select>
+                <Chevroned>
+                  <select
+                    id="bc-cat"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as BroadcastCategory)}
+                    className={`${FIELD} appearance-none !pr-9`}
+                  >
+                    {BROADCAST_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {CATEGORY_LABELS[c]}
+                      </option>
+                    ))}
+                  </select>
+                </Chevroned>
               </div>
               <div>
                 <label htmlFor="bc-pri" className={LABEL}>
                   Priority
                 </label>
-                <select
-                  id="bc-pri"
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as BroadcastPriority)}
-                  className={FIELD}
-                >
-                  {BROADCAST_PRIORITIES.map((p) => (
-                    <option key={p} value={p}>
-                      {PRIORITY_LABELS[p]}
-                    </option>
-                  ))}
-                </select>
+                <Chevroned>
+                  <select
+                    id="bc-pri"
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as BroadcastPriority)}
+                    className={`${FIELD} appearance-none !pr-9`}
+                  >
+                    {BROADCAST_PRIORITIES.map((p) => (
+                      <option key={p} value={p}>
+                        {PRIORITY_LABELS[p]}
+                      </option>
+                    ))}
+                  </select>
+                </Chevroned>
               </div>
             </div>
 
@@ -1185,18 +1219,20 @@ export function BroadcastComposer({
               <label htmlFor="bc-ack" className={LABEL}>
                 Acknowledgement
               </label>
-              <select
-                id="bc-ack"
-                value={ackMode}
-                onChange={(e) => setAckMode(e.target.value as BroadcastAckMode)}
-                className={FIELD}
-              >
-                {BROADCAST_ACK_MODES.map((a) => (
-                  <option key={a} value={a}>
-                    {ACK_LABELS[a]}
-                  </option>
-                ))}
-              </select>
+              <Chevroned>
+                <select
+                  id="bc-ack"
+                  value={ackMode}
+                  onChange={(e) => setAckMode(e.target.value as BroadcastAckMode)}
+                  className={`${FIELD} appearance-none !pr-9`}
+                >
+                  {BROADCAST_ACK_MODES.map((a) => (
+                    <option key={a} value={a}>
+                      {ACK_LABELS[a]}
+                    </option>
+                  ))}
+                </select>
+              </Chevroned>
             </div>
 
             {/* App-lock — broadcast admins only (it freezes the app for everyone). */}
@@ -1315,9 +1351,9 @@ export function BroadcastComposer({
                       ? "border-[color:var(--color-altus-red)] bg-[color:color-mix(in_srgb,var(--color-altus-red)_10%,transparent)] text-[color:var(--color-altus-red-deep)]"
                       : "border-hairline text-ink-strong hover:border-hairline-strong"
                   }`}
-                  title="Opens a pre-filled WhatsApp list after sending — you press send in WhatsApp"
+                  title="Sent automatically to everyone who has opted in to WhatsApp"
                 >
-                  <MessageCircle size={15} /> WhatsApp (manual)
+                  <MessageCircle size={15} /> WhatsApp
                   {whatsappChannel && <Check size={14} className="opacity-70" />}
                 </button>
               </div>
@@ -1326,7 +1362,7 @@ export function BroadcastComposer({
                   ? "Email goes to each recipient's official work address. "
                   : "Email is off — this stays inside the app. "}
                 {whatsappChannel
-                  ? "After sending, the broadcast page gives you a pre-filled WhatsApp message per recipient to send by hand."
+                  ? "WhatsApp goes automatically to everyone who has opted in with a number; the broadcast page shows who it reached."
                   : ""}
               </p>
             </div>
@@ -1395,18 +1431,21 @@ export function BroadcastComposer({
               {scheduledFor && (
                 <div className="mt-2 flex items-center gap-2">
                   <Repeat size={15} className="shrink-0 text-ink-subtle" />
-                  <select
-                    value={recurrence}
-                    onChange={(e) => setRecurrence(e.target.value as BroadcastRecurrence)}
-                    className={`${FIELD} !py-2`}
-                  >
-                    {BROADCAST_RECURRENCES.map((r) => (
-                      <option key={r} value={r}>
-                        {r === "none" ? "One-time" : r[0]!.toUpperCase() + r.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                  {recurrence !== "none" && (
+                  <Chevroned className="min-w-0 flex-1">
+                    <select
+                      value={recurrence}
+                      onChange={(e) => setRecurrence(e.target.value as BroadcastRecurrence)}
+                      aria-label="Repeat"
+                      className={`${FIELD} !py-2 appearance-none !pr-9`}
+                    >
+                      {BROADCAST_RECURRENCES.map((r) => (
+                        <option key={r} value={r}>
+                          {BROADCAST_RECURRENCE_LABELS[r]}
+                        </option>
+                      ))}
+                    </select>
+                  </Chevroned>
+                  {recurrence !== "none" && recurrence !== "custom" && (
                     <input
                       type="date"
                       value={recurrenceUntil}
@@ -1417,10 +1456,49 @@ export function BroadcastComposer({
                   )}
                 </div>
               )}
+              {scheduledFor && recurrence === "custom" && (
+                <div className="mt-2 flex flex-col gap-2">
+                  {customDates.map((value, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <CalendarClock size={15} className="shrink-0 text-ink-subtle" />
+                      <input
+                        type="datetime-local"
+                        value={value}
+                        onChange={(e) =>
+                          setCustomDates((prev) => prev.map((x, idx) => (idx === i ? e.target.value : x)))
+                        }
+                        aria-label={`Send date ${i + 1}`}
+                        className={`${FIELD} !py-2`}
+                      />
+                      {customDates.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setCustomDates((prev) => prev.filter((_, idx) => idx !== i))}
+                          aria-label={`Remove date ${i + 1}`}
+                          className="shrink-0 rounded-lg border border-hairline p-2 text-ink-soft transition hover:border-hairline-strong"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {customDates.length < MAX_CUSTOM_DATES && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomDates((prev) => [...prev, ""])}
+                      className="inline-flex items-center gap-1.5 self-start rounded-xl border border-dashed border-hairline px-3 py-2 text-[13px] font-semibold text-ink-soft transition hover:border-hairline-strong hover:text-ink-strong"
+                    >
+                      <Plus size={14} /> Add date
+                    </button>
+                  )}
+                </div>
+              )}
               <p className="mt-1.5 text-[12px] text-ink-subtle">
-                {scheduledFor
-                  ? "Publishes automatically on the daily run once it's due."
-                  : "Leave blank to publish immediately."}
+                {!scheduledFor
+                  ? "Leave blank to publish immediately."
+                  : recurrence === "custom"
+                    ? "Goes out on each date listed, within about a minute of its time."
+                    : "Publishes within about a minute of the scheduled time."}
               </p>
             </div>
 
@@ -1628,6 +1706,12 @@ export function BroadcastComposer({
             {scope === "custom" && (
               <div className="flex flex-col gap-4">
                 <ChipGroup
+                  title="Teams"
+                  options={TEAM_ROSTER.map((t) => ({ id: t.value, name: t.label }))}
+                  selected={teamValues}
+                  onToggle={(id) => toggle(teamValues, setTeamValues, id)}
+                />
+                <ChipGroup
                   title="Departments"
                   options={departments}
                   selected={departmentIds}
@@ -1832,7 +1916,9 @@ export function BroadcastComposer({
               {ackMode === "acknowledge" ? ", who must acknowledge it" : ""}
               {requireLock && lockAllowed ? " and the app will lock until they do" : ""}.{" "}
               {isScheduled
-                ? `It will publish automatically on ${new Date(scheduledFor).toLocaleString()}${recurrence !== "none" ? `, recurring ${recurrence}` : ""}.`
+                ? recurrence === "custom"
+                  ? `It will publish automatically on each of the ${customIsoDates.length} dates you listed.`
+                  : `It will publish automatically on ${new Date(scheduledFor).toLocaleString()}${recurrence !== "none" ? `, repeating ${BROADCAST_RECURRENCE_LABELS[recurrence].toLowerCase()}` : ""}.`
                 : "This can’t be undone."}
             </p>
             <div className="mt-5 flex items-center justify-end gap-2.5">

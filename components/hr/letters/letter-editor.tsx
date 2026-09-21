@@ -21,8 +21,12 @@ import {
   Mail,
   X,
   Calculator,
+  Minimize2,
 } from "lucide-react";
 import { Letterhead } from "@/components/hr/letterhead/letterhead";
+import { TrainingVerdictBar } from "@/components/hr/letters/training-verdict-bar";
+import { useFitOnePage } from "@/components/hr/letters/use-fit-one-page";
+import { FIT_FLOOR, fitOnePageDefault } from "@/lib/hr/letters/fit";
 import { ENTITY_LIST, getEntity, type EntityId } from "@/lib/hr/entities";
 import {
   type LetterTemplate,
@@ -57,7 +61,7 @@ import {
   CTC_LETTER_TOTALS,
   CTC_LETTER_DEDUCTIONS,
 } from "@/lib/hr/letters/templates/ctc-breakup";
-import { formatINR, num } from "@/lib/hr/ctc/model";
+import { formatINR, formatINRCompact, num } from "@/lib/hr/ctc/model";
 import { fireToast } from "@/lib/toast";
 
 const RED = "#E10600";
@@ -263,6 +267,8 @@ export function LetterEditor({
 }) {
   const fields = useMemo(() => collectFields(template), [template]);
   const [values, setValues] = useState<Record<string, string>>(() => initialValues(template));
+  // "Fit to one page" — on by default for the revised-CTC (appraisal) letters.
+  const [fitOnePage, setFitOnePage] = useState<boolean>(() => fitOnePageDefault(template.key));
   const [entity, setEntity] = useState<EntityId>(template.entityDefault ?? "altus-corp");
   const [employeeId, setEmployeeId] = useState<string>("");
   // Candidate gender → resolves gendered tokens ({title}/{he}/{his}/…) live.
@@ -554,11 +560,43 @@ export function LetterEditor({
 
   const today = useMemo(() => formatDateHr(new Date()), []);
 
+  /**
+   * THE CONTROLS BAR'S HEIGHT, as a CSS variable for the free-edit toolbar.
+   *
+   * Both bars are `position:sticky` in the same scroll container. The free-edit
+   * toolbar used a fixed `top:8px`, so once scrolled it stuck at the same spot
+   * as this bar and sat on top of it - the Paying Entity / Employee pickers
+   * vanished under the formatting buttons. Its `top` now reads this height, so
+   * the two stack. Measured rather than hard-coded because this bar wraps to a
+   * second row on a narrow pane and its height changes with it.
+   */
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const bar = wrap?.querySelector<HTMLElement>(".alw-toolbar");
+    if (!wrap || !bar) return;
+    const publish = () => wrap.style.setProperty("--alw-bar-h", `${bar.offsetHeight}px`);
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, []);
+
   // Letters that carry their own editable `Date:` row in the body (Intern
   // Appointment, Confirmation, F&F…) must NOT also get the chrome's top-right
   // date stamp — it rendered the date twice. The body field stays the single,
   // editable source of the letter's date.
   const showHeaderDate = useMemo(() => !hasBodyDateField(template), [template]);
+
+  // FIT TO ONE PAGE. The letter on screen (and so what Print prints) is zoomed
+  // down until it fits one A4 page; every PDF request carries the same switch
+  // and the server renderers do the equivalent. The live free-edit editor is not
+  // zoomed on screen — its exported PDF still honours the switch.
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const fitActive = fitOnePage && !richMode;
+  const fit = useFitOnePage(stageRef, fitActive, richMode ? "rich" : savedRichHtml != null ? "saved" : "fields");
+  const fitZoom = fitActive ? fit.scale : undefined;
+  const fitCompact = fitActive ? fit.compact : false;
 
   const recipientName = (values.candidateName ?? values.name ?? "").trim();
   const recipientEmail = (values.candidateEmail ?? values.email ?? "").trim();
@@ -586,6 +624,7 @@ export function LetterEditor({
             gender,
             bodyHtml: currentRichHtml(),
             signingModel,
+            fitOnePage,
             signatory,
             employeeId: employeeId || undefined,
             candidateName: employeeId ? undefined : recipientName || undefined,
@@ -601,6 +640,7 @@ export function LetterEditor({
             candidateEmail: employeeId ? undefined : recipientEmail || undefined,
             signatureImage: sigImage ?? undefined,
             signatory,
+            fitOnePage,
           };
       const r = await fetch(url, {
         method: "POST",
@@ -644,6 +684,7 @@ export function LetterEditor({
             gender,
             contentKind: "rich" as const,
             bodyHtml: currentRichHtml(),
+            fitOnePage,
             employeeId: employeeId || undefined,
             candidateName: employeeId ? undefined : recipientName || undefined,
             candidateEmail: employeeId ? undefined : recipientEmail || undefined,
@@ -659,6 +700,7 @@ export function LetterEditor({
             candidateEmail: employeeId ? undefined : recipientEmail || undefined,
             signatureImage: sigImage ?? undefined,
             signatory,
+            fitOnePage,
           };
       const r = await fetch("/api/hr/letters/email-pdf", {
         method: "POST",
@@ -721,6 +763,7 @@ export function LetterEditor({
             gender,
             contentKind: "rich" as const,
             bodyHtml: currentRichHtml(),
+            fitOnePage,
             to,
             subject: compose.subject.trim(),
             message: compose.message.trim() || undefined,
@@ -740,6 +783,7 @@ export function LetterEditor({
             candidateName: employeeId ? undefined : recipientName || undefined,
             signatureImage: sigImage ?? undefined,
             signatory,
+            fitOnePage,
           };
       const r = await fetch("/api/hr/send-letter-email", {
         method: "POST",
@@ -788,7 +832,7 @@ export function LetterEditor({
   };
 
   return (
-    <div className="alw-wrap">
+    <div ref={wrapRef} className="alw-wrap">
       {/* Self-hosted letter-font library — loaded here too so the read-only
           rich previews (.alw-rich-preview) show the chosen fonts even when the
           RichLetterEditor itself isn't mounted. React 19 dedupes the link. */}
@@ -963,6 +1007,29 @@ export function LetterEditor({
               )}
             </>
           )}
+          <button
+            type="button"
+            className={`alw-btn ${fitOnePage ? "alw-btn-edit" : "alw-btn-ghost"}`}
+            aria-pressed={fitOnePage}
+            onClick={() => setFitOnePage((v) => !v)}
+            title={
+              fitOnePage
+                ? "On: Print and PDFs shrink this letter to fit one A4 page"
+                : "Off: shrink this letter to fit one A4 page when printed or exported"
+            }
+          >
+            <Minimize2 size={15} strokeWidth={2.2} />
+            {fitActive && (fit.scale < 1 || fit.compact) ? `Fit to one page · ${Math.round(fit.scale * 100)}%` : "Fit to one page"}
+          </button>
+          {fitActive && !fit.fits && (
+            <span
+              className="no-print"
+              role="status"
+              style={{ fontSize: 12, fontWeight: 700, color: "var(--color-altus-red-deep)" }}
+            >
+              Still 2 pages at {Math.round(FIT_FLOOR * 100)}%
+            </span>
+          )}
           <button type="button" className="alw-btn alw-btn-ghost" onClick={() => window.print()}>
             <Printer size={15} strokeWidth={2.2} /> Print
           </button>
@@ -1013,6 +1080,11 @@ export function LetterEditor({
         <CtcCalculator values={values} setManyValues={setManyValues} />
       )}
 
+      {/* ── Training verdict (After Free Training, structured mode) ── */}
+      {template.key === "after-free-training" && !usingRich && (
+        <TrainingVerdictBar outcome={values.outcome ?? ""} onChoose={(v) => setValue("outcome", v)} />
+      )}
+
       {/* ── The letter on its letterhead ─────────────────────────── */}
       {richMode ? (
         // "Edit freely" — the Google-Docs TipTap editor inside the frozen
@@ -1050,16 +1122,16 @@ export function LetterEditor({
             ✎ Showing your saved free-edit for this letter. The field version (main content) is untouched - use
             &ldquo;Resume free edit&rdquo; to keep editing, or &ldquo;Discard free edit&rdquo; to revert.
           </div>
-          <div className="alw-stage">
-            <Letterhead entity={entity}>
+          <div className="alw-stage" ref={stageRef}>
+            <Letterhead entity={entity} bodyZoom={fitZoom} bodyCompact={fitCompact}>
               {showHeaderDate && <div className="alw-date">{today}</div>}
               <div className="alw-rich-preview" dangerouslySetInnerHTML={{ __html: savedRichHtml }} />
             </Letterhead>
           </div>
         </>
       ) : (
-        <div className="alw-stage">
-          <Letterhead entity={entity}>
+        <div className="alw-stage" ref={stageRef}>
+          <Letterhead entity={entity} bodyZoom={fitZoom} bodyCompact={fitCompact}>
             {showHeaderDate && <div className="alw-date">{today}</div>}
             {renderBlocks(template.blocks, ctx)}
           </Letterhead>
@@ -1087,7 +1159,7 @@ export function LetterEditor({
           recipientEmail={employeeId ? undefined : recipientEmail || undefined}
           attachedEmployee={Boolean(employeeId)}
         >
-          <Letterhead entity={entity}>
+          <Letterhead entity={entity} bodyZoom={fitZoom} bodyCompact={fitCompact}>
             {showHeaderDate && <div className="alw-date">{today}</div>}
             {usingRich ? (
               <div
@@ -1190,7 +1262,7 @@ function CtcCalculator({
         <label className="alw-calc-total">
           <span className="alw-calc-lbl">Total CTC (per annum)</span>
           <div className="alw-calc-rupee">
-            <span aria-hidden>₹</span>
+            <span aria-hidden>Rs.</span>
             <input
               type="text"
               inputMode="numeric"
@@ -1200,7 +1272,7 @@ function CtcCalculator({
               aria-label="Total CTC per annum"
             />
           </div>
-          {ctc > 0 && <span className="alw-calc-echo">{formatINR(ctc)} / year</span>}
+          {ctc > 0 && <span className="alw-calc-echo"><span title={formatINR(ctc)}>{formatINRCompact(ctc)}</span> / year</span>}
         </label>
 
         <div className="alw-calc-pcts">
@@ -1585,7 +1657,7 @@ function BlockView({ block, ctx }: { block: Block; ctx: RenderCtx }) {
     case "paragraph":
       return (
         <p
-          className="alw-p"
+          className={block.keepWithNext ? "alw-p alw-keep" : "alw-p"}
           style={{
             textAlign:
               block.align === "center" ? "center" : block.align === "right" ? "right" : "left",
@@ -1729,7 +1801,7 @@ function SignatureView({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           className="alw-sign-img"
-          src={isHr ? HR_SIGNATURE_IMAGE : "/signatures/proprietor-signature.jpg"}
+          src={isHr ? HR_SIGNATURE_IMAGE : PROPRIETOR_SIGNATURE_IMAGE}
           alt="Signature"
         />
       )}
@@ -1883,7 +1955,7 @@ function Field({
       </select>
     );
   }
-  // Numeric field (salary amounts) — digits + ₹ / commas / spaces only; any other
+  // Numeric field (salary amounts) — digits + Rs. / ₹ / commas / spaces only; any other
   // character is stripped on entry so an amount line never carries stray prose.
   if (spec.numeric) {
     return (
@@ -1895,7 +1967,7 @@ function Field({
         placeholder={spec.label}
         aria-label={spec.label}
         data-filled={filled || undefined}
-        onChange={(e) => ctx.setValue(spec.id, e.target.value.replace(/[^0-9₹,.\s]/g, ""))}
+        onChange={(e) => ctx.setValue(spec.id, e.target.value.replace(/[^0-9₹Rrs,.\s]/g, ""))}
         className={`alw-input${boldCls}`}
         style={{ minWidth: filled ? 0 : `${Math.max(spec.label.length, 2)}ch`, maxWidth: "100%" }}
       />
@@ -1923,6 +1995,8 @@ function Field({
         onChange={(e) => ctx.setValue(spec.id, e.target.value ? isoToDisplayDate(e.target.value) : "")}
         className={`alw-input alw-input-date${boldCls}`}
         style={{ maxWidth: "100%" }}
+        // Inline: the date sits inside the letter's sentence ("Date: ___").
+        wrapperClassName="relative inline-block align-baseline alw-date-wrap"
       />
     );
   }
@@ -1965,14 +2039,19 @@ const EDITOR_CSS = `
      rest the toolbar sits 60px higher. If a pinned strip is ever added back
      inside .hr-shell-scroll, this has to match its height again. */
   position:sticky;top:0;z-index:20;
-  display:flex;flex-wrap:nowrap;overflow-x:auto;align-items:center;justify-content:safe center;gap:5px 7px;
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 10px;
   padding:9px 12px;margin-bottom:20px;
   background:color-mix(in srgb, var(--color-surface-soft, #f8fafc) 92%, transparent);
   backdrop-filter:blur(8px);
   border:1px solid var(--color-hairline, #e2e8f0);
   border-radius:16px;
 }
-.alw-pick{display:flex;flex-direction:column;gap:3px;position:relative;padding-left:17px;flex-shrink:1;min-width:0;}
+/* flex-shrink:0 - a picker never gets narrower than its own select. It used
+   to shrink, the select kept its 150px minimum, and the overflow ran straight
+   over the NEXT picker's icon: the "Signed by / Signing" pile-up whenever the
+   bar lost width (collapsing the sidebar changes the shell's layout, not just
+   its width). The bar wraps onto a second row instead. */
+.alw-pick{display:flex;flex-direction:column;gap:3px;position:relative;padding-left:17px;flex-shrink:0;}
 .alw-pick svg{position:absolute;left:0;top:22px;width:13px;height:13px;color:${RED_DEEP};}
 .alw-pick-label{
   font-family:var(--font-display, system-ui, sans-serif);
@@ -2134,6 +2213,19 @@ const EDITOR_CSS = `
 .alw-sign-space{height:44px;}
 /* HR desk contact block under an HR-signed sign-off. */
 .alw-sign-hr{margin-top:10px;padding-top:8px;border-top:1px dashed var(--color-hairline,#e2e8f0);}
+/* ── Fit to one page: compact spacing (lib/hr/letters/fit) ────────────── */
+.alh-body[data-fit-compact="1"] .alw-p{margin:0 0 7px;line-height:1.5;}
+.alh-body[data-fit-compact="1"] .alw-ul{margin:0 0 7px;}
+.alh-body[data-fit-compact="1"] .alw-ul li{margin-bottom:2px;line-height:1.5;}
+.alh-body[data-fit-compact="1"] .alw-term{margin:0 0 3px;}
+.alh-body[data-fit-compact="1"] .alw-termtable{margin:4px 0 10px;}
+.alh-body[data-fit-compact="1"] .alw-termtable th.alw-tt-label,
+.alh-body[data-fit-compact="1"] .alw-termtable td.alw-tt-val{padding:4px 10px;}
+.alh-body[data-fit-compact="1"] .alw-tablewrap{margin:4px 0 8px;}
+.alh-body[data-fit-compact="1"] .alw-sign{margin-top:12px;line-height:1.4;}
+.alh-body[data-fit-compact="1"] .alw-sign-img{height:50px;margin:2px 0 0;}
+.alh-body[data-fit-compact="1"] .alw-sign-esign{margin:0 0 6px;}
+.alh-body[data-fit-compact="1"] .alw-sign-space{height:28px;}
 
 /* ── CTC percentage calculator ───────────────────────────────────── */
 .alw-calc{
@@ -2205,6 +2297,14 @@ const EDITOR_CSS = `
   transition:border-color .15s ease, background .15s ease;
 }
 .alw-input::placeholder{color:#9aa4b2;font-weight:500;opacity:1;}
+/* INLINE DATES. DateField pins its calendar button 8px in from the right, and
+   the letter input carried only 3px of right padding, so the icon sat ON the
+   text — "DD-MMM-YY[icon]Y", "16-Sep-20[icon]26" (2026-09-18). The input now
+   reserves room for the icon and the icon moves flush to the edge, so the two
+   never overlap whatever the date's width. */
+.alw-input-date{padding-right:22px !important;}
+.alw-date-wrap > button{right:0 !important;padding:2px !important;}
+.alw-date-wrap > button svg{width:13px;height:13px;}
 .alw-input:hover{border-bottom-color:#9aa4b2;}
 .alw-input:focus{
   border-bottom-color:${RED};border-bottom-style:solid;
@@ -2337,6 +2437,9 @@ const EDITOR_CSS = `
   .alw-input{border-bottom:none;background:transparent;color:var(--color-ink-strong,#0f172a);}
   /* Never print the grey "fill this in" placeholders - an unfilled field is blank. */
   .alw-input::placeholder{color:transparent !important;}
+  /* The calendar button is a screen control, not part of the letter. */
+  .alw-date-wrap > button{display:none !important;}
+  .alw-input-date{padding-right:3px !important;}
   .alw-tablewrap{overflow:visible;}
   /* Keep the coloured group/total/grand rows in the printout + PDF. */
   .alw-tr-group td,.alw-tr-total td,.alw-tr-grand td{
@@ -2361,6 +2464,11 @@ const EDITOR_CSS = `
   .alw-heading{break-after:avoid;break-inside:avoid;}
   /* Never strand a single line of a paragraph at a page edge. */
   .alw-p{orphans:3;widows:3;}
+  /* A paragraph is one unit - see the same rule in letterhead.tsx. */
+  .alw-p{break-inside:avoid;}
+  /* keepWithNext (types.ts): this line travels with whatever follows it. */
+  .alw-keep{break-after:avoid;}
+  .alw-p:has(+ .alw-ul),.alw-p:has(+ .alw-tablewrap){break-after:avoid;}
   /* A term row (Label : value) is a unit, as is a bullet. A run of terms is
      rendered by TermTable as a real 2-column table, so the row is its <tr> —
      the table itself may still span pages, one whole row at a time. */

@@ -62,8 +62,11 @@ describe("HR lifecycle sections", () => {
     const where = (slug: string) =>
       HR_STAGES.find((s) => s.items.some((i) => i.slug === slug))?.key;
 
-    expect(where("acceptance-letter")).toBe("post-interview");
+    // The Acceptance Letter is unregistered; the training's outcome (Accept /
+    // Extend / Regret) lives on the After Free Training letter instead.
+    expect(where("acceptance-letter")).toBeUndefined();
     expect(where("free-training")).toBe("post-interview");
+    expect(where("candidate-records")).toBe("pre-joining");
 
     expect(where("induction")).toBe("during");
     expect(where("employee-of-the-month")).toBe("during");

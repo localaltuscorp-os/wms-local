@@ -1,5 +1,6 @@
 import { and, or, gte, lt, inArray, getTableColumns, sql } from "drizzle-orm";
-import { db, employees, tasks, taskEvents, holidays } from "@/lib/db";
+import { listHolidayRowsBetween } from "@/lib/queries/holidays";
+import { db, employees, tasks, taskEvents } from "@/lib/db";
 import type { Task } from "@/lib/db";
 import type {
   DashboardData,
@@ -321,8 +322,8 @@ export async function loadDashboardDataUncached(
       .catch(() => [] as { initiatorId: string; doerId: string; createdAt: Date }[]),
 
     // Holidays within the 7-day window for working-day math.
-    db.select({ holidayDate: holidays.holidayDate }).from(holidays)
-      .where(gte(holidays.holidayDate, sevenAgo.toISOString().slice(0, 10)))
+    // The merged calendar (published + ad-hoc + Events Master, minus withdrawn).
+    listHolidayRowsBetween(sevenAgo.toISOString().slice(0, 10))
       .catch(() => [] as { holidayDate: string }[]),
   ]);
 

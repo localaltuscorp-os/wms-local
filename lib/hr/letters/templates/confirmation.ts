@@ -29,16 +29,16 @@ const template: LetterTemplate = {
   signature: "none",
   blurb: "Confirm the employee as permanent on successful completion of probation.",
   blocks: [
-    para(t("Date: "), f("date", "Date", { placeholder: "DD/MM/YYYY", date: true })),
+    para(t("Date: "), f("date", "Date", { placeholder: "DD-MMM-YYYY", date: true })),
     para(t("To,")),
     para(f("employeeName", "Employee Name", { placeholder: "Full name" })),
     heading("Subject: Confirmation of Employment Upon Successful Completion of Probation", 3),
     para(t("Dear "), f("employeeName", "Employee Name", { placeholder: "Full name" }), t(",")),
     para(
       t("We are pleased to inform you that you have successfully completed your probation period, which commenced on "),
-      f("joiningDate", "Joining Date", { placeholder: "e.g. 5 January 2026", date: true }),
+      f("joiningDate", "Joining Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t(" and concluded on "),
-      f("probationEndDate", "Probation End Date", { placeholder: "e.g. 5 July 2026", date: true }),
+      f("probationEndDate", "Probation End Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t("."),
     ),
     para(
@@ -47,7 +47,7 @@ const template: LetterTemplate = {
       t(", we are delighted to confirm your appointment as a permanent employee in the position of "),
       f("designation", "Designation", { placeholder: "e.g. Accounts Executive" }),
       t(", effective "),
-      f("confirmationDate", "Confirmation Date", { placeholder: "e.g. 6 July 2026", date: true }),
+      f("confirmationDate", "Confirmation Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t("."),
     ),
     para(

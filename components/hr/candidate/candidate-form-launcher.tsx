@@ -6,6 +6,8 @@ import { PenLine } from "lucide-react";
 import type { IntakeInitial, IntakeActions } from "@/components/hr/candidate/intake-wizard";
 import {
   createOwnCandidatePhotoUploadUrl,
+  createOwnCandidateWorkUploadUrl,
+  getOwnCandidateWorkFileUrl,
   saveOwnCandidateDraft,
   submitOwnCandidateForm,
 } from "@/app/candidate/candidate-self-actions";
@@ -21,6 +23,8 @@ const CANDIDATE_ACTIONS: IntakeActions = {
   save: saveOwnCandidateDraft,
   submit: submitOwnCandidateForm,
   photoUploadUrl: createOwnCandidatePhotoUploadUrl,
+  workUploadUrl: createOwnCandidateWorkUploadUrl,
+  workFileUrl: getOwnCandidateWorkFileUrl,
 };
 
 /**

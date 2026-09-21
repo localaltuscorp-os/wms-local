@@ -46,138 +46,51 @@ import type { AuraRoom } from "@/lib/aura-rooms";
  */
 
 /**
- * How many rooms get a tab, MEASURED from the real DOM instead of guessed from
- * the viewport.
+ * How many rooms get a tab, by viewport width.
  *
- * The old approach was a fixed `min-width` breakpoint ladder (8 tabs ≥1720px,
- * 7 ≥1580px, …). It broke because those numbers assumed the tabs had the whole
- * window to themselves, which they never do: the brand, the portaled page title
- * (the HR console portals a long one) and the right cluster (search + actions +
- * create + focus + bell + the account menu) all eat width that the ladder never
- * counted. At a width the ladder said "8 tabs fit", they ran into the search bar.
- *
- * Now we measure: render every room's tab into an off-screen strip to learn its
- * true pixel width, watch the nav's real width with a ResizeObserver, and show
- * exactly as many tabs — plus the "More" button — as actually fit. Tabs and
- * "More" remain exact complements, so no room is ever unreachable.
+ * This used to be a constant with CSS media queries hiding the overflow, and
+ * that combination is now impossible: "More" lists exactly the rooms that did
+ * NOT get a tab, so the bar and the menu have to be computed from the SAME
+ * number. A CSS rule that hid a tab would drop it out of the bar without
+ * putting it in the menu, and that room would be unreachable at that width.
  */
+const TAB_BREAKPOINTS: readonly { min: number; tabs: number }[] = [
+  { min: 1720, tabs: 8 },
+  { min: 1580, tabs: 7 },
+  { min: 1440, tabs: 6 },
+  { min: 1280, tabs: 5 },
+  { min: 1120, tabs: 4 },
+  { min: 1000, tabs: 3 },
+  { min: 860, tabs: 2 },
+  { min: 0, tabs: 0 },
+];
 
-/** The count rendered on the server / before the first measurement lands. */
+/** The widest breakpoint, used for the server render and the first paint. */
 const TAB_COUNT_SSR = 6;
 
-/** The flex gap between tabs (mirrors `.aura-tabs` in aura.css). */
-const TAB_GAP = 4;
-
-function useTabCount(rooms: AuraRoom[]): {
-  navRef: React.RefObject<HTMLElement | null>;
-  tabCount: number;
-} {
-  const navRef = React.useRef<HTMLElement | null>(null);
-  // Each room's tab width, measured once off-screen. `null` until measured.
-  const [tabWidths, setTabWidths] = React.useState<number[] | null>(null);
-  // The "More" button width, same strip.
-  const [moreWidth, setMoreWidth] = React.useState(0);
-  // The nav's live width = the space tabs + More may occupy.
-  const [available, setAvailable] = React.useState(0);
-  // Flipped when the web font finishes loading. The first measurement runs
-  // against the FALLBACK font; Inter is wider, so a count computed from fallback
-  // widths overflows the bar the instant the real font swaps in. Re-measuring on
-  // fonts.ready is what stops the tabs overlapping each other.
-  const [fontsReady, setFontsReady] = React.useState(false);
-
-  React.useEffect(() => {
-    if (typeof document === "undefined" || !document.fonts) return;
-    let cancelled = false;
-    document.fonts.ready
-      .then(() => {
-        if (!cancelled) setFontsReady(true);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  /* Measure every room's tab, plus the More button, in a hidden strip that
-     carries the real `.aura-tab` / `.aura-tab-dot` classes so the numbers match
-     the rendered bar. Runs when the room list is known AND again when the web
-     font lands (see fontsReady above). */
-  React.useLayoutEffect(() => {
-    if (typeof window === "undefined" || rooms.length === 0) return;
-    const host = document.createElement("div");
-    host.setAttribute("aria-hidden", "true");
-    host.style.cssText =
-      "position:absolute;left:-9999px;top:0;visibility:hidden;display:flex;gap:4px;";
-    const tabs: HTMLElement[] = rooms.map((r) => {
-      const a = document.createElement("a");
-      a.className = "aura-tab";
-      const dot = document.createElement("span");
-      dot.className = "aura-tab-dot";
-      a.appendChild(dot);
-      a.appendChild(document.createTextNode(r.label));
-      host.appendChild(a);
-      return a;
-    });
-    // The More button, same classes as MoreMenu, plus the 13px chevron.
-    const more = document.createElement("button");
-    more.type = "button";
-    more.className = "aura-tab";
-    more.appendChild(document.createTextNode("More"));
-    const chev = document.createElement("span");
-    chev.style.cssText = "display:inline-flex;width:13px;height:13px;flex:none;";
-    more.appendChild(chev);
-    host.appendChild(more);
-    document.body.appendChild(host);
-    // Measurement is the one legitimate setState-in-effect: it has to run after
-    // the DOM exists, it happens once, and it must land before paint so the bar
-    // never flashes the SSR tab count then reshuffles.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTabWidths(tabs.map((a) => a.getBoundingClientRect().width));
-    setMoreWidth(more.getBoundingClientRect().width);
-    document.body.removeChild(host);
-  }, [rooms, fontsReady]);
-
-  /* Watch the nav's width. `clientWidth` is the space flex actually gave it —
-     the header's leftover after brand, title and the right cluster — so tabs
-     can never be counted against space that is already taken. */
-  React.useLayoutEffect(() => {
-    const el = navRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width ?? 0;
-      if (w > 0) setAvailable(w);
-    });
-    ro.observe(el);
-    setAvailable(el.clientWidth);
-    return () => ro.disconnect();
-  }, []);
-
-  return {
-    navRef,
-    tabCount: React.useMemo(() => {
-      // Not measured yet — fall back to the SSR count so server and first paint
-      // agree, then the measurement above replaces it.
-      if (!tabWidths || tabWidths.length !== rooms.length || available <= 0) {
-        return TAB_COUNT_SSR;
-      }
-      // Every room fits without a More button? Show all of them.
-      const total = tabWidths.reduce((s, w, i) => s + w + (i > 0 ? TAB_GAP : 0), 0);
-      if (total <= available) return rooms.length;
-      // Otherwise reserve the More button and fit as many tabs as possible.
-      const budget = available - moreWidth - TAB_GAP;
-      let used = 0;
-      let count = 0;
-      for (let i = 0; i < rooms.length; i++) {
-        const w = (tabWidths[i] ?? 0) + (count > 0 ? TAB_GAP : 0);
-        if (used + w > budget) break;
-        used += w;
-        count = i + 1;
-      }
-      // The room you are in is force-shown downstream; keep at least one tab so
-      // the bar never collapses to nothing on a very narrow window.
-      return Math.max(1, count);
-    }, [tabWidths, moreWidth, available, rooms]),
-  };
+/**
+ * Subscribes to the breakpoints above.
+ *
+ * `useSyncExternalStore` rather than state-in-an-effect: it takes a dedicated
+ * server snapshot, so the markup React renders on the server and the markup it
+ * hydrates with agree by construction instead of by luck.
+ */
+function useTabCount(): number {
+  return React.useSyncExternalStore(
+    (onChange) => {
+      if (typeof window === "undefined" || !window.matchMedia) return () => {};
+      const lists = TAB_BREAKPOINTS.filter((b) => b.min > 0).map((b) =>
+        window.matchMedia(`(min-width: ${b.min}px)`),
+      );
+      lists.forEach((m) => m.addEventListener("change", onChange));
+      return () => lists.forEach((m) => m.removeEventListener("change", onChange));
+    },
+    () => {
+      const w = window.innerWidth;
+      return TAB_BREAKPOINTS.find((b) => w >= b.min)?.tabs ?? 0;
+    },
+    () => TAB_COUNT_SSR,
+  );
 }
 
 export function AuraTopBar({
@@ -202,7 +115,16 @@ export function AuraTopBar({
      first page landed. */
   const onDashboard = pathname === "/hub";
 
-  const { navRef, tabCount } = useTabCount(rooms);
+  const rawTabCount = useTabCount();
+  /* HR ONLY (2026-09-18): the HR console portals a long page title into this
+     bar ("Employee Onboarding Form", "Appointment Letter"…), and with the usual
+     tab count the title was cut to "Employee Onboardi…". On HR pages two more
+     rooms move into "More" so the title reads in full. The active room still
+     always keeps its tab, and "More" still lists exactly what has no tab, so
+     nothing becomes unreachable. Other rooms are untouched, as asked. */
+  const HR_TITLE_RESERVE = 2;
+  const tabCount =
+    ws === "hr" && rawTabCount > 0 ? Math.max(1, rawTabCount - HR_TITLE_RESERVE) : rawTabCount;
 
   /* The first `tabCount` rooms get tabs — except that the room you are IN always
      does, even when it sits past the cut. A bar whose active tab is invisible
@@ -238,9 +160,9 @@ export function AuraTopBar({
       {/* A page's OWN title, portaled in (the HR console names itself more
           precisely than its route can be read). `empty:hidden` so it costs no
           space on the pages that set none. */}
-      <div ref={slots?.setTitle} className="flex min-w-0 items-center empty:hidden" />
+      <div ref={slots?.setTitle} className="aura-title-slot flex min-w-0 items-center empty:hidden" />
 
-      <nav ref={navRef} className="aura-tabs" aria-label="Workspaces">
+      <nav className="aura-tabs" aria-label="Workspaces">
         {tabs.map((r) => (
           <a
             key={r.id}
@@ -263,13 +185,20 @@ export function AuraTopBar({
         <div className="aura-search-slot">
           <GlobalSearch
             workspace={ws}
+            /* AN ICON, NOT A BOX (2026-09-18). The ~280px search box collided
+               with the last tabs and "More" at ordinary widths — "HR [search]
+               More" drew on top of each other — and squeezed page titles into
+               "Employee Onboardi…". The icon opens the SAME floating palette
+               the box did (GlobalSearch is a Radix dialog that floats below the
+               bar), and ⌘K / Ctrl+K still opens it from anywhere. */
             trigger={
-              <button type="button" className="aura-searchbox" aria-label="Search the whole app">
-                <Search size={15} strokeWidth={2.2} aria-hidden />
-                <span>Search tasks, clients, people, documents</span>
-                <span className="aura-kbd" aria-hidden>
-                  ⌘K
-                </span>
+              <button
+                type="button"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-hairline bg-white/70 text-ink-muted transition hover:border-hairline-strong hover:text-ink-strong"
+                aria-label="Search the whole app (Ctrl+K)"
+                title="Search · Ctrl+K"
+              >
+                <Search size={16} strokeWidth={2.2} aria-hidden />
               </button>
             }
           />

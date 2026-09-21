@@ -317,6 +317,124 @@ async function seedCandidates(pg: PGlite): Promise<void> {
   }
 }
 
+/**
+ * CLIENT ENGAGEMENT — enough rows to see every rule work.
+ *
+ * Deliberately includes the awkward cases, because a module that only ever sees
+ * tidy data is a module whose edges nobody has looked at: an entity in the
+ * unassigned pool, one on hold, one on barter, one that has not started yet, a
+ * lead sitting near the 27-hour line, and a call with no times on it at all.
+ *
+ * Fixed ids with `on conflict do nothing`, like the rest of this file: re-seed
+ * as often as you like, and anything edited in the app stays edited.
+ */
+async function seedClientEngagement(
+  pg: PGlite,
+  employeeIdOf: (name: string) => string,
+  today: Date,
+): Promise<void> {
+  const ce = (n: number) => `00000000-0000-4000-8005-${String(n).padStart(12, "0")}`;
+  const ymd = (offsetDays: number) =>
+    new Date(today.getTime() + offsetDays * 86_400_000).toISOString().slice(0, 10);
+
+  // ── The leads, with a roster row of their own ──
+  const LEADS: [number, string][] = [
+    [1, "Jeevan"],
+    [2, "Ruchita"],
+    [3, "Mitul"],
+  ];
+  for (const [n, name] of LEADS) {
+    await pg.query(
+      `insert into pa_people (id, kind, name, employee_id, is_ce_lead)
+       values ($1,'employee',$2,$3,true)
+       on conflict (id) do nothing`,
+      [ce(n), name, employeeIdOf(name)],
+    );
+  }
+  const lead = (name: string) => ce(LEADS.find((l) => l[1] === name)![0]);
+
+  // ── Participants and clients ──
+  // id, name, product, batch, owner, on hold, colour band, starts, ends
+  const ENTRIES: [number, string, string, string | null, string | null, boolean, string | null, string, string][] = [
+    [10, "Mihir Vira", "ps", "91", lead("Jeevan"), false, "active", ymd(-30), ymd(60)],
+    [11, "Sneha Kulkarni", "ps", "91", lead("Jeevan"), false, "active", ymd(-30), ymd(60)],
+    [12, "Farhan Qureshi", "bss", "88", lead("Jeevan"), false, "active", ymd(-45), ymd(45)],
+    [13, "Tanvi Deshpande", "bss", "88", lead("Ruchita"), false, "active", ymd(-20), ymd(70)],
+    [14, "Lakshmi Iyer", "os", null, lead("Ruchita"), false, "barter", ymd(-60), ymd(120)],
+    [15, "Nikhil Rao", "retainer", null, lead("Mitul"), false, "active", ymd(-10), ymd(170)],
+    // On hold: theirs, but costing the week nothing.
+    [16, "Aarti Menon", "ps", "90", lead("Mitul"), true, "active", ymd(-90), ymd(10)],
+    // Not started: the status derives itself when the day comes.
+    [17, "Pranav Shetty", "bss", "92", lead("Ruchita"), false, "active", ymd(21), ymd(140)],
+    // The unassigned pool.
+    [18, "Devika Nair", "ps", "92", null, false, "active", ymd(7), ymd(120)],
+    [19, "Rohit Bhatia", "os", null, null, false, "active", ymd(-5), ymd(180)],
+    [20, "Kiran Joshi", "retainer", null, null, false, "active", ymd(-2), ymd(200)],
+  ];
+  for (const [n, name, section, batch, owner, hold, highlight, start, end] of ENTRIES) {
+    await pg.query(
+      `insert into pa_entries (id, person_id, section, name, batch_no, on_hold, highlight, start_date, end_date)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       on conflict (id) do nothing`,
+      [ce(n), owner, section, name, batch, hold, highlight, start, end],
+    );
+  }
+
+  // ── Ambassadors: on a revenue share by definition, one still unclaimed ──
+  const AMBASSADORS: [number, string, string | null][] = [
+    [30, "Vikram Sethi", lead("Mitul")],
+    [31, "Ananya Ghosh", null],
+  ];
+  for (const [n, name, owner] of AMBASSADORS) {
+    await pg.query(
+      `insert into pa_ambassadors (id, name, email, products, owner_person_id, status, start_date)
+       values ($1,$2,$3,'{"ps"}',$4,'revenue_share',$5)
+       on conflict (id) do nothing`,
+      [ce(n), name, `${name.toLowerCase().replace(/[^a-z]+/g, ".")}@example.invalid`, owner, ymd(-120)],
+    );
+  }
+
+  // ── The weekly calls ──
+  // Jeevan is deliberately taken close to the 27-hour line, so the red flag on
+  // the grid and the calendar's banner can be seen without arranging anything.
+  // entity, seq, type, day, from, to
+  const CALLS: [number, number, string, string, string, string][] = [
+    [10, 1, "hh", "mon", "10:00", "13:00"],
+    [10, 2, "tool", "wed", "10:00", "13:00"],
+    [11, 1, "hh", "mon", "13:00", "16:00"],
+    [11, 2, "checkin", "thu", "10:00", "14:00"],
+    [12, 1, "hh", "tue", "10:00", "14:00"],
+    [12, 2, "tool", "fri", "10:00", "14:00"],
+    [12, 3, "courtesy", "sat", "10:00", "13:30"],
+    [13, 1, "hh", "tue", "15:00", "17:00"],
+    [14, 1, "checkin", "wed", "11:00", "12:00"],
+    [15, 1, "reference", "thu", "16:00", "17:30"],
+    [16, 1, "hh", "fri", "15:00", "16:00"],
+    [30, 1, "courtesy", "mon", "17:00", "18:00"],
+  ];
+  for (const [entity, seq, type, day, from, to] of CALLS) {
+    const minutes =
+      (Number(to.slice(0, 2)) * 60 + Number(to.slice(3))) - (Number(from.slice(0, 2)) * 60 + Number(from.slice(3)));
+    const column = entity >= 30 ? "ambassador_id" : "entry_id";
+    await pg.query(
+      `insert into pa_calls (id, ${column}, seq, call_type, day, duration_min, start_time, end_time)
+       values ($1,$2,$3,$4,$5,$6,$7,$8)
+       on conflict (id) do nothing`,
+      [ce(100 + entity * 10 + seq), ce(entity), seq, type, day, minutes, from, to],
+    );
+  }
+
+  // A call from before the scheduler existed: a length, but no clock. It shows
+  // in the calendar's "Not fixed" strip and on the Calls-not-fixed badge until
+  // somebody gives it a time.
+  await pg.query(
+    `insert into pa_calls (id, entry_id, seq, call_type, day, duration_min)
+     values ($1,$2,1,'checkin','wed',60)
+     on conflict (id) do nothing`,
+    [ce(999), ce(19)],
+  );
+}
+
 export async function seedDummyData(pg: PGlite): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
 
@@ -500,6 +618,29 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
       );
     }
   }
+
+  // ── OPERATIONS › DIRECTORY — a few fictional vendors so the page is not empty.
+  // Fixed ids + `on conflict do nothing`: re-runnable, and a vendor edited or
+  // deleted in the UI is never put back by re-seeding.
+  const VENDORS: [number, string, string, string | null, string, string, string, string, string, boolean][] = [
+    [1, "AC", "Suresh", "Patil", "9800000101", "cool.air@example.invalid", "Shop 4, Link Road", "Mumbai", "400064", true],
+    [2, "Electrician", "Ramesh", "Yadav", "9800000102", "ramesh.electric@example.invalid", "12 Station Lane", "Thane", "400601", false],
+    [3, "Stationery", "Kavita", "Shah", "9800000103", "paperhouse@example.invalid", "Gala 7, Market Yard", "Pune", "411037", false],
+    [4, "Computer Repairs", "Anil", null, "9800000104", "fixit@example.invalid", "2nd Floor, Tech Plaza", "Mumbai", "400093", true],
+  ];
+  for (const [n, category, first, last, cell, email, line1, city, pin, amc] of VENDORS) {
+    await pg.query(
+      `insert into ops_vendors (id, category, first_name, last_name, cell_no, email, address_line1, city, state, pincode, amc)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,'Maharashtra',$9,$10)
+       on conflict (id) do nothing`,
+      [`00000000-0000-4000-8004-${String(n).padStart(12, "0")}`, category, first, last, cell, email, line1, city, pin, amc],
+    );
+  }
+  await bump("ops_vendors");
+
+  await seedClientEngagement(pg, treeId, new Date());
+  await bump("pa_entries");
+  await bump("pa_calls");
 
   await seedCandidates(pg);
   await bump("candidate_intake");

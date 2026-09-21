@@ -6,8 +6,18 @@ import { fireToast } from "@/lib/toast";
 import { formatDateHr } from "@/lib/format";
 import {
   inviteCandidateByLink,
+  findCandidatesByName,
   type CandidateInvite,
+  type CandidateMatch,
 } from "@/app/(app)/hr/candidate-invite-actions";
+
+/** "a@x.com, b@y.com" → ["a@x.com", "b@y.com"] (blank entries dropped). */
+function splitEmails(raw: string): string[] {
+  return raw
+    .split(/[,;]/)
+    .map((e) => e.trim())
+    .filter(Boolean);
+}
 
 const RED = "var(--color-altus-red)";
 const INPUT =
@@ -41,9 +51,10 @@ export function InviteCandidateDialog({
    * fields, same candidate record — only the errand differs, and sending one
    * never revokes the other's link.
    */
-  purpose?: "form" | "policies";
+  purpose?: "form" | "policies" | "onboarding";
 }) {
   const policies = purpose === "policies";
+  const onboarding = purpose === "onboarding";
   const [open, setOpen] = React.useState(false);
   const [first, setFirst] = React.useState("");
   const [last, setLast] = React.useState("");
@@ -53,6 +64,13 @@ export function InviteCandidateDialog({
   const [sent, setSent] = React.useState<CandidateInvite | null>(null);
   /** The server's question when the address belongs to a closed candidate. */
   const [confirmReopen, setConfirmReopen] = React.useState<string | null>(null);
+  const [cc, setCc] = React.useState("");
+  const [bcc, setBcc] = React.useState("");
+  const [showCopies, setShowCopies] = React.useState(false);
+  /** Candidates whose name matches what HR typed — their form already has the email + cell. */
+  const [matches, setMatches] = React.useState<CandidateMatch[]>([]);
+  /** The match whose details are currently filled in, so a manual edit isn't overwritten. */
+  const [filledFrom, setFilledFrom] = React.useState<string | null>(null);
 
   function close() {
     setOpen(false);
@@ -60,9 +78,53 @@ export function InviteCandidateDialog({
     setLast("");
     setMobile("");
     setEmail("");
+    setCc("");
+    setBcc("");
+    setShowCopies(false);
+    setMatches([]);
+    setFilledFrom(null);
     setSent(null);
     setConfirmReopen(null);
   }
+
+  function fillFrom(m: CandidateMatch) {
+    // The FIRST address is the candidate's own — replace it; keep any extra To
+    // addresses HR already typed after a comma.
+    const [, ...rest] = splitEmails(email);
+    const own = (m.email ?? "").toLowerCase();
+    const others = rest.filter((e) => e.toLowerCase() !== own);
+    setEmail([m.email ?? "", ...others].filter(Boolean).join(", "));
+    if (m.mobile) setMobile(m.mobile);
+    setFilledFrom(m.intakeId);
+  }
+
+  const shownMatches = first.trim().length >= 2 && last.trim().length >= 1 ? matches : [];
+
+  // ── AUTO-FILL FROM THE CANDIDATE FORM ────────────────────────────────
+  // Typing a first + last name looks the candidate up; they have already given
+  // their email and cell on the Candidate Form, so HR shouldn't retype them.
+  // One match fills itself in; several are offered as choices below the names.
+  React.useEffect(() => {
+    if (!open || sent) return;
+    const f = first.trim();
+    const l = last.trim();
+    // Too little typed to look up — `shownMatches` below hides any stale list.
+    if (f.length < 2 || l.length < 1) return;
+    let cancelled = false;
+    const t = window.setTimeout(async () => {
+      const res = await findCandidatesByName({ firstName: f, lastName: l }).catch(() => null);
+      if (cancelled || !res || !res.ok) return;
+      setMatches(res.matches);
+      if (res.matches.length === 1 && !filledFrom) fillFrom(res.matches[0]!);
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+    // fillFrom/filledFrom are read at fire time on purpose; re-running on them
+    // would re-query on every fill.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, last, open, sent]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -77,12 +139,20 @@ export function InviteCandidateDialog({
    */
   async function send(reopenClosed: boolean) {
     if (busy) return;
+    const [primary, ...extraTo] = splitEmails(email);
+    if (!primary) {
+      fireToast({ message: "Enter the candidate's email address.", type: "error" });
+      return;
+    }
     setBusy(true);
     const res = await inviteCandidateByLink({
       firstName: first,
       lastName: last,
       mobile,
-      email,
+      email: primary,
+      extraTo,
+      cc: splitEmails(cc),
+      bcc: splitEmails(bcc),
       purpose,
       ...(reopenClosed ? { reopenClosed: true } : null),
     });
@@ -113,13 +183,15 @@ export function InviteCandidateDialog({
             aria-label={
               policies
                 ? "Send the policies to a candidate to sign"
-                : "Send the interview form to a candidate"
+                : onboarding
+                  ? "Send the onboarding form to a candidate"
+                  : "Send the interview form to a candidate"
             }
             className="w-[480px] max-w-[94vw] rounded-2xl border border-hairline-strong bg-surface-card p-5 shadow-[0_40px_100px_rgba(15,23,42,0.35)]"
           >
             <div className="mb-3 flex items-start justify-between gap-3">
               <h2 className="text-[16px] font-black text-ink-strong">
-                {policies ? "Send the policies to sign" : "Share Interview Form Link"}
+                {policies ? "Send the policies to sign" : onboarding ? "Send the Onboarding Form" : "Share Interview Form Link"}
               </h2>
               <button type="button" onClick={close} aria-label="Close" className="text-ink-muted hover:text-ink-strong">
                 <X size={18} />
@@ -144,6 +216,12 @@ export function InviteCandidateDialog({
                       and sign by email — <strong>no login, no password</strong> — and can come back to
                       the same link to change what they signed.
                     </>
+                  ) : onboarding ? (
+                    <>
+                      Enter the candidate&apos;s basic details. They get the Employee Onboarding Form by
+                      email to fill <strong>before joining — no login, no password</strong> — and HR is
+                      emailed when they submit it.
+                    </>
                   ) : (
                     <>
                       Enter the candidate&apos;s basic details. They get their own Candidate Interview
@@ -160,6 +238,33 @@ export function InviteCandidateDialog({
                     <input value={last} onChange={(e) => setLast(e.target.value)} required className={INPUT} />
                   </Field>
                 </div>
+                {shownMatches.length > 1 ? (
+                  <div className="rounded-lg border border-hairline-strong bg-surface-soft p-2">
+                    <span className="mb-1 block text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+                      Found on the Candidate Form — pick one
+                    </span>
+                    <div className="flex flex-col gap-1">
+                      {shownMatches.map((m) => (
+                        <button
+                          key={m.intakeId}
+                          type="button"
+                          onClick={() => fillFrom(m)}
+                          className="flex items-center gap-2 rounded-md bg-white px-2 py-1.5 text-left text-[12.5px] text-ink-strong hover:ring-1 hover:ring-altus-red"
+                        >
+                          {filledFrom === m.intakeId ? <Check size={13} style={{ color: "#166534" }} /> : null}
+                          <span className="font-bold">{m.fullName}</span>
+                          <span className="min-w-0 truncate text-ink-muted">
+                            {[m.email, m.mobile].filter(Boolean).join(" · ")}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : shownMatches.length === 1 && filledFrom === shownMatches[0]!.intakeId ? (
+                  <p className="flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: "#166534" }}>
+                    <Check size={13} /> Email and cell filled in from their Candidate Form.
+                  </p>
+                ) : null}
                 <Field label="Cell number">
                   <input
                     value={mobile}
@@ -171,16 +276,60 @@ export function InviteCandidateDialog({
                     className={INPUT}
                   />
                 </Field>
-                <Field label="Email address">
+                <Field label="Email address (To)">
                   <input
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    type="email"
+                    type="text"
+                    inputMode="email"
                     autoComplete="email"
+                    placeholder="candidate@gmail.com, another@gmail.com"
                     className={INPUT}
                   />
                 </Field>
+                <p className="-mt-2 text-[11.5px] leading-[1.5] text-ink-subtle">
+                  The first address is the candidate&apos;s own. Separate more addresses with a comma (,).
+                </p>
+                {showCopies ? (
+                  <>
+                    <Field label="CC">
+                      <input
+                        value={cc}
+                        onChange={(e) => setCc(e.target.value)}
+                        type="text"
+                        inputMode="email"
+                        placeholder="name@altuscorp.in, …"
+                        className={INPUT}
+                      />
+                    </Field>
+                    <Field label="BCC">
+                      <input
+                        value={bcc}
+                        onChange={(e) => setBcc(e.target.value)}
+                        type="text"
+                        inputMode="email"
+                        placeholder="name@altuscorp.in, …"
+                        className={INPUT}
+                      />
+                    </Field>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowCopies(true)}
+                    className="w-fit text-[12.5px] font-bold text-ink-muted underline-offset-2 hover:text-ink-strong hover:underline"
+                  >
+                    + Add CC / BCC
+                  </button>
+                )}
+                {splitEmails(email).length > 1 || cc.trim() || bcc.trim() ? (
+                  <p className="flex items-start gap-1.5 text-[11.5px] leading-[1.5] text-amber-800">
+                    <AlertTriangle size={13} className="mt-[1px] shrink-0" />
+                    Everyone in To, CC and BCC gets the candidate&apos;s private link and can open their
+                    {policies ? " policies" : onboarding ? " onboarding form" : " form"}.
+                  </p>
+                ) : null}
                 <button
                   type="submit"
                   disabled={busy}
@@ -188,7 +337,7 @@ export function InviteCandidateDialog({
                   style={{ background: `linear-gradient(135deg, ${RED}, var(--color-altus-red-deep))` }}
                 >
                   {busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}{" "}
-                  {policies ? "Send the policies" : "Share the link"}
+                  {policies ? "Send the policies" : onboarding ? "Send the onboarding form" : "Share the link"}
                 </button>
               </form>
             )}

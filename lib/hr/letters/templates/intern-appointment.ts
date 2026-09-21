@@ -31,7 +31,7 @@ const template: LetterTemplate = {
   signature: "esign",
   blurb: "Offer an internship with role, stipend, responsibilities and terms.",
   blocks: [
-    para(t("Date: "), f("date", "Date", { placeholder: "DD/MM/YYYY", date: true })),
+    para(t("Date: "), f("date", "Date", { placeholder: "DD-MMM-YYYY", date: true })),
     para(t("Dear "), f("internName", "Intern Name", { placeholder: "Full name" }), t(",")),
     para(
       t("We are pleased to offer you an internship opportunity with {firm} for the role of "),
@@ -43,7 +43,7 @@ const template: LetterTemplate = {
     heading("Internship Details", 3),
     term("Position", f("position", "Position", { placeholder: "e.g. Business Analyst Intern" })),
     term("Reporting Manager", f("reportingManager", "Reporting Manager", { placeholder: "e.g. Mr. Rohan Choudhary" })),
-    term("Start Date", f("startDate", "Start Date", { placeholder: "e.g. 9th December 2025", date: true })),
+    term("Start Date", f("startDate", "Start Date", { placeholder: "DD-MMM-YYYY", date: true })),
     term("Location", f("location", "Location", { placeholder: "e.g. On site, Goregaon, Mumbai" })),
     term("Stipend", f("stipend", "Stipend", { placeholder: "e.g. Rs. 7500/- per month" })),
     heading("Role Overview", 3),

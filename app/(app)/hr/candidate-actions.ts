@@ -19,6 +19,7 @@ import { revokeAccessLinks } from "@/lib/hr/candidate/access-link";
 import { recordHrFormSubmission } from "@/lib/hr/forms/record";
 import { intakeResponses } from "@/lib/hr/candidate/intake-responses";
 import { listEmployeeOptions } from "@/lib/queries/employees";
+import { isWorkSamplePath, safeWorkFileName, workFileProblem } from "@/lib/hr/candidate/work-samples";
 
 type Result<T> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -71,6 +72,42 @@ export async function createCandidatePhotoUploadUrl(input: {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not start the upload." };
   }
+}
+
+/**
+ * Signed upload URL for one WORK SAMPLE file (images, PDFs, documents - see
+ * lib/hr/candidate/work-samples.ts). Same browser-straight-to-storage route as
+ * the photo; the path is minted here, under `candidate-intake/work/`.
+ */
+export async function createCandidateWorkUploadUrl(input: {
+  fileName: string;
+  mime?: string | null;
+  size?: number | null;
+}): Promise<Result<{ path: string; token: string; bucket: string }>> {
+  const me = await requireHrIntake();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const problem = workFileProblem({ name: input.fileName, mime: input.mime, size: input.size });
+  if (problem) return { ok: false, error: problem };
+
+  const path = `candidate-intake/work/${randomUUID()}/${safeWorkFileName(input.fileName)}`;
+  try {
+    const { data, error } = await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).createSignedUploadUrl(path);
+    if (error || !data) return { ok: false, error: error?.message ?? "Could not start the upload." };
+    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not start the upload." };
+  }
+}
+
+/** A short-lived link to open one stored work-sample file (HR intake staff). */
+export async function getCandidateWorkFileUrl(path: string): Promise<Result<{ url: string }>> {
+  await requireHrIntake();
+  if (!isWorkSamplePath(path)) return { ok: false, error: "Not a work-sample file." };
+  const { data, error } = await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).createSignedUrl(path, 600);
+  if (error || !data) return { ok: false, error: error?.message ?? "Could not open the file." };
+  return { ok: true, url: data.signedUrl };
 }
 
 const DraftSchema = z.object({

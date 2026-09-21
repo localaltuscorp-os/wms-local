@@ -53,6 +53,8 @@ const IssueSchema = z.object({
    *  proprietor's block, "hr" = the HR desk's). Omitted → the template's own
    *  rule. Threaded so the issued PDF carries the sign-off HR saw on screen. */
   signatory: z.enum(["director", "hr"]).optional(),
+  /** Shrink the letter step by step until it fits one A4 page (lib/hr/letters/fit). */
+  fitOnePage: z.boolean().optional(),
 });
 
 export type IssueLetterInput = z.infer<typeof IssueSchema>;
@@ -77,8 +79,18 @@ export async function issueLetter(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { key, entity, values, gender, employeeId, candidateName, candidateEmail, signatureImage, signatory } =
-    parsed.data;
+  const {
+    key,
+    entity,
+    values,
+    gender,
+    employeeId,
+    candidateName,
+    candidateEmail,
+    signatureImage,
+    signatory,
+    fitOnePage,
+  } = parsed.data;
 
   const template = getLetter(key);
   if (!template) return { ok: false, error: "This letter isn't authored yet." };
@@ -109,6 +121,7 @@ export async function issueLetter(
       gender: normalizeGender(gender),
       signatureImage,
       signatory,
+      fitOnePage: fitOnePage === true,
     });
   } catch (err) {
     return { ok: false, error: `Could not render the PDF: ${errorMessage(err)}` };

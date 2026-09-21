@@ -84,21 +84,22 @@ export const LETTERS: Record<string, LetterTemplate> = {
   // pre-employment programme. Both live in During Employment in the nav.
   declaration,
   "after-free-training": afterFreeTraining,
-  // Compensation
+  // Compensation — in workflow order, matching the Appraisal stage in
+  // lib/hr/lifecycle: promotion → increment → the two revised-CTC letters.
   "ctc-breakup": ctcBreakup,
+  promotion,
+  increment,
   "appraisal-revised-ctc": appraisalRevisedCtc,
   "promotion-revised-ctc": promotionRevisedCtc,
-  increment,
-  promotion,
   // Milestones & Recognition
   "employee-of-the-month": employeeOfTheMonth,
   birthday,
-  // Separation
+  // Separation — the Experience Letter before the Letter of Recommendation.
   ffs,
   "ffs-acknowledgement": ffsAcknowledgement,
   relieving,
-  "letter-of-recommendation": letterOfRecommendation,
   "experience-letter": experienceLetter,
+  "letter-of-recommendation": letterOfRecommendation,
   "resignation-rejection": resignationRejection,
 };
 

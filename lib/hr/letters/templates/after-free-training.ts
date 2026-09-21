@@ -55,19 +55,26 @@ const template: LetterTemplate = {
     para(t("Evaluated by: "), f("evaluatedBy", "Reporting Manager", { placeholder: "Reporting manager / panel" })),
 
     heading("Decision", 2),
-    para(t("Outcome: "), f("outcome", "Outcome", { placeholder: "Selected / Not selected / Withdrawn", bold: true })),
+    // The editor's Training Verdict bar fills this with Accepted / Extended /
+    // Regret; it stays an editable field so a Withdrawn outcome can be typed.
+    para(t("Outcome: "), f("outcome", "Outcome", { placeholder: "Accepted / Extended / Regret", bold: true })),
     para(t("Remarks: "), f("remarks", "Remarks", { placeholder: "Brief remarks", multiline: true })),
 
     heading("What follows", 2),
     bullets(
       [
         t(
-          "If you have been selected, your employment will be confirmed through an official Appointment Letter, and the firm will pay you for the entire training period along with the applicable salary/payroll process.",
+          "If you have been accepted, your employment will be confirmed through an official Appointment Letter, and the firm will pay you for the entire training period along with the applicable salary/payroll process.",
         ),
       ],
       [
         t(
-          "If you have not been selected after evaluation, no payment or remuneration is payable for the training period, in line with the policy you signed.",
+          "If your training period has been extended, it continues on the same terms for the further period stated in the Remarks above, and a fresh evaluation follows at its end.",
+        ),
+      ],
+      [
+        t(
+          "If we regret that you have not been selected after evaluation, no payment or remuneration is payable for the training period, in line with the policy you signed.",
         ),
       ],
       [

@@ -33,7 +33,7 @@ const template: LetterTemplate = {
     para(t("Dear "), f("employeeName", "Employee Name", { placeholder: "Full name" }), t(",")),
     para(
       t("This is with reference to your resignation letter dated "),
-      f("resignationDate", "Resignation Date", { placeholder: "DD/MM/YYYY", date: true }),
+      f("resignationDate", "Resignation Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t(", wherein you expressed your intention to resign from your position at {firm}."),
     ),
     para(

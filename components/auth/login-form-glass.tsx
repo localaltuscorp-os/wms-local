@@ -63,7 +63,10 @@ export function LoginFormGlass() {
   const params = useSearchParams();
   // Always land on the Hub by default; a bare "/" next resolves to /hub too.
   const rawNext = params.get("next");
-  const requestedNext = !rawNext || rawNext === "/" ? "/hub" : rawNext;
+  // SECURITY: only same-origin relative paths - `//evil.com` or `https://…`
+  // would be an open redirect after sign-in. Mirrors login-form-canva.tsx.
+  const isSafeNext = !!rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//");
+  const requestedNext = !rawNext || rawNext === "/" || !isSafeNext ? "/hub" : rawNext;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

@@ -320,7 +320,8 @@ describe("the UI offers the three fields and the three actions", () => {
   const panel = codeOf("app/(app)/hr/holidays/adhoc-panel.tsx");
 
   it("name, date and an optional note", () => {
-    expect(panel).toMatch(/type="date"/);
+    // The date input is the shared <DateField> (DD-MMM-YYYY) since 43b4bba.
+    expect(panel).toMatch(/type="date"|<DateField/);
     expect(panel).toMatch(/setLabel/);
     expect(panel).toMatch(/setNote/);
   });

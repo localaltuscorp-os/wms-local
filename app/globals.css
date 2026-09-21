@@ -2828,6 +2828,20 @@ html {
   -webkit-overflow-scrolling: touch;
 }
 
+/* SIDEWAYS-ONLY SCROLL BOX — for a wide table/grid that may scroll left-right
+ * on a narrow screen but must NEVER capture the vertical wheel. The rule above
+ * gives every `.overflow-x-auto` `overscroll-behavior: contain` on BOTH axes,
+ * so with the cursor over such a box the page would not scroll (hit on Client
+ * Engagement, 2026-09-19). Unlayered like the rule above, so it wins — a
+ * Tailwind `overscroll-y-auto` utility cannot, because unlayered CSS beats
+ * layered utilities whatever their specificity. */
+.scroll-x-only {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
+}
+
 .kanban-scroll {
   /* NO `scroll-behavior: smooth` here. The wheel handler writes scrollLeft on
      every tick, and smooth turns each of those writes into its own animation —
