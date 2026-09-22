@@ -7602,6 +7602,19 @@ export const execCalendarPrefs = pgTable("exec_calendar_prefs", {
 });
 export type ExecCalendarPrefs = typeof execCalendarPrefs.$inferSelect;
 
+export const ceAuditLog = pgTable("ce_audit_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entityType: text("entity_type").notNull().$type<"account" | "engagement" | "reference" | "team_member">(),
+  entityId: uuid("entity_id").notNull(),
+  action: text("action").notNull(),
+  summary: text("summary").notNull(),
+  before: jsonb("before"),
+  after: jsonb("after"),
+  actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type CeAuditLog = typeof ceAuditLog.$inferSelect;
+
 /** Per-month completion count for an obligation (manual override; the auto-count
  *  comes from calendar_events.obligation_id). */
 export const obligationCompletions = pgTable(
@@ -8399,7 +8412,7 @@ export const candidateAccessLinks = pgTable(
 export type CandidateAccessLink = typeof candidateAccessLinks.$inferSelect;
 
 /** Where `/c/<token>` puts the candidate down (0222). */
-export type CandidateLinkPurpose = "form" | "policies";
+export type CandidateLinkPurpose = "form" | "policies" | "onboarding";
 
 /**
  * A candidate's typed acceptance of one policy (0222).
