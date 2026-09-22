@@ -7541,6 +7541,67 @@ export const calendarEvents = pgTable(
 );
 export type CalendarEventRow = typeof calendarEvents.$inferSelect;
 
+/* Executive master calendar (migrations 0231 and 0237). */
+export type ExecVisibilityCol = "public" | "busy" | "private";
+
+export const execCalendarRoutines = pgTable("exec_calendar_routines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: uuid("owner_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  categoryKey: text("category_key").notNull(),
+  daysOfWeek: integer("days_of_week").array().notNull().default([]),
+  startMin: integer("start_min").notNull(),
+  endMin: integer("end_min").notNull(),
+  fromDate: date("from_date").notNull(),
+  toDate: date("to_date").notNull(),
+  visibility: text("visibility").notNull().default("public").$type<ExecVisibilityCol>(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarRoutine = typeof execCalendarRoutines.$inferSelect;
+
+export const execCalendarEvents = pgTable("exec_calendar_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: uuid("owner_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  categoryKey: text("category_key").notNull(),
+  eventDate: date("event_date").notNull(),
+  startMin: integer("start_min"), endMin: integer("end_min"),
+  allDay: boolean("all_day").notNull().default(false),
+  visibility: text("visibility").notNull().default("public").$type<ExecVisibilityCol>(),
+  location: text("location"), notes: text("notes"),
+  clientEntryId: uuid("client_entry_id").references(() => paEntries.id, { onDelete: "set null" }),
+  clientKey: text("client_key"), batchLabel: text("batch_label"),
+  routineId: uuid("routine_id").references(() => execCalendarRoutines.id, { onDelete: "set null" }),
+  createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+  updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarEvent = typeof execCalendarEvents.$inferSelect;
+
+export const execCalendarDayMarkers = pgTable("exec_calendar_day_markers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: uuid("owner_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  mode: text("mode").notNull().default("day").$type<"day" | "range" | "dates">(),
+  dates: date("dates").array().notNull().default([]),
+  createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarDayMarker = typeof execCalendarDayMarkers.$inferSelect;
+
+export const execCalendarPrefs = pgTable("exec_calendar_prefs", {
+  employeeId: uuid("employee_id").primaryKey().references(() => employees.id, { onDelete: "cascade" }),
+  startMin: integer("start_min").notNull().default(420), endMin: integer("end_min").notNull().default(1320),
+  slotMin: integer("slot_min").notNull().default(30),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarPrefs = typeof execCalendarPrefs.$inferSelect;
+
 /** Per-month completion count for an obligation (manual override; the auto-count
  *  comes from calendar_events.obligation_id). */
 export const obligationCompletions = pgTable(
