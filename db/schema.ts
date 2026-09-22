@@ -8328,6 +8328,8 @@ export const candidateIntake = pgTable(
     // { interviewer?: EvaluationInstance, management?: EvaluationInstance }
     // (see lib/hr/candidate/evaluation-v2.ts). The old `evaluation` stays intact.
     evaluationV2: jsonb("evaluation_v2"),
+    managementAssessment: jsonb("management_assessment"),
+    mergedIntoId: uuid("merged_into_id").references(() => candidateIntake.id, { onDelete: "set null" }),
     photoPath: text("photo_path"),
     signaturePath: text("signature_path"),
     createdById: uuid("created_by_id").references(() => employees.id, {
@@ -8339,9 +8341,20 @@ export const candidateIntake = pgTable(
   (t) => [
     index("candidate_intake_created_at_idx").on(t.createdAt),
     index("candidate_intake_status_idx").on(t.status),
+    index("candidate_intake_merged_into_idx").on(t.mergedIntoId),
   ],
 );
 export type CandidateIntake = typeof candidateIntake.$inferSelect;
+
+export const candidateIntakeMergeEvents = pgTable("candidate_intake_merge_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  survivorIntakeId: uuid("survivor_intake_id").notNull().references(() => candidateIntake.id, { onDelete: "cascade" }),
+  retiredIntakeId: uuid("retired_intake_id").notNull(),
+  mergedById: uuid("merged_by_id").references(() => employees.id, { onDelete: "set null" }),
+  snapshot: jsonb("snapshot"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type CandidateIntakeMergeEvent = typeof candidateIntakeMergeEvents.$inferSelect;
 
 /**
  * Candidate ACCESS LINKS (migration 0221) — the HR forms without a login.
