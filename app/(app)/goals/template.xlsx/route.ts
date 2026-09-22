@@ -1,7 +1,6 @@
 import { requireGoalsAccess } from "@/lib/goals/access";
-import { resolveTemplate } from "@/lib/templates/resolve";
-import { XLSX_CONTENT_TYPE } from "@/lib/templates/registry";
-import { buildGoalsTemplate } from "@/lib/templates/goals";
+import { templateResponse } from "@/lib/templates/download";
+import { goalLevelTemplateKey } from "@/lib/templates/keys";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,13 +8,12 @@ export const dynamic = "force-dynamic";
 /**
  * GET /goals/template.xlsx?level=…&periodKey=…
  *
- * The Goals bulk-import workbook. Serves the admin's uploaded replacement if one
- * exists (Upload Master), else the built-in hand-crafted workbook decorated with
- * live master data — see lib/templates/goals.ts.
+ * The Goals bulk-import workbook. Kept as a stable URL for the cascade importer
+ * and old links; the level in the query selects WHICH registry template answers,
+ * so replacing the Monthly Goals template in Upload Master changes this route's
+ * monthly download and nothing else.
  *
- * One template serves every level (the columns are level-agnostic; the level is
- * taken from the board context at upload time). `level`/`periodKey` only flavour
- * the built-in download filename.
+ * `level`/`periodKey` only flavour the built-in (see lib/templates/goals.ts).
  */
 export async function GET(request: Request): Promise<Response> {
   await requireGoalsAccess();
@@ -24,17 +22,5 @@ export async function GET(request: Request): Promise<Response> {
   const level = url.searchParams.get("level") ?? "";
   const periodKey = url.searchParams.get("periodKey") ?? "";
 
-  const { buffer, contentType, fileName } = await resolveTemplate("goals", async () => {
-    const built = await buildGoalsTemplate({ level, periodKey });
-    return { buffer: built.buffer, contentType: XLSX_CONTENT_TYPE, fileName: built.fileName };
-  });
-
-  return new Response(new Uint8Array(buffer), {
-    status: 200,
-    headers: {
-      "content-type": contentType,
-      "content-disposition": `attachment; filename="${fileName}"`,
-      "cache-control": "no-store",
-    },
-  });
+  return templateResponse(goalLevelTemplateKey(level), { level, periodKey });
 }

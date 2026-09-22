@@ -79,7 +79,9 @@ export const DECISION_LABELS: Record<DecisionAction, string> = {
   not_approve: "Not Approved",
   due: "Due",
   not_due: "Not Due",
-  reverse: "Reversed",
+  // Same rename as the status it leads to (db/enums.ts): the reviewer's action
+  // and the state it leaves behind must read as one thing.
+  reverse: "Negative Payable Adjustment",
   publish: "Publish",
   revise: "Revise",
 };
@@ -153,7 +155,7 @@ export function decisionNoteRequiredMessage(action: DecisionAction): string {
     case "not_approve":
       return "Please provide a reason before marking this incentive as Not Approved.";
     case "reverse":
-      return "Please provide a reason before marking this incentive as Reversed.";
+      return "Please provide a reason before recording a negative payable adjustment.";
     case "revise":
       return "Please add a revision note before asking for this incentive to be revised.";
     default:

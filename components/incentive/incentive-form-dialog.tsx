@@ -26,8 +26,10 @@ import { INCENTIVE_BTN_PRIMARY } from "./ui/chrome";
 import type { EmployeeOption } from "@/lib/queries/employees";
 import {
   INCENTIVE_DATE_KEY,
+  MULTISELECT_SEPARATOR,
   incentiveFieldErrors,
   optionsFor,
+  splitMultiValue,
   visibleIncentiveFields,
   type IncentiveField,
   type IncentiveValidationContext,
@@ -138,12 +140,22 @@ function splitRowsFrom(
 
 export function IncentiveFormDialog({
   products,
+  shiftTypes = [],
+  monthlyCtc,
+  defaultShift,
   employees,
   me,
   resubmit,
 }: {
-  /** Active names from Admin → Products — the Conversion form's Product options. */
+  /** Active names from Admin → Products — the Product pickers' options. */
   products: string[];
+  /** Active names from Admin → Shift Types — the Sales Pitch Shift field. */
+  shiftTypes?: string[];
+  /** The requester's own CTC ÷ 12, already formatted (₹). Shown read-only on the
+   *  Sales Pitch form; never submitted. */
+  monthlyCtc?: string;
+  /** The requester's own shift name, offered as the Shift default. */
+  defaultShift?: string | null;
   /** Active employees — the Split Incentive picker. */
   employees: EmployeeOption[];
   /** The signed-in requester; always the first person in a split. */
@@ -187,7 +199,12 @@ export function IncentiveFormDialog({
       return;
     }
     setType("");
-    setValues({ [INCENTIVE_DATE_KEY]: todayIso() });
+    // A fresh form starts on the requester's OWN shift: it is the right answer
+    // for most pitches and the field stays editable.
+    setValues({
+      [INCENTIVE_DATE_KEY]: todayIso(),
+      ...(defaultShift ? { shift: defaultShift } : {}),
+    });
     setTouched(new Set());
     setSubmitted(false);
     setServerError(null);
@@ -196,7 +213,10 @@ export function IncentiveFormDialog({
     setEqualMode(true);
   }
 
-  const ctx: IncentiveValidationContext = { productNames: products };
+  const ctx: IncentiveValidationContext = { productNames: products, shiftTypeNames: shiftTypes };
+  /** What a read-only `static` field shows. Not part of `values`, so it can
+   *  never be submitted and never has to be validated. */
+  const display = { monthlyCtc };
   const fields = type ? visibleIncentiveFields(type, values) : [];
   const errors = type ? incentiveFieldErrors(type, values, ctx) : {};
   const splitDraft = splitRows.map((r) => ({ employeeId: r.employeeId, pct: parsePct(r.pct) }));
@@ -337,6 +357,7 @@ export function IncentiveFormDialog({
           value={values[f.key] ?? ""}
           invalid={!!error}
           ctx={ctx}
+          display={display}
           onChange={(v) => setValue(f.key, v)}
           onCommit={() => touch(f.key)}
         />
@@ -649,6 +670,7 @@ function FieldControl({
   value,
   invalid,
   ctx,
+  display,
   onChange,
   onCommit,
 }: {
@@ -657,6 +679,8 @@ function FieldControl({
   value: string;
   invalid: boolean;
   ctx: IncentiveValidationContext;
+  /** Read-only figures a `static` field shows (never submitted). */
+  display: { monthlyCtc?: string };
   onChange: (v: string) => void;
   /** The moment the field counts as visited: blur, or a choice being made. */
   onCommit: () => void;
@@ -711,9 +735,99 @@ function FieldControl({
     );
   }
 
+  // A DISPLAY, not an input: no name, no state, nothing the form can submit —
+  // so there is no value here for a crafted POST to change.
+  if (field.type === "static") {
+    const shown = field.displayFrom === "monthlyCtc" ? display.monthlyCtc ?? "" : "";
+    return (
+      <div
+        aria-readonly="true"
+        className="flex h-[46px] items-center gap-2 rounded-xl border border-hairline bg-surface-soft px-3.5 text-[15px] font-semibold text-ink-strong"
+        title="Read from your salary profile — set it in Admin → Employee Master"
+      >
+        {shown || <span className="text-ink-subtle">Not set on your salary profile</span>}
+        <span className="ml-auto text-[12px] font-bold uppercase tracking-[0.06em] text-ink-subtle">
+          read-only
+        </span>
+      </div>
+    );
+  }
+
+  // MULTIPLE choice from a live master — the Product Sold picker. Stored as the
+  // names joined with ", ", which is exactly how the free-text rows before it
+  // were written, so old and new read the same.
+  if (field.type === "multiselect") {
+    const options = optionsFor(field, ctx) ?? [];
+    const chosen = new Set(splitMultiValue(value));
+    const empty = field.optionsFrom === "products" ? "No products in Admin → Products" : "Nothing to choose from";
+    if (options.length === 0) {
+      return (
+        <p
+          className="rounded-xl border px-3.5 py-2.5 text-[14px] font-semibold"
+          style={{
+            borderColor: "color-mix(in srgb, var(--color-altus-red) 30%, transparent)",
+            background: "var(--color-altus-red-wash)",
+            color: "var(--color-altus-red-deep)",
+          }}
+        >
+          {empty}
+        </p>
+      );
+    }
+    return (
+      <div
+        role="group"
+        aria-labelledby={`${id}-label`}
+        aria-invalid={invalid || undefined}
+        aria-required={field.required || undefined}
+        className={cn(
+          "flex flex-wrap gap-2 rounded-xl",
+          invalid && "ring-2 ring-altus-red/35 ring-offset-2",
+        )}
+      >
+        {options.map((o) => {
+          const on = chosen.has(o);
+          return (
+            <label
+              key={o}
+              className={cn(
+                "inline-flex cursor-pointer items-center gap-2 rounded-chip border px-3 py-1.5 text-[14.5px] font-semibold transition-colors",
+                on ? "border-altus-red text-ink-strong" : "border-hairline-strong text-ink-muted hover:border-ink-subtle",
+              )}
+              style={{
+                background: on ? "color-mix(in srgb, var(--color-altus-red) 6%, white)" : "white",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={on}
+                onChange={(e) => {
+                  const next = new Set(chosen);
+                  if (e.target.checked) next.add(o);
+                  else next.delete(o);
+                  onChange([...next].join(MULTISELECT_SEPARATOR));
+                  onCommit();
+                }}
+                className="size-4 accent-[var(--color-altus-red)]"
+              />
+              {o}
+            </label>
+          );
+        })}
+      </div>
+    );
+  }
+
   if (field.type === "select") {
     const options = optionsFor(field, ctx) ?? [];
-    const noProducts = field.optionsFrom === "products" && options.length === 0;
+    const missingMaster =
+      (field.optionsFrom === "products" && options.length === 0) ||
+      (field.optionsFrom === "shiftTypes" && options.length === 0);
+    const emptyMasterMessage =
+      field.optionsFrom === "shiftTypes"
+        ? "No shifts in Admin → Shift Types"
+        : "No products in Admin → Products";
+    const noProducts = missingMaster;
     return (
       <div className={cn("rounded-xl", invalid && "ring-2 ring-altus-red/35")}>
         <Select
@@ -724,7 +838,7 @@ function FieldControl({
             onChange(v);
             onCommit();
           }}
-          placeholder={noProducts ? "No products in Admin → Products" : "- Select -"}
+          placeholder={noProducts ? emptyMasterMessage : field.placeholder ?? "- Select -"}
           ariaLabel={field.label}
           disabled={noProducts}
         />

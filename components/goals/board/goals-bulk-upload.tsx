@@ -21,6 +21,8 @@ import { GoalsBulkGrid, type BulkGridRow } from "./goals-bulk-grid";
 import { fireToast } from "@/lib/toast";
 import { periodKeyLabel, type RosterMember } from "@/components/goals/cascade/util";
 import { columnForHeader, normKey } from "@/lib/goals/template-columns";
+import { goalLevelTemplateKey, templateHref } from "@/lib/templates/keys";
+import { downloadTemplateFile } from "@/lib/templates/client-download";
 import type { GoalPeriod } from "@/lib/goals/types";
 
 const FOCUS_RING =
@@ -36,9 +38,12 @@ const LEVEL_LABEL: Record<GoalPeriod, string> = {
 };
 
 /** The enterprise exceljs template (branded, validated dropdowns, no frozen panes),
- *  generated server-side and pre-scoped to the viewed level + period bucket. */
+ *  generated server-side and pre-scoped to the viewed level + period bucket.
+ *
+ *  Addressed by this LEVEL's own Upload Master key, so replacing the Monthly
+ *  template changes the Monthly board's download and leaves the others alone. */
 function templateUrl(level: GoalPeriod, periodKey: string): string {
-  return `/goals/template.xlsx?level=${encodeURIComponent(level)}&periodKey=${encodeURIComponent(periodKey)}`;
+  return templateHref(goalLevelTemplateKey(level), { level, periodKey });
 }
 
 /* ------------------------------------------------------------------ */
@@ -201,6 +206,7 @@ export function GoalsBulkUpload(props: Props) {
   const [rows, setRows] = React.useState<Row[] | null>(null);
   const [fileName, setFileName] = React.useState<string>("");
   const [error, setError] = React.useState<string | null>(null);
+  const [downloading, setDownloading] = React.useState(false);
   const [pending, start] = React.useTransition();
 
   const bucketLabel = periodKeyLabel(props.periodKey);
@@ -467,12 +473,22 @@ export function GoalsBulkUpload(props: Props) {
                   <span className="text-[12px] font-bold uppercase tracking-[0.06em]" style={{ color: "var(--color-ink-subtle)" }}>
                     {levelName} template
                   </span>
-                  <a
-                    href={templateUrl(props.level, props.periodKey)}
-                    className={`wg-btn inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:brightness-95 cursor-pointer ${FOCUS_RING}`}
+                  <button
+                    type="button"
+                    disabled={downloading}
+                    onClick={() => {
+                      setDownloading(true);
+                      void downloadTemplateFile(templateUrl(props.level, props.periodKey))
+                        .then((res) => {
+                          if (!res.ok) fireToast({ message: res.error, type: "error" });
+                        })
+                        .finally(() => setDownloading(false));
+                    }}
+                    className={`wg-btn inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:brightness-95 cursor-pointer disabled:opacity-60 ${FOCUS_RING}`}
                   >
-                    <Download size={14} strokeWidth={2.4} /> Download Excel
-                  </a>
+                    <Download size={14} strokeWidth={2.4} />
+                    {downloading ? "Preparing…" : "Download Excel"}
+                  </button>
                   <div className="ml-auto flex items-center gap-2">
                     {fileName && (
                       <span className="max-w-[180px] truncate text-[12.5px] font-semibold" style={{ color: "var(--color-ink-muted)" }}>

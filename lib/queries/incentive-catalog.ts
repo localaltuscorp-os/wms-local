@@ -2,6 +2,7 @@ import "server-only";
 import { asc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { incentiveCatalog } from "@/db/schema";
+import type { IncentiveApplicability } from "@/db/enums";
 
 /** One incentive-catalog row ("3.Incentive Chart") — what each incentive earns. */
 export interface CatalogRow {
@@ -9,8 +10,13 @@ export interface CatalogRow {
   name: string;
   description: string | null;
   amount: number;
+  /** LEGACY (pre-0244) group flags. Kept because the export sheets print them;
+   *  they no longer decide who is eligible. See `applicability`. */
   salesEligible: boolean;
   internsEligible: boolean;
+  /** ALL_EMPLOYEES | FUNCTION | SELECTED_EMPLOYEES (0244) — the rule that DOES
+   *  decide it. */
+  applicability: IncentiveApplicability;
   notes: string | null;
   sortOrder: number;
   active: boolean;
@@ -30,6 +36,7 @@ export async function listIncentiveCatalog(): Promise<CatalogRow[]> {
     amount: Number(r.amount),
     salesEligible: r.salesEligible ?? false,
     internsEligible: r.internsEligible ?? false,
+    applicability: r.applicability,
     notes: r.notes,
     sortOrder: r.sortOrder ?? 100,
     active: r.active,

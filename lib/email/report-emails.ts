@@ -387,7 +387,7 @@ export async function sendIncentiveBreakupEmail(args: {
     const reversalRow =
       args.reversal < 0
         ? `<tr><td style="padding:12px 14px;border:1px solid #eee;border-radius:8px">
-          <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px">Reversal adjustment</div>
+          <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px">Negative payable adjustment</div>
           <div style="font-size:24px;font-weight:800;color:#B91C1C">${inr(args.reversal)}</div>
         </td></tr>`
         : "";

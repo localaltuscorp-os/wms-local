@@ -75,7 +75,9 @@ const TITLES: Record<NotificationKind, (actor: string) => string> = {
   incentive_request_revision: () => `Incentive revision required`,
   incentive_request_due: () => `Incentive marked Due`,
   incentive_request_not_due: () => `Incentive marked Not Due`,
-  incentive_request_reversed: () => `Incentive reversed`,
+  // The kind key stays `…_reversed` (it is a stored value); the banner the
+  // employee reads names what actually happened to their money.
+  incentive_request_reversed: () => `Incentive adjusted — negative payable adjustment`,
   incentive_request_resubmitted: () => `Incentive request resubmitted`,
   incentive_paid: () => `Incentive paid`,
 };

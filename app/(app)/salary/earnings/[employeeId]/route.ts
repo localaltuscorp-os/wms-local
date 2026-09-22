@@ -1,13 +1,14 @@
 import { requireUser } from "@/lib/auth/current";
-import { getCombinedEarnings } from "@/lib/salary/combined-earnings";
-import { renderCombinedEarningsPdf } from "@/lib/salary/combined-earnings-pdf";
+import { loadSalarySlipData } from "@/lib/salary/salary-slip-data";
+import { renderSalarySlipPdf } from "@/lib/salary/salary-slip-pdf";
 
 /**
  * GET /salary/earnings/[employeeId]?month=YYYY-MM[&view=1]
  *
- * WS-5 + WS-6 — Combined "total earnings" document for one person + month:
- * salary + attendance analytics + incentive Target-vs-Paid (this month / last 3
- * months / YTD) + retention line (only when paid). A4 PDF, payslip house style.
+ * THE employee salary slip for one person + month — exactly three pages:
+ * the slip itself, the attendance working behind it, and the incentive
+ * statement. A4, payslip house style, one document for the employee's own page,
+ * the monthly-slips cron and the paid-notice mailer (lib/salary/salary-slip-pdf.ts).
  *
  * Read-only document — DEFAULT ON, killable via SALARY_STATEMENTS="false".
  * Authorization: admin (anyone) or the employee themselves.
@@ -55,12 +56,14 @@ export async function GET(
   const url = new URL(request.url);
   const rawMonth = url.searchParams.get("month");
   const month = rawMonth && MONTH_RE.test(rawMonth) ? rawMonth : defaultMonth();
-  const nameHint = url.searchParams.get("name") ?? undefined;
+  // `?name=` is still accepted (the list's links carry it) and no longer read:
+  // the name now comes from the employee record the id points at, so a crafted
+  // link cannot label somebody else's figures with a different name.
 
-  const data = await getCombinedEarnings(employeeId, month, nameHint);
-  const buf = await renderCombinedEarningsPdf(data, { generatedBy: me.name });
+  const data = await loadSalarySlipData(employeeId, month);
+  const buf = await renderSalarySlipPdf(data, { generatedBy: me.name });
 
-  const safeName = data.employeeName.replace(/\s+/g, "");
+  const safeName = data.identity.name.replace(/\s+/g, "");
   // Inline for the in-page preview, attachment everywhere else. The filename is
   // sent either way so a viewer who then hits "save" in the PDF reader gets the
   // same name the download would have produced.
@@ -69,7 +72,7 @@ export async function GET(
     status: 200,
     headers: {
       "content-type": "application/pdf",
-      "content-disposition": `${inline ? "inline" : "attachment"}; filename="Total-Earnings-${safeName}-${month}.pdf"`,
+      "content-disposition": `${inline ? "inline" : "attachment"}; filename="Salary-Slip-${safeName}-${month}.pdf"`,
       "cache-control": "no-store",
     },
   });

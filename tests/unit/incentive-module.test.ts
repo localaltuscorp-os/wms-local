@@ -131,12 +131,21 @@ describe("the Incentive module's internal navigation", () => {
       .matchAll(/"(\w+)"/g),
   ].map((m) => m[1]);
 
-  it("puts the same six areas on the rail that the page can render", () => {
-    // Order is USAGE order (2026-09-16 restructure): the request loop first,
-    // then the periodic admin/accounts areas. What this pins is that the rail
-    // and the page's `available` list stay the same list in the same order —
-    // the order itself is a product decision, the agreement is the invariant.
-    expect(railTabs).toEqual(["dashboard", "requests", "targets", "entries", "status", "billing"]);
+  it("puts the same areas on the rail that the page can render", () => {
+    // Order is USAGE order: the employee's own view first (0244 put My
+    // Incentives right after Dashboard), then the request loop, then the
+    // periodic admin/accounts areas. What this pins is that the rail and the
+    // page's `available` list stay the same list in the same order — the order
+    // itself is a product decision, the agreement is the invariant.
+    expect(railTabs).toEqual([
+      "dashboard",
+      "my",
+      "requests",
+      "targets",
+      "entries",
+      "status",
+      "billing",
+    ]);
     expect(railTabs).toEqual(pageAreas);
   });
 

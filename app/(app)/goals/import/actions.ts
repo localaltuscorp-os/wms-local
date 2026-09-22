@@ -363,7 +363,13 @@ export async function importGoals(
       incentiveEnabled: get("incentiveEnabled") ? yesNoToBool(get("incentiveEnabled")) : false,
       incentiveAmount: parseMoney(get("incentiveAmount")),
       incentiveKind: incentiveKindToCode(get("incentiveKind")),
-      weight: 100,
+      // Weight is a real column on the workbook the Goals template ships with,
+      // so it is read rather than silently forced to the default: a column
+      // somebody fills in and the upload discards is worse than no column.
+      weight: (() => {
+        const n = parseIntOr(get("weight"), null);
+        return n == null ? 100 : Math.max(0, Math.min(1000, n));
+      })(),
       targetDate,
       adopted: true,
       source: "import",

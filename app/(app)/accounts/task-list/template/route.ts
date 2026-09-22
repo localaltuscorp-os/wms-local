@@ -1,36 +1,17 @@
-import { NextResponse } from "next/server";
 import { requireAccountsAccess } from "@/lib/accounts/access";
-import { resolveTemplate } from "@/lib/templates/resolve";
-import { XLSX_CONTENT_TYPE } from "@/lib/templates/registry";
-import { buildAccountsTaskListTemplate } from "@/lib/templates/accounts-task-list";
+import { templateResponse } from "@/lib/templates/download";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /accounts/task-list/template
  *
- * The Accounts Task List bulk-import workbook. Serves the admin's uploaded
- * replacement if one exists (Upload Master), else the built-in — see
- * lib/templates/accounts-task-list.ts.
+ * The Accounts Task List bulk-import workbook. Kept as a stable URL for the
+ * Task List dialog; the bytes come from the same call every other download door
+ * makes, so Upload Master's replacement applies here too.
  */
-export async function GET() {
+export async function GET(): Promise<Response> {
   await requireAccountsAccess();
-
-  const { buffer, contentType, fileName } = await resolveTemplate(
-    "accounts-task-list",
-    async () => ({
-      buffer: buildAccountsTaskListTemplate(),
-      contentType: XLSX_CONTENT_TYPE,
-      fileName: "Accounts-Task-List-Template.xlsx",
-    }),
-  );
-
-  return new NextResponse(new Uint8Array(buffer), {
-    status: 200,
-    headers: {
-      "Content-Type": contentType,
-      "Content-Disposition": `attachment; filename="${fileName}"`,
-      "Cache-Control": "no-store",
-    },
-  });
+  return templateResponse(TEMPLATE_KEYS.accountsTaskList);
 }

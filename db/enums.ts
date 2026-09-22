@@ -500,12 +500,19 @@ export const OFFICE_PHONE_AVAILABILITY_LABELS: Record<OfficePhoneAvailability, s
 
 export type PunchReason = (typeof PUNCH_REASONS)[number];
 
+/**
+ * APPEND-ONLY. The order is read by `INCENTIVE_TYPE_OPTIONS` and by every
+ * `?tab=` / filter payload, so a new type goes on the end — reordering silently
+ * changes what a stored tab position means.
+ */
 export const INCENTIVE_TYPES = [
   "bss_conversion",
   "sales_pitch",
   "client_happiness",
   "group_intro",
   "leads_referrals",
+  "breakthrough_idea",
+  "employment_referral",
 ] as const;
 export type IncentiveType = (typeof INCENTIVE_TYPES)[number];
 
@@ -521,6 +528,52 @@ export const INCENTIVE_TYPE_LABELS: Record<IncentiveType, string> = {
   client_happiness: "Client Happiness",
   group_intro:      "Group Introduction",
   leads_referrals:  "Leads / Referrals",
+  breakthrough_idea: "Breakthrough Idea",
+  employment_referral: "Employment Referral",
+};
+
+/**
+ * WHO AN INCENTIVE MASTER SCHEME APPLIES TO (migration 0244).
+ *
+ * `ALL_EMPLOYEES`      — company-wide. The default for every new scheme.
+ * `FUNCTION`           — the functions named in `incentive_function_scope`.
+ * `SELECTED_EMPLOYEES` — the people named in `incentive_eligibility`, who are
+ *                        added and removed with an effective date.
+ *
+ * Interns are excluded from all three: they cannot earn incentives at all. The
+ * rule lives in `resolveIncentiveEligibility` (lib/incentive/master.ts).
+ *
+ * Stored as text + CHECK rather than a pgEnum, for the same reason `duration`
+ * is (0232): a new value must not need a non-transactional ALTER TYPE.
+ */
+export const INCENTIVE_APPLICABILITIES = [
+  "ALL_EMPLOYEES",
+  "FUNCTION",
+  "SELECTED_EMPLOYEES",
+] as const;
+export type IncentiveApplicability = (typeof INCENTIVE_APPLICABILITIES)[number];
+
+export const INCENTIVE_APPLICABILITY_LABELS: Record<IncentiveApplicability, string> = {
+  ALL_EMPLOYEES:      "All Employees",
+  FUNCTION:           "Function",
+  SELECTED_EMPLOYEES: "Selected Employees",
+};
+
+/**
+ * EMPLOYEE TYPE (migration 0244) — the axis that decides whether somebody can
+ * earn incentives. An intern cannot.
+ *
+ * The DESIGNATION master carries the flag (`designations.employee_type`);
+ * `employees.employee_type` overrides it for one person, and NULL there means
+ * "follow the designation". `resolveEmployeeType` (lib/incentive/master.ts) is
+ * the single place those two are combined — no code matches designation text.
+ */
+export const EMPLOYEE_TYPES = ["employee", "intern"] as const;
+export type EmployeeTypeCode = (typeof EMPLOYEE_TYPES)[number];
+
+export const EMPLOYEE_TYPE_LABELS: Record<EmployeeTypeCode, string> = {
+  employee: "Employee",
+  intern:   "Intern",
 };
 
 /**
@@ -568,7 +621,10 @@ export const INCENTIVE_STATUS_LABELS: Record<IncentiveStatus, string> = {
   rejected:           "Not Approved",
   due:                "Due",
   not_due:            "Not Due",
-  reversed:           "Reversed",
+  // The USER-FACING name for this state. A reversal is the negative payable
+  // adjustment it produces, so that is what the badge says — the stored value
+  // stays `reversed`, so no query, filter or API changes with the label.
+  reversed:           "Negative Payable Adjustment",
   revision_requested: "Revision Requested",
 };
 
@@ -730,6 +786,12 @@ export const SEED_PRODUCTS = [
   "PSO",
   "Rent",
   "Retainer",
+  // The three the Sales Pitch form names that the master was missing (0243).
+  // Kept here as well as in the migration so a freshly seeded database starts
+  // with the same list a migrated one ends up with.
+  "2-Day Workshop",
+  "Inhouse PS",
+  "Key Note",
 ] as const;
 
 /**

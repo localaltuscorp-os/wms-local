@@ -22,13 +22,20 @@ export type ActionResult<T = unknown> =
 const PATH = "/incentive";
 const UUID = z.string().uuid();
 
+/**
+ * NOTE (0244): `salesEligible` / `internsEligible` are NOT part of this schema
+ * any more. They are legacy columns that no longer decide anything, and this is
+ * the quick in-app editor — the place where eligibility is chosen is the Admin
+ * Panel's Incentive Master, which owns `applicability` and the function scope.
+ * The columns are left untouched by an edit here precisely so a quick amount
+ * change cannot silently rewrite who is eligible; see the eligibility-authority
+ * guard in app/(admin)/admin/incentive-master/actions.ts.
+ */
 const EntrySchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(2, "Name is required.").max(160),
   description: z.string().trim().max(500).optional().nullable(),
   amount: z.number().min(0).max(10_000_000),
-  salesEligible: z.boolean(),
-  internsEligible: z.boolean(),
   notes: z.string().trim().max(1000).optional().nullable(),
   sortOrder: z.number().int().min(0).max(9999).optional(),
   active: z.boolean().optional(),
@@ -66,8 +73,6 @@ export async function upsertCatalogEntry(
     name: v.name,
     description: v.description?.trim() || null,
     amount: v.amount.toFixed(2),
-    salesEligible: v.salesEligible,
-    internsEligible: v.internsEligible,
     notes: v.notes?.trim() || null,
     sortOrder: v.sortOrder ?? 100,
     active: v.active ?? true,

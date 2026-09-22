@@ -1,7 +1,6 @@
 import { requireUser } from "@/lib/auth/current";
-import { resolveTemplate } from "@/lib/templates/resolve";
-import { XLSX_CONTENT_TYPE } from "@/lib/templates/registry";
-import { buildTasksTemplate } from "@/lib/templates/tasks";
+import { templateResponse } from "@/lib/templates/download";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,25 +8,12 @@ export const dynamic = "force-dynamic";
 /**
  * GET /tasks/template.xlsx
  *
- * The enterprise Tasks bulk-import workbook. Serves the admin's uploaded
- * replacement if one exists (Upload Master), else the built-in generated from
- * lib/tasks/template-columns — see lib/templates/tasks.ts.
+ * The Tasks bulk-import workbook. Kept as a stable URL because it is the address
+ * the importer's own documentation, the mobile build and a few bookmarks use —
+ * the bytes are resolved by the same call the generic /api/templates/[key] door
+ * makes, so it can never serve a different file from Upload Master.
  */
 export async function GET(): Promise<Response> {
   await requireUser();
-
-  const { buffer, contentType, fileName } = await resolveTemplate("tasks", async () => ({
-    buffer: await buildTasksTemplate(),
-    contentType: XLSX_CONTENT_TYPE,
-    fileName: "Altus-Tasks-Template.xlsx",
-  }));
-
-  return new Response(new Uint8Array(buffer), {
-    status: 200,
-    headers: {
-      "content-type": contentType,
-      "content-disposition": `attachment; filename="${fileName}"`,
-      "cache-control": "no-store",
-    },
-  });
+  return templateResponse(TEMPLATE_KEYS.tasks);
 }

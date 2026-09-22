@@ -682,7 +682,7 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             key: "admin.masters.upload-master",
             label: "Upload Master",
             routes: ["/admin/upload-master"],
-            note: "The bulk-import template files (Tasks, Goals, Accounts). View = download; Edit = upload/replace and delete, applied sitewide.",
+            note: "Every bulk-import template in the system. View = download; Edit = upload/replace and revert, applied sitewide.",
           },
           {
             key: "admin.masters.client-locations",
@@ -721,9 +721,37 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         ],
       },
       {
+        key: "admin.access-control",
+        label: "Access Control",
+        routes: ["/admin/access-control"],
+        note: "Elevated TASK visibility — who may read work outside their own reporting line. Writing a grant is additionally limited to a master admin; this node only decides whether the screen is reachable.",
+      },
+      {
+        key: "admin.control-panel",
+        label: "Control Panel",
+        note: "The central surface for managing who has access to what. Write actions are additionally limited to a master admin; these nodes decide whether the screens are reachable.",
+        children: [
+          { key: "admin.control-panel.users", label: "Users", routes: ["/admin/control-panel/users"] },
+          { key: "admin.control-panel.roles", label: "Roles", routes: ["/admin/control-panel/roles"] },
+          {
+            key: "admin.control-panel.permissions",
+            label: "Permissions",
+            routes: ["/admin/control-panel/permissions"],
+          },
+          {
+            key: "admin.control-panel.effective-access",
+            label: "Effective Access",
+            routes: ["/admin/control-panel/effective-access"],
+          },
+        ],
+      },
+      {
         key: "admin.temporary-access",
         label: "Temporary Access",
-        routes: ["/admin/temporary-access"],
+        // The screen moved under Control Panel; the KEY is unchanged so existing
+        // grants and the page's `requireModuleView` keep working. Only the route
+        // moved. The old /admin/temporary-access path now redirects here.
+        routes: ["/admin/control-panel/temporary-access"],
         note: "Granting is additionally gated by the reporting hierarchy or the delegated_access.grant_any capability.",
       },
       {
@@ -741,6 +769,12 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             routes: ["/admin/task-reminders"],
           },
           { key: "admin.system.settings", label: "Settings", routes: ["/admin/settings"] },
+          {
+            key: "admin.system.logs",
+            label: "Logs",
+            routes: ["/admin/logs"],
+            note: "The immutable global activity log. View opens the investigation screen; export is a separate audited event.",
+          },
         ],
       },
     ],

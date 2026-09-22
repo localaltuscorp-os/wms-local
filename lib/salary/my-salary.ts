@@ -81,6 +81,12 @@ export interface MySalaryMonth {
   attendanceDeduction: number;
   gross: number;
   pt: number;
+  /**
+   * Tax deducted at source, as frozen on the run. Zero on the legacy tier,
+   * whose table has no such column — so a slip prints the line only when there
+   * is something to print, rather than a confident ₹0 that was never computed.
+   */
+  tds: number;
   advance: number;
   previousPending: number;
   finalPayment: number;
@@ -291,6 +297,8 @@ async function loadStoredMonths(
       attendanceDeduction: Math.max(0, Math.round(num(r.monthlyCtc) - num(r.payableAfterLeave))),
       gross: num(r.payableAfterLeave),
       pt: num(r.pt),
+      // Legacy rows predate TDS entirely.
+      tds: 0,
       advance: num(r.advance),
       previousPending: num(r.previousPending),
       finalPayment: num(r.finalPayment),
@@ -341,6 +349,7 @@ async function loadStoredMonths(
       attendanceDeduction: hourly ? 0 : Math.max(0, Math.round(r.annualCtc / 12 - (r.gross - overtimeAmount))),
       gross: r.gross,
       pt: r.pt,
+      tds: r.tds,
       advance: r.advances,
       previousPending: r.pendingBalanceIn,
       finalPayment: r.netPayable,

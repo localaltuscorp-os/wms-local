@@ -15,6 +15,7 @@ import {
   listActiveDepartments,
   getEmployeeDepartmentMap,
 } from "@/lib/queries/departments";
+import { loadMasterOptions } from "@/lib/employees/master-query";
 import { AdminSection } from "@/components/admin/ui/section-shell";
 import { EmployeeList } from "@/components/admin/employee-list";
 import { LeaveRequestsCallout } from "@/components/attendance/leave/leave-requests-callout";
@@ -30,7 +31,7 @@ export default async function EmployeesPage() {
   // Leave lives in Attendance; the Employees page only ANNOUNCES that some is
   // waiting (spec §3). One count, no queue — see LeaveRequestsCallout.
   const leaveScope = await leaveReviewScopeFor(me);
-  const [all, activeDepartments, departmentMap, profileRows, pendingLeave, former] =
+  const [all, activeDepartments, departmentMap, profileRows, pendingLeave, former, masterOptions] =
     await Promise.all([
     db.select().from(employees).where(isCurrentStaff).orderBy(desc(employees.createdAt)),
     listActiveDepartments(),
@@ -45,6 +46,10 @@ export default async function EmployeesPage() {
       .from(salaryProfiles),
     countPendingLeaveForReview(leaveScope).catch(() => ({ requests: 0, employees: 0 })),
     getFormerEmployeeDetails(),
+    // The designations, with their employee-type flag (0244). Read through the
+    // Employee Master's own options loader rather than a new query, so the
+    // invite form's list and the master's list are the same 20 rows.
+    loadMasterOptions(),
   ]);
   const salaryProfileByEmployee: Record<string, SalaryProfileRates> =
     Object.fromEntries(
@@ -104,6 +109,7 @@ export default async function EmployeesPage() {
           </a>
           <InviteEmployeeDialog
             departmentOptions={departmentOptions}
+            designationOptions={masterOptions.designations}
             canManageAdmins={canManageAdmins}
           />
         </>

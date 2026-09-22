@@ -17,10 +17,18 @@ import {
 } from "@/lib/queries/incentives";
 import { getBillingDashboard } from "@/lib/queries/billing";
 import { listIncentiveCatalog } from "@/lib/queries/incentive-catalog";
+import { listMyIncentives } from "@/lib/queries/my-incentives";
 import { listEmployeeOptions } from "@/lib/queries/employees";
-import { listActiveProductNames } from "@/lib/queries/products";
+import { listActiveProductCodes, listActiveProductNames } from "@/lib/queries/products";
+import { listActiveShiftTypeNames, shiftTypeNameFor } from "@/lib/queries/shift-types";
+import { formatInr } from "@/lib/format";
+import { getProfile } from "@/lib/queries/salary";
 import { getIncentiveStatusReport, listIncentiveEntriesStatus } from "@/lib/queries/incentive-status";
-import { loadIncentiveAnalytics, restrictTargetVsActual } from "@/lib/queries/incentive-analytics";
+import {
+  incentiveLeaders,
+  loadIncentiveAnalytics,
+  restrictTargetVsActual,
+} from "@/lib/queries/incentive-analytics";
 import { applyAnalyticsView, incentiveAnalyticsScopeFor } from "@/lib/incentive/analytics/scope";
 import { visibleNameKeysFor } from "@/lib/incentive/analytics/visible-names";
 import { selectableMonths } from "@/lib/incentive/analytics/periods";
@@ -73,21 +81,55 @@ export default async function IncentivePage({ searchParams }: PageProps) {
   // what is never loaded can never be serialised into their page.
   const scope = await r("incentive:scope", () => incentiveAnalyticsScopeFor(me));
 
+  // THE CEILING, in the shape the NAME-keyed ledgers need (their only identity
+  // column is the typed employee name). `null` = organisation-wide, an empty
+  // set = nobody — the two must not be conflated.
+  const visibleNames = await r("incentive:visible-names", () => visibleNameKeysFor(scope));
+
   const [dashboard, targetVsActualAll, rows, catalog, entries, employees, products] =
     await Promise.all([
       scope.all ? r("incentive:dashboard", () => getIncentiveDashboard(year)) : Promise.resolve(null),
       r("incentive:target-vs-actual", () => getIncentiveTargetVsActual(year)),
-      r("incentive:requests", () => listIncentiveRequests({ employeeId: me.id, isAdmin: me.isAdmin, canReview })),
+      r("incentive:requests", () =>
+        listIncentiveRequests({
+          employeeId: me.id,
+          isAdmin: me.isAdmin,
+          canReview,
+          // Scoped by the resolver above — NOT by `isAdmin`, which no longer
+          // widens anything on its own.
+          visibleEmployeeIds: scope.all ? null : scope.employeeIds,
+        }),
+      ),
       r("incentive:catalog", () => listIncentiveCatalog()),
-      me.isAdmin ? r("incentive:entries", () => listIncentiveEntriesAdmin(year)) : Promise.resolve([]),
+      me.isAdmin
+        ? r("incentive:entries", () => listIncentiveEntriesAdmin(year, { visibleNames }))
+        : Promise.resolve([]),
       // Everyone, not only admins: the New Incentive Request dialog's Split
       // Incentive picker needs the active roster. The same cached {id,name}
       // list every other picker in the app reads.
       r("incentive:employees", () => listEmployeeOptions()),
-      // Admin → Products — the Conversion form's Product dropdown. Cached under
-      // the `products` tag, which every product write busts.
+      // Admin → Products — the Product Sold picker on every form that names a
+      // product. Cached under the `products` tag, which every product write
+      // busts, so an admin's edit reaches this dropdown without a deploy.
       r("incentive:products", () => listActiveProductNames()),
     ]);
+
+  // MY INCENTIVES (0244) — the viewer's own eligibility and rates. Loaded
+  // separately from the batch above so it does not add a sixth concurrent
+  // statement to a ten-connection pool the rest of the page is also using.
+  // Scoped to `me.id` by construction: it takes an employee id, so there is no
+  // argument a caller could pass to read somebody else's list.
+  const myIncentives = await r("incentive:mine", () => listMyIncentives(me.id));
+
+  // Admin → Shift Types (the Sales Pitch Shift field) and the requester's own
+  // shift, offered as its default. Both are cached reads.
+  const [shiftTypes, myShift, productCodes] = await Promise.all([
+    r("incentive:shift-types", () => listActiveShiftTypeNames()),
+    r("incentive:my-shift", () => shiftTypeNameFor(me.id)),
+    // NAME → short code, so the requests table can print "PS · BSS · 2-Day"
+    // from the Product Master rather than from a list kept in the component.
+    r("incentive:product-codes", () => listActiveProductCodes()),
+  ]);
   // After the batch above, not inside it: the dashboard runs its own queries
   // (in rounds of at most five), and adding them to the page's burst would
   // exceed the 10-connection pool.
@@ -95,6 +137,36 @@ export default async function IncentivePage({ searchParams }: PageProps) {
     loadIncentiveAnalytics(me, { kind: "current_month" }, { scope }),
   );
   if (!analytics) throw new Error("Incentive analytics could not be resolved for the current month.");
+
+  // THE TRENDS LEADERBOARD RANKING — the same % of CTC the dashboard ranks on,
+  // read from the analytics model rather than sorted a second time by amount
+  // (which is what the old leaderboard did, and why it could order the same
+  // people differently from the dashboard beside it).
+  //
+  // The window is `year`, not "the last twelve months": `resolvePeriod`'s YTD is
+  // Jan→the `now` it is given, so a past year is analysed by handing it that
+  // year's end — the leaderboard then covers exactly the year the band is
+  // headed with. Loaded only for the viewers who may see the band at all.
+  const trendNow = year === currentYear ? undefined : new Date(year, 11, 31, 12);
+  const leaders = scope.all
+    ? incentiveLeaders(
+        (await r("incentive:trend-leaders", () =>
+          loadIncentiveAnalytics(me, { kind: "ytd" }, { scope, now: trendNow }),
+        )) ?? analytics,
+        10,
+      )
+    : [];
+
+  // The requester's OWN monthly CTC, for the Sales Pitch form's read-only
+  // figure: their salary profile's annual CTC ÷ 12 — the same arithmetic the
+  // analytics layer uses to get "% of CTC", so the number shown on the form and
+  // the percentage the incentive is judged on cannot disagree. Undefined when
+  // no salary profile is set, and the form says so rather than printing ₹0.
+  const myMonthlyCtc = await r("incentive:my-ctc", async () => {
+    const profile = await getProfile(me.id);
+    if (!profile || !(profile.annualCtc > 0)) return undefined;
+    return formatInr(profile.annualCtc / 12);
+  });
 
   // The Targets tab's data, narrowed server-side for a scoped viewer.
   const targetVsActual = scope.all
@@ -104,14 +176,21 @@ export default async function IncentivePage({ searchParams }: PageProps) {
   // WS-6 — incentive 3-status (Booked/Accrued/Paid) tab: admin-only + flag-gated
   // (INCENTIVE_STATUS_UI, default on). Only fetched when shown, so non-admins pay
   // no query cost.
-  const showStatus = me.isAdmin && incentiveStatusUiEnabled();
+  //
+  // ORGANISATION-WIDE ONLY. This tab is a company roll-up: its report aggregates
+  // by person across the whole roster, so there is no honest way to show part of
+  // it. A viewer whose scope is narrower than the organisation therefore does not
+  // get the tab at all — the same rule the dashboard already follows ("what is
+  // never loaded can never be serialised into their page"). Its sibling ledger
+  // below IS scoped, because it is a list of rows and can be filtered.
+  const showStatus = me.isAdmin && scope.all && incentiveStatusUiEnabled();
   let statusTab: ReactNode = null;
   if (showStatus) {
     const istNow = new Date(Date.now() + 5.5 * 3_600_000);
     const refMonth = `${istNow.getUTCFullYear()}-${String(istNow.getUTCMonth() + 1).padStart(2, "0")}`;
     const [statusReport, statusEntries] = await Promise.all([
       r("incentive:status-report", () => getIncentiveStatusReport(refMonth)),
-      r("incentive:status-entries", () => listIncentiveEntriesStatus(year)),
+      r("incentive:status-entries", () => listIncentiveEntriesStatus(year, { visibleNames })),
     ]);
     statusTab = (
       <IncentiveStatusTab
@@ -170,7 +249,14 @@ export default async function IncentivePage({ searchParams }: PageProps) {
               {/* The module's primary action, on every area — it used to sit in
                   a bare right-aligned div above the Requests list, where a long
                   queue pushed it off the fold. */}
-              <IncentiveFormDialog products={products} employees={employees} me={me} />
+              <IncentiveFormDialog
+                products={products}
+                shiftTypes={shiftTypes}
+                monthlyCtc={myMonthlyCtc}
+                defaultShift={myShift}
+                employees={employees}
+                me={me}
+              />
             </>
           }
           toolbar={
@@ -210,9 +296,14 @@ export default async function IncentivePage({ searchParams }: PageProps) {
           key={focusRequestId ?? "incentive"}
           focusRequestId={focusRequestId}
           dashboard={dashboard}
+          leaders={leaders}
           analytics={analytics}
           analyticsMonths={selectableMonths()}
           targetVsActual={targetVsActual}
+          shiftTypes={shiftTypes}
+          monthlyCtc={myMonthlyCtc}
+          defaultShift={myShift}
+          productCodes={productCodes}
           billingSlot={
             <Suspense fallback={<IncentiveTableSkeleton rows={6} cols={5} />}>
               <BillingTab year={year} me={me} />
@@ -220,6 +311,7 @@ export default async function IncentivePage({ searchParams }: PageProps) {
           }
           year={year}
           requests={rows}
+          myIncentives={myIncentives}
           entries={entries}
           employees={employees}
           products={products}

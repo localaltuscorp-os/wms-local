@@ -17,6 +17,11 @@ import {
   type IncentiveRosterEntry,
 } from "@/lib/import/incentive-import";
 import { notifyIfPaidIncreased } from "@/lib/incentive/notifications/paid-increase";
+import { recordManualIncentivePayment } from "@/lib/incentive/record-manual-payment";
+import { round2 } from "@/lib/incentive/payout-math";
+import { incentiveAnalyticsScopeFor } from "@/lib/incentive/analytics/scope";
+import { visibleNameKeysFor } from "@/lib/incentive/analytics/visible-names";
+import { nameKey } from "@/lib/incentive/payout-sources";
 
 type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -129,26 +134,45 @@ export async function updateIncentiveEntry(
     .from(incentiveEntries)
     .where(eq(incentiveEntries.id, v.id));
 
-  await db
-    .update(incentiveEntries)
-    .set({
-      empName: v.empName,
+  const increase = round2(v.paidAmt - Number(prev?.paidAmt ?? 0));
+
+  // The entry update and the LEDGER ROW commit together. Recording money paid
+  // by hand without the matching `salary_payments` line is what made a manual
+  // payment invisible to Accounts and to the payout ledger — see
+  // lib/incentive/record-manual-payment.ts.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(incentiveEntries)
+      .set({
+        empName: v.empName,
+        employeeId: v.employeeId ?? null,
+        incentiveName: v.incentiveName,
+        periodMonth: monthStartOf(v.periodMonth),
+        entryDate: v.entryDate ?? null,
+        participantName: v.participantName ?? null,
+        prospectGroupName: v.prospectGroupName ?? null,
+        amount: money2(v.amount),
+        approved: v.approved,
+        approvedAmt: money2(v.approvedAmt),
+        paid: v.paid,
+        paidAmt: money2(v.paidAmt),
+        paidDate: v.paidDate ?? null,
+        note: v.note ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(incentiveEntries.id, v.id));
+
+    await recordManualIncentivePayment(tx, {
+      entryId: v.id,
       employeeId: v.employeeId ?? null,
-      incentiveName: v.incentiveName,
+      empName: v.empName,
       periodMonth: monthStartOf(v.periodMonth),
-      entryDate: v.entryDate ?? null,
-      participantName: v.participantName ?? null,
-      prospectGroupName: v.prospectGroupName ?? null,
-      amount: money2(v.amount),
-      approved: v.approved,
-      approvedAmt: money2(v.approvedAmt),
-      paid: v.paid,
-      paidAmt: money2(v.paidAmt),
       paidDate: v.paidDate ?? null,
-      note: v.note ?? null,
-      updatedAt: new Date(),
-    })
-    .where(eq(incentiveEntries.id, v.id));
+      increase,
+      source: "entries",
+      actorId: me.id,
+    });
+  });
 
   if (prev) {
     notifyIfPaidIncreased({
@@ -339,8 +363,15 @@ export async function bulkUploadIncentiveEntries(
 // --- drill-down read action (any signed-in user; gated) --------------------
 
 /**
- * Read one person's incentive detail for a year. Admins may view anyone;
- * non-admins only themselves (matched by name / their own incentive rows).
+ * Read one person's incentive detail for a year.
+ *
+ * ONE PERSON'S LEDGER IS A NAMED READ, so the gate is the viewer's PERMITTED
+ * PEOPLE, not their admin flag: themselves, their downline, and anyone an
+ * Access Control grant names (lib/incentive/analytics/scope.ts →
+ * lib/access/visibility.ts). An administrator with no reporting line to the
+ * person is refused like anybody else — which is the whole distinction, because
+ * the name in this call arrives from the browser and an admin flag used to be
+ * all it took to read a stranger's earnings.
  */
 export async function getPersonDetail(
   empName: string,
@@ -352,9 +383,12 @@ export async function getPersonDetail(
   const yr = z.number().int().min(2000).max(2100).safeParse(year);
   if (!name.success || !yr.success) return { ok: false, error: "Invalid input" };
 
-  if (!me.isAdmin) {
-    const own = await isOwnIncentiveName(name.data, { id: me.id, name: me.name });
-    if (!own) return { ok: false, error: "You can only view your own incentive detail." };
+  const scope = await incentiveAnalyticsScopeFor(me);
+  if (!scope.all) {
+    const permitted = await visibleNameKeysFor(scope);
+    if (!permitted || !permitted.has(nameKey(name.data))) {
+      return { ok: false, error: "You can only view the incentives of your own team." };
+    }
   }
 
   const detail = await getIncentivePersonDetail(name.data, yr.data);

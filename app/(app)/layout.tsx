@@ -25,6 +25,7 @@ import { KeyboardShortcuts } from "@/components/layout/keyboard-shortcuts";
 import { FocusMode } from "@/components/layout/focus-mode";
 import { MODULE_ORDER } from "@/lib/module-theme";
 import { IdleTimerClient } from "@/components/auth/idle-timer-client";
+import { ActivityTracker } from "@/components/logs/activity-tracker";
 import { workspaceForPath, canAccessWorkspace } from "@/lib/workspaces";
 import { managerDailyTaskGate, isManagerWithReports } from "@/lib/manager-gates";
 import { ManagerDailyTaskGate } from "@/components/manager-gates/manager-daily-task-gate";
@@ -280,6 +281,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           screen anyway. Skipped alongside the rest of auth so the bypass is
           complete. See lib/auth/dev-bypass.ts. */}
       {devAuthBypassEnabled() ? null : <IdleTimerClient timeoutMinutes={15} />}
+      {/* Global Logs activity tracker — buffers page visits / record views /
+          searches in IndexedDB and flushes them in batches to /api/logs/ingest.
+          Renders nothing; keeps the single-session/tab behaviour unchanged. */}
+      <ActivityTracker />
       <OnboardingNudge />
       {/* Broadcasts (0215) — a published broadcast flashes as a centre-screen
           popup within ~5s of being sent, on whatever page the recipient is on.

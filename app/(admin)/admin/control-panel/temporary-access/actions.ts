@@ -26,6 +26,7 @@ import {
 } from "@/lib/auth/delegated-expiry";
 import { canGrantAnyDelegatedAccess } from "@/lib/security/capabilities";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { auditAction } from "@/lib/logs/audit";
 
 /**
  * TEMPORARY DELEGATED ACCESS — the server actions.
@@ -140,6 +141,20 @@ export async function grantTemporaryAccess(input: GrantInput): Promise<GrantResu
   if (!created.ok) return { ok: false, error: created.error };
 
   revalidatePath(PATH);
+
+  auditAction({
+    eventType: "CONFIG_CHANGE",
+    employeeId: me.id,
+    route: "/admin/control-panel/temporary-access",
+    module: "Admin Panel",
+    page: "Control Panel",
+    resourceType: "delegated_access_grant",
+    resourceId: created.grantId,
+    action: "temp_access_grant",
+    status: "SUCCESS",
+    metadata: { durationMinutes },
+  });
+
   return {
     ok: true,
     token: created.token,
@@ -211,6 +226,21 @@ export async function revokeTemporaryAccess(
       : "Revoked from the Admin Panel.",
   );
   revalidatePath(PATH);
+
+  if (res.ok) {
+    auditAction({
+      eventType: "CONFIG_CHANGE",
+      employeeId: me.id,
+      route: "/admin/control-panel/temporary-access",
+      module: "Admin Panel",
+      page: "Control Panel",
+      resourceType: "delegated_access_grant",
+      resourceId: grantId,
+      action: "temp_access_revoke",
+      status: "SUCCESS",
+    });
+  }
+
   return res;
 }
 

@@ -11,6 +11,7 @@ import {
   payingEntities,
   employees,
 } from "@/db/schema";
+import type { EmployeeTypeCode } from "@/db/enums";
 
 export interface RosterOption {
   id: string;
@@ -23,6 +24,12 @@ export interface RosterRowWithCount {
   isActive: boolean;
   sortOrder: number;
   usageCount: number;
+  /**
+   * Only the DESIGNATIONS roster selects this (migration 0244). Optional
+   * precisely because the other five tables have no such column — their rows
+   * never carry it, which is what leaves their screens untouched.
+   */
+  employeeType?: EmployeeTypeCode;
 }
 
 /** Active products, ordered by sortOrder then name. Drives the contract form picker. */
@@ -187,6 +194,7 @@ export async function listDesignationsWithCounts(): Promise<
       isActive: designations.isActive,
       sortOrder: designations.sortOrder,
       usageCount: sql<number>`count(${employees.id})::int`,
+      employeeType: designations.employeeType,
     })
     .from(designations)
     .leftJoin(employees, eq(employees.designationId, designations.id))

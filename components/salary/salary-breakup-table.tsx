@@ -975,7 +975,7 @@ function AdjustmentCell({ row, editable }: { row: SalaryRow; editable: boolean }
 }
 
 /* Extreme-right per-row payslip — a downloadable PDF (salary + attendance +
- * incentives) via the combined-earnings route, for the currently-viewed month. */
+ * incentives) via the salary-slip route, for the currently-viewed month. */
 function PayslipLink({ row, month }: { row: SalaryRow; month?: string }) {
   if (!row.employeeId || !month) {
     return <span className="text-ink-subtle">-</span>;

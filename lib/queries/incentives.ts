@@ -179,8 +179,17 @@ export interface IncentiveDashboard {
   perIncentiveName: IncentiveNameRow[];
   /** Monthly series (Jan→Dec rows that have data), ascending by month. */
   monthly: IncentiveMonthRow[];
-  /** Leaderboard = top earners by approved total (same shape as perEmployee). */
-  leaderboard: IncentivePersonRow[];
+  /**
+   * The leaderboard is NOT here any more.
+   *
+   * It used to be `perEmployee.slice(0, 10)` — a ranking by RAW approved
+   * amount, which is not the rule the app ranks by (the Incentive Dashboard
+   * ranks on % OF CTC, the same figure the grade comes from), so the two lists
+   * could order the same people differently on one screen. The Trends
+   * leaderboard now takes its rows from the analytics model
+   * (`incentiveLeaders`, lib/queries/incentive-analytics.ts) — one ranking, one
+   * place it is decided.
+   */
 }
 
 /**
@@ -320,7 +329,6 @@ export async function getIncentiveDashboard(year: number): Promise<IncentiveDash
   const perEmployee = [...people.values()].sort((a, b) => b.total - a.total);
   const perIncentiveName = [...names.values()].sort((a, b) => b.approved - a.approved);
   const monthly = [...months.values()].sort((a, b) => a.month.localeCompare(b.month));
-  const leaderboard = perEmployee.slice(0, 10);
 
   return {
     year,
@@ -330,7 +338,6 @@ export async function getIncentiveDashboard(year: number): Promise<IncentiveDash
     perEmployee,
     perIncentiveName,
     monthly,
-    leaderboard,
   };
 }
 
@@ -582,7 +589,13 @@ export interface IncentiveTargetVsActual {
  * Per-person TARGET (sum of incentive_targets rows in `year`) vs ACTUAL earned
  * (the dashboard's approved per-person total for the same year). Same EXCLUDED
  * set as the dashboard. Includes people who have a target but no earnings yet
- * (and vice-versa). Sorted by actual desc, then target desc.
+ * (and vice-versa).
+ *
+ * ORDERED BY ATTAINMENT PERCENTAGE (actual ÷ target), highest first, with
+ * people who have no target last — the percentage is how a target is judged, so
+ * it is also how the list reads. The raw actual and the raw target only break
+ * ties, because on their own they say nothing: a big target met badly beats a
+ * small one met well, which is the wrong story for a Targets tab.
  */
 export async function getIncentiveTargetVsActual(
   year: number,
@@ -638,7 +651,12 @@ export async function getIncentiveTargetVsActual(
     });
   }
 
-  rows.sort((a, b) => b.actual - a.actual || b.target - a.target);
+  // No target ⇒ no percentage ⇒ last, whatever the amount (see the doc above).
+  const pctOr = (r: IncentiveTargetVsActualRow) =>
+    r.attainmentPct ?? Number.NEGATIVE_INFINITY;
+  rows.sort(
+    (a, b) => pctOr(b) - pctOr(a) || b.actual - a.actual || b.target - a.target,
+  );
 
   const totalTarget = rows.reduce((s, r) => s + r.target, 0);
   const totalActual = rows.reduce((s, r) => s + r.actual, 0);
@@ -703,13 +721,28 @@ function toAdminRow(e: IncentiveEntry): IncentiveEntryAdminRow {
 /** Year-scoped incentive_entries for the admin Entries tab, newest period first. */
 export async function listIncentiveEntriesAdmin(
   year: number,
+  /**
+   * THE VISIBILITY CEILING, by NAME — the ledger's only identity column is the
+   * typed employee name, so the scope arrives as a name-key set (see
+   * lib/incentive/analytics/visible-names.ts). `null`/absent = no narrowing
+   * (an organisation-wide viewer); an EMPTY set means nobody and returns
+   * nothing. Being an admin does not widen it.
+   */
+  opts: { visibleNames?: ReadonlySet<string> | null } = {},
 ): Promise<IncentiveEntryAdminRow[]> {
+  const visible = opts.visibleNames ?? null;
+  if (visible && visible.size === 0) return [];
+
   const [rows, removed] = await Promise.all([
     listIncentiveEntries({ year }),
     removedNameKeys(),
   ]);
-  // Drop entries belonging to removed (inactive) employees.
-  return rows.map(toAdminRow).filter((r) => !removed.has(nameKey(r.empName)));
+  // Drop entries belonging to removed (inactive) employees, and anything
+  // outside the viewer's permitted people.
+  return rows
+    .map(toAdminRow)
+    .filter((r) => !removed.has(nameKey(r.empName)))
+    .filter((r) => !visible || visible.has(nameKey(r.empName)));
 }
 
 // --- drill-down (slice C) --------------------------------------------------

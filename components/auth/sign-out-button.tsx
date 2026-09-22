@@ -4,6 +4,7 @@ import * as React from "react";
 import { LogOut, Loader2 } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase/client";
+import { flushActivityNow } from "@/lib/logs/client-tracker";
 
 /**
  * A plain sign-out button for surfaces that sit OUTSIDE the app chrome — today
@@ -26,6 +27,11 @@ export function SignOutButton() {
       await signOut(getFirebaseAuth());
     } catch {
       /* the server revoke below is what matters */
+    }
+    try {
+      await flushActivityNow();
+    } catch {
+      /* best effort — navigate regardless */
     }
     try {
       await fetch("/api/auth/signout", { method: "POST" });

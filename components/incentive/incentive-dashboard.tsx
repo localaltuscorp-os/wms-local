@@ -4,6 +4,7 @@ import * as React from "react";
 import { BadgeIndianRupee, BarChart3, ChevronDown, FolderKanban, PieChart, Tags, Trophy, Users } from "lucide-react";
 import { formatInr } from "@/lib/format";
 import type { IncentiveDashboard as DashboardData } from "@/lib/queries/incentives";
+import type { IncentiveLeaderRow } from "@/lib/queries/incentive-analytics";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/data-table";
 import { IncentiveMonthlyChart } from "./incentive-monthly-chart";
@@ -29,8 +30,21 @@ type NameRow = DashboardData["perIncentiveName"][number];
  *    three the ranked list directly beneath them already showed, with the same
  *    totals. The list stayed; the duplicate went.
  */
-export function IncentiveDashboard({ data, year }: { data: DashboardData; year: number }) {
-  const { permanent, project, perEmployee, perIncentiveName, monthly, leaderboard } = data;
+export function IncentiveDashboard({
+  data,
+  leaders,
+  year,
+}: {
+  data: DashboardData;
+  /**
+   * The ranked list, in rank order, from the analytics model — the ONE ranking
+   * this app has. See `incentiveLeaders` (lib/queries/incentive-analytics.ts)
+   * for why the old raw-amount leaderboard is gone.
+   */
+  leaders: IncentiveLeaderRow[];
+  year: number;
+}) {
+  const { permanent, project, perEmployee, perIncentiveName, monthly } = data;
 
   // The band is collapsed by default. A closed <details> hides its children with
   // `display: none`, and recharts measures every ResponsiveContainer on mount —
@@ -54,7 +68,10 @@ export function IncentiveDashboard({ data, year }: { data: DashboardData; year: 
   // Project roll-up row (project ledger isn't split by name in the summary).
   const projectRow = project.approved > 0 || project.paid > 0;
 
-  const leaderTotal = leaderboard.reduce((s, r) => s + r.total, 0);
+  // The bar is the percentage measured against the leader's, so the widest bar
+  // is always the top rank — the amount is printed beside it, never used for
+  // the order.
+  const topPct = leaders[0]?.pctOfCtc ?? 0;
 
   const nameColumns: DataTableColumn<NameRow>[] = [
     {
@@ -150,7 +167,7 @@ export function IncentiveDashboard({ data, year }: { data: DashboardData; year: 
             />
             <IncentiveKpi
               label="Earners"
-              value={String(leaderboard.length)}
+              value={String(leaders.length)}
               caption="people with incentive this year"
               tone="red"
               icon={<Users size={13} strokeWidth={2.4} />}
@@ -167,57 +184,59 @@ export function IncentiveDashboard({ data, year }: { data: DashboardData; year: 
             </IncentiveSection>
           </div>
 
-          {/* Leaderboard */}
-          <IncentiveSection title="Leaderboard" hint="Top earners by YTD incentive">
-            {leaderboard.length === 0 ? (
-              <p className="text-[13.5px] font-medium text-ink-subtle">No earners this year yet.</p>
+          {/* Leaderboard — ranked on % of CTC, the app's one ranking. */}
+          <IncentiveSection title="Leaderboard" hint="Ranked on incentive as a % of CTC">
+            {leaders.length === 0 ? (
+              <p className="text-[13.5px] font-medium text-ink-subtle">
+                No earners this year yet.
+              </p>
             ) : (
               <ol className="space-y-2">
-                {leaderboard.map((row, i) => {
-                  const share = leaderTotal > 0 ? (row.total / leaderTotal) * 100 : 0;
-                  return (
-                    <li key={row.name} className="flex items-center gap-2.5">
-                      <span className="w-5 shrink-0 text-right text-[13px] font-bold tabular-nums text-ink-subtle">
-                        {i + 1}
-                      </span>
-                      <button
-                        type="button"
-                        data-incentive-person={row.name}
-                        aria-label={`Open ${row.name}'s incentive detail`}
-                        className="shrink-0 cursor-pointer"
-                      >
-                        <EmployeeAvatar name={row.name} size="sm" />
-                      </button>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline justify-between gap-3">
-                          <button
-                            type="button"
-                            data-incentive-person={row.name}
-                            className="cursor-pointer truncate text-left text-[13.5px] font-bold text-ink-strong transition-colors hover:text-altus-red"
-                          >
-                            {row.name}
-                          </button>
-                          <span className="shrink-0 text-[13px] font-bold tabular-nums text-ink-strong">
-                            {formatInr(row.total)}
-                          </span>
-                        </div>
-                        <div
-                          className="mt-1 h-1.5 w-full overflow-hidden rounded-full"
-                          style={{ background: "var(--color-hairline)" }}
-                          aria-hidden
+                {leaders.map((row) => (
+                  <li key={row.employeeId} className="flex items-center gap-2.5">
+                    <span className="w-5 shrink-0 text-right text-[13px] font-bold tabular-nums text-ink-subtle">
+                      {row.rank}
+                    </span>
+                    <button
+                      type="button"
+                      data-incentive-person={row.name}
+                      aria-label={`Open ${row.name}'s incentive detail`}
+                      className="shrink-0 cursor-pointer"
+                    >
+                      <EmployeeAvatar name={row.name} size="sm" />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <button
+                          type="button"
+                          data-incentive-person={row.name}
+                          className="cursor-pointer truncate text-left text-[13.5px] font-bold text-ink-strong transition-colors hover:text-altus-red"
                         >
-                          <span
-                            className="block h-full rounded-full"
-                            style={{ width: `${Math.max(2, share)}%`, background: toneBase("red") }}
-                          />
-                        </div>
+                          {row.name}
+                        </button>
+                        <span className="shrink-0 text-[13px] font-bold tabular-nums text-ink-strong">
+                          {row.pctOfCtc.toFixed(1)}%
+                        </span>
                       </div>
-                      <span className="w-11 shrink-0 text-right text-[12.5px] font-semibold tabular-nums text-ink-subtle">
-                        {share.toFixed(1)}%
-                      </span>
-                    </li>
-                  );
-                })}
+                      <div
+                        className="mt-1 h-1.5 w-full overflow-hidden rounded-full"
+                        style={{ background: "var(--color-hairline)" }}
+                        aria-hidden
+                      >
+                        <span
+                          className="block h-full rounded-full"
+                          style={{
+                            width: `${topPct > 0 ? Math.max(2, (row.pctOfCtc / topPct) * 100) : 2}%`,
+                            background: toneBase("red"),
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <span className="w-20 shrink-0 text-right text-[12.5px] font-semibold tabular-nums text-ink-subtle">
+                      {formatInr(row.earned)}
+                    </span>
+                  </li>
+                ))}
               </ol>
             )}
           </IncentiveSection>

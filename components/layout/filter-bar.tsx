@@ -56,6 +56,19 @@ interface Props {
   clients?: string[];
   me?: { id: string; isAdmin: boolean };
   /**
+   * WHAT "All Tasks" MEANS FOR THIS PERSON, resolved on the server from the
+   * org chart and their Access Control grants (lib/tasks/scope.ts).
+   *
+   * `expandable` is false when there is nobody below them and no grant, in
+   * which case the Scope control is not rendered at all — a segmented control
+   * with two identical answers is a control that exists to be explained.
+   *
+   * `label` names the reach, so "All" is never read as "everyone in the
+   * company". The BACKEND applies the same ceiling regardless of what this
+   * component renders; this is the sentence that tells the truth about it.
+   */
+  taskScope?: { expandable: boolean; label: string };
+  /**
    * True on surfaces that OPEN on the viewer's own data (the WMS dashboard).
    * It adds two rows to the Assignee dropdown — "All employees" and the
    * viewer's own name pinned at the top and marked "(You)" — and makes an
@@ -92,6 +105,7 @@ export function FilterBar({
   statusOptions,
   clients,
   me,
+  taskScope,
   scopeDefaultsToMe = false,
   assigneeMode: initialAssigneeMode = "all",
 }: Props) {
@@ -100,7 +114,13 @@ export function FilterBar({
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
-  const showScopeChip = Boolean(me && !me.isAdmin);
+  /* The Scope control is shown to EVERYONE who has somewhere to widen to —
+     which includes admins and team leaders, and excludes an ordinary employee
+     with nobody reporting to them. It used to be `!me.isAdmin`, on the
+     assumption that an admin's list was already the whole organisation; it is
+     not, and the two buttons said nothing about which of the two they were. */
+  const showScopeChip =
+    Boolean(me) && (taskScope ? taskScope.expandable : !me?.isAdmin);
   /* "All employees" is a ROW IN THE LIST, not a separate control: the ask was
      for it to sit in the same checkbox dropdown as the individual names, and a
      reader who has just learned to pick a person there should not have to
@@ -506,11 +526,26 @@ export function FilterBar({
             <SubjectFilter options={subjects} selected={subj} onChange={setSubj} />
           )}
 
-          {/* Scope (non-admins) + View — always shown */}
+          {/* Scope + View — always shown (Scope only where there is somewhere
+              to widen to). "All Tasks" is NOT the organisation: it is the
+              person's permitted scope, named in the title so the narrower
+              answer is never mistaken for a broken filter. */}
           {showScopeChip && (
             <SegGroup label="Scope">
-              <SegButton active={assigneeMode === "default" && emp.length === 0} onClick={() => { setAssigneeMode("default"); setEmp([]); }}>My Tasks</SegButton>
-              <SegButton active={assigneeMode === "all" && emp.length === 0} onClick={() => { setAssigneeMode("all"); setEmp([]); }}>All Tasks</SegButton>
+              <SegButton
+                active={assigneeMode === "default" && emp.length === 0}
+                title="Only the tasks assigned to you"
+                onClick={() => { setAssigneeMode("default"); setEmp([]); }}
+              >
+                My Tasks
+              </SegButton>
+              <SegButton
+                active={assigneeMode === "all" && emp.length === 0}
+                title={taskScope ? taskScope.label : "Everyone you are permitted to see"}
+                onClick={() => { setAssigneeMode("all"); setEmp([]); }}
+              >
+                All Tasks
+              </SegButton>
             </SegGroup>
           )}
           {/* SOLID, not the frosted white pill the other segmented controls

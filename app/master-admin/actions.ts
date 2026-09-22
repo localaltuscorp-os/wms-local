@@ -10,6 +10,7 @@ import { isMasterAdmin } from "@/lib/security/capabilities";
 import { isPermissionNodeKey } from "@/lib/permissions/catalog";
 import { isMeaningfulOverride } from "@/lib/permissions/effective";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { auditAction } from "@/lib/logs/audit";
 
 /**
  * MASTER ADMIN — the permission-matrix write path.
@@ -170,6 +171,22 @@ export async function setModulePermission(input: ToggleInput): Promise<MatrixRes
   }
 
   revalidatePath(PATH);
+
+  // Mirror into the immutable global Logs feed (Control Panel → Logs). Additive:
+  // the domain audit above still runs; this is the human-readable copy.
+  auditAction({
+    eventType: "CONFIG_CHANGE",
+    employeeId: me.id,
+    route: "/admin/control-panel/permissions",
+    module: "Admin Panel",
+    page: "Control Panel",
+    resourceType: "module_permission",
+    resourceId: `${employeeId}:${nodeKey}`,
+    action: stored ? "permission_grant" : "permission_revoke",
+    status: "SUCCESS",
+    changes: [{ field: nodeKey, before: prev ?? null, after: stored ? next : null }],
+  });
+
   return { ok: true };
 }
 

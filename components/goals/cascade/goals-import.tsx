@@ -4,10 +4,14 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Loader2, FileSpreadsheet, Download } from "lucide-react";
 import { importGoals } from "@/app/(app)/goals/import/actions";
+import { TEMPLATE_KEYS, templateHref } from "@/lib/templates/keys";
+import { downloadTemplateFile } from "@/lib/templates/client-download";
+import { fireToast } from "@/lib/toast";
 import { GOALS_ACCENT, GOALS_ACCENT_DEEP, type RosterMember } from "./util";
 
-/** The enterprise exceljs template (branded, validated dropdowns, no frozen panes). */
-const TEMPLATE_URL = "/goals/template.xlsx";
+/** The enterprise exceljs template (branded, validated dropdowns, no frozen panes),
+ *  resolved through Upload Master — see lib/templates/registry.ts. */
+const TEMPLATE_URL = templateHref(TEMPLATE_KEYS.goals);
 
 type Result = { imported: number; skipped: number; warnings: string[] } | null;
 
@@ -18,6 +22,7 @@ export function GoalsImport({ roster }: { roster: RosterMember[] }) {
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<Result>(null);
   const [ownerId, setOwnerId] = React.useState<string>("all");
+  const [downloading, setDownloading] = React.useState(false);
 
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -66,12 +71,22 @@ export function GoalsImport({ roster }: { roster: RosterMember[] }) {
           Level · Title · Year/Quarter/Month · Type · Category · Area · UoM · Target/Actual · Owner ·
           Reviewer · Team · Status · Weight - with dropdowns, frozen panes and locked read-only columns.
         </p>
-        <a
-          href={TEMPLATE_URL}
-          className="wg-btn mt-2.5 inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:brightness-95"
+        <button
+          type="button"
+          disabled={downloading}
+          onClick={() => {
+            setDownloading(true);
+            void downloadTemplateFile(TEMPLATE_URL)
+              .then((res) => {
+                if (!res.ok) fireToast({ message: res.error, type: "error" });
+              })
+              .finally(() => setDownloading(false));
+          }}
+          className="wg-btn mt-2.5 inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:brightness-95 disabled:opacity-60"
         >
-          <Download size={14} strokeWidth={2.4} /> Download template (.xlsx)
-        </a>
+          <Download size={14} strokeWidth={2.4} />
+          {downloading ? "Preparing…" : "Download template (.xlsx)"}
+        </button>
       </div>
 
       <div className="mt-4">

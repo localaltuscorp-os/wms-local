@@ -5,9 +5,12 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import {
+  designations,
   employees,
+  functions,
   incentiveCatalog,
   incentiveEligibility,
+  incentiveFunctionScope,
   outstandingProducts,
   settingsEvents,
 } from "@/db/schema";
@@ -30,13 +33,16 @@ import {
   type IncentiveEligibilityView,
 } from "@/lib/queries/incentive-master";
 import {
+  INCENTIVE_APPLICABILITIES,
   INCENTIVE_DURATIONS,
   MAX_ELIGIBILITY_BATCH,
   MAX_INCENTIVE_AMOUNT,
   eligibilityChangeError,
   firstIncentiveMasterError,
   resolveEligibility,
+  resolveEmployeeType,
   todayIst,
+  type IncentiveApplicability,
 } from "@/lib/incentive/master";
 import { INCENTIVE_TYPES } from "@/db/enums";
 
@@ -71,6 +77,27 @@ const NODE = "admin.incentive.master";
 
 export type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
+/**
+ * REPLACE a scheme's function scope (0244).
+ *
+ * A replace-set, not a history: the scope is current configuration, and the
+ * change record's before/after snapshot is what preserves what it used to be.
+ * Rows for other modes are cleared rather than left behind, so switching away
+ * from FUNCTION and back does not silently restore a scope nobody re-chose.
+ */
+async function replaceFunctionScope(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  catalogId: string,
+  applicability: IncentiveApplicability,
+  functionIds: string[],
+): Promise<void> {
+  await tx.delete(incentiveFunctionScope).where(eq(incentiveFunctionScope.catalogId, catalogId));
+  if (applicability !== "FUNCTION" || functionIds.length === 0) return;
+  await tx
+    .insert(incentiveFunctionScope)
+    .values(functionIds.map((functionId) => ({ catalogId, functionId })));
+}
+
 const UUID = z.string().uuid();
 const IdSchema = z.string().uuid("That incentive could not be found.");
 
@@ -97,8 +124,18 @@ const FieldsSchema = z
     productId: optionalUuid,
     duration: z.enum(INCENTIVE_DURATIONS).optional().default("permanent"),
     validUntil: optionalDate,
-    salesEligible: z.boolean().optional().default(false),
-    internsEligible: z.boolean().optional().default(false),
+    /**
+     * WHO THIS APPLIES TO (0244). Defaults to company-wide, which is what the
+     * brief requires of a newly created incentive.
+     *
+     * `salesEligible` / `internsEligible` are gone from the FORM on purpose:
+     * the columns still exist (every pre-0244 change record carries them) but
+     * nothing decides eligibility by them any more, and a control that looks
+     * live while doing nothing is worse than no control.
+     */
+    applicability: z.enum(INCENTIVE_APPLICABILITIES).optional().default("ALL_EMPLOYEES"),
+    /** The functions a FUNCTION-scoped scheme covers. Ignored in other modes. */
+    functionIds: z.array(z.string().uuid()).max(100).optional().default([]),
     notes: z.string().trim().max(1000).optional().nullable(),
     sortOrder: z.number().int().min(0).max(9999).optional(),
     active: z.boolean().optional().default(true),
@@ -226,6 +263,63 @@ export async function saveIncentive(
     if (!product) return { ok: false, error: "That product no longer exists." };
   }
 
+  // The functions must exist in the function master. The foreign key would
+  // refuse a made-up uuid anyway, but as a raw constraint error; this says which
+  // thing was wrong.
+  if (v.applicability === "FUNCTION") {
+    const found = await db
+      .select({ id: functions.id })
+      .from(functions)
+      .where(inArray(functions.id, v.functionIds));
+    if (found.length !== v.functionIds.length) {
+      return { ok: false, error: "One of the chosen functions no longer exists." };
+    }
+  }
+
+  // A FUNCTION-scoped scheme with no function selected reaches nobody, which is
+  // almost never what the person saving meant — they picked "Function" and did
+  // not finish. Refuse rather than silently create a scheme that pays no one.
+  if (v.applicability === "FUNCTION" && v.functionIds.length === 0) {
+    return { ok: false, error: "Pick at least one function, or choose All Employees." };
+  }
+
+  /**
+   * CHANGING WHO IT APPLIES TO IS AN ELIGIBILITY CHANGE.
+   *
+   * The two authorities are separate on purpose (see the header): any admin may
+   * correct an amount, only the eligibility holder may choose who collects it.
+   * Applicability is the audience, so it needs the SAME capability as naming an
+   * individual — otherwise "who is eligible" could be rewritten by editing the
+   * amount in the same payload and never touching the eligibility screen.
+   *
+   * A NEW scheme is a different case: there is no audience to take away, and
+   * refusing to create one would make the whole screen unusable for the admins
+   * who may edit the Master but not the Chart.
+   */
+  if (id) {
+    const [current] = await db
+      .select({ applicability: incentiveCatalog.applicability })
+      .from(incentiveCatalog)
+      .where(eq(incentiveCatalog.id, id))
+      .limit(1);
+    const currentScope = await db
+      .select({ functionId: incentiveFunctionScope.functionId })
+      .from(incentiveFunctionScope)
+      .where(eq(incentiveFunctionScope.catalogId, id));
+
+    const scopeChanged =
+      currentScope.length !== v.functionIds.length ||
+      currentScope.some((s) => !v.functionIds.includes(s.functionId));
+    const audienceChanged =
+      current != null &&
+      (current.applicability !== v.applicability ||
+        (v.applicability === "FUNCTION" && scopeChanged));
+
+    if (audienceChanged && !(await mayManageIncentiveEligibility())) {
+      return { ok: false, error: INCENTIVE_ELIGIBILITY_REFUSAL };
+    }
+  }
+
   const values = {
     name: v.name,
     description: v.description?.trim() || null,
@@ -234,8 +328,7 @@ export async function saveIncentive(
     productId: v.productId,
     duration: v.duration,
     validUntil: v.validUntil,
-    salesEligible: v.salesEligible,
-    internsEligible: v.internsEligible,
+    applicability: v.applicability,
     notes: v.notes?.trim() || null,
     sortOrder: v.sortOrder ?? 100,
     active: v.active,
@@ -259,6 +352,9 @@ export async function saveIncentive(
           .where(eq(incentiveCatalog.id, id))
           .returning();
         if (!after) return { id, eventId: null, missing: true as const };
+        // BEFORE the "after" snapshot, so the change record describes the scope
+        // that was just saved rather than the one it replaced.
+        await replaceFunctionScope(tx, id, v.applicability, v.functionIds);
         const eventId = await recordIncentiveCatalogEvent(tx, {
           eventType: "updated",
           catalogId: id,
@@ -271,6 +367,7 @@ export async function saveIncentive(
 
       const [row] = await tx.insert(incentiveCatalog).values(values).returning();
       if (!row) throw new Error("insert returned no row");
+      await replaceFunctionScope(tx, row.id, v.applicability, v.functionIds);
       const eventId = await recordIncentiveCatalogEvent(tx, {
         eventType: "created",
         catalogId: row.id,
@@ -396,23 +493,48 @@ export async function incentiveDeleteImpact(
     eligibilityWindowsFor(db, id),
     liveGrantIds(db, id),
   ]);
-  const audience = await db
-    .select({
-      id: employees.id,
-      isActive: employees.isActive,
-      employmentStatus: employees.employmentStatus,
-      accountType: employees.accountType,
-    })
-    .from(employees);
+  const [audience, scope] = await Promise.all([
+    db
+      .select({
+        id: employees.id,
+        isActive: employees.isActive,
+        employmentStatus: employees.employmentStatus,
+        accountType: employees.accountType,
+        employeeOverride: employees.employeeType,
+        designationType: designations.employeeType,
+        departmentId: employees.departmentId,
+      })
+      .from(employees)
+      .leftJoin(designations, eq(employees.designationId, designations.id)),
+    db
+      .select({ functionId: incentiveFunctionScope.functionId })
+      .from(incentiveFunctionScope)
+      .where(eq(incentiveFunctionScope.catalogId, id)),
+  ]);
+  // The impact figure has to be the SAME number the list and the employee's own
+  // screen show, so it is the same rule — including the intern exclusion and the
+  // function scope, which is why the roster query now carries both.
   const resolved = resolveEligibility({
     incentive: {
       active: row.active,
       validUntil: row.validUntil == null ? null : String(row.validUntil),
+      applicability: row.applicability,
+      functionIds: scope.map((s) => s.functionId),
       salesEligible: row.salesEligible === true,
       internsEligible: row.internsEligible === true,
     },
     windows,
-    employees: audience,
+    employees: audience.map((a) => ({
+      id: a.id,
+      isActive: a.isActive,
+      employmentStatus: a.employmentStatus,
+      accountType: a.accountType,
+      employeeType: resolveEmployeeType({
+        override: a.employeeOverride,
+        designationType: a.designationType,
+      }),
+      functionId: a.departmentId,
+    })),
   });
 
   return {

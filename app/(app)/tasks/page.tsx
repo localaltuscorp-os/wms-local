@@ -15,6 +15,7 @@ import { listActiveClientNames } from "@/lib/queries/clients";
 import { listWeekGoalsAsTasks } from "@/lib/weekly-goals/as-task-row";
 import { goalScopeFor } from "@/lib/weekly-goals/hierarchy";
 import { parseTaskFilters } from "@/lib/task-filters";
+import { currentTaskVisibility } from "@/lib/tasks/scope";
 import { requireUser } from "@/lib/auth/current";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
 import { TASK_STATUSES, isDeprecatedStatus } from "@/db/enums";
@@ -40,10 +41,14 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const mayChangeDoer = await canChangeDoerFor(me);
   const rawTask = Array.isArray(sp.task) ? sp.task[0] : sp.task;
   const selectedTaskId = rawTask && TASK_ID.test(rawTask) ? rawTask : null;
-  // Non-admins default to "assigned to me" when no explicit ?emp= is set.
-  const filters = parseTaskFilters(sp, /*archived*/ false, {
-    defaultDoerId: me.isAdmin ? undefined : me.id,
-  });
+  // EVERYONE defaults to "assigned to me" when no explicit ?emp= is set —
+  // admins and team leaders included. Being an admin is not a reason to open
+  // on the whole organisation's work, and a list that starts as everybody's
+  // makes "My Tasks" something a person has to go and find. "All" widens to
+  // their permitted scope (the people below them, plus any grant); the ceiling
+  // itself is applied in the query layer, not here.
+  const visibility = await currentTaskVisibility();
+  const filters = parseTaskFilters(sp, /*archived*/ false, { defaultDoerId: me.id });
 
   // This week's goals for the view's scope, surfaced as a pinned group above
   // the task table (design §10). Honours the shared client/subject/priority
@@ -147,6 +152,10 @@ export default async function TasksPage({ searchParams }: PageProps) {
         statusOptions={statusOptions}
         clients={clients}
         me={{ id: me.id, isAdmin: me.isAdmin }}
+        taskScope={{
+          expandable: Boolean(visibility?.canExpand),
+          label: visibility?.scopeLabel ?? "Only you",
+        }}
         assigneeMode={filters.assigneeMode}
         taskCount={rows.length}
         initial={{

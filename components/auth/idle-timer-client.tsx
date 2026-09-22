@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { signOut } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase/client";
 import { IdleTimer } from "@/components/auth/idle-timer";
+import { flushActivityNow } from "@/lib/logs/client-tracker";
 
 export function IdleTimerClient({ timeoutMinutes }: { timeoutMinutes: number }) {
   // Stable callback so IdleTimer doesn't tear down listeners every render.
@@ -18,7 +19,14 @@ export function IdleTimerClient({ timeoutMinutes }: { timeoutMinutes: number }) 
       // ignore — the server revoke below is what matters
     }
     try {
-      await fetch("/api/auth/signout", { method: "POST" });
+      // Flush any buffered activity BEFORE the session dies, so an inactivity
+      // timeout never strands unsent events. keepalive is used by the flush.
+      await flushActivityNow();
+    } catch {
+      // Best-effort; navigate regardless.
+    }
+    try {
+      await fetch("/api/auth/signout?reason=idle", { method: "POST" });
     } catch {
       // Best-effort; navigate regardless so middleware redirects.
     }

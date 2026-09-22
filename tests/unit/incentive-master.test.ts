@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  INCENTIVE_APPLICABILITIES,
   INCENTIVE_DURATIONS,
   INCENTIVE_TYPE_OPTIONS,
   MAX_ELIGIBILITY_BATCH,
-  audienceGroupOf,
+  applicabilityOf,
   candidateHaystack,
   eligibilityChangeError,
   eligibilityLabel,
@@ -18,13 +19,19 @@ import {
   isCurrentGrant,
   isIncentiveOnOffer,
   isIncentiveType,
+  isIntern,
   isIsoDate,
   mayBecomeEligible,
+  modeOf,
   resolveEligibility,
+  resolveEmployeeType,
+  resolveIncentiveEligibility,
   todayIst,
   windowCoversDate,
   type CandidateRow,
+  type EligibilityReason,
   type EligibilityWindow,
+  type EligibleCandidate,
 } from "@/lib/incentive/master";
 import {
   diffCatalog,
@@ -57,16 +64,21 @@ const TODAY = "2026-09-16";
 
 describe("the Master's own fields", () => {
   it("offers exactly the existing incentive types, by their existing labels", () => {
-    // Reusing INCENTIVE_TYPES rather than inventing a parallel vocabulary.
+    // Reusing INCENTIVE_TYPES rather than inventing a parallel vocabulary, and
+    // APPEND-ONLY: 0244 added the last two on the end.
     expect(INCENTIVE_TYPE_OPTIONS.map((o) => o.value)).toEqual([
       "bss_conversion",
       "sales_pitch",
       "client_happiness",
       "group_intro",
       "leads_referrals",
+      "breakthrough_idea",
+      "employment_referral",
     ]);
     expect(incentiveTypeLabel("bss_conversion")).toBe("Conversion");
     expect(incentiveTypeLabel("leads_referrals")).toBe("Leads / Referrals");
+    expect(incentiveTypeLabel("breakthrough_idea")).toBe("Breakthrough Idea");
+    expect(incentiveTypeLabel("employment_referral")).toBe("Employment Referral");
   });
 
   it("treats an unknown or absent type as no type, never as a default", () => {
@@ -228,61 +240,77 @@ describe("who counts as a current employee", () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
-   §2 · THE RULE — NAMED WINS WHERE IT EXISTS
+   §2 · THE RULE — APPLICABILITY DECIDES, THE GATES COME FIRST
    ════════════════════════════════════════════════════════════════════════════ */
 
-const PEOPLE = [
-  { id: "sales1", isActive: true, employmentStatus: "active", accountType: "employee", designation: "Sales Executive" },
-  { id: "sales2", isActive: true, employmentStatus: "active", accountType: "employee", designation: "Consultant" },
-  { id: "intern1", isActive: true, employmentStatus: "active", accountType: "employee", designation: "Sales Intern" },
-  { id: "gone", isActive: false, employmentStatus: "former", accountType: "employee", designation: "Sales Executive" },
-  { id: "cand", isActive: true, employmentStatus: "active", accountType: "candidate", designation: "Sales Executive" },
+/** The EFFECTIVE employee type and the Function the rule reads — `designation`
+ *  is gone (0244): intern status is resolved from the designation MASTER's flag,
+ *  never from matching a designation's text at runtime. */
+const PEOPLE: EligibleCandidate[] = [
+  { id: "sales1", isActive: true, employmentStatus: "active", accountType: "employee", employeeType: "employee", functionId: "dept-sales" },
+  { id: "sales2", isActive: true, employmentStatus: "active", accountType: "employee", employeeType: "employee", functionId: "dept-marketing" },
+  { id: "intern1", isActive: true, employmentStatus: "active", accountType: "employee", employeeType: "intern", functionId: "dept-sales" },
+  { id: "gone", isActive: false, employmentStatus: "former", accountType: "employee", employeeType: "employee", functionId: "dept-sales" },
+  { id: "cand", isActive: true, employmentStatus: "active", accountType: "candidate", employeeType: "employee", functionId: "dept-sales" },
 ];
 
+/** A LEGACY shape: no `applicability`, so the audience is reconstructed from the
+ *  flags by `applicabilityOf`. See the dedicated describe below. */
 const ON = { active: true, validUntil: null, salesEligible: true, internsEligible: false };
 
 describe("resolveEligibility", () => {
-  it("falls back to the group flags when nobody is named", () => {
+  it("reads ALL_EMPLOYEES out of a legacy scheme with no named rows", () => {
     const r = resolveEligibility({ incentive: ON, windows: [], employees: PEOPLE, today: TODAY });
-    expect(r.mode).toBe("groups");
+    expect(r.mode).toBe("all");
+    // sales1 and sales2, and only those: `cand` is not an employee account,
+    // `gone` has left, and `intern1` is an intern — none of the three can earn.
     expect(r.employeeIds.sort()).toEqual(["sales1", "sales2"]);
   });
 
-  it("reads the intern group off the designation", () => {
+  it("reads an intern from the resolved employee type, and an interns-only scheme now covers nobody", () => {
+    // The old `audienceGroupOf` matched a designation's TEXT; 0244 moved that
+    // fact into `designations.employee_type`, so the same cases are asserted on
+    // the two functions that replaced it.
+    expect(isIntern({ employeeType: resolveEmployeeType({ designationType: "intern" }) })).toBe(true);
+    expect(isIntern({ employeeType: resolveEmployeeType({ override: "intern", designationType: "employee" }) })).toBe(true);
+    expect(isIntern({ employeeType: resolveEmployeeType({ override: "employee", designationType: "intern" }) })).toBe(false);
+    expect(isIntern({ employeeType: resolveEmployeeType({ designationType: null }) })).toBe(false);
+    // An interns-only scheme has no named rows and no sales group, so the legacy
+    // reconstruction lands on SELECTED_EMPLOYEES with nobody in it — the honest
+    // reading, now that interns cannot earn in ANY mode.
     const r = resolveEligibility({
       incentive: { ...ON, salesEligible: false, internsEligible: true },
       windows: [],
       employees: PEOPLE,
       today: TODAY,
     });
-    expect(r.employeeIds).toEqual(["intern1"]);
-    expect(audienceGroupOf("Sales Intern")).toBe("interns");
-    expect(audienceGroupOf("Sales Executive")).toBe("sales");
-    expect(audienceGroupOf(null)).toBe("sales");
+    expect(r.mode).toBe("selected");
+    expect(r.employeeIds).toEqual([]);
   });
 
-  it("lets NAMED eligibility override the group flags entirely", () => {
+  it("lets SELECTED_EMPLOYEES override the legacy flags entirely", () => {
     const r = resolveEligibility({
       incentive: ON, // salesEligible = true, which must now be ignored
-      windows: [{ employeeId: "intern1", effectiveFrom: "2026-01-01", removedEffectiveFrom: null }],
+      windows: [{ employeeId: "sales1", effectiveFrom: "2026-01-01", removedEffectiveFrom: null }],
       employees: PEOPLE,
       today: TODAY,
     });
-    expect(r.mode).toBe("named");
-    expect(r.employeeIds).toEqual(["intern1"]);
+    expect(r.mode).toBe("selected");
+    // sales2 would have been eligible on the flag alone and is not.
+    expect(r.employeeIds).toEqual(["sales1"]);
   });
 
-  it("stays in named mode when the LAST named person is removed", () => {
-    // The dangerous case: falling back to the groups here would hand the
+  it("stays in SELECTED_EMPLOYEES when the LAST named person is removed", () => {
+    // The dangerous case: falling back to the flags here would hand the
     // incentive to everybody the moment the last person was taken off, which is
     // the opposite of what the removal meant.
     const r = resolveEligibility({
       incentive: ON,
-      windows: [{ employeeId: "intern1", effectiveFrom: "2026-01-01", removedEffectiveFrom: "2026-02-01" }],
+      windows: [{ employeeId: "sales1", effectiveFrom: "2026-01-01", removedEffectiveFrom: "2026-02-01" }],
       employees: PEOPLE,
       today: TODAY,
     });
-    expect(r.mode).toBe("named");
+    expect(r.mode).toBe("selected");
     expect(r.employeeIds).toEqual([]);
   });
 
@@ -314,8 +342,8 @@ describe("resolveEligibility", () => {
       expect(r.employeeIds).toEqual([]);
       expect(r.onOffer).toBe(false);
       // The mode still reports how eligibility WOULD be decided — the screen
-      // needs to say "named" even for a deactivated incentive.
-      expect(r.mode).toBe("named");
+      // needs to say "selected" even for a deactivated incentive.
+      expect(r.mode).toBe("selected");
     }
   });
 
@@ -332,32 +360,178 @@ describe("resolveEligibility", () => {
   it("copes with an empty roster and an empty Master", () => {
     const r = resolveEligibility({ incentive: ON, windows: [], employees: [], today: TODAY });
     expect(r.employeeIds).toEqual([]);
-    expect(r.mode).toBe("groups");
+    expect(r.mode).toBe("all");
     expect(Number.isFinite(r.employeeIds.length)).toBe(true);
+  });
+
+  /* ── THE PER-PERSON RULE AND THE THREE MODES ─────────────────────────────── */
+
+  it("excludes an intern in ALL THREE modes, with reason `intern`", () => {
+    const intern = PEOPLE[2]!; // intern1: a real intern whose function IS the one scoped
+    for (const applicability of INCENTIVE_APPLICABILITIES) {
+      const windows =
+        applicability === "SELECTED_EMPLOYEES"
+          ? [{ employeeId: intern.id, effectiveFrom: "2026-01-01", removedEffectiveFrom: null }]
+          : [];
+      const r = resolveIncentiveEligibility({
+        incentive: { ...ON, applicability, functionIds: [intern.functionId!] },
+        windows,
+        employee: intern,
+        today: TODAY,
+      });
+      // Named, covered by the function, and company-wide — still not eligible.
+      expect(r, applicability).toEqual({ eligible: false, reason: "intern" });
+    }
+  });
+
+  it("matches a FUNCTION scheme on the employee's Function, and refuses anyone else's", () => {
+    const fn = { ...ON, applicability: "FUNCTION", functionIds: ["dept-sales"] };
+    expect(
+      resolveIncentiveEligibility({ incentive: fn, windows: [], employee: PEOPLE[0]!, today: TODAY }),
+    ).toEqual({ eligible: true, reason: "function" });
+    expect(
+      resolveIncentiveEligibility({ incentive: fn, windows: [], employee: PEOPLE[1]!, today: TODAY }),
+    ).toEqual({ eligible: false, reason: "not_your_function" });
+    // No Function on EITHER side is not a match: a Sales-scoped scheme must not
+    // silently cover somebody whose Function is unset.
+    const noFunction = { ...PEOPLE[0]!, id: "nofunc", functionId: null };
+    expect(
+      resolveIncentiveEligibility({ incentive: fn, windows: [], employee: noFunction, today: TODAY }),
+    ).toEqual({ eligible: false, reason: "not_your_function" });
+    expect(
+      resolveIncentiveEligibility({ incentive: { ...fn, functionIds: [] }, windows: [], employee: PEOPLE[0]!, today: TODAY }),
+    ).toEqual({ eligible: false, reason: "not_your_function" });
+  });
+
+  it("honours a SELECTED_EMPLOYEES window, and the removal date itself is NOT eligible", () => {
+    const incentive = { ...ON, applicability: "SELECTED_EMPLOYEES" };
+    const windows = [{ employeeId: "sales1", effectiveFrom: "2026-09-01", removedEffectiveFrom: "2026-10-01" }];
+    const ask = (today: string) =>
+      resolveIncentiveEligibility({ incentive, windows, employee: PEOPLE[0]!, today });
+    expect(ask("2026-08-31")).toEqual({ eligible: false, reason: "not_selected" });
+    expect(ask("2026-09-01")).toEqual({ eligible: true, reason: "selected" });
+    expect(ask("2026-09-30")).toEqual({ eligible: true, reason: "selected" });
+    // "Removed with effect from 1 Oct" — the first day NOT covered.
+    expect(ask("2026-10-01")).toEqual({ eligible: false, reason: "not_selected" });
+  });
+
+  it("returns the most specific TRUE reason — the gates, in order, before the mode", () => {
+    const intern = PEOPLE[2]!;
+    const all = { ...ON, applicability: "ALL_EMPLOYEES" };
+    // Not on offer outranks everything, including being an intern.
+    expect(
+      resolveIncentiveEligibility({ incentive: { ...all, active: false }, windows: [], employee: intern, today: TODAY }),
+    ).toEqual({ eligible: false, reason: "not_on_offer" });
+    // Not a current employee outranks being an intern.
+    expect(
+      resolveIncentiveEligibility({ incentive: all, windows: [], employee: { ...intern, isActive: false }, today: TODAY }),
+    ).toEqual({ eligible: false, reason: "inactive" });
+    // Being an intern outranks a mode that would otherwise name them eligible.
+    expect(
+      resolveIncentiveEligibility({
+        incentive: { ...ON, applicability: "SELECTED_EMPLOYEES" },
+        windows: [{ employeeId: intern.id, effectiveFrom: "2026-01-01", removedEffectiveFrom: null }],
+        employee: intern,
+        today: TODAY,
+      }),
+    ).toEqual({ eligible: false, reason: "intern" });
+  });
+
+  it("can produce every EligibilityReason, and only those", () => {
+    const all = { ...ON, applicability: "ALL_EMPLOYEES" };
+    const fn = { ...ON, applicability: "FUNCTION", functionIds: ["dept-sales"] };
+    const selected = { ...ON, applicability: "SELECTED_EMPLOYEES" };
+    const reasonFor = (input: Parameters<typeof resolveIncentiveEligibility>[0]): EligibilityReason =>
+      resolveIncentiveEligibility(input).reason;
+
+    const seen = new Set<EligibilityReason>([
+      reasonFor({ incentive: { ...all, active: false }, windows: [], employee: PEOPLE[0]!, today: TODAY }),
+      reasonFor({ incentive: all, windows: [], employee: { ...PEOPLE[0]!, isActive: false }, today: TODAY }),
+      reasonFor({ incentive: all, windows: [], employee: PEOPLE[2]!, today: TODAY }),
+      reasonFor({ incentive: all, windows: [], employee: PEOPLE[0]!, today: TODAY }),
+      reasonFor({ incentive: fn, windows: [], employee: PEOPLE[0]!, today: TODAY }),
+      reasonFor({ incentive: fn, windows: [], employee: PEOPLE[1]!, today: TODAY }),
+      reasonFor({
+        incentive: selected,
+        windows: [{ employeeId: "sales1", effectiveFrom: "2026-01-01", removedEffectiveFrom: null }],
+        employee: PEOPLE[0]!,
+        today: TODAY,
+      }),
+      reasonFor({ incentive: selected, windows: [], employee: PEOPLE[0]!, today: TODAY }),
+    ]);
+
+    // The reason union has exactly eight members and the rule can reach them all.
+    expect([...seen].sort()).toEqual([
+      "all",
+      "function",
+      "inactive",
+      "intern",
+      "not_on_offer",
+      "not_selected",
+      "not_your_function",
+      "selected",
+    ]);
+  });
+});
+
+describe("applicabilityOf, including for a snapshot written before 0244", () => {
+  const legacy = { active: true, validUntil: null };
+
+  it("maps the three applicabilities to the three UI modes", () => {
+    expect(modeOf("ALL_EMPLOYEES")).toBe("all");
+    expect(modeOf("FUNCTION")).toBe("functions");
+    expect(modeOf("SELECTED_EMPLOYEES")).toBe("selected");
+  });
+
+  it("prefers a stored applicability over the legacy flags", () => {
+    expect(applicabilityOf({ ...legacy, applicability: "FUNCTION" }, [])).toBe("FUNCTION");
+    // Even where the flags would reconstruct something else.
+    expect(applicabilityOf({ ...legacy, applicability: "SELECTED_EMPLOYEES", salesEligible: true }, [])).toBe(
+      "SELECTED_EMPLOYEES",
+    );
+  });
+
+  it("reconstructs SELECTED_EMPLOYEES from any eligibility row — removed ones included", () => {
+    // Removing the last grant did NOT fall back to the flags before 0244, so a
+    // removed row still proves named rows governed.
+    expect(
+      applicabilityOf({ ...legacy, salesEligible: true }, [
+        { employeeId: "e1", effectiveFrom: "2026-01-01", removedEffectiveFrom: "2026-02-01" },
+      ]),
+    ).toBe("SELECTED_EMPLOYEES");
+  });
+
+  it("reconstructs ALL_EMPLOYEES from the sales flag when no row exists", () => {
+    expect(applicabilityOf({ ...legacy, salesEligible: true }, [])).toBe("ALL_EMPLOYEES");
+    expect(applicabilityOf({ ...legacy, internsEligible: true, salesEligible: true }, [])).toBe("ALL_EMPLOYEES");
+  });
+
+  it("reconstructs SELECTED_EMPLOYEES — nobody — for an interns-only or no-flag scheme", () => {
+    expect(applicabilityOf({ ...legacy, salesEligible: false, internsEligible: true }, [])).toBe(
+      "SELECTED_EMPLOYEES",
+    );
+    expect(applicabilityOf({ ...legacy, salesEligible: false, internsEligible: false }, [])).toBe(
+      "SELECTED_EMPLOYEES",
+    );
+    // An absent key, an explicit null and an unknown string all mean "legacy".
+    expect(applicabilityOf({ ...legacy, applicability: null, salesEligible: true }, [])).toBe("ALL_EMPLOYEES");
+    expect(applicabilityOf({ ...legacy, applicability: "NOPE", salesEligible: true }, [])).toBe("ALL_EMPLOYEES");
   });
 });
 
 describe("the Eligible column's wording", () => {
-  it("counts people in named mode and names groups otherwise", () => {
-    expect(eligibilityLabel({ mode: "named", count: 3, salesEligible: true, internsEligible: true })).toBe(
-      "3 employees",
+  it("says which of the three audiences it is, and counts only the selected", () => {
+    expect(eligibilityLabel({ mode: "all", count: 0 })).toBe("All employees");
+    expect(eligibilityLabel({ mode: "all", count: 9 })).toBe("All employees");
+    // Naming the functions is what tells two Function-scoped schemes apart.
+    expect(eligibilityLabel({ mode: "functions", count: 0, functionNames: ["Sales", "Marketing"] })).toBe(
+      "Function: Sales, Marketing",
     );
-    expect(eligibilityLabel({ mode: "named", count: 1, salesEligible: false, internsEligible: false })).toBe(
-      "1 employee",
-    );
-    expect(eligibilityLabel({ mode: "named", count: 0, salesEligible: true, internsEligible: true })).toBe(
-      "No one",
-    );
-    expect(eligibilityLabel({ mode: "groups", count: 9, salesEligible: true, internsEligible: true })).toBe(
-      "Sales and Interns",
-    );
-    expect(eligibilityLabel({ mode: "groups", count: 9, salesEligible: true, internsEligible: false })).toBe("Sales");
-    expect(eligibilityLabel({ mode: "groups", count: 0, salesEligible: false, internsEligible: true })).toBe(
-      "Interns",
-    );
-    expect(eligibilityLabel({ mode: "groups", count: 0, salesEligible: false, internsEligible: false })).toBe(
-      "No one",
-    );
+    expect(eligibilityLabel({ mode: "functions", count: 9, functionNames: [] })).toBe("Function: none selected");
+    expect(eligibilityLabel({ mode: "functions", count: 9 })).toBe("Function: none selected");
+    expect(eligibilityLabel({ mode: "selected", count: 3 })).toBe("3 employees");
+    expect(eligibilityLabel({ mode: "selected", count: 1 })).toBe("1 employee");
+    expect(eligibilityLabel({ mode: "selected", count: 0 })).toBe("No one");
   });
 });
 
@@ -498,30 +672,33 @@ const snap = (over: Partial<CatalogSnapshot> = {}): CatalogSnapshot => ({
 });
 
 const AUDIENCE: AudienceEmployee[] = [
-  { id: "sales1", isActive: true, employmentStatus: "active", designation: "Sales Executive" },
-  { id: "sales2", isActive: true, employmentStatus: "active", designation: "Consultant" },
-  { id: "intern1", isActive: true, employmentStatus: "active", designation: "Sales Intern" },
-  { id: "gone", isActive: false, employmentStatus: "former", designation: "Sales Executive" },
+  { id: "sales1", isActive: true, employmentStatus: "active", employeeType: "employee" },
+  { id: "sales2", isActive: true, employmentStatus: "active", employeeType: "employee" },
+  { id: "intern1", isActive: true, employmentStatus: "active", employeeType: "intern" },
+  { id: "gone", isActive: false, employmentStatus: "former", employeeType: "employee" },
 ];
 
 describe("the notification audience follows the same eligibility rule", () => {
-  it("named eligibility decides the audience, overriding the flags", () => {
-    const s = snap({ eligibleEmployeeIds: ["intern1"] });
+  it("SELECTED_EMPLOYEES decides the audience, overriding the flags", () => {
+    const s = snap({ eligibleEmployeeIds: ["sales1"] });
     expect(isNamedEligibility(s)).toBe(true);
-    expect(isEligibleFor(s, AUDIENCE[2]!)).toBe(true); // intern1, named
-    expect(isEligibleFor(s, AUDIENCE[0]!)).toBe(false); // sales1, flagged but not named
+    expect(isEligibleFor(s, AUDIENCE[0]!)).toBe(true); // sales1, named
+    expect(isEligibleFor(s, AUDIENCE[1]!)).toBe(false); // sales2, flagged but not named
   });
 
-  it("an EMPTY named list means nobody, not 'use the groups'", () => {
-    const s = snap({ eligibleEmployeeIds: [] });
+  it("an EMPTY SELECTED_EMPLOYEES list means nobody, not 'use the flags'", () => {
+    const s = snap({ applicability: "SELECTED_EMPLOYEES", eligibleEmployeeIds: [] });
     expect(isEligibleFor(s, AUDIENCE[0]!)).toBe(false);
     expect(eligibleGroupsLabel(s)).toBe("No one");
   });
 
-  it("uses the group flags when no list is present", () => {
+  it("resolves a LEGACY snapshot from its flags when there is no stored applicability", () => {
+    // `snap()` has no `applicability`, which is what a pre-0244 event looks
+    // like; salesEligible = true reconstructs ALL_EMPLOYEES.
     expect(isEligibleFor(snap(), AUDIENCE[0]!)).toBe(true);
+    // intern1 is an intern, so even company-wide they are not in the audience.
     expect(isEligibleFor(snap(), AUDIENCE[2]!)).toBe(false);
-    expect(eligibleGroupsLabel(snap())).toBe("Sales");
+    expect(eligibleGroupsLabel(snap())).toBe("All employees");
   });
 
   it("never notifies someone inactive, or an inactive incentive's audience", () => {
@@ -529,9 +706,9 @@ describe("the notification audience follows the same eligibility rule", () => {
     expect(isEligibleFor(snap({ active: false, eligibleEmployeeIds: ["sales1"] }), AUDIENCE[0]!)).toBe(false);
   });
 
-  it("describes a named audience by its size", () => {
-    expect(eligibleGroupsLabel(snap({ eligibleEmployeeIds: ["a"] }))).toBe("1 named employee");
-    expect(eligibleGroupsLabel(snap({ eligibleEmployeeIds: ["a", "b"] }))).toBe("2 named employees");
+  it("describes a selected audience by its size", () => {
+    expect(eligibleGroupsLabel(snap({ eligibleEmployeeIds: ["a"] }))).toBe("1 employee");
+    expect(eligibleGroupsLabel(snap({ eligibleEmployeeIds: ["a", "b"] }))).toBe("2 employees");
   });
 });
 
@@ -540,11 +717,11 @@ describe("adding and removing named employees produces the right notices", () =>
     const plan = planCatalogNotifications({
       eventType: "updated",
       before: snap({ eligibleEmployeeIds: ["sales1"] }),
-      after: snap({ eligibleEmployeeIds: ["sales1", "intern1"] }),
+      after: snap({ eligibleEmployeeIds: ["sales1", "sales2"] }),
       employees: AUDIENCE,
       actorId: null,
     });
-    expect(plan.newlyEligible).toEqual(["intern1"]);
+    expect(plan.newlyEligible).toEqual(["sales2"]);
     expect(plan.removed).toEqual([]);
     // sales1 stays eligible and nothing about the incentive itself changed, so
     // they are not told anything.
@@ -554,12 +731,12 @@ describe("adding and removing named employees produces the right notices", () =>
   it("tells the people REMOVED, and nobody else", () => {
     const plan = planCatalogNotifications({
       eventType: "updated",
-      before: snap({ eligibleEmployeeIds: ["sales1", "intern1"] }),
+      before: snap({ eligibleEmployeeIds: ["sales1", "sales2"] }),
       after: snap({ eligibleEmployeeIds: ["sales1"] }),
       employees: AUDIENCE,
       actorId: null,
     });
-    expect(plan.removed).toEqual(["intern1"]);
+    expect(plan.removed).toEqual(["sales2"]);
     expect(plan.newlyEligible).toEqual([]);
     expect(plan.updated).toEqual([]);
   });
@@ -578,8 +755,8 @@ describe("adding and removing named employees produces the right notices", () =>
   it("never notifies the person who made the change", () => {
     const plan = planCatalogNotifications({
       eventType: "updated",
-      before: snap({ eligibleEmployeeIds: [] }),
-      after: snap({ eligibleEmployeeIds: ["sales1", "sales2"] }),
+      before: snap({ applicability: "SELECTED_EMPLOYEES", eligibleEmployeeIds: [] }),
+      after: snap({ applicability: "SELECTED_EMPLOYEES", eligibleEmployeeIds: ["sales1", "sales2"] }),
       employees: AUDIENCE,
       actorId: "sales1",
     });
@@ -589,46 +766,47 @@ describe("adding and removing named employees produces the right notices", () =>
   it("treats deactivating as a removal for everyone who was eligible", () => {
     const plan = planCatalogNotifications({
       eventType: "updated",
-      before: snap({ eligibleEmployeeIds: ["sales1", "intern1"] }),
-      after: snap({ eligibleEmployeeIds: ["sales1", "intern1"], active: false }),
+      before: snap({ eligibleEmployeeIds: ["sales1", "sales2"] }),
+      after: snap({ eligibleEmployeeIds: ["sales1", "sales2"], active: false }),
       employees: AUDIENCE,
       actorId: null,
     });
-    expect(plan.removed.sort()).toEqual(["intern1", "sales1"]);
+    expect(plan.removed.sort()).toEqual(["sales1", "sales2"]);
   });
 
   it("tells everyone eligible when the incentive is deleted", () => {
     const plan = planCatalogNotifications({
       eventType: "deleted",
-      before: snap({ eligibleEmployeeIds: ["sales1", "intern1"] }),
+      before: snap({ eligibleEmployeeIds: ["sales1", "sales2"] }),
       after: null,
       employees: AUDIENCE,
       actorId: null,
     });
-    expect(plan.deleted.sort()).toEqual(["intern1", "sales1"]);
+    expect(plan.deleted.sort()).toEqual(["sales1", "sales2"]);
   });
 
   it("tells the newly-eligible when a NEW incentive names them", () => {
     const plan = planCatalogNotifications({
       eventType: "created",
       before: null,
-      after: snap({ eligibleEmployeeIds: ["intern1"] }),
+      after: snap({ eligibleEmployeeIds: ["sales1"] }),
       employees: AUDIENCE,
       actorId: null,
     });
-    expect(plan.created).toEqual(["intern1"]);
+    expect(plan.created).toEqual(["sales1"]);
   });
 
-  it("reports moving from group eligibility to a named list as a real change", () => {
+  it("reports moving from All Employees to a selected list as a real change", () => {
     const plan = planCatalogNotifications({
       eventType: "updated",
-      before: snap(), // groups: sales
-      after: snap({ eligibleEmployeeIds: ["intern1"] }),
+      before: snap({ applicability: "ALL_EMPLOYEES", salesEligible: false }),
+      after: snap({ applicability: "SELECTED_EMPLOYEES", eligibleEmployeeIds: ["sales2"] }),
       employees: AUDIENCE,
       actorId: null,
     });
-    expect(plan.newlyEligible).toEqual(["intern1"]);
-    expect(plan.removed.sort()).toEqual(["sales1", "sales2"]);
+    // Narrowing to one name takes it away from everybody else, and adds nobody.
+    expect(plan.newlyEligible).toEqual([]);
+    expect(plan.removed).toEqual(["sales1"]);
   });
 });
 
@@ -662,6 +840,22 @@ describe("the change log records what changed", () => {
     expect(JSON.stringify(change)).not.toContain('"a"');
   });
 
+  it("treats a SCOPE change as material — and the legacy flags as no longer material", () => {
+    // Who the scheme covers is now `applicability` + `functionIds`; a change to
+    // either is a change worth telling the audience about.
+    expect(diffCatalog(snap(), snap({ applicability: "FUNCTION" }))).toEqual([
+      { field: "applicability", label: "Applies to", from: "All Employees", to: "Function" },
+    ]);
+    expect(diffCatalog(snap(), snap({ functionIds: ["d1"] }))).toEqual([
+      { field: "functionIds", label: "Functions", from: "None", to: "1 function" },
+    ]);
+    expect(diffCatalog(snap(), snap({ functionIds: ["d1"] }))).toHaveLength(1);
+    // `salesEligible` / `internsEligible` are legacy columns nothing edits any
+    // more — flipping one is not a change and must not produce a notice.
+    expect(diffCatalog(snap(), snap({ salesEligible: false }))).toEqual([]);
+    expect(diffCatalog(snap(), snap({ internsEligible: true }))).toEqual([]);
+  });
+
   it("does not treat a re-ordered list as a change", () => {
     expect(
       diffCatalog(snap({ eligibleEmployeeIds: ["a", "b"] }), snap({ eligibleEmployeeIds: ["b", "a"] })),
@@ -687,22 +881,39 @@ describe("the change log records what changed", () => {
 });
 
 describe("a snapshot survives the round trip through jsonb", () => {
-  it("reads the 0232 fields back", () => {
+  it("reads the 0232 and 0244 fields back", () => {
     const s = snap({
       incentiveType: "group_intro",
       productName: "PS",
       duration: "one_time",
       validUntil: "2026-12-31",
       eligibleEmployeeIds: ["a", "b"],
+      applicability: "FUNCTION",
+      functionIds: ["d1", "d2"],
     });
     expect(normalizeSnapshot(JSON.parse(JSON.stringify(s)))).toEqual(s);
   });
 
   it("keeps ABSENT distinct from an empty list", () => {
-    // `undefined` means "the group flags govern"; `[]` means "nobody". Reading
-    // one back as the other would silently change who is eligible.
+    // `undefined` means "the flags govern"; `[]` means "nobody". Reading one
+    // back as the other would silently change who is eligible.
     expect(normalizeSnapshot({ name: "x", amount: 1 })?.eligibleEmployeeIds).toBeUndefined();
     expect(normalizeSnapshot({ name: "x", amount: 1, eligibleEmployeeIds: [] })?.eligibleEmployeeIds).toEqual([]);
+  });
+
+  it("keeps an ABSENT applicability and function list absent, so a pre-0244 event still resolves", () => {
+    // A legacy event must not read back as a stored scope: `applicabilityOf`
+    // reconstructs the audience from the flags instead.
+    const legacy = normalizeSnapshot({ name: "x", amount: 1, salesEligible: true })!;
+    expect(legacy.applicability).toBeNull();
+    expect(legacy.functionIds).toBeUndefined();
+    const asIncentive = {
+      active: legacy.active,
+      validUntil: null,
+      applicability: legacy.applicability,
+      salesEligible: legacy.salesEligible,
+    };
+    expect(applicabilityOf(asIncentive, [])).toBe("ALL_EMPLOYEES");
   });
 
   it("survives garbage without throwing", () => {
@@ -748,6 +959,14 @@ describe("catalogSnapshot", () => {
     expect(catalogSnapshot(dbRow, { eligibleEmployeeIds: [] }).eligibleEmployeeIds).toEqual([]);
   });
 
+  it("records the scope the scheme was built with", () => {
+    const scoped = catalogSnapshot({ ...dbRow, applicability: "FUNCTION" }, { functionIds: ["d2", "d1"] });
+    expect(scoped.applicability).toBe("FUNCTION");
+    expect(scoped.functionIds).toEqual(["d1", "d2"]);
+    expect(catalogSnapshot(dbRow).applicability).toBeNull();
+    expect(catalogSnapshot(dbRow).functionIds).toBeUndefined();
+  });
+
   it("trims a Date or timestamp valid-until down to a calendar day", () => {
     expect(catalogSnapshot({ ...dbRow, validUntil: "2026-12-31T00:00:00.000Z" }).validUntil).toBe("2026-12-31");
     expect(catalogSnapshot({ ...dbRow, validUntil: null }).validUntil).toBeNull();
@@ -759,11 +978,12 @@ describe("catalogSnapshot", () => {
    ════════════════════════════════════════════════════════════════════════════ */
 
 describe("no module re-states the eligibility rule", () => {
-  it("the notification audience imports the group rule instead of repeating it", () => {
+  it("the notification audience imports the applicability rule instead of repeating it", () => {
     const el = codeOf("lib/incentive/notifications/eligibility.ts");
     expect(el).toMatch(/from "@\/lib\/incentive\/master"/);
-    // The intern test is `looksLikeInternDesignation`, and it must be reached
-    // through master.ts rather than imported again here.
+    // The per-person rule is `resolveIncentiveEligibility`, and the intern test
+    // is `isIntern`: both must be reached through master.ts, never restated here.
+    expect(el).toMatch(/resolveIncentiveEligibility/);
     expect(el).not.toMatch(/looksLikeInternDesignation/);
   });
 

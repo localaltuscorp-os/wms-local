@@ -481,6 +481,23 @@ export interface TaskListFilters {
    *                explicitly set. `doerIds` is `[]`.
    *  - "specific": `emp=<one-or-more-ids>` was explicitly set. */
   assigneeMode: "default" | "all" | "specific";
+  /**
+   * THE VISIBILITY CEILING — the ids whose tasks this request may read at all,
+   * applied IN ADDITION to every filter above (lib/tasks/scope.ts). Set by the
+   * query layer from the signed-in person's org position and their Access
+   * Control grants; OPTIONAL because a query with no session (a cron report, a
+   * seed) has no viewer to scope to.
+   *
+   * `undefined` = not scoped (system read) · `null` = organisation-wide (a
+   * master admin, a super admin, or an org-wide grant) · array = the ceiling.
+   *
+   * It is part of the cached key on purpose: two people asking for "all tasks"
+   * must not share a cache entry, or one would be served the other's rows.
+   */
+  visibleDoerIds?: string[] | null;
+  /** True when an explicit `?emp=` selection lies entirely outside the ceiling,
+   *  which must match nothing rather than fall back to the permitted set. */
+  assigneeOutsideScope?: boolean;
 }
 
 export interface TaskListRow {

@@ -72,8 +72,12 @@ async function main() {
     rows.every((r) => Number.isFinite(r.amount)),
   );
   ok(
-    "every row has a duration and an eligibility mode",
-    rows.every((r) => ["permanent", "one_time"].includes(r.duration) && ["named", "groups"].includes(r.eligibilityMode)),
+    "every row has a duration and an applicability mode",
+    rows.every(
+      (r) =>
+        ["permanent", "one_time"].includes(r.duration) &&
+        ["all", "functions", "selected"].includes(r.eligibilityMode),
+    ),
   );
   ok(
     "eligible counts are non-negative integers",
@@ -83,8 +87,13 @@ async function main() {
     "on-offer is exactly active AND not expired",
     rows.every((r) => r.onOffer === (r.active && !r.expired)),
   );
-  const groupMode = rows.filter((r) => r.eligibilityMode === "groups").length;
-  console.log(`  ${groupMode} of ${rows.length} still use group eligibility (unchanged by this feature)`);
+  // 0244 counts, by rule. These are the numbers to compare against the pre-flight
+  // queries in the migration: a scheme that reached somebody before must still
+  // reach them, and one that reached nobody must not have become company-wide.
+  for (const mode of ["all", "functions", "selected"] as const) {
+    const n = rows.filter((r) => r.eligibilityMode === mode).length;
+    console.log(`  ${n} of ${rows.length} use ${mode} applicability`);
+  }
 
   /* ── The real roster, and the Function filter ──────────────────────────── */
   console.log("\n== search + the Function filter, over the real roster ==");
@@ -319,18 +328,19 @@ async function main() {
       ok("the last eligible day is the day before the removal", windowCoversDate(aliceWindow, "2026-11-30"));
       ok("and the removal date itself is not eligible", !windowCoversDate(aliceWindow, REMOVAL));
 
-      // Named eligibility governs: the group flags are ignored once anyone is named.
+      // A selected-employee scheme governs by its named rows, whatever the
+      // legacy group flags say (0244 keeps those columns readable for exactly
+      // this reason: an old snapshot must still resolve).
       await tx
         .update(incentiveCatalog)
-        .set({ salesEligible: true, internsEligible: true })
+        .set({ applicability: "SELECTED_EMPLOYEES" })
         .where(eq(incentiveCatalog.id, probe.id));
       const [flagged] = await tx.select().from(incentiveCatalog).where(eq(incentiveCatalog.id, probe.id));
       const resolved = resolveEligibility({
         incentive: {
           active: true,
           validUntil: null,
-          salesEligible: true,
-          internsEligible: true,
+          applicability: "SELECTED_EMPLOYEES",
           },
         windows: await eligibilityWindowsFor(tx, probe.id),
         employees: audienceRows.map((a) => ({
@@ -338,36 +348,38 @@ async function main() {
           isActive: a.isActive,
           employmentStatus: a.employmentStatus,
           accountType: a.accountType,
-          designation: null,
+          employeeType: "employee",
+          functionId: null,
         })),
         // As of the REMOVAL date: the removed grant has ended, so exactly one
         // named person remains. Resolving as of the grant date instead would
         // correctly return both, which is a different question.
         today: REMOVAL,
       });
-      ok("named eligibility overrides both group flags", resolved.mode === "named");
+      ok("a selected-employee scheme resolves in selected mode", resolved.mode === "selected");
       ok(
         "so only the named, still-live employee is eligible — not the whole company",
         resolved.employeeIds.length === 1 && resolved.employeeIds[0] === bob!.id,
         `${resolved.employeeIds.length} of ${current.length} employees`,
       );
-      // And with both flags on, group mode WOULD have reached everybody — which
+      // And the same roster under ALL_EMPLOYEES WOULD reach everybody — which
       // is what the named list is protecting against.
       const ifGroups = resolveEligibility({
-        incentive: { active: true, validUntil: null, salesEligible: true, internsEligible: true },
+        incentive: { active: true, validUntil: null, applicability: "ALL_EMPLOYEES" },
         windows: [],
         employees: audienceRows.map((a) => ({
           id: a.id,
           isActive: a.isActive,
           employmentStatus: a.employmentStatus,
           accountType: a.accountType,
-          designation: null,
+          employeeType: "employee",
+          functionId: null,
         })),
         today: REMOVAL,
       });
       ok(
-        "the same flags in group mode would have reached the whole company",
-        ifGroups.employeeIds.length === current.length && ifGroups.mode === "groups",
+        "the same roster company-wide would have reached everybody",
+        ifGroups.employeeIds.length === current.length && ifGroups.mode === "all",
         `${ifGroups.employeeIds.length} employees`,
       );
       void flagged;

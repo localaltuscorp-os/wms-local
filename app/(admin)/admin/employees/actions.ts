@@ -7,12 +7,15 @@ import { db } from "@/lib/db";
 import {
   authSessions,
   departments,
+  designations,
   documentEvents,
   employeeDepartments,
   employeeEvents,
   employees,
+  functions,
   notifications,
   outstandingFollowups,
+  payingEntities,
   salaryProfiles,
   settingsEvents,
   taskEvents,
@@ -24,7 +27,9 @@ import { mergeScheduleForBulk } from "@/lib/employees/bulk-schedule-merge";
 // delegating each row to `editEmployee`, so there is one write path for a
 // manager change and not two that could disagree.
 import { recordManagerChange, wouldCreateCycle } from "@/lib/employees/manager-history";
+import { resolveEmployeeType } from "@/lib/employees/employee-type";
 import { requireAdmin } from "@/lib/auth/current";
+import { auditLog } from "@/lib/logs/audit";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import {
   InviteEmployeeSchema,
@@ -166,6 +171,24 @@ async function writeMemberships(
   }
 }
 
+/**
+ * The employee-type flag carried by a designation (0244), or null when there is
+ * no designation / it cannot be read.
+ *
+ * Returns null rather than 'employee' for a MISSING designation so the caller's
+ * fallback in `resolveEmployeeType` is the only place that default is written
+ * down — two defaults that disagree is how a rule starts drifting.
+ */
+async function designationTypeFor(designationId: string | null | undefined): Promise<string | null> {
+  if (!designationId) return null;
+  const [row] = await db
+    .select({ employeeType: designations.employeeType })
+    .from(designations)
+    .where(eq(designations.id, designationId))
+    .limit(1);
+  return row?.employeeType ?? null;
+}
+
 export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
   ok: boolean;
   id?: string;
@@ -195,6 +218,28 @@ export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
   });
   if (existing) {
     return { ok: false, error: "An employee with this email already exists." };
+  }
+
+  /* ── 0244 · EMPLOYEE TYPE, AND THE DATE THE TYPE DECIDES ────────────────
+     A new hire who is not an intern must carry a Probation End Date, exactly as
+     an edit requires; an intern must carry the start of their internship.
+
+     Checked HERE — before the Firebase account exists — so a refusal leaves
+     nothing behind to roll back. Doing it after the createUser call would mean
+     an invalid invite produced an orphaned login. */
+  const inviteType = resolveEmployeeType({
+    override: parsed.employeeType,
+    designationType: await designationTypeFor(parsed.designationId),
+  });
+  const inviteProbationEnd =
+    parsed.probationEnd == null || parsed.probationEnd === "" ? null : parsed.probationEnd;
+  const inviteInternshipStart =
+    parsed.internshipStart == null || parsed.internshipStart === "" ? null : parsed.internshipStart;
+  if (inviteType !== "intern" && inviteProbationEnd == null) {
+    return { ok: false, error: "Set the Probation End Date before saving this employee." };
+  }
+  if (inviteType === "intern" && inviteInternshipStart == null) {
+    return { ok: false, error: "Set the Internship Start Date for an intern." };
   }
 
   // 1. Create Firebase user with a fresh per-invite password (same value is
@@ -272,6 +317,12 @@ export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
       isAdmin:      parsed.isAdmin,
       firebaseUid:  fbUid,
       invitedAt:    new Date(),
+      designationId: parsed.designationId || null,
+      // NULL = follow the designation. Storing "employee" instead would freeze
+      // today's designation flag onto the person.
+      employeeType: parsed.employeeType || null,
+      probationEnd: inviteProbationEnd,
+      internshipStart: inviteInternshipStart,
     }).returning();
   } catch (err: unknown) {
     await auth.deleteUser(fbUid).catch(() => {});
@@ -486,6 +537,19 @@ export async function editEmployee(
   if (D.probationEnd !== undefined) {
     patch.probationEnd = D.probationEnd === null || D.probationEnd === "" ? null : D.probationEnd;
   }
+  /* ── 0244 · EMPLOYEE TYPE AND INTERNSHIP ────────────────────────────────
+     `internshipStart` is the only internship column the app ever writes — the
+     END date is a generated column in Postgres (start + 6 months), so no code
+     can set a pair that disagrees. `employeeType` empty means "follow the
+     designation", which is why "" normalises to NULL rather than to "employee":
+     writing "employee" would freeze today's designation flag onto the person and
+     stop a later designation change from reaching them. */
+  if (D.internshipStart !== undefined) {
+    patch.internshipStart = D.internshipStart === null || D.internshipStart === "" ? null : D.internshipStart;
+  }
+  if (D.employeeType !== undefined) {
+    patch.employeeType = D.employeeType === null || D.employeeType === "" ? null : D.employeeType;
+  }
   if (D.lastWorkingDay !== undefined) {
     patch.lastWorkingDay = D.lastWorkingDay === null || D.lastWorkingDay === "" ? null : D.lastWorkingDay;
   }
@@ -530,6 +594,37 @@ export async function editEmployee(
 
   if (Object.keys(patch).length === 0) {
     return { ok: false, error: "No changes to save." };
+  }
+
+  /* ── 0244 · PROBATION END DATE IS REQUIRED FOR A NON-INTERN ─────────────
+     Enforced HERE, and only here, because every path that changes an employee
+     already funnels through this function: the invite, the single edit, the
+     bulk edit (which fans out into this per row) and all three UI editors. One
+     place to keep right, one message to keep true.
+
+     WHY NOT A NOT NULL COLUMN: two unrelated features read NULL as a real
+     state — the leave cycle ("no anchor yet", so a full allowance) and the HR
+     confirmation cron ("not scheduled"). Adding NOT NULL would rewrite both.
+
+     WHY IT CAN BREAK A SPARSE PATCH ON PURPOSE: a legacy row with no date is
+     refused even when the edit only touched a phone number. That IS the
+     requirement ("block the next save until it is provided"), and the three
+     editors render the field as required so nobody meets this by surprise.
+
+     The check reads the EFFECTIVE type — the incoming override if this patch
+     sets one, else the stored override, else the designation's flag — so an
+     intern is exempt and a person whose designation is flagged intern can save
+     without one. */
+  const effectiveType = resolveEmployeeType({
+    override: patch.employeeType !== undefined ? patch.employeeType : emp.employeeType,
+    designationType: await designationTypeFor(patch.designationId !== undefined ? patch.designationId : emp.designationId),
+  });
+  const probationEndAfter = patch.probationEnd !== undefined ? patch.probationEnd : emp.probationEnd;
+  if (effectiveType !== "intern" && probationEndAfter == null) {
+    return {
+      ok: false,
+      error: "Set the Probation End Date before saving this employee.",
+    };
   }
 
   try {
@@ -601,9 +696,129 @@ export async function editEmployee(
     console.error("[editEmployee] audit write failed", err);
   }
 
+  // ── GLOBAL LOGS — field-level before/after, with friendly labels ─────────
+  // The employee_events row above is the domain audit (raw from/to); this is the
+  // human-readable copy in the global Logs feed. Names for the org-relation ids
+  // are resolved so the detail panel reads "Designation: Intern → Associate"
+  // rather than two uuids. Non-fatal: a log failure never rolls back the edit.
+  try {
+    const changedKeys = Object.keys(patch).filter(
+      (k) => (patch as Record<string, unknown>)[k] !== (emp as Record<string, unknown>)[k],
+    );
+    if (changedKeys.length > 0) {
+      const changes = await resolveEmployeeChanges(changedKeys, emp, patch);
+      await auditLog({
+        eventType: "UPDATE",
+        employeeId: me.id,
+        route: "/admin/employees",
+        module: "Admin Panel",
+        page: "Employees",
+        resourceType: "employee",
+        resourceId: emp.id,
+        resourceName: emp.name,
+        action: "edit",
+        status: "SUCCESS",
+        changes,
+        sessionCounters: { actions: 1 },
+      });
+    }
+  } catch (err) {
+    console.error("[editEmployee] global-log write failed", err);
+  }
+
   revalidatePath("/admin/employees");
   updateTag(CACHE_TAGS.employees);
   return { ok: true };
+}
+
+/**
+ * Turn a set of changed employee columns into human-readable
+ * `[{ field, before, after }]` for the global Logs feed. The org-relation ids
+ * (designation, function, entity, manager) are resolved to names; everything
+ * else uses a friendly label with its raw value.
+ */
+async function resolveEmployeeChanges(
+  keys: string[],
+  emp: typeof employees.$inferSelect,
+  patch: Partial<typeof employees.$inferInsert>,
+): Promise<{ field: string; before: unknown; after: unknown }[]> {
+  const LABELS: Record<string, string> = {
+    name: "Name",
+    employeeCode: "Employee Code",
+    role: "Role",
+    isAdmin: "Admin",
+    phone: "Phone",
+    department: "Function",
+    departmentId: "Function",
+    designationId: "Designation",
+    payingEntityId: "Entity",
+    managerId: "Manager",
+    probationEnd: "Probation End",
+    internshipStart: "Internship Start",
+    employeeType: "Employee Type",
+    shiftTypeId: "Shift Type",
+    weeklyOff: "Weekly Off",
+    attendanceApplicable: "Attendance Applicable",
+    dailyTaskQuota: "Daily Task Quota",
+    worksOutsideOffice: "Works Outside Office",
+    email: "Email",
+  };
+
+  // Resolve the ids worth naming, in one pass, only for keys that changed.
+  const resolveName = async (
+    key: string,
+    id: string | null | undefined,
+  ): Promise<string | null> => {
+    if (!id) return null;
+    try {
+      if (key === "designationId") {
+        const r = await db.query.designations.findFirst({
+          where: eq(designations.id, id),
+          columns: { name: true },
+        });
+        return r?.name ?? null;
+      }
+      if (key === "departmentId" || key === "department") {
+        const r = await db.query.functions.findFirst({
+          where: eq(functions.id, id),
+          columns: { name: true },
+        });
+        return r?.name ?? null;
+      }
+      if (key === "payingEntityId") {
+        const r = await db.query.payingEntities.findFirst({
+          where: eq(payingEntities.id, id),
+          columns: { name: true },
+        });
+        return r?.name ?? null;
+      }
+      if (key === "managerId") {
+        const r = await db.query.employees.findFirst({
+          where: eq(employees.id, id),
+          columns: { name: true },
+        });
+        return r?.name ?? null;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  const changes: { field: string; before: unknown; after: unknown }[] = [];
+  for (const key of keys) {
+    const before = (emp as Record<string, unknown>)[key] ?? null;
+    const after = (patch as Record<string, unknown>)[key] ?? null;
+    const field = LABELS[key] ?? key;
+    const beforeNamed = await resolveName(key, before as string | null | undefined);
+    const afterNamed = await resolveName(key, after as string | null | undefined);
+    changes.push({
+      field,
+      before: beforeNamed ?? before,
+      after: afterNamed ?? after,
+    });
+  }
+  return changes;
 }
 
 /**
@@ -1372,6 +1587,11 @@ export async function bulkEditEmployees(
     "trainPass",
     "joinedAt",
     "probationEnd",
+    // 0244 — internship start (the end is generated) and the employee-type
+    // override. Listed for the reason above: a patch that only set one of these
+    // would otherwise be dropped without a write.
+    "internshipStart",
+    "employeeType",
     "lastWorkingDay",
   ] as const;
   const scheduleKeys = [

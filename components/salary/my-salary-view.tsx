@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Wallet,
   CheckCircle2,
@@ -10,6 +11,7 @@ import {
   Receipt,
   Plus,
   Minus,
+  ArrowRight,
 } from "lucide-react";
 import { MonthCalendar, type MonthCell } from "@/components/attendance/month-calendar";
 import { DailySalaryReport } from "@/components/salary/daily-salary-report";
@@ -225,6 +227,19 @@ export function MySalaryView({
             </div>
           )}
         </div>
+
+        {/* ── SALARY STATEMENT ───────────────────────────────────────────────
+            The full three-part statement (slip · attendance calculation ·
+            incentives) as its own page, because that is where it can be
+            BROWSED — one week at a time, one incentive at a time. The PDF is the
+            fixed three-page document of the same month, and both read the same
+            server data, so the two always agree. */}
+        <Link
+          href={`/my-salary/statement${m.month ? `?month=${m.month}` : ""}${employeeId ? `&emp=${employeeId}` : ""}`}
+          className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-altus-red hover:underline"
+        >
+          Salary Statement <ArrowRight size={13} strokeWidth={2.6} />
+        </Link>
 
         <div className="mt-1.5 tabular-nums leading-none text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(26px, 3.4vw, 38px)" }}>
           {inr(m.finalPayment)}

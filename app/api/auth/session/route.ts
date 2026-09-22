@@ -11,6 +11,8 @@ import {
   DEVICE_COOKIE_MAX_AGE_SECONDS,
 } from "@/lib/security/device-access";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
+import { auditLog } from "@/lib/logs/audit";
+import { ensureDailySession } from "@/lib/logs/sessions";
 
 export const runtime = "nodejs";
 
@@ -61,6 +63,17 @@ export async function POST(req: Request) {
   if (!emp || !isLoginLive(emp)) {
     // A candidate guest-account mints a cookie only while candidate_active; a
     // deactivated candidate (or inactive employee) is refused here.
+    void auditLog({
+      eventType: "LOGIN_FAILED",
+      route: "/login",
+      module: "Platform",
+      page: "Login",
+      resourceType: "email",
+      resourceName: email,
+      status: "FAILED",
+      reason: "not-enrolled",
+      actorType: "system",
+    }).catch(() => {});
     return NextResponse.json({ error: "not-enrolled" }, { status: 403 });
   }
 
@@ -186,6 +199,25 @@ export async function POST(req: Request) {
         `${DEVICE_COOKIE}=${deviceCookieId}; Path=/; Max-Age=${DEVICE_COOKIE_MAX_AGE_SECONDS}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`,
       );
     }
+
+    // Record the login and open (or re-open) today's daily activity session.
+    // Fire-and-forget: the audit trail must never block the sign-in it records.
+    void (async () => {
+      try {
+        await auditLog({
+          eventType: "LOGIN",
+          employeeId: emp.id,
+          route: "/login",
+          module: "Platform",
+          page: "Login",
+          status: "SUCCESS",
+        });
+        await ensureDailySession(emp.id);
+      } catch (err) {
+        console.warn("[logs] login audit failed (non-fatal):", err);
+      }
+    })();
+
     return res;
   } catch (err) {
     console.error("setAuthCookies failed", err);

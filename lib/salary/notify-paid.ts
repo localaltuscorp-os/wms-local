@@ -2,8 +2,8 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, salaryBreakup } from "@/db/schema";
-import { getCombinedEarnings } from "./combined-earnings";
-import { renderCombinedEarningsPdf } from "./combined-earnings-pdf";
+import { loadSalarySlipData } from "./salary-slip-data";
+import { renderSalarySlipPdf } from "./salary-slip-pdf";
 import { sendMonthlySlipsEmail } from "@/lib/email/report-emails";
 import { employeeEmailTargets } from "@/lib/email/recipients";
 
@@ -17,8 +17,8 @@ import { employeeEmailTargets } from "@/lib/email/recipients";
  * is DEFAULT OFF (`MONTHLY_SLIPS_EMAIL_ON`), so on today's config nothing is
  * sent at all.
  *
- * It deliberately REUSES that cron's exact pipeline — `getCombinedEarnings` →
- * `renderCombinedEarningsPdf` → `sendMonthlySlipsEmail` — so the slip a person
+ * It deliberately REUSES that cron's exact pipeline — `loadSalarySlipData` →
+ * `renderSalarySlipPdf` → `sendMonthlySlipsEmail` — so the slip a person
  * gets on payment is byte-for-byte the one they would get on the 12th. A second
  * renderer here would drift from it within a month.
  *
@@ -119,13 +119,13 @@ export async function mailPayslipOnPaid(breakupId: string): Promise<void> {
 
     // `month` is a DATE column; the earnings query keys on "YYYY-MM".
     const month = String(row.month).slice(0, 7);
-    const data = await getCombinedEarnings(row.employeeId, month, row.name ?? undefined);
-    const pdf = await renderCombinedEarningsPdf(data, { generatedBy: "Altus Corp" });
-    const filename = `Altus-EarningsSlip-${(data.employeeName || row.name || "employee").replace(/\s+/g, "")}-${month}.pdf`;
+    const data = await loadSalarySlipData(row.employeeId, month);
+    const pdf = await renderSalarySlipPdf(data, { generatedBy: "Altus Corp" });
+    const filename = `Altus-SalarySlip-${(data.identity.name || row.name || "employee").replace(/\s+/g, "")}-${month}.pdf`;
 
     const res = await sendMonthlySlipsEmail({
       recipient: { email: to, name: row.name ?? "" },
-      monthLabel: data.monthLabel,
+      monthLabel: data.identity.monthLabel,
       totalEarnings: data.totalEarnings,
       pdf,
       filename,

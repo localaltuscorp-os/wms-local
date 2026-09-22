@@ -80,6 +80,10 @@ describe("inviteEmployee (credentials flow)", () => {
       departmentIds: [],
       primaryDepartmentId: null,
       isAdmin: false,
+      // REQUIRED since 0244 for anybody who is not an intern — the record
+      // cannot be created without it, so the test supplies it exactly as the
+      // invite dialog does.
+      probationEnd: "2026-12-01",
     });
     expect(res.ok).toBe(true);
     // A fresh, strong, per-invite password is minted (no shared default).

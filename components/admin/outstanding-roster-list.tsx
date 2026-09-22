@@ -17,6 +17,11 @@ import type {
   CreateRosterInput,
   UpdateRosterInput,
 } from "@/lib/outstanding/roster-actions";
+import {
+  EMPLOYEE_KIND_OPTIONS,
+  EMPLOYEE_TYPE_LABELS,
+  type EmployeeTypeCode,
+} from "@/lib/employees/employee-type";
 
 export interface RosterItem {
   id: string;
@@ -24,6 +29,8 @@ export interface RosterItem {
   isActive: boolean;
   sortOrder: number;
   usageCount: number;
+  /** Designations only (see `showEmployeeType` below). */
+  employeeType?: EmployeeTypeCode;
 }
 
 type CreateAction = (
@@ -41,6 +48,17 @@ interface Props {
   updateAction: UpdateAction;
   /** Singular noun for the usage column, e.g. "contracts". */
   usageLabel: string;
+  /**
+   * EMPLOYEE-TYPE OPT-IN (Employee / Intern). When false — which is every
+   * roster except Designations — no Type column and no Type control in either
+   * dialog are rendered, and the create payload never carries the field, so
+   * those screens are exactly as they were. Only Designations passes this, and
+   * only because its table has an `employee_type` column (migration 0244); the
+   * matching write-side opt-in is `writesEmployeeType` in
+   * lib/outstanding/roster-actions.ts, which ignores the field for every other
+   * table even if a caller did send it.
+   */
+  showEmployeeType?: boolean;
 }
 
 /**
@@ -60,6 +78,7 @@ export function OutstandingRosterList({
   createAction,
   updateAction,
   usageLabel,
+  showEmployeeType = false,
 }: Props) {
   const router = useRouter();
   const [editing, setEditing] = useState<RosterItem | null>(null);
@@ -72,6 +91,7 @@ export function OutstandingRosterList({
         <CreateRosterDialog
           title={title}
           createAction={createAction}
+          showEmployeeType={showEmployeeType}
           onDone={() => router.refresh()}
         />
       </div>
@@ -101,6 +121,22 @@ export function OutstandingRosterList({
               <span className="font-medium text-ink-strong">{r.name}</span>
             ),
           },
+          // Opt-in: the Type column exists only for rosters that carry an
+          // employee_type (Designations — see the `showEmployeeType` prop).
+          // Every other caller leaves it false, so their columns are unchanged.
+          ...(showEmployeeType
+            ? [
+                {
+                  key: "employeeType",
+                  label: "Type",
+                  className: "w-32",
+                  sortValue: (r: RosterItem) => r.employeeType ?? "employee",
+                  render: (r: RosterItem) => (
+                    <EmployeeTypeBadge type={r.employeeType} />
+                  ),
+                },
+              ]
+            : []),
           {
             key: "sortOrder",
             label: "Sort",
@@ -164,6 +200,7 @@ export function OutstandingRosterList({
         noun={noun}
         item={editing}
         updateAction={updateAction}
+        showEmployeeType={showEmployeeType}
         onClose={() => setEditing(null)}
         onDone={() => router.refresh()}
       />
@@ -190,6 +227,35 @@ function StatusBadge({ active }: { active: boolean }) {
     >
       <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-ink-subtle)" }} />
       Inactive
+    </span>
+  );
+}
+
+/**
+ * DESIGNATION TYPE tag (opt-in — Designations only). Built from the same
+ * rounded-pill + tone-token recipe as <StatusBadge> above, no new colours:
+ * "Intern" is a calm, distinct blue, and the default is a quiet neutral
+ * "Employee" so the baseline reads as the absence of a state rather than a
+ * second status.
+ */
+function EmployeeTypeBadge({ type }: { type?: string }) {
+  if (type === "intern") {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-semibold"
+        style={{ background: "var(--color-blue-bg)", color: "var(--color-blue-deep)" }}
+      >
+        <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-blue)" }} />
+        {EMPLOYEE_TYPE_LABELS.intern}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-semibold"
+      style={{ background: "rgba(15, 23, 42, 0.05)", color: "var(--color-ink-subtle)" }}
+    >
+      {EMPLOYEE_TYPE_LABELS.employee}
     </span>
   );
 }
@@ -257,22 +323,26 @@ function RosterRowActions({
 function CreateRosterDialog({
   title,
   createAction,
+  showEmployeeType,
   onDone,
 }: {
   title: string;
   createAction: CreateAction;
+  showEmployeeType?: boolean;
   onDone: () => void;
 }) {
   const noun = title.replace(/s$/, "").toLowerCase();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [sortOrder, setSortOrder] = useState<number>(100);
+  const [employeeType, setEmployeeType] = useState<EmployeeTypeCode>("employee");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function reset() {
     setName("");
     setSortOrder(100);
+    setEmployeeType("employee");
     setError(null);
   }
 
@@ -280,7 +350,13 @@ function CreateRosterDialog({
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const res = await createAction({ name: name.trim(), sortOrder });
+      const res = await createAction({
+        name: name.trim(),
+        sortOrder,
+        // Opt-in: only sent when the roster stores it, so the other rosters'
+        // payloads stay byte-for-byte what they were.
+        ...(showEmployeeType ? { employeeType } : {}),
+      });
       if (!res.ok) {
         setError(res.error ?? "Something went wrong");
         return;
@@ -331,6 +407,9 @@ function CreateRosterDialog({
                 className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
               />
             </RosterField>
+            {showEmployeeType && (
+              <EmployeeTypeField value={employeeType} onChange={setEmployeeType} />
+            )}
             <RosterField
               label="Sort Order"
               hint="Lower numbers appear first in the picker when names tie. Default 100."
@@ -382,35 +461,49 @@ function EditRosterDialog({
   noun,
   item,
   updateAction,
+  showEmployeeType,
   onClose,
   onDone,
 }: {
   noun: string;
   item: RosterItem | null;
   updateAction: UpdateAction;
+  showEmployeeType?: boolean;
   onClose: () => void;
   onDone: () => void;
 }) {
   const [name, setName] = useState(item?.name ?? "");
   const [sortOrder, setSortOrder] = useState<number>(item?.sortOrder ?? 100);
+  const [employeeType, setEmployeeType] = useState<EmployeeTypeCode>(
+    item?.employeeType ?? "employee",
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     setName(item?.name ?? "");
     setSortOrder(item?.sortOrder ?? 100);
+    setEmployeeType(item?.employeeType ?? "employee");
     setError(null);
-  }, [item?.id, item?.name, item?.sortOrder]);
+  }, [item?.id, item?.name, item?.sortOrder, item?.employeeType]);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!item) return;
     setError(null);
 
-    const patch: { name?: string; sortOrder?: number } = {};
+    const patch: {
+      name?: string;
+      sortOrder?: number;
+      employeeType?: EmployeeTypeCode;
+    } = {};
     const trimmedName = name.trim();
     if (trimmedName !== item.name) patch.name = trimmedName;
     if (sortOrder !== item.sortOrder) patch.sortOrder = sortOrder;
+    // Opt-in: only the roster that owns the flag sends it.
+    if (showEmployeeType && employeeType !== (item.employeeType ?? "employee")) {
+      patch.employeeType = employeeType;
+    }
 
     if (Object.keys(patch).length === 0) {
       setError("No changes to save.");
@@ -450,6 +543,9 @@ function EditRosterDialog({
                 className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
               />
             </RosterField>
+            {showEmployeeType && (
+              <EmployeeTypeField value={employeeType} onChange={setEmployeeType} />
+            )}
             <RosterField label="Sort Order">
               <input
                 type="number"
@@ -491,6 +587,39 @@ function EditRosterDialog({
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+/**
+ * The Employee / Intern picker (opt-in — Designations only), shared by both
+ * dialogs. `employee` is the column default, so leaving it alone writes nothing
+ * new. Options and labels come from lib/employees/employee-type.ts, the same
+ * module the eligibility rule reads.
+ */
+function EmployeeTypeField({
+  value,
+  onChange,
+}: {
+  value: EmployeeTypeCode;
+  onChange: (v: EmployeeTypeCode) => void;
+}) {
+  return (
+    <RosterField
+      label="Type"
+      hint="Interns cannot earn incentives. This applies to everybody holding this designation."
+    >
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as EmployeeTypeCode)}
+        className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
+      >
+        {EMPLOYEE_KIND_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </RosterField>
   );
 }
 
