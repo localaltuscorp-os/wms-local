@@ -30,7 +30,6 @@ import { IdleTimerClient } from "@/components/auth/idle-timer-client";
 import { workspaceForPath, canAccessWorkspace } from "@/lib/workspaces";
 import { managerDailyTaskGate, isManagerWithReports } from "@/lib/manager-gates";
 import { ManagerDailyTaskGate } from "@/components/manager-gates/manager-daily-task-gate";
-import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
 import { BroadcastPopup } from "@/components/ecos/broadcast-popup";
 import { pendingLockBroadcastForEmployee } from "@/lib/ecos/queries";
 import { BroadcastLockGate } from "@/components/communications/broadcast-lock-gate";
@@ -259,7 +258,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           screen anyway. Skipped alongside the rest of auth so the bypass is
           complete. See lib/auth/dev-bypass.ts. */}
       {devAuthBypassEnabled() ? null : <IdleTimerClient timeoutMinutes={15} />}
-      <OnboardingNudge />
+      {/* The "Please complete your Onboarding Form" nudge was mounted here and
+          was REMOVED on the account holder's instruction (2026-09-22): it
+          floated over every page in the app. The component still exists at
+          components/onboarding/onboarding-nudge.tsx — mount it here again to
+          bring it back. The onboarding form itself is untouched, and the Portal
+          and HR record still prompt for it where they always did. */}
       {/* Broadcasts (0215) — a published broadcast flashes as a centre-screen
           popup within ~5s of being sent, on whatever page the recipient is on.
           Mounted here, AFTER the gate chain's early returns, so it can never
