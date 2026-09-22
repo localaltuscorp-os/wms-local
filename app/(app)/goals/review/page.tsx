@@ -1,10 +1,7 @@
 import { DashboardHeader } from "@/components/layout/header";
 import { PageShell } from "@/components/layout/page-shell";
 import { ReviewWorkbench } from "@/components/goals/review/review-workbench";
-import { DailyScoreCard } from "@/components/goals/review/daily-score-card";
-import { getDailyScore, type DailyScore } from "@/lib/queries/daily-score";
 import { ReviewControls } from "@/components/goals/review/review-controls";
-import { fyLabel } from "@/components/goals/cascade/util";
 import { loadReviewData } from "./review-data";
 
 export const dynamic = "force-dynamic";
@@ -24,16 +21,28 @@ export default async function GoalsReviewPage({
 }) {
   const sp = await searchParams;
   const data = await loadReviewData({ emp: sp.emp, fy: sp.fy });
-  // Scored for the person being REVIEWED, so a manager viewing someone else's
-  // board sees that person's day, not their own.
-  let score: DailyScore | null = null;
-  try {
-    score = await getDailyScore(data.viewedEmployeeId ?? data.myEmployeeId);
-  } catch {
-    score = null;
-  }
 
-  const isSelf = data.viewedEmployeeId === data.myEmployeeId;
+  return (
+    <>
+      <DashboardHeader generatedAt={new Date()} />
+      <PageShell width="full">
+        <ReviewWorkbench
+          data={data}
+          headerControls={
+            <ReviewControls
+              roster={data.roster}
+              viewedEmployeeId={data.viewedEmployeeId}
+              viewedName={data.viewedName}
+              myEmployeeId={data.myEmployeeId}
+              fyStartYear={data.fyStartYear}
+            />
+          }
+        />
+      </PageShell>
+    </>
+  );
+
+  /*
 
   return (
     <>
@@ -65,10 +74,10 @@ export default async function GoalsReviewPage({
         {/* Sir's DAILY SCORE — planned-vs-closed, the fresh/carried split, and
             the average gap between a task's original due date and when it was
             actually finished. Best-effort: the workbench must still render if
-            the score query fails. */}
+            the score query fails. * /}
         {score && <DailyScoreCard score={score} />}
         <ReviewWorkbench data={data} />
       </PageShell>
     </>
-  );
+  ); */
 }

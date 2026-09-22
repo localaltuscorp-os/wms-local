@@ -1,15 +1,41 @@
 import { DashboardHeader } from "@/components/layout/header";
 import { PageShell } from "@/components/layout/page-shell";
-import {
-  PageCommandBar,
-  COMMAND_PAGE_CLASS,
-} from "@/components/layout/page-command-bar";
+import { COMMAND_PAGE_CLASS } from "@/components/layout/page-command-bar";
 import { requireGoalsAccess } from "@/lib/goals/access";
-import { loadApproveBoard } from "@/components/goals/approve/data";
+import { loadApproveBoard, loadApprovePreviewBoard } from "@/components/goals/approve/data";
 import { currentWeekStart, prevWeekStart, formatWeekLabel } from "@/lib/weekly-goals/week";
 import { ApproveWorkbench } from "@/components/goals/approve/approve-workbench";
+import type { ApproveGoal, ApproveMember } from "@/components/goals/approve/types";
 
 export const dynamic = "force-dynamic";
+
+function previewGoal(id: string, employeeId: string, weekStart: string, subject: string, pctDone: number, approved = false): ApproveGoal {
+  return {
+    id, employeeId, weekStart, subject, pctDone, approved,
+    position: 0, client: null, area: "Operations", uom: null, targetDone: null,
+    notes: null, status: pctDone === 100 ? "done" : "initiated", acceptPct: approved ? pctDone : null,
+    reviewNotes: approved ? "Progress verified." : null, targetQty: null, actualQty: null,
+    targetAmount: null, actualAmount: null, teamDependencyPct: null, evidenceUrl: null,
+    linkUrl: null, committed: true,
+  };
+}
+
+/** Local-preview-only sample, never enabled in production or when real reports exist. */
+function previewMembers(weekStart: string, lastWeek: string): ApproveMember[] {
+  const employeeId = "00000000-0000-4000-8000-000000000101";
+  return [{
+    id: employeeId,
+    name: "Preview Team Member",
+    lastWeek: [
+      previewGoal("00000000-0000-4000-8000-000000000201", employeeId, lastWeek, "Close pending client follow-ups", 80),
+      previewGoal("00000000-0000-4000-8000-000000000202", employeeId, lastWeek, "Publish weekly operations report", 100, true),
+    ],
+    thisWeek: [
+      previewGoal("00000000-0000-4000-8000-000000000203", employeeId, weekStart, "Prepare the team delivery plan", 0),
+      previewGoal("00000000-0000-4000-8000-000000000204", employeeId, weekStart, "Resolve priority customer requests", 0),
+    ],
+  }];
+}
 
 /**
  * Monday manager-approval surface (Module 3, design §6 / §11b(B)).
@@ -32,17 +58,16 @@ export default async function GoalsApprovePage() {
   const weekStart = currentWeekStart();
   const lastWeek = prevWeekStart(weekStart);
 
-  const { members, monday } = await loadApproveBoard(me.id, weekStart, lastWeek);
+  const { members: liveMembers, monday } = await loadApproveBoard(me.id, weekStart, lastWeek);
+  const members =
+    liveMembers.length === 0 && process.env.NODE_ENV !== "production" && process.env.DISABLE_AUTH === "true"
+      ? await loadApprovePreviewBoard(weekStart, lastWeek)
+      : liveMembers;
 
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
       <PageShell width="full" py={false} className={COMMAND_PAGE_CLASS}>
-        <PageCommandBar
-          title="Approve your team's week"
-          hint="Sign off last week's progress and this week's goals for each of your reports."
-        />
-
         <ApproveWorkbench
           members={members}
           weekStart={weekStart}

@@ -98,3 +98,52 @@ export async function loadApproveBoard(
     return { members: [], monday };
   }
 }
+
+/**
+ * Local UI-preview fallback only. Unlike `loadApproveBoard`, this deliberately
+ * samples existing active employees so a developer without a downline can see
+ * the real Approve layout. The route caller guards it behind DISABLE_AUTH in a
+ * non-production process; it is never part of the manager's normal board.
+ */
+export async function loadApprovePreviewBoard(
+  weekStart: string,
+  lastWeek: string,
+): Promise<ApproveMember[]> {
+  try {
+    const people = await db
+      .select({ id: employees.id, name: employees.name })
+      .from(employees)
+      .where(eq(employees.isActive, true))
+      .orderBy(asc(employees.name))
+      .limit(6);
+    if (people.length === 0) return [];
+
+    const ids = people.map((person) => person.id);
+    const rows = await db
+      .select()
+      .from(weeklyGoals)
+      .where(
+        and(
+          inArray(weeklyGoals.employeeId, ids),
+          inArray(weeklyGoals.weekStart, [lastWeek, weekStart]),
+          eq(weeklyGoals.archived, false),
+          eq(weeklyGoals.adopted, true),
+        ),
+      )
+      .orderBy(asc(weeklyGoals.position));
+
+    const byEmployee = new Map<string, { lastWeek: ApproveGoal[]; thisWeek: ApproveGoal[] }>();
+    for (const row of rows) {
+      const bucket = byEmployee.get(row.employeeId) ?? { lastWeek: [], thisWeek: [] };
+      (row.weekStart === weekStart ? bucket.thisWeek : bucket.lastWeek).push(toApproveGoal(row));
+      byEmployee.set(row.employeeId, bucket);
+    }
+
+    return people.map((person) => {
+      const goals = byEmployee.get(person.id) ?? { lastWeek: [], thisWeek: [] };
+      return { id: person.id, name: person.name, ...goals };
+    });
+  } catch {
+    return [];
+  }
+}

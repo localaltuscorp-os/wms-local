@@ -29,6 +29,12 @@ import {
   ArrowRight,
   NotebookPen,
   Loader2,
+  Search,
+  X,
+  Maximize2,
+  Minimize2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import type { ReviewData, ReviewItem, ReviewLevel } from "@/app/(app)/goals/review/review-data";
 import { submitReview } from "@/app/(app)/goals/review/actions";
@@ -714,26 +720,24 @@ function SummaryStrip({ level, items }: { level: ReviewLevel; items: ReviewItem[
   if (total === 0) return null;
   return (
     <div
-      className="wg-rise flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl px-4 py-2.5"
+      className="wg-rise flex flex-wrap items-center gap-2 rounded-lg border border-hairline bg-surface-soft px-3 py-2"
       style={{
-        background: "color-mix(in srgb, var(--color-surface-card) 70%, transparent)",
-        border: "1px solid var(--color-hairline)",
-        backdropFilter: "blur(6px)",
+        background: "var(--color-surface-soft)",
       }}
     >
-      <div className="flex items-center gap-2.5">
-        <ScoreRing pct={avg} size={46} stroke={5} />
+      <div className="flex items-center gap-1.5 rounded-md border border-hairline bg-surface-card px-2 py-1">
+        <ScoreRing pct={avg} size={32} stroke={4} />
         <div className="leading-tight">
-          <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-ink-subtle)" }}>
-            Avg score
+          <p className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-ink-subtle)" }}>
+            Avg
           </p>
-          <p className="text-[12px] font-medium capitalize" style={{ color: tone.color }}>
+          <p className="text-[10px] font-medium capitalize" style={{ color: tone.color }}>
             {tone.band} band
           </p>
         </div>
       </div>
-      <span aria-hidden className="hidden h-7 w-px sm:block" style={{ background: "var(--color-hairline-strong)" }} />
-      <p className="text-[13px] tabular-nums" style={{ color: "var(--color-ink-soft)" }}>
+      <span aria-hidden className="hidden h-6 w-px sm:block" style={{ background: "var(--color-hairline-strong)" }} />
+      <p className="rounded-md border border-hairline bg-surface-card px-2.5 py-1 text-[12px] tabular-nums" style={{ color: "var(--color-ink-soft)" }}>
         <strong style={{ color: "var(--color-green-deep)", fontFamily: "var(--font-display, system-ui)" }}>{nReviewed}</strong> {reviewedWord}
         <span className="mx-1.5" style={{ color: "var(--color-ink-subtle)" }}>·</span>
         <strong style={{ color: "var(--color-altus-red-deep)", fontFamily: "var(--font-display, system-ui)" }}>{nPending}</strong> pending
@@ -749,12 +753,14 @@ function SummaryStrip({ level, items }: { level: ReviewLevel; items: ReviewItem[
 /* Empty state                                                          */
 /* ------------------------------------------------------------------ */
 
-function EmptyLevel({ level, counts, onSwitch }: {
+function EmptyLevel({ level, counts, onSwitch, fyStartYear }: {
   level: ReviewLevel;
   counts: Record<ReviewLevel, number>;
   onSwitch: (l: ReviewLevel) => void;
+  fyStartYear: number;
 }) {
   const alt = LEVELS.find((l) => l.key !== level && counts[l.key] > 0);
+  const entireYearEmpty = Object.values(counts).every((count) => count === 0);
   return (
     <div
       className="wg-rise flex flex-col items-center gap-3 rounded-2xl px-6 py-12 text-center"
@@ -773,7 +779,9 @@ function EmptyLevel({ level, counts, onSwitch }: {
         <Inbox className="h-5 w-5" style={{ color: "var(--color-altus-red)" }} />
       </span>
       <p className="text-[14px] font-semibold" style={{ color: "var(--color-ink-strong)", fontFamily: "var(--font-display, system-ui)" }}>
-        No {level} goals to review yet.
+        {entireYearEmpty
+          ? `No goals to review in FY ${fyStartYear}–${String((fyStartYear + 1) % 100).padStart(2, "0")} yet.`
+          : `No ${level} goals to review yet.`}
       </p>
       {alt ? (
         <button
@@ -797,19 +805,172 @@ function EmptyLevel({ level, counts, onSwitch }: {
   );
 }
 
+type ReviewOverviewFilter = "all" | "selfComplete" | "pending" | "awaitingApproval" | "reviewed" | "inProgress" | "notStarted";
+
+function ReviewOverview({
+  data,
+  activeFilter,
+  onFilterChange,
+}: {
+  data: ReviewData;
+  activeFilter: ReviewOverviewFilter;
+  onFilterChange: (filter: ReviewOverviewFilter) => void;
+}) {
+  const items = Object.values(data.levels).flat();
+  const reviewed = items.filter((item) => item.approvable && item.acceptPct != null).length;
+  const awaitingApproval = items.filter((item) => item.approvable && item.acceptPct == null && item.pctDone > 0).length;
+  const selfComplete = items.filter((item) => item.pctDone >= 100).length;
+  const pending = items.length - selfComplete;
+  const inProgress = items.filter((item) => item.pctDone > 0 && item.pctDone < 100).length;
+  const notStarted = items.filter((item) => item.pctDone === 0).length;
+  const metrics = [
+    { key: "all", label: "Total", value: items.length, tone: "#1d4ed8" },
+    { key: "selfComplete", label: "Self complete", value: selfComplete, tone: "#16a34a" },
+    { key: "pending", label: "Pending", value: pending, tone: "#dc2626" },
+    { key: "awaitingApproval", label: "Awaiting approval", value: awaitingApproval, tone: "#d97706" },
+    { key: "reviewed", label: "Reviewed", value: reviewed, tone: "#7c3aed" },
+    { key: "inProgress", label: "In progress", value: inProgress, tone: "#0891b2" },
+    { key: "notStarted", label: "Not started", value: notStarted, tone: "#94a3b8" },
+  ];
+
+  return (
+    <section aria-label="Review overview" className="flex shrink-0 flex-nowrap items-center gap-2">
+      {metrics.map((metric) => (
+        <button
+          key={metric.key}
+          type="button"
+          aria-pressed={activeFilter === metric.key}
+          onClick={() => onFilterChange(metric.key === "all" || activeFilter === metric.key ? "all" : metric.key)}
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-hairline bg-surface-card px-3 text-[13px] transition-colors hover:bg-surface-soft"
+          style={activeFilter === metric.key ? { borderColor: metric.tone, boxShadow: `0 0 0 2px color-mix(in srgb, ${metric.tone} 18%, transparent)` } : undefined}
+        >
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: metric.tone }} aria-hidden />
+          <strong className="tabular-nums text-ink-strong">{metric.value}</strong>
+          <span className="font-semibold text-ink-soft">{metric.label}</span>
+        </button>
+      ))}
+    </section>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* The workbench                                                        */
 /* ------------------------------------------------------------------ */
 
-export function ReviewWorkbench({ data }: { data: ReviewData }) {
+export function ReviewWorkbench({
+  data,
+  headerControls,
+}: {
+  data: ReviewData;
+  headerControls?: React.ReactNode;
+}) {
   const [level, setLevel] = React.useState<ReviewLevel>(() =>
     firstNonEmptyLevelOr("monthly", data.counts),
   );
+  const [fullscreen, setFullscreen] = React.useState(false);
   const items = data.levels[level];
+  const [search, setSearch] = React.useState("");
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const [overviewFilter, setOverviewFilter] = React.useState<ReviewOverviewFilter>("all");
+  const [pageSize, setPageSize] = React.useState(20);
+  const [page, setPage] = React.useState(1);
+  const visibleItems = React.useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    const matchesOverview = (item: ReviewItem) => {
+      if (overviewFilter === "all") return true;
+      if (overviewFilter === "selfComplete") return item.pctDone >= 100;
+      if (overviewFilter === "pending") return item.pctDone < 100;
+      if (overviewFilter === "awaitingApproval") return item.approvable && item.acceptPct == null && item.pctDone > 0;
+      if (overviewFilter === "reviewed") return item.approvable && item.acceptPct != null;
+      if (overviewFilter === "inProgress") return item.pctDone > 0 && item.pctDone < 100;
+      return item.pctDone === 0;
+    };
+    const overviewItems = items.filter(matchesOverview);
+    if (!query) return overviewItems;
+    return overviewItems.filter((item) =>
+      [item.title, item.code, item.area, item.category, item.periodLabel, item.reviewNotes]
+        .filter(Boolean)
+        .some((value) => value!.toLocaleLowerCase().includes(query)),
+    );
+  }, [items, search, overviewFilter]);
+  const orderedItems = visibleItems;
+  const pageCount = Math.max(1, Math.ceil(orderedItems.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const firstRow = orderedItems.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const lastRow = Math.min(currentPage * pageSize, orderedItems.length);
+  const pagedItems = orderedItems.slice(firstRow - 1, lastRow);
+
+  React.useEffect(() => setPage(1), [level, search, pageSize, overviewFilter]);
   const active = LEVELS.find((l) => l.key === level)!;
+  const compactTabs = (
+    <nav aria-label="Review level" className="flex w-fit max-w-full overflow-x-auto rounded-lg border border-hairline-strong bg-surface-soft p-1">
+      {LEVELS.map(({ key, label }) => {
+        const activeBtn = key === level;
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setLevel(key)}
+            aria-pressed={activeBtn}
+            aria-current={activeBtn ? "page" : undefined}
+            className="wg-btn inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-[13px] font-bold transition-colors"
+            style={
+              activeBtn
+                ? {
+                    color: "white",
+                    background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
+                    boxShadow: "0 3px 8px -4px color-mix(in srgb, var(--color-altus-red) 65%, transparent)",
+                  }
+                : { color: "var(--color-ink-strong)" }
+            }
+          >
+            {label}
+            <span
+              className="rounded-pill px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
+              style={{
+                color: activeBtn ? "var(--color-altus-red-deep)" : "var(--color-ink-subtle)",
+                background: activeBtn ? "rgba(255,255,255,0.9)" : "color-mix(in srgb, var(--color-ink-strong) 6%, transparent)",
+              }}
+            >
+              {data.counts[key]}
+            </span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+
+  React.useEffect(() => {
+    if (!fullscreen) return;
+    const leaveFullscreen = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFullscreen(false);
+    };
+    window.addEventListener("keydown", leaveFullscreen);
+    return () => window.removeEventListener("keydown", leaveFullscreen);
+  }, [fullscreen]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={fullscreen ? "fixed inset-0 z-[100] flex overflow-auto bg-surface-base p-5" : "flex flex-col gap-4"}>
+      <div className={fullscreen ? "mx-auto flex w-full max-w-[1800px] flex-col gap-4" : "contents"}>
+      <header className="flex w-full flex-wrap items-center gap-3">
+        <h1 className="shrink-0 text-[28px] font-black leading-none text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>
+          Review &amp; Scores
+        </h1>
+        <div className="min-w-0 max-w-full">{compactTabs}</div>
+      </header>
+      <div className="flex w-full flex-nowrap items-center gap-2 overflow-x-auto">
+        <ReviewOverview data={data} activeFilter={overviewFilter} onFilterChange={setOverviewFilter} />
+        <button
+          type="button"
+          onClick={() => setFullscreen((value) => !value)}
+          aria-pressed={fullscreen}
+          title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}
+          className="ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-hairline-strong bg-surface-card px-3 text-[12px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
+        >
+          {fullscreen ? <Minimize2 size={14} strokeWidth={2.2} /> : <Maximize2 size={14} strokeWidth={2.2} />}
+          {fullscreen ? "Exit full screen" : "Full screen"}
+        </button>
+      </div>
       {/* scoped slider styling - tone-filled track, tactile thumb */}
       <style>{`
         .rw-range{appearance:none;-webkit-appearance:none;height:6px;border-radius:999px;outline:none;cursor:pointer;
@@ -828,7 +989,7 @@ export function ReviewWorkbench({ data }: { data: ReviewData }) {
       `}</style>
 
       {/* ── (1) HERO LEVEL SELECTOR ── */}
-      <nav aria-label="Review level" className="wg-rise grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      <nav aria-label="Review level" className="hidden">
         {LEVELS.map(({ key, label, caption, Icon }) => {
           const activeBtn = key === level;
           const count = data.counts[key];
@@ -838,28 +999,26 @@ export function ReviewWorkbench({ data }: { data: ReviewData }) {
               type="button"
               onClick={() => setLevel(key)}
               aria-pressed={activeBtn}
-              className={`wg-btn wg-sheen group relative flex flex-col items-start gap-1 overflow-hidden rounded-2xl px-4 py-3.5 text-left transition-[transform,box-shadow,border-color] duration-200 motion-reduce:transition-none ${
-                activeBtn ? "" : "hover:-translate-y-0.5 motion-reduce:hover:translate-y-0"
+              aria-current={activeBtn ? "page" : undefined}
+              className={`wg-btn group relative flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-left transition-[transform,box-shadow,background] duration-200 motion-reduce:transition-none ${
+                activeBtn ? "" : "hover:bg-surface-card"
               }`}
               style={
                 activeBtn
                   ? {
-                      background: "linear-gradient(140deg, var(--color-altus-red), var(--color-altus-red-deep))",
+                      background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
                       border: "1px solid var(--color-altus-red-deep)",
-                      boxShadow:
-                        "0 10px 28px -8px color-mix(in srgb, var(--color-altus-red) 60%, transparent), inset 0 1px 0 rgba(255,255,255,0.25)",
-                      transform: "translateY(-2px)",
+                      boxShadow: "0 4px 10px -5px color-mix(in srgb, var(--color-altus-red) 65%, transparent)",
                     }
                   : {
-                      background: "color-mix(in srgb, var(--color-surface-card) 85%, transparent)",
-                      border: "1px solid var(--color-hairline-strong)",
-                      boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+                      background: "transparent",
+                      border: "1px solid transparent",
                     }
               }
             >
-              <span className="flex w-full items-center justify-between">
+              <span className="flex items-center">
                 <Icon
-                  className="h-[18px] w-[18px] transition-colors motion-reduce:transition-none"
+                  className="h-4 w-4 transition-colors motion-reduce:transition-none"
                   strokeWidth={2.25}
                   style={activeBtn ? { color: "rgba(255,255,255,0.9)" } : { color: "var(--color-ink-subtle)" }}
                 />
@@ -881,7 +1040,7 @@ export function ReviewWorkbench({ data }: { data: ReviewData }) {
                 </span>
               </span>
               <span
-                className={`text-[16px] font-bold leading-tight transition-colors motion-reduce:transition-none ${
+                className={`text-[14px] font-bold leading-tight transition-colors motion-reduce:transition-none ${
                   activeBtn ? "text-white" : "group-hover:text-[var(--color-altus-red)]"
                 }`}
                 style={{
@@ -892,7 +1051,7 @@ export function ReviewWorkbench({ data }: { data: ReviewData }) {
                 {label}
               </span>
               <span
-                className="text-[10.5px] leading-tight"
+                className="hidden text-[10.5px] leading-tight"
                 style={activeBtn ? { color: "rgba(255,255,255,0.75)" } : { color: "var(--color-ink-muted)" }}
               >
                 {caption}
@@ -903,32 +1062,111 @@ export function ReviewWorkbench({ data }: { data: ReviewData }) {
       </nav>
 
       {/* one-line summary of the active level */}
-      <p className="text-[12.5px]" style={{ color: "var(--color-ink-muted)" }}>
+      {false && <p className="text-[12.5px]" style={{ color: "var(--color-ink-muted)" }}>
         <span className="font-semibold" style={{ color: "var(--color-ink-soft)" }}>
           {active.label}
         </span>{" "}
         - reviewing {data.viewedName}'s {level} items for FY {data.fyStartYear}–
         {String((data.fyStartYear + 1) % 100).padStart(2, "0")}
         {level === "daily" ? " (self-completed; no approval tier)" : ""}.
-      </p>
+      </p>}
 
       {/* ── (2) summary strip ── */}
-      <SummaryStrip level={level} items={items} />
 
       {/* ── (3) review cards / (4) empty state ── */}
       {items.length === 0 ? (
-        <EmptyLevel level={level} counts={data.counts} onSwitch={setLevel} />
+        <>
+          <div className="mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border border-hairline bg-surface-card p-1" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              aria-label="Search review items"
+              title="Search"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong"
+            >
+              <Search size={20} aria-hidden />
+            </button>
+            <div className="ml-auto flex shrink-0 items-center gap-2">{headerControls}</div>
+            <div className="flex shrink-0 items-center gap-1.5 text-[12px] text-ink-soft">
+              <span className="whitespace-nowrap font-semibold">0–0 / 0</span>
+              <span className="inline-flex h-9 items-center rounded-lg border border-hairline bg-surface-card px-2 font-bold text-ink-strong">{pageSize}</span>
+              <button type="button" disabled aria-label="Previous page" className="grid h-9 w-9 place-items-center rounded-lg border border-hairline bg-surface-card opacity-40"><ChevronLeft size={16} /></button>
+              <span className="whitespace-nowrap font-semibold">1/1</span>
+              <button type="button" disabled aria-label="Next page" className="grid h-9 w-9 place-items-center rounded-lg border border-hairline bg-surface-card opacity-40"><ChevronRight size={16} /></button>
+            </div>
+          </div>
+          <EmptyLevel level={level} counts={data.counts} onSwitch={setLevel} fyStartYear={data.fyStartYear} />
+        </>
       ) : (
         <div key={level}>
+          <div className="mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border border-hairline bg-surface-card p-1" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
+            {searchOpen ? (
+              <div className="relative min-w-[260px] flex-1">
+                <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" aria-hidden />
+                <input
+                  autoFocus
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search goals, category or notes"
+                  aria-label="Search goals in this review period"
+                  className="h-9 w-full rounded-lg border border-transparent bg-surface-soft pl-9 pr-8 text-[13px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setSearchOpen(false);
+                  }}
+                  aria-label="Close goal search"
+                  className="absolute right-2 top-1/2 rounded p-1 text-ink-subtle hover:text-ink-strong"
+                  style={{ transform: "translateY(-50%)" }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSearchOpen(true)}
+                aria-label="Search review items"
+                title="Search"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong"
+              >
+                <Search size={20} aria-hidden />
+              </button>
+            )}
+            <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">{headerControls}</div>
+            <div className="flex shrink-0 items-center gap-1.5 text-[12px] text-ink-soft">
+                <span className="font-semibold">Showing {firstRow}–{lastRow} of {orderedItems.length}</span>
+                <label className="inline-flex h-9 items-center gap-1 rounded-lg border border-hairline bg-surface-card px-2 font-semibold">
+                  <span className="sr-only">Rows per page</span>
+                  <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))} className="bg-transparent font-bold text-ink-strong outline-none" aria-label="Rows per page">
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </label>
+                <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1} aria-label="Previous page" className="grid h-9 w-9 place-items-center rounded-lg border border-hairline bg-surface-card disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft size={16} /></button>
+                <span className="whitespace-nowrap font-semibold">{currentPage}/{pageCount}</span>
+                <button type="button" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={currentPage === pageCount} aria-label="Next page" className="grid h-9 w-9 place-items-center rounded-lg border border-hairline bg-surface-card disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight size={16} /></button>
+              </div>
+          </div>
+          {visibleItems.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-hairline-strong bg-surface-card px-5 py-10 text-center text-[13px] text-ink-muted">
+              No goals match “{search}”.
+            </div>
+          ) : (
           <ReviewTable
-            items={items}
+            items={pagedItems}
             canWrite={data.canWrite}
             canReview={data.canReview}
             typeOptions={data.typeOptions}
             customTypes={data.customTypes}
           />
+          )}
         </div>
       )}
+      </div>
     </div>
   );
 }
