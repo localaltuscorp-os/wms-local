@@ -1,7 +1,7 @@
 import { BookUser } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
-import { canEditOpsDirectory } from "@/lib/operations/directory";
+import { isHrStaff } from "@/lib/hr/access";
 import { isMissingVendorTable, listVendors } from "@/lib/queries/ops-vendors";
 import { VendorDirectory } from "@/components/operations/directory/vendor-directory";
 
@@ -16,7 +16,8 @@ const ACCENT_DEEP = "#A80400";
  */
 export default async function OperationsDirectoryPage() {
   const me = await requireWorkspace("operations");
-  const canEdit = canEditOpsDirectory(me.email);
+  // Hiding the controls is a courtesy; the actions ask the same question again.
+  const canEdit = await isHrStaff(me);
 
   let vendors;
   try {

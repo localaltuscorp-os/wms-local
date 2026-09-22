@@ -7,8 +7,8 @@ import { db } from "@/lib/db";
 import { opsVendors } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { isHrStaff } from "@/lib/hr/access";
 import {
-  canEditOpsDirectory,
   normalizePincode,
   normalizeWebsite,
   vendorErrors,
@@ -28,8 +28,8 @@ const INSERT_CHUNK = 100;
  */
 async function editor(): Promise<R<{ id: string }>> {
   const me = await requireUser();
-  if (!canEditOpsDirectory(me.email)) {
-    return { ok: false, error: "Only Ruchita, Rutvisha and Manan can change the Directory." };
+  if (!(await isHrStaff(me))) {
+    return { ok: false, error: "Only HR and super-admins can change the Directory." };
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };

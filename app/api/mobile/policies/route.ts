@@ -23,11 +23,11 @@ export function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: MOBILE_CORS });
 }
 
-/** Policies are company-wide to read and narrow to write: only Manan, Ruchita
- *  and Rutvisha publish or remove one. The exact web rule, from the one module
+/** Policies are company-wide to read and narrow to write: HR staff and
+ *  super-admins publish or remove one. The exact web rule, from the one module
  *  both sides import, so the phone and the browser cannot drift apart. */
-function isAdmin(me: Employee): boolean {
-  return canPublishPolicies(me, DUMMY_MODE);
+async function isAdmin(me: Employee): Promise<boolean> {
+  return await canPublishPolicies(me, DUMMY_MODE);
 }
 
 /** HR is an open room — replicate the web `requireWorkspace("hr")` gate exactly
@@ -72,7 +72,7 @@ export async function GET(req: Request) {
   }));
 
   return NextResponse.json(
-    { isAdmin: isAdmin(me), groups, signable },
+    { isAdmin: await isAdmin(me), groups, signable },
     { headers: MOBILE_CORS },
   );
 }
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
   if (!hrSupportEnabled() || !(await inHrRoom(me))) {
     return NextResponse.json({ error: "forbidden" }, { status: 403, headers: MOBILE_CORS });
   }
-  if (!isAdmin(me)) return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: MOBILE_CORS });
+  if (!(await isAdmin(me))) return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: MOBILE_CORS });
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return NextResponse.json({ error: limited.error }, { status: 429, headers: MOBILE_CORS });
 

@@ -8,15 +8,12 @@
  * `vendorErrors` below rather than keeping two copies of the checks.
  */
 
-import { canEditHrRegisters } from "@/lib/hr/registers";
-
 /**
- * WHO MAY ADD, EDIT, DELETE OR BULK-UPLOAD — the same three people who keep the
- * HR Address Book (lib/hr/registers.ts). Everyone who can open Operations can view.
+ * WHO MAY ADD, EDIT, DELETE OR BULK-UPLOAD — `isHrStaff` (lib/hr/access.ts):
+ * HR staff, or a super-admin. Asked by the actions file and the page directly,
+ * because it reads the person's departments and this module must stay pure.
+ * Everyone who can open Operations can view.
  */
-export function canEditOpsDirectory(email: string | null | undefined): boolean {
-  return canEditHrRegisters(email);
-}
 
 /** Suggested categories. The field stays free text — the list only speeds typing. */
 export const VENDOR_CATEGORIES = [
