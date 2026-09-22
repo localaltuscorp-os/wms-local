@@ -10,8 +10,8 @@ import { Field, FieldInput } from "@/components/forms/form-fields";
 import { RbFilePicker, RbFilePickerLabel } from "./rb-file-picker";
 import { uploadClaimFiles } from "./upload-claim-files";
 
-const GREEN = "#16a34a";
-const GREEN_DEEP = "#15803d";
+const GREEN = "#E10600";
+const GREEN_DEEP = "#B91C1C";
 
 /** Field types that comfortably share a row in the claim form. */
 const HALF_WIDTH = new Set(["number", "date", "select", "email", "tel"]);

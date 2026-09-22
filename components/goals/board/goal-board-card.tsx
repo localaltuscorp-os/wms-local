@@ -183,16 +183,10 @@ function GoalBoardCardImpl({
   const childCount = childGoals?.length ?? 0;
   const childLabel = goal.period === "year" ? "quarters" : goal.period === "quarter" ? "months" : "weeks";
   // At-risk = behind the fixed pace cut (or a spillover), and not done/dropped.
-  const atRisk = React.useMemo(
-    () => !crossed && eff < 100 && deriveHealth(eff, goal.periodKey, new Date(), { spillover: spill }).atRisk,
-    [crossed, eff, goal.periodKey, spill],
-  );
   /** Full pace-aware health (band label + colour + expected-by-now) — powers the
    *  kanban card's progress bar + status chip so the card reads at a glance. */
-  const health = React.useMemo(
-    () => deriveHealth(eff, goal.periodKey, new Date(), { spillover: spill }),
-    [eff, goal.periodKey, spill],
-  );
+  const health = deriveHealth(eff, goal.periodKey, new Date(), { spillover: spill });
+  const atRisk = !crossed && eff < 100 && health.atRisk;
   /** View-only surface (policy) — the drawer still OPENS (read-only affordance)
    *  but every control disables and no save can fire. */
   const ro = !canWrite;

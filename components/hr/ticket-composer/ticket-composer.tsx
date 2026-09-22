@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Paperclip, X, ShieldAlert, Send, Inbox } from "lucide-react";
+import { Loader2, Mic, Paperclip, X, ShieldAlert, Send, Inbox } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import {
   HR_TICKET_CATEGORIES,
@@ -13,6 +13,7 @@ import {
 } from "@/db/enums";
 import { CATEGORY_ICON } from "@/lib/hr/ticket-ui";
 import { Select } from "@/components/ui/select";
+import { useDictation, type Dictation } from "@/components/ui/use-dictation";
 import { raiseTicket } from "@/app/(app)/support/actions";
 
 /** The topic dropdown's options. Labels only — a <Select> option is text, which
@@ -24,6 +25,54 @@ const TOPIC_OPTIONS = HR_TICKET_CATEGORIES.map((c) => ({
 
 const RED = "var(--color-altus-red)";
 const RED_DEEP = "var(--color-altus-red-deep)";
+
+function DictationButton({
+  dictation,
+  label,
+  onToggle,
+  position = "center",
+}: {
+  dictation: Dictation;
+  label: string;
+  onToggle: () => void;
+  position?: "center" | "top";
+}) {
+  const hint = !dictation.supported
+    ? "Voice dictation isn't available in this browser — use Chrome or Edge."
+    : dictation.recording
+      ? `Stop dictating ${label}`
+      : `Dictate ${label}`;
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={!dictation.supported}
+      aria-pressed={dictation.recording}
+      aria-label={hint}
+      title={hint}
+      className={`absolute right-2.5 z-10 inline-flex size-8 items-center justify-center rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        position === "top" ? "top-3" : "top-1/2 -translate-y-1/2"
+      } ${
+        dictation.recording
+          ? "animate-pulse border-transparent bg-altus-red text-white"
+          : "border-hairline bg-white text-ink-muted hover:border-altus-red hover:text-altus-red"
+      }`}
+    >
+      <Mic size={15} strokeWidth={2.5} aria-hidden />
+    </button>
+  );
+}
+
+function DictationPreview({ dictation }: { dictation: Dictation }) {
+  if (!dictation.recording) return null;
+  return (
+    <p className="mt-1.5 text-[12px] font-semibold text-altus-red" aria-live="polite">
+      Listening — tap the mic to stop.
+      {dictation.interim && <span className="ml-1 font-normal italic text-ink-muted">“{dictation.interim}”</span>}
+    </p>
+  );
+}
 
 /**
  * Raise a ticket. `mode="support"` shows the full form (category cards +
@@ -60,7 +109,27 @@ export function TicketComposer({
   const [priority, setPriority] = React.useState("normal");
   const [files, setFiles] = React.useState<File[]>([]);
   const [dragOver, setDragOver] = React.useState(false);
+  const [subject, setSubject] = React.useState(initialSubject ?? "");
+  const [description, setDescription] = React.useState(initialDescription ?? "");
   const subjectRef = React.useRef<HTMLInputElement>(null);
+  const subjectDictation = useDictation({
+    value: subject,
+    onChange: (next) => setSubject(next.slice(0, 200)),
+  });
+  const descriptionDictation = useDictation({
+    value: description,
+    onChange: (next) => setDescription(next.slice(0, 8000)),
+  });
+
+  function toggleSubjectDictation() {
+    descriptionDictation.stop();
+    subjectDictation.toggle();
+  }
+
+  function toggleDescriptionDictation() {
+    subjectDictation.stop();
+    descriptionDictation.toggle();
+  }
 
   React.useEffect(() => {
     // A prefilled subject is already the right words — put the cursor in the
@@ -80,6 +149,8 @@ export function TicketComposer({
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busy) return;
+    subjectDictation.stop();
+    descriptionDictation.stop();
     const form = new FormData(e.currentTarget);
     form.set("category", category);
     form.set("source", mode);
@@ -200,16 +271,21 @@ export function TicketComposer({
             }`}>
             {isQuery ? "Your question, in one line" : "Subject"}
           </label>
-          <input
-            id="subject"
-            name="subject"
-            ref={subjectRef}
-            required
-            maxLength={200}
-            defaultValue={initialSubject}
-            placeholder={isQuery ? "e.g. How many casual leaves do I have left?" : "Short summary of your request"}
-            className="w-full rounded-xl border border-hairline bg-surface-card px-3.5 py-2.5 text-[15px] font-medium text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
-          />
+          <div className="relative">
+            <input
+              id="subject"
+              name="subject"
+              ref={subjectRef}
+              required
+              maxLength={200}
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder={isQuery ? "e.g. How many casual leaves do I have left?" : "Short summary of your request"}
+              className="w-full rounded-xl border border-hairline bg-surface-card py-2.5 pl-3.5 pr-11 text-[15px] font-medium text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
+            />
+            <DictationButton dictation={subjectDictation} label="your question" onToggle={toggleSubjectDictation} />
+          </div>
+          <DictationPreview dictation={subjectDictation} />
         </div>
 
         <div className={isQuery ? "lg:col-span-2" : undefined}>
@@ -218,16 +294,26 @@ export function TicketComposer({
             }`}>
             {isQuery ? "Anything else? (optional context)" : "Details"}
           </label>
+          <div className="relative">
           <textarea
             id="description"
             name="description"
             required={!isQuery}
             rows={isQuery ? 2 : 6}
             maxLength={8000}
-            defaultValue={initialDescription}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             placeholder={isQuery ? "Add any details that help HR answer you faster." : "Describe your request — dates, amounts, people, anything relevant."}
-            className="w-full resize-y rounded-xl border border-hairline bg-surface-card px-3.5 py-3 text-[14.5px] leading-relaxed text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
+            className="w-full resize-y rounded-xl border border-hairline bg-surface-card px-3.5 py-3 pr-11 text-[14.5px] leading-relaxed text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
           />
+          <DictationButton
+            dictation={descriptionDictation}
+            label="the context"
+            onToggle={toggleDescriptionDictation}
+            position="top"
+          />
+          </div>
+          <DictationPreview dictation={descriptionDictation} />
         </div>
       </div>
 
