@@ -140,7 +140,7 @@ export function GoalsDashboardFilters({
   const isDefaultRange = range.from === fyRange.from && range.to === fyRange.to;
   const rangeLabel = isDefaultRange
     ? "Full year"
-    : `${format(applied.from!, "d MMM")} – ${format(applied.to!, "d MMM yy")}`;
+    : `${format(applied.from!, "d MMM")} – ${format(applied.to!, "dd-MMM-yyyy")}`;
 
   /* Widest scope first, then YOU, then everyone else — so the two things you
      actually switch between are the top two rows and nobody has to hunt for
@@ -248,9 +248,9 @@ export function GoalsDashboardFilters({
                   committed yet. */}
               <p className="mt-2 border-t border-hairline pt-2 text-center text-[12px] font-semibold text-ink-subtle">
                 {draft?.from && draft.to
-                  ? `${format(draft.from, "d MMM yyyy")} – ${format(draft.to, "d MMM yyyy")}`
+                  ? `${format(draft.from, "dd-MMM-yyyy")} – ${format(draft.to, "dd-MMM-yyyy")}`
                   : draft?.from
-                    ? `${format(draft.from, "d MMM yyyy")} — pick an end date`
+                    ? `${format(draft.from, "dd-MMM-yyyy")} — pick an end date`
                     : "Pick a start date"}
               </p>
               <button

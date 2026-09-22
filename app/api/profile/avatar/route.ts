@@ -9,6 +9,7 @@ import {
 } from "@/lib/supabase/admin";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS, PROFILE_CACHE_TAGS } from "@/lib/cache-tags";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 
@@ -37,6 +38,12 @@ const MAX_BYTES = 1 * 1024 * 1024;
  * Returns: { ok: true, url } | { ok: false, error }
  */
 export async function POST(req: Request) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   const me = await requireUser();
 
   const ct = req.headers.get("content-type") ?? "";
@@ -120,7 +127,13 @@ export async function POST(req: Request) {
  * DELETE — clears the avatar back to initials. Removes the latest stored
  * object (best-effort) and nulls out avatarUrl.
  */
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   const me = await requireUser();
 
   try {

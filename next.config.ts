@@ -47,6 +47,42 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  /**
+   * WHERE THE BUILD OUTPUT GOES — overridable, so DUMMY MODE can run BESIDE the
+   * real dev server instead of instead of it.
+   *
+   * Next refuses to start a second `next dev` from the same directory ("Another
+   * next dev server is already running"), because both would fight over
+   * `.next/`. That made the dummy sandbox an either/or: stop the server pointed
+   * at the real database, or do not look at dummy data. Giving the sandbox its
+   * own output directory lets both run — :3000 on the real data, :3002 on
+   * PGlite (see `pnpm dev:dummy`).
+   *
+   * Defaults to `.next`, so every existing build and deploy is unchanged.
+   */
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+
+  // LAN ACCESS IN DEV — let a phone (or a second machine) open the dev server.
+  //
+  // `next dev` already listens on 0.0.0.0, so http://<lan-ip>:3002 CONNECTS and
+  // the server-rendered HTML arrives intact. But Next blocks cross-origin
+  // requests to its dev-only assets: anything under `/_next/*` or `/__nextjs*`
+  // whose Origin/Referer host isn't on the allowlist gets a bare 403
+  // "Unauthorized" (server/lib/router-utils/block-cross-site-dev.ts). The
+  // allowlist defaults to `localhost` alone, so over a LAN IP every JS chunk
+  // 403s while the HTML still renders — the page loads as a BLANK gradient with
+  // no error on screen, because nothing ever hydrates.
+  //
+  // The patterns are wildcards over the private IPv4 ranges rather than one
+  // pinned address, because the address is not stable: this machine alone
+  // exposes Wi-Fi (192.168.1.x) alongside two VMware adapters (192.168.17.1,
+  // 192.168.247.1), and DHCP moves the Wi-Fi one. Next matches a host by
+  // splitting on "." and allowing `*` per segment (app-render/csrf-protection.ts),
+  // which is why an IP wildcard works here at all.
+  //
+  // DEV ONLY by construction — `next build` / `next start` never consult this,
+  // so it cannot widen anything in production.
+  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.*.*.*"],
   // THIS DIRECTORY IS THE WORKSPACE, full stop.
   //
   // Turbopack infers the root by walking UP for a lockfile, and there is a stray
@@ -74,6 +110,12 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "25mb",
     },
+    // THE VERCEL BUILD RAN OUT OF MEMORY (19 Sep). On the 2-core / 8 GB build
+    // machine the webpack compile stalled after "Compiled with warnings" and
+    // was killed at Vercel's 45-minute limit, twice, on code that had built
+    // in 7 minutes an hour earlier. Trades a little build speed for a lower
+    // peak heap. Paired with the heap size in package.json's build script.
+    webpackMemoryOptimizations: true,
   },
   /**
    * TYPED ROUTES ARE OFF — the app outgrew them.
@@ -115,6 +157,97 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
+  /**
+   * ROUTE-LEVEL FORWARDS, not `redirect()` in a page.
+   *
+   * `/billing` used to be a server component whose whole body was
+   * `redirect("/billing/documents")`. A redirect raised while the app router
+   * is rendering becomes an MPA navigation, and Next 16.2.6 has a rules-of-
+   * hooks bug on that path: `Router` throws `unresolvedThenable` when
+   * `pushRef.mpaNavigation` is set — BEFORE its last five hooks — so the next
+   * render runs more hooks than the previous one and React tears the tree
+   * down with "Rendered more hooks than during the previous render." That
+   * escapes app/(app)/error.tsx (it is thrown inside the router itself, above
+   * the boundary), so the viewer gets the bare "This page couldn't load"
+   * screen instead of the Billing module.
+   *
+   * Answering here instead sends a 308 from the routing layer: the browser
+   * follows it before React ever mounts, so the buggy path is never entered.
+   * Only forwards with NO auth or data behind them belong here — `/operations`
+   * must stay a page because it calls `requireWorkspace` first.
+   */
+  async redirects() {
+    return [
+      { source: "/billing", destination: "/billing/documents", permanent: false },
+      { source: "/daily-checklist", destination: "/my-day", permanent: false },
+      { source: "/dcc", destination: "/dcc/wcc", permanent: false },
+      { source: "/dcc/call-log", destination: "/dcc/dashboard", permanent: false },
+      { source: "/dcc/sp1", destination: "/dcc/dashboard", permanent: false },
+      // `?emp=` rides along: Next forwards a source query string the
+      // destination does not itself set.
+      { source: "/appraisal", destination: "/productivity/appraisal", permanent: false },
+    ];
+  },
+  /**
+   * KEEP THE DUMMY-MODE DATABASE OUT OF PRODUCTION FUNCTIONS.
+   *
+   * ── THE MEASUREMENT ──────────────────────────────────────────────────────
+   * On 2026-09-15 Vercel reported Functions Storage at 10.6 GB against a 10 GB
+   * allowance. Summing every function's traced files (.next/server/**\/*.nft.json)
+   * found 10.30 GB across 431 functions, and 7.14 GB of that — 69% — was ONE
+   * devDependency:
+   *
+   *   @electric-sql/pglite   7.14 GB   in 426 of 431 functions   17.2 MB each
+   *
+   * ── WHY IT WAS THERE, THOUGH EVERY PRECAUTION WAS ALREADY TAKEN ─────────
+   * PGlite is the local fixture database (DUMMY_MODE, port 3002). It is a
+   * devDependency, it is in `serverExternalPackages` below, and `dummyDb()` in
+   * lib/db/index.ts `require()`s it at CALL time with a comment saying the real
+   * database path must never pay for it. All correct, and none of it helps:
+   *
+   *   · `serverExternalPackages` stops it being BUNDLED. It does not stop it
+   *     being TRACED — that is the point of the option, to keep it a plain
+   *     runtime require out of node_modules.
+   *   · A call-time `require()` with a LITERAL string is still statically
+   *     analysable, so nft follows it exactly as it would an import.
+   *
+   * So every function that touched `lib/db` — all 426 of them — shipped a copy
+   * of PostgreSQL-compiled-to-WASM that production can never execute.
+   *
+   * ── WHY EXCLUDING IS SAFE ───────────────────────────────────────────────
+   * `dummyDb()` is reached only when DUMMY_MODE=true, which is the local
+   * sandbox and never a deployment. If it somehow ran on Vercel it would fail
+   * at the require rather than misbehave — a loud failure in a mode that is not
+   * supposed to exist there, which is the right way round.
+   *
+   * ── WHY THIS IS FIXED IN lib/db/index.ts AND NOT WITH AN EXCLUDE HERE ───
+   * `outputFileTracingExcludes` was tried and then abandoned, for a reason
+   * worth recording because it will waste the next person's afternoon too.
+   *
+   * DO NOT TRUST A LOCAL `.nft.json` MEASUREMENT. Three builds of essentially
+   * the same tree gave 10.30 GB, then 1.95 GB, then 1.95 GB again — and the
+   * two small ones traced NO node_modules AT ALL: zero for `@sparticuz/
+   * chromium`, zero for `firebase-admin`, zero for `postgres`. An app missing
+   * its own database driver cannot run, so those traces are simply incomplete,
+   * not a saving. (The full one came from a build that reused an existing
+   * `.next`; the empty ones followed `rm -rf .next`.) The exclude was blamed
+   * for that and was innocent — the same emptiness appears with no exclude
+   * configured at all.
+   *
+   * The one trustworthy local measurement is the complete trace, and it is
+   * where the 7.14 GB above comes from: internally consistent, with chromium
+   * in exactly the four routes configured for it and firebase-admin in 92.
+   *
+   * The fix lives at the source instead: `dummyDb()` requires PGlite through a
+   * VARIABLE specifier, which a static analyser cannot resolve and so cannot
+   * follow. Chosen over an exclude because it is precise BY CONSTRUCTION —
+   * there is no glob to get wrong and no way for it to catch another package —
+   * and because it cannot break anything even if it turns out to save nothing:
+   * production never calls `dummyDb()`, and Node resolves a variable specifier
+   * perfectly well at runtime for the local sandbox that does.
+   *
+   * VERIFY ON VERCEL, NOT HERE: Usage → Functions Storage, after a deploy.
+   */
   // Ship the hand-crafted Goals bulk-import workbook INTO the template route's
   // serverless function bundle (public/ assets are CDN-served and NOT guaranteed
   // to be on the function filesystem, so a bare readFile would 500 in prod).
@@ -149,6 +282,14 @@ const nextConfig: NextConfig = {
     "/api/hr/letters/issue-rich": [CHROMIUM_BIN, "./public/letter-fonts/**", "./public/letterhead/**", "./public/logos/**"],
     "/api/hr/letters/pdf": [CHROMIUM_BIN, "./public/letter-fonts/**", "./public/letterhead/**", "./public/logos/**"],
     "/api/hr/letters/email-pdf": [CHROMIUM_BIN, "./public/letter-fonts/**", "./public/letterhead/**", "./public/logos/**"],
+    // BILLING — the invoice is the on-screen sheet printed by headless Chromium
+    // (lib/billing/invoice-sheet-render.ts). It reads its CSS out of
+    // app/globals.css and inlines the logo and signature from public/, none of
+    // which a function gets by default — trace them into every route that
+    // renders the sheet (PDF download, email picture, email send).
+    "/billing/documents/[id]/pdf": [CHROMIUM_BIN, "./app/globals.css", "./public/logos/**", "./public/signatures/**", "./public/billing/**"],
+    "/billing/documents/[id]/png": [CHROMIUM_BIN, "./app/globals.css", "./public/logos/**", "./public/signatures/**", "./public/billing/**"],
+    "/billing/documents/[id]/email": [CHROMIUM_BIN, "./app/globals.css", "./public/logos/**", "./public/signatures/**", "./public/billing/**"],
   },
   // Externalize heavy server packages so the bundler does NOT compile their huge
   // trees into every route (the Sentry + OpenTelemetry + Prisma-instrumentation
@@ -172,6 +313,10 @@ const nextConfig: NextConfig = {
     // client one). Imported lazily inside the server function that runs them.
     "puppeteer-core",
     "@sparticuz/chromium",
+    // Invoice PDF → PNG for the email body (lib/billing/pdf-to-png.ts): a
+    // native canvas binding and pdf.js, loaded lazily on the send path only.
+    "pdfjs-dist",
+    "@napi-rs/canvas",
     "@sentry/nextjs",
     "@sentry/node",
     "@opentelemetry/instrumentation",

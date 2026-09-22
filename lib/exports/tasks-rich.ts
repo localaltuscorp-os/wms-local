@@ -30,12 +30,14 @@ export const RICH_EXPORT_HEADERS = [
 const APPROVAL_LABEL: Record<ApprovalStatus, string> = {
   approved: "Approved",
   not_approved: "Not Approved",
+  on_hold: "On Hold",
   cancelled: "Cancelled",
   transferred: "Transferred",
+  archived: "Archived",
 };
 
 const fmtDate = (d: Date | null | undefined): string =>
-  d ? format(d, "MMM d, yyyy") : "";
+  d ? format(d, "dd-MMM-yyyy") : "";
 
 export interface RichRow {
   clientName: string;

@@ -113,7 +113,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       },
       { key: "wms.my-day", label: "Daily Goals", routes: ["/my-day"] },
       { key: "wms.review", label: "Review", routes: ["/review"] },
-      { key: "wms.projects", label: "Projects", routes: ["/projects"] },
       { key: "wms.index-hub", label: "Important Links", routes: ["/index-hub"] },
       { key: "wms.daily-checklist", label: "Daily Checklist", routes: ["/daily-checklist"] },
     ],
@@ -122,15 +121,27 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
   {
     key: "employees",
     label: "Employees",
-    note: "The employee-facing room: attendance, leave, salary, reimbursements.",
+    note: "The employee-facing room: DCC, attendance, leave, salary, reimbursements.",
     children: [
       {
         key: "employees.dcc",
         label: "DCC",
         routes: ["/dcc"],
         children: [
-          { key: "employees.dcc.dashboard", label: "DCC Dashboard", routes: ["/dcc/dashboard"] },
-          { key: "employees.dcc.ranking", label: "DCC Ranking", routes: ["/dcc/ranking"] },
+          // WCC and MCC replaced My Day (account holder, 2026-09-18); `/dcc`
+          // itself now redirects to WCC.
+          { key: "employees.dcc.wcc", label: "WCC — Weekly Compliance Checklist", routes: ["/dcc/wcc"] },
+          { key: "employees.dcc.mcc", label: "MCC — Monthly Compliance Checklist", routes: ["/dcc/mcc"] },
+          // The SP1 sheet IS the dashboard, and the call log is typed into that
+          // sheet (2026-09-17), so neither has a node of its own. Their old
+          // addresses are listed here because both still redirect, and a
+          // redirect must not become a hole in the matrix.
+          {
+            key: "employees.dcc.dashboard",
+            label: "DCC Dashboard",
+            routes: ["/dcc/dashboard", "/dcc/sp1", "/dcc/call-log"],
+          },
+          { key: "employees.dcc.masters", label: "DCC Masters", routes: ["/dcc/masters"] },
         ],
       },
       {
@@ -227,11 +238,19 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         routes: ["/hr/management-assessment"],
       },
       { key: "hr.hiring-analytics", label: "Hiring Analytics", routes: ["/hr/hiring-analytics"] },
+      { key: "hr.selected-candidates", label: "Selected Candidates", routes: ["/hr/selected-candidates"] },
+      { key: "hr.rejected-candidates", label: "Rejected Candidates", routes: ["/hr/rejected-candidates"] },
       { key: "hr.induction", label: "Induction", routes: ["/hr/induction"] },
       { key: "hr.record", label: "HR Record", routes: ["/hr/record"] },
       { key: "hr.kpi", label: "HR KPI", routes: ["/hr/kpi"] },
       { key: "hr.ctc", label: "CTC", routes: ["/hr/ctc"] },
-      { key: "hr.salary-slip", label: "Salary Slip", routes: ["/hr/salary-slip"] },
+            /* MOVED TO THE EMPLOYEES ROOM (2026-09-12). Both paths are listed: the
+         new one is where the page lives, the old one still resolves as a
+         redirect and must stay governed by the same node rather than becoming
+         an ungoverned door. The KEY keeps its `hr.` prefix deliberately —
+         permission keys are persisted grants, so renaming it would revoke every
+         grant already written against it. */
+      { key: "hr.salary-slip", label: "Salary Slip", routes: ["/salary-slip", "/hr/salary-slip"] },
       { key: "hr.letters", label: "Letters", routes: ["/hr/letters"] },
       // These three have NO page at the bare segment — only children. Naming
       // the real paths keeps the catalogue test honest: a route listed here that
@@ -244,11 +263,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "Forms",
         routes: ["/hr/forms/[id]", "/hr/all-forms", "/hr/my-forms"],
       },
-      { key: "hr.exit", label: "Exit", routes: ["/hr/exit/interview"] },
+      { key: "hr.exit", label: "Exit Process", routes: ["/hr/exit/interview"] },
       { key: "hr.holidays", label: "Holiday List", routes: ["/hr/holidays", "/holidays"] },
       {
         key: "hr.helpdesk",
-        label: "Help Desk",
+        label: "HR Help Desk",
         routes: ["/support"],
         children: [
           { key: "hr.helpdesk.routing", label: "Ticket Routing", routes: ["/hr/routing"] },
@@ -264,37 +283,45 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     note: "Department-restricted room (see WORKSPACE_DEPARTMENT). This cannot widen that.",
     children: [
       {
+        /* THE KEY STAYS `sales.*` THOUGH THE SCREEN LIVES IN BILLING NOW.
+           It is stored in `module_permissions.node_key`, so renaming it would
+           orphan every grant already made — the same reason
+           `admin.people.departments` kept its name when Departments became
+           Functions. Only the ROUTE moved. Matching is longest-prefix, so
+           `/billing/ambassadors` resolves here rather than to the `billing`
+           module node. */
         key: "sales.ambassadors",
         label: "Ambassadors",
-        routes: ["/ambassadors"],
+        routes: ["/billing/ambassadors"],
         children: [
           {
             key: "sales.ambassadors.pipeline",
             label: "Pipeline",
-            routes: ["/ambassadors/pipeline"],
+            routes: ["/billing/ambassadors/pipeline"],
           },
           {
             key: "sales.ambassadors.directory",
             label: "Directory",
-            routes: ["/ambassadors/directory"],
+            routes: ["/billing/ambassadors/directory"],
           },
           {
             key: "sales.ambassadors.commissions",
             label: "Commissions",
-            routes: ["/ambassadors/commissions"],
+            routes: ["/billing/ambassadors/commissions"],
           },
         ],
       },
       { key: "sales.people-gives", label: "People Gives", routes: ["/people-gives"] },
       {
+        /* Same arrangement as Ambassadors above: the key stayed, the route moved. */
         key: "sales.outstanding",
         label: "Outstanding",
-        routes: ["/outstanding"],
+        routes: ["/billing/outstanding"],
         children: [
           {
             key: "sales.outstanding.contracts",
             label: "Contracts",
-            routes: ["/outstanding/contracts"],
+            routes: ["/billing/outstanding/contracts"],
           },
         ],
       },
@@ -401,8 +428,43 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
   {
     key: "billing",
     label: "Billing",
-    note: "The revenue ledger. Product selection reads the product master.",
-    children: [{ key: "billing.ledger", label: "Billing Ledger", routes: ["/billing"] }],
+    note:
+      "The revenue ledger plus the document engine — quotations, proforma " +
+      "invoices and tax invoices. Product selection reads the product master.",
+    children: [
+      { key: "billing.ledger", label: "Billing Ledger", routes: ["/billing"] },
+      {
+        // The KYC form's dropdown lists. Its own node because it is master
+        // data — somebody who may raise documents is not automatically
+        // somebody who may change what every future document can say.
+        key: "billing.customer-dropdowns",
+        label: "Customer Master DD",
+        routes: ["/billing/customers/dropdowns"],
+      },
+      { key: "billing.documents", label: "Documents", routes: ["/billing/documents"] },
+      {
+        key: "billing.documents.new",
+        label: "New Document",
+        routes: ["/billing/documents/new"],
+      },
+      {
+        key: "billing.documents.detail",
+        label: "Document Detail",
+        routes: ["/billing/documents/[id]"],
+      },
+      {
+        key: "billing.documents.email",
+        label: "Email a Document",
+        routes: ["/billing/documents/[id]/email"],
+      },
+      { key: "billing.contracts", label: "All Contracts", routes: ["/billing/contracts"] },
+      { key: "billing.contracts.new", label: "Create Contract", routes: ["/billing/contracts/new"] },
+      {
+        key: "billing.contracts.detail",
+        label: "Contract Detail",
+        routes: ["/billing/contracts/[id]", "/billing/contracts/[id]/edit"],
+      },
+    ],
   },
 
   {
@@ -511,6 +573,17 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "operations.home", label: "Operations Home", routes: ["/operations"] },
       { key: "operations.checklist", label: "Checklist", routes: ["/operations/checklist"] },
       { key: "operations.guidelines", label: "Guidelines", routes: ["/operations/guidelines"] },
+      /* One switch for all of Masters, including Recruitment JD — which moved
+         here from the HR rail on 2026-09-17 and gave up its own `hr.recruitment-jd`
+         node in the process. The old path is listed beside the new one for the
+         same reason Salary Slip's is: it still resolves, as a redirect, and a
+         door that redirects into a governed room must be governed by the same
+         switch rather than being an ungoverned way in. */
+      {
+        key: "operations.masters",
+        label: "Masters",
+        routes: ["/operations/masters", "/hr/recruitment-jd"],
+      },
     ],
   },
 
@@ -677,6 +750,34 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             key: "admin.masters.paying-entities",
             label: "Paying Entities",
             routes: ["/admin/paying-entities"],
+          },
+          {
+            key: "admin.masters.billing-profiles",
+            label: "Billing Profiles",
+            routes: ["/admin/billing-profiles"],
+          },
+          {
+            key: "admin.masters.billing-customers",
+            label: "Billing Customers",
+            routes: ["/admin/billing-customers"],
+          },
+          {
+            key: "admin.masters.billing-payment-terms",
+            label: "Payment Terms",
+            routes: ["/admin/billing-payment-terms"],
+          },
+          {
+            key: "admin.masters.billing-sac-codes",
+            label: "SAC Codes",
+            routes: ["/admin/billing-sac-codes"],
+          },
+          {
+            // Same `outstanding_products` rows as the Product Master above —
+            // this node governs the BILLING columns view of them, so it rides
+            // on the product master's own edit right.
+            key: "admin.masters.billing-products",
+            label: "Product Billing Fields",
+            routes: ["/admin/billing-products"],
           },
           {
             key: "admin.masters.upload-master",

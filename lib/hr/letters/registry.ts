@@ -36,6 +36,8 @@ import assignment from "./templates/assignment";
 import appointment from "./templates/appointment";
 import confirmation from "./templates/confirmation";
 import freeTraining from "./templates/free-training";
+import declaration from "./templates/declaration";
+import afterFreeTraining from "./templates/after-free-training";
 // Compensation
 import ctcBreakup from "./templates/ctc-breakup";
 import appraisalRevisedCtc from "./templates/appraisal-revised-ctc";
@@ -78,21 +80,26 @@ export const LETTERS: Record<string, LetterTemplate> = {
   "intern-appointment": internAppointment,
   confirmation,
   "free-training": freeTraining,
-  // Compensation
+  // The joiner's own declaration, and the outcome letter that closes the
+  // pre-employment programme. Both live in During Employment in the nav.
+  declaration,
+  "after-free-training": afterFreeTraining,
+  // Compensation — in workflow order, matching the Appraisal stage in
+  // lib/hr/lifecycle: promotion → increment → the two revised-CTC letters.
   "ctc-breakup": ctcBreakup,
+  promotion,
+  increment,
   "appraisal-revised-ctc": appraisalRevisedCtc,
   "promotion-revised-ctc": promotionRevisedCtc,
-  increment,
-  promotion,
   // Milestones & Recognition
   "employee-of-the-month": employeeOfTheMonth,
   birthday,
-  // Separation
+  // Separation — the Experience Letter before the Letter of Recommendation.
   ffs,
   "ffs-acknowledgement": ffsAcknowledgement,
   relieving,
-  "letter-of-recommendation": letterOfRecommendation,
   "experience-letter": experienceLetter,
+  "letter-of-recommendation": letterOfRecommendation,
   "resignation-rejection": resignationRejection,
 };
 

@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { workspaceForPath } from "@/lib/workspaces";
 import { PageChromeSlotsProvider } from "@/components/layout/page-chrome-slots";
-import { InsetTopBarProvider } from "@/components/layout/inset-top-bar";
 
 /**
  * Decides the app chrome CLIENT-side so it stays correct across SOFT navigations.
@@ -22,6 +21,35 @@ import { InsetTopBarProvider } from "@/components/layout/inset-top-bar";
  * is server-rendered once and passed in; its inner nav (MainNav) + brand already
  * read `usePathname()`, so its contents track the current route too.
  */
+/**
+ * Does this route render the module LEFT RAIL?
+ *
+ * Exported because two components have to agree on the answer: ChromeShell
+ * decides whether to mount the rail, and AuraTopBar decides whether to show the
+ * account menu — the rail already carries one in its foot, and a second copy
+ * 200px away in the bar is the kind of duplicate nobody notices until it looks
+ * like a bug. One definition, so the two can never drift.
+ *
+ * Rule: EVERY module gets the rail, except the HR console's full-bleed surfaces
+ * (which navigate via their own cards and back buttons) and the hub/shared
+ * routes, which belong to no workspace.
+ */
+export function showsModuleRail(pathname: string): boolean {
+  const ws = workspaceForPath(pathname);
+  const isHrFullBleed =
+    pathname === "/hr" ||
+    pathname.startsWith("/hr/") ||
+    pathname === "/policies" ||
+    pathname.startsWith("/policies/") ||
+    pathname === "/communications" ||
+    pathname.startsWith("/communications/") ||
+    pathname === "/dossier" ||
+    pathname.startsWith("/dossier/") ||
+    pathname === "/support" ||
+    pathname.startsWith("/support/");
+  return Boolean(ws) && !isHrFullBleed;
+}
+
 export function ChromeShell({
   sidebar,
   footer,
@@ -52,22 +80,26 @@ export function ChromeShell({
   // stage pop-ups and in-page back buttons. Every /hr surface is full-bleed. The
   // Help Desk (`/support`) is part of the HR room too — reached from the HR-home
   // quick-popup — so it is rail-less as well, matching the rest of the module.
-  // `/policies` and `/communications` are HR surfaces at their own top-level
-  // routes. Both now render the HR console shell too (their own layout.tsx),
-  // so they must suppress the global sidebar the same way /hr does — otherwise
-  // the console's module rail and this sidebar would stack side by side.
+  // `/policies` is an HR surface at its own top-level route and renders the HR
+  // console shell too (its own layout.tsx), so it must suppress the global
+  // sidebar the same way /hr does — otherwise the console's module rail and this
+  // sidebar would stack side by side.
+  //
+  // `/communications` (Broadcasts) is NOT in this list any more: it moved to the
+  // Operations room on 2026-09-12 and dropped the console shell with it, so it
+  // WANTS the global sidebar — that is where its Operations rail comes from.
+  // Leaving it here would have given it no sidebar at all.
   const isHrFullBleed =
     pathname === "/hr" ||
     (pathname?.startsWith("/hr/") ?? false) ||
     pathname === "/policies" ||
     (pathname?.startsWith("/policies/") ?? false) ||
-    pathname === "/communications" ||
-    (pathname?.startsWith("/communications/") ?? false) ||
     pathname === "/dossier" ||
     (pathname?.startsWith("/dossier/") ?? false) ||
     pathname === "/support" ||
     (pathname?.startsWith("/support/") ?? false);
-  const showSidebar = Boolean(ws) && !isHrFullBleed;
+  // Same answer as `showsModuleRail` above, which the top bar reads.
+  const showSidebar = showsModuleRail(pathname ?? "/");
 
   // Sticky-footer frame (both branches): the page column is a FULL-HEIGHT flex
   // column, so the footer — which every page renders as the last sibling of its
@@ -106,16 +138,17 @@ export function ChromeShell({
 
   if (!showSidebar) {
     return (
-      // h-dvh + overflow-hidden for the HR console: it owns its own internal
-      // scrolling, so the page around it must not scroll at all. Every other
-      // full-bleed route keeps min-h-dvh and grows normally.
+      // The top bar is FULL-WIDTH on every route, HR included. The HR console
+      // (isHrFullBleed) used to receive the bar through InsetTopBarProvider and
+      // draw it inside its own CONTENT column, which shrank it to the column's
+      // width and pushed the rail up beside it — a different-looking bar. Now it
+      // renders here, full-width, and the console sits below it, sized to the
+      // remaining height. `hr-shell-frame` is a PRINT HOOK (globals.css unclips
+      // it under @media print); keep the name.
       <div
         className={
           isHrFullBleed
-            // `hr-shell-frame` is a PRINT HOOK: this h-dvh/overflow-hidden
-            // frame is the OUTERMOST clip on a printed HR page, and
-            // app/globals.css undoes it under @media print. Keep the name.
-            ? "hr-shell-frame flex h-dvh flex-col overflow-hidden"
+            ? "hr-shell-frame flex min-h-dvh flex-col"
             : `flex min-h-dvh flex-col ${bottomPad}`
         }
       >
@@ -123,22 +156,8 @@ export function ChromeShell({
             and its own controls up into the bar, and the two are siblings, so a
             context above both is their only meeting point. */}
         <PageChromeSlotsProvider>
-          {isHrFullBleed ? (
-            /* The HR console carries its OWN left rail inside `children`, so a
-               bar rendered here would sit ON TOP of that rail — a full-width
-               strip across the screen, the rail's controls pushed down below
-               it, and the page's title floating above the rail instead of
-               above the page. Hand the bar down instead: HrConsoleShell drops
-               it at the top of its CONTENT column, which is where every other
-               module's bar starts, and the rail then runs the full height of
-               the viewport like every other module's rail. */
-            <InsetTopBarProvider bar={bar}>{children}</InsetTopBarProvider>
-          ) : (
-            <>
-              {bar}
-              {children}
-            </>
-          )}
+          {bar}
+          {children}
         </PageChromeSlotsProvider>
         {dock}
       </div>

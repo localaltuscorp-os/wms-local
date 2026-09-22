@@ -60,8 +60,10 @@ interface Props {
 const APPROVAL_LABEL: Record<ApprovalStatus, string> = {
   approved: "Approved",
   not_approved: "Not Approved",
+  on_hold: "On Hold",
   cancelled: "Cancelled",
   transferred: "Transferred",
+  archived: "Archived",
 };
 
 /** Pretty field with on-focus underline + soft shadow (cyan brand voice). */

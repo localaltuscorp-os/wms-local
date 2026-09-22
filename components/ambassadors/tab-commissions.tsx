@@ -58,7 +58,7 @@ export function TabCommissions({ referrals, payouts }: { referrals: ReferralRow[
       <section className="rounded-2xl border border-hairline bg-white overflow-hidden" style={{ boxShadow: "0 10px 30px -24px rgba(0,0,0,0.4)" }}>
         <div className="flex items-center justify-between gap-3 border-b border-hairline px-5 py-3.5">
           <h2 className="text-[15px] font-bold text-ink-strong">Commissions</h2>
-          <Link href={"/ambassadors/commissions" as Route} className="inline-flex items-center gap-1.5 text-[13px] font-bold text-ink-muted hover:text-[color:var(--color-altus-red)] transition-colors">
+          <Link href={"/billing/ambassadors/commissions" as Route} className="inline-flex items-center gap-1.5 text-[13px] font-bold text-ink-muted hover:text-[color:var(--color-altus-red)] transition-colors">
             Commission Center
             <ArrowUpRight size={15} strokeWidth={2.6} />
           </Link>

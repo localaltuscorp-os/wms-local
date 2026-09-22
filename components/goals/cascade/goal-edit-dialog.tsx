@@ -89,6 +89,7 @@ export function GoalEditDialog({
   open,
   onOpenChange,
   onSaved,
+  saveEdit,
 }: {
   mode: Mode;
   roster: RosterMember[];
@@ -98,6 +99,23 @@ export function GoalEditDialog({
    *  successful save, for callers with no server-refetch of their own
    *  (e.g. a standalone detail page hydrated from sessionStorage). */
   onSaved?: (row: GoalDTO) => void;
+  /**
+   * WHICH ENGINE THE SAVE GOES TO. Edit mode only.
+   *
+   * The dialog is the cascade's, and by default it writes through the cascade's
+   * own `editGoal` — the `goals` table. The weekly board reuses this same form
+   * for its rows, and those live in `weekly_goals`: a different table, three
+   * different server actions, and a `title` that is really the `target_done`
+   * column. Passing the board's actions adapter here routes the save to that
+   * engine instead, so one dialog serves both boards rather than being
+   * duplicated for the sake of one import.
+   *
+   * Takes the same patch shape `editGoal` does; may return a `row` (the cascade
+   * does, the weekly adapter does not — `onSaved` simply won't fire for it).
+   */
+  saveEdit?: (
+    input: Record<string, unknown> & { id: string },
+  ) => Promise<{ ok: true; row?: GoalDTO } | { ok: false; error: string }>;
 }) {
   const router = useRouter();
   const [f, setF] = React.useState<FieldState>(() => initial(mode));
@@ -172,13 +190,14 @@ export function GoalEditDialog({
           ...shared,
         });
       } else {
-        res = await editGoal({
+        const patch = {
           id: mode.goal.id,
           ...shared,
           actualQty: f.actualQty.trim() === "" ? null : f.actualQty.trim(),
           actualAmount: f.actualAmount.trim() === "" ? null : f.actualAmount.trim(),
           delegatedTo: f.delegatedTo.length ? f.delegatedTo : null,
-        });
+        };
+        res = saveEdit ? await saveEdit(patch) : await editGoal(patch);
       }
       if (!res.ok) {
         fireToast({ message: res.error, type: "error" });
@@ -267,7 +286,7 @@ export function GoalEditDialog({
                 <input value={f.actualQty} onChange={(e) => upd("actualQty", e.target.value)} className={`${inputCls} mt-1`} inputMode="decimal" placeholder="0" />
               </div>
               <div>
-                <label className={labelCls}>Actual amount (₹)</label>
+                <label className={labelCls}>Actual amount (Rs.)</label>
                 <input value={f.actualAmount} onChange={(e) => upd("actualAmount", e.target.value)} className={`${inputCls} mt-1`} inputMode="decimal" placeholder="0" />
               </div>
             </div>
@@ -279,7 +298,7 @@ export function GoalEditDialog({
               <input value={f.targetQty} onChange={(e) => upd("targetQty", e.target.value)} className={`${inputCls} mt-1`} inputMode="decimal" placeholder="0" />
             </div>
             <div>
-              <label className={labelCls}>Target amount (₹)</label>
+              <label className={labelCls}>Target amount (Rs.)</label>
               <input value={f.targetAmount} onChange={(e) => upd("targetAmount", e.target.value)} className={`${inputCls} mt-1`} inputMode="decimal" placeholder="0" />
             </div>
           </div>

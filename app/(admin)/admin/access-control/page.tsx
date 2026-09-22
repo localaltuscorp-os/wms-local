@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import type { Route } from "next";
 import { ShieldCheck } from "lucide-react";
 import { requireAdmin, getSignedInEmployee } from "@/lib/auth/current";
-import { isMasterAdmin } from "@/lib/security/capabilities";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 import { requireModuleView, canEditModule } from "@/lib/permissions/resolve";
 import { listVisibilityGrants, type VisibilityGrantRow } from "@/lib/queries/visibility-grants";
 import { listGrantableEmployees } from "@/lib/access/visibility";
@@ -61,7 +61,7 @@ export default async function AccessControlPage() {
   ]);
 
   const people: PersonOption[] = roster.map((r) => ({ id: r.id, name: r.name }));
-  const canGrant = matrixEdit && isMasterAdmin(me.email);
+  const canGrant = matrixEdit && (await isMasterAdmin(me.email));
 
   const all = [...taskGrants, ...incentiveGrants];
 

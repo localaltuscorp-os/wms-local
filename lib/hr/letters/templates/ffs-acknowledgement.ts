@@ -13,6 +13,7 @@
  */
 
 import { type LetterTemplate, t, f, para, term } from "../types";
+import { personSignOff } from "../sign-off";
 
 const template: LetterTemplate = {
   key: "ffs-acknowledgement",
@@ -22,7 +23,7 @@ const template: LetterTemplate = {
   signature: "acknowledge",
   blurb: "Employee acknowledges receipt of their Full & Final Settlement and confirms no further claims.",
   blocks: [
-    para(t("Date: "), f("date", "Date", { placeholder: "e.g. 25 July 2026", date: true })),
+    para(t("Date: "), f("date", "Date", { placeholder: "DD-MMM-YYYY", date: true })),
 
     para(t("To")),
     para(t("The HR Department")),
@@ -42,7 +43,7 @@ const template: LetterTemplate = {
       ),
       f("company", "Firm Name", { defaultValue: "Altus Corp" }),
       t(" in respect of my employment, which ended on "),
-      f("lastWorkingDate", "Last Working Date", { placeholder: "e.g. 30 June 2026", date: true }),
+      f("lastWorkingDate", "Last Working Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t("."),
     ),
 
@@ -72,10 +73,11 @@ const template: LetterTemplate = {
 
     para(t("Yours faithfully,")),
 
-    term("Employee Name", f("employeeName", "Employee Name", { placeholder: "Full name" })),
     term("Employee ID", f("employeeId", "Employee ID", { placeholder: "e.g. ALT-0042" })),
-    term("Signature", [t("")]),
-    term("Date", f("signDate", "Date", { placeholder: "e.g. 25 July 2026", date: true })),
+
+    // Name / Date / Signature were three rows of a term table here; they are
+    // now the same three lines this appears as on every other signed letter.
+    ...personSignOff({ prefix: "employee", who: "Signed by the employee" }),
   ],
 };
 

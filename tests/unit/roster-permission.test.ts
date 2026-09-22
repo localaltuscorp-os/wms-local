@@ -1,39 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { SUPER_ADMIN_EMAILS } from "@/lib/auth/super-admin";
 import { canAddTaskRoster } from "@/lib/auth/roster-permission";
+import { canManageTaskRosters } from "@/lib/security/capabilities";
 
 /**
- * The point of this rule is that `is_admin` (a DB column) and the super-admin
- * allow-list (code) are DIFFERENT SETS. Hetesh is a real case: super-admin in
- * code, `is_admin = false` on his employee row.
+ * THE SUBJECT AND CLIENT LISTS ARE LOCKED (account holder, 2026-09-15): only
+ * Manan Sir, Jeevan and Rohan change them — in the Admin Panel and from the task
+ * form's "+ Add new". Being an admin, or a super-admin, is not enough.
  */
-describe("canAddTaskRoster", () => {
-  it("allows an ordinary admin", () => {
-    expect(canAddTaskRoster({ isAdmin: true, email: "someone@altuscorp.in" })).toBe(true);
+describe("who may change the Subject and Client lists", () => {
+  it("is Manan Sir, Jeevan and Rohan", () => {
+    for (const email of [
+      "manan@unleashed.in",
+      "jeevanbharambe.altuscorp@gmail.com",
+      "rohanchoudhary.altuscorp@gmail.com",
+    ]) {
+      expect(canManageTaskRosters(email)).toBe(true);
+      expect(canAddTaskRoster({ isAdmin: false, email })).toBe(true);
+    }
   });
 
-  it("allows a super-admin who is NOT flagged admin in the database", () => {
-    expect(
-      // A CURRENT super-admin, read from the list rather than named, so this
-      // test cannot go stale again the next time the roster changes.
-      canAddTaskRoster({ isAdmin: false, email: SUPER_ADMIN_EMAILS[0] }),
-    ).toBe(true);
+  it("is not an ordinary admin", () => {
+    expect(canAddTaskRoster({ isAdmin: true, email: "someone@altuscorp.in" })).toBe(false);
+    expect(canManageTaskRosters("ruchitaambre.altuscorp@gmail.com")).toBe(false);
   });
 
-  it("allows someone who is both", () => {
-    expect(canAddTaskRoster({ isAdmin: true, email: "manan@unleashed.in" })).toBe(true);
-  });
-
-  it("refuses a normal employee", () => {
+  it("refuses a normal employee, and a missing email", () => {
     expect(canAddTaskRoster({ isAdmin: false, email: "employee@altuscorp.in" })).toBe(false);
-  });
-
-  it("refuses when there is no email to match", () => {
     expect(canAddTaskRoster({ isAdmin: false, email: null })).toBe(false);
     expect(canAddTaskRoster({ isAdmin: false })).toBe(false);
   });
 
-  it("matches the allow-list case- and whitespace-insensitively", () => {
+  it("matches the email case- and whitespace-insensitively", () => {
     expect(canAddTaskRoster({ isAdmin: false, email: "  Manan@Unleashed.IN " })).toBe(true);
+    expect(canManageTaskRosters(" JeevanBharambe.AltusCorp@gmail.com")).toBe(true);
   });
 });

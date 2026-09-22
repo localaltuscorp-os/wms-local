@@ -118,6 +118,11 @@ export function InboxList({
           />
         </span>
         <span className="py-2 pl-3.5">Date</span>
+        {/* TIME, beside Date. `max-md:hidden` matches its cell in
+            NotificationRow and the narrowest grid template, which drops it —
+            the template's column count and the rendered cell count have to
+            agree or every column after the gap shifts one place left. */}
+        <span className="py-2 max-md:hidden">Time</span>
         {/* Two columns now, not one "Category / Source" cell. Both carry
             `max-lg:hidden` to match their cells in NotificationRow — the narrow
             grid templates drop exactly this pair. */}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { issueRichLetter } from "@/lib/hr/letters/issue-rich";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 import { rateLimitOrError } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,11 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request) {
   const me = await requireWorkspace("hr");
+  // The MODULE gate. `requireWorkspace("hr")` admits the whole HR department;
+  // this is what lets an administrator revoke Letters from one person inside it.
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
+
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return NextResponse.json(limited);
 

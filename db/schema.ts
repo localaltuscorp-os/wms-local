@@ -74,6 +74,15 @@ import {
   type BroadcastRecipientStatus,
   type BroadcastRecurrence,
   type TaskPriority,
+  type BillingDocType,
+  type BillingDocStatus,
+  type BillingGstMode,
+  type BillingEventType,
+  type ContractPaymentType,
+  type ContractBillingFrequency,
+  type ContractStatus,
+  type ContractItemStatus,
+  type ContractPdcStatus,
 } from "./enums";
 import type { DocKind, SignatureStatus } from "@/lib/documents/signing";
 
@@ -401,6 +410,17 @@ export const employees = pgTable("employees", {
   candidateActive: boolean("candidate_active").notNull().default(false),
   deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
   joinedAt: timestamp("joined_at", { withTimezone: true }),
+  // NOT HERE ON PURPOSE: `performance_archived` / `performance_archived_at`
+  // (migration 0232 — off the Productivity › Team Performance board).
+  //
+  // Naming a column here puts it in EVERY full-row `select()` of this table,
+  // and `localSessionEmployee` (lib/auth/local-session.ts) does exactly that on
+  // every request — so on a database where 0232 has not been applied, listing
+  // them here would not degrade one board, it would break the sign-in. Same
+  // reason `project_nodes.status` / `progress_percent` / `links` are absent
+  // from `projectNodes` below. They are read and written with raw SQL instead
+  // (lib/productivity/archive.ts), guarded against 42703, so an un-migrated
+  // database simply has no archive. Move them in once 0232 is everywhere.
   // Post-joining workflow (migration 0174). `officialEmail` is the logged
   // firstname.lastname@<domain> company address; `personalEmail` is where the
   // welcome/credentials mail is sent. The two provisioning timestamps gate the
@@ -668,6 +688,194 @@ export const employees = pgTable("employees", {
  * Per-user badge unlocks. Definitions live in `lib/achievements/definitions.ts`
  * keyed by string; no separate `achievements` table to seed.
  */
+/**
+ * Database-backed capabilities (migration 0226). The code baseline remains
+ * authoritative for synchronous permissions; these rows serve the async
+ * master-admin and letter-issuing grants.
+ */
+export const capabilityGrants = pgTable(
+  "capability_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references((): AnyPgColumn => employees.id, { onDelete: "cascade" }),
+    employeeEmail: text("employee_email").notNull(),
+    capability: text("capability").notNull(),
+    grantedById: uuid("granted_by_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("capability_grants_uniq").on(t.employeeId, t.capability),
+    index("capability_grants_capability_idx").on(t.capability),
+  ],
+);
+
+/** Append-only audit trail for capability grants and revocations. */
+export const capabilityGrantEvents = pgTable(
+  "capability_grant_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    employeeEmail: text("employee_email").notNull(),
+    capability: text("capability").notNull(),
+    action: text("action").notNull(),
+    actorEmployeeId: uuid("actor_employee_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    actorEmail: text("actor_email"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("capability_grant_events_employee_idx").on(t.employeeId, t.occurredAt),
+    index("capability_grant_events_recent_idx").on(t.occurredAt),
+  ],
+);
+
+/** Operations → Directory: outside-vendor directory (migration 0228). */
+export const opsVendors = pgTable(
+  "ops_vendors",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    category: text("category").notNull().default("Other"),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name"),
+    cellNo: text("cell_no"),
+    email: text("email"),
+    addressLine1: text("address_line1"),
+    addressLine2: text("address_line2"),
+    addressLine3: text("address_line3"),
+    addressLine4: text("address_line4"),
+    landmark: text("landmark"),
+    city: text("city"),
+    state: text("state"),
+    pincode: text("pincode"),
+    website: text("website"),
+    amc: boolean("amc").notNull().default(false),
+    notes: text("notes"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ops_vendors_active_idx").on(t.isActive), index("ops_vendors_category_idx").on(t.category)],
+);
+export type OpsVendor = typeof opsVendors.$inferSelect;
+
+/** Client Engagement roster and account pipeline (migration 0230). */
+export const ceTeamMembers = pgTable(
+  "ce_team_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    email: text("email"),
+    role: text("role").notNull().default("coach"),
+    activeClientLimit: integer("active_client_limit").notNull().default(20),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdBy: uuid("created_by").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("ce_team_members_employee_uidx").on(t.employeeId).where(sql`employee_id IS NOT NULL`)],
+);
+
+export const ceAccounts = pgTable(
+  "ce_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fullName: text("full_name").notNull(),
+    organization: text("organization"),
+    category: text("category").notNull(),
+    batchCode: text("batch_code"),
+    assignedTo: uuid("assigned_to").references(() => ceTeamMembers.id, { onDelete: "set null" }),
+    lifecycleStatus: text("lifecycle_status").notNull().default("active"),
+    hhStatus: text("hh_status").notNull().default("standard"),
+    startDate: date("start_date"),
+    endDate: date("end_date"),
+    tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+    notes: text("notes"),
+    hhEntryId: uuid("hh_entry_id").references(() => paEntries.id, { onDelete: "set null" }),
+    createdBy: uuid("created_by").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ce_accounts_assigned_idx").on(t.assignedTo, t.category), index("ce_accounts_category_idx").on(t.category, t.batchCode)],
+);
+
+export const ceEngagements = pgTable(
+  "ce_engagements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id").notNull().references(() => ceAccounts.id, { onDelete: "cascade" }),
+    teamMemberId: uuid("team_member_id").notNull().references(() => ceTeamMembers.id, { onDelete: "cascade" }),
+    callType: text("call_type").notNull(),
+    dayOfWeek: text("day_of_week").notNull(),
+    startTime: time("start_time").notNull(),
+    endTime: time("end_time").notNull(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date"),
+    notes: text("notes"),
+    createdBy: uuid("created_by").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ce_engagements_member_idx").on(t.teamMemberId, t.dayOfWeek, t.startTime), index("ce_engagements_account_idx").on(t.accountId)],
+);
+
+export const ceReferences = pgTable(
+  "ce_references",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id").notNull().references(() => ceAccounts.id, { onDelete: "cascade" }),
+    collectorId: uuid("collector_id").references(() => ceTeamMembers.id, { onDelete: "set null" }),
+    targetProgram: text("target_program").notNull().default("general"),
+    targetCount: integer("target_count").notNull(),
+    actualCollected: integer("actual_collected").notNull().default(0),
+    frequency: text("frequency").notNull().default("one_time"),
+    dueDate: date("due_date"),
+    notes: text("notes"),
+    lastRemindedOn: date("last_reminded_on"),
+    createdBy: uuid("created_by").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ce_references_collector_idx").on(t.collectorId), index("ce_references_account_idx").on(t.accountId)],
+);
+
+export const hrContacts = pgTable(
+  "hr_contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyName: text("company_name"), personName: text("person_name").notNull(), cellNo: text("cell_no"),
+    alternateNo: text("alternate_no"), email: text("email"), service: text("service").notNull().default("Other"),
+    notes: text("notes"), isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("hr_contacts_active_idx").on(t.isActive), index("hr_contacts_service_idx").on(t.service)],
+);
+
+export const hrAssetCounters = pgTable("hr_asset_counters", { prefix: text("prefix").primaryKey(), last: integer("last").notNull().default(0) });
+export type HrAssetIssuedKind = "person" | "office" | "none";
+export const hrAssets = pgTable(
+  "hr_assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(), assetCode: text("asset_code").notNull().unique(), assetType: text("asset_type").notNull(), assetName: text("asset_name").notNull(),
+    location: text("location"), serialNo: text("serial_no"), model: text("model"), make: text("make"), description: text("description"), specifications: text("specifications"), warrantyUntil: date("warranty_until"), underAmc: boolean("under_amc").notNull().default(false), vendorName: text("vendor_name"), photoPath: text("photo_path"), invoicePath: text("invoice_path"),
+    issuedKind: text("issued_kind").notNull().default("none").$type<HrAssetIssuedKind>(), issuedEmployeeId: uuid("issued_employee_id").references(() => employees.id, { onDelete: "set null" }), issuedOffice: text("issued_office"), notes: text("notes"), username: text("username"), passwordEnc: text("password_enc"),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }), updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("hr_assets_type_idx").on(t.assetType), index("hr_assets_issued_employee_idx").on(t.issuedEmployeeId)],
+);
+
 export const achievementsEarned = pgTable(
   "achievements_earned",
   {
@@ -1298,12 +1506,25 @@ export const projectNodes = pgTable(
     // and a second status here would be a copy free to disagree with it.
     /** Working flow — the same six values as DOER_TASK_STATUSES. */
     status: text("status").$type<
-      "dont_know" | "not_started" | "initiated" | "follow_up" | "need_info" | "done"
+      | "dont_know"
+      | "not_started"
+      | "initiated"
+      | "follow_up"
+      | "need_info"
+      | "done"
+      | "abandoned"
     >(),
-    /** Restricted flow — an owner/admin verdict layered on top of `status`. */
+    /** The INITIATOR AXIS — an owner/admin verdict layered on top of `status`.
+     *  `cancelled` is a pre-0225 value kept so old rows render; it displays as
+     *  Archived and is never offered. See lib/status/axes.ts. */
     approvalStatus: text("approval_status").$type<
-      "not_approved" | "approved" | "on_hold" | "cancelled"
+      "not_approved" | "approved" | "on_hold" | "archived" | "cancelled"
     >(),
+    /** Who ruled, and when (migration 0225). */
+    approvalById: uuid("approval_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    approvalAt: timestamp("approval_at", { withTimezone: true }),
     /** Recorded partial completion 0–100. NULL = derive it from the work below. */
     progressPercent: integer("progress_percent"),
     // ── Container intake fields (migration 0213) ─────────────────────────────
@@ -1497,6 +1718,13 @@ export const tasks = pgTable(
     //                       `due_at` so the original commitment isn't lost.
     tags: text("tags").array(),
     approvalStatus: approvalStatusEnum("approval_status"),
+    // WHO ruled, and when (migration 0225). An initiator status without an
+    // author is an assertion nobody signed; these make "On Hold since when, by
+    // whom" answerable on the row itself.
+    approvalById: uuid("approval_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    approvalAt: timestamp("approval_at", { withTimezone: true }),
     // Two-stage approval (migration 0185). 'none' → not signed off; 'manager' →
     // accepted by the doer's manager; 'admin' → final sign-off, which ONLY the
     // founder can give. The Kanban's two approved columns are derived from this,
@@ -1939,6 +2167,8 @@ export const NOTIFICATION_KINDS = [
   "incentive_request_reversed",    // → the request's employee (with the reason)
   "incentive_request_resubmitted", // → the incentive reviewer
   "incentive_paid",                // → the paid employee
+  // Client Engagement — weekly "collect references" reminder (migration 0230).
+  "ce_reference_reminder",
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -3302,6 +3532,13 @@ export const outstandingProducts = pgTable(
     /** Short product code, e.g. "BSS" / "GP". Unique case-insensitively among
      *  the rows that have one (partial unique index in 0217). */
     code: text("code"),
+    /** Billing (0229) — additive and nullable, so Outstanding is untouched.
+     *  These pre-fill a billing line the moment a product is picked. */
+    sacCode: text("sac_code"),
+    defaultRate: numeric("default_rate", { precision: 14, scale: 2 }),
+    defaultGstRate: numeric("default_gst_rate", { precision: 5, scale: 2 }),
+    description: text("description"),
+    isBillable: boolean("is_billable").notNull().default(true),
     isActive: boolean("is_active").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(100),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -3686,6 +3923,16 @@ export const incentiveCatalog = pgTable("incentive_catalog", {
   notes: text("notes"),
   sortOrder: integer("sort_order"),
   active: boolean("active").notNull().default(true),
+  /**
+   * Eligibility, migration 0216. TRUE means everyone — and it is the DEFAULT,
+   * so the migration changed nothing for anyone the moment it ran. FALSE means
+   * only the people named in `incentive_eligibility` below.
+   *
+   * This supersedes `salesEligible` / `internsEligible`, which were advisory
+   * labels nothing enforced. They are left in place rather than dropped: the
+   * import path still writes them and the catalog popup still shows them.
+   */
+  appliesToAll: boolean("applies_to_all").notNull().default(true),
   /** Which request type this scheme prices. Null for project / sheet /
    *  weekly-goal incentives, which map to no request form. */
   incentiveType: text("incentive_type").$type<IncentiveType>(),
@@ -3741,18 +3988,14 @@ export const incentiveFunctionScope = pgTable(
 );
 
 /**
- * THE INCENTIVE CHART — who is eligible for which incentive, and from when
- * (migration 0232).
+ * WHO A NARROWED INCENTIVE APPLIES TO (migration 0216).
  *
- * ── A HISTORY, NOT A MEMBERSHIP SET ────────────────────────────────────────
- * Removing somebody sets `removedEffectiveFrom` and leaves the row, because the
- * brief requires the effective date of a removal to be recorded. So "who was
- * eligible on 3 Jun" is answerable, and a person removed and later re-added has
- * two rows rather than one rewritten one.
- *
- * A partial unique index (`… where removed_effective_from is null`) allows at
- * most one LIVE grant per person per incentive, so a double-add is refused by
- * the database and not merely by the action that calls it.
+ * Only consulted when `incentive_catalog.applies_to_all` is FALSE. The admin
+ * picks people directly, or a whole department at a time — but what is STORED
+ * is always the resulting list of people, never the department. A department is
+ * a shortcut for selecting, not a rule that keeps evaluating: if it were the
+ * latter, moving someone between departments would silently change what they
+ * are paid for, months after anyone decided anything.
  */
 export const incentiveEligibility = pgTable(
   "incentive_eligibility",
@@ -4586,6 +4829,19 @@ export const dccKpiItems = pgTable(
     needsReview: boolean("needs_review").notNull().default(false),
     targetNumber: numeric("target_number", { precision: 14, scale: 2 }),
     unit: text("unit"),
+    /** MCC deadline — the day of the month a 'monthly' compliance is due
+     *  (1–31; NULL = the month's last day). Migration 0238. */
+    monthDay: smallint("month_day"),
+    /** MCC frequency (lib/compliance/mcc-frequency.ts) — NULL = Monthly.
+     *  Migration 0240, with the two below. */
+    mccFrequency: text("mcc_frequency"),
+    /** 2 / 3 times a month: each deadline day, in order (31 = month-end). */
+    mccDays: smallint("mcc_days").array(),
+    /** Alternate Month / Quarterly / Half Yearly / Annually: a month it is due in (1–12). */
+    mccStartMonth: smallint("mcc_start_month"),
+    /** WCC's Mins — how many minutes it takes each time it is due (1–1440;
+     *  NULL = not set). Migration 0242 (lib/compliance/minutes.ts). */
+    minutes: integer("minutes"),
     sortOrder: integer("sort_order"),
     archived: boolean("archived").notNull().default(false),
     createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
@@ -4610,6 +4866,21 @@ export const dccEntries = pgTable(
     filledById: uuid("filled_by_id").references(() => employees.id, { onDelete: "set null" }),
     // DCC v2 — participant axis. NULL for every simple/normal KPI (all history).
     subjectId: uuid("subject_id").references(() => dccSubjects.id, { onDelete: "cascade" }),
+    /* ── WCC / MCC (migration 0238) — the WMS columns. `status` above stays,
+       written alongside, for the readers that still speak Done / Not done. ── */
+    /** WMS Doer Status (DOER_TASK_STATUSES). */
+    doerStatus: text("doer_status"),
+    /** The actual date — stamped by the server when the doer marks Done. */
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    /** WMS Approver Status; NULL = Pending. */
+    approverStatus: text("approver_status"),
+    approverNotes: text("approver_notes"),
+    approverId: uuid("approver_id").references(() => employees.id, { onDelete: "set null" }),
+    approverAt: timestamp("approver_at", { withTimezone: true }),
+    /** How many the doer completed of the compliance's target — asked when a
+     *  compliance with a target above one is marked Done. NULL otherwise.
+     *  Migration 0239 (lib/compliance/quantity.ts). */
+    completedQuantity: integer("completed_quantity"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -4653,6 +4924,156 @@ export const dccReviews = pgTable(
   },
   (t) => [uniqueIndex("dcc_reviews_uq").on(t.ownerEmployeeId, t.reviewDate)],
 );
+
+// Migration 0229 — each person-day's DCC event in their Google Calendar
+// (lib/dcc/calendar-sync.ts). A row with a null event id records a day whose
+// event was removed, keeping its snapshot time so an older sync cannot revive it.
+export const dccCalendarEvents = pgTable(
+  "dcc_calendar_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    eventDate: date("event_date").notNull(),
+    googleEventId: text("google_event_id"),
+    syncedHash: text("synced_hash"),
+    snapshotAt: timestamp("snapshot_at", { withTimezone: true }),
+    syncedAt: timestamp("synced_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    attempts: integer("attempts").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("dcc_calendar_events_uq").on(t.employeeId, t.eventDate)],
+);
+
+// Migration 0230 — DCC Masters: the Daily Compliance template for a designation
+// (lib/dcc/master.ts, lib/dcc/master-sync.ts).
+export const dccMasterItems = pgTable(
+  "dcc_master_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    designationId: uuid("designation_id").notNull().references(() => designations.id, { onDelete: "cascade" }),
+    section: text("section"),
+    code: text("code"),
+    title: text("title").notNull(),
+    frequency: text("frequency"),
+    targetNumber: numeric("target_number", { precision: 14, scale: 2 }),
+    unit: text("unit"),
+    sortOrder: integer("sort_order").notNull().default(100),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("dcc_master_items_designation_idx").on(t.designationId, t.isActive, t.sortOrder)],
+);
+
+// Which of a person's KPIs came from a master. A separate table, NOT a column on
+// dcc_kpi_items — see migration 0230 for why. No row = a person-specific KPI.
+export const dccMasterLinks = pgTable(
+  "dcc_master_links",
+  {
+    itemId: uuid("item_id").primaryKey().references(() => dccKpiItems.id, { onDelete: "cascade" }),
+    masterItemId: uuid("master_item_id").notNull().references(() => dccMasterItems.id, { onDelete: "cascade" }),
+    ownerEmployeeId: uuid("owner_employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("dcc_master_links_owner_master_uq").on(t.ownerEmployeeId, t.masterItemId)],
+);
+
+/**
+ * Migration 0235 — the SP1 call log (lib/dcc/sp1.ts, DCC-SPEC §7).
+ *
+ * One row per employee per day per outcome, carrying a COUNT. The fifteen
+ * outcomes and every ratio derived from them live in lib/dcc/sp1.ts; nothing
+ * here constrains the disposition text, so the sheet can gain a row without a
+ * migration.
+ */
+export const dccCallLogs = pgTable(
+  "dcc_call_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    logDate: date("log_date").notNull(),
+    disposition: text("disposition").notNull(),
+    count: integer("count").notNull().default(0),
+    note: text("note"),
+    filledById: uuid("filled_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // dcc_call_logs_uq — the unique index on (employee_id, log_date,
+    // disposition) — is managed in the migration; it is what makes the fill
+    // screen's upsert safe.
+    index("dcc_call_logs_date_idx").on(t.logDate, t.employeeId),
+  ],
+);
+export type DccCallLog = typeof dccCallLogs.$inferSelect;
+
+// Migration 0231 — the Initiator Status of a goal (lib/status/
+// approver-status.ts). Side tables, NOT columns on goals / weekly_goals: those
+// are read with bare select()/returning() across the Goals module. No row = Pending.
+export const goalApproverStatuses = pgTable("goal_approver_statuses", {
+  goalId: uuid("goal_id").primaryKey().references(() => goals.id, { onDelete: "cascade" }),
+  approvalStatus: text("approval_status").notNull().$type<"approved" | "not_approved" | "on_hold" | "archived" | "cancelled">(),
+  setById: uuid("set_by_id").references(() => employees.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Migration 0232 — Recruitment JDs (HR). Not the internal JD Bank (jd_*): these
+// are what recruiters send candidates. Content shape: lib/operations/recruitment-jd.ts.
+export const recruitmentJds = pgTable("recruitment_jds", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /**
+   * Migration 0236 — the JD's own identity.
+   *
+   * It used to be keyed to `interview_positions`, which is the interview GRADE
+   * ladder (Executive, Senior Manager, First-Year Intern). The JDs are per
+   * HIRING ROLE, several span two grades at once, and most grades have no JD —
+   * so the slug identifies the role and the grade link is optional.
+   */
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  sortOrder: integer("sort_order").notNull().default(100),
+  isActive: boolean("is_active").notNull().default(true),
+  positionId: uuid("position_id").references(() => interviewPositions.id, { onDelete: "set null" }),
+  masterContent: jsonb("master_content"),
+  masterUpdatedById: uuid("master_updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+  masterUpdatedAt: timestamp("master_updated_at", { withTimezone: true }),
+  /** NULL = the same as the master. */
+  recruiterContent: jsonb("recruiter_content"),
+  recruiterUpdatedById: uuid("recruiter_updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+  recruiterUpdatedAt: timestamp("recruiter_updated_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const recruitmentJdSends = pgTable(
+  "recruitment_jd_sends",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jdId: uuid("jd_id").references(() => recruitmentJds.id, { onDelete: "set null" }),
+    positionLabel: text("position_label").notNull(),
+    channel: text("channel").notNull().$type<"whatsapp" | "email">(),
+    recipientName: text("recipient_name"),
+    recipientPhone: text("recipient_phone"),
+    recipientEmail: text("recipient_email"),
+    content: jsonb("content").notNull(),
+    status: text("status").notNull().$type<"opened" | "sent" | "failed">(),
+    error: text("error"),
+    sentById: uuid("sent_by_id").references(() => employees.id, { onDelete: "set null" }),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("recruitment_jd_sends_jd_idx").on(t.jdId, t.sentAt)],
+);
+
+export const weeklyGoalApproverStatuses = pgTable("weekly_goal_approver_statuses", {
+  weeklyGoalId: uuid("weekly_goal_id").primaryKey().references(() => weeklyGoals.id, { onDelete: "cascade" }),
+  approvalStatus: text("approval_status").notNull().$type<"approved" | "not_approved" | "on_hold" | "archived" | "cancelled">(),
+  setById: uuid("set_by_id").references(() => employees.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export type DccKpiItem = typeof dccKpiItems.$inferSelect;
 export type DccEntry = typeof dccEntries.$inferSelect;
@@ -4743,6 +5164,24 @@ export const weeklyGoals = pgTable(
     // Hides the goal from the active board + weekly-score aggregates; the row
     // stays queryable.
     archived: boolean("archived").notNull().default(false),
+    /**
+     * ARCHIVED — "put away", and NOT the same thing as `archived` above, which
+     * is this module's soft-DELETE marker (the Recycle Bin lists those). A goal
+     * can be archived from the board's selection bar; it leaves the board and
+     * is read back under Archive > Goals, where it can be restored or deleted
+     * for good. Migration 0215.
+     */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    /**
+     * The INITIATOR AXIS (migration 0225). See the same three columns on
+     * `goals` for why this is independent of the Monday approve gate
+     * (`approvedAt`, a few lines down) rather than derived from it.
+     */
+    approvalStatus: approvalStatusEnum("approval_status"),
+    approvalById: uuid("approval_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    approvalAt: timestamp("approval_at", { withTimezone: true }),
     // Review provenance.
     reviewedById: uuid("reviewed_by_id").references(() => employees.id, {
       onDelete: "set null",
@@ -4853,6 +5292,26 @@ export const dailyChecklist = pgTable(
     closedAt: timestamp("closed_at", { withTimezone: true }),
     // Set when this item was rolled forward from an earlier, unfinished day.
     movedFromDate: date("moved_from_date"),
+    /**
+     * The INITIATOR AXIS (migration 0230) — the twin of the `status` column a
+     * few lines up, which is the DOER axis.
+     *
+     * Weekly goals grew these in 0225 and daily goals did not, so a commitment
+     * could report where it was and never be ruled on. NULL means nobody has
+     * ruled yet, which the control shows as "No Verdict".
+     */
+    approvalStatus: approvalStatusEnum("approval_status"),
+    approvalById: uuid("approval_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    approvalAt: timestamp("approval_at", { withTimezone: true }),
+    /**
+     * ARCHIVED — "put away", and emphatically NOT `abandoned_at` below, which is
+     * this module's Recycle Bin. The initiator axis's Archived value writes
+     * HERE; writing it to the bin would delete a commitment when someone meant
+     * to file it. Same two-column split as `goals` and `weekly_goals`.
+     */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     // RECYCLE BIN for commitments (migration 0186). Cancelling a card used to
     // DELETE this row outright when no WMS task backed it; now it is a soft
     // delete, so a typed commitment can be restored just like an abandoned task.
@@ -5117,6 +5576,32 @@ export const goals = pgTable(
       onDelete: "set null",
     }),
     archived: boolean("archived").notNull().default(false),
+    /**
+     * ARCHIVED — "put away", and NOT the same thing as `archived` above, which
+     * is this module's soft-DELETE marker (the Recycle Bin lists those). A goal
+     * can be archived from the board's selection bar; it leaves the board and
+     * is read back under Archive > Goals, where it can be restored or deleted
+     * for good. Migration 0215.
+     *
+     * THIS is the column the initiator axis's "Archived" reads and writes
+     * (lib/status/axes.ts) — the put-away one, never the soft-delete.
+     */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    /**
+     * The INITIATOR AXIS (migration 0225) — Approved · Not Approved · On Hold ·
+     * Archived, the same four Tasks and Projects carry. NULL is meaningful: no
+     * ruling yet, which the board shows as its own No Verdict column rather
+     * than folding into Not Approved.
+     *
+     * Independent of the Monday approve gate (`approvedAt` on weekly_goals,
+     * app/(app)/goals/approve): that gate is a commitment ritual with its own
+     * dates and predicates. This is a standing verdict on the goal itself.
+     */
+    approvalStatus: approvalStatusEnum("approval_status"),
+    approvalById: uuid("approval_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    approvalAt: timestamp("approval_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -6290,6 +6775,13 @@ export const pmsMonthlyReview = pgTable(
     changeTags: jsonb("change_tags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     explanation: text("explanation"),
     scope: text("scope").notNull().default("internal"), // internal | external
+    /**
+     * ARCHIVED (migration 0231). Per ROW, not per period: a period is not a
+     * record, it is a string on a set of rows, so "archive September" is
+     * "archive the rows whose period is September".
+     */
+    archived: boolean("archived").notNull().default(false),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -6602,6 +7094,9 @@ export const broadcasts = pgTable(
     // Scheduling / recurrence (0180). recurrence: none|daily|weekly|monthly.
     recurrence: text("recurrence").notNull().default("none").$type<BroadcastRecurrence>(),
     recurrenceUntil: date("recurrence_until"),
+    // Custom recurrence instants and the anchor used for monthly/annual repeats.
+    recurrenceDates: jsonb("recurrence_dates").notNull().default(sql`'[]'::jsonb`).$type<string[]>(),
+    recurrenceAnchor: timestamp("recurrence_anchor", { withTimezone: true }),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     // Reminder / escalation policy (0180). reminderAfterDays null = off.
     reminderAfterDays: integer("reminder_after_days"),
@@ -6613,6 +7108,8 @@ export const broadcasts = pgTable(
     // should only land in the inbox + email.
     popup: boolean("popup").notNull().default(true),
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    // Set while a sweep publishes a due broadcast (0229).
+    publishClaimedAt: timestamp("publish_claimed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -6652,6 +7149,8 @@ export const broadcastRecipients = pgTable(
     snoozeSession: text("snooze_session"),
     snoozeCount: integer("snooze_count").notNull().default(0),
     popupSeenAt: timestamp("popup_seen_at", { withTimezone: true }),
+    // Per recipient, per channel: what happened (0229).
+    channelOutcomes: jsonb("channel_outcomes").notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -7170,6 +7669,80 @@ export const calendarEvents = pgTable(
   ],
 );
 export type CalendarEventRow = typeof calendarEvents.$inferSelect;
+
+/* Executive master calendar (migrations 0231 and 0237). */
+export type ExecVisibilityCol = "public" | "busy" | "private";
+
+export const execCalendarRoutines = pgTable("exec_calendar_routines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: uuid("owner_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  categoryKey: text("category_key").notNull(),
+  daysOfWeek: integer("days_of_week").array().notNull().default([]),
+  startMin: integer("start_min").notNull(),
+  endMin: integer("end_min").notNull(),
+  fromDate: date("from_date").notNull(),
+  toDate: date("to_date").notNull(),
+  visibility: text("visibility").notNull().default("public").$type<ExecVisibilityCol>(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarRoutine = typeof execCalendarRoutines.$inferSelect;
+
+export const execCalendarEvents = pgTable("exec_calendar_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: uuid("owner_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  categoryKey: text("category_key").notNull(),
+  eventDate: date("event_date").notNull(),
+  startMin: integer("start_min"), endMin: integer("end_min"),
+  allDay: boolean("all_day").notNull().default(false),
+  visibility: text("visibility").notNull().default("public").$type<ExecVisibilityCol>(),
+  location: text("location"), notes: text("notes"),
+  clientEntryId: uuid("client_entry_id").references(() => paEntries.id, { onDelete: "set null" }),
+  clientKey: text("client_key"), batchLabel: text("batch_label"),
+  routineId: uuid("routine_id").references(() => execCalendarRoutines.id, { onDelete: "set null" }),
+  createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+  updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarEvent = typeof execCalendarEvents.$inferSelect;
+
+export const execCalendarDayMarkers = pgTable("exec_calendar_day_markers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: uuid("owner_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  mode: text("mode").notNull().default("day").$type<"day" | "range" | "dates">(),
+  dates: date("dates").array().notNull().default([]),
+  createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarDayMarker = typeof execCalendarDayMarkers.$inferSelect;
+
+export const execCalendarPrefs = pgTable("exec_calendar_prefs", {
+  employeeId: uuid("employee_id").primaryKey().references(() => employees.id, { onDelete: "cascade" }),
+  startMin: integer("start_min").notNull().default(420), endMin: integer("end_min").notNull().default(1320),
+  slotMin: integer("slot_min").notNull().default(30),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarPrefs = typeof execCalendarPrefs.$inferSelect;
+
+export const ceAuditLog = pgTable("ce_audit_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entityType: text("entity_type").notNull().$type<"account" | "engagement" | "reference" | "team_member">(),
+  entityId: uuid("entity_id").notNull(),
+  action: text("action").notNull(),
+  summary: text("summary").notNull(),
+  before: jsonb("before"),
+  after: jsonb("after"),
+  actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type CeAuditLog = typeof ceAuditLog.$inferSelect;
 
 /** Per-month completion count for an obligation (manual override; the auto-count
  *  comes from calendar_events.obligation_id). */
@@ -7897,6 +8470,8 @@ export const candidateIntake = pgTable(
     // { interviewer?: EvaluationInstance, management?: EvaluationInstance }
     // (see lib/hr/candidate/evaluation-v2.ts). The old `evaluation` stays intact.
     evaluationV2: jsonb("evaluation_v2"),
+    managementAssessment: jsonb("management_assessment"),
+    mergedIntoId: uuid("merged_into_id").references((): AnyPgColumn => candidateIntake.id, { onDelete: "set null" }),
     photoPath: text("photo_path"),
     signaturePath: text("signature_path"),
     createdById: uuid("created_by_id").references(() => employees.id, {
@@ -7908,9 +8483,28 @@ export const candidateIntake = pgTable(
   (t) => [
     index("candidate_intake_created_at_idx").on(t.createdAt),
     index("candidate_intake_status_idx").on(t.status),
+    index("candidate_intake_merged_into_idx").on(t.mergedIntoId),
   ],
 );
 export type CandidateIntake = typeof candidateIntake.$inferSelect;
+
+export const candidateIntakeMergeEvents = pgTable("candidate_intake_merge_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  survivorIntakeId: uuid("survivor_intake_id").references(() => candidateIntake.id, { onDelete: "set null" }),
+  retiredIntakeId: uuid("retired_intake_id").references(() => candidateIntake.id, { onDelete: "set null" }),
+  retiredName: text("retired_name"),
+  retiredMobile: text("retired_mobile"),
+  survivorName: text("survivor_name"),
+  survivorMobile: text("survivor_mobile"),
+  transferred: jsonb("transferred").notNull().default([]),
+  skipped: jsonb("skipped").notNull().default([]),
+  restorePayload: jsonb("restore_payload"),
+  actorEmployeeId: uuid("actor_employee_id").references(() => employees.id, { onDelete: "set null" }),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  undoneAt: timestamp("undone_at", { withTimezone: true }),
+  undoneById: uuid("undone_by_id").references(() => employees.id, { onDelete: "set null" }),
+});
+export type CandidateIntakeMergeEvent = typeof candidateIntakeMergeEvents.$inferSelect;
 
 /**
  * Candidate ACCESS LINKS (migration 0221) — the HR forms without a login.
@@ -7955,7 +8549,7 @@ export const candidateAccessLinks = pgTable(
 export type CandidateAccessLink = typeof candidateAccessLinks.$inferSelect;
 
 /** Where `/c/<token>` puts the candidate down (0222). */
-export type CandidateLinkPurpose = "form" | "policies";
+export type CandidateLinkPurpose = "form" | "policies" | "onboarding";
 
 /**
  * A candidate's typed acceptance of one policy (0222).
@@ -7982,6 +8576,15 @@ export const candidatePolicySignatures = pgTable(
     version: integer("version").notNull().default(1),
     /** What they typed, verbatim. */
     signedName: text("signed_name").notNull(),
+    /**
+     * Storage key of the signature IMAGE they uploaded (private documents
+     * bucket, under their own candidate-intake prefix).
+     *
+     * Nullable because rows written before 0225 were signed when a typed name
+     * was the whole requirement; a null says "typed-only", which is the truth
+     * about those rows rather than a blank standing in for a photo.
+     */
+    signaturePath: text("signature_path"),
     signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -7991,6 +8594,46 @@ export const candidatePolicySignatures = pgTable(
   ],
 );
 export type CandidatePolicySignature = typeof candidatePolicySignatures.$inferSelect;
+
+/**
+ * EMPLOYEE POLICY SIGN-OFF (migration 0226) — printed name + date + signature
+ * image, the second way an employee can sign a policy.
+ *
+ * DigiLocker remains: it produces Aadhaar-verified identity and an archived
+ * signed PDF, and those rows live in `document_signatures`. This table holds
+ * the typed-and-uploaded kind, separately, for the same reason
+ * `candidatePolicySignatures` is separate — the two are not equivalent
+ * evidence, and a reader of the ledger a year from now must be able to tell
+ * which one they are looking at. Both mirror into `policyCompliance`, where the
+ * null `docInstanceId` is the marker.
+ *
+ * `signaturePath` is NOT NULL here, unlike the candidate table: there was never
+ * a period when this table accepted a name alone, so nothing has to be left
+ * nullable to describe history honestly.
+ */
+export const employeePolicySignatures = pgTable(
+  "employee_policy_signatures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    policyKey: text("policy_key").notNull(),
+    /** The published version that was on screen when they signed. */
+    version: integer("version").notNull().default(1),
+    /** What they printed, verbatim. */
+    signedName: text("signed_name").notNull(),
+    /** Storage key of the signature image (private documents bucket). */
+    signaturePath: text("signature_path").notNull(),
+    signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("employee_policy_signature_uq").on(t.employeeId, t.policyKey),
+    index("employee_policy_signatures_employee_idx").on(t.employeeId),
+  ],
+);
+export type EmployeePolicySignature = typeof employeePolicySignatures.$inferSelect;
 
 /**
  * Per-designation weight profiles for Candidate Evaluation v2. One row per
@@ -8287,6 +8930,7 @@ export const paPeople = pgTable("pa_people", {
   /** Set when the person came from the employee roster; null when typed. */
   employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
   isActive: boolean("is_active").notNull().default(true),
+  isCeLead: boolean("is_ce_lead").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -8320,6 +8964,8 @@ export const paAmbassadors = pgTable("pa_ambassadors", {
   endDate: date("end_date"),
   onHold: boolean("on_hold").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
+  ownerPersonId: uuid("owner_person_id"),
+  status: text("status"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -8347,6 +8993,8 @@ export const paEntries = pgTable(
     callType: text("call_type"),
     /** That call's length in MINUTES. Shown as HH:MM; stored as a quantity. */
     durationMin: integer("duration_min"),
+    highlight: text("highlight"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -8418,6 +9066,8 @@ export const paCalls = pgTable(
     /** mon..sun */
     day: text("day").notNull(),
     durationMin: integer("duration_min").notNull().default(0),
+    startTime: time("start_time"),
+    endTime: time("end_time"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("pa_calls_entry_idx").on(t.entryId)],
@@ -8836,6 +9486,13 @@ export const opsChecklistItems = pgTable(
     fileLink: text("file_link"),
     /** Provenance for a row pulled from the JD Bank. FK added when 0222 lands. */
     jdEntryId: uuid("jd_entry_id"),
+    /* ── WMS Tasks columns (migration 0237) ── */
+    /** Free text like tasks.client, picked from the `clients` roster. */
+    client: text("client"),
+    /** Who asked for the row. Backfilled from created_by_id. */
+    initiatorId: uuid("initiator_id").references(() => employees.id, { onDelete: "set null" }),
+    /** Google Calendar's RRULE; null = does not repeat. Frequency reads from it. */
+    recurrenceRule: text("recurrence_rule"),
     sortOrder: integer("sort_order").notNull().default(100),
     isActive: boolean("is_active").notNull().default(true),
     createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
@@ -8870,9 +9527,16 @@ export const opsChecklistChecks = pgTable(
     itemId: uuid("item_id")
       .notNull()
       .references((): AnyPgColumn => opsChecklistItems.id, { onDelete: "cascade" }),
-    status: text("status").notNull().default("Pending"),
+    /** The WMS Doer Status (DOER_TASK_STATUSES) since 0237. */
+    status: text("status").notNull().default("not_started"),
+    /** Doer Notes. */
     notes: text("notes"),
     doneAt: timestamp("done_at", { withTimezone: true }),
+    /* ── Approver Status (migration 0237) — null is Pending, as on a task ── */
+    approverStatus: text("approver_status"),
+    approverNotes: text("approver_notes"),
+    approverId: uuid("approver_id").references(() => employees.id, { onDelete: "set null" }),
+    approverAt: timestamp("approver_at", { withTimezone: true }),
     updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -8959,12 +9623,18 @@ export const jdEntries = pgTable(
       .notNull()
       .unique()
       .default(sql`'JD-' || lpad(nextval('jd_entries_serial_seq')::text, 4, '0')`),
-    positionId: uuid("position_id")
-      .notNull()
-      .references(() => jdPositions.id, { onDelete: "restrict" }),
+    /* EXACTLY ONE OWNER (migration 0233): a position (the Master JD) or a
+       person (their personal JD). A CHECK in the database enforces it. */
+    positionId: uuid("position_id").references(() => jdPositions.id, { onDelete: "restrict" }),
+    ownerEmployeeId: uuid("owner_employee_id").references(() => employees.id, { onDelete: "cascade" }),
     /** Denormalised from the position so the Bank filters without a join. */
     functionKey: text("function_key").notNull(),
     task: text("task").notNull(),
+    /** Shown as SUBJECT, picked from the `subjects` roster WMS Tasks uses
+     *  (migration 0228 made it; 0237 relabelled it — the column kept its name). */
+    category: text("category"),
+    /** Free text like tasks.client, picked from the `clients` roster. Migration 0237. */
+    client: text("client"),
     notesHtml: text("notes_html"),
     /** Structured, never a label string. Shape in lib/jd/recurrence.ts. */
     recurrence: jsonb("recurrence").notNull().default({ kind: "daily" }),
@@ -9050,6 +9720,31 @@ export const jdAttachments = pgTable(
 export type JdAttachment = typeof jdAttachments.$inferSelect;
 export type NewJdAttachment = typeof jdAttachments.$inferInsert;
 
+/**
+ * DOER NOTES — what the person doing a JD writes against it (migration 0237).
+ * Per person: a seat's JD is shared by everyone in the seat, and one holder's
+ * notes are not another's.
+ */
+export const jdDoerNotes = pgTable(
+  "jd_doer_notes",
+  {
+    jdId: uuid("jd_id")
+      .notNull()
+      .references(() => jdEntries.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    notes: text("notes"),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.jdId, t.employeeId] }),
+    index("jd_doer_notes_employee_idx").on(t.employeeId),
+  ],
+);
+export type JdDoerNote = typeof jdDoerNotes.$inferSelect;
+
 /** Which people hold which JD. `source` decides whether a holder change revokes it. */
 export const jdAssignments = pgTable(
   "jd_assignments",
@@ -9062,6 +9757,15 @@ export const jdAssignments = pgTable(
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
     source: text("source").notNull().default("position"),
+    /* WHICH DESTINATIONS this person is assigned for (migration 0225).
+       Three flags on ONE row rather than one row per destination: a person who
+       does the job for both the DCC and the WMS is one assignment with two
+       boxes ticked, which keeps the (jd_id, employee_id) unique index — and
+       that index is what stops the same person being assigned twice and
+       receiving the task twice. */
+    forDcc: boolean("for_dcc").notNull().default(false),
+    forWms: boolean("for_wms").notNull().default(false),
+    forEvent: boolean("for_event").notNull().default(false),
     assignedById: uuid("assigned_by_id").references(() => employees.id, { onDelete: "set null" }),
     effectiveFrom: date("effective_from").notNull().default(sql`CURRENT_DATE`),
     effectiveTo: date("effective_to"),
@@ -9143,6 +9847,655 @@ export const jdPushLog = pgTable(
 );
 export type JdPushLog = typeof jdPushLog.$inferSelect;
 export type NewJdPushLog = typeof jdPushLog.$inferInsert;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * BILLING — the document engine (migration 0229).
+ *
+ * Quotation → Proforma Invoice → Tax Invoice, one table, three types. The
+ * cardinal rule the shapes below encode is SNAPSHOT, DON'T JOIN: a generated
+ * document renders from `sellerSnapshot` / `customerSnapshot` / the line
+ * snapshots, so editing a master row later can never change a document that has
+ * already been issued. The FKs beside them are for navigation only.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** The seller's printable identity, copied onto the document at save time. */
+export interface BillingSellerSnapshot {
+  entityId: string;
+  displayName: string;
+  legalName: string;
+  pan: string | null;
+  gstin: string | null;
+  stateName: string | null;
+  stateCode: string | null;
+  addressLine: string | null;
+  email: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  website: string | null;
+  logoUrl: string | null;
+  bankName: string | null;
+  bankAccountName: string | null;
+  bankAccountNo: string | null;
+  bankIfsc: string | null;
+  bankBranch: string | null;
+  upiId: string | null;
+  signatoryName: string | null;
+  signatoryDesignation: string | null;
+  signatureImageUrl: string | null;
+  interestClause: string | null;
+  invoiceFooterNote: string | null;
+}
+
+/** The customer's printable identity, copied onto the document at save time. */
+export interface BillingCustomerSnapshot {
+  name: string;
+  legalName: string | null;
+  contactName: string | null;
+  email: string | null;
+  whatsapp: string | null;
+  phone: string | null;
+  pan: string | null;
+  gstin: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  stateName: string | null;
+  stateCode: string | null;
+  pincode: string | null;
+  country: string | null;
+}
+
+export const billingPaymentTerms = pgTable(
+  "billing_payment_terms",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    label: text("label").notNull(),
+    /** NULL = no computable due date (e.g. "DP" — against documents). */
+    dueDays: integer("due_days"),
+    isDefault: boolean("is_default").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(100),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("billing_payment_terms_active_idx").on(t.isActive, t.sortOrder)],
+);
+export type BillingPaymentTerm = typeof billingPaymentTerms.$inferSelect;
+
+export const billingSacCodes = pgTable(
+  "billing_sac_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    code: text("code").notNull(),
+    description: text("description").notNull(),
+    defaultGstRate: numeric("default_gst_rate", { precision: 5, scale: 2 }),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(100),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("billing_sac_codes_active_idx").on(t.isActive, t.sortOrder)],
+);
+export type BillingSacCode = typeof billingSacCodes.$inferSelect;
+
+/**
+ * The SELLER side — "Entity: Admin Panel", "PAN Details: Admin Panel", "Bank
+ * Details", "Signature Details" in the handwritten notes. One row per issuing
+ * entity; `entityId` is the canonical slug from lib/hr/entities.ts (text, not an
+ * FK, because that registry lives in code).
+ */
+export const billingEntityProfiles = pgTable("billing_entity_profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entityId: text("entity_id").notNull().unique(),
+  payingEntityId: uuid("paying_entity_id").references(() => payingEntities.id, {
+    onDelete: "set null",
+  }),
+  legalName: text("legal_name"),
+  pan: text("pan"),
+  gstin: text("gstin"),
+  stateName: text("state_name"),
+  stateCode: text("state_code"),
+  addressLine: text("address_line"),
+  email: text("email"),
+  whatsapp: text("whatsapp"),
+  phone: text("phone"),
+  website: text("website"),
+  logoUrl: text("logo_url"),
+  bankName: text("bank_name"),
+  bankAccountName: text("bank_account_name"),
+  bankAccountNo: text("bank_account_no"),
+  bankIfsc: text("bank_ifsc"),
+  bankBranch: text("bank_branch"),
+  upiId: text("upi_id"),
+  defaultSacCode: text("default_sac_code"),
+  signatoryName: text("signatory_name"),
+  signatoryDesignation: text("signatory_designation"),
+  signatureImageUrl: text("signature_image_url"),
+  defaultPaymentTermsId: uuid("default_payment_terms_id").references(
+    () => billingPaymentTerms.id,
+    { onDelete: "set null" },
+  ),
+  interestClause: text("interest_clause"),
+  invoiceFooterNote: text("invoice_footer_note"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+  updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+});
+export type BillingEntityProfile = typeof billingEntityProfiles.$inferSelect;
+export type NewBillingEntityProfile = typeof billingEntityProfiles.$inferInsert;
+
+/**
+ * The BILL-TO side. New, but linkable: `clientId` / `outstandingEntityId` keep
+ * one real customer as one row across modules. A NULL `gstin` is a first-class
+ * case (unregistered customer) — the document then prints no tax rows at all.
+ */
+export const billingCustomers = pgTable(
+  "billing_customers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    legalName: text("legal_name"),
+    /** The person the document is addressed to — "Kind Attn." on the PDF. */
+    contactName: text("contact_name"),
+    email: text("email"),
+    whatsapp: text("whatsapp"),
+    phone: text("phone"),
+    pan: text("pan"),
+    gstin: text("gstin"),
+    addressLine1: text("address_line1"),
+    addressLine2: text("address_line2"),
+    city: text("city"),
+    stateName: text("state_name"),
+    stateCode: text("state_code"),
+    pincode: text("pincode"),
+    country: text("country").notNull().default("India"),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+    outstandingEntityId: uuid("outstanding_entity_id").references(
+      () => outstandingEntitiesTbl.id,
+      { onDelete: "set null" },
+    ),
+    notes: text("notes"),
+    isActive: boolean("is_active").notNull().default(true),
+
+    /* ── CUSTOMER KYC (migration 0233) ──────────────────────────────────
+       These extend the customer invoices already bill to, rather than living
+       in a parallel CRM table. One company, one row: a freshly onboarded
+       client is immediately billable, and its GSTIN and address reach an
+       invoice without being typed twice. */
+    clientCode: text("client_code"),
+    grade: text("grade"),
+    tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+    customerTypes: text("customer_types").array().notNull().default(sql`'{}'::text[]`),
+    industryTypes: text("industry_types").array().notNull().default(sql`'{}'::text[]`),
+    productTypes: text("product_types").array().notNull().default(sql`'{}'::text[]`),
+    salesPersonId: uuid("sales_person_id").references(() => employees.id, { onDelete: "set null" }),
+    isExport: boolean("is_export").notNull().default(false),
+    msmeNo: text("msme_no"),
+    gstRegType: text("gst_reg_type"),
+    currency: text("currency").notNull().default("INR"),
+    paymentTerms: text("payment_terms"),
+    freightCharges: text("freight_charges"),
+    creditDays: text("credit_days"),
+    creditLimit: text("credit_limit"),
+    transporter: text("transporter"),
+    quantityDeviation: text("quantity_deviation"),
+    otherReferences: text("other_references"),
+    businessCategory: text("business_category"),
+    natureOfBusiness: text("nature_of_business"),
+    linkedinUrl: text("linkedin_url"),
+    instagramHandle: text("instagram_handle"),
+    /** 'Yes' | 'No' | 'Not Applicable' — the KYC's payment options. */
+    subscription: text("subscription"),
+    emi: text("emi"),
+    moduleWisePayment: text("module_wise_payment"),
+    /** The Introducer box of the KYC — see CustomerIntroducer. */
+    introducer: jsonb("introducer").$type<CustomerIntroducer>(),
+
+    /* THE RECYCLE BIN. Deliberately not `isActive`, which already means "do
+       not offer this customer on new documents" — a live business state.
+       Deleted is not inactive, and reusing the flag would make a restore
+       ambiguous. Nothing deletes the row; restoring clears the timestamp. */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedById: uuid("deleted_by_id").references(() => employees.id, { onDelete: "set null" }),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+  },
+  (t) => [index("billing_customers_active_idx").on(t.isActive, t.name)],
+);
+
+/**
+ * CONTACT PEOPLE on a customer. A child table because the KYC form has an
+ * "+ Add contact" button, and a column cannot grow.
+ *
+ * `isPrimary` is stored rather than inferred from row order: the form says the
+ * first contact is the client's primary and is the one auto-fetched on
+ * enquiries, and an edit that reordered the list would otherwise silently
+ * change which person that is.
+ */
+/** Who introduced a billing customer (KYC "Introducer" box), stored as one jsonb. */
+export interface CustomerIntroducer {
+  website?: string;
+  firstName?: string;
+  lastName?: string;
+  socialMedia?: "Yes" | "No" | "";
+  city?: string;
+  email?: string;
+  whatsapp?: string;
+  company?: string;
+  designation?: string;
+  natureOfWork?: string;
+  businessCategory?: string;
+  /** "Did you come to know about us through Social Media Post?" */
+  cameThrough?: string;
+  introducedBy?: string;
+}
+
+export const billingCustomerContacts = pgTable(
+  "billing_customer_contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => billingCustomers.id, { onDelete: "cascade" }),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
+    phone: text("phone"),
+    whatsapp: text("whatsapp"),
+    email: text("email"),
+    designation: text("designation"),
+    department: text("department"),
+    notes: text("notes"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("billing_customer_contacts_cust_idx").on(t.customerId, t.sortOrder)],
+);
+export type BillingCustomerContact = typeof billingCustomerContacts.$inferSelect;
+
+/** Billing and shipping addresses — what the Customer Address Book reads. */
+export const billingCustomerAddresses = pgTable(
+  "billing_customer_addresses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => billingCustomers.id, { onDelete: "cascade" }),
+    /** 'billing' | 'shipping'. Text, not an enum: the form can add further
+     *  addresses and a new kind should not need a migration. */
+    kind: text("kind").notNull().default("billing"),
+    label: text("label"),
+    line1: text("line1"),
+    line2: text("line2"),
+    line3: text("line3"),
+    line4: text("line4"),
+    city: text("city"),
+    stateName: text("state_name"),
+    stateCode: text("state_code"),
+    country: text("country").notNull().default("India"),
+    pincode: text("pincode"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("billing_customer_addresses_cust_idx").on(t.customerId, t.kind, t.sortOrder)],
+);
+export type BillingCustomerAddress = typeof billingCustomerAddresses.$inferSelect;
+
+/** Business card scans and anything else attached to a client record. */
+export const billingCustomerDocuments = pgTable(
+  "billing_customer_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => billingCustomers.id, { onDelete: "cascade" }),
+    slot: text("slot").$type<"front" | "back" | "brochure" | "video" | "other">().notNull().default("other"),
+    fileName: text("file_name").notNull(),
+    storagePath: text("storage_path").notNull(),
+    contentType: text("content_type"),
+    sizeBytes: integer("size_bytes"),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+    uploadedById: uuid("uploaded_by_id").references(() => employees.id, { onDelete: "set null" }),
+  },
+  (t) => [index("billing_customer_documents_cust_idx").on(t.customerId, t.slot)],
+);
+export type BillingCustomerDocument = typeof billingCustomerDocuments.$inferSelect;
+
+/**
+ * THE DROPDOWN MASTER — every editable list on the KYC form, in one table.
+ *
+ * `kind` names the list ('designation', 'payment_terms', 'bank_name', ...),
+ * the same shape `accounts_lookups` already uses in the Accounts module.
+ * Twelve tables for twelve dropdowns would mean a migration every time
+ * somebody wants a thirteenth; this way a new list is a new `kind` and no
+ * schema change at all.
+ *
+ * `deletedAt` rather than a hard delete so a mis-removed option is in the
+ * recycle bin instead of gone — an option already chosen on a saved client is
+ * not safe to destroy.
+ */
+export const billingLookups = pgTable(
+  "billing_lookups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: text("kind").notNull(),
+    value: text("value").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+  },
+  (t) => [index("billing_lookups_kind_idx").on(t.kind, t.sortOrder)],
+);
+export type BillingLookup = typeof billingLookups.$inferSelect;
+export type BillingCustomer = typeof billingCustomers.$inferSelect;
+export type NewBillingCustomer = typeof billingCustomers.$inferInsert;
+
+/** The live counter per (entity, document type, financial year). */
+export const billingNumberSeries = pgTable(
+  "billing_number_series",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: text("entity_id").notNull(),
+    docType: text("doc_type").$type<BillingDocType>().notNull(),
+    finYear: text("fin_year").notNull(),
+    prefix: text("prefix").notNull().default(""),
+    nextSeq: integer("next_seq").notNull().default(1),
+    padWidth: integer("pad_width").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("billing_number_series_uq").on(t.entityId, t.docType, t.finYear)],
+);
+export type BillingNumberSeriesRow = typeof billingNumberSeries.$inferSelect;
+
+/** What a NEW financial year's series row inherits. Admin-configurable. */
+export const billingSeriesDefaults = pgTable(
+  "billing_series_defaults",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: text("entity_id").notNull(),
+    docType: text("doc_type").$type<BillingDocType>().notNull(),
+    prefix: text("prefix").notNull().default(""),
+    startSeq: integer("start_seq").notNull().default(1),
+    padWidth: integer("pad_width").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("billing_series_defaults_uq").on(t.entityId, t.docType)],
+);
+export type BillingSeriesDefault = typeof billingSeriesDefaults.$inferSelect;
+
+/** One row in the billing ledger. `docNo` is NULL until the document is
+ *  generated — a draft must never burn a tax-invoice number. */
+export const billingDocuments = pgTable(
+  "billing_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    docType: text("doc_type").$type<BillingDocType>().notNull(),
+    docNo: text("doc_no"),
+    finYear: text("fin_year").notNull(),
+    seq: integer("seq"),
+    docDate: date("doc_date").notNull(),
+    dueDate: date("due_date"),
+    status: text("status").$type<BillingDocStatus>().notNull().default("draft"),
+    /**
+     * ARCHIVED (migration 0231) — "stop showing me this", and nothing more.
+     *
+     * NOT the same as `status = 'cancelled'`, which means the document was
+     * withdrawn and is void. A paid invoice from two years ago is a valid legal
+     * record and stays exactly as issued; archiving only takes it off the
+     * working list. Nothing in this module ever deletes a document.
+     */
+    archived: boolean("archived").notNull().default(false),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+
+    entityId: text("entity_id").notNull(),
+    entityProfileId: uuid("entity_profile_id").references(() => billingEntityProfiles.id, {
+      onDelete: "set null",
+    }),
+    sellerSnapshot: jsonb("seller_snapshot").$type<BillingSellerSnapshot>().notNull(),
+
+    customerId: uuid("customer_id").references(() => billingCustomers.id, {
+      onDelete: "set null",
+    }),
+    customerSnapshot: jsonb("customer_snapshot").$type<BillingCustomerSnapshot>().notNull(),
+    customerName: text("customer_name").notNull(),
+    customerContactName: text("customer_contact_name"),
+    customerEmail: text("customer_email"),
+    customerWhatsapp: text("customer_whatsapp"),
+    customerGstin: text("customer_gstin"),
+    placeOfSupplyState: text("place_of_supply_state"),
+    placeOfSupplyCode: text("place_of_supply_code"),
+
+    serviceDescription: text("service_description"),
+    sacCode: text("sac_code"),
+    paymentTermsId: uuid("payment_terms_id").references(() => billingPaymentTerms.id, {
+      onDelete: "set null",
+    }),
+    paymentTermsLabel: text("payment_terms_label"),
+    remarks: text("remarks"),
+
+    gstMode: text("gst_mode").$type<BillingGstMode>().notNull().default("cgst_sgst"),
+    gstApplicable: boolean("gst_applicable").notNull().default(true),
+    isReverseCharge: boolean("is_reverse_charge").notNull().default(false),
+    subtotal: numeric("subtotal", { precision: 14, scale: 2 }).notNull().default("0"),
+    discountTotal: numeric("discount_total", { precision: 14, scale: 2 }).notNull().default("0"),
+    taxableValue: numeric("taxable_value", { precision: 14, scale: 2 }).notNull().default("0"),
+    cgstAmount: numeric("cgst_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    sgstAmount: numeric("sgst_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    igstAmount: numeric("igst_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    roundOff: numeric("round_off", { precision: 14, scale: 2 }).notNull().default("0"),
+    total: numeric("total", { precision: 14, scale: 2 }).notNull().default("0"),
+    amountInWords: text("amount_in_words"),
+    currency: text("currency").notNull().default("INR"),
+
+    sourceDocumentId: uuid("source_document_id").references(
+      (): AnyPgColumn => billingDocuments.id,
+      { onDelete: "set null" },
+    ),
+    sourceDocNo: text("source_doc_no"),
+    sourceDocType: text("source_doc_type").$type<BillingDocType>(),
+
+    generatedAt: timestamp("generated_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    lastSentTo: text("last_sent_to"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    paidAmount: numeric("paid_amount", { precision: 14, scale: 2 }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+    pdfStoragePath: text("pdf_storage_path"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    index("billing_documents_list_idx").on(t.docType, t.status, t.docDate),
+    index("billing_documents_customer_idx").on(t.customerId, t.docDate),
+    index("billing_documents_source_idx").on(t.sourceDocumentId),
+  ],
+);
+export type BillingDocument = typeof billingDocuments.$inferSelect;
+export type NewBillingDocument = typeof billingDocuments.$inferInsert;
+
+export const billingDocumentLines = pgTable(
+  "billing_document_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => billingDocuments.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => outstandingProducts.id, {
+      onDelete: "set null",
+    }),
+    code: text("code"),
+    name: text("name").notNull(),
+    description: text("description"),
+    sacCode: text("sac_code"),
+    hsnCode: text("hsn_code"),
+    quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull().default("1"),
+    unit: text("unit"),
+    rate: numeric("rate", { precision: 14, scale: 2 }).notNull().default("0"),
+    discountPct: numeric("discount_pct", { precision: 5, scale: 2 }),
+    discountAmount: numeric("discount_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    amount: numeric("amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    gstRate: numeric("gst_rate", { precision: 5, scale: 2 }).notNull().default("0"),
+    cgstAmount: numeric("cgst_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    sgstAmount: numeric("sgst_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    igstAmount: numeric("igst_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    lineTotal: numeric("line_total", { precision: 14, scale: 2 }).notNull().default("0"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("billing_document_lines_doc_idx").on(t.documentId, t.sortOrder)],
+);
+export type BillingDocumentLine = typeof billingDocumentLines.$inferSelect;
+export type NewBillingDocumentLine = typeof billingDocumentLines.$inferInsert;
+
+/** Append-only trail. Mirrors employee_events / task_events. */
+export const billingDocumentEvents = pgTable(
+  "billing_document_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => billingDocuments.id, { onDelete: "cascade" }),
+    actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+    eventType: text("event_type").$type<BillingEventType>().notNull(),
+    meta: jsonb("meta").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("billing_document_events_doc_idx").on(t.documentId, t.createdAt)],
+);
+export type BillingDocumentEvent = typeof billingDocumentEvents.$inferSelect;
+
+/** What was actually sent, to whom, and whether it landed. */
+export const billingEmailLog = pgTable(
+  "billing_email_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => billingDocuments.id, { onDelete: "cascade" }),
+    recipient: text("recipient").notNull(),
+    cc: text("cc"),
+    bcc: text("bcc"),
+    subject: text("subject").notNull(),
+    body: text("body"),
+    attachment: text("attachment"),
+    status: text("status").$type<"sent" | "failed">().notNull().default("sent"),
+    error: text("error"),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+    sentById: uuid("sent_by_id").references(() => employees.id, { onDelete: "set null" }),
+  },
+  (t) => [index("billing_email_log_doc_idx").on(t.documentId, t.sentAt)],
+);
+export type BillingEmailLogRow = typeof billingEmailLog.$inferSelect;
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * BILLING CONTRACTS (migration 0234) — Billing → Create Contract.
+ *
+ * A contract caps what may be billed to one customer (`totalValue`) and says
+ * how: Retainer, Milestone based, Subscription or Full Payment. Its schedule
+ * rows raise ordinary tax invoices through the document engine — `documentId`
+ * points at the one each row raised — so paid / unpaid is read off
+ * `billing_documents`, never stored twice. See the migration header.
+ * ──────────────────────────────────────────────────────────────────────────── */
+export const billingContracts = pgTable(
+  "billing_contracts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityId: text("entity_id").notNull(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => billingCustomers.id, { onDelete: "restrict" }),
+    customerName: text("customer_name").notNull(),
+    totalValue: numeric("total_value", { precision: 14, scale: 2 }).notNull(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    billingDate: date("billing_date").notNull(),
+    paymentType: text("payment_type").$type<ContractPaymentType>().notNull(),
+    billingFrequency: text("billing_frequency").$type<ContractBillingFrequency>(),
+    retainerAmount: numeric("retainer_amount", { precision: 14, scale: 2 }),
+    stopWhenComplete: boolean("stop_when_complete").notNull().default(true),
+    status: text("status").$type<ContractStatus>().notNull().default("active"),
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    stoppedById: uuid("stopped_by_id").references(() => employees.id, { onDelete: "set null" }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+    notes: text("notes"),
+    attachmentPath: text("attachment_path"),
+    attachmentName: text("attachment_name"),
+    attachmentType: text("attachment_type"),
+    attachmentSize: integer("attachment_size"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    index("billing_contracts_customer_idx").on(t.customerId, t.startDate),
+    index("billing_contracts_status_idx").on(t.status, t.createdAt),
+  ],
+);
+export type BillingContract = typeof billingContracts.$inferSelect;
+
+/** Milestones, subscription instalments, the Full Payment and retainer periods. */
+export const billingContractItems = pgTable(
+  "billing_contract_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    contractId: uuid("contract_id")
+      .notNull()
+      .references(() => billingContracts.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<ContractPaymentType>().notNull(),
+    seq: integer("seq").notNull(),
+    dueDate: date("due_date"),
+    description: text("description"),
+    amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+    status: text("status").$type<ContractItemStatus>().notNull().default("pending"),
+    documentId: uuid("document_id").references(() => billingDocuments.id, { onDelete: "set null" }),
+    raisedAt: timestamp("raised_at", { withTimezone: true }),
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("billing_contract_items_contract_idx").on(t.contractId, t.seq)],
+);
+export type BillingContractItem = typeof billingContractItems.$inferSelect;
+
+/** Post-dated cheques received with a contract. */
+export const billingContractPdcs = pgTable(
+  "billing_contract_pdcs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    contractId: uuid("contract_id")
+      .notNull()
+      .references(() => billingContracts.id, { onDelete: "cascade" }),
+    srNo: integer("sr_no").notNull(),
+    chequeDate: date("cheque_date"),
+    chequeNo: text("cheque_no"),
+    bankName: text("bank_name"),
+    amount: numeric("amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    drawerName: text("drawer_name"),
+    status: text("status").$type<ContractPdcStatus>().notNull().default("received"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("billing_contract_pdcs_contract_idx").on(t.contractId, t.srNo)],
+);
+export type BillingContractPdc = typeof billingContractPdcs.$inferSelect;
 
 /**
  * Upload Master — the uploaded override for a bulk-import template.
@@ -9413,3 +10766,183 @@ export const employeeRoles = pgTable(
 
 export type EmployeeRole = typeof employeeRoles.$inferSelect;
 export type NewEmployeeRole = typeof employeeRoles.$inferInsert;
+
+/**
+ * ACCOUNT LOCKOUT after consecutive failed sign-ins (migration 0236).
+ *
+ * Five wrong passwords locks the account. While locked the person can neither
+ * sign in nor use Forgot Password; only the four in
+ * lib/auth/unlock-permission.ts can clear it.
+ *
+ * KEYED BY EMAIL, NOT employee id. A failed attempt proves someone typed an
+ * address, not who they are, and the address may belong to nobody — the
+ * attempts worth counting most are the ones against addresses that do not
+ * exist. `employeeId` below is a nullable convenience for the admin screen,
+ * filled in when the address happens to match a row; it is not this record's
+ * identity. See the migration for the longer argument.
+ *
+ * `lockedAt` IS the lock — one nullable timestamp rather than a boolean and a
+ * date that can disagree. There is deliberately no `lockedUntil`: a timed
+ * release would let a brute-force attempt simply wait, and the requirement is
+ * that a human approves each one.
+ */
+export const accountLockouts = pgTable(
+  "account_lockouts",
+  {
+    /** Lower-cased by every call site. */
+    email: text("email").primaryKey(),
+    /** Consecutive failures inside FAILED_ATTEMPT_WINDOW_MS. */
+    failedCount: integer("failed_count").notNull().default(0),
+    lastFailedAt: timestamp("last_failed_at", { withTimezone: true }),
+    /** NULL = not locked. */
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    /** Kept after release, so "has this account been locked before?" stays answerable. */
+    unlockedAt: timestamp("unlocked_at", { withTimezone: true }),
+    unlockedById: uuid("unlocked_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    employeeId: uuid("employee_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("account_lockouts_count_nonneg", sql`${t.failedCount} >= 0`),
+    // The admin screen's only query: everyone currently locked, newest first.
+    index("account_lockouts_locked_idx").on(t.lockedAt).where(sql`${t.lockedAt} is not null`),
+    index("account_lockouts_employee_idx")
+      .on(t.employeeId)
+      .where(sql`${t.employeeId} is not null`),
+  ],
+);
+
+export type AccountLockout = typeof accountLockouts.$inferSelect;
+
+/**
+ * PER-IP LOGIN THROTTLE (migration 0236).
+ *
+ * The per-email counter cannot see the attack that matters most here: one
+ * failure each against fifty addresses trips no per-email threshold, yet that is
+ * exactly how an address list gets swept. This table prices that.
+ *
+ * DELIBERATELY NOT A LOCKOUT. An office NAT is one address for everybody, so
+ * tripping this throttles and refuses — it never locks a person out. Rows are
+ * disposable; anything older than the window can be pruned.
+ */
+export const loginAttemptIps = pgTable(
+  "login_attempt_ips",
+  {
+    ip: text("ip").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
+    failedCount: integer("failed_count").notNull().default(0),
+    lastFailedAt: timestamp("last_failed_at", { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.ip, t.windowStart] }),
+    index("login_attempt_ips_window_idx").on(t.windowStart),
+  ],
+);
+
+export type LoginAttemptIp = typeof loginAttemptIps.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assignable security roles (migration 0238) — the role LIST lives in
+// lib/auth/security-roles-catalog.ts so every role is one a route enforces;
+// these rows are who HOLDS one. See the migration for why neither
+// module_permissions (restrict-by-default) nor the code-only capability table
+// fits: this has to be grantable from the app, without a deploy.
+// ─────────────────────────────────────────────────────────────────────────────
+export const securityRoleGrants = pgTable(
+  "security_role_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** A key from SECURITY_ROLES. Text on purpose — a new role is a code change, not a migration. */
+    role: text("role").notNull(),
+    grantedById: uuid("granted_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("security_role_grants_employee_role_uniq").on(t.employeeId, t.role),
+    index("security_role_grants_role_idx").on(t.role),
+  ],
+);
+export type SecurityRoleGrant = typeof securityRoleGrants.$inferSelect;
+
+/** Who gave or took a role away. Kept when the grant itself is revoked. */
+export const securityRoleEvents = pgTable(
+  "security_role_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    role: text("role").notNull(),
+    /** granted | revoked */
+    action: text("action").notNull(),
+    actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("security_role_events_role_idx").on(t.role, t.occurredAt.desc())],
+);
+export type SecurityRoleEvent = typeof securityRoleEvents.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Two-step sign-in (migration 0242). After the password, a 6-digit code is
+// emailed; entering it gives the browser a pass until the next midnight IST
+// (lib/auth/two-step-pass.ts). These two tables are the server's half: the codes
+// that were sent, and the record of who verified. Nothing in the app shows the
+// verification log yet — it is kept for audit, on request.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One emailed code. The code and the browser's handle are stored hashed only. */
+export const twoStepChallenges = pgTable(
+  "two_step_challenges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** SHA-256 of the random handle the browser holds between the two steps. */
+    tokenHash: text("token_hash").notNull(),
+    /** HMAC of the 6-digit code. The code itself is only ever in the email. */
+    codeHash: text("code_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    /** Set once, when the right code is entered. A used code never works twice. */
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("two_step_challenges_token_uniq").on(t.tokenHash),
+    index("two_step_challenges_employee_created_idx").on(t.employeeId, t.createdAt),
+  ],
+);
+export type TwoStepChallenge = typeof twoStepChallenges.$inferSelect;
+
+/** Who passed two-step verification, when, from where, and until when. Audit only. */
+export const twoStepVerifications = pgTable(
+  "two_step_verifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** The address the code went to, as it was at the time. */
+    email: text("email").notNull(),
+    method: text("method").notNull().default("email"),
+    challengeId: uuid("challenge_id").references(() => twoStepChallenges.id, {
+      onDelete: "set null",
+    }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull().defaultNow(),
+    /** The next midnight IST — when this browser is asked again. */
+    validUntil: timestamp("valid_until", { withTimezone: true }).notNull(),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+  },
+  (t) => [index("two_step_verifications_employee_idx").on(t.employeeId, t.verifiedAt)],
+);
+export type TwoStepVerification = typeof twoStepVerifications.$inferSelect;

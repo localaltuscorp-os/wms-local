@@ -22,7 +22,6 @@ import { getOrgSettings } from "@/lib/queries/org-settings";
 import { withRetry } from "@/lib/db/with-timeout";
 import { insertPunchRow, resolvePunchGeofence } from "@/lib/attendance/record-punch";
 import { evaluateOfficeIp } from "@/lib/attendance/office-ip";
-import { isDccFilledFor } from "@/lib/dcc/gate";
 
 import { isManagerWithReports, isMondayIST, managerMondayGoalState } from "@/lib/manager-gates";
 import {
@@ -208,19 +207,10 @@ export async function punchAttendance(input: {
   // removed. Do not reinstate a close-out check here; the requirement was
   // withdrawn, not switched off, so there is no flag to flip back.
 
-  // ── DCC punch-out block ──────────────────────────────────────────────
-  // You can't clock OUT for the day until today's DCC is filled. FAIL-OPEN:
-  // a check error never traps a punch-out. Honors the DCC_GATE_OFF switch.
-  // When the Saturday commit gate is live, DCC is enforced Mon–Fri only —
-  // Saturday's ritual is the commit above (design §4). With the Sat gate off
-  // (default) this is unchanged: DCC blocks punch-out every day.
-  const dccBlockDay = satCommitGateOn() ? isWeekdayIST() : true;
-  if (kind === "out" && dccBlockDay && false /* gate force-off 2026-07-27 (attendance unblock) */) {
-    const dccDone = await isDccFilledFor(me.id, today).catch(() => true);
-    if (!dccDone) {
-      return { ok: false, error: "Fill today's DCC before you clock out — open the DCC page, then try again." };
-    }
-  }
+  // ── DCC punch-out block — REMOVED 2026-09-16 ─────────────────────────
+  // Clocking out used to require today's DCC to be filled. It had already been
+  // force-off since 2026-07-27; the DCC module itself is gone now, so the check
+  // and its `isDccFilledFor` import go with it.
 
   // ── Clock-IN planning gate — REMOVED 2026-09-09 ──────────────────────
   // Clocking IN used to require MIN_ATTENDANCE_ITEMS (5) things on today's plan

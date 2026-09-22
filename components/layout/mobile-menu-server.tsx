@@ -2,6 +2,7 @@ import { MobileMenu } from "./mobile-menu";
 import { MainNavServer } from "./main-nav-server";
 import { LiveIndicator } from "./live-indicator";
 import { AdminPill } from "@/components/header/admin-pill";
+import { SidebarArchive } from "./sidebar-route-chrome";
 
 /**
  * Server wrapper for the mobile drawer. Pulls in the same nav children
@@ -15,6 +16,10 @@ export async function MobileMenuServer({ isAdmin }: { isAdmin: boolean }) {
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-1">
           <MainNavServer variant="drawer" />
+          {/* The same room-aware Archive item the desktop rail pins above the
+              profile bar — a phone has no rail, so it rides at the end of the
+              nav list instead of being unreachable. */}
+          <SidebarArchive isAdmin={isAdmin} />
         </div>
         <div className="border-t pt-4 flex flex-col gap-3" style={{ borderColor: "var(--color-hairline)" }}>
           <div className="px-2">

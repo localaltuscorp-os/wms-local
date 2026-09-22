@@ -101,7 +101,7 @@ export default async function CommunicationsHomePage({
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <HrTitleBar />
+      <HrTitleBar title="Broadcasts" />
       <PageShell width="wide" style={{ maxWidth: "1180px" }}>
         <BroadcastTabs
           active={tab}
@@ -176,7 +176,7 @@ function SentList({ rows, empty }: { rows: BroadcastListItem[]; empty: "sent" | 
                 {b.recurrence !== "none" && (
                   <Pill tone={{ fg: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" }}>
                     <Repeat size={11} strokeWidth={2.6} />
-                    Repeats {b.recurrence}
+                    {b.recurrence === "custom" ? "Custom dates" : `Repeats ${b.recurrence}`}
                   </Pill>
                 )}
               </div>

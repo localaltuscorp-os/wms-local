@@ -52,8 +52,10 @@ type RowEmployee = EditableEmployee & {
 interface Props {
   employee: RowEmployee;
   isSelf: boolean;
-  /** True only for super-admins (Hetesh / Manan) — gates the admin toggle. */
+  /** Any admin — gates the admin toggle. */
   canManageAdmins: boolean;
+  /** ONLY a super-admin — gates the master-admin toggle. */
+  canManageMasterAdmin: boolean;
   departmentOptions: DepartmentOption[];
   managerOptions: { value: string; label: string }[];
 }
@@ -64,6 +66,7 @@ export function EmployeeRowActions({
   employee,
   isSelf,
   canManageAdmins,
+  canManageMasterAdmin,
   departmentOptions,
   managerOptions,
 }: Props) {
@@ -216,6 +219,7 @@ export function EmployeeRowActions({
           employee={employee}
           isSelf={isSelf}
           canManageAdmins={canManageAdmins}
+          canManageMasterAdmin={canManageMasterAdmin}
           departmentOptions={departmentOptions}
           managerOptions={managerOptions}
         />

@@ -160,9 +160,25 @@ export interface DateFieldProps
   value?: string | null;
   /** Receives an event whose `target.value` is ISO `yyyy-MM-dd` (or ""). */
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  /**
+   * Also hand the visible input to the caller.
+   *
+   * A plain `ref` cannot do this - the component keeps its own ref on that
+   * element to place the caret after masking - so callers that need the node
+   * (the letter editor focuses the first editable field without scrolling to
+   * it) pass a callback here and both get it.
+   */
+  inputRef?: (el: HTMLInputElement | null) => void;
+  /**
+   * Classes for the OUTER wrapper, which is a block by default (it sits alone
+   * in a form row everywhere else). A date written INSIDE a sentence - "Date:
+   * 21-Jan-1984" in a letter - needs it inline, or the box breaks onto its own
+   * line under its label.
+   */
+  wrapperClassName?: string;
 }
 
-export function DateField({ value, onChange, className, disabled, ...rest }: DateFieldProps) {
+export function DateField({ value, onChange, className, disabled, inputRef: outerRef, wrapperClassName, ...rest }: DateFieldProps) {
   const iso0 = value ?? "";
   const [text, setText] = React.useState(() => (iso0 ? formatDMonY(iso0) : ""));
   const [focused, setFocused] = React.useState(false);
@@ -195,17 +211,20 @@ export function DateField({ value, onChange, className, disabled, ...rest }: Dat
   }
 
   return (
-    <span className="relative block">
+    <span className={wrapperClassName ?? "relative block"}>
       <input
         {...rest}
-        ref={inputRef}
+        ref={(el) => {
+          inputRef.current = el;
+          outerRef?.(el);
+        }}
         type="text"
         inputMode="numeric"
         autoComplete="off"
         disabled={disabled}
         className={className}
         value={text}
-        placeholder={rest.placeholder ?? "dd-mmm-yyyy"}
+        placeholder={rest.placeholder ?? "DD-MMM-YYYY"}
         onFocus={(e) => {
           setFocused(true);
           rest.onFocus?.(e);

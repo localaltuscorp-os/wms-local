@@ -512,7 +512,7 @@ function DayCard({ goal, draggable }: { goal: GoalDTO; draggable: boolean }) {
     goal.targetQty != null
       ? `Qty ${fmtNum(goal.actualQty ?? 0)} / ${fmtNum(goal.targetQty)}${goal.uom ? ` ${goal.uom}` : ""}`
       : goal.targetAmount != null
-        ? `₹ ${fmtNum(goal.actualAmount ?? 0)} / ${fmtNum(goal.targetAmount)}`
+        ? `Rs. ${fmtNum(goal.actualAmount ?? 0)} / ${fmtNum(goal.targetAmount)}`
         : "";
 
   return (

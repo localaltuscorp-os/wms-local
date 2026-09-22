@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { ENTITY_LIST, getEntity, type EntityId } from "@/lib/hr/entities";
 import { formatDateHr } from "@/lib/format";
+import { RsAmount } from "@/components/ui/rs-amount";
 import { LookupSelect } from "@/components/ui/lookup-select";
 import {
   CTC_REASONS,
@@ -41,6 +42,7 @@ import {
 } from "@/lib/hr/ctc/local-store";
 import { fireToast } from "@/lib/toast";
 import { CtcSheet } from "./ctc-sheet";
+import { DateField } from "@/components/ui/date-field";
 import {
   loadCtcVersions,
   saveCtcVersion,
@@ -400,8 +402,8 @@ export function CtcWorkbench({ roster, isAdmin }: { roster: CtcRosterOption[]; i
         <label className="ctcw-pick">
           <CalendarDays size={15} strokeWidth={2.2} aria-hidden />
           <span className="ctcw-pick-label">Effective Date</span>
-          <input
-            type="date"
+          <DateField
+          
             value={effectiveDate}
             onChange={(e) => {
               setEffectiveDate(e.target.value);
@@ -448,7 +450,7 @@ export function CtcWorkbench({ roster, isAdmin }: { roster: CtcRosterOption[]; i
                           <span className="ctcw-node-ver">v{v.version}</span>
                           <span className="ctcw-node-reason">{REASON_LABELS[v.reason]}</span>
                         </span>
-                        <span className="ctcw-node-ctc">{formatINRCompact(t.ctcAnnual)}/yr</span>
+                        <span className="ctcw-node-ctc" title={formatINR(t.ctcAnnual)}>{formatINRCompact(t.ctcAnnual)}/yr</span>
                         {v.effectiveDate && <span className="ctcw-node-date">w.e.f. {fmtDate(v.effectiveDate)}</span>}
                       </span>
                     </button>
@@ -476,7 +478,7 @@ export function CtcWorkbench({ roster, isAdmin }: { roster: CtcRosterOption[]; i
                         <span className="ctcw-node-ver">v{(versions[versions.length - 1]?.version ?? 0) + 1}</span>
                         <span className="ctcw-node-reason">{REASON_LABELS[reason]}</span>
                       </span>
-                      <span className="ctcw-node-ctc">{formatINRCompact(totals.ctcAnnual)}/yr</span>
+                      <span className="ctcw-node-ctc" title={formatINR(totals.ctcAnnual)}>{formatINRCompact(totals.ctcAnnual)}/yr</span>
                       <span className="ctcw-node-draft">Unsaved draft</span>
                     </span>
                   </span>
@@ -498,8 +500,8 @@ export function CtcWorkbench({ roster, isAdmin }: { roster: CtcRosterOption[]; i
                 growth.map((n) => (
                   <div key={n.id} className="ctcw-note">
                     <div className="ctcw-note-row">
-                      <input
-                        type="date"
+                      <DateField
+          
                         className="ctcw-note-date"
                         value={n.date}
                         onChange={(e) => updateGrowthNote(n.id, { date: e.target.value })}
@@ -545,9 +547,9 @@ export function CtcWorkbench({ roster, isAdmin }: { roster: CtcRosterOption[]; i
                   {selectedEmployee?.name}
                   {selectedEmployee?.designation ? ` · ${selectedEmployee.designation}` : ""}
                 </span>
-                <span className="ctcw-headline-ctc">{formatINR(totals.ctcAnnual)}<span className="ctcw-yr">/yr CTC</span></span>
+                <span className="ctcw-headline-ctc"><RsAmount value={totals.ctcAnnual} /><span className="ctcw-yr">/yr CTC</span></span>
                 <span className="ctcw-headline-sub">
-                  {formatINR(totals.netMonthly)} net / month · {formatINR(totals.ctcMonthly)} CTC / month
+                  <RsAmount value={totals.netMonthly} /> net / month · <RsAmount value={totals.ctcMonthly} /> CTC / month
                 </span>
               </div>
 

@@ -37,10 +37,13 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    ".next-dummy/types/**/*.ts",
+    ".next-dummy/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
+    "_archive",
     "functions",
     "mobile",
     "mobile_LEGACY_DROP_2026-07-02",

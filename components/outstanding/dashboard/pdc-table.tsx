@@ -18,9 +18,14 @@ interface Pdc {
 export function PdcPanel({
   pdc,
   sp,
+  base,
 }: {
   pdc: Pdc;
   sp: Record<string, string | string[] | undefined>;
+  /** Which door the dashboard is open through — see
+   *  lib/outstanding/base-path.ts. Keeps every drill-down inside the
+   *  room the viewer actually entered. */
+  base: string;
 }) {
   return (
     <section
@@ -57,7 +62,7 @@ export function PdcPanel({
               <tr>
                 <Th>Employee (Responsible)</Th>
                 <Th align="right">Entries</Th>
-                <Th align="right">Amount (₹)</Th>
+                <Th align="right">Amount (Rs.)</Th>
               </tr>
             </thead>
             <tbody>
@@ -69,7 +74,7 @@ export function PdcPanel({
                 >
                   <td className="py-2.5" style={{ fontSize: 14 }}>
                     <Link
-                      href={buildDrillHref(sp, { pdc: "1", emp: r.name })}
+                      href={buildDrillHref(sp, { pdc: "1", emp: r.name }, base)}
                       className="font-semibold text-ink-soft hover:text-altus-red hover:underline underline-offset-2 transition-colors"
                     >
                       {r.name}

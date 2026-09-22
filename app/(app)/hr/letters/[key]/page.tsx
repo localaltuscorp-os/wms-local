@@ -1,7 +1,7 @@
 import { FileText } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { requireHrStaff } from "@/lib/hr/access";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { canIssueLetters } from "@/lib/hr/letters/issue-access";
 import { getLetter } from "@/lib/hr/letters/registry";
 import { loadLetterRoster, loadLetterCandidates } from "@/lib/hr/letters/roster";
 import { listActiveDepartments } from "@/lib/queries/departments";
@@ -30,7 +30,11 @@ export default async function LetterPage({
   const me = await requireHrStaff();
   const { key } = await params;
   const { candidate, employee } = await searchParams;
-  const isAdmin = me.isAdmin || isSuperAdmin(me.email);
+  // "May issue this letter", NOT "is an admin". The two were the same thing
+  // until the narrow `hr.letters.issue` grant existed — see
+  // lib/hr/letters/issue-access.ts. The prop keeps its old name because the
+  // letter editor uses it in a dozen places purely as "draw the issue buttons".
+  const isAdmin = await canIssueLetters(me);
   const template = getLetter(key);
 
   return (
@@ -89,6 +93,8 @@ async function LetterEditorLoader({
       id: r.id,
       name: r.name,
       email: r.email,
+      personalEmail: r.personalEmail,
+      officialEmail: r.officialEmail,
       designation: r.designation,
       payingEntity: r.payingEntity,
       // Everything the picker auto-fills into the letter's fields. Any of these

@@ -120,7 +120,7 @@ function serialToYmd(v: unknown): string {
 }
 
 function inr(n: number): string {
-  return "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  return "Rs." + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 function lakhs(n: number): string {
   return (n / 100000).toFixed(2) + "L";
@@ -142,6 +142,7 @@ async function verifyOnly() {
   const emptyFilters: Parameters<typeof loadOutstandingDashboard>[0] = {
     employees: [],
     entities: [],
+    clients: [],
     months: [],
     years: [],
     cycles: [],
@@ -333,7 +334,7 @@ async function main() {
   console.log(`Derived outstanding (ΣTotal − Σcoll):    ${inr(derivedOutstanding)}  (${lakhs(derivedOutstanding)})`);
   console.log(`Σ Balance column (sheet, cross-check):   ${inr(sumBalanceColumn)}  (${lakhs(sumBalanceColumn)})`);
   console.log("");
-  console.log(`  Targets — outstanding ~₹97.48L, collected ~₹19.61L, ΣTotal ~₹1,17,14,212`);
+  console.log(`  Targets — outstanding ~Rs. 97.48L, collected ~Rs. 19.61L, ΣTotal ~Rs. 1,17,14,212`);
   console.log("");
 
   // ── Roster resolution report ────────────────────────────────────────────
@@ -623,6 +624,7 @@ async function main() {
     const emptyFilters: Parameters<typeof loadOutstandingDashboard>[0] = {
       employees: [],
       entities: [],
+    clients: [],
       months: [],
       years: [],
       cycles: [],
@@ -643,7 +645,7 @@ async function main() {
     console.log(`collections.totalCollected: ${inr(dashboard.collections.totalCollected)}  (${lakhs(dashboard.collections.totalCollected)})`);
     console.log(`entries.length (open installments): ${entries.length}`);
     console.log("");
-    console.log(`  EXPECT — totalOutstanding ≈ ₹97.5L, totalCollected = ₹19,61,580`);
+    console.log(`  EXPECT — totalOutstanding ≈ Rs. 97.5L, totalCollected = Rs. 19,61,580`);
     console.log("");
   } catch (err) {
     console.log(`(verify skipped: ${(err as Error).message})`);

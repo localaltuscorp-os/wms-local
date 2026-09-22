@@ -262,8 +262,8 @@ function SlimFySummary(): React.JSX.Element {
           </div>
           {rupee && (
             <div className="mt-1.5 text-[12.5px] font-bold tabular-nums text-ink-strong">
-              ₹{fmtNum(rupee.actual)}{" "}
-              <span className="font-bold text-ink-subtle">of ₹{fmtNum(rupee.target)}</span>
+              Rs. {fmtNum(rupee.actual)}{" "}
+              <span className="font-bold text-ink-subtle">of Rs. {fmtNum(rupee.target)}</span>
             </div>
           )}
         </div>
@@ -656,7 +656,7 @@ function GoalPanel({ g }: { g: GoalDTO }): React.JSX.Element {
           <TargetVsActual
             target={tvaTarget}
             actual={tvaActual}
-            uom={rupeeBasis ? "₹" : g.uom}
+            uom={rupeeBasis ? "Rs." : g.uom}
             className="mt-3.5"
           />
         )}

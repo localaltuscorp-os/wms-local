@@ -7,6 +7,7 @@ import { isHrStaff } from "@/lib/hr/access";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { getDocType } from "@/lib/hr/letters/registry";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,12 @@ function jsonError(error: string, status = 200): Response {
  * indexed lookups + storage reads).
  */
 export async function POST(req: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   const me = await requireUser();
   if (!(await isHrStaff(me))) {
     return jsonError("You don't have access to this person's documents.", 403);

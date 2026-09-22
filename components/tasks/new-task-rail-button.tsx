@@ -143,10 +143,11 @@ export function NewTaskRailButton() {
             type="button"
             onClick={dismissHint}
             aria-label="Dismiss hint"
-            className="absolute right-0 top-full mt-3 z-40 text-left"
+            // inset-x-0: exactly the button's width. It was right-anchored at
+            // min 240px under a ~186px button, so it hung off the left edge of
+            // the window and its first words were cut (2026-09-19).
+            className="absolute inset-x-0 top-full mt-3 z-40 text-left"
             style={{
-              minWidth: 240,
-              maxWidth: 280,
               padding: "10px 12px",
               borderRadius: 12,
               background:

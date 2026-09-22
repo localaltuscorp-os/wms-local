@@ -52,6 +52,7 @@ vi.mock("@/lib/tasks/scope", () => ({ currentTaskVisibility: async () => null })
 vi.mock("@/lib/auth/current", () => ({ requireUser: async () => ({ id: "me" }), requireAdmin: async () => ({ id: "me" }) }));
 vi.mock("@/lib/goals/access", () => ({ requireGoalsAccess: async () => {} }));
 vi.mock("@/lib/accounts/access", () => ({ requireAccountsAccess: async () => {} }));
+vi.mock("@/lib/permissions/api-guard", () => ({ apiViewDenial: async () => null }));
 
 // The builders read master data (roster, subjects, clients) to decorate their
 // dropdowns. Empty is enough: this test is about which FILE is served.
@@ -156,7 +157,7 @@ describe("a replaced template is what the modules download", () => {
   });
 
   it("serves the same replacement from the module route kept for bookmarks", async () => {
-    const res = await tasksGet();
+    const res = await tasksGet(new Request("http://x/tasks/template.xlsx"));
     expect(res.status).toBe(200);
     expect((await body(res)).equals(REPLACEMENT)).toBe(true);
   });
@@ -204,7 +205,7 @@ describe("the Goals levels are addressed separately", () => {
 
 describe("the Accounts workbook", () => {
   it("still resolves through the registry from its module route", async () => {
-    const res = await accountsGet();
+    const res = await accountsGet(new Request("http://x/accounts/task-list/template"));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-disposition")).toContain("Accounts-Task-List-Template.xlsx");
     expect(isXlsx(await body(res))).toBe(true);

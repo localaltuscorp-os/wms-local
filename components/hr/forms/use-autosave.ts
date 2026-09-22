@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { registerBeforeLogout } from "@/lib/before-logout";
 
 /**
  * THE ONE AUTOSAVE for every HR form.
@@ -271,6 +272,15 @@ export function useAutosave<T>({
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
   }, [enabled]);
+
+  // Before an idle sign-out, write anything still pending while the session is
+  // alive to accept it (lib/before-logout.ts; run by the idle timer).
+  React.useEffect(() => {
+    if (!enabled) return;
+    return registerBeforeLogout(async () => {
+      if (dirtyRef.current) await flush();
+    });
+  }, [enabled, flush]);
 
   // Last chance on unmount (a client-side route change).
   React.useEffect(() => {

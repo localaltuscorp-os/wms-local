@@ -364,7 +364,7 @@ export function formatPctCompact(pct: number | null): string {
 /** Whole rupees, Indian digit grouping. The paise on an incentive figure are
  *  noise at card size, and every surface should drop them identically. */
 export function formatMoney(n: number): string {
-  return `₹${Math.round(Number.isFinite(n) ? n : 0).toLocaleString("en-IN")}`;
+  return `Rs. ${Math.round(Number.isFinite(n) ? n : 0).toLocaleString("en-IN")}`;
 }
 
 /** Hours with at most one decimal — "4" not "4.0", "4.5" kept. */

@@ -9,6 +9,7 @@
  */
 
 import { type LetterTemplate, t, f, para, heading, bullets, spacer, signature } from "../types";
+import { personSignOff } from "../sign-off";
 
 const template: LetterTemplate = {
   key: "free-training",
@@ -179,10 +180,8 @@ const template: LetterTemplate = {
       name: [t("Manan Vasa")],
       designation: [t("Sign and stamp")],
     }),
-    spacer("lg"),
-    para(t("Employee name: "), f("candidateName", "Candidate Name", { placeholder: "Full name" })),
-    spacer("md"),
-    para(t("Employee sign:")),
+    // The candidate's own sign-off, in the one shape every signed letter uses.
+    ...personSignOff({ prefix: "candidate", who: "Signed by the candidate" }),
   ],
 };
 

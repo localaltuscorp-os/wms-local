@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import {
   Send,
@@ -9,6 +9,7 @@ import {
   Check,
   Building2,
   UserRound,
+  ContactRound,
   SquarePen,
   ArrowLeft,
   Save,
@@ -44,6 +45,7 @@ import {
   HR_SIGNATURE_IMAGE,
   PROPRIETOR_SIGNATURE_IMAGE,
 } from "@/lib/hr/firm";
+import { DateField } from "@/components/ui/date-field";
 import { formatDateHr } from "@/lib/format";
 import {
   readCtcLetterPrefill,
@@ -57,6 +59,7 @@ import {
 } from "@/lib/hr/letters/templates/ctc-breakup";
 import { formatINR, num } from "@/lib/hr/ctc/model";
 import { fireToast } from "@/lib/toast";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
@@ -150,6 +153,10 @@ export interface LetterRosterOption {
   designation: string;
   /** Their email on file — pre-fills the "Send Email" composer's To field. */
   email?: string;
+  /** The personal inbox the letter PDF is emailed TO. Falls back to `email`. */
+  personalEmail?: string;
+  /** The company address (firstname.lastname@<domain>), copied as CC. */
+  officialEmail?: string;
   /** The employee's paying entity (from their salary profile) as an EntityId —
    *  picking them auto-selects the matching letterhead. Null → keep the default. */
   payingEntity?: EntityId | null;
@@ -319,6 +326,30 @@ export function LetterEditor({
   const [signingModel, setSigningModel] = useState<LetterSignature>(
     () => template.signature ?? "none",
   );
+
+  // ── The editing bar's live height, published as a CSS var ─────────
+  // The "Edit freely" formatting bar (.rle-toolbar, rendered by
+  // RichLetterEditor) pins DIRECTLY BELOW this one, in the same scroll
+  // container, so its sticky offset has to be this bar's height. That offset
+  // used to be the literal 72px, measured by hand back when the bar held three
+  // pickers and could not wrap - so the moment a fourth (Signing) appeared, or
+  // the row reflowed, the formatting bar pinned INSIDE this one and the two
+  // overlapped. A ResizeObserver publishes the real number instead: right in
+  // both modes, at every width, and it re-measures whenever the bar reflows.
+  // Consumed by .rle-toolbar in rich-letter-editor.tsx.
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const [toolbarH, setToolbarH] = useState(0);
+  useEffect(() => {
+    const bar = toolbarRef.current;
+    if (!bar) return;
+    const publish = () =>
+      setToolbarH(Math.round(bar.getBoundingClientRect().height));
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, []);
 
   const firstFieldId = fields[0]?.id;
 
@@ -685,7 +716,9 @@ export function LetterEditor({
     const attached = employeeId ? roster.find((r) => r.id === employeeId) : undefined;
     const name = (attached?.name ?? recipientName).trim();
     setCompose({
-      to: (attached?.email ?? recipientEmail).trim(),
+      // Email the PERSONAL inbox (the address they actually check); the office
+      // address is added as CC server-side, not here.
+      to: (attached?.personalEmail || attached?.email || recipientEmail).trim(),
       subject: name ? `${template.title} - ${name}` : template.title,
       message: "",
     });
@@ -780,7 +813,14 @@ export function LetterEditor({
   };
 
   return (
-    <div className="alw-wrap">
+    <div
+      className="alw-wrap"
+      ref={wrapRef}
+      // Only once measured - the CSS fallback (61px, one un-wrapped row) covers
+      // the first paint, so there is no frame where the var reads 0 and the
+      // formatting bar jumps to the top of the scroll container.
+      style={toolbarH > 0 ? ({ "--alw-toolbar-h": `${toolbarH}px` } as CSSProperties) : undefined}
+    >
       {/* Self-hosted letter-font library — loaded here too so the read-only
           rich previews (.alw-rich-preview) show the chosen fonts even when the
           RichLetterEditor itself isn't mounted. React 19 dedupes the link. */}
@@ -789,7 +829,7 @@ export function LetterEditor({
       <style>{EDITOR_CSS}</style>
 
       {/* ── Toolbar (does not print) ─────────────────────────────── */}
-      <div className="alw-toolbar no-print">
+      <div className="alw-toolbar no-print" ref={toolbarRef}>
         <label className="alw-pick">
           <Building2 size={15} strokeWidth={2.2} aria-hidden />
           <span className="alw-pick-label">Paying Entity</span>
@@ -806,18 +846,40 @@ export function LetterEditor({
           </select>
         </label>
 
-        {/* Recipient picker — OUR employee list (roster). Quick-fills the name +
-            designation (and CTC ₹ figures for CTC letters) and attaches the
-            letter to that employee. Replaces the old Candidate + Attach-Employee
-            dropdowns. */}
+        {/* Recipient picker — two lists, because a letter is addressed to EITHER
+            a candidate (Selection / offer / rejection …) OR an employee
+            (appointment, appraisal, increment …). Picking a candidate seeds the
+            recipient-name field + the pronoun gender from their intake; picking
+            an employee quick-fills name + designation (+ CTC ₹ for CTC letters)
+            and attaches the letter to that employee. An employee is never
+            offered in the candidate list — they are already on staff, so a
+            Selection letter cannot go to them. */}
+        {isAdmin && candidates.length > 0 && (
+          <label className="alw-pick">
+            <ContactRound size={15} strokeWidth={2.2} aria-hidden />
+            <span className="alw-pick-label">Candidate</span>
+            <CompactSelect
+              value={candidateId}
+              onChange={(id) => {
+                if (id) onPickCandidate(id);
+                else {
+                  setCandidateId("");
+                  setIssued(false);
+                }
+              }}
+              aria-label="Pick the candidate this letter is for"
+              placeholder="- pick a candidate -"
+              options={candidates.map((c) => ({ value: c.id, label: c.name }))}
+            />
+          </label>
+        )}
         {isAdmin && roster.length > 0 && (
           <label className="alw-pick">
             <UserRound size={15} strokeWidth={2.2} aria-hidden />
             <span className="alw-pick-label">Employee</span>
-            <select
+            <CompactSelect
               value={employeeId}
-              onChange={(e) => {
-                const id = e.target.value;
+              onChange={(id) => {
                 if (id) onSeedEmployee(id);
                 else {
                   setEmployeeId("");
@@ -825,15 +887,13 @@ export function LetterEditor({
                 }
               }}
               aria-label="Pick the employee this letter is for"
-            >
-              <option value="">- pick an employee -</option>
-              {roster.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                  {r.designation ? ` · ${r.designation}` : ""}
-                </option>
-              ))}
-            </select>
+              placeholder="- pick an employee -"
+              panelWidth={260}
+              options={roster.map((r) => ({
+                value: r.id,
+                label: r.designation ? `${r.name} · ${r.designation}` : r.name,
+              }))}
+            />
           </label>
         )}
 
@@ -1864,13 +1924,22 @@ function Field({
       />
     );
   }
-  // Date field → native calendar. Stored value is the human date ("15 August
-  // 2026"); the picker shows/edits it via an ISO shadow.
+  /**
+   * Date field → <DateField>, NOT a native `<input type="date">`.
+   *
+   * The letter stores and prints the canonical "21-Jan-1984" (isoToDisplayDate
+   * → formatDateHr), but the native input rendered that same value as
+   * `21-01-1984` because the browser formats it from the OS locale and nothing
+   * on the page can change that. So the document and the box you edited it in
+   * disagreed. DateField shows the same string the letter will print.
+   *
+   * It speaks ISO, and the letter stores human, so the conversion stays on this
+   * one line in each direction — exactly where it already was.
+   */
   if (spec.date) {
     return (
-      <input
-        type="date"
-        ref={autoFocus ? focusWithoutScroll : undefined}
+      <DateField
+        inputRef={autoFocus ? focusWithoutScroll : undefined}
         aria-label={spec.label}
         data-filled={filled || undefined}
         value={displayDateToIso(value)}
@@ -1919,14 +1988,32 @@ const EDITOR_CSS = `
      rest the toolbar sits 60px higher. If a pinned strip is ever added back
      inside .hr-shell-scroll, this has to match its height again. */
   position:sticky;top:0;z-index:20;
-  display:flex;flex-wrap:nowrap;overflow-x:auto;align-items:center;justify-content:safe center;gap:5px 7px;
+  /* WRAPS - it does NOT scroll sideways any more.
+     It used to be nowrap + overflow-x:auto, trading a cramped row for a
+     horizontal scrollbar. That trade was never actually taken, because the
+     children were allowed to SHRINK (flex-shrink:1 with min-width:0 on
+     .alw-pick) while each <select> inside them kept its own min-width:150px.
+     A pick could shrink to 40px; the select inside it could not, so the select
+     spilled out of its column and painted straight over the NEXT picker's
+     caption and box - the bar read as "CANDIDATEEMPLOYEE" with selects crossing
+     the action divider, and the primary buttons got squeezed off the right
+     edge. Nothing scrolled, because after all that shrinking the row DID fit.
+     Wrapping is the honest answer: settings on the first line, actions on the
+     next when there is no room, nothing overlapping at any width. flex-start
+     rather than the old safe-center, because .alw-actions is pushed right by an
+     auto margin now, which consumes the free space centring used to take. */
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:8px 7px;
   padding:9px 12px;margin-bottom:20px;
   background:color-mix(in srgb, var(--color-surface-soft, #f8fafc) 92%, transparent);
   backdrop-filter:blur(8px);
   border:1px solid var(--color-hairline, #e2e8f0);
   border-radius:16px;
 }
-.alw-pick{display:flex;flex-direction:column;gap:3px;position:relative;padding-left:17px;flex-shrink:1;min-width:0;}
+/* flex:0 0 auto - NEVER shrinkable. Shrinking this box does not shrink the
+   <select> inside it (that has its own min-width:150px), so the select escapes
+   the box and lands on the picker beside it. Sized to its content, the picker
+   stays whole and the toolbar wraps around it instead. */
+.alw-pick{display:flex;flex-direction:column;gap:3px;position:relative;padding-left:17px;flex:0 0 auto;}
 .alw-pick svg{position:absolute;left:0;top:22px;width:13px;height:13px;color:${RED_DEEP};}
 .alw-pick-label{
   font-family:var(--font-display, system-ui, sans-serif);
@@ -1952,15 +2039,18 @@ const EDITOR_CSS = `
    them to the row's baseline, which is the selects' bottom edge, and keeps
    matching if the caption's size ever changes. */
 /* The ACTION cluster, held clearly apart from the pickers to its left.
-   8px of margin was not enough separation once a third picker appeared: the
-   buttons ran straight on from the last select and the whole bar read as one
-   cramped row. A wider gap plus a hairline rule groups it as "settings on the
-   left, actions on the right" at a glance. The rule is drawn on the padding
-   edge so it spans the selects' height, not the buttons'. */
+   margin-left:auto is what separates it now: it swallows whatever room is left
+   on the line, so the cluster sits hard right of the settings however many
+   pickers there are and whatever the window width - "settings left, actions
+   right" without a fixed gap to keep in sync.
+   The hairline rule that used to mark the split is GONE, and it had to be: the
+   bar wraps now, and a left border on a cluster that has been pushed onto a
+   line of its own draws a stray vertical tick in open space with nothing to
+   divide. Separation here is positional, so it survives the wrap; a border
+   cannot. */
 .alw-actions{
-  margin-left:14px;padding-left:14px;
-  border-left:1px solid var(--color-hairline, #e2e8f0);
-  /* stretch = the rule spans the row's full height; flex-end = the BUTTONS
+  margin-left:auto;
+  /* stretch = the cluster spans the row's full height; flex-end = the BUTTONS
      still sit on the selects' baseline rather than centred against the
      caption+select pair, which is what read as misaligned. */
   display:flex;flex-wrap:nowrap;flex-shrink:0;gap:5px;align-items:flex-end;align-self:stretch;

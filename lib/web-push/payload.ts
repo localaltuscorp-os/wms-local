@@ -39,6 +39,7 @@ const TITLES: Record<NotificationKind, (actor: string) => string> = {
   training_test_failed: () => `Training test not passed`,
   dcc_fill_reminder: () => `Fill today's DCC KPIs`,
   ambassador_reminder: () => `You have an ambassador to follow up`,
+  ce_reference_reminder: () => `References to collect this week`,
   // Goals Cascade — delivered by their own cron (email + in-app); placeholder
   // titles to satisfy the exhaustive map.
   goals_commit_reminder: () => `Commit your week's goals`,

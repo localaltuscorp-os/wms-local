@@ -29,7 +29,7 @@ import {
 } from "@dnd-kit/core";
 import { fireToast } from "@/lib/toast";
 import { Avatar } from "@/components/ui/avatar";
-import { setReferralStage } from "@/app/(app)/ambassadors/actions";
+import { setReferralStage } from "@/app/(app)/billing/ambassadors/actions";
 import {
   PIPELINE_STAGES,
   STAGE_LABELS,

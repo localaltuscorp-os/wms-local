@@ -41,6 +41,7 @@ const EMOJI: Record<NotificationKind, string> = {
   training_test_failed: ":x:",
   dcc_fill_reminder: ":alarm_clock:",
   ambassador_reminder: ":gem:",
+  ce_reference_reminder: ":handshake:",
   // Goals Cascade — delivered by their own cron / in-app inbox; present to
   // satisfy the exhaustive map but not sent via Slack.
   goals_commit_reminder: ":dart:",
@@ -111,6 +112,7 @@ const VERB: Record<NotificationKind, (actor: string, statusLabel?: string) => st
   training_test_failed: () => `Training test not passed`,
   dcc_fill_reminder: () => `Fill today's DCC KPIs`,
   ambassador_reminder: () => `You have an ambassador to follow up`,
+  ce_reference_reminder: () => `References to collect this week`,
   // Goals Cascade — delivered by their own cron / in-app inbox; not sent via Slack.
   goals_commit_reminder: () => `Commit your week's goals`,
   goals_approval_reminder: () => `Approve your team's goals`,

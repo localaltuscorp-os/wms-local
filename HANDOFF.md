@@ -6,6 +6,7 @@ broken, what changed and why.
 - Setup instructions → [`SETUP.md`](./SETUP.md)
 - Replicating this system for a new client → [`docs/WMS_BLUEPRINT.md`](./docs/WMS_BLUEPRINT.md)
 - **`Om` branch handoff + unrun SQL migrations** → [`HANDOFF-Om.md`](./HANDOFF-Om.md)
+- **`Shreya` branch handoff + its Supabase file** → [`handoff-shreya.md`](./handoff-shreya.md)
 
 > **Every developer and intern must append to the changelog below before their
 > work is considered done.** A PR without a changelog entry is incomplete. See
@@ -13,50 +14,171 @@ broken, what changed and why.
 
 ---
 
-## ✅ Database migrations — nothing outstanding (updated 2026-09-22)
+## ✅ Database migrations — APPLIED
 
-**Every migration is now applied to the Supabase database this branch points
-at.** The last six went in on 2026-09-22 through `pnpm db:migrate`; the ledger
-`__schema_applied` holds 286 files, and the columns this branch's newest code
-reads (`employees.employee_type`, `employees.internship_start`,
-`designations.employee_type`, `incentive_catalog.applicability`) are present.
+**`0215`–`0224` applied 2026-09-15** (74/74 verified). **`0225`–`0227` applied
+2026-09-18.** **The since-fork bundle applied 2026-09-21** —
+`db/RUN-IN-SUPABASE-SINCE-FORK-0911.sql` (50 migrations) then
+`db/VERIFY-SINCE-FORK-0911.sql`, **132/132 PASS** on production
+`mwaijzxuyicysvimzspx`. That run is what unblocked deploying the fork merge: the
+code reads `two_step_*` tables that migration `0242` creates, and
+`lib/auth/session-mint.ts` is in the sign-in path. Outstanding:
+**`0216_incentive_eligibility.sql`** (self-heals at runtime; apply it properly).
 
-One of them, `0244`, first had to repair a year-old drift that was **already
-breaking the Incentive Master at runtime** — see the changelog entry for
-2026-09-22 and [`Change-made/12`](./Change-made/12-incentive-applicability-intern-employee-type.md).
-The tables below are kept for the record and for applying to a *different*
-database.
+See `db/fork-handover-2026-09-21/INDEX.md` for which commit brought each file.
 
-### For another database: 0216 to 0224
+The 18 September batch, all additive and idempotent:
 
-**One file, everything.** Every migration, `0216` through `0224`, in order:
+| File | Adds | Notes |
+|---|---|---|
+| `0225_candidate_intake_merge.sql` | `candidate_intake.merged_into_id` + `candidate_intake_merge_events` | **Had to be applied BEFORE the deploy** — every candidate picker filters on the new column |
+| `0226_capability_grants.sql` | `capability_grants` + `capability_grant_events` | Master-admin membership as data. A CHECK constraint pins it to `master_admin.manage` alone |
+| `0227_permission_node_settings.sql` | `permission_node_settings` + `permission_catalog_events` | Tables only — the label/rename UI is **not built yet** |
 
-```bash
-# Supabase Dashboard -> SQL Editor -> New query -> paste -> Run
-#   or:
-psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0216-0224.sql
+Running the code **before** 0225 would not have errored loudly: `listCandidateIntakes`
+is wrapped in a timeout + try/catch on the evaluation page, so the candidate list
+would simply have come back **empty**. A silent empty list is the failure mode to
+watch for after any migration that adds a column to a filtered query.
+
+---
+
+## (record) Migrations 0215–0224 — applied 2026-09-15
+
+> **Numbering note (wms-local).** The same migration numbers are used by
+> different files in `wms-local`: `0225`-`0227` there are Om's employee and
+> billing masters and Rudra's candidate signatures, not the three above.
+> What has been applied where is tracked in
+> `db/fork-handover-2026-09-21/INDEX.md`, with the combined bundle beside it.
+
+> **Still outstanding: `0216`, and the `Rudra` branch's `0229` and `0230`**
+> (see the bundle below and the 16–17 September entries).
+
+> **This section is now a record, not a to-do.** All 15 migrations ran against
+> production and verified clean (74/74). See the 15 September (night) changelog
+> entry for the run, the device wipe and its restore. What follows is kept
+> because every warning in it still applies to the next batch — the project
+> mix-up, the "success is not proof" traps, and why `npm run db:migrate` is not
+> the tool here. **`0216_incentive_eligibility.sql` is the one still outstanding**
+> (see below); it self-heals at runtime, but apply it properly.
+
+**Order: `db/VERIFY-0215-0224.sql`, then
+`db/RUN-IN-SUPABASE-0215-0224-ALL.sql`, then the verify file again.** Both
+arrived on the team's `prod-sync-0915` branch, merged here on 15 September.
+
+🔴 **The instructions that came with those files name the wrong Supabase
+project.** They say `fjopgyqytfvbudkwhdto`, and call it production. That is the
+**team's** database. Production is **`mwaijzxuyicysvimzspx`**:
+
+```
+https://supabase.com/dashboard/project/mwaijzxuyicysvimzspx/sql/new
 ```
 
-It is in **two parts**. **Part 1** (`0216`–`0222`, `0224`) is additive and
-idempotent — no `DROP TABLE`, no `TRUNCATE`, no `DELETE`, so re-running changes
-nothing.
+Run the file against their ref and it changes their data while production stays
+unmigrated — and it looks like it worked.
 
-**Part 2** is `0223`, which **clears every row from `mobile_devices`** so the
-roster re-registers deliberately. That wipe is intended, but it destroys device
-history — so in this file it copies the table to `mobile_devices_pre_0223`
-first, in the same transaction, and skips itself entirely if that backup already
-exists. Running the file twice therefore cannot wipe devices people have just
-registered.
+**There is a THIRD project.** `docs/handoffs/HANDOFF-2026-09-11-candidate-no-
+login-form.md` records `0221_candidate_access_links` being applied to
+`ifcdpjbdinvmtewmgceg`. So of the three refs that appear in the team's notes,
+**one is production and two are not**, and both of the others are named as
+places migrations were actually run. Check the ref in the URL bar every time.
 
-**To stop before the wipe, end at the line marked `END OF PART 1`.**
+**Their notes disagree with ours about what is already applied**, and neither
+is evidence. That same file says seven migrations are outstanding on production
+(`0215` ×2, `0216`–`0220`); the 11 September entry below records `0215`–`0220`
+applied by hand. They cannot both be right. Do not try to settle it by reading:
+`db/VERIFY-0215-0224.sql` answers it against the live database in one run, and
+every statement in the sheet is idempotent, so the cost of being wrong in the
+"already applied" direction is nothing.
 
-Do **not** reach for `npm run db:migrate` on a database that has not been through
-this: the drizzle journal is stale at `0019`, so it would also apply two dozen
-unrelated pending migrations. Use `pnpm db:migrate`
-(`scripts/apply-all-migrations.ts`), which reads its own by-filename ledger and
-refuses row-destroying DDL unless the file is named explicitly. Full detail,
-per-file notes and the known limitations are in
-[`HANDOFF-Om.md`](./HANDOFF-Om.md).
+**Their sanity check cannot catch that.** "~270+ tables, near 0 means wrong
+project" only catches an *empty* project; both databases carry the full WMS
+schema. Step 3 of the verify file is the check that discriminates: this database
+has `app.is_admin()` and `app.current_employee_id()`, theirs has neither — which
+is why their `PART 3b` shipped commented out in September. **`has_is_admin`
+false means you are not in production.**
+
+🔴 **`0224` MUST RUN BEFORE THIS CODE DEPLOYS. It is not a degrade-gracefully
+migration.** `0224` renames `mobile_devices.bios_serial_number` to
+`device_name`, and `db/schema.ts:2085` already declares `deviceName`. Drizzle's
+`db.query.mobileDevices.findFirst` expands every declared column, so against a
+database where `0224` has not run it asks for a column that does not exist and
+throws `42703`.
+
+`resolveDeviceContext` (`lib/security/device-access.ts:220`) makes exactly that
+call on **every request that carries a device cookie**, with no try/catch above
+it, and the lookup runs even for exempt actors and with
+`DEVICE_ACCESS_ENFORCEMENT=off` — the comment there says so deliberately, so the
+master switch does not silently skip the audit row. So the failure is app-wide,
+not confined to the device screens.
+
+This is the 9 September outage in a new place: a bare-selected table, a column
+the code knows about and the database does not. **Run the SQL first, then push
+to `main`.** `DeviceRegistrationGate` catches its own errors and the Operations
+Checklist and Job Description pages guard `42P01`/`42703` and show a setup
+notice — those three are genuinely safe to deploy early. The device context is
+not.
+
+**Most of Part 1 is already applied here.** `0215`–`0220` went in by hand on
+11 September as `SQL STEPS/STEP-3`, `STEP-5` and `STEP-6`. Every statement is
+idempotent, so re-running is harmless — but the genuinely outstanding set is
+smaller than "15 migrations": `0221` ×3, `0222` ×3 and `0224`, plus `0223`
+only if the device wipe is wanted.
+
+**Part 2 (`0223`) clears every row from `mobile_devices`.** That is intended —
+it is the point of first-login registration — and it is guarded: it copies the
+table to `mobile_devices_pre_0223` in the same transaction first, and skips
+itself entirely if that backup already exists, so a second run cannot wipe
+registrations people have just made. **To stop before the wipe, end at the line
+marked `END OF PART 1`.**
+
+**`0216_incentive_eligibility.sql` is ours and is NOT in that file** — it was
+generated from `ae58385`, before that commit existed. The incentive page will
+not break meanwhile: `lib/incentive/ensure-eligibility-schema.ts` applies the
+additive half at runtime. Apply the migration properly regardless.
+
+`db/RUN-IN-SUPABASE-0216-0224.sql` is **superseded and incomplete** — neither
+`0215`, and none of Rudra's or Vinal's `0221`/`0222`. Use the `-ALL` file.
+
+**Two 0216 files now exist**, ours and theirs. Harmless — the runner orders by
+full filename — and it joins the 28 collisions already there back to `0019`.
+
+**Then the `Rudra` branch's own two**, `0229` (broadcast repeats and WhatsApp
+outcomes) and `0230` (Client Engagement), in a second bundle:
+
+```bash
+psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0229-0230.sql
+```
+
+That one is additive and re-runnable throughout — every statement is
+`IF NOT EXISTS` or a guarded `DO` block, and the only `DROP`s are CHECK
+constraints being replaced in place. Unlike the 0216–0224 set, the app keeps
+working without it: the new screens simply have nothing to show.
+
+Do **not** reach for `npm run db:migrate`: the drizzle journal is stale at
+`0019`, so it would also apply two dozen unrelated pending migrations. Full
+detail and per-file notes are in [`HANDOFF-Om.md`](./HANDOFF-Om.md).
+
+### Four more, for Operations (added 2026-09-12)
+
+Not part of the `0216–0224` file above. Apply **in this order**, after it:
+
+| Migration | Gives you | Verified state |
+|---|---|---|
+| `0221_ops_event_checklist.sql` | Event Checklist templates, runs, items, ticks | **Never applied here** |
+| `0222_job_description.sql` | JD Bank: ranks, positions, entries, assignments | **Never applied here** |
+| `0225_jd_assignment_targets.sql` | Per-destination assignment flags on `jd_assignments` | New, unrun |
+| `0226_jd_rank_ladder_26.sql` | The 26-rank ladder, replacing fourteen | New, unrun |
+
+The first two were checked against `information_schema` on 2026-09-12 and **no
+`jd_*` or `ops_checklist_*` table exists in this database**. Until they run,
+both screens render from a seeded in-memory demo layer behind a banner naming
+the migration — fully usable, resets on restart, stores nothing.
+
+`0226` renumbers `rank_order`, **which is behaviour**: the vacancy resolver
+climbs it, so the numbers decide who covers a vacant seat. It renumbers in two
+passes (one pass collides with the unique index) and leaves `DGM` alone
+deliberately, raising a notice naming how many positions are stranded on it.
+All four are additive and idempotent — no `DROP`, no `DELETE`.
 
 **When reading that script's output:** the DRY RUN reports every file as
 `pending`, because it short-circuits the "already applied?" lookup when it is not
@@ -761,6 +883,1966 @@ pnpm db:migrate         # applies it
   carries them, and nothing was deleted.
 
 Full detail, file by file: [`Change-made/12-incentive-applicability-intern-employee-type.md`](./Change-made/12-incentive-applicability-intern-employee-type.md).
+### 2026-09-21 (later) — The permission matrix now covers every route handler
+
+**What changed**
+
+- **All 62 remaining route handlers are wired** — every `route.ts` in the app now
+  asks the matrix before answering. The debt recorded as 28/2/26 before the fork
+  merge, then 29/3/30 after it, is **zero**.
+- **28 catalogue entries added** (`apiRoutes` on HR, goals, training,
+  productivity, operations, platform and dashboard nodes), so each handler is
+  actually governed rather than merely wired.
+- **5 handlers are exempt by design**, each with its reason recorded.
+- **`tests/unit/api-guard.test.ts`** — the guard had no test of its own, only a
+  grep for its name in the coverage test.
+- **`route-handler-coverage.test.ts`** drops the "known debt, exact counts" list
+  for a stronger assertion: no handler may be unguarded at all.
+
+**The gap this closes**
+
+Revoking a module hid its screen while its endpoints kept answering, because
+`requirePathView` runs once in a layout and a layout never runs for a `route.ts`.
+The exports were the worst of it: `/salary/export.xlsx`, `/tasks/export.pdf` and
+`/attendance/export.xlsx` handed over exactly the data the hidden screen showed.
+
+**A trap worth naming: wired is not the same as enforced.** The guard returns
+`null` for a path no node claims, so a handler can call `apiViewDenial`, look
+covered, and enforce nothing — the two states are identical from outside. That is
+why the wiring and the catalogue entries had to land together, and why a new test
+asserts that every guarded handler resolves to a node or is on the exempt list.
+Without it, this whole tranche could have gone green while changing nothing.
+
+**How the wiring was done, and why it is trustworthy**
+
+62 hand-edits would have been 62 chances to differ. A codemod inserted the guard
+as the first statement of each handler body and added a `Request` parameter where
+a handler had none (Next always passes one; 9 handlers ignored it).
+
+It was **dry-run on three copies first, and the first version was wrong** — it
+applied the added parameter before the guard, shifting the insertion point and
+planting the guard *inside the signature*: `Promise<Response>` became
+`Pro` + guard + `mise<Response>`. Fixed by inserting the guard before the
+parameter, since the parameter edit sits earlier in the string.
+
+Verified after: `tsc` clean, eslint clean on all 65 changed files, suite 4177
+passed. The one failure is the known `device-exemption-login` 5s timeout
+(5021ms), unchanged from the merge and passing when given room.
+
+**One test needed fixing, and it is instructive.** `incentive-export-routes.test.ts`
+called its handlers with no arguments, which only compiled because those handlers
+took no `Request`. It now passes one, as Next does — and stubs the guard, because
+importing it drags in `lib/env.ts` and its parse of `DATABASE_URL` at module load.
+
+**Left undone, deliberately**
+
+- **EDIT is still wired in only 2 of ~108 action files.** VIEW is now enforced in
+  pages, handlers and the Admin Panel's exports; EDIT remains cosmetic outside
+  those two, which is the next tranche.
+- **The Admin Panel's 19 unwired pages** — `app/(admin)/admin/layout.tsx` still
+  checks only `isAdmin`.
+- **78 `/api/mobile/*` routes** stay exempt: wiring them needs CORS headers on
+  the refusal or the native app reports a network failure instead of a 403.
+
+### 2026-09-21 — The fork's 54 commits land, and the matrix reaches API endpoints
+
+**What changed**
+
+- **The team's fork is merged into `main`** (`fe4f44a3`, 54 commits from
+  `localaltuscorp-os/Altus-OS` at `da534f7c`). Account lockout with a grantable
+  unlock role, two-step emailed sign-in codes, the incentive rework (Accounts
+  payable ledger, billing, breakup letter), DCC masters and calendar sync, HR
+  Records Backup as one ZIP per person plus a scheduled Drive save, WCC/MCC
+  checklists, employee and billing master, the `departments`→`functions` rename,
+  and per-person device identity.
+- **`lib/permissions/catalog.ts` gains `apiRoutes`**, and the four
+  `/api/hr/letters/*` handlers are now governed by the matrix through the new
+  `lib/permissions/api-guard.ts`.
+- **`tests/unit/route-handler-coverage.test.ts`** walks every `route.ts` and
+  requires it to be governed or exempt-with-a-reason.
+
+**Why the matrix needed to reach handlers**
+
+`requirePathView` ran in one place — `app/(app)/layout.tsx` — and a layout never
+runs for a `route.ts`. So revoking a module hid its screen while its endpoints
+answered anyway. Letters was the worst case: four handlers that mint, email and
+render through headless Chromium, all reachable whatever the matrix said. The
+guard **returns** its refusal rather than throwing, because a route handler has
+no error boundary, so `forbiddenError()`'s digest becomes a 500 — a refusal that
+reports itself as the app being broken.
+
+Interesting consequence, now locked with tests: a handler nested under a page
+prefix is *already* governed by longest-prefix matching, so most export endpoints
+need one guard call and no catalogue entry. `apiRoutes` exists only for a handler
+outside its page's path.
+
+**The one conflict, and how it was resolved**
+
+`lib/permissions/catalog.ts` — both sides edited the same HR block. Theirs moved
+Salary Slip to the Employees room and listed **both** paths so the old
+`/hr/salary-slip` stays governed rather than becoming an ungoverned door; ours
+added the Letters `apiRoutes`. Neither contradicts the other, so both were kept.
+Nothing was dropped from either side.
+
+**Verified after merging**
+
+`tsc --noEmit` clean across 788 files. Catalogue tests 26/26, including the
+filesystem check that every claimed route still resolves after the rename. Full
+suite 4157 passed. Raw failure counts varied between runs (4, then 10), so each
+file was re-run in isolation instead of being called flake — only **one** is
+genuine: `device-exemption-login` times out at 5021ms against a 5s limit and
+passes when given room (5.80s of work). The other 16 tests in that file call the
+same path and are fast, so it is the new two-step flow's cold-start import cost,
+not a logic break. Sign-in is slower, not wrong.
+
+**Route-handler debt rose 28/2/26 → 29/3/30.** Every increase is a handler this
+merge *added*; no existing guard was removed. The coverage test caught them on
+its first run, which is the test doing its job.
+
+**The migration run — do not reorder this**
+
+The merged code reads `two_step_challenges` / `two_step_verifications`, which
+exist only after `0242`. `lib/auth/session-mint.ts` is **in the sign-in path**, so
+deploying before the tables existed would have meant nobody could log in. The
+merge therefore sat unpushed until the SQL had run. Mohit's bundle was dry-run
+first against PGlite (real Postgres, already a dependency): PART 2 applied clean
+as one transaction and `VERIFY-SINCE-FORK-0911.sql` returned **132/132 PASS**
+before the same files were run against production `mwaijzxuyicysvimzspx`.
+
+Two traps worth remembering:
+
+- **PART 1 must run alone.** It adds enum values, and Postgres refuses to *use* a
+  value added in the same transaction — reproduced in the dry run, which is
+  exactly why the bundle splits it out.
+- **Supabase's editor runs a SELECTION, not the file.** The first VERIFY attempt
+  failed with `syntax error at or near 'recruitment_jds.is_active'` at *LINE 2* —
+  the button said "Run selected" and two highlighted rows of a `VALUES` list are
+  not a statement. The SQL was correct; the selection was not. Ctrl+A before Run.
+
+### 2026-09-18 (later) — Functions Storage: one import was costing ~10 GB
+
+**What changed**
+
+- **`lib/db/index.ts` no longer imports `drizzle-orm/pglite` as a value.**
+  `import { drizzle as drizzlePglite } from "drizzle-orm/pglite"` became a
+  type-only reference plus a variable-specifier `require()` inside `dummyDb()`,
+  next to the identical treatment PGlite itself already had.
+
+**Why — 14 GB against a 10 GB allowance**
+
+Vercel sums the uncompressed size of every deployed serverless function. PGlite
+(PostgreSQL-as-WASM, used only by the local DUMMY_MODE sandbox) is ~25 MB, and
+it was in **428 of 1066** built server files.
+
+The 15 September fix hid the direct `require("@electric-sql/pglite")` behind a
+variable specifier, which a static analyser cannot follow. That fix was correct
+and it did nothing, because a **static import on line 2 of the same file** put
+the package back in the graph by another door:
+
+- `drizzle-orm/pglite` is **not** in `serverExternalPackages`, so webpack
+  **bundled** that driver into the chunk that owns `lib/db` — the chunk every
+  database-touching route depends on.
+- The driver's own `import("@electric-sql/pglite")` **is** externalized, so
+  webpack emitted it as a runtime `a.exports = import("@electric-sql/pglite")`
+  — a **literal** specifier, which Next's tracer follows exactly as it follows a
+  literal `require()`.
+- Verified in the build output, not inferred: the string appeared in 428 files
+  under `.next/server`. After the fix: **0**.
+
+This also explains why the number went **up** rather than down after the
+September 15 fix — the count never dropped, and `@electric-sql/pglite` grew from
+17.2 MB to ~25 MB.
+
+**The generalisable lesson (the second time this bug has appeared)**
+
+Hiding ONE reference is not fixing the leak. Grep the **build output** for the
+specifier — `pnpm build && node scripts/measure-functions-storage.mjs --leaks`.
+A leak you cannot see in the source is still a leak.
+
+**New tooling**
+
+- `scripts/measure-functions-storage.mjs` — `--leaks` scans the built server
+  output for literal `require()`/`import()` specifiers and reports how many
+  functions each one reaches. It reads webpack output, so it is valid from a
+  local build (a local build compiles fine; it only fails later at page-data
+  collection without `.env.local`). The default mode sums `.nft.json` traces and
+  **refuses to report a total** when the traces are empty of `node_modules` —
+  those numbers are meaningless, and three previous investigations were misled by
+  them. **Run `--leaks` locally; confirm the number on Vercel.**
+- `pnpm check:leaks` / `pnpm measure:functions`.
+- `tests/unit/db-trace-leaks.test.ts` — asserts the fix in the normal unit run,
+  so the next innocent-looking one-line import fails a test rather than a bill.
+
+**Also fixed: the error message that sent the owner on a detour**
+
+Ticking "Issue letters" showed him the raw `INSERT` statement and its bound
+parameters — which included an employee's email address — instead of the actual
+cause. `lib/db/error.ts` already existed for exactly this (see its header, and
+the 2026-08-30 attendance airstrike); the handler was reading `err.message` and
+never calling it. Both grant handlers now use `dbErrorAdvice()`, which names the
+**remedy** for the SQLSTATEs a migration explains (23514/42P01/42703/42P07) and
+otherwise falls back to the cause. Bound parameters are never shown.
+
+**Still ahead, and not a blocker**
+
+After this fix Functions Storage should land near **3–4 GB**. Remaining
+specifiers, reported by `--leaks` and deliberately left alone:
+
+| Specifier | Functions | Roughly | Why it stays |
+|---|---|---|---|
+| `firebase-admin` | 92 | ~2 GB | Genuinely needed for token verification on authed routes. Reducing it means replacing the SDK with JWKS verification — a real project, not a tweak |
+| `pdfkit` | 35 | ~290 MB | Structured letter PDFs |
+| `@sparticuz/chromium` | 6 | ~400 MB | Rich letters + policy PDFs; expected, and the 67 MB binary is what makes those routes work |
+
+**SQL to run before deploying:** none. This is a code-only change.
+
+**How to verify**
+
+1. `node scripts/measure-functions-storage.mjs --leaks` → `@electric-sql/pglite`
+   must read **0 files**.
+2. After the deploy: Vercel → Usage → Functions Storage. Expect ~3–4 GB.
+3. `corepack pnpm exec vitest run` → 2927 passed, 6 failed (all pre-existing:
+   `task-actions` ×2, `task-stat-counts`, `delegated-access-authorization`,
+   `done-on-time`, `global-search-provider`).
+
+---
+
+### 2026-09-18 — Wheel scroll restored app-wide; master admin becomes data; policy downloads carry the text
+
+**What changed**
+
+- **Wheel/trackpad scrolling worked only from the page gutter.** `app/globals.css`
+  applied the `overscroll-behavior` **shorthand** to every element with any
+  Tailwind overflow utility. Only that one rule changed — see *Why* below, it is
+  the single most useful thing in this entry.
+- **Master admin is now a database row, not a code constant.** `capability_grants`
+  (migration 0226), granted from **Admin → Employees → Master admin**, and
+  readable/editable without a deploy. `lib/security/capability-grants.ts`.
+- **A "Master admin" access chip** in the employee list and a matching checkbox in
+  the employee editor, drawn only for a super-admin.
+- **The HR console hides what the permission matrix has denied**
+  (`lib/hr/console-visibility.ts`). Its rail used to keep drawing steps that
+  bounced you to the hub.
+- **"Download policy" now returns the whole policy**, body then acknowledgement,
+  instead of the acknowledgement alone. Both `/api/hr/policies/download` and
+  `download-all`.
+- **`guardSuperAdminTarget` widened to `guardPrivilegedTarget`** at all seven call
+  sites (password reset, invite-link minting, deactivate, archive, delete) — see
+  *Why*.
+- **Candidates can be merged**: an evaluation created from a name + phone number
+  can be folded into the candidate's own interview-form record when the numbers
+  match. Migration 0225.
+- **Letters: the editing toolbar no longer overlaps itself** (`alw-toolbar` wraps
+  instead of crushing its own selects).
+
+**Why**
+
+- The scroll bug was **one CSS rule with a system-wide blast radius**, and it is
+  worth understanding before touching `globals.css` again. `overflow-x: auto` with
+  `overflow-y: visible` computes `overflow-y` to `auto`, so a horizontally
+  scrolling table **is** a vertical scroll container — with nothing to scroll.
+  `overscroll-behavior: contain` (shorthand ⇒ both axes) then forbids chaining a
+  vertical gesture out of it, and that element is the nearest vertical scroll
+  container under the pointer. So the wheel died over ~50 table wrappers, and it
+  looked like a per-page bug for weeks. **Fix: scope the behaviour to the axis the
+  element actually scrolls.** If you add a scroll container, set
+  `overscroll-behavior-x` or `-y`, never the bare shorthand.
+- Moving master-admin into the database gives up an audit property that
+  `capabilities.ts` documented on purpose ("a change shows up in code review and in
+  git history"). Kept instead: an append-only `capability_grant_events` trail
+  naming who granted what to whom, a code bootstrap (Manan, Rohan) that nothing at
+  runtime can edit, and a read that **fails closed** — a database hiccup can revoke
+  a granted master-admin but can never invent one.
+- Granting master admin is gated on **`isSuperAdmin`, never `isMasterAdmin`**.
+  Gating it on master-admin would let one promote another and the capability would
+  leak downward from the bootstrap accounts.
+- The priv-esc hole: `guardSuperAdminTarget` refused only when the **target** was a
+  super-admin, and that was sufficient **only because every master admin also was
+  one**. Making master-admin grantable split the two sets, and an ordinary admin
+  could then have reset a master admin's password, minted them a login link or
+  archived them. Widened in the same pass, which is the point worth remembering:
+  **when a capability becomes grantable, re-check every guard that assumed the
+  grantee set was fixed.**
+
+**How to verify**
+
+- Scroll: open any module with a wide table, put the pointer **over the table**,
+  and scroll. It must scroll the page.
+- Master admin: sign in as a super-admin → Admin → Employees → open a person →
+  "Master admin". The Access chip becomes **Master admin** and `/master-admin`
+  opens for them. As a plain admin the checkbox must be absent, and a hand-made
+  POST to `editEmployee` with `{ isMasterAdmin: false }` must return *"Only a
+  super-admin can change master admin access."*
+- Policies: sign one, then Policies → Download. The PDF opens with the policy text
+  and the signed acknowledgement at the end.
+- `pnpm test` — the 5 failures listed under *Known issues* are pre-existing.
+
+**Breaking / migration notes**
+
+- **Migrations 0225, 0226, 0227 applied to production on 2026-09-18.** 0225
+  (`candidate_intake.merged_into_id`) had to land **before** the deploy: every
+  candidate picker filters on that column, so deploying first would have emptied
+  the evaluation candidate list.
+- `isMasterAdmin` is **removed** from `lib/security/capabilities.ts`. Import it
+  from `lib/security/capability-grants.ts`; it is **async** now. It was removed
+  rather than kept as a synchronous shim on purpose — a leftover would compile,
+  return a plausible `false` for a database-granted master admin, and fail
+  silently.
+- `lib/security/capabilities.ts` GRANTS remains the authority for **every other**
+  capability. Only `master_admin.manage` is read from the database, and migration
+  0226's CHECK constraint enforces that.
+- Adds a **fourth** Chromium-capable function (`lib/pdf/chromium.ts`, shared with
+  the rich-letter renderer). Chromium is ~200 MB per function that can reach it —
+  a real deployment-size decision, not a free one.
+- The console's standalone **Policies** rail entry points at `/policies`, which the
+  catalogue claims for `platform.policies` — **not** `hr.policies`, which owns
+  `/hr/policies/[key]`. Hiding it from the rail means switching off
+  `platform.policies`.
+
+**Author:** Claude (with Rakesh Dubey)
+
+### 2026-09-16 (night) — DCC rebuilt from the account holder's brief
+
+Branch `Vinal`. The module was torn down earlier today (entry below) and is now
+rebuilt against a written specification: **[`docs/DCC-SPEC.md`](./docs/DCC-SPEC.md)**,
+which is authoritative and supersedes every earlier DCC note in this repo. Read
+it before changing anything here.
+
+**Three doors, generated from one list.** `/dcc` (My Day) · `/dcc/dashboard` ·
+`/dcc/masters`, first under Employees. The rail and the module's own quick-nav
+row both render `lib/dcc/nav.ts`, so they cannot advertise different doors —
+which is exactly how the old module ended up offering a page that no longer
+honoured it.
+
+**There is no SP1 door and no Call Log door** (account holder, 2026-09-17): the
+SP1 sheet *is* the dashboard, and the fifteen numbers are typed into that sheet,
+so either would have been a second route to one screen. `/dcc/sp1` and
+`/dcc/call-log` are now **redirects** to `/dcc/dashboard`, kept only because both
+addresses are in bookmarks and in mail already sent.
+
+**The SP1 half is new, and it is the half that was missing.** The old module
+could report call outcomes but had no way to ENTER them, so the report was
+permanently empty and looked broken.
+
+- `lib/dcc/sp1.ts` owns the fifteen outcomes, their eight sheet colours, the
+  Connected partition and all five ratios — **once**, so the screen, the grid and
+  the email cannot disagree about what "Connected" means.
+- The **top of `/dcc/dashboard`** is Jeevan's grid, full width: Monday→Saturday,
+  a Weekly Total, **no Sunday column**, rows numbered 1–23, drawn as a
+  spreadsheet because it is read aloud beside the sheet it replaces. The
+  WMS-style sections sit under it and share its window, which is measured in
+  weeks (`?weeks=1|2|4`, `?week=` steps back) so the two halves of the page can
+  never describe different stretches of time.
+- **You type into that sheet** — it is the call log. A cell is open only when one
+  person is selected and you may fill for them, the day has not closed at
+  11:59 pm IST, and the table exists; `saveCallLog` re-checks all three, so an
+  open cell is an affordance and never a permission. Row 16 and the Weekly Total
+  move as you type, rebuilt by the same `buildSp1Grid` the email uses.
+- `dcc_call_logs` (**migration 0235**, new) stores one count per person per day
+  per outcome, uniquely keyed, with no CHECK on the outcome — a sixteenth row on
+  the sheet is data, not a migration.
+
+**Two decisions worth challenging, both in one constant each:**
+
+1. **Rows 1–11 count as Connected**, including "Not Interested" and "DND" — a
+   person declining is not a call that failed to reach anybody. Rows 12–15
+   (No Busy, Ringing, Call Back, Wrong Number) did not reach a person.
+2. **A ratio with no denominator prints an em-dash, never `0%`.** The sheet's
+   `#DIV/0!` is the bug being fixed, not the behaviour being copied — 0% reports
+   a real failure on a day nobody worked, and would then be averaged into the
+   weekly total and the ranking. The weekly column is likewise **recomputed from
+   summed counts**, never by averaging the days.
+
+🟡 **Jeevan's reference sheet has drifted from the calendar.** It labels
+13-Sep-2026 "Monday"; that date is a **Sunday**. The sheet's Day row is one step
+off, so its six-day blocks are Sun–Fri while claiming Mon–Sat. This app derives
+the weekday from the date, so its columns will not line up with the sheet's
+labels. Worth telling Jeevan — the structure (six working days, then a weekly
+total, Sunday omitted) was copied; the typo was not.
+
+**The rest of the brief.**
+
+- **10 pm report** (`30 16 * * *` = 22:00 IST) now LEADS with the SP1 tables and
+  puts the compliance summary under them. Distribution is unchanged and still
+  tested: each person their own day, every Team Lead everyone below them
+  transitively, the owner everybody. Still **preview-only** until
+  `DCC_DAILY_REPORT_LIVE=true` — it is a nightly mail to the whole company.
+- **11:59 pm IST lock** governs the call log as well as compliance entries, via
+  the same `checkDccEntryWindow`, so "yesterday" means one thing module-wide.
+  Only `dcc.edit_past_entries` (Manan Sir) reaches a closed day.
+- **Team Leads author for their downline**; a compliance Manan authored is his
+  alone to delete (`dcc.protected_kpi_author`, fails closed toward the ordinary
+  rule). The Person view shows the author on every row so the refusal is legible
+  before anyone tries.
+- **DCC Masters** mirror Master JD / Person-specific JD: a Position tab whose
+  saves reconcile every holder, and a Person tab with a searchable dropdown
+  beside the heading — no left rail of names.
+- **Google Calendar** sync is back on the entry write and the nightly cron.
+  **The connect-gate is NOT back**: calendar sync is a benefit of connecting, not
+  a toll on entering the app.
+
+**What was reused, and why.** Everything visible is new. The pure, tested
+calculations were not re-derived: the 11:59 pm window, the delete guardrail, the
+schedule maths, the position-template reconciler, the report distribution
+planner and the calendar writer. They are invisible, and several are tied to
+unique indexes that already exist in the database — rewriting them blind would
+have added bugs, not removed them.
+
+🔴 **Three migrations are outstanding** and each feature degrades to an explicit
+"not set up yet" notice until its own is applied: **0229** (calendar events),
+**0230** (masters), **0235** (call logs, new).
+
+Verified: `npx tsc --noEmit` clean, `next build` clean with all five routes and
+both crons registered, ESLint clean on every new file, and the full unit suite
+green — **3146 passed, 7 skipped**, including 40 new tests across
+`dcc-sp1`, `dcc-sp1-email` and `dcc-nav`.
+
+
+### 2026-09-16 — DCC removed from the Employees module
+
+Branch `Vinal`. On the account holder's instruction ("remove all the dcc section
+from employees completely"), the Daily Compliance Checklist is gone from the web
+app. It will be rebuilt from scratch; this is a clean teardown, not a redesign.
+
+**What was deleted.** The four rail entries under Employees; the whole
+`app/(app)/dcc/` route tree (board, dashboard, masters, ranking, SP1); all of
+`components/dcc/`; the three crons (`dcc-reminder`, `dcc-daily-report`,
+`dcc-calendar-sync`) and their `vercel.json` schedules; the DCC branch of the
+permission matrix; the `/dcc` workspace mapping; and the inbox deep-link for
+`dcc_fill_reminder`.
+
+**Three gates came out with it**, and this is the part worth knowing:
+
+- The **post-login wall** in `app/(app)/layout.tsx` and `app/(app)/hub/page.tsx`
+  no longer has a DCC leg — not the "fill your DCC" wall, not the manager review
+  step, and not the **Google Calendar connect prompt**, which was mounted ahead
+  of every other gate and so was the first thing a person with DCC KPIs met on
+  login. The plan gate and the manager assign gate are untouched.
+- The **DCC punch-out block** is deleted from both the web action and
+  `/api/mobile/attendance/punch`. It had been force-off inline since
+  2026-07-27, so nothing changes in behaviour — but the dead branch and its
+  `isDccFilledFor` import are gone, and the mobile client's `needsDcc` response
+  can never fire again.
+- **Connecting Google Calendar no longer backfills DCC days.** The OAuth
+  callback and profile "Sync now" push tasks only; `syncGoogleCalendarNow` lost
+  its `dccChanged` field and the toast lost its second sentence.
+
+Also unwired: salary-profile edits and the salary import no longer call
+`scheduleDccMasterReconcile` when a designation changes.
+
+**What deliberately stayed.**
+
+- **Every `dcc_*` table and every DCC migration.** Nothing was dropped and no
+  data was touched. `0235_dcc_call_logs.sql` — written this session, never
+  applied anywhere — was deleted along with its `dccCallLogs` Drizzle table,
+  because it existed only for the SP1 grid that is also gone.
+- **The Android app and `/api/mobile/dcc/*`.** They are a separate client and
+  were not in scope. They still read and write DCC normally, which is why
+  `lib/dcc/{access,util,write,entry-lock,item-lock}.ts` and `lib/queries/dcc.ts`
+  survive.
+- **`lib/dcc/{dashboard,daily-report}.ts` and `lib/queries/dcc-dashboard.ts`.**
+  Despite the folder they live in, the Hand-holding week calendar and
+  People Allocation import `addDaysYmd`, `buildPersonReports` and `OUTCOME_LABEL`
+  from them. Deleting the folder wholesale would have taken those screens down.
+- **The JD "Add To → DCC" box.** It is in Operations, not Employees, and the
+  `push_dcc` / `for_dcc` flags it writes have never been read by anything (see
+  the 2026-09-12 entry). Left alone as a separate decision.
+
+Verified: `npx tsc --noEmit` clean, `next build` clean, ESLint clean on every
+touched file, and the full unit suite green (3085 passed, 7 skipped).
+
+
+### 2026-09-16 — Initiator Status: renamed, gains Archived, and N/A for self-raised work
+
+Branch `Vinal`. Three changes to the ruling column WMS Tasks, Goals and
+Projects share, on the account holder's instruction.
+
+**1 · Renamed.** "Approver / Initiator Status" is now **"Initiator Status"**
+everywhere it is read — the three column headers, the chip's accessible name,
+the column-picker entries, and every refusal message the server sends back.
+A label only; nothing in the database was renamed.
+
+**2 · Archived is a sixth verdict.** The list is now Pending · Approved · Not
+Approved · On Hold · **Archived** · Cancelled. Like On Hold and Cancelled it is
+a decision ABOUT the work rather than a judgement of finished work, so it does
+not wait for the Doer Status to reach Done — only Approved and Not Approved do.
+
+**3 · Self-raised work reads "Not Applicable".** When the initiator IS the doer
+— somebody raised the task, goal or project row for themselves — there is no
+approver to wait on, so the column says so instead of sitting on "Pending"
+forever. An admin or super-admin may still overrule; nobody else can, including
+the raiser and their manager.
+
+**The bug this fixed on the way.** Goals and Tasks had disagreed about
+self-raised work. Goals set `isDoer: false` for the raiser, which let somebody
+approve their own goal; Tasks refused. Both now go through one explicit
+`isSelfRaised` flag on `ApproverActor`, set from the module's own two ids rather
+than by fudging `isDoer` — which is what let the two drift apart unnoticed.
+
+Super-admin now rules on tasks as it already did on goals: the WMS task action
+checked `employees.is_admin` only, so a super-admin who was not also flagged
+admin was refused.
+
+**Migration `0234_initiator_status_archived.sql` — NOT YET APPLIED.** Until it
+runs, picking Archived fails at the database: `tasks.approval_status` is a
+Postgres enum and the two goal side tables carry a CHECK. The file is
+idempotent and safe to run before or after `0231` (the goal tables are only
+touched if they exist). The `project_nodes` constraint is re-added **NOT
+VALID**, exactly as `0204` wrote it — that table has rows older than the
+constraint which were never checked, and a validating constraint would scan the
+table and fail on one of them.
+
+Verified: `npx tsc --noEmit` clean in source; the full unit suite passes.
+
+
+### 2026-09-16 — The JD frequency picker becomes Google Calendar's, for real
+
+Branch `Vinal`. The Job Description form's **Frequency** section now asks the
+question the way Google Calendar asks it, on the account holder's instruction.
+
+**What was wrong**
+
+The menu was a fixed list — "Weekly on Saturday", "Monthly on the second
+Saturday", "Annually on [Date]". Google's list is a set of SENTENCES ABOUT THE
+START DATE, so ours was right one day in seven: a job starting on a Wednesday
+offered to repeat weekly on Saturday, and `[Date]` was a literal placeholder
+that was never a date. `Custom…` was a free-text box — a label nobody parsed,
+which `isDueOn` deliberately never fires, so a "custom" JD had to be pushed by
+hand forever.
+
+**What changed**
+
+- **The list is derived, not fixed.** `frequencyOptionsFor(startDate)` speaks
+  the seven about the day picked — "Weekly on Wednesday", "Monthly on the third
+  Wednesday", "Annually on September 16". A date in the last week of its month
+  reads "last", not "fifth".
+- **One "Starts on" date** replaces the form's three date inputs (the "once"
+  date, the "annually" date, the interval anchor), exactly as the calendar has
+  one. It anchors the whole menu.
+- **`Custom…` opens Google's dialog** — "Repeat every N day/week/month/year",
+  weekday chips, day-of-month vs nth-weekday, and Ends (Never / On a date /
+  After N occurrences). It is the SAME dialog the task Schedule section opens,
+  lifted to `components/recurrence/custom-recurrence-dialog.tsx`, with the
+  vocabulary behind it in `lib/recurrence/google-recurrence.ts`. Two copies of
+  "Monthly on the third Wednesday" is two chances to drift, and the drift is
+  invisible — each screen looks right on its own.
+- **A new recurrence shape, `{ kind: "rrule", rule, anchor }`**, carries what
+  the dialog can now say. `recurrence` is jsonb, so there is **no migration**.
+
+**Two traps worth knowing**
+
+- **The presets are NOT RRULEs.** Each maps to the structured shape it always
+  mapped to. `FREQ=DAILY` is seven days a week; this firm's "Daily" is Mon-Sat,
+  because a task firing on the weekly off becomes an overdue row nobody can
+  clear. Only `Custom…` produces an `rrule`.
+- **`isDueOn` matches the pattern directly; it does NOT generate occurrences.**
+  `lib/recurrence/rrule.ts` caps generation at 200 to stop a runaway rule
+  spawning rows. Used as an oracle, that cap would make a daily job anchored a
+  year back answer "not due" for every day after the 200th — the push job
+  stopping silently in month seven. There is a test pinning a date two years
+  out.
+
+The server action **parses** the rule rather than shape-checking it: an RRULE
+the generator cannot read is a JD that never comes due, the same silent
+months-later failure as a dateless "Does not repeat".
+
+Verified: `npx tsc --noEmit` clean in source; the JD, RRULE and JD-bulk unit
+suites pass (80 tests), including 12 new cases for the rrule shape —
+interval-counted-in-weeks, UNTIL, COUNT across a partial first week, the
+200-occurrence cap, and an unreadable rule firing never.
+
+### 2026-09-19 — Client Engagement: review fixes, full UI test pass, and why :3000 kept hanging
+
+**Asked for, and done.** Every change below was checked on :3000 with scripted
+browser runs (25/25 checks as Manan, 9/9 permission checks signed in as Jeevan).
+The screenshots are in the account holder's `Desktop\Client Engagement` folder.
+- No title bands (`PageCommandBar`) on any Client Engagement tab.
+- Calendar: only booked calls get a box. Free time is no longer drawn; clicking
+  empty space still schedules there. Call names may use two lines.
+- Emp Grid: one card per person, stacked, with a shared `<colgroup>` so columns
+  line up down to the G-Total. Unassigned is shown in red.
+- PCA Grid: the matrix is P | C | Total (P + C) | A. Ambassadors are never added
+  into a total, and the board's "All" footer follows the same rule. The board is
+  now one card per person in a wrapping grid, because 9 table columns could not
+  fit with the sidebar open.
+- References: Status sits under the progress bar so the table fits; +1/−1
+  update instantly (optimistic) and roll back on failure.
+
+**Bugs found by testing, and fixed.**
+- *Page would not scroll with the cursor over a table.* The unlayered global
+  `:where(.overflow-x-auto…) { overscroll-behavior: contain }` beats any
+  Tailwind utility, so `overscroll-y-auto` silently lost. The fix is the new
+  unlayered `.scroll-x-only` class in `globals.css`; use it for any sideways-only
+  table wrapper.
+- *A newly scheduled call "vanished".* The start date defaulted to today, so a
+  Thursday call made on a Saturday started next week. It now defaults to the
+  Monday of the week on screen, and the toast says when the first call is after
+  that week.
+- *A clash message pointed at an invisible call.* It now names the clashing
+  call's start date when that is later.
+- Removed a `router.refresh()` after every save. `revalidatePath` in the action
+  already returns fresh data, and the second fetch could race it.
+
+**Why :3000 kept hanging (not Client Engagement).** The hangs were header
+queries (unread-notification count, task count) left "active / ClientRead" on
+Supabase. The dev-only slow-query logger (`lib/db/slow-query.ts`) forces each
+lazy postgres-js query to start itself. With `SLOW_QUERY_MS="off"` in
+`.env.local` (local only), three full-speed test runs caused **no** hang, where
+before every run did. The file is untouched; production never enables the
+logger unless `SLOW_QUERY_MS` is set. **Worth fixing properly** before anyone
+sets that variable anywhere real.
+
+**Also:** a stale 8.4 GB Turbopack cache (`.next/dev/cache/turbopack`) kept
+bringing back an old route table, so every page under `/operations/*` returned
+404 after a restart. Deleting the cache folder fixed it; it is safe to delete.
+
+Test data is still in (`scripts/ce-test-data.mjs --remove` clears it) and is
+back in its seeded state. The Activity log keeps the test runs' entries.
+
+### 2026-09-18 — Client Engagement rebuilt from scratch (0238)
+
+The first version (2026-09-16 entry below) was not approved. It is quarantined
+in `_archive/client-engagement-2026-09-18/`. **Those files were never committed,
+so that folder is their only copy**; see its README.
+
+**Decisions (account holder, 2026-09-18):** own `ce_*` tables rather than
+Hand-holding's `pa_*`; call types are exactly HH, Tool, Check-in and Reference;
+only **Manan and Ruchita** assign out of Unassigned or transfer. Rashmi is out,
+and so is every other admin.
+
+**Tabs** (`/operations/client-engagement/…`):
+- **Overview**: capacity bar (active accounts per person against their cap,
+  green / amber / red, plus the Unassigned pool); numbered category tabs
+  (Retainer, Ambassadors, PS with a cohort filter, BSS, Corporate, Reference
+  Pipeline); Active | Inactive-and-on-hold split with a swimlane per person.
+  Business status colours use the brief's exact hexes.
+- **Calendar**: one person's week, 10 AM–8 PM only. Admins, super-admins,
+  Manan and Ruchita pick anyone; everyone else sees their own. Free gaps are
+  drawn and clickable. Inactive clients' calls are hatched and don't count as
+  busy. The person's Hand-holding calls are overlaid read-only via
+  `pa_people.employee_id`. Team bandwidth table below for admins. Batch field
+  appears only for PS/BSS.
+- **Emp Grid**: `Sr | Name | (Batch) | mins | (calls)`. Total row leaves the
+  name empty and puts the participant count under Batch, where the sketch puts
+  it. G-Total at the bottom.
+- **PCA Grid**: matrix (people + Unassigned × P / C / A / All: count, weekly
+  time, calls), plus the sketch's board with P / C / A / All buttons.
+- **References**: quota per client, collector filter, One Time / Every Week,
+  +1 / −1. Weekly reminder cron `/api/cron/ce-reference-reminders` runs
+  Mondays 04:00 UTC, idempotent via `last_reminded_on`. New notification kind
+  `ce_reference_reminder`.
+- **Team & Log**: roster (login link, role, cap) and the audit log.
+
+**Rules live in pure `lib/client-engagement/*`**, re-checked in the actions.
+Going On Hold moves an account to Inactive without writing anything (derived),
+so its coach is kept. A transfer moves the account's calls and reports any new
+overlaps. Returning an account to Unassigned is refused while it has calls.
+
+**Migration:** `db/RUN-IN-SUPABASE-0238.sql`, additive, one transaction,
+re-runnable. It seeds the 8 named people. **Not yet applied**; until then every
+tab shows a "needs its tables" notice. Validated on in-memory PGlite: runs
+twice cleanly, and every CHECK refuses what it should.
+
+**Verified:** `tsc --noEmit` clean; ESLint clean on all new files;
+`tests/unit/ce-v2.test.ts` 24 new tests; full unit suite 3422 pass. The two
+`device-exemption-login` timeouts pass when that file is run alone.
+**Not verified:** anything in a browser. localhost:3000 was hanging on every
+authenticated page all session (before any of this was written), and the
+tables are not on Supabase yet.
+
+### 2026-09-17 (night) — Exec Calendar: hover cards, the window editor, drag, and the sheet importer
+
+The last four items of §6/§2A/§1.
+
+- **Hover quick-card.** At week density a one-hour block shows a title and, if
+  lucky, its times. The card gives category, duration, client, batch, location
+  and notes on hover — the READ; the drawer stays the write. It flips to the
+  left of the cursor near the right edge, because Sunday 20:00 is exactly where
+  it would otherwise fall off the screen.
+- **The window editor** (`exec_calendar_prefs`). Per PERSON, not per browser: a
+  window in localStorage is a different calendar on the laptop and the phone,
+  and the one you are not looking at is the one hiding an early block. Presets
+  for the working day, office hours and a full 24h.
+- **Drag to move and resize.** Pointer handlers bind to the WINDOW once a drag
+  starts, not to the block — the cursor leaves the block it is dragging, which
+  is the point of dragging, and a handler on the block drops the gesture there.
+  A dashed ghost follows the pointer; on release the move goes through
+  `saveExecEvent`, the SAME action the drawer uses, so a dragged block is
+  validated exactly like a typed one. Dragging onto protected time is refused,
+  toasted and the block snaps back.
+- **The sheet importer** (`lib/exec-calendar/import.ts`). Paste a copied block
+  of the master sheet — tab-separated, times down the first column, dates across
+  the top.
+
+**The importer's one important behaviour:** in the sheet a long block is not one
+cell, it is the SAME TEXT REPEATED down every row it covers ("Manan Sir Break"
+in fifteen consecutive cells). The parser collapses runs of identical text in a
+column into ONE block spanning first row → end of last. Without that, importing
+one week yields hundreds of one-hour fragments. 17 tests cover it, including the
+collapse, the gap that must NOT merge, and the year the sheet leaves out.
+
+`importExecBlocks` deliberately does **no conflict check**: the sheet is the
+record of what happened, a decade of it contains overlaps, and refusing them
+would import a version of history that never occurred. The protected-time
+refusal exists to stop somebody booking over it in FUTURE; an import is a
+transcription. Re-pasting is idempotent by (day, start, title).
+
+**UI rule adopted:** every layout is now checked with the global sidebar BOTH
+collapsed and open. The toolbar squeezed at ~1120px and wrapped "New block" onto
+two lines; controls now carry `shrink-0 whitespace-nowrap` and the prose takes
+the slack, so rows wrap between groups and never inside a button.
+
+**Verified:** typecheck clean · 3,090 passing (same five pre-existing failures) ·
+importer, window editor and toolbar shot at 1500px and 1120px with a clean
+console.
+
+**Still unpressed:** Stamp it, Import, and a drag — all three write through
+actions that cannot be invoked from a script, and `look.mjs --live` refuses to
+click against the real database. Their inputs are unit-tested; the writes are not.
+
+### 2026-09-17 (evening) — Exec Calendar: the team view, masking proven, routines
+
+**§5 is now real, and testing it found a bug.** The page only ever showed your
+own week, so masking had nothing to prove itself against. `?owner=` opens
+somebody else's calendar (picker in the toolbar), read-only, with every row put
+through `maskAll` ON THE SERVER before it is serialised.
+
+Checked by signing in as **Rudra Thukarul** and opening **Mansi Medhekar's**
+week: the five Exercise blocks and the executive break read `Busy · Reserved` in
+neutral grey — title AND colour gone — the private appointment is absent
+entirely, the public client work keeps its full detail, and there is no New
+block button. (Rutvisha could not be used: she has no `employees` row at all,
+only `pa_people`, which is the same reason the HR letters fix needed Mansi.)
+
+**The bug that only shows up from the other chair:** the variance alerts are
+computed from what the VIEWER can see, so a masked calendar always looks like it
+has no personal time — the panel told a colleague *"Personal & recovery is 0%,
+under the 15% floor"* about somebody who exercises every morning. Alerts are now
+suppressed when reading someone else's calendar, and the totals are labelled
+*"Partial: blocks you cannot see are counted as reserved time"*. The mix is the
+owner's to judge, on their own complete data.
+
+**Routines (§4B) have a UI.** `components/exec-calendar/routine-dialog.tsx` —
+weekday toggles, a time range, a date range, visibility, and four presets the
+brief names (morning habit, weekend cohort, consulting day, executive break).
+`?routine=1` opens it.
+
+`stampExecRoutine` writes REAL BLOCKS rather than a rule re-evaluated on every
+read, which is what lets a single Tuesday be moved or deleted and stay that way.
+Its day-selection came out of the action into `routineDays()` in grid.ts — a
+loop over dates with an inline weekday filter is exactly the arithmetic that is
+wrong at a month boundary and is noticed only after a quarter is stamped one day
+short. Now 7 tests cover it, including the year boundary.
+
+**Verified:** typecheck clean · 3,073 passing (the same five pre-existing
+failures) · owner view, masked view, editor drawer and routine dialog all shot
+with a clean console.
+
+**Not verified:** the stamp WRITE itself. `look.mjs --live` refuses to click
+against the real database, and a server action cannot be invoked from a script,
+so the button has not been pressed. Its inputs (`routineDays`, `checkConflicts`)
+are unit-tested; the insert is not.
+
+### 2026-09-17 (later) — Executive Master Calendar: 0231 applied, and it writes
+
+`0231` ran against `ifcdpjbdinvmtewmgceg`; all three tables are present. The
+NOTICEs it printed are `DROP CONSTRAINT IF EXISTS` on tables being created in
+the same transaction — nothing was wrong.
+
+**Now interactive.** `app/(app)/events/actions.ts` adds `saveExecEvent`,
+`deleteExecEvent`, `saveExecGridPrefs` and `stampExecRoutine`. Two things are
+re-checked on the SERVER rather than trusted from the form:
+
+- **Ownership is in the WHERE clause** (`id = ? AND owner_id = me.id`), not a
+  separate `if`. A crafted id matches no row instead of relying on a guard that
+  a later refactor can drop.
+- **Protected time** goes through `checkConflicts` again with the real diary.
+  The drawer warns; the action refuses.
+
+`stampExecRoutine` GENERATES rows rather than expanding a rule at read time —
+one deleted Tuesday has to stay deleted, and a rule evaluated on every read
+cannot remember that. It skips days that already carry the routine and days
+where the slot would land on protected time, and reports both counts instead of
+aborting the whole quarter over one Tuesday.
+
+**The drawer** (`components/exec-calendar/event-editor.tsx`) puts the CATEGORY
+first, because in this module the category decides behaviour — protected or not,
+client picker or not, banner or block. Duration is derived from the clock and
+shown live, never typed. `guessCategory` suggests a category from the title
+while it is still a new block, which is the import path for sheet cells.
+
+**It has a URL.** `?new=YYYY-MM-DD` opens the drawer on a fresh block, so another
+screen can link straight to "book this", and the drawer is reachable without a
+click — which is also how it was verified, since `look.mjs --live` refuses to
+click against the real database.
+
+**Keyboard** (§6): ← → step the period, `t` today, `n` new, and `e/b/c/w/s/o/m`
+retag the open block. All ignored while a field has focus, so typing "b" in a
+title does not silently retag it.
+
+**Demo data.** 17 blocks were inserted into `exec_calendar_events` for Mansi
+Medhekar (week of 2026-09-14) to prove the read → mask → layout → render path
+with something real: a 07:00 habit, client accounts, a 15:00–20:00 cohort, BNI,
+TDS Returns and an all-day marker. They show the analytics working — 33h 30m
+booked, 31.9% of the open day, client delivery 31.3% / cohorts 25.4% / personal
+20.9%, and no variance alert because both floors are met. **Undo:**
+
+```sql
+delete from exec_calendar_events where owner_id = '733b3a89-0f38-41d9-8bbd-2a097b74d325';
+```
+
+**Still to build:** the routine UI (the action and table exist, nothing calls it
+yet), hover quick-cards, the window editor (`saveExecGridPrefs` exists, no UI),
+drag to move/resize, and the sheet importer that `guessCategory` was written for.
+
+### 2026-09-17 — Executive Master Calendar: the old module archived, the new core built
+
+**The Monthly Events Master was quarantined, not deleted.** Its whole surface —
+the `/events` routes, the 16 grid components, two module-only helpers — moved to
+`_archive/monthly-events-2026-09-17/`, which is git-ignored and excluded from
+`tsconfig`, so nothing there compiles and nothing reaches main. Git history is
+the real archive; the folder is the convenience copy. The nav area and the
+permission node were lifted out into `REMOVED-*.txt` beside it.
+
+**What deliberately stayed, and why it would have broken.** `event_holidays` and
+`components/events/holidays/` are the company HOLIDAY MASTER, read by
+`lib/queries/holidays.ts` → HR Holiday List, `/holidays`, the mobile holidays
+API, five task/manager reports and attendance's working-day counts.
+`lib/monthly-events/types.ts` has 8 importers outside the module and `access.ts`
+has 6. The four `/api/mobile/events/*` endpoints serve the shipped Android app.
+**No table was dropped** — all 30 `calendar_events`, 28 `event_holidays`, 11
+categories and 4 batch types are untouched, so the archived screens would work
+again the moment the files move back.
+
+**The new module took over `/events`**, so every old link lands on its
+replacement instead of a 404.
+
+**Built so far — the core the rest of the spec sits on** (`lib/exec-calendar/`):
+
+- `taxonomy.ts` — the SEVEN fixed categories, in code rather than a table
+  anyone can extend. Behaviour hangs off the category: protected time is
+  protected because it is Personal & Wellness. Colours are palette TOKENS, never
+  hex. `guessCategory` classifies free text ("BSS 90 S21" → cohort, "TDS
+  Returns" → ops) so a decade of sheet cells can be imported without re-tagging.
+- `grid.ts` — the CONFIGURABLE window, defaulting to the brief's 07:00–22:00
+  instead of the old hard-coded 24 hours; ISO week numbering that gets the
+  year boundary right (1 Jan 2027 is week 53 of 2026); month-as-whole-weeks for
+  the dual view; and `layoutDay`, which renders 15:00–20:00 as ONE five-hour
+  card with overlap columns rather than ten stacked cells.
+- `analytics.ts` — §4D. Percentages are of COMMITTED time, not of the window,
+  with `windowShare` reported separately; all-day markers excluded so a festival
+  month does not swamp the mix; variance alerts are FLOORS only and stay silent
+  on an empty range.
+- `privacy.ts` — §5. `public | busy | private`, masked ON THE SERVER before the
+  row is sent. A `busy` block keeps its day and hours and loses everything else
+  INCLUDING its colour, because a green 07:00 block every weekday tells anyone
+  watching that the executive exercises before work. Booking over protected time
+  is REFUSED for anyone but the owner; every other overlap only warns.
+
+**Screens:** `/events` with three horizons — Week (the grid), Two months (the
+signature-sheet view, two months either side of a separator with ISO numbers
+down the gutter) and Year — plus the allocation panel and the legend, which is
+rendered FROM the taxonomy so it cannot drift from the rules.
+
+**Migration `0231_exec_calendar.sql` — NOT RUN.** Three new tables
+(`exec_calendar_events`, `exec_calendar_routines`, `exec_calendar_prefs`),
+entirely additive, nothing altered. Separate tables rather than columns on
+`calendar_events` on purpose: that is a shared company calendar, and bolting an
+owner and a visibility onto it would make every existing consumer responsible
+for filtering private rows it never had to think about.
+
+```bash
+node --env-file=.env.local scripts/apply-pending-migrations.mjs db/RUN-IN-SUPABASE-0231.sql --apply
+```
+
+Until it runs the page works: `lib/queries/exec-calendar.ts` catches the missing
+table, renders an empty grid and says so in a banner rather than erroring.
+
+**Tests:** `exec-calendar-grid` (33) and `exec-calendar-rules` (27) — 60 new,
+all passing. Suite: 3,065 passing, the same five pre-existing failures.
+
+**Still to build:** the editor drawer and hover cards, the routine engine's UI
+(§4B — the table and generator are in the migration), client/CRM picker wiring
+(§4A — the column and the query exist), keyboard navigation and tagging hotkeys
+(§6), and the per-person window editor (§2A — `exec_calendar_prefs` is there).
+
+### 2026-09-17 — Policies are readable by everyone; letters open again
+
+**Every employee can now find the firm's policies.** The individual policy pages
+(`/hr/policies/<key>`) were ALREADY open to all — `requireWorkspace("hr")`, which
+every employee passes. What was staff-only was the LIST: the all-policies grid
+opened from `/hr?policies=1` was gated behind `isHrStaff`, and that link only
+appears on a staff lifecycle step. So the policies were published in the sense
+that a page existed, and unfindable in the sense that mattered.
+
+Two changes:
+
+- `hr-console-home.tsx` no longer gates the grid on `isHrStaff`.
+- **`/policies` now lists the authored policies too** — a "Firm policies" grid
+  above the uploaded documents, one card per POLICY_CARD, linking to the policy
+  page. That is the route every employee can already reach from the HR rail, so
+  the policies are now discoverable without knowing a query string. The cards are
+  passed from the SERVER: `lib/hr/policies/registry` also holds every policy's
+  full text, which has no business in the client bundle.
+
+**Editing did not open up.** `/hr/policies/<key>/edit` still calls
+`requireHrStaff`. The Edit Policy button on the policy page was showing on
+`isAdmin || isSuperAdmin` — a WIDER set than the route allows, so an admin
+outside the HR department saw a button that bounced them straight back. It now
+matches the route (`isHrStaff`).
+
+**Letters were not broken.** Reported as "none of the letters are opening";
+the cause was identity, not code: `/hr/letters/<key>` calls `requireHrStaff`, and
+`DEV_USER_EMAIL` resolved to Vinal Patil — department "Apps" / Operations,
+`is_admin=true`, which does NOT satisfy `isHrStaff` (department "HR" or
+super-admin). On port 3002 the dummy admin passed that check, which is why it
+worked until the switch. `.env.local` now points at the only HR-department
+employee in the database (Mansi Medhekar); the previous value is in
+`.env.local.bak-devuser`. **Local only — no permission was granted to anybody.**
+
+**Verified in the browser, both sides of the rule:** as a NON-HR employee
+(Vinal) all six firm policies are listed on `/policies`, POSH opens and can be
+printed, exported and signed, and neither Upload nor Edit is offered; as HR
+(Mansi) Edit Policy returns. Letters open and both new signatures render — see
+the 2026-09-17 signature entry.
+
+### 2026-09-17 — The real signatures, and why they had to be cropped first
+
+Rutvisha's and Manan's scans replace the placeholders on every HR letter.
+
+- **`hr-signature.png` is now Rutvisha's mark** — the HR desk standing signature,
+  so it lands on every HR-signed letter (everything except ctc-breakup and
+  appointment; see `signatoryOf`). Same filename, so no code changed.
+- **`manan-vasa-sign.png` (new) is Manan's**, and backs BOTH Director letters
+  (`PROPRIETOR_SIGNATURE_IMAGE`) and the Selection letter's founder block. The
+  old `proprietor-signature.jpg` / `manan-sign.jpeg` are superseded and now
+  referenced by nothing; they are kept so an already-issued PDF can be traced to
+  the mark it carries. PNG rather than JPEG because the new scans have real
+  transparency, which a JPEG cannot hold.
+- **Two hardcoded paths became the constant.** `letter-editor.tsx` imported
+  `PROPRIETOR_SIGNATURE_IMAGE` and then hardcoded the jpg path anyway, and
+  `pdf.ts` did the same. Exactly the drift `firm.ts` warns about, and it would
+  have left the Director's OLD signature on screen and in the PDF while every
+  other path moved. Both now read the constant.
+
+**The crop is the part worth remembering.** The sign-off renders in a FIXED box
+— 66px on screen, 52pt in the PDF — with `object-fit: contain`, so it scales the
+whole CANVAS, not the ink. Manan's scan was a 497x502 square holding a 369x151
+signature: 30% of the height was ink, so it would have printed at about **20px
+tall**, a third the size of the mark it replaced. Measured, not eyeballed.
+
+`scripts/trim-signature.mjs` (new) crops a PNG to its ink plus 4%:
+
+```
+manan-vasa-sign.png   497x502 -> 399x163    ink 30% of height -> 93%
+hr-signature.png      422x332 -> 417x238    ink 66% -> 92%
+```
+
+Run it on the next scan too; a signature that arrives centred in a big
+transparent square is the normal output of a phone scanner app.
+
+**Verified:** both files served by the app (200, `image/png`), byte-identical to
+the scans before trimming, and **pdfkit embeds both re-encoded PNGs without
+error** — the real risk, since the trimmer writes the PNG itself.
+
+**Not verified:** how they look on a rendered letter. `/hr/letters/<key>` calls
+`requireHrStaff`, and the local dev user (`DEV_USER_EMAIL=vinalpatil…`) is not in
+the HR department, so the page redirects to `/hr`. Point `DEV_USER_EMAIL` at an
+HR-department account to see one.
+
+### 2026-09-17 — Policies: a named set of authors, and why the list is empty
+
+**Who may publish.** `lib/hr/policies/access.ts` (new, pure) names Manan,
+Ruchita and Rutvisha, and nobody else may upload or remove a policy. **Being an
+admin is no longer enough** — `app/(app)/policies/actions.ts` used to allow
+`isAdmin || isSuperAdmin`, and both flags are held by more people than should
+hold the pen. Enforced in the server actions AND in the two mobile twins
+(`app/api/mobile/policies/route.ts` and `[id]/route.ts`), which had their own
+copy of the old rule; all four now import the one module, so the phone and the
+browser cannot drift apart. Hiding the Upload button is the convenience; the
+action is the control. Rutvisha matches by NAME only: on 17 September she had no
+`employees` row at all (she exists in `pa_people`), so there is no address to
+list — add it to `PUBLISHERS_BY_EMAIL` when she gets an account. The dummy admin
+is admitted only while `DUMMY_MODE` is on, so port 3002 stays usable.
+
+**The empty Policies page is not a regression.** Asked why the policies had
+disappeared and when. They were never on this database:
+
+| checked | result |
+|---|---|
+| `documents` rows under `hr-policies/` | **0** (1 document row in total) |
+| objects in `documents/hr-policies` in Supabase storage | **0** |
+| dummy seed | has never seeded a policy |
+| `POLICY_STORAGE_PREFIX` | unchanged since the initial commit |
+| the page, the loader, the workspace component | untouched since `bb1a178` |
+
+So nothing deleted them. On port 3002 the list has always been empty unless
+somebody uploaded one by hand, and `dummy:setup --reset` clears that. If real
+policies exist they are in a different Supabase project — which fits the
+dashboard refusing access to `ifcdpjbdinvmtewmgceg` on the same day.
+
+**Tests:** `tests/unit/policy-access.test.ts` — 7, including the one that
+matters, an admin being turned away.
+
+### 2026-09-16 — Client Engagement: the call scheduler, the commitment calendar, per-lead books and DD Master
+
+**What changed**
+
+- **The Engagement Call Scheduler.** Every row in the Active / Inactive tables
+  has a Calls button showing what it takes a week; the dialog is a row per call
+  — day, from, to, type — with the length derived from the clock rather than
+  typed, and the lead's week shown as it stands and as it would be after saving.
+  The action (`ceScheduleCalls`) re-checks everything the form checks and
+  refuses three things: a call outside 10:00–20:00 or ending before it starts, a
+  call landing on another call the same lead already has, and anything that
+  would take that lead past **30 hours** in the week the engagement is actually
+  charged to. Scheduling needs an owner — an unassigned record says so.
+- **The Commitment Calendar** (`/operations/client-engagement/calendar`).
+  Monday–Sunday, 10:00–20:00 and nothing outside it, a block per call placed by
+  its own clock, daily totals beneath and the week's total above, in bold red
+  past 27 hours with the banner from the brief. `?lead=` and `?week=` are in the
+  URL, so a particular week for a particular lead is a link. In the All-leads
+  view a block is tinted by whose call it is (Manan black, Rohan/Mitul red,
+  Ruchita/Rutvisha grey, Jeevan/Mohit dark grey). Calls with no times are listed
+  in a "Not fixed" strip rather than dropped.
+- **A lead's own book.** Clicking a name in the Emp Grid opens
+  `?lead=…` underneath: their engagements per product, with the weekly duration,
+  the number of calls, the commitment hours across the whole engagement, and a
+  totals row saying how many engagements that is. The P / C / A headers carry the
+  "+" from the notes, which opens the matching add form on Overview via `?add=`.
+- **DD Master** (`/operations/client-engagement/dd-master`). The products, call
+  types and batch numbers behind every dropdown, editable by the three people
+  who may assign and readable by everyone. The lists START from the code
+  constants, so a fresh database has full dropdowns and no row here can empty
+  one; `ce_dropdown_options` then renames, retires, reorders or extends them.
+  Retiring hides an option from the forms and leaves records that already use it
+  alone — a batch that is over should stop being offered, not stop having
+  existed. Built-ins can be renamed and retired but never deleted, because
+  records point at codes. The scheduler's call types and the add forms' products
+  and batches all read this list, and `ceScheduleCalls` validates against the
+  same one, so the form and the server cannot disagree.
+
+**Migration**
+
+None new. This all runs on `0230_client_engagement.sql`, still **not run against
+Supabase** — `db/RUN-IN-SUPABASE-0229-0230.sql` is the bundle to paste when you
+are ready, additive and re-runnable. Until then these screens simply have
+nothing to show; nothing breaks.
+
+**Seed data**
+
+`scripts/dummy-db-seed.ts` gained `seedClientEngagement`: three leads with
+roster rows, eleven participants and clients (three unassigned, one on hold, one
+on barter, one not started), two ambassadors, and calls that put Jeevan near the
+27-hour line plus one legacy call with no times. **Untested — it needs
+`pnpm dummy:setup --reset`, which needs the port-3002 server stopped first.**
+
+**How to verify**
+
+```bash
+pnpm typecheck
+pnpm vitest run tests/unit/ce-schedule.test.ts tests/unit/ce-dropdowns.test.ts \
+  tests/unit/ce-workload.test.ts tests/unit/ce-metrics.test.ts
+```
+
+Verified in the browser on dummy mode (port 3002): the Calls button opens the
+scheduler, Handholding is offered to a PS participant, saving reports "1 call
+scheduled", the Calls cell reads 1h and the Calls-not-fixed badge drops to 0;
+the calendar draws that call on Monday 10:00–11:00 in Jeevan's colour with the
+day and week totals agreeing; the Emp Grid's "+" headers and lead links work and
+the drill-down adds up; DD Master retires 110 and adds 111, and the add-participant
+batch dropdown immediately shows 111 and not 110 (both then put back).
+
+**Not verified**
+
+- The 30-hour refusal and the clash refusal have unit tests but were not
+  exercised through the UI — the dummy database has only one entity with calls
+  on it. Seeding (above) is what makes that reachable.
+- `seedClientEngagement` has never been run.
+
+### 2026-09-16 — Broadcasts: annual + custom repeats, Teams audience, automatic WhatsApp, on-time publishing
+
+**What changed**
+
+- **Repeats gained Annually and Custom dates.** Monthly and annual repeats now
+  keep the day of the month of their FIRST send (31 Jan → 28 Feb → 31 Mar, no
+  drift), computed on the India wall clock. Custom repeats walk an explicit list
+  of datetimes. All of it is pure and unit-tested (`lib/ecos/recurrence.ts`).
+- **Teams are an audience.** The six standing teams (`lib/teams/roster.ts`) can
+  be targeted; each resolves to that manager's whole branch through the existing
+  `resolveTeamScopes`.
+- **WhatsApp is automatic.** The channel sends the approved Meta template
+  (`META_WHATSAPP_BROADCAST_TEMPLATE`, four variables — from, subject, summary,
+  link) to everyone opted in, and records per person what happened in
+  `broadcast_recipients.channel_outcomes`: sent, or skipped with the reason
+  (not opted in / no number / template not configured), or failed with Meta's
+  message. The broadcast page shows the counts and the reasons. The old
+  `whatsapp_manual` panel still renders for broadcasts that were sent with it.
+- **Scheduled broadcasts are meant to go out within about a minute**, not at the
+  next daily run: the popup poll fires a throttled sweep after its response
+  (`lib/ecos/publish-due-trigger.ts`), sharing one claim-based publisher with the
+  cron (`lib/ecos/publish-due.ts`). **See the caveat below — this is unverified.**
+- **Publishing is now race-safe.** `publishBroadcastCore` flips the status first,
+  and only from an unpublished state, so a manual Publish and a sweep cannot both
+  snapshot recipients and deliver.
+- Composer dropdowns wear the app's chevron (`components/ui/chevroned-select.tsx`).
+
+**Migration**
+
+`0229_broadcast_recurrence_whatsapp.sql` — additive: `broadcasts.recurrence_dates`,
+`recurrence_anchor`, `publish_claimed_at`; `broadcast_recipients.channel_outcomes`;
+a partial index on due scheduled broadcasts. **Not run against Supabase.**
+
+**How to verify**
+
+```bash
+pnpm typecheck
+pnpm vitest run tests/unit/ecos-recurrence.test.ts tests/unit/ecos-whatsapp-params.test.ts
+```
+
+Verified on dummy mode: the composer offers One-time / Daily / Weekly / Monthly /
+Annually / Custom dates with an Add-date list, the Teams chips appear under a
+custom audience, the channel reads "WhatsApp" (not "manual"), and a broadcast
+scheduled through the UI did publish by itself, snapshot its recipients, pop up
+centre-screen, and record "not opted in to WhatsApp" for all 26 dummy employees.
+
+**🔴 Unverified — on-time publishing**
+
+How SOON a scheduled broadcast publishes was never measured. Two later attempts
+sat unpublished for five minutes while the popup poll was demonstrably running
+(36 polls, no popup on screen), and `/api/cron/ecos-publish` reported `due: 0`
+for a broadcast that was overdue — so either those rows never left `draft`, or
+they were claimed by a sweep whose publish failed and left the 10-minute claim.
+The dev-server log would say which; the dummy database corrupted before it could
+be read. **Anyone picking this up: schedule one broadcast a couple of minutes
+out, watch the `pnpm dev:dummy` terminal for `[ecos]` lines, and check
+`broadcasts.status` / `publish_claimed_at` / `published_at` directly.** The daily
+cron remains the backstop either way.
+
+**Also worth knowing**
+
+- **`.pglite` corrupted twice in one session**, both times after the dev server
+  stopped — the second time within an hour of a clean rebuild, and a stale
+  `postmaster.pid` was not the cause (removing it did not help). Only
+  `pnpm dummy:setup --reset` recovers it. The first corrupt copy is kept outside
+  the repo at `CloneWMS_localRepo/.pglite-corrupt-2026-09-16`.
+- Dummy-mode WhatsApp always records "template not set up" / "not opted in":
+  no Meta credentials, and no dummy employee has opted in.
+
+**Author:** Rudra (with Claude)
+
+
+### 2026-09-15 (night) — Migrations 0215–0224 APPLIED; the team's merge deployed
+
+**The pending-migration section above is now history.** `0215`–`0224` ran
+against production (`mwaijzxuyicysvimzspx`, the personal-Gmail project) on
+15 September, verified by a full pass of `db/VERIFY-0215-0224.sql`: **74 checks,
+all true**, including both `0224` rows that gate the deploy. `main` and
+`dev-integration` were then pushed together; `/login` 200, `/api/health` ok
+(db 108ms, storage 603ms).
+
+**Part 2 ran too — the device wipe — and was then restored.** The paste covered
+lines 1–1994 of a 1994-line file, so Part 2 was included rather than stopped at
+`END OF PART 1`. All 66 `mobile_devices` rows were deleted, having been copied
+to `mobile_devices_pre_0223` in the same transaction first. They were put back
+within the hour by `db/RESTORE-DEVICES-FROM-0223-BACKUP.sql`: **66 restored, 66
+in backup, 0 live before, 0 skipped** — a clean full copy, and proof nobody had
+re-registered in the window.
+
+So **first-login registration is effectively not in force**: the restored rows
+carry their old `approved` status, which for the auto-adopted ones means "this
+browser turned up once", not "this person registered this machine". The wipe
+can be redone deliberately — the footer of the restore file has the three
+statements, and note that Part 2 skips itself while `mobile_devices_pre_0223`
+exists, so the old backup must be renamed and dropped first.
+
+**Vercel warned that `altus-corp1` had used 75% of the free Fluid Active CPU
+allowance, and the cause is the broadcast poller.** `<BroadcastPopup>` is
+mounted in `app/(app)/layout.tsx`, so it runs on every authenticated page, and
+it polls `/api/broadcasts/popup` every **4 seconds** — 900 requests an hour per
+open tab. It is the ONLY network poller in the app (`refetchInterval`,
+`refreshInterval` and `pollingInterval` appear nowhere), and it went live with
+Rudra's 0215 work this same day, which is why the alert arrived when it did.
+
+**The crons are not the cause and can be ruled out:** 35 of them, none more
+frequent than daily — 35 invocations a day against roughly 150,000 from the
+poller.
+
+Each poll is not cheap either. `getCurrentEmployee()` verifies the session
+(crypto, which is real CPU rather than I/O wait that Fluid bills lightly), then
+reads the employee, then `getDelegation()`, then the broadcast query — about
+four round trips, fifteen times a minute, per person.
+
+**Fixed for free: the poll now skips while the tab is hidden.** A popup nobody
+can see is not worth a round trip, and nothing is missed or even delayed — the
+`visibilitychange` handler already fires a check the moment the tab returns, so
+a broadcast sent while you were away now appears on RETURN rather than up to
+one throttled interval later. Strictly faster than before.
+
+**Then solved properly: the popup now PUSHES, and the poll is a safety net.**
+Raising the interval was the obvious lever and it is the wrong one — it trades
+the feature's whole promise for the saving. Supabase Realtime already carries
+`tasks` changes in this app (`components/layout/live-indicator.tsx`), and a
+broadcast is the same shape of event, over a websocket the browser is holding
+open anyway. So the popup subscribes to the `broadcasts` table and the poll
+rate became **adaptive**:
+
+| realtime channel | poll rate | requests/hour/tab |
+|---|---|---|
+| `SUBSCRIBED` | 60s | **60** |
+| anything else | 4s | 900 (the old behaviour) |
+
+That is a 93% cut **and** faster delivery — push arrives when the row is
+written, polling arrives up to a full interval later.
+
+**The adaptive rate is what makes it safe to deploy before the SQL.** It runs
+at 4s until the channel actually reports `SUBSCRIBED`. So with `broadcasts`
+missing from the publication, the websocket blocked, or
+`NEXT_PUBLIC_DISABLE_REALTIME=true` on the LAN build, it degrades to exactly
+what it did before — there is no configuration in which it is slower than the
+version it replaces.
+
+**SQL to get the saving: `db/ENABLE-REALTIME-BROADCASTS.sql`** — one guarded
+statement adding `broadcasts` to the `supabase_realtime` publication. Until it
+runs, the code is live and costing what it always did.
+
+**The poll does not go away, and should not.** Realtime announces row changes;
+it cannot announce that somebody's SNOOZE expired, which is a clock event with
+no row behind it. 60s is the right resolution for that, and doubles as the net
+for a websocket that dropped silently.
+
+**It subscribes to `broadcasts`, never `broadcast_recipients`** — publishing
+writes one broadcast row and one recipient row PER PERSON, so the recipients
+table would wake every tab in the company once per colleague. And the push is
+only a nudge: the browser then calls `/api/broadcasts/popup` once, so every
+per-person decision (who, snoozed, lock-mode) stays on the server and no
+broadcast content crosses the realtime channel.
+
+**The SECOND Vercel alert — Function Storage 75% of 10 GB — is a different
+problem with a different cause, and it is structural.** Measured from the
+traced bundles of a real build (`.next/server/**/*.nft.json`, summing each
+function's actual files), not estimated:
+
+| | |
+|---|---|
+| Functions in one deployment | **431** |
+| Sum of all function bundles, uncompressed | 10.30 GB |
+| Unique files behind them | 180 MB |
+| `/api/hr/letters/pdf` | **98.7 MB** |
+| `/api/hr/letters/email-pdf` | **98.7 MB** |
+| `/api/hr/letters/issue-rich` | **96.2 MB** |
+
+**THE CAUSE WAS NOT THE LETTER ROUTES, AND NOT THE NUMBER OF DEPLOYMENTS.**
+Both were wrong guesses made from the list of heaviest FUNCTIONS; the answer
+only appeared on totalling what was INSIDE all 431 of them:
+
+| package | total | in # functions | each |
+|---|---|---|---|
+| **`@electric-sql/pglite`** | **7.14 GB** | **426 of 431** | 17.2 MB |
+| (the app's own code) | 1.97 GB | 431 | 4.7 MB |
+| `next` | 0.52 GB | 431 | 1.2 MB |
+| `@sparticuz/chromium` | 0.19 GB | 4 | 49.8 MB |
+
+**One devDependency was 69% of the bill.** PGlite is the DUMMY_MODE fixture
+database — PostgreSQL compiled to WASM, for the local sandbox on port 3002 —
+and every function that touched `lib/db` shipped a copy production can never
+execute. Chromium, the thing that looked like the problem, is 1.8%.
+
+**Every precaution was already in place and none of them helped.** It is a
+devDependency, it is in `serverExternalPackages`, and `dummyDb()` `require()`s
+it at call time with a comment saying the real database path must never pay for
+it. But `serverExternalPackages` stops a package being BUNDLED, not TRACED —
+keeping it a plain runtime require is the whole point of it — and a call-time
+`require()` with a literal string is still statically analysable, so the tracer
+follows it exactly as it would an import. **This is the trap worth remembering:
+the three things that normally keep a dependency out of production say nothing
+at all about file tracing.** Only `outputFileTracingExcludes` does, and that is
+now set in `next.config.ts`.
+
+**FUNCTIONS STORAGE: WHAT IS OBSERVED, AND WHAT IS STILL UNKNOWN.** Four
+theories were advanced about this meter on 15 September and every one was
+wrong, so this section records measurements and marks the rest as open.
+
+**Observed, 15 September:** the Usage graph (Usage → Functions Storage → Total
+size) climbed from 0 B on ~30 August to **10.6 GB against a 10 GB allowance**,
+in an unbroken line with no dip — including through the afternoon when **80 of
+84 deployments were deleted**. Deployment Storage fell to 1.76 GB that same
+hour; this meter did not move. Deployments came in Preview/Production PAIRS at
+identical timestamps, because the same commit was being pushed to `main` and to
+`dev-integration` and Vercel built both.
+
+**Observed, 16 September:** it **dropped to zero**.
+
+**Why it dropped is NOT established.** Two candidates, and they imply opposite
+things:
+
+1. **The billing period rolled over on the 16th.** Then the allowance simply
+   refills monthly and the climb starts again with the next deploy.
+2. **The deletions were credited a day late.** Then deleting deployments IS a
+   real lever, it just settles slowly — and the "never falls" reading taken
+   from a single afternoon was an artefact of watching too short a window.
+
+A drop to *zero* rather than to the cost of the four surviving deployments
+leans towards (1), but that is an inference, not a measurement.
+
+**To settle it**, watch two things: whether the line resets again around 16
+October (→ monthly cycle), and whether deleting a deployment produces a drop a
+day later (→ deletions work, with a lag).
+
+**What to do is the same under both readings, which is why it is safe to act
+on now:**
+
+- **Batch pushes.** Fifteen small ones on 15 September cost ~3.4 GB in an
+  afternoon — about **240 MB per deployment**, which is the one number here
+  that was measured directly rather than inferred.
+- **Never push one commit to two branches that both build.** `vercel.json` now
+  sets `git.deploymentEnabled["dev-integration"] = false`; the branch still
+  takes pushes and still works as the outside developer's PR target, it just
+  stops producing a build. That halves the cost of every change on its own.
+- **Smaller functions still help**, but only from the next deploy onward — the
+  pglite change reduces what each new deployment adds and cannot refund
+  anything already counted.
+
+**And read the graph before theorising.** Deleting old deployments, the three
+Chromium letter routes, and an `outputFileTracingExcludes` glob were each
+confidently blamed and each innocent; one look at the shape of that line would
+have refuted all three.
+
+⚠️ **DO NOT TRUST A LOCAL `.nft.json` MEASUREMENT, including the table above.**
+Three builds of essentially the same tree measured 10.30 GB, then 1.95 GB, then
+1.95 GB — and both small ones traced **no node_modules at all**: zero files for
+`@sparticuz/chromium`, zero for `firebase-admin`, zero for `postgres`. An app
+without its own database driver cannot run, so those traces are incomplete, not
+a saving. The complete one came from a build that reused an existing `.next`;
+the empty ones followed `rm -rf .next`. An `outputFileTracingExcludes` entry was
+blamed for the emptiness and was innocent — it reproduces with no exclude
+configured.
+
+So the 7.14 GB figure comes from the one trace that was internally consistent
+(chromium in exactly the four routes configured for it, firebase-admin in 92),
+and it is the best evidence available rather than a proven number. **The
+authority is Vercel → Usage → Functions Storage after a deploy.** Treat a local
+build as a hypothesis generator only.
+
+**Three routes carry three separate copies of the same 67 MB Chromium binary
+— 201 MB of pure duplication in every single deployment.** They are traced in
+by `CHROMIUM_BIN` in `next.config.ts` because `@sparticuz/chromium` unpacks its
+binary at runtime, so nothing statically imports it and Vercel's file-tracing
+would otherwise drop it. The include is correct; having three routes that each
+need it is the cost.
+
+**What to do, in order:**
+
+1. **Deploy the `outputFileTracingExcludes` fix** (done — see `next.config.ts`).
+   It is what removes the 7.14 GB.
+2. **Then delete the deployments built BEFORE it**, once the new one is live
+   and healthy. They still reference the fat bundles, and the meter cannot fall
+   while anything does.
+3. **Do not deploy on every push.** Each push to `main` is a full 431-function
+   deployment. Batch work onto one deploy rather than five. This matters for
+   Deployment Storage (which does accumulate) more than for Functions Storage.
+4. **Optional, and much smaller than it looks: collapse the three letter-PDF
+   routes into one.** They all render the same rich letter through headless
+   Chromium and differ only in what they do with the bytes (return / email /
+   store), so one route with a mode parameter carries the 67 MB once instead of
+   three times. Worth roughly 150 MB — real, but 1.8% of the problem, not the
+   headline it first appeared to be. It is a refactor of three live endpoints
+   and wants its own change and its own test.
+
+**Do NOT "fix" this by deleting the `outputFileTracingIncludes` entries.** They
+look like bloat and they are load-bearing: without `CHROMIUM_BIN` the rich
+letter routes fail at runtime with "input directory …/bin does not exist", and
+without the `public/letter-fonts`, `public/letterhead` and `public/logos`
+includes the PDFs render with no fonts and a code-drawn red band instead of the
+letterhead. `public/` is CDN-served and is not guaranteed to be on the function
+filesystem.
+
+**The two alerts are unrelated.** Fluid Active CPU is the broadcast poller
+(above); Function Storage is deployment artifacts. Fixing one does nothing for
+the other.
+
+**A verification file must be ONE statement.** The Supabase editor displays only
+the LAST result set of a multi-statement run. `VERIFY` was eight `SELECT`s, so
+running it showed check 7 and silently discarded checks 1–6 — and the output
+was indistinguishable from a clean full run. It is now a single query returning
+`(check_name, ok)` ordered failures-first. Same reason the restore script has
+no `BEGIN`/`COMMIT`: one statement is atomic already, and a trailing `COMMIT`
+returns no rows, so it would become the last result set and hide the report.
+Written up for the team in [`docs/handoffs/README.md`](./docs/handoffs/README.md).
+
+**Three defects Vinal reported, two of them fixed here.**
+
+1. **The Goals rail had no pill for the page it lands you on.**
+   `WORKSPACE_LANDING.goals` is `/goals/dashboard` and `/ws/goals` routes there
+   too, but `WORKSPACE_NAV.goals` never listed it — so entering the room opened
+   a page with nothing highlighted and no way back to it once you clicked away.
+   Added as the first item, with `canvasOnly` for the same reason the three
+   level pages carry it (the page itself redirects to `/goals` when
+   `GOALS_CANVAS_ON` is off, so without it the pill would be a dead link).
+
+2. **Bulk Add vanished from the desktop ribbon — and that one is ours, not
+   the team's.** The bar the Aura bar replaced carried "search · bulk add ·
+   create · bell · focus"; bulk add was the single control that did not make
+   the crossing. It is still rendered in `DashboardSidebar`, so it survived on
+   phones and disappeared on desktop, which is exactly why it read as "it works
+   in wms-local but not here". Restored to `aura-top-bar.tsx` before Create,
+   the order the old bar used. **The lesson: when a component is replaced,
+   diff what the old one RENDERED, not just what it looked like.**
+
+3. **The short client and subject pickers are a DATA gap, not a bug — no code
+   change would fix it.** Both lists are rows read straight out of `clients`
+   and `subjects` filtered on `is_active = true`. The only code-level filter
+   that exists is `lib/tasks/subject-options.ts`, and it retires exactly two
+   values — "WMS" and "WMS App" — neither of which is on the reported list;
+   "Altus Ecosystem" is PINNED there and is always offered. Clients have no
+   policy layer at all. So those rows are on the team's database and not on
+   this one, which is what a team working on a separate Supabase project
+   produces. `db/SEED-CLIENTS-AND-SUBJECTS.sql` diagnoses first (missing vs
+   merely switched off — different fixes) and then seeds, matching
+   case-insensitively because `name` is UNIQUE but case-SENSITIVE and a plain
+   `ON CONFLICT DO NOTHING` would put "BSS" next to "bss" in the picker.
+   **Expect up to a 10-minute lag** before the names appear: both lists are
+   `unstable_cache`d with a 600s revalidate, and a hand-written INSERT cannot
+   invalidate the tag the way the in-app write paths do. A redeploy is instant.
+
+**ANSWERED — broadcast authoring stays open to every employee.** Rudra asked
+for a ruling in `docs/handoffs/HANDOFF-Rudra.md` §6.4: `requireAuthor()` is
+`requireUser()`, so anyone signed in can create a broadcast, while managing an
+existing one correctly requires author-or-admin. **The account holder's
+decision on 15 September is that this is intended — leave it as it is.** No
+code change; the current behaviour already is the decision.
+
+Recorded here so it is not re-raised as a bug every time someone reads that
+permission check. The thing to watch, if it ever becomes a problem, is not
+authoring itself but **Critical/Emergency priority, which carries app-lock
+mode** — that is the capability worth splitting off, rather than restricting
+who may post an announcement.
+
+### 2026-09-15 (evening) — The team's fork audited against the Aura merge
+
+No new code from the fork: `dev/main` and `dev/prod-sync-0915` are both already
+contained in this branch (merged as `5a86a2a0`). What follows is the audit of
+that merge, and the four repairs it needed.
+
+**SQL to run before deploying** — unchanged, and still outstanding:
+`db/VERIFY-0215-0224.sql` → `db/RUN-IN-SUPABASE-0215-0224-ALL.sql` → the verify
+file again, against **`mwaijzxuyicysvimzspx`**. See the pending-migrations
+section at the top of this file, including why the instructions that shipped
+with those files name the wrong project.
+
+**What the merge broke, and the fixes**
+
+- **`tests/unit/incentive-export.test.ts` no longer type-checked.** Its
+  `CatalogRow` fixture predates `0216`, so it was missing the two fields that
+  migration added. Given `appliesToAll: true` / `eligibleIds: []` — the state
+  0216 leaves behind — with a note saying why the exports do not read them.
+  This was the ONLY type error in 459 changed files.
+- **The Aura room switcher advertised a key that does nothing.** The shortcut
+  alphabet became letters on 11 September (`qwertyuiopdf`, twelve keys for
+  twelve rooms, replacing ten digits that left two rooms with none). The one
+  listener mounted app-wide requires **Alt**, so a badge reading a bare "Q" was
+  advertising a keystroke the app ignores. `lib/aura-rooms.ts` now emits
+  `moduleShortcutHint` — "⌥Q", the same two-character form the module footer
+  and module bar already use. **This is the only user-visible change here.**
+- **`.gitignore` carried `!components/**/whatsapp*` twice**, once from each
+  side of the merge, with two different comment blocks explaining the same
+  incident. Kept the first.
+- **`db/VERIFY-0215-0224.sql` gained check 3b.** See below.
+
+**Check 3b — the drift the -ALL sheet does not cover**
+
+`db/history/SCHEMA_DRIFT_FIX_2026-09-10.sql` (their file, tracked here rather
+than left loose in `SQl Queries by the team members/`) repairs **pre-0215**
+migrations that were never applied on their database: `employees.employment_
+status` and its four siblings, `goals.client`, the `project_nodes` columns and
+`project_node_attachments`. Its Part 3 is `0215`, which the -ALL sheet already
+carries — Parts 1 and 2 are not in that sheet at all. So running the -ALL sheet
+end to end would still leave those missing, on any database that skipped them.
+Check 3b now asks the question directly instead of assuming the answer. Expect
+every row true on production, which was repaired on 9 September.
+
+That file also independently confirms the project test in check 3: it records
+that `app.is_admin()` does not exist on `fjopgyqytfvbudkwhdto`, which is why
+their `PART 3b` shipped commented out.
+
+**What the merge got right, and is worth not re-litigating**
+
+- **Every Aura file is byte-identical** to `7e91012a`: `app/aura.css`, the top
+  bar, the rail lens, the widget grid, the charts, the widget bodies,
+  `lib/dashboard/widgets.ts`, `lib/aura-rooms.ts`, the hub page. Nothing of the
+  design was reverted by a team branch that predated it.
+- **Operations reaches the new top bar for free.** `roomsFor()` maps whatever
+  `MODULE_ORDER` holds, and Operations was *appended* to that list rather than
+  slotted in beside the two rooms it absorbed — which is what kept `q`…`p`
+  pointing at the same ten modules. No wiring was needed.
+- **The HR console renders the Aura bar inset**, through Rudra's
+  `useInsetTopBar()`, so the console's rail runs full height like every other
+  module's. The bar is a `shrink-0` flex item there, not a scroll child, so its
+  `position: sticky` is inert rather than wrong.
+
+**Known, deliberately not fixed here**
+
+- **`components/hub/module-shortcuts.tsx` is orphaned.** The team's bare-letter
+  hub shortcuts were built for the old hub-card grid, which the dashboard
+  replaced; nothing imports the file. Mounting it now would be actively wrong —
+  the Aura bar carries a search field, so a bare "q" on this screen is typing.
+  Alt+letter works everywhere, including here. Left in place, unmounted.
+- **`package.json`'s tiptap pin is under the npm-only `overrides` key.** This
+  repo declares `packageManager: pnpm@10.33.0`, and pnpm reads
+  `pnpm.overrides`. The pin therefore works for `npm install` and does nothing
+  on Vercel. Not moved: mirroring it under `pnpm.overrides` forces a
+  `pnpm-lock.yaml` regeneration, and changing dependency resolution in the same
+  push as a 459-file merge is how a good merge becomes a bad deploy. The
+  lockfile is untouched by the merge and `--frozen-lockfile` still matches, so
+  the deploy builds exactly as today's does. Do it as its own change.
+- **Broadcast authoring is open to every signed-in employee** —
+  `requireAuthor()` is `requireUser()`, while managing an existing broadcast
+  correctly requires author-or-admin. Broadcasts support Critical/Emergency
+  priority with app-lock mode, so this is any employee being able to take over
+  everyone's screen. Rudra flagged it for confirmation in
+  `docs/handoffs/HANDOFF-Rudra.md` §6.4 and it has not been answered.
+
+**Verification** — `tsc --noEmit` clean after the fixture fix (the one error
+above was the only one). The nine-to-ten red unit tests and ten lint errors are
+pre-existing and unrelated; both the team and this branch have confirmed them
+against clean trees at `bd20607` and at `ea75ddec`.
+
+### 2026-09-15 — Per-person incentive eligibility; dashboard trimmed and widened
+
+**SQL TO RUN: `db/migrations/0216_incentive_eligibility.sql`.** It is additive
+and safe to re-run. You do not have to run it before the deploy — see below.
+
+**THE INCENTIVE MODULE NOW DECIDES WHO EACH INCENTIVE APPLIES TO.** An admin
+opens the incentive chart and, per row, picks **Everyone**, a **whole function**
+(one button per department), or **named people**. Anyone not picked:
+
+- does not see that incentive **at all** — it is not greyed out or marked
+  ineligible, it is simply not in their catalog;
+- does not have it counted in their **target vs actual**.
+
+Two design decisions worth knowing:
+
+- **A department button SELECTS, it does not SUBSCRIBE.** Pressing "Sales" ticks
+  everyone currently in Sales and then forgets it was ever a department; what is
+  stored is the list of people. If the rule were stored instead, moving somebody
+  between departments would change what they are paid for months after anyone
+  decided anything, and nobody would know why.
+- **`applies_to_all` defaults to TRUE.** The moment the migration runs, every
+  existing incentive stays visible to exactly the people who could see it a
+  second earlier. Nothing disappears until an admin narrows it deliberately.
+
+**An entry naming an incentive the catalog has never heard of still counts.**
+`incentive_entries.incentive_name` is free text imported from the old sheet with
+no foreign key, so a typo or a retired scheme makes a row unclassifiable — not
+forbidden. Quietly dropping someone's earnings over a spelling mistake in an
+import is the worse failure. Same for a ledger row never linked to an employee.
+
+**THE DEPLOY CANNOT OUTRUN THE SQL.** `lib/incentive/ensure-eligibility-schema.ts`
+runs the additive half of 0216 once per server process, and every read falls
+back to "everything applies to everyone" if the rules cannot be read at all.
+Code arriving before its migration is what took Daily Goals, punch-in and
+sign-in down on 8 and 9 September; this is the same shape as the existing
+`lib/ensure-incentive-schema.ts`. **Still run the file** — the guard is
+insurance, not a substitute.
+
+**What is NOT covered:** `incentive_targets` stores ONE target per person per
+month, not a target per incentive. So the *actual* side is filtered by
+eligibility and the *target* side cannot be — there is nothing in the schema to
+split it by. Per-incentive targets would need their own column and a second
+migration.
+
+**Dashboard, same day:** the workspace rail is gone from /hub (every room is in
+the top bar, so a second permanent copy down the left was 252px spent saying it
+twice), the "N things need you today" line is gone, the top bar now shows up to
+eight tabs, and there are three more widgets (Waiting on, Inbox, Joined this
+month) plus move-to-top/bottom, a compact density and a greeting switch.
+
+Tests: `tests/unit/incentive-eligibility.test.ts` (8) and
+`tests/unit/dashboard-layout.test.ts` (15).
+
+### 2026-09-15 — Holiday carousel, merged holiday lists, letter order, Fit to one page, Management Verdict
+
+**What changed**
+
+- **HR > Holidays is a carousel of what is still ahead.** Past holidays are
+  hidden; prev / next jump straight to the previous / next month that has a
+  holiday, across year boundaries (`lib/hr/holiday-calendar.ts`,
+  `app/(app)/hr/holidays/holiday-carousel.tsx`). "All upcoming" lists every
+  remaining holiday by month. The Year / Month dropdowns are gone.
+- **Print Calendar always prints the whole current calendar year**, Jan–Dec,
+  past and ad-hoc days included, from a print-only section — whatever month is
+  on screen.
+- **`/holidays` and `GET /api/mobile/holidays` show ad-hoc and published
+  holidays**, not only the Events Master (`lib/queries/company-holidays.ts`).
+  Each mobile row now carries a `source` (`events` / `published` / `adhoc`).
+- **The five task / manager reports use the merged holiday calendar**
+  (`listHolidayRowsBetween` in `lib/queries/holidays.ts`) instead of the raw
+  `holidays` table: dashboard, task report, manager drill-down, manager
+  activity board, creator workload board.
+- **Letter order.** Appraisal: End of Probation → Appraisal → Promotion →
+  Increment → New CTC Appraisal → New CTC Promotion. Exit: Experience Letter
+  before Letter of Recommendation. Same order on the letters index.
+- **Fit to one page** (`lib/hr/letters/fit.ts`). A toolbar switch on every
+  letter; ON by default for New CTC – Appraisal and New CTC – Promotion. It
+  tries the normal layout, then compact spacing, then text scaled down to a 78%
+  floor — in the browser (so Print prints it), in the pdfkit PDF and in the
+  free-edit (Chromium) PDF. Every issue / export / send request carries it.
+- **Management Verdict** replaces the Outcome card on Management Assessment:
+  Selected / Rejected / One More Round / Free Training / Assignment Needed, each
+  linking to its letter. One More Round keeps the stored value `shortlisted`.
+- **Training Verdict** on the After Free Training letter: Accept / Extend /
+  Regret fills the Outcome line and links to the Appointment or Regret letter.
+- **HR lifecycle:** Candidate Records moved to Pre-Joining; the dead
+  Acceptance Letter item removed (the letter itself was already unregistered).
+
+**Why**
+
+The holiday list opened on months with nothing in them and on days already
+gone; the print was a snapshot of the screen. Ad-hoc holidays already reached
+attendance and payroll but not the lists employees read. Appraisal letters
+spilled onto a second page.
+
+**How to verify**
+
+```bash
+pnpm typecheck
+pnpm vitest run tests/unit/holiday-calendar.test.ts tests/unit/company-holidays-merge.test.ts \
+  tests/unit/letter-order.test.ts tests/unit/letter-fit.test.ts tests/unit/format-date-hr.test.ts
+```
+
+On dummy mode (port 3002), measured 15-Sep-2026:
+
+- `/hr/holidays` opens on September 2026 with only 23-Sep (4-Sep and 14-Sep have
+  passed); the print-only section holds all of 2026.
+- New CTC – Appraisal: 2 pages → 1 page in browser print (82%, compact) and in
+  the PDF. New CTC – Promotion: 2 → 1 page in the PDF.
+
+**Breaking / migration notes**
+
+- **No migrations.**
+- **Working-day counts in the five reports drop slightly**: they now subtract
+  published and Events Master holidays too, and no longer count withdrawn ones.
+- **The Offer (Selection) letter stays two pages.** It does not fit one page even
+  at the 78% floor, so its switch starts OFF; turned on it says "Still 2 pages".
+- **Not verified:** the mobile holiday API (needs a mobile session) and the
+  Management Verdict screen with a real candidate.
+- **Already failing before this work, untouched:** unit tests in
+  `delegated-access-authorization`, `device-exemption-login`, `done-on-time`,
+  `global-search-provider`, `task-actions`, `task-stat-counts`; two lint errors
+  in the voice-recorder code of `management-assessment-screen.tsx`.
+
+**Author:** Rudra (with Claude)
+
+### 2026-09-12 (night) — The home screen is a dashboard you arrange yourself
+
+**The launcher grid is gone.** Twelve tiles under "Jump into a workspace" were
+a second copy of the twelve links the rail already carries — permanently, two
+clicks closer — and they took the bottom half of the screen to say it.
+
+**In its place, eleven widgets, and the user arranges them.** Every one can be
+one of three widths, pushed up or down, removed, or added back:
+
+| widget | what it shows |
+| --- | --- |
+| WMS · daily loop | due/overdue today, the next three by name |
+| Goals · this week | week score, weekly + cascade counts, FY average |
+| Quick actions | new task, plan my day, attendance, goals, inbox |
+| Hours | this week vs your target, plus/minus, the month so far |
+| What's coming | the next company holidays |
+| Attendance | your punch and your week; roster counters for admins |
+| Where your work sits | everything open on you, by priority |
+| This month's outcomes | what was due, and how it went |
+| Your work shape | a petal per day sized by hours actually worked |
+| Your team | each direct report's open/overdue count (managers only) |
+| Open on you | every open task, soonest first, with who gave it to you |
+
+**HOW IT IS BUILT, and the one thing to understand before touching it:** the
+SERVER renders every widget body and hands `DashboardGrid` a map of finished
+nodes; the client component only decides ORDER, SIZE and PRESENCE. So none of
+the dashboard's data crosses to the browser and a widget stays an async Server
+Component while still being furniture the user moves.
+
+**Three new queries**, all in `lib/queries/aura-dashboard.ts`: upcoming
+holidays, the manager's team load, and the month's punches — the last folded
+into `myWorkShape`, so the hours ledger and the bloom come from ONE read and
+can never disagree about how long you worked.
+
+**THE LAYOUT IS IN `localStorage`, NOT ON THE EMPLOYEE ROW.** That is a trade,
+not an oversight: a column means a migration, and migrations here are applied
+to production by hand. The cost is real — the arrangement does not follow you
+to another device, and clearing site data resets it. Moving it to the database
+is a small change (`lib/dashboard/widgets.ts` already has the serialised
+shape); it just needs a migration run.
+
+`reconcileLayout` is the only thing between a browser-written string and the
+dashboard, so it is covered by `tests/unit/dashboard-layout.test.ts` (15 cases:
+corrupt storage, unknown ids, duplicates, illegal sizes, a widget that stops
+being available, and the one that matters — **a removed widget must not come
+back** when the catalogue later gains an entry, which is why `StoredLayout`
+records `removed` instead of inferring it from absence).
+
+No SQL.
+
+### 2026-09-12 (late) — Opaque top bar, overflow-only "More", the glass rail
+
+Four corrections to the morning's Aura work, all reported from production.
+
+- **THE TOP BAR IS NOW OPAQUE.** It was glass, and glass over a whole scrolling
+  page is unreadable the moment anything passes under it — dashboard cards,
+  faces and numbers came straight through the strip. It keeps the specular
+  edge and the drop shadow, so it still reads as an Aura surface; it simply
+  does not let anything through. **This was two bugs, not one:** the z-index
+  was 20 (the reference page's value), and page content at z-50 was painting
+  OVER the bar, so opacity alone would not have fixed it. The bar is z-60 now
+  — clear of every in-page layer, still under the app's dialogs and drawers
+  (70, 90, 100, 120).
+- **"More" holds only the rooms that did NOT get a tab.** It used to list every
+  room. The catch is that which tabs fit is width-dependent, so the count is
+  now measured in JS (`useTabCount`, via `useSyncExternalStore` so the server
+  and client snapshots agree) instead of hiding tabs with CSS media queries. A
+  CSS-hidden tab would have left its room in neither the bar nor the menu.
+- **Search and identity are one right-hand cluster.** Search used to grow into
+  the middle of the bar, which stranded the account menu at the far end. The
+  avatar also now shows on EVERY screen — it used to be suppressed on module
+  pages because the rail's foot carried one. That foot profile bar is gone;
+  identity lives in the bar, once.
+- **The left rail is the new glass-rail design** (`RAIL-SPEC.md` +
+  `aura-glass-rail.html`, both now under `.claude/skills/aura/reference/`): a
+  floating glass pane, a numbered index, and ONE travelling indicator instead
+  of a background per row, with a red light that flows across a row on hover.
+  The dashboard gets it in full (`AuraGlassRail`, PINNED + ALL WORKSPACES);
+  the module rail gets the same material and the same lens applied to its
+  existing pills.
+
+The lens (`components/layout/aura-rail-lens.tsx`) keeps the two traps the spec
+warns about — no transition on the first placement, and measurement on a timer
+rather than `requestAnimationFrame`, which is paused in background frames — and
+adds a third we hit here: **the rows may not exist yet.** The module rail's nav
+is an async server component behind a Suspense boundary, so on a slow read the
+real rows land long after a 2s retry window closes. A `MutationObserver` on the
+container is the only placement that cannot be outrun.
+
+No SQL.
+
+### 2026-09-12 — Aura: the dashboard, the app-wide top bar, and the rail
+
+**What changed**
+
+- **The Aura design language is now a project asset**, at `.claude/skills/aura/`
+  — the language itself as a skill, plus the reference dashboard, the upstream
+  stylesheet and the original brief under `reference/`. `.gitignore` excludes
+  `.claude/*` rather than `.claude/` so it can be tracked: git never descends
+  into an excluded *directory*, so a `!` re-include underneath one never
+  matches. The stylesheet lives at `app/aura.css`, imported by `globals.css`.
+- **`/hub` is no longer a launcher, it is the dashboard.** Greeting, the WMS
+  daily loop and this week's goals, attendance, three charts, the open-work
+  table, and the twelve workspace tiles kept at the bottom.
+- **The top bar is now on every screen in every module** — brand, module tabs,
+  a "More" menu listing every room, a full-width search box on ⌘K, then create /
+  focus / notifications / identity.
+- **The module left rail keeps its job and gets the Aura material.** The top bar
+  switches ROOMS; the rail lists the SECTIONS inside the one you are in. That
+  division is why the bar no longer repeats the page's name.
+- **TeX Gyre Heros and Inter are self-hosted** in `app/fonts/` (21 KB a weight
+  and 48 KB), registered with `next/font/local`. Never `next/font/google` — a
+  deploy must not depend on fonts.gstatic.com, which is what took `b50e9e2`
+  down.
+
+**Every number on the dashboard is real**, and where the reference mock's
+dimension does not exist in this schema the panel was re-cut onto one that does
+rather than filled with something plausible. `lib/queries/aura-dashboard.ts`
+carries the reasoning per panel:
+
+- *"Where your week went, by workspace"* → **your open work by priority**.
+  Nothing in this codebase tags a record with a `WorkspaceId` and the task-time
+  rollup has no module dimension, so hours-per-workspace cannot be computed at
+  all.
+- *Timer-based hour counts* → **attendance punches**. `attendance_logs` is the
+  one place a real worked minute is recorded for everyone; the task timer is
+  opt-in and mostly empty. The work-shape bloom, the week strip and the
+  hour-of-day strip all come from there.
+
+**Permissions.** The roster-wide attendance counters (present / late / on leave
+/ unmarked) are **admin-only** — the same rule `/attendance/live-status`
+enforces, since those counts span every employee. Everyone else sees their own
+punch and their own week, full width.
+
+**Four bugs found and fixed while building it**
+
+1. `roomsFor()` was exported from a `"use client"` module and called from the
+   server, which crashed **every** route. It now lives in `lib/aura-rooms.ts`.
+   A function in a client module can be rendered, never called, from the server.
+2. `.aura-app` had `overflow: hidden` (copied from the reference page). An
+   ancestor with a non-visible overflow becomes the scroll container, so
+   `position: sticky` resolved against it and the top bar scrolled away. The
+   blobs were already clipped by `.aura-field`, so nothing needed it.
+3. The rail skin lost the cascade: `globals.css` imports `aura.css` at the TOP,
+   so an equal-specificity rule further down `globals.css` won on source order
+   and the selected item kept its old pink wash. Every skin selector now carries
+   both `.sidebar-rail` and `.aura-rail-skin`.
+4. The bar is pinned to **exactly 56px**. `body:has(.app-topbar)` publishes that
+   as `--app-topbar-h`, the HR console sizes itself to
+   `calc(100dvh - var(--app-topbar-h))`, and every `.sticky-below-topbar` header
+   pins to it — so the new bar keeps the `app-topbar` class and the height.
+
+**Still true**: no SQL to run for any of this. It is presentation plus five
+read-only queries, all caught individually — a dead panel costs a panel, a
+thrown one costs the front door.
+### 2026-09-12 — Operations room rebuilt, task timer fixed properly, default scope by role
+
+Branch `Vinal`, fast-forwarded to `ae58385b`. **Everything below is UNCOMMITTED
+working tree** — 59 modified files and 23 new ones. Nothing has been pushed.
+
+**What changed**
+
+- **Default scope is decided by role, in one place.** New
+  `lib/auth/default-scope.ts`: team member → their own work, admin → their own
+  work, super-admin → everyone. Feeds eight call sites that each used to write
+  `me.isAdmin ? undefined : me.id` for themselves — `/tasks`, `/tasks/agenda`,
+  `/tasks/kanban`, `/archived`, the three task export routes and `/dashboard`.
+- **The Scope segmented control is gone** from `components/layout/filter-bar.tsx`.
+  Whose work you are reading is now asked only by the Assignee dropdown, which
+  already carries an "All employees" row and your own name marked "(You)".
+- **The task timer has four states, not a boolean.** `idle · running · paused ·
+  stopped`, derived from the event log in `lib/tasks/time/phase.ts`. Stop is a
+  real persisted action (`stopWork` in the engine, `work_stopped` in the log);
+  Restart now clears the recorded time and counts from `00:00:00` again
+  (`timer_reset`); the hero band, the Time Spent card and the Time Log tab all
+  render one shared `components/tasks/time/timer-controls.tsx`.
+- **Operations is the room it was asked to be.** Training moved in from the hub,
+  Broadcasts and Job Description moved across from HR, Salary Slip moved to
+  Employees, the front-door card deck was deleted (the room opens on
+  Hand-holding), Help Desk → HR Help Desk, Exit → Exit Process, and the rail is
+  now **alphabetical** with the landing named outright
+  (`OPERATIONS_LANDING_AREA`) instead of being whatever sat at index 0.
+- **The JD Bank has its ten columns**: Sr. No., Position, Function, Job
+  Description, Frequency, Time Estimated, Attachment, Notes, Add To, Add To
+  Person — every one sortable, ascending → descending → back to serial order.
+- **Job descriptions are assigned per destination.** Three boxes — DCC, WMS,
+  Event Checklist — each with a searchable roster
+  (`components/operations/job-description/module-assign-boxes.tsx`), stored as
+  three flags on one `jd_assignments` row (**migration 0225**).
+- **The rank ladder is the account holder's 26**, replacing fourteen
+  (`lib/jd/ladder.ts`, **migration 0226**), and the JD/checklist function
+  pickers are restricted to seven (`lib/jd/functions.ts`).
+- **Frequency speaks Google Calendar**: Does not repeat · Daily · Weekly on
+  Saturday · Monthly on the second Saturday · Annually on [Date] · Every weekday
+  · Custom. Two new recurrence shapes, `once` and `yearly`.
+- **The Event Checklist grid** got sortable headings, the columns renamed to
+  Sr. No. / Doer / Activity / Due Date / Target Date / Backup / Doer Status /
+  Actual Date / Var, an inline **Add event** at the foot of the Event Name
+  dropdown, and the dead "Import from Job Description" button removed.
+- **A demo layer** (`lib/demo/`) renders the JD Bank and the Event Checklist
+  from seeded in-memory data whenever their tables are missing, behind a banner
+  naming the migration. See *Breaking* — this is currently the ONLY way either
+  screen has ever been seen.
+
+**Why**
+
+**1. The same rule written eight times had already drifted.** Before this,
+`/tasks` opened an admin on the whole company while `/dashboard` opened them on
+themselves; the agenda always defaulted to the viewer, including super-admins;
+and the **kanban passed `{}`, so every viewer's board opened on the whole
+company** — including team members who see only their own rows everywhere else.
+Nobody reported these, because a wrong default looks like data.
+
+**2. "Fix the timer" had been asked nine times, and the ninth fix was correct.**
+The engine, the store and the two surfaces were all right and all tested. What
+was wrong was what the buttons MEANT: Restart rewound only the open session and
+kept every banked minute, so a task with forty minutes on it read `40:00` the
+instant after a button promising zero. And the rail's "Stop" called the same
+action as the hero's "Pause" — one verb, two spellings, on one screen. No amount
+of shared state fixes a divergence that lives in the markup, which is why the
+controls are now one component with two skins.
+
+**3. The screenshots being reported do not come from this database.** Worth
+knowing before chasing the next bug report: `.env.local` holds one
+`DATABASE_URL` (`ifcdpjbdinvmtewmgceg`), and a read-only probe found **no task
+created in the last two days and no task titled "App"**, while the report showed
+one created "just now" with a running session. Whatever is being clicked is a
+different deployment. Fixes land here; the screen being checked is served by
+another build.
+
+**Also worth knowing**
+
+- **`jd_*` and `ops_checklist_*` do not exist in this database.** Verified
+  against `information_schema`: migrations 0221 and 0222 have never been
+  applied here. Both features run entirely on the demo layer, which is why it
+  exists — a "run the migration" card is accurate and completely unreviewable.
+- **The upstream pull disabled the WMS device gate.** `204c5781` comments out
+  `enforceWmsDeviceAccess` in `lib/auth/current.ts` because it was refusing
+  every login: the gate ran before capabilities were consulted, so anyone whose
+  one-per-kind slot was filled was bounced — including from the Registered
+  Devices screen that would have approved them. Device enrolment still runs.
+  **Before re-enabling, every active employee needs an approved device of the
+  kind they sign in from.**
+- **That pull also broke a test**, and it is not one of ours:
+  `delegated-access-authorization` greps `lib/auth/current.ts` for
+  `await enforceWmsDeviceAccess(real)` and no longer finds it.
+- **Sr. No. is a row ordinal, not the serial.** It renumbers when you filter.
+  The permanent `JD-0004` is on the number as a tooltip and in the drawer. If
+  the printed number is meant to be permanent, the column should show the serial
+  instead — the two cannot both be column one.
+- **Notes were write-only for months.** The JD form has written `notes_html`
+  since day one, but no query ever selected it and `JdEntryRow` did not carry
+  it, so every note anyone typed was invisible everywhere. It is now in the
+  grid as a stripped one-line preview and in full in the drawer.
+- **Sales and Others stay in the function master.** The JD pickers offer seven;
+  the firm still has nine, and editing the master down would strip the *label*
+  off employees who hold those keys rather than removing the function.
+- **Sorting is deliberately not remembered** on either grid. Collapse state
+  persists because that is a lasting preference; a sort is how you read a list
+  for a minute, and finding the grid still alphabetical next week reads as the
+  plan itself having been rearranged.
+- **Two specification documents** were written against this code and published
+  as artifacts: the JD Bank spec, and a two-part spec covering Job Description
+  and the Event/Non-Event Checklist. They mark every requirement Built /
+  Partial / To build against what actually exists.
+- **The JD auto-push still does not exist.** `push_dcc`, `push_wms`,
+  `push_event` and `jd_push_log` are all in place and **nothing reads them** —
+  ticking "Daily Compliance Checklist" records an intention and creates no task
+  anywhere. This is the largest remaining gap in the feature.
+
+**How to verify**
+
+```bash
+pnpm typecheck                       # clean
+pnpm exec eslint .                   # clean apart from known warnings
+pnpm exec vitest run --no-file-parallelism
+# 2912 passed, 5 failed — all five pre-existing or from the pull, see above
+```
+
+Click-path, all on the demo layer: `/operations` redirects to Hand-holding · the
+rail reads Broadcasts → Training alphabetically · `/operations/job-description`
+shows ten sortable columns and the three assignment boxes ·
+`/operations/checklist` sorts within each phase and offers **＋ Add event…** at
+the foot of the Event Name dropdown · open any task and Pause, Stop and Restart
+agree between the crimson band and the Time Spent card.
+
+**Breaking / migration notes**
+
+- 🔴 **Four migrations are unrun for these features**: `0221` (Event
+  Checklist), `0222` (Job Description), and the two written today —
+  **`0225_jd_assignment_targets.sql`** (per-destination assignment flags) and
+  **`0226_jd_rank_ladder_26.sql`** (the 26 ranks). Apply in that order. Both
+  new ones are additive and idempotent.
+- `0226` **renumbers `rank_order`, which is behaviour** — the vacancy resolver
+  climbs it. It does so in two passes because a single pass collides with the
+  unique index, and it deliberately **leaves DGM alone**: that rank has no
+  equivalent in the new list, and guessing between Deputy Director and General
+  Manager would reroute live work. The migration raises a notice naming how
+  many positions are stranded.
+- **The ladder as ordered puts the GM grades ABOVE the VP grades** — a vacant
+  Manager escalates through AVP, VP and President before reaching Assistant
+  General Manager. This is the account holder's stated order, pinned by a test
+  in `tests/unit/jd-ladder.test.ts`. If it is not intended, it is a two-line
+  edit plus the migration.
+- No new env vars.
+- Nothing is committed. `git status` shows 59 modified and 23 new files on
+  `Vinal`.
+
+**Author:** Vinal Patil (with Claude)
+
 
 ### 2026-09-11 — Schema drift closed, WMS team's second batch merged, id counters repaired
 

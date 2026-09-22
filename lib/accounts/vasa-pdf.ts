@@ -4,6 +4,7 @@ import PDFDocument from "pdfkit";
 import type { VasaCell } from "@/lib/queries/accounts-vasa";
 import { formatFullInr, INR_PDF } from "@/lib/accounts/inr-format";
 import { snapshotLabel, quarterOf, quarterKey } from "@/lib/accounts/vasa-report";
+import { formatDate } from "@/lib/format";
 
 /**
  * VASA INTERPERSONAL BALANCE — the emailed PDF.
@@ -145,11 +146,21 @@ export async function renderVasaPdf(input: VasaPdfInput): Promise<Buffer> {
     doc.save();
     doc.moveTo(left, y).lineTo(PAGE_W - MARGIN, y).lineWidth(0.75).stroke(HAIRLINE);
     doc.restore();
-    const stamp = new Intl.DateTimeFormat("en-IN", {
+    // `dateStyle: "medium"` rendered "14 Sep 2026"; the app-wide format is
+    // DD-MMM-YYYY, so the date half is formatted here and only the clock is
+    // left to Intl (it must be read in IST, not the server's UTC).
+    const now = new Date();
+    const stamp = `${formatDate(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(now),
+    )}, ${new Intl.DateTimeFormat("en-IN", {
       timeZone: "Asia/Kolkata",
-      dateStyle: "medium",
       timeStyle: "short",
-    }).format(new Date());
+    }).format(now)}`;
     doc
       .font("Helvetica")
       .fontSize(7.5)

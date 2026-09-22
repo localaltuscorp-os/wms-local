@@ -40,7 +40,7 @@ const PAL: Record<WorkspaceId, { from: string; to: string; ink: string }> = {
   operations: { from: "#F3ECD8", to: "#F3ECD8", ink: "#886920" }, // a · gold, matching its card (the room is red inside)
   accounts: { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B" }, // shadows `admin`
   "project-plan": { from: "#A5F3FC", to: "#67E8F9", ink: "#0E7490" }, // 12 · cyan (its own hub identity)
-  incentive: { from: "#F6E3F4", to: "#F6E3F4", ink: "#8E298E" }, // f · magenta, matching its card (the room is red inside)
+  incentive: { from: "#F6E3F4", to: "#F6E3F4", ink: "#8E298E" }, // I · magenta, matching its card (the room is red inside)
 };
 
 function Glyph({ id, ink, light }: { id: WorkspaceId; ink: string; light: string }) {

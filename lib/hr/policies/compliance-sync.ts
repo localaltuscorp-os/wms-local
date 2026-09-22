@@ -65,6 +65,10 @@ export async function markPolicySigned(
   signedAt: Date,
 ): Promise<void> {
   const version = await currentVersion(policyKey);
+  // Imported lazily: signed-notify reaches the policy registry, which this
+  // low-level mirror module must not pull in on load.
+  const { policiesCompleteSnapshot, notifyIfPoliciesJustCompleted } = await import("@/lib/hr/policies/signed-notify");
+  const completeBefore = await policiesCompleteSnapshot(employeeId);
   await db
     .insert(policyCompliance)
     .values({ policyKey, employeeId, version, status: "signed", signedAt, docInstanceId })
@@ -74,6 +78,7 @@ export async function markPolicySigned(
       // version otherwise left the ledger stamped with the OLD version number.
       set: { status: "signed", signedAt, docInstanceId, version, updatedAt: new Date() },
     });
+  await notifyIfPoliciesJustCompleted(employeeId, completeBefore);
 }
 
 /** Resolve the policy key for a signed LETTER-kind document instance — returns

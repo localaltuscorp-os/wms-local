@@ -1,11 +1,29 @@
 import { drizzle } from "drizzle-orm/postgres-js";
-import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import postgres from "postgres";
 import { env } from "@/lib/env";
 import * as schema from "@/db/schema";
 import { withSlowQueryLog } from "./slow-query";
 import { DUMMY_MODE, DUMMY_DB_DIR } from "./dummy-dir";
 import { devDbOfflineEnabled, withDevOfflineFallback } from "./dev-offline";
+
+/**
+ * The PGlite drizzle driver's factory — as a TYPE, and only a type.
+ *
+ * THIS IS NOT COSMETIC. It used to be a real import:
+ *
+ *   import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
+ *
+ * and that one line, not the `require()` in `dummyDb()`, is what put PGlite in
+ * ~430 of this app's serverless functions. See the long note in `dummyDb()`
+ * for the mechanism; the short version is that this file is imported by every
+ * route that touches the database, `drizzle-orm/pglite` is bundled rather than
+ * externalized, and the driver's own `import("@electric-sql/pglite")` is
+ * externalized into a LITERAL specifier that Next's file tracer follows.
+ *
+ * `typeof import(...)` in a type position is erased at compile time, so this
+ * contributes nothing to any bundle. Do not "tidy" it back into an import.
+ */
+type DrizzlePgliteFactory = typeof import("drizzle-orm/pglite")["drizzle"];
 
 // Cache the postgres client on globalThis so Next.js HMR doesn't leak
 // connections on every save. In production this just runs once.
@@ -92,7 +110,7 @@ const tracedClient = Number.isFinite(slowMs) ? withSlowQueryLog(client, slowMs) 
  * it. One process at a time, which is also why `pnpm dummy:setup` must not run
  * while the dev server is up.
  */
-const globalForDummy = globalThis as unknown as { __pglite?: ReturnType<typeof drizzlePglite> };
+const globalForDummy = globalThis as unknown as { __pglite?: ReturnType<DrizzlePgliteFactory> };
 
 /**
  * Make `execute()` return what the postgres-js driver returns: the ROWS.
@@ -142,13 +160,114 @@ function withPostgresJsResultShape<T extends object>(instance: T): T {
   });
 }
 
+/**
+ * SAY IT BEFORE PGlite SWALLOWS IT.
+ *
+ * PGlite keeps a `postmaster.pid` in its data directory, and it is removed on a
+ * clean shutdown. Kill the dev server instead — which is exactly what happens
+ * when the OS reaps it for memory, or when Next's render worker dies and takes
+ * the process with it — and the file survives. The next `pnpm dev:dummy` then
+ * fails deep inside the first query with nothing but
+ *
+ *   [cause]: Error: PGlite failed to initialize properly
+ *
+ * which says nothing about a lock file and sends you looking at your own query.
+ * We do NOT delete it here: if a second dev server really is running, that file
+ * is the only thing keeping two processes off one data directory. A line of
+ * warning at the moment of the attempt is the honest half of the trade.
+ */
+function warnOnStaleDummyLock(): void {
+  try {
+    const { existsSync } = require("node:fs") as typeof import("node:fs");
+    const { join } = require("node:path") as typeof import("node:path");
+    const { statSync } = require("node:fs") as typeof import("node:fs");
+    const lock = join(DUMMY_DB_DIR, "postmaster.pid");
+    if (!existsSync(lock)) return;
+    // EMPTY is the stale signature. A live PGlite writes its pid and data path
+    // into this file (~55 bytes); a killed one leaves the zero-byte husk it had
+    // opened with. Warning on mere existence cried wolf on every re-init inside
+    // a healthy dev server, which is the fastest way to teach someone to ignore
+    // the one message that matters.
+    if (statSync(lock).size > 0) return;
+    console.warn(
+      `[dummy-mode] ${lock} is a STALE LOCK — the last dev server was killed rather than stopped, ` +
+        `and PGlite is about to fail to start ("PGlite failed to initialize properly"). Delete that ` +
+        `file, or run \`pnpm dummy:setup --reset\` to rebuild the fixture database, then start again.`,
+    );
+  } catch {
+    // Never let a diagnostic stop the database from opening.
+  }
+}
+
 function dummyDb() {
   if (globalForDummy.__pglite) return globalForDummy.__pglite;
-  // Required at call time, not imported at module scope: this pulls in a
-  // multi-megabyte WASM build, and the real database path must never pay for it.
-  const { PGlite } = require("@electric-sql/pglite") as typeof import("@electric-sql/pglite");
-  const { pg_trgm } = require("@electric-sql/pglite/contrib/pg_trgm");
-  const { unaccent } = require("@electric-sql/pglite/contrib/unaccent");
+  /* Required at call time, not imported at module scope: this pulls in a
+   * multi-megabyte WASM build, and the real database path must never pay for it.
+   *
+   * ── AND THROUGH A VARIABLE, WHICH IS THE PART THAT ACTUALLY WORKS ────────
+   * Call-time was not enough. Next's file tracer reads the BUILD OUTPUT and
+   * follows any `require()` whose specifier is a string literal, wherever it
+   * sits — a function body is no different from module scope to a static
+   * analyser. So on 2026-09-15 this package was measured in 426 of 431
+   * deployed functions at 17.2 MB each: 7.14 GB, 69% of a Functions Storage
+   * bill that had gone over its 10 GB allowance.
+   *
+   * Neither of the other two defences helps, and it is worth knowing why:
+   *   · `devDependencies` governs INSTALL, and Vercel installs dev deps to
+   *     build with, so the files are present to be traced.
+   *   · `serverExternalPackages` (next.config.ts) governs BUNDLING. Leaving it
+   *     as a plain runtime require out of node_modules is the entire point of
+   *     that option — which means the tracer must copy node_modules in.
+   *
+   * A variable specifier cannot be resolved statically, so the tracer does not
+   * follow it and the package stays out of every deployed function. Node
+   * resolves it perfectly well at runtime, which is all DUMMY_MODE needs.
+   *
+   * DELIBERATELY NOT `outputFileTracingExcludes`, which was tried first. Not
+   * because it was proven harmful — it was blamed for emptying every trace and
+   * was innocent — but because a variable specifier is precise BY CONSTRUCTION:
+   * there is no glob to get wrong, nothing else can be caught by it, and it
+   * cannot break production even if it saves nothing, because production never
+   * reaches this function. The full reasoning, and the warning about trusting
+   * local `.nft.json` numbers at all, is in next.config.ts.
+   *
+   * If this ever runs on a deployment it throws MODULE_NOT_FOUND here, which is
+   * the right failure: DUMMY_MODE is the local sandbox and must never be on.
+   *
+   * ── THE OTHER HALF, WHICH THE FIRST FIX MISSED (found 2026-09-18) ────────
+   * The variable specifier below was correct and it did NOT work, because the
+   * package was still being pulled in through a completely different door:
+   *
+   *   import { drizzle as drizzlePglite } from "drizzle-orm/pglite";   // line 2
+   *
+   * `drizzle-orm/pglite` is NOT in `serverExternalPackages`, so webpack BUNDLES
+   * that driver into this module's chunk — and the chunk that owns `lib/db` is
+   * shared by every route that queries the database. The driver's own
+   * `import { PGlite } from "@electric-sql/pglite"` IS externalized, so webpack
+   * emits it as a runtime `a.exports = import("@electric-sql/pglite")` — a
+   * LITERAL specifier. Next's tracer follows a literal dynamic import exactly as
+   * it follows a literal `require`, so PGlite went into ~430 functions again.
+   *
+   * Verified in the build output, not inferred: the string
+   * `import("@electric-sql/pglite")` appeared in 430 of 1066 files under
+   * `.next/server`. Hiding THIS require was never going to matter while that
+   * import existed. Both doors are now shut — the driver is `require`d at call
+   * time through a variable, like PGlite itself.
+   *
+   * The lesson worth keeping: when you hide one reference, grep the BUILD
+   * OUTPUT for the specifier. A leak you cannot see in the source is still a
+   * leak, and `pnpm build` + `grep -rl "electric-sql/pglite" .next/server`
+   * answers it in seconds.
+   *
+   * `scripts/measure-functions-storage.mjs --leaks` does this automatically. */
+  const PGLITE = "@electric-sql/pglite";
+  const { PGlite } = require(PGLITE) as typeof import("@electric-sql/pglite");
+  const { pg_trgm } = require(`${PGLITE}/contrib/pg_trgm`);
+  const { unaccent } = require(`${PGLITE}/contrib/unaccent`);
+  // Same treatment, same reason — see the note above and next.config.ts.
+  const DRIZZLE_PGLITE = "drizzle-orm/pglite";
+  const { drizzle: drizzlePglite } = require(DRIZZLE_PGLITE) as typeof import("drizzle-orm/pglite");
+  warnOnStaleDummyLock();
   const instance = withPostgresJsResultShape(
     drizzlePglite(new PGlite({ dataDir: DUMMY_DB_DIR, extensions: { pg_trgm, unaccent } }), {
       schema,

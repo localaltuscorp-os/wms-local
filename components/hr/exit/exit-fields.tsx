@@ -4,6 +4,7 @@ import * as React from "react";
 import { ChevronDown, Check, Mic, Search, Pencil } from "lucide-react";
 import { useDictation } from "@/components/hr/candidate/evaluation-v2/use-dictation";
 import type { ExitRosterEmployee } from "@/lib/hr/exit/schema";
+import { DateField } from "@/components/ui/date-field";
 
 /**
  * Self-contained floating-label field kit for the Exit forms. Mirrors the
@@ -265,11 +266,21 @@ export function FloatingInput({
   const [focused, setFocused] = React.useState(false);
   const alwaysFloat = type === "date";
   const float = alwaysFloat || focused || (value ?? "").trim() !== "";
+  /**
+   * A DATE renders through <DateField>, every other type through a plain input.
+   *
+   * `<input type="date">` draws its own text from the OS locale (`21-01-1984`
+   * here) and no attribute changes it, so every date in the HR module would
+   * otherwise disagree with the `21-Jan-1984` the module prints everywhere
+   * else. DateField is a drop-in: same ISO value in, same event shape out.
+   */
+  const Control = type === "date" ? DateField : "input";
+
   return (
     <div className={`iwf${float ? " is-float" : ""}`}>
-      <input
+      <Control
         id={id}
-        type={type}
+        type={type === "date" ? undefined : type}
         value={value}
         data-field={fieldKey}
         data-autofocus={autoFocus || undefined}

@@ -32,7 +32,7 @@ const template: LetterTemplate = {
   signature: "esign",
   blurb: "Elevate an employee's role in recognition of consistent performance, effective a stated date.",
   blocks: [
-    para(t("Date: "), f("date", "Date", { placeholder: "DD/MM/YYYY", date: true })),
+    para(t("Date: "), f("date", "Date", { placeholder: "DD-MMM-YYYY", date: true })),
     para(t("To,")),
     para(f("employeeName", "Employee Name", { placeholder: "Full name" })),
     heading("Subject: Promotion & Elevation of Role", 3),
@@ -45,12 +45,12 @@ const template: LetterTemplate = {
       t(" to "),
       f("newDesignation", "New Designation", { placeholder: "e.g. Senior Accounts Executive" }),
       t(", with effect from "),
-      f("effectiveDate", "Effective Date", { placeholder: "e.g. 1 April 2026", date: true }),
+      f("effectiveDate", "Effective Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t(". The details of your elevated role are set out below."),
     ),
     term("From", f("currentDesignation", "Current Designation", { placeholder: "e.g. Accounts Executive" })),
     term("To", f("newDesignation", "New Designation", { placeholder: "e.g. Senior Accounts Executive" })),
-    term("Effective Date", f("effectiveDate", "Effective Date", { placeholder: "e.g. 1 April 2026", date: true })),
+    term("Effective Date", f("effectiveDate", "Effective Date", { placeholder: "DD-MMM-YYYY", date: true })),
     term("Reporting To", f("reportingTo", "Reporting To", { placeholder: "e.g. Finance Manager" })),
     para(
       t(

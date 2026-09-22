@@ -1,6 +1,7 @@
 "use client";
 
 import { Star } from "lucide-react";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 
 export interface DepartmentOption {
   id: string;
@@ -56,6 +57,18 @@ export function DepartmentMultiSelect({
 
   return (
     <div className="slim-scroll rounded-md border border-[#CBD5E1] divide-y divide-[#EEF2F6] max-h-56 overflow-y-auto">
+      {/* Every Function in one click, then untick the one or two that don't
+          apply. The star follows: selecting all keeps the primary already set,
+          or falls to the first Function; clearing leaves nobody primary. */}
+      <SelectAllBar
+        compact
+        className="sticky top-0 z-10 bg-white"
+        count={selectedIds.length}
+        total={options.length}
+        emptyLabel="No Functions"
+        onSelectAll={() => onChange(options.map((o) => o.id), primaryId ?? options[0]?.id ?? null)}
+        onClear={() => onChange([], null)}
+      />
       {options.map((opt) => {
         const checked = selectedIds.includes(opt.id);
         const isPrimary = primaryId === opt.id;

@@ -1,81 +1,90 @@
-import { ClipboardCheck } from "lucide-react";
-import { DashboardHeader } from "@/components/layout/header";
 import { requireUser } from "@/lib/auth/current";
-import { loadDccScope } from "@/lib/dcc/access";
-import { listDccPeople, listItemsForOwners, listEntriesForOwners, listReviewsForOwners } from "@/lib/queries/dcc";
-import { isoDate } from "@/lib/dcc/util";
-import { DccDashboard } from "@/components/dcc/dcc-dashboard";
+import { localDateString } from "@/lib/format";
+import { addDays, shortDay } from "@/lib/compliance/schedule";
+import { loadComplianceBoard } from "@/lib/queries/compliance-board";
+import { computeComplianceDashboard } from "@/lib/compliance/dashboard";
+import { ScopePicker } from "@/components/compliance/compliance-controls";
+import { ComplianceDashboardView } from "@/components/compliance/dashboard/compliance-dashboard-view";
 
 export const dynamic = "force-dynamic";
 
-export default async function DccDashboardPage() {
+/**
+ * DCC → DASHBOARD — THE WCC / MCC BOARD.
+ *
+ * ── WHAT THIS PAGE USED TO BE, AND WHY IT IS NOT THAT ANY MORE ─────────────
+ * Until 2026-09-21 this page was Jeevan's SP1 call sheet: a typed-into
+ * Monday→Saturday grid, plus call-mix / heatmap / performer sections around it,
+ * carrying an instruction from 2026-09-17 that "the dashboard of daily
+ * compliance will be like SP1 google sheet". `/dcc/sp1` and `/dcc/call-log`
+ * were folded into it and still redirect here.
+ *
+ * That instruction was superseded on 2026-09-21: DCC's daily board had already
+ * become WCC and MCC (see lib/dcc/nav.ts), and the module's Dashboard was still
+ * reporting on a sheet that was no longer where the work was recorded. The
+ * page was cleared and rebuilt on the checklists — asked for explicitly, and
+ * after the older instruction was put back on the table.
+ *
+ * The SP1 modules themselves (lib/dcc/sp1.ts, lib/queries/dcc-sp1.ts,
+ * components/dcc/sp1/*) are deliberately LEFT ON DISK and merely unreferenced
+ * from here: the 10 pm DCC report and the Android app still read
+ * `dcc_entries.status`, and deleting a subsystem to tidy a page is how a
+ * working cron job dies quietly three weeks later.
+ *
+ * ── THE WINDOW ────────────────────────────────────────────────────────────
+ * One window, two checklists, measured the way each is actually kept: WCC over
+ * the last seven days of deadlines, MCC over the current month. A single day
+ * count across both would be wrong for a monthly compliance, where seven days
+ * either includes its one deadline or none of them and the rate swings between
+ * 0% and 100% on nothing.
+ */
+export default async function DccDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ who?: string }>;
+}) {
   const me = await requireUser();
-  const scope = await loadDccScope(me);
-  if (!scope.isManager) {
-    return (
-      <>
-        <DashboardHeader generatedAt={new Date()} />
-        <main className="mx-auto w-full max-w-[1400px] px-8 max-md:px-4 pt-10 pb-20">
-          <p className="rounded-2xl bg-surface-card px-6 py-10 text-center text-[15px] font-bold text-ink-muted" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}>
-            The DCC dashboard is for managers and admins.
-          </p>
-        </main>
-      </>
-    );
-  }
+  const sp = await searchParams;
+  const today = localDateString("Asia/Kolkata");
+  const from = addDays(today, -6);
+  const monthKey = today.slice(0, 7);
 
-  const ids = [...scope.visibleIds];
-  const now = new Date();
-  const today = isoDate(now);
-  const from = new Date(now);
-  from.setDate(from.getDate() - 27); // 4-week window
-  const fromISO = isoDate(from);
-
-  const [people, items, entries, reviews] = await Promise.all([
-    listDccPeople(ids),
-    listItemsForOwners(ids),
-    listEntriesForOwners(ids, fromISO),
-    listReviewsForOwners(ids, fromISO),
+  // Both boards in parallel, through the SAME loader the WCC and MCC tables
+  // use — scope, visibility and row-building included, so the dashboard cannot
+  // show a person or a row those tables would have hidden.
+  const [wcc, mcc] = await Promise.all([
+    loadComplianceBoard({
+      me,
+      kind: "wcc",
+      who: sp.who,
+      today,
+      from,
+      to: today,
+      personalGroup: "day",
+    }),
+    loadComplianceBoard({
+      me,
+      kind: "mcc",
+      who: sp.who,
+      today,
+      monthKeys: [monthKey],
+      personalGroup: "month",
+    }),
   ]);
 
+  const data = computeComplianceDashboard(wcc.rows, mcc.rows);
+
+  const monthLabel = new Date(`${monthKey}-01T00:00:00Z`).toLocaleDateString("en-IN", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
   return (
-    <>
-      <DashboardHeader generatedAt={new Date()} />
-      <main className="mx-auto w-full max-w-[1400px] px-8 max-lg:px-6 max-md:px-4 pt-8 pb-16">
-        {/* ── Page header ── */}
-        <header className="wg-rise mb-6">
-          <div className="mt-3">
-            <span
-              className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white"
-              style={{ background: "linear-gradient(135deg, #16a34a, #15803d)" }}
-            >
-              <ClipboardCheck size={13} strokeWidth={2.6} /> Employees · DCC
-            </span>
-          </div>
-          <h1
-            className="mt-3 text-ink-strong"
-            style={{
-              fontFamily: "var(--font-display), system-ui, sans-serif",
-              fontWeight: 900,
-              fontSize: "clamp(30px,3.6vw,46px)",
-              letterSpacing: "-0.03em",
-              lineHeight: 1.02,
-            }}
-          >
-            {scope.isSuper ? "Compliance Dashboard" : "My Team's Compliance"}
-          </h1>
-          <p className="mt-1.5 text-[15.5px] font-medium text-ink-muted">
-            {people.length} {people.length === 1 ? "person" : "people"} · today {fmt(today)}
-          </p>
-        </header>
-
-        <DccDashboard meId={me.id} people={people} items={items} entries={entries} reviews={reviews} today={today} />
-      </main>
-    </>
+    <ComplianceDashboardView
+      data={data}
+      windowLabel={`${shortDay(from)} – ${shortDay(today)} · ${monthLabel}`}
+      scopePicker={<ScopePicker picker={wcc.picker} who={wcc.who} meId={me.id} />}
+      who={wcc.who}
+    />
   );
-}
-
-function fmt(iso: string) {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y!, (m ?? 1) - 1, d ?? 1).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
 }

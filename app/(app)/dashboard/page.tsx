@@ -30,6 +30,7 @@ import { getCurrentEmployee } from "@/lib/auth/current";
 import { listWeekGoalsAsTasks } from "@/lib/weekly-goals/as-task-row";
 import { WeeklyGoalTaskGroup } from "@/components/weekly-goals/weekly-goal-task-group";
 import { parseFilters } from "@/lib/filters";
+import { defaultScopeId, opensOnEveryone } from "@/lib/auth/default-scope";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 
 export const dynamic = "force-dynamic";
@@ -67,7 +68,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
      If auth hiccuped we fall back to the old company-wide view rather than
      showing an empty dashboard. */
-  const filters = parseFilters(sp, { defaultEmployeeId: me?.id });
+  /* A super-admin opens on the whole company; everyone else on themselves.
+     `me` is optional here, and a signed-out render defaults to everyone —
+     which is what it already did, and the page renders nothing without a
+     session anyway. */
+  const filters = parseFilters(sp, {
+    defaultEmployeeId: me ? defaultScopeId(me) : undefined,
+  });
 
   // Mobile home: phones open on "Today" (the user's overdue + due-today tasks)
   // instead of the company dashboard. `?full=1` opts into the full dashboard.
@@ -174,11 +181,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <FilterBar
           employees={employeeOptions}
           subjects={subjects}
-          // `me` + `scopeDefaultsToMe` are what put "All employees" and the
+          // `me` + `offersScopeChoice` are what put "All employees" and the
           // "(You)" row in the Assignee dropdown, and what let the pill read
-          // "Only Me" instead of a bare name.
-          me={me ? { id: me.id, isAdmin: me.isAdmin } : undefined}
-          scopeDefaultsToMe={Boolean(me)}
+          // "Only Me" instead of a bare name. `isSuperAdmin` is what decides
+          // WHICH of those two the page opened on, so the bar knows which
+          // selection is the default and must not chip.
+          me={
+            me
+              ? { id: me.id, isAdmin: me.isAdmin, isSuperAdmin: opensOnEveryone(me) }
+              : undefined
+          }
+          offersScopeChoice={Boolean(me)}
           assigneeMode={filters.assigneeMode}
           initial={{
             start: isoDay(filters.startDate ?? new Date()),

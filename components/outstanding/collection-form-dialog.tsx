@@ -8,7 +8,7 @@ import { fireToast } from "@/lib/toast";
 import {
   createCollection,
   uploadOutstandingAttachment,
-} from "@/app/(app)/outstanding/actions";
+} from "@/app/(app)/billing/outstanding/actions";
 import { AttachmentField } from "./attachment-field";
 
 export function CollectionFormDialog({
@@ -132,7 +132,7 @@ export function CollectionFormDialog({
             </Section>
 
             <Section title="Payment Details">
-              <Field label="Amount (₹)" required>
+              <Field label="Amount (Rs.)" required>
                 <input
                   type="number"
                   inputMode="decimal"

@@ -54,7 +54,7 @@ interface Props {
   subjects?: string[];
   statusOptions?: { value: string; label: string }[];
   clients?: string[];
-  me?: { id: string; isAdmin: boolean };
+  me?: { id: string; isAdmin: boolean; isSuperAdmin?: boolean };
   /**
    * WHAT "All Tasks" MEANS FOR THIS PERSON, resolved on the server from the
    * org chart and their Access Control grants (lib/tasks/scope.ts).
@@ -77,6 +77,9 @@ interface Props {
    * Off everywhere else, so /tasks keeps the behaviour it has today.
    */
   scopeDefaultsToMe?: boolean;
+  /** main's name for `scopeDefaultsToMe` — kept so the other task surfaces
+   *  (archived, dashboard, agenda, kanban) that still pass it keep compiling. */
+  offersScopeChoice?: boolean;
   assigneeMode?: AssigneeMode;
   /** Number of tasks matching the current filters (shown in the summary row). */
   taskCount?: number;
@@ -107,6 +110,7 @@ export function FilterBar({
   me,
   taskScope,
   scopeDefaultsToMe = false,
+  offersScopeChoice = false,
   assigneeMode: initialAssigneeMode = "all",
 }: Props) {
   const router = useRouter();
@@ -127,7 +131,7 @@ export function FilterBar({
      learn a second widget to un-pick them. It is a synthetic option — no
      employee has this id — intercepted in `handleEmpChange` below. */
   const ALL_EMP = "__all__";
-  const selfScope = scopeDefaultsToMe && Boolean(me);
+  const selfScope = (scopeDefaultsToMe || offersScopeChoice) && Boolean(me);
   const selfId = me?.id;
   // Overdue has no picker of its own — it arrives from a drill-through link
   // (e.g. the Task Report's sent-back-by-person rows) and is cleared from its

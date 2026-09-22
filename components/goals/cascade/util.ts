@@ -437,12 +437,23 @@ export interface GoalDTO {
   delegatedTo?: Array<{ employeeId: string; name?: string; pct: number }> | null;
   /** Deadline (ISO 'YYYY-MM-DD') — set ONLY on month/week goals (mig 0169). */
   targetDate: string | null;
-  /** Task status (goals.status). OPTIONAL — in-flight optimistic temp rows omit
+  /** DOER status (goals.status). OPTIONAL — in-flight optimistic temp rows omit
    *  it; the loaders select the full row so real DTOs always carry it. */
   status?: string | null;
+  /** INITIATOR status (goals.approval_status, mig 0225) — the second axis:
+   *  Approved · Not Approved · On Hold · Archived. null = no verdict yet, which
+   *  is a state and not an absence. Optional for the same temp-row reason. */
+  approvalStatus?: string | null;
+  /** Whether the row is PUT AWAY (goals.archived_at is set) — the flag the
+   *  initiator axis's "Archived" reads. NOT `goals.archived`, which is this
+   *  module's soft-delete marker behind the Recycle Bin. */
+  isPutAway?: boolean;
   /** Designated reviewer (goals.reviewed_by_id), or null. OPTIONAL for the same
    *  temp-row reason; resolve the name from the roster on the client. */
   reviewedById?: string | null;
+  /** Initiator Status (migration 0231 side table), null = Pending.
+   *  OPTIONAL — attached by the board loaders, absent on temp rows. */
+  approverStatus?: string | null;
   /** "Part of Project?" Yes/No (mig 0184). OPTIONAL — optimistic temp rows omit
    *  it; the loaders select the full row so real DTOs always carry it. */
   isProject?: boolean;
@@ -509,6 +520,8 @@ export function toGoalDTO(r: {
   delegatedTo?: Array<{ employeeId: string; name?: string; pct: number }> | null;
   targetDate?: string | Date | null;
   status?: string | null;
+  approvalStatus?: string | null;
+  archivedAt?: string | Date | null;
   reviewedById?: string | null;
   // "Part of Project?" (mig 0184) — optional so callers that select a narrower
   // row (the weekly board, optimistic temp rows) still satisfy this signature.
@@ -570,6 +583,8 @@ export function toGoalDTO(r: {
           ? r.targetDate.slice(0, 10)
           : r.targetDate.toISOString().slice(0, 10),
     status: r.status ?? null,
+    approvalStatus: r.approvalStatus ?? null,
+    isPutAway: r.archivedAt != null,
     reviewedById: r.reviewedById ?? null,
     isProject: r.isProject ?? false,
     projectNodeId: r.projectNodeId ?? null,

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { candidatePolicySignatures, policyCompliance } from "@/db/schema";
 import { POLICY_CARDS, getPolicy, isPolicyKey } from "@/lib/hr/policies/registry";
 import { currentPolicyVersion } from "@/lib/hr/policies/compliance-sync";
+import { policiesCompleteSnapshot, notifyIfPoliciesJustCompleted } from "@/lib/hr/policies/signed-notify";
 
 /**
  * CANDIDATE POLICY SIGNING (migration 0222) — the acknowledgements, without a
@@ -46,6 +47,8 @@ export interface CandidatePolicyState {
   signedAt: string | null;
   /** The name they typed, so the page can show what they signed as. */
   signedName: string | null;
+  /** Storage key of their uploaded signature image, when there is one. */
+  signaturePath: string | null;
   /**
    * They signed, but an OLDER version than the one now published — the card
    * must not read as done. Same rule the employee surfaces use.
@@ -62,6 +65,7 @@ export async function listCandidatePolicies(intakeId: string): Promise<Candidate
       version: candidatePolicySignatures.version,
       signedAt: candidatePolicySignatures.signedAt,
       signedName: candidatePolicySignatures.signedName,
+      signaturePath: candidatePolicySignatures.signaturePath,
     })
     .from(candidatePolicySignatures)
     .where(eq(candidatePolicySignatures.intakeId, intakeId));
@@ -79,6 +83,7 @@ export async function listCandidatePolicies(intakeId: string): Promise<Candidate
       badge: card.badge,
       signedAt: row ? row.signedAt.toISOString() : null,
       signedName: row?.signedName ?? null,
+      signaturePath: row?.signaturePath ?? null,
       outdated: row ? row.version < published : false,
     });
   }
@@ -98,19 +103,24 @@ export async function signCandidatePolicy(args: {
   employeeId: string;
   policyKey: string;
   signedName: string;
+  /** The uploaded signature image's storage key. Required from 0225 onward. */
+  signaturePath: string;
 }): Promise<void> {
-  const { intakeId, employeeId, policyKey, signedName } = args;
+  const { intakeId, employeeId, policyKey, signedName, signaturePath } = args;
   const version = await currentPolicyVersion(policyKey);
   const now = new Date();
+  // Snapshot BEFORE the write, so HR + Manan are mailed only when THIS signature
+  // completes the set (lib/hr/policies/signed-notify.ts).
+  const completeBefore = await policiesCompleteSnapshot(employeeId);
 
   await db
     .insert(candidatePolicySignatures)
-    .values({ intakeId, employeeId, policyKey, version, signedName, signedAt: now, updatedAt: now })
+    .values({ intakeId, employeeId, policyKey, version, signedName, signaturePath, signedAt: now, updatedAt: now })
     .onConflictDoUpdate({
       target: [candidatePolicySignatures.intakeId, candidatePolicySignatures.policyKey],
       // Re-accepting re-stamps the version too: signing again after a policy is
       // republished must not leave the row claiming the older text.
-      set: { signedName, signedAt: now, updatedAt: now, version, employeeId },
+      set: { signedName, signaturePath, signedAt: now, updatedAt: now, version, employeeId },
     });
 
   // Mirror into the ledger HR already reads. `docInstanceId` stays null — that
@@ -122,6 +132,8 @@ export async function signCandidatePolicy(args: {
       target: [policyCompliance.policyKey, policyCompliance.employeeId],
       set: { status: "signed", signedAt: now, version, updatedAt: now },
     });
+
+  await notifyIfPoliciesJustCompleted(employeeId, completeBefore);
 }
 
 /** One candidate's acceptance of one policy, or null. */

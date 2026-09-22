@@ -10,6 +10,15 @@ import { rateLimitOrError } from "@/lib/rate-limit";
 import { RECRUITER_ONLY_KEYS } from "@/lib/hr/candidate/intake-schema";
 import { requireCandidateOwner } from "@/lib/hr/candidate/candidate-owner";
 import { disableCandidateAccountByIntakeId } from "@/lib/hr/candidate/account-lifecycle";
+import { notifyCandidateForm } from "@/lib/hr/candidate/form-notify";
+import { afterResponse } from "@/lib/after";
+import {
+  WORK_SAMPLES_KEY,
+  isWorkSamplePath,
+  safeWorkFileName,
+  workFileProblem,
+  workSamplesUnder,
+} from "@/lib/hr/candidate/work-samples";
 
 /**
  * OWNER-SCOPED candidate self-fill actions. Every write authenticates via
@@ -68,6 +77,10 @@ export async function saveOwnCandidateDraft(input: DraftInput): Promise<R<{ id: 
     delete values[k]; // candidate can't write these…
     if (stored[k] != null) values[k] = stored[k]; // …but a stored value survives
   }
+  // Work-sample FILES must be the candidate's own uploads, exactly like the
+  // photo: a crafted answer pointing elsewhere would have HR open someone
+  // else's file. Links pass through; foreign file refs are dropped.
+  if (values[WORK_SAMPLES_KEY]) values[WORK_SAMPLES_KEY] = workSamplesUnder(values[WORK_SAMPLES_KEY], prefix);
 
   try {
     await db
@@ -79,7 +92,8 @@ export async function saveOwnCandidateDraft(input: DraftInput): Promise<R<{ id: 
         email: values["personal.email"] || null,
         data: values,
         instances: (input.instances ?? {}) as Record<string, unknown>,
-        photoPath: input.photoPath ?? null,
+        // Mirrors the HR path: the wizard stores the key in the answers blob.
+        photoPath: input.photoPath ?? values["personal.photo"] ?? null,
         signaturePath: input.signaturePath ?? null,
         updatedAt: new Date(),
         // status / submittedAt / evaluation / evaluationV2 are NEVER set here.
@@ -90,6 +104,87 @@ export async function saveOwnCandidateDraft(input: DraftInput): Promise<R<{ id: 
     return { ok: false, error: e instanceof Error ? e.message : "Save failed." };
   }
 }
+
+/**
+ * Mint a signed upload URL so the candidate's BROWSER sends their photo
+ * straight to Supabase Storage, never through this server. Same reasoning as
+ * createCandidatePhotoUploadUrl on the HR side; the difference is the prefix -
+ * a candidate's uploads stay under `candidate-intake/<their id>/`, which is
+ * exactly what `ownsPath` above enforces when the key is saved back.
+ */
+export async function createOwnCandidatePhotoUploadUrl(input: {
+  mime?: string | null;
+  size?: number | null;
+}): Promise<R<{ path: string; token: string; bucket: string }>> {
+  const { me, submitted, viaLink } = await requireCandidateOwner();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return { ok: false, error: limited.error };
+  if (submitted && !viaLink) return { ok: false, error: "Your form is already submitted." };
+
+  const mime = (input.mime ?? "").toLowerCase();
+  const ext = PHOTO_EXT[mime];
+  if (!ext) return { ok: false, error: "Please choose a JPG, PNG or WebP image." };
+  if (Number(input.size ?? 0) > PHOTO_MAX_BYTES) return { ok: false, error: "That photo is over 8 MB." };
+
+  const path = `candidate-intake/${me.id}/photo-${randomUUID()}.${ext}`;
+  try {
+    const { data, error } = await getSupabaseAdmin()
+      .storage.from(DOCUMENTS_BUCKET)
+      .createSignedUploadUrl(path);
+    if (error || !data) return { ok: false, error: error?.message ?? "Could not start the upload." };
+    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not start the upload." };
+  }
+}
+
+/**
+ * Signed upload URL for one of the candidate's WORK SAMPLE files, under their
+ * own prefix (`candidate-intake/<their id>/work-…`), which saveOwnCandidateDraft
+ * enforces when the answer is saved back.
+ */
+export async function createOwnCandidateWorkUploadUrl(input: {
+  fileName: string;
+  mime?: string | null;
+  size?: number | null;
+}): Promise<R<{ path: string; token: string; bucket: string }>> {
+  const { me, submitted, viaLink } = await requireCandidateOwner();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return { ok: false, error: limited.error };
+  if (submitted && !viaLink) return { ok: false, error: "Your form is already submitted." };
+
+  const problem = workFileProblem({ name: input.fileName, mime: input.mime, size: input.size });
+  if (problem) return { ok: false, error: problem };
+
+  const path = `candidate-intake/${me.id}/work-${randomUUID()}/${safeWorkFileName(input.fileName)}`;
+  try {
+    const { data, error } = await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).createSignedUploadUrl(path);
+    if (error || !data) return { ok: false, error: error?.message ?? "Could not start the upload." };
+    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not start the upload." };
+  }
+}
+
+/** A short-lived link to open one of the candidate's OWN work-sample files. */
+export async function getOwnCandidateWorkFileUrl(path: string): Promise<R<{ url: string }>> {
+  const { me } = await requireCandidateOwner();
+  if (!isWorkSamplePath(path) || !path.startsWith(`candidate-intake/${me.id}/`)) {
+    return { ok: false, error: "Not your file." };
+  }
+  const { data, error } = await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).createSignedUrl(path, 600);
+  if (error || !data) return { ok: false, error: error?.message ?? "Could not open the file." };
+  return { ok: true, url: data.signedUrl };
+}
+
+const PHOTO_MAX_BYTES = 8 * 1024 * 1024;
+const PHOTO_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/heic": "heic",
+  "image/heif": "heif",
+};
 
 /** Upload the caller's own photo/signature under their OWN storage prefix. */
 export async function uploadOwnCandidateFile(fd: FormData): Promise<R<{ path: string }>> {
@@ -145,6 +240,12 @@ export async function submitOwnCandidateForm(
     // Close the guest login for good (Firebase disabled + tokens revoked).
     await disableCandidateAccountByIntakeId(rowId, "submitted").catch(() => {});
   }
+
+  // Tell HR — Rutvisha + HR desk + Manan on the FIRST submit, the HR desk alone
+  // when an already-submitted form is edited and sent again. After the response,
+  // and never throws, so a mail problem can't fail the candidate's submit.
+  const kind = submitted ? "edited" : "submitted";
+  afterResponse(() => notifyCandidateForm(rowId, kind));
   revalidatePath("/candidate/form");
   revalidatePath("/c/form");
   return { ok: true };

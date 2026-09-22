@@ -1,6 +1,7 @@
 import "server-only";
 import { and, asc, eq, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { retryOnDroppedConnection } from "@/lib/db/with-timeout";
 import { employees, type Employee } from "@/db/schema";
 
 /**
@@ -48,15 +49,22 @@ export async function localSessionEmployee(): Promise<Employee | null> {
   const wanted = process.env.DEV_USER_EMAIL?.trim().toLowerCase();
 
   if (wanted) {
-    const match = await db.query.employees.findFirst({
-      // Case-insensitive on both addresses — stored casing varies by how the
-      // account was created, and a case mismatch here silently falls through
-      // to "first active admin", which looks like the flag ignoring the setting.
-      where: or(
-        sql`lower(${employees.email}) = ${wanted}`,
-        sql`lower(${employees.officialEmail}) = ${wanted}`,
-      ),
-    });
+    // Retried once if the pooler dropped the connection under it — this is
+    // the first query of every local request, so a dropped socket here was
+    // taking the whole page down with a "Failed query" error.
+    const match = await retryOnDroppedConnection(
+      () =>
+        db.query.employees.findFirst({
+          // Case-insensitive on both addresses — stored casing varies by how the
+          // account was created, and a case mismatch here silently falls through
+          // to "first active admin", which looks like the flag ignoring the setting.
+          where: or(
+            sql`lower(${employees.email}) = ${wanted}`,
+            sql`lower(${employees.officialEmail}) = ${wanted}`,
+          ),
+        }),
+      "local-session",
+    );
     if (match) return match;
     console.warn(
       `[local-session] DEV_USER_EMAIL="${wanted}" matched no employee — falling back to the first active admin.`,

@@ -53,6 +53,8 @@ const IssueRichSchema = z.object({
   /** candidate recipient (when not attached to an employee) */
   candidateName: z.string().trim().max(200).optional(),
   candidateEmail: z.string().trim().email().max(200).optional(),
+  /** Shrink the letter step by step until it fits one A4 page (lib/hr/letters/fit). */
+  fitOnePage: z.boolean().optional(),
 });
 
 export type IssueRichLetterInput = z.infer<typeof IssueRichSchema>;
@@ -76,7 +78,7 @@ export async function issueRichLetter(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { key, entity, bodyHtml, signingModel, employeeId, candidateName, candidateEmail } =
+  const { key, entity, bodyHtml, signingModel, employeeId, candidateName, candidateEmail, fitOnePage } =
     parsed.data;
 
   // The template supplies category (for the sign docKind) + entity default; a
@@ -100,7 +102,7 @@ export async function issueRichLetter(
   let pdfBuffer: Uint8Array;
   try {
     const { renderRichLetterPdf } = await import("./render-rich");
-    pdfBuffer = await renderRichLetterPdf({ entity: resolvedEntity.id, bodyHtml });
+    pdfBuffer = await renderRichLetterPdf({ entity: resolvedEntity.id, bodyHtml, fitOnePage: fitOnePage === true });
   } catch (err) {
     return { ok: false, error: `Could not render the PDF: ${errorMessage(err)}` };
   }

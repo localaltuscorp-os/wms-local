@@ -20,8 +20,10 @@ The standing list. Delete a row the moment it is applied and verified — a stal
 
 | Migration | Paste sheet | Creates | Status |
 |-----------|-------------|---------|--------|
-| `0221` + `0222` | [`db/RUN-IN-SUPABASE-0221-0222.sql`](../../db/RUN-IN-SUPABASE-0221-0222.sql) | Event Checklist (4 tables) + Job Description (8 tables, 14 seeded ranks) | **Not run.** Both pages detect the missing tables and render a setup notice rather than a 500 |
-| `0216`–`0220` | [`db/RUN-IN-SUPABASE-0216-0220.sql`](../../db/RUN-IN-SUPABASE-0216-0220.sql) | permissions, delegated access, manager history, attachments | **Not run** — inherited from the `Om` branch, not mine |
+| `0239`–`0242` | [`db/RUN-IN-SUPABASE-0239-0242.sql`](../../db/RUN-IN-SUPABASE-0239-0242.sql), then [`db/VERIFY-0239-0242.sql`](../../db/VERIFY-0239-0242.sql) | WCC/MCC Quantity Done (`dcc_entries.completed_quantity`), MCC frequencies (`dcc_kpi_items.mcc_frequency`, `mcc_days`, `mcc_start_month`), Doer Status Abandoned, WCC Mins (`dcc_kpi_items.minutes`) | **Not run.** Needs `0238` first. Run before deploying 2026-09-19 changes — adding any compliance fails until `0240` and `0242` exist. ⚠️ Not the same files as `main`'s `0240`–`0242` |
+| `0237`–`0238` | [`db/RUN-IN-SUPABASE-0237-0238.sql`](../../db/RUN-IN-SUPABASE-0237-0238.sql) | WCC/MCC columns (`month_day`, WMS Doer & Approver statuses, `done_at`), Event Checklist WMS Task alignment, JD Client field & `jd_doer_notes` table | **Not run.** Run before deploying 2026-09-18 changes |
+| `0236` | [`db/migrations/0236_recruitment_jd_roles.sql`](../../db/migrations/0236_recruitment_jd_roles.sql) | Recruitment JDs keyed by their own `slug` instead of an interview grade, plus `recruitment_jd_sends` | **Not run.** Self-contained and idempotent |
+| `0228`–`0233` | [`db/RUN-IN-SUPABASE-0228-0233.sql`](../../db/RUN-IN-SUPABASE-0228-0233.sql) | JD Category, DCC Calendar Events, DCC Masters & Links, Approver Statuses, Recruitment JDs & Sends, Person-Specific JDs | **Not run.** |
 
 > `0221` was **amended in place**, not superseded. It had never been applied or
 > committed, so reshaping it for the offset model cost nothing — and a migration
@@ -40,23 +42,163 @@ The standing list. Delete a row the moment it is applied and verified — a stal
 
 ---
 
-## Template — copy this for a new day
+## 2026-09-19 — WCC by day with Mins, MCC frequencies, Quantity Done, Abandoned, bulk upload, the three-tab top bar
 
-```markdown
-## YYYY-MM-DD — short summary
+Full write-up, with every SQL statement: **[`vinal-2026-09-19-summary.md`](./vinal-2026-09-19-summary.md)**.
 
 **What changed**
-- One bullet per user-visible or structural change. Name the files.
+- **WCC** groups by day — all Dailys, then all Mondays, Tuesdays… (a Mon & Wed compliance under both). Headings carry only the day, date and *today* / *carried forward*, and stay pinned when the table scrolls sideways. **Mins** replaces Deadline: minutes per compliance, a total per group under the Mins column, and **Total Compliance Mins** at the foot. Frequency unchanged.
+- **MCC** takes seven frequencies (Monthly, 2 and 3 times/month, Alternate Month, Quarterly, Half Yearly, Annually). Its Frequency column shows only the day, as a red pill (`2nd`, `30th`), with the words on hover. A compact `‹ September 2026 ▾ ›` month/quarter switcher replaces the month strip.
+- **Both**: *Quantity Done* (18 of 25) for a compliance with a target above one · Doer Status *Abandoned* · Approver Status Approved / Not Approved / On Hold / Archive · carry forward then lapse · **bulk upload from Excel** with templates · a one-line toolbar with status filter chips · sortable, draggable columns · the Wed/Sat 10:02 pm email lists work Done short of target.
+- **Top bar, app-wide**: WMS · Goals · Project · More ▾ — every other room under More, which lights up when you are in one of them. Fixed tabs never returning after the window was widened, and More sliding under the search box at ~900px.
+- `obligation-bar.tsx` is no longer a client component (the server Obligations page passes it a function).
 
 **Why**
-- The reason. Assume the reader has no context and was not in the room.
+- Account holder's requests of 2026-09-19. The WCC grouping and Mins make a day's compliance workload visible. The MCC frequencies match how compliance work actually recurs. The toolbar, headings, day pills and top bar were cleaned up because the old layout was crowded.
 
 **SQL to run before deploying**
-- The statements, or "None".
+- `db/RUN-IN-SUPABASE-0239-0242.sql` (combines `0239_wcc_mcc_completed_quantity`, `0240_mcc_frequencies`, `0241_wcc_mcc_abandoned`, `0242_wcc_minutes`), then `db/VERIFY-0239-0242.sql` — all 12 rows `ok`. Needs `0238` first; additive, idempotent, one transaction. Tested on PGlite: twice-run is harmless, bad values refused, and without `0238` it fails leaving nothing changed.
+- ⚠️ `main` has different files numbered `0240`, `0241`, `0242` (incentive entry reversal, template files, two-step verification). Both sets are needed — name them by full filename.
 
 **How to verify**
-- The command, URL or click-path that proves it works.
-```
+- `npx vitest run --no-file-parallelism tests/unit/compliance-*.test.ts tests/unit/aura-top-bar-tabs.test.ts`
+- `/dcc/wcc` (Today, 6 days, `?who=team`) and `/dcc/mcc` (month, quarter) on dummy data; the top bar on `/hub` and any module page, from 1920px down to 900px.
+
+**For whoever merges**: `Vinal` is 26 commits behind `main`; `db/schema.ts` changed on both sides (this branch adds five `dcc_*` columns). Local dummy DB: stop the dev server, `npm run dummy:setup`.
+
+---
+
+## 2026-09-18 — WCC / MCC, Event Checklist WMS Column Order, JD Client & Doer Notes
+
+**What changed**
+- **DCC evolved to WCC (Weekly) & MCC (Monthly)**: `/dcc/wcc` (or `/dcc`) for weekly compliances, `/dcc/mcc` for monthly compliances. Fills now store full WMS Doer Status (`dont_know`, `not_started`, `initiated`, `follow_up`, `need_info`, `done`), `done_at` server timestamp, WMS Approver Status, and Approver Notes. Compliances gain optional `month_day` (1-31).
+- **Event Checklist aligned with WMS Tasks columns**: Re-ordered grid columns to match WMS Tasks (`S. No.`, `Client`, `Subject`, `Task`, `Doer`, `Initiator`, `Target Date`, `Frequency`, `Doer Status`, `Doer Notes`, `Actual Date`, `+/- Days`, `Approver Status`, `Approver Notes`). Subject uses the `subjects` roster. Added `client`, `initiator_id`, and `recurrence_rule` to checklist items, and `approver_status` / `approver_notes` to checks.
+- **Job Description Client & Doer Notes**: Added `client` field to `jd_entries` (from `clients` catalog) and created per-person `jd_doer_notes` table for seat-holders to store notes without mutating shared position JDs.
+- **JD Attachments & Column Drag Utility**: Added attachment upload actions and reusable UI components (`column-drag.tsx`, `use-auto-height.ts`).
+
+**Why**
+- Replaces legacy 4-state DCC buttons with standard WMS Doer and Approver status workflows, aligning all compliance, checklist, and task interfaces across Altus OS.
+
+**SQL to run before deploying**
+- `db/RUN-IN-SUPABASE-0237-0238.sql` (combines `0237_checklist_wms_columns_jd_client.sql` and `0238_wcc_mcc.sql`).
+
+**How to verify**
+- `npx vitest run tests/unit/compliance-wcc-mcc.test.ts tests/unit/compliance-columns.test.ts tests/unit/checklist-sort.test.ts tests/unit/jd-attachments.test.ts`
+
+---
+
+## 2026-09-17 — Recruitment JDs, and where they live
+
+**What changed**
+- **A Recruitment JD section**, for the JDs recruiters send *candidates* — separate
+  from the internal Job Description module, which describes a seat somebody already
+  holds. One template in `lib/operations/recruitment-jd.ts` (10 fact-box lines, 12
+  body sections) drives the editor, the preview, the WhatsApp text and the email,
+  so none of the four can drift from the others.
+- **The ten JDs Rutvisha wrote, as eight roles** (`lib/operations/recruitment-jd-seed.ts`).
+  Sales and Operations each arrived twice — a polished version and a longer
+  recruiter-facing one — and each pair was merged rather than left as two JDs for
+  one job.
+- **Master vs recruiter copy.** The master is the original; recruiters edit their own
+  copy and send that. A copy identical to the master stores `null`, so master edits
+  keep flowing through until somebody genuinely diverges. *Reset to master* drops
+  the copy; *Restore the original* puts the master back to the shipped text. The
+  seed is inserted once per slug and never re-applied, so a deploy cannot silently
+  undo an HR edit.
+- **ATS keywords are marked `internal`** — editable and copyable for job boards,
+  never included in a message to a candidate (`JD_SENT_FIELDS`).
+- **Its own role list, not `interview_positions`** (`0236`). That table is the
+  interview *grade* ladder — Executive, Senior Manager, First-Year Intern. Several
+  of these JDs span two grades at once ("Senior Sales Manager / Sales Manager") and
+  most grades will never have a JD, so a recruitment JD is now addressed by `slug`
+  with an optional link back to a grade.
+- **Moved to Operations → Masters** at the account holder's request, from the HR
+  rail it shipped on that morning:
+  `/hr/recruitment-jd` → `/operations/masters/recruitment-jd` (the old path
+  redirects), `lib/hr/recruitment-jd*.ts` → `lib/operations/`,
+  `components/hr/recruitment-jd/` → `components/operations/recruitment-jd/`.
+  It is the third job-description master, beside Master JD and Person-specific JD.
+
+**Why**
+- It is a master — the JD we advertise a role with — and the room already keeps
+  every other master in one section. Beside the other two job descriptions it also
+  reads as the distinction it is: those two say what a seat does once somebody is
+  in it, this one says what the seat is while we are still looking.
+- The move widened the audience, so the access rule changed with it. **Reading is
+  open to the Operations room**, like every other master — a JD we are advertising
+  is not confidential, and the people asked to refer candidates are exactly the
+  people who need to read it. **Editing and sending stay HR staff only**, enforced
+  in `actions.ts`; `canEdit` only decides whether the controls are drawn. This is
+  the same split the neighbouring Master JD already uses.
+- `hr.recruitment-jd` gave up its permission node to `operations.masters` rather
+  than keeping a second switch for one page in a section that already has one. The
+  key had existed for one day and had never been granted, so nothing was revoked.
+  `/hr/recruitment-jd` is listed on `operations.masters` beside the new path, for
+  the reason Salary Slip's old path is: a redirect into a governed room must be
+  governed by the same switch.
+
+**SQL to run before deploying**
+- `db/migrations/0236_recruitment_jd_roles.sql`. Until it is applied the section
+  reads fine — all eight JDs, read-only, with a banner naming the migration — but
+  saving and sending are refused.
+
+**How to verify**
+- `/operations/masters` lists **Recruitment JD** under Job Description; the rail's
+  Masters section and the tab strip on every masters page carry it too.
+- `/hr/recruitment-jd` redirects to it, and the HR rail no longer offers it.
+- `npx vitest run --no-file-parallelism tests/unit/recruitment-jd-seed.test.ts tests/unit/recruitment-jd.test.ts tests/unit/operations-masters-nav.test.ts`
+
+## 2026-09-15 — full day
+
+Eight major features & updates landed today.
+
+### 1 · Job Description Category Field & Person-Specific JDs
+- **What changed**: Added `category` column to `jd_entries` (`0228`) and added `owner_employee_id` with XOR check constraint (`0233`). Created person view tab and bulk CSV uploader.
+- **Why**: Allows job description items to be tagged by free-text categories (e.g. Vendors, Housekeeping) and assigned directly to a specific person in addition to position seats.
+- **SQL**: `db/migrations/0228_jd_entries_category.sql`, `db/migrations/0233_jd_person_specific.sql`.
+- **How to verify**: Open `/operations/job-description`, view Category filter/input, check Person View tab and Bulk Upload modal.
+
+### 2 · DCC Masters (Position Templates & Live Link Sync)
+- **What changed**: Created `dcc_master_items` & `dcc_master_links` (`0230`). Added `/dcc/masters` administration interface and automatic sync engine (`lib/dcc/master-sync.ts`).
+- **Why**: Enables defining a master Daily Compliance checklist per designation/position that automatically populates and updates active employee KPIs while preserving historical entries.
+- **SQL**: `db/migrations/0230_dcc_master_items.sql`.
+- **How to verify**: Visit `/dcc/masters`, create or edit a position master item, verify sync across team members.
+
+### 3 · DCC Dashboard, Detailed Breakdown & 10 PM Daily Automated Report
+- **What changed**: Created `/dcc/dashboard` with completion statistics, department filters, entry lock status, and cron endpoint `/api/cron/dcc-daily-report` for daily email digests.
+- **Why**: Gives management visibility into daily compliance across departments and sends nightly summary emails to leaders.
+- **SQL**: Uses `0230` master tables and existing DCC entry tables.
+- **How to verify**: Visit `/dcc/dashboard`, check metrics, and run unit tests `npx vitest run tests/unit/dcc-dashboard.test.ts`.
+
+### 4 · DCC Google Calendar Sync & Connect Gate
+- **What changed**: Created `dcc_calendar_events` (`0229`) and Google Calendar sync service (`lib/dcc/calendar-sync.ts`, `/api/cron/dcc-calendar-sync`). Added Calendar Connect Gate component.
+- **Why**: Keeps each employee's daily compliance tasks visible directly as an all-day event in their Altus Google Calendar without duplicate events.
+- **SQL**: `db/migrations/0229_dcc_calendar_events.sql`.
+- **How to verify**: Check calendar connection status in `/dcc` or profile, and run `npx vitest run tests/unit/dcc-calendar-event.test.ts`.
+
+### 5 · Approver / Initiator Status (Doer Status vs Approver Ruling)
+- **What changed**: Added `on_hold` value to `approval_status` enum, and created `goal_approver_statuses` & `weekly_goal_approver_statuses` tables (`0231`). Updated WMS tasks, Goals, and Weekly Goals boards to present independent Doer Status and Approver/Initiator Status rulings.
+- **Why**: Separates the doer's execution status (e.g. Not Started, Initiated, Done) from the approver/initiator's ruling (Pending, Approved, Not Approved, On Hold, Cancelled).
+- **SQL**: `db/migrations/0231_approver_initiator_status.sql`.
+- **How to verify**: Open `/tasks` or `/goals/weekly`, inspect status cells, and run `npx vitest run tests/unit/approver-status.test.ts`.
+
+### 6 · Recruitment JDs (HR Candidate Job Descriptions & WhatsApp / Email Sends)
+- **What changed**: Created `recruitment_jds` & `recruitment_jd_sends` (`0232`), added `/hr/recruitment-jd` management hub and recruiter share modal with WhatsApp deep link formatting and email delivery.
+- **Why**: Allows HR recruiters to view master candidate job descriptions, customize recruiter copies, and send formatted job overviews directly to applicants.
+- **SQL**: `db/migrations/0232_recruitment_jds.sql`.
+- **How to verify**: Open `/hr/recruitment-jd`, test editing recruiter content, click WhatsApp/Email send, and run `npx vitest run tests/unit/recruitment-jd.test.ts`.
+
+### 7 · Hand-Holding (HH) Week Calendar & Auto-Linking
+- **What changed**: Created HH Week Calendar view component and server actions (`app/(app)/people-allocation/calendar-actions.ts`, `components/people-allocation/hh-week-calendar.tsx`, `lib/hh/auto-link.ts`).
+- **Why**: Provides a week-by-week visual schedule for hand-holding allocations and automatically links team allocations to calendar events.
+- **SQL**: None (uses existing allocation tables).
+- **How to verify**: Open `/people-allocation`, switch to HH Week Calendar view, and run `npx vitest run tests/unit/hh-calendar.test.ts`.
+
+### 8 · Operations & Event Masters Navigation
+- **What changed**: Added masters administration routes for Operations (`/operations/masters`) and Events (`/events/masters`).
+- **Why**: Provides central administration for category options and checklist master items.
+- **SQL**: None.
+- **How to verify**: Visit `/operations/masters` and `/events/masters`.
 
 ---
 

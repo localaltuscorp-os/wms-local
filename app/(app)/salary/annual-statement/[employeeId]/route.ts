@@ -4,6 +4,7 @@ import {
   currentFyStartYear,
 } from "@/lib/salary/annual-statement";
 import { renderAnnualStatementPdf } from "@/lib/salary/annual-statement-pdf";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /salary/annual-statement/[employeeId]?year=<FY-start-year>
@@ -25,6 +26,12 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ employeeId: string }> },
 ): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   if (process.env.SALARY_STATEMENTS === "false") {
     return new Response("Not found", { status: 404 });
   }

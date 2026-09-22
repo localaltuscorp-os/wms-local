@@ -6,7 +6,9 @@ import { parseTaskFilters } from "@/lib/task-filters";
 import { listTasksForExport, type TaskExportRow } from "@/lib/queries/tasks";
 import { MAX_EXPORT_ROWS, EXPORT_TOO_LARGE } from "@/lib/exports/csv";
 import { richExportFilename } from "@/lib/exports/tasks-rich";
+import { defaultScopeId } from "@/lib/auth/default-scope";
 import type { TaskStatus, TaskPriority, ApprovalStatus } from "@/db/enums";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /tasks/export.pdf
@@ -25,6 +27,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   let me;
   try {
     me = await requireAdmin();
@@ -37,8 +45,9 @@ export async function GET(request: Request): Promise<Response> {
   for (const [k, v] of url.searchParams.entries()) sp[k] = v;
 
   const archived = sp.archived === "1" || sp.archived === "true";
+  // The export must match the list it was taken from, to the row.
   const filters = parseTaskFilters(sp, archived, {
-    defaultDoerId: me.isAdmin ? undefined : me.id,
+    defaultDoerId: defaultScopeId(me),
   });
 
   const rows = await listTasksForExport(filters, {
@@ -92,6 +101,7 @@ const STATUS_PILL: Record<TaskStatus, { bg: string; fg: string; label: string }>
   follow_up_2:  { bg: "#FED7AA", fg: "#9A3412", label: "Follow-up 2" },
   follow_up_3:  { bg: "#FECACA", fg: "#B91C1C", label: "Follow-up 3" },
   done:         { bg: "#D1FAE5", fg: "#065F46", label: "Done" },
+  abandoned:    { bg: "#F5F5F4", fg: "#57534E", label: "Abandoned" },
   approved:     { bg: "#D1FAE5", fg: "#065F46", label: "Approved" },
   not_approved: { bg: "#FEE2E2", fg: "#B91C1C", label: "Not Approved" },
   cancelled:    { bg: "#F1F5F9", fg: "#64748B", label: "Cancelled" },
@@ -111,8 +121,10 @@ const PRIORITY_GLYPH: Record<TaskPriority, { code: string; label: string; color:
 const APPROVAL_LABEL: Record<ApprovalStatus, string> = {
   approved:     "Approved",
   not_approved: "Not Approved",
+  on_hold:      "On Hold",
   cancelled:    "Cancelled",
   transferred:  "Transferred",
+  archived:     "Archived",
 };
 
 interface ColumnSpec {

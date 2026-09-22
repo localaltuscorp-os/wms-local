@@ -112,6 +112,25 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
       { href: "/admin/outstanding-products" as Route, label: "Products (legacy view)", Icon: Package },
     ],
   },
+  // BILLING — back as a group with ONE entry, Billing Profiles (Manan,
+  // 2026-09-19: the Billing Admin Master's Edit links land here, so it has to
+  // be findable from the rail). The other four billing masters stay off it,
+  // per the note below.
+  {
+    label: "Billing",
+    Icon: ReceiptIndianRupee,
+    items: [
+      { href: "/admin/billing-profiles" as Route, label: "Billing Profiles", Icon: Building2 },
+    ],
+  },
+  // (Previously:) NO "Billing" GROUP. It held five masters — Billing Profiles, Customers,
+  // Product Billing Fields, Payment Terms, SAC Codes. Manan, 2026-09-16,
+  // against a screenshot of the group: "remove this also".
+  //
+  // The ROUTES are untouched: app/(admin)/admin/billing-* still exist and still
+  // render, and their permission nodes in lib/permissions/catalog.ts still
+  // govern them. Only the rail entry is gone, so the pages are reachable by URL
+  // but are no longer offered in the admin nav.
   {
     // The Incentive Master and its Incentive Chart. A group of its own rather
     // than another line under "Masters": it is not just a list the dropdowns

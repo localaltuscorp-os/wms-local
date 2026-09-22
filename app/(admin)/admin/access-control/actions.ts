@@ -5,7 +5,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, settingsEvents, visibilityGrants } from "@/db/schema";
 import { requireAdmin, getSignedInEmployee } from "@/lib/auth/current";
-import { isMasterAdmin } from "@/lib/security/capabilities";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 import { requireModuleEdit } from "@/lib/permissions/resolve";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { CACHE_TAGS } from "@/lib/cache-tags";
@@ -53,7 +53,7 @@ async function requireMasterAdmin(): Promise<
   // session must not be able to widen the account they borrowed.
   const me = await getSignedInEmployee();
   if (!me) return { ok: false, error: "Sign in again to change access." };
-  if (!isMasterAdmin(me.email)) {
+  if (!(await isMasterAdmin(me.email))) {
     return {
       ok: false,
       error: "Only a master admin can change visibility grants.",

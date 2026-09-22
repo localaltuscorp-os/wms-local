@@ -84,7 +84,7 @@ function hrs(h: number): string {
 function inr(n: number): string {
   const whole = Number.isInteger(n);
   return (
-    "₹" +
+    "Rs." +
     n.toLocaleString("en-IN", whole ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   );
 }

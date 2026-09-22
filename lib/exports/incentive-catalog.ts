@@ -58,7 +58,7 @@ export function eligibilityLabel(r: CatalogRow): string {
  * One catalog row as the spreadsheet stores it.
  *
  * The amount stays a NUMBER so Excel can sum and format it; every other cell is
- * a string. A "₹1,500" text cell looks right and cannot be added up, which is
+ * a string. A "Rs. 1,500" text cell looks right and cannot be added up, which is
  * the first thing anyone does with an exported amount column.
  */
 export function toIncentiveExportRow(r: CatalogRow): (string | number)[] {

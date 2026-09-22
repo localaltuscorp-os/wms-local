@@ -40,7 +40,7 @@ function normalizeName(raw: string): string {
 }
 
 const INR = (n: number) =>
-  "₹" +
+  "Rs." +
   n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function lakhs(n: number): string {
@@ -397,7 +397,7 @@ async function main() {
     `  Σ collections:                  ${INR(coll)}  (~${lakhs(coll)})`,
   );
   console.log(
-    `  Σ net outstanding balance:      ${INR(net)}  (~${lakhs(net)})  [gross − collections; matches ~₹97.52L anchor]`,
+    `  Σ net outstanding balance:      ${INR(net)}  (~${lakhs(net)})  [gross − collections; matches ~Rs. 97.52L anchor]`,
   );
 
   if (!APPLY) {

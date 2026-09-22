@@ -10,6 +10,7 @@ import {
   registerDeviceForEmployee,
 } from "@/app/(app)/attendance/devices/actions";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 interface DeviceRow {
   id: string;
@@ -325,6 +326,9 @@ function RegisterDeviceForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
+    // The picker below is no longer a native <select>, so `required` no longer
+    // blocks the submit for us. Same refusal, said in our own words.
+    if (!employeeId) return fireToast({ message: "Pick an employee first.", type: "error" });
     setBusy(true);
     const res = await registerDeviceForEmployee({ employeeId, kind, deviceId, label });
     setBusy(false);
@@ -345,14 +349,15 @@ function RegisterDeviceForm({
     >
       <label className="grid gap-1.5">
         <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-ink-muted">Employee</span>
-        <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={field} required>
-          <option value="">Select an employee…</option>
-          {employees.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
-        </select>
+        <CompactSelect
+          value={employeeId}
+          onChange={setEmployeeId}
+          className={field}
+          placeholder="Select an employee…"
+          aria-label="Employee"
+          matchTriggerWidth
+          options={employees.map((e) => ({ value: e.id, label: e.name }))}
+        />
       </label>
 
       <label className="grid gap-1.5">

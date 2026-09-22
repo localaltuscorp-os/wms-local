@@ -63,6 +63,27 @@ export interface PlanItem {
   /** True only for the live drag placeholder. */
   ghost?: boolean;
 
+  /* ── THE TWO STATUS AXES (migration 0230) ───────────────────────────
+     Weekly goals carry both; daily goals did not, so a commitment could report
+     where it was and never be ruled on (Manan, 2026-09-15).
+
+     `done` is NOT one of them and does not become one. It is the planner's own
+     yes/no for the night close-out, and the day's rituals are built on it;
+     `status` is the seven-value progress report the rest of the app reads.
+     Both are kept, and the detail view shows them side by side. */
+
+  /** The DOER axis — `daily_checklist.status`. */
+  status?: string | null;
+  /** The INITIATOR axis — `daily_checklist.approval_status`. Null when nobody
+   *  has ruled, which the control shows as "No Verdict". */
+  approvalStatus?: string | null;
+  /** `archived_at != null` — "put away", NOT the `abandoned_at` Recycle Bin. */
+  isPutAway?: boolean;
+  /** Whose plan this row is on — what the status controls test the viewer
+   *  against. The planner shows a downline member's day to their manager, so
+   *  "mine" cannot be assumed. */
+  ownerId?: string | null;
+
   /* ── Added for the post-"Start My Day" review TABLE ───────────────────────
      All OPTIONAL, because two other paths build a PlanItem with only the core
      fields: the optimistic rows in plan/actions.ts, and the drag ghost. A table

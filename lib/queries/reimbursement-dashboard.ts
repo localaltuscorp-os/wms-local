@@ -11,8 +11,8 @@ import { employees, moduleSubmissions } from "@/db/schema";
  * expense_head, tally_*), plus the row `status` (pending/approved/rejected).
  *
  * Money lives as a free-text jsonb value, so amounts may arrive as
- * "1,500", "₹1500", " 1500.50 ", "" or be absent. `parseAmount` strips
- * non-numeric noise and guards NaN — a row that can't be parsed contributes ₹0,
+ * "1,500", "Rs. 1500", " 1500.50 ", "" or be absent. `parseAmount` strips
+ * non-numeric noise and guards NaN — a row that can't be parsed contributes Rs. 0,
  * never breaks the rollup.
  *
  * Load note: this is an on-demand route query (force-dynamic page), NOT on the

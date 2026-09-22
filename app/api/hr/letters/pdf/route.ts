@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth/current";
 import { isHrStaff } from "@/lib/hr/access";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getLetter } from "@/lib/hr/letters/registry";
 import type { ContentKind } from "@/lib/hr/letters/rich";
@@ -29,6 +30,8 @@ interface LetterPdfBody {
   /** WHO signs, when HR picked explicitly in the editor. Omitted -> the
    *  template's own rule. Threaded so an exported PDF matches the preview. */
   signatory?: "director" | "hr";
+  /** Shrink the letter step by step until it fits one A4 page. */
+  fitOnePage?: boolean;
 }
 
 /**
@@ -49,6 +52,12 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return new Response("Unauthorized", { status: 401 });
   }
+  // The MODULE gate, before the HR-staff gate below. `isHrStaff` admits the
+  // whole department; the matrix is what lets an administrator revoke Letters
+  // from one person inside it.
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
+
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return new Response("Too many requests", { status: 429 });
   if (!(await isHrStaff(me))) {
@@ -69,6 +78,7 @@ export async function POST(req: Request): Promise<Response> {
       const pdf = await renderRichLetterPdf({
         entity: body.entity ?? "",
         bodyHtml: body.bodyHtml,
+        fitOnePage: body.fitOnePage === true,
       });
       const filename = safePdfName(body.key);
       return new Response(new Uint8Array(pdf), {
@@ -96,6 +106,7 @@ export async function POST(req: Request): Promise<Response> {
       gender: normalizeGender(body.gender),
       signatureImage: body.signatureImage,
       signatory: body.signatory,
+      fitOnePage: body.fitOnePage === true,
     });
     const filename = safePdfName(template.key);
     return new Response(new Uint8Array(pdf), {

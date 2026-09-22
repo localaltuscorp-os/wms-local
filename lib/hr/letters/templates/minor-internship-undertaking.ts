@@ -21,6 +21,7 @@
  */
 
 import { type LetterTemplate, t, f, para, heading, term, spacer } from "../types";
+import { personSignOff } from "../sign-off";
 
 const template: LetterTemplate = {
   key: "minor-internship-undertaking",
@@ -39,7 +40,7 @@ const template: LetterTemplate = {
     para(t("Kotkar Road, Off Aarey Road,")),
     para(t("Goregaon East – 400063,")),
     para(t("Email: manan@unleashed.in")),
-    para(t("Date: "), f("letterDate", "Date", { placeholder: "04/01/2026", date: true })),
+    para(t("Date: "), f("letterDate", "Date", { placeholder: "DD-MMM-YYYY", date: true })),
     spacer("sm"),
 
     // ── Subject ─────────────────────────────────────────────────────────
@@ -58,16 +59,16 @@ const template: LetterTemplate = {
     heading("1. DETAILS OF THE INTERN", 2),
     term("Full Name of Intern", f("internName", "Full Name of Intern", { placeholder: "Full name" })),
     term("Date of Birth", [
-      f("internDob", "Date of Birth", { placeholder: "DD/MM/YYYY", date: true }),
+      f("internDob", "Date of Birth", { placeholder: "DD-MMM-YYYY", date: true }),
       t("     Age as on Date: "),
       f("internAge", "Age as on Date", { placeholder: "e.g. 16" }),
     ]),
     term("Current Class / School", f("internClassSchool", "Current Class / School", { placeholder: "e.g. Class XI, ABC School" })),
     term("Internship Duration", [
       t("From "),
-      f("durationFrom", "From", { placeholder: "DD/MM/YYYY", date: true }),
+      f("durationFrom", "From", { placeholder: "DD-MMM-YYYY", date: true }),
       t("   To "),
-      f("durationTo", "To", { placeholder: "DD/MM/YYYY", date: true }),
+      f("durationTo", "To", { placeholder: "DD-MMM-YYYY", date: true }),
     ]),
     term("Emergency Contact", f("emergencyContact", "Emergency Contact", { placeholder: "Name & phone number" })),
     term("Mode of Internship", f("modeOfInternship", "Mode of Internship", { defaultValue: "In-Person" })),
@@ -167,12 +168,12 @@ const template: LetterTemplate = {
     ),
 
     // ── Signature lines ─────────────────────────────────────────────────
-    spacer("lg"),
-    para(t("_______________________________")),
-    para(t("Signature of Parent / Guardian")),
-    spacer("md"),
-    para(t("_______________________________")),
-    para(t("Signature of Intern")),
+    //
+    // TWO sign-offs, separately namespaced: this document is signed by the
+    // intern AND their guardian, and sharing field ids would have each of them
+    // typing into the other's box.
+    ...personSignOff({ prefix: "guardian", who: "Signed by the parent / guardian" }),
+    ...personSignOff({ prefix: "intern", who: "Signed by the intern" }),
     spacer("md"),
     para(t("_______________________________")),
     para(t("Signature of HR Representative, {firm}")),

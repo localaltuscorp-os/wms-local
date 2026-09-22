@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { Route } from "next";
-import { Search, X, FolderPlus, ArrowUpDown, Rows3, SquareArrowOutUpRight, Pencil, Copy, Loader2 } from "lucide-react";
+import { Search, X, FolderPlus, ArrowUpDown, Rows3, SquareArrowOutUpRight, Pencil, Copy, Archive, Loader2 } from "lucide-react";
 import {
   KIND_LABEL,
   levelTextStyle,
@@ -28,13 +28,13 @@ import {
   ROLLUP_KIND,
   type RegisterLevel,
 } from "@/lib/project-plan/register";
-import { PlanStatusCell, planActorFor } from "./plan-status-cell";
+import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-cell";
 import { PlanProgressCell } from "./plan-progress-cell";
 import { PlanAttachmentCell } from "./plan-attachment-cell";
 import { PlanLinksCell } from "./plan-links-cell";
 import { BulkActionBar } from "@/components/tasks/bulk-action-bar";
 import { fireToast } from "@/lib/toast";
-import { deletePlanNode, duplicatePlanNode } from "@/app/(app)/project-plan/actions";
+import { deletePlanNode, duplicatePlanNode, purgePlanNode } from "@/app/(app)/project-plan/actions";
 import type { TaskStatus } from "@/db/enums";
 import {
   EditDialog, BarButton, countBelow,
@@ -77,7 +77,17 @@ import { useRememberPlanNode } from "./use-recent-plan";
  */
 export type { RegisterLevel };
 
-type SortKey = "plan" | "name" | "start" | "end" | "days" | "own" | "rollup";
+type SortKey =
+  | "plan"
+  | "name"
+  | "description"
+  | "doerStatus"
+  | "initiatorStatus"
+  | "start"
+  | "end"
+  | "days"
+  | "own"
+  | "rollup";
 
 /**
  * The widths of the identity columns, in pixels.
@@ -208,16 +218,26 @@ export function PlanRegister({
       switch (sortKey) {
         case "name":
           return dir * a.node.name.localeCompare(b.node.name);
+        // The three text columns that had no sort. Each reads from whichever
+        // record actually holds the value — on an executable row that is the
+        // linked task, exactly as the cell below renders it, so the order on
+        // screen always matches the column you clicked.
+        case "description":
+          return directed(cmpText(a.node.description, b.node.description), dir);
+        case "doerStatus":
+          return directed(cmpText(a.node.task?.statusLabel ?? a.node.status, b.node.task?.statusLabel ?? b.node.status), dir);
+        case "initiatorStatus":
+          return directed(cmpText(a.node.approvalStatus, b.node.approvalStatus), dir);
         case "start":
-          return dir * cmpDate(a.node.startsAt, b.node.startsAt);
+          return directed(cmpDate(a.node.startsAt, b.node.startsAt), dir);
         case "end":
-          return dir * cmpDate(a.node.endsAt, b.node.endsAt);
+          return directed(cmpDate(a.node.endsAt, b.node.endsAt), dir);
         case "days":
-          return dir * cmpNum(daysOf(a.node), daysOf(b.node));
+          return directed(cmpNum(daysOf(a.node), daysOf(b.node)), dir);
         case "own":
-          return dir * cmpNum(toPercent(nodeFraction(a.node)), toPercent(nodeFraction(b.node)));
+          return directed(cmpNum(toPercent(nodeFraction(a.node)), toPercent(nodeFraction(b.node))), dir);
         case "rollup":
-          return dir * cmpNum(a.rollup.fraction, b.rollup.fraction);
+          return directed(cmpNum(a.rollup.fraction, b.rollup.fraction), dir);
         default:
           return 0;
       }
@@ -422,27 +442,78 @@ export function PlanRegister({
     });
   }
 
-  /** Delete = archive the row, everything under it, and their linked tasks. */
-  function bulkDelete() {
+  /**
+   * ARCHIVE — the row, everything under it, and their linked WMS tasks leave
+   * the board. Every record survives and can be restored.
+   *
+   * THIS IS WHAT THE BUTTON LABELLED "DELETE" USED TO DO (Manan, 2026-09-15:
+   * "add archive button beside the delete button"). The register had ONE
+   * button, called Delete, that archived — while the hierarchy board beside it
+   * had offered the honest pair (Archive / Delete permanently) all along. So
+   * this gesture did not change; its NAME did, and the real delete joined it.
+   */
+  function bulkArchiveRows() {
     const n = pickedRows.length;
     const kids = pickedRows.reduce((a, r) => a + countBelow(r.node), 0);
-    const lines = [`Delete ${n} selected row${n === 1 ? "" : "s"}?`];
+    const lines = [`Archive ${n} selected row${n === 1 ? "" : "s"}?`];
     if (kids > 0) {
       lines.push(
-        `This also removes ${kids} row${kids === 1 ? "" : "s"} beneath them, and archives any linked WMS tasks.`,
+        `This also archives ${kids} row${kids === 1 ? "" : "s"} beneath them, and any linked WMS tasks.`,
       );
     }
+    lines.push("Nothing is deleted — archived rows can be restored.");
     if (!window.confirm(lines.join("\n\n"))) return;
-    bulk("delete", (id) => deletePlanNode(id), "Deleted");
+    bulk("delete", (id) => deletePlanNode(id), "Archived");
+  }
+
+  /**
+   * DELETE — permanently, the way the hierarchy board's row menu spells it.
+   *
+   * `purgePlanNode` removes the rows AND their tasks outright, history
+   * included, and refuses anyone who is not an administrator. The button is
+   * hidden for everyone else (`showDelete` below) rather than shown and then
+   * refused.
+   *
+   * The confirm NAMES THE COUNT and says it cannot be undone, because the same
+   * red button archived until today and muscle memory is exactly the risk.
+   */
+  function bulkPurgeRows() {
+    const n = pickedRows.length;
+    const kids = pickedRows.reduce((a, r) => a + countBelow(r.node), 0);
+    const lines = [`Permanently delete ${n} selected row${n === 1 ? "" : "s"}?`];
+    if (kids > 0) {
+      lines.push(`This also deletes ${kids} row${kids === 1 ? "" : "s"} beneath them.`);
+    }
+    lines.push(
+      "Their linked WMS tasks and history go too. THIS CANNOT BE UNDONE — use Archive if you only want them off the board.",
+    );
+    if (!window.confirm(lines.join("\n\n"))) return;
+    bulk("purge", (id) => purgePlanNode(id), "Deleted permanently");
   }
 
   /** The shape EditDialog wants, built from the row the flatten pass produced. */
   function targetFor(row: (typeof rows)[number]): DetailTarget {
+    // The row is its OWN level when the register IS that level: on the
+    // Milestones register the milestone is the row, not an ancestor of it. So
+    // each of the three is looked up among the ancestors and falls back to the
+    // row itself when the kinds match — the same rule the hierarchy board's
+    // flatten pass follows, so the two detail dialogs cannot disagree.
+    const self = { ref: row.ownRef, name: row.node.name };
+    const level = (k: "project" | "milestone" | "result") => {
+      if (row.node.kind === k) return self;
+      const a = row.ancestors.find((x) => x.kind === k);
+      return a ? { ref: a.ref, name: a.name } : null;
+    };
     return {
       node: row.node,
       ref: row.ownRef,
       fullRef: row.fullRef,
       path: row.ancestors.map((a) => a.name),
+      ancestry: {
+        project: level("project"),
+        milestone: level("milestone"),
+        result: level("result"),
+      },
     };
   }
 
@@ -462,11 +533,12 @@ export function PlanRegister({
   const levelLabel = KIND_LABEL[kind];
   const rollupLabel = `${KIND_LABEL[rollupKind]}s Completion`;
   // The tick column, two columns per ancestor (No + Name), then: own No, own
-  // Name, Description, Status, the level-dependent column (own Completion on a
-  // container / Task on an executable row), the rollup, Attachments, Links and
-  // Initiator Notes — plus Start / End / Duration on the scheduled levels.
+  // Name, Description, Doer Status, Initiator Status, the
+  // level-dependent column (own Completion on a container / Task on an
+  // executable row), the rollup, Attachments, Links and Initiator Notes — plus
+  // Start / End / Duration on the scheduled levels.
   const colCount =
-    1 + ancestorKinds.length * 2 + 9 + (showsSchedule ? 3 : 0);
+    1 + ancestorKinds.length * 2 + 10 + (showsSchedule ? 3 : 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -559,8 +631,11 @@ export function PlanRegister({
             count             ROWS are ticked, but `selectedIds` carries the
                               TASKS behind them — a container has none, so the
                               chip would read "0 selected" while rows are lit.
-            showArchive=false Delete here already archives the row AND its task
-                              (`deletePlanNode`), so Archive would duplicate it.
+            showArchive=false the bar's own Archive archives TASKS; a plan row
+                              is not a task and its children must travel with
+                              it, so this screen supplies its own in `extras`.
+            showDelete        admin only — Delete is a permanent purge now,
+                              and `purgePlanNode` refuses everyone else.
             onDeleteOverride  the task-only delete would strand the plan rows.
 
           EDIT TAKES ONE ROW: the dialog edits a single node's own name,
@@ -576,7 +651,8 @@ export function PlanRegister({
           onClear={() => setPicked(new Set())}
           showArchive={false}
           showTaskActions={false}
-          onDeleteOverride={bulkDelete}
+          showDelete={me.isAdmin}
+          onDeleteOverride={bulkPurgeRows}
           extras={
             <>
               {pickedRows.length === 1 && (
@@ -593,6 +669,12 @@ export function PlanRegister({
                 onClick={() => bulk("duplicate", (id) => duplicatePlanNode(id), "Duplicated")}
               >
                 Duplicate
+              </BarButton>
+
+              {/* LAST in `extras`, so it sits immediately left of the bar's own
+                  Delete — the two are a pair and are read as one. */}
+              <BarButton icon={<Archive size={14} strokeWidth={2.2} />} onClick={bulkArchiveRows}>
+                Archive
               </BarButton>
 
               {busy && <Loader2 size={15} className="animate-spin text-ink-subtle" />}
@@ -650,8 +732,15 @@ export function PlanRegister({
               >
                 {levelLabel} Name
               </SortTh>
-              <Th className="w-[240px]">{levelLabel} Description</Th>
-              <Th className="w-[150px]">{levelLabel} Status</Th>
+              <SortTh className="w-[240px]" active={sortKey === "description"} asc={asc} onClick={() => sortBy("description")}>
+                {levelLabel} Description
+              </SortTh>
+              <SortTh className="w-[150px]" active={sortKey === "doerStatus"} asc={asc} onClick={() => sortBy("doerStatus")}>
+                Doer Status
+              </SortTh>
+              <SortTh className="w-[180px]" active={sortKey === "initiatorStatus"} asc={asc} onClick={() => sortBy("initiatorStatus")}>
+                Initiator Status
+              </SortTh>
               {/* Only on the levels that own a schedule — see `showsSchedule`. */}
               {showsSchedule && (
                 <>
@@ -806,6 +895,9 @@ export function PlanRegister({
 
                   <Td>
                     <PlanStatusCell node={n} actor={actor} linkedToTask={false} />
+                  </Td>
+                  <Td>
+                    <PlanApproverCell node={n} actor={actor} />
                   </Td>
 
                   {showsSchedule && (
@@ -1085,17 +1177,46 @@ function daysOf(n: PlanRow): number | null {
   return durationDays(n.startsAt, n.endsAt);
 }
 
-/** Nulls sort last in both directions — an unset date is not "earliest". */
+/**
+ * BLANKS SORT LAST IN BOTH DIRECTIONS.
+ *
+ * That is what these comparators always claimed, and what the eye expects: an
+ * unset date is not "the earliest", and a row nobody has filled in should not
+ * be the first thing you see when you reverse a column. But the direction used
+ * to be applied by multiplying the WHOLE result, which flipped the blanks along
+ * with everything else — so descending opened on a block of empty rows.
+ *
+ * The marker below is how the two are told apart. A blank-versus-filled
+ * comparison returns exactly ±BLANK_LAST, and `directed` passes that through
+ * untouched while flipping every real comparison.
+ */
+const BLANK_LAST = Number.MAX_SAFE_INTEGER;
+
+/** Applies the sort direction without moving where the blanks sit. */
+function directed(cmp: number, dir: number): number {
+  return Math.abs(cmp) === BLANK_LAST ? cmp : dir * cmp;
+}
+
 function cmpDate(a: string | null, b: string | null): number {
   if (!a && !b) return 0;
-  if (!a) return 1;
-  if (!b) return -1;
+  if (!a) return BLANK_LAST;
+  if (!b) return -BLANK_LAST;
   return new Date(a).getTime() - new Date(b).getTime();
 }
 
 function cmpNum(a: number | null, b: number | null): number {
   if (a == null && b == null) return 0;
-  if (a == null) return 1;
-  if (b == null) return -1;
+  if (a == null) return BLANK_LAST;
+  if (b == null) return -BLANK_LAST;
   return a - b;
+}
+
+/** Text, case-insensitively — empty and null are the same "not filled in". */
+function cmpText(a: string | null | undefined, b: string | null | undefined): number {
+  const x = a ?? "";
+  const y = b ?? "";
+  if (!x && !y) return 0;
+  if (!x) return BLANK_LAST;
+  if (!y) return -BLANK_LAST;
+  return x.localeCompare(y, undefined, { sensitivity: "base" });
 }

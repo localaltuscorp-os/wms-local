@@ -13,6 +13,7 @@ import {
   CommandItem,
   CommandList,
 } from "./command";
+import { SelectAllBar } from "./select-all-bar";
 import { cn } from "@/lib/utils";
 import { focusNextFrom } from "@/lib/focus-next";
 
@@ -218,21 +219,14 @@ export function MultiSelect({
             <CommandInput placeholder="Search…" className="h-11 flex-1 border-0 px-0" />
           </div>
 
-          {/* Selected count + clear */}
-          {selected.length > 0 && (
-            <div className="flex items-center justify-between px-3 py-2 border-b border-hairline bg-black/[0.02]">
-              <span className="text-[11.5px] font-bold uppercase tracking-[0.06em] text-ink-subtle">
-                {selected.length} selected
-              </span>
-              <button
-                type="button"
-                onClick={() => onChange([])}
-                className="text-[12px] font-bold text-altus-red hover:underline"
-              >
-                Clear
-              </button>
-            </div>
-          )}
+          {/* Count + SELECT ALL + clear — the shared bar, so this reads and
+              behaves exactly like every other multi-select in the app. */}
+          <SelectAllBar
+            count={selected.length}
+            total={options.length}
+            onSelectAll={() => onChange(options.map((o) => o.value))}
+            onClear={() => onChange([])}
+          />
 
           <CommandList className="max-h-72 overflow-auto p-1.5">
             <CommandEmpty className="px-3 py-6 text-center text-[14px] text-ink-subtle">

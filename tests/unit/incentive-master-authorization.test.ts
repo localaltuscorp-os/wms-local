@@ -5,7 +5,6 @@ import {
   canManageIncentiveEligibility,
   emailsWithCapability,
   hasCapability,
-  isMasterAdmin,
   canManageDevices,
 } from "@/lib/security/capabilities";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
@@ -61,6 +60,16 @@ describe("changing eligibility is Manan's alone", () => {
     expect(canManageIncentiveEligibility(MANAN)).toBe(true);
   });
 
+  it("holds through the Incentive page's own dialog too, not just the Master", () => {
+    /* Rohan's Incentive Table dialog writes the SAME table (it is his), through
+       setIncentiveEligibility, and it was admin-only. Once the two met, that
+       dialog was a way round "Manan alone" for any admin. */
+    const src = codeOf("app/(app)/incentive/catalog-actions.ts");
+    const at = src.indexOf("export async function setIncentiveEligibility");
+    const body = src.slice(at, src.indexOf("saveEligibility(", at));
+    expect(body).toMatch(/mayManageIncentiveEligibility\(\)/);
+  });
+
   it("exactly ONE address holds the capability", () => {
     expect(emailsWithCapability("incentive_eligibility.manage")).toEqual([MANAN]);
   });
@@ -73,7 +82,7 @@ describe("changing eligibility is Manan's alone", () => {
 
   it("being a master admin or a super-admin is not enough", () => {
     // Rohan is the most privileged person who is not Manan.
-    expect(isMasterAdmin(ROHAN)).toBe(true);
+    expect(hasCapability(ROHAN, "master_admin.manage")).toBe(true);
     expect(isSuperAdmin(ROHAN)).toBe(true);
     expect(canManageIncentiveEligibility(ROHAN)).toBe(false);
   });
@@ -392,8 +401,13 @@ describe("nothing was duplicated", () => {
 
   it("no second employee table", () => {
     const migration = codeOf("db/migrations/0232_incentive_master.sql");
-    expect(migration).toMatch(/references employees\(id\)/);
     expect(migration).not.toMatch(/create table if not exists incentive_employees/);
+    // Nor a second ELIGIBILITY table: 0232 used to create its own
+    // `incentive_eligibility`, which collided with Rohan's 0216 of the same
+    // name and failed on real Postgres. The one that exists is 0216's, and it
+    // points at the real employees table.
+    expect(migration).not.toMatch(/create table if not exists incentive_eligibility/);
+    expect(codeOf("db/migrations/0216_incentive_eligibility.sql")).toMatch(/references employees\(id\)/i);
   });
 
   it("the migration is additive — it drops and renames nothing", () => {
@@ -404,10 +418,24 @@ describe("nothing was duplicated", () => {
     expect(migration).not.toMatch(/\bdelete from\b|\btruncate\b|\bupdate incentive_catalog set\b/i);
   });
 
-  it("removal is a dated row, never a delete", () => {
+  it("removal deletes the grant but keeps the incentive restricted, and dates the EVENT", () => {
+    /* Was "a dated row, never a delete" — true of this module's own table,
+       which the merge replaced with Rohan's (0216). That table keeps live
+       grants only, so a removal is a delete. What must still hold:
+         · the date is kept — on the change event, which the notice reads;
+         · removing the last person must NOT reopen the incentive to everyone,
+           so this action never sets applies_to_all back to true. */
     const body = bodyOf("removeIncentiveEligibility");
-    expect(body).toMatch(/removedEffectiveFrom: effectiveFrom/);
-    expect(body).not.toMatch(/tx\.delete\(incentiveEligibility\)/);
-    expect(ACTIONS).not.toMatch(/delete\(incentiveEligibility\)/);
+    expect(body).toMatch(/tx\s*\.delete\(incentiveEligibility\)/);
+    expect(body).toMatch(/effectiveDate: effectiveFrom/);
+    expect(body).not.toMatch(/appliesToAll:\s*true/);
+  });
+
+  it("refuses a FUTURE effective date, because the table cannot honour one", () => {
+    // Rohan's table has no date on a row, so "remove with effect from 1 Nov"
+    // would remove the person today. Both actions must refuse it.
+    for (const fn of ["addIncentiveEligibility", "removeIncentiveEligibility"]) {
+      expect(bodyOf(fn), fn).toMatch(/futureDateError\(effectiveFrom\)/);
+    }
   });
 });

@@ -41,17 +41,23 @@ export function isGoogleConfigured(): boolean {
 /** Build the consent-screen URL. `redirectUri` must be registered in the
  *  OAuth client. `access_type=offline` + `prompt=consent` guarantee a refresh
  *  token even on re-connect. */
-export function buildAuthUrl(redirectUri: string, state: string): string {
+export function buildAuthUrl(
+  redirectUri: string,
+  state: string,
+  /** Other flows on the same OAuth client (the HR Records Drive save) ask for their own scopes. */
+  opts: { scope?: string; loginHint?: string; includeGrantedScopes?: boolean } = {},
+): string {
   const p = new URLSearchParams({
     client_id: clientId(),
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: GOOGLE_SCOPES,
+    scope: opts.scope ?? GOOGLE_SCOPES,
     access_type: "offline",
     prompt: "consent",
-    include_granted_scopes: "true",
+    include_granted_scopes: opts.includeGrantedScopes === false ? "false" : "true",
     state,
   });
+  if (opts.loginHint) p.set("login_hint", opts.loginHint);
   return `${AUTH_URL}?${p.toString()}`;
 }
 
@@ -223,6 +229,58 @@ export async function updateEvent(
     body: JSON.stringify(taskToEvent(task)),
   });
   if (!res.ok) throw new Error(`updateEvent failed: ${res.status} ${await res.text()}`);
+}
+
+// ─── Raw event calls (DCC day events — lib/dcc/calendar-sync.ts) ──────────
+//
+// These take an ACCESS token, minted once per person by the caller: a backfill
+// of a hundred days must not exchange the refresh token a hundred times.
+
+/** A Calendar API refusal, with the HTTP status the caller branches on. */
+export class GoogleApiError extends Error {
+  constructor(
+    readonly op: string,
+    readonly status: number,
+    readonly body: string,
+  ) {
+    super(`${op} failed: ${status} ${body}`);
+    this.name = "GoogleApiError";
+  }
+}
+
+/** The person revoked access (or the grant expired): only a reconnect fixes it. */
+export function isRevokedGrant(err: unknown): boolean {
+  return err instanceof Error && /invalid_grant/u.test(err.message);
+}
+
+export async function insertEventBody(accessToken: string, body: object): Promise<string> {
+  const res = await fetch(CAL_BASE, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new GoogleApiError("insertEvent", res.status, await res.text());
+  return ((await res.json()) as { id: string }).id;
+}
+
+export async function patchEventBody(accessToken: string, eventId: string, body: object): Promise<void> {
+  const res = await fetch(`${CAL_BASE}/${encodeURIComponent(eventId)}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new GoogleApiError("patchEvent", res.status, await res.text());
+}
+
+/** Already gone (404 / 410) counts as deleted. */
+export async function deleteEventById(accessToken: string, eventId: string): Promise<void> {
+  const res = await fetch(`${CAL_BASE}/${encodeURIComponent(eventId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok && res.status !== 404 && res.status !== 410) {
+    throw new GoogleApiError("deleteEvent", res.status, await res.text());
+  }
 }
 
 export async function deleteEvent(refreshToken: string, eventId: string): Promise<void> {

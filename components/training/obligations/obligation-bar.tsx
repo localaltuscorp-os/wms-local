@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * A single obligation progress bar: actual-vs-target with a red/amber/green fill.
  *
@@ -7,6 +5,10 @@
  * the month already elapsed) = amber, behind = red. Pro-rating by `expectedPct`
  * means we don't flag someone "red" on the 3rd of the month for not yet hitting a
  * full-month target. Pure presentational + keyboard/screen-reader friendly.
+ *
+ * NOT a client component: it has no state or handlers, and the obligations
+ * page (a server component) both calls `statusFor` to count statuses and
+ * passes `fmt`, a function — neither can cross into a "use client" module.
  */
 
 export type ObligationStatus = "met" | "ontrack" | "behind" | "na";

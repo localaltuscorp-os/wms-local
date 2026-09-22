@@ -461,9 +461,9 @@ export function KpiStrip(props: KpiStripProps = {}): React.JSX.Element {
     },
     {
       key: "rupee",
-      label: "₹ achievement",
+      label: "Rs. achievement",
       icon: IndianRupee,
-      big: kpi.rupee ? `₹${fmtNum(rupeeShown)}` : "—",
+      big: kpi.rupee ? `Rs. ${fmtNum(rupeeShown)}` : "—",
       bigColor: kpi.rupee ? undefined : "var(--color-ink-subtle)",
       sub: kpi.rupee ? (
         <span>
@@ -472,10 +472,10 @@ export function KpiStrip(props: KpiStripProps = {}): React.JSX.Element {
               {rupeePct >= 100 ? "▲" : "▼"} {rupeePct}%
             </span>
           ) : null}{" "}
-          of ₹{fmtNum(kpi.rupee.target)} · own goals
+          of Rs. {fmtNum(kpi.rupee.target)} · own goals
         </span>
       ) : (
-        "no ₹ targets"
+        "no Rs. targets"
       ),
     },
   ];
@@ -497,7 +497,7 @@ export function KpiStrip(props: KpiStripProps = {}): React.JSX.Element {
             </span>
             {kpi.rupee && (
               <span className="max-sm:hidden">
-                ₹{fmtNum(kpi.rupee.actual)} of ₹{fmtNum(kpi.rupee.target)}
+                Rs. {fmtNum(kpi.rupee.actual)} of Rs. {fmtNum(kpi.rupee.target)}
               </span>
             )}
           </span>

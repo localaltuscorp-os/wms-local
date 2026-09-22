@@ -4,12 +4,12 @@ import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { HR_CONSOLE_MODULES, locateHrRoute } from "@/lib/hr/console-nav";
+import { visibleConsoleModules } from "@/lib/hr/console-visibility";
 import { cn } from "@/lib/utils";
 import { HrModuleRail } from "./hr-module-rail";
 import { HrStepNav } from "./hr-step-nav";
 import { HrConsoleContextProvider } from "./hr-console-context";
 import { HrModuleGhost } from "./hr-module-ghost";
-import { useInsetTopBar } from "@/components/layout/inset-top-bar";
 
 /**
  * The HR workspace — a two-column console wrapping every /hr surface:
@@ -39,18 +39,32 @@ import { useInsetTopBar } from "@/components/layout/inset-top-bar";
  */
 export function HrConsoleShell({
   user,
+  hiddenNodes = null,
   children,
 }: {
   user: { name: string; role: string };
+  /** Catalogue node keys this person has been DENIED (`hiddenModuleKeys()`),
+   *  resolved on the server. `null` means "not governed by the matrix" — a
+   *  master admin, or somebody the matrix does not cover — and shows everything.
+   *
+   *  The matrix has been ENFORCED all along (`requirePathView` in the (app)
+   *  layout refuses a denied route however it is reached). This is what stops
+   *  the console OFFERING one: without it the rail kept drawing steps that
+   *  bounced the person to the hub when clicked. */
+  hiddenNodes?: string[] | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname() ?? "/hr";
   const searchParams = useSearchParams();
-  // The app-wide top bar, handed down by ChromeShell so it can be rendered
-  // inside the content column rather than across the top of the rail too.
-  const topBar = useInsetTopBar();
-  // Only the rail collapses now. The steps had a second, independent toggle
-  // while they were a column; as a row of buttons there is nothing to collapse.
+
+  // The ONE filter, applied to the module list this shell owns. Everything below
+  // reads `modules`, never the raw catalogue.
+  const modules = React.useMemo(
+    () => visibleConsoleModules(HR_CONSOLE_MODULES, hiddenNodes ? new Set(hiddenNodes) : null),
+    [hiddenNodes],
+  );
+  // Two independently collapsible columns. The steps list is a real column again
+  // (see below), so it gets its own toggle beside the rail's.
   const [railCollapsed, setRailCollapsed] = React.useState(false);
 
 
@@ -75,13 +89,13 @@ export function HrConsoleShell({
   // page used the same param to re-open its stage pop-up).
   const openParam = searchParams?.get("open") ?? null;
   React.useEffect(() => {
-    if (openParam && HR_CONSOLE_MODULES.some((m) => m.id === openParam)) {
+    if (openParam && modules.some((m) => m.id === openParam)) {
       setSelectedModuleId(openParam);
     }
   }, [openParam]);
 
   const selectedModule = React.useMemo(
-    () => HR_CONSOLE_MODULES.find((m) => m.id === selectedModuleId) ?? null,
+    () => modules.find((m) => m.id === selectedModuleId) ?? null,
     [selectedModuleId],
   );
 
@@ -117,21 +131,17 @@ export function HrConsoleShell({
       // ~848px page with this pane's scrollbar painted down its side.
       // globals.css unclips both under @media print. Keep the class names.
       className="hr-shell flex overflow-hidden bg-canvas-base"
-      // A FULL viewport, not `calc(100dvh - var(--app-topbar-h))`. The top bar
-      // used to be a sibling ABOVE this shell, so its height had to come off
-      // the top; it is now rendered INSIDE the content column below, which is
-      // what lets the rail start at y=0 like every other module's rail.
+      // The viewport MINUS the full-width top bar. The bar is now a sibling ABOVE
+      // this shell (rendered by ChromeShell, same as every other module), so this
+      // shell must take the remaining height or the page would overflow.
       //
       // NO `flex-1` HERE, EVER. This is a flex ITEM (app/(app)/template.tsx is
-      // a flex column between us and ChromeShell's h-dvh frame). `flex-1` sets
-      // `flex-basis: 0%`, and on a flex item the basis REPLACES the main-size
-      // property — so the height below would be silently ignored and the shell
-      // would size to its content instead. It then grew ~160px past the frame,
-      // which clips with `overflow-hidden`: the rail's New Request button and
-      // user card fell off the bottom of the screen and nothing on the page
-      // could scroll to reach them. With the default `flex-basis: auto` the
-      // height is used, and the shell is exactly one viewport.
-      style={{ height: "100dvh" }}
+      // a flex column between us and ChromeShell's min-h-dvh frame). `flex-1`
+      // sets `flex-basis: 0%`, and on a flex item the basis REPLACES the main-
+      // size property — so the height below would be silently ignored and the
+      // shell would size to its content instead. With the default
+      // `flex-basis: auto` the height is used.
+      style={{ height: "calc(100dvh - var(--app-topbar-h))" }}
     >
       <div
         className={cn(
@@ -153,6 +163,7 @@ export function HrConsoleShell({
         )}
       >
         <HrModuleRail
+          modules={modules}
           collapsed={railCollapsed}
           selectedModuleId={selectedModuleId}
           activeModuleId={activeModuleId}
@@ -163,15 +174,9 @@ export function HrConsoleShell({
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* THE APP TOP BAR — the first row of the CONTENT column, so its page
-            title begins where the page begins instead of sitting over the rail.
-            `z-[46]` puts it one step above the step nav's z-[45] (see the band
-            documented below), so the bell's dropdown and the search trigger are
-            never painted over by the row beneath them, while the `>= z-50`
-            full-screen modals still cover it. */}
-        {topBar ? <div className="relative z-[46] shrink-0">{topBar}</div> : null}
-        {/* flex-col: the step-nav row stacks ABOVE the scrolling content column
-            (it was a single row holding the old steps sidebar + the scroller). */}
+        {/* The CONTENT column: the page itself. The full-width top bar lives
+            above this shell (ChromeShell), and the steps live in column 2
+            (HrStepList above), so the page is the only thing here. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* --app-topbar-h is a body-scoped CSS var (see globals.css) that
               individual /hr pages use via the `.sticky-below-topbar` utility

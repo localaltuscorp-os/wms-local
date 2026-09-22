@@ -104,7 +104,7 @@ interface Row {
 }
 
 function numericString(raw: unknown): { ok: boolean; value: string | null } {
-  const s = String(raw ?? "").trim().replace(/[,₹\s]/g, "");
+  const s = String(raw ?? "").trim().replace(/\brs\.?/gi, "").replace(/[,₹\s]/g, "");
   if (!s) return { ok: true, value: null };
   const n = Number(s);
   if (!Number.isFinite(n)) return { ok: false, value: null };

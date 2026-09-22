@@ -1,13 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { Play, Pause, RotateCcw, Loader2 } from "lucide-react";
 import type { TaskTimeState } from "@/lib/queries/task-time";
 import { useTaskTimer } from "@/components/tasks/time/task-timer-store";
+import { TimerControls } from "@/components/tasks/time/timer-controls";
 
 /**
  * THE CRIMSON HERO BAND — the task's identity, its progress, and its timer, in
  * one block at the top of the detail screen.
+ *
+ * ITS BUTTONS ARE NOT ITS OWN. They come from <TimerControls>, the same
+ * component the Time Spent rail card renders, so the two surfaces cannot offer
+ * different verbs for one action — which they did: Pause here, Stop there.
  *
  * IT DRIVES THE EXISTING ENGINE, it does not add a second one. The session
  * rollup and the Server Actions already exist and are already what the Time
@@ -114,11 +118,6 @@ export function TaskHeroBand({
   // The banked total still comes from the server prop when there's no store,
   // so the READOUT never goes blank — only the buttons depend on the store.
   const total = timer ? timer.totalSeconds : (time?.rollup.totalActiveSeconds ?? 0);
-  const running = timer?.running ?? false;
-  const busy = timer?.busy ?? false;
-
-  const btn =
-    "inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[12.5px] font-bold transition-colors disabled:opacity-50";
 
   return (
     <div className="mb-5 rounded-2xl bg-[#B80D22] px-5 py-3 text-white shadow-sm">
@@ -183,61 +182,10 @@ export function TaskHeroBand({
                 {hms(total)}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              {canOperate && !locked && (
-                <>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => (running ? timer?.pause() : timer?.start())}
-                    /* GREEN TO GO, WHITE TO STOP — and this one surface has to
-                       break the house rule to stay legible.
-
-                       Everywhere else Pause is #B80D22. Here the button sits ON
-                       #B80D22, so a crimson Pause would be a button-shaped hole
-                       in the banner. The pair still reads as opposites: green
-                       fill to start, white fill with crimson text to stop, which
-                       is the same inversion the Mark-as-Done CTA already uses
-                       two rows above it. */
-                    className={`${btn} ${
-                      running
-                        ? "bg-white hover:bg-white/90"
-                        : "bg-emerald-600 text-white hover:bg-emerald-700"
-                    }`}
-                    style={running ? { color: CRIMSON } : undefined}
-                  >
-                    {busy ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : running ? (
-                      <Pause size={14} strokeWidth={2.6} />
-                    ) : (
-                      <Play size={14} strokeWidth={2.6} />
-                    )}
-                    {running ? "Pause" : "Start Work"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    /* Confirmed, because it throws away the minutes since the
-                       last Start. The old wording promised more than the engine
-                       does — it said the session was ARCHIVED and the timer
-                       reset to 00:00:00, when in fact closed sessions and the
-                       banked total are untouched and only the session in
-                       progress is rewound. Saying so is the difference between
-                       a button people use and one they avoid. */
-                    onClick={() => {
-                      if (!confirm("Reset the current session to 00:00? Time already banked from earlier sessions is kept.")) return;
-                      timer?.restart();
-                    }}
-                    title="Rewind the session in progress to zero; banked time is kept"
-                    className={`${btn} bg-white/15 text-white hover:bg-white/25`}
-                  >
-                    <RotateCcw size={14} strokeWidth={2.6} />
-                    Restart
-                  </button>
-                </>
-              )}
-            </div>
+            {/* One cluster, two skins — see components/tasks/time/timer-controls.tsx.
+                What used to be here was a private copy of Pause + Restart that
+                drifted from the rail's Stop + Resume + Restart. */}
+            <TimerControls tone="onCrimson" canOperate={canOperate} locked={locked} />
           </div>
         )}
       </div>

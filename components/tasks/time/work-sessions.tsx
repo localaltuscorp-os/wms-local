@@ -36,17 +36,25 @@ export function WorkSessions({
     );
   }
 
-  // Number sessions globally but label revision boundaries.
-  let n = 0;
-  let lastRevision = 0;
+  /* Numbering and revision headers, worked out BEFORE the JSX rather than by
+     mutating two counters inside the map. The counters were a render-phase
+     write (react-hooks/immutability), which React is free to run twice — and
+     under StrictMode did, numbering the list 2, 4, 6. */
+  const rows = sessions.map((s, i) => ({
+    s,
+    n: i + 1,
+    showRevHeader: s.revision > 1 && s.revision !== sessions[i - 1]?.revision,
+  }));
 
   return (
     <div className="flex flex-col gap-2">
-      {sessions.map((s) => {
-        n += 1;
-        const showRevHeader = s.revision !== lastRevision && s.revision > 1;
-        lastRevision = s.revision;
+      {rows.map(({ s, n, showRevHeader }) => {
         const auto = s.endReason === "auto_idle" || s.endReason === "auto_daily";
+        /* Cleared by a Restart. Kept in the list — this IS the audit trail —
+           but faded and struck, because the totals underneath no longer count
+           it and a row that looks identical to a counted one would make those
+           totals look wrong. */
+        const dead = s.discarded;
         return (
           <React.Fragment key={s.id}>
             {showRevHeader && (
@@ -57,19 +65,38 @@ export function WorkSessions({
                 <span className="h-px flex-1" style={{ background: "var(--color-hairline)" }} />
               </div>
             )}
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-hairline bg-white px-3.5 py-2.5">
+            <div
+              className={`flex items-center justify-between gap-3 rounded-xl border border-hairline px-3.5 py-2.5 ${
+                dead ? "bg-surface-soft opacity-60" : "bg-white"
+              }`}
+              title={dead ? "Cleared by a Restart — not counted in the total" : undefined}
+            >
               <div className="flex min-w-0 items-center gap-3">
                 <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-surface-soft text-[12px] font-bold text-ink-muted tabular-nums">
                   {n}
                 </span>
                 <div className="min-w-0">
-                  <div className="text-[13.5px] font-semibold text-ink-strong tabular-nums">
+                  <div
+                    className={`text-[13.5px] font-semibold tabular-nums ${
+                      dead ? "text-ink-subtle line-through" : "text-ink-strong"
+                    }`}
+                  >
                     {clock(s.startedAt)}
                     {" → "}
                     {s.live ? <span className="text-altus-red-deep">live</span> : s.endedAt ? clock(s.endedAt) : "—"}
                   </div>
                   <div className="text-[11.5px] font-medium text-ink-subtle">
-                    {s.live ? "In progress" : auto ? "Auto-closed (cap reached)" : s.endReason === "done" ? "Ended on Done" : "Completed"}
+                    {s.live
+                      ? "In progress"
+                      : dead
+                        ? "Cleared by Restart"
+                        : auto
+                          ? "Auto-closed (cap reached)"
+                          : s.endReason === "done"
+                            ? "Ended on Done"
+                            : s.endReason === "stopped"
+                              ? "Stopped"
+                              : "Completed"}
                   </div>
                 </div>
               </div>

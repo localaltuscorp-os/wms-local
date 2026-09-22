@@ -197,10 +197,10 @@ export function GoalCard({
             <Chip label="Tgt" value={fmtNum(goal.targetQty)} />
             <Chip label="Act" value={fmtNum(goal.actualQty)} />
             {(goal.targetAmount || goal.actualAmount) && (
-              <Chip label="₹Tgt" value={fmtNum(goal.targetAmount)} />
+              <Chip label="Rs. Tgt" value={fmtNum(goal.targetAmount)} />
             )}
             {(goal.targetAmount || goal.actualAmount) && (
-              <Chip label="₹Act" value={fmtNum(goal.actualAmount)} />
+              <Chip label="Rs. Act" value={fmtNum(goal.actualAmount)} />
             )}
             {goal.teamDependencyPct != null && <Chip label="Dep" value={`${goal.teamDependencyPct}%`} />}
             <TeamAvatars team={goal.teamInvolved} roster={roster} />

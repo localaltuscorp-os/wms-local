@@ -4,15 +4,33 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { getCurrentEmployee, isCandidateAccount } from "@/lib/auth/current";
-import { exchangeCode, fetchGoogleEmail } from "@/lib/google/calendar";
+import { exchangeCode, fetchGoogleEmail, revokeToken } from "@/lib/google/calendar";
 import { backfillDoerCalendar } from "@/lib/google/sync";
+import { isSameGoogleAccount } from "@/lib/google/account-match";
+import { HR_DRIVE_STATE_PREFIX, finishHrDriveConnect } from "@/lib/hr/records-export/oauth";
+import {
+  MODULE_DRIVE_STATE_PREFIX,
+  finishModuleDriveConnect,
+} from "@/lib/modules/backup/oauth";
 
 export const dynamic = "force-dynamic";
+// The post-redirect task backfill runs inside this budget.
+export const maxDuration = 300;
 
 /** OAuth redirect target — exchange the code for a refresh token and store it
  *  on the signed-in employee. */
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
+  // The HR Records Drive connection shares this registered redirect URI; its
+  // state is prefixed so it never touches the signed-in employee's calendar.
+  if ((url.searchParams.get("state") ?? "").startsWith(HR_DRIVE_STATE_PREFIX)) {
+    return finishHrDriveConnect(req);
+  }
+  // The module-wise backup connects a DIFFERENT Google account through the same
+  // registered redirect URI; its own state prefix keeps the two apart.
+  if ((url.searchParams.get("state") ?? "").startsWith(MODULE_DRIVE_STATE_PREFIX)) {
+    return finishModuleDriveConnect(req);
+  }
   const origin = url.origin;
   const back = `${origin}/profile`;
 
@@ -42,6 +60,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${back}?google=error`);
     }
     const email = await fetchGoogleEmail(tokens.access_token);
+    // Their ALTUS calendar only (account holder, 2026-09-15): a personal or
+    // someone else's Google account is refused and its grant revoked.
+    if (!isSameGoogleAccount(email, [me.email, me.officialEmail])) {
+      await revokeToken(tokens.refresh_token);
+      return NextResponse.redirect(`${back}?google=wrong_account`);
+    }
     await db
       .update(employees)
       .set({

@@ -2,10 +2,10 @@ import { cookies } from "next/headers";
 import { SidebarRail, SidebarToggle } from "./sidebar-rail";
 import { SidebarBrand } from "./sidebar-brand";
 import { MainNavServer } from "./main-nav-server";
+import { AuraRailLens } from "@/components/layout/aura-rail-lens";
 import { NavHistoryButtons } from "./nav-history-buttons";
 import { MobileMenuServer } from "./mobile-menu-server";
-import { MobileModuleLabel, SidebarNewTask, SidebarSearch, SidebarGoalsSpace } from "./sidebar-route-chrome";
-import { UserMenuServer } from "@/components/header/user-menu-server";
+import { MobileModuleLabel, SidebarArchive, SidebarNewTask, SidebarSearch, SidebarGoalsSpace } from "./sidebar-route-chrome";
 import { NewTaskRailButton } from "@/components/tasks/new-task-rail-button";
 import { NotificationBell } from "@/components/header/notification-bell";
 import { NewTaskQuickAction } from "@/components/header/new-task-quick-action";
@@ -115,6 +115,12 @@ export async function DashboardSidebar() {
 
       {/* ── Primary nav — vertical pills (MainNav drawer variant), scrollable ── */}
       <nav aria-label="Primary" className="sidebar-nav nav-scroll min-h-0 flex-1 overflow-y-auto px-3 py-2">
+        {/* The same travelling indicator the dashboard's glass rail uses, aimed
+            at this rail's existing pills. It has to be the FIRST child: it is
+            absolutely positioned against this container and measures each
+            pill's offset within it. The pills' own selected background is
+            cleared in aura.css — the lens IS the selection now. */}
+        <AuraRailLens itemSelector=".nav-pill" activeSelector=".nav-pill-active" />
         <MainNavServer variant="drawer" />
         {/* The rail's New Task button is WMS-only furniture; the client wrapper
             shows it only on WMS routes. The DIALOG it opens no longer lives
@@ -125,13 +131,18 @@ export async function DashboardSidebar() {
         </SidebarNewTask>
       </nav>
 
-      {/* ── Bottom: full-width profile bar (avatar + name + ▲ to open the menu),
-          pinned. Replaces the old Live indicator + bare avatar. ── */}
-      <div
-        className="sidebar-foot mt-auto border-t px-3 py-3"
-        style={{ borderColor: "var(--color-hairline)" }}
-      >
-        <UserMenuServer variant="rail" />
+      {/* The profile bar that used to be pinned here is GONE. Identity lives in
+          the top bar now, on the right, on every screen — so a second copy at
+          the foot of the rail was the same avatar twice on one page. The rail
+          is the module's section list and nothing else. */}
+      {/* ARCHIVE stays pinned at the foot: it is a destination you want in the
+          same place in every room, which the scrolling nav above cannot promise
+          once a rail runs past the fold. `sidebar-nav` is for the CLASS, not the
+          scroller — the rail's flat pill styling is scoped to
+          `.sidebar-rail .sidebar-nav .nav-pill`, so without it this one pill
+          would wear the default bordered look while every pill above stayed flat. */}
+      <div className="sidebar-nav mt-auto px-3 pt-1 pb-3">
+        <SidebarArchive isAdmin={isAdmin} />
       </div>
     </SidebarRail>
    </>

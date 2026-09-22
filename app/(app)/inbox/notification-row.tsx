@@ -30,8 +30,7 @@ interface Props {
 
 // Kinds that deep-link somewhere other than the related task / inbox.
 const KIND_HREF: Partial<Record<string, string>> = {
-  dcc_fill_reminder: "/dcc",
-  ambassador_reminder: "/ambassadors",
+  ambassador_reminder: "/billing/ambassadors",
   weekly_goals_assigned: "/goals/weekly",
   weekly_goals_fill_reminder: "/goals/weekly",
   weekly_goals_incomplete: "/goals/weekly",
@@ -131,7 +130,7 @@ function StatusPill({
 // count and the rendered cell count always agree — get that wrong and every
 // column after the gap shifts one place left.
 export const ROW_GRID =
-  "grid items-center gap-x-3 grid-cols-[20px_78px_112px_118px_minmax(0,1fr)_186px_92px_40px] max-xl:grid-cols-[20px_78px_98px_104px_minmax(0,1fr)_150px_84px_40px] max-lg:grid-cols-[20px_78px_minmax(0,1fr)_92px_40px] max-md:grid-cols-[20px_78px_minmax(0,1fr)_40px]";
+  "grid items-center gap-x-3 grid-cols-[20px_78px_66px_112px_118px_minmax(0,1fr)_186px_92px_40px] max-xl:grid-cols-[20px_78px_62px_98px_104px_minmax(0,1fr)_150px_84px_40px] max-lg:grid-cols-[20px_78px_62px_minmax(0,1fr)_92px_40px] max-md:grid-cols-[20px_78px_minmax(0,1fr)_40px]";
 
 /**
  * One inbox row.
@@ -219,25 +218,34 @@ export function NotificationRow({
             />
           )}
         </span>
-        <span className="min-w-0">
-          <span
-            className="block whitespace-nowrap text-[12.5px] tabular-nums"
-            style={{
-              fontWeight: unread ? 700 : 500,
-              color: unread ? "var(--color-ink-strong)" : "var(--color-ink-soft)",
-            }}
-          >
-            {sharedOn}
-          </span>
-          {/* The exact SENT time, from notifications.created_at — the same
-              instant the date above is derived from, so the two can never
-              disagree. Set as a second line inside the existing cell rather
-              than a new column: it is 11px on the row's existing leading, so
-              the row does not grow. */}
-          <span className="block whitespace-nowrap text-[11px] tabular-nums text-ink-subtle">
-            {sentAt}
-          </span>
+        <span
+          className="min-w-0 whitespace-nowrap text-[12.5px] tabular-nums"
+          style={{
+            fontWeight: unread ? 700 : 500,
+            color: unread ? "var(--color-ink-strong)" : "var(--color-ink-soft)",
+          }}
+        >
+          {sharedOn}
         </span>
+      </button>
+
+      {/* TIME — its own column, beside Date.
+          Manan, 2026-09-16: "create new column beside the date column."
+          It used to be a second LINE inside the date cell, which made every row
+          two lines tall while the other five columns were one. As a column it
+          gets its own header, sits on the same baseline as everything else, and
+          the rows sit tighter.
+          Derived from the SAME `createdAt` as the date beside it, so the two
+          can never disagree. Hidden at the narrowest breakpoint, where the grid
+          template drops it — see ROW_GRID. */}
+      <button
+        type="button"
+        onClick={onActivate}
+        disabled={isPending}
+        className="py-2 text-left max-md:hidden"
+        title={`Open — sent ${sharedOn} at ${sentAt}`}
+      >
+        <span className="whitespace-nowrap text-[12px] tabular-nums text-ink-soft">{sentAt}</span>
       </button>
 
       {/* CATEGORY — its own column (Sir). Same vocabulary as the filter bar

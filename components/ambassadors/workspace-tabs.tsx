@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { Route } from "next";
 import { LayoutGrid, GitBranch, Wallet, Clock, FileText, Sparkles, Archive } from "lucide-react";
 import type { AmbassadorDetail } from "@/lib/queries/ambassadors";
-import { archiveAmbassador } from "@/app/(app)/ambassadors/actions";
+import { archiveAmbassador } from "@/app/(app)/billing/ambassadors/actions";
 import { fireToast } from "@/lib/toast";
 import { TabOverview } from "./tab-overview";
 import { TabReferrals } from "./tab-referrals";
@@ -139,7 +139,7 @@ export function ArchiveButton({ id, archived }: { id: string; archived: boolean 
       const res = await archiveAmbassador(id, next);
       if (res.ok) {
         fireToast({ message: next ? "Ambassador archived." : "Ambassador restored." });
-        if (next) router.push("/ambassadors/directory" as Route);
+        if (next) router.push("/billing/ambassadors/directory" as Route);
         else router.refresh();
       } else {
         fireToast({ message: res.error, type: "error" });

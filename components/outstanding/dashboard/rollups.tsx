@@ -14,10 +14,15 @@ export function EmployeeEntityRollups({
   byEmployee,
   byEntity,
   sp,
+  base,
 }: {
   byEmployee: Rollup[];
   byEntity: Rollup[];
   sp: Record<string, string | string[] | undefined>;
+  /** Which door the dashboard is open through — see
+   *  lib/outstanding/base-path.ts. Keeps every drill-down inside the
+   *  room the viewer actually entered. */
+  base: string;
 }) {
   return (
     <div className="mt-7 grid grid-cols-2 gap-3 max-lg:grid-cols-1">
@@ -25,13 +30,13 @@ export function EmployeeEntityRollups({
         title="Employee Wise Outstanding"
         rows={byEmployee}
         nameLabel="Name"
-        hrefFor={(name) => buildDrillHref(sp, { emp: name })}
+        hrefFor={(name) => buildDrillHref(sp, { emp: name }, base)}
       />
       <RollupCard
         title="Entity Wise Outstanding"
         rows={byEntity}
         nameLabel="Entity"
-        hrefFor={(name) => buildDrillHref(sp, { entity: name })}
+        hrefFor={(name) => buildDrillHref(sp, { entity: name }, base)}
       />
     </div>
   );
@@ -74,7 +79,7 @@ function RollupCard({
                 <Th>{nameLabel}</Th>
                 <Th align="right">Not Due</Th>
                 <Th align="right">Overdue</Th>
-                <Th align="right">Balance (₹)</Th>
+                <Th align="right">Balance (Rs.)</Th>
               </tr>
             </thead>
             <tbody>

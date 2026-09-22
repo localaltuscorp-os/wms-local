@@ -5,7 +5,13 @@ import { useAutosave } from "@/components/hr/forms/use-autosave";
 import { SaveIndicator } from "@/components/hr/forms/save-indicator";
 import { ArrowLeft, ArrowRight, Loader2, Send } from "lucide-react";
 import { sectionsForMode, hasAnyContent, intakeProgress, sectionRequiredKeys, type IntakeSection, type IntakeMode } from "@/lib/hr/candidate/intake-schema";
-import { saveCandidateDraft, submitCandidateDraft } from "@/app/(app)/hr/candidate-actions";
+import {
+  createCandidatePhotoUploadUrl,
+  createCandidateWorkUploadUrl,
+  getCandidateWorkFileUrl,
+  saveCandidateDraft,
+  submitCandidateDraft,
+} from "@/app/(app)/hr/candidate-actions";
 
 /**
  * The three writes the wizard performs, typed off the HR actions so the injected
@@ -16,15 +22,30 @@ import { saveCandidateDraft, submitCandidateDraft } from "@/app/(app)/hr/candida
 export interface IntakeActions {
   save: typeof saveCandidateDraft;
   submit: typeof submitCandidateDraft;
+  /**
+   * Mints a signed Supabase upload URL for the Candidate Photo. Injected like
+   * save/submit because the two callers are gated differently - HR staff on one
+   * side, the candidate's own row on the other - and the component must not be
+   * the thing that decides which.
+   */
+  photoUploadUrl: PhotoUploadUrlFn;
+  /** Work samples (optional, Personal Details): upload a file / open a stored one. */
+  workUploadUrl: WorkUploadUrlFn;
+  workFileUrl: WorkFileUrlFn;
 }
 
 const HR_ACTIONS: IntakeActions = {
   save: saveCandidateDraft,
   submit: submitCandidateDraft,
+  photoUploadUrl: createCandidatePhotoUploadUrl,
+  workUploadUrl: createCandidateWorkUploadUrl,
+  workFileUrl: getCandidateWorkFileUrl,
 };
 import { fireToast } from "@/lib/toast";
 import { IntakeRail } from "./intake-rail";
 import { IntakeSectionStep } from "./intake-section-step";
+import type { PhotoUploadUrlFn } from "./candidate-photo-field";
+import type { WorkFileUrlFn, WorkUploadUrlFn } from "./candidate-work-samples-field";
 import { IntakeReviewStep } from "./intake-review-step";
 
 const RED = "var(--color-altus-red)";
@@ -439,9 +460,12 @@ export function IntakeWizard({
                   positions={positions}
                   departments={departments}
                   canManagePositions={canManagePositions}
+                  photoUploadUrl={actions.photoUploadUrl}
+                  workUploadUrl={actions.workUploadUrl}
+                  workFileUrl={actions.workFileUrl}
                 />
               ) : (
-                <IntakeReviewStep sections={sections} values={values} instances={instances} onEdit={go} />
+                <IntakeReviewStep sections={sections} values={values} instances={instances} onEdit={go} workFileUrl={actions.workFileUrl} />
               )}
             </div>
           </div>

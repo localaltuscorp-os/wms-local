@@ -1,13 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { codeOf } from "../fixtures/source-code";
 import {
   canDeleteBillingEntity,
   emailsWithCapability,
   hasCapability,
-  isMasterAdmin,
   canManageDevices,
 } from "@/lib/security/capabilities";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+
+vi.mock("@/lib/security/capability-grants", () => ({
+  isMasterAdmin: async (email: string | null | undefined) =>
+    email === "rohanchoudhary.altuscorp@gmail.com" || email === "manan@unleashed.in",
+}));
 import {
   allPermissionNodes,
   isPermissionNodeKey,
@@ -50,11 +55,11 @@ describe("deleting an entity is Manan's alone", () => {
     }
   });
 
-  it("being a master admin is not enough", () => {
+  it("being a master admin is not enough", async () => {
     // The brief: "Even if another user has Entity Edit, Admin access, File
     // Manage, or other Billing Master permissions, they must NOT be able to
     // delete an entity." Rohan is the most privileged person who is not Manan.
-    expect(isMasterAdmin(ROHAN)).toBe(true);
+    expect(await isMasterAdmin(ROHAN)).toBe(true);
     expect(canDeleteBillingEntity(ROHAN)).toBe(false);
   });
 
@@ -187,8 +192,13 @@ describe("the permission matrix carries Billing Master", () => {
   it("stays within the catalogue's three levels", () => {
     // A fourth level throws at module load, which is why the files node is a
     // sibling rather than a child.
+    //
+    // SEVEN, not two: the Billing master screens added on the Shreya branch
+    // (Profiles, Customers, Payment Terms, SAC Codes, Product Billing Fields)
+    // are siblings of Billing Master and Billing Files, not children of them.
+    // The count is incidental; the depth check below is what this guards.
     const nodes = allPermissionNodes().filter((n) => n.key.startsWith("admin.masters.billing"));
-    expect(nodes).toHaveLength(2);
+    expect(nodes).toHaveLength(7);
     for (const n of nodes) expect(n.depth).toBe(3);
   });
 

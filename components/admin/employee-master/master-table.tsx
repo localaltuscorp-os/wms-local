@@ -30,6 +30,7 @@ import { EmployeeWorkspace } from "./workspace";
 import { BulkEditDialog } from "./bulk-edit-dialog";
 import { MasterRowActions } from "./row-actions";
 import { ProbationCell, istToday } from "./probation-cell";
+import { formatDate } from "@/lib/format";
 
 /**
  * THE EMPLOYEE MASTER TABLE.
@@ -116,7 +117,7 @@ function ymd(v: string | Date | null): string {
   if (!v) return DASH;
   const d = typeof v === "string" ? new Date(`${v}T00:00:00`) : v;
   if (Number.isNaN(d.getTime())) return DASH;
-  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDate(d);
 }
 
 /**

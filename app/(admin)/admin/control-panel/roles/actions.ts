@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employeeRoles, rolePermissions, roles } from "@/db/schema";
 import { requireAdmin, getSignedInEmployee } from "@/lib/auth/current";
-import { isMasterAdmin } from "@/lib/security/capabilities";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 import { auditAction } from "@/lib/logs/audit";
 import { isPermissionNodeKey } from "@/lib/permissions/catalog";
 import { isDataScope, isPermissionAction } from "@/lib/permissions/vocabulary";
@@ -27,7 +27,7 @@ async function masterAdmin(): Promise<{ ok: true; id: string } | { ok: false; er
   await requireAdmin();
   const me = await getSignedInEmployee();
   if (!me) return { ok: false, error: "Sign in again to change access." };
-  if (!isMasterAdmin(me.email)) {
+  if (!(await isMasterAdmin(me.email))) {
     return { ok: false, error: "Only a master admin can edit roles and permissions." };
   }
   return { ok: true, id: me.id };

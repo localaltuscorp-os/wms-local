@@ -194,7 +194,7 @@ describe("task actions", () => {
   });
 
   it("setTaskPriority emits a `priority_changed` event when priority changes", async () => {
-    queryCall.mockResolvedValueOnce({ id: VALID, priority: "not_imp_not_urgent" });
+    queryCall.mockResolvedValueOnce({ id: VALID, priority: "not_imp_not_urgent", createdById: "me-id", status: "not_started" });
     await setTaskPriority(VALID, "imp_urgent");
     expect(updateCall).toHaveBeenCalledTimes(1);
     expect(insertCall).toHaveBeenCalledTimes(1);
@@ -211,14 +211,14 @@ describe("task actions", () => {
   });
 
   it("setTaskPriority is a no-op (no update, no event) when priority is unchanged", async () => {
-    queryCall.mockResolvedValueOnce({ id: VALID, priority: "imp_urgent" });
+    queryCall.mockResolvedValueOnce({ id: VALID, priority: "imp_urgent", createdById: "me-id", status: "not_started" });
     await setTaskPriority(VALID, "imp_urgent");
     expect(updateCall).not.toHaveBeenCalled();
     expect(insertCall).not.toHaveBeenCalled();
   });
 
   it("reassignDoer emits a `reassigned` event when the doer changes", async () => {
-    queryCall.mockResolvedValueOnce({ id: VALID, doerId: "old-doer" });
+    queryCall.mockResolvedValueOnce({ id: VALID, doerId: "old-doer", initiatorId: "me-id", status: "not_started" });
     await reassignDoer(VALID, OTHER);
     expect(updateCall).toHaveBeenCalledTimes(1);
     expect(insertCall).toHaveBeenCalledTimes(1);

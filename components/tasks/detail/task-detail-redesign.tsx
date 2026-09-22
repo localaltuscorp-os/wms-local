@@ -55,6 +55,8 @@ import {
   TeamMembersCard,
 } from "@/components/tasks/detail/detail-rail";
 import { useElapsedSeconds } from "@/components/tasks/time/use-elapsed";
+import { PlanPlacePanel } from "@/components/project-plan/plan-place-panel";
+import type { PlanBreadcrumb } from "@/lib/queries/project-plan";
 
 type Me = { id: string; name: string; avatarUrl: string | null; department: string | null; isAdmin: boolean };
 
@@ -67,6 +69,16 @@ interface Props {
   clients: string[];
   subjects: string[];
   projectNodes?: { id: string; label: string }[];
+  /**
+   * The project / milestone / result this task is filed under, each named and
+   * numbered (`planBreadcrumbForNode`). Null for a task that is not filed into
+   * a plan, which is most of them.
+   *
+   * IT WAS ALREADY BEING PASSED AND SILENTLY DROPPED. The loader has computed
+   * it since the breadcrumb query was written; this component never declared
+   * the prop, so the answer was fetched on every task open and thrown away.
+   */
+  planCrumb?: PlanBreadcrumb | null;
   statusLabels: Record<TaskStatus, string>;
   timePanel: TaskTimePanelData | null;
   checklist: ChecklistItemView[];
@@ -95,7 +107,7 @@ function Avatar({ name, url, size = 28 }: { name: string | null; url?: string | 
 }
 
 export function TaskDetailRedesign(props: Props) {
-  const { task, me, canEdit, canManageContent, events, clients, subjects, projectNodes, statusLabels, timePanel, checklist, attachments, insight } = props;
+  const { task, me, canEdit, canManageContent, events, clients, subjects, projectNodes, planCrumb, statusLabels, timePanel, checklist, attachments, insight } = props;
   const router = useRouter();
   const [tab, setTab] = React.useState<Tab>("overview");
   const [editing, setEditing] = React.useState(false);
@@ -182,6 +194,12 @@ export function TaskDetailRedesign(props: Props) {
       taskId={task.id}
       live={timePanel?.state.live ?? null}
       baseSeconds={timePanel?.state.rollup.totalActiveSeconds ?? 0}
+      /* The PHASE, not a boolean: idle · running · paused · stopped. Both
+         surfaces branch on it, so neither can invent its own reading of
+         "stopped" — which is how one of them came to show Start Work while the
+         other showed Pause. */
+      phase={timePanel?.state.phase ?? "idle"}
+      stamp={timePanel?.state.lastEventAt ?? null}
     >
     <div className="relative">
       {/* ── CRIMSON HERO BAND ──
@@ -396,6 +414,30 @@ export function TaskDetailRedesign(props: Props) {
                   <p className="text-[13.5px] text-ink-muted">No description.</p>
                 )}
               </section>
+
+              {/* WHERE THIS TASK SITS. Above the fields grid, not inside it:
+                  the grid is this task's own attributes, and the plan address
+                  is three OTHER rows. Only for a task that is filed into a
+                  plan — an unfiled task has no address to show. */}
+              {planCrumb && (
+                <PlanPlacePanel
+                  // NOT LINKED. The plan board filters by project from its own
+                  // local state, not from the URL, so there is no address that
+                  // opens it on this project — and a link that lands on the
+                  // unfiltered board is worse than none.
+                  project={{ ref: planCrumb.projectRef, name: planCrumb.projectName }}
+                  milestone={
+                    planCrumb.milestoneName
+                      ? { ref: planCrumb.milestoneRef, name: planCrumb.milestoneName }
+                      : null
+                  }
+                  result={
+                    planCrumb.resultName
+                      ? { ref: planCrumb.resultRef, name: planCrumb.resultName }
+                      : null
+                  }
+                />
+              )}
 
               <TaskFieldsGrid
                 task={task}
@@ -641,6 +683,9 @@ function SessionHistory({
     endedAt: string | null;
     durationSeconds: number | null;
     live: boolean;
+    /** Cleared by a Restart. Still listed — the history is the audit trail —
+     *  but greyed and struck, and excluded from every total on the screen. */
+    discarded: boolean;
   }[];
   liveStartedAt: string | null;
   byName: string;
@@ -675,8 +720,13 @@ function SessionHistory({
                 <tr
                   key={r.id}
                   className={`border-t border-slate-100 ${
-                    r.live ? "bg-red-50/70 font-semibold text-red-600" : "text-slate-700"
+                    r.live
+                      ? "bg-red-50/70 font-semibold text-red-600"
+                      : r.discarded
+                        ? "text-slate-400 line-through"
+                        : "text-slate-700"
                   }`}
+                  title={r.discarded ? "Cleared by a Restart — not counted in the total" : undefined}
                 >
                   <td className="px-4 py-2 text-[12.5px]">{stampOf(r.startedAt)}</td>
                   <td className="px-4 py-2 text-[12.5px]">

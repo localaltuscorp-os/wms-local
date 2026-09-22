@@ -1,0 +1,208 @@
+/* ============================================================
+   AURA — liquid glass design system
+   v1.0 · single stylesheet · no dependencies
+   Fonts: TeX Gyre Heros (display) + Inter (body)
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* TeX Gyre Heros is free under the GUST Font License. Self-host the woff2 in
+   ./fonts/ (convert from gust.org.pl OTFs); the stack falls back to Helvetica. */
+@font-face{font-family:"TeX Gyre Heros";src:local("TeX Gyre Heros"),local("TeXGyreHeros-Regular"),url("fonts/texgyreheros-regular.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"TeX Gyre Heros";src:local("TeX Gyre Heros Bold"),local("TeXGyreHeros-Bold"),url("fonts/texgyreheros-bold.woff2") format("woff2");font-weight:700;font-display:swap}
+
+/* ── 1. TOKENS ───────────────────────────────────────────── */
+:root{
+  /* ink — high contrast, because the surfaces are transparent */
+  --ink:#0a0f22;
+  --ink-2:#39415f;
+  --ink-3:#565f7d;
+  --on-dark:#eef1fa;
+
+  /* accents */
+  --accent:#d81f12;
+  --accent-warm:#ff6a3d;
+  --accent-2:#164a8f;
+  --info:#4f7cf7;
+  --teal:#5ce0cf;
+  --ok:#2fa36b;
+  --warn:#e8a11a;
+
+  /* ground the glass sits on */
+  --ground:#eef2fb;
+  --blob-1:rgba(120,150,255,.62);
+  --blob-2:rgba(255,150,190,.55);
+  --blob-3:rgba(120,225,225,.50);
+
+  /* material */
+  --glass-fill:linear-gradient(145deg,rgba(255,255,255,.42),rgba(255,255,255,.16));
+  --glass-fill-hover:linear-gradient(145deg,rgba(255,255,255,.58),rgba(255,255,255,.26));
+  --glass-edge:1px solid rgba(255,255,255,.55);
+  --glass-blur:blur(40px) saturate(200%) brightness(1.08);
+  --chrome-fill:linear-gradient(180deg,rgba(255,255,255,.46),rgba(255,255,255,.2));
+  --chrome-blur:blur(44px) saturate(200%);
+
+  --lift:
+    0 1px 0 rgba(255,255,255,.95) inset,
+    0 -1px 0 rgba(255,255,255,.35) inset,
+    0 0 0 .5px rgba(120,150,255,.18),
+    0 12px 32px -12px rgba(22,32,68,.3),
+    0 2px 6px -2px rgba(22,32,68,.14);
+  --lift-hover:
+    0 1px 0 rgba(255,255,255,1) inset,
+    0 -1px 0 rgba(255,255,255,.45) inset,
+    0 0 0 .5px rgba(120,150,255,.3),
+    0 26px 50px -16px rgba(22,32,68,.38),
+    0 3px 10px -3px rgba(22,32,68,.18);
+
+  /* radii — soft, never sharp */
+  --r-pane:20px;
+  --r-control:12px;
+  --r-pill:999px;
+
+  /* spacing */
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:26px; --s-8:32px;
+
+  /* type */
+  --font-display:"TeX Gyre Heros","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --font-body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+
+  --ease:cubic-bezier(.2,.8,.3,1);
+}
+
+/* ── 2. BASE ─────────────────────────────────────────────── */
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:var(--font-body);
+  color:var(--ink);
+  background:var(--ground);
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.display{font-family:var(--font-display);font-weight:700;letter-spacing:-.02em;margin:0}
+h1{font-size:35px;line-height:1.08}
+h2{font-size:13px;letter-spacing:-.005em}
+a{color:var(--accent);text-decoration:none}
+a:hover{color:#8f1109}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}
+
+/* ── 3. THE GROUND ───────────────────────────────────────── */
+/* Glass only works over something worth blurring. Every page gets a field. */
+.field{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.field .blob{position:absolute;border-radius:50%;filter:blur(70px);will-change:transform}
+.field .b1{width:900px;height:620px;left:-12%;top:-24%;background:radial-gradient(circle,var(--blob-1),transparent 68%);animation:drift1 26s ease-in-out infinite}
+.field .b2{width:760px;height:560px;right:-10%;top:-18%;background:radial-gradient(circle,var(--blob-2),transparent 68%);animation:drift2 32s ease-in-out infinite}
+.field .b3{width:980px;height:640px;left:34%;bottom:-30%;background:radial-gradient(circle,var(--blob-3),transparent 68%);animation:drift3 29s ease-in-out infinite}
+@keyframes drift1{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(80px,50px,0) scale(1.12)}}
+@keyframes drift2{0%,100%{transform:translate3d(0,0,0) scale(1.05)}50%{transform:translate3d(-70px,70px,0) scale(.94)}}
+@keyframes drift3{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(-90px,-60px,0) scale(1.1)}}
+@media (prefers-reduced-motion:reduce){.field .blob{animation:none}}
+
+.grain{
+  position:absolute;inset:0;pointer-events:none;opacity:.32;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='160' height='160' filter='url(%23n)' opacity='.5'/></svg>");
+}
+
+/* ── 4. THE MATERIAL ─────────────────────────────────────── */
+.glass{
+  position:relative;isolation:isolate;
+  border-radius:var(--r-pane);
+  background:var(--glass-fill);
+  border:var(--glass-edge);
+  box-shadow:var(--lift);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
+  transition:transform .24s var(--ease),box-shadow .24s,background .24s;
+}
+.glass::before{                       /* specular top edge */
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2;
+  background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,0) 42%);opacity:.8;
+}
+.glass::after{                        /* pointer-tracked sheen (set --mx/--my in JS) */
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;
+  background:radial-gradient(220px 160px at var(--mx,50%) var(--my,0%),rgba(255,255,255,.55),transparent 65%);
+  opacity:0;transition:opacity .3s;
+}
+.glass.interactive{cursor:pointer}
+.glass.interactive:hover{transform:translateY(-3px);background:var(--glass-fill-hover);box-shadow:var(--lift-hover)}
+.glass.interactive:hover::after{opacity:1}
+.glass.interactive:active{transform:translateY(-1px) scale(.996)}
+
+/* chrome: bars and rails are flatter and more transparent than panes */
+.chrome-bar{
+  background:var(--chrome-fill);
+  border-bottom:1px solid rgba(255,255,255,.5);
+  box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 10px 30px -18px rgba(22,32,68,.5);
+  backdrop-filter:var(--chrome-blur);-webkit-backdrop-filter:var(--chrome-blur);
+}
+.chrome-rail{
+  background:linear-gradient(180deg,rgba(255,255,255,.38),rgba(255,255,255,.14));
+  box-shadow:1px 0 0 rgba(255,255,255,.55) inset;
+  backdrop-filter:blur(40px) saturate(190%);-webkit-backdrop-filter:blur(40px) saturate(190%);
+}
+
+/* ── 5. CONTROLS ─────────────────────────────────────────── */
+.btn{
+  padding:9px 16px;border:0;border-radius:var(--r-control);cursor:pointer;
+  font:600 13px var(--font-body);color:#fff;
+  background:linear-gradient(140deg,var(--accent-warm),var(--accent));
+  box-shadow:0 10px 26px -10px rgba(216,31,18,.9);
+  transition:filter .16s,transform .16s;
+}
+.btn:hover{filter:brightness(1.06)}
+.btn:active{transform:translateY(1px)}
+.btn-quiet{
+  padding:9px 16px;border-radius:var(--r-control);cursor:pointer;
+  font:600 13px var(--font-body);color:var(--ink);
+  background:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.6);
+  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
+}
+.icon-btn{width:36px;height:36px;display:grid;place-items:center;padding:0;border-radius:var(--r-control);color:var(--ink);cursor:pointer}
+.nav-item{
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:9px 11px;border:0;border-radius:var(--r-control);background:none;
+  font:600 13.5px var(--font-body);color:var(--ink);text-align:left;cursor:pointer;
+  transition:background .16s;
+}
+.nav-item:hover{background:rgba(255,255,255,.38)}
+.nav-item[aria-current]{background:rgba(255,255,255,.6);box-shadow:0 6px 16px -10px rgba(22,32,68,.5)}
+.searchbox{
+  display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:var(--r-control);
+  background:rgba(255,255,255,.34);border:1px solid rgba(255,255,255,.5);
+  font:500 12.5px var(--font-body);color:var(--ink-2);cursor:text;
+  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
+}
+.kbd{font:600 10.5px var(--font-display);color:var(--ink-2);border:1px solid rgba(10,15,34,.22);border-radius:6px;padding:1px 5px}
+
+/* ── 6. STATUS ───────────────────────────────────────────── */
+.pill{border-radius:var(--r-pill);padding:3px 10px;font:700 11px var(--font-display)}
+.pill.red{background:rgba(216,31,18,.16);color:#8f1109}
+.pill.blue{background:rgba(22,74,143,.16);color:#0f3569}
+.state{border-radius:var(--r-pill);padding:3px 9px;font:700 11px var(--font-display);white-space:nowrap}
+.state.ok{background:rgba(47,163,107,.18);color:#1c6b45}
+.state.warn{background:rgba(232,161,26,.22);color:#7a5305}
+.state.hot{background:rgba(216,31,18,.16);color:#8f1109}
+.state.idle{background:rgba(10,15,34,.1);color:var(--ink-2)}
+
+/* ── 7. DATA ─────────────────────────────────────────────── */
+table{width:100%;border-collapse:collapse}
+th{
+  text-align:left;font:700 10.5px var(--font-display);letter-spacing:.09em;color:var(--ink-2);
+  padding:0 12px 9px 0;border-bottom:1px solid rgba(10,15,34,.16);
+}
+td{padding:11px 12px 11px 0;font-size:13px;border-bottom:1px solid rgba(10,15,34,.08);vertical-align:middle}
+tbody tr{transition:background .16s}
+tbody tr:hover{background:rgba(255,255,255,.4)}
+tbody tr:last-child td{border-bottom:0}
+
+.meter{height:8px;border-radius:var(--r-pill);background:rgba(10,15,34,.16);overflow:hidden}
+.meter>i{display:block;height:100%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--info),var(--teal))}
+
+.avatar{
+  position:relative;width:36px;height:36px;flex:none;border-radius:50%;display:grid;place-items:center;
+  background:linear-gradient(140deg,#7d8ec4,#3d4a7d);border:2px solid rgba(255,255,255,.85);
+  box-shadow:0 6px 16px -8px rgba(22,32,68,.7);
+  font:700 12.5px var(--font-display);color:#fff;
+}
+.avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.avatar .status{position:absolute;right:-1px;bottom:-1px;width:11px;height:11px;border-radius:50%;background:var(--ok);border:2px solid #fff}

@@ -5,7 +5,7 @@ import { candidateIntake, employees } from "@/db/schema";
 import { hrFormSubmissions } from "./schema";
 import { hrSectionLabel } from "./registry";
 import { canViewHrSubmission } from "./access";
-import { formatDate } from "@/lib/format";
+import { formatDateHr } from "@/lib/format";
 import type { FormPdfInput } from "./pdf";
 
 /**
@@ -87,7 +87,8 @@ export async function loadSubmissionRow(id: string): Promise<LoadedSubmission | 
     // guess: a submission whose subject row was deleted still has to render.
     employeeName: row.employeeName ?? row.candidateName ?? "(unknown)",
     employeeEmail: row.employeeEmail ?? row.candidateEmail ?? null,
-    submittedOn: row.submittedAt ? formatDate(row.submittedAt) : formatDate(row.updatedAt),
+    // DD-MMM-YYYY, like every other date the HR module shows.
+    submittedOn: row.submittedAt ? formatDateHr(row.submittedAt) : formatDateHr(row.updatedAt),
     status: row.status,
     responses: row.responses ?? [],
   };

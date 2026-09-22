@@ -60,7 +60,8 @@ export function nextStatusesFor(
           if (peer !== current) out.push(peer);
         }
       }
-      if (role === "doer") out.push("done");
+      // The doer's two terminals: finished it, or is not going to.
+      if (role === "doer") out.push("done", "abandoned");
       if (role === "initiator") {
         out.push("cancelled", "transferred");
       }
@@ -84,6 +85,15 @@ export function nextStatusesFor(
       // Initiator can also cancel or transfer if work was abandoned.
       if (role === "doer") return [...PENDING];
       if (role === "initiator") return ["cancelled", "transferred"];
+      return [];
+    }
+
+    case "abandoned": {
+      // NOT a dead end, unlike the verdicts below. Abandoning is the doer's own
+      // report, so the doer can take the work back up, and the initiator — who
+      // asked for it — can put it back in the lane rather than having to raise
+      // a new task to say "no, do this".
+      if (role === "doer" || role === "initiator") return [...PENDING];
       return [];
     }
 

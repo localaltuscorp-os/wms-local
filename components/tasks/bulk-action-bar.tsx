@@ -89,6 +89,7 @@ export function BulkActionBar({
   onClear,
   extras,
   showArchive = true,
+  showDelete = true,
   showTaskActions = true,
   onDeleteOverride,
   count: countOverride,
@@ -104,9 +105,22 @@ export function BulkActionBar({
    *  Plan puts View / Edit / Duplicate / Owner here so its selection keeps ONE
    *  bar instead of growing a second one below this. */
   extras?: React.ReactNode;
-  /** Project Plan hides Archive: its Delete already archives the row AND the
-   *  task (`deletePlanNode`), so both buttons would do the same thing. */
+  /**
+   * Draw the bar's own Archive button. Project Plan turns it off and supplies
+   * its own in `extras`: this one archives TASKS (`bulkArchive`), and a plan
+   * row is not a task — only some of them have one, and archiving a branch has
+   * to take its children with it (`deletePlanNode`).
+   */
   showArchive?: boolean;
+  /**
+   * Draw the bar's Delete button. Default true.
+   *
+   * Project Plan gates it on `isAdmin` rather than on its own "can manage"
+   * flag, because its Delete is now a PERMANENT purge and `purgePlanNode`
+   * refuses anyone who is not an administrator. A button that is only ever
+   * refused is worse than no button.
+   */
+  showDelete?: boolean;
   /**
    * Draw the six task-side dropdowns (Doer Status, Priority, Reassign, Subject,
    * Client, Manager Status). Default true — the WMS list is made of tasks.
@@ -390,11 +404,12 @@ export function BulkActionBar({
             Archive
           </button>
           )}
+          {showDelete && (
           <button
             type="button"
             disabled={pending}
             onClick={() => {
-              // Host-owned delete (Project Plan archives rows + tasks together).
+              // Host-owned delete — Project Plan purges the branch permanently.
               if (onDeleteOverride) {
                 onDeleteOverride();
                 return;
@@ -413,6 +428,7 @@ export function BulkActionBar({
             <Trash2 size={14} strokeWidth={2.2} />
             Delete
           </button>
+          )}
         </>
       )}
 

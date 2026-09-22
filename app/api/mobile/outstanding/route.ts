@@ -16,6 +16,7 @@ export function OPTIONS() {
 const NO_FILTERS: OutstandingFilters = {
   employees: [],
   entities: [],
+  clients: [],
   months: [],
   years: [],
   cycles: [],

@@ -382,7 +382,7 @@ function EntryDialog({
   }
 
   function num(s: string): number {
-    const n = Number(s.replace(/[₹,\s]/g, ""));
+    const n = Number(s.replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, ""));
     return Number.isFinite(n) ? n : 0;
   }
 
@@ -468,7 +468,7 @@ function EntryDialog({
               </Field>
             </div>
 
-            <Field label="Amount (₹)">
+            <Field label="Amount (Rs.)">
               <Input value={amount} onChange={setAmount} placeholder="0" numeric />
             </Field>
 
@@ -477,7 +477,7 @@ function EntryDialog({
                 separate facts. */}
             <div className="grid gap-3.5 sm:grid-cols-2">
               <AmountWithFlag
-                label="Approved amount (₹)"
+                label="Approved amount (Rs.)"
                 flagLabel="Approved"
                 value={approvedAmt}
                 onValue={setApprovedAmt}
@@ -485,7 +485,7 @@ function EntryDialog({
                 onChecked={setApproved}
               />
               <AmountWithFlag
-                label="Paid amount (₹)"
+                label="Paid amount (Rs.)"
                 flagLabel="Paid"
                 value={paidAmt}
                 onValue={setPaidAmt}

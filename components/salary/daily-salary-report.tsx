@@ -671,7 +671,7 @@ function DayTable({
                   </td>
                   <td className={`${TD} text-right font-black tabular-nums text-ink-strong`}>
                     {/* `earned` is null on a day the month has not reached. That is
-                        "nothing yet", not "₹0", and printing a zero on next
+                        "nothing yet", not "Rs. 0", and printing a zero on next
                         Tuesday's row is a different and wrong statement. */}
                     {hasMoney && d.earned != null ? (
                       inr(d.earned)

@@ -5,6 +5,15 @@ import { useRouter } from "next/navigation";
 import { CalendarDays, User, Loader2, CircleDashed } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { USER_TASK_STATUSES, type TaskStatus } from "@/db/enums";
+import {
+  INITIATOR_COLUMN_LABEL,
+  INITIATOR_COLUMN_ORDER,
+  INITIATOR_COLUMN_TONE,
+  NO_VERDICT_COL,
+  initiatorColumnFor,
+  type InitiatorColId,
+  type StatusAxis,
+} from "@/lib/status/axes";
 import { STATUS_LABELS_FALLBACK } from "@/lib/format";
 import { KIND_LABEL, isExecutable, refFor, levelTextStyle, formatPlanDate } from "@/lib/project-plan/levels";
 import {
@@ -47,24 +56,49 @@ import type { PlanRow } from "./plan-board";
  */
 
 const UNSCHEDULED = "__unscheduled__" as const;
-type ColId = TaskStatus | typeof UNSCHEDULED;
+type ColId = TaskStatus | typeof UNSCHEDULED | InitiatorColId;
 
-const COLUMNS: ColId[] = [UNSCHEDULED, ...USER_TASK_STATUSES];
+/**
+ * THE BOARD HAS TWO AXES (2026-09-14), the same pair Tasks and Goals have —
+ * see lib/status/axes.ts. The toggle above the board picks which question the
+ * columns answer:
+ *
+ *   doer       where is this work?      Not Read … Done · Abandoned
+ *   initiator  what do we do about it?  No Verdict · Approved · Not Approved ·
+ *                                       On Hold · Archived
+ *
+ * "Not scheduled" belongs to the DOER axis only. It means "this row is not a
+ * WMS task yet", which is a fact about the work, not a ruling on it — an
+ * unscheduled row can perfectly well be Approved.
+ */
+const DOER_COLUMNS: ColId[] = [UNSCHEDULED, ...USER_TASK_STATUSES];
+const VERDICT_COLUMNS: ColId[] = [...INITIATOR_COLUMN_ORDER];
+
+function columnsFor(axis: StatusAxis): ColId[] {
+  return axis === "doer" ? DOER_COLUMNS : VERDICT_COLUMNS;
+}
 
 const ACCENT = "#E10600";
 const ACCENT_SOFT = "#F8C8C7";
 
 /** Column tint — done reads green, on-hold amber, the rest neutral. */
 function columnTone(col: ColId): string {
-  if (col === "done") return "#16A34A";
-  if (col === "on_hold") return "#F59E0B";
-  if (col === "need_info") return "#7C3AED";
   if (col === UNSCHEDULED) return "#94A3B8";
+  if (col in INITIATOR_COLUMN_TONE) {
+    return INITIATOR_COLUMN_TONE[col as InitiatorColId];
+  }
+  if (col === "done") return "#16A34A";
+  if (col === "need_info") return "#7C3AED";
+  if (col === "abandoned") return "#78716C";
   return "#334155";
 }
 
 function columnLabel(col: ColId): string {
-  return col === UNSCHEDULED ? "Not scheduled" : STATUS_LABELS_FALLBACK[col] ?? col;
+  if (col === UNSCHEDULED) return "Not scheduled";
+  if (col in INITIATOR_COLUMN_LABEL) {
+    return INITIATOR_COLUMN_LABEL[col as InitiatorColId];
+  }
+  return STATUS_LABELS_FALLBACK[col as TaskStatus] ?? col;
 }
 
 /** A card: one executable plan row, plus the context the table gives it. */
@@ -85,7 +119,20 @@ export interface KanbanCard {
  * the progress report underneath, and the card keeps its place in the flow with
  * the verdict shown as a badge.
  */
-function columnFor(node: PlanRow): ColId {
+function columnFor(node: PlanRow, axis: StatusAxis): ColId {
+  if (axis === "initiator") {
+    // The verdict, and only the verdict. `is_archived` outranks it, exactly as
+    // it does everywhere else — see effectiveInitiatorStatus.
+    return initiatorColumnFor({
+      approvalStatus: node.approvalStatus,
+      // ALWAYS false here, and that is not an oversight: the plan query filters
+      // `is_archived = false` (lib/queries/project-plan.ts), so an archived node
+      // never reaches this board. The Archived column therefore renders empty
+      // and exists as a DROP TARGET — dropping there runs the same archive path
+      // the table's status picker has always run.
+      archived: false,
+    });
+  }
   if (isExecutable(node.kind) && !node.task) return UNSCHEDULED;
   // `workingStatusOf` is the one place that knows a task's status is the record
   // on an executable row and the node's own column on a container.
@@ -96,26 +143,33 @@ export function PlanKanban({
   cards,
   me,
   downlineSet,
+  axis = "doer",
 }: {
   cards: KanbanCard[];
   me: { id: string; isAdmin: boolean };
   downlineSet: ReadonlySet<string>;
+  /** Which question the columns answer. See columnsFor(). */
+  axis?: StatusAxis;
 }) {
   const router = useRouter();
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [overCol, setOverCol] = React.useState<ColId | null>(null);
   const [busyId, setBusyId] = React.useState<string | null>(null);
 
+  const COLUMNS = React.useMemo(() => columnsFor(axis), [axis]);
+
   const byColumn = React.useMemo(() => {
     const m = new Map<ColId, KanbanCard[]>();
     for (const col of COLUMNS) m.set(col, []);
+    // Where a card goes when its own column is not on this board — a deprecated
+    // status, say. Never nowhere: a card that vanishes is worse than a card in
+    // the wrong place, because nobody goes looking for it.
+    const fallback: ColId = axis === "doer" ? "not_started" : NO_VERDICT_COL;
     for (const c of cards) {
-      // A status the board does not show (a deprecated one, say) must not make
-      // its card vanish — park it in the first working column instead.
-      (m.get(columnFor(c.node)) ?? m.get("not_started")!).push(c);
+      (m.get(columnFor(c.node, axis)) ?? m.get(fallback)!).push(c);
     }
     return m;
-  }, [cards]);
+  }, [cards, axis, COLUMNS]);
 
   function onDrop(col: ColId) {
     const id = dragId;
@@ -134,7 +188,15 @@ export function PlanKanban({
       });
       return;
     }
-    if (columnFor(node) === col) return;
+    if (col === NO_VERDICT_COL) {
+      // Un-deciding is not a decision, and there is no value to write for it.
+      fireToast({
+        message: "There is no “no verdict” to set — pick Approved, Not Approved, On Hold or Archived.",
+        type: "info",
+      });
+      return;
+    }
+    if (columnFor(node, axis) === col) return;
 
     // The picker's own rule, run before the request so the refusal reads the
     // same here as it does in the table. The server re-runs it regardless.
@@ -153,9 +215,14 @@ export function PlanKanban({
         // last render, and that token is what refuses a write over someone
         // else's change. Everything else — containers, and executable rows not
         // in WMS yet — goes through setPlanNodeStatus.
-        const res = isExecutable(node.kind) && node.task
-          ? await setTaskStatus(node.task.id, col as TaskStatus, node.task.updatedAt)
-          : await setPlanNodeStatus({ id: node.id, status: col });
+        // On the INITIATOR axis every column is a ruling on the NODE, never a
+        // progress report on its task — so it always goes through
+        // setPlanNodeStatus, which owns the verdict column and the archive
+        // cascade. Only the doer axis has the shared-task shortcut.
+        const res =
+          axis === "doer" && isExecutable(node.kind) && node.task
+            ? await setTaskStatus(node.task.id, col as TaskStatus, node.task.updatedAt)
+            : await setPlanNodeStatus({ id: node.id, status: col });
         setBusyId(null);
         if (!res.ok) {
           const r = res as { error?: string; message?: string };
@@ -249,13 +316,30 @@ export function PlanKanban({
                     ? node.approvalStatus
                     : null;
                   const actor = planActorFor(node, me, downlineSet);
-                  // Unscheduled executable rows have nothing to set a status
-                  // ON; a row under a verdict is not in the working flow; and a
-                  // viewer with no say over this row cannot move it anywhere.
+                  // WHAT MAY BE DRAGGED, per axis.
+                  //
+                  // Doer: unscheduled executable rows have nothing to set a
+                  // status ON; a row under a verdict is not in the working flow
+                  // (the ruling outranks the report); and a viewer with no say
+                  // over this row cannot move it anywhere.
+                  //
+                  // Initiator: none of those apply. A row's verdict is exactly
+                  // what this board changes, so carrying one cannot disqualify
+                  // it — and the No Verdict column is the queue an initiator is
+                  // here to clear, so its cards MUST be draggable. The only
+                  // question is authority, asked once against any verdict since
+                  // the rule does not vary between the four.
                   const draggable =
-                    !verdict &&
-                    (isExecutable(node.kind) ? Boolean(node.task) : true) &&
-                    canSetPlanStatus(actor, columnFor(node) === UNSCHEDULED ? "not_started" : columnFor(node)).ok;
+                    axis === "initiator"
+                      ? canSetPlanStatus(actor, "approved").ok
+                      : !verdict &&
+                        (isExecutable(node.kind) ? Boolean(node.task) : true) &&
+                        canSetPlanStatus(
+                          actor,
+                          columnFor(node, axis) === UNSCHEDULED
+                            ? "not_started"
+                            : columnFor(node, axis),
+                        ).ok;
                   return (
                     <article
                       key={c.node.id}

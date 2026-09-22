@@ -1,4 +1,4 @@
-import { requireHrStaff } from "@/lib/hr/access";
+import { isHrStaff } from "@/lib/hr/access";
 import { requireHrIntake } from "@/lib/hr/intake-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { listCandidateIntakes } from "@/app/(app)/hr/candidate-actions";
@@ -53,6 +53,11 @@ export default async function EvaluationPage({
         candidates={candidates}
         role={role}
         isSuperAdmin={superAdmin}
+        // Merging writes to TWO candidate records and is `requireHrStaff` on the
+        // server; this page admits narrow intake grantees too (requireHrIntake),
+        // so the button is hidden for them. They still get the banner and the
+        // "View form" link — seeing that a form has started is not a write.
+        canMerge={await isHrStaff(me)}
         fixedCandidateId={candidate || undefined}
       />
     </div>

@@ -1,6 +1,8 @@
 import { getCurrentEmployee, getSignedInEmployee } from "@/lib/auth/current";
 import { getNavCounts } from "@/lib/queries/nav-counts";
-import { isMasterAdmin } from "@/lib/security/capabilities";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
+import { mayUnlockAccounts } from "@/lib/auth/security-roles";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { UserMenu } from "./user-menu";
 
 export async function UserMenuServer({ variant }: { variant?: "rail" } = {}) {
@@ -14,7 +16,15 @@ export async function UserMenuServer({ variant }: { variant?: "rail" } = {}) {
   // (A privileged account cannot be delegated at all, so in practice this
   // branch is unreachable — but the menu is the wrong place to rely on that.)
   const real = await getSignedInEmployee();
-  const masterAdmin = isMasterAdmin(real?.email);
+  // `await`: master-admin became a GRANT read from the database upstream
+  // (capability-grants), not a list in code.
+  const masterAdmin = await isMasterAdmin(real?.email);
+  // Same rule for the lockout screen: releasing a lock is authority that must
+  // not be borrowed through a delegated session. `.catch` because a menu is not
+  // worth failing the page over — the page itself re-checks the role.
+  const canUnlock = real
+    ? await mayUnlockAccounts(real).catch(() => false)
+    : false;
   // Inbox + Archived now live inside this menu, so it carries their counts —
   // the unread badge that used to sit on the nav pill moves here (plus a dot
   // on the avatar). Task totals are a shared cache hit; only the per-user
@@ -29,7 +39,9 @@ export async function UserMenuServer({ variant }: { variant?: "rail" } = {}) {
       name={me.name}
       email={me.email}
       isAdmin={me.isAdmin}
+      isSuperAdmin={real ? isSuperAdmin(real.email) : false}
       isMasterAdmin={masterAdmin}
+      canUnlockAccounts={canUnlock}
       avatarUrl={me.avatarUrl}
       inboxUnread={inboxUnread}
       archivedTasks={archivedTasks}

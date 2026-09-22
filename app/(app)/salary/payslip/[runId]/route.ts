@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format";
 import { requireUser } from "@/lib/auth/current";
 import { getRun } from "@/lib/queries/salary";
 import { monthLabel } from "@/lib/salary/period";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /salary/payslip/[runId]
@@ -40,7 +41,7 @@ const LOGO_PATH = path.join(process.cwd(), "public", "logo.png");
 const MARK_PATH = path.join(process.cwd(), "public", "logo-mark.png");
 
 const inr = (n: number) =>
-  "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  "Rs." + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 // ── Number → Indian-system words (for the net-payable amount) ──────────────
 const ONES = [
@@ -97,6 +98,12 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ runId: string }> },
 ): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   let me;
   try {
     me = await requireUser();

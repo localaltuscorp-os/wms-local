@@ -10,6 +10,7 @@ import { ScoreBadge } from "@/components/ambassadors/score-badge";
 import { inr, inrCompact } from "@/lib/ambassadors/format";
 import type { AmbassadorListRow } from "@/lib/queries/ambassadors";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 type SortKey = "name" | "score" | "referrals" | "revenue" | "commission";
 
@@ -45,8 +46,8 @@ function StatusBadge({ status }: { status: string }) {
 
 export function DirectoryTable({ rows }: { rows: AmbassadorListRow[] }) {
   const [q, setQ] = React.useState("");
-  const [tier, setTier] = React.useState<string>("");
-  const [status, setStatus] = React.useState<string>("");
+  const [tier, setTier] = React.useState<string[]>([]);
+  const [status, setStatus] = React.useState<string[]>([]);
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "score",
     dir: "desc",
@@ -55,8 +56,8 @@ export function DirectoryTable({ rows }: { rows: AmbassadorListRow[] }) {
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     let out = rows.filter((r) => {
-      if (tier && (r.tier ?? "silver") !== tier) return false;
-      if (status && r.status !== status) return false;
+      if (tier.length > 0 && !tier.includes(r.tier ?? "silver")) return false;
+      if (status.length > 0 && !status.includes(r.status)) return false;
       if (needle) {
         const hay = [r.name, r.company, r.ownerName, r.email].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(needle)) return false;
@@ -88,11 +89,11 @@ export function DirectoryTable({ rows }: { rows: AmbassadorListRow[] }) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" }));
   }
 
-  const hasFilters = q || tier || status;
+  const hasFilters = q || tier.length > 0 || status.length > 0;
   function clearFilters() {
     setQ("");
-    setTier("");
-    setStatus("");
+    setTier([]);
+    setStatus([]);
   }
 
   return (
@@ -110,22 +111,22 @@ export function DirectoryTable({ rows }: { rows: AmbassadorListRow[] }) {
           />
         </div>
         </CollapsibleSearch>
-        <select className={CHIP} value={tier} onChange={(e) => setTier(e.target.value)} aria-label="Filter by tier">
-          <option value="">All Tiers</option>
-          {TIERS.map((t) => (
-            <option key={t} value={t} className="capitalize">
-              {t[0]!.toUpperCase() + t.slice(1)}
-            </option>
-          ))}
-        </select>
-        <select className={CHIP} value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
-          <option value="">All Statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s[0]!.toUpperCase() + s.slice(1)}
-            </option>
-          ))}
-        </select>
+        <MultiFilter
+          className={CHIP}
+          values={tier}
+          onChange={setTier}
+          options={TIERS.map((t) => ({ value: t, label: t[0]!.toUpperCase() + t.slice(1) }))}
+          allLabel="All Tiers"
+          aria-label="Filter by tier"
+        />
+        <MultiFilter
+          className={CHIP}
+          values={status}
+          onChange={setStatus}
+          options={STATUSES.map((v) => ({ value: v, label: v[0]!.toUpperCase() + v.slice(1) }))}
+          allLabel="All Statuses"
+          aria-label="Filter by status"
+        />
         {hasFilters && (
           <button
             type="button"
@@ -284,7 +285,7 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
       </p>
       {!hasFilters && (
         <Link
-          href={"/ambassadors/new" as Route}
+          href={"/billing/ambassadors/new" as Route}
           className="mt-4 inline-flex items-center gap-2 rounded-xl py-2.5 px-5 text-[14.5px] font-bold text-white transition-transform active:scale-[0.99]"
           style={{
             background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",

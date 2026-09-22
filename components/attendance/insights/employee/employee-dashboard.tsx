@@ -35,7 +35,7 @@ import { CardGrid } from "@/components/layout/card-grid";
  * component: it composes the client KPI strip / gauge / sparkline as children.
  */
 
-const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+const inr = (n: number) => `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
 
 const CARD_SHADOW =
   "inset 0 0 0 1px var(--color-hairline), 0 6px 24px -18px rgba(15,23,42,0.25)";
@@ -77,7 +77,7 @@ export function EmployeeAttendanceDashboard({
         </div>
       </div>
 
-      {/* Rolling scorecard (week / month / last-month, with ₹) */}
+      {/* Rolling scorecard (week / month / last-month, with Rs.) */}
       <AttendanceKpiStrip data={data.periods} />
       <SelfView
         data={data.periods}
@@ -256,7 +256,7 @@ function PersonalKpiCards({ data }: { data: EmployeeAttendanceAnalytics }) {
     {
       icon: <IndianRupee size={16} strokeWidth={2.4} />,
       label: "Salary impact",
-      value: month.salaryReduced > 0 ? inr(month.salaryReduced) : "₹0",
+      value: month.salaryReduced > 0 ? inr(month.salaryReduced) : "Rs. 0",
       sub: "this month",
       tone: month.salaryReduced > 0 ? RED : GREEN,
       warn: month.salaryReduced > 0,

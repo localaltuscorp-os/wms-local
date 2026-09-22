@@ -1,6 +1,9 @@
 import { DashboardHeader } from "@/components/layout/header";
 import { FilterBar } from "@/components/layout/filter-bar";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
+import { InitiatorKanbanBoard } from "@/components/tasks/initiator-kanban-board";
+import { KanbanAxisToggle } from "@/components/tasks/kanban-axis-toggle";
+import { isStatusAxis, type StatusAxis } from "@/lib/status/axes";
 import { listBoardTasks, listDistinctSubjects } from "@/lib/queries/tasks";
 import { listEmployeeOptions } from "@/lib/queries/employees";
 import { listActiveClientNames } from "@/lib/queries/clients";
@@ -13,10 +16,10 @@ import {
   resolveAdminColumnOrder,
   USER_COLUMN_ORDER,
 } from "@/lib/kanban-columns";
+import { defaultScopeId, opensOnEveryone } from "@/lib/auth/default-scope";
 import { TASK_STATUSES, isDeprecatedStatus } from "@/db/enums";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import type { Route } from "next";
 
 export const dynamic = "force-dynamic";
@@ -27,12 +30,27 @@ interface PageProps {
 
 export default async function KanbanPage({ searchParams }: PageProps) {
   const me = await requireUser();
-  // Kanban is an admin-only board — doers work from the list / My Day. A doer
-  // who lands here by typing the URL is sent to their task list.
-  if (!me.isAdmin) redirect("/tasks" as Route);
 
+  // THE ADMIN-ONLY GATE IS GONE (Manan, 2026-09-14: "every user should be able
+  // to see his kanban view"). It used to `redirect("/tasks")` for anyone who
+  // was not an admin, on the reasoning that doers work from the list.
+  //
+  // What replaces it is a SCOPE, not a door: a non-admin lands on their own
+  // board. `parseTaskFilters` already resolves `assigneeMode`, so the narrowing
+  // is done the same way the list view does it — by defaulting the doer filter
+  // to themselves when they have not asked for someone else — rather than by a
+  // second, board-only rule that could disagree with the list about who may see
+  // what. Admins keep the everyone view they had.
   const sp = await searchParams;
-  const filters = parseTaskFilters(sp, /*archived*/ false, {});
+  /* Was `{}` — every viewer's board opened on the WHOLE COMPANY, including a
+     team member who can only see their own rows everywhere else. The board is
+     the task list in another shape; it defaults the same way now. */
+  const filters = parseTaskFilters(sp, /*archived*/ false, {
+    defaultDoerId: defaultScopeId(me),
+  });
+
+  const axisParam = typeof sp.axis === "string" ? sp.axis : undefined;
+  const axis: StatusAxis = isStatusAxis(axisParam) ? axisParam : "doer";
 
   // Kanban is admin-only, so the board shows everyone's goals unless the
   // assignee filter narrows the scope. They're injected as badged, link-out
@@ -85,7 +103,8 @@ export default async function KanbanPage({ searchParams }: PageProps) {
         subjects={subjects}
         statusOptions={statusOptions}
         clients={clients}
-        me={{ id: me.id, isAdmin: me.isAdmin }}
+        me={{ id: me.id, isAdmin: me.isAdmin, isSuperAdmin: opensOnEveryone(me) }}
+        offersScopeChoice
         assigneeMode={filters.assigneeMode}
         initial={{
           start:  isoDay(filters.startDate),
@@ -141,7 +160,10 @@ export default async function KanbanPage({ searchParams }: PageProps) {
               left as-is it would have been a floating button over an empty
               header, and `absolute` inside a row with nothing else in it has no
               height to be centred against. */}
-          <header className="wg-rise relative mb-4 flex items-center justify-end">
+          {/* The axis switch sits with the view links, because that is what it
+              is: a different view of the same cards, not a filter on them. */}
+          <header className="wg-rise relative mb-4 flex items-center justify-between gap-3">
+            <KanbanAxisToggle axis={axis} />
             <Link
               href={"/tasks" as Route}
               className="wg-btn inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-4 h-9 text-[13.5px] font-bold text-ink-soft hover:text-ink-strong hover:border-hairline-strong transition-colors"
@@ -151,14 +173,40 @@ export default async function KanbanPage({ searchParams }: PageProps) {
             </Link>
           </header>
           <div className="relative">
-            <KanbanBoard
-              tasks={tasks}
-              weeklyGoals={weeklyGoals}
-              labels={labels}
-              tones={tones}
-              isAdmin={me.isAdmin}
-              columnOrder={columnOrder}
-            />
+            {axis === "doer" ? (
+              <KanbanBoard
+                tasks={tasks}
+                weeklyGoals={weeklyGoals}
+                labels={labels}
+                tones={tones}
+                isAdmin={me.isAdmin}
+                columnOrder={columnOrder}
+              />
+            ) : (
+              /* The SAME `tasks`, re-columned. Weekly goals are deliberately not
+                 injected here: they are link-out cards with no initiator verdict
+                 of their own, so they would sit permanently in No Verdict and
+                 make that column read as a backlog nobody can clear. */
+              <InitiatorKanbanBoard
+                me={{ id: me.id, isAdmin: me.isAdmin }}
+                cards={tasks.map((t) => ({
+                  id: t.id,
+                  taskNo: t.taskNo,
+                  title: t.title,
+                  description: t.description,
+                  client: t.client,
+                  subject: t.subject,
+                  status: t.status,
+                  approvalStatus: t.approvalStatus,
+                  archived: t.archived,
+                  dueAt: t.dueAt,
+                  doerId: t.doerId,
+                  doerName: t.doerName ?? "Unassigned",
+                  initiatorId: t.initiatorId,
+                  updatedAt: t.updatedAt,
+                }))}
+              />
+            )}
           </div>
         </section>
       </main>

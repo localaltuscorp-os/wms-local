@@ -203,6 +203,9 @@ const APPROVAL_VERDICTS = new Set<TaskStatus>([
   "not_approved",
   "cancelled",
   "transferred",
+  // On Hold is also a ruling now (0231); the chip writes both columns, and a
+  // hold set from either place must match the On Hold filter.
+  "on_hold",
 ]);
 
 function statusFilterCondition(statuses: TaskStatus[]) {
@@ -637,6 +640,8 @@ export interface BoardTask {
   priority: (typeof TASK_PRIORITIES)[number];
   doerId: string;
   doerName: string | null;
+  approvalStatus: string | null;
+  initiatorId: string;
   archived: boolean;
   dueAt: Date;
   updatedAt: Date;
@@ -712,6 +717,8 @@ async function listBoardTasksUncached(filters?: TaskListFilters): Promise<BoardT
       status: tasks.status,
       priority: tasks.priority,
       doerId: tasks.doerId,
+      approvalStatus: tasks.approvalStatus,
+      initiatorId: tasks.initiatorId,
       // Effective due (revised ?? original) so the board flags overdue from it.
       dueAt: effectiveDueAtSql(),
       updatedAt: tasks.updatedAt,
@@ -773,6 +780,8 @@ async function listAgendaTasksUncached(employeeId: string): Promise<BoardTask[]>
       status: tasks.status,
       priority: tasks.priority,
       doerId: tasks.doerId,
+      approvalStatus: tasks.approvalStatus,
+      initiatorId: tasks.initiatorId,
       // Effective due (revised ?? original) so the agenda sorts + flags by it.
       dueAt: effectiveDueAtSql(),
       updatedAt: tasks.updatedAt,
@@ -817,7 +826,7 @@ export interface TaskExportRow {
   archived: boolean;
   // Tier-3 (2026-05-20) additions — surfaced for XLSX/PDF exports.
   tags: string[] | null;
-  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | null;
+  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | "on_hold" | "archived" | null;
   revisedTargetDate: Date | null;
 }
 
@@ -985,7 +994,7 @@ export type TaskDetail = {
   updatedAt: Date;
   // Tier-3 (2026-05-20) additions
   tags: string[] | null;
-  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | null;
+  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | "on_hold" | "archived" | null;
   // Two-stage approval (mig 0185): which level, if any, this task is signed off at.
   approvalLevel: "none" | "manager" | "admin";
   revisedTargetDate: Date | null;

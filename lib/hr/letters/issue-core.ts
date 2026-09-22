@@ -12,7 +12,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { documentInstances, documentSignatures, employees, type Employee } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { canIssueLetters, LETTER_ISSUE_REFUSAL } from "./issue-access";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { getEntity } from "@/lib/hr/entities";
@@ -27,9 +27,15 @@ type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 const UUID = z.string().uuid();
 const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-function isAdmin(me: Employee): boolean {
-  return me.isAdmin || isSuperAdmin(me.email);
-}
+/*
+ * THE ADMIN TEST MOVED to lib/hr/letters/issue-access.ts (`canIssueLetters`).
+ * It had three copies — here, on the letter page, and in the email-pdf route —
+ * and all three asked "is this person an ADMIN?", which is not the question.
+ * Sending an appointment letter and managing every employee in the application
+ * were the same bit, so an HR person could only be given the first by being
+ * given the second. One definition now, and it admits the narrow
+ * `hr.letters.issue` grant.
+ */
 
 /** Agreements sign as 'agreement'; everything else signs as a 'letter'. */
 function docKindForCategory(category: string): DocKind {
@@ -53,6 +59,8 @@ const IssueSchema = z.object({
    *  proprietor's block, "hr" = the HR desk's). Omitted → the template's own
    *  rule. Threaded so the issued PDF carries the sign-off HR saw on screen. */
   signatory: z.enum(["director", "hr"]).optional(),
+  /** Shrink the letter step by step until it fits one A4 page (lib/hr/letters/fit). */
+  fitOnePage: z.boolean().optional(),
 });
 
 export type IssueLetterInput = z.infer<typeof IssueSchema>;
@@ -69,7 +77,7 @@ export async function issueLetter(
   input: IssueLetterInput,
 ): Promise<Result<{ instanceId: string; pdfPath: string; signatureId: string | null; emailed: boolean; emailedTo: string | null }>> {
   const me = await requireUser();
-  if (!isAdmin(me)) return { ok: false, error: "Forbidden" };
+  if (!(await canIssueLetters(me))) return { ok: false, error: LETTER_ISSUE_REFUSAL };
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -77,8 +85,18 @@ export async function issueLetter(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { key, entity, values, gender, employeeId, candidateName, candidateEmail, signatureImage, signatory } =
-    parsed.data;
+  const {
+    key,
+    entity,
+    values,
+    gender,
+    employeeId,
+    candidateName,
+    candidateEmail,
+    signatureImage,
+    signatory,
+    fitOnePage,
+  } = parsed.data;
 
   const template = getLetter(key);
   if (!template) return { ok: false, error: "This letter isn't authored yet." };
@@ -109,6 +127,7 @@ export async function issueLetter(
       gender: normalizeGender(gender),
       signatureImage,
       signatory,
+      fitOnePage: fitOnePage === true,
     });
   } catch (err) {
     return { ok: false, error: `Could not render the PDF: ${errorMessage(err)}` };
@@ -204,7 +223,7 @@ export async function composeDraft(input: {
 }): Promise<Result<{ instanceId: string }>> {
   try {
     const me = await requireUser();
-    if (!isAdmin(me)) return { ok: false, error: "Forbidden" };
+    if (!(await canIssueLetters(me))) return { ok: false, error: LETTER_ISSUE_REFUSAL };
     const [row] = await db
       .insert(documentInstances)
       .values({

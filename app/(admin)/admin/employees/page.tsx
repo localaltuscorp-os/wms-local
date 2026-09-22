@@ -1,5 +1,5 @@
 import { desc } from "drizzle-orm";
-import { Download, Users } from "lucide-react";
+import { Download, Users, ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { employees, salaryProfiles } from "@/db/schema";
 import { isCurrentStaff } from "@/lib/queries/employees";
@@ -11,6 +11,7 @@ import { PreviousEmployees } from "@/components/admin/previous-employees";
 import type { SalaryProfileRates } from "@/components/admin/employee-list";
 import { requireAdmin } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { grantsFor, masterAdminEmployeeIds } from "@/lib/security/capability-grants";
 import {
   listActiveDepartments,
   getEmployeeDepartmentMap,
@@ -83,6 +84,29 @@ export default async function EmployeesPage() {
   // visitor a precise target list. Ids are opaque and already on the page.
   const superAdminIds = all.filter((e) => isSuperAdmin(e.email)).map((e) => e.id);
 
+  // ── MASTER ADMIN — THE ONE CONTROL IN THIS SCREEN THAT IS SUPER-ADMIN ONLY ──
+  // `isSuperAdmin`, NOT `me.isAdmin`. Every other access control on this page is
+  // open to any admin (2026-08); this one must not be, or a master admin could
+  // be appointed by somebody who cannot be trusted with the permission matrix —
+  // and once appointed they can rewrite every other permission in the app.
+  //
+  // UX only. `editEmployee` re-checks `isSuperAdmin` on the server and refuses
+  // regardless of what this page drew, which is what makes hiding the control
+  // presentation rather than the boundary.
+  const canManageMasterAdmin = isSuperAdmin(me.email);
+
+  // Ids, never addresses — same reason as `superAdminIds` above. One read for
+  // the whole roster (the predicate is a database row now).
+  const masterAdminIds = [...(await masterAdminEmployeeIds())];
+
+  // Who may issue HR letters without being an admin. Ids only, same reason as
+  // the two lists above — and resolved here rather than in the client so the
+  // capability table never reaches the browser.
+  const letterIssuerEmails = await grantsFor("hr.letters.issue");
+  const letterIssuerIds = all
+    .filter((e) => letterIssuerEmails.has((e.email ?? "").trim().toLowerCase()))
+    .map((e) => e.id);
+
   return (
     <AdminSection
       eyebrow="Admin · Employees"
@@ -107,6 +131,24 @@ export default async function EmployeesPage() {
             <Download size={14} strokeWidth={2.2} />
             Export CSV
           </a>
+          {/* THE WAY IN, from the section that grants the access it governs.
+              Module permissions is its own route and its own capability, so
+              until now the only way to reach it was to already know the URL —
+              which is fine for the two people who have always had it, and
+              useless for somebody who has just been given it. Drawn only for a
+              super-admin, matching the master-admin toggle below; the route has
+              its own gate either way. */}
+          {canManageMasterAdmin && (
+            <a
+              href="/master-admin"
+              className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-soft hover:text-ink-strong transition-colors px-3.5 py-2 rounded-pill border border-hairline bg-surface-card wg-btn"
+              style={{ boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)" }}
+              title="Decide who can see, read and edit each module"
+            >
+              <ShieldCheck size={14} strokeWidth={2.2} />
+              Module permissions
+            </a>
+          )}
           <InviteEmployeeDialog
             departmentOptions={departmentOptions}
             designationOptions={masterOptions.designations}
@@ -126,6 +168,9 @@ export default async function EmployeesPage() {
         currentEmployeeId={me.id}
         canManageAdmins={canManageAdmins}
         superAdminIds={superAdminIds}
+        canManageMasterAdmin={canManageMasterAdmin}
+        masterAdminIds={masterAdminIds}
+        letterIssuerIds={letterIssuerIds}
         departmentOptions={departmentOptions}
         managerOptions={managerOptions}
       />

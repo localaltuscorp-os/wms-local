@@ -8,6 +8,7 @@ import { Search, X, Plus, Mic, ImageIcon, AlertTriangle, Clock, Star } from "luc
 import type { FeedbackRow, FeedbackStats } from "@/lib/queries/feedback";
 import { FEEDBACK_TEMPLATES, type FeedbackType } from "@/lib/training/feedback-templates";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 function useCountUp(target: number, run = true) {
   const [n, setN] = React.useState(0);
@@ -56,14 +57,14 @@ function StatusBadge({ row }: { row: FeedbackRow }) {
 export function FeedbackDashboard({ rows, stats, canNew }: { rows: FeedbackRow[]; stats: FeedbackStats; canNew: boolean }) {
   const router = useRouter();
   const [q, setQ] = React.useState("");
-  const [status, setStatus] = React.useState("");
-  const [type, setType] = React.useState("");
+  const [status, setStatus] = React.useState<string[]>([]);
+  const [type, setType] = React.useState<string[]>([]);
 
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
-      if (status && r.status !== status) return false;
-      if (type && r.type !== type) return false;
+      if (status.length > 0 && !status.includes(r.status)) return false;
+      if (type.length > 0 && !type.includes(r.type)) return false;
       if (needle) {
         const hay = [r.ratedName, r.clientName, r.service, r.q1, r.q2].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(needle)) return false;
@@ -71,7 +72,7 @@ export function FeedbackDashboard({ rows, stats, canNew }: { rows: FeedbackRow[]
       return true;
     });
   }, [rows, q, status, type]);
-  const hasFilters = q || status || type;
+  const hasFilters = q || status.length > 0 || type.length > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -92,15 +93,31 @@ export function FeedbackDashboard({ rows, stats, canNew }: { rows: FeedbackRow[]
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - feedback" title="Local search - filters only the list on this page" aria-label="Local search - feedback - this page only" className="w-full bg-transparent py-2.5 outline-none text-[15px] font-medium text-ink-strong placeholder:text-ink-subtle placeholder:font-normal" />
         </div>
         </CollapsibleSearch>
-        <select className="rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="open">Open</option><option value="escalated">Escalated</option><option value="resolved">Resolved</option><option value="signed_off">Signed Off</option>
-        </select>
-        <select className="rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none" value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="">All Types</option>
-          {(Object.keys(FEEDBACK_TEMPLATES) as FeedbackType[]).map((t) => <option key={t} value={t}>{FEEDBACK_TEMPLATES[t].label}</option>)}
-        </select>
-        {hasFilters && <button type="button" onClick={() => { setQ(""); setStatus(""); setType(""); }} className="inline-flex items-center gap-1.5 rounded-lg bg-surface-card px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red"><X size={15} /> Clear</button>}
+        <MultiFilter
+          className="rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong"
+          values={status}
+          onChange={setStatus}
+          allLabel="All Status"
+          aria-label="Filter by status"
+          options={[
+            { value: "open", label: "Open" },
+            { value: "escalated", label: "Escalated" },
+            { value: "resolved", label: "Resolved" },
+            { value: "signed_off", label: "Signed Off" },
+          ]}
+        />
+        <MultiFilter
+          className="rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong"
+          values={type}
+          onChange={setType}
+          allLabel="All Types"
+          aria-label="Filter by type"
+          options={(Object.keys(FEEDBACK_TEMPLATES) as FeedbackType[]).map((t) => ({
+            value: t,
+            label: FEEDBACK_TEMPLATES[t].label,
+          }))}
+        />
+        {hasFilters && <button type="button" onClick={() => { setQ(""); setStatus([]); setType([]); }} className="inline-flex items-center gap-1.5 rounded-lg bg-surface-card px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red"><X size={15} /> Clear</button>}
         <div className="ml-auto" />
         {canNew && <Link href={"/training/feedback/new" as Route} className="inline-flex items-center gap-2 rounded-xl py-2.5 px-5 text-[15px] font-bold text-white" style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))", boxShadow: "0 12px 30px -12px rgba(225,6,0,0.6)" }}><Plus size={17} /> New Feedback</Link>}
       </div>

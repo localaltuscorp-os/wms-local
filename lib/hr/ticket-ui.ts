@@ -1,9 +1,21 @@
 /**
  * Client-safe presentation helpers for HR tickets (no server imports). Badge
- * tones + category glyphs + relative-time. The label/enum sources of truth live
+ * tones + category icons + relative-time. The label/enum sources of truth live
  * in db/enums.ts (pure constants, safe to import on the client).
  */
 import type { HrTicketPriority, HrTicketStatus, HrTicketCategory } from "@/db/enums";
+import {
+  Building2,
+  CalendarDays,
+  CircleDot,
+  FileText,
+  IndianRupee,
+  KeyRound,
+  Lock,
+  ReceiptText,
+  Scale,
+  type LucideIcon,
+} from "lucide-react";
 import { formatDateHr } from "@/lib/format";
 
 export const STATUS_TONE: Record<HrTicketStatus, { bg: string; fg: string; dot: string }> = {
@@ -22,16 +34,29 @@ export const PRIORITY_TONE: Record<HrTicketPriority, { fg: string; label: string
   urgent: { fg: "#E10600", label: "Urgent" },
 };
 
-export const CATEGORY_GLYPH: Record<HrTicketCategory, string> = {
-  payroll: "₹",
-  leave_attendance: "🗓",
-  reimbursement: "🧾",
-  it_access: "🔑",
-  facilities: "🏢",
-  documents_letters: "📄",
-  policy_question: "❓",
-  grievance: "🔒",
-  other: "•",
+/**
+ * The icon for each ticket category.
+ *
+ * WAS A MAP OF EMOJI (🗓 🧾 🔑 🏢 📄 ❓ 🔒). They render at a different weight
+ * and colour from every other icon in the app, they are a different shape on
+ * every operating system, and half of them come out as flat monochrome glyphs
+ * on Windows — which is exactly how they looked on the Queries page: nine
+ * chips, each with a differently-styled little picture on it.
+ *
+ * Lucide components, like the rest of the app. They inherit `currentColor` and
+ * the size they are given, so a category icon now looks like it belongs to the
+ * thing it sits in.
+ */
+export const CATEGORY_ICON: Record<HrTicketCategory, LucideIcon> = {
+  payroll: IndianRupee,
+  leave_attendance: CalendarDays,
+  reimbursement: ReceiptText,
+  it_access: KeyRound,
+  facilities: Building2,
+  documents_letters: FileText,
+  policy_question: Scale,
+  grievance: Lock,
+  other: CircleDot,
 };
 
 export function relTime(d: Date | string): string {

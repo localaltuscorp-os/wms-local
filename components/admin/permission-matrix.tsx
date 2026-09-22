@@ -17,6 +17,7 @@ import {
   resetEmployeePermissions,
   fetchEmployeeMatrix,
 } from "@/app/master-admin/actions";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /**
  * THE PERMISSION MATRIX.
@@ -176,20 +177,19 @@ export function PermissionMatrix({ people, initialPersonId, initialOverrides }: 
             >
               Employee
             </label>
-            <select
-              id="pm-person"
+            <CompactSelect
               className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2.5 text-[14px]"
               value={personId ?? ""}
-              onChange={(e) => selectPerson(e.target.value)}
-            >
-              <option value="">Select an employee…</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id} disabled={p.isMasterAdmin}>
-                  {p.name} · {p.email}
-                  {p.isMasterAdmin ? " (master admin — not governed)" : ""}
-                </option>
-              ))}
-            </select>
+              onChange={selectPerson}
+              placeholder="Select an employee…"
+              aria-label="Person"
+              matchTriggerWidth
+              options={people.map((p) => ({
+                value: p.id,
+                label: `${p.name} · ${p.email}${p.isMasterAdmin ? " (master admin — not governed)" : ""}`,
+                disabled: p.isMasterAdmin,
+              }))}
+            />
           </div>
           {person && (
             <div className="flex items-center gap-3">

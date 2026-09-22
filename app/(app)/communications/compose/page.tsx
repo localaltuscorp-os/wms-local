@@ -91,6 +91,7 @@ export default async function ComposeBroadcastPage({
         scheduledFor: row.scheduledFor ? row.scheduledFor.toISOString() : null,
         recurrence: row.recurrence,
         recurrenceUntil: row.recurrenceUntil,
+        recurrenceDates: Array.isArray(row.recurrenceDates) ? row.recurrenceDates : [],
         poll: row.poll ?? null,
         reminderAfterDays: row.reminderAfterDays,
         escalateToManager: row.escalateToManager,

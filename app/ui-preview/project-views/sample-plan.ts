@@ -46,6 +46,7 @@ function build(d: Draft, parentId: string | null): PlanRow {
     name: d.name,
     description: null,
     notes: null,
+    clientName: null,
     kind: d.kind,
     parentId,
     status: d.status ?? null,

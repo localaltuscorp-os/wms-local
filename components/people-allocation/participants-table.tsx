@@ -20,6 +20,7 @@ import {
   deleteParticipant,
 } from "@/app/(app)/people-allocation/actions";
 import type { Participant } from "@/lib/queries/people-allocation";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 /**
  * ALL PARTICIPANTS — every participant in the module, PS and BSS included.
@@ -271,16 +272,16 @@ export function ParticipantsTable({
   const [pending, startTransition] = React.useTransition();
 
   // Filters: module, day, and a period over the engagement's own dates.
-  const [moduleFilter, setModuleFilter] = React.useState("");
-  const [dayFilter, setDayFilter] = React.useState("");
+  const [moduleFilter, setModuleFilter] = React.useState<string[]>([]);
+  const [dayFilter, setDayFilter] = React.useState<string[]>([]);
   const [from, setFrom] = React.useState("");
   const [to, setTo] = React.useState("");
 
   const filtered = React.useMemo(
     () =>
       participants.filter((p) => {
-        if (moduleFilter && (p.section ?? "") !== moduleFilter) return false;
-        if (dayFilter && (p.day ?? "") !== dayFilter) return false;
+        if (moduleFilter.length > 0 && !moduleFilter.includes(p.section ?? "")) return false;
+        if (dayFilter.length > 0 && !dayFilter.includes(p.day ?? "")) return false;
         // Period overlaps the row's window: a row counts if it had not ended
         // before the period began, and had begun before the period ended.
         if (from && p.endDate && p.endDate < from) return false;
@@ -304,7 +305,7 @@ export function ParticipantsTable({
 
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const selectedRows = rows.filter((r) => selected.has(r.id));
-  const filtersActive = Boolean(moduleFilter || dayFilter || from || to);
+  const filtersActive = Boolean(moduleFilter.length > 0 || dayFilter.length > 0 || from || to);
 
   function toggle(id: string) {
     setSelected((s) => {
@@ -320,8 +321,8 @@ export function ParticipantsTable({
   }
 
   function clearFilters() {
-    setModuleFilter("");
-    setDayFilter("");
+    setModuleFilter([]);
+    setDayFilter([]);
     setFrom("");
     setTo("");
   }
@@ -442,34 +443,24 @@ export function ParticipantsTable({
       {/* Module · Day · Period. */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Chevroned>
-          <select
+          <MultiFilter
             className={`${filterSelect} w-[150px]`}
-            value={moduleFilter}
+            values={moduleFilter}
+            onChange={setModuleFilter}
+            options={HH_PARTICIPANT_MODULES.map((m) => ({ value: m.code, label: m.label }))}
+            allLabel="All modules"
             aria-label="Filter by module"
-            onChange={(e) => setModuleFilter(e.target.value)}
-          >
-            <option value="">All modules</option>
-            {HH_PARTICIPANT_MODULES.map((m) => (
-              <option key={m.code} value={m.code}>
-                {m.label}
-              </option>
-            ))}
-          </select>
+          />
         </Chevroned>
         <Chevroned>
-          <select
+          <MultiFilter
             className={`${filterSelect} w-[150px]`}
-            value={dayFilter}
+            values={dayFilter}
+            onChange={setDayFilter}
+            options={HH_DAYS.map((d) => ({ value: d.code, label: d.full }))}
+            allLabel="All days"
             aria-label="Filter by day"
-            onChange={(e) => setDayFilter(e.target.value)}
-          >
-            <option value="">All days</option>
-            {HH_DAYS.map((d) => (
-              <option key={d.code} value={d.code}>
-                {d.full}
-              </option>
-            ))}
-          </select>
+          />
         </Chevroned>
         <span className="text-[12.5px] font-bold text-ink-subtle">Period</span>
         <DateField

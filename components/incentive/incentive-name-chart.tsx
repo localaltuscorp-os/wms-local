@@ -75,9 +75,12 @@ export function IncentiveNameChart({ rows }: { rows: IncentiveNameRow[] }) {
   );
 }
 
+/**
+ * The donut's CENTRE FIGURE — a total someone reads, so it keeps every digit
+ * (2026-09-15). It used to abbreviate to "Rs. 3.4Cr"; an axis tick is the only
+ * place that still may (see incentive-monthly-chart-impl.tsx), because an axis
+ * is a scale and not a figure.
+ */
 function compactInr(n: number): string {
-  if (n >= 1e7) return `₹${(n / 1e7).toFixed(2)}Cr`;
-  if (n >= 1e5) return `₹${(n / 1e5).toFixed(1)}L`;
-  if (n >= 1e3) return `₹${Math.round(n / 1e3)}k`;
-  return `₹${n}`;
+  return `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
 }

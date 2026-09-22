@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { employeeExits, employees, settingsEvents } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 import { getFirebaseAdminAuth } from "@/lib/firebase/admin";
 import {
   ArchiveEmployeeSchema,
@@ -42,13 +43,28 @@ import {
  * deprecated.
  */
 
-/** A super-admin may only be archived by another super-admin. */
-function guardSuperAdminTarget(
-  me: { email: string },
-  emp: { email: string },
-): { ok: false; error: string } | null {
+/**
+ * A super-admin — or a MASTER ADMIN — may only be archived by a super-admin.
+ *
+ * Widened from the super-admin-only test on 2026-09-18, for the same reason as
+ * its twin in `./actions.ts`: master-admin became a grant the owner can make
+ * from the admin panel (migration 0226), so the two sets are no longer the same
+ * people. Archiving is the most destructive thing in this file — it reassigns
+ * work and deletes the Firebase login — so leaving a newly-granted master admin
+ * open to it would have been the widest of the holes that change opened.
+ *
+ * Async, because master-admin membership is a row now.
+ */
+async function guardPrivilegedTarget(
+  me: { email: string; id: string },
+  emp: { email: string; id: string },
+): Promise<{ ok: false; error: string } | null> {
+  if (me.id === emp.id) return null;
   if (isSuperAdmin(emp.email) && !isSuperAdmin(me.email)) {
     return { ok: false, error: "Only a super-admin can do this to another super-admin." };
+  }
+  if ((await isMasterAdmin(emp.email)) && !isSuperAdmin(me.email)) {
+    return { ok: false, error: "Only a super-admin can archive a master admin." };
   }
   return null;
 }
@@ -95,7 +111,7 @@ export async function archiveEmployee(
   });
   if (!emp) return { ok: false, error: "Employee not found." };
 
-  const saGuard = guardSuperAdminTarget(me, emp);
+  const saGuard = await guardPrivilegedTarget(me, emp);
   if (saGuard) return saGuard;
 
   if (emp.employmentStatus !== "active") {

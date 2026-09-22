@@ -3,6 +3,7 @@ import { listIncentiveCatalog } from "@/lib/queries/incentive-catalog";
 import { MAX_EXPORT_ROWS, EXPORT_TOO_LARGE } from "@/lib/exports/csv";
 import { incentiveExportFilename } from "@/lib/exports/incentive-catalog";
 import { renderIncentiveCatalogXlsx } from "@/lib/exports/incentive-catalog-xlsx";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /incentive/export.xlsx — the WHOLE Incentive Table as a real workbook.
@@ -26,7 +27,13 @@ import { renderIncentiveCatalogXlsx } from "@/lib/exports/incentive-catalog-xlsx
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   try {
     await requireUser();
   } catch {

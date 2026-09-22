@@ -9,6 +9,7 @@ import type { ShareRow } from "@/lib/queries/accounts-shares";
 import { parseAmount, formatINR, sumAmounts } from "@/lib/accounts/amounts";
 import { createShare, updateShare, deleteShare } from "@/app/(app)/accounts/shares-register/actions";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CHIP = "rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]";
@@ -41,7 +42,7 @@ function rowValue(r: ShareRow): number | null {
 
 export function SharesRegister({ rows, entityOptions }: { rows: ShareRow[]; entityOptions: LookupOption[] }) {
   const [q, setQ] = React.useState("");
-  const [fEntity, setFEntity] = React.useState("");
+  const [fEntity, setFEntity] = React.useState<string[]>([]);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState<Draft>(emptyDraft);
@@ -53,14 +54,14 @@ export function SharesRegister({ rows, entityOptions }: { rows: ShareRow[]; enti
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
-      if (fEntity && (r.entity ?? "") !== fEntity) return false;
+      if (fEntity.length > 0 && !fEntity.includes((r.entity ?? ""))) return false;
       if (needle && ![r.code, r.entity, r.company, r.folioDemat, r.notes].filter(Boolean).join(" ").toLowerCase().includes(needle)) return false;
       return true;
     });
   }, [rows, q, fEntity]);
 
-  const hasFilters = q || fEntity;
-  function clearFilters() { setQ(""); setFEntity(""); }
+  const hasFilters = q || fEntity.length > 0;
+  function clearFilters() { setQ(""); setFEntity([]); }
   function startAdd() { setEditingId(null); setDraft(emptyDraft()); setAdding(true); }
   function startEdit(r: ShareRow) { setAdding(false); setDraft(toDraft(r)); setEditingId(r.id); }
   function cancel() { setAdding(false); setEditingId(null); }
@@ -100,17 +101,21 @@ export function SharesRegister({ rows, entityOptions }: { rows: ShareRow[]; enti
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - company, entity, folio" title="Local search - filters only the list on this page" aria-label="Local search - company, entity, folio - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
         </CollapsibleSearch>
-        <select className={CHIP} value={fEntity} onChange={(e) => setFEntity(e.target.value)} aria-label="Filter by entity">
-          <option value="">All Entities</option>
-          {entities.map((a) => (<option key={a} value={a}>{a}</option>))}
-        </select>
+        <MultiFilter
+          className={CHIP}
+          values={fEntity}
+          onChange={setFEntity}
+          options={entities}
+          allLabel="All Entities"
+          aria-label="Filter by entity"
+        />
         {hasFilters && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red"><X size={15} strokeWidth={2.4} /> Clear</button>}
         <button type="button" onClick={startAdd} className="ml-auto inline-flex items-center gap-2 rounded-xl py-2.5 px-4 text-[14.5px] font-bold text-white transition-transform active:scale-[0.99]" style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))", boxShadow: "0 10px 26px -12px rgba(225,6,0,0.6)" }}>
           <Plus size={16} strokeWidth={2.6} /> Add Holding
         </button>
       </div>
 
-      <div className="text-[13px] font-semibold text-ink-subtle">{filtered.length} {filtered.length === 1 ? "holding" : "holdings"}{hasFilters ? ` · filtered from ${rows.length}` : ""}{totalValue ? ` · ₹${formatINR(totalValue)} value` : ""}</div>
+      <div className="text-[13px] font-semibold text-ink-subtle">{filtered.length} {filtered.length === 1 ? "holding" : "holdings"}{hasFilters ? ` · filtered from ${rows.length}` : ""}{totalValue ? ` · Rs. ${formatINR(totalValue)} value` : ""}</div>
 
       <div className="overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
         <table className="w-full border-collapse text-left" style={{ minWidth: 1040 }}>
@@ -133,8 +138,8 @@ export function SharesRegister({ rows, entityOptions }: { rows: ShareRow[]; enti
                   <Td className="font-semibold text-ink-strong">{r.company}</Td>
                   <Td className="whitespace-nowrap text-[13px]">{r.folioDemat || <Dim />}</Td>
                   <Td className="text-right whitespace-nowrap">{parseAmount(r.qty) !== null ? formatINR(parseAmount(r.qty), true) : <Dim />}</Td>
-                  <Td className="text-right whitespace-nowrap">{parseAmount(r.rate) !== null ? `₹${formatINR(parseAmount(r.rate), true)}` : <Dim />}</Td>
-                  <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{rowValue(r) !== null ? `₹${formatINR(rowValue(r))}` : <Dim />}</Td>
+                  <Td className="text-right whitespace-nowrap">{parseAmount(r.rate) !== null ? `Rs. ${formatINR(parseAmount(r.rate), true)}` : <Dim />}</Td>
+                  <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{rowValue(r) !== null ? `Rs. ${formatINR(rowValue(r))}` : <Dim />}</Td>
                   <Td className="whitespace-nowrap text-[13px]">{r.txnDate || <Dim />}</Td>
                   <Td className="text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => remove(r.id)} busy={busy} /></Td>
                 </tr>
@@ -143,7 +148,7 @@ export function SharesRegister({ rows, entityOptions }: { rows: ShareRow[]; enti
             {filtered.length > 0 && (
               <tr style={{ borderTop: "2px solid var(--color-hairline-strong)", background: "var(--color-surface-soft)" }}>
                 <Td className="font-bold uppercase text-[12px] tracking-[0.08em] text-ink-soft">Total</Td><Td>{""}</Td><Td>{""}</Td><Td>{""}</Td><Td>{""}</Td><Td>{""}</Td>
-                <Td className="text-right font-extrabold text-altus-red whitespace-nowrap">₹{formatINR(totalValue)}</Td><Td>{""}</Td><Td>{""}</Td>
+                <Td className="text-right font-extrabold text-altus-red whitespace-nowrap">Rs. {formatINR(totalValue)}</Td><Td>{""}</Td><Td>{""}</Td>
               </tr>
             )}
           </tbody>
@@ -181,8 +186,8 @@ function EditorRow({ colSpan, draft, setDraft, entityOptions, onSave, onCancel, 
           <Field label="Company" className="col-span-6 max-md:col-span-2"><input value={draft.company} onChange={(e) => set({ company: e.target.value })} className={INPUT} placeholder="e.g. Reliance Industries" aria-label="Company" /></Field>
           <Field label="Folio / Demat" className="col-span-4 max-md:col-span-1"><input value={draft.folioDemat} onChange={(e) => set({ folioDemat: e.target.value })} className={INPUT} placeholder="Folio / demat no" aria-label="Folio / Demat" /></Field>
           <Field label="Qty" className="col-span-2 max-md:col-span-1"><input value={draft.qty} onChange={(e) => set({ qty: e.target.value })} className={INPUT} inputMode="decimal" placeholder="100" aria-label="Qty" /></Field>
-          <Field label="Rate (₹)" className="col-span-2 max-md:col-span-1"><input value={draft.rate} onChange={(e) => set({ rate: e.target.value })} className={INPUT} inputMode="decimal" placeholder="1200" aria-label="Rate" /></Field>
-          <Field label="Value (₹) - auto if blank" className="col-span-2 max-md:col-span-1"><input value={draft.value} onChange={(e) => set({ value: e.target.value })} className={INPUT} inputMode="numeric" placeholder="qty × rate" aria-label="Value" /></Field>
+          <Field label="Rate (Rs.)" className="col-span-2 max-md:col-span-1"><input value={draft.rate} onChange={(e) => set({ rate: e.target.value })} className={INPUT} inputMode="decimal" placeholder="1200" aria-label="Rate" /></Field>
+          <Field label="Value (Rs.) - auto if blank" className="col-span-2 max-md:col-span-1"><input value={draft.value} onChange={(e) => set({ value: e.target.value })} className={INPUT} inputMode="numeric" placeholder="qty × rate" aria-label="Value" /></Field>
           <Field label="Date" className="col-span-2 max-md:col-span-1"><input value={draft.txnDate} onChange={(e) => set({ txnDate: e.target.value })} className={INPUT} placeholder="dd/mm/yy" aria-label="Date" /></Field>
           <Field label="Notes" className="col-span-12 max-md:col-span-2"><textarea value={draft.notes} onChange={(e) => set({ notes: e.target.value })} className={INPUT + " min-h-[48px] resize-y"} placeholder="Notes" aria-label="Notes" /></Field>
         </div>

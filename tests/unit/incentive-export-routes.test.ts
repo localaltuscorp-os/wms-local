@@ -28,9 +28,28 @@ vi.mock("@/lib/auth/current", () => ({
 vi.mock("@/lib/queries/incentive-catalog", () => ({
   listIncentiveCatalog: () => listIncentiveCatalog(),
 }));
+/**
+ * The handlers now ask the permission matrix before exporting, which drags in
+ * `resolve` → `getCurrentEmployee` → `lib/env.ts` and its parse of DATABASE_URL
+ * at module load. THIS test is about the export contract, so the guard is
+ * stubbed to "allowed" — the guard's own behaviour is covered by
+ * `api-guard.test.ts`, and its wiring by `route-handler-coverage.test.ts`.
+ */
+vi.mock("@/lib/permissions/api-guard", () => ({
+  apiViewDenial: async () => null,
+}));
 
-const { GET: getPdf } = await import("@/app/(app)/incentive/export.pdf/route");
-const { GET: getXlsx } = await import("@/app/(app)/incentive/export.xlsx/route");
+const { GET: pdfHandler } = await import("@/app/(app)/incentive/export.pdf/route");
+const { GET: xlsxHandler } = await import("@/app/(app)/incentive/export.xlsx/route");
+
+/**
+ * These handlers now take a `Request`, because the permission matrix resolves
+ * the module from the request's PATH — `apiViewDenial(request)`. Next always
+ * passes one; these wrappers call them the way Next does, so every assertion
+ * below still reads as a plain handler invocation.
+ */
+const getPdf = () => pdfHandler(new Request("http://localhost/incentive/export.pdf"));
+const getXlsx = () => xlsxHandler(new Request("http://localhost/incentive/export.xlsx"));
 
 type Row = {
   id: string;

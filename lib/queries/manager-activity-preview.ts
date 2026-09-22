@@ -14,6 +14,7 @@ import {
   activityWindow,
   daysBefore,
 } from "@/lib/dashboard/manager-activity-contract";
+import { formatDate } from "@/lib/format";
 
 const RETRY = { attempts: 3, timeoutMs: [6000, 10000, 14000] as number[] };
 
@@ -67,7 +68,9 @@ function ymdLabel(v: string | Date | null): string | null {
   if (!v) return null;
   const d = v instanceof Date ? v : new Date(`${v}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+  // Formatted from the UTC calendar parts, not the local ones: these rows are
+  // stored as bare dates and read back as UTC midnight.
+  return formatDate(d.toISOString().slice(0, 10));
 }
 
 export async function managerActivityPreview(input: {

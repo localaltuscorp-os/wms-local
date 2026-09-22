@@ -21,6 +21,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
+import { CLAIM_ACCENT, CLAIM_ACCENT_DEEP } from "@/lib/reimbursements/claim-kpis";
+
 type Tone = "slate" | "red" | "green" | "blue" | "amber" | "purple";
 
 /* ───────────────────────────── atoms ───────────────────────────── */
@@ -242,7 +244,22 @@ export default async function Page() {
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <main className="mx-auto max-w-[1100px] px-8 max-md:px-4 pt-8 pb-16">
+      {/* Same two fixes as the list page: `w-full` so `max-w` is the real
+          constraint (main is a flex item in a column flex container, where
+          `mx-auto` alone shrink-wraps the box to its content and leaves dead
+          margin down both sides), and the SAME 1400 measure, so the page edges
+          do not jump when you click through from Reimbursements. The module's
+          green is declared here too, so the dashboard inherits the identity
+          rather than falling back to brand red. */}
+      <main
+        className="mx-auto w-full max-w-[1400px] px-8 max-md:px-4 pt-8 pb-16"
+        style={
+          {
+            "--module-accent": CLAIM_ACCENT,
+            "--module-accent-deep": CLAIM_ACCENT_DEEP,
+          } as React.CSSProperties
+        }
+      >
         <header className="mb-6 flex items-end justify-between gap-3 flex-wrap">
           <div>
             <Link
@@ -276,7 +293,7 @@ export default async function Page() {
               block={data.approved}
               tone="green"
               icon={CheckCircle2}
-              sub={<span style={{ color: "var(--color-green-deep)" }}>{approvalRate}% of ₹ submitted</span>}
+              sub={<span style={{ color: "var(--color-green-deep)" }}>{approvalRate}% of Rs. submitted</span>}
             />
             <KpiCard
               label="Pending"
@@ -295,7 +312,7 @@ export default async function Page() {
           </div>
 
           {/* Trend */}
-          <Panel title="Month-over-Month" description="Reimbursed (paid) vs submitted ₹ per month - last 12 months" tone="red">
+          <Panel title="Month-over-Month" description="Reimbursed (paid) vs submitted Rs. per month - last 12 months" tone="red">
             <TrendChart rows={data.trend} />
           </Panel>
 

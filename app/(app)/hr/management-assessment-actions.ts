@@ -39,7 +39,12 @@ const AttachmentSchema = z.object({
   mime: z.string().max(120).default("application/octet-stream"),
   size: z.number().finite().min(0).max(1024 * 1024 * 1024),
 });
-const OutcomeSchema = z.enum(["selected", "shortlisted", "rejected"]).nullable().default(null);
+// The Management Verdict. "shortlisted" is shown as ONE MORE ROUND — the value
+// is kept so verdicts already on record keep their meaning.
+const OutcomeSchema = z
+  .enum(["selected", "shortlisted", "rejected", "free_training", "assignment_needed"])
+  .nullable()
+  .default(null);
 
 const RecruiterSchema = z.object({
   via: z.boolean().default(false),

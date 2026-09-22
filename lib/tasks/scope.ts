@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Employee } from "@/db/schema";
-import { isMasterAdmin } from "@/lib/security/capabilities";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { getCurrentEmployee } from "@/lib/auth/current";
 import { grantedExtrasLabel, permittedPeopleFor } from "@/lib/access/visibility";
@@ -59,7 +59,7 @@ export async function taskVisibilityFor(
   // scoped by it — the same reasoning as the permission matrix's exemption:
   // whoever grants the visibility must not be able to lock themselves out of
   // seeing whether a grant worked. Named in the capability registry, not here.
-  if (isMasterAdmin(me.email) || isSuperAdmin(me.email)) {
+  if ((await isMasterAdmin(me.email)) || isSuperAdmin(me.email)) {
     return {
       permittedIds: null,
       canExpand: true,

@@ -21,6 +21,10 @@ import {
 } from "@/app/(app)/people-allocation/actions";
 import { Kbd } from "@/components/layout/keyboard-shortcuts";
 import type { HhEntry, HhPerson, HhCall, AccessActivity } from "@/lib/queries/people-allocation";
+import type { HhCalendarWeek } from "@/lib/queries/hh-calendar";
+import { HhWeekCalendar } from "@/components/people-allocation/hh-week-calendar";
+import { linkHhPersonEmployee } from "@/app/(app)/people-allocation/calendar-actions";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /**
  * HAND-HOLDING — pick a person, see and build their sections.
@@ -62,6 +66,10 @@ export function AllocationScreen({
   canEdit,
   canDeleteEntry,
   accessActivity,
+  calendarWeek,
+  today,
+  employeeOptions,
+  openAdd = false,
 }: {
   people: HhPerson[];
   entries: HhEntry[];
@@ -78,6 +86,14 @@ export function AllocationScreen({
   canDeleteEntry: boolean;
   /** The Access / Permissions log. */
   accessActivity: AccessActivity[];
+  /** This week's Daily Compliance for the calendar. */
+  calendarWeek: HhCalendarWeek;
+  /** Today in IST. */
+  today: string;
+  /** Active employees, for linking a name (Admin and Ruchita; empty otherwise). */
+  employeeOptions: { id: string; name: string }[];
+  /** `?add=1` opens the Add dialog on load, so it has a URL of its own. */
+  openAdd?: boolean;
 }) {
   const [tab, setTab] = React.useState<Tab>("employee");
   const [selected, setSelected] = React.useState<Record<Tab, string>>({ employee: "", intern: "" });
@@ -90,6 +106,13 @@ export function AllocationScreen({
    * a section code when a card's own Add asks for that one. null = closed.
    */
   const [addOpen, setAddOpen] = React.useState<string | null>(null);
+  // Opened AFTER mount, not in the initial state: the dialog portals into
+  // `document`, which does not exist during the server render, so opening it
+  // on first paint threw "document is not defined" and fell back to a client
+  // render of the whole screen.
+  React.useEffect(() => {
+    if (openAdd) setAddOpen("");
+  }, [openAdd]);
   const [newName, setNewName] = React.useState("");
 
   const roster = people.filter((p) => p.kind === tab);
@@ -221,13 +244,12 @@ export function AllocationScreen({
           onSave={(draft) => {
             setError(null);
             startTransition(async () => {
-              // The dialog's own Employee/Intern pick identifies the person —
-              // the server matches it to the roster, adding the name if new.
-              const res = await addEntry({
-                personName: draft.name,
-                personKind: draft.kind,
-                ...draft,
-              });
+              // No name is sent: the server files the entry under whoever is
+              // signed in (2026-09-18). The Employee/Intern toggle still decides
+              // which roster that person sits on.
+              const { name: _unused, ...rest } = draft;
+              void _unused;
+              const res = await addEntry({ personKind: draft.kind, name: "", ...rest });
               if (res.ok) {
                 setAddOpen(null);
                 // Land on the tab the entry was filed under, so the new row is
@@ -339,6 +361,21 @@ export function AllocationScreen({
         )}
       </section>
 
+      {/* Weekly calls and Daily Compliance, day by day — the whole roster, or
+          the selected person's week. */}
+      <HhWeekCalendar
+        people={roster}
+        selectedPersonId={personId}
+        entries={entries}
+        calls={calls}
+        initialWeek={calendarWeek}
+        today={today}
+        onSelectPerson={(id) => {
+          setError(null);
+          setSelected((s) => ({ ...s, [tab]: id }));
+        }}
+      />
+
       {!person ? (
         <section
           className="rounded-[22px] bg-surface-card p-14 text-center"
@@ -359,7 +396,16 @@ export function AllocationScreen({
           >
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-[15px] font-extrabold text-ink-strong">{person.name}</h2>
-              <span className="text-[12.5px] font-semibold text-ink-subtle">Allocation overview</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <PersonLink
+                  person={person}
+                  canEdit={canEdit}
+                  employeeOptions={employeeOptions}
+                  run={startTransition}
+                  onError={setError}
+                />
+                <span className="text-[12.5px] font-semibold text-ink-subtle">Allocation overview</span>
+              </div>
             </div>
             <div className="flex flex-wrap gap-3">
               {sections.map((c) => (
@@ -577,6 +623,53 @@ function Dashboard({
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * Which employee's Daily Compliance this name shows. Exact-name matches link
+ * themselves when the page loads; anything else — a first name, a nickname — is
+ * linked here by Admin or Ruchita. Everyone else just sees the link.
+ */
+function PersonLink({
+  person,
+  canEdit,
+  employeeOptions,
+  run,
+  onError,
+}: {
+  person: HhPerson;
+  canEdit: boolean;
+  employeeOptions: { id: string; name: string }[];
+  run: (fn: () => void) => void;
+  onError: (s: string | null) => void;
+}) {
+  if (!canEdit || employeeOptions.length === 0) {
+    return (
+      <span className="text-[12.5px] font-semibold text-ink-subtle">
+        {person.employeeName ? `DCC: ${person.employeeName}` : "Not linked to an employee"}
+      </span>
+    );
+  }
+  return (
+    <label className="inline-flex items-center gap-2 text-[12.5px] font-semibold text-ink-subtle">
+      DCC employee
+      <CompactSelect
+        value={person.employeeId ?? ""}
+        onChange={(v) => {
+          const employeeId = v || null;
+          onError(null);
+          run(async () => {
+            const res = await linkHhPersonEmployee({ personId: person.id, employeeId });
+            if (!res.ok) onError(res.error);
+          });
+        }}
+        className="rounded-lg border border-hairline-strong bg-surface-card px-2 py-1 text-[12.5px] font-bold text-ink-strong"
+        aria-label={`Employee whose Daily Compliance ${person.name} shows`}
+        placeholder="Not linked"
+        options={employeeOptions.map((o) => ({ value: o.id, label: o.name }))}
+      />
+    </label>
   );
 }
 

@@ -58,7 +58,7 @@ export const HR_SIGNATORY = {
 
 /**
  * The HR desk's scanned signature, applied automatically to every HR-signed
- * letter — the same way `proprietor-signature.jpg` already backs the Director
+ * letter — the same way `manan-vasa-sign.png` already backs the Director
  * letters. Before this, HR letters reserved a blank strip and someone had to
  * upload a scan per issue (or sign the printout), so most went out unsigned.
  *
@@ -81,7 +81,10 @@ export const HR_SIGNATURE_IMAGE = "/signatures/hr-signature.png";
  * is why a Director letter opened in free-edit lost its signature entirely).
  * Named here so all three read the same constant and cannot drift.
  */
-export const PROPRIETOR_SIGNATURE_IMAGE = "/signatures/proprietor-signature.jpg";
+export const PROPRIETOR_SIGNATURE_IMAGE = "/signatures/manan-vasa-sign.png";
+// 2026-09-17: was proprietor-signature.jpg. The new scan is a PNG with a
+// transparent background, so it sits on the paper without a white box; the
+// old JPEG could not carry transparency. Same treatment as the HR mark above.
 
 /** Resolve `{firm}` / `{firmLegal}` in `text` against the issuing entity. */
 export function applyFirm(

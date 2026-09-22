@@ -716,7 +716,7 @@ function ParentCard({
     goal.targetQty != null
       ? `${fmtNum(goal.actualQty ?? 0)} / ${fmtNum(goal.targetQty)}${goal.uom ? ` ${goal.uom}` : ""}`
       : goal.targetAmount != null
-        ? `₹ ${fmtNum(goal.actualAmount ?? 0)} / ${fmtNum(goal.targetAmount)}`
+        ? `Rs. ${fmtNum(goal.actualAmount ?? 0)} / ${fmtNum(goal.targetAmount)}`
         : "-";
 
   return (
@@ -1018,7 +1018,7 @@ function WeekLaneCard({
     goal.targetQty != null
       ? `Qty ${fmtNum(goal.actualQty ?? 0)} / ${fmtNum(goal.targetQty)}${goal.uom ? ` ${goal.uom}` : ""}`
       : goal.targetAmount != null
-        ? `₹ ${fmtNum(goal.actualAmount ?? 0)} / ${fmtNum(goal.targetAmount)}`
+        ? `Rs. ${fmtNum(goal.actualAmount ?? 0)} / ${fmtNum(goal.targetAmount)}`
         : "";
 
   return (

@@ -2,6 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authMiddleware } from "next-firebase-auth-edge";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
+import {
+  TWO_STEP_PASS_COOKIE,
+  isValidTwoStepPass,
+  twoStepEnabled,
+} from "@/lib/auth/two-step-pass";
 
 const PUBLIC_PATHS = [
   "/ctest",
@@ -22,6 +27,13 @@ const PUBLIC_PATHS = [
 ];
 
 const PUBLIC_API = [
+  // Sign-in itself: the server checks the password here (account lockout), so
+  // it is by definition reached WITHOUT a session. Without this exclusion the
+  // middleware redirects every sign-in attempt to /login and nobody can log in.
+  "/api/auth/login",
+  // Step two of sign-in (the emailed code). The person has no session yet —
+  // these routes are what give them one.
+  "/api/auth/two-step/",
   "/api/auth/session",
   "/api/auth/signout",
   "/api/health",
@@ -254,7 +266,28 @@ export async function proxy(request: NextRequest) {
     // sign-out propagates on the next token refresh (max 1 hour) rather
     // than instantly. Signing-key rotation is still picked up live.
     checkRevoked: false,
-    handleValidToken: async (_tokens, headers) => {
+    handleValidToken: async (tokens, headers) => {
+      // ── TWO-STEP PASS, CHECKED ON EVERY REQUEST ─────────────────────────
+      //
+      // A session alone is not enough: the browser must also hold today's
+      // two-step pass (lib/auth/two-step-pass.ts). The pass ends at midnight
+      // IST while the session cookie can live for 14 days, so this is what
+      // makes "asked again the next day" true for someone who never signed
+      // out. No pass, yesterday's, or one issued to a different person → the
+      // session is dropped and they sign in again: password, then code.
+      if (twoStepEnabled()) {
+        const pass = request.cookies.get(TWO_STEP_PASS_COOKIE)?.value;
+        if (!(await isValidTwoStepPass(pass, tokens.decodedToken.uid))) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/login";
+          url.search = "";
+          if (request.nextUrl.pathname !== "/") {
+            url.searchParams.set("next", request.nextUrl.pathname);
+          }
+          url.searchParams.set("reason", "two-step");
+          return redirectClearingSession(url);
+        }
+      }
       // The app root is the HUB. Send authed users hitting "/" straight to
       // /hub (the WMS dashboard lives at /dashboard now) — before the (app)
       // layout even runs.

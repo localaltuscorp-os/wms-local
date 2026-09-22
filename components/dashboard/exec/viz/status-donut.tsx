@@ -81,15 +81,21 @@ export function StatusDonut({ slices, size = 200 }: StatusDonutProps) {
 
   // Build cumulative arcs. Each segment's length is its share of the
   // circumference; we reveal it by animating dashoffset from full → its slot.
-  let cursor = 0;
-  const arcs = SEGMENTS.map((seg, i) => {
-    const value = slices[seg.key];
-    const frac = total > 0 ? value / total : 0;
-    const len = frac * circumference;
-    const rotation = (cursor / circumference) * 360;
-    cursor += len;
-    return { seg, value, len, rotation, i };
-  });
+  // Prefix sum in a plain loop, not a running total mutated from inside
+  // `.map()` — see the same note in attendance/insights/org/insight-viz.
+  const lens = SEGMENTS.map((seg) => (total > 0 ? slices[seg.key] / total : 0) * circumference);
+  const offsets: number[] = [];
+  for (let i = 0, run = 0; i < lens.length; i++) {
+    offsets.push(run);
+    run += lens[i]!;
+  }
+  const arcs = SEGMENTS.map((seg, i) => ({
+    seg,
+    value: slices[seg.key],
+    len: lens[i]!,
+    rotation: (offsets[i]! / circumference) * 360,
+    i,
+  }));
 
   return (
     <div className="flex items-center gap-7 max-md:flex-col max-md:gap-4">

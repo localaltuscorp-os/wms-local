@@ -72,6 +72,29 @@ export type SecurityCapability =
    */
   | "master_admin.manage"
   /**
+   * MAY CREATE, ISSUE AND EMAIL HR LETTERS WITHOUT BEING AN ADMIN.
+   *
+   * Appointment, increment, experience and full-and-final letters were all
+   * gated on `isAdmin`, which is far broader than the job. HR staff who need to
+   * send one had to be made full admins — able to manage employees and settings
+   * across the whole application — to do it.
+   *
+   * This is the narrow alternative. Admins and super-admins hold it
+   * automatically (nothing about their behaviour changes); anybody else gets it
+   * as a grant on their employee record.
+   *
+   * ── WHY IT IS IN THE DATABASE AND NOT HERE ────────────────────────────────
+   * It is `DB_BACKED_CAPABILITIES` in lib/security/capability-grants.ts, for the
+   * same reason `master_admin.manage` is: the point of the capability is that an
+   * owner can hand it to somebody without a deploy. Granting it through the
+   * GRANTS table below would defeat that.
+   *
+   * Its guards are a page and two route handlers, all already async — which is
+   * the precondition for a capability being stored as data (see migration 0226's
+   * CHECK constraint; migration 0228 widens it to admit this one).
+   */
+  | "hr.letters.issue"
+  /**
    * EXEMPT FROM THE COMPULSORY DAILY-START GATES.
    *
    * The holder is never blocked from using the WMS by the post-login walls:
@@ -146,7 +169,34 @@ export type SecurityCapability =
    * covers the cases the hierarchy cannot express — a founder testing across
    * teams, or someone standing in while a manager is away.
    */
-  | "delegated_access.grant_any";
+  | "delegated_access.grant_any"
+  /**
+   * May change a DCC entry for a day that has CLOSED, for any employee.
+   *
+   * Everyone else's entries lock at 11:59 pm IST on the day itself (account
+   * holder, 2026-09-15; see lib/dcc/entry-lock.ts). Deliberately NOT a
+   * super-admin side effect: a second super-admin must not silently be able to
+   * rewrite last month's compliance record.
+   */
+  | "dcc.edit_past_entries"
+  /**
+   * A DCC KPI this person GIVES is protected: nobody else may delete it — not
+   * the Team Lead who manages the owner, not the owner, not another super-admin.
+   *
+   * Team Leads add and remove KPIs for themselves and their downline, but may
+   * not delete one Manan Sir gave (account holder, 2026-09-15; see
+   * lib/dcc/item-lock.ts).
+   */
+  | "dcc.protected_kpi_author"
+  /**
+   * May change the shared Subject and Client dropdowns — add, rename, reorder,
+   * hide or delete — in the Admin Panel and from the task form's "+ Add new".
+   *
+   * Manan Sir, Jeevan and Rohan only (account holder, 2026-09-15). Deliberately
+   * NOT "any admin": every task, goal, checklist and project files under these
+   * names, and one careless rename or duplicate splits that history in two.
+   */
+  | "task_rosters.manage";
 
 /**
  * WHO HOLDS WHAT. The single source of truth.
@@ -190,6 +240,19 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
      * this table, visible in review.
      */
     "daily_start.exempt",
+    /**
+     * Changes DCC entries for days that have closed, for any employee. Everyone
+     * else's entries lock at 11:59 pm IST on the day (account holder,
+     * 2026-09-15). Granted to this one address, not to super-admins.
+     */
+    "dcc.edit_past_entries",
+    /**
+     * A DCC KPI he gives can be deleted by him alone — Team Leads may add KPIs
+     * for their team but not remove his (account holder, 2026-09-15).
+     */
+    "dcc.protected_kpi_author",
+    /** Changes the Subject and Client dropdowns (2026-09-15). */
+    "task_rosters.manage",
     /**
      * Deleting a Billing Master entity. THE ONLY HOLDER — the brief names him
      * alone, and deliberately says that Entity Edit, admin rights and File
@@ -243,7 +306,16 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
     "device.manage",
     "master_admin.manage",
     "delegated_access.grant_any",
+    /** Changes the Subject and Client dropdowns (2026-09-15). */
+    "task_rosters.manage",
   ],
+
+  /**
+   * Jeevan Bharambe — changes the Subject and Client dropdowns (account holder,
+   * 2026-09-15). Not an admin: this opens the Admin Panel's Subjects and Clients
+   * screens to him and nothing else (see app/(admin)/admin/layout.tsx).
+   */
+  "jeevanbharambe.altuscorp@gmail.com": ["task_rosters.manage"],
 
   /** Ruchita Ambre — device administrator + privileged attendance manager. */
   "ruchitaambre.altuscorp@gmail.com": [
@@ -314,23 +386,28 @@ export function canViewAttendanceAuditLog(email: string | null | undefined): boo
 }
 
 /**
- * MAY OPEN THE MASTER ADMIN PERMISSION MATRIX.
+ * `isMasterAdmin` USED TO LIVE HERE. It has MOVED — import it from
+ * `lib/security/capability-grants.ts`.
  *
- * ── THIS IS THE WHOLE ANSWER TO "ONLY MANAN AND ROHAN" ─────────────────────
- * Read server-side by the /master-admin layout, by every one of its server
- * actions, and by the permission resolver. There is no client-side branch that
- * decides it: hiding the nav entry is presentation, and the entry is hidden
- * because this predicate said no, never the other way round.
+ * It is no longer a pure function over `GRANTS`: master-admin membership is now
+ * a row in `capability_grants` (migration 0226) so the owner can grant it from
+ * the Admin panel without a deploy. Reading that row makes the predicate
+ * ASYNC — one `React.cache()`d query per request.
  *
- * Environment-independent by construction. It matches on `employees.email`,
- * which is the same value in local development and on os.altuscorp.com, so the
- * rule cannot differ between the two — there is no env var, no host check and no
- * `NODE_ENV` branch anywhere in this decision. Typing the URL or POSTing to the
- * action reaches the same predicate as clicking the link.
+ * ── WHY THERE IS NO FUNCTION HERE TO KEEP OLD IMPORTS COMPILING ─────────────
+ * A synchronous `isMasterAdmin` left behind for compatibility would be a TRAP:
+ * it compiles, it returns a plausible `false` for a granted master admin, and
+ * it fails SILENTLY. That is exactly the failure this file's own header warns
+ * about, and it is why `lib/auth/super-admin.ts` removed its predecessor rather
+ * than keeping it: "an exported function still implementing the narrower rule is
+ * exactly the kind of thing a future caller imports by name and trusts." Let the
+ * import fail loudly instead.
+ *
+ * `GRANTS` above still names the two BOOTSTRAP master admins, and
+ * `emailsWithCapability("master_admin.manage")` still returns exactly them — that
+ * is the fallback the async reader uses when the table cannot be read, so there
+ * is always a way back into the permission matrix.
  */
-export function isMasterAdmin(email: string | null | undefined): boolean {
-  return hasCapability(email, "master_admin.manage");
-}
 
 /** May grant temporary delegated access to ANYONE, bypassing the hierarchy.
  *  Managers get a narrower version from the org chart — see
@@ -353,6 +430,40 @@ export function canGrantAnyDelegatedAccess(email: string | null | undefined): bo
 export function isExemptFromDailyStart(email: string | null | undefined): boolean {
   return hasCapability(email, "daily_start.exempt");
 }
+
+/**
+ * MAY THIS PERSON CHANGE A DCC ENTRY FOR A DAY THAT HAS CLOSED?
+ *
+ * Read by the DCC write core (lib/dcc/write.ts), which both the website and the
+ * mobile app save through, and by the fill board to show a closed day as open
+ * for this person. Fails CLOSED: an unknown address may not edit the past.
+ */
+export function canEditPastDccEntries(email: string | null | undefined): boolean {
+  return hasCapability(email, "dcc.edit_past_entries");
+}
+
+/**
+ * ARE THE DCC KPIs THIS PERSON GIVES PROTECTED FROM DELETION BY OTHERS?
+ *
+ * Read by lib/dcc/item-lock.ts. Fails CLOSED toward the ordinary rule: an
+ * unknown creator (or a KPI with no recorded creator) is not protected.
+ */
+export function isProtectedDccKpiAuthor(email: string | null | undefined): boolean {
+  return hasCapability(email, "dcc.protected_kpi_author");
+}
+
+/**
+ * MAY THIS PERSON CHANGE THE SUBJECT AND CLIENT DROPDOWNS?
+ *
+ * Read by the Admin Panel's Subjects and Clients actions and pages, by the task
+ * form's "+ Add new client / subject" (lib/auth/roster-permission.ts), and by
+ * the Admin Panel layout. Fails CLOSED: being an admin grants nothing here.
+ */
+export function canManageTaskRosters(email: string | null | undefined): boolean {
+  return hasCapability(email, "task_rosters.manage");
+}
+
+export const TASK_ROSTER_REFUSAL = "Only Manan Sir, Jeevan and Rohan can change the Subject and Client lists.";
 
 /**
  * MAY DELETE A BILLING MASTER ENTITY.

@@ -47,11 +47,12 @@ export function rowsMatchTotal(rows: InstallmentRow[], total: number): boolean {
 const INPUT_CLASS =
   "w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-[15px] bg-white";
 
-const inrFmt = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 2,
-});
+// "Rs. " + Indian grouping, not Intl's `style: "currency"` — that emits the
+// ₹ glyph, and the app spells money "Rs." everywhere now (lib/format.ts).
+const inrFmt = {
+  format: (n: number) =>
+    `Rs. ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(n)}`,
+};
 
 /**
  * Due-date / amount / running-balance rows editor used by both Partial Payment
@@ -82,21 +83,29 @@ export function RowsEditor({
     ]);
   }
 
-  let cumulative = 0;
+  /* Running balance after each installment. Computed UP FRONT rather than by
+     adding to a `let` from inside the `.map()` in the JSX below: a callback
+     that writes to a variable declared in render is what the React Compiler
+     refuses to analyse, and it drops the component's memoisation to stay safe.
+     `balances[i]` is exactly what `t - cumulative` produced on row i. */
+  const balances: number[] = [];
+  for (let i = 0, cumulative = 0; i < rows.length; i++) {
+    const amt = Number(rows[i]!.amount);
+    cumulative += Number.isFinite(amt) ? amt : 0;
+    balances.push(t - cumulative);
+  }
 
   return (
     <div className="space-y-2.5">
       <div className="hidden sm:grid grid-cols-[1fr_1fr_1fr_auto] gap-2 text-[12px] font-semibold uppercase tracking-wide text-[#64748B]">
         <span>Due date</span>
-        <span>Amount (₹)</span>
+        <span>Amount (Rs.)</span>
         <span>Balance</span>
         <span className="w-7" />
       </div>
 
-      {rows.map((r) => {
-        const amt = Number(r.amount);
-        cumulative += Number.isFinite(amt) ? amt : 0;
-        const balance = t - cumulative;
+      {rows.map((r, i) => {
+        const balance = balances[i]!;
         return (
           <div
             key={r.id}

@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { modulePermissions, type Employee } from "@/db/schema";
 import { getCurrentEmployee, forbiddenError } from "@/lib/auth/current";
-import { isMasterAdmin } from "@/lib/security/capabilities";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 import {
   effectiveFor,
   allowAll,
@@ -95,8 +95,11 @@ const loadOverrides = cache(async (employeeId: string): Promise<OverrideMap> => 
  * set that can rewrite every row here anyway — so exempting them removes no
  * meaningful restriction while removing a real way to brick the tool.
  */
-function governedByMatrix(me: Employee): boolean {
-  return !isMasterAdmin(me.email);
+async function governedByMatrix(me: Employee): Promise<boolean> {
+  // Async because master-admin membership is a database row now (migration
+  // 0226). The `cache()` behind this predicate makes it one query per request no
+  // matter how many nodes are resolved against it.
+  return !(await isMasterAdmin(me.email));
 }
 
 /** The effective permission for one node, for the CURRENT effective identity.
@@ -105,7 +108,7 @@ function governedByMatrix(me: Employee): boolean {
 export async function modulePermission(nodeKey: string): Promise<EffectivePermission> {
   const me = await getCurrentEmployee();
   if (!me) return allowAll();
-  if (!governedByMatrix(me)) return allowAll();
+  if (!(await governedByMatrix(me))) return allowAll();
   if (!isPermissionNodeKey(nodeKey)) return allowAll();
   return effectiveFor(nodeKey, await loadOverrides(me.id));
 }
@@ -115,7 +118,7 @@ export async function modulePermission(nodeKey: string): Promise<EffectivePermis
 export async function modulePermissionsFor(
   employee: Pick<Employee, "id" | "email">,
 ): Promise<OverrideMap> {
-  if (isMasterAdmin(employee.email)) return new Map();
+  if (await isMasterAdmin(employee.email)) return new Map();
   return await loadOverrides(employee.id);
 }
 
@@ -242,7 +245,7 @@ export async function requirePathView(pathname: string): Promise<void> {
  */
 export async function hiddenModuleKeys(): Promise<ReadonlySet<string> | null> {
   const me = await getCurrentEmployee();
-  if (!me || !governedByMatrix(me)) return null;
+  if (!me || !(await governedByMatrix(me))) return null;
   const overrides = await loadOverrides(me.id);
   if (overrides.size === 0) return new Set();
   const hidden = new Set<string>();

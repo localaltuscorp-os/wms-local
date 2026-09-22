@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import nextConfig from "@/next.config";
 import {
   PERMISSION_CATALOG,
   PERMISSION_ACTIONS,
@@ -37,7 +38,24 @@ const ROOT = process.cwd();
  * A dynamic segment in the catalogue (`/hr/[stage]`) is checked literally,
  * because that IS the directory name on disk.
  */
+/**
+ * Sources answered by `redirects()` in next.config.ts.
+ *
+ * A handful of routes are pure forwards with no auth or data behind them
+ * (`/billing` → `/billing/documents`, the three DCC ones, `/daily-checklist`,
+ * `/appraisal`). They used to be pages whose whole body was `redirect(...)`,
+ * which Next 16.2.6 turns into an MPA navigation — and its `Router` throws
+ * before its last five hooks on that path, so the viewer got "This page
+ * couldn't load" instead of the module. They answer from the routing layer
+ * now, so they have no `page.tsx` — but they are still REAL, still reachable,
+ * and their catalogue keys are persisted grants that must not be deleted.
+ */
+const redirectSources = new Set<string>(
+  ((await nextConfig.redirects?.()) ?? []).map((r) => r.source),
+);
+
 function routeExists(route: string): boolean {
+  if (redirectSources.has(route)) return true;
   const rel = route.replace(/^\//, "");
   const groups = ["(app)", "(admin)", ""];
   for (const g of groups) {
@@ -163,6 +181,48 @@ describe("nodeKeyForPath", () => {
     // The matrix simply has no opinion; the resolver treats that as allowed.
     expect(nodeKeyForPath("/some/route/nobody/classified")).toBeNull();
     expect(nodeKeyForPath("/")).toBeNull();
+  });
+
+  it("resolves a route HANDLER path to the node that governs its screen", () => {
+    // The point of apiRoutes: an endpoint is governed by the same node as the
+    // screen it serves, so revoking a module refuses its pages AND its handlers
+    // from one switch.
+    expect(nodeKeyForPath("/api/hr/letters/email-pdf")).toBe("hr.letters");
+    expect(nodeKeyForPath("/api/hr/letters/issue")).toBe("hr.letters");
+    // Query strings are stripped here too — endpoints carry them routinely.
+    expect(nodeKeyForPath("/api/hr/letters/pdf?template=appointment")).toBe("hr.letters");
+  });
+
+  it("ALREADY governs a handler nested under a page prefix — no apiRoutes entry needed", () => {
+    // This is why most of the export/download endpoints needed no catalogue
+    // change at all: they live under the page they export from, and the
+    // existing prefix rule already reaches them. `apiRoutes` exists only for a
+    // handler that sits OUTSIDE its page's path — `/api/hr/letters/*` serves
+    // `/hr/letters`, which is a different URL subtree entirely.
+    //
+    // Asserted rather than assumed, because a future tidy-up that restricted
+    // prefix matching to pages would silently un-govern ~29 endpoints that had
+    // no explicit entry to catch it.
+    expect(nodeKeyForPath("/salary/export.pdf")).toBe("accounts.payroll");
+    expect(nodeKeyForPath("/tasks/export.xlsx")).toBe("wms.tasks");
+    // A more specific sibling still wins: `/salary/documents/pdf` is governed by
+    // the Documents node, not by Payroll. Longest-prefix is preserved.
+    expect(nodeKeyForPath("/salary/documents/pdf")).toBe("accounts.payroll.documents");
+  });
+
+  it("does not let an API path match a PAGE prefix", () => {
+    // `/hr` is a page node's prefix. An endpoint under /api/hr must not be
+    // governed by it, or revoking the HR overview would take the whole API with
+    // it — and vice versa, an endpoint could never be reached by its own node.
+    expect(nodeKeyForPath("/api/hr/nothing-claims-this")).toBeNull();
+  });
+
+  it("still prefers the most specific match when a page and a handler nest", () => {
+    // `/tasks` is a page node; a deeper handler must win over its parent prefix.
+    // Asserted with real data rather than a synthetic pair: the letters node
+    // claims both `/hr/letters` (page) and the four endpoints beneath it.
+    expect(nodeKeyForPath("/hr/letters")).toBe("hr.letters");
+    expect(nodeKeyForPath("/api/hr/letters/issue-rich")).toBe("hr.letters");
   });
 });
 

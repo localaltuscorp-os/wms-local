@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import type { Route } from "next";
 import {
   AlertTriangle,
+  ArrowLeft,
   BadgeCheck,
   CheckCircle2,
   Download,
@@ -56,12 +59,17 @@ export function SignDocument({
   justVerified = false,
   /** an error message forwarded from the callback (?error=…) */
   callbackError = null,
+  /** Where the success state's "done" button goes (e.g. back to the policy list). */
+  doneHref,
+  doneLabel,
 }: {
   docKind: DocKind;
   docId: string;
   initialState: SignatureState;
   justVerified?: boolean;
   callbackError?: string | null;
+  doneHref?: string;
+  doneLabel?: string;
 }) {
   const [state, setState] = React.useState<SignatureState>(initialState);
   const [busy, setBusy] = React.useState(false);
@@ -144,7 +152,7 @@ export function SignDocument({
       )}
 
       {state.status === "signed" && state.signatureId && (
-        <SignedStep signatureId={state.signatureId} state={state} label={label} />
+        <SignedStep signatureId={state.signatureId} state={state} label={label} doneHref={doneHref} doneLabel={doneLabel} />
       )}
     </section>
   );
@@ -492,10 +500,14 @@ function SignedStep({
   signatureId,
   state,
   label,
+  doneHref,
+  doneLabel,
 }: {
   signatureId: string;
   state: SignatureState;
   label: string;
+  doneHref?: string;
+  doneLabel?: string;
 }) {
   const [downloading, setDownloading] = React.useState(false);
 
@@ -559,6 +571,16 @@ function SignedStep({
         )}
         Download Signed PDF
       </button>
+      {doneHref ? (
+        <Link
+          href={doneHref as Route}
+          className="wg-btn mt-5 ml-2 inline-flex items-center justify-center gap-2 rounded-pill px-5 py-2.5 text-[13.5px] font-bold text-white shadow-sm max-sm:ml-0"
+          style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
+        >
+          <ArrowLeft size={15} strokeWidth={2.4} />
+          {doneLabel ?? "Back"}
+        </Link>
+      ) : null}
     </div>
   );
 }

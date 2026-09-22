@@ -1,12 +1,14 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { ShieldCheck, Clock, PencilLine } from "lucide-react";
+import { ShieldCheck, Clock, PencilLine, ArrowLeft } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { isHrStaff } from "@/lib/hr/access";
 import { getPolicyCard, isComingSoon } from "@/lib/hr/policies/registry";
 import { loadPublishedPolicy } from "@/lib/hr/policies/load-db";
 import { PageShell } from "@/components/layout/page-shell";
 import { PolicyView } from "@/components/hr/policies/policy-view";
+import { PolicySignOffBox } from "@/components/hr/policies/policy-sign-off-box";
+import { myPolicySignOff } from "@/app/(app)/hr/policies/sign-off-actions";
 import { getMyPolicySignStatus, type MyPolicySignStatus } from "@/app/(app)/hr/policies/sign-status";
 import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 
@@ -32,7 +34,11 @@ export default async function PolicyPage({
   const card = getPolicyCard(key);
   const comingSoon = isComingSoon(key);
   const title = policy?.title ?? card?.title ?? "Policy";
-  const isAdmin = me.isAdmin || isSuperAdmin(me.email);
+  // The Edit button must match the rule on the EDIT ROUTE itself
+  // (requireHrStaff). It used to be `isAdmin || isSuperAdmin`, which is a
+  // wider set: an admin outside the HR department saw a button that bounced
+  // them straight back here. Reading stays open to everyone (2026-09-17).
+  const canEdit = await isHrStaff(me);
   const showDoc = Boolean(policy) && !comingSoon;
   // Has the CURRENT viewer already signed this policy? Drives the "Signed · date"
   // state so they don't re-sign just to check (self-scoped, best-effort).
@@ -44,6 +50,10 @@ export default async function PolicyPage({
     : EMPTY_SIGN_STATUS;
   const signedAt = signStatus.signed[key] ?? null;
   const outdated = Boolean(signStatus.outdated?.[key]);
+  // The viewer's own printed-name + signature-image sign-off, if they used that
+  // route rather than DigiLocker. Best-effort like the status above: the policy
+  // must still render if this lookup fails.
+  const signOff = showDoc ? await myPolicySignOff(key).catch(() => null) : null;
 
   return (
     <div className="min-h-full bg-[#faf9fb]">
@@ -54,8 +64,23 @@ export default async function PolicyPage({
             {title}
           </span>
         }
+        // In the global top bar so it is reachable at any scroll position: after
+        // signing one policy, people went back through WMS → HR → Policies by
+        // hand to reach the next one.
+        left={
+          <Link
+            href={"/policies" as Route}
+            className="inline-flex items-center gap-2 whitespace-nowrap rounded-pill border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-transform hover:-translate-y-0.5 max-md:px-3"
+            style={{ boxShadow: "0 10px 24px -16px rgba(24,24,27,0.55)" }}
+          >
+            <ArrowLeft size={15} strokeWidth={2.4} style={{ color: "#A80400" }} />
+            {/* Short below xl so the policy's title keeps its room in the bar. */}
+            <span className="max-xl:hidden">Back to policies</span>
+            <span className="xl:hidden">Policies</span>
+          </Link>
+        }
         right={
-          isAdmin &&
+          canEdit &&
           showDoc && (
             <Link
               href={`/hr/policies/${key}/edit` as Route}
@@ -72,7 +97,21 @@ export default async function PolicyPage({
 
       <PageShell width="narrow" py={false} className="pt-8 pb-24" style={{ maxWidth: "900px" }}>
         {showDoc && policy ? (
-          <PolicyView doc={policy} signedAt={signedAt} outdated={outdated} />
+          <>
+            <PolicyView doc={policy} signedAt={signedAt} outdated={outdated} />
+            {/* The printed-name + date + signature-image sign-off, ALONGSIDE
+                the DigiLocker action in PolicyView's toolbar rather than
+                instead of it: DigiLocker files the stronger record (verified
+                identity, archived PDF) and this one always works. Its own
+                table, so the two kinds of signature stay distinguishable. */}
+            <PolicySignOffBox
+              policyKey={policy.key}
+              title={policy.title}
+              signedName={signOff?.signedName ?? null}
+              signedAt={signOff ? signOff.signedAt.toISOString() : null}
+              hasSignature={!!signOff?.signaturePath}
+            />
+          </>
         ) : (
           <ComingSoon title={card?.title} />
         )}

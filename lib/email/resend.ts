@@ -8,6 +8,12 @@ import { employees, notifications, tasks } from "@/db/schema";
 import type { NotificationKind } from "@/db/schema";
 import { InviteEmail } from "@/emails/invite";
 import { ResetPasswordEmail } from "@/emails/reset-password";
+import { TwoStepCodeEmail } from "@/emails/two-step-code";
+import {
+  isUnverifiedDomainError,
+  signInFrom,
+  signInFromCandidates,
+} from "@/lib/email/sign-in-sender";
 import { CredentialsInviteEmail } from "@/emails/credentials-invite";
 import { WelcomeOfficialEmail } from "@/emails/welcome-official";
 import { AdminResetPasswordEmail } from "@/emails/admin-reset-password";
@@ -97,7 +103,39 @@ export function getResend(): Resend | null {
   return cached;
 }
 
-export const FROM = process.env.RESEND_FROM_EMAIL || "Altus Corp Dashboard <onboarding@resend.dev>";
+/**
+ * The sender, from RESEND_FROM_EMAIL — each environment sets its own:
+ *
+ *   local + staging (wms-local)  "Altus Corp Dashboard <noreply@mananvasa.com>"
+ *                                — the only domain that Resend account has
+ *                                verified. Sending as altuscorp.in there failed
+ *                                every mail, and with two-step sign-in nobody
+ *                                could log in.
+ *   production (Altus-OS)        noreply@altuscorp.in — set it there, or leave
+ *                                it unset and this default applies.
+ *
+ * 39ca644b had hardcoded altuscorp.in because production's value was once a
+ * stale mananvasa.com address; production's RESEND_FROM_EMAIL must be correct
+ * (or removed) before this reaches it.
+ */
+export const FROM = process.env.RESEND_FROM_EMAIL?.trim() || "Altus Corp <noreply@altuscorp.in>";
+
+/**
+ * THE SIGN-IN CODE IS SENT FROM noreply@altuscorp.in, whatever the rest of the
+ * mail uses (account holder, 21 Sep, on the fork).
+ *
+ * It is the one email a person reads before they are inside the application, so
+ * it carries the company's own address rather than whichever domain an
+ * environment happens to have verified for its notifications.
+ *
+ * ── THE ESCAPE HATCH, AND WHY IT IS NOT OPTIONAL ───────────────────────────
+ * Resend refuses a `from` on an unverified domain, and this particular failure
+ * is total: no code arrives, so NOBODY CAN SIGN IN. That is not hypothetical —
+ * it is what the note above records happening on wms-local, where only
+ * mananvasa.com is verified. So anywhere altuscorp.in is not verified, set
+ * `RESEND_SIGNIN_FROM` to a sender that is, and this yields to it.
+ */
+export const SIGN_IN_FROM = signInFrom();
 
 /**
  * D12 (WMS overhaul Phase 6) — company-record BCC. When `EMAIL_BCC_ADDRESS` is
@@ -110,8 +148,11 @@ export const FROM = process.env.RESEND_FROM_EMAIL || "Altus Corp Dashboard <onbo
  */
 export function companyBcc(): { bcc?: string[] } {
   const raw = process.env.EMAIL_BCC_ADDRESS?.trim();
-  if (!raw) return {};
-  const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  // The company archive is the DEFAULT, not an option — every outgoing
+  // correspondence is blind-copied to HR so management keeps a durable record,
+  // even if the env var was never set. A configured value still wins (and can
+  // be a comma-separated list).
+  const list = (raw || "hr.altuscorp@gmail.com").split(",").map((s) => s.trim()).filter(Boolean);
   return list.length > 0 ? { bcc: list } : {};
 }
 
@@ -178,7 +219,10 @@ function parseMeta(body: string | null): NotificationMeta {
  * usually read on a phone, and must survive every mail client unstyled.
  */
 export async function sendPlainEmail(args: {
-  to: string;
+  /** One address or several — every address in the list receives it. */
+  to: string | string[];
+  cc?: string[];
+  bcc?: string[];
   subject: string;
   text: string;
 }): Promise<{ id: string | null; error: string | null }> {
@@ -188,6 +232,8 @@ export async function sendPlainEmail(args: {
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.to,
+      ...(args.cc?.length ? { cc: args.cc } : null),
+      ...(args.bcc?.length ? { bcc: args.bcc } : null),
       subject: clampSubject(args.subject),
       text: args.text,
     });
@@ -243,6 +289,46 @@ export async function sendResetPasswordEmail(args: {
     });
     if (error) return { id: null, error: error.message };
     return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}
+
+/**
+ * The two-step sign-in code. Never blind-copied to the company archive — like
+ * the reset link, it is a credential, and a copy in another inbox would be a
+ * second way in.
+ */
+export async function sendTwoStepCodeEmail(args: {
+  email: string;
+  code: string;
+  minutes: number;
+  recipientName?: string;
+}): Promise<{ id: string | null; error: string | null }> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: "RESEND_API_KEY not set" };
+    // SIGN_IN_FROM first (the company address), then the fallbacks — see
+    // signInFromCandidates(). Sign-in must not hinge on which domain an
+    // environment happens to have verified.
+    let lastError: string | null = null;
+    for (const from of signInFromCandidates()) {
+      const { data, error } = await resend.emails.send({
+        from,
+        to: args.email,
+        subject: `${args.code} is your Altus Corp sign-in code`,
+        react: TwoStepCodeEmail({
+          code: args.code,
+          minutes: args.minutes,
+          recipientName: args.recipientName,
+        }),
+      });
+      if (!error) return { id: data?.id ?? null, error: null };
+      lastError = error.message;
+      if (!isUnverifiedDomainError(error.message)) break;
+      console.warn(`[two-step] ${from} is not a verified sender here — trying the next one`);
+    }
+    return { id: null, error: lastError };
   } catch (err) {
     return { id: null, error: errorMessage(err) };
   }

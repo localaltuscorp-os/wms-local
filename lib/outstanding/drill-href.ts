@@ -7,10 +7,16 @@ import type { Route } from "next";
  *
  * Pass the page's current `searchParams` object. Keys set in `override` replace
  * the matching param; a `null`/empty value clears it. Always anchors `#entries`.
+ *
+ * `base` is where the dashboard lives — `/billing/outstanding` since the module
+ * moved out of Sales (2026-09-21). Kept as a parameter rather than inlined so
+ * a drill-down can never quietly point at a room the module has left; the
+ * default is the one door there is.
  */
 export function buildDrillHref(
   current: Record<string, string | string[] | undefined>,
   override: Record<string, string | null> = {},
+  base: string = "/billing/outstanding",
 ): Route {
   const sp = new URLSearchParams();
 
@@ -27,5 +33,5 @@ export function buildDrillHref(
   }
 
   const qs = sp.toString();
-  return (`/outstanding${qs ? `?${qs}` : ""}#entries`) as Route;
+  return (`${base}${qs ? `?${qs}` : ""}#entries`) as Route;
 }
