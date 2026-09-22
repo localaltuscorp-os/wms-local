@@ -2007,7 +2007,7 @@ function ChipGroup({
   /** Replaces the whole group — Select all / Clear. A loop over `onToggle`
    *  would not work: every call rebuilds the list from the same captured
    *  array, so only the last one would survive the render. */
-  onSetAll: (ids: string[]) => void;
+  onSetAll?: (ids: string[]) => void;
 }) {
   if (options.length === 0) return null;
   return (
@@ -2019,7 +2019,7 @@ function ChipGroup({
         {/* The whole group in one click, then drop the one or two that should
             not hear this — the usual way an audience is built. */}
         <span className="flex items-center gap-2.5">
-          {selected.length < options.length && (
+          {onSetAll && selected.length < options.length && (
             <button
               type="button"
               onClick={() => onSetAll(options.map((o) => o.id))}
@@ -2028,7 +2028,7 @@ function ChipGroup({
               Select all ({options.length})
             </button>
           )}
-          {selected.length > 0 && (
+          {onSetAll && selected.length > 0 && (
             <button
               type="button"
               onClick={() => onSetAll([])}
