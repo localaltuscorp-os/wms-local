@@ -6,6 +6,7 @@ import { Loader2, Users2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { moveEmployeeToManager } from "@/app/(admin)/admin/hierarchy/actions";
 import type { HierarchyColumn, HierarchyPerson } from "@/lib/queries/hierarchy";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /**
  * TEAM REPORTING → TRANSFER. Pick a person, pick their new manager, confirm.
@@ -227,74 +228,64 @@ export function TeamTransferPanel({
               <label className="sr-only" htmlFor="tr-employee">
                 Select employee
               </label>
-              <select
-                id="tr-employee"
+              <CompactSelect
                 value={employeeId}
-                onChange={(e) => setEmployeeId(e.target.value)}
+                onChange={setEmployeeId}
                 className={SELECT}
                 style={selectStyle}
-              >
-                <option value="">Select Employee</option>
-                {people
+                placeholder="Select Employee"
+                aria-label="Select employee"
+                matchTriggerWidth
+                options={people
                   .slice()
                   .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </select>
+                  .map((p) => ({ value: p.id, label: p.name }))}
+              />
 
               <span className="text-[13.5px] text-ink-muted">to</span>
 
               <label className="sr-only" htmlFor="tr-manager">
                 Select manager
               </label>
-              <select
-                id="tr-manager"
+              {/* THE CURRENT MANAGER IS GREYED OUT, not just refused after the
+                  fact. Picking the person somebody already reports to is not a
+                  transfer, and the panel used to accept the choice and then
+                  explain itself with "already reports to ..." under a dead
+                  button. Unselectable says the same thing before the click, and
+                  the same rule covers the self-pick. The three <optgroup>
+                  headings survive as CompactSelect groups. */}
+              <CompactSelect
                 value={managerId}
-                onChange={(e) => setManagerId(e.target.value)}
+                onChange={setManagerId}
                 className={SELECT}
                 style={selectStyle}
-              >
-                <option value="">Select Manager</option>
-                {/* THE CURRENT MANAGER IS GREYED OUT, not just refused after
-                    the fact. Picking the person somebody already reports to is
-                    not a transfer, and the panel used to accept the choice and
-                    then explain itself with "already reports to ..." under a
-                    dead button. Unselectable says the same thing before the
-                    click, and the same rule covers the self-pick. */}
-                <optgroup label="Managers">
-                  {currentManagers.map((m) => (
-                    <option
-                      key={m.id}
-                      value={m.id}
-                      disabled={m.id === employeeId || m.id === employee?.managerId}
-                    >
-                      {m.name} ({m.count}){m.id === employee?.managerId ? " - current manager" : ""}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Other employees">
-                  {otherEmployees.map((p) => (
-                    <option
-                      key={p.id}
-                      value={p.id}
-                      disabled={p.id === employeeId || p.id === employee?.managerId}
-                    >
-                      {p.name}{p.id === employee?.managerId ? " - current manager" : ""}
-                    </option>
-                  ))}
-                </optgroup>
-                {/* Unassigning is a real move, and the board has a column for
-                    it - unless they are already unassigned, which is the same
-                    no-op as picking their current manager. */}
-                <optgroup label="Or">
-                  <option value="none" disabled={!!employee && employee.managerId === null}>
-                    No manager{employee && employee.managerId === null ? " - current" : ""}
-                  </option>
-                </optgroup>
-              </select>
+                placeholder="Select Manager"
+                aria-label="Select manager"
+                matchTriggerWidth
+                options={[
+                  ...currentManagers.map((m) => ({
+                    value: m.id,
+                    label: `${m.name} (${m.count})${m.id === employee?.managerId ? " - current manager" : ""}`,
+                    disabled: m.id === employeeId || m.id === employee?.managerId,
+                    group: "Managers",
+                  })),
+                  ...otherEmployees.map((p) => ({
+                    value: p.id,
+                    label: `${p.name}${p.id === employee?.managerId ? " - current manager" : ""}`,
+                    disabled: p.id === employeeId || p.id === employee?.managerId,
+                    group: "Other employees",
+                  })),
+                  // Unassigning is a real move, and the board has a column for
+                  // it - unless they are already unassigned, which is the same
+                  // no-op as picking their current manager.
+                  {
+                    value: "none",
+                    label: `No manager${employee && employee.managerId === null ? " - current" : ""}`,
+                    disabled: !!employee && employee.managerId === null,
+                    group: "Or",
+                  },
+                ]}
+              />
             </div>
 
             {/* Say WHY the button is dead rather than leaving it inert. */}

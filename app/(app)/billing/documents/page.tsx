@@ -46,11 +46,14 @@ export default async function BillingDocumentsPage({ searchParams }: PageProps) 
   if (!years.includes(year)) years.unshift(year);
 
   const parsed = BillingListFilterSchema.safeParse({
-    type: one(sp.type),
-    status: one(sp.status),
-    customerId: one(sp.customerId),
-    entityId: one(sp.entityId),
-    finYear: one(sp.finYear),
+    // These five are comma-separated lists now (?type=tax_invoice,proforma).
+    // `one` would keep only the first value, so the raw parameter goes
+    // straight to the schema, which splits and validates it.
+    type: sp.type,
+    status: sp.status,
+    customerId: sp.customerId,
+    entityId: sp.entityId,
+    finYear: sp.finYear,
     from: one(sp.from) ?? `${year}-01-01`,
     to: one(sp.to) ?? `${year}-12-31`,
     q: one(sp.q),

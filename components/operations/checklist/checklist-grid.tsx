@@ -91,6 +91,7 @@ import { useAutoHeight } from "@/components/ui/use-auto-height";
 import { ColumnGrip, headShadow, useColumnDrag, useSavedColumnOrder, type ColumnDragControl } from "@/components/ui/column-drag";
 import { ChecklistTaskDialog } from "@/components/operations/checklist/checklist-task-dialog";
 import { ChecklistBulkUpload } from "@/components/operations/checklist/checklist-bulk-upload";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const ACCENT_DEEP = "#A80400";
 
@@ -1218,18 +1219,13 @@ function PersonCell({
   }
 
   return (
-    <select
+    <CompactSelect
       value={value ?? ""}
-      onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
-      className="w-full min-w-[140px] rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] text-slate-800 outline-none hover:border-slate-200 focus:border-slate-300 focus:bg-white"
-    >
-      <option value="">—</option>
-      {people.map((p) => (
-        <option key={p.id} value={p.id}>
-          {p.name}
-        </option>
-      ))}
-    </select>
+      onChange={(v) => onChange(v === "" ? null : v)}
+      className="w-full min-w-[140px] rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] text-slate-800 hover:border-slate-200"
+      aria-label="Person"
+      options={people.map((p) => ({ value: p.id, label: p.name }))}
+    />
   );
 }
 

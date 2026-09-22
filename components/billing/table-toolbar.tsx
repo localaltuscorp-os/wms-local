@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Group as GroupIcon, SlidersHorizontal } from "lucide-react";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -93,6 +94,11 @@ export function ColumnsMenu<K extends string>({
   /** A column that cannot be hidden — the one that names the row. */
   locked?: K;
 }) {
+  // Every column the two bulk buttons are actually allowed to move.
+  const toggleable = React.useMemo(
+    () => columns.filter((c) => c.key !== locked).map((c) => c.key),
+    [columns, locked],
+  );
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -103,6 +109,22 @@ export function ColumnsMenu<K extends string>({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="slim-scroll max-h-80 overflow-y-auto">
         <DropdownMenuLabel>Show Columns</DropdownMenuLabel>
+        {/* Show all / Hide all. `locked` names the column that titles the row —
+            it can never be hidden, so it is left out of both the count and the
+            two bulk moves rather than being promised and refused. */}
+        <SelectAllBar
+          compact
+          className="mb-1"
+          count={toggleable.filter((k) => !hidden.has(k)).length}
+          total={toggleable.length}
+          emptyLabel="No columns shown"
+          onSelectAll={() => {
+            for (const k of toggleable) if (hidden.has(k)) onToggle(k);
+          }}
+          onClear={() => {
+            for (const k of toggleable) if (!hidden.has(k)) onToggle(k);
+          }}
+        />
         {columns.map((c) => (
           <DropdownMenuItem
             key={c.key}
@@ -136,40 +158,9 @@ export function useHiddenColumns<K extends string>() {
   return { hidden, toggle };
 }
 
-/** A filter as a pill-shaped select; red while it is doing something. */
-export function FilterPill({
-  label,
-  value,
-  onChange,
-  options,
-  allValue = "",
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  /** The first option is the "all" choice. */
-  options: { value: string; label: string }[];
-  allValue?: string;
-}) {
-  const on = value !== allValue;
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={label}
-      title={label}
-      className={`h-8 w-auto max-w-[128px] shrink-0 truncate rounded-pill border bg-surface-card pl-2.5 pr-1 text-[12px] font-bold outline-none transition-all ${
-        on ? pillOn : pillIdle
-      }`}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  );
-}
+/* FilterPill lived here — a pill-shaped single-value `<select>`. Both billing
+   tables now use `MultiFilter`, which asks the same question and takes more
+   than one answer, so the single-value version had no callers left. */
 
 export const PAGE_SIZES = [10, 20, 50, 100] as const;
 

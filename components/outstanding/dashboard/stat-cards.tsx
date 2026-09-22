@@ -72,9 +72,14 @@ const SPECS: CardSpec[] = [
 export function OutstandingStatCards({
   totals,
   sp,
+  base,
 }: {
   totals: Totals;
   sp: Record<string, string | string[] | undefined>;
+  /** Which door the dashboard is open through — see
+   *  lib/outstanding/base-path.ts. Keeps every drill-down inside the
+   *  room the viewer actually entered. */
+  base: string;
 }) {
   return (
     <CardGrid min={250} gap="0.75rem">
@@ -82,7 +87,7 @@ export function OutstandingStatCards({
         <StatCard
           key={spec.key}
           spec={spec}
-          href={buildDrillHref(sp, spec.drill)}
+          href={buildDrillHref(sp, spec.drill, base)}
           value={
             spec.kind === "money"
               ? formatInr(totals[spec.key])

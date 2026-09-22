@@ -532,6 +532,29 @@ export function AccessDialog({
           <div className="block">
             <span className={labelCls}>
               Module<span style={{ color: RED }}> *</span>
+              {/* Every module at once, then drop the one or two this person
+                  shouldn't reach — one row is staged per module either way. */}
+              <span className="ml-2 inline-flex items-center gap-2.5 font-normal normal-case tracking-normal">
+                {modules.length < HH_ACCESS_MODULES.length && (
+                  <button
+                    type="button"
+                    onClick={() => setModules(HH_ACCESS_MODULES.map((m) => m.code))}
+                    className="text-[11.5px] font-bold text-ink-soft hover:text-ink-strong hover:underline"
+                  >
+                    Select all ({HH_ACCESS_MODULES.length})
+                  </button>
+                )}
+                {modules.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setModules([])}
+                    className="text-[11.5px] font-bold hover:underline"
+                    style={{ color: RED }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </span>
             </span>
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Module">
               {HH_ACCESS_MODULES.map((m) => {

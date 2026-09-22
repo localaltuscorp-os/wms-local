@@ -28,6 +28,7 @@ import { SubjectSelect } from "./subject-select";
 import { Select } from "@/components/ui/select";
 import { VoiceNoteButton } from "@/components/ui/voice-note-button";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 
 type EmployeeOption = { id: string; name: string };
 
@@ -687,6 +688,7 @@ export function NewTaskForm({
                       : [...field.value, id],
                   )
                 }
+                onReplace={(ids) => field.onChange(ids)}
               />
             )}
           />
@@ -958,10 +960,16 @@ function DoerMultiSelect({
   employees,
   selected,
   onToggle,
+  onReplace,
 }: {
   employees: EmployeeOption[];
   selected: string[];
   onToggle: (id: string) => void;
+  /** Sets the whole selection at once — what Select all / Clear need. A loop
+   *  over `onToggle` cannot do it: the caller's handler closes over the
+   *  current `field.value`, so every call in the same tick would start from
+   *  the same stale list and only the last would survive. */
+  onReplace: (ids: string[]) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -1141,6 +1149,16 @@ function DoerMultiSelect({
         }}
         className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[14rem] overflow-hidden"
       >
+          {/* Everyone in one click, then untick the one or two who aren't on
+              this task — the usual shape of a task with many doers. */}
+          <SelectAllBar
+            compact
+            count={selected.length}
+            total={employees.length}
+            emptyLabel="No doers yet"
+            onSelectAll={() => onReplace(employees.map((e) => e.id))}
+            onClear={() => onReplace([])}
+          />
           <ul
             ref={listRef}
             role="listbox"

@@ -89,14 +89,23 @@ function whereFromFilters(f: Partial<BillingListFilters>) {
   // Mixing filed documents back into the working list would undo the point of
   // filing them; the toggle swaps the list rather than widening it.
   clauses.push(eq(billingDocuments.archived, f.archived === true));
-  if (f.type) clauses.push(eq(billingDocuments.docType, f.type));
-  if (f.status) clauses.push(eq(billingDocuments.status, f.status));
-  if (f.customerId) clauses.push(eq(billingDocuments.customerId, f.customerId));
-  if (f.entityId) clauses.push(eq(billingDocuments.entityId, f.entityId));
-  if (f.finYear) {
-    const { from, to } = financialYearRange(f.finYear);
-    clauses.push(gte(billingDocuments.docDate, from));
-    clauses.push(lte(billingDocuments.docDate, to));
+  // EVERY FILTER TAKES A LIST. An empty one is no filter at all, which is what
+  // the single-value versions meant by null and what the pills mean by nothing
+  // ticked - so "show everything" survives the change untouched.
+  if (f.type?.length) clauses.push(inArray(billingDocuments.docType, f.type));
+  if (f.status?.length) clauses.push(inArray(billingDocuments.status, f.status));
+  if (f.customerId?.length) clauses.push(inArray(billingDocuments.customerId, f.customerId));
+  if (f.entityId?.length) clauses.push(inArray(billingDocuments.entityId, f.entityId));
+  if (f.finYear?.length) {
+    // Several financial years are several DATE RANGES, so they combine with OR
+    // - unlike the other filters, where one column is matched against a set.
+    // Anded with `from`/`to` below, which is what the year pills above the list
+    // already narrow to.
+    const ranges = f.finYear.map((y) => {
+      const { from, to } = financialYearRange(y);
+      return and(gte(billingDocuments.docDate, from), lte(billingDocuments.docDate, to))!;
+    });
+    clauses.push(ranges.length === 1 ? ranges[0]! : or(...ranges)!);
   }
   if (f.from) clauses.push(gte(billingDocuments.docDate, f.from));
   if (f.to) clauses.push(lte(billingDocuments.docDate, f.to));

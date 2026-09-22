@@ -657,7 +657,6 @@ interface SignedPdfInput {
 }
 
 function fmtStamp(d: Date): string {
-  // DD-MMM-YYYY like every other HR date; the weekday and time stay.
   return format(d, "EEE, dd-MMM-yyyy · HH:mm");
 }
 

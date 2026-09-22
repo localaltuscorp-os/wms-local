@@ -11,6 +11,7 @@ import { formatDateHr } from "@/lib/format";
 import type { SignatureStatus } from "@/lib/documents/signing";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { DateField } from "@/components/ui/date-field";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const RED = "var(--color-altus-red)";
 const RED_DEEP = "var(--color-altus-red-deep)";
@@ -204,11 +205,16 @@ function IssueDialog({
   onDone: () => void;
 }) {
   const [busy, setBusy] = React.useState(false);
+  // The person picker is a CompactSelect now, not a <select> the form reads by
+  // itself — so its value is held here and posted through a hidden input.
+  const [employeeId, setEmployeeId] = React.useState("");
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busy) return;
     const fd = new FormData(e.currentTarget);
+    // `required` on the old <select> was what refused an empty submit.
+    if (!employeeId) return fireToast({ message: "Select a person first.", type: "error" });
     setBusy(true);
     const res = await uploadLetter(fd);
     setBusy(false);
@@ -226,12 +232,21 @@ function IssueDialog({
         </div>
         <form onSubmit={submit} className="space-y-3">
           <Field label="Employee">
-            <select name="employeeId" required defaultValue="" autoFocus className={inputCls}>
-              <option value="" disabled>Select a person…</option>
-              {roster.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
+            <>
+              {/* The form is read with FormData, so the picked id still has to
+                  reach it under the name `employeeId` - the hidden input is
+                  what carries it now that the control is not a <select>. */}
+              <input type="hidden" name="employeeId" value={employeeId} />
+              <CompactSelect
+                value={employeeId}
+                onChange={setEmployeeId}
+                className={inputCls}
+                placeholder="Select a person…"
+                aria-label="Employee"
+                matchTriggerWidth
+                options={roster.map((r) => ({ value: r.id, label: r.name }))}
+              />
+            </>
           </Field>
           <Field label="Letter Type">
             <select name="letterType" required defaultValue="letter_offer" className={inputCls}>

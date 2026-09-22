@@ -12,6 +12,7 @@ import {
   prettyDate,
 } from "./leave-ui";
 import { ReviewLeavePanel, type ReviewBalance } from "./review-leave-panel";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /** The four states the segmented control offers, in queue order. */
 const STATUS_TABS: { value: string; label: string }[] = [
@@ -127,20 +128,14 @@ export function LeaveRequestsClient({
           })}
         </div>
 
-        <select
+        <CompactSelect
           aria-label="Filter by employee"
           value={filters.employeeId}
-          onChange={(e) => setParam("employee", e.target.value)}
+          onChange={(v) => setParam("employee", v)}
           className={`${LEAVE_INPUT_CLASS} w-auto min-w-[150px] py-1.5`}
-          style={LEAVE_INPUT_RING}
-        >
-          <option value="">All employees</option>
-          {employeeOptions.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
-        </select>
+          placeholder="All employees"
+          options={employeeOptions.map((e) => ({ value: e.id, label: e.name }))}
+        />
 
         {departmentOptions.length > 0 && (
           <select

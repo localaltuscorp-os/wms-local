@@ -10,6 +10,7 @@ import { type FyMonthCol } from "@/lib/accounts/cc";
 import { parseAmount, formatINR, sumAmounts } from "@/lib/accounts/amounts";
 import { createSipItem, updateSipItem, deleteSipItem, setSipMonth } from "@/app/(app)/accounts/sip-tracker/actions";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CELL = "w-full rounded-lg border border-hairline bg-white px-2 py-1.5 text-right text-[12.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-[color:var(--color-altus-red)]";
@@ -70,8 +71,8 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
   }, [months]);
 
   const [q, setQ] = React.useState("");
-  const [fEntity, setFEntity] = React.useState("");
-  const [fType, setFType] = React.useState("");
+  const [fEntity, setFEntity] = React.useState<string[]>([]);
+  const [fType, setFType] = React.useState<string[]>([]);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState<Draft>(emptyDraft);
@@ -85,8 +86,8 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     return items.filter((r) => {
-      if (fEntity && (r.entity ?? "") !== fEntity) return false;
-      if (fType && (r.type ?? "") !== fType) return false;
+      if (fEntity.length > 0 && !fEntity.includes((r.entity ?? ""))) return false;
+      if (fType.length > 0 && !fType.includes((r.type ?? ""))) return false;
       if (needle) {
         const hay = [r.code, r.entity, r.fundName, r.location, r.type].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(needle)) return false;
@@ -99,8 +100,8 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
   const monthTotal = (month: number) => sumAmounts(filtered.map((r) => parseAmount(grid[key(r.id, month)])));
   const grandTotal = sumAmounts(filtered.map((r) => ytd(r.id)));
 
-  const hasFilters = q || fEntity || fType;
-  function clearFilters() { setQ(""); setFEntity(""); setFType(""); }
+  const hasFilters = q || fEntity.length > 0 || fType.length > 0;
+  function clearFilters() { setQ(""); setFEntity([]); setFType([]); }
   function startAdd() { setEditingId(null); setDraft(emptyDraft()); setAdding(true); }
   function startEdit(r: SipItemRow) { setAdding(false); setDraft(toDraft(r)); setEditingId(r.id); }
   function cancel() { setAdding(false); setEditingId(null); }
@@ -157,14 +158,22 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - funds, entity" title="Local search - filters only the list on this page" aria-label="Local search - funds, entity - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
         </CollapsibleSearch>
-        <select className={CHIP} value={fEntity} onChange={(e) => setFEntity(e.target.value)} aria-label="Filter by entity">
-          <option value="">All Entities</option>
-          {entities.map((a) => (<option key={a} value={a}>{a}</option>))}
-        </select>
-        <select className={CHIP} value={fType} onChange={(e) => setFType(e.target.value)} aria-label="Filter by type">
-          <option value="">All Types</option>
-          {types.map((a) => (<option key={a} value={a}>{a}</option>))}
-        </select>
+        <MultiFilter
+          className={CHIP}
+          values={fEntity}
+          onChange={setFEntity}
+          options={entities}
+          allLabel="All Entities"
+          aria-label="Filter by entity"
+        />
+        <MultiFilter
+          className={CHIP}
+          values={fType}
+          onChange={setFType}
+          options={types}
+          allLabel="All Types"
+          aria-label="Filter by type"
+        />
         {hasFilters && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red"><X size={15} strokeWidth={2.4} /> Clear</button>}
         <button type="button" onClick={startAdd} className="ml-auto inline-flex items-center gap-2 rounded-xl py-2.5 px-4 text-[14.5px] font-bold text-white transition-transform active:scale-[0.99]" style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))", boxShadow: "0 10px 26px -12px rgba(225,6,0,0.6)" }}>
           <Plus size={16} strokeWidth={2.6} /> Add Fund

@@ -2,6 +2,7 @@ import { getCurrentEmployee, getSignedInEmployee } from "@/lib/auth/current";
 import { getNavCounts } from "@/lib/queries/nav-counts";
 import { isMasterAdmin } from "@/lib/security/capability-grants";
 import { mayUnlockAccounts } from "@/lib/auth/security-roles";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { UserMenu } from "./user-menu";
 
 export async function UserMenuServer({ variant }: { variant?: "rail" } = {}) {
@@ -38,6 +39,7 @@ export async function UserMenuServer({ variant }: { variant?: "rail" } = {}) {
       name={me.name}
       email={me.email}
       isAdmin={me.isAdmin}
+      isSuperAdmin={real ? isSuperAdmin(real.email) : false}
       isMasterAdmin={masterAdmin}
       canUnlockAccounts={canUnlock}
       avatarUrl={me.avatarUrl}

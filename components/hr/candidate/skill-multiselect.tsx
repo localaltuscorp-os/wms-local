@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Plus, Check, X, Loader2, ChevronDown, Trash2, Wrench, HeartHandshake } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 import { addSkillLookup, removeSkillLookup } from "@/app/(app)/hr/skills-actions";
 import type { SkillLookupOptions } from "@/lib/hr/skills";
 import { fireToast } from "@/lib/toast";
@@ -98,6 +99,7 @@ export function SkillMultiSelect({
             selected={value.technical}
             isAdmin={isAdmin}
             onToggle={(s) => toggle("technical", s)}
+            onSetAll={(next) => onChange({ ...value, technical: next })}
             onOptionsChange={setOpts}
             onSelectedPrune={(pruned) => onChange({ ...value, technical: value.technical.filter((s) => s.toLowerCase() !== pruned.toLowerCase()) })}
           />
@@ -113,6 +115,7 @@ export function SkillMultiSelect({
             selected={value.nonTechnical}
             isAdmin={isAdmin}
             onToggle={(s) => toggle("nonTechnical", s)}
+            onSetAll={(next) => onChange({ ...value, nonTechnical: next })}
             onOptionsChange={setOpts}
             onSelectedPrune={(pruned) => onChange({ ...value, nonTechnical: value.nonTechnical.filter((s) => s.toLowerCase() !== pruned.toLowerCase()) })}
           />
@@ -132,6 +135,7 @@ function SkillGroup({
   selected,
   isAdmin,
   onToggle,
+  onSetAll,
   onOptionsChange,
   onSelectedPrune,
 }: {
@@ -145,6 +149,10 @@ function SkillGroup({
   selected: string[];
   isAdmin: boolean;
   onToggle: (skill: string) => void;
+  /** Replaces this group's whole selection — Select all / Clear. Going through
+   *  `onToggle` in a loop would not work: each call rebuilds the list from the
+   *  same `value` prop, so only the last one would land. */
+  onSetAll: (next: string[]) => void;
   onOptionsChange: (o: SkillLookupOptions) => void;
   onSelectedPrune: (removed: string) => void;
 }) {
@@ -191,6 +199,17 @@ function SkillGroup({
       <div className="flex items-center gap-1.5 px-1.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-soft">
         <span className="text-altus-red">{icon}</span> {title}
       </div>
+      {/* Per group, because Technical and Non-Technical are separate answers —
+          "all the technical skills, minus two" is the common one. */}
+      <SelectAllBar
+        compact
+        className="mb-1 rounded-md"
+        count={all.filter((o) => selectedSet.has(o.toLowerCase())).length}
+        total={all.length}
+        emptyLabel={`No ${title.toLowerCase()} picked`}
+        onSelectAll={() => onSetAll(all)}
+        onClear={() => onSetAll([])}
+      />
       {all.map((o) => {
         const isSel = selectedSet.has(o.toLowerCase());
         const canDelete = isAdmin && customSet.has(o.toLowerCase());

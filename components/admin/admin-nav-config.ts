@@ -25,7 +25,6 @@ import {
   KeyRound,
   FileUp,
   Settings as SettingsIcon,
-  DatabaseBackup,
 } from "lucide-react";
 
 export interface AdminNavItem {
@@ -153,7 +152,6 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
       { href: "/admin/notifications" as Route, label: "Notifications", Icon: Bell },
       { href: "/admin/task-reminders" as Route, label: "Task Reminders", Icon: BellRing },
       { href: "/admin/settings" as Route, label: "Settings", Icon: SettingsIcon },
-      { href: "/admin/module-backups" as Route, label: "Module Backups", Icon: DatabaseBackup },
     ],
   },
 ];

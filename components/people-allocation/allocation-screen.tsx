@@ -24,6 +24,7 @@ import type { HhEntry, HhPerson, HhCall, AccessActivity } from "@/lib/queries/pe
 import type { HhCalendarWeek } from "@/lib/queries/hh-calendar";
 import { HhWeekCalendar } from "@/components/people-allocation/hh-week-calendar";
 import { linkHhPersonEmployee } from "@/app/(app)/people-allocation/calendar-actions";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /**
  * HAND-HOLDING — pick a person, see and build their sections.
@@ -653,26 +654,21 @@ function PersonLink({
   return (
     <label className="inline-flex items-center gap-2 text-[12.5px] font-semibold text-ink-subtle">
       DCC employee
-      <select
+      <CompactSelect
         value={person.employeeId ?? ""}
-        onChange={(e) => {
-          const employeeId = e.target.value || null;
+        onChange={(v) => {
+          const employeeId = v || null;
           onError(null);
           run(async () => {
             const res = await linkHhPersonEmployee({ personId: person.id, employeeId });
             if (!res.ok) onError(res.error);
           });
         }}
-        className="rounded-lg border border-hairline-strong bg-surface-card px-2 py-1 text-[12.5px] font-bold text-ink-strong outline-none focus:ring-2 focus:ring-[#E10600]/40"
+        className="rounded-lg border border-hairline-strong bg-surface-card px-2 py-1 text-[12.5px] font-bold text-ink-strong"
         aria-label={`Employee whose Daily Compliance ${person.name} shows`}
-      >
-        <option value="">Not linked</option>
-        {employeeOptions.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.name}
-          </option>
-        ))}
-      </select>
+        placeholder="Not linked"
+        options={employeeOptions.map((o) => ({ value: o.id, label: o.name }))}
+      />
     </label>
   );
 }

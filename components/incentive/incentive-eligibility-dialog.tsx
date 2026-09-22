@@ -176,6 +176,42 @@ export function IncentiveEligibilityDialog({
               Everyone
             </button>
 
+            {/* SELECT ALL is not the same button as Everyone, and both belong here.
+                "Everyone" stores a standing rule — appliesToAll — so anyone hired
+                later is covered, and ticking one name afterwards REPLACES the rule
+                with that single person. "Select all" instead ticks every name now,
+                so you can untick the one or two who don't qualify and keep the
+                rest. Neither can stand in for the other. */}
+            <button
+              type="button"
+              onClick={() => {
+                setAll(false);
+                setPicked(new Set(people.map((p) => p.id)));
+              }}
+              aria-pressed={!all && people.length > 0 && people.every((p) => picked.has(p.id))}
+              className={`rounded-lg px-3 py-1.5 text-[12.5px] font-bold transition-colors ${
+                !all && people.length > 0 && people.every((p) => picked.has(p.id))
+                  ? "bg-[var(--color-altus-red)] text-white"
+                  : "border border-hairline bg-surface-card text-ink-soft hover:border-hairline-strong"
+              }`}
+            >
+              Select all
+              <span className="ml-1.5 opacity-60">{people.length}</span>
+            </button>
+
+            {(all || picked.size > 0) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAll(false);
+                  setPicked(new Set());
+                }}
+                className="rounded-lg px-3 py-1.5 text-[12.5px] font-bold text-altus-red hover:underline"
+              >
+                Clear
+              </button>
+            )}
+
             {/* Whole-function shortcuts. They tick people; they are not stored. */}
             {departments.map(([dept, ids]) => {
               const complete = !all && ids.every((id) => picked.has(id));

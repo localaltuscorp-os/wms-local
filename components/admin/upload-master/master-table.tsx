@@ -7,6 +7,7 @@ import { DataTable } from "@/components/admin/ui/data-table";
 import { fireToast } from "@/lib/toast";
 import type { TemplateMasterRow } from "@/lib/queries/template-files";
 import { deleteTemplates, uploadTemplate } from "@/app/(admin)/admin/upload-master/actions";
+import { formatDate } from "@/lib/format";
 
 /**
  * THE UPLOAD MASTER LIST.
@@ -23,7 +24,7 @@ import { deleteTemplates, uploadTemplate } from "@/app/(admin)/admin/upload-mast
 function formatEdited(r: TemplateMasterRow): string {
   if (!r.lastEdited) return "Built-in — never edited";
   const d = typeof r.lastEdited === "string" ? new Date(r.lastEdited) : r.lastEdited;
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return formatDate(d);
 }
 
 const actionBtn =

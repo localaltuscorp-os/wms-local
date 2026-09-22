@@ -37,7 +37,7 @@ const APPROVAL_LABEL: Record<ApprovalStatus, string> = {
 };
 
 const fmtDate = (d: Date | null | undefined): string =>
-  d ? format(d, "MMM d, yyyy") : "";
+  d ? format(d, "dd-MMM-yyyy") : "";
 
 export interface RichRow {
   clientName: string;

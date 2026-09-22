@@ -292,15 +292,22 @@ export function reportedWeekFor(today: string): { weekStart: string; weekEnd: st
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "11 Aug" */
+/** "11-Aug-2026" — the app-wide DD-MMM-YYYY. Was "11 Aug", yearless. */
 export function shortDate(ymd: string): string {
-  const [, m, d] = ymd.split("-");
-  return `${d} ${MONTHS[Number(m) - 1] ?? m}`;
+  const [y, m, d] = ymd.split("-");
+  return `${d}-${MONTHS[Number(m) - 1] ?? m}-${y}`;
 }
 
-/** "11 Aug – 17 Aug 2026" */
+/**
+ * "11-Aug-2026 – 17-Aug-2026".
+ *
+ * BOTH ENDS CARRY THEIR OWN YEAR. This used to print one year, taken from
+ * the END of the range — so the week of 29-Dec-2025 to 04-Jan-2026 read
+ * "29 Dec – 4 Jan 2026" and dated the Monday a year late. One week in every
+ * fifty-two, on a label nobody would think to check.
+ */
 export function weekLabel(weekStart: string, weekEnd: string): string {
-  return `${shortDate(weekStart)} – ${shortDate(weekEnd)} ${weekEnd.slice(0, 4)}`;
+  return `${shortDate(weekStart)} – ${shortDate(weekEnd)}`;
 }
 
 /** "Rs. 3,240" — whole rupees, Indian digit grouping. Paise are noise on a figure

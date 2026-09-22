@@ -128,6 +128,17 @@ export function ModuleBar({
           <span className="whitespace-nowrap">{ADMIN_PANEL_ENTRY.label}</span>
         </Link>
       )}
+      {access.isSuperAdmin && (
+        <Link
+          href="/admin/module-backups"
+          title="Module Backups"
+          className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-[12.5px] font-semibold outline-none transition-colors hover:!bg-red-50 hover:!text-red-700 focus-visible:ring-2 focus-visible:ring-red-500/45"
+          style={{ color: "rgba(15,23,42,0.62)" }}
+        >
+          <span aria-hidden>⇩</span>
+          <span className="whitespace-nowrap">Module Backups</span>
+        </Link>
+      )}
     </nav>
   );
 }

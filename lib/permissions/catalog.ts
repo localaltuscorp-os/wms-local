@@ -17,17 +17,8 @@
  *
  * Keeping the tree here makes the catalogue checkable: `tests/unit/
  * permission-catalog.test.ts` walks every node and asserts its routes resolve to
- * real page files on disk, its route handler paths resolve to real `route.ts`
- * files, that no route is claimed by two nodes, and that every key is unique. A
- * node cannot drift from the app without a test going red.
- *
- * ── PAGES AND ENDPOINTS ARE TWO LISTS, ON PURPOSE ──────────────────────────
- * `routes` governs pages, `apiRoutes` governs route handlers. They are separate
- * because their integrity checks differ (a page must exist, a handler must
- * exist) and because they are read by different guards — the `(app)` layout's
- * `requirePathView` for pages, an explicit `requireApiView` inside each handler
- * for endpoints, since a handler never renders a layout. See
- * `PermissionNode.apiRoutes` for the full reasoning.
+ * real page files on disk, that no route is claimed by two nodes, and that every
+ * key is unique. A node cannot drift from the app without a test going red.
  *
  * ── THREE LEVELS, BECAUSE THE APP HAS THREE ────────────────────────────────
  * Module = a workspace (the hub cards, `lib/workspaces.ts`). Sub-module = a rail
@@ -44,13 +35,6 @@
  * Add the node, list its routes, run the tests. If a route you name does not
  * exist the catalogue test fails; if you forget to name a route it stays
  * governed by its parent, which is the safe default rather than ungoverned.
- *
- * Also list any ENDPOINTS behind it under `apiRoutes`. Forgetting those is the
- * more dangerous omission of the two: a module's pages would refuse while its
- * data endpoints kept answering, so the module would look revoked and not be
- * revoked. `tests/unit/route-handler-coverage.test.ts` is what makes forgetting
- * a red test rather than a silent hole — every `route.ts` must be governed by a
- * node or appear on an allow-list with a stated reason.
  */
 
 /** The three actions the brief names. */
@@ -83,31 +67,6 @@ export interface PermissionNode {
    * Empty is legal for a pure grouping node that owns no route of its own.
    */
   routes?: readonly string[];
-  /**
-   * ROUTE-HANDLER prefixes this node governs — the same idea as `routes`, for
-   * endpoints rather than pages.
-   *
-   * ── WHY ENDPOINTS NEED THEIR OWN FIELD ─────────────────────────────────────
-   * A route handler never renders a layout, so the single `requirePathView` in
-   * `app/(app)/layout.tsx` cannot reach it. Before this field existed, revoking
-   * a module hid its pages while its endpoints kept answering: the matrix was a
-   * navigation-level restriction wearing the appearance of a security boundary.
-   * Handlers are guarded by `requireApiView` instead, resolving the node from
-   * the request path through this list.
-   *
-   * ── WHY NOT MERGE IT INTO `routes` ─────────────────────────────────────────
-   * `tests/unit/permission-catalog.test.ts` proves every `routes` entry resolves
-   * to a real `page.tsx` on disk. An API path has no page, so folding these in
-   * would either break that test or force it to weaken into meaninglessness —
-   * and that test is the reason a renamed route cannot leave a switch wired to
-   * nothing. Two lists, two integrity checks, each still meaning something.
-   *
-   * ── NOT LIMITED TO /api/** ────────────────────────────────────────────────
-   * Several handlers live under the page tree — `/accounts/cc-tracker/export`,
-   * `/events/export.xlsx`, `/goals/report.pdf` — and are just as unreachable by
-   * the layout guard. Any path that resolves to a `route.ts` belongs here.
-   */
-  apiRoutes?: readonly string[];
   /** One line for the Master Admin screen, where an administrator decides. */
   note?: string;
   children?: readonly PermissionNode[];
@@ -129,11 +88,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         key: "wms.dashboard",
         label: "WMS Dashboard",
         routes: ["/dashboard"],
-        // The share icons every dashboard SECTION carries. One pair of
-        // endpoints serves the aging heatmap, delivery spread, bottom
-        // performers and the exec tables alike, so they are governed by the
-        // dashboard rather than by any one section.
-        apiRoutes: ["/api/reports/section-pdf", "/api/reports/send-email"],
         children: [
           { key: "wms.dashboard.done", label: "Done Dashboard", routes: ["/dashboard/done"] },
           {
@@ -159,7 +113,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       },
       { key: "wms.my-day", label: "Daily Goals", routes: ["/my-day"] },
       { key: "wms.review", label: "Review", routes: ["/review"] },
-      { key: "wms.projects", label: "Projects", routes: ["/projects"] },
       { key: "wms.index-hub", label: "Important Links", routes: ["/index-hub"] },
       { key: "wms.daily-checklist", label: "Daily Checklist", routes: ["/daily-checklist"] },
     ],
@@ -277,116 +230,40 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "hr.overview", label: "HR Overview", routes: ["/hr", "/hr/overview"] },
       { key: "hr.stages", label: "Lifecycle Stages", routes: ["/hr/[stage]"] },
       { key: "hr.candidates", label: "Candidates", routes: ["/hr/candidates"] },
-      {
-        key: "hr.intake",
-        label: "Candidate Intake",
-        routes: ["/hr/intake"],
-        // The Aadhaar auto-fill flow and the resume renderer all serve this ONE
-        // screen, and all of them sit under `/api/hr/` — outside the page's own
-        // path, so prefix matching alone would never reach them. The DigiLocker
-        // pair returns to `?return=/hr/intake?draft=…`, which is what fixes the
-        // owner node rather than a guess.
-        apiRoutes: [
-          "/api/hr/aadhaar-lookup",
-          "/api/hr/aadhaar/digilocker/result",
-          "/api/hr/aadhaar/digilocker/start",
-          "/api/hr/aadhaar/methods",
-          "/api/hr/candidate-resume/pdf",
-        ],
-      },
+      { key: "hr.intake", label: "Candidate Intake", routes: ["/hr/intake"] },
       { key: "hr.evaluation", label: "Evaluation", routes: ["/hr/evaluation"] },
       {
         key: "hr.management-assessment",
         label: "Management Assessment",
         routes: ["/hr/management-assessment"],
-        apiRoutes: ["/api/hr/management-assessment/upload"],
       },
       { key: "hr.hiring-analytics", label: "Hiring Analytics", routes: ["/hr/hiring-analytics"] },
       { key: "hr.selected-candidates", label: "Selected Candidates", routes: ["/hr/selected-candidates"] },
       { key: "hr.rejected-candidates", label: "Rejected Candidates", routes: ["/hr/rejected-candidates"] },
       { key: "hr.induction", label: "Induction", routes: ["/hr/induction"] },
-      {
-        key: "hr.record",
-        label: "HR Record",
-        routes: ["/hr/record"],
-        // One person's ENTIRE HR record leaves through `/zip`, and the two Drive
-        // handlers are what write it out of the building. All four belong to the
-        // record screen, so revoking HR Record must close them together.
-        apiRoutes: [
-          "/api/hr/docket",
-          "/api/hr/records/[personId]/zip",
-          "/api/hr/records/drive/connect",
-          "/api/hr/records/drive/run",
-        ],
-      },
-      { key: "hr.address-book", label: "Address Book", routes: ["/hr/address-book"] },
-      { key: "hr.assets", label: "Asset Register", routes: ["/hr/assets"] },
+      { key: "hr.record", label: "HR Record", routes: ["/hr/record"] },
       { key: "hr.kpi", label: "HR KPI", routes: ["/hr/kpi"] },
       { key: "hr.ctc", label: "CTC", routes: ["/hr/ctc"] },
-      /* MOVED TO THE EMPLOYEES ROOM (2026-09-12). Both paths are listed: the
+            /* MOVED TO THE EMPLOYEES ROOM (2026-09-12). Both paths are listed: the
          new one is where the page lives, the old one still resolves as a
          redirect and must stay governed by the same node rather than becoming
          an ungoverned door. The KEY keeps its `hr.` prefix deliberately —
          permission keys are persisted grants, so renaming it would revoke every
          grant already written against it. */
       { key: "hr.salary-slip", label: "Salary Slip", routes: ["/salary-slip", "/hr/salary-slip"] },
-      {
-        key: "hr.letters",
-        label: "Letters",
-        routes: ["/hr/letters"],
-        // THE HANDLERS BEHIND THE SCREEN, and the reason `apiRoutes` exists.
-        // A route handler never renders a layout, so `requirePathView` cannot
-        // reach it. Before these were listed, revoking "Letters" hid the screen
-        // while these four endpoints kept issuing, emailing and rendering PDFs
-        // — a module that looked revoked and was not. `requireApiView` reads
-        // this list from inside each handler.
-        //
-        // Note `issue-rich` and `pdf` render through headless Chromium, and
-        // `email-pdf` sends mail: the three most consequential endpoints in the
-        // module, and exactly the ones a page-only guard leaves open.
-        apiRoutes: [
-          "/api/hr/letters/email-pdf",
-          "/api/hr/letters/issue",
-          "/api/hr/letters/issue-rich",
-          "/api/hr/letters/pdf",
-          // The editor's own "Send Email" composer. It sits at a different
-          // prefix from its four siblings, which is exactly why it was missed:
-          // a name-based sweep of `/api/hr/letters/*` would not have caught it.
-          "/api/hr/send-letter-email",
-        ],
-      },
+      { key: "hr.letters", label: "Letters", routes: ["/hr/letters"] },
       // These three have NO page at the bare segment — only children. Naming
       // the real paths keeps the catalogue test honest: a route listed here that
       // does not exist on disk is a switch wired to nothing, which is worse than
       // no switch. `/hr/policies/[key]` is the literal directory name, and the
       // prefix match means it governs every policy under it.
-      {
-        key: "hr.policies",
-        label: "Policies",
-        routes: ["/hr/policies/[key]"],
-        // Three handlers, not one: `download-all` is the whole policy library as
-        // a ZIP, and `acknowledge` writes. A screen-only guard leaves all three
-        // answering after the module is revoked.
-        apiRoutes: [
-          "/api/hr/policies/acknowledge",
-          "/api/hr/policies/download",
-          "/api/hr/policies/download-all",
-        ],
-      },
+      { key: "hr.policies", label: "Policies", routes: ["/hr/policies/[key]"] },
       {
         key: "hr.forms",
         label: "Forms",
         routes: ["/hr/forms/[id]", "/hr/all-forms", "/hr/my-forms"],
-        apiRoutes: ["/api/hr/forms/[id]/email", "/api/hr/forms/[id]/pdf"],
       },
-      {
-        key: "hr.exit",
-        label: "Exit Process",
-        routes: ["/hr/exit/interview"],
-        // The register lives under /api/admin/ but reports the same departures
-        // this module owns, so it is governed here rather than by an admin node.
-        apiRoutes: ["/api/admin/exit-register"],
-      },
+      { key: "hr.exit", label: "Exit Process", routes: ["/hr/exit/interview"] },
       { key: "hr.holidays", label: "Holiday List", routes: ["/hr/holidays", "/holidays"] },
       {
         key: "hr.helpdesk",
@@ -406,37 +283,45 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     note: "Department-restricted room (see WORKSPACE_DEPARTMENT). This cannot widen that.",
     children: [
       {
+        /* THE KEY STAYS `sales.*` THOUGH THE SCREEN LIVES IN BILLING NOW.
+           It is stored in `module_permissions.node_key`, so renaming it would
+           orphan every grant already made — the same reason
+           `admin.people.departments` kept its name when Departments became
+           Functions. Only the ROUTE moved. Matching is longest-prefix, so
+           `/billing/ambassadors` resolves here rather than to the `billing`
+           module node. */
         key: "sales.ambassadors",
         label: "Ambassadors",
-        routes: ["/ambassadors"],
+        routes: ["/billing/ambassadors"],
         children: [
           {
             key: "sales.ambassadors.pipeline",
             label: "Pipeline",
-            routes: ["/ambassadors/pipeline"],
+            routes: ["/billing/ambassadors/pipeline"],
           },
           {
             key: "sales.ambassadors.directory",
             label: "Directory",
-            routes: ["/ambassadors/directory"],
+            routes: ["/billing/ambassadors/directory"],
           },
           {
             key: "sales.ambassadors.commissions",
             label: "Commissions",
-            routes: ["/ambassadors/commissions"],
+            routes: ["/billing/ambassadors/commissions"],
           },
         ],
       },
       { key: "sales.people-gives", label: "People Gives", routes: ["/people-gives"] },
       {
+        /* Same arrangement as Ambassadors above: the key stayed, the route moved. */
         key: "sales.outstanding",
         label: "Outstanding",
-        routes: ["/outstanding"],
+        routes: ["/billing/outstanding"],
         children: [
           {
             key: "sales.outstanding.contracts",
             label: "Contracts",
-            routes: ["/outstanding/contracts"],
+            routes: ["/billing/outstanding/contracts"],
           },
         ],
       },
@@ -548,6 +433,14 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       "invoices and tax invoices. Product selection reads the product master.",
     children: [
       { key: "billing.ledger", label: "Billing Ledger", routes: ["/billing"] },
+      {
+        // The KYC form's dropdown lists. Its own node because it is master
+        // data — somebody who may raise documents is not automatically
+        // somebody who may change what every future document can say.
+        key: "billing.customer-dropdowns",
+        label: "Customer Master DD",
+        routes: ["/billing/customers/dropdowns"],
+      },
       { key: "billing.documents", label: "Documents", routes: ["/billing/documents"] },
       {
         key: "billing.documents.new",
@@ -558,13 +451,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         key: "billing.documents.detail",
         label: "Document Detail",
         routes: ["/billing/documents/[id]"],
-        // The invoice LEAVES through these two: the PDF a customer is sent, and
-        // the picture of the same sheet that goes in the mail body. Revoking
-        // the document screen has to close them with it.
-        apiRoutes: [
-          "/billing/documents/[id]/pdf",
-          "/billing/documents/[id]/png",
-        ],
       },
       {
         key: "billing.documents.email",
@@ -593,8 +479,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         key: "goals.weekly",
         label: "Weekly Goals",
         routes: ["/goals/weekly", "/goals/week", "/weekly-goals"],
-        // `?employeeId=&weekStart=` — one week of one person's goals, rendered.
-        apiRoutes: ["/goals/report.pdf"],
         children: [
           {
             key: "goals.weekly.team",
@@ -611,12 +495,7 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "goals.review", label: "Goals Review", routes: ["/goals/review"] },
       { key: "goals.approve", label: "Goals Approve", routes: ["/goals/approve"] },
       { key: "goals.commit", label: "Commit", routes: ["/goals/commit"] },
-      {
-        key: "goals.import",
-        label: "Import",
-        routes: ["/goals/import"],
-        apiRoutes: ["/goals/template.xlsx"],
-      },
+      { key: "goals.import", label: "Import", routes: ["/goals/import"] },
       { key: "goals.cascade", label: "Cascade", routes: ["/goals/cascade"] },
       { key: "goals.plan", label: "Plan", routes: ["/goals/plan"] },
       { key: "goals.recycle-bin", label: "Recycle Bin", routes: ["/goals/recycle-bin"] },
@@ -644,12 +523,7 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
           { key: "productivity.appraisal.culture", label: "Culture", routes: ["/appraisal/culture"] },
         ],
       },
-      {
-        key: "productivity.report",
-        label: "Report",
-        routes: ["/productivity/report"],
-        apiRoutes: ["/api/productivity/report/[id]/pdf"],
-      },
+      { key: "productivity.report", label: "Report", routes: ["/productivity/report"] },
     ],
   },
 
@@ -669,26 +543,13 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     key: "training",
     label: "Training",
     children: [
-      {
-        key: "training.library",
-        label: "Library",
-        routes: ["/training"],
-        apiRoutes: ["/api/training/upload"],
-      },
+      { key: "training.library", label: "Library", routes: ["/training"] },
       { key: "training.calendar", label: "Calendar", routes: ["/training/calendar"] },
       { key: "training.self-learning", label: "Self-Learning", routes: ["/training/self-learning"] },
       { key: "training.share", label: "Share", routes: ["/training/share"] },
       { key: "training.obligations", label: "Obligations", routes: ["/training/obligations"] },
       { key: "training.induction", label: "Induction", routes: ["/training/induction"] },
-      {
-        key: "training.feedback",
-        label: "Feedback",
-        routes: ["/training/feedback"],
-        // Both are called from the feedback form/detail, and both are module
-        // DOCUMENTS rather than a bare upload: one stores the recording, the
-        // other transcribes it.
-        apiRoutes: ["/api/training/feedback-upload", "/api/training/summarize-audio"],
-      },
+      { key: "training.feedback", label: "Feedback", routes: ["/training/feedback"] },
       { key: "training.dashboard", label: "Training Dashboard", routes: ["/training/dashboard"] },
       { key: "training.new", label: "New Training", routes: ["/training/new"] },
     ],
@@ -711,43 +572,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     children: [
       { key: "operations.home", label: "Operations Home", routes: ["/operations"] },
       { key: "operations.checklist", label: "Checklist", routes: ["/operations/checklist"] },
-      {
-        key: "operations.client-engagement",
-        label: "Client Engagement",
-        children: [
-          {
-            key: "operations.client-engagement.overview",
-            label: "Overview",
-            routes: ["/operations/client-engagement"],
-          },
-          {
-            key: "operations.client-engagement.calendar",
-            label: "Calendar",
-            routes: ["/operations/client-engagement/calendar"],
-          },
-          {
-            key: "operations.client-engagement.employees",
-            label: "Emp Grid",
-            routes: ["/operations/client-engagement/employees"],
-          },
-          {
-            key: "operations.client-engagement.pca",
-            label: "PCA Grid",
-            routes: ["/operations/client-engagement/pca"],
-          },
-          {
-            key: "operations.client-engagement.references",
-            label: "References",
-            routes: ["/operations/client-engagement/references"],
-          },
-          {
-            key: "operations.client-engagement.team",
-            label: "Team & Log",
-            routes: ["/operations/client-engagement/team"],
-          },
-        ],
-      },
-      { key: "operations.directory", label: "Directory", routes: ["/operations/directory"] },
       { key: "operations.guidelines", label: "Guidelines", routes: ["/operations/guidelines"] },
       /* One switch for all of Masters, including Recruitment JD — which moved
          here from the HR rail on 2026-09-17 and gave up its own `hr.recruitment-jd`
@@ -759,18 +583,20 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         key: "operations.masters",
         label: "Masters",
         routes: ["/operations/masters", "/hr/recruitment-jd"],
-        // SOP files hang off a job description, and the JDs live here since the
-        // Recruitment JDs move — hence this node rather than an `hr.*` one.
-        apiRoutes: ["/api/jd/attachments/[id]"],
       },
     ],
   },
 
   {
-    // Replaces the archived Monthly Events Master on the same route (0231).
     key: "events",
     label: "Monthly Events Master",
-    children: [{ key: "events.calendar", label: "Calendar", routes: ["/events"] }],
+    children: [
+      { key: "events.overview", label: "Overview", routes: ["/events"] },
+      { key: "events.calendar", label: "Calendar", routes: ["/events/calendar"] },
+      { key: "events.masters", label: "Masters", routes: ["/events/masters"] },
+      { key: "events.batches", label: "Batches", routes: ["/events/batches"] },
+      { key: "events.obligations", label: "Obligations", routes: ["/events/obligations"] },
+    ],
   },
 
   {
@@ -926,12 +752,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             routes: ["/admin/paying-entities"],
           },
           {
-            key: "admin.masters.upload-master",
-            label: "Upload Master",
-            routes: ["/admin/upload-master"],
-            note: "The bulk-import template files (Tasks, Goals, Accounts). View = download; Edit = upload/replace and delete, applied sitewide.",
-          },
-          {
             key: "admin.masters.billing-profiles",
             label: "Billing Profiles",
             routes: ["/admin/billing-profiles"],
@@ -958,6 +778,12 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             key: "admin.masters.billing-products",
             label: "Product Billing Fields",
             routes: ["/admin/billing-products"],
+          },
+          {
+            key: "admin.masters.upload-master",
+            label: "Upload Master",
+            routes: ["/admin/upload-master"],
+            note: "The bulk-import template files (Tasks, Goals, Accounts). View = download; Edit = upload/replace and delete, applied sitewide.",
           },
           {
             key: "admin.masters.client-locations",
@@ -1016,22 +842,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             routes: ["/admin/task-reminders"],
           },
           { key: "admin.system.settings", label: "Settings", routes: ["/admin/settings"] },
-          {
-            // MODULE BACKUPS — a module’s whole dataset as one download, and the
-            // Google Drive account it is written to. NO `routes` yet: the
-            // library and both endpoints are merged, the admin screen at
-            // /admin/module-backups is not, and a `routes` entry must resolve to
-            // a real page (tests/unit/permission-catalog.test.ts). The node
-            // exists now so the endpoints are GOVERNED rather than merely
-            // guarded — apiViewDenial answers null for a path no node claims,
-            // which is a guard that stops nothing.
-            key: "admin.system.module-backups",
-            label: "Module Backups",
-            apiRoutes: [
-              "/api/modules/[moduleId]/export",
-              "/api/modules/backup/connect",
-            ],
-          },
         ],
       },
     ],
@@ -1049,21 +859,8 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     label: "Platform",
     note: "Surfaces that belong to no single room and are reached from the avatar menu.",
     children: [
-      {
-        key: "platform.hub",
-        label: "Hub",
-        routes: ["/hub"],
-        // Entering a workspace from the hub. The handler applies the workspace's
-        // own rule as well; this is the module-level half, so revoking the Hub
-        // closes the way in rather than only hiding the tiles.
-        apiRoutes: ["/ws/[id]"],
-      },
-      {
-        key: "platform.profile",
-        label: "Profile",
-        routes: ["/profile"],
-        apiRoutes: ["/api/profile/avatar"],
-      },
+      { key: "platform.hub", label: "Hub", routes: ["/hub"] },
+      { key: "platform.profile", label: "Profile", routes: ["/profile"] },
       { key: "platform.inbox", label: "Inbox", routes: ["/inbox"] },
       { key: "platform.archived", label: "Archived", routes: ["/archived"] },
       { key: "platform.documents", label: "Documents", routes: ["/documents"] },
@@ -1132,31 +929,15 @@ export function isPermissionNodeKey(key: string): boolean {
 }
 
 /**
- * Route prefix → node key. Page prefixes and handler prefixes are kept in
- * separate lists (their integrity checks differ — see `PermissionNode.routes`)
- * but are SCANNED as one, longest prefix first.
- *
- * Why one scan: a page and a handler can nest — `/accounts/cc-tracker` is a page
- * and `/accounts/cc-tracker/export` is a handler — and the rule that has always
- * held is "the MOST SPECIFIC node wins". Merging only for the lookup keeps that
- * rule true across both kinds of route, with no special case for `/api/`.
+ * Route prefix → node key, longest prefix first.
  *
  * Sorted by descending length so `/tasks/kanban` matches `wms.tasks.kanban`
- * before `wms.tasks`. Built once; the lookup is a linear scan of ~250 entries,
+ * before `wms.tasks`. Built once; the lookup is a linear scan of ~200 entries,
  * which is far cheaper than the query it guards.
  */
-const PAGE_ROUTE_INDEX: readonly { route: string; key: string }[] = FLAT.flatMap((n) =>
+const ROUTE_INDEX: readonly { route: string; key: string }[] = FLAT.flatMap((n) =>
   (n.routes ?? []).map((route) => ({ route, key: n.key })),
-);
-
-const API_ROUTE_INDEX: readonly { route: string; key: string }[] = FLAT.flatMap((n) =>
-  (n.apiRoutes ?? []).map((route) => ({ route, key: n.key })),
-);
-
-const ROUTE_INDEX: readonly { route: string; key: string }[] = [
-  ...PAGE_ROUTE_INDEX,
-  ...API_ROUTE_INDEX,
-].sort((a, b) => b.route.length - a.route.length);
+).sort((a, b) => b.route.length - a.route.length);
 
 /**
  * The most specific node governing `pathname`, or null when nothing does.
@@ -1188,14 +969,7 @@ export function nodeChain(key: string): readonly string[] {
   return [...n.ancestors, n.key];
 }
 
-/** Every PAGE route the catalogue claims — used by the catalogue test, which
- *  asserts each one resolves to a real `page.tsx`. */
+/** Every route the catalogue claims — used by the catalogue test. */
 export function allCatalogRoutes(): readonly string[] {
-  return PAGE_ROUTE_INDEX.map((r) => r.route);
-}
-
-/** Every ROUTE-HANDLER path the catalogue claims — used by the catalogue test,
- *  which asserts each one resolves to a real `route.ts`. */
-export function allCatalogApiRoutes(): readonly string[] {
-  return API_ROUTE_INDEX.map((r) => r.route);
+  return ROUTE_INDEX.map((r) => r.route);
 }

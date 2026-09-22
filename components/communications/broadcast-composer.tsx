@@ -1716,24 +1716,28 @@ export function BroadcastComposer({
                   options={departments}
                   selected={departmentIds}
                   onToggle={(id) => toggle(departmentIds, setDepartmentIds, id)}
+                  onSetAll={setDepartmentIds}
                 />
                 <ChipGroup
                   title="Designations"
                   options={designations}
                   selected={designationIds}
                   onToggle={(id) => toggle(designationIds, setDesignationIds, id)}
+                  onSetAll={setDesignationIds}
                 />
                 <ChipGroup
                   title="Employee types"
                   options={WORKER_TYPES.map((w) => ({ id: w, name: WORKER_TYPE_LABELS[w] }))}
                   selected={workerTypes}
                   onToggle={(id) => toggle(workerTypes, setWorkerTypes, id)}
+                  onSetAll={setWorkerTypes}
                 />
                 <ChipGroup
                   title="Roles"
                   options={EMPLOYEE_ROLES.map((r) => ({ id: r, name: ROLE_LABELS[r] }))}
                   selected={roles}
                   onToggle={(id) => toggle(roles, setRoles, id)}
+                  onSetAll={setRoles}
                 />
 
                 {/* Individual employees — search & add (no cap) */}
@@ -1994,18 +1998,47 @@ function ChipGroup({
   options,
   selected,
   onToggle,
+  onSetAll,
 }: {
   title: string;
   options: ComposerOption[];
   selected: string[];
   onToggle: (id: string) => void;
+  /** Replaces the whole group — Select all / Clear. A loop over `onToggle`
+   *  would not work: every call rebuilds the list from the same captured
+   *  array, so only the last one would survive the render. */
+  onSetAll?: (ids: string[]) => void;
 }) {
   if (options.length === 0) return null;
   return (
     <div>
-      <span className="mb-1.5 block text-[12px] font-bold uppercase tracking-[0.12em] text-ink-subtle">
-        {title}
-      </span>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-ink-subtle">
+          {title}
+        </span>
+        {/* The whole group in one click, then drop the one or two that should
+            not hear this — the usual way an audience is built. */}
+        <span className="flex items-center gap-2.5">
+          {onSetAll && selected.length < options.length && (
+            <button
+              type="button"
+              onClick={() => onSetAll(options.map((o) => o.id))}
+              className="text-[11.5px] font-bold text-ink-soft hover:text-ink-strong hover:underline"
+            >
+              Select all ({options.length})
+            </button>
+          )}
+          {onSetAll && selected.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onSetAll([])}
+              className="text-[11.5px] font-bold text-altus-red hover:underline"
+            >
+              Clear
+            </button>
+          )}
+        </span>
+      </div>
       <div className="flex flex-wrap gap-1.5">
         {options.map((o) => {
           const on = selected.includes(o.id);

@@ -95,13 +95,15 @@ export function stripComments(source: string): string {
 }
 
 /**
- * A repo-relative source file, comments removed and line endings normalised.
+ * A repo-relative source file, comments removed and line endings NORMALISED.
  *
- * CRLF, not LF, is what a Windows checkout of this repo holds — there is no
- * .gitattributes, so git converts on the way out. Every caller writes its
- * expected snippet with plain newlines, so without this the same assertion
- * passes on one machine and fails on another for a reason that has nothing to
- * do with the code being asserted.
+ * The normalisation is not cosmetic. Every caller asserts on a snippet written
+ * in a test file with LF newlines in it, but this repository is checked out
+ * with `core.autocrlf=true`, so on Windows the file on disk has CRLF and a
+ * multi-line `toContain` never matches. The test then fails for the developer
+ * and passes in CI, which is the worst way round: it reports the checkout
+ * rather than the code. Reading both the same way is what makes these
+ * assertions mean what they say on either platform.
  */
 export function codeOf(relPath: string): string {
   const raw = readFileSync(join(process.cwd(), relPath), "utf8");

@@ -310,7 +310,7 @@ export async function GET(
     .fontSize(8)
     .fillColor(COLORS.inkFaint)
     .text(
-      `${rendered.title} · ${employeeName} · Generated ${format(new Date(), "EEE, MMM d, yyyy · HH:mm")}`,
+      `${rendered.title} · ${employeeName} · Generated ${format(new Date(), "EEE, dd-MMM-yyyy · HH:mm")}`,
       left,
       footerY,
       { width, lineBreak: false },

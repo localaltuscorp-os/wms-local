@@ -11,6 +11,7 @@ import {
   revokeUnlockRoleAction,
   unlockAccountAction,
 } from "@/app/(app)/account-locks/actions";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 export interface LockedRow {
   email: string;
@@ -319,19 +320,15 @@ export function AccountLocksScreen({
             <div className="mt-4">
               <p className="text-[11px] font-black uppercase tracking-[0.1em] text-ink-subtle">Give the role to</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                <select
-                  id="grant-person"
+                <CompactSelect
                   value={pick}
-                  onChange={(e) => setPick(e.target.value)}
+                  onChange={setPick}
                   className="min-w-[240px] flex-1 rounded-xl border border-hairline-strong bg-white px-3 py-2 text-[13.5px] font-medium"
-                >
-                  <option value="">Choose a person…</option>
-                  {candidates.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} · {c.email}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Choose a person…"
+                  aria-label="Person"
+                  panelWidth={280}
+                  options={candidates.map((c) => ({ value: c.id, label: `${c.name} · ${c.email}` }))}
+                />
                 <button
                   type="button"
                   onClick={() => void give()}

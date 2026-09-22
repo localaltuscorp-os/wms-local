@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import nextConfig from "@/next.config";
 import {
   PERMISSION_CATALOG,
   PERMISSION_ACTIONS,
@@ -38,7 +39,24 @@ const ROOT = process.cwd();
  * A dynamic segment in the catalogue (`/hr/[stage]`) is checked literally,
  * because that IS the directory name on disk.
  */
+/**
+ * Sources answered by `redirects()` in next.config.ts.
+ *
+ * A handful of routes are pure forwards with no auth or data behind them
+ * (`/billing` → `/billing/documents`, the three DCC ones, `/daily-checklist`,
+ * `/appraisal`). They used to be pages whose whole body was `redirect(...)`,
+ * which Next 16.2.6 turns into an MPA navigation — and its `Router` throws
+ * before its last five hooks on that path, so the viewer got "This page
+ * couldn't load" instead of the module. They answer from the routing layer
+ * now, so they have no `page.tsx` — but they are still REAL, still reachable,
+ * and their catalogue keys are persisted grants that must not be deleted.
+ */
+const redirectSources = new Set<string>(
+  ((await nextConfig.redirects?.()) ?? []).map((r) => r.source),
+);
+
 function routeExists(route: string): boolean {
+  if (redirectSources.has(route)) return true;
   const rel = route.replace(/^\//, "");
   const groups = ["(app)", "(admin)", ""];
   for (const g of groups) {

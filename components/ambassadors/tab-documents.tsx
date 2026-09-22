@@ -8,7 +8,7 @@ import {
   uploadAmbassadorDocument,
   ambassadorDocumentUrl,
   deleteAmbassadorDocument,
-} from "@/app/(app)/ambassadors/doc-ai-actions";
+} from "@/app/(app)/billing/ambassadors/doc-ai-actions";
 import { fireToast } from "@/lib/toast";
 
 function fmtSize(bytes: number | null): string {

@@ -314,12 +314,49 @@ export const BillingSeriesDefaultSchema = z.object({
   padWidth: z.coerce.number().int().min(0).max(10).default(0),
 });
 
+/**
+ * A filter that takes SEVERAL values, off one URL parameter.
+ *
+ * Manan, 2026-09-21: "in drop down give multiple select also as well in
+ * filters." The question people ask a document list is rarely singular -
+ * "Invoices and Proforma", "everything except Cancelled" - and a single-value
+ * filter answers it by making you look twice.
+ *
+ * The wire format is a comma-separated string ("tax_invoice,proforma"), because
+ * it stays one readable query parameter that can be pasted to a colleague, and
+ * because an empty one is still the plain "no filter" the pages already treat
+ * as "show everything". Values that are not in `member` are DROPPED rather than
+ * rejected: a stale bookmark should narrow to what it can and show a list, not
+ * a 500.
+ */
+const multi = <T extends string>(member?: readonly T[]) =>
+  z
+    .union([z.string(), z.array(z.string()), z.null()])
+    // `.optional()` BEFORE the transform, so an absent parameter is legal input
+    // rather than a validation failure. It is the commonest case — a page with
+    // no filters on it at all — and the transform turns it into the empty list
+    // that every reader already understands as "no filter".
+    .optional()
+    .transform((v): T[] => {
+      const raw = typeof v === "string" ? v.split(",") : Array.isArray(v) ? v : [];
+      const seen = new Set<string>();
+      const out: T[] = [];
+      for (const part of raw) {
+        const s = String(part).trim();
+        if (!s || seen.has(s)) continue;
+        if (member && !(member as readonly string[]).includes(s)) continue;
+        seen.add(s);
+        out.push(s as T);
+      }
+      return out;
+    });
+
 export const BillingListFilterSchema = z.object({
-  type: z.enum(BILLING_DOC_TYPES).nullable().default(null),
-  status: z.enum(BILLING_DOC_STATUSES).nullable().default(null),
-  customerId: z.string().uuid().nullable().default(null),
-  entityId: z.string().nullable().default(null),
-  finYear: z.string().nullable().default(null),
+  type: multi(BILLING_DOC_TYPES),
+  status: multi(BILLING_DOC_STATUSES),
+  customerId: multi(),
+  entityId: multi(),
+  finYear: multi(),
   from: z.string().regex(DATE_RE).nullable().default(null),
   to: z.string().regex(DATE_RE).nullable().default(null),
   q: z.string().trim().max(200).nullable().default(null),

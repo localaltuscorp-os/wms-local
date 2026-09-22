@@ -99,9 +99,12 @@ describe("groupByDay", () => {
     expect(groups[1]?.events.map((e) => e.id)).toEqual(["r3"]);
   });
 
-  it("labels older dates as MMM d, yyyy", () => {
+  it("labels older dates as DD-MMM-YYYY", () => {
+    // The app-wide format (Manan, 2026-09-15: "date everywhere should be
+    // DD-MMM-YYYY ie 16-Jan-2026"). This read "Jan 15, 2024" until the
+    // activity feed was brought in line with every other surface.
     const old = new Date("2024-01-15T12:00:00Z");
     const groups = groupByDay([makeRow({ createdAt: old })]);
-    expect(groups[0]?.label).toMatch(/Jan 15, 2024/);
+    expect(groups[0]?.label).toMatch(/15-Jan-2024/);
   });
 });

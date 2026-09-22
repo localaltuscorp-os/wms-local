@@ -32,7 +32,7 @@ describe("parseOutstandingFilters", () => {
 
 describe("applyOutstandingFilters", () => {
   const f = (over: Partial<OutstandingFilters> = {}): OutstandingFilters => ({
-    employees: [], entities: [], months: [], years: [],
+    employees: [], entities: [], clients: [], months: [], years: [],
     cycles: [], modes: [], statuses: [], pdcOnly: false, ...over,
   });
 

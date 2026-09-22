@@ -19,6 +19,8 @@ import {
 import { approverDisplay, selectableApproverChoices } from "@/lib/status/approver-status";
 import { ApproverChip } from "@/components/status/approver-chip";
 import { isExecutable, type PlanKind } from "@/lib/project-plan/levels";
+import type { StatusAxis, StatusActor } from "@/lib/status/axes";
+import { DoerStatusSelect, InitiatorStatusSelect } from "@/components/status/status-select";
 import { setPlanNodeStatus } from "@/app/(app)/project-plan/actions";
 
 /**
@@ -99,10 +101,27 @@ export function PlanStatusCell({
   /** True when the row's working status lives on a linked task — the cell then
    *  says so in its tooltip, because the change will show up in WMS too. */
   linkedToTask,
+  /**
+   * WHICH AXIS THIS CELL EDITS.
+   *
+   * The table used to render ONE cell holding both flows in a single select
+   * with two <optgroup>s, on the reasoning that a second chip would show the
+   * same value twice. That reasoning ended when the two axes became one shared
+   * vocabulary (lib/status/axes.ts) and stopped overlapping: a row is now
+   * "Initiated" AND "On Hold" at the same time, and one select could only ever
+   * show whichever outranked the other — so a project that had been put on hold
+   * hid the fact that its work had started, and a project reporting progress
+   * hid the hold.
+   *
+   * Two cells, side by side, each answering its own question. "both" keeps the
+   * old combined control for any caller that still wants one.
+   */
+  axis = "both",
 }: {
   node: PlanStatusNode;
   actor: PlanActor;
   linkedToTask: boolean;
+  axis?: StatusAxis | "both";
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -110,6 +129,28 @@ export function PlanStatusCell({
   const current = doerStatusOf(node);
   const tone = PLAN_STATUS_TONE[current];
   const working = PLAN_WORKING_STATUSES.filter((s) => canSetPlanStatus(actor, s).ok);
+
+  /**
+   * The write, as a promise — what the two shared controls await.
+   *
+   * `choose` below is the "both" mode's fire-and-forget twin, kept because that
+   * control is a bare <select> with no optimistic state of its own.
+   */
+  async function commitStatus(next: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    // Checked here purely to fail fast with the server's own wording; the
+    // server re-runs this exact call before it writes.
+    const verdict = canSetPlanStatus(actor, next);
+    if (!verdict.ok) return { ok: false, error: verdict.reason };
+    try {
+      const res = await setPlanNodeStatus({ id: node.id, status: next });
+      return res.ok ? { ok: true } : { ok: false, error: res.error };
+    } catch {
+      return {
+        ok: false,
+        error: "Couldn't save that status — your session may have expired. Sign in again and retry.",
+      };
+    }
+  }
 
   function choose(next: string) {
     if (next === current) return;

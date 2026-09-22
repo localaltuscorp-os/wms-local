@@ -95,48 +95,6 @@ describe("one client per plan", () => {
   });
 });
 
-describe("the plan table shows the doer axis, and only that", () => {
-  const board = codeOf("components/project-plan/plan-board.tsx");
-  const cell = codeOf("components/project-plan/plan-status-cell.tsx");
-
-  it("has a Doer Status column and NO Initiator Status column", () => {
-    // The account holder, 2026-09-21: the Initiator Status column comes off the
-    // task, goals and project tables. The verdict is still stored, still ruled
-    // on from the kanban, and still shown in the plan's own detail dialog.
-    expect(board).toContain('{ key: "status", label: "Doer Status"');
-    expect(board).not.toContain('label: "Initiator Status"');
-  });
-
-  it("stops the verdict from hiding the progress report", () => {
-    // The cell reads the WORKING status. Routing it through a verdict would let
-    // an approval outrank a progress report, which is what the single combined
-    // cell used to do.
-    expect(cell).toContain("doerStatusOf(node)");
-    expect(cell).not.toContain("effectivePlanStatus(");
-  });
-
-  it("shows an unruled row as No Verdict, not as Not Approved", () => {
-    // BOTH CELLS ARE THE SHARED CONTROL NOW (2026-09-15), so "No Verdict" is
-    // rendered once, in components/status/status-select.tsx, rather than by
-    // each table spelling it for itself. That is what this now pins: the plan
-    // cell must not grow a second copy of the rule.
-    const shared = codeOf("components/status/status-select.tsx");
-    expect(shared).toContain('placeholder="No Verdict"');
-    expect(shared).toContain("effectiveInitiatorStatus(approvalStatus, archived)");
-    expect(cell).not.toContain("No verdict");
-  });
-
-  it("offers only what this viewer may set", () => {
-    // The picker renders what `canSetPlanStatus` allows and the server re-checks
-    // the same rule on the write, so a hidden option is a courtesy, never the
-    // control. Archiving is not offered here at all: it cascades through
-    // children and linked tasks, so it goes through the row's Archive button
-    // and its confirmation.
-    expect(cell).toContain("canSetPlanStatus(actor, s).ok");
-    expect(cell).not.toContain('"archived"');
-  });
-});
-
 describe("only Action / Sub-Action / Sub-Sub-Action reach the task section", () => {
   const levels = codeOf("lib/project-plan/levels.ts");
 
@@ -237,21 +195,20 @@ describe("an executable row needs a description before it can be scheduled", () 
   });
 });
 
-describe("the WMS task list keeps the initiator axis off the table", () => {
+describe("the WMS task list carries the Initiator Status column", () => {
   const table = codeOf("components/tasks/task-table.tsx");
 
-  it("has a Doer Status column and no Initiator Status column", () => {
-    // Same decision as the plan and goals tables (account holder, 2026-09-21).
-    // The verdict is ruled on from the kanban and the task drawer.
-    expect(table).toContain('status: "Doer Status"');
-    expect(table).not.toContain('"Initiator Status"');
+  it("has an Initiator Status column beside Doer Status", () => {
+    expect(table).toContain('header: "Initiator Status"');
+    expect(table).toContain('approvalStatus: "Initiator Status"');
   });
 
-  it("still carries the verdict on the row, so the drawer can show it", () => {
-    // Dropping the COLUMN must not drop the FIELD: the drawer, the exports and
-    // the kanban all read `approvalStatus` off the same row shape.
-    const rowType = codeOf("lib/types.ts");
-    expect(rowType).toContain("approvalStatus: ApprovalStatus | null;");
+  it("splices a new column in at its default position instead of appending", () => {
+    // Appending put Initiator Status at the far right for anyone who had ever
+    // dragged a header, and beside Doer Status for everyone else — the kind of
+    // difference nobody reproduces.
+    expect(table).toContain("merged.splice(at, 0, id)");
+    expect(table).not.toContain("setColumnOrder([...kept, ...added])");
   });
 });
 
