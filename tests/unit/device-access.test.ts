@@ -149,6 +149,53 @@ describe("a normal employee", () => {
   });
 });
 
+describe("one machine, several people (0243)", () => {
+  /* THE BUG THIS PINS. A browser id is a MACHINE; each person has their own row
+     for it. It used to be one row per id, so a browser carrying a colleague's
+     id was "another employee's device" and sign-in replaced the cookie — which
+     erased the colleague's identity and made both of them "new laptops" at
+     every sign-in, day after day. */
+
+  it("treats a browser id (web_…) as shareable and a phone id as single-owner", async () => {
+    const { isShareableDeviceId } = await import("@/lib/security/device-access");
+    expect(isShareableDeviceId("web_3f2a0c1e")).toBe(true);
+    expect(isShareableDeviceId("keystore-abc")).toBe(false);
+    expect(isShareableDeviceId("dev-1")).toBe(false);
+    expect(isShareableDeviceId("")).toBe(false);
+  });
+
+  it("a colleague's row for a SHARED browser is never read as yours", async () => {
+    // The lookup returns someone else's row for this browser id: that is their
+    // registration of the machine, not a reason to refuse or reassign yours.
+    cookieValue = "web_shared-pc";
+    deviceRow = row({ deviceId: "web_shared-pc", employeeId: SOMEONE_ELSE });
+    const r = await resolveDeviceContext(om);
+    expect(r.allowed).toBe(false);
+    // "Not registered to YOU yet" — not "this is another employee's device".
+    if (!r.allowed) expect(r.reason).toBe("unregistered");
+  });
+
+  it("but a colleague's PHONE is still refused as another employee's", async () => {
+    // The phone is the punch device: one phone for two people is the proxy case.
+    cookieValue = undefined;
+    deviceRow = row({ kind: "phone", deviceId: "keystore-theirs", employeeId: SOMEONE_ELSE });
+    const r = await resolveDeviceContext(om, "keystore-theirs");
+    expect(r.allowed).toBe(false);
+    if (!r.allowed) expect(r.reason).toBe("other_employee");
+  });
+
+  it("sign-in no longer replaces a cookie because someone else uses the machine", async () => {
+    // Asserted on the source: the branch that minted a fresh id for "two people
+    // sharing one browser profile" is what erased people's identities.
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("lib/security/device-access.ts", "utf8");
+    const adopt = src.slice(src.indexOf("export async function adoptDeviceOnLogin"));
+    const body = adopt.slice(0, adopt.indexOf("\n}\n"));
+    expect(body).toContain("ownDeviceRow(existingId, employee.id)");
+    expect(body).not.toMatch(/row\.employeeId !== employee\.id[\s\S]{0,400}web_\$\{randomUUID\(\)\}/);
+  });
+});
+
 describe("scenario 6 — the device-exempt super-admin", () => {
   it("is allowed with no device id at all", async () => {
     cookieValue = undefined;

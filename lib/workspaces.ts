@@ -86,8 +86,8 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   // who have no reason to enter Billing.
   "people-allocation": "/people-allocation",
   // Project — the Project → Milestone → Result → Action hierarchy. Its own room
-  // beside Hand-holding, and now the ONLY project surface: the older /projects
-  // board that sat on the WMS rail was removed.
+  // beside Hand-holding. The older /projects board stays where it is, on the
+  // WMS rail; this room is the planning table, not a replacement for it.
   "project-plan": "/project-plan",
   // Operations — the two-tier room (2026-09-11). `/operations` is a FORWARDER,
   // not a page: it redirects to the room's first area (see
@@ -207,9 +207,11 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
   // path would swap the sidebar to Goals the moment you opened it.
   if (p.startsWith("/productivity")) return "productivity";
 
-  // Project — the hierarchy planning table, and the only project surface left:
-  // the older `/projects` board was removed, so nothing else claims a project
-  // path any more.
+  // Project — the hierarchy planning table. Matched here, above the WMS block:
+  // that block claims `/projects` (the older board, which stays a WMS surface),
+  // and keeping the two rules apart is what stops a future edit from widening
+  // one prefix over the other. `/project-plan` does not start with `/projects`,
+  // so the two never overlap today either.
   if (p.startsWith("/project-plan")) return "project-plan";
 
   // Appraisal moved INTO Team Productivity, so its room moved with it. `/appraisal`
@@ -248,6 +250,7 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
     p.startsWith("/my-day") ||
     p.startsWith("/review") ||
     p.startsWith("/tasks") ||
+    p.startsWith("/projects") ||
     p.startsWith("/documents") ||
     p.startsWith("/index-hub")
   ) {

@@ -6,12 +6,13 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { documents } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { hrSupportEnabled } from "@/lib/hr/flag";
 import { isPolicyCategory } from "@/lib/hr/policy-types";
 import { POLICY_STORAGE_PREFIX, policyStoragePath } from "@/lib/hr/sections";
+import { canPublishPolicies } from "@/lib/hr/policies/access";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { safeFileName, validateUpload } from "@/lib/hr/upload";
 import type { Employee } from "@/db/schema";
 import type { PolicyCategory } from "@/lib/hr/policy-types";
@@ -20,16 +21,22 @@ type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
 const TitleSchema = z.string().trim().min(1, "Give the policy a title").max(200, "Title too long");
 
-/** Policies are company-wide; only admins/super-admins upload or remove them. */
-function isAdmin(me: Employee): boolean {
-  return me.isAdmin || isSuperAdmin(me.email);
+/**
+ * Policies are company-wide to READ and narrow to WRITE: HR staff and
+ * super-admins publish or remove one (lib/hr/policies/access.ts). It was an
+ * `isAdmin || isSuperAdmin` check until 2026-09-17 — more people hold the admin
+ * flag than should hold the pen — and three named people until 2026-09-21, which
+ * meant a deploy to change who they were.
+ */
+async function canPublish(me: Employee): Promise<boolean> {
+  return await canPublishPolicies(me, DUMMY_MODE);
 }
 
-/** Upload one policy document. Admin-only. FormData: title, category, description?, file. */
+/** Upload one policy document. FormData: title, category, description?, file. */
 export async function uploadPolicy(form: FormData): Promise<Result<{ id: string }>> {
   if (!hrSupportEnabled()) return { ok: false, error: "HR module is off." };
   const me = await requireUser();
-  if (!isAdmin(me)) return { ok: false, error: "Forbidden" };
+  if (!(await canPublish(me))) return { ok: false, error: "Forbidden" };
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -78,12 +85,12 @@ export async function uploadPolicy(form: FormData): Promise<Result<{ id: string 
   return { ok: true, id: inserted.id };
 }
 
-/** Delete a policy document (admin-only). Guards the hr-policies/ prefix so this
+/** Delete a policy document. Guards the hr-policies/ prefix so this
  *  can never remove an unrelated document-library row. */
 export async function deletePolicy(id: string): Promise<Result> {
   if (!hrSupportEnabled()) return { ok: false, error: "HR module is off." };
   const me = await requireUser();
-  if (!isAdmin(me)) return { ok: false, error: "Forbidden" };
+  if (!(await canPublish(me))) return { ok: false, error: "Forbidden" };
   if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Invalid id" };
 
   const [row] = await db

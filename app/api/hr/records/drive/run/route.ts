@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth/current";
 import { canExportHrRecords } from "@/lib/hr/records-export/access";
 import { getDriveStatus } from "@/lib/hr/records-export/settings";
 import { runDriveSync } from "@/lib/hr/records-export/sync";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,13 @@ const BUDGET_MS = 45_000;
  * Not rate-limited on purpose: the save lock (lib/hr/records-export/sync.ts)
  * already makes a second concurrent call return `busy` immediately.
  */
-export async function POST(): Promise<NextResponse> {
+export async function POST(request: Request): Promise<NextResponse> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   const me = await requireUser();
   if (!(await canExportHrRecords(me))) {
     return NextResponse.json({ ok: false, error: "Only HR admins can save records to Drive." }, { status: 403 });

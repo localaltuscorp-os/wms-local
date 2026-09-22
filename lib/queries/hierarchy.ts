@@ -63,7 +63,19 @@ export interface HierarchySnapshot {
  * board would fill it with people who left. Their history is still readable
  * through `managerHistoryFor`.
  */
-export async function getHierarchy(): Promise<HierarchySnapshot> {
+export async function getHierarchy(
+  opts: {
+    /**
+     * "size" (default) — Admin › Reporting Hierarchy's board: a column per
+     * person with reports, biggest team first.
+     *
+     * "tree" — Operations › Team Reporting: columns in the ORG'S OWN ORDER, and
+     * every second-level person is a column even with nobody under them yet.
+     * See the block below for what "own order" means and why.
+     */
+    layout?: "size" | "tree";
+  } = {},
+): Promise<HierarchySnapshot> {
   const rows = await db
     .select({
       id: employees.id,
@@ -77,6 +89,7 @@ export async function getHierarchy(): Promise<HierarchySnapshot> {
       managerId: employees.managerId,
       accountType: employees.accountType,
       isActive: employees.isActive,
+      createdAt: employees.createdAt,
     })
     .from(employees)
     .where(eq(employees.isActive, true))
@@ -113,23 +126,80 @@ export async function getHierarchy(): Promise<HierarchySnapshot> {
 
   const byId = new Map(people.map((p) => [p.id, p]));
 
-  // A column for every person who HAS reports. Ordered by team size then name,
-  // so the founder's column leads and the board does not reshuffle every time
-  // somebody is renamed.
-  const columns: HierarchyColumn[] = [...reportsByManager.entries()]
-    .map(([managerId, reports]) => {
-      const mgr = byId.get(managerId);
-      return {
-        managerId,
-        managerName: mgr?.name ?? "Former employee",
-        managerEmail: mgr?.email ?? null,
-        reports: reports
-          .map((r) => byId.get(r.id))
-          .filter((p): p is HierarchyPerson => Boolean(p))
-          .sort((a, b) => a.name.localeCompare(b.name)),
-      };
-    })
-    .sort((a, b) => b.reports.length - a.reports.length || a.managerName.localeCompare(b.managerName));
+  const reportsOf = (managerId: string): HierarchyPerson[] =>
+    (reportsByManager.get(managerId) ?? [])
+      .map((r) => byId.get(r.id))
+      .filter((p): p is HierarchyPerson => Boolean(p));
+
+  const toColumn = (managerId: string, reports: HierarchyPerson[]): HierarchyColumn => {
+    const mgr = byId.get(managerId);
+    return {
+      managerId,
+      managerName: mgr?.name ?? "Former employee",
+      managerEmail: mgr?.email ?? null,
+      reports,
+    };
+  };
+
+  /**
+   * THE ORDER PEOPLE WERE ADDED, with the id as a tiebreak.
+   *
+   * The tree layout is asked to keep a fixed, human order - not alphabetical
+   * and not by team size. The only ordering the roster actually records is
+   * when each person was added (`created_at`), which is also the order an org
+   * chart is naturally built in: the head first, then the people under them in
+   * the order they joined. The id breaks ties for rows inserted in the same
+   * instant (a bulk import), so the board never reshuffles between renders.
+   */
+  const joinedAt = new Map(staff.map((r) => [r.id, r.createdAt.getTime()]));
+  const byJoin = (a: HierarchyPerson, b: HierarchyPerson) =>
+    (joinedAt.get(a.id) ?? 0) - (joinedAt.get(b.id) ?? 0) || a.id.localeCompare(b.id);
+  const byName = (a: HierarchyPerson, b: HierarchyPerson) => a.name.localeCompare(b.name);
+
+  let columns: HierarchyColumn[];
+  let unassigned: HierarchyPerson[];
+
+  if (opts.layout === "tree") {
+    /**
+     * TREE: walk the org top-down, breadth first, and emit columns in the
+     * order the walk reaches them - the head's column, then one column per
+     * person directly under the head, then THEIR teams, and so on.
+     *
+     * A second-level person is a column even with nobody under them yet: on an
+     * org chart they are a manager slot that is simply empty today, and hiding
+     * the column until somebody is moved in made the chart disagree with the
+     * org it is drawing. Below the second level a column still needs reports -
+     * otherwise every individual contributor would become an empty column.
+     */
+    const roots = people.filter((p) => !p.managerId).sort(byJoin);
+    const rootIds = new Set(roots.map((p) => p.id));
+    const queue: HierarchyPerson[] = [...roots];
+    const walked = new Set<string>();
+    columns = [];
+    while (queue.length > 0) {
+      const person = queue.shift()!;
+      if (walked.has(person.id)) continue;
+      walked.add(person.id);
+      const reports = reportsOf(person.id).sort(byJoin);
+      const secondLevel = person.managerId !== null && rootIds.has(person.managerId);
+      if (reports.length > 0 || secondLevel) columns.push(toColumn(person.id, reports));
+      queue.push(...reports);
+    }
+    // A team whose manager has left the active roster is unreachable from any
+    // root. It must still appear - dropping it would hide real people.
+    for (const managerId of reportsByManager.keys()) {
+      if (!walked.has(managerId)) columns.push(toColumn(managerId, reportsOf(managerId).sort(byJoin)));
+    }
+    unassigned = roots;
+  } else {
+    // SIZE (unchanged): a column for every person who HAS reports, biggest
+    // team first, so the founder's column leads and the board does not
+    // reshuffle every time somebody is renamed.
+    columns = [...reportsByManager.keys()]
+      .map((managerId) => toColumn(managerId, reportsOf(managerId).sort(byName)))
+      .sort((a, b) => b.reports.length - a.reports.length || a.managerName.localeCompare(b.managerName));
+    unassigned = people.filter((p) => !p.managerId).sort(byName);
+  }
 
   // THE UNASSIGNED COLUMN, always present even when empty.
   //
@@ -137,10 +207,6 @@ export async function getHierarchy(): Promise<HierarchySnapshot> {
   // somebody their first manager would be to already know they exist. It is
   // also where a genuine gap shows up: managers themselves currently have no
   // manager assigned, so this column legitimately holds them.
-  const unassigned = people
-    .filter((p) => !p.managerId)
-    .sort((a, b) => a.name.localeCompare(b.name));
-
   columns.push({
     managerId: null,
     managerName: "No manager assigned",

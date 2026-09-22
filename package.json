@@ -13,6 +13,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "check:leaks": "node scripts/measure-functions-storage.mjs --leaks",
+    "measure:functions": "node scripts/measure-functions-storage.mjs",
     "test:watch": "vitest",
     "test:integration": "cross-env PLAN_MOVE_TEST_DIR=.pglite-test vitest run tests/integration --no-file-parallelism",
     "test:integration:setup": "cross-env DUMMY_DB_DIR=.pglite-test tsx --env-file=.env.local scripts/dummy-db-setup.ts --reset",

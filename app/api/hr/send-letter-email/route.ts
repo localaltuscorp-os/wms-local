@@ -11,6 +11,7 @@ import { getLetter } from "@/lib/hr/letters/registry";
 import { normalizeGender } from "@/lib/hr/pronouns";
 import { letterDate } from "@/lib/hr/letters/roster";
 import { sendLetterPdfEmail } from "@/lib/email/hr-letter-email";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -51,9 +52,17 @@ const Schema = z.object({
   candidateName: z.string().trim().max(200).optional(),
   /** Optional uploaded scanned-signature image (data URL) for the sign-off. */
   signatureImage: z.string().max(3_000_000).optional(),
+  /** Shrink the letter step by step until it fits one A4 page (lib/hr/letters/fit). */
+  fitOnePage: z.boolean().optional(),
 });
 
 export async function POST(req: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   let me;
   try {
     me = await requireUser();
@@ -106,7 +115,7 @@ export async function POST(req: Request): Promise<Response> {
   try {
     if (b.contentKind === "rich" && b.bodyHtml) {
       const { renderRichLetterPdf } = await import("@/lib/hr/letters/render-rich");
-      pdf = Buffer.from(await renderRichLetterPdf({ entity: entity.id, bodyHtml: b.bodyHtml }));
+      pdf = Buffer.from(await renderRichLetterPdf({ entity: entity.id, bodyHtml: b.bodyHtml, fitOnePage: b.fitOnePage === true }));
     } else {
       const { renderLetterPdf } = await import("@/lib/hr/letters/pdf");
       pdf = await renderLetterPdf({
@@ -116,6 +125,7 @@ export async function POST(req: Request): Promise<Response> {
         date: b.date?.trim() || letterDate(),
         gender: normalizeGender(b.gender),
         signatureImage: b.signatureImage,
+        fitOnePage: b.fitOnePage === true,
       });
     }
   } catch {

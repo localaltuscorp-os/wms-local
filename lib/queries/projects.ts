@@ -1,9 +1,10 @@
 import "server-only";
-import { asc, eq, sql, and } from "drizzle-orm";
+import { asc, desc, eq, sql, and, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { projectNodes, tasks, employees, projectMembers } from "@/db/schema";
+import type { TaskStatus } from "@/db/enums";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 
 export interface ProjectMemberRef {
@@ -117,10 +118,67 @@ export interface ProjectNodeOption {
   label: string;
 }
 
+/** A node, its ancestor path labels, and the descendant ids (incl. itself). */
+export async function getNodeContext(
+  nodeId: string,
+): Promise<{ node: ProjectTreeNode; path: string[]; descendantIds: string[] } | null> {
+  const tree = await listProjectTree();
+  let found: ProjectTreeNode | null = null;
+  let path: string[] = [];
+  function search(node: ProjectTreeNode, trail: string[]): boolean {
+    const next = [...trail, node.name];
+    if (node.id === nodeId) {
+      found = node;
+      path = trail;
+      return true;
+    }
+    return node.children.some((c) => search(c, next));
+  }
+  for (const r of tree) if (search(r, [])) break;
+  if (!found) return null;
+  const ids: string[] = [];
+  function collect(n: ProjectTreeNode) {
+    ids.push(n.id);
+    n.children.forEach(collect);
+  }
+  collect(found);
+  return { node: found, path, descendantIds: ids };
+}
+
+export interface NodeAction {
+  id: string;
+  title: string;
+  description: string | null;
+  subject: string | null;
+  status: TaskStatus;
+  dueAt: Date;
+  doerName: string | null;
+}
+
+/** Tasks ("actions") linked to any of the given nodes, soonest due first. */
+export async function listNodeActions(nodeIds: string[]): Promise<NodeAction[]> {
+  if (nodeIds.length === 0) return [];
+  const rows = await db
+    .select({
+      id: tasks.id,
+      title: tasks.title,
+      description: tasks.description,
+      subject: tasks.subject,
+      status: tasks.status,
+      dueAt: tasks.dueAt,
+      doerName: employees.name,
+    })
+    .from(tasks)
+    .leftJoin(employees, eq(tasks.doerId, employees.id))
+    .where(and(inArray(tasks.projectNodeId, nodeIds), eq(tasks.archived, false)))
+    .orderBy(desc(tasks.createdAt));
+  return rows.map((r) => ({ ...r, doerName: r.doerName ?? null }));
+}
+
 /**
  * Flat, path-labelled list of active nodes for the task → project picker.
  * Cached under the `projectNodes` tag — re-fetches only when a node is
- * created/renamed/archived (writers in `app/(app)/project-plan/actions.ts`
+ * created/renamed/archived (writers in `app/(app)/projects/actions.ts`
  * call `updateTag(CACHE_TAGS.projectNodes)`).
  */
 export const listProjectNodeOptions = unstable_cache(

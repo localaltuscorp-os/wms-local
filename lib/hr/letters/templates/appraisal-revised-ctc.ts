@@ -34,7 +34,7 @@ const template: LetterTemplate = {
     term("Previous Cost to Firm (per annum)", f("previousCtc", "Previous CTC (per year)", { placeholder: "Rs. 0" })),
     term("Revised Cost to Firm (per annum)", f("revisedCtc", "Revised CTC (per year)", { placeholder: "Rs. 0" })),
     term("Increment", f("increment", "Increment", { placeholder: "e.g. Rs. 1,20,000 (18%)" })),
-    term("Effective From", f("effectiveDate", "Effective Date", { placeholder: "e.g. 1 April 2026", date: true })),
+    term("Effective From", f("effectiveDate", "Effective Date", { placeholder: "DD-MMM-YYYY", date: true })),
 
     heading("Revised CTC Structure with Break-up", 2),
     table(["COMPONENTS", "PER MONTH", "PER ANNUM"], ctcRows()),

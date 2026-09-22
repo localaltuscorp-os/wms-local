@@ -18,6 +18,7 @@
  */
 
 import type { EntityId } from "@/lib/hr/entities";
+import { formatRs, formatRsCompact, parseRs } from "@/lib/format";
 
 /* ------------------------------------------------------------------ */
 /* Component catalogue                                                  */
@@ -95,8 +96,8 @@ export type CtcComponents = Record<string, number>;
 
 /** Sanitise a loose value to a non-negative finite number. */
 export function num(v: unknown): number {
-  const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/[^0-9.]/g, ""));
-  return Number.isFinite(n) && n > 0 ? n : 0;
+  const n = parseRs(v);
+  return n > 0 ? n : 0;
 }
 
 /** The monthly equivalent of a component's stored amount. */
@@ -166,9 +167,9 @@ export function computeTotals(components: CtcComponents): CtcTotals {
 
 const INR = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 
-/** "Rs. 1,23,456" — Indian grouping, no paise. */
+/** "Rs. 1,23,456" — exact figure, Indian grouping, no paise (letters + hover). */
 export function formatINR(n: number): string {
-  return `Rs. ${INR.format(Math.round(n || 0))}`;
+  return formatRs(n);
 }
 
 /** Plain grouped number (no sign) — for letter fields. */

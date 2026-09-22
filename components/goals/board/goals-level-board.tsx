@@ -1657,7 +1657,6 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                   codeOf={codeOf}
                   level={props.level}
                   actions={LEVEL_TABLE_ACTIONS}
-                  meId={props.myEmployeeId}
                   managesViewed={props.managesViewed}
                   visibleCols={visibleCols}
                   colOrder={colOrder}

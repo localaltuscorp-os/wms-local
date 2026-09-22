@@ -5,7 +5,7 @@ import path from "node:path";
 import { createElement } from "react";
 import { InvoiceView, type SheetImg } from "@/components/billing/invoice-view";
 import type { InvoiceViewModel } from "@/lib/billing/view-model";
-import { launchBrowser } from "@/lib/hr/letters/render-rich";
+import { launchBrowser } from "@/lib/pdf/chromium";
 
 /**
  * THE INVOICE SHEET — THE ON-SCREEN TEMPLATE, AS A FILE.

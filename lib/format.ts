@@ -369,3 +369,48 @@ export function formatDMonY(input: Date | string | null | undefined): string {
   if (!mon || p.d < 1 || p.d > 31) return input;
   return `${String(p.d).padStart(2, "0")}-${mon}-${p.y}`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Rupee amounts — the HR-wide money format                              */
+/* ------------------------------------------------------------------ */
+
+const rsGroup = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+
+/**
+ * Exact rupee figure in Indian grouping: "Rs. 10,12,11,999". Used wherever the
+ * full number matters — printed letters, PDFs, and the hover title of
+ * {@link formatRsCompact}. "Rs." rather than "₹" because the PDF fonts
+ * (Helvetica) have no ₹ glyph, and HR asked for "Rs." explicitly.
+ */
+export function formatRs(n: number): string {
+  const v = Math.round(Number(n) || 0);
+  return `${v < 0 ? "-" : ""}Rs. ${rsGroup.format(Math.abs(v))}`;
+}
+
+/**
+ * On-screen rupee figure: ≥ 1 crore → "Rs. 10.12 Cr", ≥ 1 lakh → "Rs. 4.50 L",
+ * below that the exact "Rs. 25,000". Pair it with `title={formatRs(n)}` (or use
+ * <RsAmount>) so the exact figure is one hover away.
+ */
+export function formatRsCompact(n: number): string {
+  const v = Math.round(Number(n) || 0);
+  const abs = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  // Round to 2 decimals FIRST so 99,99,999 reads "Rs. 1.00 Cr", not "Rs. 100.00 L".
+  const lakhs = Math.round(abs / 1_000) / 100;
+  if (lakhs >= 100) return `${sign}Rs. ${(Math.round(abs / 1_00_000) / 100).toFixed(2)} Cr`;
+  if (abs >= 1_00_000) return `${sign}Rs. ${lakhs.toFixed(2)} L`;
+  return formatRs(v);
+}
+
+/**
+ * Parse a typed/stored amount back to a number. Strips a leading "Rs." / "₹",
+ * commas and spaces — the "." in "Rs." must go before the numeric scan, or
+ * "Rs. 4,50,000" would read as 0.45.
+ */
+export function parseRs(v: unknown): number {
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const s = String(v ?? "").replace(/rs\.?/gi, "").replace(/[^0-9.]/g, "");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}

@@ -5,6 +5,8 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { getEntity, DEFAULT_ENTITY_ID, type Entity, type EntityId } from "@/lib/hr/entities";
 import { letterFontsUsedIn } from "@/lib/hr/letters/fonts";
+import { renderHtmlToPdf, renderHtmlUntil } from "@/lib/pdf/chromium";
+import { FIT_PLAN, RICH_COMPACT_CSS, countPdfPages } from "@/lib/hr/letters/fit";
 
 /**
  * HR LETTERS — server-only headless-Chromium PDF renderer for RICH ("Edit
@@ -320,6 +322,15 @@ html,body{margin:0;padding:0;background:#ffffff;}
    in step: the preview quietly diverging from the issued PDF is exactly the
    class of bug this file's own comments warn about. */
 .alh-body p{orphans:3;widows:3;}
+  /* A paragraph is ONE unit. orphans/widows only stopped a single stray line,
+     so a numbered clause ("4.1 Consent for Participation: ...") still tore
+     across the page edge with its second half on the next sheet - which is
+     what made a printed letter read as broken. A paragraph that fits on a page
+     now moves whole; one taller than a page still splits (browsers ignore
+     'avoid' for content that cannot fit), so nothing is ever lost. */
+  .alh-body p{break-inside:avoid;}
+  /* The line that introduces a list or table belongs with it. */
+  .alh-body p:has(+ ul),.alh-body p:has(+ ol),.alh-body p:has(+ table){break-after:avoid;}
 .alh-body h1,.alh-body h2,.alh-body h3{break-after:avoid;break-inside:avoid;}
 .alh-body li{break-inside:avoid;}
 /* Tables MAY span pages (a long CTC breakdown has to) — but a row may not, and
@@ -333,56 +344,12 @@ html,body{margin:0;padding:0;background:#ffffff;}
 /* Chromium launch + render                                             */
 /* ------------------------------------------------------------------ */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-/** Candidate Windows Chrome / Edge executables for the dev fallback. */
-function windowsChromeCandidates(): string[] {
-  const pf = process.env["ProgramFiles"] || "C:\\Program Files";
-  const pfx86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
-  const local = process.env["LOCALAPPDATA"] || "";
-  const list = [
-    path.join(pf, "Google", "Chrome", "Application", "chrome.exe"),
-    path.join(pfx86, "Google", "Chrome", "Application", "chrome.exe"),
-    local ? path.join(local, "Google", "Chrome", "Application", "chrome.exe") : "",
-    path.join(pf, "Google", "Chrome Beta", "Application", "chrome.exe"),
-    path.join(pfx86, "Microsoft", "Edge", "Application", "msedge.exe"),
-    path.join(pf, "Microsoft", "Edge", "Application", "msedge.exe"),
-  ];
-  return list.filter(Boolean);
-}
-
-/** Launch a headless browser appropriate to the runtime. Throws on failure. */
-export async function launchBrowser(): Promise<any> {
-  const puppeteer = await import("puppeteer-core");
-  const onVercel = !!process.env.VERCEL || process.env.NODE_ENV === "production";
-
-  if (onVercel) {
-    const chromium = (await import("@sparticuz/chromium")).default as any;
-    const executablePath = await chromium.executablePath();
-    return puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath,
-      headless: chromium.headless,
-    } as any);
-  }
-
-  // Local dev — prefer the installed Chrome via the "chrome" channel.
-  try {
-    return await puppeteer.launch({ channel: "chrome", headless: true } as any);
-  } catch {
-    // Fall back to a discovered Windows Chrome / Edge binary.
-    for (const candidate of windowsChromeCandidates()) {
-      if (existsSync(candidate)) {
-        return puppeteer.launch({ executablePath: candidate, headless: true } as any);
-      }
-    }
-    throw new Error(
-      "No Chrome/Chromium found for PDF rendering. Install Google Chrome (dev) " +
-        "or ensure @sparticuz/chromium is deployed (production).",
-    );
-  }
-}
+/*
+ * `launchBrowser` and the print step MOVED to lib/pdf/chromium.ts, where the
+ * policy renderer shares them. They are not merely relocated: the request
+ * interception there is a SECURITY control, and two copies of a security control
+ * is how the second copy drifts. Do not reintroduce a local launch here.
+ */
 
 /* ------------------------------------------------------------------ */
 /* Public entry                                                         */
@@ -393,6 +360,8 @@ export interface RenderRichLetterInput {
   entity: string;
   /** The rich letter body — arbitrary TipTap HTML. */
   bodyHtml: string;
+  /** Shrink the body (CSS zoom) step by step until the letter fits one A4 page. */
+  fitOnePage?: boolean;
 }
 
 /**
@@ -402,6 +371,7 @@ export interface RenderRichLetterInput {
 export async function renderRichLetterPdf({
   entity,
   bodyHtml,
+  fitOnePage,
 }: RenderRichLetterInput): Promise<Uint8Array> {
   const e = getEntity((entity as EntityId | string) ?? null);
   const overlayLogo = e.id !== DEFAULT_ENTITY_ID;
@@ -424,65 +394,31 @@ export async function renderRichLetterPdf({
     fontFaceCss,
   });
 
-  let browser: any = null;
   try {
-    browser = await launchBrowser();
-    const page = await browser.newPage();
+    // The browser launch, the JavaScript-off policy and the request allowlist all
+    // live in lib/pdf/chromium.ts now, shared with the policy renderer.
+    if (!fitOnePage) return await renderHtmlToPdf(html);
 
-    // ── SSRF / exfiltration hardening ──────────────────────────────────────
-    // The body HTML is user-authored (the "Edit freely" letter). Without this,
-    // headless Chromium would execute any injected <script> and fetch any
-    // sub-resource from the SERVER's network position — SSRF to internal hosts /
-    // cloud metadata, file:// reads, and beaconing out. We:
-    //   1) disable JavaScript entirely (a printed letter needs none), and
-    //   2) intercept every request and allow ONLY `data:` URIs (our inlined
-    //      letterhead/fonts/images) and the Supabase signed-URL host (legit
-    //      inline letter images resolved by resolveInlineImages). Everything
-    //      else — http/https to any other host, file:, blob:, internal IPs — is
-    //      aborted.
-    await page.setJavaScriptEnabled(false);
-    const supabaseHost = (() => {
-      try {
-        return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").host;
-      } catch {
-        return "";
-      }
-    })();
-    await page.setRequestInterception(true);
-    page.on("request", (r: any) => {
-      const url: string = r.url();
-      if (url.startsWith("data:")) return void r.continue();
-      try {
-        const host = new URL(url).host;
-        if (supabaseHost && host === supabaseHost) return void r.continue();
-      } catch {
-        /* unparseable → block */
-      }
-      return void r.abort();
+    // FIT TO ONE PAGE. Each step zooms the BODY and tightens its spacing; the
+    // letterhead strips are left alone, because shrinking those would print a
+    // letter on a slightly smaller letterhead than the one beside it in a file.
+    // The steps share one browser and stop at the first that lands on one page;
+    // if none does, the tightest render is what comes back.
+    const attempts = FIT_PLAN.map((step) => {
+      const extra =
+        (step.compact ? RICH_COMPACT_CSS : "") +
+        (step.scale === 1 ? "" : `.alh-body{zoom:${step.scale};}`);
+      return extra ? html.replace("</style>", `${extra}\n</style>`) : html;
     });
-
-    // `networkidle0` waited for ALL sub-resource loads (part of the SSRF risk).
-    // With interception in place only allowlisted resources load; `load` is
-    // sufficient and avoids hanging on aborted requests.
-    await page.setContent(html, { waitUntil: "load" });
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: "0", right: "0", bottom: "0", left: "0" },
+    // A count of 0 means the page count could not be read — keep that render
+    // rather than tightening a letter on a number we do not trust.
+    return await renderHtmlUntil(attempts, (pdf) => {
+      const pages = countPdfPages(pdf);
+      return pages > 0 && pages <= 1;
     });
-    return new Uint8Array(pdf);
   } catch (err) {
     throw new Error(
       `Rich letter PDF render failed: ${err instanceof Error ? err.message : String(err)}`,
     );
-  } finally {
-    if (browser) {
-      try {
-        await browser.close();
-      } catch {
-        /* ignore close errors */
-      }
-    }
   }
 }

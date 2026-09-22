@@ -47,6 +47,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   in_app: "App",
   email: "Email",
   push: "Push",
+  whatsapp: "WhatsApp",
   whatsapp_manual: "WhatsApp",
 };
 

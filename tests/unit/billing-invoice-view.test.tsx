@@ -179,7 +179,7 @@ describe("InvoiceView — an intra-state tax invoice", () => {
     expect(screen.getByText("ACPPV1393L")).toBeTruthy();
     expect(screen.getByText("27ACPPV1393L1ZQ")).toBeTruthy();
     expect(screen.getByText("998311")).toBeTruthy();
-    expect(screen.getByText("6812028980")).toBeTruthy();
+    expect(screen.getByText("6812028980 — Kotak Mahindra Bank")).toBeTruthy();
     expect(screen.getByText("KKBK0000646 (Malad East)")).toBeTruthy();
     expect(screen.getByText("Immediate")).toBeTruthy();
     expect(screen.getByText("For Altus Corp")).toBeTruthy();
@@ -206,7 +206,10 @@ describe("InvoiceView — GST modes", () => {
       [line({ cgstAmount: "0.00", sgstAmount: "0.00", igstAmount: "13500.00" })],
     );
     expect(screen.getByText("IGST@18%")).toBeTruthy();
-    expect(screen.queryByText("CGST@9%")).toBeNull();
+    // All three rows print whenever GST applies at all — the reader checks the
+    // sheet against a shape they know, and two rows where they expect three
+    // raises the question of which one was dropped. See buildInvoiceViewModel.
+    expect(screen.getByText("CGST@9%")).toBeTruthy();
   });
 
   it("prints NO tax rows at all when GST does not apply", () => {

@@ -135,8 +135,6 @@ export const ADMIN_TASK_STATUSES: readonly TaskStatus[] = TASK_STATUSES.filter(
 export const APPROVAL_STATUSES = [
   "approved",
   "not_approved",
-  // 2026-09-14 — arrived from the doer axis. See DOER_TASK_STATUSES.
-  "on_hold",
   "cancelled",
   "transferred",
   // Migration 0231 — On Hold is set from the Initiator Status chip
@@ -363,8 +361,17 @@ export const BROADCAST_AUTHOR_IDENTITIES = ["hr", "ceo", "founder"] as const;
 export type BroadcastAuthorIdentity = (typeof BROADCAST_AUTHOR_IDENTITIES)[number];
 export const BROADCAST_RECIPIENT_STATUSES = ["pending", "read", "acknowledged"] as const;
 export type BroadcastRecipientStatus = (typeof BROADCAST_RECIPIENT_STATUSES)[number];
-export const BROADCAST_RECURRENCES = ["none", "daily", "weekly", "monthly"] as const;
+// annually + custom (0229): custom walks broadcasts.recurrence_dates.
+export const BROADCAST_RECURRENCES = ["none", "daily", "weekly", "monthly", "annually", "custom"] as const;
 export type BroadcastRecurrence = (typeof BROADCAST_RECURRENCES)[number];
+export const BROADCAST_RECURRENCE_LABELS: Record<BroadcastRecurrence, string> = {
+  none: "One-time",
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+  annually: "Annually",
+  custom: "Custom dates",
+};
 
 export const TASK_PRIORITIES = [
   "imp_urgent",
@@ -1276,10 +1283,15 @@ export function allocationCategoryLabel(code: string): string {
 
 // ── Hand-holding weekly calls (migration 0195) ─────────────────────────────
 
+// Courtesy and Reference arrived with Client Engagement (0230); the column is
+// plain text with no CHECK, so they need no migration of their own. Hand-holding
+// offers them too — one call taxonomy, not two that can disagree.
 export const HH_CALL_TYPES = [
   { code: "hh", label: "HH Call" },
   { code: "tool", label: "Tool Call" },
   { code: "checkin", label: "Check-in Call" },
+  { code: "courtesy", label: "Courtesy Call" },
+  { code: "reference", label: "Reference Call" },
 ] as const;
 
 export const HH_DAYS = [
@@ -1439,7 +1451,6 @@ export const HH_ACCESS_MODULES = [
   { code: "development", label: "Development", sections: [{ code: "development", label: "Development" }] },
 ] as const;
 
-/** Every action the summary table has a column for, in column order. */
 /**
  * The actions the Access dialog can log. "view" is deliberately ABSENT: looking
  * at a page is not an action anyone performs on a person, and offering it made

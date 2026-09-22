@@ -1,6 +1,7 @@
 import "server-only";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
-import { db, employees, tasks, holidays } from "@/lib/db";
+import { listHolidayRowsBetween } from "@/lib/queries/holidays";
+import { db, employees, tasks } from "@/lib/db";
 import { effectiveDueAtSql } from "@/lib/tasks/effective-due";
 import { countWorkingDays } from "@/lib/transforms/working-days";
 import {
@@ -180,10 +181,8 @@ export async function loadManagerDrilldown(
       .catch(() => [] as { createdAt: Date }[]),
 
     // Holidays inside the working-day window (for the perReport goal math).
-    db
-      .select({ holidayDate: holidays.holidayDate })
-      .from(holidays)
-      .where(gte(holidays.holidayDate, utcDay(since)))
+    // The merged calendar (published + ad-hoc + Events Master, minus withdrawn).
+    listHolidayRowsBetween(utcDay(since))
       .catch(() => [] as { holidayDate: string }[]),
   ]);
 

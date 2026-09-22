@@ -20,7 +20,6 @@ import {
   archiveWeeklyGoal,
   bulkPutWeeklyGoalsInArchive,
 } from "@/app/(app)/weekly-goals/actions";
-import { setWeeklyGoalInitiatorStatus } from "@/app/(app)/goals/initiator-actions";
 
 function toNum(v: unknown): number | null {
   if (v == null || v === "") return null;
@@ -107,9 +106,8 @@ export const WEEKLY_TABLE_ACTIONS: GoalTableActions = {
   // `archived_at` instead takes the goal off the board and files it under
   // Archive › Goals in its own "Archived weekly goals" table.
   bulkPutInArchive: (input) => bulkPutWeeklyGoalsInArchive(input),
-  // THE VERDICT GOES TO `weekly_goals`. The table's cell used to call the
-  // CASCADE action directly, which looked a weekly id up in `goals` and failed
-  // with "Goal not found." every time — so the column was unusable on this
-  // board even though the columns behind it have existed since migration 0225.
-  setInitiatorStatus: (input) => setWeeklyGoalInitiatorStatus(input.id, input.next),
+  // NO `setInitiatorStatus` HERE. The verdict for a weekly goal is written by
+  // setWeeklyGoalInitiatorStatus in app/(app)/goals/initiator-actions.ts — the
+  // goals TABLE stopped carrying the Initiator Status column (account holder,
+  // 2026-09-21), so the table actions no longer need a writer for it.
 };

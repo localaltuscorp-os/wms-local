@@ -12,7 +12,11 @@ import {
   FolderOpen,
   Target,
   Files,
+  Receipt,
+  ClipboardList,
+  BookUser,
   FolderArchive,
+  Package,
 } from "lucide-react";
 
 import { HR_STAGES, hrItemHref } from "@/lib/hr/lifecycle";
@@ -120,6 +124,9 @@ const standalone: Array<{ id: string; title: string; Icon: LucideIcon; href: str
   // generic name is the one people raise IT tickets on.
   { id: "help-desk", title: "HR Help Desk", Icon: LifeBuoy, href: "/support" },
   { id: "hr-record", title: "HR Record", Icon: FolderOpen, href: "/hr/record" },
+  // Address Book + Asset Register (0227) — office registers, not lifecycle steps.
+  { id: "address-book", title: "Address Book", Icon: BookUser, href: "/hr/address-book" },
+  { id: "asset-register", title: "Asset Register", Icon: Package, href: "/hr/assets" },
   { id: "kpi-management", title: "KPI Management", Icon: Target, href: "/hr/kpi" },
   { id: "all-filled-forms", title: "All Filled Forms", Icon: Files, href: "/hr/all-forms" },
   // Per-person ZIP download + the scheduled Google Drive save (0225). HR admins only.

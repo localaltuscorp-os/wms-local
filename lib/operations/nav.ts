@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BookMarked,
+  BookUser,
   Briefcase,
   Library,
   CalendarClock,
@@ -9,6 +10,7 @@ import {
   Gauge,
   GraduationCap,
   Handshake,
+  History,
   LayoutDashboard,
   LayoutGrid,
   ListChecks,
@@ -23,6 +25,7 @@ import {
   UserPlus,
   UserRound,
   Users2,
+  UsersRound,
 } from "lucide-react";
 
 /**
@@ -58,12 +61,14 @@ import {
 export type OperationsAreaId =
   | "broadcasts"
   | "checklist"
+  | "client-engagement"
+  | "directory"
   | "guidelines"
   | "handholding"
   | "jobdescription"
   | "events"
-  | "training"
-  | "team-reporting";
+  | "team-reporting"
+  | "training";
 
 export interface OperationsSubItem {
   href: string;
@@ -100,7 +105,7 @@ export interface OperationsArea {
 }
 
 /**
- * The seven areas, ALPHABETICAL BY LABEL — the words in the rail, not the ids
+ * The ten areas, ALPHABETICAL BY LABEL — the words in the rail, not the ids
  * behind them, which is why Monthly Events Master sits under M and not under
  * `events`.
  *
@@ -159,6 +164,38 @@ export const OPERATIONS_AREAS: OperationsArea[] = [
     items: [],
   },
   {
+    // CLIENT ENGAGEMENT (rebuilt 2026-09-18) — who carries which participant,
+    // client and ambassador, when their calls are, and how much room each
+    // person has left. Its own ce_* tables (0238); the calendar overlays each
+    // person's Hand-holding calls read-only. The first version is quarantined in
+    // _archive/client-engagement-2026-09-18.
+    id: "client-engagement",
+    label: "Client Engagement",
+    href: "/operations/client-engagement",
+    Icon: UsersRound,
+    tagline: "Participants, clients and ambassadors — who carries them, when their calls are, and who has room.",
+    prefixes: ["/operations/client-engagement"],
+    items: [
+      { href: "/operations/client-engagement", label: "Overview", Icon: LayoutGrid, exact: true },
+      { href: "/operations/client-engagement/calendar", label: "Calendar", Icon: CalendarDays },
+      { href: "/operations/client-engagement/employees", label: "Emp Grid", Icon: Users2 },
+      { href: "/operations/client-engagement/pca", label: "PCA Grid", Icon: ClipboardList },
+      { href: "/operations/client-engagement/references", label: "References", Icon: Share2 },
+      { href: "/operations/client-engagement/team", label: "Team & Log", Icon: History },
+    ],
+  },
+  {
+    // Every outside vendor — contact, postal address, AMC. One page (the bulk
+    // upload is a dialog on it), so no quick-access row.
+    id: "directory",
+    label: "Directory",
+    href: "/operations/directory",
+    Icon: BookUser,
+    tagline: "Every Altus Corp vendor - contacts, addresses & AMC.",
+    prefixes: ["/operations/directory"],
+    items: [],
+  },
+  {
     id: "guidelines",
     label: "Guidelines",
     href: "/operations/guidelines",
@@ -198,19 +235,20 @@ export const OPERATIONS_AREAS: OperationsArea[] = [
     items: [],
   },
   {
+    // The Executive Master Calendar (0231) took over /events from the archived
+    // Monthly Events Master. Same URL on purpose: every old link lands on the
+    // thing that replaced it rather than on a 404.
     id: "events",
     label: "Monthly Events Master",
     href: "/events",
     Icon: CalendarDays,
-    tagline: "The company calendar — batches, holidays & obligations in one grid.",
+    tagline: "The company schedule — day, week, month and year.",
     prefixes: ["/events"],
-    items: [
-      { href: "/events", label: "Overview", Icon: LayoutGrid, exact: true },
-      { href: "/events/calendar", label: "Calendar", Icon: CalendarDays },
-      { href: "/events/masters", label: "Masters", Icon: Palette, adminOnly: true },
-      { href: "/events/batches", label: "Batches", Icon: CalendarClock, adminOnly: true },
-      { href: "/events/obligations", label: "Obligations", Icon: Gauge, adminOnly: true },
-    ],
+    // ONE item, not three. The horizons are `?view=` on a single page, and this
+    // rail matches by PATH PREFIX — a query-string href would never light up,
+    // and tests/unit/operations-nav.test.ts pins exactly that. The Week / Two
+    // months / Year switcher lives on the page itself, where it belongs.
+    items: [{ href: "/events", label: "Calendar", Icon: CalendarDays, exact: true }],
   },
   {
     // WHO REPORTS TO WHOM. The board itself already existed, under Admin >

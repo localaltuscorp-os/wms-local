@@ -6,6 +6,7 @@ import { rateLimitOrError } from "@/lib/rate-limit";
 import { getResend, FROM, clampSubject, companyBcc } from "@/lib/email/resend";
 import { renderSectionPdf } from "@/lib/reports/section-pdf";
 import { isSectionReport, snapshotFilename } from "@/lib/reports/section-report";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * POST /api/reports/send-email
@@ -31,6 +32,12 @@ function esc(s: string): string {
 }
 
 export async function POST(req: Request) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   try {
     const me = await requireUser();
 

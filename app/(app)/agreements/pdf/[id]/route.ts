@@ -9,6 +9,7 @@ import { renderAgreement, type AgreementInput } from "@/lib/agreements/templates
 import { signatoryForEntity } from "@/lib/salary/signatories";
 import { COLORS, SIG_DIR } from "@/lib/salary/pdf-house-style";
 import { formatDate } from "@/lib/format";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /agreements/pdf/[id]
@@ -36,9 +37,15 @@ function fmtLongDate(d: Date): string {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   const { id } = await ctx.params;
 
   const me = await getCurrentEmployee();

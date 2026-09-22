@@ -69,6 +69,7 @@ export function AllocationScreen({
   calendarWeek,
   today,
   employeeOptions,
+  openAdd = false,
 }: {
   people: HhPerson[];
   entries: HhEntry[];
@@ -91,6 +92,8 @@ export function AllocationScreen({
   today: string;
   /** Active employees, for linking a name (Admin and Ruchita; empty otherwise). */
   employeeOptions: { id: string; name: string }[];
+  /** `?add=1` opens the Add dialog on load, so it has a URL of its own. */
+  openAdd?: boolean;
 }) {
   const [tab, setTab] = React.useState<Tab>("employee");
   const [selected, setSelected] = React.useState<Record<Tab, string>>({ employee: "", intern: "" });
@@ -103,6 +106,13 @@ export function AllocationScreen({
    * a section code when a card's own Add asks for that one. null = closed.
    */
   const [addOpen, setAddOpen] = React.useState<string | null>(null);
+  // Opened AFTER mount, not in the initial state: the dialog portals into
+  // `document`, which does not exist during the server render, so opening it
+  // on first paint threw "document is not defined" and fell back to a client
+  // render of the whole screen.
+  React.useEffect(() => {
+    if (openAdd) setAddOpen("");
+  }, [openAdd]);
   const [newName, setNewName] = React.useState("");
 
   const roster = people.filter((p) => p.kind === tab);
@@ -234,13 +244,12 @@ export function AllocationScreen({
           onSave={(draft) => {
             setError(null);
             startTransition(async () => {
-              // The dialog's own Employee/Intern pick identifies the person —
-              // the server matches it to the roster, adding the name if new.
-              const res = await addEntry({
-                personName: draft.name,
-                personKind: draft.kind,
-                ...draft,
-              });
+              // No name is sent: the server files the entry under whoever is
+              // signed in (2026-09-18). The Employee/Intern toggle still decides
+              // which roster that person sits on.
+              const { name: _unused, ...rest } = draft;
+              void _unused;
+              const res = await addEntry({ personKind: draft.kind, name: "", ...rest });
               if (res.ok) {
                 setAddOpen(null);
                 // Land on the tab the entry was filed under, so the new row is

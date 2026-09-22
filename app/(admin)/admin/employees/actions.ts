@@ -24,8 +24,15 @@ import { mergeScheduleForBulk } from "@/lib/employees/bulk-schedule-merge";
 // delegating each row to `editEmployee`, so there is one write path for a
 // manager change and not two that could disagree.
 import { recordManagerChange, wouldCreateCycle } from "@/lib/employees/manager-history";
-import { requireAdmin } from "@/lib/auth/current";
+import { getSignedInEmployee, requireAdmin } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import {
+  hasCapabilityGrant,
+  isMasterAdmin,
+  masterAdminEmployeeIds,
+  setCapabilityGrant,
+  setMasterAdminGrant,
+} from "@/lib/security/capability-grants";
 import {
   InviteEmployeeSchema,
   EditEmployeeSchema,
@@ -56,13 +63,39 @@ import { generateInvitePassword } from "@/lib/auth/default-password";
  * SUPER-ADMIN — otherwise they could reset the super-admin's password, sign in as
  * them, and seize full control. Returns an error result to short-circuit, or null
  * when the action may proceed.
+ *
+ * ── WIDENED TO COVER MASTER ADMINS (2026-09-18) ────────────────────────────
+ * This used to refuse only when the TARGET was a super-admin, and that was
+ * sufficient while master-admin membership was a constant in the code — the
+ * only master admins were also super-admins, so one clause covered both.
+ *
+ * Master-admin is now a grant the owner can make from this very screen
+ * (migration 0226), so the two sets have come apart. Without this widening an
+ * ordinary `isAdmin` could rename, re-department or strip `isAdmin` from a
+ * master admin's row — they still could not GRANT the capability, but they could
+ * vandalise the account of somebody who can rewrite the whole permission matrix,
+ * including by resetting their password and signing in as them.
+ *
+ * The SELF case is exempt on purpose: this is the gate on editing your OWN
+ * profile, and a newly-granted master admin who is not a super-admin must still
+ * be able to change their own name. Nothing privileged is reachable that way —
+ * `me.id === emp.id` means the target holds no capability the caller lacks.
+ *
+ * ASYNC, because master-admin membership is read from `capability_grants`.
  */
-function guardSuperAdminTarget(
-  me: { email: string },
-  emp: { email: string },
-): { ok: false; error: string } | null {
+async function guardPrivilegedTarget(
+  me: { email: string; id: string },
+  emp: { email: string; id: string },
+): Promise<{ ok: false; error: string } | null> {
+  if (me.id === emp.id) return null;
   if (isSuperAdmin(emp.email) && !isSuperAdmin(me.email)) {
     return { ok: false, error: "Only a super-admin can do this to another super-admin." };
+  }
+  if ((await isMasterAdmin(emp.email)) && !isSuperAdmin(me.email)) {
+    return {
+      ok: false,
+      error: "Only a super-admin can change a master admin's account.",
+    };
   }
   return null;
 }
@@ -381,8 +414,73 @@ export async function editEmployee(
   // still cannot modify a SUPER-ADMIN's row, so a regular admin can't demote an
   // owner and seize control. A no-op re-save with the same value is unaffected.
   if (parsed.data.isAdmin !== undefined && parsed.data.isAdmin !== emp.isAdmin) {
-    const g = guardSuperAdminTarget(me, emp);
+    const g = await guardPrivilegedTarget(me, emp);
     if (g) return g;
+  }
+
+  // ── MASTER ADMIN: STRICTLY SUPER-ADMIN ONLY ────────────────────────────────
+  // Gated on `isSuperAdmin` — a CODE constant — and NEVER on `isMasterAdmin`.
+  // Gating it on isMasterAdmin would let a master admin promote another master
+  // admin, and the capability would leak downward from the two bootstrap
+  // accounts until it reached everybody. The two addresses in
+  // lib/auth/super-admin.ts remain the only bootstrap.
+  //
+  // Runs BEFORE the row update below, so a refused grant cannot leave the rest
+  // of the patch applied with the capability not.
+  if (parsed.data.isMasterAdmin !== undefined) {
+    const holds = (await masterAdminEmployeeIds()).has(emp.id);
+    if (parsed.data.isMasterAdmin !== holds) {
+      // The priv-esc guard runs first and unconditionally: a non-super-admin
+      // must not be able to touch this at all. Checked separately from the
+      // capability check below so a refusal is unambiguous about which rule
+      // stopped it.
+      const g = await guardPrivilegedTarget(me, emp);
+      if (g) return g;
+
+      if (!isSuperAdmin(me.email)) {
+        return { ok: false, error: "Only a super-admin can change master admin access." };
+      }
+
+      // The REAL signed-in person, not a delegated identity — same reasoning as
+      // the master-admin screen's own actions: a borrowed session must not
+      // inherit the power to hand out the permission matrix.
+      const signedIn = await getSignedInEmployee();
+      const res = await setMasterAdminGrant({
+        employeeId: emp.id,
+        employeeEmail: emp.email,
+        grant: parsed.data.isMasterAdmin,
+        actorId: signedIn?.id ?? me.id,
+        actorEmail: signedIn?.email ?? me.email,
+      });
+      if (!res.ok) return { ok: false, error: res.error };
+    }
+  }
+
+  // ── ISSUE LETTERS: ANY ADMIN MAY GRANT THIS ────────────────────────────────
+  // Deliberately NOT super-admin-only, unlike master-admin above. It hands
+  // somebody the ability to send appointment and increment letters — a real
+  // operational duty, not a security boundary — and holding it cannot be used to
+  // acquire anything else. Gating it on a super-admin would put a routine HR
+  // staffing decision behind the two owners.
+  //
+  // No `guardPrivilegedTarget` here either, on purpose: granting it to a
+  // super-admin or a master admin is a harmless no-op (they can already issue),
+  // and refusing to record it would be ceremony rather than protection. The
+  // audit row below names the actor regardless.
+  if (parsed.data.canIssueLetters !== undefined) {
+    const currently = await hasCapabilityGrant(emp.email, "hr.letters.issue");
+    if (parsed.data.canIssueLetters !== currently) {
+      const signedIn = await getSignedInEmployee();
+      const res = await setCapabilityGrant({
+        employeeId: emp.id,
+        employeeEmail: emp.email,
+        capability: "hr.letters.issue",
+        grant: parsed.data.canIssueLetters,
+        actorId: signedIn?.id ?? me.id,
+        actorEmail: signedIn?.email ?? me.email,
+      });
+      if (!res.ok) return { ok: false, error: res.error };
+    }
   }
 
   // Build the patch — only include keys that were actually supplied.
@@ -749,7 +847,7 @@ export async function getInviteLink(
     where: eq(employees.id, parsedId.data),
   });
   if (!emp) return { ok: false, error: "Employee not found." };
-  const saGuard = guardSuperAdminTarget(me, emp);
+  const saGuard = await guardPrivilegedTarget(me, emp);
   if (saGuard) return saGuard;
   if (!emp.isActive) {
     return { ok: false, error: "Employee is deactivated - reactivate first." };
@@ -850,7 +948,7 @@ export async function resetEmployeePassword(
     where: eq(employees.id, parsedId.data),
   });
   if (!emp) return { ok: false, error: "Employee not found." };
-  const saGuard = guardSuperAdminTarget(me, emp);
+  const saGuard = await guardPrivilegedTarget(me, emp);
   if (saGuard) return saGuard;
   if (!emp.isActive) return { ok: false, error: "Employee is deactivated - reactivate first." };
   if (!emp.firebaseUid) {
@@ -925,7 +1023,7 @@ export async function deactivateEmployee(
   }
   const emp = await db.query.employees.findFirst({ where: eq(employees.id, parsedId.data) });
   if (!emp) return { ok: false, error: "Employee not found" };
-  const saGuard = guardSuperAdminTarget(me, emp);
+  const saGuard = await guardPrivilegedTarget(me, emp);
   if (saGuard) return saGuard;
   if (!emp.isActive) return { ok: false, error: "Employee is already deactivated." };
 
@@ -1152,7 +1250,7 @@ export async function deleteEmployee(
 
   const emp = await db.query.employees.findFirst({ where: eq(employees.id, id) });
   if (!emp) return { ok: false, error: "Employee not found." };
-  const saGuard = guardSuperAdminTarget(me, emp);
+  const saGuard = await guardPrivilegedTarget(me, emp);
   if (saGuard) return saGuard;
 
   if (

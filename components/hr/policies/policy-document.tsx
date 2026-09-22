@@ -22,6 +22,7 @@
 import { Letterhead } from "@/components/hr/letterhead/letterhead";
 import type { EntityId, Entity } from "@/lib/hr/entities";
 import { applyFirm } from "@/lib/hr/firm";
+import { formatDateHr } from "@/lib/format";
 import type {
   PolicyDoc,
   PolicySection,
@@ -49,7 +50,11 @@ export function PolicyDocument({ doc, entity }: PolicyDocumentProps) {
   const codeRows: Array<[string, string]> = [
     ["Document Code", doc.docCode],
     ["Version", doc.version],
-    ["Effective Date", doc.effectiveDate],
+    // Stored as free text ("01 June 2026", "1 August 2026") because admins
+    // type it in the policy editor. Shown in the module's one date form,
+    // DD-MMM-YYYY; formatDateHr hands back anything it cannot read unchanged,
+    // so an unusual value is displayed as written rather than blanked.
+    ["Effective Date", formatDateHr(doc.effectiveDate)],
     ["Policy Owner", doc.owner],
     ["Registered Office", doc.registeredOffice],
     ["HR Contact", doc.hrEmail],

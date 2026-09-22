@@ -342,6 +342,14 @@ export interface AdHocHolidayRow {
  * and must still render if this read hiccups.
  */
 export async function listAdHocHolidays(year: number): Promise<AdHocHolidayRow[]> {
+  return listAdHocHolidaysBetween(`${year}-01-01`, `${year}-12-31`);
+}
+
+/**
+ * Ad-hoc holidays between two yyyy-mm-dd dates, inclusive, oldest first. The
+ * carousel reads this year and every published year after it in one go.
+ */
+export async function listAdHocHolidaysBetween(fromYmd: string, toYmd: string): Promise<AdHocHolidayRow[]> {
   await requireUser();
   try {
     const rows = await db
@@ -355,8 +363,8 @@ export async function listAdHocHolidays(year: number): Promise<AdHocHolidayRow[]
       .where(
         and(
           eq(holidays.isActive, true),
-          gte(holidays.holidayDate, `${year}-01-01`),
-          lte(holidays.holidayDate, `${year}-12-31`),
+          gte(holidays.holidayDate, fromYmd),
+          lte(holidays.holidayDate, toYmd),
         ),
       )
       .orderBy(holidays.holidayDate);

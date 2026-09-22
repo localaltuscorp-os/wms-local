@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, desc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { paPeople, paEntries, paCalls, paAmbassadors, hhAccessGrants, hhAccessActivity, employees } from "@/db/schema";
 
@@ -22,7 +22,8 @@ export interface HhCall {
 
 export interface HhEntry {
   id: string;
-  personId: string;
+  /** Null while the row sits in the Client Engagement unassigned pool (0230). */
+  personId: string | null;
   /** Nullable in the table (`pa_entries.section` has no NOT NULL), so the type
    *  says so rather than the read pretending otherwise. */
   section: string | null;
@@ -31,6 +32,8 @@ export interface HhEntry {
   onHold: boolean;
   startDate: string | null;
   endDate: string | null;
+  /** The colour band (0194's `highlight`): active | barter | revenue_share, or null. */
+  highlight: string | null;
 }
 
 export interface HhPerson {
@@ -40,6 +43,8 @@ export interface HhPerson {
   /** The employee whose Daily Compliance this name shows (lib/hh/calendar.ts). */
   employeeId: string | null;
   employeeName: string | null;
+  /** A Client Engagement team lead (0230). */
+  isCeLead: boolean;
 }
 
 export interface Ambassador {
@@ -54,6 +59,10 @@ export interface Ambassador {
   startDate: string | null;
   endDate: string | null;
   onHold: boolean;
+  /** The lead who carries them; null while unassigned (0230). */
+  ownerPersonId: string | null;
+  /** active | barter | revenue_share, or null until set (0230). */
+  status: string | null;
 }
 
 export async function listHhPeople(): Promise<HhPerson[]> {
@@ -62,6 +71,7 @@ export async function listHhPeople(): Promise<HhPerson[]> {
       id: paPeople.id,
       name: paPeople.name,
       kind: paPeople.kind,
+      isCeLead: paPeople.isCeLead,
       employeeId: paPeople.employeeId,
       employeeName: employees.name,
     })
@@ -82,8 +92,12 @@ export async function listHhEntries(): Promise<HhEntry[]> {
       onHold: paEntries.onHold,
       startDate: paEntries.startDate,
       endDate: paEntries.endDate,
+      highlight: paEntries.highlight,
     })
     .from(paEntries)
+    // An archived entry (its batch is over) stays in the table for the record,
+    // but never on the board.
+    .where(isNull(paEntries.archivedAt))
     .orderBy(asc(paEntries.section), asc(paEntries.createdAt));
 }
 
@@ -100,6 +114,8 @@ export async function listAmbassadors(): Promise<Ambassador[]> {
       startDate: paAmbassadors.startDate,
       endDate: paAmbassadors.endDate,
       onHold: paAmbassadors.onHold,
+      ownerPersonId: paAmbassadors.ownerPersonId,
+      status: paAmbassadors.status,
     })
     .from(paAmbassadors)
     .where(eq(paAmbassadors.isActive, true))
@@ -214,9 +230,11 @@ export interface Participant {
   startDate: string | null;
   endDate: string | null;
   onHold: boolean;
-  /** The employee or intern who carries this participant. */
+  /** The employee or intern who carries this participant — "Unassigned" while nobody does. */
   ownerName: string;
   ownerKind: string;
+  /** Null while the row sits in the unassigned pool (0230). */
+  ownerId: string | null;
   createdAt: string;
 }
 
@@ -238,10 +256,19 @@ export async function listAllParticipants(): Promise<Participant[]> {
       onHold: paEntries.onHold,
       ownerName: paPeople.name,
       ownerKind: paPeople.kind,
+      ownerId: paPeople.id,
       createdAt: paEntries.createdAt,
     })
     .from(paEntries)
-    .innerJoin(paPeople, eq(paEntries.personId, paPeople.id))
+    // LEFT join, not inner: an entry in the unassigned pool has no owner yet and
+    // must still be listed (0230).
+    .leftJoin(paPeople, eq(paEntries.personId, paPeople.id))
+    .where(isNull(paEntries.archivedAt))
     .orderBy(asc(paEntries.createdAt));
-  return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  return rows.map((r) => ({
+    ...r,
+    ownerName: r.ownerName ?? "Unassigned",
+    ownerKind: r.ownerKind ?? "",
+    createdAt: r.createdAt.toISOString(),
+  }));
 }

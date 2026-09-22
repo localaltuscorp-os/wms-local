@@ -740,7 +740,6 @@ export function WeeklyCascadeBoard({
             variant="weekly"
             actions={WEEKLY_TABLE_ACTIONS}
             detailKind="weekly"
-            meId={me.id}
             // Viewing someone else's week means managing them (the page scopes it).
             managesViewed={scopeEmp !== me.id}
             visibleCols={visibleCols}

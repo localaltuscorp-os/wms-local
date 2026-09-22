@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { requireAccountsAccess } from "@/lib/accounts/access";
 import { listVasaCells, listVasaSnapshots } from "@/lib/queries/accounts-vasa";
 import { listAccountsLookups } from "@/lib/accounts/lookups";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 import {
   buildMatrix,
   snapshotXlsx,
@@ -29,6 +30,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   try {
     await requireAccountsAccess();
   } catch {

@@ -4,22 +4,22 @@ import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { HR_CONSOLE_MODULES, locateHrRoute } from "@/lib/hr/console-nav";
+import { visibleConsoleModules } from "@/lib/hr/console-visibility";
 import { cn } from "@/lib/utils";
 import { HrModuleRail } from "./hr-module-rail";
-import { HrStepList } from "./hr-step-list";
+import { HrStepNav } from "./hr-step-nav";
 import { HrConsoleContextProvider } from "./hr-console-context";
 import { HrModuleGhost } from "./hr-module-ghost";
-import { useInsetTopBar } from "@/components/layout/inset-top-bar";
 
 /**
- * The HR workspace — a three-column console wrapping every /hr surface:
+ * The HR workspace — a two-column console wrapping every /hr surface:
  *
- *   module rail (256px) │ steps (320px) │ the page itself
+ *   module rail (256px) │ the page itself
  *
- * The middle column (HrStepList) lists the selected module's steps/letters as a
- * vertical list, so a letter is one click away. It was briefly replaced by a
- * horizontal quick-access nav pinned under the top bar; that bar is gone and the
- * column is back, with its own collapse toggle beside the rail's.
+ * The module's steps used to be a third column, a 320px sidebar between the
+ * two. They are now a horizontal QUICK-ACCESS NAV (HrStepNav) pinned at the top
+ * of the content column instead — same links, one row, and no column of its own
+ * to collapse, which is why the collapse control and its shared state are gone.
  *
  * Applied from app/(app)/hr/layout.tsx, so `children` is the real Next.js page
  * for the current route and the console never renders placeholder content. The
@@ -39,20 +39,33 @@ import { useInsetTopBar } from "@/components/layout/inset-top-bar";
  */
 export function HrConsoleShell({
   user,
+  hiddenNodes = null,
   children,
 }: {
   user: { name: string; role: string };
+  /** Catalogue node keys this person has been DENIED (`hiddenModuleKeys()`),
+   *  resolved on the server. `null` means "not governed by the matrix" — a
+   *  master admin, or somebody the matrix does not cover — and shows everything.
+   *
+   *  The matrix has been ENFORCED all along (`requirePathView` in the (app)
+   *  layout refuses a denied route however it is reached). This is what stops
+   *  the console OFFERING one: without it the rail kept drawing steps that
+   *  bounced the person to the hub when clicked. */
+  hiddenNodes?: string[] | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname() ?? "/hr";
   const searchParams = useSearchParams();
-  // The app-wide top bar, handed down by ChromeShell so it can be rendered
-  // inside the content column rather than across the top of the rail too.
-  const topBar = useInsetTopBar();
+
+  // The ONE filter, applied to the module list this shell owns. Everything below
+  // reads `modules`, never the raw catalogue.
+  const modules = React.useMemo(
+    () => visibleConsoleModules(HR_CONSOLE_MODULES, hiddenNodes ? new Set(hiddenNodes) : null),
+    [hiddenNodes],
+  );
   // Two independently collapsible columns. The steps list is a real column again
   // (see below), so it gets its own toggle beside the rail's.
   const [railCollapsed, setRailCollapsed] = React.useState(false);
-  const [stepsCollapsed, setStepsCollapsed] = React.useState(false);
 
 
 
@@ -76,13 +89,13 @@ export function HrConsoleShell({
   // page used the same param to re-open its stage pop-up).
   const openParam = searchParams?.get("open") ?? null;
   React.useEffect(() => {
-    if (openParam && HR_CONSOLE_MODULES.some((m) => m.id === openParam)) {
+    if (openParam && modules.some((m) => m.id === openParam)) {
       setSelectedModuleId(openParam);
     }
   }, [openParam]);
 
   const selectedModule = React.useMemo(
-    () => HR_CONSOLE_MODULES.find((m) => m.id === selectedModuleId) ?? null,
+    () => modules.find((m) => m.id === selectedModuleId) ?? null,
     [selectedModuleId],
   );
 
@@ -118,21 +131,17 @@ export function HrConsoleShell({
       // ~848px page with this pane's scrollbar painted down its side.
       // globals.css unclips both under @media print. Keep the class names.
       className="hr-shell flex overflow-hidden bg-canvas-base"
-      // A FULL viewport, not `calc(100dvh - var(--app-topbar-h))`. The top bar
-      // used to be a sibling ABOVE this shell, so its height had to come off
-      // the top; it is now rendered INSIDE the content column below, which is
-      // what lets the rail start at y=0 like every other module's rail.
+      // The viewport MINUS the full-width top bar. The bar is now a sibling ABOVE
+      // this shell (rendered by ChromeShell, same as every other module), so this
+      // shell must take the remaining height or the page would overflow.
       //
       // NO `flex-1` HERE, EVER. This is a flex ITEM (app/(app)/template.tsx is
-      // a flex column between us and ChromeShell's h-dvh frame). `flex-1` sets
-      // `flex-basis: 0%`, and on a flex item the basis REPLACES the main-size
-      // property — so the height below would be silently ignored and the shell
-      // would size to its content instead. It then grew ~160px past the frame,
-      // which clips with `overflow-hidden`: the rail's New Request button and
-      // user card fell off the bottom of the screen and nothing on the page
-      // could scroll to reach them. With the default `flex-basis: auto` the
-      // height is used, and the shell is exactly one viewport.
-      style={{ height: "100dvh" }}
+      // a flex column between us and ChromeShell's min-h-dvh frame). `flex-1`
+      // sets `flex-basis: 0%`, and on a flex item the basis REPLACES the main-
+      // size property — so the height below would be silently ignored and the
+      // shell would size to its content instead. With the default
+      // `flex-basis: auto` the height is used.
+      style={{ height: "calc(100dvh - var(--app-topbar-h))" }}
     >
       <div
         className={cn(
@@ -154,6 +163,7 @@ export function HrConsoleShell({
         )}
       >
         <HrModuleRail
+          modules={modules}
           collapsed={railCollapsed}
           selectedModuleId={selectedModuleId}
           activeModuleId={activeModuleId}
@@ -163,43 +173,10 @@ export function HrConsoleShell({
         />
       </div>
 
-      {/* THE STEP LIST — column 2, the module's letters/forms as a vertical list
-          so a letter is one click away without hunting the horizontal bar. When
-          collapsed it is 0-wide and a slim expander sits beside the rail. */}
-      {!stepsCollapsed && (
-        <div className="max-lg:hidden">
-          <HrStepList
-            module={selectedModule}
-            activeHref={previewingOtherModule ? null : (located.subModule?.href ?? null)}
-            onCollapse={() => setStepsCollapsed(true)}
-          />
-        </div>
-      )}
-      {stepsCollapsed && (
-        <button
-          type="button"
-          onClick={() => setStepsCollapsed(false)}
-          aria-label="Show steps"
-          title="Show steps"
-          className="my-2 shrink-0 rounded-r-lg border border-l-0 border-hairline bg-surface-card px-1.5 py-2 text-ink-muted transition-colors hover:text-ink max-lg:hidden"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-        </button>
-      )}
-
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* THE APP TOP BAR — the first row of the CONTENT column, so its page
-            title begins where the page begins instead of sitting over the rail.
-            `z-[46]` puts it one step above the step nav's z-[45] (see the band
-            documented below), so the bell's dropdown and the search trigger are
-            never painted over by the row beneath them, while the `>= z-50`
-            full-screen modals still cover it. */}
-        {topBar ? <div className="relative z-[46] shrink-0">{topBar}</div> : null}
-        {/* The CONTENT column: top bar, then the page. The steps now live in
-            column 2 (HrStepList above), so there is no horizontal step row here
-            any more — the page is the only thing under the top bar. */}
+        {/* The CONTENT column: the page itself. The full-width top bar lives
+            above this shell (ChromeShell), and the steps live in column 2
+            (HrStepList above), so the page is the only thing here. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* --app-topbar-h is a body-scoped CSS var (see globals.css) that
               individual /hr pages use via the `.sticky-below-topbar` utility
@@ -214,6 +191,28 @@ export function HrConsoleShell({
               (matters for pages not yet migrated to HrTitleBar, which still
               use that utility for their own inline sticky header). */}
           <HrConsoleContextProvider value={consoleContext}>
+            {/* THE STEP NAV SITS OUTSIDE THE SCROLLER, as its own row.
+                It used to be `sticky top-0` INSIDE the scroll container, which
+                looked the same but measured differently: the nav then occupied
+                the top of the scrolling flow, so a page asking for `min-h-full`
+                got the FULL container height starting BELOW the nav and
+                overflowed by exactly the nav's height. That is what pushed the
+                module's centred pane down by ~45px while the same pane sat dead
+                centre on /hr, where there is no nav. As a flex row above the
+                scroller it is still permanently visible, and the space below it
+                is now honestly 100% of what a page can use.
+
+                Z-INDEX BAND - page code must respect both sides of it:
+                  <= z-40   in-flow page content (cards, their dropdowns).
+                  z-45      this row.
+                  >= z-50   `fixed inset-0` overlays - the letter, policy and
+                            assessment modals, which MUST paint over it. */}
+            <div className="z-[45] shrink-0">
+              <HrStepNav
+                module={selectedModule}
+                activeHref={previewingOtherModule ? null : (located.subModule?.href ?? null)}
+              />
+            </div>
             <div
               className="hr-shell-scroll min-h-0 min-w-0 flex-1 overflow-y-auto bg-canvas-base"
               style={{ "--app-topbar-h": "0px" } as React.CSSProperties}

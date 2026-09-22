@@ -366,7 +366,7 @@ export function expFromRange(from: string, to: string): string {
  */
 export function monthlyFromCtc(fixed: string, bonus: string): string {
   const num = (s: string): number => {
-    const n = Number((s ?? "").replace(/[^0-9.]/g, ""));
+    const n = Number((s ?? "").replace(/rs.?/gi, "").replace(/[^0-9.]/g, ""));
     return Number.isFinite(n) ? n : 0;
   };
   const annual = num(fixed) + num(bonus);

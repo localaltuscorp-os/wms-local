@@ -1,7 +1,9 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import type { Route } from "next";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import type { HrConsoleModule } from "@/lib/hr/console-nav";
 
@@ -34,6 +36,51 @@ export function HrStepNav({
   // A leaf module (Holiday List, Policies, ...) has nothing to choose between,
   // and the bare /hr front door has no module at all. Render no bar rather than
   // an empty strip, so those surfaces start at the top of the column.
+  // The row scrolls sideways with its scrollbar hidden, so at narrower widths
+  // the step you are ON could sit past the right edge with nothing to say the
+  // row went on ("Employee Onboarding Form" cut at the edge, 2026-09-18). Bring
+  // the active pill into view whenever the page changes. `nearest` scrolls only
+  // as far as needed, and only this row — never the page.
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const row = rowRef.current;
+    const active = row?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!row || !active) return;
+    const left = active.offsetLeft - row.offsetLeft;
+    const right = left + active.offsetWidth;
+    if (left < row.scrollLeft) row.scrollLeft = Math.max(0, left - 16);
+    else if (right > row.scrollLeft + row.clientWidth) row.scrollLeft = right - row.clientWidth + 16;
+  }, [activeHref]);
+
+  // Scrolling to the active pill still left the OTHER end cut mid-word with no
+  // sign the row went on ("Rejec…" at 1120px, 2026-09-19). Track which ends have
+  // more, and show a fade plus a ‹ › button on exactly those ends. The row keeps
+  // one line, so the bar's height never changes.
+  const [more, setMore] = React.useState({ left: false, right: false });
+  const measure = React.useCallback(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const left = row.scrollLeft > 1;
+    const right = row.scrollLeft + row.clientWidth < row.scrollWidth - 1;
+    setMore((m) => (m.left === left && m.right === right ? m : { left, right }));
+  }, []);
+  React.useEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(row);
+    row.addEventListener("scroll", measure, { passive: true });
+    return () => {
+      ro.disconnect();
+      row.removeEventListener("scroll", measure);
+    };
+  }, [measure, module]);
+  const nudge = (dir: -1 | 1) => {
+    const row = rowRef.current;
+    if (row) row.scrollBy({ left: dir * Math.max(160, row.clientWidth * 0.6), behavior: "smooth" });
+  };
+
   if (!module || module.subModules.length === 0) return null;
 
   return (
@@ -48,7 +95,8 @@ export function HrStepNav({
           would change the height of a sticky bar and shove the page under it.
           This is also why the bar works on mobile at all - the old sidebar was
           `max-lg:hidden`, so below 1024px there was no way to reach a step. */}
-      <div className="no-scrollbar flex flex-row items-center gap-2 overflow-x-auto whitespace-nowrap">
+      <div className="relative">
+      <div ref={rowRef} className="no-scrollbar flex flex-row items-center gap-2 overflow-x-auto whitespace-nowrap">
         {module.subModules.map((sub) => {
           const active = sub.href === activeHref;
           return (
@@ -71,6 +119,33 @@ export function HrStepNav({
           );
         })}
       </div>
+      {more.left && <EdgeButton side="left" onClick={() => nudge(-1)} />}
+      {more.right && <EdgeButton side="right" onClick={() => nudge(1)} />}
+      </div>
     </nav>
+  );
+}
+
+/** A ‹ or › over a white fade at one end of the step row, shown only while
+ *  that end has more steps hidden behind it. */
+function EdgeButton({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
+  const Icon = side === "left" ? ChevronLeft : ChevronRight;
+  return (
+    <div
+      className={`pointer-events-none absolute inset-y-0 flex w-16 items-center ${
+        side === "left"
+          ? "left-0 justify-start bg-gradient-to-r from-white via-white/90 to-transparent"
+          : "right-0 justify-end bg-gradient-to-l from-white via-white/90 to-transparent"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={side === "left" ? "Show earlier steps" : "Show more steps"}
+        className="pointer-events-auto grid h-7 w-7 shrink-0 place-items-center rounded-full border border-hairline bg-white text-slate-600 shadow-sm transition-colors hover:text-slate-900"
+      >
+        <Icon size={15} strokeWidth={2.4} aria-hidden />
+      </button>
+    </div>
   );
 }

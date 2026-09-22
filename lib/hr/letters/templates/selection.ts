@@ -47,7 +47,7 @@ const template: LetterTemplate = {
 
     para(t("Please find below the key terms of your employment:")),
 
-    term("Joining Date", f("joiningDate", "Joining Date", { placeholder: "Select a date", date: true })),
+    term("Joining Date", f("joiningDate", "Joining Date", { placeholder: "DD-MMM-YYYY", date: true })),
     term("Department", f("department", "Department", { placeholder: "Select a department", optionsKey: "departments" })),
     term("Reporting Manager", f("reportingManager", "Reporting Manager", { placeholder: "Select a manager", optionsKey: "managers" })),
     term("Designation", f("designation", "Designation", { placeholder: "e.g. Business Development Manager" })),
@@ -149,7 +149,7 @@ const template: LetterTemplate = {
       esign: true,
       // The founder signs the offer off directly — a baked scanned signature under
       // "For <entity>", NOT the generic HR-desk sign-off.
-      imageSrc: "/signatures/manan-sign.png",
+      imageSrc: "/signatures/manan-vasa-sign.png",
       name: [t("CA Manan Vasa")],
       designation: [f("signatoryDesignation", "Designation", { defaultValue: "Founder" })],
       showDate: true,

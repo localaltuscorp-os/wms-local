@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { broadcasts, broadcastRecipients, employees } from "@/db/schema";
 import type { BroadcastAuthorIdentity } from "@/db/enums";
@@ -8,6 +8,9 @@ import { sendBroadcastEmail } from "@/lib/email/resend";
 import { sendFcmToEmployee } from "@/lib/push/fcm";
 import { emit } from "@/lib/events/emit";
 import { resolveAudience, type AudienceRule } from "@/lib/ecos/audience";
+import { sendBroadcastWhatsApp } from "@/lib/ecos/whatsapp-broadcast";
+import { whatsappOutcomeOf, type WhatsAppOutcome } from "@/lib/ecos/whatsapp-params";
+import { siteUrl } from "@/lib/site-url";
 
 /**
  * ECOS publish CORE — the un-gated engine shared by the HR `publishBroadcast`
@@ -18,6 +21,9 @@ import { resolveAudience, type AudienceRule } from "@/lib/ecos/audience";
  */
 
 type CoreResult = { ok: true; recipientCount: number } | { ok: false; error: string };
+
+/** Thrown inside the publish transaction when another publisher got there first. */
+class AlreadyPublishedError extends Error {}
 
 /** Normalise the stored `channels` JSONB into a clean string[] (with defaults). */
 export function normChannels(raw: unknown): string[] {
@@ -68,15 +74,26 @@ export async function publishBroadcastCore(id: string, actorId: string | null): 
   const publishedAt = new Date();
   try {
     await db.transaction(async (tx) => {
+      // Flip FIRST, and only from an unpublished state. A manual Publish and the
+      // scheduled sweep can race for the same broadcast; the loser matches no
+      // row here and rolls back instead of snapshotting and delivering twice.
+      const flipped = await tx
+        .update(broadcasts)
+        .set({
+          status: "published",
+          publishedAt,
+          recipientCount: targetIds.length,
+          publishClaimedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(broadcasts.id, id), notInArray(broadcasts.status, ["published", "archived"])))
+        .returning({ id: broadcasts.id });
+      if (flipped.length === 0) throw new AlreadyPublishedError();
+
       await tx
         .insert(broadcastRecipients)
         .values(targetIds.map((employeeId) => ({ broadcastId: id, employeeId, status: "pending" as const })))
         .onConflictDoNothing();
-
-      await tx
-        .update(broadcasts)
-        .set({ status: "published", publishedAt, recipientCount: targetIds.length, updatedAt: new Date() })
-        .where(eq(broadcasts.id, id));
 
       await emit(tx, {
         aggregateType: "broadcast",
@@ -95,6 +112,9 @@ export async function publishBroadcastCore(id: string, actorId: string | null): 
       });
     });
   } catch (e) {
+    if (e instanceof AlreadyPublishedError) {
+      return { ok: false, error: "This broadcast is already published." };
+    }
     return { ok: false, error: e instanceof Error ? e.message : "Could not publish the broadcast." };
   }
 
@@ -105,7 +125,11 @@ export async function publishBroadcastCore(id: string, actorId: string | null): 
 /**
  * Fan a broadcast out to a set of employees. In-app row via notify()
  * (forceChannels: [] → inbox row only); email via sendBroadcastEmail; push via
- * direct FCM (NOT notify, so no duplicate inbox row). Best-effort per recipient.
+ * direct FCM (NOT notify, so no duplicate inbox row); WhatsApp via the approved
+ * broadcast template (lib/ecos/whatsapp-broadcast), whose per-person outcome —
+ * sent, skipped and why, or failed — is kept in `channel_outcomes`. A WhatsApp
+ * that already went out is not sent again when unread recipients are
+ * re-notified. Best-effort per recipient.
  */
 export async function deliverBroadcast(broadcastId: string, employeeIds: string[]): Promise<void> {
   const broadcast = await db.query.broadcasts.findFirst({ where: eq(broadcasts.id, broadcastId) });
@@ -115,6 +139,7 @@ export async function deliverBroadcast(broadcastId: string, employeeIds: string[
   const wantInApp = channels.includes("in_app");
   const wantEmail = channels.includes("email");
   const wantPush = channels.includes("push");
+  const wantWhatsApp = channels.includes("whatsapp");
   const title = broadcast.title;
   const senderLabel = senderLabelFor(broadcast);
   const pushBody =
@@ -125,10 +150,43 @@ export async function deliverBroadcast(broadcastId: string, employeeIds: string[
 
   const targets = employeeIds.length
     ? await db
-        .select({ id: employees.id, email: employees.email })
+        .select({
+          id: employees.id,
+          email: employees.email,
+          whatsappOptedIn: employees.whatsappOptedIn,
+          whatsappPhone: employees.whatsappPhone,
+          whatsappTemplateLocale: employees.whatsappTemplateLocale,
+        })
         .from(employees)
         .where(and(eq(employees.isActive, true), inArray(employees.id, employeeIds)))
     : [];
+
+  // Whoever WhatsApp already reached is not messaged again on a resend.
+  const alreadyOnWhatsApp = new Set<string>();
+  if (wantWhatsApp && targets.length > 0) {
+    const prior = await db
+      .select({ employeeId: broadcastRecipients.employeeId, outcomes: broadcastRecipients.channelOutcomes })
+      .from(broadcastRecipients)
+      .where(
+        and(
+          eq(broadcastRecipients.broadcastId, broadcastId),
+          inArray(
+            broadcastRecipients.employeeId,
+            targets.map((t) => t.id),
+          ),
+        ),
+      );
+    for (const p of prior) {
+      if (whatsappOutcomeOf(p.outcomes)?.status === "sent") alreadyOnWhatsApp.add(p.employeeId);
+    }
+  }
+
+  let link = `/communications/${broadcastId}`;
+  try {
+    link = new URL(link, siteUrl()).toString();
+  } catch {
+    /* no site URL configured — the relative path still tells them where */
+  }
 
   await Promise.allSettled(
     targets.map(async (c) => {
@@ -156,10 +214,30 @@ export async function deliverBroadcast(broadcastId: string, employeeIds: string[
           await sendFcmToEmployee(c.id, { title, body: pushBody, route: `communication/${broadcastId}` });
           deliveredChannels.push("push");
         }
+        let whatsapp: WhatsAppOutcome | null = null;
+        if (wantWhatsApp) {
+          if (alreadyOnWhatsApp.has(c.id)) {
+            deliveredChannels.push("whatsapp");
+          } else {
+            whatsapp = await sendBroadcastWhatsApp(c, {
+              from: senderLabel,
+              title,
+              bodyText: broadcast.bodyText,
+              link,
+            });
+            if (whatsapp.status === "sent") deliveredChannels.push("whatsapp");
+          }
+        }
 
         await db
           .update(broadcastRecipients)
-          .set({ deliveredAt: new Date(), deliveredChannels })
+          .set({
+            deliveredAt: new Date(),
+            deliveredChannels,
+            ...(whatsapp
+              ? { channelOutcomes: sql`${broadcastRecipients.channelOutcomes} || ${JSON.stringify({ whatsapp })}::jsonb` }
+              : {}),
+          })
           .where(and(eq(broadcastRecipients.broadcastId, broadcastId), eq(broadcastRecipients.employeeId, c.id)));
       } catch {
         // Best-effort — a single recipient's failure never aborts the fan-out.

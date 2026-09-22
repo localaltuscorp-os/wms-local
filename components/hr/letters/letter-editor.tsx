@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import {
   Send,
@@ -326,6 +326,30 @@ export function LetterEditor({
   const [signingModel, setSigningModel] = useState<LetterSignature>(
     () => template.signature ?? "none",
   );
+
+  // ── The editing bar's live height, published as a CSS var ─────────
+  // The "Edit freely" formatting bar (.rle-toolbar, rendered by
+  // RichLetterEditor) pins DIRECTLY BELOW this one, in the same scroll
+  // container, so its sticky offset has to be this bar's height. That offset
+  // used to be the literal 72px, measured by hand back when the bar held three
+  // pickers and could not wrap - so the moment a fourth (Signing) appeared, or
+  // the row reflowed, the formatting bar pinned INSIDE this one and the two
+  // overlapped. A ResizeObserver publishes the real number instead: right in
+  // both modes, at every width, and it re-measures whenever the bar reflows.
+  // Consumed by .rle-toolbar in rich-letter-editor.tsx.
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const [toolbarH, setToolbarH] = useState(0);
+  useEffect(() => {
+    const bar = toolbarRef.current;
+    if (!bar) return;
+    const publish = () =>
+      setToolbarH(Math.round(bar.getBoundingClientRect().height));
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, []);
 
   const firstFieldId = fields[0]?.id;
 
@@ -789,7 +813,14 @@ export function LetterEditor({
   };
 
   return (
-    <div className="alw-wrap">
+    <div
+      className="alw-wrap"
+      ref={wrapRef}
+      // Only once measured - the CSS fallback (61px, one un-wrapped row) covers
+      // the first paint, so there is no frame where the var reads 0 and the
+      // formatting bar jumps to the top of the scroll container.
+      style={toolbarH > 0 ? ({ "--alw-toolbar-h": `${toolbarH}px` } as CSSProperties) : undefined}
+    >
       {/* Self-hosted letter-font library — loaded here too so the read-only
           rich previews (.alw-rich-preview) show the chosen fonts even when the
           RichLetterEditor itself isn't mounted. React 19 dedupes the link. */}
@@ -798,7 +829,7 @@ export function LetterEditor({
       <style>{EDITOR_CSS}</style>
 
       {/* ── Toolbar (does not print) ─────────────────────────────── */}
-      <div className="alw-toolbar no-print">
+      <div className="alw-toolbar no-print" ref={toolbarRef}>
         <label className="alw-pick">
           <Building2 size={15} strokeWidth={2.2} aria-hidden />
           <span className="alw-pick-label">Paying Entity</span>
@@ -1182,7 +1213,7 @@ function CtcCalculator({
         <label className="alw-calc-total">
           <span className="alw-calc-lbl">Total CTC (per annum)</span>
           <div className="alw-calc-rupee">
-            <span aria-hidden>Rs.</span>
+            <span aria-hidden>₹</span>
             <input
               type="text"
               inputMode="numeric"
@@ -1887,7 +1918,7 @@ function Field({
         placeholder={spec.label}
         aria-label={spec.label}
         data-filled={filled || undefined}
-        onChange={(e) => ctx.setValue(spec.id, e.target.value.replace(/[^0-9₹RSrs,.\s]/g, ""))}
+        onChange={(e) => ctx.setValue(spec.id, e.target.value.replace(/[^0-9₹,.\s]/g, ""))}
         className={`alw-input${boldCls}`}
         style={{ minWidth: filled ? 0 : `${Math.max(spec.label.length, 2)}ch`, maxWidth: "100%" }}
       />
@@ -1957,14 +1988,32 @@ const EDITOR_CSS = `
      rest the toolbar sits 60px higher. If a pinned strip is ever added back
      inside .hr-shell-scroll, this has to match its height again. */
   position:sticky;top:0;z-index:20;
-  display:flex;flex-wrap:nowrap;overflow-x:auto;align-items:center;justify-content:safe center;gap:5px 7px;
+  /* WRAPS - it does NOT scroll sideways any more.
+     It used to be nowrap + overflow-x:auto, trading a cramped row for a
+     horizontal scrollbar. That trade was never actually taken, because the
+     children were allowed to SHRINK (flex-shrink:1 with min-width:0 on
+     .alw-pick) while each <select> inside them kept its own min-width:150px.
+     A pick could shrink to 40px; the select inside it could not, so the select
+     spilled out of its column and painted straight over the NEXT picker's
+     caption and box - the bar read as "CANDIDATEEMPLOYEE" with selects crossing
+     the action divider, and the primary buttons got squeezed off the right
+     edge. Nothing scrolled, because after all that shrinking the row DID fit.
+     Wrapping is the honest answer: settings on the first line, actions on the
+     next when there is no room, nothing overlapping at any width. flex-start
+     rather than the old safe-center, because .alw-actions is pushed right by an
+     auto margin now, which consumes the free space centring used to take. */
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:8px 7px;
   padding:9px 12px;margin-bottom:20px;
   background:color-mix(in srgb, var(--color-surface-soft, #f8fafc) 92%, transparent);
   backdrop-filter:blur(8px);
   border:1px solid var(--color-hairline, #e2e8f0);
   border-radius:16px;
 }
-.alw-pick{display:flex;flex-direction:column;gap:3px;position:relative;padding-left:17px;flex-shrink:1;min-width:0;}
+/* flex:0 0 auto - NEVER shrinkable. Shrinking this box does not shrink the
+   <select> inside it (that has its own min-width:150px), so the select escapes
+   the box and lands on the picker beside it. Sized to its content, the picker
+   stays whole and the toolbar wraps around it instead. */
+.alw-pick{display:flex;flex-direction:column;gap:3px;position:relative;padding-left:17px;flex:0 0 auto;}
 .alw-pick svg{position:absolute;left:0;top:22px;width:13px;height:13px;color:${RED_DEEP};}
 .alw-pick-label{
   font-family:var(--font-display, system-ui, sans-serif);
@@ -1990,15 +2039,18 @@ const EDITOR_CSS = `
    them to the row's baseline, which is the selects' bottom edge, and keeps
    matching if the caption's size ever changes. */
 /* The ACTION cluster, held clearly apart from the pickers to its left.
-   8px of margin was not enough separation once a third picker appeared: the
-   buttons ran straight on from the last select and the whole bar read as one
-   cramped row. A wider gap plus a hairline rule groups it as "settings on the
-   left, actions on the right" at a glance. The rule is drawn on the padding
-   edge so it spans the selects' height, not the buttons'. */
+   margin-left:auto is what separates it now: it swallows whatever room is left
+   on the line, so the cluster sits hard right of the settings however many
+   pickers there are and whatever the window width - "settings left, actions
+   right" without a fixed gap to keep in sync.
+   The hairline rule that used to mark the split is GONE, and it had to be: the
+   bar wraps now, and a left border on a cluster that has been pushed onto a
+   line of its own draws a stray vertical tick in open space with nothing to
+   divide. Separation here is positional, so it survives the wrap; a border
+   cannot. */
 .alw-actions{
-  margin-left:14px;padding-left:14px;
-  border-left:1px solid var(--color-hairline, #e2e8f0);
-  /* stretch = the rule spans the row's full height; flex-end = the BUTTONS
+  margin-left:auto;
+  /* stretch = the cluster spans the row's full height; flex-end = the BUTTONS
      still sit on the selects' baseline rather than centred against the
      caption+select pair, which is what read as misaligned. */
   display:flex;flex-wrap:nowrap;flex-shrink:0;gap:5px;align-items:flex-end;align-self:stretch;

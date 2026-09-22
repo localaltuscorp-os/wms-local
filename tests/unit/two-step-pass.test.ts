@@ -130,3 +130,37 @@ describe("wiring — every way in goes through the code", () => {
     expect(fn.slice(0, fn.indexOf("\nexport "))).not.toMatch(/companyBcc|bcc:/);
   });
 });
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WHO THE SIGN-IN CODE COMES FROM
+   ════════════════════════════════════════════════════════════════════════════ */
+
+describe("the sender of the sign-in code", () => {
+  // The rules moved to lib/email/sign-in-sender.ts so a test can import them —
+  // lib/email/resend.ts is `server-only`. Their behaviour is covered directly
+  // in tests/unit/two-step-sender-fallback.test.ts; these keep watch over the
+  // WIRING, which no import can see.
+  const src = readFileSync("lib/email/sign-in-sender.ts", "utf8");
+  const mailer = readFileSync("lib/email/resend.ts", "utf8");
+
+  it("is noreply@altuscorp.in, not the environment's notification sender", () => {
+    // Asked for on 21 Sep: the one email a person reads BEFORE they are inside
+    // the app carries the company's own address.
+    expect(src).toMatch(/COMPANY_SIGN_IN_FROM = "Altus Corp <noreply@altuscorp\.in>"/);
+    expect(mailer).toMatch(/export const SIGN_IN_FROM = signInFrom\(\)/);
+  });
+
+  it("can still be overridden where that domain is not verified", () => {
+    /* Resend refuses a `from` on an unverified domain and the failure is total:
+       no code arrives, so nobody can sign in. wms-local has only mananvasa.com
+       verified, which is exactly how that outage happened before. */
+    expect(src).toMatch(/process\.env\.RESEND_SIGNIN_FROM/);
+  });
+
+  it("falls back to a verified sender rather than failing the sign-in", () => {
+    const fn = mailer.slice(mailer.indexOf("export async function sendTwoStepCodeEmail"));
+    const body = fn.slice(0, fn.indexOf("\nexport "));
+    expect(body).toMatch(/for \(const from of signInFromCandidates\(\)\)/);
+    expect(body).toMatch(/isUnverifiedDomainError\(error\.message\)/);
+  });
+});

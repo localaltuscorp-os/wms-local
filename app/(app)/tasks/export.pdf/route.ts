@@ -8,6 +8,7 @@ import { MAX_EXPORT_ROWS, EXPORT_TOO_LARGE } from "@/lib/exports/csv";
 import { richExportFilename } from "@/lib/exports/tasks-rich";
 import { defaultScopeId } from "@/lib/auth/default-scope";
 import type { TaskStatus, TaskPriority, ApprovalStatus } from "@/db/enums";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /tasks/export.pdf
@@ -26,6 +27,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   let me;
   try {
     me = await requireAdmin();

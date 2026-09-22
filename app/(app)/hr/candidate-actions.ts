@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
@@ -19,6 +19,10 @@ import { revokeAccessLinks } from "@/lib/hr/candidate/access-link";
 import { recordHrFormSubmission } from "@/lib/hr/forms/record";
 import { intakeResponses } from "@/lib/hr/candidate/intake-responses";
 import { listEmployeeOptions } from "@/lib/queries/employees";
+// Reused rather than re-defined: "what counts as a mobile number" already has
+// one answer in this codebase, and a second would drift from it.
+import { normalizeMobile } from "@/lib/hr/candidate/aadhaar-kyc";
+import { isWorkSamplePath, safeWorkFileName, workFileProblem } from "@/lib/hr/candidate/work-samples";
 
 type Result<T> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -73,6 +77,42 @@ export async function createCandidatePhotoUploadUrl(input: {
   }
 }
 
+/**
+ * Signed upload URL for one WORK SAMPLE file (images, PDFs, documents - see
+ * lib/hr/candidate/work-samples.ts). Same browser-straight-to-storage route as
+ * the photo; the path is minted here, under `candidate-intake/work/`.
+ */
+export async function createCandidateWorkUploadUrl(input: {
+  fileName: string;
+  mime?: string | null;
+  size?: number | null;
+}): Promise<Result<{ path: string; token: string; bucket: string }>> {
+  const me = await requireHrIntake();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const problem = workFileProblem({ name: input.fileName, mime: input.mime, size: input.size });
+  if (problem) return { ok: false, error: problem };
+
+  const path = `candidate-intake/work/${randomUUID()}/${safeWorkFileName(input.fileName)}`;
+  try {
+    const { data, error } = await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).createSignedUploadUrl(path);
+    if (error || !data) return { ok: false, error: error?.message ?? "Could not start the upload." };
+    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not start the upload." };
+  }
+}
+
+/** A short-lived link to open one stored work-sample file (HR intake staff). */
+export async function getCandidateWorkFileUrl(path: string): Promise<Result<{ url: string }>> {
+  await requireHrIntake();
+  if (!isWorkSamplePath(path)) return { ok: false, error: "Not a work-sample file." };
+  const { data, error } = await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).createSignedUrl(path, 600);
+  if (error || !data) return { ok: false, error: error?.message ?? "Could not open the file." };
+  return { ok: true, url: data.signedUrl };
+}
+
 const DraftSchema = z.object({
   id: z.string().uuid().optional(),
   values: z.record(z.string(), z.string()).default({}),
@@ -119,7 +159,25 @@ export async function saveCandidateDraft(input: z.input<typeof DraftSchema>): Pr
   try {
     let id = v.id;
     if (id) {
-      await db.update(candidateIntake).set(payload).where(eq(candidateIntake.id, id));
+      // A RETIRED ROW IS NOT WRITABLE. A browser holding the wizard open across
+      // a merge would otherwise keep autosaving into the placeholder, silently
+      // diverging it from the record that now owns the evaluation.
+      //
+      // Folded into the UPDATE's own WHERE rather than a read-then-write, so
+      // this costs no extra query on the autosave path. `returning` is what
+      // reports the refusal: an excluded row updates nothing.
+      const updated = await db
+        .update(candidateIntake)
+        .set(payload)
+        .where(and(eq(candidateIntake.id, id), isNull(candidateIntake.mergedIntoId)))
+        .returning({ id: candidateIntake.id });
+      if (updated.length === 0) {
+        return {
+          ok: false,
+          error:
+            "This candidate was merged into another record. Reload and carry on from there.",
+        };
+      }
     } else {
       const [row] = await db
         .insert(candidateIntake)
@@ -257,7 +315,16 @@ export async function listCandidateDrafts(): Promise<CandidateDraft[]> {
       updatedAt: candidateIntake.updatedAt,
     })
     .from(candidateIntake)
-    .where(isNull(candidateIntake.submittedAt))
+    // A RETIRED placeholder must not be offered here. This chooser is "continue
+    // an unfinished form", and a merged placeholder HAS a name — so without this
+    // it would invite exactly the resumption that re-creates the duplicate the
+    // merge exists to remove.
+    .where(
+      and(
+        isNull(candidateIntake.submittedAt),
+        isNull(candidateIntake.mergedIntoId),
+      ),
+    )
     .orderBy(desc(candidateIntake.updatedAt))
     .limit(50);
   return rows
@@ -297,7 +364,9 @@ export async function getCandidateDraft(id: string): Promise<CandidateDraftState
       submittedAt: candidateIntake.submittedAt,
     })
     .from(candidateIntake)
-    .where(eq(candidateIntake.id, id))
+    // A stale `?draft=<id>` link to a retired placeholder opens nothing, rather
+    // than a row that no longer appears in any list.
+    .where(and(eq(candidateIntake.id, id), isNull(candidateIntake.mergedIntoId)))
     .limit(1);
   if (!r) return null;
   return {
@@ -434,11 +503,27 @@ export async function createQuickCandidate(
 
   try {
     // A matching phone means they already have a record — reuse it.
-    if (phone) {
+    //
+    // MATCHED ON THE LAST 10 DIGITS, NOT ON THE STORED STRING. Raw equality
+    // missed the case this feature exists for: HR types the number by hand
+    // ("98765 43210") while the form — and `inviteCandidateByLink`, which stores
+    // `mobile.replace(/[^\d+]/g, "")` — holds a differently formatted one. Two
+    // spellings of one number produced two candidates.
+    //
+    // Retired rows are excluded: reusing one would resurrect a placeholder that
+    // every picker is filtering out.
+    const digits = normalizeMobile(phone);
+    if (digits) {
       const [existing] = await db
         .select({ id: candidateIntake.id })
         .from(candidateIntake)
-        .where(eq(candidateIntake.mobile, phone))
+        .where(
+          and(
+            isNull(candidateIntake.mergedIntoId),
+            sql`length(regexp_replace(coalesce(${candidateIntake.mobile}, ''), '[^0-9]', '', 'g')) >= 10`,
+            sql`right(regexp_replace(coalesce(${candidateIntake.mobile}, ''), '[^0-9]', '', 'g'), 10) = ${digits}`,
+          ),
+        )
         .orderBy(desc(candidateIntake.updatedAt))
         .limit(1);
       if (existing) return { ok: true, id: existing.id, reused: true };
@@ -584,6 +669,10 @@ export async function listCandidateIntakes(): Promise<CandidateRow[]> {
       createdAt: candidateIntake.createdAt,
     })
     .from(candidateIntake)
+    // RETIRED PLACEHOLDERS ARE NOT CANDIDATES. This one query feeds the
+    // evaluation picker, /hr/candidates and /hr/management-assessment, so this
+    // single filter is what removes a merged row from all three at once.
+    .where(isNull(candidateIntake.mergedIntoId))
     .orderBy(desc(candidateIntake.createdAt))
     .limit(200);
 

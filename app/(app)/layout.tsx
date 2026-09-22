@@ -2,6 +2,10 @@ import { Suspense, type ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireUser, getDelegation } from "@/lib/auth/current";
+import { exportableModules } from "@/lib/modules/backup/access";
+import { BACKUP_MODULE_IDS } from "@/lib/modules/backup/registry";
+import { ModuleExportBar } from "@/components/modules/module-export-bar";
+import { WORKSPACE_LABEL } from "@/lib/workspaces";
 import { DeviceRegistrationGate } from "@/components/security/device-registration-gate";
 import { isExemptFromDailyStart } from "@/lib/security/capabilities";
 import { DelegationBanner } from "@/components/auth/delegation-banner";
@@ -273,6 +277,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           dispatching NEW_TASK_OPEN_EVENT. It previously lived inside the
           sidebar, gated to WMS, so those triggers were inert everywhere else. */}
       <NewTaskTrigger />
+      {/* The module Export button, in the top bar of whichever room you are in.
+          Rendered for the modules THIS person may export and no others; the
+          download route checks again. See components/modules/module-export-bar. */}
+      <ModuleExportBar
+        allowed={[...(await exportableModules(me, BACKUP_MODULE_IDS))]}
+        labels={WORKSPACE_LABEL}
+      />
       <ChromeShell
         sidebar={<DashboardSidebar />}
         footer={<ModuleFooter access={access} />}
