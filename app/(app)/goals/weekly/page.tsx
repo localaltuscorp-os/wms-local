@@ -20,6 +20,7 @@ import { listGoalLookups } from "@/lib/goals/lookups";
 import { loadCommitData } from "@/components/goals/commit/data";
 import { WeeklyCascadeBoard } from "@/components/goals/weekly/weekly-cascade-board";
 import { toGoalDTO, type GoalDTO } from "@/components/goals/cascade/util";
+import { loadWeeklyGoalApprovers } from "@/lib/goals/approver";
 import type {
   CascadeWeeklyGoal,
   RosterMember,
@@ -234,6 +235,9 @@ export default async function GoalsWeeklyPage({ searchParams }: PageProps) {
     isActive: r.isActive,
   }));
 
+  // Initiator Status (0231) — empty before the migration.
+  const weeklyApprovers = await loadWeeklyGoalApprovers(rawRows.map((r) => r.id));
+
   const rows: CascadeWeeklyGoal[] = rawRows.map((r) => ({
     id: r.id,
     employeeId: r.employeeId,
@@ -273,6 +277,7 @@ export default async function GoalsWeeklyPage({ searchParams }: PageProps) {
     targetDate: r.targetDate == null ? null : String(r.targetDate).slice(0, 10),
     createdById: r.createdById ?? null,
     createdAt: r.createdAt == null ? null : new Date(r.createdAt).toISOString(),
+    approverStatus: weeklyApprovers.get(r.id) ?? null,
   }));
 
   const monthGoalOptions: MonthGoalOption[] = monthGoalRows.map((g) => ({

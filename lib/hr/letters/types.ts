@@ -74,6 +74,7 @@
  */
 
 import type { EntityId } from "@/lib/hr/entities";
+import { formatDateHr } from "@/lib/format";
 
 /* ------------------------------------------------------------------ */
 /* Categories — the seven letter families (UI grouping + taxonomy)      */
@@ -137,6 +138,15 @@ export interface FieldSpan {
   placeholder?: string;
   /** Seed value the field starts with (still fully editable). */
   defaultValue?: string;
+  /**
+   * Seed the field with TODAY'S date instead of a fixed value.
+   *
+   * `defaultValue` cannot express this: a template is a module evaluated once,
+   * so a literal date baked in at author time would print the day the letter
+   * was written for the rest of the letter's life. Still fully editable - a
+   * document signed yesterday can say so.
+   */
+  todayDefault?: boolean;
   /** Render a multi-line textarea instead of a single-line input. */
   multiline?: boolean;
   /**
@@ -339,6 +349,7 @@ export const f = (
   opts?: {
     placeholder?: string;
     defaultValue?: string;
+    todayDefault?: boolean;
     multiline?: boolean;
     bold?: boolean;
     date?: boolean;
@@ -433,6 +444,8 @@ export interface FieldSpec {
   label: string;
   placeholder?: string;
   defaultValue?: string;
+  /** Seed with today rather than a fixed value - see FieldSpan.todayDefault. */
+  todayDefault?: boolean;
   multiline?: boolean;
   bold?: boolean;
 }
@@ -471,6 +484,7 @@ export function collectFields(template: LetterTemplate): FieldSpec[] {
         label: span.label,
         placeholder: span.placeholder,
         defaultValue: span.defaultValue,
+        todayDefault: span.todayDefault,
         multiline: span.multiline,
         bold: span.bold,
       });
@@ -479,10 +493,18 @@ export function collectFields(template: LetterTemplate): FieldSpec[] {
   return out;
 }
 
-/** A field-id → seed-value map from every field's `defaultValue` (blank if none). */
+/**
+ * A field-id → seed-value map from every field's `defaultValue` (blank if none).
+ *
+ * `todayDefault` fields are seeded with today in the module's DD-MMM-YYYY form,
+ * which is also what a `date` field stores once picked — so a date the signer
+ * leaves alone and one they re-pick are written identically.
+ */
 export function initialValues(template: LetterTemplate): Record<string, string> {
   const values: Record<string, string> = {};
-  for (const spec of collectFields(template)) values[spec.id] = spec.defaultValue ?? "";
+  for (const spec of collectFields(template)) {
+    values[spec.id] = spec.todayDefault ? formatDateHr(new Date()) : (spec.defaultValue ?? "");
+  }
   return values;
 }
 

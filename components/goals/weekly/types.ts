@@ -12,6 +12,8 @@ export interface TeamMember {
 
 export interface CascadeWeeklyGoal {
   id: string;
+  /** Initiator Status (migration 0231), null = Pending. */
+  approverStatus?: string | null;
   employeeId: string;
   employeeName: string;
   weekStart: string;

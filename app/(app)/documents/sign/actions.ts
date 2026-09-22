@@ -657,7 +657,7 @@ interface SignedPdfInput {
 }
 
 function fmtStamp(d: Date): string {
-  return format(d, "EEE, dd MMM yyyy · HH:mm");
+  return format(d, "EEE, dd-MMM-yyyy · HH:mm");
 }
 
 async function buildSignedPdf(input: SignedPdfInput): Promise<Buffer> {

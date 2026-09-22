@@ -11,6 +11,7 @@ import type { AgreementEmployee, AgreementRow } from "@/lib/agreements/types";
 import { TemplatePicker } from "@/components/agreements/template-picker";
 import { StatusTracker, type AgreementSignatures } from "@/components/agreements/status-tracker";
 import { saveAgreement, sendAgreement } from "@/app/(app)/agreements/actions";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const GREEN = "#E10600";
 const GREEN_DEEP = "#A80400";
@@ -30,7 +31,7 @@ interface FieldDef {
 const FIELDS: Record<AgreementType, FieldDef[]> = {
   appointment: [
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
-    { key: "department", label: "Department", kind: "text", placeholder: "e.g. Operations" },
+    { key: "department", label: "Function", kind: "text", placeholder: "e.g. Operations" },
     { key: "joiningDate", label: "Joining date", kind: "date" },
     { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. Rs. 6,00,000" },
     { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: Rs. 3,00,000\nHRA: Rs. 1,20,000\nSpecial allowance: Rs. 1,80,000" },
@@ -42,7 +43,7 @@ const FIELDS: Record<AgreementType, FieldDef[]> = {
   ],
   employment: [
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
-    { key: "department", label: "Department", kind: "text", placeholder: "e.g. Operations" },
+    { key: "department", label: "Function", kind: "text", placeholder: "e.g. Operations" },
     { key: "joiningDate", label: "Effective date", kind: "date" },
     { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. Rs. 6,00,000" },
     { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: Rs. 3,00,000\nHRA: Rs. 1,20,000" },
@@ -63,7 +64,7 @@ const FIELDS: Record<AgreementType, FieldDef[]> = {
   ],
   probation_confirmation: [
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
-    { key: "department", label: "Department", kind: "text", placeholder: "e.g. Operations" },
+    { key: "department", label: "Function", kind: "text", placeholder: "e.g. Operations" },
     { key: "probationEndDate", label: "Probation ended on", kind: "date" },
     { key: "effectiveDate", label: "Confirmed with effect from", kind: "date" },
     { key: "noticePeriod", label: "Notice period", kind: "text", placeholder: "e.g. 30 days" },
@@ -250,15 +251,18 @@ export function Workbench({
 
           <div className="mt-4 grid grid-cols-1 gap-3.5">
             <Field label="Employee">
-              <select className="ui-input" value={employeeId} onChange={(e) => onPickEmployee(e.target.value)}>
-                <option value="">— select an employee —</option>
-                {roster.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                    {e.designation ? ` · ${e.designation}` : ""}
-                  </option>
-                ))}
-              </select>
+              <CompactSelect
+                className="ui-input"
+                value={employeeId}
+                onChange={onPickEmployee}
+                placeholder="— select an employee —"
+                aria-label="Employee"
+                matchTriggerWidth
+                options={roster.map((e) => ({
+                  value: e.id,
+                  label: e.designation ? `${e.name} · ${e.designation}` : e.name,
+                }))}
+              />
             </Field>
 
             <Field label="Paying entity (sets the signatory)">

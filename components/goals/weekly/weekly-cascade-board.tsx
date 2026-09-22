@@ -104,6 +104,7 @@ function weeklyToGoalDTO(
     approvalStatus: g.approvalStatus ?? null,
     isPutAway: g.isPutAway ?? false,
     reviewedById: g.reviewedById ?? null,
+    approverStatus: g.approverStatus ?? null,
     delegatedTo: g.delegatedTo ?? null,
     clonedFromId: g.carriedFromId ?? null,
     incentiveEnabled: false,
@@ -729,7 +730,6 @@ export function WeeklyCascadeBoard({
             goals={pagedGoals}
             canWrite
             isAdmin={me.isAdmin}
-            meId={me.id}
             roster={roster}
             areaOptions={areaOptions}
             measureOptions={measureOptions}
@@ -740,6 +740,9 @@ export function WeeklyCascadeBoard({
             variant="weekly"
             actions={WEEKLY_TABLE_ACTIONS}
             detailKind="weekly"
+            meId={me.id}
+            // Viewing someone else's week means managing them (the page scopes it).
+            managesViewed={scopeEmp !== me.id}
             visibleCols={visibleCols}
             colOrder={colOrder}
             onColOrderChange={setColOrder}

@@ -92,7 +92,7 @@ function DepartmentCell({
           // a bare "+2 more".
           title={
             showAll
-              ? "Show fewer departments"
+              ? "Show fewer Functions"
               : ordered.slice(DEPT_VISIBLE).map((m) => m.name).join(", ")
           }
           className="inline-flex items-center rounded-pill px-2.5 py-1 text-[12px] font-bold ring-1 ring-inset transition-colors hover:brightness-95 outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60"
@@ -267,7 +267,7 @@ export function EmployeeList({
       rows={employees}
       getRowKey={(e) => e.id}
       searchText={(e) => `${e.name} ${e.email} ${deptNames(e)}`}
-      searchPlaceholder="Search by name, email, or department"
+      searchPlaceholder="Search by name, email, or Function"
       initialSort={{ key: "name", dir: "asc" }}
       filters={[
         {
@@ -280,7 +280,7 @@ export function EmployeeList({
           match: (e, v) => e.role === v,
         },
         {
-          label: "Department",
+          label: "Function",
           options: departmentOptions.map((d) => ({
             value: d.id,
             label: d.name,
@@ -343,7 +343,7 @@ export function EmployeeList({
         },
         {
           key: "department",
-          label: "Department",
+          label: "Function",
           render: (e) => (
             <DepartmentCell memberships={membershipsByEmployee[e.id] ?? []} />
           ),

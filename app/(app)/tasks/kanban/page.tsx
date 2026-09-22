@@ -16,6 +16,7 @@ import {
   resolveAdminColumnOrder,
   USER_COLUMN_ORDER,
 } from "@/lib/kanban-columns";
+import { defaultScopeId, opensOnEveryone } from "@/lib/auth/default-scope";
 import { TASK_STATUSES, isDeprecatedStatus } from "@/db/enums";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 import Link from "next/link";
@@ -41,16 +42,12 @@ export default async function KanbanPage({ searchParams }: PageProps) {
   // second, board-only rule that could disagree with the list about who may see
   // what. Admins keep the everyone view they had.
   const sp = await searchParams;
-  const filters = parseTaskFilters(
-    sp,
-    /*archived*/ false,
-    // The scope, expressed the way the LIST view expresses it: `defaultDoerId`
-    // narrows to "assigned to me" only while the `emp` param is absent, so a
-    // non-admin still sees their own board by default and can still widen it
-    // exactly as far as the filter bar lets them. Admins pass undefined and
-    // keep the everyone view.
-    me.isAdmin ? {} : { defaultDoerId: me.id },
-  );
+  /* Was `{}` — every viewer's board opened on the WHOLE COMPANY, including a
+     team member who can only see their own rows everywhere else. The board is
+     the task list in another shape; it defaults the same way now. */
+  const filters = parseTaskFilters(sp, /*archived*/ false, {
+    defaultDoerId: defaultScopeId(me),
+  });
 
   const axisParam = typeof sp.axis === "string" ? sp.axis : undefined;
   const axis: StatusAxis = isStatusAxis(axisParam) ? axisParam : "doer";
@@ -106,7 +103,8 @@ export default async function KanbanPage({ searchParams }: PageProps) {
         subjects={subjects}
         statusOptions={statusOptions}
         clients={clients}
-        me={{ id: me.id, isAdmin: me.isAdmin }}
+        me={{ id: me.id, isAdmin: me.isAdmin, isSuperAdmin: opensOnEveryone(me) }}
+        offersScopeChoice
         assigneeMode={filters.assigneeMode}
         initial={{
           start:  isoDay(filters.startDate),

@@ -94,7 +94,18 @@ export function stripComments(source: string): string {
   return out;
 }
 
-/** A repo-relative source file, comments removed. */
+/**
+ * A repo-relative source file, comments removed and line endings NORMALISED.
+ *
+ * The normalisation is not cosmetic. Every caller asserts on a snippet written
+ * in a test file with LF newlines in it, but this repository is checked out
+ * with `core.autocrlf=true`, so on Windows the file on disk has CRLF and a
+ * multi-line `toContain` never matches. The test then fails for the developer
+ * and passes in CI, which is the worst way round: it reports the checkout
+ * rather than the code. Reading both the same way is what makes these
+ * assertions mean what they say on either platform.
+ */
 export function codeOf(relPath: string): string {
-  return stripComments(readFileSync(join(process.cwd(), relPath), "utf8"));
+  const raw = readFileSync(join(process.cwd(), relPath), "utf8");
+  return stripComments(raw.split("\r\n").join("\n"));
 }

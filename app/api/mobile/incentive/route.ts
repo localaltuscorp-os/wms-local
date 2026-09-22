@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { db } from "@/lib/db";
-import { incentiveRequests } from "@/db/schema";
 import { authenticateMobileRequest, MOBILE_CORS } from "@/lib/auth/mobile";
+import { fileIncentiveRequest } from "@/lib/incentive/workflow-server";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import {
   getIncentivePersonDetail,
@@ -10,7 +8,9 @@ import {
   nameKey,
 } from "@/lib/queries/incentives";
 import { listIncentiveRequests } from "@/lib/queries/incentive";
-import { INCENTIVE_FIELDS, validateIncentiveDetails } from "@/lib/incentive-fields";
+import { listActiveProductNames } from "@/lib/queries/products";
+import { INCENTIVE_FIELDS } from "@/lib/incentive-fields";
+import { prepareIncentiveRequest } from "@/lib/incentive/prepare-request";
 import {
   INCENTIVE_STATUS_LABELS,
   INCENTIVE_TYPE_LABELS,
@@ -74,10 +74,11 @@ export async function GET(req: Request) {
   const years = Array.from(new Set([currentYear, currentYear - 1, currentYear - 2, currentYear - 3]));
   if (!years.includes(year)) years.unshift(year);
 
-  const [detail, targetVsActual, requests] = await Promise.all([
+  const [detail, targetVsActual, requests, productNames] = await Promise.all([
     getIncentivePersonDetail(me.name, year),
     getIncentiveTargetVsActual(year),
     listIncentiveRequests({ employeeId: me.id, isAdmin: false }),
+    listActiveProductNames(),
   ]);
 
   // The person's attainment row (case-insensitive name match) — or null totals.
@@ -137,6 +138,7 @@ export async function GET(req: Request) {
       requests: requestRows,
       // The request-form schema (same config the web create dialog renders from),
       // so the app can file a new incentive request without hardcoding fields.
+      // A master-backed field (Conversion → Product) carries the live options.
       forms: INCENTIVE_TYPES.map((t) => ({
         type: t,
         label: INCENTIVE_TYPE_LABELS[t] ?? t,
@@ -145,9 +147,10 @@ export async function GET(req: Request) {
           label: f.label,
           type: f.type,
           required: f.required ?? false,
-          options: f.options ?? [],
+          options: f.optionsFrom === "products" ? productNames : (f.options ?? []),
           placeholder: f.placeholder ?? null,
           showIf: f.showIf ?? null,
+          control: f.control ?? null,
         })),
       })),
     },
@@ -155,18 +158,13 @@ export async function GET(req: Request) {
   );
 }
 
-const CreateSchema = z
-  .object({
-    type: z.enum(INCENTIVE_TYPES),
-    details: z.record(z.string(), z.string()),
-  })
-  .strict();
-
 /**
  * POST /api/mobile/incentive — file a new incentive request for the signed-in
- * user. Mirrors the web `createIncentiveRequest`: validates the details against
- * the type's field schema (validateIncentiveDetails) and inserts as `pending`.
- * Body: { type, details: {fieldKey: value} }.
+ * user. Runs the SAME gate as the web `createIncentiveRequest`
+ * (prepareIncentiveRequest): field rules, 10-digit mobile numbers, emails, the
+ * product master, client permission, incentive date and split shares, then
+ * inserts as `pending`.
+ * Body: { type, details: {fieldKey: value}, split?: [{ employeeId, pct }] | null }.
  */
 export async function POST(req: Request) {
   const auth = await authenticateMobileRequest(req);
@@ -183,22 +181,18 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "invalid-json" }, { status: 400, headers: MOBILE_CORS });
   }
-  const parsed = CreateSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "invalid" }, { status: 400, headers: MOBILE_CORS });
-  }
 
-  const validated = validateIncentiveDetails(parsed.data.type, parsed.data.details);
-  if (!validated.ok) {
-    return NextResponse.json({ error: validated.error }, { status: 400, headers: MOBILE_CORS });
+  const prepared = await prepareIncentiveRequest(me.id, body);
+  if (!prepared.ok) {
+    return NextResponse.json({ error: prepared.error }, { status: 400, headers: MOBILE_CORS });
   }
 
   try {
-    const [row] = await db
-      .insert(incentiveRequests)
-      .values({ employeeId: me.id, type: parsed.data.type, details: validated.details })
-      .returning({ id: incentiveRequests.id });
-    return NextResponse.json({ ok: true, id: row!.id }, { headers: MOBILE_CORS });
+    // Same insert as the web action — Pending Approval plus its Submission 1
+    // snapshot, in one transaction — so a request filed from the phone has the
+    // same history as one filed on the web.
+    const row = await fileIncentiveRequest(prepared.values);
+    return NextResponse.json({ ok: true, id: row.id }, { headers: MOBILE_CORS });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },

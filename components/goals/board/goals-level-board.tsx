@@ -28,6 +28,7 @@ import {
 import { ChevronLeft, ChevronRight, Search, X, Target, Trash2, List, Columns3, LayoutDashboard, Plus, Download, ArrowUpDown, ChevronDown, Check, Maximize2, Minimize2, GripVertical } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 import { ViewingSelect } from "@/components/goals/shared/viewing-select";
 import { QuarterWindowNav } from "./quarter-window-nav";
 import { MonthWindowNav, monthWindowQuarters } from "./month-window-nav";
@@ -1644,7 +1645,6 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                   goals={pagedGoals}
                   canWrite={canWrite}
                   isAdmin={props.isAdmin}
-                  meId={props.myEmployeeId}
                   roster={props.roster}
                   projects={props.projects}
                   vendors={props.vendors}
@@ -1657,6 +1657,8 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                   codeOf={codeOf}
                   level={props.level}
                   actions={LEVEL_TABLE_ACTIONS}
+                  meId={props.myEmployeeId}
+                  managesViewed={props.managesViewed}
                   visibleCols={visibleCols}
                   colOrder={colOrder}
                   onColOrderChange={setColOrder}
@@ -1952,6 +1954,17 @@ export function MultiPickFilter({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[220px] p-1.5">
+        {/* Select all / Clear — tick the lot, then untick the one or two you
+            don't want, instead of ticking fifteen one at a time. */}
+        <SelectAllBar
+          compact
+          className="-mx-1.5 -mt-1.5 mb-1 rounded-t-[inherit]"
+          count={selected.size}
+          total={options.length}
+          emptyLabel={`All ${label}`}
+          onSelectAll={() => onChange(new Set(options))}
+          onClear={() => onChange(new Set())}
+        />
         <div className="slim-scroll max-h-[280px] overflow-auto">
           {options.length === 0 && (
             <p className="px-2 py-2 text-[12.5px] text-ink-subtle">No {label.toLowerCase()} yet.</p>
@@ -1980,15 +1993,6 @@ export function MultiPickFilter({
             );
           })}
         </div>
-        {active && (
-          <button
-            type="button"
-            onClick={() => onChange(new Set())}
-            className={`mt-1 flex w-full cursor-pointer items-center justify-center rounded-md py-1.5 text-[12px] font-bold text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong ${FOCUS_RING}`}
-          >
-            Clear
-          </button>
-        )}
       </PopoverContent>
     </Popover>
   );
@@ -2021,6 +2025,9 @@ export function ColumnsPicker({
   const order = colOrder ?? declared;
   const byKey = React.useMemo(() => new Map(REORDERABLE_COLUMNS.map((c) => [c.key, c])), []);
   const draggable = !!onReorder;
+  // The columns Show all / Hide all may actually move — see the bar below.
+  const pickable = React.useMemo(() => REORDERABLE_COLUMNS.filter((c) => c.pickable).map((c) => c.key), []);
+  const pickableSet = React.useMemo(() => new Set(pickable), [pickable]);
 
   // Pointer-based reorder, NOT the native HTML5 draggable attribute - native
   // drag-start never reliably fires from inside a Radix Popover's portal
@@ -2076,6 +2083,19 @@ export function ColumnsPicker({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[220px] p-1.5">
+        {/* Show all / Hide all. Only the PICKABLE columns are counted or
+            touched — Target and % Done are structural: they can be dragged to a
+            new position but never hidden, so a "Show all" that claimed them
+            would report a total the buttons cannot reach. */}
+        <SelectAllBar
+          compact
+          className="-mx-1.5 -mt-1.5 mb-1 rounded-t-[inherit]"
+          count={pickable.filter((k) => visibleCols.has(k)).length}
+          total={pickable.length}
+          emptyLabel="No columns shown"
+          onSelectAll={() => onChange(new Set([...visibleCols, ...pickable]))}
+          onClear={() => onChange(new Set([...visibleCols].filter((k) => !pickableSet.has(k))))}
+        />
         {draggable && (
           <p className="px-2 pb-1 pt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-ink-subtle">
             Drag to reorder

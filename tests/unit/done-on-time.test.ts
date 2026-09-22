@@ -42,6 +42,6 @@ describe("computeDoneOnTime", () => {
       names,
     );
     const p = r.revised.byPerson[0]!;
-    expect(p.lateSpread).toEqual({ d2_3: 1, d4_7: 1, d8_14: 1, d15: 1 });
+    expect(p.lateSpread).toEqual({ d1_3: 1, d4_7: 1, d8_14: 1, d15: 1 });
   });
 });

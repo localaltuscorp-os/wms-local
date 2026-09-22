@@ -142,6 +142,7 @@ async function verifyOnly() {
   const emptyFilters: Parameters<typeof loadOutstandingDashboard>[0] = {
     employees: [],
     entities: [],
+    clients: [],
     months: [],
     years: [],
     cycles: [],
@@ -623,6 +624,7 @@ async function main() {
     const emptyFilters: Parameters<typeof loadOutstandingDashboard>[0] = {
       employees: [],
       entities: [],
+    clients: [],
       months: [],
       years: [],
       cycles: [],

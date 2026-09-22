@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
 import { BulkAddQuickAction } from "@/components/header/bulk-add-quick-action";
 
 /** Routes that belong to the WMS room — the bulk uploader's home. */
-const WMS_ROUTES = ["/dashboard", "/tasks", "/tasks/kanban", "/my-day", "/projects"];
+const WMS_ROUTES = ["/dashboard", "/tasks", "/tasks/kanban", "/my-day"];
 
 /** One route from each of the other rooms. Bulk-importing rows here would mean
  *  importing TASKS into a module that has none, so the control must be absent —

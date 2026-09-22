@@ -20,6 +20,12 @@ export interface DccItemRow {
   targetNumber: string | null;
   unit: string | null;
   sortOrder: number | null;
+  /** Who created the KPI (listOwnerItems only) — decides lib/dcc/item-lock.ts. */
+  createdByEmail?: string | null;
+  /** Set by the /dcc page for the viewer: this KPI's Delete is refused them. */
+  deleteLocked?: boolean;
+  /** Set by the page: the designation whose DCC Master this KPI comes from (null = person-specific). */
+  masterDesignation?: string | null;
 }
 
 export interface DccEntryRow {
@@ -82,8 +88,10 @@ export async function listOwnerItems(ownerId: string): Promise<DccItemRow[]> {
           targetNumber: dccKpiItems.targetNumber,
           unit: dccKpiItems.unit,
           sortOrder: dccKpiItems.sortOrder,
+          createdByEmail: employees.email,
         })
         .from(dccKpiItems)
+        .leftJoin(employees, eq(employees.id, dccKpiItems.createdById))
         .where(and(eq(dccKpiItems.ownerEmployeeId, ownerId), eq(dccKpiItems.archived, false)))
         .orderBy(asc(dccKpiItems.sortOrder), asc(dccKpiItems.code)),
     { attempts: 3, timeoutMs: [6000, 10000, 14000], label: "dcc-items" },

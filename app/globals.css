@@ -1,4 +1,30 @@
-@import "tailwindcss";
+/* ── TAILWIND SCANS EXACTLY THREE DIRECTORIES, AND NOTHING ELSE ────────────
+   `source(none)` switches OFF Tailwind v4's automatic source detection. The
+   `@source` lines below are then the COMPLETE list of what it reads.
+
+   WHY THIS IS NOT OPTIONAL. Auto-detection walks the whole project, and it
+   was reading `.next/dev/cache/turbopack/*.sst` — Turbopack's BINARY cache.
+   Those files hold compressed copies of this codebase, so scanning them
+   yields class names with raw control bytes spliced through the middle.
+   Tailwind emitted those as real utilities, the CSS parser rejected them, and
+   every page died with "Parsing CSS source code failed", pointing at a line in
+   this file that nobody wrote.
+
+   It came back after every fix because it is regenerated the moment the
+   Turbopack cache refills — a cold start was always clean, and stayed clean
+   only until the cache grew again. No example of a broken class is written out
+   here on purpose: this file is the one place where quoting one could recreate
+   it. That is not hypothetical; a handoff note quoting one did exactly that.
+
+   IF YOU ADD A DIRECTORY containing className strings, add it here or its
+   classes will silently not be generated. Today that is app/, components/ and
+   lib/ — `grep -rl 'className=' <dir>` is the check. */
+@import "tailwindcss" source(none);
+
+@source "../app/**/*.{ts,tsx,js,jsx,mdx}";
+@source "../components/**/*.{ts,tsx,js,jsx,mdx}";
+@source "../lib/**/*.{ts,tsx,js,jsx}";
+
 @import "react-day-picker/style.css";
 /* Aura — the liquid-glass design language (.claude/skills/aura). Scoped to
    `.aura-app`; see app/aura.css for why every class carries the prefix. */
@@ -350,7 +376,14 @@ html[data-density="dense"] body {
       radial-gradient(ellipse 60% 50% at 50% 100%, rgba(34, 197, 94, 0.05), transparent 60%),
       linear-gradient(180deg, #fafbfc 0%, #f5f5f7 100%);
     background-attachment: fixed;
-    overflow-x: hidden;
+    /* NO `overflow-x` on <body>. Setting `overflow-x: hidden` here (the classic
+       "kill horizontal scroll" line) forces `overflow-y` to `auto`, which turns
+       the BODY into the scroll container instead of the viewport — and because
+       the body is `min-height: 100dvh` (grows to fit content) it never actually
+       scrolls, so the VIEWPORT has nothing to scroll and wheel/trackpad scroll
+       silently dies. The fix is to put the horizontal clip on <html> (the
+       viewport) instead — see the `html` rule above — and leave the body's
+       overflow `visible` so it propagates to the viewport as normal. */
   }
 
   ::selection {
@@ -540,6 +573,13 @@ html[data-density="dense"] body {
  * why the kanban board's is untouched. */
 html {
   scroll-behavior: smooth;
+  /* Kill horizontal scroll AT THE VIEWPORT, not on <body>. On <html> this is the
+     normal, correct place: the viewport becomes `overflow-y: auto` (which it
+     already is) and vertical scrolling keeps working, while horizontal overflow
+     is clipped. On <body> the same line is what breaks vertical scroll — see the
+     body rule below. */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 @media (prefers-reduced-motion: reduce) {
   /* An animated jump is motion like any other. Opting out returns the instant
@@ -2758,6 +2798,33 @@ html {
 }
 .table-scroll::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* A WIDE, TALL GRID'S scrollbars — the Event Checklist and WCC / MCC, which
+   scroll both ways inside their own box (account holder, 2026-09-18: "add a
+   scrollbar on both horizontal and vertical"). Thicker than `table-scroll`,
+   on a visible track, so it is obvious at a glance that the grid goes on in
+   both directions. Add it beside `table-scroll`. */
+.table-scroll.table-scroll-bold {
+  scrollbar-width: auto;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border: 2px solid #f1f5f9;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-corner {
+  background: #f1f5f9;
 }
 
 /* Premium, slim scrollbar for the kanban board — smooth horizontal scroll

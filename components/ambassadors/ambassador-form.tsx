@@ -11,7 +11,7 @@ import {
   updateAmbassador,
   addProduct,
   softDeleteProduct,
-} from "@/app/(app)/ambassadors/actions";
+} from "@/app/(app)/billing/ambassadors/actions";
 
 const FIELD =
   "w-full rounded-lg border border-hairline-strong bg-white px-3.5 py-3 text-[15px] font-medium text-ink-strong outline-none transition-colors placeholder:font-normal placeholder:text-ink-subtle focus:border-[color:var(--color-altus-red)] focus-visible:border-[color:var(--color-altus-red)]";
@@ -264,7 +264,7 @@ export function AmbassadorForm({ mode, initial, products, employees }: Props) {
 
   function onCancel() {
     if (mode === "edit" && initial?.id) router.push(`/ambassadors/${initial.id}` as Route);
-    else router.push("/ambassadors/directory" as Route);
+    else router.push("/billing/ambassadors/directory" as Route);
   }
 
   const valueAdorn = payoutType === "percent" ? "%" : "Rs.";

@@ -26,6 +26,7 @@ export const WORKSPACE_IDS = [
   "people-allocation",
   "project-plan",
   "operations",
+  "incentive",
 ] as const;
 
 export type WorkspaceId = (typeof WORKSPACE_IDS)[number];
@@ -49,6 +50,7 @@ export const WORKSPACE_LABEL: Record<WorkspaceId, string> = {
   "people-allocation": "Hand-holding",
   "project-plan": "Project",
   operations: "Operations",
+  incentive: "Incentive",
 };
 
 /** Where each card drops you when you enter the workspace. */
@@ -60,7 +62,8 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   admin: "/accounts",
   employees: "/attendance",
   hr: "/hr",
-  sales: "/outstanding",
+  // The room opens on People Gives now that Outstanding has gone to Billing.
+  sales: "/people-gives",
   training: "/training",
   accounts: "/accounts",
   events: "/events",
@@ -86,11 +89,17 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   // beside Hand-holding, and now the ONLY project surface: the older /projects
   // board that sat on the WMS rail was removed.
   "project-plan": "/project-plan",
-  // Operations — the two-tier room (2026-09-11). Its front door is a card deck,
-  // like HR's, because it holds four unrelated areas rather than one board:
-  // Hand-holding and Monthly Events Master moved INSIDE it, and Checklist and
-  // Guidelines are new and live nowhere else.
+  // Operations — the two-tier room (2026-09-11). `/operations` is a FORWARDER,
+  // not a page: it redirects to the room's first area (see
+  // app/(app)/operations/page.tsx). Kept as the landing so there is exactly one
+  // place deciding where the room opens, and so this entry, the `aw` cookie and
+  // the permission catalog all keep naming the same path.
   operations: "/operations",
+  // Incentive — its own room (2026-09-16). The landing is the route the module
+  // has ALWAYS been on, deliberately: every incentive notification, every email
+  // deep link and the two export routes already point at `/incentive`, so
+  // reusing it means the extraction needs no redirect and breaks no bookmark.
+  incentive: "/incentive",
 };
 
 export const ACTIVE_WORKSPACE_COOKIE = "aw";
@@ -212,6 +221,20 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
   if (p.startsWith("/appraisal")) return "productivity";
   if (p.startsWith("/weekly-goals") || p.startsWith("/daily-checklist")) return "goals";
 
+  // INCENTIVE — its own room (2026-09-16), lifted out of Employees.
+  //
+  // Matched HERE, above the Employees block that used to claim this prefix, for
+  // the same reason `/project-plan` is matched above `/projects`: the rule that
+  // must win goes first, and keeping the two apart is what stops a later edit
+  // widening one over the other. The path itself did not move — only the room
+  // that owns it — so the sidebar now shows the Incentive rail instead of the
+  // Employees rail while you are inside the module.
+  //
+  // `/salary/incentive-payout` is NOT caught by this: it does not start with
+  // `/incentive`. It stays an Accounts surface, claimed by the Accounts block
+  // below, which is correct — paying an incentive is the Accounts team's job.
+  if (p.startsWith("/incentive")) return "incentive";
+
   // WMS — the work loop (the dashboard now lives at /dashboard). Important
   // Links (/index-hub) moved here from the retired Marketing room.
   // `/my-day` IS Plan My Day (2026-08) — the planner moved out of Goals and
@@ -242,10 +265,17 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
   if (
     p.startsWith("/attendance") ||
     p.startsWith("/my-salary") ||
-    p.startsWith("/incentive") ||
+    /* The employee's OWN payslips, moved out of /hr/salary-slip on 2026-09-12.
+       It is matched HERE, above the Accounts rule further down, because that
+       rule claims `/salary` as a prefix and "/salary-slip".startsWith("/salary")
+       is true — left to fall through, an employee's payslips would have landed
+       in the finance room's rail. */
+    p.startsWith("/salary-slip") ||
+    p.startsWith("/dcc") ||
+    // `/incentive` is NOT here any more — Incentive became its own room and is
+    // claimed by the rule above.
     p.startsWith("/reimbursements") ||
     p.startsWith("/leave") ||
-    p.startsWith("/dcc") ||
     p.startsWith("/pms") ||
     // `/appraisal` is NOT here any more — Appraisal is part of Team Productivity
     // and is claimed by the rule above.
@@ -259,18 +289,15 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
   // & company-wide communications.
   // (Dossier + Agreements re-parented here from Employees.)
   //
-  // /communications belonged to NO workspace, which is why it fell back to the
-  // legacy horizontal DashboardHeader nav rather than to any sidebar. Claiming
-  // it here retires that header on its own — DashboardHeader returns null once
-  // a path maps to a workspace — and lets it use the HR console shell like
-  // every other HR surface. Read access is unchanged: the HR room is open to
-  // every employee (see canAccessWorkspace); authoring stays gated by isHrStaff.
+  // `/communications` (Broadcasts) is NOT here any more — it moved to the
+  // Operations room on 2026-09-12 and is claimed by the Operations rule above.
+  // Read access is unaffected: both rooms are open to every employee (see
+  // canAccessWorkspace); authoring stays gated by isHrStaff either way.
   if (
     p.startsWith("/hr") ||
     p.startsWith("/dossier") ||
     p.startsWith("/agreements") ||
     p.startsWith("/policies") ||
-    p.startsWith("/communications") ||
     p.startsWith("/holidays") ||
     p.startsWith("/letters") ||
     p.startsWith("/support")
@@ -278,19 +305,26 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
     return "hr";
   }
 
-  // Sales — collections & relationships
+  // Sales — relationships.
+  //
+  // `/outstanding` and `/ambassadors` USED TO BE HERE and are not any more
+  // (2026-09-21): both moved into Billing and live at `/billing/outstanding`
+  // and `/billing/ambassadors`, which the Billing branch below already
+  // claims by its `/billing` prefix. Recorded rather than deleted silently —
+  // the next person looking for where `/outstanding` resolves should find
+  // the answer here instead of concluding it fell through to the hub.
   if (
-    p.startsWith("/outstanding") ||
     p.startsWith("/participant-breakthrough") ||
     p.startsWith("/record-reference") ||
-    p.startsWith("/people-gives") ||
-    p.startsWith("/ambassadors")
+    p.startsWith("/people-gives")
   ) {
     return "sales";
   }
 
-  // Training
-  if (p.startsWith("/training")) return "training";
+  // Training is NOT here any more — `/training` belongs to Operations below
+  // (2026-09-12). Left as a note rather than deleted silently: this branch
+  // stood for a year, and the next reader looking for where /training resolves
+  // should find the answer here rather than concluding it fell through.
 
   // Accounts — the finance room with its own section nav. The admin Salary
   // module and Overtime were re-parented here from Employees (they're
@@ -303,17 +337,21 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
     return "accounts";
   }
 
-  // OPERATIONS — the room that now OWNS three of these prefixes.
+  // OPERATIONS — the room that now OWNS five of these prefixes.
   //
   // `/events` and `/people-allocation` used to be rooms of their own and are now
-  // areas inside Operations (2026-09-11), so they resolve here: the path decides
-  // the rail, and pointing them at Operations is what swaps the sidebar to the
-  // Operations rail instead of a room that no longer has a hub card. Their
-  // WorkspaceIds still EXIST — `/ws/events` links and stale `aw` cookies stay
-  // valid — they simply own no path any more, so nothing routes to them.
+  // areas inside Operations (2026-09-11); `/training` followed on 2026-09-12,
+  // and `/communications` (Broadcasts) came across from HR the same day.
+  // They resolve here: the path decides the rail, and pointing them at
+  // Operations is what swaps the sidebar to the Operations rail instead of a
+  // room that no longer has a hub card. Their WorkspaceIds still EXIST —
+  // `/ws/events`, `/ws/training` links and stale `aw` cookies stay valid — they
+  // simply own no path any more, so nothing routes to them.
   if (
     p.startsWith("/operations") ||
     p.startsWith("/events") ||
+    p.startsWith("/training") ||
+    p.startsWith("/communications") ||
     p.startsWith("/people-allocation")
   ) {
     return "operations";

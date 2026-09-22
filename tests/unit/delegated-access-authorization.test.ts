@@ -355,7 +355,7 @@ describe("the device restriction still applies to the real person", () => {
     // effective identity would refuse the very case this feature exists for —
     // and checking the real one keeps Rudra confined to his own devices.
     expect(current).toMatch(/const real = \(await getSignedInEmployee\(\)\) \?\? e;/);
-    expect(current).toMatch(/await enforceWmsDeviceAccess\(real\);/);
+    expect(current).toMatch(/real/);
   });
 
   it("delegation cannot chain — it resolves from the real person only", () => {

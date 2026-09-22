@@ -92,6 +92,52 @@ export type SecurityCapability =
    */
   | "daily_start.exempt"
   /**
+   * MAY DELETE A BILLING MASTER ENTITY.
+   *
+   * The brief: "Deleting an entity must be accessible ONLY to Manan ... Even if
+   * another user has Entity Edit, Admin access, File Manage, or other Billing
+   * Master permissions, they must NOT be able to delete an entity."
+   *
+   * ── WHY A CAPABILITY OF ITS OWN, NOT `isFounderEmail` ────────────────────
+   * `lib/auth/founder.ts` already knows Manan's address, and testing it would
+   * have worked today. But it means "the founder", and this rule is not about
+   * being the founder — it is about one irreversible operation on one master.
+   * Keyed off the founder, a change of founder silently moves the authority,
+   * and a second person who one day needs it could only be added by making
+   * them a founder. Here it is one line in this table.
+   *
+   * ── WHAT MAKES THIS DELETION DIFFERENT ───────────────────────────────────
+   * Deleting an entity removes the GST number, bank account and signature that
+   * past invoices were issued under, and the brief explicitly permits doing so
+   * even when invoices reference it. Nothing else in the Billing Master is
+   * unrecoverable; this is, which is why it is the narrowest grant here.
+   *
+   * Checked against the REAL signed-in person, never the delegated identity —
+   * see `requireBillingEntityDelete`.
+   */
+  | "billing_entity.delete"
+  /**
+   * MAY CHANGE INCENTIVE ELIGIBILITY — who is on the Incentive Chart.
+   *
+   * The brief: "Only Manan Vasa can change eligibility." Adding somebody to an
+   * incentive is deciding that they may earn money from it, which is why this
+   * is narrower than editing the incentive itself: an admin may correct a
+   * scheme's amount or description without also choosing who collects it.
+   *
+   * ── WHY A CAPABILITY, NOT `isFounderEmail` ───────────────────────────────
+   * The same reasoning as `billing_entity.delete` above, and it has already
+   * been proved right once: keyed off "the founder", a change of founder
+   * silently moves the authority, and a second person who one day shares it
+   * could only be added by making them a founder. Here it is one line in this
+   * table, visible in review. (`canReviewIncentives` in
+   * lib/auth/incentive-permissions.ts is the founder test, and it answers a
+   * different question — who decides a REQUEST.)
+   *
+   * Checked against both the real and the effective identity — see
+   * `mayManageIncentiveEligibility` in lib/incentive/eligibility-guard.ts.
+   */
+  | "incentive_eligibility.manage"
+  /**
    * May grant TEMPORARY DELEGATED ACCESS to any employee's account, regardless
    * of the reporting hierarchy.
    *
@@ -100,7 +146,34 @@ export type SecurityCapability =
    * covers the cases the hierarchy cannot express — a founder testing across
    * teams, or someone standing in while a manager is away.
    */
-  | "delegated_access.grant_any";
+  | "delegated_access.grant_any"
+  /**
+   * May change a DCC entry for a day that has CLOSED, for any employee.
+   *
+   * Everyone else's entries lock at 11:59 pm IST on the day itself (account
+   * holder, 2026-09-15; see lib/dcc/entry-lock.ts). Deliberately NOT a
+   * super-admin side effect: a second super-admin must not silently be able to
+   * rewrite last month's compliance record.
+   */
+  | "dcc.edit_past_entries"
+  /**
+   * A DCC KPI this person GIVES is protected: nobody else may delete it — not
+   * the Team Lead who manages the owner, not the owner, not another super-admin.
+   *
+   * Team Leads add and remove KPIs for themselves and their downline, but may
+   * not delete one Manan Sir gave (account holder, 2026-09-15; see
+   * lib/dcc/item-lock.ts).
+   */
+  | "dcc.protected_kpi_author"
+  /**
+   * May change the shared Subject and Client dropdowns — add, rename, reorder,
+   * hide or delete — in the Admin Panel and from the task form's "+ Add new".
+   *
+   * Manan Sir, Jeevan and Rohan only (account holder, 2026-09-15). Deliberately
+   * NOT "any admin": every task, goal, checklist and project files under these
+   * names, and one careless rename or duplicate splits that history in two.
+   */
+  | "task_rosters.manage";
 
 /**
  * WHO HOLDS WHAT. The single source of truth.
@@ -144,6 +217,32 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
      * this table, visible in review.
      */
     "daily_start.exempt",
+    /**
+     * Changes DCC entries for days that have closed, for any employee. Everyone
+     * else's entries lock at 11:59 pm IST on the day (account holder,
+     * 2026-09-15). Granted to this one address, not to super-admins.
+     */
+    "dcc.edit_past_entries",
+    /**
+     * A DCC KPI he gives can be deleted by him alone — Team Leads may add KPIs
+     * for their team but not remove his (account holder, 2026-09-15).
+     */
+    "dcc.protected_kpi_author",
+    /** Changes the Subject and Client dropdowns (2026-09-15). */
+    "task_rosters.manage",
+    /**
+     * Deleting a Billing Master entity. THE ONLY HOLDER — the brief names him
+     * alone, and deliberately says that Entity Edit, admin rights and File
+     * Manage must none of them be enough. Rohan holds `master_admin.manage`
+     * and is not on this line; that is the intended asymmetry, not an omission.
+     */
+    "billing_entity.delete",
+    /**
+     * Changing who is eligible for an incentive. THE ONLY HOLDER — the brief
+     * names him alone, and being an admin with full Incentive Master edit
+     * rights is deliberately not enough.
+     */
+    "incentive_eligibility.manage",
   ],
 
   /**
@@ -184,7 +283,16 @@ const GRANTS: Readonly<Record<string, readonly SecurityCapability[]>> = {
     "device.manage",
     "master_admin.manage",
     "delegated_access.grant_any",
+    /** Changes the Subject and Client dropdowns (2026-09-15). */
+    "task_rosters.manage",
   ],
+
+  /**
+   * Jeevan Bharambe — changes the Subject and Client dropdowns (account holder,
+   * 2026-09-15). Not an admin: this opens the Admin Panel's Subjects and Clients
+   * screens to him and nothing else (see app/(admin)/admin/layout.tsx).
+   */
+  "jeevanbharambe.altuscorp@gmail.com": ["task_rosters.manage"],
 
   /** Ruchita Ambre — device administrator + privileged attendance manager. */
   "ruchitaambre.altuscorp@gmail.com": [
@@ -295,6 +403,55 @@ export function isExemptFromDailyStart(email: string | null | undefined): boolea
   return hasCapability(email, "daily_start.exempt");
 }
 
+/**
+ * MAY THIS PERSON CHANGE A DCC ENTRY FOR A DAY THAT HAS CLOSED?
+ *
+ * Read by the DCC write core (lib/dcc/write.ts), which both the website and the
+ * mobile app save through, and by the fill board to show a closed day as open
+ * for this person. Fails CLOSED: an unknown address may not edit the past.
+ */
+export function canEditPastDccEntries(email: string | null | undefined): boolean {
+  return hasCapability(email, "dcc.edit_past_entries");
+}
+
+/**
+ * ARE THE DCC KPIs THIS PERSON GIVES PROTECTED FROM DELETION BY OTHERS?
+ *
+ * Read by lib/dcc/item-lock.ts. Fails CLOSED toward the ordinary rule: an
+ * unknown creator (or a KPI with no recorded creator) is not protected.
+ */
+export function isProtectedDccKpiAuthor(email: string | null | undefined): boolean {
+  return hasCapability(email, "dcc.protected_kpi_author");
+}
+
+/**
+ * MAY THIS PERSON CHANGE THE SUBJECT AND CLIENT DROPDOWNS?
+ *
+ * Read by the Admin Panel's Subjects and Clients actions and pages, by the task
+ * form's "+ Add new client / subject" (lib/auth/roster-permission.ts), and by
+ * the Admin Panel layout. Fails CLOSED: being an admin grants nothing here.
+ */
+export function canManageTaskRosters(email: string | null | undefined): boolean {
+  return hasCapability(email, "task_rosters.manage");
+}
+
+export const TASK_ROSTER_REFUSAL = "Only Manan Sir, Jeevan and Rohan can change the Subject and Client lists.";
+
+/**
+ * MAY DELETE A BILLING MASTER ENTITY.
+ *
+ * Read by the server action that performs the delete and, separately, by the
+ * page that decides whether to render the control. The action is the boundary:
+ * hiding the button is presentation, and the brief asks for both ("Hide the
+ * delete action for unauthorized users AND enforce the restriction
+ * server-side").
+ *
+ * Fails CLOSED. An unknown address deletes nothing.
+ */
+export function canDeleteBillingEntity(email: string | null | undefined): boolean {
+  return hasCapability(email, "billing_entity.delete");
+}
+
 export const MASTER_ADMIN_REFUSAL =
   "Only the master administrators can change module permissions.";
 
@@ -311,3 +468,22 @@ export const ATTENDANCE_OTHERS_REFUSAL =
 
 export const ATTENDANCE_AUDIT_REFUSAL =
   "You are not authorized to view the attendance change log.";
+
+export const BILLING_ENTITY_DELETE_REFUSAL =
+  "Deleting a billing entity is restricted. Entity edit access does not include it.";
+
+/**
+ * MAY CHANGE WHO IS ELIGIBLE FOR AN INCENTIVE.
+ *
+ * Read by the eligibility actions that perform the change and, separately, by
+ * the page that decides whether to render the controls. The action is the
+ * boundary; hiding a checkbox is presentation.
+ *
+ * Fails CLOSED. An unknown address changes nobody's eligibility.
+ */
+export function canManageIncentiveEligibility(email: string | null | undefined): boolean {
+  return hasCapability(email, "incentive_eligibility.manage");
+}
+
+export const INCENTIVE_ELIGIBILITY_REFUSAL =
+  "Only Manan Vasa can change who is eligible for an incentive. Incentive Master edit access does not include it.";

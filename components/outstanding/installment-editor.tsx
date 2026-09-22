@@ -11,7 +11,7 @@ import {
   editInstallment,
   addAdhocInstallment,
   deleteInstallment,
-} from "@/app/(app)/outstanding/actions";
+} from "@/app/(app)/billing/outstanding/actions";
 import type { AdminInstallmentRow } from "@/lib/queries/outstanding";
 
 const INPUT_CLASS =

@@ -4,7 +4,13 @@ import type { Task, Employee } from "@/db/schema";
 // their defaults here means a future column drop or add is a one-line edit.
 function profileV2Defaults() {
   return {
-    dailyTaskQuota: 3,
+    worksOutsideOffice: null,
+  employeeCode: null,
+  functionId: null,
+  shiftTypeId: null,
+  isTeamLead: false,
+  trainPass: false,
+  dailyTaskQuota: 3,
     bio: null as string | null,
     tags: [] as string[],
     availability: "available" as const,
@@ -44,6 +50,17 @@ function profileV2Defaults() {
     attFullDayMinutes: null as number | null,
     attHalfDayMinutes: null as number | null,
     weeklyTargetMinutes: null as number | null,
+    // Employee schedule settings (0228) — the column defaults.
+    attendanceApplicable: true,
+    sat1Working: true,
+    sat2Working: true,
+    sat3Working: true,
+    sat4Working: true,
+    sat5Working: true,
+    satOfficialStart: null as string | null,
+    satOfficialEnd: null as string | null,
+    wfhFullTimeAllowed: false,
+    wfhPartTimeAllowed: false,
     // Salary module (migration 0062).
     designationId: null as string | null,
     payingEntityId: null as string | null,

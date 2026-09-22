@@ -21,6 +21,7 @@
  */
 
 import { type LetterTemplate, t, f, para, heading, term, spacer } from "../types";
+import { personSignOff } from "../sign-off";
 
 const template: LetterTemplate = {
   key: "minor-internship-undertaking",
@@ -167,12 +168,12 @@ const template: LetterTemplate = {
     ),
 
     // ── Signature lines ─────────────────────────────────────────────────
-    spacer("lg"),
-    para(t("_______________________________")),
-    para(t("Signature of Parent / Guardian")),
-    spacer("md"),
-    para(t("_______________________________")),
-    para(t("Signature of Intern")),
+    //
+    // TWO sign-offs, separately namespaced: this document is signed by the
+    // intern AND their guardian, and sharing field ids would have each of them
+    // typing into the other's box.
+    ...personSignOff({ prefix: "guardian", who: "Signed by the parent / guardian" }),
+    ...personSignOff({ prefix: "intern", who: "Signed by the intern" }),
     spacer("md"),
     para(t("_______________________________")),
     para(t("Signature of HR Representative, {firm}")),

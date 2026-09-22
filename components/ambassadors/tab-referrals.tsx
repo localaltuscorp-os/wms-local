@@ -49,7 +49,7 @@ export function TabReferrals({ referrals }: { referrals: ReferralRow[] }) {
           When this partner sends a prospect, it shows here as a deal moving through the pipeline.
         </p>
         <Link
-          href={"/ambassadors/pipeline" as Route}
+          href={"/billing/ambassadors/pipeline" as Route}
           className="mt-4 inline-flex items-center gap-2 rounded-xl py-2.5 px-4 text-[14px] font-bold text-white transition-transform active:scale-[0.99]"
           style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))", boxShadow: "0 12px 30px -14px rgba(225,6,0,0.6)" }}
         >
@@ -67,7 +67,7 @@ export function TabReferrals({ referrals }: { referrals: ReferralRow[] }) {
           {referrals.length} referral{referrals.length === 1 ? "" : "s"}
         </h2>
         <Link
-          href={"/ambassadors/pipeline" as Route}
+          href={"/billing/ambassadors/pipeline" as Route}
           className="inline-flex items-center gap-1.5 text-[13px] font-bold text-ink-muted hover:text-[color:var(--color-altus-red)] transition-colors"
         >
           Pipeline

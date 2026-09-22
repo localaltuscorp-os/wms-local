@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { fireToast } from "@/lib/toast";
-import { createDepartment } from "@/app/(admin)/admin/departments/actions";
+import { createDepartment } from "@/app/(admin)/admin/functions/actions";
 
 export function CreateDepartmentDialog() {
   const [open, setOpen] = useState(false);
@@ -49,14 +49,14 @@ export function CreateDepartmentDialog() {
           className="rounded-md py-2.5 px-5 text-[14px] font-medium text-white"
           style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
         >
-          + New Department
+          + New Function
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
-            New Department
+            New Function
           </Dialog.Title>
           <Dialog.Description className="text-[15px] text-[#64748B] mb-4" style={{ lineHeight: 1.5 }}>
             Pickers across the app will show this when employees are

@@ -9,6 +9,7 @@ import type { ShareRow } from "@/lib/queries/accounts-shares";
 import { parseAmount, formatINR, sumAmounts } from "@/lib/accounts/amounts";
 import { createShare, updateShare, deleteShare } from "@/app/(app)/accounts/shares-register/actions";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CHIP = "rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]";
@@ -41,7 +42,7 @@ function rowValue(r: ShareRow): number | null {
 
 export function SharesRegister({ rows, entityOptions }: { rows: ShareRow[]; entityOptions: LookupOption[] }) {
   const [q, setQ] = React.useState("");
-  const [fEntity, setFEntity] = React.useState("");
+  const [fEntity, setFEntity] = React.useState<string[]>([]);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState<Draft>(emptyDraft);
@@ -53,14 +54,14 @@ export function SharesRegister({ rows, entityOptions }: { rows: ShareRow[]; enti
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
-      if (fEntity && (r.entity ?? "") !== fEntity) return false;
+      if (fEntity.length > 0 && !fEntity.includes((r.entity ?? ""))) return false;
       if (needle && ![r.code, r.entity, r.company, r.folioDemat, r.notes].filter(Boolean).join(" ").toLowerCase().includes(needle)) return false;
       return true;
     });
   }, [rows, q, fEntity]);
 
-  const hasFilters = q || fEntity;
-  function clearFilters() { setQ(""); setFEntity(""); }
+  const hasFilters = q || fEntity.length > 0;
+  function clearFilters() { setQ(""); setFEntity([]); }
   function startAdd() { setEditingId(null); setDraft(emptyDraft()); setAdding(true); }
   function startEdit(r: ShareRow) { setAdding(false); setDraft(toDraft(r)); setEditingId(r.id); }
   function cancel() { setAdding(false); setEditingId(null); }
@@ -100,10 +101,14 @@ export function SharesRegister({ rows, entityOptions }: { rows: ShareRow[]; enti
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - company, entity, folio" title="Local search - filters only the list on this page" aria-label="Local search - company, entity, folio - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
         </CollapsibleSearch>
-        <select className={CHIP} value={fEntity} onChange={(e) => setFEntity(e.target.value)} aria-label="Filter by entity">
-          <option value="">All Entities</option>
-          {entities.map((a) => (<option key={a} value={a}>{a}</option>))}
-        </select>
+        <MultiFilter
+          className={CHIP}
+          values={fEntity}
+          onChange={setFEntity}
+          options={entities}
+          allLabel="All Entities"
+          aria-label="Filter by entity"
+        />
         {hasFilters && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red"><X size={15} strokeWidth={2.4} /> Clear</button>}
         <button type="button" onClick={startAdd} className="ml-auto inline-flex items-center gap-2 rounded-xl py-2.5 px-4 text-[14.5px] font-bold text-white transition-transform active:scale-[0.99]" style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))", boxShadow: "0 10px 26px -12px rgba(225,6,0,0.6)" }}>
           <Plus size={16} strokeWidth={2.6} /> Add Holding

@@ -31,11 +31,13 @@ import {
 } from "@/lib/project-plan/levels";
 import type { PlanMovePlan } from "@/lib/project-plan/move";
 import {
+  approverActorOf,
   canSetPlanStatus,
   isRestrictedStatus,
   isWorkingStatus,
   type PlanRestrictedStatus,
 } from "@/lib/project-plan/status";
+import { canSetApproverStatus } from "@/lib/status/approver-status";
 import { actorFor } from "@/lib/project-plan/authz";
 import { setTaskStatus } from "@/app/(app)/tasks/actions";
 
@@ -1005,7 +1007,37 @@ export async function setPlanNodeStatus(input: unknown): Promise<Result> {
   // is the wrong question for a status. A doer reporting progress on work
   // someone else planned is exactly the normal case.
   const actor = await actorFor(me, node);
-  const verdict = canSetPlanStatus(actor, status);
+
+  // The row's Doer Status — on an executable row, its linked task's. Approved /
+  // Not Approved wait for Done (lib/status/approver-status.ts).
+  let doerStatus: string | null = node.status ?? null;
+  if (isExecutable(node.kind)) {
+    const [t] = await db
+      .select({ status: tasks.status })
+      .from(tasks)
+      .where(and(eq(tasks.projectNodeId, id), eq(tasks.archived, false)))
+      .orderBy(asc(tasks.createdAt))
+      .limit(1);
+    if (t) doerStatus = t.status === "approved" || t.status === "not_approved" ? "done" : t.status;
+  }
+
+  // Pending — clear the Initiator Status ruling.
+  if (status === "pending") {
+    const clear = canSetApproverStatus(approverActorOf(actor), "pending", doerStatus);
+    if (!clear.ok) return fail(clear.reason);
+    try {
+      await db
+        .update(projectNodes)
+        .set({ approvalStatus: null, updatedAt: new Date() })
+        .where(eq(projectNodes.id, id));
+      revalidatePlanSurfaces();
+      return { ok: true };
+    } catch (err) {
+      return fail(migrationHint(err));
+    }
+  }
+
+  const verdict = canSetPlanStatus(actor, status, doerStatus);
   if (!verdict.ok) return fail(verdict.reason);
 
   try {

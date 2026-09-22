@@ -8,12 +8,8 @@ import type { Route } from "next";
 import { signOut } from "firebase/auth";
 import { Menu, X, LayoutGrid, LogOut, Calculator } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/firebase/client";
-import {
-  ADMIN_TOP_LEVEL,
-  ADMIN_GROUPS,
-  isAdminNavActive,
-  type AdminNavItem,
-} from "./admin-nav-config";
+import { isAdminNavActive, type AdminNavItem } from "./admin-nav-config";
+import { adminNavFor } from "./roster-nav";
 
 interface Props {
   adminName: string;
@@ -22,6 +18,8 @@ interface Props {
   backHref: string;
   /** Super-admins also get the "Accounts" link in the drawer. */
   canSeeAccounts: boolean;
+  /** Not an admin — the drawer shows only Subjects and Clients. */
+  rosterOnly?: boolean;
 }
 
 /**
@@ -30,8 +28,9 @@ interface Props {
  * same nav as the desktop header, but flat with labelled category sections
  * (dropdowns don't belong in a vertical list).
  */
-export function AdminMobileBar({ adminName, adminEmail, backHref, canSeeAccounts }: Props) {
+export function AdminMobileBar({ adminName, adminEmail, backHref, canSeeAccounts, rosterOnly = false }: Props) {
   const pathname = usePathname();
+  const nav = adminNavFor(rosterOnly);
   const [open, setOpen] = React.useState(false);
 
   async function handleSignOut() {
@@ -162,10 +161,10 @@ export function AdminMobileBar({ adminName, adminEmail, backHref, canSeeAccounts
                 if (target.closest("a")) setOpen(false);
               }}
             >
-              {ADMIN_TOP_LEVEL.map((item) => (
+              {nav.topLevel.map((item) => (
                 <NavLink key={item.href} item={item} />
               ))}
-              {ADMIN_GROUPS.map((g) => (
+              {nav.groups.map((g) => (
                 <div key={g.label} className="mt-2 flex flex-col gap-1">
                   <div className="nav-drawer-section">{g.label}</div>
                   {g.items.map((item) => (

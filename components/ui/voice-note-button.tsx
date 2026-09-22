@@ -23,12 +23,18 @@ export function VoiceNoteButton({
   prefer = "transcript",
   className,
   label = "Voice Note",
+  iconOnly = false,
+  compact = false,
 }: {
   onText: (text: string) => void;
   /** Kept for API compatibility; the endpoint now returns one faithful transcript. */
   prefer?: "transcript" | "summary";
   className?: string;
   label?: string;
+  /** Just the mic (and spinner / timer) — for a dense grid cell. `label` stays the accessible name. */
+  iconOnly?: boolean;
+  /** A smaller pill, for sitting inside the corner of a text box. */
+  compact?: boolean;
 }) {
   const [phase, setPhase] = React.useState<"idle" | "recording" | "busy">("idle");
   const [elapsed, setElapsed] = React.useState(0);
@@ -205,7 +211,8 @@ export function VoiceNoteButton({
   }
 
   const base =
-    "inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] font-bold transition-colors disabled:opacity-60 " +
+    "inline-flex items-center justify-center rounded-lg border font-bold transition-colors disabled:opacity-60 " +
+    (compact ? "gap-1 px-1.5 py-0.5 text-[11px] " : "gap-1.5 px-3 py-2 text-[13px] ") +
     (className ?? "");
 
   if (!supported) {
@@ -231,7 +238,8 @@ export function VoiceNoteButton({
           background: "color-mix(in srgb, var(--color-altus-red) 8%, transparent)",
         }}
       >
-        <Loader2 size={14} className="animate-spin" /> Transcribing…
+        <Loader2 size={14} className="animate-spin" />
+        {iconOnly ? <span className="sr-only">Transcribing…</span> : " Transcribing…"}
       </span>
     );
   }
@@ -263,14 +271,14 @@ export function VoiceNoteButton({
           <span className="tabular-nums">
             {Math.floor(elapsed / 60)}:{(elapsed % 60).toString().padStart(2, "0")}
           </span>
-          <Square size={13} strokeWidth={2.6} /> Stop
+          <Square size={13} strokeWidth={2.6} /> {!iconOnly && "Stop"}
         </button>
         <button
           type="button"
           onClick={discard}
           aria-label="Discard recording"
           title="Discard"
-          className="inline-flex size-8 items-center justify-center rounded-lg border border-hairline-strong bg-white text-ink-subtle transition-colors hover:border-altus-red hover:text-altus-red"
+          className={`inline-flex ${compact ? "size-6" : iconOnly ? "size-7" : "size-8"} items-center justify-center rounded-lg border border-hairline-strong bg-white text-ink-subtle transition-colors hover:border-altus-red hover:text-altus-red`}
         >
           <X size={15} strokeWidth={2.4} />
         </button>
@@ -283,9 +291,10 @@ export function VoiceNoteButton({
       type="button"
       onClick={start}
       aria-label={label}
+      title={iconOnly ? label : undefined}
       className={base + " border-hairline-strong bg-white text-ink-soft hover:border-[color:var(--color-altus-red)] hover:text-altus-red"}
     >
-      <Mic size={14} strokeWidth={2.4} /> {label}
+      <Mic size={compact ? 12 : 14} strokeWidth={2.4} /> {!iconOnly && label}
     </button>
   );
 }

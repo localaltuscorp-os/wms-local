@@ -8,6 +8,7 @@ import { addAccountsLookup, softDeleteAccountsLookup } from "@/lib/accounts/look
 import type { DueItemRow } from "@/lib/queries/accounts-due";
 import { createDueItem, updateDueItem, deleteDueItem } from "@/app/(app)/accounts/due-dates/actions";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 const INPUT =
   "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
@@ -112,8 +113,8 @@ export function DueDatesChecklist({
   items: DueItemRow[]; areaOptions: LookupOption[]; frequencyOptions: LookupOption[];
 }) {
   const [q, setQ] = React.useState("");
-  const [fArea, setFArea] = React.useState("");
-  const [fFreq, setFFreq] = React.useState("");
+  const [fArea, setFArea] = React.useState<string[]>([]);
+  const [fFreq, setFFreq] = React.useState<string[]>([]);
 
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
@@ -133,8 +134,8 @@ export function DueDatesChecklist({
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     return items.filter((r) => {
-      if (fArea && (r.area ?? "") !== fArea) return false;
-      if (fFreq && (r.frequency ?? "") !== fFreq) return false;
+      if (fArea.length > 0 && !fArea.includes((r.area ?? ""))) return false;
+      if (fFreq.length > 0 && !fFreq.includes((r.frequency ?? ""))) return false;
       if (needle) {
         const hay = [r.code, r.area, r.compliance, r.frequency, r.ecsFrom, r.statementPeriod, r.notes]
           .filter(Boolean).join(" ").toLowerCase();
@@ -144,8 +145,8 @@ export function DueDatesChecklist({
     });
   }, [items, q, fArea, fFreq]);
 
-  const hasFilters = q || fArea || fFreq;
-  function clearFilters() { setQ(""); setFArea(""); setFFreq(""); }
+  const hasFilters = q || fArea.length > 0 || fFreq.length > 0;
+  function clearFilters() { setQ(""); setFArea([]); setFFreq([]); }
 
   function startAdd() { setEditingId(null); setDraft(emptyDraft()); setAdding(true); }
   function startEdit(r: DueItemRow) { setAdding(false); setDraft(toDraft(r)); setEditingId(r.id); }
@@ -186,14 +187,22 @@ export function DueDatesChecklist({
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - bills, area, notes" title="Local search - filters only the list on this page" aria-label="Local search - bills, area, notes - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
         </CollapsibleSearch>
-        <select className={CHIP} value={fArea} onChange={(e) => setFArea(e.target.value)} aria-label="Filter by area">
-          <option value="">All Areas</option>
-          {areas.map((a) => (<option key={a} value={a}>{a}</option>))}
-        </select>
-        <select className={CHIP} value={fFreq} onChange={(e) => setFFreq(e.target.value)} aria-label="Filter by frequency">
-          <option value="">All Frequencies</option>
-          {freqs.map((f) => (<option key={f} value={f}>{f}</option>))}
-        </select>
+        <MultiFilter
+          className={CHIP}
+          values={fArea}
+          onChange={setFArea}
+          options={areas}
+          allLabel="All Areas"
+          aria-label="Filter by area"
+        />
+        <MultiFilter
+          className={CHIP}
+          values={fFreq}
+          onChange={setFFreq}
+          options={freqs}
+          allLabel="All Frequencies"
+          aria-label="Filter by frequency"
+        />
         {hasFilters && (
           <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red">
             <X size={15} strokeWidth={2.4} /> Clear

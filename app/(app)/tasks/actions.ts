@@ -20,6 +20,7 @@ import { db, tasks } from "@/lib/db";
 import { reconcileTaskEvent, removeTaskEvent } from "@/lib/google/sync";
 import { syncTaskToGoal } from "@/lib/weekly-goals/task-sync";
 import { CACHE_TAGS } from "@/lib/cache-tags";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
 import {
   TASK_STATUSES,
   TASK_PRIORITIES,
@@ -47,6 +48,7 @@ import {
 } from "@/lib/validators/task";
 import { taskEvents, clients, subjects, employees } from "@/db/schema";
 import { canAddTaskRoster } from "@/lib/auth/roster-permission";
+import { TASK_ROSTER_REFUSAL } from "@/lib/security/capabilities";
 import { CreateClientSchema } from "@/lib/validators/client";
 import { CreateSubjectSchema } from "@/lib/validators/subject";
 import { requireUser, requireWeeklyGoalsFilled } from "@/lib/auth/current";
@@ -100,6 +102,12 @@ import { addTaskComment } from "@/lib/tasks/add-comment";
 import { createTasksCore } from "@/lib/tasks/create-task";
 import { nudgeTaskCore } from "@/lib/tasks/nudge";
 import { dbErrorMessage, logDbError } from "@/lib/db/error";
+import {
+  approverStored,
+  canSetApproverStatus,
+  isApproverChoice,
+  taskDoerShown,
+} from "@/lib/status/approver-status";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1140,7 +1148,7 @@ export async function quickAddClient(
 ): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
   const me = await requireUser();
   if (!canAddTaskRoster(me)) {
-    return { ok: false, error: "Only an admin can add a new client." };
+    return { ok: false, error: TASK_ROSTER_REFUSAL };
   }
 
   const parsed = CreateClientSchema.safeParse({ name: rawName });
@@ -1194,7 +1202,7 @@ export async function quickAddSubject(
 ): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
   const me = await requireUser();
   if (!canAddTaskRoster(me)) {
-    return { ok: false, error: "Only an admin can add a new subject." };
+    return { ok: false, error: TASK_ROSTER_REFUSAL };
   }
 
   const parsed = CreateSubjectSchema.safeParse({ name: rawName });
@@ -1977,6 +1985,136 @@ export async function nudgeTask(
     { id: me.id, name: me.name, isAdmin: me.isAdmin },
     taskId,
   );
+}
+
+// ─────────────────── Initiator Status (2026-09-15) ───────────────────
+
+const DOER_VALUES: readonly string[] = ["dont_know", "not_started", "initiated", "follow_up", "need_info", "done"];
+
+/** The doer status a task had before it was put on hold, from its history. */
+async function statusBeforeHold(taskId: string): Promise<string> {
+  const rows = (await db.execute(sql`
+    SELECT from_value FROM task_events
+    WHERE task_id = ${taskId}
+      AND (to_value->>'value' = 'on_hold' OR to_value->>'status' = 'on_hold')
+    ORDER BY created_at DESC
+    LIMIT 1
+  `)) as unknown as Array<{ from_value: { value?: string; status?: string } | null }>;
+  const prev = rows[0]?.from_value?.value ?? rows[0]?.from_value?.status ?? null;
+  return prev && DOER_VALUES.includes(prev) ? prev : "not_started";
+}
+
+/**
+ * Set a task's Initiator Status from the WMS table's chip.
+ *
+ * WHO: the initiator, the doer's manager (anyone above the doer) or an admin —
+ * never the doer (lib/status/approver-status.ts). Approved / Not Approved wait
+ * for Done.
+ *
+ * COUNTS STAY AS THEY ARE (account holder, 2026-09-15 — "columns now, data
+ * later"). The chip writes exactly what today's flows write, so the kanban, the
+ * dashboards, the reminders and the auto-archive see nothing new:
+ *   Approved / Not Approved → status AND approval_status, as decideTaskApproval
+ *   On Hold                 → status on_hold AND approval_status on_hold
+ *   Cancelled               → approval_status only, as "Mark Cancelled"
+ *   Pending                 → clears the ruling; an approved/rejected task goes
+ *                             back to Done, a held one to its status before the hold
+ */
+export async function setTaskApproverStatus(
+  taskId: string,
+  choice: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isUuid(taskId)) return { ok: false, error: "Bad task id." };
+  if (!isApproverChoice(choice)) return { ok: false, error: "Unknown Initiator Status." };
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const [task] = await db
+    .select({
+      status: tasks.status,
+      approvalStatus: tasks.approvalStatus,
+      doerId: tasks.doerId,
+      initiatorId: tasks.initiatorId,
+    })
+    .from(tasks)
+    .where(eq(tasks.id, taskId))
+    .limit(1);
+  if (!task) return { ok: false, error: "Task not found." };
+
+  const isDoer = task.doerId === me.id;
+  /* A task someone raised for themselves has no separate initiator to rule on
+     it — the column reads "Not Applicable" and only an admin overrules. */
+  const isSelfRaised = !!task.initiatorId && task.initiatorId === task.doerId;
+  const isInitiator = task.initiatorId === me.id && !isSelfRaised;
+  const isDoersManager = !isDoer && !!task.doerId && (await getDownlineIds(me.id)).includes(task.doerId);
+  // Super-admin rules the same as an admin here, as it does in Goals.
+  const admin = me.isAdmin || isSuperAdmin(me.email);
+  const verdict = canSetApproverStatus(
+    { isAdmin: admin, isInitiator, isDoersManager, isDoer, isSelfRaised },
+    choice,
+    // A task already ruled on was Done when it was ruled on.
+    taskDoerShown(task.status),
+  );
+  if (!verdict.ok) return { ok: false, error: verdict.reason };
+
+  const nextApproval = approverStored(choice);
+  let nextStatus: typeof task.status = task.status;
+  if (choice === "approved" || choice === "not_approved" || choice === "on_hold") {
+    nextStatus = choice;
+  } else if (task.status === "approved" || task.status === "not_approved") {
+    nextStatus = "done";
+  } else if (task.status === "on_hold") {
+    nextStatus = (await statusBeforeHold(taskId)) as typeof task.status;
+  }
+  if (nextApproval === task.approvalStatus && nextStatus === task.status) return { ok: true };
+
+  const now = new Date();
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(tasks)
+        .set({
+          approvalStatus: nextApproval,
+          status: nextStatus,
+          ...(choice === "approved" || choice === "not_approved" ? { approvedById: me.id, approvedAt: now } : {}),
+          updatedAt: now,
+        })
+        .where(eq(tasks.id, taskId));
+      const events: Array<typeof taskEvents.$inferInsert> = [];
+      if (nextApproval !== task.approvalStatus) {
+        events.push({
+          taskId,
+          actorId: me.id,
+          eventType: "field_updated",
+          fromValue: { field: "approvalStatus", value: task.approvalStatus },
+          toValue: { field: "approvalStatus", value: nextApproval },
+        });
+      }
+      if (nextStatus !== task.status) {
+        events.push({
+          taskId,
+          actorId: me.id,
+          eventType: "field_updated",
+          fromValue: { field: "status", value: task.status },
+          toValue: { field: "status", value: nextStatus },
+        });
+      }
+      if (events.length > 0) await tx.insert(taskEvents).values(events);
+    });
+  } catch (err) {
+    logDbError("tasks:approver-status", err);
+    const msg = dbErrorMessage(err);
+    return {
+      ok: false,
+      error: /on_hold/i.test(msg) && /enum/i.test(msg)
+        ? "On Hold needs migration 0231 to be applied first."
+        : `Could not update: ${msg}`,
+    };
+  }
+  revalidateTaskRoutes();
+  revalidatePath(`/tasks/${taskId}`);
+  return { ok: true };
 }
 
 // ───────────────────────────── Tier-3 admin-only ─────────────────────────

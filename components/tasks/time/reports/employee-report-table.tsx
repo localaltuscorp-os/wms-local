@@ -27,7 +27,7 @@ export function EmployeeReportTable({ rows }: { rows: EmployeeTimeRow[] }) {
         <thead>
           <tr style={{ borderBottom: "1px solid var(--color-hairline)", fontSize: 10.5 }}>
             <th className={TH} style={{ letterSpacing: "0.08em" }}>Employee</th>
-            <th className={TH} style={{ letterSpacing: "0.08em" }}>Department</th>
+            <th className={TH} style={{ letterSpacing: "0.08em" }}>Function</th>
             <th className={TH_NUM} style={{ letterSpacing: "0.08em" }}>Tasks</th>
             <th className={TH_NUM} style={{ letterSpacing: "0.08em" }}>Done</th>
             <th className={TH_NUM} style={{ letterSpacing: "0.08em" }}>Total Time</th>

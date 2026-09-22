@@ -57,6 +57,21 @@ const NAMES: Record<NotificationKind, string> = {
   // Enterprise Communications (mig 0179) — no registered WhatsApp template;
   // placeholder to satisfy the exhaustive map (routed away from WhatsApp).
   broadcast: "vp_broadcast",
+  // Incentive (mig 0231) — no registered WhatsApp templates; the incentive
+  // service never routes to WhatsApp. Placeholders for the exhaustive map.
+  incentive_created: "vp_incentive",
+  incentive_updated: "vp_incentive",
+  incentive_eligibility_removed: "vp_incentive",
+  incentive_deleted: "vp_incentive",
+  incentive_request_approved: "vp_incentive",
+  incentive_request_published: "vp_incentive",
+  incentive_request_not_approved: "vp_incentive",
+  incentive_request_revision: "vp_incentive",
+  incentive_request_due: "vp_incentive",
+  incentive_request_not_due: "vp_incentive",
+  incentive_request_reversed: "vp_incentive",
+  incentive_request_resubmitted: "vp_incentive",
+  incentive_paid: "vp_incentive",
 };
 
 export function templateNameForKind(kind: NotificationKind): string {
@@ -176,6 +191,20 @@ const VARS: Record<NotificationKind, (ctx: TemplateCtx) => Param[]> = {
   appraisal_finalized: (c) => [t(c.body ?? "")],
   // Enterprise Communications (mig 0179) — placeholder single-body builder.
   broadcast: (c) => [t(c.body ?? "")],
+  // Incentive (mig 0231) — placeholder single-body builders (never sent via WhatsApp).
+  incentive_created: (c) => [t(c.taskSubject)],
+  incentive_updated: (c) => [t(c.taskSubject)],
+  incentive_eligibility_removed: (c) => [t(c.taskSubject)],
+  incentive_deleted: (c) => [t(c.taskSubject)],
+  incentive_request_approved: (c) => [t(c.taskSubject)],
+  incentive_request_published: (c) => [t(c.taskSubject)],
+  incentive_request_not_approved: (c) => [t(c.taskSubject)],
+  incentive_request_revision: (c) => [t(c.taskSubject)],
+  incentive_request_due: (c) => [t(c.taskSubject)],
+  incentive_request_not_due: (c) => [t(c.taskSubject)],
+  incentive_request_reversed: (c) => [t(c.taskSubject)],
+  incentive_request_resubmitted: (c) => [t(c.taskSubject)],
+  incentive_paid: (c) => [t(c.taskSubject)],
 };
 
 /**

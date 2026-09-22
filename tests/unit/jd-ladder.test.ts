@@ -37,10 +37,30 @@ const at = (positionId: string, employeeId: string): Holder => ({
 const pos = (id: string) => positions.find((p) => p.id === id)!;
 
 describe("the rank ladder", () => {
-  it("holds the fourteen ranks the business named", () => {
-    expect(RANK_LADDER).toHaveLength(14);
-    expect(RANK_LADDER[0]!.name).toBe("Intern (2nd Yr)");
-    expect(RANK_LADDER[13]!.name).toBe("President");
+  it("holds the twenty-six ranks the business named, in their order", () => {
+    // Replaced a fourteen-rung ladder on 2026-09-12. The ORDER is the account
+    // holder's, and it is behaviour: see the escalation tests below.
+    expect(RANK_LADDER).toHaveLength(26);
+    expect(RANK_LADDER[0]!.name).toBe("Intern - First Year");
+    expect(RANK_LADDER[25]!.name).toBe("Chairman");
+  });
+
+  it("puts the GM grades ABOVE the VP grades, as listed", () => {
+    /* STATED SO IT IS A DECISION, NOT A DRIFT. As ordered, a vacant Manager
+       seat escalates through Associate Vice President, Vice President and
+       President before it reaches Assistant General Manager — the reverse of
+       how many firms rank the two tracks. This test fails if somebody flips
+       them without meaning to; changing it is a two-line edit plus a migration
+       when the intent changes. */
+    expect(rank("Associate Vice President")).toBeLessThan(rank("Assistant General Manager"));
+    expect(rank("President")).toBeLessThan(rank("Assistant General Manager"));
+    expect(rank("Sr. General Manager")).toBeLessThan(rank("Associate Director"));
+  });
+
+  it("tops out at the board titles", () => {
+    expect(rank("Director")).toBeLessThan(rank("CEO"));
+    expect(rank("CEO")).toBeLessThan(rank("Managing Director"));
+    expect(rank("Managing Director")).toBeLessThan(rank("Chairman"));
   });
 
   it("is strictly increasing, so the climb always terminates", () => {

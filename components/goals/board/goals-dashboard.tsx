@@ -63,6 +63,7 @@ import {
 } from "@/components/goals/cascade/util";
 import { CardGrid } from "@/components/layout/card-grid";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 import { HBars, type HBarRow } from "@/components/charts/h-bars";
 import { VBars } from "@/components/charts/v-bars";
 import { Donut, type DonutSlice } from "@/components/charts/donut";
@@ -615,6 +616,17 @@ function MultiPick({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[220px] p-1.5">
+        {/* Select all / Clear — tick the lot, then untick the one or two you
+            don't want, instead of ticking fifteen one at a time. */}
+        <SelectAllBar
+          compact
+          className="-mx-1.5 -mt-1.5 mb-1 rounded-t-[inherit]"
+          count={selected.size}
+          total={options.length}
+          emptyLabel={`All ${label}`}
+          onSelectAll={() => onChange(new Set(options))}
+          onClear={() => onChange(new Set())}
+        />
         <div className="slim-scroll max-h-[280px] overflow-auto">
           {options.length === 0 && <p className="px-2 py-2 text-[12.5px] text-ink-subtle">No {label.toLowerCase()} yet.</p>}
           {options.map((o) => {
@@ -637,15 +649,6 @@ function MultiPick({
             );
           })}
         </div>
-        {active && (
-          <button
-            type="button"
-            onClick={() => onChange(new Set())}
-            className={`mt-1 flex w-full cursor-pointer items-center justify-center rounded-md py-1.5 text-[12px] font-bold text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong ${FOCUS_RING}`}
-          >
-            Clear
-          </button>
-        )}
       </PopoverContent>
     </Popover>
   );

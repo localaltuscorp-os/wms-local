@@ -83,7 +83,17 @@ export function RowsEditor({
     ]);
   }
 
-  let cumulative = 0;
+  /* Running balance after each installment. Computed UP FRONT rather than by
+     adding to a `let` from inside the `.map()` in the JSX below: a callback
+     that writes to a variable declared in render is what the React Compiler
+     refuses to analyse, and it drops the component's memoisation to stay safe.
+     `balances[i]` is exactly what `t - cumulative` produced on row i. */
+  const balances: number[] = [];
+  for (let i = 0, cumulative = 0; i < rows.length; i++) {
+    const amt = Number(rows[i]!.amount);
+    cumulative += Number.isFinite(amt) ? amt : 0;
+    balances.push(t - cumulative);
+  }
 
   return (
     <div className="space-y-2.5">
@@ -94,10 +104,8 @@ export function RowsEditor({
         <span className="w-7" />
       </div>
 
-      {rows.map((r) => {
-        const amt = Number(r.amount);
-        cumulative += Number.isFinite(amt) ? amt : 0;
-        const balance = t - cumulative;
+      {rows.map((r, i) => {
+        const balance = balances[i]!;
         return (
           <div
             key={r.id}

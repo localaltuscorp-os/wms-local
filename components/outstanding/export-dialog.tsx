@@ -182,13 +182,13 @@ export function OutstandingExportDialog({
               icon={<FileText size={22} strokeWidth={2} />}
               title="PDF Report"
               hint="Formatted, print-ready"
-              onClick={() => openRoute("/outstanding/export.pdf")}
+              onClick={() => openRoute("/billing/outstanding/export.pdf")}
             />
             <FormatCard
               icon={<FileSpreadsheet size={22} strokeWidth={2} />}
               title="Excel (.xlsx)"
               hint="Entries + collections sheets"
-              onClick={() => openRoute("/outstanding/export.xlsx")}
+              onClick={() => openRoute("/billing/outstanding/export.xlsx")}
             />
             <FormatCard
               icon={<Table size={22} strokeWidth={2} />}
@@ -223,7 +223,7 @@ export function OutstandingExportDialog({
                 title="Outstanding Template"
                 hint="26 columns · all fields"
                 onClick={() =>
-                  openRoute("/outstanding/export.xlsx?template=outstanding")
+                  openRoute("/billing/outstanding/export.xlsx?template=outstanding")
                 }
               />
               <FormatCard
@@ -231,7 +231,7 @@ export function OutstandingExportDialog({
                 title="Collection Template"
                 hint="7 columns · payment records"
                 onClick={() =>
-                  openRoute("/outstanding/export.xlsx?template=collection")
+                  openRoute("/billing/outstanding/export.xlsx?template=collection")
                 }
               />
             </div>

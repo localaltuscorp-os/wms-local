@@ -66,6 +66,21 @@ const EMOJI: Record<NotificationKind, string> = {
   // Enterprise Communications (mig 0179) — delivered in-app + email by the
   // ECOS publish flow, never via Slack; placeholder to satisfy the exhaustive map.
   broadcast: ":mega:",
+  // Incentive (mig 0231) — delivered in-app + email + push only (the service
+  // narrows channels); placeholders to satisfy the exhaustive map.
+  incentive_created: ":moneybag:",
+  incentive_updated: ":moneybag:",
+  incentive_eligibility_removed: ":moneybag:",
+  incentive_deleted: ":moneybag:",
+  incentive_request_approved: ":white_check_mark:",
+  incentive_request_published: ":white_check_mark:",
+  incentive_request_not_approved: ":x:",
+  incentive_request_revision: ":pencil2:",
+  incentive_request_due: ":moneybag:",
+  incentive_request_not_due: ":moneybag:",
+  incentive_request_reversed: ":leftwards_arrow_with_hook:",
+  incentive_request_resubmitted: ":inbox_tray:",
+  incentive_paid: ":moneybag:",
 };
 
 const VERB: Record<NotificationKind, (actor: string, statusLabel?: string) => string> = {
@@ -117,6 +132,20 @@ const VERB: Record<NotificationKind, (actor: string, statusLabel?: string) => st
   appraisal_finalized: () => `Your appraisal is finalized`,
   // Enterprise Communications (mig 0179) — not sent via Slack; placeholder.
   broadcast: () => `New company communication`,
+  // Incentive (mig 0231) — not sent via Slack; placeholders.
+  incentive_created: () => `A new incentive is available`,
+  incentive_updated: () => `An incentive was updated`,
+  incentive_eligibility_removed: () => `You are no longer eligible for an incentive`,
+  incentive_deleted: () => `An incentive is no longer available`,
+  incentive_request_approved: () => `Your incentive request was approved`,
+  incentive_request_published: () => `Your incentive request was published`,
+  incentive_request_not_approved: () => `Your incentive request was not approved`,
+  incentive_request_revision: () => `Your incentive request needs a revision`,
+  incentive_request_due: () => `Your incentive was marked Due`,
+  incentive_request_not_due: () => `Your incentive was marked Not Due`,
+  incentive_request_reversed: () => `Your incentive was reversed`,
+  incentive_request_resubmitted: () => `An incentive request was resubmitted`,
+  incentive_paid: () => `Your incentive was paid`,
 };
 
 export interface SlackCtx {

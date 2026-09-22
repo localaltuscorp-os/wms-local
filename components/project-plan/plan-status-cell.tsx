@@ -5,45 +5,43 @@ import { useRouter } from "next/navigation";
 import { Loader2, Lock } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import {
+  DEFAULT_PLAN_STATUS,
   PLAN_STATUS_LABEL,
   PLAN_STATUS_TONE,
   PLAN_WORKING_STATUSES,
-  PLAN_RESTRICTED_STATUSES,
+  approverActorOf,
   canSetPlanStatus,
-  effectivePlanStatus,
-  isRestrictedStatus,
+  isWorkingStatus,
+  isSelfRaisedNode,
   type PlanActor,
   type PlanStatus,
 } from "@/lib/project-plan/status";
+import { approverDisplay, selectableApproverChoices } from "@/lib/status/approver-status";
+import { ApproverChip } from "@/components/status/approver-chip";
 import { isExecutable, type PlanKind } from "@/lib/project-plan/levels";
 import type { StatusAxis, StatusActor } from "@/lib/status/axes";
 import { DoerStatusSelect, InitiatorStatusSelect } from "@/components/status/status-select";
 import { setPlanNodeStatus } from "@/app/(app)/project-plan/actions";
 
 /**
- * Project Plan — the status cell.
+ * Project Plan — the two status cells, the same pair WMS Tasks and Goals show
+ * (account holder, 2026-09-15):
  *
- * ONE control for every level, because the brief describes one status
- * vocabulary for the whole module. What differs is only where the value lands,
- * and that is `setPlanNodeStatus`'s job, not this component's:
+ *   DOER STATUS                  PlanStatusCell  — the working flow, a progress
+ *                                report: Not Read … Done.
+ *   INITIATOR STATUS             PlanApproverCell — the ruling: Pending ·
+ *                                Approved · Not Approved · On Hold · Cancelled.
  *
+ * Where each value lands is `setPlanNodeStatus`'s job:
  *   Executable row   → the linked WMS task, through `setTaskStatus`
  *   Container row    → project_nodes.status
- *   Restricted value → project_nodes.approval_status (either kind of row)
+ *   A ruling         → project_nodes.approval_status (either kind of row)
  *
- * WHAT THIS COMPONENT IS NOT. It is not the permission. It renders only the
- * options `canSetPlanStatus` allows this actor — the same function the server
- * action calls before it writes — so the dropdown and the API can never
- * disagree. But hiding an option is a courtesy, not a control: a doer who POSTs
- * "approved" straight at the action is refused there, and would be refused even
- * if this file did not exist.
- *
- * The restricted verdicts are grouped under their own <optgroup> and marked, so
- * it is visible that Approved / On Hold / Cancelled are a different KIND of
- * decision from a progress report — not just five more items on a list.
+ * Neither cell is the permission. Each renders only what the shared rule allows
+ * this viewer — the same function the server action calls before it writes.
  */
 
-/** Every field this cell needs about the row. Structural, so `PlanRow`
+/** Every field these cells need about the row. Structural, so `PlanRow`
  *  satisfies it without a conversion at the call site. */
 export interface PlanStatusNode {
   id: string;
@@ -55,27 +53,26 @@ export interface PlanStatusNode {
 }
 
 /**
- * WHERE a row's working status actually lives.
- *
- * An executable row IS a WMS task, and the task's `status` is the record — the
- * node's own `status` column stays null on those rows precisely so there is no
- * second copy to disagree with it. A container has no task, so it carries its
- * own. Reading the wrong one is how a cell ends up showing "Not Started" beside
- * a chip that says Done, so this is the single place that decides.
+ * WHERE a row's working status actually lives: the linked task on an
+ * executable row, the node itself on a container.
  */
 export function workingStatusOf(node: PlanStatusNode): string | null {
   if (isExecutable(node.kind) && node.task) return node.task.status;
   return node.status;
 }
 
+/** The Doer Status a row shows. A task approved or rejected in WMS was Done. */
+export function doerStatusOf(node: PlanStatusNode): PlanStatus {
+  const raw = workingStatusOf(node);
+  if (raw && isWorkingStatus(raw)) return raw;
+  if (raw === "approved" || raw === "not_approved") return "done";
+  return DEFAULT_PLAN_STATUS;
+}
+
 /**
- * Build the actor for ONE node from the viewer's identity and their downline.
- *
- * The same four predicates `actorFor()` assembles on the server, from the same
- * inputs — the viewer's id and admin flag, plus the set of employees who report
- * to them. Kept in the browser so the picker can decide what to offer without a
- * round-trip per row; the server rebuilds it from the database on every write
- * and never trusts what was rendered here.
+ * Build the actor for ONE node from the viewer's identity and their downline —
+ * the same predicates `actorFor()` assembles on the server, which never trusts
+ * what was rendered here.
  */
 export function planActorFor(
   node: PlanStatusNode,
@@ -87,27 +84,17 @@ export function planActorFor(
   const isSupervisor =
     (!!node.ownerId && downline.has(node.ownerId)) ||
     (!!node.task?.doerId && downline.has(node.task.doerId));
-  return { id: me.id, isAdmin: me.isAdmin, isOwner, isDoer, isSupervisor };
-}
-
-/**
- * A `PlanActor` as the shared controls' `StatusActor`.
- *
- * The two vocabularies differ by ONE word: the plan module calls the person who
- * raised the work its OWNER, the app-wide axes call them the INITIATOR. Same
- * person, same rule ("you are never your own initiator" is `canSetPlanStatus`'s
- * owner test), so this is a rename and not a conversion.
- */
-function statusActorFrom(a: PlanActor): StatusActor {
   return {
-    id: a.id,
-    isAdmin: a.isAdmin,
-    isInitiator: a.isOwner,
-    isDoer: a.isDoer,
-    isSupervisor: a.isSupervisor,
+    id: me.id,
+    isAdmin: me.isAdmin,
+    isOwner,
+    isDoer,
+    isSupervisor,
+    isSelfRaised: isSelfRaisedNode(node),
   };
 }
 
+/** DOER STATUS — the progress report. */
 export function PlanStatusCell({
   node,
   actor,
@@ -139,30 +126,9 @@ export function PlanStatusCell({
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
 
-  // The COMBINED value — the only one this component still computes itself,
-  // because the "both" mode below is the only rendering it still owns. Each
-  // single axis is handed whole to its shared control (see the two early
-  // returns), which reads the row for itself.
-  const current: PlanStatus = effectivePlanStatus(
-    workingStatusOf(node),
-    node.approvalStatus,
-    false,
-  );
+  const current = doerStatusOf(node);
   const tone = PLAN_STATUS_TONE[current];
-
-  // Split rather than filtered flat: the two flows are different decisions and
-  // the <optgroup> labels are what say so. Both lists are for the "both" mode
-  // below — each single axis is handed to its shared control, which builds its
-  // own list from lib/status/axes.ts.
   const working = PLAN_WORKING_STATUSES.filter((s) => canSetPlanStatus(actor, s).ok);
-  const restricted = PLAN_RESTRICTED_STATUSES.filter(
-    // 'archived' is deliberately absent: archiving cascades through children and
-    // linked tasks, so it stays behind the row's own Archive control, which says
-    // how much it will take with it before it runs. (The shared initiator
-    // control hides it here for the same reason — see `hideArchived`.)
-    (s) => s !== "archived" && canSetPlanStatus(actor, s).ok,
-  );
-  const readOnly = working.length === 0 && restricted.length === 0;
 
   /**
    * The write, as a promise — what the two shared controls await.
@@ -188,8 +154,6 @@ export function PlanStatusCell({
 
   function choose(next: string) {
     if (next === current) return;
-    // Checked here purely to fail fast with the server's own wording; the
-    // server re-runs this exact call before it writes.
     const verdict = canSetPlanStatus(actor, next);
     if (!verdict.ok) {
       fireToast({ message: verdict.reason, type: "error" });
@@ -216,48 +180,7 @@ export function PlanStatusCell({
     })();
   }
 
-  /* ── THE TWO SINGLE-AXIS MODES render the SHARED control ──────────────────
-     components/status/status-select.tsx, so a plan row's Doer Status and
-     Initiator Status look and behave exactly like the ones on Tasks, Goals,
-     Weekly Goals and Daily Goals (Manan, 2026-09-15). The vocabulary was
-     already shared — PLAN_WORKING_STATUSES and PLAN_RESTRICTED_STATUSES are
-     literally the axes module's lists — so this is the last copy of the
-     rendering to go.
-
-     The "both" mode below keeps its own combined <select> with optgroups:
-     it is one control showing two different kinds of decision at once, which
-     is not what either shared control is. */
-  if (axis === "doer") {
-    return (
-      <DoerStatusSelect
-        status={workingStatusOf(node)}
-        actor={statusActorFrom(actor)}
-        onCommit={(next) => commitStatus(next)}
-      />
-    );
-  }
-  if (axis === "initiator") {
-    return (
-      <InitiatorStatusSelect
-        approvalStatus={node.approvalStatus}
-        // The board already filters archived rows out, and `archived` here is
-        // the node's `is_archived` — which this cell is never handed. False is
-        // the truth for every row it draws.
-        archived={false}
-        actor={statusActorFrom(actor)}
-        // ARCHIVING CASCADES on this board — it takes every row beneath and
-        // their linked WMS tasks. It stays behind the row's own Archive control,
-        // which counts what it is about to take and says so first.
-        hideArchived
-        onCommit={(next) => commitStatus(next)}
-      />
-    );
-  }
-
-  // BELOW HERE IS THE "both" MODE ONLY — the two single-axis returns above have
-  // already handled the other cases, which is why nothing here asks about the
-  // axis any more.
-  if (readOnly) {
+  if (working.length === 0) {
     return (
       <span
         className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11.5px] font-bold"
@@ -276,41 +199,46 @@ export function PlanStatusCell({
         value={current}
         disabled={busy}
         onChange={(e) => choose(e.target.value)}
-        aria-label="Status"
+        aria-label="Doer Status"
         title={
           linkedToTask
             ? "This row is a WMS task — changing its status here changes it in WMS and on the board."
-            : isRestrictedStatus(current)
-              ? "An owner/admin verdict, layered over the progress report underneath."
-              : "Status"
+            : "Doer Status"
         }
         className="max-w-[172px] cursor-pointer truncate rounded border border-transparent px-1.5 py-0.5 text-[11.5px] font-bold outline-none transition-colors hover:border-hairline-strong focus:border-[#E10600]"
         style={{ background: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone }}
       >
-        {/* The row's own value always appears, even when this actor may not
-            re-select it — otherwise the select would render blank on a status
-            someone with more authority set. */}
-        {!working.includes(current as never) &&
-          !restricted.includes(current as never) && (
-            <option value={current}>{PLAN_STATUS_LABEL[current]}</option>
-          )}
-        {working.length > 0 && (
-          <optgroup label="Progress">
-            {working.map((s) => (
-              <option key={s} value={s}>{PLAN_STATUS_LABEL[s]}</option>
-            ))}
-          </optgroup>
+        {!working.includes(current as never) && (
+          <option value={current}>{PLAN_STATUS_LABEL[current]}</option>
         )}
-        {restricted.length > 0 && (
-          <optgroup label="Owner / admin only">
-            {restricted.map((s) => (
-              <option key={s} value={s}>{PLAN_STATUS_LABEL[s]}</option>
-            ))}
-          </optgroup>
-        )}
+        {working.map((s) => (
+          <option key={s} value={s}>{PLAN_STATUS_LABEL[s]}</option>
+        ))}
       </select>
       {busy && <Loader2 size={12} className="animate-spin text-ink-subtle" aria-hidden />}
     </span>
+  );
+}
+
+/** APPROVER / INITIATOR STATUS — the ruling on the row. */
+export function PlanApproverCell({ node, actor }: { node: PlanStatusNode; actor: PlanActor }) {
+  const router = useRouter();
+  return (
+    <ApproverChip
+      shown={approverDisplay(node.approvalStatus, actor.isSelfRaised)}
+      choices={selectableApproverChoices(approverActorOf(actor), doerStatusOf(node))}
+      lockedTitle="Only the project owner, the doer's manager or an admin can change this."
+      onPick={async (choice) => {
+        try {
+          const res = await setPlanNodeStatus({ id: node.id, status: choice });
+          if (!res.ok) return res.error;
+          router.refresh();
+          return null;
+        } catch {
+          return "Couldn't save — your session may have expired. Sign in again and retry.";
+        }
+      }}
+    />
   );
 }
 

@@ -29,13 +29,18 @@ const BUCKET_RAMP: Record<string, string> = {
 export function OverdueBucketsPanel({
   buckets,
   sp,
+  base,
 }: {
   buckets: Bucket[];
   sp: Record<string, string | string[] | undefined>;
+  /** Which door the dashboard is open through — see
+   *  lib/outstanding/base-path.ts. Keeps every drill-down inside the
+   *  room the viewer actually entered. */
+  base: string;
 }) {
   const totalCount = buckets.reduce((s, b) => s + b.count, 0);
   const totalAmount = buckets.reduce((s, b) => s + b.amount, 0);
-  const overdueHref = buildDrillHref(sp, { status: "overdue", pdc: null });
+  const overdueHref = buildDrillHref(sp, { status: "overdue", pdc: null }, base);
 
   const slices = buckets
     .filter((b) => b.amount > 0)

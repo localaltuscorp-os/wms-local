@@ -7,6 +7,7 @@ import { SlidersHorizontal, RotateCcw } from "lucide-react";
 import { LookupSelect } from "@/components/ui/lookup-select";
 import { TASK_PRIORITIES, PRIORITY_LABELS, type TaskPriority } from "@/db/enums";
 import type { TimeReportFilters, TimeReportFilterOptions } from "@/lib/queries/time-reports";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const FIELD =
   "w-full rounded-xl border border-hairline bg-white px-3.5 py-2.5 text-[14px] font-semibold text-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/50";
@@ -85,9 +86,9 @@ export function ManagerFilterBar({
         </label>
 
         <label>
-          <Label>Department</Label>
+          <Label>Function</Label>
           <select className={FIELD} value={department} onChange={(e) => setDepartment(e.target.value)}>
-            <option value="">All departments</option>
+            <option value="">All Functions</option>
             {options.departments.map((d) => (
               <option key={d} value={d}>{d}</option>
             ))}
@@ -96,22 +97,28 @@ export function ManagerFilterBar({
 
         <label>
           <Label>Client</Label>
-          <select className={FIELD} value={client} onChange={(e) => setClient(e.target.value)}>
-            <option value="">All clients</option>
-            {options.clients.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+          <CompactSelect
+            className={FIELD}
+            value={client}
+            onChange={setClient}
+            placeholder="All clients"
+            aria-label="Client"
+            matchTriggerWidth
+            options={options.clients.map((c) => ({ value: c, label: c }))}
+          />
         </label>
 
         <label>
           <Label>Subject</Label>
-          <select className={FIELD} value={subject} onChange={(e) => setSubject(e.target.value)}>
-            <option value="">All subjects</option>
-            {options.subjects.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          <CompactSelect
+            className={FIELD}
+            value={subject}
+            onChange={setSubject}
+            placeholder="All subjects"
+            aria-label="Subject"
+            matchTriggerWidth
+            options={options.subjects.map((s) => ({ value: s, label: s }))}
+          />
         </label>
 
         <label>

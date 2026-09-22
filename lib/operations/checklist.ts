@@ -8,35 +8,62 @@
  * The date arithmetic lives next door in ./checklist-dates.ts.
  */
 
+import { DOER_TASK_STATUSES, type TaskStatus } from "@/db/enums";
+import { STATUS_LABELS_FALLBACK, STATUS_TONES_FALLBACK, statusBadgeStyle } from "@/lib/format";
+
 /**
- * The four states a tick can be in — the SAME four the Accounts weekly
- * checklist uses (migration 0080), deliberately: two checklists in one app that
- * grade work differently make "Done" mean two things.
+ * DOER STATUS — the WMS Tasks six (account holder, 2026-09-18), so a checklist
+ * row and a task are graded in one vocabulary: Not Read · Not Started ·
+ * Initiated · Follow Up · Need Info · Done.
  *
- * The brief asked for a plain Done checkbox. The checkbox is what the grid
- * shows, and it toggles Pending ⇄ Done in one click — but the other two states
- * stay reachable from the cell menu, because dropping "Not Applicable" leaves
- * only two honest options for work that never needed doing: tick Done, which
- * inflates the completion rate, or leave it Pending, which reads as neglect.
- * Both corrupt the number the checklist exists to produce.
+ * The checklist used to carry its own four (Pending / Done / Need Help / Not
+ * Applicable). Migration 0237 converts stored rows; `readCheckStatus` still
+ * reads the old words so a database that has not run it yet shows its rows
+ * rather than resetting them. Not Applicable has no doer equivalent — work that
+ * did not need doing is a RULING on the work, and 0237 moves those rows to the
+ * Approver Status "Cancelled".
  */
-export const CHECK_STATUSES = ["Pending", "Done", "Need Help", "Not Applicable"] as const;
+export const CHECK_STATUSES = DOER_TASK_STATUSES;
 export type CheckStatus = (typeof CHECK_STATUSES)[number];
 
 export function isCheckStatus(v: string | null | undefined): v is CheckStatus {
-  return CHECK_STATUSES.includes(v as CheckStatus);
+  return (CHECK_STATUSES as readonly string[]).includes(v as string);
 }
 
-/** The default for an item nobody has touched yet. */
-export const DEFAULT_STATUS: CheckStatus = "Pending";
+/** The default for an item nobody has touched yet — a new task's, too. */
+export const DEFAULT_STATUS: CheckStatus = "not_started";
 
-/** Tone per status, for the chips and the progress read-out. */
-export const STATUS_TONE: Record<CheckStatus, { fg: string; bg: string }> = {
-  Done: { fg: "#15803d", bg: "rgba(22,128,61,0.10)" },
-  Pending: { fg: "#b45309", bg: "rgba(180,83,9,0.10)" },
-  "Need Help": { fg: "#b91c1c", bg: "rgba(185,28,28,0.10)" },
-  "Not Applicable": { fg: "#64748b", bg: "rgba(100,116,139,0.10)" },
+/** The pre-0237 words, as the WMS statuses they became. */
+const LEGACY_STATUS: Record<string, CheckStatus> = {
+  Pending: "not_started",
+  Done: "done",
+  "Need Help": "need_info",
+  "Not Applicable": "not_started",
 };
+
+/** A stored value → the Doer Status it is. Unknown reads as the default. */
+export function readCheckStatus(v: string | null | undefined): CheckStatus {
+  if (isCheckStatus(v)) return v;
+  return (v && LEGACY_STATUS[v]) || DEFAULT_STATUS;
+}
+
+/** The WMS label ("Not Read" for dont_know). */
+export function checkStatusLabel(s: CheckStatus): string {
+  return STATUS_LABELS_FALLBACK[s as TaskStatus] ?? s;
+}
+
+/** The WMS badge colours for a Doer Status. */
+export function checkStatusStyle(s: CheckStatus) {
+  return statusBadgeStyle(STATUS_TONES_FALLBACK[s as TaskStatus]);
+}
+
+/** Approver rulings that take a row out of the work altogether. */
+const RULED_OUT: ReadonlySet<string> = new Set(["cancelled", "archived"]);
+
+/** Did the approver rule this row out (Cancelled / Archived)? */
+export function isRuledOut(approverStatus: string | null | undefined): boolean {
+  return !!approverStatus && RULED_OUT.has(approverStatus);
+}
 
 /** A run's lifecycle. */
 export const RUN_STATUSES = ["active", "completed", "cancelled"] as const;
@@ -88,10 +115,19 @@ export interface ChecklistItemRow {
   jdEntryId: string | null;
   sortOrder: number;
   isActive: boolean;
+  /* ── WMS Tasks columns (0237) ── */
+  client: string | null;
+  initiatorId: string | null;
+  /** Google Calendar's RRULE; null = does not repeat. */
+  recurrenceRule: string | null;
   /* ── the tick ── */
   status: CheckStatus;
+  /** Doer Notes. */
   notes: string | null;
   doneAt: string | null;
+  /** Null = Pending, no ruling yet. */
+  approverStatus: string | null;
+  approverNotes: string | null;
 }
 
 /** An event the checklist can hang off — a Monthly Events Master record. */
@@ -109,27 +145,41 @@ export interface ChecklistPersonRow {
 }
 
 /**
- * Progress over a set of ticks.
+ * Progress over a set of rows.
  *
- * "Not Applicable" is EXCLUDED FROM THE DENOMINATOR, not counted as done. An
- * item that did not apply was never work, so counting it either way distorts
- * the figure: as done it inflates, as outstanding it never clears. A checklist
- * of ten where four do not apply is six items of real work, and 3/6 is the
- * honest read of it.
+ * Rows the approver ruled out (Cancelled / Archived) are EXCLUDED FROM THE
+ * DENOMINATOR, not counted as done — work that was called off was never work,
+ * so counting it either way distorts the figure: as done it inflates, as
+ * outstanding it never clears. A checklist of ten where four were cancelled is
+ * six items of real work, and 3/6 is the honest read of it.
  */
 export function checklistProgress(
-  statuses: readonly CheckStatus[],
-): { done: number; total: number; pct: number; notApplicable: number } {
-  const notApplicable = statuses.filter((s) => s === "Not Applicable").length;
-  const total = statuses.length - notApplicable;
-  const done = statuses.filter((s) => s === "Done").length;
+  rows: readonly { status: CheckStatus; approverStatus?: string | null }[],
+): { done: number; total: number; pct: number; ruledOut: number } {
+  const live = rows.filter((r) => !isRuledOut(r.approverStatus));
+  const done = live.filter((r) => r.status === "done").length;
+  const total = live.length;
   return {
     done,
     total,
-    notApplicable,
-    // A checklist with nothing applicable is complete, not 0% — there is
+    ruledOut: rows.length - total,
+    // A checklist with nothing left to do is complete, not 0% — there is
     // nothing outstanding. Guarding the divide and answering 100 says that;
     // answering 0 would light the card red for work nobody has to do.
     pct: total === 0 ? 100 : Math.round((done / total) * 100),
   };
+}
+
+/** One row of a MASTER checklist — the pattern: no tick, no date, only an offset. */
+export interface ChecklistMasterItem {
+  id: string;
+  code: string | null;
+  title: string;
+  category: string | null;
+  offsetDays: number | null;
+  doerId: string | null;
+  backupId: string | null;
+  instructions: string | null;
+  fileLink: string | null;
+  sortOrder: number;
 }

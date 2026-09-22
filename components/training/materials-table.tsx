@@ -8,6 +8,7 @@ import { fireToast } from "@/lib/toast";
 import { archiveMaterial, deleteMaterial } from "@/app/(app)/training/actions";
 import type { TcMaterialRow } from "@/lib/queries/training";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 type SortKey = "addedOn" | "subject" | "los";
 
@@ -110,10 +111,14 @@ export function MaterialsTable({
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - materials" title="Local search - filters only the list on this page" aria-label="Local search - materials - this page only" className="w-full bg-transparent py-2.5 outline-none text-[15px] font-medium text-ink-strong placeholder:text-ink-subtle placeholder:font-normal" />
         </div>
         </CollapsibleSearch>
-        <select className={CHIP} value={subject} onChange={(e) => setSubject(e.target.value)} aria-label="Filter by subject">
-          <option value="">All Subjects</option>
-          {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <CompactSelect
+          className={CHIP}
+          value={subject}
+          onChange={setSubject}
+          aria-label="Filter by subject"
+          placeholder="All Subjects"
+          options={subjects.map((s) => ({ value: s, label: s }))}
+        />
         {/* Induction toggle pill — one tap to see only induction sessions. */}
         <button
           type="button"

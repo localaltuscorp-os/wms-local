@@ -8,6 +8,7 @@ import { employees, notifications, tasks } from "@/db/schema";
 import type { NotificationKind } from "@/db/schema";
 import { InviteEmail } from "@/emails/invite";
 import { ResetPasswordEmail } from "@/emails/reset-password";
+import { TwoStepCodeEmail } from "@/emails/two-step-code";
 import { CredentialsInviteEmail } from "@/emails/credentials-invite";
 import { WelcomeOfficialEmail } from "@/emails/welcome-official";
 import { AdminResetPasswordEmail } from "@/emails/admin-reset-password";
@@ -36,6 +37,9 @@ import { AttendanceLateWaivedEmail } from "@/emails/notifications/attendance-lat
 import { AttendanceHalfDayEmail } from "@/emails/notifications/attendance-half-day";
 import { AttendanceLateDeductionEmail } from "@/emails/notifications/attendance-late-deduction";
 import { IncentiveDecisionEmail } from "@/emails/notifications/IncentiveDecision";
+import { IncentiveNoticeEmail } from "@/emails/notifications/IncentiveNotice";
+import { incentiveEmailContent } from "@/lib/incentive/notifications/content";
+import { isIncentiveNotificationKind, parseIncentiveMeta } from "@/lib/incentive/notifications/kinds";
 import {
   HrTicketNoticeEmail,
   ticketThreadUrl,
@@ -44,6 +48,11 @@ import {
   IncentiveMonthlyDigestEmail,
   type IncentiveDigestEntry,
 } from "@/emails/notifications/IncentiveMonthlyDigest";
+import { IncentiveWeeklyReportCardEmail } from "@/emails/notifications/IncentiveWeeklyReportCard";
+import {
+  rankMovementLabel,
+  type WeeklyReportCard,
+} from "@/lib/incentive/analytics/weekly-report";
 import type {
   NotificationMeta,
   OverdueDigestTask,
@@ -89,7 +98,22 @@ export function getResend(): Resend | null {
   return cached;
 }
 
-export const FROM = process.env.RESEND_FROM_EMAIL || "Altus Corp Dashboard <onboarding@resend.dev>";
+/**
+ * The sender, from RESEND_FROM_EMAIL — each environment sets its own:
+ *
+ *   local + staging (wms-local)  "Altus Corp Dashboard <noreply@mananvasa.com>"
+ *                                — the only domain that Resend account has
+ *                                verified. Sending as altuscorp.in there failed
+ *                                every mail, and with two-step sign-in nobody
+ *                                could log in.
+ *   production (Altus-OS)        noreply@altuscorp.in — set it there, or leave
+ *                                it unset and this default applies.
+ *
+ * 39ca644b had hardcoded altuscorp.in because production's value was once a
+ * stale mananvasa.com address; production's RESEND_FROM_EMAIL must be correct
+ * (or removed) before this reaches it.
+ */
+export const FROM = process.env.RESEND_FROM_EMAIL?.trim() || "Altus Corp <noreply@altuscorp.in>";
 
 /**
  * D12 (WMS overhaul Phase 6) — company-record BCC. When `EMAIL_BCC_ADDRESS` is
@@ -102,8 +126,11 @@ export const FROM = process.env.RESEND_FROM_EMAIL || "Altus Corp Dashboard <onbo
  */
 export function companyBcc(): { bcc?: string[] } {
   const raw = process.env.EMAIL_BCC_ADDRESS?.trim();
-  if (!raw) return {};
-  const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  // The company archive is the DEFAULT, not an option — every outgoing
+  // correspondence is blind-copied to HR so management keeps a durable record,
+  // even if the env var was never set. A configured value still wins (and can
+  // be a comma-separated list).
+  const list = (raw || "hr.altuscorp@gmail.com").split(",").map((s) => s.trim()).filter(Boolean);
   return list.length > 0 ? { bcc: list } : {};
 }
 
@@ -230,6 +257,37 @@ export async function sendResetPasswordEmail(args: {
       subject: `Reset your Altus Corp password`,
       react: ResetPasswordEmail({
         link: args.resetLink,
+        recipientName: args.recipientName,
+      }),
+    });
+    if (error) return { id: null, error: error.message };
+    return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}
+
+/**
+ * The two-step sign-in code. Never blind-copied to the company archive — like
+ * the reset link, it is a credential, and a copy in another inbox would be a
+ * second way in.
+ */
+export async function sendTwoStepCodeEmail(args: {
+  email: string;
+  code: string;
+  minutes: number;
+  recipientName?: string;
+}): Promise<{ id: string | null; error: string | null }> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: "RESEND_API_KEY not set" };
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: args.email,
+      subject: `${args.code} is your Altus Corp sign-in code`,
+      react: TwoStepCodeEmail({
+        code: args.code,
+        minutes: args.minutes,
         recipientName: args.recipientName,
       }),
     });
@@ -411,13 +469,18 @@ export async function sendNotificationEmail(
 
   if (!template) return;
 
-  await resend.emails.send({
+  // The Resend SDK reports API failures (rejected address, rate limit, bad key)
+  // as `{ error }` rather than throwing. Throw it, so the dispatcher records the
+  // email arm as FAILED — logged in notification_dispatch_log and picked up by
+  // the retry cron — instead of as sent.
+  const { error } = await resend.emails.send({
     from: FROM,
     to: recipient.email,
     subject: clampSubject(n.title),
     react: template,
     ...companyBcc(),
   });
+  if (error) throw new Error(`Resend: ${error.message}`);
 }
 
 /**
@@ -679,6 +742,43 @@ export async function sendIncentiveMonthlyDigestEmail(args: {
   }
 }
 
+/** Weekly Sunday report card — a recipient's per-period incentive figures. */
+export async function sendIncentiveWeeklyReportEmail(args: {
+  recipient: { email: string; name: string };
+  weekLabel: string;
+  card: WeeklyReportCard;
+  siteUrl: string | undefined;
+}): Promise<EmailSendResult> {
+  try {
+    const resend = getResend();
+    if (!resend) return { id: null, error: null };
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: args.recipient.email,
+      subject: clampSubject(`Your weekly incentive report card — ${args.weekLabel}`),
+      react: IncentiveWeeklyReportCardEmail({
+        recipientName: args.recipient.name,
+        weekLabel: args.weekLabel,
+        grade: args.card.grade,
+        pctOfCtc: args.card.pctOfCtc,
+        periods: args.card.periods.map((p) => ({ label: p.label, earned: p.earned })),
+        target: args.card.target,
+        actual: args.card.actual,
+        difference: args.card.difference,
+        rank: args.card.rank,
+        previousRank: args.card.previousRank,
+        movementLabel: rankMovementLabel(args.card.movement),
+        siteUrl: args.siteUrl ?? "",
+      }),
+      ...companyBcc(),
+    });
+    if (error) return { id: null, error: error.message };
+    return { id: data?.id ?? null, error: null };
+  } catch (err) {
+    return { id: null, error: errorMessage(err) };
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Enterprise Communications (ECOS, mig 0179) — broadcast email         */
 /* ------------------------------------------------------------------ */
@@ -812,6 +912,17 @@ function attendanceDateLabel(ymd: string | undefined): string {
 }
 
 function renderNotificationTemplate(ctx: RenderContext): ReactElement | null {
+  // Incentive notifications (mig 0231) — every kind renders the one shared
+  // IncentiveNoticeEmail from the meta stored on the row, so a retry renders
+  // exactly what the first attempt did. Kinds without an email (Not Due) and
+  // malformed meta render nothing; the in-app row still stands.
+  if (isIncentiveNotificationKind(ctx.notification.kind)) {
+    const content = incentiveEmailContent(ctx.notification.kind, parseIncentiveMeta(ctx.notification.body));
+    return content
+      ? IncentiveNoticeEmail({ ...content, recipientName: ctx.recipient.name, siteUrl: ctx.siteUrl })
+      : null;
+  }
+
   const meta = parseMeta(ctx.notification.body);
   const actor = ctx.actorName ?? "Someone";
   const subject = ctx.taskSubject ?? "your task";

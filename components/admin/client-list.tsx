@@ -17,9 +17,11 @@ import { DataTable } from "@/components/admin/ui/data-table";
 
 interface Props {
   clients: ClientWithCount[];
+  /** Manan Sir, Jeevan and Rohan only — everyone else gets a read-only list. */
+  canEdit?: boolean;
 }
 
-export function ClientList({ clients }: Props) {
+export function ClientList({ clients, canEdit = false }: Props) {
   const [editing, setEditing] = useState<ClientWithCount | null>(null);
   const [deleting, setDeleting] = useState<ClientWithCount | null>(null);
 
@@ -77,16 +79,20 @@ export function ClientList({ clients }: Props) {
             render: (c) => <StatusChip active={c.isActive} />,
           },
         ]}
-        rowActions={(c) => (
-          <ClientRowActions
-            client={c}
-            onEdit={() => setEditing(c)}
-            onDelete={() => setDeleting(c)}
-          />
-        )}
-        bulkActions={(selected, clear) => (
-          <ClientBulkActions selected={selected} clear={clear} />
-        )}
+        rowActions={
+          canEdit
+            ? (c) => (
+                <ClientRowActions
+                  client={c}
+                  onEdit={() => setEditing(c)}
+                  onDelete={() => setDeleting(c)}
+                />
+              )
+            : undefined
+        }
+        bulkActions={
+          canEdit ? (selected, clear) => <ClientBulkActions selected={selected} clear={clear} /> : undefined
+        }
         emptyState={
           <>
             <p

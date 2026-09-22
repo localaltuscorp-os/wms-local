@@ -9,6 +9,7 @@
  */
 
 import * as React from "react";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 import { GOALS_ACCENT, GOALS_ACCENT_DEEP } from "@/components/goals/cascade/util";
 import type { RosterMember } from "./types";
 
@@ -77,6 +78,17 @@ export function TeamPicker({
         }
       }}
     >
+      {/* The whole team in one click, then untick the one or two who aren't on
+          this goal — nothing is committed until Done. */}
+      <SelectAllBar
+        compact
+        className="mb-1.5 rounded-md"
+        count={roster.filter((r) => sel.has(r.id)).length}
+        total={roster.length}
+        emptyLabel="No one picked"
+        onSelectAll={() => setSel(new Set(roster.map((r) => r.id)))}
+        onClear={() => setSel(new Set())}
+      />
       <div className="slim-scroll max-h-[180px] overflow-y-auto">
         {roster.map((r) => (
           <label

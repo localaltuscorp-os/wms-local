@@ -26,13 +26,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import {
   ColumnsMenu,
-  FilterPill,
   GroupByControl,
   Pager,
   TableToolbar,
   useHiddenColumns,
 } from "@/components/billing/table-toolbar";
 import { SelectionBar, barBtn, barBtnDanger, useRowSelection } from "@/components/billing/selection-bar";
+import { MultiFilter } from "@/components/ui/multi-filter";
 import { CustomerDetailBody, StatusLine } from "@/components/billing/customer-record";
 import { customerToPrintData, openKycPrintView } from "@/lib/billing/kyc-print";
 import {
@@ -56,7 +56,8 @@ import type {
  * is the signal to change: a slow first paint, not the number of filters.
  */
 
-const ALL = "__all__";
+const PILL =
+  "h-8 max-w-[150px] rounded-pill border border-hairline bg-surface-card pl-2.5 pr-1.5 text-[12px] font-bold text-ink-soft";
 
 export function CustomerMasterView({
   rows,
@@ -72,12 +73,18 @@ export function CustomerMasterView({
   justAddedId?: string;
 }) {
   const [q, setQ] = React.useState(initialQuery);
-  const [sales, setSales] = React.useState(ALL);
-  const [industry, setIndustry] = React.useState(ALL);
-  const [status, setStatus] = React.useState(ALL);
-  const [gstin, setGstin] = React.useState(ALL);
-  const [bizCat, setBizCat] = React.useState(ALL);
-  const [tag, setTag] = React.useState(ALL);
+  /**
+   * Each filter holds a LIST now (Manan, 2026-09-21: "in drop down give
+   * multiple select also as well in filters"). An EMPTY list means no filter,
+   * which is what the old `ALL` sentinel meant — said without a magic string,
+   * and without an "All" row that has to be kept out of every predicate.
+   */
+  const [sales, setSales] = React.useState<string[]>([]);
+  const [industry, setIndustry] = React.useState<string[]>([]);
+  const [status, setStatus] = React.useState<string[]>([]);
+  const [gstin, setGstin] = React.useState<string[]>([]);
+  const [bizCat, setBizCat] = React.useState<string[]>([]);
+  const [tag, setTag] = React.useState<string[]>([]);
 
   /* JUST ONBOARDED. The client the KYC form sent us to, while the banner is
      still up. Dismissing it clears the seeded search too — the banner is the
@@ -90,10 +97,6 @@ export function CustomerMasterView({
   const uniq = (vals: (string | null)[]) =>
     [...new Set(vals.filter((v): v is string => Boolean(v?.trim())))].sort();
   const uniqAll = (vals: string[][]) => [...new Set(vals.flat().filter(Boolean))].sort();
-  const opt = (all: string, vals: string[]) => [
-    { value: ALL, label: all },
-    ...vals.map((v) => ({ value: v, label: v })),
-  ];
 
   const filtered = rows.filter((r) => {
     const text = q.trim().toLowerCase();
@@ -107,12 +110,16 @@ export function CustomerMasterView({
         .some((v) => v!.toLowerCase().includes(text))
     )
       return false;
-    if (sales !== ALL && r.salesPersonName !== sales) return false;
-    if (industry !== ALL && !r.industryTypes.includes(industry)) return false;
-    if (status !== ALL && (status === "Active") !== r.isActive) return false;
-    if (gstin !== ALL && (gstin === "With GSTIN") !== Boolean(r.gstin)) return false;
-    if (bizCat !== ALL && r.businessCategory !== bizCat) return false;
-    if (tag !== ALL && !r.tags.includes(tag)) return false;
+    // "One of the ticked ones" throughout. Status and GSTIN read oddly as
+    // lists — there are only two choices each and ticking both is the same as
+    // ticking neither — but they behave consistently with the rest and the
+    // tiles below still drive them.
+    if (sales.length > 0 && !sales.includes(r.salesPersonName ?? "")) return false;
+    if (industry.length > 0 && !industry.some((i) => r.industryTypes.includes(i))) return false;
+    if (status.length > 0 && !status.includes(r.isActive ? "Active" : "Inactive")) return false;
+    if (gstin.length > 0 && !gstin.includes(r.gstin ? "With GSTIN" : "Without GSTIN")) return false;
+    if (bizCat.length > 0 && !bizCat.includes(r.businessCategory ?? "")) return false;
+    if (tag.length > 0 && !tag.some((t) => r.tags.includes(t))) return false;
     return true;
   });
 
@@ -147,11 +154,11 @@ export function CustomerMasterView({
   }, [ordered, groupBy]);
 
   const activeFilters = [sales, industry, status, gstin, bizCat, tag].filter(
-    (v) => v !== ALL,
+    (v) => v.length > 0,
   ).length;
   function resetFilters() {
-    setSales(ALL); setIndustry(ALL);
-    setStatus(ALL); setGstin(ALL); setBizCat(ALL); setTag(ALL);
+    setSales([]); setIndustry([]);
+    setStatus([]); setGstin([]); setBizCat([]); setTag([]);
   }
 
   const sel = useRowSelection(pageRows.map((r) => r.id));
@@ -299,20 +306,29 @@ export function CustomerMasterView({
         <Tile
           n={stats.total}
           label="Total clients"
-          active={status === ALL && gstin === ALL}
-          onClick={() => { setStatus(ALL); setGstin(ALL); setPageIndex(0); }}
+          active={status.length === 0 && gstin.length === 0}
+          onClick={() => { setStatus([]); setGstin([]); setPageIndex(0); }}
         />
         <Tile
           n={stats.active}
           label="Active"
-          active={status === "Active"}
-          onClick={() => { setStatus(status === "Active" ? ALL : "Active"); setPageIndex(0); }}
+          active={status.length === 1 && status[0] === "Active"}
+          onClick={() => {
+            // The tile is a shortcut to ONE value, so it replaces the selection
+            // rather than adding to it — clicking "Active" should show exactly
+            // the active clients, whatever was ticked before.
+            setStatus(status.length === 1 && status[0] === "Active" ? [] : ["Active"]);
+            setPageIndex(0);
+          }}
         />
         <Tile
           n={stats.withGstin}
           label="With GSTIN"
-          active={gstin === "With GSTIN"}
-          onClick={() => { setGstin(gstin === "With GSTIN" ? ALL : "With GSTIN"); setPageIndex(0); }}
+          active={gstin.length === 1 && gstin[0] === "With GSTIN"}
+          onClick={() => {
+            setGstin(gstin.length === 1 && gstin[0] === "With GSTIN" ? [] : ["With GSTIN"]);
+            setPageIndex(0);
+          }}
         />
       </section>
 
@@ -337,12 +353,12 @@ export function CustomerMasterView({
               />
             </div>
           </CollapsibleSearch>
-          <FilterPill label="Sales person" value={sales} onChange={(v) => { setSales(v); setPageIndex(0); }} allValue={ALL} options={opt("Sales person", uniq(rows.map((r) => r.salesPersonName)))} />
-          <FilterPill label="Industry type" value={industry} onChange={(v) => { setIndustry(v); setPageIndex(0); }} allValue={ALL} options={opt("Industry", uniqAll(rows.map((r) => r.industryTypes)))} />
-          <FilterPill label="Status" value={status} onChange={(v) => { setStatus(v); setPageIndex(0); }} allValue={ALL} options={opt("Status", ["Active", "Inactive"])} />
-          <FilterPill label="GSTIN" value={gstin} onChange={(v) => { setGstin(v); setPageIndex(0); }} allValue={ALL} options={opt("GSTIN", ["With GSTIN", "Without GSTIN"])} />
-          <FilterPill label="Business category" value={bizCat} onChange={(v) => { setBizCat(v); setPageIndex(0); }} allValue={ALL} options={opt("Business category", uniq(rows.map((r) => r.businessCategory)))} />
-          <FilterPill label="Tags" value={tag} onChange={(v) => { setTag(v); setPageIndex(0); }} allValue={ALL} options={opt("Tags", uniqAll(rows.map((r) => r.tags)))} />
+          <MultiFilter allLabel="Sales person" className={PILL} values={sales} onChange={(v) => { setSales(v); setPageIndex(0); }} options={uniq(rows.map((r) => r.salesPersonName))} />
+          <MultiFilter allLabel="Industry type" className={PILL} values={industry} onChange={(v) => { setIndustry(v); setPageIndex(0); }} options={uniqAll(rows.map((r) => r.industryTypes))} />
+          <MultiFilter allLabel="Status" className={PILL} values={status} onChange={(v) => { setStatus(v); setPageIndex(0); }} options={["Active", "Inactive"]} />
+          <MultiFilter allLabel="GSTIN" className={PILL} values={gstin} onChange={(v) => { setGstin(v); setPageIndex(0); }} options={["With GSTIN", "Without GSTIN"]} />
+          <MultiFilter allLabel="Business category" className={PILL} values={bizCat} onChange={(v) => { setBizCat(v); setPageIndex(0); }} options={uniq(rows.map((r) => r.businessCategory))} />
+          <MultiFilter allLabel="Tags" className={PILL} values={tag} onChange={(v) => { setTag(v); setPageIndex(0); }} options={uniqAll(rows.map((r) => r.tags))} />
           {activeFilters > 0 ? (
             <button
               type="button"

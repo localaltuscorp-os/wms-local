@@ -63,6 +63,7 @@ const APPROVAL_LABEL: Record<ApprovalStatus, string> = {
   on_hold: "On Hold",
   cancelled: "Cancelled",
   transferred: "Transferred",
+  archived: "Archived",
 };
 
 /** Pretty field with on-focus underline + soft shadow (cyan brand voice). */

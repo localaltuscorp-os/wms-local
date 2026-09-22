@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, type Employee } from "@/db/schema";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { localAllWorkspaces } from "@/lib/auth/local-session";
 
 /**
  * DCC visibility scope. Employees see only their own KPIs; a manager sees their
@@ -18,7 +19,17 @@ export interface DccScope {
 }
 
 export async function loadDccScope(me: Employee): Promise<DccScope> {
-  if (isSuperAdmin(me.email)) {
+  /* DEV_ALL_WORKSPACES widens the LOCAL session, exactly as it already does for
+     every room (lib/auth/workspace-access) and for the HR module
+     (lib/hr/access). DCC was the one module that read `isSuperAdmin` alone, and
+     the consequence was worse than a shut door: a developer whose own account
+     has one compliance and no reports saw every DCC screen render EMPTY and had
+     no way to tell that apart from the feature being broken. The temptation
+     then is to point DEV_USER_EMAIL at a super-admin, which is impersonation —
+     it puts somebody else's name on every write.
+     `localAllWorkspaces()` requires DISABLE_AUTH and is dead under
+     NODE_ENV=production or on Vercel, so no deployment reaches this. */
+  if (isSuperAdmin(me.email) || localAllWorkspaces()) {
     const all = await db.select({ id: employees.id }).from(employees);
     return { me, isSuper: true, isManager: true, visibleIds: new Set(all.map((a) => a.id)) };
   }

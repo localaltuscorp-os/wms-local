@@ -74,6 +74,7 @@ import {
 } from "@/app/(app)/goals/cascade/detail-actions";
 import { reviewGoal } from "@/app/(app)/goals/review/actions";
 import { useCanvasShell } from "./shell-context";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /* ------------------------------------------------------------------ */
 
@@ -779,20 +780,18 @@ function DependenciesSection({ node, bundle, loading }: { node: CollabNode; bund
               </button>
             ))}
           </div>
-          <select
+          <CompactSelect
             value={targetId}
-            onChange={(e) => setTargetId(e.target.value)}
-            className="w-full rounded-md border px-2 py-1.5 text-[12.5px] font-semibold outline-none"
-            style={{ borderColor: "var(--color-hairline-strong)" }}
+            onChange={setTargetId}
+            className="w-full rounded-md border px-2 py-1.5 text-[12.5px] font-semibold"
             aria-label="Pick a goal this depends on"
-          >
-            <option value="">External / free-text (name it below)…</option>
-            {candidates.map((g) => (
-              <option key={g.id} value={g.id}>
-                {goalCode(g)} · {g.title.slice(0, 60)}
-              </option>
-            ))}
-          </select>
+            placeholder="External / free-text (name it below)…"
+            matchTriggerWidth
+            options={candidates.map((g) => ({
+              value: g.id,
+              label: `${goalCode(g)} · ${g.title.slice(0, 60)}`,
+            }))}
+          />
           <input
             value={label}
             onChange={(e) => setLabel(e.target.value)}

@@ -134,13 +134,26 @@ const clean = (v: string | null | undefined): string | null => {
   return t ? t : null;
 };
 
-/** "01 Jan 2026" without pulling a date library into a client bundle. */
+/**
+ * "01-Jan-2026" — the app-wide DD-MMM-YYYY, without pulling a date library
+ * into a client bundle.
+ *
+ * IT USED TO EMIT SPACES ("01 Jan 2026"), which made Billing the last place
+ * in the app reading a different way to everywhere else — and it is the most
+ * visible place, because this is the date printed on invoices, quotations and
+ * the emails that carry them out of the company.
+ *
+ * Hand-rolled rather than calling `formatDate` from lib/format: this module is
+ * imported by the PDF renderer and the email templates as well as the browser,
+ * and it already parses the `YYYY-MM-DD` string it is given. The FORMAT is the
+ * same one lib/format documents as canonical; keep the two in step.
+ */
 export function fmtDocDate(iso: string | null | undefined): string {
   if (!iso) return "";
   const [y, m, d] = iso.split("-").map(Number);
   if (!y || !m || !d) return iso;
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${String(d).padStart(2, "0")} ${MONTHS[m - 1]} ${y}`;
+  return `${String(d).padStart(2, "0")}-${MONTHS[m - 1]}-${y}`;
 }
 
 /** Indian grouping, always 2dp — every figure on a document is tabular. */

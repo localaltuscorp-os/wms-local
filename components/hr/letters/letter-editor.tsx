@@ -9,6 +9,7 @@ import {
   Check,
   Building2,
   UserRound,
+  ContactRound,
   SquarePen,
   ArrowLeft,
   Save,
@@ -44,6 +45,7 @@ import {
   HR_SIGNATURE_IMAGE,
   PROPRIETOR_SIGNATURE_IMAGE,
 } from "@/lib/hr/firm";
+import { DateField } from "@/components/ui/date-field";
 import { formatDateHr } from "@/lib/format";
 import {
   readCtcLetterPrefill,
@@ -57,6 +59,7 @@ import {
 } from "@/lib/hr/letters/templates/ctc-breakup";
 import { formatINR, num } from "@/lib/hr/ctc/model";
 import { fireToast } from "@/lib/toast";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
@@ -150,6 +153,10 @@ export interface LetterRosterOption {
   designation: string;
   /** Their email on file — pre-fills the "Send Email" composer's To field. */
   email?: string;
+  /** The personal inbox the letter PDF is emailed TO. Falls back to `email`. */
+  personalEmail?: string;
+  /** The company address (firstname.lastname@<domain>), copied as CC. */
+  officialEmail?: string;
   /** The employee's paying entity (from their salary profile) as an EntityId —
    *  picking them auto-selects the matching letterhead. Null → keep the default. */
   payingEntity?: EntityId | null;
@@ -685,7 +692,9 @@ export function LetterEditor({
     const attached = employeeId ? roster.find((r) => r.id === employeeId) : undefined;
     const name = (attached?.name ?? recipientName).trim();
     setCompose({
-      to: (attached?.email ?? recipientEmail).trim(),
+      // Email the PERSONAL inbox (the address they actually check); the office
+      // address is added as CC server-side, not here.
+      to: (attached?.personalEmail || attached?.email || recipientEmail).trim(),
       subject: name ? `${template.title} - ${name}` : template.title,
       message: "",
     });
@@ -806,18 +815,40 @@ export function LetterEditor({
           </select>
         </label>
 
-        {/* Recipient picker — OUR employee list (roster). Quick-fills the name +
-            designation (and CTC Rs. figures for CTC letters) and attaches the
-            letter to that employee. Replaces the old Candidate + Attach-Employee
-            dropdowns. */}
+        {/* Recipient picker — two lists, because a letter is addressed to EITHER
+            a candidate (Selection / offer / rejection …) OR an employee
+            (appointment, appraisal, increment …). Picking a candidate seeds the
+            recipient-name field + the pronoun gender from their intake; picking
+            an employee quick-fills name + designation (+ CTC ₹ for CTC letters)
+            and attaches the letter to that employee. An employee is never
+            offered in the candidate list — they are already on staff, so a
+            Selection letter cannot go to them. */}
+        {isAdmin && candidates.length > 0 && (
+          <label className="alw-pick">
+            <ContactRound size={15} strokeWidth={2.2} aria-hidden />
+            <span className="alw-pick-label">Candidate</span>
+            <CompactSelect
+              value={candidateId}
+              onChange={(id) => {
+                if (id) onPickCandidate(id);
+                else {
+                  setCandidateId("");
+                  setIssued(false);
+                }
+              }}
+              aria-label="Pick the candidate this letter is for"
+              placeholder="- pick a candidate -"
+              options={candidates.map((c) => ({ value: c.id, label: c.name }))}
+            />
+          </label>
+        )}
         {isAdmin && roster.length > 0 && (
           <label className="alw-pick">
             <UserRound size={15} strokeWidth={2.2} aria-hidden />
             <span className="alw-pick-label">Employee</span>
-            <select
+            <CompactSelect
               value={employeeId}
-              onChange={(e) => {
-                const id = e.target.value;
+              onChange={(id) => {
                 if (id) onSeedEmployee(id);
                 else {
                   setEmployeeId("");
@@ -825,15 +856,13 @@ export function LetterEditor({
                 }
               }}
               aria-label="Pick the employee this letter is for"
-            >
-              <option value="">- pick an employee -</option>
-              {roster.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                  {r.designation ? ` · ${r.designation}` : ""}
-                </option>
-              ))}
-            </select>
+              placeholder="- pick an employee -"
+              panelWidth={260}
+              options={roster.map((r) => ({
+                value: r.id,
+                label: r.designation ? `${r.name} · ${r.designation}` : r.name,
+              }))}
+            />
           </label>
         )}
 
@@ -1864,13 +1893,22 @@ function Field({
       />
     );
   }
-  // Date field → native calendar. Stored value is the human date ("15 August
-  // 2026"); the picker shows/edits it via an ISO shadow.
+  /**
+   * Date field → <DateField>, NOT a native `<input type="date">`.
+   *
+   * The letter stores and prints the canonical "21-Jan-1984" (isoToDisplayDate
+   * → formatDateHr), but the native input rendered that same value as
+   * `21-01-1984` because the browser formats it from the OS locale and nothing
+   * on the page can change that. So the document and the box you edited it in
+   * disagreed. DateField shows the same string the letter will print.
+   *
+   * It speaks ISO, and the letter stores human, so the conversion stays on this
+   * one line in each direction — exactly where it already was.
+   */
   if (spec.date) {
     return (
-      <input
-        type="date"
-        ref={autoFocus ? focusWithoutScroll : undefined}
+      <DateField
+        inputRef={autoFocus ? focusWithoutScroll : undefined}
         aria-label={spec.label}
         data-filled={filled || undefined}
         value={displayDateToIso(value)}

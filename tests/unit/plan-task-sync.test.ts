@@ -95,55 +95,6 @@ describe("one client per plan", () => {
   });
 });
 
-describe("the plan table shows both axes at once", () => {
-  const board = codeOf("components/project-plan/plan-board.tsx");
-  const cell = codeOf("components/project-plan/plan-status-cell.tsx");
-
-  it("has a Doer Status column and an Initiator Status column", () => {
-    expect(board).toContain('{ key: "status", label: "Doer Status"');
-    expect(board).toContain('{ key: "initiatorStatus", label: "Initiator Status"');
-  });
-
-  it("renders them side by side, each on its own axis", () => {
-    expect(board).toContain('axis="doer"');
-    expect(board).toContain('axis="initiator"');
-  });
-
-  it("stops the verdict from hiding the progress report", () => {
-    // The doer cell hands the WORKING status straight to the shared control.
-    // Routing it through effectivePlanStatus would let a verdict outrank it,
-    // which is what the single combined cell used to do.
-    expect(cell).toContain('axis === "doer"');
-    expect(cell).toContain("<DoerStatusSelect");
-    expect(cell).toContain("status={workingStatusOf(node)}");
-    // ...and the verdict goes to its OWN control, off the same row.
-    expect(cell).toContain("<InitiatorStatusSelect");
-    expect(cell).toContain("approvalStatus={node.approvalStatus}");
-  });
-
-  it("shows an unruled row as No Verdict, not as Not Approved", () => {
-    // BOTH CELLS ARE THE SHARED CONTROL NOW (2026-09-15), so "No Verdict" is
-    // rendered once, in components/status/status-select.tsx, rather than by
-    // each table spelling it for itself. That is what this now pins: the plan
-    // cell must not grow a second copy of the rule.
-    const shared = codeOf("components/status/status-select.tsx");
-    expect(shared).toContain('placeholder="No Verdict"');
-    expect(shared).toContain("effectiveInitiatorStatus(approvalStatus, archived)");
-    expect(cell).not.toContain("No verdict");
-  });
-
-  it("keeps Archived out of the dropdown — it cascades, so it needs the confirm", () => {
-    // Twice over: the combined "both" select filters it out of its own list,
-    // and the shared initiator control is told to hide it on this board.
-    expect(cell).toContain('(s) => s !== "archived" && canSetPlanStatus(actor, s).ok');
-    expect(cell).toContain("hideArchived");
-  });
-
-  it("exports the two axes as separate columns", () => {
-    expect(board).toContain("initiatorStatus: (() => {");
-  });
-});
-
 describe("only Action / Sub-Action / Sub-Sub-Action reach the task section", () => {
   const levels = codeOf("lib/project-plan/levels.ts");
 
@@ -244,17 +195,12 @@ describe("an executable row needs a description before it can be scheduled", () 
   });
 });
 
-describe("the WMS task list shows the initiator axis too", () => {
+describe("the WMS task list carries the Initiator Status column", () => {
   const table = codeOf("components/tasks/task-table.tsx");
 
   it("has an Initiator Status column beside Doer Status", () => {
     expect(table).toContain('header: "Initiator Status"');
     expect(table).toContain('approvalStatus: "Initiator Status"');
-  });
-
-  it("renders the SHARED control, not a task-only dropdown", () => {
-    expect(table).toContain("InitiatorStatusSelect");
-    expect(table).toContain("setTaskInitiatorStatus");
   });
 
   it("splices a new column in at its default position instead of appending", () => {
@@ -263,15 +209,6 @@ describe("the WMS task list shows the initiator axis too", () => {
     // difference nobody reproduces.
     expect(table).toContain("merged.splice(at, 0, id)");
     expect(table).not.toContain("setColumnOrder([...kept, ...added])");
-  });
-
-  it("sorts undecided rows first — the queue an initiator clears", () => {
-    expect(table).toContain("return v === null ? -1 : INITIATOR_STATUSES.indexOf(v)");
-  });
-
-  it("asks the same permission question the other two modules ask", () => {
-    expect(table).toContain("isInitiator: r.initiatorId === me.id");
-    expect(table).toContain("isDoer: r.doerId === me.id");
   });
 });
 

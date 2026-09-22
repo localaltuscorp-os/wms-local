@@ -90,15 +90,17 @@ export function ModuleShortcuts({
         return;
       }
 
-      // `e.code` ("KeyQ") ahead of `e.key`, because Alt+letter on macOS emits a
+      // `e.code` ("KeyW") ahead of `e.key`, because Alt+letter on macOS emits a
       // symbol ("œ" for Alt+Q) rather than the letter, and a non-Latin layout
       // can do the same to `e.key`. The physical key is what the footer labels.
       const letter = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3) : e.key;
 
-      // THE ADMIN PANEL (Alt+A). Checked ahead of the module alphabet for the
-      // same reason as the hub listener: the two cannot both match today, and
-      // ordering them means a future edit that put A back into SHORTCUT_KEYS
-      // would break visibly here rather than quietly shadowing the panel.
+      // THE ADMIN PANEL (Alt+D). Checked ahead of the modules for the same
+      // reason as the hub listener: the two cannot both match today, and
+      // ordering them means a future edit that gave a module D would break
+      // visibly here rather than quietly shadowing the panel.
+      // (It was Alt+A until 2026-09-12, when the letters became mnemonic and
+      // Accounts claimed A.)
       //
       // NO TYPING GUARD, and none is needed: this whole handler already requires
       // Alt or Meta, which is what makes it safe inside a text field — the same

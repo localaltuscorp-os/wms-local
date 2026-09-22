@@ -173,6 +173,13 @@ export async function assertRemoteWorkApproved(
 
   const approved = await approvedRemoteWorkFor(employeeId, workDate);
   if (!approved) {
+    // FULL TIME WFH (0228) is a standing entitlement: no per-day request. It is
+    // honoured by RECORDING today's approval rather than by skipping this gate,
+    // because migration 0205's trigger refuses a remote punch with no approved
+    // row regardless of what this function says — see `standingWfhGrant`.
+    if (workMode === "wfh" && (await standingWfhGrant(employeeId, workDate))) {
+      return { ok: true, clientLocationId: null };
+    }
     return {
       ok: false,
       error: `No approved ${label(workMode)} request for ${workDate}. Ask Rutvisha, Manan or Om to approve it first.`,
@@ -192,6 +199,111 @@ export async function assertRemoteWorkApproved(
 
 function label(mode: string): string {
   return REMOTE_WORK_MODE_LABELS[mode as RemoteWorkMode] ?? mode;
+}
+
+/**
+ * The two WFH entitlements on the employee record (0228).
+ *
+ * Read fresh on every use rather than threaded through callers: the punch gate
+ * and the request form are called from the web action, the mobile routes and
+ * the admin screens, and an entitlement an admin just switched off must stop
+ * applying on the very next punch, not on whichever code path happened to
+ * refetch the row.
+ */
+async function wfhEntitlement(employeeId: string): Promise<{ fullTime: boolean; partTime: boolean }> {
+  const [row] = await db
+    .select({ fullTime: employees.wfhFullTimeAllowed, partTime: employees.wfhPartTimeAllowed })
+    .from(employees)
+    .where(eq(employees.id, employeeId))
+    .limit(1);
+  return { fullTime: row?.fullTime === true, partTime: row?.partTime === true };
+}
+
+const AUTO_APPROVAL_NOTE = {
+  fullTime: "Auto-approved — Full Time WFH is allowed on this employee's record.",
+  partTime: "Auto-approved — Part Time WFH is allowed on this employee's record.",
+} as const;
+
+/**
+ * FULL TIME WFH (0228): honour the standing entitlement for one date by
+ * RECORDING an approval, then report whether a WFH punch may land.
+ *
+ * ── WHY IT WRITES A ROW INSTEAD OF WAVING THE PUNCH THROUGH ────────────────
+ * Migration 0205's trigger `require_approved_remote_work` refuses any non-admin
+ * remote punch that has no `approved` request for that employee, date and mode —
+ * whatever this module decides. Returning `ok` without a row would just move the
+ * refusal from a readable sentence to a Postgres exception. Writing the row also
+ * keeps every WFH tally honest, since those count approved requests.
+ *
+ * `decided_by_id` is the employee themselves: the CHECK
+ * `remote_work_requests_decided_chk` requires a decider on a non-pending row,
+ * and the authority really is the entitlement on their own record. The note
+ * says so, so nobody reads it as self-approval.
+ *
+ * ── WHAT IT WILL NOT OVERRIDE ──────────────────────────────────────────────
+ *   · an approver's explicit REJECTION of this date — a standing permission is
+ *     the default, and a specific "not this day" is the more specific decision;
+ *   · a pending request for a DIFFERENT mode — that is the person asking to be
+ *     somewhere else, and silently turning it into a home day would discard it.
+ */
+async function standingWfhGrant(employeeId: string, workDate: string): Promise<boolean> {
+  const { fullTime } = await wfhEntitlement(employeeId);
+  if (!fullTime) return false;
+
+  const [prior] = await db
+    .select({
+      id: remoteWorkRequests.id,
+      status: remoteWorkRequests.status,
+      workMode: remoteWorkRequests.workMode,
+    })
+    .from(remoteWorkRequests)
+    .where(
+      and(eq(remoteWorkRequests.employeeId, employeeId), eq(remoteWorkRequests.workDate, workDate)),
+    )
+    .limit(1);
+
+  if (prior && (prior.status === "rejected" || prior.workMode !== "wfh")) return false;
+
+  const now = new Date();
+  try {
+    if (prior) {
+      await db
+        .update(remoteWorkRequests)
+        .set({
+          status: "approved",
+          decidedById: employeeId,
+          decidedAt: now,
+          decisionNote: AUTO_APPROVAL_NOTE.fullTime,
+          updatedAt: now,
+        })
+        .where(and(eq(remoteWorkRequests.id, prior.id), eq(remoteWorkRequests.status, "pending")));
+    } else {
+      await db
+        .insert(remoteWorkRequests)
+        .values({
+          employeeId,
+          workDate,
+          workMode: "wfh",
+          allDay: true,
+          startTime: ALL_DAY_START,
+          endTime: ALL_DAY_END,
+          status: "approved",
+          decidedById: employeeId,
+          decidedAt: now,
+          decisionNote: AUTO_APPROVAL_NOTE.fullTime,
+        })
+        // Two punches racing on the same morning both try to insert; the
+        // (employee, date) unique index lets exactly one win, and the re-read
+        // below answers for both.
+        .onConflictDoNothing();
+    }
+  } catch {
+    return false;
+  }
+
+  // Answer from the table, because the trigger will.
+  const recorded = await approvedRemoteWorkFor(employeeId, workDate);
+  return recorded?.workMode === "wfh";
 }
 
 /** "HH:MM", 24-hour. Deliberately strict — a half-typed time must not store. */
@@ -345,6 +457,20 @@ export async function requestRemoteWork(
   // not a series of one.
   const seriesId = mode === "none" ? null : crypto.randomUUID();
 
+  // WFH ENTITLEMENT (0228). A WFH request from someone whose record allows WFH
+  // needs nobody's sign-off, so it is recorded as decided on the way in. The
+  // dates are still stored one row per day — that is what the calendar, the WFH
+  // tallies and the punch trigger all read — but nobody waits in a queue for a
+  // permission that already exists. Without the entitlement nothing changes:
+  // the request is pending and goes to an approver exactly as it always has.
+  //
+  // Part Time WFH is honoured HERE and only here. It means "some days, not
+  // all", so the person still says which days; Full Time WFH additionally needs
+  // no request at all — see `standingWfhGrant` in the punch gate.
+  const entitlement = input.workMode === "wfh" ? await wfhEntitlement(input.employeeId) : null;
+  const autoApprove = !!entitlement && (entitlement.fullTime || entitlement.partTime);
+  const now = new Date();
+
   const base = {
     employeeId: input.employeeId,
     workMode: input.workMode,
@@ -356,8 +482,20 @@ export async function requestRemoteWork(
     endTime: hours.endTime,
     recurrence: mode,
     seriesId,
-    status: "pending" as RemoteWorkStatus,
-    updatedAt: new Date(),
+    status: (autoApprove ? "approved" : "pending") as RemoteWorkStatus,
+    // `remote_work_requests_decided_chk` requires a decider on anything not
+    // pending — see `standingWfhGrant` for why that is the employee themselves,
+    // and why the note says so.
+    ...(autoApprove
+      ? {
+          decidedById: input.employeeId,
+          decidedAt: now,
+          decisionNote: entitlement!.fullTime
+            ? AUTO_APPROVAL_NOTE.fullTime
+            : AUTO_APPROVAL_NOTE.partTime,
+        }
+      : {}),
+    updatedAt: now,
   };
 
   try {

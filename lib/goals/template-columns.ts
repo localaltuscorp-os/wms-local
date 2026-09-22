@@ -323,7 +323,7 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     help: "Who owns the goal (name or email). Blank → the default owner picked in the import dialog.",
   },
   {
-    field: "department", header: "Department", schemaField: null,
+    field: "department", header: "Function", schemaField: null,
     writable: false, persisted: false, locked: false, source: "department", width: 16,
     aliases: ["department", "dept"],
     help: "Owner's department - reference/filter only (derived from the owner; not written).",

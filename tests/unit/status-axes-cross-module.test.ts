@@ -77,10 +77,6 @@ describe("Projects speaks the shared vocabulary", () => {
     expect([...PLAN_WORKING_STATUSES]).toEqual([...DOER_STATUSES]);
   });
 
-  it("reuses the initiator axis rather than redeclaring it", () => {
-    expect([...PLAN_RESTRICTED_STATUSES]).toEqual([...INITIATOR_STATUSES]);
-  });
-
   it("labels every value the same way the other modules do", () => {
     for (const s of DOER_STATUSES) {
       expect(PLAN_STATUS_LABEL[s]).toBe(DOER_STATUS_LABEL[s]);
@@ -89,52 +85,6 @@ describe("Projects speaks the shared vocabulary", () => {
       expect(PLAN_STATUS_LABEL[s]).toBe(INITIATOR_STATUS_LABEL[s]);
     }
   });
-
-  it("still renders the pre-split `cancelled`, but never offers it", () => {
-    expect(PLAN_STATUS_LABEL.cancelled).toBe("Cancelled");
-    const offered = selectableStatuses({
-      id: "admin",
-      isAdmin: true,
-      isOwner: true,
-      isDoer: false,
-      isSupervisor: false,
-    });
-    expect(offered).not.toContain("cancelled");
-    // …and an admin/owner sees everything that IS offered.
-    expect(offered).toEqual([...DOER_STATUSES, ...INITIATOR_STATUSES]);
-  });
-});
-
-describe("Goals speaks the shared vocabulary", () => {
-  // ASSERTED ON THE SOURCE, not by importing the component. `goal-table-view`
-  // pulls in its server actions, which pull in the db client, which parses the
-  // real environment — importing it into a unit test fails on a missing
-  // DATABASE_URL rather than on anything about statuses. The repo already keeps
-  // `codeOf` for structural assertions like this one.
-  const table = codeOf("components/goals/board/goal-table-view.tsx");
-
-  it("offers the initiator axis as a column on its table", () => {
-    expect(table).toContain('{ key: "initiatorStatus", label: "Initiator Status" }');
-    expect(table).toContain(
-      '{ key: "initiatorStatus", label: "Initiator Status", pickable: true }',
-    );
-  });
-
-  it("renders the SHARED control there, not a Goals-only dropdown", () => {
-    expect(table).toContain("InitiatorStatusSelect");
-    expect(table).toContain("setGoalInitiatorStatus");
-  });
-
-  it("reads the put-away flag, never the soft-delete one", () => {
-    // `archived` on goals is the Recycle Bin marker; `archived_at` is "put
-    // away". Wiring the axis to the former would DELETE a goal when an
-    // initiator meant to file it — see lib/status/axes.ts.
-    expect(table).toContain("archived={g.isPutAway ?? false}");
-  });
-
-  // The doer axis needs no Goals-specific assertion: the goals table reads
-  // USER_TASK_STATUSES / ADMIN_TASK_STATUSES directly, which the Tasks block
-  // above already pins to the shared seven.
 });
 
 describe("the labels themselves", () => {

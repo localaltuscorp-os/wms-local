@@ -13,6 +13,7 @@
  */
 
 import { type LetterTemplate, t, f, para, term } from "../types";
+import { personSignOff } from "../sign-off";
 
 const template: LetterTemplate = {
   key: "ffs-acknowledgement",
@@ -72,10 +73,11 @@ const template: LetterTemplate = {
 
     para(t("Yours faithfully,")),
 
-    term("Employee Name", f("employeeName", "Employee Name", { placeholder: "Full name" })),
     term("Employee ID", f("employeeId", "Employee ID", { placeholder: "e.g. ALT-0042" })),
-    term("Signature", [t("")]),
-    term("Date", f("signDate", "Date", { placeholder: "e.g. 25 July 2026", date: true })),
+
+    // Name / Date / Signature were three rows of a term table here; they are
+    // now the same three lines this appears as on every other signed letter.
+    ...personSignOff({ prefix: "employee", who: "Signed by the employee" }),
   ],
 };
 

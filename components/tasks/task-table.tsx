@@ -145,10 +145,19 @@ import { TaskRowActions } from "./task-row-actions";
 import { TaskTimerCell } from "./task-timer-cell";
 import { BulkActionBar } from "./bulk-action-bar";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { LateBadge } from "@/components/ui/late-badge";
 import { isDoneLate } from "@/lib/task-late";
 import { InlineStatusCell } from "./inline-status-cell";
+import { ApproverChip } from "@/components/status/approver-chip";
+import {
+  APPROVER_CHOICES,
+  selectableApproverChoices,
+  taskApproverShown,
+  taskDoerShown,
+} from "@/lib/status/approver-status";
+import { setTaskApproverStatus } from "@/app/(app)/tasks/actions";
 import { canEditTaskFields } from "@/lib/auth/task-permissions";
 // Shared with the dashboard's section pager so both agree on which page numbers
 // to show; see the footer pager below.
@@ -186,6 +195,7 @@ const COLUMN_LABELS: Record<string, string> = {
   initiatorName: "Initiator",
   priority: "Priority",
   status: "Doer Status",
+  approvalStatus: "Initiator Status",
   subject: "Subject",
   createdAt: "Created",
   dueAt: "Due",
@@ -285,7 +295,7 @@ function frozenLeftOffsets(orderedIds: string[]): Record<string, number> {
 
 function buildColumns(
   employees: { id: string; name: string }[],
-  me: { id: string; isAdmin: boolean; canChangeDoer?: boolean },
+  me: { id: string; isAdmin: boolean; canChangeDoer?: boolean; managedIds?: string[] },
   statusLabels: StatusLabels,
   statusTones: StatusTones,
   /** DOUBLE-click / Enter — open the record in full. */
@@ -492,7 +502,10 @@ function buildColumns(
           <span className="inline-flex items-center gap-1.5">
             <InlineStatusCell
               taskId={row.id}
-              status={row.status}
+              // An approved / rejected row was Done — its doer side reads Done.
+              // Only a read-only chip shows it; editing still starts from the
+              // stored status, which the server validates.
+              status={canEdit ? row.status : taskDoerShown(row.status)}
               updatedAt={row.updatedAt}
               labels={statusLabels}
               tones={statusTones}
@@ -506,23 +519,42 @@ function buildColumns(
         );
       },
     },
-    /* INITIATOR STATUS WAS HERE, and was removed on request (Manan,
-     * 2026-09-15): "remove initiator status from task table, goals tables and
-     * project tables as well — don't remove from kanban section".
-     *
-     * THE AXIS IS NOT GONE, only this column. The verdict is still stored
-     * (`tasks.approval_status`, migration 0225), still set from the Kanban's
-     * Initiator Status board and the bulk bar, still filterable from the
-     * Approved pill, and still shown on the task's own detail view. What went
-     * is ~150px of table width on a table whose width is contested — the same
-     * objection that removed the older Manager Status column here in 2026-09.
-     *
-     * The picker itself is untouched: `InitiatorStatusSelect` lives in
-     * components/status/status-select.tsx and is still what the Kanban and the
-     * detail view render, so nothing had to be deleted to make this column
-     * disappear — only its three imports here. Git has the column if it is ever
-     * wanted back.
-     */
+    /* INITIATOR STATUS (2026-09-15) — back beside Doer Status, and
+     * editable where the viewer may rule: the initiator, the doer's manager or
+     * an admin, never the doer (lib/status/approver-status.ts). It reads the
+     * ruling from `approval_status`, falling back to an old verdict or hold
+     * still stored in `status`, so every existing row shows what it is. */
+    {
+      accessorKey: "approvalStatus",
+      header: "Initiator Status",
+      sortingFn: (a, b) =>
+        APPROVER_CHOICES.indexOf(taskApproverShown(a.original.approvalStatus, a.original.status) as never) -
+        APPROVER_CHOICES.indexOf(taskApproverShown(b.original.approvalStatus, b.original.status) as never),
+      cell: ({ row }) => {
+        const r = row.original;
+        const isDoer = r.doerId === me.id;
+        /* Raised by the person doing it — there is no approver, so the column
+           reads Not Applicable and only an admin may overrule. */
+        const isSelfRaised = !!r.initiatorId && r.initiatorId === r.doerId;
+        const actor = {
+          isAdmin: me.isAdmin,
+          isInitiator: r.initiatorId === me.id && !isSelfRaised,
+          isDoersManager: !isDoer && (me.managedIds ?? []).includes(r.doerId),
+          isDoer,
+          isSelfRaised,
+        };
+        return (
+          <ApproverChip
+            shown={taskApproverShown(r.approvalStatus, r.status, isSelfRaised)}
+            choices={selectableApproverChoices(actor, taskDoerShown(r.status))}
+            onPick={async (choice) => {
+              const res = await setTaskApproverStatus(r.id, choice);
+              return res.ok ? null : res.error;
+            }}
+          />
+        );
+      },
+    },
     {
       accessorKey: "createdAt",
       header: "Created",
@@ -594,7 +626,9 @@ export function TaskTable({
 }: {
   rows: TaskListRow[];
   employees: { id: string; name: string }[];
-  me: { id: string; isAdmin: boolean; canChangeDoer?: boolean };
+  /** `managedIds` — everyone below the viewer, so the doer's manager can rule
+   *  on the Initiator Status. Omitted → only admin / initiator can. */
+  me: { id: string; isAdmin: boolean; canChangeDoer?: boolean; managedIds?: string[] };
   statusLabels?: StatusLabels;
   statusTones?: StatusTones;
   /** Bulk-set option rosters. When omitted, fall back to the distinct
@@ -1360,8 +1394,9 @@ export function TaskTable({
         <tbody>
           {/* SEARCH CAME BACK EMPTY — and it has to say why.
               Both search boxes filter rows the page has ALREADY LOADED, and
-              what got loaded is decided by the date range, the scope (My Tasks
-              / All Tasks), the view (Doer / Initiator) and the pills above. So
+              what got loaded is decided by the date range, the Assignee
+              dropdown (where "all employees" lives now that the Scope toggle is
+              gone), the view (Doer / Initiator) and the pills above. So
               searching for a task that is real, but sits outside those filters,
               returned a bare "No tasks" and read as a broken search. It is not:
               the row was never on the client to be matched. */}
@@ -1423,7 +1458,17 @@ export function TaskTable({
                         "linear-gradient(90deg, color-mix(in srgb, var(--color-altus-red) 4.5%, var(--color-surface-soft)), var(--color-surface-soft) 40%)",
                     }}
                   >
-                    <span className="inline-flex items-center gap-2.5">
+                    {/* STICKY AT THE LEFT EDGE.
+                        The header is one `colSpan` cell as wide as the table,
+                        so its label used to sit at the far left and slide out
+                        of sight the moment the table was scrolled sideways -
+                        which is precisely when you need to know which group
+                        you are reading. `sticky left-0` pins the label inside
+                        that cell instead: it travels with the horizontal
+                        scroll and stops at the cell's left padding. The cell's
+                        own background does not scroll, so nothing shows
+                        through behind it. */}
+                    <span className="sticky left-0 inline-flex items-center gap-2.5">
                       <span
                         aria-hidden
                         className="inline-block h-4 w-[3px] rounded-full"
@@ -2362,6 +2407,18 @@ function ColumnsMenu({ table }: { table: TableInstance<TaskListRow> }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuLabel>Show Columns</DropdownMenuLabel>
+        {/* Show all / Hide all across the optional columns. `toggleVisibility`
+            sets through a functional update, so a loop over the list is safe —
+            each call sees the previous one's result. */}
+        <SelectAllBar
+          compact
+          className="mb-1"
+          count={cols.filter((c) => c.getIsVisible()).length}
+          total={cols.length}
+          emptyLabel="No columns shown"
+          onSelectAll={() => cols.forEach((c) => c.toggleVisibility(true))}
+          onClear={() => cols.forEach((c) => c.toggleVisibility(false))}
+        />
         {cols.map((c) => (
           <DropdownMenuItem
             key={c.id}
@@ -2394,7 +2451,9 @@ function TaskCard({
 }: {
   row: TaskListRow;
   employees: { id: string; name: string }[];
-  me: { id: string; isAdmin: boolean; canChangeDoer?: boolean };
+  /** `managedIds` — everyone below the viewer, so the doer's manager can rule
+   *  on the Initiator Status. Omitted → only admin / initiator can. */
+  me: { id: string; isAdmin: boolean; canChangeDoer?: boolean; managedIds?: string[] };
   statusLabels: StatusLabels;
   statusTones: StatusTones;
   selected: boolean;

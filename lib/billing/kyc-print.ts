@@ -2,6 +2,7 @@
 
 import { fireToast } from "@/lib/toast";
 import type { CustomerDetail } from "@/lib/queries/billing-customers";
+import { formatDate } from "@/lib/format";
 
 /**
  * THE CUSTOMER KYC AS A PRINTABLE SHEET — "View in PDF Format" / "View form
@@ -102,7 +103,7 @@ export function openKycPrintView(d: KycPrintData) {
           ]),
       )
       .join("") || '<span class="nil">No addresses.</span>';
-  const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const today = formatDate(new Date());
 
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Customer KYC - ${esc(d.name || d.clientCode)}</title>
 <style>

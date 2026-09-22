@@ -3,11 +3,11 @@
 import * as React from "react";
 import { Send, Loader2, X, Copy, Check, MailCheck, AlertTriangle } from "lucide-react";
 import { fireToast } from "@/lib/toast";
+import { formatDateHr } from "@/lib/format";
 import {
   inviteCandidateByLink,
   type CandidateInvite,
 } from "@/app/(app)/hr/candidate-invite-actions";
-import { formatDate } from "@/lib/format";
 
 const RED = "var(--color-altus-red)";
 const INPUT =
@@ -263,7 +263,9 @@ function SentPanel({ invite, onDone }: { invite: CandidateInvite; onDone: () => 
       .catch(() => fireToast({ message: "Couldn't copy — select the link and copy it manually.", type: "error" }));
   }
 
-  const expiry = formatDate(new Date(invite.expiresAt));
+  // formatDateHr, not a local toLocaleDateString: the HR module states every
+  // date as DD-MMM-YYYY, and this one read "12 Sep 2026".
+  const expiry = formatDateHr(invite.expiresAt);
 
   return (
     <div className="flex flex-col gap-3">

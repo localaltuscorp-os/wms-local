@@ -7,7 +7,16 @@ import { db } from "@/lib/db";
 import { incentiveCatalog } from "@/db/schema";
 import { filterToActiveEmployees, saveEligibility } from "@/lib/queries/incentive-eligibility";
 import { requireAdmin } from "@/lib/auth/current";
+import { INCENTIVE_ELIGIBILITY_REFUSAL } from "@/lib/security/capabilities";
+import { mayManageIncentiveEligibility } from "@/lib/incentive/eligibility-guard";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { afterResponse } from "@/lib/after";
+import {
+  processIncentiveCatalogEvent,
+  recordIncentiveCatalogEvent,
+} from "@/lib/incentive/notifications/service";
+import { incentiveSnapshotFor } from "@/lib/queries/incentive-master";
+import { todayIst } from "@/lib/incentive/master";
 
 export type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -28,7 +37,22 @@ const EntrySchema = z.object({
   active: z.boolean().optional(),
 });
 
-/** Create or update one incentive-catalog entry. Admin-only. */
+/**
+ * Tell the affected employees about a recorded change, after the response is
+ * sent. The change has already committed; nothing the notifications do can
+ * fail or slow the save. See lib/incentive/notifications/service.ts.
+ */
+function notifyCatalogChange(eventId: string | null) {
+  if (eventId) afterResponse(() => processIncentiveCatalogEvent(eventId));
+}
+
+/**
+ * Create or update one incentive-catalog entry. Admin-only.
+ *
+ * The change and its change record (`incentive_catalog_events`) are written in
+ * one transaction; an edit that changes nothing material records nothing and
+ * notifies no one.
+ */
 export async function upsertCatalogEntry(
   input: z.input<typeof EntrySchema>,
 ): Promise<ActionResult<{ id: string }>> {
@@ -52,38 +76,87 @@ export async function upsertCatalogEntry(
     active: v.active ?? true,
   };
 
+  const today = todayIst();
+
   try {
-    if (v.id) {
-      await db.update(incentiveCatalog).set(values).where(eq(incentiveCatalog.id, v.id));
-      revalidatePath(PATH);
-      return { ok: true, id: v.id };
-    }
-    const [row] = await db
-      .insert(incentiveCatalog)
-      .values(values)
-      .returning({ id: incentiveCatalog.id });
+    const saved = await db.transaction(async (tx) => {
+      if (v.id) {
+        const id = v.id;
+        const [before] = await tx.select().from(incentiveCatalog).where(eq(incentiveCatalog.id, id)).for("update");
+        const [after] = await tx.update(incentiveCatalog).set(values).where(eq(incentiveCatalog.id, id)).returning();
+        const eventId =
+          before && after
+            ? await recordIncentiveCatalogEvent(tx, {
+                eventType: "updated",
+                catalogId: id,
+                // The SHARED snapshot builder, so an edit made here describes
+                // the incentive the same way the Admin Panel's Incentive Master
+                // would — including its named eligibility, which decides who is
+                // notified. See lib/queries/incentive-master.ts.
+                before: await incentiveSnapshotFor(tx, before, today),
+                after: await incentiveSnapshotFor(tx, after, today),
+                actorId: me.id,
+              })
+            : null;
+        return { id, eventId };
+      }
+      const [row] = await tx.insert(incentiveCatalog).values(values).returning();
+      if (!row) throw new Error("insert returned no row");
+      const eventId = await recordIncentiveCatalogEvent(tx, {
+        eventType: "created",
+        catalogId: row.id,
+        before: null,
+        after: await incentiveSnapshotFor(tx, row, today),
+        actorId: me.id,
+      });
+      return { id: row.id, eventId };
+    });
+    notifyCatalogChange(saved.eventId);
     revalidatePath(PATH);
-    return { ok: true, id: row!.id };
+    return { ok: true, id: saved.id };
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const cause = err instanceof Error && err.cause instanceof Error ? ` ${err.cause.message}` : "";
+    const msg = err instanceof Error ? `${err.message}${cause}` : String(err);
     // Unique-name collision surfaces a friendly message.
     if (/unique|duplicate/i.test(msg)) return { ok: false, error: "An incentive with that name already exists." };
     return { ok: false, error: `DB: ${msg}` };
   }
 }
 
-/** Delete one incentive-catalog entry. Admin-only. */
+/**
+ * Delete one incentive-catalog entry. Admin-only.
+ *
+ * Only the Incentive Table row goes. Requests, approvals and payments do not
+ * reference it and stay on record; the change record keeps what was deleted.
+ */
 export async function deleteCatalogEntry(id: string): Promise<ActionResult> {
   const me = await requireAdmin();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
   if (!UUID.safeParse(id).success) return { ok: false, error: "Invalid entry." };
 
+  let eventId: string | null = null;
   try {
-    await db.delete(incentiveCatalog).where(eq(incentiveCatalog.id, id));
+    eventId = await db.transaction(async (tx) => {
+      const [before] = await tx.select().from(incentiveCatalog).where(eq(incentiveCatalog.id, id)).for("update");
+      // Snapshot BEFORE the delete — afterwards the eligibility rows have
+      // cascaded away and there is nothing left to describe.
+      const snapshot = before ? await incentiveSnapshotFor(tx, before, todayIst()) : null;
+      await tx.delete(incentiveCatalog).where(eq(incentiveCatalog.id, id));
+      return snapshot
+        ? recordIncentiveCatalogEvent(tx, {
+            eventType: "deleted",
+            catalogId: id,
+            before: snapshot,
+            after: null,
+            actorId: me.id,
+          })
+        : null;
+    });
   } catch (err: unknown) {
     return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
   }
+  notifyCatalogChange(eventId);
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -112,6 +185,13 @@ export async function setIncentiveEligibility(
   input: z.input<typeof EligibilitySchema>,
 ): Promise<ActionResult> {
   const me = await requireAdmin();
+  // Admin is NOT enough to change who may earn an incentive: that is Manan's
+  // alone (`incentive_eligibility.manage`). The Incentive Master's add/remove
+  // actions already asked this; this dialog writes the SAME table, so without
+  // the same question here any admin could route around the rule through it.
+  if (!(await mayManageIncentiveEligibility())) {
+    return { ok: false, error: INCENTIVE_ELIGIBILITY_REFUSAL };
+  }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 

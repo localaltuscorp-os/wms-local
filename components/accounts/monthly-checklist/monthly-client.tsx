@@ -30,6 +30,7 @@ import {
   setMonthlyCheck,
 } from "@/app/(app)/accounts/monthly-quarterly-annual/actions";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 const INPUT =
   "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
@@ -246,9 +247,9 @@ export function MonthlyChecklist({
   }, [checks]);
 
   const [q, setQ] = React.useState("");
-  const [fType, setFType] = React.useState("");
-  const [fResponsible, setFResponsible] = React.useState("");
-  const [fFrequency, setFFrequency] = React.useState("");
+  const [fType, setFType] = React.useState<string[]>([]);
+  const [fResponsible, setFResponsible] = React.useState<string[]>([]);
+  const [fFrequency, setFFrequency] = React.useState<string[]>([]);
 
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
@@ -273,9 +274,9 @@ export function MonthlyChecklist({
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     return items.filter((r) => {
-      if (fType && (r.type ?? "") !== fType) return false;
-      if (fResponsible && (r.responsiblePerson ?? "") !== fResponsible) return false;
-      if (fFrequency && (r.frequency ?? "") !== fFrequency) return false;
+      if (fType.length > 0 && !fType.includes((r.type ?? ""))) return false;
+      if (fResponsible.length > 0 && !fResponsible.includes((r.responsiblePerson ?? ""))) return false;
+      if (fFrequency.length > 0 && !fFrequency.includes((r.frequency ?? ""))) return false;
       if (needle) {
         const hay = [r.code, r.title, r.type, r.deadline, r.responsiblePerson, r.frequency, r.accountsNotes, r.mananNotes]
           .filter(Boolean)
@@ -299,12 +300,12 @@ export function MonthlyChecklist({
     return counts;
   }, [checks, cols]);
 
-  const hasFilters = q || fType || fResponsible || fFrequency;
+  const hasFilters = q || fType.length > 0 || fResponsible.length > 0 || fFrequency.length > 0;
   function clearFilters() {
     setQ("");
-    setFType("");
-    setFResponsible("");
-    setFFrequency("");
+    setFType([]);
+    setFResponsible([]);
+    setFFrequency([]);
   }
 
   function startAdd() {
@@ -412,18 +413,30 @@ export function MonthlyChecklist({
           />
         </div>
         </CollapsibleSearch>
-        <select className={CHIP} value={fType} onChange={(e) => setFType(e.target.value)} aria-label="Filter by type">
-          <option value="">All Types</option>
-          {types.map((c) => (<option key={c} value={c}>{c}</option>))}
-        </select>
-        <select className={CHIP} value={fFrequency} onChange={(e) => setFFrequency(e.target.value)} aria-label="Filter by frequency">
-          <option value="">All Frequencies</option>
-          {frequencies.map((f) => (<option key={f} value={f}>{f}</option>))}
-        </select>
-        <select className={CHIP} value={fResponsible} onChange={(e) => setFResponsible(e.target.value)} aria-label="Filter by responsible">
-          <option value="">All People</option>
-          {responsibles.map((p) => (<option key={p} value={p}>{p}</option>))}
-        </select>
+        <MultiFilter
+          className={CHIP}
+          values={fType}
+          onChange={setFType}
+          options={types}
+          allLabel="All Types"
+          aria-label="Filter by type"
+        />
+        <MultiFilter
+          className={CHIP}
+          values={fFrequency}
+          onChange={setFFrequency}
+          options={frequencies}
+          allLabel="All Frequencies"
+          aria-label="Filter by frequency"
+        />
+        <MultiFilter
+          className={CHIP}
+          values={fResponsible}
+          onChange={setFResponsible}
+          options={responsibles}
+          allLabel="All People"
+          aria-label="Filter by responsible"
+        />
         {hasFilters && (
           <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-bold text-ink-soft hover:text-altus-red">
             <X size={14} strokeWidth={2.4} /> Clear

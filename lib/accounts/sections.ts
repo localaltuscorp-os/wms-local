@@ -31,6 +31,28 @@ export const ACCOUNTS_SECTIONS: AccountsSection[] = [
   // into the WMS task list (Doer: Siddhesh Walve, Initiator: Manan Vasa,
   // Subject: "Accounts") so accounts work lives in one place. See
   // scripts/migrate-accounts-tasks.ts.
+  //
+  // The two EMPLOYEE-MONEY sections lead the module, Incentive above
+  // Reimbursement: they are the only sections whose figures are owed TO a named
+  // person rather than tracked against an entity, so they are the two an
+  // accountant opens daily. Reimbursement is a `link` because it is a real,
+  // already-built module of its own at /reimbursements — this card is the door
+  // to it from Accounts, not a second copy of it.
+  {
+    slug: "incentive-payments",
+    order: 0,
+    title: "Incentive Payments",
+    blurb: "Employee incentive payable — approved, paid and unpaid per entry, the reversal adjustment where one exists, and the final payable. Team / User scoped.",
+    status: "built",
+  },
+  {
+    slug: "reimbursement",
+    order: 1,
+    title: "Reimbursement",
+    blurb: "Employee expense claims with their approval and payment status — opens the full Reimbursement module.",
+    status: "link",
+    href: "/reimbursements",
+  },
   {
     slug: "weekly-checklist",
     order: 2,
@@ -72,7 +94,7 @@ export const ACCOUNTS_SECTIONS: AccountsSection[] = [
     title: "Collection Master",
     blurb: "Income & collections — this is the live Outstanding & Collections tracker (receipts by person, source, mode, entity, GST/TDS). Opens the full dashboard.",
     status: "link",
-    href: "/outstanding",
+    href: "/billing/outstanding",
   },
   {
     slug: "fno-income",

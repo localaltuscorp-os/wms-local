@@ -42,6 +42,7 @@ import { GoalDetailRow } from "@/components/goals/board/goal-detail-row";
 import { NotesCell, AttachmentsCell } from "@/components/goals/board/notes-files-cell";
 import { GoalEditDialog } from "@/components/goals/cascade/goal-edit-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 import {
   setGoalPctDone,
   editGoal,
@@ -59,9 +60,10 @@ import { GoalDetailPopup } from "@/components/goals/shared/goal-detail-popup";
 import { useGoalGridEngine, type GridColumn } from "@/components/goals/board/goal-grid";
 import { Select } from "@/components/ui/select";
 import { DateInput } from "@/components/ui/date-input";
-import { GOAL_TYPES, GOAL_TYPE_LABELS, type GoalType } from "@/db/enums";
-import { DoerStatusSelect } from "@/components/status/status-select";
-import type { StatusActor } from "@/lib/status/axes";
+import { ADMIN_TASK_STATUSES, USER_TASK_STATUSES, DOER_TASK_STATUSES, GOAL_TYPES, GOAL_TYPE_LABELS, type TaskStatus, type GoalType } from "@/db/enums";
+import { ApproverChip } from "@/components/status/approver-chip";
+import { approverDisplay, approverStored, selectableApproverChoices } from "@/lib/status/approver-status";
+import { setGoalApproverStatus } from "@/app/(app)/goals/approver-actions";
 import { setGoalInitiatorStatus } from "@/app/(app)/goals/initiator-actions";
 import { pctTone, fmtNum, num, periodKeyLabel, periodKeyShort, goalCode, trimDecimal, targetDateStatus, fmtTargetDate, assignmentInfo } from "@/components/goals/cascade/util";
 import { CalendarClock } from "lucide-react";
@@ -142,12 +144,6 @@ export interface GoalTableViewProps {
   goals: GoalDTO[];
   canWrite: boolean;
   isAdmin: boolean;
-  /** Signed-in employee id, for the INITIATOR STATUS cell's permission check
-   *  (mig 0225): only the person who RAISED a goal, a manager of its owner, or
-   *  an admin may rule on it. OPTIONAL — a caller that does not pass it gets a
-   *  read-only chip for non-admins, which is the safe way to be wrong. The
-   *  server action re-checks regardless of what this renders. */
-  meId?: string;
   roster: RosterMember[];
   areaOptions: string[];
   measureOptions: string[];
@@ -193,7 +189,14 @@ export interface GoalTableViewProps {
    *  Columns picker's list, reorders live the same way. Omitted → headers
    *  aren't draggable (read-only order). */
   onColOrderChange?: (next: string[]) => void;
+  /** The signed-in employee — decides whether the Initiator Status chip is
+   *  editable on a row. Omitted → only an admin gets an editable chip. */
+  meId?: string;
+  /** The viewer manages the person whose goals these are. */
+  managesViewed?: boolean;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ActionRes = { ok: true } | { ok: false; error: string };
 
@@ -421,16 +424,79 @@ function TextCell({
 /* ------------------------------------------------------------------ */
 
 /** Human label for a Task status enum value (live set + legacy verdicts). */
-/*  The inline Doer Status dropdown USED TO LIVE HERE.
- *
- *  It is `DoerStatusSelect` in components/status/status-select.tsx now (Manan,
- *  2026-09-15: one control for the axis, everywhere). The local one offered
- *  `ADMIN_TASK_STATUSES` to admins — every non-deprecated value in the column,
- *  which meant Approved / Not approved / Cancelled / Transferred were listed
- *  as PROGRESS, beside an Initiator Status cell that ruled on exactly those.
- *  It also had no permission rule of its own: any viewer who could edit the row
- *  could report progress on it.
- */
+const STATUS_LABEL: Partial<Record<TaskStatus, string>> = {
+  // The WMS wording, so a goal and a task name the same state identically.
+  dont_know: "Not Read",
+  not_started: "Not Started",
+  initiated: "Initiated",
+  follow_up: "Follow Up",
+  need_help: "Need help",
+  on_hold: "On Hold",
+  need_info: "Need Info",
+  done: "Done",
+  approved: "Approved",
+  not_approved: "Not approved",
+  cancelled: "Cancelled",
+  transferred: "Transferred",
+};
+
+function statusLabel(s: string): string {
+  return (
+    STATUS_LABEL[s as TaskStatus] ??
+    s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase())
+  );
+}
+
+/** A quiet band colour for the status dot (done = green · active = amber · else grey). */
+function statusColor(s: string): string {
+  if (s === "done" || s === "approved") return "#15803d";
+  if (s === "not_started" || s === "dont_know" || s === "not_approved" || s === "cancelled")
+    return "var(--color-ink-soft)";
+  return "#b45309";
+}
+
+/** Inline DOER STATUS dropdown — the same six a WMS doer reports
+ *  (DOER_TASK_STATUSES), so Goals, Tasks and Projects share one progress
+ *  vocabulary (2026-09-15). Built on the shared `Select` primitive for the
+ *  keyboard-first flow. The row's CURRENT value is always included. */
+function StatusCell({
+  value,
+  disabled,
+  onCommit,
+}: {
+  value: string;
+  disabled: boolean;
+  onCommit: (status: TaskStatus) => void;
+}) {
+  const options = React.useMemo(() => {
+    const base = DOER_TASK_STATUSES as readonly TaskStatus[];
+    const set = new Set<string>(base);
+    // Keep a legacy/out-of-set current value visible so it never silently drops.
+    const list = value && !set.has(value) ? [value as TaskStatus, ...base] : [...base];
+    return list.map((s) => ({ value: s, label: statusLabel(s) }));
+  }, [value]);
+
+  return (
+    <div className={cn("flex items-center gap-1.5", disabled && "pointer-events-none opacity-60")}>
+      <span
+        aria-hidden
+        className="size-2 shrink-0 rounded-full"
+        style={{ background: statusColor(value || "not_started") }}
+      />
+      <Select
+        value={value || "not_started"}
+        onValueChange={(v) => {
+          if (!disabled && v !== value) onCommit(v as TaskStatus);
+        }}
+        disabled={disabled}
+        ariaLabel="Status"
+        unstyled
+        className="min-w-0 flex-1 cursor-pointer gap-1 text-[13px] font-semibold text-ink-strong hover:text-altus-red"
+        options={options}
+      />
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* Cell: Reviewer — inline roster dropdown → reviewedById              */
@@ -716,6 +782,26 @@ function TeamMembersCell({
               />
             </div>
           </div>
+          {/* Everyone at weight 100 in one click, then drop the one or two who
+              don't belong. Takes the WHOLE roster, not what the search box has
+              narrowed it to — the count in the label says what the click does.
+              Names already on the goal keep the weight they were given. */}
+          <SelectAllBar
+            compact
+            className="mb-1 rounded-md"
+            count={roster.filter(isPicked).length}
+            total={roster.length}
+            emptyLabel="No members"
+            onSelectAll={() =>
+              onCommit(
+                roster.map(
+                  (r) =>
+                    list.find((m) => m.employeeId === r.id) ?? { employeeId: r.id, name: r.name, weight: 100 },
+                ),
+              )
+            }
+            onClear={() => onCommit(null)}
+          />
           <div ref={listRef} className="slim-scroll max-h-64 overflow-auto" role="listbox">
             {filtered.map((r, i) => {
               const isSel = isPicked(r);
@@ -838,6 +924,20 @@ function BulkMembers({
         <p className="flex items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
           <Users size={12} /> Members &amp; weights · {count} selected
         </p>
+        {/* Stage the whole roster, then untick the exceptions before Apply. */}
+        <SelectAllBar
+          compact
+          className="mb-1 rounded-md"
+          count={list.length}
+          total={roster.length}
+          emptyLabel="No members staged"
+          onSelectAll={() =>
+            setList(
+              roster.map((r) => list.find((m) => matches(m, r)) ?? { employeeId: r.id, name: r.name, weight: 100 }),
+            )
+          }
+          onClear={() => setList([])}
+        />
         <div className="slim-scroll max-h-64 overflow-auto">
           {roster.map((r) => {
             const sel = isPicked(r);
@@ -1057,6 +1157,20 @@ function DelegatesCell({
               />
             </div>
           </div>
+          {/* Delegate to the whole roster at 100%, then drop the exceptions. */}
+          <SelectAllBar
+            compact
+            className="mb-1 rounded-md"
+            count={roster.filter((r) => picked.has(r.id)).length}
+            total={roster.length}
+            emptyLabel="No delegates"
+            onSelectAll={() =>
+              onCommit(
+                roster.map((r) => list.find((d) => d.employeeId === r.id) ?? { employeeId: r.id, name: r.name, pct: 100 }),
+              )
+            }
+            onClear={() => onCommit(null)}
+          />
           <div ref={listRef} className="slim-scroll max-h-64 overflow-auto" role="listbox">
             {filtered.map((r, i) => {
               const isSel = picked.has(r.id);
@@ -1243,6 +1357,20 @@ function BulkDelegate({
         <p className="flex items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
           <UserPlus size={12} /> Delegate to · {count} selected
         </p>
+        {/* Stage the whole roster, then untick the exceptions before Apply. */}
+        <SelectAllBar
+          compact
+          className="mb-1 rounded-md"
+          count={list.length}
+          total={roster.length}
+          emptyLabel="No delegates staged"
+          onSelectAll={() =>
+            setList(
+              roster.map((r) => list.find((d) => d.employeeId === r.id) ?? { employeeId: r.id, name: r.name, pct: 100 }),
+            )
+          }
+          onClear={() => setList([])}
+        />
         <div className="slim-scroll max-h-64 overflow-auto">
           {roster.map((r) => {
             const sel = isPicked(r);
@@ -1521,6 +1649,16 @@ function CopyToMenu({
         <p className="flex items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
           <Copy size={12} /> Copy {count} goal{count === 1 ? "" : "s"} to…
         </p>
+        {/* Every child period at once, then untick the one or two to skip. */}
+        <SelectAllBar
+          compact
+          className="mb-1 rounded-md"
+          count={picked.size}
+          total={childMap.targets.length}
+          emptyLabel={`No ${childMap.childNoun} picked`}
+          onSelectAll={() => setPicked(new Set(childMap.targets.map((t) => t.key)))}
+          onClear={() => setPicked(new Set())}
+        />
         <div className="slim-scroll max-h-64 overflow-auto">
           {childMap.targets.map((t) => {
             const on = picked.has(t.key);
@@ -1839,13 +1977,9 @@ function headerCellsFor(key: string): { reactKey: string; label: string; classNa
     case "type":
       return [{ reactKey: "type", label: "Type", className: cn(TH, "px-1.5 min-w-[56px]") }];
     case "doerStatus":
-      return [
-        {
-          reactKey: "doerStatus",
-          label: "Doer Status",
-          className: cn(TH, "px-1.5 min-w-[128px]"),
-        },
-      ];
+      return [{ reactKey: "doerStatus", label: "Doer Status", className: cn(TH, "px-1.5 min-w-[120px]") }];
+    case "approver":
+      return [{ reactKey: "approver", label: "Initiator Status", className: cn(TH, "px-1.5 min-w-[150px]") }];
     case "notes":
       return [
         { reactKey: "notes", label: "Notes", className: cn(TH, "px-1.5 min-w-[64px]") },
@@ -1880,12 +2014,13 @@ export const OPTIONAL_COLUMNS: { key: string; label: string }[] = [
   { key: "owner", label: "Owner" },
   { key: "type", label: "Type" },
   { key: "doerStatus", label: "Doer Status" },
+  { key: "approver", label: "Initiator Status" },
   { key: "notes", label: "Notes" },
 ];
 
 /** The simplified table's original fixed column set, unchanged for any
  *  caller that doesn't pass `visibleCols` (the Columns picker). */
-export const DEFAULT_VISIBLE_COLS = new Set(["actual", "delegate", "owner", "type"]);
+export const DEFAULT_VISIBLE_COLS = new Set(["actual", "delegate", "owner", "type", "doerStatus", "approver"]);
 
 /** Every optional column shown — used where the caller wants the Columns
  *  picker to start fully expanded (the level board defaults to this). */
@@ -1910,11 +2045,8 @@ export const REORDERABLE_COLUMNS: { key: string; label: string; pickable: boolea
   { key: "delegate", label: "Delegated", pickable: true },
   { key: "owner", label: "Owner", pickable: true },
   { key: "type", label: "Type", pickable: true },
-  // Doer Status only. The INITIATOR axis had a column beside this one and was
-  // removed on request (Manan, 2026-09-15): the verdict is still stored and
-  // still set from the goal's detail view — see lib/status/axes.ts — it simply
-  // has no column on this table any more.
   { key: "doerStatus", label: "Doer Status", pickable: true },
+  { key: "approver", label: "Initiator Status", pickable: true },
   { key: "notes", label: "Notes", pickable: true },
   { key: "targetDate", label: "Target Date", pickable: false },
   { key: "targetDateStatus", label: "Days Left", pickable: false },
@@ -2044,6 +2176,24 @@ export function GoalTableView(props: GoalTableViewProps) {
   } = props;
 
   const weekly = props.variant === "weekly";
+
+  /** The viewer relative to one goal, for the Initiator Status chip. The
+   *  initiator is whoever raised the goal; the owner of a goal somebody else
+   *  raised is its doer. The server re-decides every pick. */
+  const approverActorFor = (g: GoalDTO) => {
+    const meId = props.meId;
+    /* A goal somebody set for themselves has no approver (account holder,
+       2026-09-16). This USED to read `isDoer: false`, which let the raiser
+       approve their own goal — the one place Goals disagreed with Tasks. */
+    const isSelfRaised = !!g.createdById && g.createdById === g.employeeId;
+    return {
+      isAdmin: props.isAdmin,
+      isInitiator: !!meId && g.createdById === meId && !isSelfRaised,
+      isDoersManager: !!meId && !!props.managesViewed && g.employeeId !== meId,
+      isDoer: !!meId && g.employeeId === meId,
+      isSelfRaised,
+    };
+  };
   const A = props.actions ?? CASCADE_ACTIONS;
   const detailKind = props.detailKind ?? "cascade";
   const visibleCols = props.visibleCols ?? DEFAULT_VISIBLE_COLS;
@@ -2477,28 +2627,6 @@ export function GoalTableView(props: GoalTableViewProps) {
     applyEdit: editField,
   });
 
-  /**
-   * WHO THE VIEWER IS RELATIVE TO ONE ROW — read by BOTH status cells.
-   *
-   * One helper because the two axes ask different questions of the same four
-   * facts, and the doer cell previously asked none of them: it took `isAdmin`
-   * and a `disabled` flag, so anybody who could edit the row at all could
-   * report progress on it. `canSetDoerStatus` is the rule.
-   *
-   * A goal's INITIATOR is whoever RAISED it — never its owner, or the split
-   * would let people approve their own work. A manager of the owner also
-   * qualifies, but that needs the org chart, so the server decides it: the
-   * client shows a read-only chip and the action lets a manager through anyway.
-   */
-  function statusActorFor(g: GoalDTO): StatusActor {
-    return {
-      id: meId ?? "",
-      isAdmin,
-      isInitiator: !!meId && g.createdById === meId && g.employeeId !== meId,
-      isDoer: !!meId && g.employeeId === meId,
-      isSupervisor: false,
-    };
-  }
 
   /** Body <td>(s) for one REORDERABLE_COLUMNS key, for row `g` at index `i` —
    *  the counterpart to headerCellsFor() above. `t`/`a` are that row's
@@ -2756,22 +2884,6 @@ export function GoalTableView(props: GoalTableViewProps) {
             </div>
           </td>,
         ];
-      case "doerStatus":
-        return [
-          <td key="doerStatus" className="px-2.5 py-2 align-middle">
-            <DoerStatusSelect
-              status={g.status ?? null}
-              actor={statusActorFor(g)}
-              onCommit={async (next) => {
-                if (locked || !canWrite) {
-                  return { ok: false, error: "This row is locked." };
-                }
-                const res = await A.editGoal({ id: g.id, status: next });
-                return res.ok ? { ok: true } : { ok: false, error: res.error };
-              }}
-            />
-          </td>,
-        ];
       case "notes":
         return [
           <td key="notes" className="px-2.5 py-2 align-top">
@@ -2784,6 +2896,32 @@ export function GoalTableView(props: GoalTableViewProps) {
           </td>,
           <td key="attachments" className="px-2.5 py-2 align-top">
             <AttachmentsCell goalId={g.id} expanded={expanded.has(g.id)} onToggle={() => toggleExpand(g.id)} />
+          </td>,
+        ];
+      case "doerStatus":
+        return [
+          <td key="doerStatus" className="px-2.5 py-2 align-middle">
+            <StatusCell
+              value={g.status ?? "not_started"}
+              disabled={locked}
+              onCommit={(s) => editField(g.id, { status: s }, () => A.editGoal({ id: g.id, status: s }))}
+            />
+          </td>,
+        ];
+      case "approver":
+        return [
+          <td key="approver" className="px-2.5 py-2 align-middle">
+            <ApproverChip
+              shown={approverDisplay(g.approverStatus, approverActorFor(g).isSelfRaised)}
+              // An optimistic row has no id the server knows yet.
+              choices={UUID_RE.test(g.id) ? selectableApproverChoices(approverActorFor(g), g.status) : []}
+              onPick={async (choice) => {
+                const res = await setGoalApproverStatus({ kind: weekly ? "weekly" : "goal", id: g.id, choice });
+                if (!res.ok) return res.error;
+                setRows((prev) => prev.map((r) => (r.id === g.id ? { ...r, approverStatus: approverStored(choice) } : r)));
+                return null;
+              }}
+            />
           </td>,
         ];
       case "targetDateStatus":

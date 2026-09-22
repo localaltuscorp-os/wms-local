@@ -202,6 +202,9 @@ const APPROVAL_VERDICTS = new Set<TaskStatus>([
   "not_approved",
   "cancelled",
   "transferred",
+  // On Hold is also a ruling now (0231); the chip writes both columns, and a
+  // hold set from either place must match the On Hold filter.
+  "on_hold",
 ]);
 
 function statusFilterCondition(statuses: TaskStatus[]) {
@@ -769,7 +772,7 @@ export interface TaskExportRow {
   archived: boolean;
   // Tier-3 (2026-05-20) additions — surfaced for XLSX/PDF exports.
   tags: string[] | null;
-  approvalStatus: ApprovalStatus | null;
+  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | "on_hold" | "archived" | null;
   revisedTargetDate: Date | null;
 }
 
@@ -930,7 +933,7 @@ export type TaskDetail = {
   updatedAt: Date;
   // Tier-3 (2026-05-20) additions
   tags: string[] | null;
-  approvalStatus: ApprovalStatus | null;
+  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | "on_hold" | "archived" | null;
   // Two-stage approval (mig 0185): which level, if any, this task is signed off at.
   approvalLevel: "none" | "manager" | "admin";
   revisedTargetDate: Date | null;

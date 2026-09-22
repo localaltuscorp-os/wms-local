@@ -451,6 +451,9 @@ export interface GoalDTO {
   /** Designated reviewer (goals.reviewed_by_id), or null. OPTIONAL for the same
    *  temp-row reason; resolve the name from the roster on the client. */
   reviewedById?: string | null;
+  /** Initiator Status (migration 0231 side table), null = Pending.
+   *  OPTIONAL — attached by the board loaders, absent on temp rows. */
+  approverStatus?: string | null;
   /** "Part of Project?" Yes/No (mig 0184). OPTIONAL — optimistic temp rows omit
    *  it; the loaders select the full row so real DTOs always carry it. */
   isProject?: boolean;

@@ -140,12 +140,18 @@ export default async function RootLayout({
   // reproduces globals.css exactly, so default users see no change.
   const htmlStyle = accentVars(resolveAccent(me?.accent)) as React.CSSProperties;
 
+  // `data-scroll-behavior="smooth"` mirrors the `scroll-behavior: smooth` that
+  // globals.css sets on <html>. Without it Next.js logs a console warning on
+  // every route transition. The attribute makes the router suspend smooth
+  // scrolling for the duration of the transition only; our own anchor jumps
+  // keep their animation.
   return (
     <html
       lang="en"
       className={`${roboto.variable} ${bricolage.variable} ${jetbrainsMono.variable} ${fraunces.variable} ${heros.variable} ${inter.variable}`}
       data-density={density}
       style={htmlStyle}
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
       {/* suppressHydrationWarning is scoped to <html>/<body> because

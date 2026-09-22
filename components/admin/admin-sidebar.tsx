@@ -7,7 +7,8 @@ import { usePathname } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { LogOut, ShieldCheck, type LucideIcon } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/firebase/client";
-import { ADMIN_TOP_LEVEL, ADMIN_GROUPS, isAdminNavActive } from "./admin-nav-config";
+import { isAdminNavActive } from "./admin-nav-config";
+import { adminNavFor } from "./roster-nav";
 
 /**
  * Admin panel LEFT SIDEBAR, matching the vertical rail every other module
@@ -24,13 +25,17 @@ export function AdminSidebar({
   adminEmail,
   avatarUrl,
   backHref,
+  rosterOnly = false,
 }: {
   adminName: string;
   adminEmail: string;
   avatarUrl: string | null;
   backHref: string;
+  /** Not an admin — the menu shows only Subjects and Clients. */
+  rosterOnly?: boolean;
 }) {
   const pathname = usePathname();
+  const nav = adminNavFor(rosterOnly);
 
   async function handleSignOut() {
     try {
@@ -97,10 +102,10 @@ export function AdminSidebar({
 
       {/* ── Grouped vertical nav ── */}
       <nav aria-label="Admin" className="nav-scroll flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
-        {ADMIN_TOP_LEVEL.map((it) => (
+        {nav.topLevel.map((it) => (
           <Pill key={it.href} href={it.href} label={it.label} Icon={it.Icon} active={isAdminNavActive(pathname, it)} />
         ))}
-        {ADMIN_GROUPS.map((g) => (
+        {nav.groups.map((g) => (
           <div key={g.label} className="mt-2.5">
             <div className="mb-1 flex items-center gap-1.5 px-3 text-[10px] font-black uppercase tracking-[0.09em] text-ink-subtle">
               <g.Icon size={12} strokeWidth={2.6} /> {g.label}

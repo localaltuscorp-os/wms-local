@@ -16,6 +16,7 @@ import {
   parseIncentiveImport,
   type IncentiveRosterEntry,
 } from "@/lib/import/incentive-import";
+import { notifyIfPaidIncreased } from "@/lib/incentive/notifications/paid-increase";
 
 type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -116,6 +117,18 @@ export async function updateIncentiveEntry(
   }
   const v = parsed.data;
 
+  // Read the paid amount BEFORE the update so a raise can notify the employee —
+  // the same "paid increased" edge the Status editor fires on.
+  const [prev] = await db
+    .select({
+      employeeId: incentiveEntries.employeeId,
+      incentiveName: incentiveEntries.incentiveName,
+      paidAmt: incentiveEntries.paidAmt,
+      periodMonth: incentiveEntries.periodMonth,
+    })
+    .from(incentiveEntries)
+    .where(eq(incentiveEntries.id, v.id));
+
   await db
     .update(incentiveEntries)
     .set({
@@ -136,6 +149,20 @@ export async function updateIncentiveEntry(
       updatedAt: new Date(),
     })
     .where(eq(incentiveEntries.id, v.id));
+
+  if (prev) {
+    notifyIfPaidIncreased({
+      employeeId: prev.employeeId,
+      subjectId: v.id,
+      leg: "entry",
+      label: prev.incentiveName,
+      previousPaid: Number(prev.paidAmt),
+      paid: v.paidAmt,
+      paidDate: v.paidDate ?? null,
+      periodMonth: prev.periodMonth,
+      actorId: me.id,
+    });
+  }
 
   revalidatePath("/incentive");
   return { ok: true };

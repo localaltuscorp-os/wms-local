@@ -28,7 +28,7 @@ import {
   ROLLUP_KIND,
   type RegisterLevel,
 } from "@/lib/project-plan/register";
-import { PlanStatusCell, planActorFor } from "./plan-status-cell";
+import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-cell";
 import { PlanProgressCell } from "./plan-progress-cell";
 import { PlanAttachmentCell } from "./plan-attachment-cell";
 import { PlanLinksCell } from "./plan-links-cell";
@@ -77,7 +77,17 @@ import { useRememberPlanNode } from "./use-recent-plan";
  */
 export type { RegisterLevel };
 
-type SortKey = "plan" | "name" | "start" | "end" | "days" | "own" | "rollup";
+type SortKey =
+  | "plan"
+  | "name"
+  | "description"
+  | "doerStatus"
+  | "initiatorStatus"
+  | "start"
+  | "end"
+  | "days"
+  | "own"
+  | "rollup";
 
 /**
  * The widths of the identity columns, in pixels.
@@ -208,16 +218,26 @@ export function PlanRegister({
       switch (sortKey) {
         case "name":
           return dir * a.node.name.localeCompare(b.node.name);
+        // The three text columns that had no sort. Each reads from whichever
+        // record actually holds the value — on an executable row that is the
+        // linked task, exactly as the cell below renders it, so the order on
+        // screen always matches the column you clicked.
+        case "description":
+          return directed(cmpText(a.node.description, b.node.description), dir);
+        case "doerStatus":
+          return directed(cmpText(a.node.task?.statusLabel ?? a.node.status, b.node.task?.statusLabel ?? b.node.status), dir);
+        case "initiatorStatus":
+          return directed(cmpText(a.node.approvalStatus, b.node.approvalStatus), dir);
         case "start":
-          return dir * cmpDate(a.node.startsAt, b.node.startsAt);
+          return directed(cmpDate(a.node.startsAt, b.node.startsAt), dir);
         case "end":
-          return dir * cmpDate(a.node.endsAt, b.node.endsAt);
+          return directed(cmpDate(a.node.endsAt, b.node.endsAt), dir);
         case "days":
-          return dir * cmpNum(daysOf(a.node), daysOf(b.node));
+          return directed(cmpNum(daysOf(a.node), daysOf(b.node)), dir);
         case "own":
-          return dir * cmpNum(toPercent(nodeFraction(a.node)), toPercent(nodeFraction(b.node)));
+          return directed(cmpNum(toPercent(nodeFraction(a.node)), toPercent(nodeFraction(b.node))), dir);
         case "rollup":
-          return dir * cmpNum(a.rollup.fraction, b.rollup.fraction);
+          return directed(cmpNum(a.rollup.fraction, b.rollup.fraction), dir);
         default:
           return 0;
       }
@@ -513,11 +533,12 @@ export function PlanRegister({
   const levelLabel = KIND_LABEL[kind];
   const rollupLabel = `${KIND_LABEL[rollupKind]}s Completion`;
   // The tick column, two columns per ancestor (No + Name), then: own No, own
-  // Name, Description, Status, the level-dependent column (own Completion on a
-  // container / Task on an executable row), the rollup, Attachments, Links and
-  // Initiator Notes — plus Start / End / Duration on the scheduled levels.
+  // Name, Description, Doer Status, Initiator Status, the
+  // level-dependent column (own Completion on a container / Task on an
+  // executable row), the rollup, Attachments, Links and Initiator Notes — plus
+  // Start / End / Duration on the scheduled levels.
   const colCount =
-    1 + ancestorKinds.length * 2 + 9 + (showsSchedule ? 3 : 0);
+    1 + ancestorKinds.length * 2 + 10 + (showsSchedule ? 3 : 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -711,8 +732,15 @@ export function PlanRegister({
               >
                 {levelLabel} Name
               </SortTh>
-              <Th className="w-[240px]">{levelLabel} Description</Th>
-              <Th className="w-[150px]">{levelLabel} Status</Th>
+              <SortTh className="w-[240px]" active={sortKey === "description"} asc={asc} onClick={() => sortBy("description")}>
+                {levelLabel} Description
+              </SortTh>
+              <SortTh className="w-[150px]" active={sortKey === "doerStatus"} asc={asc} onClick={() => sortBy("doerStatus")}>
+                Doer Status
+              </SortTh>
+              <SortTh className="w-[180px]" active={sortKey === "initiatorStatus"} asc={asc} onClick={() => sortBy("initiatorStatus")}>
+                Initiator Status
+              </SortTh>
               {/* Only on the levels that own a schedule — see `showsSchedule`. */}
               {showsSchedule && (
                 <>
@@ -867,6 +895,9 @@ export function PlanRegister({
 
                   <Td>
                     <PlanStatusCell node={n} actor={actor} linkedToTask={false} />
+                  </Td>
+                  <Td>
+                    <PlanApproverCell node={n} actor={actor} />
                   </Td>
 
                   {showsSchedule && (
@@ -1146,17 +1177,46 @@ function daysOf(n: PlanRow): number | null {
   return durationDays(n.startsAt, n.endsAt);
 }
 
-/** Nulls sort last in both directions — an unset date is not "earliest". */
+/**
+ * BLANKS SORT LAST IN BOTH DIRECTIONS.
+ *
+ * That is what these comparators always claimed, and what the eye expects: an
+ * unset date is not "the earliest", and a row nobody has filled in should not
+ * be the first thing you see when you reverse a column. But the direction used
+ * to be applied by multiplying the WHOLE result, which flipped the blanks along
+ * with everything else — so descending opened on a block of empty rows.
+ *
+ * The marker below is how the two are told apart. A blank-versus-filled
+ * comparison returns exactly ±BLANK_LAST, and `directed` passes that through
+ * untouched while flipping every real comparison.
+ */
+const BLANK_LAST = Number.MAX_SAFE_INTEGER;
+
+/** Applies the sort direction without moving where the blanks sit. */
+function directed(cmp: number, dir: number): number {
+  return Math.abs(cmp) === BLANK_LAST ? cmp : dir * cmp;
+}
+
 function cmpDate(a: string | null, b: string | null): number {
   if (!a && !b) return 0;
-  if (!a) return 1;
-  if (!b) return -1;
+  if (!a) return BLANK_LAST;
+  if (!b) return -BLANK_LAST;
   return new Date(a).getTime() - new Date(b).getTime();
 }
 
 function cmpNum(a: number | null, b: number | null): number {
   if (a == null && b == null) return 0;
-  if (a == null) return 1;
-  if (b == null) return -1;
+  if (a == null) return BLANK_LAST;
+  if (b == null) return -BLANK_LAST;
   return a - b;
+}
+
+/** Text, case-insensitively — empty and null are the same "not filled in". */
+function cmpText(a: string | null | undefined, b: string | null | undefined): number {
+  const x = a ?? "";
+  const y = b ?? "";
+  if (!x && !y) return 0;
+  if (!x) return BLANK_LAST;
+  if (!y) return -BLANK_LAST;
+  return x.localeCompare(y, undefined, { sensitivity: "base" });
 }

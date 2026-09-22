@@ -158,7 +158,7 @@ export function TopPerformersSection({
       columns: [
         { label: "Rank", weight: 0.7, align: "right" },
         { label: "Person", weight: 3, align: "left" },
-        { label: "Department", weight: 2, align: "left" },
+        { label: "Function", weight: 2, align: "left" },
         { label: "Completed", weight: 1.2, align: "right" },
         { label: "On time", weight: 1.2, align: "right" },
       ],

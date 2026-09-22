@@ -46,6 +46,7 @@ import { monthNameOf } from "./stage";
 import { useCanvasShell } from "./shell-context";
 import { useCanvasStage } from "./stage";
 import type { CanvasRepr, GoalDTO, ZoomLevel } from "./types";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /* ------------------------------------------------------------------ */
 
@@ -455,22 +456,21 @@ function PersonSwitcher(): React.JSX.Element {
         {initialsOf(shell.viewedName)}
       </span>
       {hasRoster ? (
-        <select
+        <CompactSelect
           value={shell.viewedEmployeeId}
-          onChange={(e) => void setEmp(e.target.value)}
+          onChange={(v) => void setEmp(v)}
           aria-label="Whose cascade to view"
-          className="min-w-0 max-w-[180px] cursor-pointer truncate rounded-lg border bg-transparent px-2 py-1.5 text-[12.5px] font-bold text-ink-strong outline-none transition-colors hover:border-transparent focus-visible:[box-shadow:0_0_0_2px_color-mix(in_srgb,var(--module-accent)_45%,transparent)]"
-          style={{ borderColor: "var(--color-hairline-strong)" }}
-        >
-          {!shell.roster.some((r) => r.id === shell.viewedEmployeeId) && (
-            <option value={shell.viewedEmployeeId}>{shell.viewedName}</option>
-          )}
-          {shell.roster.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
+          required
+          className="min-w-0 max-w-[180px] cursor-pointer truncate rounded-lg border bg-transparent px-2 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors"
+          options={[
+            // Someone being viewed who is no longer on the roster still needs a
+            // row, or the box would read blank for the person on screen.
+            ...(shell.roster.some((r) => r.id === shell.viewedEmployeeId)
+              ? []
+              : [{ value: shell.viewedEmployeeId, label: shell.viewedName }]),
+            ...shell.roster.map((r) => ({ value: r.id, label: r.name })),
+          ]}
+        />
       ) : (
         <span className="truncate text-[12.5px] font-bold text-ink-strong">{shell.viewedName}</span>
       )}

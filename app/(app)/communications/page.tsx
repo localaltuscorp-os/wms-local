@@ -101,7 +101,7 @@ export default async function CommunicationsHomePage({
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <HrTitleBar />
+      <HrTitleBar title="Broadcasts" />
       <PageShell width="wide" style={{ maxWidth: "1180px" }}>
         <BroadcastTabs
           active={tab}
@@ -141,7 +141,7 @@ function SentList({ rows, empty }: { rows: BroadcastListItem[]; empty: "sent" | 
       <EmptyState
         Icon={Megaphone}
         title="No broadcasts yet"
-        body="Send your first one — to everyone, to a department, or to one person. It pops up on their screen within seconds and lands in their notifications."
+        body="Send your first one — to everyone, to a Function, or to one person. It pops up on their screen within seconds and lands in their notifications."
         cta={{ href: "/communications/compose", label: "New Broadcast" }}
       />
     );

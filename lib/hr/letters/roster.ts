@@ -18,6 +18,11 @@ export interface LetterRosterEmployee {
   id: string;
   name: string;
   email: string;
+  /** Where a letter PDF is EMAILED to (the personal inbox). Falls back to the
+   *  primary `email` when not recorded. */
+  personalEmail: string;
+  /** The company address (firstname.lastname@<domain>), copied on the mail. */
+  officialEmail: string;
   department: string;
   designation: string;
   /** The employee's paying entity (from their salary profile) resolved to a
@@ -83,6 +88,8 @@ export async function loadLetterRoster(): Promise<LetterRosterEmployee[]> {
       id: employees.id,
       name: employees.name,
       email: employees.email,
+      personalEmail: employees.personalEmail,
+      officialEmail: employees.officialEmail,
       department: employees.department,
       designation: designations.name,
       payingEntityName: payingEntities.name,
@@ -104,6 +111,8 @@ export async function loadLetterRoster(): Promise<LetterRosterEmployee[]> {
     id: r.id,
     name: r.name,
     email: r.email ?? "",
+    personalEmail: r.personalEmail ?? "",
+    officialEmail: r.officialEmail ?? "",
     department: r.department ?? "",
     designation: r.designation ?? "",
     // Resolve the paying-entity name (incl. legacy spellings like "JSV HUF") to

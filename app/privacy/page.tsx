@@ -49,7 +49,7 @@ export default function PrivacyPage() {
         <li>Full name (as entered by the inviting admin)</li>
         <li>Work email (used as your sign-in identifier)</li>
         <li>Role on the team (doer, initiator, or both)</li>
-        <li>Department (free-text legacy column + canonical FK; admin-managed)</li>
+        <li>Function (free-text legacy column + canonical FK; admin-managed)</li>
         <li>Whether you're an administrator (boolean flag, admin-toggled)</li>
         <li>Firebase UID (issued automatically by Firebase Authentication)</li>
         <li>Avatar URL, if you have one (optional)</li>

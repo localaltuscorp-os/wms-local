@@ -589,16 +589,28 @@ describe("approved remote work behaves like ordinary attendance (§4)", () => {
    ──────────────────────────────────────────────────────────────────────────── */
 
 describe("the target comes from the employee's own schedule (§5)", () => {
-  it("a full-timer's week is the configured span × 6, not a literal 54", () => {
+  it("a full-timer's week is the contractual 9h × 6, and timings do not move it", () => {
     expect(CFG.dailyTargetMinutes).toBe(9 * 60);
     expect(CFG.weeklyTargetMinutes).toBe(54 * 60);
-    // Move the admin-set finish and the target MOVES with it.
+    // CHANGED 2026-09-15 (Employee Master schedule settings, migration 0228).
+    //
+    // This used to assert the opposite: move the admin-set finish to 18:00 and
+    // the target fell to 8h a day / 48h a week. The account holder's brief
+    // reversed that explicitly — "54 hours/week remains the governing Full-Time
+    // weekly target; employee timings only define the scheduled working
+    // periods" — after a 07:30–19:30 schedule turned out to be holding one
+    // employee to a 72-hour week, and earning a complete 54h week only 4.5 days.
+    //
+    // §5's actual guarantee is untouched: there is still ONE calculation and no
+    // literal 54 anywhere — the figure is FULL_TIME_DAILY_MINUTES ×
+    // WORKING_DAYS_PER_WEEK inside the resolver. What changed is only which
+    // input a full-timer's day reads: the contract, not the clock.
     const shorter = resolveEffectiveConfig({
       ...FULL_TIME,
       attOfficialEnd: "18:00:00",
     });
-    expect(shorter.dailyTargetMinutes).toBe(8 * 60);
-    expect(shorter.weeklyTargetMinutes).toBe(48 * 60);
+    expect(shorter.dailyTargetMinutes).toBe(9 * 60);
+    expect(shorter.weeklyTargetMinutes).toBe(54 * 60);
   });
 
   it("a HYBRID employee keeps their admin-set 27h — never a 30h assumption", () => {
