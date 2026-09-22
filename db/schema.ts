@@ -6969,6 +6969,9 @@ export const broadcasts = pgTable(
     // Scheduling / recurrence (0180). recurrence: none|daily|weekly|monthly.
     recurrence: text("recurrence").notNull().default("none").$type<BroadcastRecurrence>(),
     recurrenceUntil: date("recurrence_until"),
+    // Custom recurrence instants and the anchor used for monthly/annual repeats.
+    recurrenceDates: jsonb("recurrence_dates").notNull().default(sql`'[]'::jsonb`).$type<string[]>(),
+    recurrenceAnchor: timestamp("recurrence_anchor", { withTimezone: true }),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     // Reminder / escalation policy (0180). reminderAfterDays null = off.
     reminderAfterDays: integer("reminder_after_days"),
