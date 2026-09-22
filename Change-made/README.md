@@ -58,8 +58,7 @@ See [`SQL/README.md`](./SQL/README.md) for the exact reasoning and the one genui
 
 ## State of the branch
 
-- Nothing is committed on top of `639e165` (`Merge branch 'main' … into Om`) — every change below is working-tree only, until the accompanying commit.
-- `origin/Om` is at the same commit, so the first push needs `git push -u origin Om`.
+- Everything on `Om` is committed and pushed to `origin/Om` (latest `82758dd`, pushed 2026-09-22) — the change sets below are no longer working-tree only.
 - Deploy is gated by `scripts/assert-main-branch.mjs`, which refuses unless `HEAD` is `main`. **Pushing `Om` does not deploy.** Shipping requires a merge into `main`.
 
 ## Verification performed
