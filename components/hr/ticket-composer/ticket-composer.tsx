@@ -11,8 +11,16 @@ import {
   HR_TICKET_PRIORITY_LABELS,
   type HrTicketCategory,
 } from "@/db/enums";
-import { CATEGORY_GLYPH } from "@/lib/hr/ticket-ui";
+import { CATEGORY_ICON } from "@/lib/hr/ticket-ui";
+import { Select } from "@/components/ui/select";
 import { raiseTicket } from "@/app/(app)/support/actions";
+
+/** The topic dropdown's options. Labels only — a <Select> option is text, which
+ *  is the point: there is no way for an emoji to get back in here. */
+const TOPIC_OPTIONS = HR_TICKET_CATEGORIES.map((c) => ({
+  value: c,
+  label: HR_TICKET_CATEGORY_LABELS[c],
+}));
 
 const RED = "var(--color-altus-red)";
 const RED_DEEP = "var(--color-altus-red-deep)";
@@ -95,7 +103,7 @@ export function TicketComposer({
   }
 
   return (
-    <form onSubmit={submit} className="wg-rise space-y-6">
+    <form onSubmit={submit} className={`wg-rise ${isQuery ? "space-y-4" : "space-y-6"}`}>
       {contextNote && (
         <div
           className="flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-[13px] font-medium"
@@ -114,6 +122,7 @@ export function TicketComposer({
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             {HR_TICKET_CATEGORIES.map((c) => {
               const active = category === c;
+              const CatIcon = CATEGORY_ICON[c];
               return (
                 <button
                   type="button"
@@ -126,7 +135,7 @@ export function TicketComposer({
                     boxShadow: active ? `0 0 0 1px ${RED} inset` : "none",
                   }}
                 >
-                  <span className="text-[18px] leading-none">{CATEGORY_GLYPH[c]}</span>
+                  <CatIcon size={16} strokeWidth={2.2} className="shrink-0" style={{ color: active ? RED : "var(--color-ink-subtle)" }} />
                   <span className="text-[13px] font-semibold text-ink-strong">
                     {HR_TICKET_CATEGORY_LABELS[c]}
                   </span>
@@ -134,26 +143,6 @@ export function TicketComposer({
               );
             })}
           </div>
-        </div>
-      )}
-
-      {isQuery && (
-        <div>
-          <label htmlFor="cat" className="mb-2 block text-[12px] font-bold uppercase tracking-[0.14em] text-ink-muted">
-            Topic
-          </label>
-          <select
-            id="cat"
-            value={category}
-            onChange={(e) => setCategory(e.target.value as HrTicketCategory)}
-            className="w-full rounded-xl border border-hairline bg-surface-card px-3.5 py-2.5 text-[14px] font-medium text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
-          >
-            {HR_TICKET_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {HR_TICKET_CATEGORY_LABELS[c]}
-              </option>
-            ))}
-          </select>
         </div>
       )}
 
@@ -170,36 +159,76 @@ export function TicketComposer({
         </div>
       )}
 
-      <div>
-        <label htmlFor="subject" className="mb-2 block text-[12px] font-bold uppercase tracking-[0.14em] text-ink-muted">
-          {isQuery ? "Your question, in one line" : "Subject"}
-        </label>
-        <input
-          id="subject"
-          name="subject"
-          ref={subjectRef}
-          required
-          maxLength={200}
-          defaultValue={initialSubject}
-          placeholder={isQuery ? "e.g. How many casual leaves do I have left?" : "Short summary of your request"}
-          className="w-full rounded-xl border border-hairline bg-surface-card px-3.5 py-2.5 text-[15px] font-medium text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
-        />
-      </div>
+      {/* ONE ROW IN QUERY MODE: topic, then the question.
+          Topic is a DROPDOWN, not the chip row it briefly was. Nine chips took
+          two full rows at the top of the form and pushed everything the page is
+          actually about below the fold; a topic is picked once and then never
+          looked at again, so it does not deserve the most prominent real estate
+          on the page. The context box spans both columns underneath.
 
-      <div>
-        <label htmlFor="description" className="mb-2 block text-[12px] font-bold uppercase tracking-[0.14em] text-ink-muted">
-          {isQuery ? "Anything else? (optional context)" : "Details"}
-        </label>
-        <textarea
-          id="description"
-          name="description"
-          required={!isQuery}
-          rows={isQuery ? 3 : 6}
-          maxLength={8000}
-          defaultValue={initialDescription}
-          placeholder={isQuery ? "Add any details that help HR answer you faster." : "Describe your request — dates, amounts, people, anything relevant."}
-          className="w-full resize-y rounded-xl border border-hairline bg-surface-card px-3.5 py-3 text-[14.5px] leading-relaxed text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
-        />
+          In support mode the wrapper is just the form's own `space-y-6` rhythm,
+          so that layout is unchanged. */}
+      <div
+        className={
+          isQuery
+            ? "grid items-start gap-x-4 gap-y-4 lg:grid-cols-[minmax(190px,230px)_minmax(0,1fr)]"
+            : "space-y-6"
+        }
+      >
+        {isQuery && (
+          <div>
+            <label
+              htmlFor="topic"
+              className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted"
+            >
+              Topic
+            </label>
+            <Select
+              id="topic"
+              options={TOPIC_OPTIONS}
+              value={category}
+              onValueChange={(v) => setCategory(v as HrTicketCategory)}
+              ariaLabel="Topic"
+              searchable={false}
+              className="h-[42px] w-full"
+            />
+          </div>
+        )}
+        <div>
+          <label htmlFor="subject" className={`block font-bold uppercase text-ink-muted ${
+              isQuery ? "mb-1.5 text-[11px] tracking-[0.1em]" : "mb-2 text-[12px] tracking-[0.14em]"
+            }`}>
+            {isQuery ? "Your question, in one line" : "Subject"}
+          </label>
+          <input
+            id="subject"
+            name="subject"
+            ref={subjectRef}
+            required
+            maxLength={200}
+            defaultValue={initialSubject}
+            placeholder={isQuery ? "e.g. How many casual leaves do I have left?" : "Short summary of your request"}
+            className="w-full rounded-xl border border-hairline bg-surface-card px-3.5 py-2.5 text-[15px] font-medium text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
+          />
+        </div>
+
+        <div className={isQuery ? "lg:col-span-2" : undefined}>
+          <label htmlFor="description" className={`block font-bold uppercase text-ink-muted ${
+              isQuery ? "mb-1.5 text-[11px] tracking-[0.1em]" : "mb-2 text-[12px] tracking-[0.14em]"
+            }`}>
+            {isQuery ? "Anything else? (optional context)" : "Details"}
+          </label>
+          <textarea
+            id="description"
+            name="description"
+            required={!isQuery}
+            rows={isQuery ? 2 : 6}
+            maxLength={8000}
+            defaultValue={initialDescription}
+            placeholder={isQuery ? "Add any details that help HR answer you faster." : "Describe your request — dates, amounts, people, anything relevant."}
+            className="w-full resize-y rounded-xl border border-hairline bg-surface-card px-3.5 py-3 text-[14.5px] leading-relaxed text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
+          />
+        </div>
       </div>
 
       {!isQuery && (
@@ -287,6 +316,14 @@ export function TicketComposer({
           {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} />}
           {isQuery ? "Send to HR" : "Raise ticket"}
         </button>
+        {isQuery && (
+          /* The question every first-time asker has, answered where they are
+             about to act rather than in a paragraph at the top they have
+             already scrolled past. */
+          <span className="text-[12.5px] text-ink-muted">
+            It appears below as a question you can track, and HR is notified.
+          </span>
+        )}
       </div>
     </form>
   );

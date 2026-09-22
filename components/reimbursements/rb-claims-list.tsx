@@ -5,15 +5,14 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
-  MoreHorizontal,
   Archive,
   ArchiveRestore,
   Trash2,
   Check,
+  X,
   Paperclip,
   Link2 as LinkIcon,
   Tag,
-  CalendarDays,
   Wallet,
   ReceiptText,
 } from "lucide-react";
@@ -30,9 +29,14 @@ import {
   claimAmount,
   deriveStatus,
   matchesFilter,
-  type ClaimFilter,
   type DerivedClaimStatus,
 } from "@/lib/reimbursements/claim-status";
+import {
+  CLAIM_STATUS_CARD,
+  CLAIM_STATUS_LABEL,
+  CLAIM_STATUS_STRIPE,
+} from "@/lib/reimbursements/claim-kpis";
+import { statusCardTokens } from "@/lib/status-palette";
 import { canChangeClaimDocuments } from "@/lib/reimbursements/claim-access";
 import { legacyBillKind } from "@/lib/reimbursements/attachment-rules";
 import { useClaimFilter } from "./rb-filter-context";
@@ -50,36 +54,25 @@ type Status = "pending" | "approved" | "rejected";
 type DerivedStatus = DerivedClaimStatus;
 type SortKey = "newest" | "oldest" | "amount-desc" | "amount-asc";
 
-const GREEN = "#16a34a";
-const GREEN_DEEP = "#15803d";
-
-/* amber = pending · green = approved/paid · red = rejected */
-const STATUS_META: Record<DerivedStatus, { label: string; fg: string; bg: string; stripe: string }> = {
-  pending: {
-    label: "Pending",
-    fg: "#b45309",
-    bg: "rgba(245,158,11,0.14)",
-    stripe: "linear-gradient(180deg, #f59e0b, #d97706)",
-  },
-  approved: {
-    label: "Approved",
-    fg: GREEN_DEEP,
-    bg: "rgba(22,163,74,0.13)",
-    stripe: `linear-gradient(180deg, ${GREEN}, ${GREEN_DEEP})`,
-  },
-  paid: {
-    label: "Paid",
-    fg: "#fff",
-    bg: `linear-gradient(135deg, ${GREEN}, ${GREEN_DEEP})`,
-    stripe: `linear-gradient(180deg, ${GREEN}, ${GREEN_DEEP})`,
-  },
-  rejected: {
-    label: "Rejected",
-    fg: "#A80400",
-    bg: "rgba(225,6,0,0.10)",
-    stripe: "linear-gradient(180deg, #E10600, #A80400)",
-  },
-};
+/**
+ * A row's status badge and stripe, from the SAME palette map the key cards
+ * above are painted with (`lib/reimbursements/claim-kpis.ts`).
+ *
+ * This replaced a local table of raw hexes sitting beside a local
+ * `const GREEN = "#16a34a"` — a second private copy of the module's palette,
+ * which is precisely how a "Paid" badge and the "Paid" card above it come to be
+ * different greens. That table also gave Approved and Paid the SAME green; they
+ * are deliberately different now, because "we said yes" and "the money left"
+ * are different facts, and the strip above draws them as different cards.
+ */
+function statusBadge(status: DerivedStatus) {
+  const t = statusCardTokens(CLAIM_STATUS_CARD[status]);
+  return {
+    label: CLAIM_STATUS_LABEL[status],
+    badge: t.badge,
+    stripe: CLAIM_STATUS_STRIPE[status],
+  };
+}
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "newest", label: "Newest First" },
@@ -133,12 +126,6 @@ export function RbClaimsList({
   // toolbar chips drive the same one filter rather than two that can disagree.
   const { filter: statusFilter, setFilter: setStatusFilter } = useClaimFilter();
 
-  const counts = useMemo(() => {
-    const c: Record<"all" | DerivedStatus, number> = { all: rows.length, pending: 0, approved: 0, paid: 0, rejected: 0 };
-    for (const r of rows) c[deriveStatus(r)] += 1;
-    return c;
-  }, [rows]);
-
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = rows;
@@ -169,7 +156,7 @@ export function RbClaimsList({
       >
         <span
           className="mb-3 inline-grid size-12 place-items-center rounded-2xl"
-          style={{ background: `color-mix(in srgb, ${GREEN} 10%, transparent)`, color: GREEN_DEEP }}
+          style={{ background: `color-mix(in srgb, var(--module-accent) 10%, transparent)`, color: "var(--module-accent-deep)" }}
         >
           <ReceiptText size={22} strokeWidth={2.2} />
         </span>
@@ -185,39 +172,17 @@ export function RbClaimsList({
     );
   }
 
-  // The chip row offers the five states it always has. `approvedAll` is
-  // reachable only from the KPI card (it is that card's own definition — see
-  // lib/reimbursements/claim-status.ts), so it is deliberately NOT a chip: no
-  // chip lights up for it, and the count line names it instead.
-  const chip = (key: Exclude<ClaimFilter, "approvedAll">, label: string) => {
-    const active = statusFilter === key;
-    const meta = key !== "all" ? STATUS_META[key] : null;
-    return (
-      <button
-        key={key}
-        type="button"
-        onClick={() => setStatusFilter(key)}
-        aria-pressed={active}
-        className="wg-btn rounded-pill px-3.5 py-1.5 text-[12.5px] font-bold whitespace-nowrap transition-colors"
-        style={
-          active
-            ? key === "all"
-              ? { background: "linear-gradient(135deg, #334155, #1e293b)", color: "#fff" }
-              : key === "paid"
-                ? { background: STATUS_META.paid.bg, color: "#fff" }
-                : { background: meta!.fg, color: "#fff" }
-            : { background: "var(--color-surface-card)", color: "var(--color-ink-soft)", boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }
-        }
-      >
-        {label}
-        <span className="ml-1.5 tabular-nums opacity-70">{formatCount(counts[key])}</span>
-      </button>
-    );
-  };
-
   return (
     <div>
-      {/* ── Toolbar: search · status chips · sort ── */}
+      {/* ── Toolbar: search · sort · the active filter ──
+          THE STATUS CHIPS ARE GONE. There were two filter controls stacked on
+          top of each other — five key cards and, immediately below them, five
+          chips driving the same state. Clicking either moved both, which is
+          not a feature: it is one control drawn twice, costing a row of
+          vertical space and making people wonder which one is authoritative.
+          The cards won; they carry the money as well as the count. What the
+          chips did that the cards cannot — SAY which filter is on, and clear
+          it in one click — is the pill on the right. */}
       <div
         className="wg-rise mb-4 flex flex-wrap items-center gap-3 rounded-2xl bg-surface-card px-4 py-3"
         style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline), 0 10px 28px -22px rgba(15,23,42,0.35)" }}
@@ -230,33 +195,55 @@ export function RbClaimsList({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Local search - claims, person, head, amount" title="Local search - filters only the list on this page" aria-label="Local search - claims - expense, person, head, amount - this page only"
-            className="w-full rounded-pill border border-hairline bg-white py-2 pl-9 pr-4 text-[13.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle focus:border-[#16a34a99]"
+            className="w-full rounded-pill border border-hairline bg-white py-2 pl-9 pr-4 text-[13.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle focus:border-[color-mix(in_srgb,var(--module-accent)_60%,transparent)]"
           />
         </label>
         </CollapsibleSearch>
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by status">
-          {chip("all", "All")}
-          {chip("pending", "Pending")}
-          {chip("approved", "Approved")}
-          {chip("paid", "Paid")}
-          {chip("rejected", "Rejected")}
-        </div>
-        <div className="min-w-[190px]">
-          <Select
-            options={SORT_OPTIONS}
-            value={sort}
-            onValueChange={(v) => setSort(v as SortKey)}
-            ariaLabel="Sort claims"
-            searchable={false}
-          />
+
+        {/* THE COUNT LINE LIVES IN THE BAR NOW. The search rests as a 36px
+            magnifier (CollapsibleSearch — the same one 40 toolbars use), so
+            with the chip row gone this was a wide empty strip with a sort box
+            at the end of it. What was floating underneath as loose text is the
+            natural thing to put there: what you are looking at, and what it
+            adds up to. */}
+        <p
+          className="text-[12.5px] font-bold text-ink-subtle max-sm:w-full"
+          aria-live="polite"
+        >
+          {formatCount(shown.length)} {shown.length === 1 ? "claim" : "claims"}
+          <span className="tabular-nums" style={{ color: "var(--module-accent-deep)" }}>
+            {" "}
+            · {formatInr(shownTotal)}
+          </span>
+          {statusFilter !== "all" ? ` · ${CLAIM_FILTER_LABELS[statusFilter].toLowerCase()}` : ""}
+          {query.trim() ? " · matching your search" : ""}
+        </p>
+
+        <div className="ml-auto flex items-center gap-2 max-sm:ml-0 max-sm:w-full">
+          {statusFilter !== "all" && (
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className="wg-btn inline-flex shrink-0 items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12.5px] font-bold text-white"
+              style={{ background: "linear-gradient(135deg, #334155, #1e293b)" }}
+              title="Clear the filter and show every claim"
+            >
+              {CLAIM_FILTER_LABELS[statusFilter]}
+              <X size={13} strokeWidth={3} aria-hidden />
+              <span className="sr-only">— clear this filter</span>
+            </button>
+          )}
+          <div className="min-w-[190px] max-sm:flex-1">
+            <Select
+              options={SORT_OPTIONS}
+              value={sort}
+              onValueChange={(v) => setSort(v as SortKey)}
+              ariaLabel="Sort claims"
+              searchable={false}
+            />
+          </div>
         </div>
       </div>
-
-      <p className="mb-3 px-1 text-[12.5px] font-bold text-ink-subtle" aria-live="polite">
-        {formatCount(shown.length)} {shown.length === 1 ? "claim" : "claims"}
-        <span className="tabular-nums" style={{ color: GREEN_DEEP }}> · {formatInr(shownTotal)}</span>
-        {statusFilter !== "all" ? ` · ${CLAIM_FILTER_LABELS[statusFilter].toLowerCase()}` : ""}
-      </p>
 
       {shown.length === 0 ? (
         <p className="px-1 py-6 text-[14.5px] font-medium text-ink-subtle">No claims match - clear the search or filters.</p>
@@ -309,7 +296,7 @@ function ClaimCard({
   const [pending, start] = useTransition();
 
   const status = deriveStatus(row);
-  const meta = STATUS_META[status];
+  const meta = statusBadge(status);
   const amount = claimAmount(row);
   const headline = row.fields.expense_for || requestFields.map((f) => row.fields[f.key]).find((v) => v) || "Claim";
   const expenseHead = row.adminFields?.expense_head ?? "";
@@ -344,7 +331,7 @@ function ClaimCard({
       }}
     >
       {/* status stripe */}
-      <span aria-hidden className="absolute inset-y-0 left-0 w-[4px]" style={{ background: meta.stripe }} />
+      <span aria-hidden className={`absolute inset-y-0 left-0 w-[4px] ${meta.stripe}`} />
 
       <div className="flex flex-wrap items-start justify-between gap-3 py-4 pl-5 pr-4 max-md:pl-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -353,21 +340,25 @@ function ClaimCard({
             <div className="flex flex-wrap items-center gap-2">
               <span className="break-words text-[15.5px] font-bold text-ink-strong">{headline}</span>
               <span
-                className="rounded-pill px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.06em]"
-                style={{ background: meta.bg, color: meta.fg }}
+                className={`rounded-pill px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.06em] ${meta.badge}`}
               >
                 {meta.label}
               </span>
             </div>
+            {/* THE META LINE IS THE TWO DATES AND THE PERSON, nothing else.
+                It used to end with the payment method floating in accent green
+                with a wallet icon and no label — "98207 GPay" hanging off a
+                sentence about when the claim was submitted, reading like a
+                stray phone number. That is a fact about the PAYMENT, so it is a
+                labelled chip below with the rest of the facts. The spend date
+                came up from the chip row in exchange: a date belongs beside the
+                other date, not in a pill between a category and a file count. */}
             <p className="mt-1 text-[13px] font-medium text-ink-subtle">
-              {isAdmin ? `${row.employeeName} · ` : ""}Submitted {formatDate(row.createdAt)}
-              {paidThrough ? (
-                <span className="inline-flex items-center gap-1 pl-1.5" style={{ color: GREEN_DEEP }}>
-                  <Wallet size={12} strokeWidth={2.4} /> {paidThrough}
-                </span>
-              ) : null}
+              {isAdmin ? `${row.employeeName} · ` : ""}
+              Submitted {formatDate(row.createdAt)}
+              {expenseDate ? ` · Spent ${formatDate(expenseDate)}` : ""}
             </p>
-            {/* chips: category · product · expense date · receipt */}
+            {/* chips: category · product · paid via · documents · receipt */}
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {expenseHead && (
                 <span className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11.5px] font-bold" style={{ background: "rgba(124,58,237,0.10)", color: "#5b21b6" }}>
@@ -379,9 +370,18 @@ function ClaimCard({
                   {product}
                 </span>
               )}
-              {expenseDate && (
-                <span className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11.5px] font-bold text-ink-soft tabular-nums" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)" }}>
-                  <CalendarDays size={11} strokeWidth={2.6} /> {expenseDate}
+              {/* HOW IT WAS SETTLED — labelled, so the value reads as a
+                  payment method rather than as a loose number. */}
+              {paidThrough && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11.5px] font-bold"
+                  style={{
+                    background: "color-mix(in srgb, var(--module-accent) 11%, transparent)",
+                    color: "var(--module-accent-deep)",
+                  }}
+                  title="How this claim was paid out"
+                >
+                  <Wallet size={11} strokeWidth={2.6} /> Paid via {paidThrough}
                 </span>
               )}
               {/* UPLOADED DOCUMENTS — the count only; the files themselves (and
@@ -389,7 +389,7 @@ function ClaimCard({
               {attachmentCount > 0 && (
                 <span
                   className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11.5px] font-bold"
-                  style={{ background: `color-mix(in srgb, ${GREEN} 11%, transparent)`, color: GREEN_DEEP }}
+                  style={{ background: `color-mix(in srgb, var(--module-accent) 11%, transparent)`, color: "var(--module-accent-deep)" }}
                   title="Open Details to view the attached documents"
                 >
                   <Paperclip size={11} strokeWidth={2.6} />
@@ -417,9 +417,18 @@ function ClaimCard({
           </div>
         </div>
 
-        {/* amount + actions */}
+        {/* AMOUNT + ACTIONS, ON A FIXED MEASURE.
+            A pending row carries Approve AND Reject; a decided row carries only
+            one of them. With the block sized to its contents that difference
+            shoved the ₹ column left and right by ~90px from row to row, so the
+            one number a reader scans down the list never lined up. The actions
+            reserve a constant width — 320px, measured off the widest case
+            (Approve + Reject + Details + menu = 317px) — and the amount sits in
+            a fixed column, so both edges hold still whatever buttons a row
+            happens to show. Below `lg` the reserve is dropped: there the row
+            wraps anyway and holding 320px open would only squeeze the title. */}
         <div className="flex items-center gap-3 max-md:w-full max-md:justify-between">
-          <div className="text-right">
+          <div className="w-[104px] shrink-0 text-right max-md:w-auto">
             <div
               className="tabular-nums text-ink-strong"
               style={{
@@ -434,18 +443,28 @@ function ClaimCard({
             </div>
             <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-subtle">claimed</div>
           </div>
-          <div className="flex items-center gap-1.5">
+          {/* APPROVE AND REJECT MUST NOT LOOK ALIKE — and they did.
+              Approve carried `.brand-btn`, which sets background, colour AND
+              border with `!important` (globals.css). That beat the inline green
+              gradient and the `text-white` beside it, so Approve rendered as a
+              pale red pill — the same pale red as Reject, immediately to its
+              right. Two opposite, irreversible decisions, one appearance.
+              `.brand-btn` is gone from it; the affirmative action is the only
+              solid button in the row, and Reject stays quiet until wanted. */}
+          <div className="flex min-w-[320px] items-center justify-end gap-1.5 max-lg:min-w-0">
             {isAdmin && row.status !== "approved" && (
               <button
                 type="button"
                 disabled={pending}
                 onClick={() => decide("approved")}
-                className="brand-btn wg-btn rounded-pill px-3.5 py-2 text-[13px] font-bold text-white disabled:opacity-50"
+                title={`Approve this claim for ${formatInr(amount)}`}
+                className="wg-btn inline-flex items-center gap-1.5 rounded-pill px-3.5 py-2 text-[13px] font-bold text-white disabled:opacity-50"
                 style={{
-                  background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DEEP})`,
-                  boxShadow: `0 8px 20px -12px color-mix(in srgb, ${GREEN_DEEP} 75%, transparent)`,
+                  background: "linear-gradient(135deg, var(--module-accent), var(--module-accent-deep))",
+                  boxShadow: "0 8px 20px -12px color-mix(in srgb, var(--module-accent-deep) 75%, transparent)",
                 }}
               >
+                <Check size={14} strokeWidth={3} aria-hidden />
                 Approve
               </button>
             )}
@@ -454,9 +473,10 @@ function ClaimCard({
                 type="button"
                 disabled={pending}
                 onClick={() => decide("rejected")}
-                className="wg-btn rounded-pill px-3.5 py-2 text-[13px] font-bold disabled:opacity-50"
-                style={{ background: "rgba(225,6,0,0.08)", color: "#A80400", boxShadow: "inset 0 0 0 1px rgba(225,6,0,0.25)" }}
+                title="Reject this claim"
+                className="wg-btn inline-flex items-center gap-1.5 rounded-pill border border-rose-200 bg-rose-50 px-3.5 py-2 text-[13px] font-bold text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50"
               >
+                <X size={14} strokeWidth={3} aria-hidden />
                 Reject
               </button>
             )}
@@ -468,7 +488,7 @@ function ClaimCard({
             >
               {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />} Details
             </button>
-            {isAdmin && <CardMenu row={row} view={view} />}
+            {isAdmin && <CardActions row={row} view={view} />}
           </div>
         </div>
       </div>
@@ -487,7 +507,7 @@ function ClaimCard({
             <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t pt-4 max-md:grid-cols-1" style={{ borderColor: "var(--color-hairline)" }}>
               {adminPairs.map(([label, value]) => (
                 <div key={label}>
-                  <dt className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: GREEN_DEEP }}>{label}</dt>
+                  <dt className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: "var(--module-accent-deep)" }}>{label}</dt>
                   <dd className="mt-0.5 break-words text-[14.5px] font-medium text-ink-strong">{value}</dd>
                 </div>
               ))}
@@ -539,10 +559,10 @@ function AdminPanel({ row, adminFields, productOptions }: { row: ModuleSubmissio
       className="mt-4 rounded-xl p-4"
       style={{
         border: "1px dashed var(--color-hairline-strong)",
-        background: `color-mix(in srgb, ${GREEN} 3%, transparent)`,
+        background: `color-mix(in srgb, var(--module-accent) 3%, transparent)`,
       }}
     >
-      <p className="mb-3 text-[11.5px] font-black uppercase tracking-[0.08em]" style={{ color: GREEN_DEEP }}>
+      <p className="mb-3 text-[11.5px] font-black uppercase tracking-[0.08em]" style={{ color: "var(--module-accent-deep)" }}>
         Admin · Payment response
       </p>
       <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
@@ -561,11 +581,12 @@ function AdminPanel({ row, adminFields, productOptions }: { row: ModuleSubmissio
         type="button"
         onClick={save}
         disabled={pending}
-        className="brand-btn wg-btn mt-3 inline-flex items-center gap-1.5 rounded-pill px-4.5 py-2 text-[13px] font-bold text-white disabled:opacity-50"
-        style={{
-          background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DEEP})`,
-          boxShadow: `0 8px 20px -12px color-mix(in srgb, ${GREEN_DEEP} 75%, transparent)`,
-        }}
+        /* Same `.brand-btn` trap as Approve above: the class wins on
+           background AND colour with `!important`, so the inline gradient and
+           `text-white` here were dead weight. Dropped — this is the admin
+           response form's own save, not the page's primary action, and the
+           soft accent fill `.brand-btn` gives it is the right weight for it. */
+        className="brand-btn wg-btn mt-3 inline-flex items-center gap-1.5 rounded-pill px-4.5 py-2 text-[13px] font-bold disabled:opacity-50"
       >
         <Check size={14} strokeWidth={2.8} /> {pending ? "Saving…" : "Save Response"}
       </button>
@@ -575,59 +596,82 @@ function AdminPanel({ row, adminFields, productOptions }: { row: ModuleSubmissio
 
 /* ───────────────────── archive / delete menu ───────────────────── */
 
-function CardMenu({ row, view }: { row: ModuleSubmissionRow; view: "active" | "archived" }) {
-  const [open, setOpen] = useState(false);
+/**
+ * THE ROW'S OWN ACTIONS — no dropdown.
+ *
+ * This was a "⋯" button that opened a menu containing exactly one thing you
+ * would ever want on an active claim: Archive. A menu whose only useful item is
+ * one click deep is a click tax, and "⋯" tells you nothing about what is behind
+ * it. The archive control sits directly in the row now, in the slot the dots
+ * used to occupy.
+ *
+ * DELETE MOVED RATHER THAN VANISHED. It used to sit in that same menu on every
+ * row, one slip away from destroying a claim someone had filed. It now appears
+ * only in the Archived view, so the destructive step follows the reversible one
+ * — archive first, then delete from the archive if you really mean it.
+ */
+function CardActions({ row, view }: { row: ModuleSubmissionRow; view: "active" | "archived" }) {
   const [pending, start] = useTransition();
 
   function archive(next: boolean) {
-    setOpen(false);
     start(async () => {
       const res = await setModuleArchived({ id: row.id, archived: next });
-      fireToast(res.ok ? { message: next ? "Archived." : "Restored.", type: "success" } : { message: res.error, type: "error" });
-    });
-  }
-  function remove() {
-    setOpen(false);
-    if (!confirm("Delete this claim permanently?")) return;
-    start(async () => {
-      const res = await deleteModuleSubmission({ id: row.id });
-      fireToast(res.ok ? { message: "Deleted.", type: "success" } : { message: res.error, type: "error" });
+      fireToast(
+        res.ok
+          ? { message: next ? "Archived." : "Restored.", type: "success" }
+          : { message: res.error, type: "error" },
+      );
     });
   }
 
+  function remove() {
+    if (!confirm("Delete this claim permanently? This cannot be undone.")) return;
+    start(async () => {
+      const res = await deleteModuleSubmission({ id: row.id });
+      fireToast(res.ok ? { message: "Deleted.", type: "error" } : { message: res.error, type: "error" });
+    });
+  }
+
+  const iconBtn =
+    "inline-flex size-9 items-center justify-center rounded-pill transition-colors disabled:opacity-50";
+
+  if (view === "archived") {
+    return (
+      <>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => archive(false)}
+          aria-label="Restore this claim"
+          title="Restore to the active list"
+          className={`${iconBtn} text-ink-soft hover:bg-surface-soft hover:text-ink-strong`}
+        >
+          <ArchiveRestore size={16} strokeWidth={2.2} />
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={remove}
+          aria-label="Delete this claim permanently"
+          title="Delete permanently"
+          className={`${iconBtn} text-rose-600 hover:bg-rose-50`}
+        >
+          <Trash2 size={16} strokeWidth={2.2} />
+        </button>
+      </>
+    );
+  }
+
   return (
-    <div className="relative">
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() => setOpen((v) => !v)}
-        aria-label="More actions"
-        className="inline-flex size-9 items-center justify-center rounded-pill text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong disabled:opacity-50"
-      >
-        <MoreHorizontal size={16} />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          <div
-            className="absolute right-0 top-full z-30 mt-1 min-w-[168px] rounded-xl bg-white p-1.5"
-            style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline), 0 16px 36px -12px rgba(15,23,42,0.25)" }}
-          >
-            {view === "archived" ? (
-              <button type="button" onClick={() => archive(false)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[14px] font-semibold text-ink-strong hover:bg-surface-soft">
-                <ArchiveRestore size={15} /> Restore
-              </button>
-            ) : (
-              <button type="button" onClick={() => archive(true)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[14px] font-semibold text-ink-strong hover:bg-surface-soft">
-                <Archive size={15} /> Archive
-              </button>
-            )}
-            <button type="button" onClick={remove} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[14px] font-semibold text-[#A80400] hover:bg-[#FEF2F2]">
-              <Trash2 size={15} /> Delete
-            </button>
-          </div>
-        </>
-      )}
-    </div>
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() => archive(true)}
+      aria-label="Archive this claim"
+      title="Archive — it moves to the Archived tab and can be restored"
+      className={`${iconBtn} text-ink-soft hover:bg-surface-soft hover:text-ink-strong`}
+    >
+      <Archive size={16} strokeWidth={2.2} />
+    </button>
   );
 }

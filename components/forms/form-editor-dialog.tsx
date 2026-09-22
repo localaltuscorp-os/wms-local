@@ -17,10 +17,17 @@ const TYPES = Object.keys(FIELD_TYPE_LABELS) as FormFieldType[];
 export function FormEditorDialog({
   formKey,
   formName,
+  triggerLabel = "Edit Form",
   fields,
 }: {
   formKey: string;
   formName: string;
+  /** What the trigger button says. Defaults to "Edit Form", which is right
+   *  where there is only one of these on a page — but a module that exposes
+   *  BOTH its request form and its admin fields renders two of these side by
+   *  side, and two buttons reading "Edit Form" do not tell you which is which.
+   *  Name them at the call site in that case. */
+  triggerLabel?: string;
   fields: FormFieldDef[];
 }) {
   const [open, setOpen] = useState(false);
@@ -81,7 +88,7 @@ export function FormEditorDialog({
     <Dialog.Root open={open} onOpenChange={(o) => { setOpen(o); if (o) reseed(); }}>
       <Dialog.Trigger asChild>
         <button className="bg-surface-card inline-flex items-center gap-1.5 rounded-pill border border-hairline px-3.5 py-2 text-[13.5px] font-bold text-ink-soft hover:text-ink-strong transition-colors">
-          <Pencil size={14} /> Edit Form
+          <Pencil size={14} /> {triggerLabel}
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>

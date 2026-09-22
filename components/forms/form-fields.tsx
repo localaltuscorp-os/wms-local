@@ -46,7 +46,7 @@ export function FieldInput({
 }) {
   if (field.type === "product") {
     return (
-      <ProductButtons
+      <ProductPicker
         value={value}
         onChange={(v) => onChange(field.key, v)}
         options={productOptions ?? []}
@@ -190,8 +190,26 @@ function DictatableTextarea({
   );
 }
 
-/** Product Name MCQ — buttons; admins can add to the live global list inline. */
-export function ProductButtons({
+/**
+ * PRODUCT NAME — a dropdown, with the admin's inline "add" kept beside it.
+ *
+ * It was a grid of pill buttons, one per product. There are eighteen of them,
+ * so inside the Request Reimbursement dialog that was three full rows of chips
+ * plus an Add button — more vertical space than the amount, the date and the
+ * expense description put together, for a field that is optional and gets one
+ * click. A closed dropdown is one row, and the list has a search box the moment
+ * it exceeds eight entries, which a chip grid can never have.
+ *
+ * ADMINS CAN STILL ADD A PRODUCT without leaving the form; that capability is
+ * why this was hand-rolled rather than a <Select> in the first place. It is now
+ * a button next to the dropdown instead of the last chip in the grid.
+ */
+
+/** Sentinel for "no product". An empty string cannot be a cmdk item value, and
+ *  the field is optional, so clearing it needs a real option to land on. */
+const NO_PRODUCT = "__none__";
+
+export function ProductPicker({
   value,
   onChange,
   options,
@@ -208,9 +226,17 @@ export function ProductButtons({
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState("");
   const [pending, start] = React.useTransition();
+
   const opts = React.useMemo(
     () => [...options, ...extras.filter((e) => !options.includes(e))],
     [options, extras],
+  );
+  const selectOptions = React.useMemo(
+    () => [
+      { value: NO_PRODUCT, label: "No product" },
+      ...opts.map((o) => ({ value: o, label: o })),
+    ],
+    [opts],
   );
 
   function addNew() {
@@ -226,55 +252,69 @@ export function ProductButtons({
     });
   }
 
+  if (adding) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); addNew(); }
+            if (e.key === "Escape") { setAdding(false); setDraft(""); }
+          }}
+          placeholder="New product name"
+          aria-label="New product name"
+          className={inputClass}
+        />
+        <button
+          type="button"
+          onClick={addNew}
+          disabled={pending}
+          className="shrink-0 rounded-md px-3.5 py-2.5 text-[14px] font-bold text-white disabled:opacity-50"
+          style={{ background: "var(--module-accent, var(--color-altus-red))" }}
+        >
+          Add
+        </button>
+        <button
+          type="button"
+          onClick={() => { setAdding(false); setDraft(""); }}
+          className="shrink-0 rounded-md px-2.5 py-2.5 text-[14px] font-bold text-ink-soft hover:text-ink-strong"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-wrap gap-2">
-      {opts.map((o) => {
-        const active = value === o;
-        return (
-          <button
-            key={o}
-            type="button"
-            onClick={() => onChange(active ? "" : o)}
-            className="inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[13px] font-bold border transition-colors"
-            style={
-              active
-                ? { background: "var(--color-altus-red)", color: "#fff", borderColor: "var(--color-altus-red)" }
-                : { background: "#fff", color: "var(--color-ink-soft)", borderColor: "var(--color-hairline)" }
-            }
-          >
-            {active && <Check size={13} />}
-            {o}
-          </button>
-        );
-      })}
-      {isAdmin &&
-        (adding ? (
-          <span className="inline-flex items-center gap-1.5">
-            <input
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); addNew(); }
-                if (e.key === "Escape") { setAdding(false); setDraft(""); }
-              }}
-              placeholder="New product"
-              className="rounded-pill border border-hairline px-3 py-1.5 text-[13px] outline-none focus:border-altus-red/60"
-            />
-            <button type="button" onClick={addNew} disabled={pending}
-              className="rounded-pill px-3 py-1.5 text-[13px] font-bold text-white" style={{ background: "var(--color-altus-red)" }}>
-              Add
-            </button>
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="bg-surface-card inline-flex items-center gap-1 rounded-pill px-3 py-1.5 text-[13px] font-bold border border-solid border-hairline text-ink-soft hover:text-ink-strong"
-          >
-            <Plus size={13} /> Add
-          </button>
-        ))}
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">
+        <Select
+          options={selectOptions}
+          /* The RAW value, not a fallback to the sentinel: `Select` shows its
+             placeholder when no option matches, so an unset field reads
+             "Choose a product" rather than asserting "No product" — which is a
+             claim about the expense, not an invitation to pick. The sentinel
+             stays in the list so a chosen product can be cleared again. */
+          value={value}
+          onValueChange={(v) => onChange(v === NO_PRODUCT ? "" : v)}
+          placeholder="Choose a product"
+          searchPlaceholder="Search products…"
+          ariaLabel="Product name"
+          className="h-[46px] w-full"
+        />
+      </div>
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          title="Add a new product to the list"
+          className="bg-surface-card inline-flex shrink-0 items-center gap-1 rounded-md border border-hairline px-3 py-2.5 text-[13.5px] font-bold text-ink-soft transition-colors hover:text-ink-strong"
+        >
+          <Plus size={14} /> Add
+        </button>
+      )}
     </div>
   );
 }

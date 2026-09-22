@@ -317,6 +317,137 @@ async function seedCandidates(pg: PGlite): Promise<void> {
   }
 }
 
+/**
+ * CLIENT ENGAGEMENT — enough rows to see every rule work.
+ *
+ * Deliberately includes the awkward cases, because a module that only ever sees
+ * tidy data is a module whose edges nobody has looked at: an entity in the
+ * unassigned pool, one on hold, one on barter, one that has not started yet, a
+ * lead sitting near the 27-hour line, and a call with no times on it at all.
+ *
+ * Fixed ids with `on conflict do nothing`, like the rest of this file: re-seed
+ * as often as you like, and anything edited in the app stays edited.
+ */
+async function seedClientEngagement(
+  pg: PGlite,
+  /** The roster id for a name, or NULL when that person is not in the org tree.
+   *
+   *  It used to be `(name) => string`, and the three Client Engagement leads —
+   *  Jeevan, Ruchita, Mitul — are named ONLY here; they were never added to
+   *  TREE. `treeId` builds its uuid from `treeNames.indexOf(name)`, so an
+   *  unknown name produced `…-8003-000000000000`, an id no employee has, and
+   *  the first insert died on `pa_people_employee_id_fkey`. That made a fresh
+   *  dummy database impossible to build (upstream carries the same bug).
+   *
+   *  `pa_people.employee_id` is nullable on purpose — migration 0191 says "one
+   *  row per roster employee; free-typed people are unconstrained" — so a lead
+   *  who is not on the roster is a legitimate row with no employee behind it,
+   *  which is a truer statement than pointing at an id that does not exist. */
+  employeeIdOf: (name: string) => string | null,
+  today: Date,
+): Promise<void> {
+  const ce = (n: number) => `00000000-0000-4000-8005-${String(n).padStart(12, "0")}`;
+  const ymd = (offsetDays: number) =>
+    new Date(today.getTime() + offsetDays * 86_400_000).toISOString().slice(0, 10);
+
+  // ── The leads, with a roster row of their own ──
+  const LEADS: [number, string][] = [
+    [1, "Jeevan"],
+    [2, "Ruchita"],
+    [3, "Mitul"],
+  ];
+  for (const [n, name] of LEADS) {
+    await pg.query(
+      `insert into pa_people (id, kind, name, employee_id, is_ce_lead)
+       values ($1,'employee',$2,$3,true)
+       on conflict (id) do nothing`,
+      [ce(n), name, employeeIdOf(name)],
+    );
+  }
+  const lead = (name: string) => ce(LEADS.find((l) => l[1] === name)![0]);
+
+  // ── Participants and clients ──
+  // id, name, product, batch, owner, on hold, colour band, starts, ends
+  const ENTRIES: [number, string, string, string | null, string | null, boolean, string | null, string, string][] = [
+    [10, "Mihir Vira", "ps", "91", lead("Jeevan"), false, "active", ymd(-30), ymd(60)],
+    [11, "Sneha Kulkarni", "ps", "91", lead("Jeevan"), false, "active", ymd(-30), ymd(60)],
+    [12, "Farhan Qureshi", "bss", "88", lead("Jeevan"), false, "active", ymd(-45), ymd(45)],
+    [13, "Tanvi Deshpande", "bss", "88", lead("Ruchita"), false, "active", ymd(-20), ymd(70)],
+    [14, "Lakshmi Iyer", "os", null, lead("Ruchita"), false, "barter", ymd(-60), ymd(120)],
+    [15, "Nikhil Rao", "retainer", null, lead("Mitul"), false, "active", ymd(-10), ymd(170)],
+    // On hold: theirs, but costing the week nothing.
+    [16, "Aarti Menon", "ps", "90", lead("Mitul"), true, "active", ymd(-90), ymd(10)],
+    // Not started: the status derives itself when the day comes.
+    [17, "Pranav Shetty", "bss", "92", lead("Ruchita"), false, "active", ymd(21), ymd(140)],
+    // The unassigned pool.
+    [18, "Devika Nair", "ps", "92", null, false, "active", ymd(7), ymd(120)],
+    [19, "Rohit Bhatia", "os", null, null, false, "active", ymd(-5), ymd(180)],
+    [20, "Kiran Joshi", "retainer", null, null, false, "active", ymd(-2), ymd(200)],
+  ];
+  for (const [n, name, section, batch, owner, hold, highlight, start, end] of ENTRIES) {
+    await pg.query(
+      `insert into pa_entries (id, person_id, section, name, batch_no, on_hold, highlight, start_date, end_date)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       on conflict (id) do nothing`,
+      [ce(n), owner, section, name, batch, hold, highlight, start, end],
+    );
+  }
+
+  // ── Ambassadors: on a revenue share by definition, one still unclaimed ──
+  const AMBASSADORS: [number, string, string | null][] = [
+    [30, "Vikram Sethi", lead("Mitul")],
+    [31, "Ananya Ghosh", null],
+  ];
+  for (const [n, name, owner] of AMBASSADORS) {
+    await pg.query(
+      `insert into pa_ambassadors (id, name, email, products, owner_person_id, status, start_date)
+       values ($1,$2,$3,'{"ps"}',$4,'revenue_share',$5)
+       on conflict (id) do nothing`,
+      [ce(n), name, `${name.toLowerCase().replace(/[^a-z]+/g, ".")}@example.invalid`, owner, ymd(-120)],
+    );
+  }
+
+  // ── The weekly calls ──
+  // Jeevan is deliberately taken close to the 27-hour line, so the red flag on
+  // the grid and the calendar's banner can be seen without arranging anything.
+  // entity, seq, type, day, from, to
+  const CALLS: [number, number, string, string, string, string][] = [
+    [10, 1, "hh", "mon", "10:00", "13:00"],
+    [10, 2, "tool", "wed", "10:00", "13:00"],
+    [11, 1, "hh", "mon", "13:00", "16:00"],
+    [11, 2, "checkin", "thu", "10:00", "14:00"],
+    [12, 1, "hh", "tue", "10:00", "14:00"],
+    [12, 2, "tool", "fri", "10:00", "14:00"],
+    [12, 3, "courtesy", "sat", "10:00", "13:30"],
+    [13, 1, "hh", "tue", "15:00", "17:00"],
+    [14, 1, "checkin", "wed", "11:00", "12:00"],
+    [15, 1, "reference", "thu", "16:00", "17:30"],
+    [16, 1, "hh", "fri", "15:00", "16:00"],
+    [30, 1, "courtesy", "mon", "17:00", "18:00"],
+  ];
+  for (const [entity, seq, type, day, from, to] of CALLS) {
+    const minutes =
+      (Number(to.slice(0, 2)) * 60 + Number(to.slice(3))) - (Number(from.slice(0, 2)) * 60 + Number(from.slice(3)));
+    const column = entity >= 30 ? "ambassador_id" : "entry_id";
+    await pg.query(
+      `insert into pa_calls (id, ${column}, seq, call_type, day, duration_min, start_time, end_time)
+       values ($1,$2,$3,$4,$5,$6,$7,$8)
+       on conflict (id) do nothing`,
+      [ce(100 + entity * 10 + seq), ce(entity), seq, type, day, minutes, from, to],
+    );
+  }
+
+  // A call from before the scheduler existed: a length, but no clock. It shows
+  // in the calendar's "Not fixed" strip and on the Calls-not-fixed badge until
+  // somebody gives it a time.
+  await pg.query(
+    `insert into pa_calls (id, entry_id, seq, call_type, day, duration_min)
+     values ($1,$2,1,'checkin','wed',60)
+     on conflict (id) do nothing`,
+    [ce(999), ce(19)],
+  );
+}
+
 export async function seedDummyData(pg: PGlite): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
 
@@ -325,12 +456,33 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
     counts[table] = r.rows[0]?.n ?? 0;
   };
 
+  /*
+   * FUNCTIONS IS THE LIVE MASTER — `departments` HAS NOT BEEN SINCE 0234.
+   *
+   * Migration 0234 ("functions replace departments") copied the rows into
+   * `functions` keeping their ids, and re-pointed `employees.department_id`,
+   * `employee_departments.department_id` and `jd_positions.department_id` at
+   * `functions`. The column names stayed `department_id` — the CONSTRAINT is
+   * what decides which table a value must exist in.
+   *
+   * This seed only ever filled `departments`, so on a FRESH database every
+   * employee insert died on `employees_department_id_fkey`. It went unnoticed
+   * for the obvious reason: nobody rebuilds the fixture. An existing `.pglite`
+   * predated 0234, and the migration itself copied the rows across — so the
+   * only way to meet this bug was to delete the directory, which is exactly
+   * what a corrupted PGlite forces you to do.
+   *
+   * Both tables are filled and kept in step: `functions` because the foreign
+   * keys demand it, `departments` because 0234 keeps it as the backup record
+   * and a fixture that leaves it empty tells a different story from production.
+   */
   for (const [id, name] of [
     [DEPT.ops, "Operations"],
     [DEPT.finance, "Finance"],
     [DEPT.tech, "Technology"],
     [DEPT.hr, "HR"],
   ] as const) {
+    await pg.query(`insert into functions (id, name) values ($1,$2) on conflict do nothing`, [id, name]);
     await pg.query(`insert into departments (id, name) values ($1,$2) on conflict do nothing`, [id, name]);
   }
 
@@ -373,8 +525,12 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
   // case the seed's `on conflict do nothing` insert above is skipped and
   // DEPT.hr never exists — pointing employees.department_id at it then fails
   // the employees_department_id_fkey constraint.
+  // FROM `functions`, not `departments`: the id resolved here is written into
+  // employees.department_id and employee_departments.department_id, and both
+  // of those foreign-key into `functions` since 0234. Reading the backup table
+  // could hand back an id that the live master does not have.
   const hrDept = await pg.query<{ id: string }>(
-    `select id from departments where lower(name) = 'hr' limit 1`,
+    `select id from functions where lower(name) = 'hr' limit 1`,
   );
   const hrDeptId = hrDept.rows[0]?.id ?? null;
 
@@ -448,6 +604,116 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
   // something real to collect. Imported lazily: it pulls in pdf-lib.
   const { seedDummyHrRecords } = await import("./dummy-db-seed-hr-records");
   Object.assign(counts, await seedDummyHrRecords(pg, { admin: EMP.me, asha: EMP.asha, ravi: EMP.ravi }));
+
+  // The JD Bank and the Operations checklist — two features that only
+  // make sense together (a checklist item can point
+  // back at a JD entry), so they are seeded as one set.
+  const { seedJdChecklist } = await import("./dummy-db-seed-jd-checklist");
+  Object.assign(counts, await seedJdChecklist(pg));
+
+  // A month of a full team on top of the above — Operations (Checklist, JD
+  // Bank, JD-Master, JD-Specific Person, JD-For Recruitment) and DCC, so each
+  // table can be judged the way it looks in use rather than just non-empty.
+  const { seedShowcase } = await import("./dummy-db-seed-showcase");
+  Object.assign(counts, await seedShowcase(pg));
+
+  // The WMS Tasks columns on the checklist and a person's JD (migration 0237):
+  // Client, Subject, Initiator, Frequency, the Approver columns, Doer Notes.
+  const { seedWmsColumns } = await import("./dummy-db-seed-wms-columns");
+  Object.assign(counts, await seedWmsColumns(pg));
+
+  // WCC and MCC (migration 0238): monthly compliances with history, the actual
+  // date on every Done, and the Team Leads' rulings.
+  const { seedWccMcc } = await import("./dummy-db-seed-wcc-mcc");
+  Object.assign(counts, await seedWccMcc(pg));
+
+  // ── A LOCAL-ONLY ORG CHART, for Operations > Team Reporting ────────────
+  //
+  // Team Reporting is tested against a real org chart, and real names do not
+  // belong in the repository. So the chart is read from
+  // scripts/dummy-team-tree.local.json - git-ignored - and simply skipped when
+  // that file is absent (a fresh clone, CI, anybody else's machine).
+  //
+  // Nothing here can reach production: this seed only ever runs against the
+  // local PGlite database (`pnpm dummy:setup`), which DUMMY_MODE refuses to use
+  // outside development, and the file it reads is never pushed.
+  //
+  // SCOPED TO THE HIERARCHY. The people are plain employee rows with
+  // manager_id set - no tasks, goals, KPI or attendance - so no other module
+  // changes shape. The six fixture employees stay unattached here and are
+  // filtered off the Team Reporting board itself (see that page), while every
+  // other module still sees them.
+  //
+  // `on conflict do nothing` + `where manager_id is null`: re-runnable, and a
+  // transfer made in the UI is never undone by topping the fixture up.
+  const TREE = loadLocalTeamTree();
+
+  // One stable id per name, so re-seeding updates the same rows instead of
+  // filling the roster with duplicates. Ordered by first appearance: the head of
+  // the tree, then each manager's reports.
+  const treeNames: string[] = [];
+  for (const node of TREE) {
+    if (!treeNames.includes(node.name)) treeNames.push(node.name);
+    for (const r of node.reports) if (!treeNames.includes(r)) treeNames.push(r);
+  }
+  const treeId = (name: string) =>
+    `00000000-0000-4000-8003-${String(treeNames.indexOf(name) + 1).padStart(12, "0")}`;
+  const managerNames = new Set(TREE.filter((n) => n.reports.length > 0).map((n) => n.name));
+  const slug = (name: string) => name.toLowerCase().replace(/[^a-z]+/g, ".");
+
+  for (const name of treeNames) {
+    await pg.query(
+      `insert into employees (id, name, email, role, is_admin, is_active, department_id, designation_id, joined_at)
+       values ($1,$2,$3,'doer'::employee_role,false,true,$4,$5, now() - interval '200 days')
+       on conflict (id) do nothing`,
+      [
+        treeId(name),
+        name,
+        `${slug(name)}@example.invalid`,
+        DEPT.ops,
+        managerNames.has(name) ? DESIG.manager : DESIG.executive,
+      ],
+    );
+  }
+
+  for (const node of TREE) {
+    for (const r of node.reports) {
+      await pg.query(
+        "update employees set manager_id = $2 where id = $1 and manager_id is null",
+        [treeId(r), treeId(node.name)],
+      );
+    }
+  }
+
+  // ── OPERATIONS › DIRECTORY — a few fictional vendors so the page is not empty.
+  // Fixed ids + `on conflict do nothing`: re-runnable, and a vendor edited or
+  // deleted in the UI is never put back by re-seeding.
+  const VENDORS: [number, string, string, string | null, string, string, string, string, string, boolean][] = [
+    [1, "AC", "Suresh", "Patil", "9800000101", "cool.air@example.invalid", "Shop 4, Link Road", "Mumbai", "400064", true],
+    [2, "Electrician", "Ramesh", "Yadav", "9800000102", "ramesh.electric@example.invalid", "12 Station Lane", "Thane", "400601", false],
+    [3, "Stationery", "Kavita", "Shah", "9800000103", "paperhouse@example.invalid", "Gala 7, Market Yard", "Pune", "411037", false],
+    [4, "Computer Repairs", "Anil", null, "9800000104", "fixit@example.invalid", "2nd Floor, Tech Plaza", "Mumbai", "400093", true],
+  ];
+  for (const [n, category, first, last, cell, email, line1, city, pin, amc] of VENDORS) {
+    await pg.query(
+      `insert into ops_vendors (id, category, first_name, last_name, cell_no, email, address_line1, city, state, pincode, amc)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,'Maharashtra',$9,$10)
+       on conflict (id) do nothing`,
+      [`00000000-0000-4000-8004-${String(n).padStart(12, "0")}`, category, first, last, cell, email, line1, city, pin, amc],
+    );
+  }
+  await bump("ops_vendors");
+
+  await seedClientEngagement(
+    pg,
+    (name) => (treeNames.includes(name) ? treeId(name) : null),
+    new Date(),
+  );
+  await bump("pa_entries");
+  await bump("pa_calls");
+
+  await seedCandidates(pg);
+  await bump("candidate_intake");
 
   // ── FILE TWO TASKS INTO THE PLAN ─────────────────────────────────────────
   //
@@ -623,89 +889,6 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
     );
   }
   await bump("daily_checklist");
-
-  // The JD Bank and the Operations checklist — two features that only
-  // make sense together (a checklist item can point
-  // back at a JD entry), so they are seeded as one set.
-  const { seedJdChecklist } = await import("./dummy-db-seed-jd-checklist");
-  Object.assign(counts, await seedJdChecklist(pg));
-
-  // A month of a full team on top of the above — Operations (Checklist, JD
-  // Bank, JD-Master, JD-Specific Person, JD-For Recruitment) and DCC, so each
-  // table can be judged the way it looks in use rather than just non-empty.
-  const { seedShowcase } = await import("./dummy-db-seed-showcase");
-  Object.assign(counts, await seedShowcase(pg));
-
-  // The WMS Tasks columns on the checklist and a person's JD (migration 0237):
-  // Client, Subject, Initiator, Frequency, the Approver columns, Doer Notes.
-  const { seedWmsColumns } = await import("./dummy-db-seed-wms-columns");
-  Object.assign(counts, await seedWmsColumns(pg));
-
-  // WCC and MCC (migration 0238): monthly compliances with history, the actual
-  // date on every Done, and the Team Leads' rulings.
-  const { seedWccMcc } = await import("./dummy-db-seed-wcc-mcc");
-  Object.assign(counts, await seedWccMcc(pg));
-
-  // ── A LOCAL-ONLY ORG CHART, for Operations > Team Reporting ────────────
-  //
-  // Team Reporting is tested against a real org chart, and real names do not
-  // belong in the repository. So the chart is read from
-  // scripts/dummy-team-tree.local.json - git-ignored - and simply skipped when
-  // that file is absent (a fresh clone, CI, anybody else's machine).
-  //
-  // Nothing here can reach production: this seed only ever runs against the
-  // local PGlite database (`pnpm dummy:setup`), which DUMMY_MODE refuses to use
-  // outside development, and the file it reads is never pushed.
-  //
-  // SCOPED TO THE HIERARCHY. The people are plain employee rows with
-  // manager_id set - no tasks, goals, KPI or attendance - so no other module
-  // changes shape. The six fixture employees stay unattached here and are
-  // filtered off the Team Reporting board itself (see that page), while every
-  // other module still sees them.
-  //
-  // `on conflict do nothing` + `where manager_id is null`: re-runnable, and a
-  // transfer made in the UI is never undone by topping the fixture up.
-  const TREE = loadLocalTeamTree();
-
-  // One stable id per name, so re-seeding updates the same rows instead of
-  // filling the roster with duplicates. Ordered by first appearance: the head of
-  // the tree, then each manager's reports.
-  const treeNames: string[] = [];
-  for (const node of TREE) {
-    if (!treeNames.includes(node.name)) treeNames.push(node.name);
-    for (const r of node.reports) if (!treeNames.includes(r)) treeNames.push(r);
-  }
-  const treeId = (name: string) =>
-    `00000000-0000-4000-8003-${String(treeNames.indexOf(name) + 1).padStart(12, "0")}`;
-  const managerNames = new Set(TREE.filter((n) => n.reports.length > 0).map((n) => n.name));
-  const slug = (name: string) => name.toLowerCase().replace(/[^a-z]+/g, ".");
-
-  for (const name of treeNames) {
-    await pg.query(
-      `insert into employees (id, name, email, role, is_admin, is_active, department_id, designation_id, joined_at)
-       values ($1,$2,$3,'doer'::employee_role,false,true,$4,$5, now() - interval '200 days')
-       on conflict (id) do nothing`,
-      [
-        treeId(name),
-        name,
-        `${slug(name)}@example.invalid`,
-        DEPT.ops,
-        managerNames.has(name) ? DESIG.manager : DESIG.executive,
-      ],
-    );
-  }
-
-  for (const node of TREE) {
-    for (const r of node.reports) {
-      await pg.query(
-        "update employees set manager_id = $2 where id = $1 and manager_id is null",
-        [treeId(r), treeId(node.name)],
-      );
-    }
-  }
-
-  await seedCandidates(pg);
-  await bump("candidate_intake");
 
   return counts;
 }

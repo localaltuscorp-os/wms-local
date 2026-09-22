@@ -18,6 +18,7 @@ import { CardGrid } from "@/components/layout/card-grid";
 import { formatDate } from "@/lib/format";
 import type { DoneDashboardData, DonePersonRow } from "@/lib/queries/done-dashboard";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { statusCardTokens, type StatusCardKey } from "@/lib/status-palette";
 
 /**
  * Statuses the drill-through carries. Matches the query's definition of
@@ -99,28 +100,28 @@ export function DoneDashboardView({
           label="Total Completed"
           value={k.total.toLocaleString("en-IN")}
           sub={`${k.undated.toLocaleString("en-IN")} without a comparable date`}
-          fill="bg-slate-900"
+          cardKey="total"
           icon={<CheckCircle2 size={18} strokeWidth={2.4} />}
         />
         <Kpi
           label="On Time"
           value={`${k.onTimePct}%`}
           sub={`${k.onTime.toLocaleString("en-IN")} on time · ${k.overdue.toLocaleString("en-IN")} late`}
-          fill="bg-emerald-600"
+          cardKey="done"
           icon={<Clock size={18} strokeWidth={2.4} />}
         />
         <Kpi
           label="Avg. Resolution"
           value={`${k.avgResolutionDays}d`}
           sub="Created to completed, calendar days"
-          fill="bg-blue-600"
+          cardKey="notApproved"
           icon={<Timer size={18} strokeWidth={2.4} />}
         />
         <Kpi
           label="Completed"
           value={k.thisWeek.toLocaleString("en-IN")}
           sub={`last 7 days · ${k.thisMonth.toLocaleString("en-IN")} in 30`}
-          fill="bg-slate-700"
+          cardKey="pending"
           icon={<CalendarRange size={18} strokeWidth={2.4} />}
         />
       </CardGrid>
@@ -319,27 +320,51 @@ function DrillLink({
   );
 }
 
+/**
+ * THE SAME SOFT CONTAINER THE DASHBOARD'S KPI STRIP USES.
+ *
+ * These tiles have now been through all three schemes the product has had, and
+ * the last two were both wrong in the same way — they were a LOCAL palette.
+ * First hardcoded Tailwind fills (`bg-slate-900`, `bg-blue-600`), then the
+ * `--kpi-neon-*` tokens at 88% opacity; saturated blocks either way, while the
+ * dashboard a click away had already moved to pale tints with same-hue dark
+ * type.
+ *
+ * So the fill is not chosen here at all any more. `statusCardTokens` is the one
+ * the KPI strip calls, and it hands back shell, label, value and sub together —
+ * which is the point: a tint and its ink cannot drift apart, because one lookup
+ * returns both. When the palette next moves, these tiles move with it and
+ * nobody has to remember this file exists.
+ *
+ * Dark type on a pale tint also puts contrast out of reach as a problem. The
+ * white-on-colour version was scraping the AA floor on the emerald tile and had
+ * to be hand-tuned (a fill-opacity floor, a bumped sub-text alpha) to stay
+ * readable at all. None of that is needed now.
+ */
 function Kpi({
   label,
   value,
   sub,
-  fill,
+  cardKey,
   icon,
 }: {
   label: string;
   value: string;
   sub: string;
-  fill: string;
+  cardKey: StatusCardKey;
   icon: React.ReactNode;
 }) {
+  const t = statusCardTokens(cardKey);
   return (
-    <div className={`rounded-xl p-4 text-white shadow-sm ${fill}`}>
-      <span className="flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[0.07em] text-white/85">
+    <div className={`rounded-xl border p-4 shadow-sm ${t.shell}`}>
+      <span
+        className={`flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[0.07em] ${t.label}`}
+      >
         {icon}
         {label}
       </span>
       <span
-        className="mt-2 block tabular-nums leading-none text-white"
+        className={`mt-2 block tabular-nums leading-none ${t.value}`}
         style={{
           fontFamily: "var(--font-display), system-ui, sans-serif",
           fontWeight: 900,
@@ -348,7 +373,7 @@ function Kpi({
       >
         {value}
       </span>
-      <span className="mt-2 block text-[12px] font-medium text-white/80">{sub}</span>
+      <span className={`mt-2 block text-[12px] font-medium ${t.sub}`}>{sub}</span>
     </div>
   );
 }

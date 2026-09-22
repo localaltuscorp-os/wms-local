@@ -97,8 +97,11 @@ describe("derived status", () => {
 
 /* ── The filters ──────────────────────────────────────────────────────────── */
 
-describe("each KPI filters to its own definition", () => {
-  it("Total claimed / Claims → every row (both cards describe the whole set)", () => {
+/* These name FILTERS, not cards. The card set changed on 2026-09-21 — five
+   cards that partition the book, see reimbursement-claim-kpis.test.ts — but
+   every filter below still exists and still has to mean exactly this. */
+describe("each filter resolves to its own definition", () => {
+  it("all → every row", () => {
     const rows = flat(book());
     expect(filterClaims(rows, "all")).toHaveLength(rows.length);
     expect(sumClaims(filterClaims(rows, "all"))).toBe(sumClaims(rows));
@@ -111,17 +114,18 @@ describe("each KPI filters to its own definition", () => {
     expect(got.every((r) => r.status === "pending")).toBe(true);
   });
 
-  it("Approved · paid → approved claims, SETTLED OR NOT", () => {
-    // This is the card's own definition. Filtering to the narrower
-    // approved-but-unpaid would drop the settled ones and contradict the total
-    // printed on the card.
+  it("approvedAll → approved claims, SETTLED OR NOT", () => {
+    // Kept as a filter even though no card selects it any more: the Approved
+    // card is the NARROW reading now (approved, not yet paid), with Paid as its
+    // own card beside it. `approvedAll` is still the honest name for "every
+    // claim that got a yes", and the two cards must add up to it.
     const b = book();
     const got = filterClaims(flat(b), "approvedAll");
     expect(got).toHaveLength(b.approvedUnpaid.length + b.paid.length);
     expect(got.every((r) => r.status === "approved")).toBe(true);
   });
 
-  it("the Approved CHIP stays narrower — approved but not yet settled", () => {
+  it("approved stays narrower — approved but not yet settled. This is the Approved CARD now", () => {
     const b = book();
     const got = filterClaims(flat(b), "approved");
     expect(got).toHaveLength(b.approvedUnpaid.length);
@@ -145,7 +149,7 @@ describe("each KPI filters to its own definition", () => {
 
 /* ── The consistency property ─────────────────────────────────────────────── */
 
-describe("KPI figures reconcile with the lists they filter to", () => {
+describe("figures reconcile with the lists they filter to", () => {
   const b = book();
   const rows = flat(b);
 
@@ -154,20 +158,19 @@ describe("KPI figures reconcile with the lists they filter to", () => {
     expect(sumClaims(filterClaims(rows, "pending"))).toBe(cardTotal);
   });
 
-  it("the Approved · paid card's Rs. total equals its filtered list's total", () => {
+  it("approvedAll's ₹ total equals its filtered list's total", () => {
     const cardTotal = sumClaims(rows.filter((r) => r.status === "approved"));
     expect(sumClaims(filterClaims(rows, "approvedAll"))).toBe(cardTotal);
   });
 
-  it("the Approved · paid card's 'N of M settled' caption matches its list", () => {
+  it("splits approvedAll into the Approved and Paid cards without losing one", () => {
     const list = filterClaims(rows, "approvedAll");
-    // M — the denominator on the card.
     expect(list).toHaveLength(3);
-    // N — the settled count on the card.
     expect(list.filter(isPaid)).toHaveLength(2);
+    expect(list.filter((r) => !isPaid(r))).toHaveLength(1);
   });
 
-  it("the Claims card's count equals the row count of its filtered list", () => {
+  it("the all filter's count equals the row count of its filtered list", () => {
     expect(filterClaims(rows, "all")).toHaveLength(rows.length);
   });
 

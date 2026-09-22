@@ -232,17 +232,17 @@
 }
 
 /* ── MODULE TABS ──────────────────────────────────────────────────────────
-   Quick access to the first few rooms. They drop out one at a time as the bar
-   narrows — which is safe ONLY because the "More" menu beside them lists EVERY
-   room, not just the ones that overflowed. An overflow-only menu computed from
-   a width measurement would leave a module unreachable at any width the
-   measurement got wrong; this cannot. */
-/* flex: 1 1 0 — the strip takes whatever the title and the right cluster
-   leave, and useTabCount (aura-top-bar.tsx) fits tabs to THAT width. Sized to
-   its content instead, the measured width was just the tabs' own width, so the
-   count never dropped and the last tab slid under the search icon. Basis 0
-   also means the page title is served before the tabs are. */
-.aura-tabs { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 0; }
+   WMS, Goals and Project, then "More" for every other room (account holder,
+   2026-09-19). On a window too narrow for the three, the last ones move into
+   More one at a time — tabs and More are exact complements, measured together
+   (components/layout/aura-top-bar.tsx), so no room is ever unreachable. When
+   the room you are in is under More, More wears the current tab's look. */
+/* It takes the bar's leftover — what the brand and the right-hand cluster do
+   not use — so the width `useTabCount` measures is the room there really is,
+   not the width of the tabs already shown (which could only ever shrink).
+   Never narrower than the More button (≈79px), which must always be whole:
+   on a tight bar the search box gives way instead of sliding under it. */
+.aura-tabs { display: flex; flex: 1 1 0%; align-items: center; gap: 4px; min-width: 80px; }
 .aura-tab {
   display: inline-flex;
   align-items: center;
@@ -264,7 +264,8 @@
   transition: background 0.16s, color 0.16s;
 }
 .aura-tab:hover { background: rgba(255, 255, 255, 0.4); color: var(--aura-ink); }
-.aura-tab[aria-current] {
+.aura-tab[aria-current],
+.aura-tab[data-active="true"] {
   background: rgba(255, 255, 255, 0.66);
   color: var(--aura-ink);
   box-shadow: 0 6px 16px -10px rgba(22, 32, 68, 0.5);

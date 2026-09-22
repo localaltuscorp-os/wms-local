@@ -4707,6 +4707,16 @@ export const dccKpiItems = pgTable(
     /** MCC deadline — the day of the month a 'monthly' compliance is due
      *  (1–31; NULL = the month's last day). Migration 0238. */
     monthDay: smallint("month_day"),
+    /** MCC frequency (lib/compliance/mcc-frequency.ts) — NULL = Monthly.
+     *  Migration 0240, with the two below. */
+    mccFrequency: text("mcc_frequency"),
+    /** 2 / 3 times a month: each deadline day, in order (31 = month-end). */
+    mccDays: smallint("mcc_days").array(),
+    /** Alternate Month / Quarterly / Half Yearly / Annually: a month it is due in (1–12). */
+    mccStartMonth: smallint("mcc_start_month"),
+    /** WCC's Mins — how many minutes it takes each time it is due (1–1440;
+     *  NULL = not set). Migration 0242 (lib/compliance/minutes.ts). */
+    minutes: integer("minutes"),
     sortOrder: integer("sort_order"),
     archived: boolean("archived").notNull().default(false),
     createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
@@ -4742,6 +4752,10 @@ export const dccEntries = pgTable(
     approverNotes: text("approver_notes"),
     approverId: uuid("approver_id").references(() => employees.id, { onDelete: "set null" }),
     approverAt: timestamp("approver_at", { withTimezone: true }),
+    /** How many the doer completed of the compliance's target — asked when a
+     *  compliance with a target above one is marked Done. NULL otherwise.
+     *  Migration 0239 (lib/compliance/quantity.ts). */
+    completedQuantity: integer("completed_quantity"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
