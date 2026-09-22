@@ -11,7 +11,7 @@ describe("computeCommission", () => {
   it("flat fee ignores deal amount", () => {
     const r = computeCommission({ payoutType: "flat", payoutValue: 5000, dealAmount: 999999 });
     expect(r.amount).toBe(5000);
-    expect(r.basis).toBe("flat ₹5000");
+    expect(r.basis).toBe("flat Rs. 5000");
   });
 
   it("percent with no deal amount is zero", () => {

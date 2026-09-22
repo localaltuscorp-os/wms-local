@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/current";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { canAccessWorkspace } from "@/lib/workspaces";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,12 @@ const MAX_BYTES = 50 * 1024 * 1024; // 50MB — plenty for a round of audio/vide
 const ALLOWED_KINDS = new Set(["audio", "attachment"]);
 
 export async function POST(req: Request) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   let me;
   try {
     me = await requireUser();

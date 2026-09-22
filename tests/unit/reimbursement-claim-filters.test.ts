@@ -68,7 +68,7 @@ describe("claim amount", () => {
   });
 
   it("survives the currency noise people paste into a number field", () => {
-    expect(claimAmount(claim({ amount: "₹ 1,500" }))).toBe(1500);
+    expect(claimAmount(claim({ amount: "Rs. 1,500" }))).toBe(1500);
   });
 
   it("is 0 — never NaN — for a missing or unparseable amount", () => {
@@ -149,12 +149,12 @@ describe("KPI figures reconcile with the lists they filter to", () => {
   const b = book();
   const rows = flat(b);
 
-  it("the Pending card's ₹ total equals the ₹ total of its filtered list", () => {
+  it("the Pending card's Rs. total equals the Rs. total of its filtered list", () => {
     const cardTotal = sumClaims(rows.filter((r) => r.status === "pending"));
     expect(sumClaims(filterClaims(rows, "pending"))).toBe(cardTotal);
   });
 
-  it("the Approved · paid card's ₹ total equals its filtered list's total", () => {
+  it("the Approved · paid card's Rs. total equals its filtered list's total", () => {
     const cardTotal = sumClaims(rows.filter((r) => r.status === "approved"));
     expect(sumClaims(filterClaims(rows, "approvedAll"))).toBe(cardTotal);
   });
@@ -196,7 +196,7 @@ describe("KPI figures reconcile with the lists they filter to", () => {
 /* ── Edges ────────────────────────────────────────────────────────────────── */
 
 describe("edges", () => {
-  it("an empty book gives every filter an empty list and a ₹0 total", () => {
+  it("an empty book gives every filter an empty list and a Rs. 0 total", () => {
     for (const f of Object.keys(CLAIM_FILTER_LABELS) as ClaimFilter[]) {
       expect(filterClaims([], f)).toEqual([]);
       expect(sumClaims(filterClaims([], f))).toBe(0);

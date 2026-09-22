@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/current";
 import { listExitRegister } from "@/lib/queries/offboarding";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * EXIT REGISTER — every departure in a period, as CSV.
@@ -33,7 +34,7 @@ function cell(value: unknown): string {
 const HEADERS = [
   "Name",
   "Email",
-  "Department",
+  "Function",
   "Role",
   "Date of joining",
   "Resignation date",
@@ -58,6 +59,12 @@ function parseDate(raw: string | null): Date | null {
 }
 
 export async function GET(req: Request) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   await requireAdmin();
 
   const url = new URL(req.url);

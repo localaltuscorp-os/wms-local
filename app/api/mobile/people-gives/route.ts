@@ -3,6 +3,7 @@ import { authenticateMobileRequest, MOBILE_CORS } from "@/lib/auth/mobile";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { canAccessWorkspace } from "@/lib/workspaces";
 import { listIntroductions } from "@/lib/queries/people-gives";
+import { formatDate } from "@/lib/format";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,19 +12,13 @@ export function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: MOBILE_CORS });
 }
 
-/** `d MMM yyyy` from a bare `YYYY-MM-DD` string, wrapped in `new Date` (noon UTC)
- *  so a date-only string never trips a timezone/string→Date bug. Null passes
- *  through untouched (the client renders an em-dash for a missing reminder). */
+/** `DD-MMM-YYYY` from a bare `YYYY-MM-DD` string. Null passes through untouched
+ *  (the client renders an em-dash for a missing reminder). */
 function fmtDate(iso: string | null): string | null {
   if (!iso) return null;
-  const d = new Date(`${iso}T12:00:00Z`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  // `formatDate` returns the input unchanged when it is not a parseable date,
+  // which is the same fail-soft the noon-UTC guard here used to provide.
+  return formatDate(iso);
 }
 
 /**

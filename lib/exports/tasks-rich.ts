@@ -30,9 +30,9 @@ export const RICH_EXPORT_HEADERS = [
 const APPROVAL_LABEL: Record<ApprovalStatus, string> = {
   approved: "Approved",
   not_approved: "Not Approved",
+  on_hold: "On Hold",
   cancelled: "Cancelled",
   transferred: "Transferred",
-  on_hold: "On Hold",
   archived: "Archived",
 };
 

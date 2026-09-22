@@ -11,6 +11,7 @@ import {
 } from "@/db/enums";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { getFormerActivity } from "@/app/(admin)/admin/employees/offboarding-actions";
+import { formatDate } from "@/lib/format";
 
 /**
  * PREVIOUS EMPLOYEES — the record that used to be a delete.
@@ -53,7 +54,7 @@ function fmtDate(v: string | null): string {
   if (!v) return "—";
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return v;
-  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDate(d);
 }
 
 /** Whole months between two dates, rendered as "2y 4m". */
@@ -190,7 +191,7 @@ export function PreviousEmployees({ rows }: { rows: FormerEmployeeView[] }) {
           <thead>
             <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
               <th className="px-4 py-2.5 text-[11px] uppercase tracking-wider font-bold text-[#94A3B8]">Name</th>
-              <th className="px-4 py-2.5 text-[11px] uppercase tracking-wider font-bold text-[#94A3B8]">Department</th>
+              <th className="px-4 py-2.5 text-[11px] uppercase tracking-wider font-bold text-[#94A3B8]">Function</th>
               <th className="px-4 py-2.5 text-[11px] uppercase tracking-wider font-bold text-[#94A3B8]">Tenure</th>
               <th className="px-4 py-2.5 text-[11px] uppercase tracking-wider font-bold text-[#94A3B8]">Reason</th>
               <th className="px-4 py-2.5 text-[11px] uppercase tracking-wider font-bold text-[#94A3B8]">Rehire</th>
@@ -270,7 +271,7 @@ export function PreviousEmployees({ rows }: { rows: FormerEmployeeView[] }) {
                       {active.name}
                     </Dialog.Title>
                     <Dialog.Description className="text-[13px] text-[#64748B] mt-0.5">
-                      {active.email} · {active.department ?? "No department"}
+                      {active.email} · {active.department ?? "No Function"}
                     </Dialog.Description>
                   </div>
                 </div>

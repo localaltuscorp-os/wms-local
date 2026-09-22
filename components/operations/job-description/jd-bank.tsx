@@ -7,6 +7,8 @@ import {
   ArrowUp,
   ArrowUpDown,
   Briefcase,
+  Check as CheckIcon,
+  ChevronDown,
   LayoutGrid,
   List,
   Loader2,
@@ -17,6 +19,12 @@ import {
   FileSpreadsheet,
   UserRound,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { JdBulkUpload } from "@/components/operations/job-description/jd-bulk-upload";
 import { JdPersonView } from "@/components/operations/job-description/jd-person-view";
 import {
@@ -25,11 +33,23 @@ import {
 } from "@/lib/org/functions";
 import { describeRecurrence, type Recurrence } from "@/lib/jd/recurrence";
 import { JdFrequencyField } from "@/components/operations/job-description/jd-frequency-field";
+import {
+  NewJdAttachments,
+  type NewJdAttachmentsHandle,
+} from "@/components/operations/job-description/jd-attachment-boxes";
+import type { JdAttachmentKind } from "@/lib/jd/attachments";
 import { JdPersonPicker, rememberPersonInUrl } from "@/components/operations/job-description/jd-person-picker";
 import { buildPersonIndex } from "@/lib/jd/person-index";
-import type { JdEntryRow, JdPositionRow, JdRankRow } from "@/lib/queries/job-description";
+import type { JdEntryRow, JdEventOption, JdPositionRow, JdRankRow } from "@/lib/queries/job-description";
 import { ModuleAssignBoxes } from "@/components/operations/job-description/module-assign-boxes";
-import { CategoryInput, distinctCategories } from "@/components/operations/category-input";
+import { ClientSelect } from "@/components/tasks/client-select";
+import { SubjectSelect } from "@/components/tasks/subject-select";
+import {
+  EMPTY_JD_ROSTERS,
+  JdRostersProvider,
+  useJdRosters,
+  type JdRosters,
+} from "@/components/operations/job-description/jd-rosters";
 import { VoiceNoteButton } from "@/components/ui/voice-note-button";
 import type { TargetPeople } from "@/lib/jd/assignment-targets";
 import { JD_FUNCTIONS } from "@/lib/jd/functions";
@@ -71,6 +91,10 @@ export interface JdBankProps {
    * migration has been applied by hand.
    */
   holders?: SeatHolder[];
+  /** The live event checklists — what the Event Checklist box offers (2026-09-18). */
+  events?: JdEventOption[];
+  /** The WMS Tasks client and subject rosters, and who is looking (2026-09-18). */
+  rosters?: JdRosters;
   /**
    * Which screen this is (2026-09-15, Operations → Masters):
    *   · "all"     — the full Bank (Operations → Job Description)
@@ -106,6 +130,8 @@ export function JdBank({
   ranks,
   people,
   holders = [],
+  events = [],
+  rosters = EMPTY_JD_ROSTERS,
   mode = "all",
   initialPersonId = null,
   personId: controlledPersonId,
@@ -122,7 +148,7 @@ export function JdBank({
     [],
   );
   const [showForm, setShowForm] = React.useState(false);
-  const [view, setView] = React.useState<"list" | "seats" | "people">(mode === "person" ? "people" : "list");
+  const [view, setView] = React.useState<BankView>(mode === "person" ? "people" : "list");
   const [bulkOpen, setBulkOpen] = React.useState(false);
   const [openId, setOpenId] = React.useState<string | null>(null);
 
@@ -163,7 +189,6 @@ export function JdBank({
     [filtered, sort],
   );
   const open = entries.find((e) => e.id === openId) ?? null;
-  const categories = React.useMemo(() => distinctCategories(entries), [entries]);
 
   const functionsPresent = React.useMemo(() => {
     const s = new Set(entries.map((e) => e.functionKey));
@@ -171,6 +196,7 @@ export function JdBank({
   }, [entries]);
 
   return (
+    <JdRostersProvider value={rosters}>
     <div className="flex flex-col gap-5">
       {mode !== "person" && positions.length === 0 && (
         <NoPositionsYet ranks={ranks} />
@@ -181,64 +207,64 @@ export function JdBank({
       )}
 
       {/* The person screen has its own controls — function tabs, views and the
-          New JD form belong to the register, not to one person's JD. */}
-      <div className={mode === "person" ? "hidden" : "flex flex-wrap items-center gap-2"}>
-        <FilterTab active={tab === "all"} onClick={() => setTab("all")}>
-          All ({entries.length})
-        </FilterTab>
-        {functionsPresent.map((f) => (
-          <FilterTab key={f} active={tab === f} onClick={() => setTab(f)}>
-            {FUNCTION_LABELS[f]} ({entries.filter((e) => e.functionKey === f).length})
-          </FilterTab>
-        ))}
-        {/* Hidden while the form is open: it switches how the Bank below is
-            laid out, which does nothing for somebody writing a new JD. */}
-        {!showForm && (
-          <div className="ml-auto inline-flex rounded-lg border border-slate-300 p-0.5">
-            <ViewButton active={view === "list"} onClick={() => setView("list")}>
-              <List className="h-3.5 w-3.5" /> All
-            </ViewButton>
-            <ViewButton active={view === "seats"} onClick={() => setView("seats")}>
-              <LayoutGrid className="h-3.5 w-3.5" /> By position
-            </ViewButton>
-            {mode === "all" && (
-              <ViewButton active={view === "people"} onClick={() => setView("people")}>
-                <UserRound className="h-3.5 w-3.5" /> By person
-              </ViewButton>
-            )}
-          </div>
-        )}
+          New JD form belong to the register, not to one person's JD.
 
-        {/* All tasks in one go, from Excel — Master JDs and personal JDs alike. */}
-        {!showForm && (
+          ONE LINE (account holder, 2026-09-18: "everything in one line, it
+          saves space"): the function tabs on the left, then the view as a
+          dropdown, Bulk upload and New JD on the right — every control the
+          same 36px height. The tabs never wrap under the buttons: on a screen
+          too narrow for all of them they scroll sideways instead. */}
+      <div className={mode === "person" ? "hidden" : "flex items-center gap-2"}>
+        <div
+          role="tablist"
+          aria-label="Filter by function"
+          className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:thin]"
+        >
+          <FilterTab active={tab === "all"} onClick={() => setTab("all")}>
+            All ({entries.length})
+          </FilterTab>
+          {functionsPresent.map((f) => (
+            <FilterTab key={f} active={tab === f} onClick={() => setTab(f)}>
+              {FUNCTION_LABELS[f]} ({entries.filter((e) => e.functionKey === f).length})
+            </FilterTab>
+          ))}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Hidden while the form is open: it switches how the Bank below is
+              laid out, which does nothing for somebody writing a new JD. */}
+          {!showForm && <ViewMenu view={view} onChange={setView} withPeople={mode === "all"} />}
+
+          {/* All tasks in one go, from Excel — Master JDs and personal JDs alike. */}
+          {!showForm && (
+            <button
+              type="button"
+              onClick={() => setBulkOpen(true)}
+              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <FileSpreadsheet className="h-4 w-4" /> Bulk upload
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={() => setBulkOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+            onClick={() => setShowForm((s) => !s)}
+            disabled={positions.length === 0}
+            title={showForm ? undefined : "New Job Description"}
+            className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg px-4 text-[13px] font-semibold text-white disabled:opacity-45"
+            style={{ background: ACCENT }}
           >
-            <FileSpreadsheet className="h-4 w-4" /> Bulk upload
+            {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {showForm ? "Close" : "New JD"}
           </button>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setShowForm((s) => !s)}
-          disabled={positions.length === 0}
-          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-45 ${
-            showForm ? "ml-auto" : ""
-          }`}
-          style={{ background: ACCENT }}
-        >
-          {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          {showForm ? "Close" : "New Job Description"}
-        </button>
+        </div>
       </div>
 
       {showForm && positions.length > 0 && (
         <JdForm
           positions={positions}
           people={people}
-          categories={categories}
+          events={events}
           onDone={() => setShowForm(false)}
         />
       )}
@@ -269,7 +295,7 @@ export function JdBank({
             <JdForm
               positions={positions}
               people={people}
-              categories={categories}
+              events={events}
               person={person}
               onDone={done}
             />
@@ -319,24 +345,44 @@ export function JdBank({
             </div>
           )}
 
-          <div className="table-scroll overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-            <table className="w-full min-w-[1500px] text-[13px]">
+          {/* ITS OWN SCROLL BOX, BOTH WAYS (account holder, 2026-09-18: "a table
+              scroll on both vertical and horizontal"), as the Event Checklist
+              grid does. The box is the height of the window, so the sideways
+              scrollbar is always on screen rather than under the last row, and
+              the headings stay pinned while the rows move under them. At its
+              top or bottom edge the wheel carries on to the page, so reading
+              down the Bank never gets stuck inside the box.
+
+              FIXED COLUMN WIDTHS (`table-layout: fixed` + the colgroup), so a
+              column is the same width whichever function tab is open and the
+              Job Description never gets squeezed to a word a line. */}
+          <div
+            className="table-scroll table-scroll-bold overflow-auto rounded-2xl border border-slate-200 bg-white"
+            style={{ maxHeight: "max(420px, calc(100vh - 170px))", overscrollBehaviorY: "auto" }}
+          >
+            <table className="border-collapse text-[13px]" style={{ tableLayout: "fixed", width: JD_TABLE_WIDTH }}>
+              <colgroup>
+                {JD_COLUMNS.map((k) => (
+                  <col key={k} style={{ width: JD_COL_WIDTH[k] }} />
+                ))}
+              </colgroup>
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  <SortTh k="sr" sort={sort} onSort={toggleSort} className="w-16" align="right" />
-                  <SortTh k="position" sort={sort} onSort={toggleSort} className="w-52" />
-                  <SortTh k="function" sort={sort} onSort={toggleSort} className="w-36" />
-                  <SortTh k="category" sort={sort} onSort={toggleSort} className="w-36" />
-                  <SortTh k="task" sort={sort} onSort={toggleSort} className="min-w-[260px]" />
-                  <SortTh k="frequency" sort={sort} onSort={toggleSort} className="w-44" />
-                  <SortTh k="estimate" sort={sort} onSort={toggleSort} className="w-28" align="right" />
-                  <SortTh k="attachment" sort={sort} onSort={toggleSort} className="w-36" />
-                  <SortTh k="notes" sort={sort} onSort={toggleSort} className="w-52" />
-                  <SortTh k="addto" sort={sort} onSort={toggleSort} className="w-36" />
-                  <SortTh k="person" sort={sort} onSort={toggleSort} className="w-48" />
+                <tr className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  <SortTh k="sr" sort={sort} onSort={toggleSort} align="right" />
+                  <SortTh k="position" sort={sort} onSort={toggleSort} />
+                  <SortTh k="function" sort={sort} onSort={toggleSort} />
+                  <SortTh k="client" sort={sort} onSort={toggleSort} />
+                  <SortTh k="category" sort={sort} onSort={toggleSort} />
+                  <SortTh k="task" sort={sort} onSort={toggleSort} />
+                  <SortTh k="frequency" sort={sort} onSort={toggleSort} />
+                  <SortTh k="estimate" sort={sort} onSort={toggleSort} align="right" />
+                  <SortTh k="attachment" sort={sort} onSort={toggleSort} />
+                  <SortTh k="notes" sort={sort} onSort={toggleSort} />
+                  <SortTh k="addto" sort={sort} onSort={toggleSort} />
+                  <SortTh k="person" sort={sort} onSort={toggleSort} />
                   {/* The retire/restore control. An action, not a column of
                       data, so it has no heading and nothing to sort by. */}
-                  <th className="w-20 px-4 py-2.5" />
+                  <th className={STICKY_HEAD} />
                 </tr>
               </thead>
               <tbody>
@@ -364,33 +410,68 @@ export function JdBank({
           positions={positions}
           holders={holders}
           people={people}
-          categories={categories}
+          events={events}
           onClose={() => setOpenId(null)}
         />
       )}
     </div>
+    </JdRostersProvider>
   );
 }
 
-function ViewButton({
-  active,
-  onClick,
-  children,
+type BankView = "list" | "seats" | "people";
+
+const VIEWS: { key: BankView; label: string; Icon: typeof List }[] = [
+  { key: "list", label: "All", Icon: List },
+  { key: "seats", label: "By position", Icon: LayoutGrid },
+  { key: "people", label: "By person", Icon: UserRound },
+];
+
+/**
+ * How the Bank is laid out — All, By position, By person — as one dropdown
+ * rather than three buttons side by side, so the whole toolbar fits on a line.
+ * The trigger always says which view is on.
+ */
+function ViewMenu({
+  view,
+  onChange,
+  withPeople,
 }: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
+  view: BankView;
+  onChange: (v: BankView) => void;
+  /** Master JD only has no person view. */
+  withPeople: boolean;
 }) {
+  const choices = VIEWS.filter((v) => withPeople || v.key !== "people");
+  const current = VIEWS.find((v) => v.key === view) ?? VIEWS[0]!;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-semibold transition-colors ${
-        active ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"
-      }`}
-    >
-      {children}
-    </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`View: ${current.label}`}
+          title="Change the view"
+          className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg border border-slate-300 bg-white pl-3 pr-2.5 text-[13px] font-semibold text-slate-800 hover:bg-slate-50 data-[state=open]:bg-slate-50"
+        >
+          <current.Icon className="h-4 w-4 text-slate-600" />
+          {current.label}
+          <ChevronDown className="h-4 w-4 text-slate-400" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[12rem]">
+        {choices.map(({ key, label, Icon }) => (
+          <DropdownMenuItem
+            key={key}
+            onSelect={() => onChange(key)}
+            className={`text-[14px] ${key === view ? "font-semibold" : ""}`}
+          >
+            <Icon className="h-4 w-4 text-slate-500" />
+            {label}
+            {key === view && <CheckIcon className="ml-auto h-4 w-4" style={{ color: ACCENT }} />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -460,6 +541,10 @@ function EntryRow({
       </td>
 
       <td className="px-4 py-2.5 text-slate-600">
+        {entry.client ?? <span className="text-slate-300">—</span>}
+      </td>
+
+      <td className="px-4 py-2.5 text-slate-600">
         {entry.category ?? <span className="text-slate-300">—</span>}
       </td>
 
@@ -479,6 +564,17 @@ function EntryRow({
           {entry.videoUrl && <LinkChip href={entry.videoUrl} label="Video" />}
           {entry.guidelinesUrl && <LinkChip href={entry.guidelinesUrl} label="Guide" />}
           {entry.templateUrl && <LinkChip href={entry.templateUrl} label="Template" />}
+          {/* Uploaded files: a count, not a chip each — a JD can carry thirty.
+              The row click opens the drawer, which lists and opens them. */}
+          {(entry.files?.length ?? 0) > 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-slate-600"
+              title={entry.files!.map((f) => f.fileName).join("\n")}
+            >
+              <Paperclip className="h-2.5 w-2.5" />
+              {entry.files!.length} {entry.files!.length === 1 ? "file" : "files"}
+            </span>
+          )}
           {attachmentCount(entry) === 0 && <span className="text-slate-300">—</span>}
         </div>
       </td>
@@ -555,7 +651,7 @@ function EntryRow({
 }
 
 /**
- * The eleven headings, spelled once. The grid, the sort banner and the drawer all
+ * The twelve headings, spelled once. The grid, the sort banner and the drawer all
  * read them from here, so a column cannot be called one thing in the header and
  * another in the sentence describing the sort.
  */
@@ -563,7 +659,8 @@ const JD_COLUMN_LABELS: Record<JdSortKey, string> = {
   sr: "Sr. No.",
   position: "Position",
   function: "Function",
-  category: "Category",
+  client: "Client",
+  category: "Subject",
   task: "Job Description",
   frequency: "Frequency",
   estimate: "Time Estimated",
@@ -573,18 +670,62 @@ const JD_COLUMN_LABELS: Record<JdSortKey, string> = {
   person: "Add To Person",
 };
 
+/**
+ * The Bank's columns in order, and each one's width in px — enough for its
+ * content at 13px, so the headings sit on one line and a position title or a
+ * frequency wraps at most once. The table is exactly as wide as their sum.
+ */
+const JD_COLUMNS = [
+  "sr",
+  "position",
+  "function",
+  "client",
+  "category",
+  "task",
+  "frequency",
+  "estimate",
+  "attachment",
+  "notes",
+  "addto",
+  "person",
+  "actions",
+] as const;
+
+const JD_COL_WIDTH: Record<(typeof JD_COLUMNS)[number], number> = {
+  sr: 84,
+  position: 210,
+  function: 130,
+  client: 140,
+  category: 140,
+  task: 320,
+  frequency: 170,
+  estimate: 150,
+  attachment: 150,
+  notes: 220,
+  addto: 130,
+  person: 200,
+  actions: 90,
+};
+
+const JD_TABLE_WIDTH = JD_COLUMNS.reduce((sum, k) => sum + JD_COL_WIDTH[k], 0);
+
+/**
+ * A heading pinned to the top of the scroll box. The line under it is a shadow,
+ * not a border: a collapsed table's borders belong to the table and scroll away
+ * with the first row, leaving the pinned heading without its rule.
+ */
+const STICKY_HEAD = "sticky top-0 z-20 bg-slate-50 px-0 py-0 shadow-[inset_0_-1px_0_rgb(226,232,240)]";
+
 /** A sortable column heading. */
 function SortTh({
   k,
   sort,
   onSort,
-  className,
   align = "left",
 }: {
   k: JdSortKey;
   sort: JdSortState;
   onSort: (k: JdSortKey) => void;
-  className?: string;
   align?: "left" | "right";
 }) {
   const label = JD_COLUMN_LABELS[k];
@@ -592,7 +733,7 @@ function SortTh({
   const dir = active ? sort!.dir : null;
 
   return (
-    <th scope="col" aria-sort={ariaSort(sort, k)} className={`px-0 py-0 ${className ?? ""}`}>
+    <th scope="col" aria-sort={ariaSort(sort, k)} className={STICKY_HEAD}>
       <button
         type="button"
         onClick={() => onSort(k)}
@@ -603,7 +744,7 @@ function SortTh({
               ? `Sorted by ${label}, descending — click to clear`
               : `Sort by ${label}`
         }
-        className={`flex w-full items-center gap-1 whitespace-nowrap px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider transition-colors hover:bg-slate-100 ${
+        className={`flex w-full items-center gap-1 whitespace-nowrap px-4 py-3 text-[10px] font-bold uppercase tracking-wider transition-colors hover:bg-slate-100 ${
           align === "right" ? "justify-end" : "justify-start"
         } ${active ? "text-slate-900" : "text-slate-500"}`}
       >
@@ -645,13 +786,13 @@ function LinkChip({ href, label }: { href: string; label: string }) {
 function JdForm({
   positions,
   people,
-  categories,
+  events,
   person = null,
   onDone,
 }: {
   positions: JdPositionRow[];
   people: { id: string; name: string }[];
-  categories: readonly string[];
+  events: JdEventOption[];
   /** Set → a PERSONAL task for this employee: no position, a function picked instead. */
   person?: { id: string; name: string } | null;
   onDone: () => void;
@@ -659,17 +800,26 @@ function JdForm({
   const router = useRouter();
   const [positionId, setPositionId] = React.useState("");
   const [functionKey, setFunctionKey] = React.useState<BusinessFunction>("operations");
+  const rosters = useJdRosters();
   const [task, setTask] = React.useState("");
-  const [category, setCategory] = React.useState<string | null>(null);
+  /* SUBJECT and CLIENT — the WMS Tasks rosters (Admin Panel → Subjects /
+     Clients), not free text: a JD is filed in the words a task is. */
+  const [category, setCategory] = React.useState("");
+  const [client, setClient] = React.useState("");
   /* ONE start date, the way Google Calendar has one. It anchors the whole
      frequency menu: "Does not repeat" is that day, "Weekly on …" is its
      weekday, "Annually on …" is its date, and a custom rule counts from it. */
   const [startDate, setStartDate] = React.useState(new Date().toISOString().slice(0, 10));
   const [recurrence, setRecurrence] = React.useState<Recurrence>({ kind: "daily" });
   const [minutes, setMinutes] = React.useState("15");
-  const [videoUrl, setVideoUrl] = React.useState("");
-  const [guidelinesUrl, setGuidelinesUrl] = React.useState("");
-  const [templateUrl, setTemplateUrl] = React.useState("");
+  /* One link per SOP box, beside the box's uploaded files. */
+  const [links, setLinks] = React.useState<Record<JdAttachmentKind, string>>({
+    video: "",
+    guidelines: "",
+    template: "",
+  });
+  const files = React.useRef<NewJdAttachmentsHandle>(null);
+  const [uploading, setUploading] = React.useState(false);
   const [notes, setNotes] = React.useState("");
   const [pushDcc, setPushDcc] = React.useState(false);
   const [pushWms, setPushWms] = React.useState(false);
@@ -682,6 +832,9 @@ function JdForm({
     wms: [],
     event: [],
   });
+  /* The Event Checklist box picks EVENTS, not people: each chosen one gets this
+     job as a row in its checklist. */
+  const [eventRunIds, setEventRunIds] = React.useState<string[]>([]);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -692,19 +845,24 @@ function JdForm({
     setBusy(true);
     try {
       const res = await createJdEntry({
-        ...(person ? { ownerEmployeeId: person.id, functionKey } : { positionId }),
+        // No position picked → leave it out, so the server answers "Pick a
+        // position…" rather than Zod's raw complaint about an empty id.
+        ...(person ? { ownerEmployeeId: person.id, functionKey } : { positionId: positionId || undefined }),
         task,
-        category,
+        category: category || null,
+        client: client || null,
         notesHtml: notes || null,
         recurrence,
         estimatedMinutes: Number(minutes),
-        videoUrl: videoUrl || null,
-        guidelinesUrl: guidelinesUrl || null,
-        templateUrl: templateUrl || null,
+        videoUrl: links.video || null,
+        guidelinesUrl: links.guidelines || null,
+        templateUrl: links.template || null,
+        attachments: files.current?.refs() ?? [],
         pushDcc,
         pushWms,
         pushEvent,
-        targetPeople,
+        targetPeople: { ...targetPeople, event: [] },
+        eventRunIds: pushEvent ? eventRunIds : [],
       });
       if (!res.ok) {
         setError(res.error);
@@ -717,17 +875,51 @@ function JdForm({
     }
   }
 
+  function cancel() {
+    // Nothing was saved, so nothing may be left behind in storage either.
+    files.current?.discardAll();
+    onDone();
+  }
+
+  /* ── LAYOUT: equal columns per line (account holder, 2026-09-18) ─────────
+       1. Position · Function · Client · Subject
+       2. Task — the full width
+       3. Starts on · Frequency · Estimated time
+       4. Video · Guidelines · Templates — a box each, several files per box
+     then Notes and Add to. Equal columns from md up; one below, where they
+     would be too narrow to type in. */
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5">
       <h2 className="mb-4 text-[15px] font-bold text-slate-900">
         {person ? `New personal task — ${person.name}` : "New Job Description"}
       </h2>
 
-      {person ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+      {/* 1 ─ who owns it, and how it is filed */}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {person ? (
           <Field label="Person" hint="A personal task belongs to this person, not to a seat.">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] font-semibold text-slate-700">{person.name}</div>
+            <div className="truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] font-semibold text-slate-700">
+              {person.name}
+            </div>
           </Field>
+        ) : (
+          <Field label="Position" hint="A job description belongs to a seat, not a person.">
+            <select
+              value={positionId}
+              onChange={(e) => setPositionId(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
+            >
+              <option value="">Select a position…</option>
+              {positions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title} ({p.holderCount})
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+
+        {person ? (
           <Field label="Function">
             <select
               value={functionKey}
@@ -741,33 +933,38 @@ function JdForm({
               ))}
             </select>
           </Field>
-        </div>
-      ) : (
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Position" hint="A job description belongs to a seat, not a person.">
-          <select
-            value={positionId}
-            onChange={(e) => setPositionId(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-          >
-            <option value="">Select a position…</option>
-            {positions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.title} ({p.holderCount})
-              </option>
-            ))}
-          </select>
+        ) : (
+          <Field label="Function" hint="Comes from the position.">
+            <div className="truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-600">
+              {chosen
+                ? (FUNCTION_LABELS[chosen.functionKey as BusinessFunction] ?? chosen.functionKey)
+                : "—"}
+            </div>
+          </Field>
+        )}
+
+        <Field label="Client" hint="From Admin Panel → Clients, as on a WMS task.">
+          <ClientSelect
+            value={client}
+            onChange={setClient}
+            clients={rosters.clients}
+            canAdd={rosters.canAdd}
+            placeholder="Select a client…"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px]"
+          />
         </Field>
 
-        <Field label="Department / Function" hint="Comes from the position.">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-600">
-            {chosen
-              ? (FUNCTION_LABELS[chosen.functionKey as BusinessFunction] ?? chosen.functionKey)
-              : "—"}
-          </div>
+        <Field label="Subject" hint="From Admin Panel → Subjects, as on a WMS task.">
+          <SubjectSelect
+            value={category}
+            onChange={setCategory}
+            subjects={rosters.subjects}
+            canAdd={rosters.canAdd}
+            placeholder="Select a subject…"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px]"
+          />
         </Field>
       </div>
-      )}
 
       {!person && chosen && chosen.holderCount === 0 && (
         <p className="mt-3 inline-flex items-start gap-2 rounded-lg px-3 py-2 text-[12px]"
@@ -778,6 +975,7 @@ function JdForm({
         </p>
       )}
 
+      {/* 2 ─ the work itself */}
       <div className="mt-4">
         <Field label="Task / Job Description">
           <DictateTextarea
@@ -788,28 +986,14 @@ function JdForm({
         </Field>
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <Field label="Category" hint="Type your own, or pick one already in use.">
-          <CategoryInput
-            value={category}
-            suggestions={categories}
-            onCommit={setCategory}
-            placeholder="e.g. Housekeeping, Internet, Vendors"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-          />
-        </Field>
-      </div>
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <Field label="Frequency">
-          <JdFrequencyField
-            startDate={startDate}
-            onStartDateChange={setStartDate}
-            value={recurrence}
-            onChange={setRecurrence}
-          />
-        </Field>
-
+      {/* 3 ─ when, and how long. JdFrequencyField fills the first two cells. */}
+      <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <JdFrequencyField
+          startDate={startDate}
+          onStartDateChange={setStartDate}
+          value={recurrence}
+          onChange={setRecurrence}
+        />
         <Field label="Estimated Time (minutes)">
           <input
             value={minutes}
@@ -825,27 +1009,20 @@ function JdForm({
         </Field>
       </div>
 
-      {/* SOP documents. Guidelines and Templates are DOCUMENTS, deliberately
+      {/* 4 ─ SOP documents. Guidelines and Templates are DOCUMENTS, deliberately
           not rendered as anything tickable — a checklist implies completion
           state they must not carry. */}
-      <fieldset className="mt-5 rounded-xl border border-slate-200 p-4">
-        <legend className="px-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+      <div className="mt-5">
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
           SOP attachments &amp; documents
-        </legend>
-        <div className="grid gap-3">
-          <UrlField label="Video — how to do this work" value={videoUrl} onChange={setVideoUrl} />
-          <UrlField
-            label="Guidelines — rules of execution"
-            value={guidelinesUrl}
-            onChange={setGuidelinesUrl}
-          />
-          <UrlField
-            label="Templates — standard files"
-            value={templateUrl}
-            onChange={setTemplateUrl}
-          />
-        </div>
-      </fieldset>
+        </p>
+        <NewJdAttachments
+          ref={files}
+          links={links}
+          onLinkChange={(kind, v) => setLinks((prev) => ({ ...prev, [kind]: v }))}
+          onBusyChange={setUploading}
+        />
+      </div>
 
       <div className="mt-4">
         <Field label="Notes / Context">
@@ -876,6 +1053,9 @@ function JdForm({
           }}
           selected={targetPeople}
           onChangeTarget={(t, ids) => setTargetPeople((prev) => ({ ...prev, [t]: ids }))}
+          events={events}
+          selectedEvents={eventRunIds}
+          onChangeEvents={setEventRunIds}
         />
       </div>
 
@@ -885,16 +1065,20 @@ function JdForm({
         <button
           type="button"
           onClick={submit}
-          disabled={busy}
+          disabled={busy || uploading}
           className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
           style={{ background: ACCENT }}
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          {person ? `Save to ${person.name.split(" ")[0]}'s JD` : "Save to JD Bank"}
+          {busy || uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          {uploading
+            ? "Uploading files…"
+            : person
+              ? `Save to ${person.name.split(" ")[0]}'s JD`
+              : "Save to JD Bank"}
         </button>
         <button
           type="button"
-          onClick={onDone}
+          onClick={cancel}
           className="rounded-lg px-3 py-2 text-[13px] font-semibold text-slate-500 hover:bg-slate-100"
         >
           Cancel
@@ -1060,28 +1244,6 @@ function Label({ children }: { children: React.ReactNode }) {
   );
 }
 
-function UrlField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-[12px] font-semibold text-slate-600">{label}</span>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="https://…"
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-      />
-    </label>
-  );
-}
-
 function Check({
   label,
   checked,
@@ -1127,8 +1289,10 @@ function FilterTab({
   return (
     <button
       type="button"
+      role="tab"
+      aria-selected={active}
       onClick={onClick}
-      className="rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors"
+      className="inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-lg px-2.5 text-[12px] font-semibold transition-colors"
       style={
         active
           ? { background: ACCENT, color: "#fff" }

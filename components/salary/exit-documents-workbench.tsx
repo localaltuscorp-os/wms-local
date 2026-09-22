@@ -254,10 +254,10 @@ export function ExitDocumentsWorkbench({
           {type === "full-and-final" && (
             <>
               <Field label="Net settlement amount">
-                <input className="ui-input" value={settlementAmount} onChange={(e) => setSettlementAmount(e.target.value)} placeholder="e.g. ₹1,24,500" />
+                <input className="ui-input" value={settlementAmount} onChange={(e) => setSettlementAmount(e.target.value)} placeholder="e.g. Rs. 1,24,500" />
               </Field>
               <Field label="Settlement breakup (one 'Label: Value' per line)">
-                <textarea className="ui-input" rows={4} value={settlementBreakup} onChange={(e) => setSettlementBreakup(e.target.value)} placeholder={"Salary payable: ₹1,10,000\nLess Professional Tax: ₹200\nLess advances: ₹5,000"} />
+                <textarea className="ui-input" rows={4} value={settlementBreakup} onChange={(e) => setSettlementBreakup(e.target.value)} placeholder={"Salary payable: Rs. 1,10,000\nLess Professional Tax: Rs. 200\nLess advances: Rs. 5,000"} />
               </Field>
             </>
           )}

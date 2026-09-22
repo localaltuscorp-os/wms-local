@@ -1,28 +1,15 @@
 /**
  * HR REGISTERS — Address Book of Resources + Asset Register.
  *
- * PURE + CLIENT-SAFE (no DB, no server-only), same shape as
- * lib/hr/holiday-admins.ts: a client component can hide a control the server
- * would refuse anyway. The server guards that USE this live in the two actions
- * files (app/(app)/hr/address-book/actions.ts, app/(app)/hr/assets/actions.ts).
+ * PURE + CLIENT-SAFE (no DB, no server-only): the field rules and the asset
+ * numbering below are imported by client components as well as by the server
+ * actions, so nothing here may reach a database.
+ *
+ * WHO MAY EDIT IS NOT HERE. It is `isHrStaff` (lib/hr/access.ts) — HR staff, or
+ * a super-admin — asked directly by the two actions files and the two pages.
+ * It was a list of three addresses until 2026-09-21 (account holder): a role
+ * changes on the Employee Master, where a list of people changed in a deploy.
  */
-
-/**
- * WHO MAY ADD, EDIT OR DELETE — Ruchita, Rutvisha and Manan. Everyone else who
- * can open HR can only view. Keyed by login email (unique, survives a rename),
- * matching lib/teams/roster.ts and lib/hr/holiday-admins.ts.
- */
-export const HR_REGISTER_EDITOR_EMAILS = [
-  "ruchitaambre.altuscorp@gmail.com", // Ruchita Ambre
-  "rutvishamehta.altuscorp@gmail.com", // Rutvisha Mehta
-  "manan@unleashed.in", // Manan Vasa
-] as const;
-
-export function canEditHrRegisters(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const e = email.trim().toLowerCase();
-  return (HR_REGISTER_EDITOR_EMAILS as readonly string[]).includes(e);
-}
 
 /* ------------------------------------------------------------------ */
 /* Address Book                                                         */

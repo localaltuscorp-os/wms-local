@@ -428,6 +428,9 @@ async function planRowsForDays(employeeId: string, ymds: string[]) {
       goalId: dailyChecklist.goalId,
       taskId: dailyChecklist.taskId,
       done: dailyChecklist.done,
+      // The DOER axis. Present since the table was created; the planner simply
+      // never read it (2026-09-15).
+      status: dailyChecklist.status,
       donePct: dailyChecklist.donePct,
       doneNote: dailyChecklist.doneNote,
       closedAt: dailyChecklist.closedAt,
@@ -470,6 +473,52 @@ async function planRowsForDays(employeeId: string, ymds: string[]) {
       asc(dailyChecklist.position),
       asc(dailyChecklist.committedAt),
     );
+}
+
+/**
+ * The three columns migration 0230 adds, loaded SEPARATELY and defensively.
+ *
+ * Same guard, same reason, as `loadPlanMeta` in lib/queries/project-plan.ts:
+ * selecting an undefined column does not return null — Postgres raises 42703
+ * and the WHOLE query fails, which here would take the entire day planner down
+ * rather than just the two new status cells. So they are fetched in their own
+ * round-trip whose failure is caught: no 0230, no axes, and the board renders
+ * exactly as it did before with everything else intact.
+ *
+ * `status` is NOT in here. That column has existed since the table did, so it
+ * is selected inline with the rest of the row where it belongs.
+ *
+ * Delete this guard (and read the columns inline) once 0230 is applied
+ * everywhere.
+ */
+interface DailyAxes {
+  approvalStatus: string | null;
+  archivedAt: Date | null;
+}
+
+async function loadDailyAxes(ids: string[]): Promise<Map<string, DailyAxes>> {
+  const out = new Map<string, DailyAxes>();
+  if (ids.length === 0) return out;
+  try {
+    const rows = (await db.execute(sql`
+      SELECT id, approval_status, archived_at
+        FROM daily_checklist
+       WHERE id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})
+    `)) as unknown as Array<{
+      id: string;
+      approval_status: string | null;
+      archived_at: Date | string | null;
+    }>;
+    for (const r of rows) {
+      out.set(r.id, {
+        approvalStatus: r.approval_status ?? null,
+        archivedAt: r.archived_at ? new Date(r.archived_at) : null,
+      });
+    }
+  } catch {
+    // 0230 unapplied — every row reads as unruled, which is what it was before.
+  }
+  return out;
 }
 
 /**
@@ -586,6 +635,9 @@ export async function getPlanDayPayload(
   // is indistinguishable from a typed commitment and would wear the wrong tag.
   const cascadeLevels = await cascadeGoalLevels(rows.map((r) => r.id));
 
+  // ONE round-trip for the whole window, not one per day column.
+  const dailyAxes = await loadDailyAxes(rows.map((r) => r.id));
+
   const days: PlanDayColumn[] = offsets.map((offset, i) => {
     const ymd = ymds[i]!;
     const { word, date } = dayLabels(ymd, offset);
@@ -625,6 +677,14 @@ export async function getPlanDayPayload(
           createdAtMs: r.createdAt ? r.createdAt.getTime() : null,
           // The doer, not the creator: "who is responsible for this".
           assignee: hierarchy.owner ?? null,
+          // THE TWO AXES. `status` comes off the row; the verdict pair is the
+          // guarded side-load, so a database without 0230 simply reads unruled.
+          status: r.status ?? null,
+          approvalStatus: dailyAxes.get(r.id)?.approvalStatus ?? null,
+          isPutAway: dailyAxes.get(r.id)?.archivedAt != null,
+          // Whose day this is — the planner shows a downline member's board to
+          // their manager, so the status cells cannot assume "mine".
+          ownerId: employeeId,
         };
       });
     return { offset, ymd, word, date, items };

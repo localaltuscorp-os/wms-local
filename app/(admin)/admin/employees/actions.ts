@@ -24,8 +24,15 @@ import { mergeScheduleForBulk } from "@/lib/employees/bulk-schedule-merge";
 // delegating each row to `editEmployee`, so there is one write path for a
 // manager change and not two that could disagree.
 import { recordManagerChange, wouldCreateCycle } from "@/lib/employees/manager-history";
-import { requireAdmin } from "@/lib/auth/current";
+import { getSignedInEmployee, requireAdmin } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import {
+  hasCapabilityGrant,
+  isMasterAdmin,
+  masterAdminEmployeeIds,
+  setCapabilityGrant,
+  setMasterAdminGrant,
+} from "@/lib/security/capability-grants";
 import {
   InviteEmployeeSchema,
   EditEmployeeSchema,
@@ -56,13 +63,39 @@ import { generateInvitePassword } from "@/lib/auth/default-password";
  * SUPER-ADMIN — otherwise they could reset the super-admin's password, sign in as
  * them, and seize full control. Returns an error result to short-circuit, or null
  * when the action may proceed.
+ *
+ * ── WIDENED TO COVER MASTER ADMINS (2026-09-18) ────────────────────────────
+ * This used to refuse only when the TARGET was a super-admin, and that was
+ * sufficient while master-admin membership was a constant in the code — the
+ * only master admins were also super-admins, so one clause covered both.
+ *
+ * Master-admin is now a grant the owner can make from this very screen
+ * (migration 0226), so the two sets have come apart. Without this widening an
+ * ordinary `isAdmin` could rename, re-department or strip `isAdmin` from a
+ * master admin's row — they still could not GRANT the capability, but they could
+ * vandalise the account of somebody who can rewrite the whole permission matrix,
+ * including by resetting their password and signing in as them.
+ *
+ * The SELF case is exempt on purpose: this is the gate on editing your OWN
+ * profile, and a newly-granted master admin who is not a super-admin must still
+ * be able to change their own name. Nothing privileged is reachable that way —
+ * `me.id === emp.id` means the target holds no capability the caller lacks.
+ *
+ * ASYNC, because master-admin membership is read from `capability_grants`.
  */
-function guardSuperAdminTarget(
-  me: { email: string },
-  emp: { email: string },
-): { ok: false; error: string } | null {
+async function guardPrivilegedTarget(
+  me: { email: string; id: string },
+  emp: { email: string; id: string },
+): Promise<{ ok: false; error: string } | null> {
+  if (me.id === emp.id) return null;
   if (isSuperAdmin(emp.email) && !isSuperAdmin(me.email)) {
     return { ok: false, error: "Only a super-admin can do this to another super-admin." };
+  }
+  if ((await isMasterAdmin(emp.email)) && !isSuperAdmin(me.email)) {
+    return {
+      ok: false,
+      error: "Only a super-admin can change a master admin's account.",
+    };
   }
   return null;
 }
@@ -381,8 +414,73 @@ export async function editEmployee(
   // still cannot modify a SUPER-ADMIN's row, so a regular admin can't demote an
   // owner and seize control. A no-op re-save with the same value is unaffected.
   if (parsed.data.isAdmin !== undefined && parsed.data.isAdmin !== emp.isAdmin) {
-    const g = guardSuperAdminTarget(me, emp);
+    const g = await guardPrivilegedTarget(me, emp);
     if (g) return g;
+  }
+
+  // ── MASTER ADMIN: STRICTLY SUPER-ADMIN ONLY ────────────────────────────────
+  // Gated on `isSuperAdmin` — a CODE constant — and NEVER on `isMasterAdmin`.
+  // Gating it on isMasterAdmin would let a master admin promote another master
+  // admin, and the capability would leak downward from the two bootstrap
+  // accounts until it reached everybody. The two addresses in
+  // lib/auth/super-admin.ts remain the only bootstrap.
+  //
+  // Runs BEFORE the row update below, so a refused grant cannot leave the rest
+  // of the patch applied with the capability not.
+  if (parsed.data.isMasterAdmin !== undefined) {
+    const holds = (await masterAdminEmployeeIds()).has(emp.id);
+    if (parsed.data.isMasterAdmin !== holds) {
+      // The priv-esc guard runs first and unconditionally: a non-super-admin
+      // must not be able to touch this at all. Checked separately from the
+      // capability check below so a refusal is unambiguous about which rule
+      // stopped it.
+      const g = await guardPrivilegedTarget(me, emp);
+      if (g) return g;
+
+      if (!isSuperAdmin(me.email)) {
+        return { ok: false, error: "Only a super-admin can change master admin access." };
+      }
+
+      // The REAL signed-in person, not a delegated identity — same reasoning as
+      // the master-admin screen's own actions: a borrowed session must not
+      // inherit the power to hand out the permission matrix.
+      const signedIn = await getSignedInEmployee();
+      const res = await setMasterAdminGrant({
+        employeeId: emp.id,
+        employeeEmail: emp.email,
+        grant: parsed.data.isMasterAdmin,
+        actorId: signedIn?.id ?? me.id,
+        actorEmail: signedIn?.email ?? me.email,
+      });
+      if (!res.ok) return { ok: false, error: res.error };
+    }
+  }
+
+  // ── ISSUE LETTERS: ANY ADMIN MAY GRANT THIS ────────────────────────────────
+  // Deliberately NOT super-admin-only, unlike master-admin above. It hands
+  // somebody the ability to send appointment and increment letters — a real
+  // operational duty, not a security boundary — and holding it cannot be used to
+  // acquire anything else. Gating it on a super-admin would put a routine HR
+  // staffing decision behind the two owners.
+  //
+  // No `guardPrivilegedTarget` here either, on purpose: granting it to a
+  // super-admin or a master admin is a harmless no-op (they can already issue),
+  // and refusing to record it would be ceremony rather than protection. The
+  // audit row below names the actor regardless.
+  if (parsed.data.canIssueLetters !== undefined) {
+    const currently = await hasCapabilityGrant(emp.email, "hr.letters.issue");
+    if (parsed.data.canIssueLetters !== currently) {
+      const signedIn = await getSignedInEmployee();
+      const res = await setCapabilityGrant({
+        employeeId: emp.id,
+        employeeEmail: emp.email,
+        capability: "hr.letters.issue",
+        grant: parsed.data.canIssueLetters,
+        actorId: signedIn?.id ?? me.id,
+        actorEmail: signedIn?.email ?? me.email,
+      });
+      if (!res.ok) return { ok: false, error: res.error };
+    }
   }
 
   // Build the patch — only include keys that were actually supplied.
@@ -459,6 +557,74 @@ export async function editEmployee(
   if (parsed.data.attendanceBiometricExempt !== undefined) {
     patch.attendanceBiometricExempt = parsed.data.attendanceBiometricExempt;
   }
+
+  /* ── EMPLOYEE MASTER (0225) ─────────────────────────────────────────────
+     The consolidated master saves through THIS action rather than a second
+     one, so these fields get the same validation, the same audit event and the
+     same cache invalidation as every other employee edit.
+
+     Each is written only when the key is PRESENT. Absent means "leave it
+     alone"; an explicit null means "clear it". Collapsing those two would let
+     the workspace blank a field simply by not rendering it, which is exactly
+     what the bulk-edit safety note above warns against. */
+  const D = parsed.data;
+  if (D.functionId !== undefined) patch.functionId = D.functionId;
+  if (D.shiftTypeId !== undefined) patch.shiftTypeId = D.shiftTypeId;
+  if (D.payingEntityId !== undefined) patch.payingEntityId = D.payingEntityId;
+  if (D.designationId !== undefined) patch.designationId = D.designationId;
+  if (D.isTeamLead !== undefined) patch.isTeamLead = D.isTeamLead;
+  if (D.trainPass !== undefined) patch.trainPass = D.trainPass;
+  // Dates arrive as yyyy-mm-dd or "" / null to clear. `joinedAt` is a timestamp
+  // column while the other two are `date`, so only it is widened to a Date —
+  // handing a bare string to a timestamptz column stores midnight UTC, which
+  // reads back a day early east of Greenwich.
+  if (D.joinedAt !== undefined) {
+    patch.joinedAt = D.joinedAt === null || D.joinedAt === "" ? null : new Date(`${D.joinedAt}T00:00:00+05:30`);
+  }
+  if (D.probationEnd !== undefined) {
+    patch.probationEnd = D.probationEnd === null || D.probationEnd === "" ? null : D.probationEnd;
+  }
+  if (D.lastWorkingDay !== undefined) {
+    patch.lastWorkingDay = D.lastWorkingDay === null || D.lastWorkingDay === "" ? null : D.lastWorkingDay;
+  }
+  // The two mails. NOTE neither is the LOGIN address (`employees.email`), which
+  // is bound to the Firebase account and changes through the invite flow only —
+  // editing it here would silently break sign-in.
+  if (D.officialEmail !== undefined) {
+    const v = D.officialEmail;
+    patch.officialEmail = v === null || v === "" ? null : v.toLowerCase();
+  }
+  if (D.personalEmail !== undefined) {
+    const v = D.personalEmail;
+    patch.personalEmail = v === null || v === "" ? null : v.toLowerCase();
+  }
+
+  /* ── Employee schedule settings (0228) ───────────────────────────────────
+     Same `!== undefined` gate as every field above, and for the same reason:
+     these arrive from a workspace that renders one section at a time, so a
+     section the admin never opened must contribute no keys at all. Writing a
+     `false` for an absent boolean would silently switch attendance off for
+     somebody who only came in to fix a phone number.
+
+     The two Mon–Fri columns are the SAME ones the Attendance schedule screen
+     writes (`updateEmployeeAttendanceSchedule`). That is deliberate: one
+     concept, one pair of columns, so the two screens cannot disagree about
+     when this person's day starts. `""` clears back to the org default,
+     matching how that screen normalises.                                    */
+  if (D.attendanceApplicable !== undefined) patch.attendanceApplicable = D.attendanceApplicable;
+  if (D.sat1Working !== undefined) patch.sat1Working = D.sat1Working;
+  if (D.sat2Working !== undefined) patch.sat2Working = D.sat2Working;
+  if (D.sat3Working !== undefined) patch.sat3Working = D.sat3Working;
+  if (D.sat4Working !== undefined) patch.sat4Working = D.sat4Working;
+  if (D.sat5Working !== undefined) patch.sat5Working = D.sat5Working;
+  if (D.wfhFullTimeAllowed !== undefined) patch.wfhFullTimeAllowed = D.wfhFullTimeAllowed;
+  if (D.wfhPartTimeAllowed !== undefined) patch.wfhPartTimeAllowed = D.wfhPartTimeAllowed;
+
+  const clock = (v: string | null | undefined) => (v === null || v === "" ? null : v);
+  if (D.attOfficialStart !== undefined) patch.attOfficialStart = clock(D.attOfficialStart);
+  if (D.attOfficialEnd !== undefined) patch.attOfficialEnd = clock(D.attOfficialEnd);
+  if (D.satOfficialStart !== undefined) patch.satOfficialStart = clock(D.satOfficialStart);
+  if (D.satOfficialEnd !== undefined) patch.satOfficialEnd = clock(D.satOfficialEnd);
 
   if (Object.keys(patch).length === 0) {
     return { ok: false, error: "No changes to save." };
@@ -681,7 +847,7 @@ export async function getInviteLink(
     where: eq(employees.id, parsedId.data),
   });
   if (!emp) return { ok: false, error: "Employee not found." };
-  const saGuard = guardSuperAdminTarget(me, emp);
+  const saGuard = await guardPrivilegedTarget(me, emp);
   if (saGuard) return saGuard;
   if (!emp.isActive) {
     return { ok: false, error: "Employee is deactivated - reactivate first." };
@@ -782,7 +948,7 @@ export async function resetEmployeePassword(
     where: eq(employees.id, parsedId.data),
   });
   if (!emp) return { ok: false, error: "Employee not found." };
-  const saGuard = guardSuperAdminTarget(me, emp);
+  const saGuard = await guardPrivilegedTarget(me, emp);
   if (saGuard) return saGuard;
   if (!emp.isActive) return { ok: false, error: "Employee is deactivated - reactivate first." };
   if (!emp.firebaseUid) {
@@ -857,7 +1023,7 @@ export async function deactivateEmployee(
   }
   const emp = await db.query.employees.findFirst({ where: eq(employees.id, parsedId.data) });
   if (!emp) return { ok: false, error: "Employee not found" };
-  const saGuard = guardSuperAdminTarget(me, emp);
+  const saGuard = await guardPrivilegedTarget(me, emp);
   if (saGuard) return saGuard;
   if (!emp.isActive) return { ok: false, error: "Employee is already deactivated." };
 
@@ -1084,7 +1250,7 @@ export async function deleteEmployee(
 
   const emp = await db.query.employees.findFirst({ where: eq(employees.id, id) });
   if (!emp) return { ok: false, error: "Employee not found." };
-  const saGuard = guardSuperAdminTarget(me, emp);
+  const saGuard = await guardPrivilegedTarget(me, emp);
   if (saGuard) return saGuard;
 
   if (
@@ -1292,6 +1458,19 @@ export async function bulkEditEmployees(
     "managerId",
     "dailyTaskQuota",
     "whatsappOptedIn",
+    // Employee Master (0225). MUST be listed here: `touchesIdentity` is what
+    // decides whether `editEmployee` is called at all, so a patch that changed
+    // only, say, Entity would otherwise be computed, validated — and silently
+    // dropped without a single write.
+    "functionId",
+    "shiftTypeId",
+    "payingEntityId",
+    "designationId",
+    "isTeamLead",
+    "trainPass",
+    "joinedAt",
+    "probationEnd",
+    "lastWorkingDay",
   ] as const;
   const scheduleKeys = [
     "workerType",
@@ -1347,6 +1526,20 @@ export async function bulkEditEmployees(
         fields.departmentIds = p.departmentIds;
         fields.primaryDepartmentId = p.primaryDepartmentId ?? null;
       }
+      // Employee Master fields (0225). Forwarded key by key, and ONLY when the
+      // key is present — the bulk editor omits anything left on "No change", so
+      // an unchecked Function must arrive here as `undefined` and never as null.
+      // Copying the whole patch object across would turn every untouched field
+      // into an explicit null and blank the roster.
+      if (p.functionId !== undefined) fields.functionId = p.functionId;
+      if (p.shiftTypeId !== undefined) fields.shiftTypeId = p.shiftTypeId;
+      if (p.payingEntityId !== undefined) fields.payingEntityId = p.payingEntityId;
+      if (p.designationId !== undefined) fields.designationId = p.designationId;
+      if (p.isTeamLead !== undefined) fields.isTeamLead = p.isTeamLead;
+      if (p.trainPass !== undefined) fields.trainPass = p.trainPass;
+      if (p.joinedAt !== undefined) fields.joinedAt = p.joinedAt;
+      if (p.probationEnd !== undefined) fields.probationEnd = p.probationEnd;
+      if (p.lastWorkingDay !== undefined) fields.lastWorkingDay = p.lastWorkingDay;
       if (Object.keys(fields).length > 0) {
         const res = await editEmployee(id, fields);
         if (!res.ok) {

@@ -27,7 +27,7 @@ function collectIds(node: ProjectTreeNode, out: string[]): void {
 
 /**
  * GET /api/mobile/projects — the signed-in user's Projects overview: the same
- * org-wide project tree the web `/projects` page reads (Project → Milestone →
+ * org-wide project tree the web plan reads (Project → Milestone →
  * Result → Action), collapsed to a flat per-project card with its structure
  * counts AND a real completion meter (linked tasks done / total). Read-only.
  *

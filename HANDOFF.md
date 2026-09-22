@@ -6,6 +6,7 @@ broken, what changed and why.
 - Setup instructions → [`SETUP.md`](./SETUP.md)
 - Replicating this system for a new client → [`docs/WMS_BLUEPRINT.md`](./docs/WMS_BLUEPRINT.md)
 - **`Om` branch handoff + unrun SQL migrations** → [`HANDOFF-Om.md`](./HANDOFF-Om.md)
+- **`Shreya` branch handoff + its Supabase file** → [`handoff-shreya.md`](./handoff-shreya.md)
 
 > **Every developer and intern must append to the changelog below before their
 > work is considered done.** A PR without a changelog entry is incomplete. See
@@ -13,7 +14,41 @@ broken, what changed and why.
 
 ---
 
-## ✅ Database migrations 0215–0224 — APPLIED 2026-09-15 (`0216_incentive_eligibility`, `0225`, `0226` still pending — see below)
+## ✅ Database migrations — APPLIED
+
+**`0215`–`0224` applied 2026-09-15** (74/74 verified). **`0225`–`0227` applied
+2026-09-18.** **The since-fork bundle applied 2026-09-21** —
+`db/RUN-IN-SUPABASE-SINCE-FORK-0911.sql` (50 migrations) then
+`db/VERIFY-SINCE-FORK-0911.sql`, **132/132 PASS** on production
+`mwaijzxuyicysvimzspx`. That run is what unblocked deploying the fork merge: the
+code reads `two_step_*` tables that migration `0242` creates, and
+`lib/auth/session-mint.ts` is in the sign-in path. Outstanding:
+**`0216_incentive_eligibility.sql`** (self-heals at runtime; apply it properly).
+
+See `db/fork-handover-2026-09-21/INDEX.md` for which commit brought each file.
+
+The 18 September batch, all additive and idempotent:
+
+| File | Adds | Notes |
+|---|---|---|
+| `0225_candidate_intake_merge.sql` | `candidate_intake.merged_into_id` + `candidate_intake_merge_events` | **Had to be applied BEFORE the deploy** — every candidate picker filters on the new column |
+| `0226_capability_grants.sql` | `capability_grants` + `capability_grant_events` | Master-admin membership as data. A CHECK constraint pins it to `master_admin.manage` alone |
+| `0227_permission_node_settings.sql` | `permission_node_settings` + `permission_catalog_events` | Tables only — the label/rename UI is **not built yet** |
+
+Running the code **before** 0225 would not have errored loudly: `listCandidateIntakes`
+is wrapped in a timeout + try/catch on the evaluation page, so the candidate list
+would simply have come back **empty**. A silent empty list is the failure mode to
+watch for after any migration that adds a column to a filtered query.
+
+---
+
+## (record) Migrations 0215–0224 — applied 2026-09-15
+
+> **Numbering note (wms-local).** The same migration numbers are used by
+> different files in `wms-local`: `0225`-`0227` there are Om's employee and
+> billing masters and Rudra's candidate signatures, not the three above.
+> What has been applied where is tracked in
+> `db/fork-handover-2026-09-21/INDEX.md`, with the combined bundle beside it.
 
 > **Still outstanding: `0216`, and the `Rudra` branch's `0229` and `0230`**
 > (see the bundle below and the 16–17 September entries).
@@ -594,6 +629,324 @@ throughout; her Firebase UID is new.
 ---
 
 ## Changelog
+
+### 2026-09-21 (later) — The permission matrix now covers every route handler
+
+**What changed**
+
+- **All 62 remaining route handlers are wired** — every `route.ts` in the app now
+  asks the matrix before answering. The debt recorded as 28/2/26 before the fork
+  merge, then 29/3/30 after it, is **zero**.
+- **28 catalogue entries added** (`apiRoutes` on HR, goals, training,
+  productivity, operations, platform and dashboard nodes), so each handler is
+  actually governed rather than merely wired.
+- **5 handlers are exempt by design**, each with its reason recorded.
+- **`tests/unit/api-guard.test.ts`** — the guard had no test of its own, only a
+  grep for its name in the coverage test.
+- **`route-handler-coverage.test.ts`** drops the "known debt, exact counts" list
+  for a stronger assertion: no handler may be unguarded at all.
+
+**The gap this closes**
+
+Revoking a module hid its screen while its endpoints kept answering, because
+`requirePathView` runs once in a layout and a layout never runs for a `route.ts`.
+The exports were the worst of it: `/salary/export.xlsx`, `/tasks/export.pdf` and
+`/attendance/export.xlsx` handed over exactly the data the hidden screen showed.
+
+**A trap worth naming: wired is not the same as enforced.** The guard returns
+`null` for a path no node claims, so a handler can call `apiViewDenial`, look
+covered, and enforce nothing — the two states are identical from outside. That is
+why the wiring and the catalogue entries had to land together, and why a new test
+asserts that every guarded handler resolves to a node or is on the exempt list.
+Without it, this whole tranche could have gone green while changing nothing.
+
+**How the wiring was done, and why it is trustworthy**
+
+62 hand-edits would have been 62 chances to differ. A codemod inserted the guard
+as the first statement of each handler body and added a `Request` parameter where
+a handler had none (Next always passes one; 9 handlers ignored it).
+
+It was **dry-run on three copies first, and the first version was wrong** — it
+applied the added parameter before the guard, shifting the insertion point and
+planting the guard *inside the signature*: `Promise<Response>` became
+`Pro` + guard + `mise<Response>`. Fixed by inserting the guard before the
+parameter, since the parameter edit sits earlier in the string.
+
+Verified after: `tsc` clean, eslint clean on all 65 changed files, suite 4177
+passed. The one failure is the known `device-exemption-login` 5s timeout
+(5021ms), unchanged from the merge and passing when given room.
+
+**One test needed fixing, and it is instructive.** `incentive-export-routes.test.ts`
+called its handlers with no arguments, which only compiled because those handlers
+took no `Request`. It now passes one, as Next does — and stubs the guard, because
+importing it drags in `lib/env.ts` and its parse of `DATABASE_URL` at module load.
+
+**Left undone, deliberately**
+
+- **EDIT is still wired in only 2 of ~108 action files.** VIEW is now enforced in
+  pages, handlers and the Admin Panel's exports; EDIT remains cosmetic outside
+  those two, which is the next tranche.
+- **The Admin Panel's 19 unwired pages** — `app/(admin)/admin/layout.tsx` still
+  checks only `isAdmin`.
+- **78 `/api/mobile/*` routes** stay exempt: wiring them needs CORS headers on
+  the refusal or the native app reports a network failure instead of a 403.
+
+### 2026-09-21 — The fork's 54 commits land, and the matrix reaches API endpoints
+
+**What changed**
+
+- **The team's fork is merged into `main`** (`fe4f44a3`, 54 commits from
+  `localaltuscorp-os/Altus-OS` at `da534f7c`). Account lockout with a grantable
+  unlock role, two-step emailed sign-in codes, the incentive rework (Accounts
+  payable ledger, billing, breakup letter), DCC masters and calendar sync, HR
+  Records Backup as one ZIP per person plus a scheduled Drive save, WCC/MCC
+  checklists, employee and billing master, the `departments`→`functions` rename,
+  and per-person device identity.
+- **`lib/permissions/catalog.ts` gains `apiRoutes`**, and the four
+  `/api/hr/letters/*` handlers are now governed by the matrix through the new
+  `lib/permissions/api-guard.ts`.
+- **`tests/unit/route-handler-coverage.test.ts`** walks every `route.ts` and
+  requires it to be governed or exempt-with-a-reason.
+
+**Why the matrix needed to reach handlers**
+
+`requirePathView` ran in one place — `app/(app)/layout.tsx` — and a layout never
+runs for a `route.ts`. So revoking a module hid its screen while its endpoints
+answered anyway. Letters was the worst case: four handlers that mint, email and
+render through headless Chromium, all reachable whatever the matrix said. The
+guard **returns** its refusal rather than throwing, because a route handler has
+no error boundary, so `forbiddenError()`'s digest becomes a 500 — a refusal that
+reports itself as the app being broken.
+
+Interesting consequence, now locked with tests: a handler nested under a page
+prefix is *already* governed by longest-prefix matching, so most export endpoints
+need one guard call and no catalogue entry. `apiRoutes` exists only for a handler
+outside its page's path.
+
+**The one conflict, and how it was resolved**
+
+`lib/permissions/catalog.ts` — both sides edited the same HR block. Theirs moved
+Salary Slip to the Employees room and listed **both** paths so the old
+`/hr/salary-slip` stays governed rather than becoming an ungoverned door; ours
+added the Letters `apiRoutes`. Neither contradicts the other, so both were kept.
+Nothing was dropped from either side.
+
+**Verified after merging**
+
+`tsc --noEmit` clean across 788 files. Catalogue tests 26/26, including the
+filesystem check that every claimed route still resolves after the rename. Full
+suite 4157 passed. Raw failure counts varied between runs (4, then 10), so each
+file was re-run in isolation instead of being called flake — only **one** is
+genuine: `device-exemption-login` times out at 5021ms against a 5s limit and
+passes when given room (5.80s of work). The other 16 tests in that file call the
+same path and are fast, so it is the new two-step flow's cold-start import cost,
+not a logic break. Sign-in is slower, not wrong.
+
+**Route-handler debt rose 28/2/26 → 29/3/30.** Every increase is a handler this
+merge *added*; no existing guard was removed. The coverage test caught them on
+its first run, which is the test doing its job.
+
+**The migration run — do not reorder this**
+
+The merged code reads `two_step_challenges` / `two_step_verifications`, which
+exist only after `0242`. `lib/auth/session-mint.ts` is **in the sign-in path**, so
+deploying before the tables existed would have meant nobody could log in. The
+merge therefore sat unpushed until the SQL had run. Mohit's bundle was dry-run
+first against PGlite (real Postgres, already a dependency): PART 2 applied clean
+as one transaction and `VERIFY-SINCE-FORK-0911.sql` returned **132/132 PASS**
+before the same files were run against production `mwaijzxuyicysvimzspx`.
+
+Two traps worth remembering:
+
+- **PART 1 must run alone.** It adds enum values, and Postgres refuses to *use* a
+  value added in the same transaction — reproduced in the dry run, which is
+  exactly why the bundle splits it out.
+- **Supabase's editor runs a SELECTION, not the file.** The first VERIFY attempt
+  failed with `syntax error at or near 'recruitment_jds.is_active'` at *LINE 2* —
+  the button said "Run selected" and two highlighted rows of a `VALUES` list are
+  not a statement. The SQL was correct; the selection was not. Ctrl+A before Run.
+
+### 2026-09-18 (later) — Functions Storage: one import was costing ~10 GB
+
+**What changed**
+
+- **`lib/db/index.ts` no longer imports `drizzle-orm/pglite` as a value.**
+  `import { drizzle as drizzlePglite } from "drizzle-orm/pglite"` became a
+  type-only reference plus a variable-specifier `require()` inside `dummyDb()`,
+  next to the identical treatment PGlite itself already had.
+
+**Why — 14 GB against a 10 GB allowance**
+
+Vercel sums the uncompressed size of every deployed serverless function. PGlite
+(PostgreSQL-as-WASM, used only by the local DUMMY_MODE sandbox) is ~25 MB, and
+it was in **428 of 1066** built server files.
+
+The 15 September fix hid the direct `require("@electric-sql/pglite")` behind a
+variable specifier, which a static analyser cannot follow. That fix was correct
+and it did nothing, because a **static import on line 2 of the same file** put
+the package back in the graph by another door:
+
+- `drizzle-orm/pglite` is **not** in `serverExternalPackages`, so webpack
+  **bundled** that driver into the chunk that owns `lib/db` — the chunk every
+  database-touching route depends on.
+- The driver's own `import("@electric-sql/pglite")` **is** externalized, so
+  webpack emitted it as a runtime `a.exports = import("@electric-sql/pglite")`
+  — a **literal** specifier, which Next's tracer follows exactly as it follows a
+  literal `require()`.
+- Verified in the build output, not inferred: the string appeared in 428 files
+  under `.next/server`. After the fix: **0**.
+
+This also explains why the number went **up** rather than down after the
+September 15 fix — the count never dropped, and `@electric-sql/pglite` grew from
+17.2 MB to ~25 MB.
+
+**The generalisable lesson (the second time this bug has appeared)**
+
+Hiding ONE reference is not fixing the leak. Grep the **build output** for the
+specifier — `pnpm build && node scripts/measure-functions-storage.mjs --leaks`.
+A leak you cannot see in the source is still a leak.
+
+**New tooling**
+
+- `scripts/measure-functions-storage.mjs` — `--leaks` scans the built server
+  output for literal `require()`/`import()` specifiers and reports how many
+  functions each one reaches. It reads webpack output, so it is valid from a
+  local build (a local build compiles fine; it only fails later at page-data
+  collection without `.env.local`). The default mode sums `.nft.json` traces and
+  **refuses to report a total** when the traces are empty of `node_modules` —
+  those numbers are meaningless, and three previous investigations were misled by
+  them. **Run `--leaks` locally; confirm the number on Vercel.**
+- `pnpm check:leaks` / `pnpm measure:functions`.
+- `tests/unit/db-trace-leaks.test.ts` — asserts the fix in the normal unit run,
+  so the next innocent-looking one-line import fails a test rather than a bill.
+
+**Also fixed: the error message that sent the owner on a detour**
+
+Ticking "Issue letters" showed him the raw `INSERT` statement and its bound
+parameters — which included an employee's email address — instead of the actual
+cause. `lib/db/error.ts` already existed for exactly this (see its header, and
+the 2026-08-30 attendance airstrike); the handler was reading `err.message` and
+never calling it. Both grant handlers now use `dbErrorAdvice()`, which names the
+**remedy** for the SQLSTATEs a migration explains (23514/42P01/42703/42P07) and
+otherwise falls back to the cause. Bound parameters are never shown.
+
+**Still ahead, and not a blocker**
+
+After this fix Functions Storage should land near **3–4 GB**. Remaining
+specifiers, reported by `--leaks` and deliberately left alone:
+
+| Specifier | Functions | Roughly | Why it stays |
+|---|---|---|---|
+| `firebase-admin` | 92 | ~2 GB | Genuinely needed for token verification on authed routes. Reducing it means replacing the SDK with JWKS verification — a real project, not a tweak |
+| `pdfkit` | 35 | ~290 MB | Structured letter PDFs |
+| `@sparticuz/chromium` | 6 | ~400 MB | Rich letters + policy PDFs; expected, and the 67 MB binary is what makes those routes work |
+
+**SQL to run before deploying:** none. This is a code-only change.
+
+**How to verify**
+
+1. `node scripts/measure-functions-storage.mjs --leaks` → `@electric-sql/pglite`
+   must read **0 files**.
+2. After the deploy: Vercel → Usage → Functions Storage. Expect ~3–4 GB.
+3. `corepack pnpm exec vitest run` → 2927 passed, 6 failed (all pre-existing:
+   `task-actions` ×2, `task-stat-counts`, `delegated-access-authorization`,
+   `done-on-time`, `global-search-provider`).
+
+---
+
+### 2026-09-18 — Wheel scroll restored app-wide; master admin becomes data; policy downloads carry the text
+
+**What changed**
+
+- **Wheel/trackpad scrolling worked only from the page gutter.** `app/globals.css`
+  applied the `overscroll-behavior` **shorthand** to every element with any
+  Tailwind overflow utility. Only that one rule changed — see *Why* below, it is
+  the single most useful thing in this entry.
+- **Master admin is now a database row, not a code constant.** `capability_grants`
+  (migration 0226), granted from **Admin → Employees → Master admin**, and
+  readable/editable without a deploy. `lib/security/capability-grants.ts`.
+- **A "Master admin" access chip** in the employee list and a matching checkbox in
+  the employee editor, drawn only for a super-admin.
+- **The HR console hides what the permission matrix has denied**
+  (`lib/hr/console-visibility.ts`). Its rail used to keep drawing steps that
+  bounced you to the hub.
+- **"Download policy" now returns the whole policy**, body then acknowledgement,
+  instead of the acknowledgement alone. Both `/api/hr/policies/download` and
+  `download-all`.
+- **`guardSuperAdminTarget` widened to `guardPrivilegedTarget`** at all seven call
+  sites (password reset, invite-link minting, deactivate, archive, delete) — see
+  *Why*.
+- **Candidates can be merged**: an evaluation created from a name + phone number
+  can be folded into the candidate's own interview-form record when the numbers
+  match. Migration 0225.
+- **Letters: the editing toolbar no longer overlaps itself** (`alw-toolbar` wraps
+  instead of crushing its own selects).
+
+**Why**
+
+- The scroll bug was **one CSS rule with a system-wide blast radius**, and it is
+  worth understanding before touching `globals.css` again. `overflow-x: auto` with
+  `overflow-y: visible` computes `overflow-y` to `auto`, so a horizontally
+  scrolling table **is** a vertical scroll container — with nothing to scroll.
+  `overscroll-behavior: contain` (shorthand ⇒ both axes) then forbids chaining a
+  vertical gesture out of it, and that element is the nearest vertical scroll
+  container under the pointer. So the wheel died over ~50 table wrappers, and it
+  looked like a per-page bug for weeks. **Fix: scope the behaviour to the axis the
+  element actually scrolls.** If you add a scroll container, set
+  `overscroll-behavior-x` or `-y`, never the bare shorthand.
+- Moving master-admin into the database gives up an audit property that
+  `capabilities.ts` documented on purpose ("a change shows up in code review and in
+  git history"). Kept instead: an append-only `capability_grant_events` trail
+  naming who granted what to whom, a code bootstrap (Manan, Rohan) that nothing at
+  runtime can edit, and a read that **fails closed** — a database hiccup can revoke
+  a granted master-admin but can never invent one.
+- Granting master admin is gated on **`isSuperAdmin`, never `isMasterAdmin`**.
+  Gating it on master-admin would let one promote another and the capability would
+  leak downward from the bootstrap accounts.
+- The priv-esc hole: `guardSuperAdminTarget` refused only when the **target** was a
+  super-admin, and that was sufficient **only because every master admin also was
+  one**. Making master-admin grantable split the two sets, and an ordinary admin
+  could then have reset a master admin's password, minted them a login link or
+  archived them. Widened in the same pass, which is the point worth remembering:
+  **when a capability becomes grantable, re-check every guard that assumed the
+  grantee set was fixed.**
+
+**How to verify**
+
+- Scroll: open any module with a wide table, put the pointer **over the table**,
+  and scroll. It must scroll the page.
+- Master admin: sign in as a super-admin → Admin → Employees → open a person →
+  "Master admin". The Access chip becomes **Master admin** and `/master-admin`
+  opens for them. As a plain admin the checkbox must be absent, and a hand-made
+  POST to `editEmployee` with `{ isMasterAdmin: false }` must return *"Only a
+  super-admin can change master admin access."*
+- Policies: sign one, then Policies → Download. The PDF opens with the policy text
+  and the signed acknowledgement at the end.
+- `pnpm test` — the 5 failures listed under *Known issues* are pre-existing.
+
+**Breaking / migration notes**
+
+- **Migrations 0225, 0226, 0227 applied to production on 2026-09-18.** 0225
+  (`candidate_intake.merged_into_id`) had to land **before** the deploy: every
+  candidate picker filters on that column, so deploying first would have emptied
+  the evaluation candidate list.
+- `isMasterAdmin` is **removed** from `lib/security/capabilities.ts`. Import it
+  from `lib/security/capability-grants.ts`; it is **async** now. It was removed
+  rather than kept as a synchronous shim on purpose — a leftover would compile,
+  return a plausible `false` for a database-granted master admin, and fail
+  silently.
+- `lib/security/capabilities.ts` GRANTS remains the authority for **every other**
+  capability. Only `master_admin.manage` is read from the database, and migration
+  0226's CHECK constraint enforces that.
+- Adds a **fourth** Chromium-capable function (`lib/pdf/chromium.ts`, shared with
+  the rich-letter renderer). Chromium is ~200 MB per function that can reach it —
+  a real deployment-size decision, not a free one.
+- The console's standalone **Policies** rail entry points at `/policies`, which the
+  catalogue claims for `platform.policies` — **not** `hr.policies`, which owns
+  `/hr/policies/[key]`. Hiding it from the rail means switching off
+  `platform.policies`.
+
+**Author:** Claude (with Rakesh Dubey)
 
 ### 2026-09-16 (night) — DCC rebuilt from the account holder's brief
 

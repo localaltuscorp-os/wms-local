@@ -187,7 +187,7 @@ export default async function PmsDetailPage({
                   {person.name}
                 </h1>
                 <p className="mt-1 text-[14.5px] font-medium text-ink-muted">
-                  {person.department || "No department"} · {scoreResult.tenureDays}d tenure
+                  {person.department || "No Function"} · {scoreResult.tenureDays}d tenure
                 </p>
                 {scoreResult.promotion.eligible && (
                   <span

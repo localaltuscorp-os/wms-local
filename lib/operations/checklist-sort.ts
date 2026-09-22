@@ -1,4 +1,5 @@
 import type { CheckStatus } from "./checklist";
+import { APPROVER_CHOICES, approverShown } from "@/lib/status/approver-status";
 import {
   ariaSort,
   compareValues,
@@ -39,32 +40,39 @@ export type { SortDir };
 
 export type SortKey =
   | "sr"
-  | "doer"
+  | "client"
+  | "subject"
   | "activity"
-  | "category"
-  | "offset"
+  | "doer"
+  | "initiator"
   | "target"
-  | "backup"
+  | "frequency"
   | "done"
+  | "notes"
   | "actual"
-  | "var";
+  | "var"
+  | "approver"
+  | "approverNotes";
 
 /** `null` is the checklist's own order — see "the third click" above. */
 export type SortState = GenericSortState<SortKey>;
 
 /**
- * How the four tick states rank when you sort by Done.
+ * How the Doer Statuses rank when you sort by them.
  *
  * Ascending puts OUTSTANDING WORK FIRST, which is what the column is asked for
  * ninety times in a hundred — "what is left?" — and descending answers the
- * other question. "Not Applicable" sits next to Done rather than next to
- * Pending because it is settled: nobody has to do anything about it.
+ * other question. Unread work is the most outstanding of all.
  */
 const STATUS_RANK: Record<CheckStatus, number> = {
-  Pending: 0,
-  "Need Help": 1,
-  "Not Applicable": 2,
-  Done: 3,
+  dont_know: 0,
+  not_started: 1,
+  need_info: 2,
+  follow_up: 3,
+  initiated: 4,
+  done: 5,
+  // Terminal like Done, but a dead end — it sorts past it, never before.
+  abandoned: 6,
 };
 
 /** The fields of a row this module reads. Anything wider is the caller's. */
@@ -72,11 +80,15 @@ export interface SortableRow {
   offsetDays: number | null;
   sortOrder: number;
   title: string;
+  client: string | null;
   category: string | null;
   doerId: string | null;
-  backupId: string | null;
+  initiatorId: string | null;
   status: CheckStatus;
+  notes: string | null;
   doneAt: string | null;
+  approverStatus: string | null;
+  approverNotes: string | null;
 }
 
 export interface SortContext<T extends SortableRow> {
@@ -86,6 +98,8 @@ export interface SortContext<T extends SortableRow> {
   targetOf: (row: T) => string | null;
   /** The row's ± days figure, or null when it has none. */
   varianceOf: (row: T) => number | null;
+  /** The Frequency column's words for the row. */
+  frequencyOf: (row: T) => string | null;
   /** The checklist's own order: the tie-break, and what "no sort" means. */
   natural: (a: T, b: T) => number;
 }
@@ -116,27 +130,35 @@ export function sortChecklistRows<T extends SortableRow>(
 
   const valueOf = (r: T): string | number | null => {
     switch (key) {
-      case "doer":
-        return ctx.nameOf(r.doerId);
-      case "backup":
-        return ctx.nameOf(r.backupId);
+      case "client":
+        return r.client?.trim() || null;
+      case "subject":
+        return r.category?.trim() || null;
       case "activity":
         return r.title;
-      case "category":
-        return r.category?.trim() || null;
-      case "offset":
-        return r.offsetDays;
+      case "doer":
+        return ctx.nameOf(r.doerId);
+      case "initiator":
+        return ctx.nameOf(r.initiatorId);
       case "target":
         // `YYYY-MM-DD` sorts lexicographically in date order — no parsing, and
         // no timezone to get wrong.
         return ctx.targetOf(r);
+      case "frequency":
+        return ctx.frequencyOf(r);
       case "done":
         return STATUS_RANK[r.status];
+      case "notes":
+        return r.notes?.trim() || null;
       case "actual":
         // ISO timestamps, same property as above.
         return r.doneAt;
       case "var":
         return ctx.varianceOf(r);
+      case "approver":
+        return APPROVER_CHOICES.indexOf(approverShown(r.approverStatus) as never);
+      case "approverNotes":
+        return r.approverNotes?.trim() || null;
     }
   };
 
@@ -153,11 +175,11 @@ export function sortChecklistRows<T extends SortableRow>(
 export function describeSort(sort: SortState, labelOf: (k: SortKey) => string): string | null {
   if (!sort) return null;
   const kind =
-    sort.key === "offset" || sort.key === "var" || sort.key === "sr"
+    sort.key === "var" || sort.key === "sr"
       ? "number"
       : sort.key === "target" || sort.key === "actual"
         ? "date"
-        : sort.key === "done"
+        : sort.key === "done" || sort.key === "approver"
           ? "state"
           : "text";
   return `${labelOf(sort.key)} (${directionWords(sort.dir, kind)})`;

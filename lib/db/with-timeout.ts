@@ -108,3 +108,41 @@ export async function withRetry<T>(
   }
   throw lastErr;
 }
+
+/** Error codes that mean "the connection went away", not "the query is wrong". */
+const DROPPED_CONNECTION_CODES = new Set([
+  "ECONNRESET",
+  "CONNECT_TIMEOUT",
+  "CONNECTION_CLOSED",
+  "CONNECTION_ENDED",
+  "CONNECTION_DESTROYED",
+  "EPIPE",
+  "ETIMEDOUT",
+]);
+
+function isDroppedConnection(err: unknown): boolean {
+  for (let e: unknown = err, depth = 0; e && depth < 4; depth++) {
+    const code = (e as { code?: unknown }).code;
+    if (typeof code === "string" && DROPPED_CONNECTION_CODES.has(code)) return true;
+    e = (e as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+/**
+ * Run a read, and run it ONCE MORE only if it failed because the connection
+ * dropped (ECONNRESET / CONNECT_TIMEOUT … — the pooler cutting an idle socket).
+ *
+ * Deliberately NOT a timeout: a slow read still just waits, so this cannot turn
+ * slow-but-fine into an error the way a hard timeout did on the session lookup.
+ * Any other error (bad SQL, missing column) is thrown straight away.
+ */
+export async function retryOnDroppedConnection<T>(make: () => Promise<T>, label = "query"): Promise<T> {
+  try {
+    return await make();
+  } catch (err) {
+    if (!isDroppedConnection(err)) throw err;
+    console.warn(`[db-retry] ${label}: connection dropped; retrying once on a fresh connection`);
+    return await make();
+  }
+}

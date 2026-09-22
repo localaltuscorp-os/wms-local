@@ -1,12 +1,14 @@
 import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import type { Route } from "next";
-import { TrendingUp, CheckCircle2, Hourglass, Gauge } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
 import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { IncentiveTabs } from "@/components/incentive/incentive-tabs";
 import { BillingDashboard } from "@/components/incentive/billing-dashboard";
+import { IncentiveFormDialog } from "@/components/incentive/incentive-form-dialog";
+import { IncentiveTableSkeleton } from "@/components/incentive/ui/states";
 import { requireUser } from "@/lib/auth/current";
+import { canReviewIncentives } from "@/lib/auth/incentive-permissions";
 import { listIncentiveRequests } from "@/lib/queries/incentive";
 import {
   getIncentiveDashboard,
@@ -17,25 +19,22 @@ import { getBillingDashboard } from "@/lib/queries/billing";
 import { listIncentiveCatalog } from "@/lib/queries/incentive-catalog";
 import { listEligibilityPeople } from "@/lib/queries/incentive-eligibility";
 import { listEmployeeOptions } from "@/lib/queries/employees";
+import { listActiveProductNames } from "@/lib/queries/products";
 import { getIncentiveStatusReport, listIncentiveEntriesStatus } from "@/lib/queries/incentive-status";
+import { loadIncentiveAnalytics, restrictTargetVsActual } from "@/lib/queries/incentive-analytics";
+import { applyAnalyticsView, incentiveAnalyticsScopeFor } from "@/lib/incentive/analytics/scope";
+import { visibleNameKeysFor } from "@/lib/incentive/analytics/visible-names";
+import { selectableMonths } from "@/lib/incentive/analytics/periods";
 import { incentiveStatusUiEnabled } from "@/lib/incentive/status-flag";
 import { IncentiveStatusTab } from "@/components/incentive/incentive-status-tab";
 import { withRetry } from "@/lib/db/with-timeout";
-import { formatInr } from "@/lib/format";
 import { IncentiveCatalogDialog } from "@/components/incentive/incentive-catalog-dialog";
 import { PageShell } from "@/components/layout/page-shell";
-import { CardGrid } from "@/components/layout/card-grid";
 
 export const dynamic = "force-dynamic";
 
-const GREEN = "#16a34a";
-const GREEN_DEEP = "#15803d";
-const RED = "#E10600";
-const RED_DEEP = "#A80400";
-
-interface PageProps {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}
+/** The areas whose DATA is a calendar year, and so need the year picker. */
+const YEAR_SCOPED = new Set(["targets", "entries", "status", "billing"]);
 
 export default async function IncentivePage({ searchParams }: PageProps) {
   const me = await requireUser();
@@ -65,21 +64,50 @@ export default async function IncentivePage({ searchParams }: PageProps) {
   const r = <T,>(label: string, make: () => Promise<T>): Promise<T> =>
     withRetry(make, { attempts: 2, timeoutMs: [6000, 9000], label });
 
-  const [dashboard, targetVsActual, rows, catalog, entries, employees, eligibilityPeople] =
+  // Manan Vasa — sees every request and the decision controls. Decides what is
+  // RENDERED; the decision action re-checks it on the server.
+  const canReview = canReviewIncentives(me.email);
+
+  // WHO THIS VIEWER MAY SEE (lib/incentive/analytics/scope.ts). Company-wide
+  // viewers get the company roll-ups; everyone else gets only themselves and
+  // their downline, and the company-wide queries are not even run for them —
+  // what is never loaded can never be serialised into their page.
+  const scope = await r("incentive:scope", () => incentiveAnalyticsScopeFor(me));
+
+  const [dashboard, targetVsActualAll, rows, catalog, entries, employees, products, eligibilityPeople] =
     await Promise.all([
-      r("incentive:dashboard", () => getIncentiveDashboard(year)),
+      scope.all ? r("incentive:dashboard", () => getIncentiveDashboard(year)) : Promise.resolve(null),
       r("incentive:target-vs-actual", () => getIncentiveTargetVsActual(year)),
-      r("incentive:requests", () => listIncentiveRequests({ employeeId: me.id, isAdmin: me.isAdmin })),
+      r("incentive:requests", () => listIncentiveRequests({ employeeId: me.id, isAdmin: me.isAdmin, canReview })),
       // SCOPED TO THE VIEWER (migration 0216): an employee is shown only the
       // incentives they were picked for. Admins see everything, plus who each
       // one applies to, because they are the ones who decide it.
       r("incentive:catalog", () => listIncentiveCatalog({ forEmployeeId: me.id, isAdmin: me.isAdmin })),
       me.isAdmin ? r("incentive:entries", () => listIncentiveEntriesAdmin(year)) : Promise.resolve([]),
-      me.isAdmin ? r("incentive:employees", () => listEmployeeOptions()) : Promise.resolve([]),
+      // Everyone, not only admins: the New Incentive Request dialog's Split
+      // Incentive picker needs the active roster. The same cached {id,name}
+      // list every other picker in the app reads.
+      r("incentive:employees", () => listEmployeeOptions()),
+      // Admin → Products — the Conversion form's Product dropdown. Cached under
+      // the `products` tag, which every product write busts.
+      r("incentive:products", () => listActiveProductNames()),
       // The eligibility picker’s roster. Admin-only: shipping every name and
-      // department to a non-admin’s browser would be a quiet leak.
+      // department to a non-admin’s browser would be a quiet leak. (Unlike the
+      // {id,name} list above, this one carries departments.)
       me.isAdmin ? r("incentive:eligibility-people", () => listEligibilityPeople()) : Promise.resolve([]),
     ]);
+  // After the batch above, not inside it: the dashboard runs its own queries
+  // (in rounds of at most five), and adding them to the page's burst would
+  // exceed the 10-connection pool.
+  const analytics = await r("incentive:analytics", () =>
+    loadIncentiveAnalytics(me, { kind: "current_month" }, { scope }),
+  );
+  if (!analytics) throw new Error("Incentive analytics could not be resolved for the current month.");
+
+  // The Targets tab's data, narrowed server-side for a scoped viewer.
+  const targetVsActual = scope.all
+    ? targetVsActualAll
+    : restrictTargetVsActual(targetVsActualAll, analytics.employees.map((e) => e.name));
 
   // WS-6 — incentive 3-status (Booked/Accrued/Paid) tab: admin-only + flag-gated
   // (INCENTIVE_STATUS_UI, default on). Only fetched when shown, so non-admins pay
@@ -104,120 +132,113 @@ export default async function IncentivePage({ searchParams }: PageProps) {
     );
   }
 
-  const pendingCount = rows.filter((r) => r.status === "pending").length;
+  // Deep links from incentive notifications. `?request=<id>` opens the Requests
+  // tab with that request expanded — only when it is already in this viewer's
+  // own list, so a link to someone else's request opens nothing. `?view=table`
+  // opens the Incentive Table.
+  const firstParam = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const requestedId = firstParam(sp.request)?.toLowerCase();
+  const focusRequestId = requestedId && rows.some((row) => row.id === requestedId) ? requestedId : null;
+  const openTable = firstParam(sp.view) === "table";
 
-  // ── Page-level KPIs, folded over the already-loaded data (zero extra queries) ──
-  const earned = dashboard.consolidated.approved;
-  const paid = dashboard.consolidated.paid;
-  const unpaid = dashboard.consolidated.unpaid;
-  const attainPct = targetVsActual.totals.attainmentPct;
-  const paidRate = earned > 0 ? (paid / earned) * 100 : null;
-  const attainAccent =
-    attainPct == null
-      ? "#334155"
-      : attainPct >= 100
-        ? GREEN
-        : attainPct >= 60
-          ? "#d97706"
-          : "var(--color-altus-red)";
+  /**
+   * WHICH AREA IS OPEN — resolved here only to decide the COMMAND BAR's
+   * contents. The area itself is still decided in `IncentiveTabs` from the same
+   * `?tab=`, and this never overrides it.
+   */
+  const tab = firstParam(sp.tab) ?? (focusRequestId ? "requests" : "dashboard");
+
+  /**
+   * THE YEAR PICKER IS NOT A GLOBAL CONTROL ANY MORE.
+   *
+   * It only ever moved the areas whose DATA is a calendar year — Targets,
+   * Entries, Status and Billing. On the Dashboard it moved nothing at all: that
+   * area is driven by its own period control (Current Month / Specific Month /
+   * Last 3 / Last 6 / YTD), which is why two time controls sat on one screen
+   * with the strip above them obeying one and the cards below obeying the
+   * other. `?year=` still works exactly as it did — it is simply only OFFERED
+   * where it does something.
+   */
+  const showYear = YEAR_SCOPED.has(tab);
 
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
       <PageShell width="wide">
-        {/* Glass hero → flat command bar. The year pills were a stacked block
-            beside the title; they are the page's period control, so they move to
-            the ACTION ROW as one compact segmented strip. */}
         <PageCommandBar
-          title={`Incentive · ${year}`}
+          title="Incentive"
           hint={
             me.isAdmin
-              ? "Earned, paid and target attainment across the year."
+              ? "Earned, paid and target attainment across the company."
               : "Your incentive earnings, attainment and requests."
           }
-          actions={<IncentiveCatalogDialog rows={catalog} isAdmin={me.isAdmin} people={eligibilityPeople} />}
+          actions={
+            <>
+              <IncentiveCatalogDialog
+                rows={catalog}
+                isAdmin={me.isAdmin}
+                people={eligibilityPeople}
+                defaultOpen={openTable}
+              />
+              {/* The module's primary action, on every area — it used to sit in
+                  a bare right-aligned div above the Requests list, where a long
+                  queue pushed it off the fold. */}
+              <IncentiveFormDialog products={products} employees={employees} me={me} />
+            </>
+          }
           toolbar={
-            <nav aria-label="Incentive year" className="flex flex-wrap items-center gap-1">
-              {years.map((y) => {
-                const active = y === year;
-                return (
-                  <Link
-                    key={y}
-                    href={`/incentive?year=${y}` as Route}
-                    aria-current={active ? "page" : undefined}
-                    className="rounded-md px-2.5 py-1 text-[12.5px] font-bold tabular-nums whitespace-nowrap transition-colors"
-                    style={
-                      active
-                        ? { background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})`, color: "#fff" }
-                        : { color: "var(--color-ink-muted)" }
-                    }
-                  >
-                    {y}
-                  </Link>
-                );
-              })}
-            </nav>
+            showYear ? (
+              <nav aria-label="Incentive year" className="flex flex-wrap items-center gap-1">
+                <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-subtle">
+                  Year
+                </span>
+                {years.map((y) => {
+                  const active = y === year;
+                  return (
+                    <Link
+                      key={y}
+                      href={`/incentive?tab=${tab}&year=${y}` as Route}
+                      aria-current={active ? "page" : undefined}
+                      className="rounded-pill px-2.5 py-1 text-[12.5px] font-bold tabular-nums whitespace-nowrap transition-colors"
+                      style={
+                        active
+                          ? {
+                              background:
+                                "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
+                              color: "#fff",
+                            }
+                          : { color: "var(--color-ink-muted)" }
+                      }
+                    >
+                      {y}
+                    </Link>
+                  );
+                })}
+              </nav>
+            ) : undefined
           }
         />
 
-        {/* ── KPI strip (folded over the loaded dashboard + attainment — zero extra queries) ── */}
-        <section aria-label="Incentive totals" className="mb-6">
-         <CardGrid min={240} gap="0.875rem">
-          <KpiCard
-            icon={<TrendingUp size={17} strokeWidth={2.4} />}
-            accent={RED}
-            label="Total earned"
-            value={formatInr(earned)}
-            caption={`permanent + project · ${year}`}
-            delay={0}
-          />
-          <KpiCard
-            icon={<CheckCircle2 size={17} strokeWidth={2.4} />}
-            accent={GREEN_DEEP}
-            label="Paid"
-            value={formatInr(paid)}
-            caption={paidRate != null ? `${paidRate.toFixed(0)}% of earned settled` : "nothing earned yet"}
-            progress={paidRate != null ? Math.min(paidRate / 100, 1) : null}
-            delay={50}
-          />
-          <KpiCard
-            icon={<Hourglass size={17} strokeWidth={2.4} />}
-            accent={unpaid > 0 ? "var(--color-altus-red)" : "#334155"}
-            label="Unpaid"
-            value={formatInr(unpaid)}
-            caption={unpaid > 0 ? "awaiting payout" : "all settled"}
-            delay={100}
-          />
-          <KpiCard
-            icon={<Gauge size={17} strokeWidth={2.4} />}
-            accent={attainAccent}
-            label="Avg attainment"
-            value={attainPct == null ? "—" : `${attainPct.toFixed(0)}%`}
-            caption={
-              attainPct == null
-                ? "no targets set"
-                : `${formatInr(targetVsActual.totals.actual)} of ${formatInr(targetVsActual.totals.target)} target`
-            }
-            progress={attainPct != null ? Math.min(attainPct / 100, 1) : null}
-            delay={150}
-          />
-         </CardGrid>
-        </section>
-
         <IncentiveTabs
+          key={focusRequestId ?? "incentive"}
+          focusRequestId={focusRequestId}
           dashboard={dashboard}
+          analytics={analytics}
+          analyticsMonths={selectableMonths()}
           targetVsActual={targetVsActual}
           billingSlot={
-            <Suspense fallback={<BillingLoading />}>
-              <BillingTab year={year} />
+            <Suspense fallback={<IncentiveTableSkeleton rows={6} cols={5} />}>
+              <BillingTab year={year} me={me} />
             </Suspense>
           }
           year={year}
           requests={rows}
           entries={entries}
           employees={employees}
+          products={products}
+          me={{ id: me.id, name: me.name }}
           isAdmin={me.isAdmin}
-          pendingCount={pendingCount}
+          canReview={canReview}
           showStatus={showStatus}
           statusTab={statusTab}
         />
@@ -226,96 +247,39 @@ export default async function IncentivePage({ searchParams }: PageProps) {
   );
 }
 
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
 /**
  * Streamed Billing tab — reads the LIVE Google Sheet (`getBillingDashboard`) OFF
  * the page's critical path, so first paint never waits on Google. Suspense shows
  * the skeleton until the sheet resolves; the read is already self-resilient
  * (returns an EMPTY summary on any Sheets/auth hiccup).
  */
-async function BillingTab({ year }: { year: number }) {
-  const billing = await getBillingDashboard(year);
-  return <BillingDashboard data={billing} />;
-}
-
-function BillingLoading() {
-  return (
-    <div className="rounded-2xl border border-hairline bg-surface-card p-10 text-center text-[14px] font-semibold text-ink-muted">
-      Loading billing from the live sheet…
-    </div>
-  );
-}
-
-/* ── KPI card — same construction as the Attendance / Salary stat cards ── */
-
-function KpiCard({
-  icon,
-  accent,
-  label,
-  value,
-  caption,
-  progress,
-  delay,
+async function BillingTab({
+  year,
+  me,
 }: {
-  icon: React.ReactNode;
-  accent: string;
-  label: string;
-  value: string;
-  caption: string;
-  /** 0–1 fill for the thin bar; omit/null to hide it. */
-  progress?: number | null;
-  delay: number;
+  year: number;
+  me: { id: string; email: string; isAdmin: boolean };
 }) {
+  // Scoped HERE, on the server, before the sheet is aggregated — the same
+  // resolver the Dashboard and Targets use, so the Billing area cannot drift
+  // into a second hierarchy rule. `applyAnalyticsView` is what computes
+  // `canSeeTeam`; `visibleNameKeysFor` returns null for a company-wide viewer
+  // (no filter) and a real set — possibly empty — for everyone else.
+  const base = await incentiveAnalyticsScopeFor(me);
+  const scope = applyAnalyticsView(base, "team");
+  const names = await visibleNameKeysFor(scope);
+  const billing = await getBillingDashboard(year, { visibleNames: names });
   return (
-    <div
-      className="wg-rise wg-btn rounded-2xl bg-surface-card px-4.5 py-4 max-md:px-4"
-      style={{
-        boxShadow:
-          "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.7), 0 10px 28px -20px rgba(15,23,42,0.35)",
-        animationDelay: `${delay}ms`,
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <span
-          className="inline-grid size-8 shrink-0 place-items-center rounded-[10px]"
-          style={{
-            background: `color-mix(in srgb, ${accent} 10%, transparent)`,
-            color: accent,
-          }}
-        >
-          {icon}
-        </span>
-        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-subtle">
-          {label}
-        </span>
-      </div>
-      <div
-        className="mt-2 tabular-nums text-ink-strong"
-        style={{
-          fontFamily: "var(--font-display), system-ui, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(21px, 1.7vw, 27px)",
-          letterSpacing: "-0.02em",
-          lineHeight: 1,
-        }}
-      >
-        {value}
-      </div>
-      <div className="mt-1 text-[12px] font-medium text-ink-subtle">{caption}</div>
-      {progress != null && (
-        <div
-          className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full"
-          style={{ background: "var(--color-hairline)" }}
-          aria-hidden
-        >
-          <span
-            className="block h-full rounded-full"
-            style={{
-              width: `${Math.max(2, progress * 100)}%`,
-              background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 75%, #fff), ${accent})`,
-            }}
-          />
-        </div>
-      )}
-    </div>
+    <BillingDashboard
+      data={billing}
+      year={year}
+      initialView="team"
+      canSeeTeam={Boolean(scope.canSeeTeam)}
+      scopeLabel={scope.label}
+    />
   );
 }

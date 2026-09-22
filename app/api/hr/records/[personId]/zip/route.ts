@@ -5,6 +5,7 @@ import { canExportHrRecords } from "@/lib/hr/records-export/access";
 import { collectRecordEntries, resolveExportSubject } from "@/lib/hr/records-export/collect";
 import { personFolderName, zipFileName } from "@/lib/hr/records-export/names";
 import { buildZip, type ZipInput } from "@/lib/hr/records-export/zip";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +37,13 @@ function jsonError(error: string, status: number): Response {
  * One unreadable file does not sink the download: it is listed in
  * "_Files that could not be included.txt" instead.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ personId: string }> }): Promise<Response> {
+export async function GET(request: Request, ctx: { params: Promise<{ personId: string }> }): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   const me = await requireUser();
   if (!(await canExportHrRecords(me))) {
     return jsonError("Only HR admins can download a person's complete records.", 403);

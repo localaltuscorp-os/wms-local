@@ -36,7 +36,7 @@ function fmtQty(s: string | null): string {
 }
 function fmtMoney(s: string | null): string {
   const n = toNum(s);
-  return n == null ? "-" : `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  return n == null ? "-" : `Rs. ${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
 
 export function CascadeGoalCard({
@@ -396,8 +396,8 @@ function EditFieldsForm({ goal, onDone }: { goal: CascadeWeeklyGoal; onDone: () 
         <Field label="Unit (UOM)"><input value={uom} onChange={(e) => setUom(e.target.value)} className={inputCls} /></Field>
         <Field label="Target qty"><input value={targetQty} onChange={(e) => setTargetQty(e.target.value)} inputMode="decimal" className={inputCls} /></Field>
         <Field label="Actual qty"><input value={actualQty} onChange={(e) => setActualQty(e.target.value)} inputMode="decimal" className={inputCls} /></Field>
-        <Field label="Target amount (₹)"><input value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} inputMode="decimal" className={inputCls} /></Field>
-        <Field label="Actual amount (₹)"><input value={actualAmount} onChange={(e) => setActualAmount(e.target.value)} inputMode="decimal" className={inputCls} /></Field>
+        <Field label="Target amount (Rs.)"><input value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} inputMode="decimal" className={inputCls} /></Field>
+        <Field label="Actual amount (Rs.)"><input value={actualAmount} onChange={(e) => setActualAmount(e.target.value)} inputMode="decimal" className={inputCls} /></Field>
         <Field label="Dependency %"><input value={dependency} onChange={(e) => setDependency(e.target.value)} inputMode="numeric" className={inputCls} /></Field>
         <Field label="Evidence URL"><input value={evidence} onChange={(e) => setEvidence(e.target.value)} placeholder="https://…" className={inputCls} /></Field>
       </div>

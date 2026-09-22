@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { hrContacts } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
-import { canEditHrRegisters } from "@/lib/hr/registers";
+import { isHrStaff } from "@/lib/hr/access";
 
 type R<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -18,8 +18,8 @@ type R<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
  */
 async function editor(): Promise<R<{ id: string }>> {
   const me = await requireUser();
-  if (!canEditHrRegisters(me.email)) {
-    return { ok: false, error: "Only Ruchita, Rutvisha and Manan can change the Address Book." };
+  if (!(await isHrStaff(me))) {
+    return { ok: false, error: "Only HR and super-admins can change the Address Book." };
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };

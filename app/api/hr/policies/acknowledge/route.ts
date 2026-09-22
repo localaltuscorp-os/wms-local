@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { acknowledgePolicy } from "@/lib/hr/policies/acknowledge-core";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,12 @@ export const dynamic = "force-dynamic";
  * acknowledgePolicy().
  */
 export async function POST(req: Request) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
   const input = await req.json().catch(() => ({}));
   const res = await acknowledgePolicy(input);
   return NextResponse.json(res);

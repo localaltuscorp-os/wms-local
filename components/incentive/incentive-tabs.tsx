@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { LayoutDashboard, ListChecks, IndianRupee, Target, Table2, Layers } from "lucide-react";
+import { useEffect, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import type {
   IncentiveDashboard as DashboardData,
   IncentiveTargetVsActual,
@@ -9,31 +9,39 @@ import type {
 } from "@/lib/queries/incentives";
 import type { IncentiveRequestRow } from "@/lib/queries/incentive";
 import type { EmployeeOption } from "@/lib/queries/employees";
+import type { IncentiveAnalytics } from "@/lib/incentive/analytics/model";
 import { IncentiveDashboard } from "./incentive-dashboard";
-import { IncentiveFormDialog } from "./incentive-form-dialog";
+import { IncentiveAnalyticsDashboard } from "./analytics/incentive-analytics-dashboard";
 import { IncentiveList } from "./incentive-list";
 import { IncentiveTargets } from "./incentive-targets";
 import { IncentiveEntries } from "./incentive-entries";
 
-type TabKey = "dashboard" | "targets" | "billing" | "requests" | "entries" | "status";
-
-const GREEN = "#E10600";
-const GREEN_DEEP = "#A80400";
+type TabKey = "dashboard" | "requests" | "targets" | "entries" | "status" | "billing";
 
 export function IncentiveTabs({
   dashboard,
+  analytics,
+  analyticsMonths,
   targetVsActual,
   billingSlot,
   year,
   requests,
   entries,
   employees,
+  products,
+  me,
   isAdmin,
-  pendingCount,
+  canReview,
   showStatus,
   statusTab,
+  focusRequestId = null,
 }: {
-  dashboard: DashboardData;
+  /** The company-wide year roll-up — null unless the viewer may see everyone. */
+  dashboard: DashboardData | null;
+  /** The Incentive Dashboard for the current month, already scoped to the viewer. */
+  analytics: IncentiveAnalytics;
+  /** Months the dashboard's "Specific Month" picker offers. */
+  analyticsMonths: string[];
   targetVsActual: IncentiveTargetVsActual;
   /** The Billing tab reads a LIVE Google Sheet — it's streamed in via a
    *  Suspense-wrapped server component so it never blocks the page's paint. */
@@ -41,89 +49,110 @@ export function IncentiveTabs({
   year: number;
   requests: IncentiveRequestRow[];
   entries: IncentiveEntryAdminRow[];
+  /** Active employees — the admin Entries tab and the request dialog's split picker. */
   employees: EmployeeOption[];
+  /** Active product names (Admin → Products) for the Conversion form. */
+  products: string[];
+  /** The signed-in requester. */
+  me: { id: string; name: string };
   isAdmin: boolean;
-  pendingCount: number;
+  /** The signed-in user is the incentive reviewer (Manan). Render hint only. */
+  canReview: boolean;
   showStatus?: boolean;
   statusTab?: ReactNode;
+  /** A request opened from a notification: start on Requests with it open. */
+  focusRequestId?: string | null;
 }) {
-  const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
-    { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { key: "targets", label: "Targets", icon: Target },
-    { key: "billing", label: "Billing", icon: IndianRupee },
-    { key: "requests", label: "Requests", icon: ListChecks },
-    ...(isAdmin ? [{ key: "entries" as const, label: "Entries", icon: Table2 }] : []),
-    ...(showStatus ? [{ key: "status" as const, label: "Status", icon: Layers }] : []),
+  /**
+   * WHICH AREAS THIS VIEWER HAS. Entries is admin-only and Status is
+   * admin-plus-flag, exactly as before — the list is what a `?tab=` is checked
+   * against, so a link to an area someone cannot see lands on the Dashboard
+   * instead of on a blank panel.
+   *
+   * The ORDER is the rail's order (main-nav.tsx `incentive`), and a test pins
+   * the two together.
+   */
+  const available: TabKey[] = [
+    "dashboard",
+    "requests",
+    "targets",
+    ...(isAdmin ? (["entries"] as const) : []),
+    ...(showStatus ? (["status"] as const) : []),
+    "billing",
   ];
 
-  const [active, setActive] = useState<TabKey>("dashboard");
+  /**
+   * THE OPEN AREA COMES FROM THE URL, and only from the URL.
+   *
+   * There used to be a segmented tab strip here — Dashboard | Targets | Billing
+   * | Requests | Entries | Status — and it was removed (2026-09-16) because the
+   * module's own sidebar rail now lists those same six areas. Two identical
+   * navigations stacked on one page is one too many, and the rail is the one
+   * that matches how every other module in this app is navigated.
+   *
+   * So switching areas is a link in the rail, which means `?tab=` alone decides
+   * what renders and there is no local tab state left to keep in step with it.
+   */
+  const searchParams = useSearchParams();
+  const requested = searchParams.get("tab");
+  const active: TabKey = available.includes(requested as TabKey)
+    ? (requested as TabKey)
+    : focusRequestId
+      ? "requests"
+      : "dashboard";
+
+  /**
+   * ARRIVING ON AN AREA THE URL DID NOT NAME — write it back, once.
+   *
+   * Two ways in. A notification link is `/incentive?request=<id>`, which opens
+   * Requests without saying so; and a link to an area this viewer cannot see
+   * (`?tab=entries` forwarded to a non-admin) falls back to Dashboard above. In
+   * both cases the URL now disagrees with the screen, and the sidebar rail
+   * reads the URL — so it would light the wrong area.
+   *
+   * Writing the resolved area back fixes that, and the notification hrefs stay
+   * exactly as they are: `incentiveRequestHref` still produces the link it
+   * always has, so every notice, email and bookmark already out there keeps
+   * working untouched. `replaceState` costs no server work and leaves no extra
+   * history entry.
+   *
+   * Deliberately NOT run for a plain `/incentive`: landing on the module should
+   * not stamp `?tab=dashboard` onto a clean URL. The rail lights its default
+   * entry when no tab is named, which is the same answer without the litter.
+   */
+  useEffect(() => {
+    if (requested === active) return;
+    if (requested === null && active === "dashboard") return;
+    const sp = new URLSearchParams(window.location.search);
+    sp.set("tab", active);
+    window.history.replaceState(null, "", `${window.location.pathname}?${sp}`);
+    // Once, on arrival. The rail navigates for every later change, which
+    // remounts this with the new URL already in place.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div>
-      {/* Segmented tab strip — glass rail, green active pill */}
-      <div
-        role="tablist"
-        aria-label="Incentive views"
-        className="wg-rise mb-7 inline-flex max-w-full flex-wrap items-center gap-1 rounded-2xl p-1.5"
-        style={{
-          background: "rgba(255,255,255,0.72)",
-          backdropFilter: "blur(10px) saturate(140%)",
-          boxShadow:
-            "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.8), 0 10px 26px -22px rgba(15,23,42,0.35)",
-          animationDelay: "80ms",
-        }}
-      >
-        {TABS.map((t) => {
-          const isActive = t.key === active;
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => setActive(t.key)}
-              className="wg-btn relative inline-flex cursor-pointer items-center gap-2 rounded-xl px-4.5 py-2.5 transition-colors max-md:px-3.5"
-              style={{
-                fontSize: 14.5,
-                fontWeight: isActive ? 800 : 600,
-                color: isActive ? "#fff" : "var(--color-ink-soft)",
-                background: isActive
-                  ? `linear-gradient(135deg, ${GREEN}, ${GREEN_DEEP})`
-                  : "transparent",
-                border: "none",
-                boxShadow: isActive
-                  ? `0 8px 20px -10px color-mix(in srgb, ${GREEN_DEEP} 70%, transparent), inset 0 1px 0 rgba(255,255,255,0.25)`
-                  : "none",
-              }}
-            >
-              <Icon size={16} strokeWidth={2.3} />
-              {t.label}
-              {t.key === "requests" && pendingCount > 0 && (
-                <span
-                  className="inline-flex items-center justify-center rounded-full font-bold tabular-nums"
-                  style={{
-                    minWidth: 20,
-                    height: 20,
-                    padding: "0 6px",
-                    fontSize: 11,
-                    color: "#fff",
-                    background: isActive ? "rgba(255,255,255,0.25)" : "var(--color-altus-red)",
-                    boxShadow: isActive ? "inset 0 0 0 1px rgba(255,255,255,0.35)" : "none",
-                  }}
-                >
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
       {active === "dashboard" ? (
-        <IncentiveDashboard data={dashboard} year={year} />
+        <IncentiveAnalyticsDashboard
+          initial={analytics}
+          months={analyticsMonths}
+          /* The company year roll-up (monthly charts, leaderboard and
+             incentive-name totals) is kept, and only for viewers who may see
+             everyone. It moved from a <details> ABOVE nothing to the bottom of
+             the dashboard, under the table that answers the daily question. */
+          trends={dashboard ? <IncentiveDashboard data={dashboard} year={year} /> : null}
+        />
       ) : active === "targets" ? (
-        <IncentiveTargets data={targetVsActual} year={year} isAdmin={isAdmin} />
+        <IncentiveTargets
+          data={targetVsActual}
+          year={year}
+          isAdmin={isAdmin}
+          me={me}
+          /* The SAME entitlement the dashboard's switch is built from, resolved
+             on the server — the toggle only narrows rows already sent. */
+          canSeeTeam={analytics.scope.canSeeTeam}
+        />
       ) : active === "billing" ? (
         billingSlot
       ) : active === "entries" && isAdmin ? (
@@ -131,12 +160,15 @@ export function IncentiveTabs({
       ) : active === "status" && showStatus ? (
         statusTab
       ) : (
-        <div className="space-y-6">
-          <div className="flex justify-end">
-            <IncentiveFormDialog />
-          </div>
-          <IncentiveList rows={requests} isAdmin={isAdmin} />
-        </div>
+        <IncentiveList
+          rows={requests}
+          isAdmin={isAdmin}
+          canReview={canReview}
+          me={me}
+          employees={employees}
+          products={products}
+          focusRequestId={focusRequestId}
+        />
       )}
     </div>
   );

@@ -2800,6 +2800,33 @@ html {
   background: #94a3b8;
 }
 
+/* A WIDE, TALL GRID'S scrollbars — the Event Checklist and WCC / MCC, which
+   scroll both ways inside their own box (account holder, 2026-09-18: "add a
+   scrollbar on both horizontal and vertical"). Thicker than `table-scroll`,
+   on a visible track, so it is obvious at a glance that the grid goes on in
+   both directions. Add it beside `table-scroll`. */
+.table-scroll.table-scroll-bold {
+  scrollbar-width: auto;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border: 2px solid #f1f5f9;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+.table-scroll.table-scroll-bold::-webkit-scrollbar-corner {
+  background: #f1f5f9;
+}
+
 /* Premium, slim scrollbar for the kanban board — smooth horizontal scroll
    with a subtle pill thumb instead of the chunky native bar (sir's #1). */
 /* ── Trackpad / touch panning, applied to every scroll container ────────────
@@ -2820,12 +2847,161 @@ html {
  *                            behind once the container hits its end.
  *   -webkit-overflow-…     — legacy iOS Safari momentum. Inert elsewhere.
  *
+ * ── AND IT IS PER AXIS, WHICH IS THE WHOLE POINT (fixed 2026-09-18) ─────────
+ * This rule used to set the `overscroll-behavior` SHORTHAND on all five
+ * selectors, and that silently killed wheel scrolling across the entire
+ * application. The brief was "~50 table and grid wrappers carry a bare
+ * `overflow-x-auto`", and a wrapper like that is the trap it looks least like:
+ *
+ *   · `overflow-x: auto` with `overflow-y: visible` computes `overflow-y` to
+ *     `auto` — so a horizontally-scrolling table IS a vertical scroll container.
+ *   · It has nothing to scroll vertically, so it never *can* scroll.
+ *   · `overscroll-behavior: contain` (the shorthand covers BOTH axes) then says
+ *     "do not chain a vertical gesture out of here" — and the element is the
+ *     nearest vertical scroll container under the pointer.
+ *
+ * Net effect: with the pointer anywhere over a table, toolbar or grid wrapper,
+ * the wheel did NOTHING. Scrolling only worked with the pointer parked in the
+ * page gutter or on the scrollbar — which reads as "the page cannot scroll",
+ * on every screen, for everyone. Hence the report that it was unfixable per
+ * page: the cause was never on any one page.
+ *
+ * Scoping the behaviour to the axis the element actually scrolls keeps every
+ * original intent — a horizontal fling still does not ripple out sideways, and
+ * a real vertical panel still will not hand its leftover scroll to the page —
+ * while letting a vertical wheel chain past an X-only container to the page.
+ *
  * `:where()` keeps specificity at 0, so any component can still override any
  * of it with a plain class. */
 :where(.overflow-x-auto, .overflow-y-auto, .overflow-auto, .overflow-x-scroll, .overflow-y-scroll) {
   touch-action: pan-x pan-y;
-  overscroll-behavior: contain;
+  /* X ALWAYS. Chaining sideways is what triggers the browser's back-navigation
+     gesture, which is the reason this containment exists. */
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
+}
+/* X-ONLY scrollers: contain the horizontal gesture, and NOTHING on the vertical
+   axis. This is the line that restores wheel scrolling over every table. */
+:where(.overflow-x-auto, .overflow-x-scroll) {
+  overscroll-behavior-x: contain;
+}
+/* Y-ONLY scrollers: these really do scroll vertically, so containing the
+   vertical gesture here is the intended "don't scroll the page behind me". */
+:where(.overflow-y-auto, .overflow-y-scroll) {
+  overscroll-behavior-y: contain;
+}
+/* Both axes by declaration — the shorthand is correct for these. */
+:where(.overflow-auto) {
+  overscroll-behavior: contain;
+}
+
+/* Y, FOR EVERYTHING THAT IS NOT A TABLE.
+ *
+ * Contain is right for a modal or a kanban lane: the reader is finished with
+ * the page at that element's edge. It is wrong for a table, which is taller
+ * than the room it was given and whose last rows may sit below the fold — there
+ * the gesture has to carry on and scroll the PAGE, or the reader hits the end
+ * of the inner scroll and nothing moves at all. Manan, 2026-09-16: "I scroll
+ * down but I can't".
+ *
+ * Written as an exclusion rather than as `overscroll-behavior-y: auto` on the
+ * table wrapper, because `auto` is the property's initial value and the CSS
+ * minifier drops declarations that only restate the initial — the override
+ * silently never reached the stylesheet. Not granting it is the one form of
+ * "leave it alone" that survives minification. */
+:where(.overflow-x-auto, .overflow-y-auto, .overflow-auto, .overflow-x-scroll, .overflow-y-scroll):not(:has(> table)) {
+  overscroll-behavior-y: contain;
+}
+
+/* ── FROZEN TABLE HEADERS, EVERY TABLE IN THE APP ──────────────────────────
+ *
+ * Manan, 2026-09-16: "freeze the top row of all tables in the full app — when
+ * I see task no 49 I am not able to see the heading row. Fix in all modules."
+ *
+ * WHY THE `sticky` CLASSES THAT WERE ALREADY THERE DID NOT DO THIS. Eighteen
+ * tables carried `sticky top-0` on their <th> and still lost the header, which
+ * is what makes this a CSS-mechanism bug rather than 129 missing class names.
+ *
+ * A sticky element sticks inside its nearest SCROLLPORT. Almost every table in
+ * this app sits in a wrapper carrying `overflow-x-auto` so wide columns can be
+ * panned — and per the Overflow spec, an element with one axis `auto` and the
+ * other `visible` computes the visible axis to `auto` too. So every one of
+ * those ~164 wrappers is a scroll container in BOTH directions. The header
+ * dutifully sticks to the top of the WRAPPER, the wrapper has no height of its
+ * own, the PAGE is what scrolls, and so the wrapper — header and all — slides
+ * off the top of the screen. Adding `sticky` to the other 111 tables would
+ * have reproduced the bug 111 more times.
+ *
+ * So this is two rules that have to be read together:
+ *
+ *   1. THE HEADER STICKS, at an offset that depends on what it is sticking to.
+ *      `--table-head-top` is 3.5rem at the root — the height of the sticky
+ *      `app-topbar` (h-14), which is `z-40` and would otherwise have the
+ *      header slide underneath it — and is reset to 0 inside any scroll
+ *      container, where the container's own top edge is already the right
+ *      place. Custom properties inherit, so a table nested in a scrollport
+ *      picks up the 0 without anything having to detect where it is.
+ *
+ *   2. THE WRAPPER GETS A HEIGHT, so there is something for the header to
+ *      stick INSIDE. Without this the first rule is decorative. `max-height`
+ *      (not `height`) so a five-row table still collapses to five rows and
+ *      only a table longer than the viewport starts scrolling internally.
+ *
+ * EVERYTHING HERE IS `:where()` — specificity 0. The eighteen tables that
+ * already solved this by hand, the frozen-column stack in the Tasks table with
+ * its z-30/z-20 ordering, and any table with its own `max-h-[600px]` all keep
+ * exactly the behaviour they have: a single Tailwind class outranks all of it.
+ *
+ * MULTI-ROW HEADERS ARE LEFT ALONE — `:has(> tr:only-child)`. A grouped header
+ * (two stacked <tr>, the second naming sub-columns) would pin both rows to the
+ * same offset and draw them on top of each other. Those tables are a handful
+ * and each one needs its own per-row offset; a blanket rule would break them
+ * to fix nothing. */
+:where(.overflow-x-auto, .overflow-y-auto, .overflow-auto, .overflow-x-scroll, .overflow-y-scroll) {
+  --table-head-top: 0px;
+}
+
+/* The wrapper needs a scrollport with a bottom. `100dvh` (not `vh`) so mobile
+   browser chrome collapsing does not leave the last row under the URL bar;
+   3.5rem for the top bar the page already sits under, 1rem so the table does
+   not butt against the very bottom edge.
+   `:has(> table)` — a DIRECT child only. A page-level scroll container with a
+   table somewhere deep inside it is not a table wrapper, and capping it would
+   cut the page off. */
+:where(.overflow-x-auto, .overflow-auto, .overflow-x-scroll):has(> table) {
+  /* `--table-scroll-max-h` is written per element by TableViewportSizer
+     (components/layout/table-viewport-sizer.tsx), which measures how much room
+     is ACTUALLY left between this wrapper's top edge and the bottom of the
+     window, less whatever shares its card below it (the pagination footer).
+     CSS cannot know that offset: the fallback here is a pure viewport
+     calculation, and the viewport is not where a table starts — one sitting
+     under a filter bar and a KPI strip begins ~300px down, so a box this tall
+     ends that far below the fold.
+     The fallback still has to be reasonable, because it is what renders for the
+     one frame before the measurement lands, and with JS off. Survivable either
+     way: the rule above lets the gesture chain out to the page from here, so an
+     over-tall box is never a trap. */
+  max-height: var(--table-scroll-max-h, calc(100dvh - 3.5rem - 1rem));
+}
+
+:where(thead:has(> tr:only-child)) > tr > :where(th) {
+  position: sticky;
+  top: var(--table-head-top, 3.5rem);
+  z-index: 20;
+  /* Rows scroll UNDER this, so it cannot be transparent. A component that
+     wants a different colour sets `bg-*` on the <th> — a class beats this. */
+  background-color: var(--table-head-bg, var(--color-surface-card));
+}
+
+/* PRINT: a sheet has no viewport to stick to and no scrollport to cap. Both
+   rules off, or a printed table loses every row past the first page's worth. */
+@media print {
+  :where(thead) > tr > :where(th) {
+    position: static;
+  }
+  :where(.overflow-x-auto, .overflow-auto, .overflow-x-scroll):has(> table) {
+    max-height: none;
+  }
 }
 
 /* SIDEWAYS-ONLY SCROLL BOX — for a wide table/grid that may scroll left-right
@@ -3270,6 +3446,277 @@ html {
   background: color-mix(in srgb, var(--color-altus-red) 22%, #ffffff);
   color: var(--color-altus-red-deep);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE TAX INVOICE SHEET
+   Ported from public/billing/invoice-template.html, which is the reference
+   document in code form. Its measurements are kept EXACTLY — millimetres,
+   point sizes, the two rule weights, the 58/42 party split — because the whole
+   requirement here is that what this app issues looks like that document.
+
+   Everything is in mm and pt rather than px. The browser resolves those against
+   the physical page when printing, so the sheet cannot drift with the reader's
+   zoom or display density the way a px layout does, and what is on screen is
+   literally the page that comes out of the printer.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.billing-a4 {
+  --inv-pad: 14mm;
+  /* SAMPLED FROM THE BRAND ARTWORK, not guessed: #EE1B24 is the red of the
+     footer bar in the reference, and the template's #c1272d was a duller brick
+     that did not match the logo beside it. The footer's contact line is the
+     same near-black as the body, not the grey the template used. */
+  --inv-red: #EE1B24;
+  --inv-red-dark: #B01018;
+  --inv-ink: #111111;
+  --inv-ink-soft: #3a3a3a;
+  --inv-ink-faint: #232323;
+  --inv-rule: #9a9a9a;
+  --inv-rule-strong: #4a4a4a;
+  /* MEASURED, not chosen. In the reference the sheet is 911px across for its
+     210mm, so 4.34px/mm, and the party block's capitals stand 13px — 3.0mm.
+     At Calibri's cap height of 0.644em that is an 11pt body, which is why the
+     8.6pt this started at looked cramped beside it. */
+  --inv-fs: 11pt;
+  --inv-fs-title: 17pt;
+  --inv-fs-small: 8.5pt;
+
+  position: relative;
+  width: 210mm;
+  min-height: 297mm;
+  padding: var(--inv-pad);
+  background: #fff;
+  color: var(--inv-ink);
+  /* CALIBRI, because that is what the reference document is set in — its
+     humanist shapes and tighter sidebearings are why the original reads
+     softer than an Arial rendering of the same words. Carlito is the
+     metric-compatible open substitute, so a machine without Calibri (a Linux
+     build server rendering the PDF, say) lays the text out identically rather
+     than reflowing it. */
+  font-family: Calibri, Carlito, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+/* The frame scrolls rather than the sheet shrinking. A4 is a fixed physical
+   size — that is the point of asking for it — so on a narrow screen something
+   has to give, and a sheet that quietly narrowed to fit would not be A4. */
+.billing-a4-frame {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.inv-body { position: relative; display: flex; flex-direction: column; flex: 1; }
+
+/* ── MASTHEAD — logo left, red flash filling the rest of the line ──────────
+   The flash is DRAWN, not an image: two clip-path wedges plus a white notch at
+   the right end that turns it into an arrow head. Built this way it rescales
+   with the page and needs no asset. */
+/* MEASURED OFF THE REFERENCE, not chosen by eye. Across its 1573px of drawn
+   width the wordmark is 304px (35.2mm on a 182mm content width) and 218px
+   tall (25.2mm), and the needle's tip begins at 280px — 28.2mm in, so it
+   overlaps the logo by 6.9mm.
+
+   THE TIP WAS THE HARD PART. Scanning for "leftmost red" finds the chevron,
+   not the needle. They separate by THICKNESS: from x 100 to 260 the red is
+   thick and sits at y 46..115 (the chevron); from x 280 it starts at y 14 and
+   grows one pixel at a time (the needle). A first pass measured the logo at
+   551px and was WRONG: the search window ran to 35% of the image and had
+   swallowed the flash's red, stretching the wordmark almost to twice its
+   width. The check that 304px is right — a flash 153.7mm wide at the asset's
+   own 815:64 is 12.1mm tall, against 12.0mm measured off the page.
+
+   TOP-ALIGNED WITH NO GAP: both begin at y 14 in the reference, and the needle
+   passes ABOVE the chevron rather than beside it. */
+.inv-masthead { display: flex; align-items: flex-start; gap: 0; min-height: 25mm; }
+.inv-logo { width: 35mm; flex: 0 0 35mm; }
+.inv-logo img { width: 100%; height: auto; display: block; }
+/* THE FLASH IS THE REAL ARTWORK, not a CSS approximation of it.
+   It was three clip-path wedges, which got the silhouette roughly right and
+   the rest of it wrong: the reference flash is a shaded needle with a lit top
+   edge, a darker underside and a notched arrow head, and flat-filled polygons
+   cannot be any of those. public/billing/masthead-flash.png is that artwork
+   with the page keyed out, so it scales with the sheet and matches exactly. */
+/* The negative margin IS the 6.9mm overlap measured above: the needle begins
+   just left of the logo's right edge, crossing the space above the chevron.
+   Without it the flash starts where the logo ends and the tip lands most of a
+   centimetre too far right, which reads as a separate graphic set beside the
+   logo rather than sweeping out from behind it. */
+.inv-flash { flex: 1; min-width: 0; margin-left: -6.9mm; }
+.inv-flash img { width: 100%; height: auto; display: block; }
+
+.inv-title {
+  text-align: center;
+  font-size: var(--inv-fs-title);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin: 9mm 0 4mm;
+}
+.inv-sub { text-align: center; font-size: var(--inv-fs); margin: -2mm 0 4mm; }
+
+.inv-rule { border: 0; border-top: 0.6pt solid var(--inv-rule); margin: 0; }
+.inv-rule-strong { border: 0; border-top: 0.9pt solid var(--inv-rule-strong); margin: 0; }
+
+/* label · colon · value. A grid rather than a table so the colon column is a
+   fixed width and every colon on the sheet lines up, which is what makes the
+   reference look ordered. */
+/* PITCH MEASURED OFF THE REFERENCE: its rows sit 20.5px apart on a sheet where
+   762px is 182mm, so 4.9mm between baselines. An 11pt body at 1.15 leading is
+   4.46mm, which leaves 0.45mm of row-gap — not the 1.1mm this started with,
+   which spread four lines over an extra two millimetres and lost the blocked
+   look the reference has. */
+.inv-rows {
+  display: grid;
+  grid-template-columns: auto 4mm 1fr;
+  row-gap: 0.45mm;
+  line-height: 1.15;
+}
+/* THE PADDING IS WHAT KEEPS THE COLON OFF THE LABEL. The first column is
+   `auto`, so it is exactly as wide as the LONGEST label in the block — which
+   means that label ends flush against the colon column and prints as
+   "Permanent Account Number:" while every shorter one above and below it has
+   a comfortable gap. The reference leaves about 2.5mm there on every row,
+   longest included. */
+.inv-rows .lbl {
+  font-size: var(--inv-fs);
+  color: var(--inv-ink-soft);
+  white-space: nowrap;
+  padding-right: 2.5mm;
+}
+.inv-rows .sep { font-size: var(--inv-fs); color: var(--inv-ink-soft); }
+/* LABELS SANS, VALUES SERIF. This looked at first like a Word accident — text
+   pasted into a Calibri document keeping its Cambria — but the reference does
+   it the same way in every block, so it is the document's style and not a
+   mistake to tidy up. Cambria is Calibri's pair; Liberation Serif is the
+   metric-compatible substitute for a machine without it. */
+.inv-rows .val {
+  font-size: var(--inv-fs);
+  color: var(--inv-ink);
+  white-space: pre-line;
+  font-family: Cambria, "Liberation Serif", "Times New Roman", Georgia, serif;
+}
+.inv-rows .val.b { font-weight: 700; }
+
+/* A FIXED LABEL COLUMN for the identity and bank blocks.
+   `auto` hugs the longest label by definition, so the colon ends up flush
+   against it — "Permanent Account Number:" — while every shorter row above has
+   room. The reference behaves like the Word table it came from: one column
+   width, colons landing in the same place whatever the label says, and clear
+   air after the longest of them. 52mm covers "Cheque to be issued in favour of"
+   (~48mm at 11pt Calibri) with a few millimetres to spare.
+
+   The party and meta blocks at the top keep `auto`: their labels are short and
+   a 52mm column there would strand "To" halfway across the sheet. */
+/* THE SHIFT LIVES IN THE LABEL COLUMN, so the colon travels with the value.
+   Widening the middle column instead moves the values right and leaves the
+   colons behind, opening a gap between each colon and the text it introduces.
+
+   65mm IS THE "p.a." IN THE INTEREST CLAUSE. Manan asked for the colons to stand
+   above it, and the interest clause below these rows — "Interest will be
+   charged at 24% p.a. at actuals for delay in payment after due date." — is
+   set in the same 11pt Cambria across the same 182mm, so laying its words out
+   in the reference gives the column directly: "p.a." at 65.4mm, "at" at
+   73.3mm, "actuals" at 78.1mm, "for" at 93.6mm. The column has walked left
+   word by word from 88mm on request: actuals, then at, now p.a.
+
+   That sentence is now what this number answers to. Change the wording, the
+   type size or the margins and the word moves, so re-measure rather than
+   assume 78mm still points at it.
+
+   It fits: 182 - 65 - 4 leaves 113mm for a longest value of ~84mm. */
+.inv-rows--wide { grid-template-columns: 65mm 4mm 1fr; }
+
+.inv-parties { display: grid; grid-template-columns: 58% 42%; gap: 4mm; padding: 3mm 0 3.5mm; }
+.inv-parties .right .inv-rows { row-gap: 3.2mm; }
+
+.inv-lines { width: 100%; border-collapse: collapse; }
+.inv-lines th {
+  font-size: var(--inv-fs);
+  font-weight: 400;
+  color: var(--inv-ink);
+  padding: 2mm 0 2.5mm;
+  text-align: center;
+  line-height: 1.25;
+}
+.inv-lines th.amt { text-align: center; width: 42mm; }
+.inv-lines td { font-size: var(--inv-fs); padding: 2.2mm 0; vertical-align: top; }
+.inv-lines td.amt { text-align: right; width: 42mm; white-space: nowrap; }
+/* The tax ladder — labels sit hard against the amount column, not out at the
+   left margin, exactly as the reference stacks them. */
+.inv-tax td.lbl { text-align: right; padding: 0.6mm 4mm 0.6mm 0; color: var(--inv-ink); }
+.inv-tax td.amt { padding: 0.6mm 0; }
+.inv-tax tr:first-child td { padding-top: 3mm; }
+.inv-total td { font-size: var(--inv-fs); font-weight: 700; padding: 2.6mm 0; }
+.inv-total td.lbl { text-align: right; padding-right: 4mm; }
+.inv-total td.amt { text-align: right; width: 42mm; }
+
+/* The itemised grid, for a document that is not one flat service. Not in the
+   reference — which only ever shows a single service line — so it borrows the
+   reference's type and rules rather than inventing a second look. */
+.inv-grid { width: 100%; border-collapse: collapse; font-size: var(--inv-fs); }
+.inv-grid th { text-align: left; font-weight: 700; padding: 2mm 2mm 2mm 0; border-bottom: 0.6pt solid var(--inv-rule); }
+.inv-grid td { padding: 1.8mm 2mm 1.8mm 0; vertical-align: top; border-bottom: 0.6pt solid #e3e3e3; }
+.inv-grid .num { text-align: right; white-space: nowrap; }
+
+.inv-block { padding: 3mm 0; }
+/* The interest clause is a VALUE, not a label — it is set in the same serif as
+   the bank details it closes. */
+.inv-note {
+  font-size: var(--inv-fs);
+  padding-top: 1.5mm;
+  line-height: 1.15;
+  font-family: Cambria, "Liberation Serif", "Times New Roman", Georgia, serif;
+}
+
+.inv-sign { padding: 10mm 0 0; }
+/* THE RULE RUNS OFF "For Altus Corp", it is not a band above it. In the
+   reference the line starts where that label ends and carries to the right
+   margin, which is what ties the signature to the sheet's right edge instead
+   of leaving it floating in the bottom-left corner. Drawn with ::after so the
+   label and its rule cannot be separated by an edit. */
+.inv-sign .for {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  font-size: var(--inv-fs);
+  font-weight: 700;
+}
+.inv-sign .for::after {
+  content: "";
+  flex: 1;
+  border-top: 0.6pt solid var(--inv-rule);
+}
+/* SIZED FROM THE REFERENCE BY RATIO, because that crop's scale is unknown and
+   ratios survive not knowing it: there the signature is the same width as the
+   words "For Altus Corp" (102px against 97px) and 2.8x their cap height, and
+   it sits 11px under the label with only 4px between it and "Proprietor".
+   Against an 11pt label that is about 7mm tall and 18mm wide — half the
+   52x16mm box this used to reserve, which floated the ink in white space and
+   pushed the designation a centimetre clear of a signature it belongs under. */
+.inv-sign .space {
+  height: 7mm;
+  width: 30mm;
+  margin: 1.8mm 0 0.7mm;
+  display: flex;
+  align-items: flex-end;
+}
+.inv-sign .role { font-size: var(--inv-fs); font-weight: 700; }
+
+/* Pinned to the bottom of the sheet by `margin-top: auto` on the flex column,
+   so a short invoice puts the bar exactly where a long one does. */
+.inv-footer { margin-top: auto; padding-top: 8mm; }
+.inv-footer .contact {
+  display: flex; justify-content: center; align-items: center; gap: 2.5mm;
+  font-size: 8pt; color: var(--inv-ink-faint); padding-bottom: 2.5mm;
+}
+/* Between the items, never before the first — the reference sets two
+   triangles among three details, not three leading ones. */
+.inv-footer .contact .dot { color: var(--inv-red); font-size: 7.5pt; line-height: 1; }
+.inv-footer .bar {
+  background: var(--inv-red); color: #fff; text-align: center;
+  font-size: var(--inv-fs-small); padding: 1.6mm 3mm; letter-spacing: 0.01em;
+}
+.inv-cancelled { text-align: center; font-weight: 700; letter-spacing: 0.2em; color: var(--inv-red); font-size: var(--inv-fs); }
 
 /* Outstanding dashboard print — when this page is printed, hide the global
    chrome (sticky header, footer); the filter bar + export toolbar carry
@@ -4006,5 +4453,52 @@ html {
     min-height: 0 !important;
     overflow: visible !important;
     display: block !important;
+  }
+}
+
+/* BILLING — print one document and nothing else.
+   Ctrl-P on /billing/documents/[id] should yield the invoice sheet on clean
+   A4: no app header, no rail, no action bar, no card shadow. Gated on
+   :has(.billing-print-sheet) so no other page is affected. */
+@media print {
+  body:has(.billing-print-sheet) header.header-light,
+  body:has(.billing-print-sheet) footer,
+  body:has(.billing-print-sheet) nav,
+  body:has(.billing-print-sheet) .billing-no-print {
+    display: none !important;
+  }
+  body:has(.billing-print-sheet) {
+    background: #fff !important;
+  }
+  .billing-print-sheet {
+    /* TRUE A4 ON PAPER TOO. The sheet keeps its millimetre box when printed;
+       only the screen chrome (rounding, shadow, centring margin) comes off.
+       Zeroing the padding here — which is what this rule used to do — threw
+       away the 15mm margin and printed the invoice hard against the paper
+       edge, inside the printer's own unprintable border. */
+    width: 210mm !important;
+    height: 297mm !important;
+    margin: 0 !important;
+    padding: var(--inv-pad) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    page-break-after: avoid;
+  }
+  .billing-a4-frame {
+    display: block !important;
+    overflow: visible !important;
+  }
+  /* The print dialog drops backgrounds by default, which would print the red
+     footer bar as white text on white. */
+  .billing-print-sheet,
+  .billing-print-sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .billing-print-sheet table {
+    break-inside: auto;
+  }
+  .billing-print-sheet tr {
+    break-inside: avoid;
   }
 }

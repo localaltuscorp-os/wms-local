@@ -20,10 +20,10 @@ export function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: MOBILE_CORS });
 }
 
-/** The exact web rule (lib/hr/policies/access.ts): only Manan, Ruchita and
- *  Rutvisha publish or remove a policy, so phone and browser cannot drift. */
-function isAdmin(me: Employee): boolean {
-  return canPublishPolicies(me, DUMMY_MODE);
+/** The exact web rule (lib/hr/policies/access.ts): HR staff and super-admins
+ *  publish or remove a policy, so phone and browser cannot drift. */
+async function isAdmin(me: Employee): Promise<boolean> {
+  return await canPublishPolicies(me, DUMMY_MODE);
 }
 
 async function inHrRoom(me: Employee): Promise<boolean> {
@@ -45,7 +45,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   if (!hrSupportEnabled() || !(await inHrRoom(me))) {
     return NextResponse.json({ error: "forbidden" }, { status: 403, headers: MOBILE_CORS });
   }
-  if (!isAdmin(me)) return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: MOBILE_CORS });
+  if (!(await isAdmin(me))) return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: MOBILE_CORS });
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return NextResponse.json({ error: limited.error }, { status: 429, headers: MOBILE_CORS });
 

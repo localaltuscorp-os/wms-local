@@ -1,8 +1,6 @@
-import { UserPlus } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { canActAsHrStaff } from "@/lib/hr/access";
 import { PageShell } from "@/components/layout/page-shell";
-import { MastersHeader } from "@/components/operations/masters/masters-header";
 import { loadRecruitmentJdData } from "@/lib/queries/recruitment-jd";
 import { RecruitmentJdWorkbench } from "@/components/operations/recruitment-jd/recruitment-jd-workbench";
 
@@ -18,6 +16,10 @@ export const dynamic = "force-dynamic";
  * Master JD and Person-specific JD say what a seat does once somebody is in it,
  * this one says what the seat is while we are still looking. Moved here from
  * the HR rail on 2026-09-17 at the account holder's request.
+ *
+ * The heading is drawn by the workbench, not here: the role dropdown sits beside
+ * it and the JD below reacts to it, so they are one client island — the same
+ * split as the Person-specific JD page. The loading stays here.
  *
  * ── WHO MAY DO WHAT ────────────────────────────────────────────────────────
  * Open to the Operations room to READ, like every other master — a JD we are
@@ -35,12 +37,6 @@ export default async function RecruitmentJdMasterPage() {
 
   return (
     <PageShell>
-      <MastersHeader
-        Icon={UserPlus}
-        topic="Job Description"
-        title="Recruitment JD"
-        description="What recruiters send candidates — one JD per role we hire for, with an original master and a recruiter copy you can edit freely. Send it by WhatsApp or email."
-      />
       <RecruitmentJdWorkbench
         rows={data.rows}
         sends={data.sends}

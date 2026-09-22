@@ -13,6 +13,7 @@ import {
   outstandingExportFilename,
 } from "@/lib/exports/outstanding-rich";
 import type { DerivedInstallment } from "@/lib/outstanding/types";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /outstanding/export.pdf
@@ -26,9 +27,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const inr = (n: number) =>
-  "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  "Rs." + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   let me;
   try {
     me = await requireUser();
@@ -255,7 +262,7 @@ function drawStatBand(
     { value: String(total), label: "ENTRIES", accent: COLORS.ink },
     { value: inr(totalBalance), label: "BALANCE", accent: "#D97706" },
     { value: String(overdue), label: "OVERDUE", accent: COLORS.brand },
-    { value: inr(overdueAmt), label: "OVERDUE ₹", accent: COLORS.brand },
+    { value: inr(overdueAmt), label: "OVERDUE Rs.", accent: COLORS.brand },
   ];
 
   const y = doc.y + 12;

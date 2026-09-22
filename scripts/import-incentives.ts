@@ -84,7 +84,7 @@ function parseYesNo(s: unknown): boolean | null {
 function parseAmount(s: unknown): string {
   if (typeof s === "number") return Number.isFinite(s) ? String(s) : "0";
   if (typeof s !== "string") return "0";
-  const cleaned = s.replace(/[₹,\s]/g, "").trim();
+  const cleaned = s.replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, "").trim();
   if (!cleaned || cleaned === "-") return "0";
   const n = Number(cleaned);
   return Number.isFinite(n) ? String(n) : "0";

@@ -24,6 +24,7 @@
  * the lock would land 5h30m late for everyone — a real five-and-a-half-hour hole
  * on the 3rd, every month.
  */
+import { formatDate } from "@/lib/format";
 
 /** The employee's own correction window, in minutes. */
 export const SELF_CORRECTION_WINDOW_MINUTES = 15;
@@ -136,17 +137,24 @@ function orgUtcOffsetMs(): number {
   return 5.5 * 60 * 60 * 1000;
 }
 
-/** "09 Sep 2026, 10:00" in the org timezone — for refusal messages only. */
+/** "09-Sep-2026, 10:00" in the org timezone — for refusal messages only. */
 export function formatInOrgTz(d: Date): string {
-  return new Intl.DateTimeFormat("en-GB", {
+  // The DATE half goes through the app-wide DD-MMM-YYYY formatter; only the
+  // CLOCK half still needs Intl, because it is the part that has to be read in
+  // ORG_TIMEZONE rather than the server's (Vercel runs UTC).
+  const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: ORG_TIMEZONE,
-    day: "2-digit",
-    month: "short",
     year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+  const time = new Intl.DateTimeFormat("en-GB", {
+    timeZone: ORG_TIMEZONE,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   }).format(d);
+  return `${formatDate(parts)}, ${time}`;
 }
 
 function ordinal(n: number): string {

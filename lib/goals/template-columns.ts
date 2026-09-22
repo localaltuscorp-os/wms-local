@@ -280,11 +280,11 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     help: "Numeric target (quantity). % Done is auto-computed from Actual ÷ Target.",
   },
   {
-    field: "targetAmount", header: "Target Amount (₹)", schemaField: "targetAmount",
+    field: "targetAmount", header: "Target Amount (Rs.)", schemaField: "targetAmount",
     writable: true, persisted: true, locked: false, source: null, width: 14,
     aliases: ["targetamount", "tgtamt", "amount", "targetamt"],
     examples: ["", ""],
-    help: "Money target in ₹ (numeric). Use for revenue/value goals.",
+    help: "Money target in Rs. (numeric). Use for revenue/value goals.",
   },
   {
     field: "actualQty", header: "Actual", schemaField: "actualQty",
@@ -294,11 +294,11 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     help: "Numeric actual achieved so far.",
   },
   {
-    field: "actualAmount", header: "Actual Amount (₹)", schemaField: "actualAmount",
+    field: "actualAmount", header: "Actual Amount (Rs.)", schemaField: "actualAmount",
     writable: true, persisted: true, locked: false, source: null, width: 14,
     aliases: ["actualamount", "actualamt"],
     examples: ["", ""],
-    help: "Money actual in ₹ (numeric).",
+    help: "Money actual in Rs. (numeric).",
   },
   {
     field: "progress", header: "Progress %", schemaField: "pctDone",
@@ -323,7 +323,7 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     help: "Who owns the goal (name or email). Blank → the default owner picked in the import dialog.",
   },
   {
-    field: "department", header: "Department", schemaField: null,
+    field: "department", header: "Function", schemaField: null,
     writable: false, persisted: false, locked: false, source: "department", width: 16,
     aliases: ["department", "dept"],
     help: "Owner's department - reference/filter only (derived from the owner; not written).",
@@ -389,10 +389,10 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     help: "Yes/No - attach an incentive to the goal.",
   },
   {
-    field: "incentiveAmount", header: "Incentive Amount (₹)", schemaField: "incentiveAmount",
+    field: "incentiveAmount", header: "Incentive Amount (Rs.)", schemaField: "incentiveAmount",
     writable: true, persisted: true, locked: false, source: null, width: 15,
     aliases: ["incentiveamount", "incentiveamt"],
-    help: "Incentive value in ₹ (numeric).",
+    help: "Incentive value in Rs. (numeric).",
   },
   {
     field: "incentiveKind", header: "Incentive Kind", schemaField: "incentiveKind",

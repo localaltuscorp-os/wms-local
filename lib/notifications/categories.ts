@@ -34,6 +34,7 @@ export const NOTIFICATION_CATEGORIES = [
   "wms_tasks",
   "goals",
   "daily_commitments",
+  "incentive",
   "admin",
   "daily_compliance",
 ] as const;
@@ -46,6 +47,7 @@ export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   wms_tasks: "WMS Tasks",
   goals: "Goals",
   daily_commitments: "Daily Commitments",
+  incentive: "Incentive",
   admin: "Admin Panel",
   daily_compliance: "Daily Compliance",
 };
@@ -115,6 +117,21 @@ const CATEGORY_OF: Record<NotificationKind, NotificationCategory> = {
   appraisal_management_pending: "admin",
   appraisal_finalized: "admin",
   broadcast: "admin",
+
+  // ── Incentive — the Incentive Table and incentive requests (mig 0231) ──
+  incentive_created: "incentive",
+  incentive_updated: "incentive",
+  incentive_eligibility_removed: "incentive",
+  incentive_deleted: "incentive",
+  incentive_request_approved: "incentive",
+  incentive_request_published: "incentive",
+  incentive_request_not_approved: "incentive",
+  incentive_request_revision: "incentive",
+  incentive_request_due: "incentive",
+  incentive_request_not_due: "incentive",
+  incentive_request_reversed: "incentive",
+  incentive_request_resubmitted: "incentive",
+  incentive_paid: "incentive",
 };
 
 /** The category a kind belongs to. Unclassified kinds fall to Admin Panel. */

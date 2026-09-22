@@ -255,6 +255,10 @@ export const OPERATIONS_AREAS: OperationsArea[] = [
     // Reporting Hierarchy, where only admins ever saw it. Operations is where
     // the question actually gets asked, so the area points at the same board
     // rather than a second copy of the org chart that could disagree with it.
+    //
+    // Sits here, between Monthly Events Master and Training, because the rail is
+    // ALPHABETICAL BY LABEL — it arrived beside Checklist in the branch that
+    // added it, which predates the sort.
     id: "team-reporting",
     label: "Team Reporting",
     href: "/operations/team-reporting",
@@ -354,14 +358,14 @@ export const OPERATIONS_MASTERS: OperationsMasterItem[] = [
   },
   {
     href: "/operations/masters/jd",
-    label: "Master JD",
+    label: "JD-Master",
     Icon: Briefcase,
     topic: "Job Description",
     blurb: "Job descriptions owned by a position — the work stays with the seat when people change.",
   },
   {
     href: "/operations/masters/person-jd",
-    label: "Person-specific JD",
+    label: "JD-Specific Person",
     Icon: UserRound,
     topic: "Job Description",
     blurb: "One person's whole JD — their seat's tasks, tasks given to them by name, and personal tasks.",
@@ -373,7 +377,7 @@ export const OPERATIONS_MASTERS: OperationsMasterItem[] = [
      sending are HR staff only, enforced by the page's actions. */
   {
     href: "/operations/masters/recruitment-jd",
-    label: "Recruitment JD",
+    label: "JD-For Recruitment",
     Icon: UserPlus,
     topic: "Job Description",
     blurb: "What recruiters send candidates — the original master, a recruiter copy to edit freely, and WhatsApp or email to anyone.",

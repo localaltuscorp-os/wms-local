@@ -4,6 +4,7 @@ import { and, eq, sql, desc, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { mobileDevices, employees } from "@/db/schema";
 import { DEVICE_KINDS, DEVICE_KIND_LABELS, type DeviceKind } from "@/db/enums";
+import { isShareableDeviceId } from "@/lib/security/device-id";
 
 /**
  * Device-allowlist anti-proxy (Phase 1, 2026-08).
@@ -232,7 +233,13 @@ export async function registerMobileDevice(
     return { ok: true, status: "approved", isNew: true, deviceCount: await activeCount(employeeId) };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("mobile_devices_device_id_uq")) return registerMobileDevice(employeeId, input);
+    // A race with another registration of the same id: re-read and answer from
+    // the winner. The index is `mobile_devices_device_id_uq` before 0243, and
+    // after it `…_native_device_id_uq` (a phone id is single-owner) or
+    // `…_device_employee_uq`.
+    if (/mobile_devices_(native_)?device_id_uq|mobile_devices_device_employee_uq/.test(msg)) {
+      return registerMobileDevice(employeeId, input);
+    }
     return { ok: false, error: `Could not register device: ${msg}` };
   }
 }
@@ -467,9 +474,15 @@ export async function adminRegisterDevice(input: {
   const deviceId = cleanDeviceId(input.deviceId);
   if (!deviceId) return { ok: false, error: "Invalid device id." };
 
-  const existing = await db.query.mobileDevices.findFirst({
-    where: eq(mobileDevices.deviceId, deviceId),
-  });
+  // A BROWSER id is a machine several people may share (0243): look only for
+  // THIS employee's row for it. A phone id stays single-owner.
+  const existing = isShareableDeviceId(deviceId)
+    ? await db.query.mobileDevices.findFirst({
+        where: and(eq(mobileDevices.deviceId, deviceId), eq(mobileDevices.employeeId, input.employeeId)),
+      })
+    : await db.query.mobileDevices.findFirst({
+        where: eq(mobileDevices.deviceId, deviceId),
+      });
   if (existing && existing.employeeId !== input.employeeId) {
     return { ok: false, error: "That device id is already registered to another employee." };
   }

@@ -1,18 +1,31 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { employees, jdAssignments, jdEntries, jdPositionHolders, jdPositions, jdRanks } from "@/db/schema";
+import {
+  employees,
+  jdAssignments,
+  jdAttachments,
+  jdDoerNotes,
+  jdEntries,
+  jdPositionHolders,
+  jdPositions,
+  jdRanks,
+  opsChecklistItems,
+  opsChecklistRuns,
+} from "@/db/schema";
 import { isOfferedFunction } from "@/lib/jd/functions";
 import { JD_BULK_MAX } from "@/lib/jd/bulk";
 /* AUTHORING STAYS WITH HR (2026-09-12). The Bank moved to the Operations room,
    which is OPEN to every employee — so switching these to the room's own gate
    would have handed "create, edit and retire a job description" to the whole
    company as a side effect of a nav change. Reading moved; writing did not. */
-import { requireHrStaff } from "@/lib/hr/access";
+import { canActAsHrStaff, requireHrStaff } from "@/lib/hr/access";
+import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { toAssignmentRows } from "@/lib/jd/assignment-targets";
+import { buildJdAttachmentRows } from "@/lib/jd/attachments";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { parseRRule } from "@/lib/recurrence/rrule";
 import { BUSINESS_FUNCTIONS, FUNCTION_LABELS } from "@/lib/org/functions";
@@ -43,8 +56,11 @@ const optText = z
   )
   .transform((s) => (s ? s : null));
 
+/* Nullable as well as optional: the New JD form sends `null` for an empty link
+   slot, and a blank slot is the ordinary case — rejecting it made every JD
+   without all three links unsaveable. */
 const optUrl = z
-  .preprocess((v) => (typeof v === "string" ? v.trim() : v), z.string().max(2000).optional())
+  .preprocess((v) => (typeof v === "string" ? v.trim() : v), z.string().max(2000).nullable().optional())
   .transform((s) => (s ? s : null))
   .refine(
     (s) => s === null || /^https?:\/\//i.test(s),
@@ -180,7 +196,44 @@ export async function createJdPosition(input: unknown): Promise<ActionResult<{ i
 
 /* ── The JD Bank ──────────────────────────────────────────────────────────── */
 
-const EntryFields = z.object({
+/* WHO, PER DESTINATION — one list per box on the form. A person may appear in
+   more than one and becomes a single assignment row with several flags. See
+   lib/jd/assignment-targets.ts for why it is one row and not three. */
+const TargetPeopleInput = z.object({
+  dcc: z.array(idText).default([]),
+  wms: z.array(idText).default([]),
+  event: z.array(idText).default([]),
+});
+
+/* SOP FILES already uploaded from the form's three boxes (2026-09-18) —
+   recorded in the same transaction as the JD, so a JD is never saved with half
+   its files. The refs are re-vetted in buildJdAttachmentRows: they came back
+   through the client. Only createJdEntry reads this. */
+const AttachmentsInput = z
+  .array(
+    z.object({
+      kind: z.enum(["video", "guidelines", "template"]),
+      path: z.string().min(1).max(400),
+      fileName: z.string().min(1).max(300),
+      size: z.number().int().positive(),
+    }),
+  )
+  .max(30);
+
+/* WHICH EVENTS (2026-09-18) — the Event Checklist box lists event checklists,
+   not people. Each chosen one gets this JD as a row (ops_checklist_items.
+   jd_entry_id); see syncEventRows. */
+const EventRunIdsInput = z.array(idText).max(100);
+
+/**
+ * The fields, WITHOUT defaults. Zod 4 applies a `.default()` even inside
+ * `.partial()`, so an update schema derived from a defaulted one fills every
+ * omitted field back in — which made a one-field save from the drawer also
+ * write pushDcc/pushWms/pushEvent = false and an empty roster, switching off
+ * every destination and unassigning everybody. Create adds the defaults on top
+ * of this; update takes it as it is (tests/unit/jd-update-entry.test.ts).
+ */
+const EntryShape = {
   /* EXACTLY ONE OWNER — a position (the Master JD) or a person (their personal
      JD, migration 0233). createJdEntry / bulkCreateJdEntries check it, and a
      CHECK in the database backs them. */
@@ -189,8 +242,13 @@ const EntryFields = z.object({
   /** Needed only for a personal task — a position's task takes its function. */
   functionKey: functionKey.optional(),
   task: z.string().trim().min(1, "Describe the task.").max(2000),
+  /** Shown as SUBJECT — picked from the WMS Tasks roster (Admin Panel → Subjects). */
   category: z
-    .preprocess((v) => (typeof v === "string" ? v.trim() : v), z.string().max(80).nullable().optional())
+    .preprocess((v) => (typeof v === "string" ? v.trim() : v), z.string().max(120).nullable().optional())
+    .transform((s) => (s ? s : null)),
+  /** From the WMS Tasks client roster (Admin Panel → Clients). Migration 0237. */
+  client: z
+    .preprocess((v) => (typeof v === "string" ? v.trim() : v), z.string().max(200).nullable().optional())
     .transform((s) => (s ? s : null)),
   notesHtml: optText,
   recurrence: Recurrence,
@@ -202,19 +260,22 @@ const EntryFields = z.object({
   videoUrl: optUrl,
   guidelinesUrl: optUrl,
   templateUrl: optUrl,
+  pushDcc: z.boolean(),
+  pushWms: z.boolean(),
+  pushEvent: z.boolean(),
+  targetPeople: TargetPeopleInput,
+  attachments: AttachmentsInput,
+  eventRunIds: EventRunIdsInput,
+};
+
+const EntryFields = z.object({
+  ...EntryShape,
   pushDcc: z.boolean().default(false),
   pushWms: z.boolean().default(false),
   pushEvent: z.boolean().default(false),
-  /* WHO, PER DESTINATION — one list per box on the form. A person may appear in
-     more than one and becomes a single assignment row with several flags. See
-     lib/jd/assignment-targets.ts for why it is one row and not three. */
-  targetPeople: z
-    .object({
-      dcc: z.array(idText).default([]),
-      wms: z.array(idText).default([]),
-      event: z.array(idText).default([]),
-    })
-    .default({ dcc: [], wms: [], event: [] }),
+  targetPeople: TargetPeopleInput.default({ dcc: [], wms: [], event: [] }),
+  attachments: AttachmentsInput.default([]),
+  eventRunIds: EventRunIdsInput.default([]),
 });
 
 export async function createJdEntry(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -232,6 +293,7 @@ export async function createJdEntry(input: unknown): Promise<ActionResult<{ id: 
 
   if (jdDemoActive()) {
     if (!v.positionId) return fail("Personal tasks need the JD tables — apply migration 0233.");
+    if (v.attachments.length > 0) return fail("Attached files need the JD tables — apply migration 0222.");
     const id = demoCreateEntry({ ...v, positionId: v.positionId });
     if (!id) return fail("That position no longer exists.");
     revalidateJd();
@@ -241,6 +303,9 @@ export async function createJdEntry(input: unknown): Promise<ActionResult<{ id: 
   try {
     const owner = await resolveEntryOwner(v);
     if (!owner.ok) return owner;
+    // The JD's id does not exist yet; each row gets it inside the transaction.
+    const files = buildJdAttachmentRows(v.attachments, me.id, "");
+    if (!files.ok) return files;
 
     const id = await db.transaction(async (tx) => {
       const [row] = await tx
@@ -254,6 +319,7 @@ export async function createJdEntry(input: unknown): Promise<ActionResult<{ id: 
           functionKey: owner.functionKey,
           task: v.task,
           category: v.category,
+          client: v.client,
           notesHtml: v.notesHtml,
           recurrence: v.recurrence,
           estimatedMinutes: v.estimatedMinutes,
@@ -291,17 +357,32 @@ export async function createJdEntry(input: unknown): Promise<ActionResult<{ id: 
         );
       }
 
+      if (files.rows.length > 0) {
+        await tx.insert(jdAttachments).values(files.rows.map((f) => ({ ...f, jdId: row!.id })));
+      }
+
+      if (v.pushEvent && v.eventRunIds.length > 0) {
+        await syncEventRows(
+          tx,
+          row!.id,
+          v.eventRunIds,
+          { task: v.task, category: v.category, client: v.client },
+          me.id,
+        );
+      }
+
       return row!.id;
     });
 
     revalidateJd();
+    if (v.pushEvent && v.eventRunIds.length > 0) revalidatePath("/operations/checklist");
     return { ok: true, id };
   } catch {
     return fail("Could not save the job description. Nothing was written.");
   }
 }
 
-const UpdateEntry = EntryFields.partial().extend({ id: idText });
+const UpdateEntry = z.object(EntryShape).partial().extend({ id: idText });
 
 export async function updateJdEntry(input: unknown): Promise<ActionResult> {
   const me = await requireHrStaff();
@@ -314,6 +395,7 @@ export async function updateJdEntry(input: unknown): Promise<ActionResult> {
   for (const k of [
     "task",
     "category",
+    "client",
     "notesHtml",
     "recurrence",
     "estimatedMinutes",
@@ -400,12 +482,134 @@ export async function updateJdEntry(input: unknown): Promise<ActionResult> {
             .onConflictDoNothing();
         }
       }
+
+      /* EVENTS. Re-synced when the chosen events or the Event switch changed;
+         the JD's rows follow its text when the task, subject or client changed. */
+      const eventsTouched = rest.eventRunIds !== undefined || rest.pushEvent !== undefined;
+      const textTouched = rest.task !== undefined || rest.category !== undefined || rest.client !== undefined;
+      if (eventsTouched || textTouched) {
+        const [cur] = await tx
+          .select({
+            task: jdEntries.task,
+            category: jdEntries.category,
+            client: jdEntries.client,
+            pushEvent: jdEntries.pushEvent,
+          })
+          .from(jdEntries)
+          .where(eq(jdEntries.id, id))
+          .limit(1);
+        if (cur && eventsTouched) {
+          const wanted = !cur.pushEvent
+            ? []
+            : (rest.eventRunIds ??
+              (
+                await tx
+                  .select({ runId: opsChecklistItems.runId })
+                  .from(opsChecklistItems)
+                  .where(and(eq(opsChecklistItems.jdEntryId, id), eq(opsChecklistItems.isActive, true), isNotNull(opsChecklistItems.runId)))
+              ).map((r) => r.runId!));
+          await syncEventRows(tx, id, wanted, cur, me.id);
+        }
+        if (cur && textTouched) {
+          await tx
+            .update(opsChecklistItems)
+            .set({
+              title: cur.task,
+              category: cur.category,
+              client: cur.client,
+              updatedById: me.id,
+              updatedAt: new Date(),
+            })
+            .where(and(eq(opsChecklistItems.jdEntryId, id), isNotNull(opsChecklistItems.runId)));
+        }
+      }
     });
 
     revalidateJd();
+    revalidatePath("/operations/checklist");
     return { ok: true };
   } catch {
     return fail("Could not save that change.");
+  }
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Make this JD a row in exactly the chosen EVENT CHECKLISTS (2026-09-18).
+ *
+ * The Event Checklist box on the form lists events, not people: choosing one
+ * puts the task into that event's checklist as a row pointing back at the JD
+ * (`ops_checklist_items.jd_entry_id`), where the event's own Doer / Status /
+ * date columns take over. So:
+ *
+ *   · an event newly chosen      → a row is added (on the event day, offset 0)
+ *   · an event chosen again      → its old row comes back, ticks and all
+ *   · an event no longer chosen  → its row is taken off (is_active = false),
+ *                                   never deleted — its ticks are the record
+ *
+ * Only LIVE event checklists are touched: the ids come from the client, and a
+ * completed or cancelled event's rows are history this must not rewrite.
+ */
+async function syncEventRows(
+  tx: Tx,
+  jdId: string,
+  wanted: readonly string[],
+  jd: { task: string; category: string | null; client: string | null },
+  actorId: string,
+): Promise<void> {
+  const ids = [...new Set(wanted)];
+  const existing = await tx
+    .select({ id: opsChecklistItems.id, runId: opsChecklistItems.runId, isActive: opsChecklistItems.isActive })
+    .from(opsChecklistItems)
+    .where(and(eq(opsChecklistItems.jdEntryId, jdId), isNotNull(opsChecklistItems.runId)));
+
+  const candidateRuns = [...new Set([...ids, ...existing.map((e) => e.runId!)])];
+  const live = new Set(
+    candidateRuns.length === 0
+      ? []
+      : (
+          await tx
+            .select({ id: opsChecklistRuns.id })
+            .from(opsChecklistRuns)
+            .where(
+              and(
+                inArray(opsChecklistRuns.id, candidateRuns),
+                eq(opsChecklistRuns.isEvent, true),
+                eq(opsChecklistRuns.status, "active"),
+              ),
+            )
+        ).map((r) => r.id),
+  );
+  const keep = new Set(ids.filter((r) => live.has(r)));
+  const stamp = { updatedById: actorId, updatedAt: new Date() };
+
+  const off = existing.filter((e) => e.isActive && live.has(e.runId!) && !keep.has(e.runId!)).map((e) => e.id);
+  if (off.length > 0) {
+    await tx.update(opsChecklistItems).set({ isActive: false, ...stamp }).where(inArray(opsChecklistItems.id, off));
+  }
+  const back = existing.filter((e) => !e.isActive && keep.has(e.runId!)).map((e) => e.id);
+  if (back.length > 0) {
+    await tx.update(opsChecklistItems).set({ isActive: true, ...stamp }).where(inArray(opsChecklistItems.id, back));
+  }
+  const had = new Set(existing.map((e) => e.runId));
+  const add = [...keep].filter((r) => !had.has(r));
+  if (add.length > 0) {
+    await tx.insert(opsChecklistItems).values(
+      add.map((runId) => ({
+        runId,
+        title: jd.task,
+        category: jd.category,
+        client: jd.client,
+        offsetDays: 0,
+        jdEntryId: jdId,
+        sortOrder: 900,
+        // Whoever put the JD into the event asked for the row.
+        initiatorId: actorId,
+        createdById: actorId,
+        updatedById: actorId,
+      })),
+    );
   }
 }
 
@@ -516,6 +720,7 @@ export async function bulkCreateJdEntries(input: unknown): Promise<ActionResult<
             functionKey: fn,
             task: v.task,
             category: v.category,
+            client: v.client,
             notesHtml: v.notesHtml,
             recurrence: v.recurrence,
             estimatedMinutes: v.estimatedMinutes,
@@ -584,5 +789,49 @@ export async function setJdEntryActive(input: unknown): Promise<ActionResult> {
     return { ok: true };
   } catch {
     return fail("Could not change that job description.");
+  }
+}
+
+/* ── Doer Notes (2026-09-18) ──────────────────────────────────────────────── */
+
+const DoerNotes = z.object({
+  jdId: idText,
+  employeeId: idText,
+  notes: optText,
+});
+
+/**
+ * What the PERSON doing a JD writes against it — the Doer Notes column of their
+ * JD. Per person (jd_doer_notes, migration 0237): a seat's JD is shared by
+ * everyone in the seat, and one holder's notes are not another's.
+ *
+ * Written by the person themself, or by HR, who keep the JDs.
+ */
+export async function setJdDoerNotes(input: unknown): Promise<ActionResult> {
+  const me = await requireWorkspace("operations");
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = DoerNotes.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid note.");
+  const v = parsed.data;
+
+  if (v.employeeId !== me.id && !(await canActAsHrStaff(me))) {
+    return fail("Only the person doing this job, or HR, can write its Doer Notes.");
+  }
+  if (jdDemoActive()) return fail("Doer Notes need the JD tables — apply migration 0237.");
+
+  try {
+    await db
+      .insert(jdDoerNotes)
+      .values({ jdId: v.jdId, employeeId: v.employeeId, notes: v.notes, updatedById: me.id })
+      .onConflictDoUpdate({
+        target: [jdDoerNotes.jdId, jdDoerNotes.employeeId],
+        set: { notes: v.notes, updatedById: me.id, updatedAt: new Date() },
+      });
+    revalidateJd();
+    return { ok: true };
+  } catch {
+    return fail("Could not save the note. If this keeps happening, migration 0237 may not have been run.");
   }
 }

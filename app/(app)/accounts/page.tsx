@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { Wallet, CalendarCheck2 } from "lucide-react";
+import { Wallet, CalendarCheck2, Coins } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
 import { ACCOUNTS_SECTIONS } from "@/lib/accounts/sections";
 import { AccountsIndex } from "@/components/accounts/accounts-index";
@@ -41,6 +41,12 @@ export default async function AccountsIndexPage() {
                 style={{ background: `linear-gradient(135deg, ${"#E10600"}, ${ACCENT})` }}
               >
                 <Wallet size={14} strokeWidth={2.4} /> Salary
+              </Link>
+              <Link
+                href={"/salary/incentive-payout" as Route}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+              >
+                <Coins size={14} strokeWidth={2.4} /> Incentive payout
               </Link>
               <Link
                 href={"/attendance/dashboard" as Route}

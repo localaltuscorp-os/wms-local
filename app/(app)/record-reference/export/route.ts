@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth/current";
 import { listModuleSubmissions } from "@/lib/queries/modules";
 import { resolveRequestFields, resolveAdminFields } from "@/lib/forms/server";
 import { csvResponse, exportFilename } from "@/lib/exports/csv";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /record-reference/export
@@ -26,7 +27,13 @@ export const dynamic = "force-dynamic";
 
 const iso = (d: Date | null | undefined): string => (d ? d.toISOString() : "");
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   let me;
   try {
     me = await requireUser();

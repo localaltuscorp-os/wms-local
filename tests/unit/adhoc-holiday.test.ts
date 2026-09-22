@@ -320,8 +320,11 @@ describe("the UI offers the three fields and the three actions", () => {
   const panel = codeOf("app/(app)/hr/holidays/adhoc-panel.tsx");
 
   it("name, date and an optional note", () => {
-    // The date input is the shared <DateField> (DD-MMM-YYYY) since 43b4bba.
-    expect(panel).toMatch(/type="date"|<DateField/);
+    // <DateField>, not a raw `type="date"` input, since the DD-MMM-YYYY change:
+    // the browser's own date control renders in the visitor's locale, which is
+    // what that work set out to stop. The assertion is still "there is a date
+    // field here", which is the part this test exists to pin.
+    expect(panel).toMatch(/<DateField/);
     expect(panel).toMatch(/setLabel/);
     expect(panel).toMatch(/setNote/);
   });

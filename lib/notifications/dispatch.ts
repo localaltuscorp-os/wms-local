@@ -23,6 +23,7 @@ import { sendFcmToEmployee } from "@/lib/push/fcm";
 import { getNotificationMatrix } from "@/lib/queries/notification-matrix";
 import { resolveChannels } from "@/lib/notifications/resolve-channels";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
+import { isIncentiveNotificationKind, parseIncentiveMeta } from "@/lib/incentive/notifications/kinds";
 import type { TaskStatus } from "@/db/enums";
 
 // Pulls `toStatus` out of the row.body JSON meta written by Server
@@ -84,6 +85,13 @@ export interface NotifyOpts {
    * org-wide config.
    */
   forceChannels?: ReadonlyArray<"email" | "slack" | "whatsapp" | "push">;
+  /**
+   * Restrict delivery to these channels. Unlike `forceChannels` this NARROWS
+   * the admin matrix instead of replacing it: a channel fires only if the
+   * matrix allows it AND it is listed here. Used by incentive notifications,
+   * which have no Slack / WhatsApp templates.
+   */
+  channels?: ReadonlyArray<"email" | "slack" | "whatsapp" | "push"> | undefined;
   /**
    * Profile v2 — when true, the recipient's per-(kind,channel) matrix is
    * overridden so every enabled-at-the-channel-level arm fires. Set by
@@ -219,11 +227,17 @@ async function notifyImpl(opts: NotifyOpts): Promise<void> {
   // fall back to all 4 channels (resolveChannels handles that). The matrix
   // uses the user-friendly name "push"; we map it to the historical arm
   // name "web_push" below so delivered_channels keeps its existing shape.
+  const matrixChannels: ReadonlyArray<string> = opts.forceChannels
+    ? opts.forceChannels
+    : resolveChannels(row.kind as NotificationKind, await getNotificationMatrix());
+  const narrowTo = opts.channels ? new Set<string>(opts.channels) : null;
   const allowedChannels = new Set<string>(
-    opts.forceChannels
-      ? opts.forceChannels
-      : resolveChannels(row.kind as NotificationKind, await getNotificationMatrix()),
+    narrowTo ? matrixChannels.filter((c) => narrowTo.has(c)) : matrixChannels,
   );
+
+  // Incentive notifications keep their JSON meta in `body`; push must show the
+  // one-line summary and open the incentive page, never the raw JSON or a task.
+  const incentiveMeta = isIncentiveNotificationKind(row.kind) ? parseIncentiveMeta(row.body) : null;
   const allowed = (matrixName: "email" | "slack" | "whatsapp" | "push") =>
     allowedChannels.has(matrixName);
 
@@ -304,15 +318,16 @@ async function notifyImpl(opts: NotifyOpts): Promise<void> {
         // never affects the web_push channel outcome or the dispatch latency.
         void sendFcmToEmployee(row.userId, {
           title: opts.title,
-          body: opts.body ?? outboundCtx.body ?? "",
+          body: incentiveMeta ? incentiveMeta.summary : (opts.body ?? outboundCtx.body ?? ""),
           route: row.taskId ? `task/${row.taskId}` : "dashboard",
         }).catch(() => {});
         return sendWebPushToUser(row.userId, row.kind as NotificationKind, {
           actorName: outboundCtx.actorName,
           taskSubject: outboundCtx.taskSubject,
-          body: outboundCtx.body,
+          body: incentiveMeta ? incentiveMeta.summary : outboundCtx.body,
           shortId: outboundCtx.shortId,
           taskId: row.taskId ?? "",
+          url: incentiveMeta?.href,
         });
       },
     ],

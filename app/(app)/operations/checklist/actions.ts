@@ -14,15 +14,26 @@ import {
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
-import { CHECK_STATUSES } from "@/lib/operations/checklist";
+import { CHECK_STATUSES, readCheckStatus } from "@/lib/operations/checklist";
+import { parseRRule } from "@/lib/recurrence/rrule";
+import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
+import {
+  approverStored,
+  canRuleOn,
+  canSetApproverStatus,
+  isApproverChoice,
+  type ApproverActor,
+} from "@/lib/status/approver-status";
 import {
   checklistDemoActive,
   demoCreateItem,
   demoChecklistSnapshot,
   demoCreateEvent,
   demoCreateRun,
+  demoFindItem,
   demoRemoveItem,
   demoSaveRunAsTemplate,
+  demoSetApprover,
   demoSetCheck,
   demoUpdateItem,
   demoUpdateRun,
@@ -77,6 +88,19 @@ const optOffset = z
   .transform((v) => v ?? null);
 
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
+
+/** Google Calendar's RRULE, as the Target Date menu writes it. Blank = does not repeat. */
+const optRule = z
+  .preprocess(
+    (v) => (typeof v === "string" ? v.trim() : v),
+    z
+      .string()
+      .max(500)
+      .refine((r) => r === "" || parseRRule(r) !== null, "That repeat rule could not be read.")
+      .nullable()
+      .optional(),
+  )
+  .transform((r) => (r ? r : null));
 
 /**
  * WHO MAY EDIT THE CHECKLIST vs WHO MAY TICK.
@@ -261,6 +285,9 @@ export async function createChecklistRun(
             instructions: opsChecklistItems.instructions,
             fileLink: opsChecklistItems.fileLink,
             jdEntryId: opsChecklistItems.jdEntryId,
+            client: opsChecklistItems.client,
+            initiatorId: opsChecklistItems.initiatorId,
+            recurrenceRule: opsChecklistItems.recurrenceRule,
             sortOrder: opsChecklistItems.sortOrder,
           })
           .from(opsChecklistItems)
@@ -277,6 +304,7 @@ export async function createChecklistRun(
               ...r,
               runId,
               templateId: null,
+              initiatorId: r.initiatorId ?? me.id,
               createdById: me.id,
               updatedById: me.id,
             })),
@@ -344,9 +372,13 @@ const ItemFields = z.object({
   targetDate: ymd.nullable().optional(),
   doerId: optUuid,
   backupId: optUuid,
+  /** Shown as SUBJECT — the WMS Tasks roster (0237 relabelled the column). */
   category: optText,
   instructions: optText,
   fileLink: optText,
+  client: optText,
+  initiatorId: optUuid,
+  recurrenceRule: optRule,
 });
 
 const CreateItem = ItemFields.extend({ runId: idText });
@@ -402,6 +434,10 @@ export async function createChecklistItem(
         category: v.category,
         instructions: v.instructions,
         fileLink: v.fileLink,
+        client: v.client,
+        // Whoever adds the row asked for it, unless somebody else is named.
+        initiatorId: v.initiatorId ?? me.id,
+        recurrenceRule: v.recurrenceRule,
         sortOrder: next ?? 100,
         createdById: me.id,
         updatedById: me.id,
@@ -412,6 +448,93 @@ export async function createChecklistItem(
     return { ok: true, id: row!.id };
   } catch {
     return fail("Could not add that row.");
+  }
+}
+
+/**
+ * BULK UPLOAD — many rows from one Excel sheet, on a checklist OR a master
+ * (account holder, 2026-09-18). The dialog has already checked every row
+ * (lib/operations/checklist-bulk.ts); each is validated again here with the
+ * single-row schema, and they go in one transaction — a sheet lands whole or
+ * not at all, so a failure half-way never leaves half a sheet to find.
+ */
+const BulkRows = z
+  .object({
+    runId: idText.optional(),
+    templateId: idText.optional(),
+    rows: z.array(ItemFields).min(1, "No rows to add.").max(500, "Up to 500 rows at once."),
+  })
+  .refine((v) => Boolean(v.runId) !== Boolean(v.templateId), "Upload to one checklist or one master.");
+
+export async function bulkCreateChecklistRows(
+  input: unknown,
+): Promise<ActionResult<{ created: number }>> {
+  const { me, denied } = await requireEditor();
+  if (denied) return denied;
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = BulkRows.safeParse(input);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const row = issue?.path[0] === "rows" && typeof issue.path[1] === "number" ? `Row ${issue.path[1] + 1}: ` : "";
+    return fail(`${row}${issue?.message ?? "Invalid rows."}`);
+  }
+  const { runId, templateId, rows } = parsed.data;
+  const clash = rows.findIndex((r) => r.backupId && r.backupId === r.doerId);
+  if (clash >= 0) return fail(`Row ${clash + 1}: the backup must be someone other than the doer.`);
+
+  if (checklistDemoActive()) {
+    if (templateId) return fail(MASTERS_NEED_TABLES);
+    for (const r of rows) {
+      const id = demoCreateItem({
+        runId: runId!,
+        title: r.title,
+        offsetDays: r.offsetDays,
+        targetDate: r.targetDate ?? null,
+        doerId: r.doerId,
+        backupId: r.backupId,
+      });
+      if (!id) return fail("That checklist is gone.");
+    }
+    revalidateChecklist();
+    return { ok: true, created: rows.length };
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      const owner = runId ? eq(opsChecklistItems.runId, runId) : eq(opsChecklistItems.templateId, templateId!);
+      const tail = await tx
+        .select({ next: sql<number>`coalesce(max(${opsChecklistItems.sortOrder}), 0) + 10` })
+        .from(opsChecklistItems)
+        .where(owner);
+      const start = Number(tail[0]?.next ?? 100);
+      await tx.insert(opsChecklistItems).values(
+        rows.map((r, i) => ({
+          runId: runId ?? null,
+          templateId: templateId ?? null,
+          title: r.title,
+          offsetDays: r.offsetDays,
+          // A master has no dates — only a day counted from the event.
+          targetDate: runId ? (r.targetDate ?? null) : null,
+          doerId: r.doerId,
+          backupId: r.backupId,
+          category: r.category,
+          instructions: r.instructions,
+          fileLink: r.fileLink,
+          client: r.client,
+          initiatorId: r.initiatorId ?? me.id,
+          recurrenceRule: r.recurrenceRule,
+          sortOrder: start + i * 10,
+          createdById: me.id,
+          updatedById: me.id,
+        })),
+      );
+    });
+    revalidateChecklist();
+    return { ok: true, created: rows.length };
+  } catch {
+    return fail("Could not add those rows. Nothing was saved.");
   }
 }
 
@@ -436,6 +559,9 @@ export async function updateChecklistItem(input: unknown): Promise<ActionResult>
     "category",
     "instructions",
     "fileLink",
+    "client",
+    "initiatorId",
+    "recurrenceRule",
   ] as const) {
     if (rest[k] !== undefined) patch[k] = rest[k];
   }
@@ -488,17 +614,23 @@ export async function removeChecklistItem(input: unknown): Promise<ActionResult>
 const SetCheck = z.object({
   runId: idText,
   itemId: idText,
-  status: z.enum(CHECK_STATUSES),
+  /** The Doer Status — the WMS Tasks six. Omitted when only the notes change. */
+  status: z.enum(CHECK_STATUSES).optional(),
+  /** Doer Notes. */
   notes: optText.optional(),
 });
 
 /**
- * Tick a row. ANY member of the room may do this — see requireEditor's note.
+ * The doer's side of a row: Doer Status and Doer Notes. ANY member of the room
+ * may do this — see requireEditor's note.
  *
  * `done_at` IS THE ACTUAL DATE, and it is written by the server on the
  * transition INTO Done and cleared on the way out. Trusting a client-sent
  * timestamp would let a late tick be backdated to look on time, which is
  * precisely the number variance exists to measure.
+ *
+ * Leaving Done also lifts an Approved / Not Approved ruling: those judge
+ * finished work, and the work is no longer finished (as on a WMS task).
  */
 export async function setChecklistCheck(input: unknown): Promise<ActionResult> {
   const me = await requireWorkspace("operations");
@@ -508,8 +640,7 @@ export async function setChecklistCheck(input: unknown): Promise<ActionResult> {
   const parsed = SetCheck.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid tick.");
   const v = parsed.data;
-
-  const doneAt = v.status === "Done" ? new Date() : null;
+  if (v.status === undefined && v.notes === undefined) return { ok: true };
 
   if (checklistDemoActive()) {
     if (!demoSetCheck({ itemId: v.itemId, status: v.status, notes: v.notes }))
@@ -518,32 +649,149 @@ export async function setChecklistCheck(input: unknown): Promise<ActionResult> {
     return { ok: true };
   }
 
+  const now = new Date();
+  const statusSet =
+    v.status === undefined
+      ? {}
+      : {
+          status: v.status,
+          // Re-picking Done keeps the first actual date; leaving Done clears it.
+          doneAt:
+            v.status === "done"
+              ? sql`coalesce(${opsChecklistChecks.doneAt}, ${now.toISOString()}::timestamptz)`
+              : null,
+          ...(v.status !== "done"
+            ? {
+                approverStatus: sql`case when ${opsChecklistChecks.approverStatus} in ('approved', 'not_approved') then null else ${opsChecklistChecks.approverStatus} end`,
+              }
+            : {}),
+        };
+
   try {
     await db
       .insert(opsChecklistChecks)
       .values({
         runId: v.runId,
         itemId: v.itemId,
-        status: v.status,
+        status: v.status ?? "not_started",
         notes: v.notes ?? null,
-        doneAt,
+        doneAt: v.status === "done" ? now : null,
         updatedById: me.id,
       })
       .onConflictDoUpdate({
         target: [opsChecklistChecks.runId, opsChecklistChecks.itemId],
         set: {
-          status: v.status,
+          ...statusSet,
           ...(v.notes !== undefined ? { notes: v.notes } : {}),
-          doneAt,
           updatedById: me.id,
-          updatedAt: new Date(),
+          updatedAt: now,
         },
       });
 
     revalidateChecklist();
     return { ok: true };
   } catch {
-    return fail("Could not save that tick.");
+    return fail("Could not save that. If this keeps happening, migration 0237 may not have been run.");
+  }
+}
+
+const SetApprover = z.object({
+  runId: idText,
+  itemId: idText,
+  /** Pending · Approved · Not Approved · On Hold · Archived · Cancelled. */
+  status: z.string().refine(isApproverChoice, "Unknown Approver Status.").optional(),
+  approverNotes: optText.optional(),
+});
+
+/**
+ * The approver's side of a row: Approver Status and Approver Notes.
+ *
+ * The SAME rule as a WMS task's Initiator Status (lib/status/approver-status.ts):
+ * the row's initiator, the doer's manager or an admin may rule, never the doer
+ * on their own row; Approved / Not Approved wait for the Doer Status to reach
+ * Done; a row whose initiator IS its doer has no approver, so only an admin
+ * rules on it.
+ */
+export async function setChecklistApprover(input: unknown): Promise<ActionResult> {
+  const me = await requireWorkspace("operations");
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = SetApprover.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid ruling.");
+  const v = parsed.data;
+  if (v.status === undefined && v.approverNotes === undefined) return { ok: true };
+
+  let row: {
+    doerId: string | null;
+    initiatorId: string | null;
+    status: string | null;
+  } | null;
+  if (checklistDemoActive()) {
+    const it = demoFindItem(v.itemId);
+    row = it ? { doerId: it.doerId, initiatorId: it.initiatorId, status: it.status } : null;
+  } else {
+    const [found] = await db
+      .select({
+        doerId: opsChecklistItems.doerId,
+        initiatorId: opsChecklistItems.initiatorId,
+        status: opsChecklistChecks.status,
+      })
+      .from(opsChecklistItems)
+      .leftJoin(
+        opsChecklistChecks,
+        and(eq(opsChecklistChecks.itemId, opsChecklistItems.id), eq(opsChecklistChecks.runId, v.runId)),
+      )
+      .where(and(eq(opsChecklistItems.id, v.itemId), eq(opsChecklistItems.runId, v.runId)))
+      .limit(1);
+    row = found ?? null;
+  }
+  if (!row) return fail("That row is gone.");
+
+  const isDoer = !!row.doerId && row.doerId === me.id;
+  const isSelfRaised = !!row.initiatorId && row.initiatorId === row.doerId;
+  const actor: ApproverActor = {
+    isAdmin: me.isAdmin || isSuperAdmin(me.email),
+    isInitiator: row.initiatorId === me.id && !isSelfRaised,
+    isDoersManager:
+      !isDoer &&
+      !!row.doerId &&
+      (await getDownlineIds(me.id).catch(() => [] as string[])).includes(row.doerId),
+    isDoer,
+    isSelfRaised,
+  };
+
+  if (v.status !== undefined) {
+    const verdict = canSetApproverStatus(actor, v.status, readCheckStatus(row.status));
+    if (!verdict.ok) return fail(verdict.reason);
+  } else if (!canRuleOn(actor)) {
+    return fail("Only the initiator, the doer's manager or an admin can write the Approver Notes.");
+  }
+
+  const nextStatus =
+    v.status !== undefined && isApproverChoice(v.status) ? approverStored(v.status) : undefined;
+
+  if (checklistDemoActive()) {
+    demoSetApprover({ itemId: v.itemId, approverStatus: nextStatus, approverNotes: v.approverNotes });
+    revalidateChecklist();
+    return { ok: true };
+  }
+
+  const now = new Date();
+  const set = {
+    ...(nextStatus !== undefined ? { approverStatus: nextStatus, approverId: me.id, approverAt: now } : {}),
+    ...(v.approverNotes !== undefined ? { approverNotes: v.approverNotes } : {}),
+    updatedAt: now,
+  };
+  try {
+    await db
+      .insert(opsChecklistChecks)
+      .values({ runId: v.runId, itemId: v.itemId, status: "not_started", ...set, updatedById: me.id })
+      .onConflictDoUpdate({ target: [opsChecklistChecks.runId, opsChecklistChecks.itemId], set });
+    revalidateChecklist();
+    return { ok: true };
+  } catch {
+    return fail("Could not save that. If this keeps happening, migration 0237 may not have been run.");
   }
 }
 
@@ -611,6 +859,9 @@ export async function saveRunAsTemplate(
           instructions: opsChecklistItems.instructions,
           fileLink: opsChecklistItems.fileLink,
           jdEntryId: opsChecklistItems.jdEntryId,
+          client: opsChecklistItems.client,
+          initiatorId: opsChecklistItems.initiatorId,
+          recurrenceRule: opsChecklistItems.recurrenceRule,
           sortOrder: opsChecklistItems.sortOrder,
         })
         .from(opsChecklistItems)
@@ -765,6 +1016,9 @@ export async function duplicateChecklistTemplate(
           instructions: opsChecklistItems.instructions,
           fileLink: opsChecklistItems.fileLink,
           jdEntryId: opsChecklistItems.jdEntryId,
+          client: opsChecklistItems.client,
+          initiatorId: opsChecklistItems.initiatorId,
+          recurrenceRule: opsChecklistItems.recurrenceRule,
           sortOrder: opsChecklistItems.sortOrder,
         })
         .from(opsChecklistItems)
@@ -820,6 +1074,9 @@ export async function createTemplateItem(
         category: v.category,
         instructions: v.instructions,
         fileLink: v.fileLink,
+        client: v.client,
+        initiatorId: v.initiatorId ?? me.id,
+        recurrenceRule: v.recurrenceRule,
         sortOrder: tail[0]?.next ?? 100,
         createdById: me.id,
         updatedById: me.id,

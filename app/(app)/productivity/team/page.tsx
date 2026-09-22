@@ -5,6 +5,7 @@ import { DashboardHeader } from "@/components/layout/header";
 import { PageShell } from "@/components/layout/page-shell";
 import { db, employees, departments } from "@/lib/db";
 import { getProductivityViewer, productivityScopeFor } from "@/lib/productivity/access";
+import { performanceArchiveAvailable } from "@/lib/productivity/archive";
 import { teamPerformance, deriveTeamStatus } from "@/lib/queries/team-performance";
 import { TZ } from "@/lib/weekly-goals/week";
 import { TeamPerformanceBoard, type TeamRow } from "@/components/goals/team/team-performance-board";
@@ -31,12 +32,24 @@ export const dynamic = "force-dynamic";
  * An employee has an empty scope and simply cannot open this page — 404, not a
  * visible-but-empty table, so the surface never advertises itself to people who
  * have no business on it.
+ *
+ * ARCHIVED ROWS (migration 0232) never reach this list: `productivityScopeFor`
+ * drops anyone put away from the board. Nothing here has to filter, and nothing
+ * else about that person changes — their dashboard still opens from the link
+ * the Archive gives you. Where 0232 has not been applied, that function falls
+ * back to the unfiltered roster and `performanceArchiveAvailable` reports false,
+ * so this page renders precisely as it did before the archive existed.
  */
 export default async function ProductivityTeamPerformancePage() {
   const viewer = await getProductivityViewer();
   if (!viewer.isAdmin && !viewer.isManager) notFound();
 
-  const roster = await productivityScopeFor(viewer);
+  const [roster, canArchive] = await Promise.all([
+    productivityScopeFor(viewer),
+    // Admins only, and only where migration 0232 is applied — see the note
+    // on the board below.
+    viewer.isAdmin ? performanceArchiveAvailable() : Promise.resolve(false),
+  ]);
   const ids = roster.map((r) => r.id);
   const perf = await teamPerformance(ids);
 
@@ -113,7 +126,12 @@ export default async function ProductivityTeamPerformancePage() {
           </p>
         </header>
 
-        <TeamPerformanceBoard rows={rows} variant="productivity" />
+        {/* Archive is admin-only and the server action re-checks it — see
+            app/(app)/productivity/team/actions.ts for why a manager does not
+            get a button whose undo lives on a page they cannot open. On a
+            database without 0232 `canArchive` is false and the board is exactly
+            what it was before the feature. */}
+        <TeamPerformanceBoard rows={rows} variant="productivity" canArchive={canArchive} />
       </PageShell>
     </>
   );

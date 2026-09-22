@@ -3,11 +3,26 @@
  * Indian-format display + tolerant parsing of sheet-style strings ("1,25,000").
  */
 
+/**
+ * Strip everything a money string wears but a number: the "Rs." prefix, the
+ * ₹ glyph, the Indian commas, spaces and a trailing %.
+ *
+ * "Rs." IS IN HERE BECAUSE THE APP PRINTS IT. Every amount renders as
+ * "Rs. 1,25,000" now (lib/format.ts), so an amount that is displayed and then
+ * edited in place — which is exactly what the Accounts grids do — comes back
+ * through this function with those three characters on the front. Without them
+ * in the pattern, `Number("Rs.125000")` is NaN and the cell silently clears.
+ * The ₹ stays for values pasted from before the change and from outside.
+ */
+export function stripMoneyGlyphs(raw: string): string {
+  return raw.replace(/\brs\.?/gi, "").replace(/[,₹\s%]/g, "").trim();
+}
+
 /** Parse a sheet/input amount string to a number, or null when blank/invalid. */
 export function parseAmount(raw: string | number | null | undefined): number | null {
   if (raw === null || raw === undefined) return null;
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
-  const s = raw.replace(/[,₹\s%]/g, "").trim();
+  const s = stripMoneyGlyphs(raw);
   if (!s) return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;

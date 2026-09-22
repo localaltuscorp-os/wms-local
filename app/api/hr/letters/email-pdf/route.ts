@@ -4,7 +4,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { canIssueLetters, LETTER_ISSUE_REFUSAL } from "@/lib/hr/letters/issue-access";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getEntity } from "@/lib/hr/entities";
 import { getLetter } from "@/lib/hr/letters/registry";
@@ -52,8 +53,19 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
-  if (!(me.isAdmin || isSuperAdmin(me.email))) {
-    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  // THE MODULE GATE, before the capability gate. If an administrator has revoked
+  // "Letters" for this person, the endpoint refuses outright whatever the
+  // narrower issue-letters permission says. A route handler renders no layout,
+  // so `requirePathView` never runs for it and this is the only place the matrix
+  // can reach the endpoint — without it, revoking Letters hid the screen and
+  // left this route sending mail.
+  const denial = await apiViewDenial(req);
+  if (denial) return denial;
+
+  // Same decision as the issue route, from the same place. This was one of three
+  // copies of "is this person an admin?" — see lib/hr/letters/issue-access.ts.
+  if (!(await canIssueLetters(me))) {
+    return NextResponse.json({ ok: false, error: LETTER_ISSUE_REFUSAL }, { status: 403 });
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return NextResponse.json(limited);

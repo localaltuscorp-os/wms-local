@@ -16,6 +16,11 @@ export const TASK_STATUSES = [
   "follow_up_2",    // NEW
   "follow_up_3",    // NEW
   "done",
+  // Manan 2026-09-14 — the doer's seventh and final working value. "I am not
+  // going to do this", said by the person holding the work, as distinct from
+  // an initiator cancelling it from above. It is a DOER value precisely
+  // because abandoning is a report, not a ruling: see DOER_TASK_STATUSES.
+  "abandoned",
   // Legacy terminal values — kept for backward compat with imported data.
   // New code should use the `approval_status` column instead.
   "approved",
@@ -30,15 +35,21 @@ export type TaskStatus = (typeof TASK_STATUSES)[number];
  *  The legacy four (approved / not_approved / cancelled / transferred) are
  *  excluded — those are admin-only via the separate approval_status column.
  *  2026-06-08 (sir's changes #2): the granular follow_up_1/2/3 collapsed back
- *  into the single `follow_up`; cancelled is gone (use Archive instead). */
+ *  into the single `follow_up`; cancelled is gone (use Archive instead).
+ *
+ *  2026-09-14 — THE TWO AXES SEPARATED. `on_hold` left this list for the
+ *  INITIATOR axis (lib/status/axes.ts) and `abandoned` joined it, so this is
+ *  now identical to DOER_TASK_STATUSES. Both are kept: this one is the list
+ *  the kanban columns, filter dropdowns and importers read, DOER_TASK_STATUSES
+ *  is the picker's. They agree today and may diverge again tomorrow. */
 export const USER_TASK_STATUSES = [
   "dont_know",
   "not_started",
   "initiated",
   "follow_up",
-  "on_hold",
   "need_info",
   "done",
+  "abandoned",
 ] as const satisfies readonly TaskStatus[];
 
 /**
@@ -46,18 +57,20 @@ export const USER_TASK_STATUSES = [
  * Status control (the row's inline status chip and the bulk "Status" dropdown).
  * Labels come from `status_settings` / STATUS_LABELS_FALLBACK:
  *
- *   dont_know → "Not Read" · not_started · initiated · follow_up · need_info · done
+ *   dont_know → "Not Read" · not_started · initiated · follow_up ·
+ *   need_info · done · abandoned
  *
- * `on_hold` is deliberately ABSENT even though it is a live status. Putting a
- * task on hold is a MANAGER's ruling, not a worker's progress report, so it
- * moved to the "Mark Status" dropdown as "Mark Hold On" (see
- * components/tasks/bulk-action-bar.tsx). The approval verdicts — approved /
- * not_approved / cancelled — were never doer statuses at all: they live in the
- * separate `approval_status` column.
+ * `on_hold` is deliberately ABSENT, and since 2026-09-14 it is absent from the
+ * DATABASE side of this axis too: putting work on hold is a ruling ABOUT the
+ * work, so it moved to the initiator axis (`approval_status`) where the other
+ * rulings already lived. The approval verdicts — approved / not_approved —
+ * were never doer statuses at all.
  *
- * Deliberately NOT a redefinition of USER_TASK_STATUSES: that list still drives
- * the kanban columns, filter dropdowns and importers, where `on_hold` must stay
- * selectable. This is the status PICKER's list, nothing more.
+ * `abandoned` is the counterpart that stayed: "I am not doing this" is a report
+ * from the person holding the work, which is exactly what this axis is for.
+ *
+ * This list is the status PICKER's. See lib/status/axes.ts for the pair of
+ * axes as one vocabulary shared by Tasks, Projects and Goals.
  */
 export const DOER_TASK_STATUSES = [
   "dont_know",
@@ -66,14 +79,18 @@ export const DOER_TASK_STATUSES = [
   "follow_up",
   "need_info",
   "done",
+  "abandoned",
 ] as const satisfies readonly TaskStatus[];
 
+/** Still owing work. `on_hold` left on 2026-09-14 with the rest of the
+ *  initiator axis — a held task is pending because of a RULING, which the
+ *  initiator axis now answers for; and `abandoned` never joins, because it is
+ *  terminal exactly like `done`. */
 export const PENDING_STATUSES = [
   "dont_know",
   "not_started",
   "initiated",
   "follow_up",
-  "on_hold",
   "need_info",
 ] as const satisfies readonly TaskStatus[];
 
@@ -90,6 +107,11 @@ export const DEPRECATED_TASK_STATUSES = [
   "cancelled",
   "transferred",
   "need_help",
+  // 2026-09-14 — retired FROM THIS AXIS, not from the app: on_hold is now an
+  // initiator verdict in `approval_status`. Migration 0225 moves every row
+  // that held it; it stays in the physical enum so a row the migration could
+  // not reach still renders instead of throwing.
+  "on_hold",
 ] as const satisfies readonly TaskStatus[];
 
 const DEPRECATED_STATUS_SET: ReadonlySet<TaskStatus> = new Set(
@@ -123,6 +145,25 @@ export const APPROVAL_STATUSES = [
   "archived",
 ] as const;
 export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
+
+/**
+ * The verdicts still OFFERED. `cancelled` and `transferred` are physical enum
+ * values that pre-date the two-axis split and survive so imported rows render;
+ * Manan's initiator list is the four in lib/status/axes.ts, and cancelling is
+ * spelled "Archived" there. Nothing user-facing should offer these two.
+ */
+export const DEPRECATED_APPROVAL_STATUSES = [
+  "cancelled",
+  "transferred",
+] as const satisfies readonly ApprovalStatus[];
+
+const DEPRECATED_APPROVAL_SET: ReadonlySet<string> = new Set(
+  DEPRECATED_APPROVAL_STATUSES,
+);
+
+export function isDeprecatedApprovalStatus(v: string): boolean {
+  return DEPRECATED_APPROVAL_SET.has(v);
+}
 
 // 28 canonical subject categories the New Task form constrains to. Free
 // text remains valid in the DB (the column is `text`) — older tasks may
@@ -520,23 +561,71 @@ export const INCENTIVE_TYPES = [
   "sales_pitch",
   "client_happiness",
   "group_intro",
+  "leads_referrals",
 ] as const;
 export type IncentiveType = (typeof INCENTIVE_TYPES)[number];
 
+/**
+ * `bss_conversion` READS "Conversion" — the product is now its own field on
+ * that form (lib/incentive-fields.ts), so the type no longer names one. The
+ * stored key is unchanged: existing rows carry it, and `incentiveLabel` maps it
+ * to the catalog's "BSS Convert …" scheme names.
+ */
 export const INCENTIVE_TYPE_LABELS: Record<IncentiveType, string> = {
-  bss_conversion:   "BSS Conversion",
+  bss_conversion:   "Conversion",
   sales_pitch:      "Sales Pitch",
   client_happiness: "Client Happiness",
   group_intro:      "Group Introduction",
+  leads_referrals:  "Leads / Referrals",
 };
 
-export const INCENTIVE_STATUSES = ["pending", "approved", "rejected"] as const;
+/**
+ * How long an Incentive Master scheme runs (migration 0232).
+ *
+ * `permanent` — part of the standing scheme; runs until switched off.
+ * `one_time`  — a single campaign or drive.
+ *
+ * Deliberately separate from `valid_until` and from `active`: the duration is
+ * the INTENT, the date is when it stops applying, and `active` is whether it is
+ * on offer right now. A one-time incentive with no end date is a real thing (a
+ * drive that runs until it is switched off), and so is a permanent scheme with
+ * a review date.
+ */
+export const INCENTIVE_DURATIONS = ["permanent", "one_time"] as const;
+export type IncentiveDuration = (typeof INCENTIVE_DURATIONS)[number];
+
+export const INCENTIVE_DURATION_LABELS: Record<IncentiveDuration, string> = {
+  permanent: "Permanent",
+  one_time:  "One-Time",
+};
+
+/**
+ * Incentive request states (migration 0230 — the approval workflow).
+ *
+ * `rejected` is the stored value for NOT APPROVED. It was not renamed: it
+ * already meant that, existing rows and readers use it, and the brief's wording
+ * is a label, which lives below. Which state may follow which, and who may move
+ * a request between them, is in lib/incentive/workflow.ts.
+ */
+export const INCENTIVE_STATUSES = [
+  "pending",
+  "approved",
+  "rejected",
+  "due",
+  "not_due",
+  "reversed",
+  "revision_requested",
+] as const;
 export type IncentiveStatus = (typeof INCENTIVE_STATUSES)[number];
 
 export const INCENTIVE_STATUS_LABELS: Record<IncentiveStatus, string> = {
-  pending:  "Pending",
-  approved: "Approved",
-  rejected: "Rejected",
+  pending:            "Pending Approval",
+  approved:           "Approved",
+  rejected:           "Not Approved",
+  due:                "Due",
+  not_due:            "Not Due",
+  reversed:           "Reversed",
+  revision_requested: "Revision Requested",
 };
 
 export const OUTSTANDING_STATUSES = [
@@ -570,6 +659,7 @@ export const STATUS_COLOR_TOKENS = [
   "slate",
   "brown",
   "stone",  // light grey (Dont Know)
+  "sky",    // Abandoned — Manan, 2026-09-15
 ] as const;
 export type StatusColorToken = (typeof STATUS_COLOR_TOKENS)[number];
 
@@ -1361,7 +1451,6 @@ export const HH_ACCESS_MODULES = [
   { code: "development", label: "Development", sections: [{ code: "development", label: "Development" }] },
 ] as const;
 
-/** Every action the summary table has a column for, in column order. */
 /**
  * The actions the Access dialog can log. "view" is deliberately ABSENT: looking
  * at a page is not an action anyone performs on a person, and offering it made
@@ -1488,3 +1577,99 @@ export interface AttendanceAuthorizationContext {
   /** A plain-language reason, for a system entry that has no human to ask. */
   note?: string;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * BILLING — Quotation → Proforma Invoice → Tax Invoice
+ *
+ * One document engine, three types. The type changes the printed title, the
+ * number series and the edit rules; the columns, the form and the PDF renderer
+ * are shared. See db/migrations/0229_billing_documents.sql.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export const BILLING_DOC_TYPES = ["quotation", "proforma_invoice", "tax_invoice"] as const;
+export type BillingDocType = (typeof BILLING_DOC_TYPES)[number];
+
+export const BILLING_DOC_TYPE_LABELS: Record<BillingDocType, string> = {
+  quotation: "Quotation",
+  proforma_invoice: "Proforma Invoice",
+  tax_invoice: "Tax Invoice",
+};
+
+/**
+ * STORED statuses. `pending` / `overdue` are deliberately absent — they are
+ * DERIVED in the list (generated|sent and past the due date), never written, so
+ * the passage of time can never leave a stale row behind.
+ */
+export const BILLING_DOC_STATUSES = [
+  "draft",
+  "generated",
+  "sent",
+  "paid",
+  "converted",
+  "cancelled",
+] as const;
+export type BillingDocStatus = (typeof BILLING_DOC_STATUSES)[number];
+
+export const BILLING_DOC_STATUS_LABELS: Record<BillingDocStatus, string> = {
+  draft: "Draft",
+  generated: "Generated",
+  sent: "Sent",
+  paid: "Paid",
+  converted: "Converted",
+  cancelled: "Cancelled",
+};
+
+/**
+ * GST modes. Derived from seller GSTIN + seller state vs place of supply — the
+ * user picks *whether* GST applies and at what rate, never which of these.
+ */
+export const BILLING_GST_MODES = ["cgst_sgst", "igst", "none", "exempt"] as const;
+export type BillingGstMode = (typeof BILLING_GST_MODES)[number];
+
+/** Append-only document trail. Mirrors employee_events / task_events. */
+export const BILLING_EVENT_TYPES = [
+  "created",
+  "updated",
+  "generated",
+  "emailed",
+  "printed",
+  "downloaded",
+  "converted",
+  "cancelled",
+  "paid",
+] as const;
+export type BillingEventType = (typeof BILLING_EVENT_TYPES)[number];
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * BILLING CONTRACTS — see db/migrations/0234_billing_contracts.sql.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export const CONTRACT_PAYMENT_TYPES = ["retainer", "milestone", "subscription", "full_payment"] as const;
+export type ContractPaymentType = (typeof CONTRACT_PAYMENT_TYPES)[number];
+
+export const CONTRACT_PAYMENT_TYPE_LABELS: Record<ContractPaymentType, string> = {
+  retainer: "Retainer",
+  milestone: "Milestone based",
+  subscription: "Subscription",
+  full_payment: "Full Payment",
+};
+
+export const CONTRACT_BILLING_FREQUENCIES = ["monthly", "quarterly"] as const;
+export type ContractBillingFrequency = (typeof CONTRACT_BILLING_FREQUENCIES)[number];
+
+export const CONTRACT_STATUSES = ["active", "completed", "stopped", "cancelled"] as const;
+export type ContractStatus = (typeof CONTRACT_STATUSES)[number];
+
+export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
+  active: "Active",
+  completed: "Completed",
+  stopped: "Billing stopped",
+  cancelled: "Cancelled",
+};
+
+/** A schedule row's own state. Paid / unpaid is the linked invoice's, read live. */
+export const CONTRACT_ITEM_STATUSES = ["pending", "billed", "stopped"] as const;
+export type ContractItemStatus = (typeof CONTRACT_ITEM_STATUSES)[number];
+
+export const CONTRACT_PDC_STATUSES = ["received", "deposited", "cleared", "bounced"] as const;
+export type ContractPdcStatus = (typeof CONTRACT_PDC_STATUSES)[number];

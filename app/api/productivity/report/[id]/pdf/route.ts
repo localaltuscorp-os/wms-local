@@ -1,5 +1,6 @@
 import { getProductivityViewer, canViewProductivityOf } from "@/lib/productivity/access";
 import { loadProductivity } from "@/lib/productivity/data";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +20,13 @@ export const dynamic = "force-dynamic";
  * routes, so the heavy dependency stays out of any bundle that merely
  * references this module.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   const { id } = await ctx.params;
 
   const viewer = await getProductivityViewer();

@@ -36,22 +36,28 @@ function row(id: string, over: Partial<Row> = {}): Row {
     offsetDays: 0,
     sortOrder: 100,
     title: `Task ${id}`,
+    client: null,
     category: null,
     doerId: null,
-    backupId: null,
-    status: "Pending",
+    initiatorId: null,
+    status: "not_started",
+    notes: null,
     doneAt: null,
+    approverStatus: null,
+    approverNotes: null,
     ...over,
   };
 }
 
 const TARGETS: Record<string, string | null> = {};
 const VARIANCES: Record<string, number | null> = {};
+const FREQUENCY: Record<string, string | null> = {};
 
 const ctx = {
   nameOf: (id: string | null) => (id ? (NAMES[id] ?? null) : null),
   targetOf: (r: Row) => TARGETS[r.id] ?? null,
   varianceOf: (r: Row) => VARIANCES[r.id] ?? null,
+  frequencyOf: (r: Row) => FREQUENCY[r.id] ?? null,
   natural: compareRows,
 };
 
@@ -126,13 +132,6 @@ describe("sorting by a person", () => {
 });
 
 describe("sorting by the schedule columns", () => {
-  it("orders offsets as numbers, not as text", () => {
-    // "-10" < "-3" as text; as days, -10 comes first for the opposite reason.
-    const rows = [row("b", { offsetDays: -3 }), row("a", { offsetDays: -10 }), row("c", { offsetDays: 2 })];
-    expect(sortBy(rows, "offset", "asc")).toEqual(["a", "b", "c"]);
-    expect(sortBy(rows, "offset", "desc")).toEqual(["c", "b", "a"]);
-  });
-
   it("puts undated rows last however the target column is pointed", () => {
     const rows = [row("x"), row("y"), row("z")];
     TARGETS.x = "2026-09-20";
@@ -152,19 +151,19 @@ describe("sorting by the schedule columns", () => {
   });
 });
 
-describe("sorting by Done", () => {
+describe("sorting by Doer Status", () => {
   it("puts outstanding work first ascending, finished work first descending", () => {
     /* The column is asked "what is left?" far more often than the reverse, so
-       ascending answers that. Not Applicable ranks beside Done because it is
-       settled — nobody has to act on it. */
+       ascending answers that — unread work first of all. */
     const rows = [
-      row("done", { status: "Done" }),
-      row("pending", { status: "Pending" }),
-      row("na", { status: "Not Applicable" }),
-      row("help", { status: "Need Help" }),
+      row("done", { status: "done" }),
+      row("notStarted", { status: "not_started" }),
+      row("initiated", { status: "initiated" }),
+      row("unread", { status: "dont_know" }),
+      row("info", { status: "need_info" }),
     ];
-    expect(sortBy(rows, "done", "asc")).toEqual(["pending", "help", "na", "done"]);
-    expect(sortBy(rows, "done", "desc")).toEqual(["done", "na", "help", "pending"]);
+    expect(sortBy(rows, "done", "asc")).toEqual(["unread", "notStarted", "info", "initiated", "done"]);
+    expect(sortBy(rows, "done", "desc")).toEqual(["done", "initiated", "info", "notStarted", "unread"]);
   });
 
   it("keeps the plan's order among rows sharing a status", () => {
@@ -209,7 +208,30 @@ describe("the banner that says what the sort is doing", () => {
   });
 });
 
-describe("the Category column", () => {
+describe("sorting by Approver Status", () => {
+  it("reads null as Pending, first in the WMS order", () => {
+    const rows = [
+      row("cancelled", { approverStatus: "cancelled" }),
+      row("pending", { approverStatus: null }),
+      row("approved", { approverStatus: "approved" }),
+    ];
+    expect(sortBy(rows, "approver", "asc")).toEqual(["pending", "approved", "cancelled"]);
+  });
+});
+
+describe("the Client column", () => {
+  it("sorts A–Z with blanks last under both arrows", () => {
+    const rows = [
+      row("d", { client: "Deccan Foods" }),
+      row("none", { client: null }),
+      row("a", { client: "Aurora Textiles" }),
+    ];
+    expect(sortBy(rows, "client", "asc")).toEqual(["a", "d", "none"]);
+    expect(sortBy(rows, "client", "desc")).toEqual(["d", "a", "none"]);
+  });
+});
+
+describe("the Subject column", () => {
   const rows = [
     row("v", { category: "Vendors", sortOrder: 10 }),
     row("blank", { category: null, sortOrder: 20 }),
@@ -218,10 +240,10 @@ describe("the Category column", () => {
   ];
 
   it("sorts A–Z by the text, with blanks last", () => {
-    expect(sortBy(rows, "category", "asc")).toEqual(["h", "i", "v", "blank"]);
+    expect(sortBy(rows, "subject", "asc")).toEqual(["h", "i", "v", "blank"]);
   });
 
   it("keeps blanks last when reversed", () => {
-    expect(sortBy(rows, "category", "desc")).toEqual(["v", "i", "h", "blank"]);
+    expect(sortBy(rows, "subject", "desc")).toEqual(["v", "i", "h", "blank"]);
   });
 });

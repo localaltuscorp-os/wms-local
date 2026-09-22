@@ -53,6 +53,7 @@ const BUCKET_META: Record<
   },
   dontKnow: { label: "Not Read", params: () => new URLSearchParams({ status: "dont_know" }) },
   onHold: { label: "On Hold", params: () => new URLSearchParams({ status: "on_hold" }) },
+  abandoned: { label: "Abandoned", params: () => new URLSearchParams({ status: "abandoned" }) },
   pendingTotal: {
     label: "Pending",
     // The exact set computeEmployeeStatusTable counts as pending. `dont_know`

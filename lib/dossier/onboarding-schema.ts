@@ -100,7 +100,7 @@ export const ONBOARDING_SECTIONS: OnbSection[] = [
     // does not exist, so the form could never be submitted.
     hint: "Optional - leave blank if this is your first job.",
     fields: [
-      { key: "lastCtc", label: "Last Drawn CTC (Rs./yr)", type: "text", required: false, w: "md" },
+      { key: "lastCtc", label: "Last Drawn CTC (Rs./yr)", type: "text", required: false, hint: "NA if first job", w: "md" },
       { key: "lastDesignation", label: "Designation", type: "text", required: false, w: "md" },
       { key: "lastCompanyName", label: "Last Company Name", type: "text", required: false, w: "lg" },
       { key: "lastCompanyAddress", label: "Last Company Address", type: "text", required: false, w: "xl" },

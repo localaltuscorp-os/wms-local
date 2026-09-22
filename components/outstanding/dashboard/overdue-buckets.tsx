@@ -64,7 +64,7 @@ export function OverdueBucketsPanel({
               <tr className="text-left">
                 <Th>Category</Th>
                 <Th align="right">Count</Th>
-                <Th align="right">Amount (₹)</Th>
+                <Th align="right">Amount (Rs.)</Th>
               </tr>
             </thead>
             <tbody>

@@ -181,12 +181,12 @@ describe("§1 — hourly rate and payable salary", () => {
     pendingBalanceIn: 0,
   };
 
-  it("₹40,000 ÷ 216h = ₹185.19/hour", () => {
+  it("Rs. 40,000 ÷ 216h = Rs. 185.19/hour", () => {
     const s = computeScheduleHourlySalary({ ...base, payableHoursRaw: 216 });
     expect(s.hourlyRate).toBeCloseTo(185.19, 2);
   });
 
-  it("210 hours pays ₹38,888.90", () => {
+  it("210 hours pays Rs. 38,888.90", () => {
     const s = computeScheduleHourlySalary({ ...base, payableHoursRaw: 210 });
     // 210 × (40000/216) = 38888.888… → rounded to paise.
     expect(s.gross).toBeCloseTo(38888.89, 2);

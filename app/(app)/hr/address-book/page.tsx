@@ -1,7 +1,7 @@
 import { BookUser } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
-import { canEditHrRegisters } from "@/lib/hr/registers";
+import { isHrStaff } from "@/lib/hr/access";
 import { isMissingRegisterTable, listContacts, listEmployeeContacts } from "@/lib/hr/registers-server";
 import { AddressBook } from "@/components/hr/registers/address-book";
 import { RegisterSetupNeeded } from "@/components/hr/registers/register-setup-needed";
@@ -17,7 +17,8 @@ const ACCENT = "#B91C1C";
  */
 export default async function AddressBookPage() {
   const me = await requireWorkspace("hr");
-  const canEdit = canEditHrRegisters(me.email);
+  // Hiding the controls is a courtesy; the actions ask the same question again.
+  const canEdit = await isHrStaff(me);
 
   let contacts, employees;
   try {

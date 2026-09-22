@@ -36,21 +36,24 @@ export function IncentiveCatalogDialog({
   rows,
   isAdmin,
   people = [],
+  defaultOpen = false,
 }: {
   rows: CatalogRow[];
   isAdmin: boolean;
   /** Everyone an incentive can be assigned to. Admins only — the roster
    *  has no business in a non-admin’s browser. */
   people?: EligibilityPerson[];
+  /** Opened from an Incentive Table notification (`/incentive?view=table`). */
+  defaultOpen?: boolean;
 }) {
   const router = useRouter();
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(defaultOpen);
   const [editing, setEditing] = React.useState<Draft | null>(null); // row being edited / new
   const [saving, setSaving] = React.useState(false);
 
   function save() {
     if (!editing) return;
-    const amount = Number(editing.amount.replace(/[₹,\s]/g, ""));
+    const amount = Number(editing.amount.replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, ""));
     if (!editing.name.trim()) return fireToast({ message: "Name is required.", type: "error" });
     if (!Number.isFinite(amount) || amount < 0) return fireToast({ message: "Enter a valid amount.", type: "error" });
     setSaving(true);
@@ -284,7 +287,7 @@ function CatalogEditor({
           <input autoFocus value={draft.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. PS Sold in 30 Days" className={field} />
         </label>
         <label className="block">
-          <span className="mb-1 block text-[12px] font-bold text-ink-soft">Amount (₹)</span>
+          <span className="mb-1 block text-[12px] font-bold text-ink-soft">Amount (Rs.)</span>
           <input value={draft.amount} onChange={(e) => set({ amount: e.target.value })} inputMode="numeric" placeholder="250" className={`${field} tabular-nums`} />
         </label>
       </div>

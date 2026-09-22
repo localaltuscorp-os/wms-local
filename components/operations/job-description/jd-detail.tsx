@@ -3,23 +3,22 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowUpRight,
   CalendarClock,
-  FileText,
-  Link2,
   Loader2,
   TriangleAlert,
   UserRound,
-  Video,
   X,
 } from "lucide-react";
 import { FUNCTION_LABELS, type BusinessFunction } from "@/lib/org/functions";
 import { describeRecurrence, isDueOn } from "@/lib/jd/recurrence";
 import { resolveAssignees, type ResolutionVia } from "@/lib/jd/ladder";
-import type { JdEntryRow, JdPositionRow } from "@/lib/queries/job-description";
+import type { JdEntryRow, JdEventOption, JdPositionRow } from "@/lib/queries/job-description";
 import { setJdEntryActive, updateJdEntry } from "@/app/(app)/operations/job-description/actions";
 import { ModuleAssignBoxes } from "@/components/operations/job-description/module-assign-boxes";
-import { CategoryInput } from "@/components/operations/category-input";
+import { ClientSelect } from "@/components/tasks/client-select";
+import { SubjectSelect } from "@/components/tasks/subject-select";
+import { useJdRosters } from "@/components/operations/job-description/jd-rosters";
+import { SavedJdAttachments } from "@/components/operations/job-description/jd-attachment-boxes";
 
 const ACCENT = "#B91C1C";
 
@@ -94,10 +93,15 @@ export function whoDoesIt(
 }
 
 /** The next few dates this job comes round, from the structured recurrence. */
-function nextDueDates(entry: JdEntryRow, count = 4): string[] {
+export function nextDueDates(
+  entry: Pick<JdEntryRow, "recurrence">,
+  count = 4,
+  /** How far ahead to look. A yearly job needs a year. */
+  horizonDays = 180,
+): string[] {
   const out: string[] = [];
   const start = new Date();
-  for (let i = 0; i < 180 && out.length < count; i++) {
+  for (let i = 0; i < horizonDays && out.length < count; i++) {
     const d = new Date(start);
     d.setDate(d.getDate() + i);
     const ymd = d.toISOString().slice(0, 10);
@@ -136,18 +140,19 @@ export function JdDetailDrawer({
   positions,
   holders,
   people,
-  categories = [],
+  events = [],
   onClose,
 }: {
   entry: JdEntryRow;
   positions: JdPositionRow[];
   holders: SeatHolder[];
   people: { id: string; name: string }[];
-  /** Categories already used across the Bank, offered as suggestions. */
-  categories?: readonly string[];
+  /** The live event checklists — the Event Checklist box's options. */
+  events?: JdEventOption[];
   onClose: () => void;
 }) {
   const router = useRouter();
+  const rosters = useJdRosters();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -259,16 +264,38 @@ export function JdDetailDrawer({
             {FUNCTION_LABELS[entry.functionKey as BusinessFunction] ?? entry.functionKey}
           </Row>
 
-          {/* Saves on blur, like everything else in this drawer. */}
-          <Row label="Category">
+          {/* Client and Subject — the WMS Tasks rosters (Admin Panel → Clients /
+              Subjects). Each saves as soon as it is picked. */}
+          <Row label="Client">
             <span className="inline-flex w-full items-center gap-2">
-              <CategoryInput
-                value={entry.category}
-                suggestions={categories}
-                disabled={busy === "category"}
-                onCommit={(v) => save({ category: v }, "category")}
-                className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-[13px] text-slate-800"
-              />
+              <span className="min-w-0 flex-1">
+                <ClientSelect
+                  value={entry.client ?? ""}
+                  clients={rosters.clients}
+                  canAdd={rosters.canAdd}
+                  placeholder="Select a client…"
+                  onChange={(v) => void save({ client: v }, "client")}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] text-slate-800"
+                />
+              </span>
+              {busy === "client" && (
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-slate-400" />
+              )}
+            </span>
+          </Row>
+
+          <Row label="Subject">
+            <span className="inline-flex w-full items-center gap-2">
+              <span className="min-w-0 flex-1">
+                <SubjectSelect
+                  value={entry.category ?? ""}
+                  subjects={rosters.subjects}
+                  canAdd={rosters.canAdd}
+                  placeholder="Select a subject…"
+                  onChange={(v) => void save({ category: v }, "category")}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] text-slate-800"
+                />
+              </span>
               {busy === "category" && (
                 <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-slate-400" />
               )}
@@ -350,8 +377,12 @@ export function JdDetailDrawer({
               }
               selected={entry.targetPeople}
               onChangeTarget={(t, ids) =>
-                save({ targetPeople: { ...entry.targetPeople, [t]: ids } }, `people-${t}`)
+                // The Event box lists events now, so no people are kept for it.
+                save({ targetPeople: { ...entry.targetPeople, [t]: ids, event: [] } }, `people-${t}`)
               }
+              events={events}
+              selectedEvents={entry.eventRunIds ?? []}
+              onChangeEvents={(ids) => save({ eventRunIds: ids }, "events")}
             />
             <p className="mt-2 text-[11px] text-slate-500">
               Leave a roster empty and the seat decides — which is what lets a vacancy
@@ -376,15 +407,13 @@ export function JdDetailDrawer({
             </section>
           )}
 
+          {/* The same three boxes as the New JD form — open, add and delete
+              files on a saved JD. The link each box shows is read-only here. */}
           <section>
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
               SOP attachments
             </p>
-            <div className="flex flex-col gap-1.5">
-              <Attachment icon={<Video className="h-3.5 w-3.5" />} label="Video — how to do this" href={entry.videoUrl} />
-              <Attachment icon={<FileText className="h-3.5 w-3.5" />} label="Guidelines — rules of execution" href={entry.guidelinesUrl} />
-              <Attachment icon={<Link2 className="h-3.5 w-3.5" />} label="Templates — standard files" href={entry.templateUrl} />
-            </div>
+            <SavedJdAttachments entry={entry} />
           </section>
 
           {error && <p className="text-[13px] text-red-700">{error}</p>}
@@ -453,37 +482,6 @@ function Toggle({
       {busy && <Loader2 className="h-3 w-3 animate-spin" />}
       {label}
     </button>
-  );
-}
-
-function Attachment({
-  icon,
-  label,
-  href,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  href: string | null;
-}) {
-  if (!href) {
-    return (
-      <span className="inline-flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-[12px] text-slate-400">
-        {icon}
-        {label} — none attached
-      </span>
-    );
-  }
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-100"
-    >
-      {icon}
-      {label}
-      <ArrowUpRight className="ml-auto h-3.5 w-3.5 text-slate-400" />
-    </a>
   );
 }
 

@@ -177,9 +177,16 @@ export function formatAmount(n: number): string {
   return INR.format(Math.round(n || 0));
 }
 
-/** "Rs. 10.12 Cr" / "Rs. 4.50 L" / "Rs. 25,000" — the on-screen figure. */
+/**
+ * ALIAS of {@link formatINR} — the CTC tree prints the whole figure now.
+ *
+ * It abbreviated to "Rs. 12.5 L" / "Rs. 1.2 Cr" on the org-chart nodes. Dropped
+ * with the rest of the abbreviations (Manan, 2026-09-15): a CTC node that reads
+ * "Rs. 12.5 L" hides the very digits a salary conversation is about. Kept as a
+ * name so ctc-workbench.tsx keeps compiling.
+ */
 export function formatINRCompact(n: number): string {
-  return formatRsCompact(n);
+  return formatINR(n);
 }
 
 /* ------------------------------------------------------------------ */

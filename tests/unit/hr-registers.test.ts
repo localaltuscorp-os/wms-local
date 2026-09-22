@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   ASSET_TYPES,
   assetPrefix,
-  canEditHrRegisters,
   formatAssetCode,
   whatsappHref,
 } from "@/lib/hr/registers";
+import { codeOf } from "../fixtures/source-code";
 import {
   ONB_DONT_HAVE,
   ONB_FIELD_BY_KEY,
@@ -15,12 +15,32 @@ import {
 } from "@/lib/dossier/onboarding-schema";
 
 describe("HR register editors", () => {
-  it("allows only Ruchita, Rutvisha and Manan (case-insensitive)", () => {
-    expect(canEditHrRegisters("ruchitaambre.altuscorp@gmail.com")).toBe(true);
-    expect(canEditHrRegisters(" RutvishaMehta.altuscorp@gmail.com ")).toBe(true);
-    expect(canEditHrRegisters("manan@unleashed.in")).toBe(true);
-    expect(canEditHrRegisters("someone.altuscorp@gmail.com")).toBe(false);
-    expect(canEditHrRegisters(null)).toBe(false);
+  /**
+   * WHO MAY EDIT IS A ROLE — isHrStaff (HR staff, or a super-admin), asked by
+   * the actions and the pages. It was a list of three addresses until
+   * 2026-09-21 (account holder): a role changes on the Employee Master, where
+   * a list of people changed in a deploy.
+   *
+   * Asserted on the SOURCE, because the rule itself now reads the database and
+   * this module must stay pure and client-safe.
+   */
+  it("keeps no list of people, and leaves the question to the role", () => {
+    const registers = codeOf("lib/hr/registers.ts");
+    expect(registers).not.toMatch(/@unleashed.in|altuscorp@gmail.com/);
+    expect(registers).not.toMatch(/EDITOR_EMAILS|canEditHrRegisters/);
+
+    for (const caller of [
+      "app/(app)/hr/address-book/actions.ts",
+      "app/(app)/hr/assets/actions.ts",
+      "app/(app)/operations/directory/actions.ts",
+    ]) {
+      expect(codeOf(caller)).toContain("await isHrStaff(me)");
+    }
+  });
+
+  it("governs the Operations Directory by the same role, not by an HR constant", () => {
+    const directory = codeOf("lib/operations/directory.ts");
+    expect(directory).not.toContain("canEditHrRegisters");
   });
 });
 

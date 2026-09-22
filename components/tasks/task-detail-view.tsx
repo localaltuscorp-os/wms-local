@@ -163,6 +163,15 @@ const STATUS_TONE: Record<
     bg: "var(--color-green-bg)",
     live: true,
   },
+  // Terminal like Done, but nothing is owed and nothing was achieved — `live`
+  // is false so it never counts as work in flight.
+  abandoned: {
+    label: "Abandoned",
+    rgb: "120, 113, 108",
+    ink: "var(--color-stone-deep)",
+    bg: "var(--color-stone-bg)",
+    live: false,
+  },
   approved: {
     label: "Approved",
     rgb: "168, 85, 247",
@@ -548,7 +557,7 @@ export function TaskDetailView({
                 {me?.department && (
                   <MetaRow
                     icon={<Building2 size={13} strokeWidth={2.4} />}
-                    label="Department"
+                    label="Function"
                     value={me.department}
                   />
                 )}

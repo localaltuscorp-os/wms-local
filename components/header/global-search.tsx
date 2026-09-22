@@ -76,6 +76,10 @@ export function GlobalSearch({
 
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // A keydown can arrive with no `key` (autofill, password managers), and
+      // this listener is on `document` in the always-mounted header — so an
+      // unguarded read here crashes whatever page the person is on.
+      if (typeof e.key !== "string") return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setOpen((o) => !o);
@@ -175,7 +179,7 @@ export function GlobalSearch({
                 <CommandGroup heading="Projects">
                   {data.projects.map((p) => (
                     <Row key={`project-${p.id}`} value={`project-${p.id}`} icon={<FolderKanban size={15} />}
-                      onSelect={() => go(`/projects/${p.rootId}`)}
+                      onSelect={() => go("/project-plan")}
                       title={p.name} sub={p.kind} />
                   ))}
                 </CommandGroup>

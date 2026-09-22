@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
 
 vi.mock("server-only", () => ({}));
 
@@ -283,15 +284,27 @@ describe("completeDeviceRegistration", () => {
     );
   });
 
-  // SCENARIO 5 — a serial already held by another employee is rejected.
-  it("rejects a serial registered to another employee, naming who to contact", async () => {
+  // SCENARIO 5, REVERSED BY 0243 — a shared PC's name is registrable by each
+  // colleague. It used to be refused as "registered to another employee", which
+  // made one machine for several people impossible: a shared office PC has ONE
+  // Windows name. The name is unique per PERSON now; the next test keeps the
+  // same person from registering it twice.
+  it("lets a colleague register the same PC name as their own row", async () => {
     existingUnregisteredRow();
+    // Even if a row belonging to someone else came back, it is not a clash.
     state.clash = [{ employeeId: "emp-OTHER" }];
     const r = await completeDeviceRegistration(ME, { deviceName: "5CD1234ABC", consent: true });
-    expect(r).toMatchObject({ ok: false, field: "deviceName" });
-    if (!r.ok) expect(r.error).toMatch(/another employee/i);
-    expect(state.deviceUpdates).toHaveLength(0);
-    expect(state.consentInserts).toHaveLength(0);
+    expect(r).toMatchObject({ ok: true });
+    expect(state.deviceUpdates).toHaveLength(1);
+    expect(state.consentInserts).toHaveLength(1);
+  });
+
+  it("scopes the name check to the person registering", () => {
+    // The query itself, not only the guard on its result: without the
+    // employee filter a colleague's row could still be what .limit(1) returns.
+    const src = readFileSync("lib/security/device-registration.ts", "utf8");
+    const at = src.indexOf("const clash = await db");
+    expect(src.slice(at, at + 500)).toContain("eq(mobileDevices.employeeId, employee.id)");
   });
 
   it("tells an employee plainly when the clash is their own laptop", async () => {

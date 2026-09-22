@@ -33,13 +33,12 @@ export interface IncentiveMonthlyDigestProps {
   siteUrl: string;
 }
 
-const INR = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 0,
-});
+// "Rs." and not "₹": this renders inside an EMAIL, where the recipient's
+// client picks the font and a missing U+20B9 glyph shows as a box. Same reason
+// the PDF renderer spells it out — see lib/accounts/inr-format.ts.
+const INR = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 function rupees(n: number): string {
-  return INR.format(Math.round(n));
+  return `Rs. ${INR.format(Math.round(n))}`;
 }
 
 const MONTH_FMT = new Intl.DateTimeFormat("en-IN", {

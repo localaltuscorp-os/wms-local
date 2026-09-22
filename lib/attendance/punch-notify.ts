@@ -5,12 +5,13 @@ import { notify } from "@/lib/notifications/dispatch";
 import { getOrgSettings } from "@/lib/queries/org-settings";
 import {
   companyDefaults,
-  employeeSchedule,
+  employeeScheduleForWeekday,
   getEmployeeMonthStatus,
 } from "@/lib/queries/attendance-status";
 import { notifyAttendance, decideCheckoutNotification } from "@/lib/attendance/notify";
 import { toMin, lateDeductionCrossed } from "@/lib/attendance/status";
 import type { AttendanceSchedule } from "@/lib/attendance/schedule";
+import { saturdayOrdinal } from "@/lib/attendance/effective-config";
 
 /**
  * Attendance punch notifications — extracted from the web Server Action so the
@@ -36,6 +37,17 @@ type ScheduleEmp = {
   attFullDayMinutes?: number | null;
   attHalfDayMinutes?: number | null;
   weeklyTargetMinutes?: number | null;
+  // Employee schedule settings (0228). Optional for the same reason as the
+  // rest: a caller that does not select them keeps the pre-0228 behaviour —
+  // alerts fire as before — rather than failing to compile.
+  attendanceApplicable?: boolean | null;
+  sat1Working?: boolean | null;
+  sat2Working?: boolean | null;
+  sat3Working?: boolean | null;
+  sat4Working?: boolean | null;
+  sat5Working?: boolean | null;
+  satOfficialStart?: string | null;
+  satOfficialEnd?: string | null;
 };
 type NotifyEmp = ScheduleEmp & { id: string };
 type DayEmp = NotifyEmp & { timezone: string };
@@ -50,11 +62,48 @@ export function clockInTz(at: Date, tz: string): string {
   }).format(at);
 }
 
-/** Resolve an employee's effective attendance schedule (org defaults + their
- *  per-employee lateAfter/earlyBefore overrides). */
-async function resolveScheduleFor(emp: ScheduleEmp): Promise<AttendanceSchedule> {
+/**
+ * Resolve an employee's effective attendance schedule FOR ONE DATE.
+ *
+ * The date matters since 0228: Saturday can carry its own clock (Jeevan works
+ * 10:30–16:00 on Saturdays against 10:30–20:30 on weekdays), so judging a
+ * Saturday 15:45 checkout against the weekday end would email him about an
+ * early exit on a day he left on time. Same resolver the grader uses, so the
+ * alert and the graded day always agree.
+ */
+async function resolveScheduleFor(emp: ScheduleEmp, logDate: string): Promise<AttendanceSchedule> {
   const org = await getOrgSettings();
-  return employeeSchedule(emp, companyDefaults(org));
+  return employeeScheduleForWeekday(emp, companyDefaults(org), weekdayOfYmd(logDate));
+}
+
+/** Weekday 0=Sun..6=Sat of a yyyy-mm-dd calendar date. Pure UTC arithmetic, so
+ *  the answer cannot drift with the server's timezone. */
+function weekdayOfYmd(ymd: string): number {
+  return new Date(`${ymd}T00:00:00Z`).getUTCDay();
+}
+
+/**
+ * Should attendance alerts stay SILENT for this person on this date? (0228)
+ *
+ * Two cases, and both mean "no attendance was expected", so a late or half-day
+ * email would be telling someone off for a day they were never asked to work:
+ *
+ *   · attendance is not applicable to them at all (e.g. Manan);
+ *   · it is a Saturday their flags say they do not work.
+ *
+ * Deliberately NOT extended to the weekly off. Alerts on a weekly off are the
+ * pre-0228 behaviour, and several callers pass an employee row without
+ * `weeklyOff` — judging those against a default Sunday would change alerts for
+ * people this feature never touched.
+ */
+function alertsSilencedOn(emp: ScheduleEmp, logDate: string): boolean {
+  if (emp.attendanceApplicable === false) return true;
+  const ordinal = saturdayOrdinal(weekdayOfYmd(logDate), Number(logDate.slice(8, 10)));
+  if (ordinal === 0) return false;
+  const flags = [emp.sat1Working, emp.sat2Working, emp.sat3Working, emp.sat4Working, emp.sat5Working];
+  // Only an explicit `false` silences: an absent value is the column default,
+  // which is "this Saturday is worked".
+  return flags[ordinal - 1] === false;
 }
 
 /** Read an employee's folded in/out "HH:mm" (in `tz`) for one log day. */
@@ -95,7 +144,8 @@ export async function notifyOnInPunch(
   inAt: string,
 ): Promise<void> {
   try {
-    const sched = await resolveScheduleFor(emp);
+    if (alertsSilencedOn(emp, logDate)) return; // 0228 — no attendance expected today.
+    const sched = await resolveScheduleFor(emp, logDate);
     if (toMin(inAt) <= toMin(sched.lateAfter)) return; // on-time — nothing to do.
     await notifyAttendance("attendance_late", emp, { logDate, inAt });
     await maybeFireDeductionAlert(emp, logDate, inAt);
@@ -137,9 +187,10 @@ async function maybeFireDeductionAlert(
 export async function notifyOnDayFinalized(emp: DayEmp, logDate: string): Promise<void> {
   try {
     const tz = emp.timezone || "Asia/Kolkata";
+    if (alertsSilencedOn(emp, logDate)) return; // 0228 — no attendance expected.
     const { inAt, outAt } = await readDayTimes(emp.id, logDate, tz);
     if (!inAt || !outAt) return;
-    const sched = await resolveScheduleFor(emp);
+    const sched = await resolveScheduleFor(emp, logDate);
     const kind = decideCheckoutNotification({ inAt, outAt, sched });
     if (!kind) return;
     const worked = Math.max(0, toMin(outAt) - toMin(inAt));
@@ -157,9 +208,10 @@ export async function notifyOnDayFinalized(emp: DayEmp, logDate: string): Promis
 export async function notifyAdminLateDeduction(emp: DayEmp, logDate: string): Promise<void> {
   try {
     const tz = emp.timezone || "Asia/Kolkata";
+    if (alertsSilencedOn(emp, logDate)) return; // 0228 — no attendance expected.
     const { inAt } = await readDayTimes(emp.id, logDate, tz);
     if (!inAt) return;
-    const sched = await resolveScheduleFor(emp);
+    const sched = await resolveScheduleFor(emp, logDate);
     if (toMin(inAt) <= toMin(sched.lateAfter)) return; // not a late day.
     await maybeFireDeductionAlert(emp, logDate, inAt);
   } catch (err) {

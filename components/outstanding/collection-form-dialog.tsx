@@ -132,7 +132,7 @@ export function CollectionFormDialog({
             </Section>
 
             <Section title="Payment Details">
-              <Field label="Amount (₹)" required>
+              <Field label="Amount (Rs.)" required>
                 <input
                   type="number"
                   inputMode="decimal"

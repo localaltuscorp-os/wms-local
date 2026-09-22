@@ -1,32 +1,17 @@
-import { Building2 } from "lucide-react";
-import { requireAdmin } from "@/lib/auth/current";
-import { listDepartmentsWithCounts } from "@/lib/queries/departments";
-import { AdminSection } from "@/components/admin/ui/section-shell";
-import { DepartmentList } from "@/components/admin/department-list";
-import { CreateDepartmentDialog } from "@/components/admin/create-department-dialog";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function DepartmentsPage() {
-  await requireAdmin();
-  const rows = await listDepartmentsWithCounts();
-  const activeCount = rows.filter((r) => r.isActive).length;
-  const totalEmployees = rows.reduce((sum, r) => sum + r.employeeCount, 0);
-
-  return (
-    <AdminSection
-      eyebrow="Admin · Departments"
-      title="Departments"
-      subtitle={`${rows.length} total · ${activeCount} active · ${totalEmployees} employees mapped`}
-      icon={Building2}
-      stats={[
-        { label: "Total", value: rows.length },
-        { label: "Active", value: activeCount, tone: "green" },
-        { label: "Employees mapped", value: totalEmployees },
-      ]}
-      actions={<CreateDepartmentDialog />}
-    >
-      <DepartmentList departments={rows} />
-    </AdminSection>
-  );
+/**
+ * /admin/departments → /admin/functions.
+ *
+ * The screen moved when Departments became Functions (migration 0234). This
+ * stub stays because the old URL is bookmarked, linked from
+ * `department-multi-select.tsx`'s empty state, and printed in older HR
+ * documents — a 404 there would read as the feature having been removed.
+ *
+ * `permanentRedirect` is deliberately NOT used: a 308 is cached by the browser
+ * for good, which would make the old URL unusable if this ever needs to become
+ * a real page again.
+ */
+export default function DepartmentsMovedPage(): never {
+  redirect("/admin/functions");
 }

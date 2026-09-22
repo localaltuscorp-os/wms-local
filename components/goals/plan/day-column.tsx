@@ -28,6 +28,9 @@ interface Props {
   /** `ymd` = the day the copy should land on; omitted means this same day. */
   onDuplicate: (item: PlanItem, ymd?: string) => void;
   onRemove: (item: PlanItem) => void;
+  /** The viewer — see PlanBoard's own `me` prop. Read only by the status
+   *  controls in a card's detail view. */
+  me?: { id: string; isAdmin: boolean };
   onRename: (id: string, title: string) => void;
   onTransfer: (id: string, off: number) => void;
   /** Set (or clear) what time a commitment happens. */
@@ -53,6 +56,7 @@ interface Props {
 export function DayColumn({
   day,
   isToday,
+  me,
   busyId,
   onToggleDone,
   onPending,
@@ -193,6 +197,7 @@ export function DayColumn({
             <AnimatePresence initial={false}>
               {day.items.map((item) => (
                 <PlanItemCard
+                  me={me}
                   key={item.id}
                   item={item}
                   busy={busyId === item.id}

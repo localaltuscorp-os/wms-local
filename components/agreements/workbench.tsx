@@ -30,10 +30,10 @@ interface FieldDef {
 const FIELDS: Record<AgreementType, FieldDef[]> = {
   appointment: [
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
-    { key: "department", label: "Department", kind: "text", placeholder: "e.g. Operations" },
+    { key: "department", label: "Function", kind: "text", placeholder: "e.g. Operations" },
     { key: "joiningDate", label: "Joining date", kind: "date" },
-    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. ₹6,00,000" },
-    { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: ₹3,00,000\nHRA: ₹1,20,000\nSpecial allowance: ₹1,80,000" },
+    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. Rs. 6,00,000" },
+    { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: Rs. 3,00,000\nHRA: Rs. 1,20,000\nSpecial allowance: Rs. 1,80,000" },
     { key: "probationMonths", label: "Probation (months)", kind: "text", placeholder: "e.g. 6" },
     { key: "reportingTo", label: "Reporting to", kind: "text", placeholder: "e.g. Manan Vasa" },
     { key: "workLocation", label: "Work location", kind: "text", placeholder: "e.g. Ahmedabad" },
@@ -42,10 +42,10 @@ const FIELDS: Record<AgreementType, FieldDef[]> = {
   ],
   employment: [
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
-    { key: "department", label: "Department", kind: "text", placeholder: "e.g. Operations" },
+    { key: "department", label: "Function", kind: "text", placeholder: "e.g. Operations" },
     { key: "joiningDate", label: "Effective date", kind: "date" },
-    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. ₹6,00,000" },
-    { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: ₹3,00,000\nHRA: ₹1,20,000" },
+    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. Rs. 6,00,000" },
+    { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: Rs. 3,00,000\nHRA: Rs. 1,20,000" },
     { key: "noticePeriod", label: "Notice period", kind: "text", placeholder: "e.g. 60 days" },
     { key: "extraClauses", label: "Extra clauses (one per line)", kind: "textarea", placeholder: "Optional additional terms" },
   ],
@@ -57,13 +57,13 @@ const FIELDS: Record<AgreementType, FieldDef[]> = {
   ctc: [
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
     { key: "joiningDate", label: "Effective date", kind: "date" },
-    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. ₹6,00,000" },
-    { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: ₹3,00,000\nHRA: ₹1,20,000\nSpecial allowance: ₹1,80,000" },
+    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. Rs. 6,00,000" },
+    { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: Rs. 3,00,000\nHRA: Rs. 1,20,000\nSpecial allowance: Rs. 1,80,000" },
     { key: "extraClauses", label: "Extra clauses (one per line)", kind: "textarea", placeholder: "Optional additional terms" },
   ],
   probation_confirmation: [
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
-    { key: "department", label: "Department", kind: "text", placeholder: "e.g. Operations" },
+    { key: "department", label: "Function", kind: "text", placeholder: "e.g. Operations" },
     { key: "probationEndDate", label: "Probation ended on", kind: "date" },
     { key: "effectiveDate", label: "Confirmed with effect from", kind: "date" },
     { key: "noticePeriod", label: "Notice period", kind: "text", placeholder: "e.g. 30 days" },
@@ -73,7 +73,7 @@ const FIELDS: Record<AgreementType, FieldDef[]> = {
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
     { key: "trainingEndDate", label: "Training ended on", kind: "date" },
     { key: "effectiveDate", label: "Salary payable from", kind: "date" },
-    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. ₹6,00,000" },
+    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. Rs. 6,00,000" },
     { key: "extraClauses", label: "Extra clauses (one per line)", kind: "textarea", placeholder: "Optional additional terms" },
   ],
 };
@@ -84,7 +84,7 @@ function fmtCtc(annual: string | null): string {
   if (!annual) return "";
   const n = Number(annual);
   if (!Number.isFinite(n) || n <= 0) return annual;
-  return `₹${n.toLocaleString("en-IN")}`;
+  return `Rs. ${n.toLocaleString("en-IN")}`;
 }
 
 /**

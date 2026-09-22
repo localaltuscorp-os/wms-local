@@ -8,6 +8,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+import { formatDate } from "@/lib/format";
 
 export function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: MOBILE_CORS });
@@ -35,15 +36,13 @@ function monthLabel(month: string): string {
   );
 }
 
-/** "2026-06-04" → "Wed, 4 Jun 2026". UTC-noon so it never crosses a boundary. */
+/** "2026-06-04" → "Wed, 04-Jun-2026". UTC-noon so it never crosses a boundary. */
 function dateLabel(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-IN", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(Date.UTC(y ?? 2026, (m ?? 1) - 1, d ?? 1, 12)));
+  const weekday = new Intl.DateTimeFormat("en-IN", { weekday: "short" }).format(
+    new Date(Date.UTC(y ?? 2026, (m ?? 1) - 1, d ?? 1, 12)),
+  );
+  return `${weekday}, ${formatDate(date)}`;
 }
 
 /**

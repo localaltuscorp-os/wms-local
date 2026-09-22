@@ -22,20 +22,21 @@ type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 const TitleSchema = z.string().trim().min(1, "Give the policy a title").max(200, "Title too long");
 
 /**
- * Policies are company-wide to READ and narrow to WRITE: only Manan, Ruchita
- * and Rutvisha publish or remove one (lib/hr/policies/access.ts). This replaced
- * an `isAdmin || isSuperAdmin` check on 2026-09-17 — being an admin is no
- * longer enough, because more people hold that flag than should hold the pen.
+ * Policies are company-wide to READ and narrow to WRITE: HR staff and
+ * super-admins publish or remove one (lib/hr/policies/access.ts). It was an
+ * `isAdmin || isSuperAdmin` check until 2026-09-17 — more people hold the admin
+ * flag than should hold the pen — and three named people until 2026-09-21, which
+ * meant a deploy to change who they were.
  */
-function canPublish(me: Employee): boolean {
-  return canPublishPolicies(me, DUMMY_MODE);
+async function canPublish(me: Employee): Promise<boolean> {
+  return await canPublishPolicies(me, DUMMY_MODE);
 }
 
 /** Upload one policy document. FormData: title, category, description?, file. */
 export async function uploadPolicy(form: FormData): Promise<Result<{ id: string }>> {
   if (!hrSupportEnabled()) return { ok: false, error: "HR module is off." };
   const me = await requireUser();
-  if (!canPublish(me)) return { ok: false, error: "Forbidden" };
+  if (!(await canPublish(me))) return { ok: false, error: "Forbidden" };
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -89,7 +90,7 @@ export async function uploadPolicy(form: FormData): Promise<Result<{ id: string 
 export async function deletePolicy(id: string): Promise<Result> {
   if (!hrSupportEnabled()) return { ok: false, error: "HR module is off." };
   const me = await requireUser();
-  if (!canPublish(me)) return { ok: false, error: "Forbidden" };
+  if (!(await canPublish(me))) return { ok: false, error: "Forbidden" };
   if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Invalid id" };
 
   const [row] = await db

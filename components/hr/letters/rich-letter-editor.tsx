@@ -1340,10 +1340,21 @@ const RLE_CSS = `
 }
 /* Toolbar - sticky, premium Google-Docs pill bar */
 .rle-toolbar{
-  /* Directly below the letter's controls bar, touching it (the -1px folds the two
-     borders together) - any gap let the letter text show through between them.
-     See --alw-bar-h in letter-editor.tsx. */
-  position:sticky;top:calc(var(--alw-bar-h, 0px) - 1px);z-index:40;
+  /* top:8px used to be right, when the outer editing band (.alw-toolbar) sat at
+     top:60px below a sticky title band. That band is gone and .alw-toolbar now
+     pins at top:0, so 8px slid THIS toolbar up OVER the editing band — the band
+     (Paying Entity / Employee / Signed by) disappeared behind it as soon as you
+     scrolled, which read as "edit freely hides it when I scroll".
+
+     72px was the replacement, and it was a hand-measurement: "the band is about
+     60px, plus a hair of air". True only for the band it was measured on - three
+     pickers on one line, no wrapping. Add a picker (Signing appears in this very
+     mode) or narrow the window so the band wraps to a second line, and the band is
+     100px, not 60 - and 72px pins this toolbar INSIDE it, the two overlapping.
+     So the offset is no longer a number, it is the band's OWN measured height,
+     published as --alw-toolbar-h by a ResizeObserver in letter-editor.tsx (which
+     owns the band). 61px is the pre-measurement fallback: one un-wrapped row. */
+  position:sticky;top:calc(var(--alw-toolbar-h, 61px) + 6px);z-index:40;
   display:flex;flex-wrap:nowrap;overflow-x:auto;align-items:center;justify-content:safe center;gap:2px;
   padding:6px 8px;
   background:rgba(255,255,255,.92);

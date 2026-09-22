@@ -322,8 +322,16 @@ describe("Admin Panel shortcut", () => {
     expect(push).toHaveBeenCalledWith(MODULE_THEME["admin"].href);
     push.mockReset();
 
+    // Incentive's mnemonic letter opens it. (Its branch had it on F, the
+    // positional scheme's last key — F must NOT open it here, see below.)
+    key("KeyI");
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith(MODULE_THEME["incentive"].href);
+    push.mockReset();
+
     // A letter no module and no panel claims must do nothing at all, rather
     // than falling through to whichever room happens to be first.
+    key("KeyF");
     key("KeyZ");
     expect(push).not.toHaveBeenCalled();
   });

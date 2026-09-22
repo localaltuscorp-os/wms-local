@@ -208,7 +208,7 @@ export function VasaBalances({
    * lib/accounts/vasa-match.ts.
    */
   function saveCell(row: string, col: string, rawInput: string) {
-    const trimmed = rawInput.replace(/[,\s₹]/g, "").trim();
+    const trimmed = rawInput.replace(/\brs\.?/gi, "").replace(/[,\s₹]/g, "").trim();
     const num = trimmed === "" || trimmed === "-" ? 0 : Number(trimmed);
     if (!Number.isFinite(num)) { fireToast({ message: "Enter a number.", type: "error" }); return; }
     const target = asOn;

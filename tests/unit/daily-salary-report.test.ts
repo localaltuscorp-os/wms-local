@@ -89,7 +89,7 @@ const PT_SCHED = toAttendanceSchedule(PT);
 /**
  * August 2026. Chosen because 1 August is a SATURDAY, so the month opens with a
  * two-day partial week (Sat 1 – Sun 2) exactly like the spec's own §2 example
- * — "WEEK 1 · 01 Aug – 02 Aug". That partial week is where a naive weekly
+ * — "WEEK 1 · 01-Aug-2026 – 02-Aug-2026". That partial week is where a naive weekly
  * grouping goes wrong, so it is worth having in every fixture.
  */
 const MONTH = "2026-08";
@@ -752,10 +752,10 @@ describe("weeks", () => {
   it("opens August 2026 with the two-day partial week the spec shows", () => {
     const l = ledgerFor(gradeMonth());
     expect(l.weeks[0]!.index).toBe(1);
-    expect(l.weeks[0]!.rangeLabel).toBe("01 Aug – 02 Aug");
+    expect(l.weeks[0]!.rangeLabel).toBe("01-Aug-2026 – 02-Aug-2026");
     expect(l.weeks[0]!.days.map((d) => d.date)).toEqual(["2026-08-01", "2026-08-02"]);
     // …then full Monday-anchored weeks.
-    expect(l.weeks[1]!.rangeLabel).toBe("03 Aug – 09 Aug");
+    expect(l.weeks[1]!.rangeLabel).toBe("03-Aug-2026 – 09-Aug-2026");
     expect(l.weeks[1]!.days).toHaveLength(7);
   });
 
@@ -841,8 +841,8 @@ describe("weeks", () => {
     // The month's FIRST week is the two-day 01–02 Aug portion, so that is the
     // one that starts at zero — a balance never crosses a month boundary.
     expect(l.weeks[0]!.engine!.carryInMinutes).toBe(0);
-    const w2 = l.weeks.find((w) => w.rangeLabel === "03 Aug – 09 Aug")!;
-    const w3 = l.weeks.find((w) => w.rangeLabel === "10 Aug – 16 Aug")!;
+    const w2 = l.weeks.find((w) => w.rangeLabel === "03-Aug-2026 – 09-Aug-2026")!;
+    const w3 = l.weeks.find((w) => w.rangeLabel === "10-Aug-2026 – 16-Aug-2026")!;
     // 01 Aug is a Saturday worked 11h against a 9h prorated target, so week 2
     // opens with that 2h surplus banked.
     expect(w2.engine!.carryInMinutes).toBe(2 * 60);
@@ -1098,21 +1098,21 @@ describe("formatting", () => {
   });
 
   it("formats rupees in Indian grouping", () => {
-    expect(inr(1234567)).toBe("₹12,34,567");
-    expect(inr(1500.5)).toBe("₹1,500.50");
-    expect(inr(0)).toBe("₹0");
+    expect(inr(1234567)).toBe("Rs. 12,34,567");
+    expect(inr(1500.5)).toBe("Rs. 1,500.50");
+    expect(inr(0)).toBe("Rs. 0");
   });
 
-  it("shows an adjustment of nothing as a dash, not as ₹0", () => {
+  it("shows an adjustment of nothing as a dash, not as Rs. 0", () => {
     expect(signedInr(0)).toBe("—");
     expect(signedInr(null)).toBe("—");
-    expect(signedInr(-450)).toBe("−₹450");
-    expect(signedInr(120)).toBe("+₹120");
+    expect(signedInr(-450)).toBe("−Rs. 450");
+    expect(signedInr(120)).toBe("+Rs. 120");
   });
 
   it("keeps dates compact and 24-hour, as the spec asks", () => {
-    expect(shortDate("2026-08-10")).toBe("10 Aug");
-    expect(shortDate("2026-12-01")).toBe("01 Dec");
+    expect(shortDate("2026-08-10")).toBe("10-Aug-2026");
+    expect(shortDate("2026-12-01")).toBe("01-Dec-2026");
     expect(shortDow(1)).toBe("Mon");
     expect(shortDow(0)).toBe("Sun");
     // The grader stores "HH:mm" in 24h already, so the report never converts.
@@ -1181,7 +1181,7 @@ describe("ledgerReconciles", () => {
     expect(ledgerReconciles(l)).toBe(false);
   });
 
-  it("rejects a run that was never generated properly (gross ₹0)", () => {
+  it("rejects a run that was never generated properly (gross Rs. 0)", () => {
     // Real case: several stored August 2026 runs carry a gross of ₹0 against a
     // month with hundreds of worked hours.
     expect(ledgerReconciles(withGross(0))).toBe(false);

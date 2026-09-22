@@ -97,8 +97,9 @@ export async function pendingDeviceRegistration(employee: Employee): Promise<Pen
   const cookieId = await readDeviceCookieValue();
 
   if (cookieId) {
+    // THIS person's row for the machine — a shared PC has one per person (0243).
     const row = await db.query.mobileDevices.findFirst({
-      where: eq(mobileDevices.deviceId, cookieId),
+      where: and(eq(mobileDevices.deviceId, cookieId), eq(mobileDevices.employeeId, employee.id)),
     });
     if (row && row.employeeId === employee.id) {
       // Already been through the form — never ask twice.
@@ -175,29 +176,27 @@ export async function completeDeviceRegistration(
     // than a constraint violation. The UNIQUE index remains the guarantee —
     // this is the message. (Two registrations racing on one name still hit
     // the index, which is caught below.)
+    //
+    // PER PERSON since 0243. A shared office PC carries ONE Windows name, and
+    // each colleague who uses it registers it under that same name — refusing
+    // the second one ("already registered to another employee") was the wall
+    // that made one machine for several people impossible. What stays refused
+    // is the same person registering the same name twice.
     const clash = await db
       .select({ employeeId: mobileDevices.employeeId })
       .from(mobileDevices)
       .where(
         and(
           eq(mobileDevices.kind, "laptop"),
+          eq(mobileDevices.employeeId, employee.id),
           sql`lower(${mobileDevices.deviceName}) = lower(${deviceName})`,
           pending.deviceRowId ? ne(mobileDevices.id, pending.deviceRowId) : undefined,
         ),
       )
       .limit(1);
 
-    const clashRow = clash[0];
-    if (clashRow) {
-      const mine = clashRow.employeeId === employee.id;
-      return {
-        ok: false,
-        field: "deviceName",
-        error: mine
-          ? "This laptop is already registered to you."
-          : "This device name is already registered to another employee. If you both see the same "
-          + "name, rename your PC in Settings › System › About › Rename this PC, then register again.",
-      };
+    if (clash[0] && clash[0].employeeId === employee.id) {
+      return { ok: false, field: "deviceName", error: "This laptop is already registered to you." };
     }
   }
 
@@ -276,6 +275,11 @@ export async function completeDeviceRegistration(
     return { ok: true, deviceRowId: rowId };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    // 0243's per-person name index: the same person, the same name, twice.
+    if (msg.includes("mobile_devices_device_name_employee_uq")) {
+      return { ok: false, field: "deviceName", error: "This laptop is already registered to you." };
+    }
+    // The pre-0243 GLOBAL name index, still present until the migration runs.
     if (msg.includes("mobile_devices_device_name_uq")) {
       return {
         ok: false,

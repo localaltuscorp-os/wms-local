@@ -7,6 +7,7 @@ import {
   MAX_EXPORT_ROWS,
 } from "@/lib/exports/csv";
 import { defaultScopeId } from "@/lib/auth/default-scope";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
  * GET /tasks/export
@@ -45,6 +46,12 @@ const iso = (d: Date | null | undefined): string =>
   d ? d.toISOString() : "";
 
 export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate. A route handler renders no layout, so `requirePathView`
+  // never runs for it: without this, revoking a module hides its screen while
+  // this endpoint keeps answering. First in the body, so a denied caller is
+  // refused before the handler does any work (rendering, mailing, Chromium).
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   // Admin-only — UI hides the CSV button for non-admins; this guard
   // prevents direct-URL access. requireAdmin throws if not admin →
   // we re-respond as a clean 403 (matches the XLSX + PDF route shape).

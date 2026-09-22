@@ -6,7 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
 import {
-  ChevronDown, ChevronRight, Plus, Trash2, Copy, ArrowUp, ArrowDown,
+  Archive, ChevronDown, ChevronRight, Plus, Trash2, Copy, ArrowUp, ArrowDown,
   Loader2, CalendarCheck2, CircleDashed, FolderPlus, SlidersHorizontal,
   Maximize2, Minimize2, X, Layers, Search, Download, ArrowUpDown,
   Columns3, Check, GripVertical, Pencil, ChevronUp, Eye, List, LayoutGrid, Table2, Link2,
@@ -21,7 +21,7 @@ import { describeProgress, toPercent, nodeFraction, formatCompletion, milestoneC
 import { PLAN_STATUS_LABEL, effectivePlanStatus, isSelfRaisedNode } from "@/lib/project-plan/status";
 import { APPROVER_LABEL, approverDisplay } from "@/lib/status/approver-status";
 import {
-  createPlanNode, updatePlanNode, deletePlanNode, duplicatePlanNode,
+  createPlanNode, updatePlanNode, deletePlanNode, purgePlanNode, duplicatePlanNode,
   movePlanNode, planDeleteImpact,
 } from "@/app/(app)/project-plan/actions";
 import { PRIORITY_LABELS, TASK_PRIORITIES, type TaskStatus, type TaskPriority } from "@/db/enums";
@@ -40,6 +40,7 @@ import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-ce
 import { PlanAttachmentPanel } from "./plan-attachment-cell";
 import { normaliseUrl } from "./plan-links-cell";
 import { PlanProgressCell } from "./plan-progress-cell";
+import { PlanPlacePanel } from "@/components/project-plan/plan-place-panel";
 
 /**
  * Project Plan — the hierarchy table.
@@ -76,6 +77,9 @@ export interface PlanRow {
   priority: TaskPriority | null;
   /** Reference links (migration 0214). Empty when there are none. */
   links: string[];
+  /** The client, HELD on the Project; null on the rows beneath it, which
+   *  inherit it rather than repeat it. */
+  clientName: string | null;
   /** "YYYY-MM-DD" */
   targetDate: string | null;
   durationMinutes: number | null;
@@ -127,6 +131,9 @@ interface Props {
    *  once. Used by the bulk bar's status dropdown; the per-row chips get their
    *  own vocabulary from lib/project-plan/status.ts. */
   labels: Record<TaskStatus, string>;
+  /** The client roster, for the Client column's picker. A project's client is
+   *  free text in the column, so this is a convenience list, not a constraint. */
+  clients: string[];
   isAdmin: boolean;
   /** The viewer, and everyone who reports to them — the two inputs the status
    *  picker needs to work out what this person may set on a given row. Exactly
@@ -167,14 +174,25 @@ const ALL_COLUMNS = [
   { key: "ref", label: "Ref", width: "w-[124px]", fixed: true },
   { key: "controls", label: "Controls", width: "w-[156px]", fixed: true },
   { key: "name", label: "Result / Action", width: "", fixed: true },
+  // DESCRIPTION, SECOND. It was the last column, on the reasoning that it is
+  // "a paragraph in a row of short cells". Two things changed: it is required
+  // before an executable row can be scheduled, and it is the text that becomes
+  // the task's own description — the line the WMS Task column actually renders.
+  // That makes it the second thing you read about a row, right after what the
+  // row is called, and a required field parked past ten other columns is one
+  // nobody finds.
+  { key: "description", label: "Description", width: "w-[280px]", fixed: false },
   { key: "owner", label: "Owner", width: "w-[176px]", fixed: false },
+  // THE CLIENT. Held on the PROJECT and inherited by everything under it, so
+  // the cell is editable on a project row and a read-only echo elsewhere. It is
+  // here rather than only in the create dialog because a project made before
+  // clients existed — or through the inline "+ New project" — had no way to get
+  // one, which left every task under it filed against nothing.
+  { key: "client", label: "Client", width: "w-[168px]", fixed: false },
   // Status and Progress work on EVERY level — one vocabulary for the module,
   // per brief §6/§8. Where the value lands differs by level, but that is
   // `setPlanNodeStatus`'s business, not this table's.
-  // Two statuses, as in WMS Tasks and Goals (2026-09-15): the doer's progress
-  // and the Initiator Status ruling on it.
   { key: "status", label: "Doer Status", width: "w-[188px]", fixed: false },
-  { key: "approver", label: "Initiator Status", width: "w-[196px]", fixed: false },
   { key: "progress", label: "Progress", width: "w-[136px]", fixed: false },
   // The two task-side columns. They render only on executable rows, because a
   // Project or a Milestone has no task to carry a doer or a flag.
@@ -216,7 +234,6 @@ const ALL_COLUMNS = [
   { key: "from", label: "From", width: "w-[144px]", fixed: false },
   { key: "to", label: "To", width: "w-[144px]", fixed: false },
   { key: "wms", label: "WMS", width: "w-[148px]", fixed: false },
-  { key: "description", label: "Description", width: "w-[280px]", fixed: false },
 ] as const;
 
 type ColKey = (typeof ALL_COLUMNS)[number]["key"];
@@ -238,8 +255,12 @@ const ALL_COLS = new Set<ColKey>(OPTIONAL_COLUMNS.map((c) => c.key));
  * is visible without opening a menu.
  */
 const HIDDEN_BY_DEFAULT: ReadonlySet<ColKey> = new Set<ColKey>([
-  "from", "to", "description", "wms",
+  "from", "to", "wms",
 ]);
+
+// DESCRIPTION IS VISIBLE BY DEFAULT. Scheduling a row refuses while it is
+// empty, so hiding the only inline place to fill it left people stuck behind a
+// menu they had no reason to open.
 
 const DEFAULT_COLS = new Set<ColKey>(
   [...ALL_COLS].filter((k) => !HIDDEN_BY_DEFAULT.has(k)),
@@ -373,6 +394,14 @@ function csvCell(v: string): string {
   return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
+export interface PlanAncestry {
+  project: { ref: string; name: string } | null;
+  milestone: { ref: string; name: string } | null;
+  result: { ref: string; name: string } | null;
+}
+
+const EMPTY_ANCESTRY: PlanAncestry = { project: null, milestone: null, result: null };
+
 /** What the detail dialog needs: the row plus the two things only the flatten
  *  pass knows — its derived REF and its ancestor names. */
 export interface DetailTarget {
@@ -382,6 +411,7 @@ export interface DetailTarget {
    *  shown in the detail dialog and the export, never in a table cell. */
   fullRef: string;
   path: string[];
+  ancestry: PlanAncestry;
 }
 
 /** One flattened, visible row: the node plus everything the render needs. */
@@ -400,6 +430,9 @@ interface FlatRow {
   isLast: boolean;
   /** Ancestor names, outermost first — the hover card's breadcrumb. */
   path: string[];
+  /** Project / Milestone / Result, named and numbered — the detail dialog's
+   *  "Plan location" panel. */
+  ancestry: PlanAncestry;
 }
 
 function flatten(
@@ -409,11 +442,21 @@ function flatten(
   out: FlatRow[],
   parentPath: string[] = [],
   parentFullRef: string | null = null,
+  parentAncestry: PlanAncestry = EMPTY_ANCESTRY,
 ): void {
   nodes.forEach((node, i) => {
     const ref = refFor(node.kind, i + 1, parentRef);
     const fullRef = fullRefFor(node.kind, i + 1, parentFullRef);
     const hasChildren = node.children.length > 0;
+    // The row overwrites its OWN level and inherits the rest. `ref` is already
+    // the label the table prints for this row — P1 / M3 / RB — so the panel and
+    // the row can only ever show the same number.
+    const self = { ref, name: node.name };
+    const ancestry: PlanAncestry = {
+      project: node.kind === "project" ? self : parentAncestry.project,
+      milestone: node.kind === "milestone" ? self : parentAncestry.milestone,
+      result: node.kind === "result" ? self : parentAncestry.result,
+    };
     out.push({
       node,
       depth: KIND_DEPTH[node.kind],
@@ -423,9 +466,10 @@ function flatten(
       isFirst: i === 0,
       isLast: i === nodes.length - 1,
       path: parentPath,
+      ancestry,
     });
     if (hasChildren && !collapsed.has(node.id)) {
-      flatten(node.children, collapsed, ref, out, [...parentPath, node.name], fullRef);
+      flatten(node.children, collapsed, ref, out, [...parentPath, node.name], fullRef, ancestry);
     }
   });
 }
@@ -457,13 +501,40 @@ function initialCollapsed(nodes: PlanRow[]): Set<string> {
   return out;
 }
 
-export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, me, downline, initialView = "list" }: Props) {
+export function PlanBoard({ level, tree, employees, canManage, labels, clients, isAdmin, me, downline, initialView = "list" }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   /** The viewer's downline as a set — rebuilt only when the list itself does,
    *  because every row's status picker asks it two questions on every render. */
   const downlineSet = React.useMemo(() => new Set(downline), [downline]);
   const [collapsed, setCollapsed] = React.useState<Set<string>>(() => initialCollapsed(tree));
+
+  /**
+   * WHICH CLIENT A ROW IS FOR — the browser's copy of `clientForNode`.
+   *
+   * Walked down from each project rather than up from each row: one pass over
+   * the tree fills every descendant, where an upward walk per row would re-walk
+   * the same spine once per cell. A row inherits the NEAREST ancestor that
+   * actually holds a client, which is the same rule the server applies, so the
+   * cell and the task it produces can never disagree.
+   */
+  const clientByNode = React.useMemo(() => {
+    const out = new Map<string, string | null>();
+    const walk = (ns: PlanRow[], inherited: string | null) => {
+      for (const nd of ns) {
+        const own = nd.clientName?.trim() || null;
+        const effective = own ?? inherited;
+        out.set(nd.id, effective);
+        walk(nd.children, effective);
+      }
+    };
+    walk(tree, null);
+    return out;
+  }, [tree]);
+  const clientOf = React.useCallback(
+    (nodeId: string) => clientByNode.get(nodeId) ?? null,
+    [clientByNode],
+  );
   const [busy, setBusy] = React.useState<string | null>(null);
   /**
    * `pending` matters, not just `startTransition`: it stays true through the
@@ -682,7 +753,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
       return;
     }
     const row = shownRows.find((r) => r.node.id === id);
-    if (row) openDetail({ node: row.node, ref: row.ref, fullRef: row.fullRef, path: row.path });
+    if (row) openDetail({ node: row.node, ref: row.ref, fullRef: row.fullRef, path: row.path, ancestry: row.ancestry });
   }
 
   /** Header tick: select everything on screen, or clear it. */
@@ -894,6 +965,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
         controls: "",
         name: n.name,
         owner: n.ownerName ?? "",
+        client: clientOf(n.id) ?? "",
         // Same fallback the Doer column draws: a container has no task, so the
         // person on it is its owner.
         doer: n.task?.doerName ?? n.ownerName ?? "",
@@ -911,14 +983,13 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
         from: hm(n.startsAt),
         to: hm(n.endsAt),
         wms: n.task ? n.task.statusLabel : isExecutable(n.kind) ? "Not scheduled" : "",
-        // The same three derivations the screen shows, from the same functions
+        // The same derivations the screen shows, from the same functions
         // — so an exported number can never disagree with the cell it came from.
         status: PLAN_STATUS_LABEL[effectivePlanStatus(
           isExecutable(n.kind) && n.task ? n.task.status : n.status,
           null,
           false,
         )],
-        approver: APPROVER_LABEL[approverDisplay(n.approvalStatus, isSelfRaisedNode(n))],
         progress: isExecutable(n.kind)
           ? ""
           : n.kind === "project"
@@ -942,7 +1013,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  }, [rows, shownCols]);
+  }, [rows, shownCols, clientOf]);
 
   async function remove(node: PlanRow) {
     // This call sits OUTSIDE run(), so it needs the same guard: on an expired
@@ -961,15 +1032,60 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
     }
     const childCount = impact.ok ? impact.nodes : 0;
     const taskCount = impact.ok ? impact.tasks : 0;
-    const parts = [`Delete ${KIND_LABEL[node.kind].toLowerCase()} “${node.name}”?`];
-    if (childCount > 0) parts.push(`This also removes ${childCount} row${childCount === 1 ? "" : "s"} beneath it.`);
+    const parts = [`Archive ${KIND_LABEL[node.kind].toLowerCase()} “${node.name}”?`];
+    // `planDeleteImpact` already subtracts the row itself, so this count is
+    // the descendants and needs no adjusting here.
+    if (childCount > 0)
+      parts.push(`This also archives ${childCount} row${childCount === 1 ? "" : "s"} beneath it.`);
     if (taskCount > 0) parts.push(`${taskCount} linked task${taskCount === 1 ? "" : "s"} will be archived and removed from WMS and the calendar.`);
+    parts.push("Nothing is deleted — archived rows can be brought back.");
     if (!window.confirm(parts.join("\n\n"))) return;
-    run(`del:${node.id}`, () => deletePlanNode(node.id), "Deleted.");
+    run(`del:${node.id}`, () => deletePlanNode(node.id), "Archived.");
+  }
+
+  /**
+   * PERMANENTLY DELETE this row — the pair to Archive, same as the WMS task
+   * list carries. Archive is for work that is finished with; this is for a row
+   * that should never have existed.
+   *
+   * Admin-only on the server. The confirmation spells out that it cannot be
+   * undone AND offers Archive by name, because the two are one mis-click apart.
+   */
+  async function purge(node: PlanRow) {
+    let impact: Awaited<ReturnType<typeof planDeleteImpact>>;
+    try {
+      impact = await planDeleteImpact(node.id);
+    } catch {
+      fireToast({
+        message: "Couldn't check what this delete affects — your session may have expired. Sign in again.",
+        type: "error",
+      });
+      router.refresh();
+      return;
+    }
+    const childCount = impact.ok ? impact.nodes : 0;
+    const taskCount = impact.ok ? impact.tasks : 0;
+    const parts = [`Permanently delete ${KIND_LABEL[node.kind].toLowerCase()} “${node.name}”?`];
+    if (childCount > 0)
+      parts.push(`This also deletes ${childCount} row${childCount === 1 ? "" : "s"} beneath it.`);
+    if (taskCount > 0)
+      parts.push(`${taskCount} linked task${taskCount === 1 ? "" : "s"} will be deleted from WMS, with their history.`);
+    parts.push("This cannot be undone. Use Archive instead if you only want it off the board.");
+    if (!window.confirm(parts.join("\n\n"))) return;
+    run(`purge:${node.id}`, () => purgePlanNode(node.id), "Deleted.");
   }
 
   const board = (
     <section className={fullscreen ? "flex h-full flex-col" : "flex flex-col"}>
+      {/* The Client column's suggestions. ONE datalist for the whole table
+          rather than one per row: the roster is the same for every project, and
+          a copy per row on a 200-row plan is 200 identical option lists in the
+          DOM. Free text either way — the roster suggests, it does not refuse. */}
+      <datalist id="plan-client-roster">
+        {clients.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
       {/* ── Title row — name, the shape of what is on screen, full screen. ── */}
       <header className="mb-3 flex flex-wrap items-center gap-3">
         <h1
@@ -1206,7 +1322,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
                   icon={<Eye size={14} strokeWidth={2.2} />}
                   onClick={() => {
                     const r = selectedRows[0]!;
-                    openDetail({ node: r.node, ref: r.ref, fullRef: r.fullRef, path: r.path });
+                    openDetail({ node: r.node, ref: r.ref, fullRef: r.fullRef, path: r.path, ancestry: r.ancestry });
                   }}
                 >
                   View detail
@@ -1216,7 +1332,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
                 icon={<Pencil size={14} strokeWidth={2.2} />}
                 onClick={() => {
                   const targets = selectedRows.map((r) => ({
-                    node: r.node, ref: r.ref, fullRef: r.fullRef, path: r.path,
+                    node: r.node, ref: r.ref, fullRef: r.fullRef, path: r.path, ancestry: r.ancestry,
                   }));
                   if (targets.length === 1) setEditing(targets[0]!);
                   else setBulkEditing(targets);
@@ -1382,6 +1498,8 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
                 onAddChild={addChild}
                 onRun={run}
                 onDelete={remove}
+                onPurge={purge}
+                canPurge={isAdmin}
                 detailOpen={detail?.node.id === row.node.id}
                 onOpenDetail={openDetail}
                 shownCols={shownCols}
@@ -1392,6 +1510,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, isAdmin, 
                 canManage={canManage}
                 me={me}
                 downlineSet={downlineSet}
+                clientOf={clientOf}
               />
             ))}
 
@@ -1527,9 +1646,9 @@ function Th({ children, className = "" }: { children: React.ReactNode; className
 /* ────────────────────────────── One row ────────────────────────────── */
 
 function Row({
-  row, collapsed, employees, busyKey, treeBusy, onToggle, onAddChild, onRun, onDelete,
+  row, collapsed, employees, busyKey, treeBusy, onToggle, onAddChild, onRun, onDelete, onPurge, canPurge,
   detailOpen, onOpenDetail, shownCols, selected, onToggleSelect, onOpenTask,
-  isAdmin, canManage, me, downlineSet,
+  isAdmin, canManage, me, downlineSet, clientOf,
 }: {
   row: FlatRow;
   collapsed: boolean;
@@ -1547,6 +1666,9 @@ function Row({
   onAddChild: (node: PlanRow) => void;
   onRun: (key: string, fn: () => Promise<{ ok: boolean; error?: string }>, okMessage?: string) => void;
   onDelete: (node: PlanRow) => void;
+  /** Permanent delete — admin-only, and a different question from Archive. */
+  onPurge: (node: PlanRow) => void;
+  canPurge: boolean;
   detailOpen: boolean;
   onOpenDetail: (t: DetailTarget | null) => void;
   shownCols: ColKey[];
@@ -1558,8 +1680,10 @@ function Row({
   canManage: boolean;
   me: { id: string; isAdmin: boolean };
   downlineSet: ReadonlySet<string>;
+  /** The client this row is filed under — its own, or the nearest ancestor's. */
+  clientOf: (nodeId: string) => string | null;
 }) {
-  const { node, depth, ref: rowRef, fullRef, hasChildren, isFirst, isLast, path } = row;
+  const { node, depth, ref: rowRef, fullRef, hasChildren, isFirst, isLast, path, ancestry } = row;
   const childKind = CHILD_KIND[node.kind];
   const executable = isExecutable(node.kind);
   /**
@@ -1687,7 +1811,7 @@ function Row({
                     <span className="mr-1 inline-block size-5 shrink-0" aria-hidden />
                   )}
                   <button
-                    onClick={() => onOpenDetail(detailOpen ? null : { node, ref: rowRef, fullRef, path })}
+                    onClick={() => onOpenDetail(detailOpen ? null : { node, ref: rowRef, fullRef, path, ancestry })}
                     className="rounded px-1.5 py-0.5 text-[12px] font-bold tabular-nums transition-opacity hover:opacity-75"
                     style={
                       detailOpen
@@ -1730,8 +1854,17 @@ function Row({
                   <IconBtn label="Duplicate" onClick={() => onRun(`dup:${node.id}`, () => duplicatePlanNode(node.id), "Duplicated.")} disabled={rowBusy}>
                     <Copy size={13} />
                   </IconBtn>
-                  <IconBtn label="Delete" onClick={() => onDelete(node)} disabled={rowBusy} danger>
-                    <Trash2 size={13} />
+                  {/* DELETE then ARCHIVE — the same pair, in the same order,
+                      as the WMS task list's row actions. Two different
+                      questions: "this should never have existed" and "this is
+                      finished with". Both on every level. */}
+                  {canPurge && (
+                    <IconBtn label="Delete permanently" onClick={() => onPurge(node)} disabled={rowBusy} danger>
+                      <Trash2 size={13} />
+                    </IconBtn>
+                  )}
+                  <IconBtn label="Archive" onClick={() => onDelete(node)} disabled={rowBusy} danger>
+                    <Archive size={13} />
                   </IconBtn>
                   {rowBusy && <Loader2 size={13} className="ml-0.5 animate-spin text-ink-subtle" />}
                 </div>
@@ -1785,14 +1918,6 @@ function Row({
             return (
               <td key={key} className={pad}>
                 <PlanStatusCell node={node} actor={actor} linkedToTask={!!node.task} />
-              </td>
-            );
-
-          // ── Initiator Status ──────────────────────────────────
-          case "approver":
-            return (
-              <td key={key} className={pad}>
-                <PlanApproverCell node={node} actor={actor} />
               </td>
             );
 
@@ -1918,6 +2043,46 @@ function Row({
                 </select>
               </td>
             );
+
+          // ── Client ────────────────────────────────────────────────────────
+          // Editable ON THE PROJECT and nowhere else: everything below inherits
+          // it, and a second copy on a milestone is how one plan ends up naming
+          // two clients. The lower rows echo the inherited value, greyed, so it
+          // is visible without being editable — a blank cell there would read as
+          // "no client" when the answer is "the project's".
+          //
+          // A datalist, not a select: `tasks.client` is free text (the clients
+          // table is a picker roster, not a constraint), so the roster suggests
+          // without refusing a name that is not on it yet.
+          case "client": {
+            if (node.kind !== "project") {
+              const inherited = clientOf(node.id);
+              return (
+                <td key={key} className={pad}>
+                  <span className="block truncate px-1 py-1 text-[13px] font-medium text-ink-soft" title={inherited ?? undefined}>
+                    {inherited ?? "—"}
+                  </span>
+                </td>
+              );
+            }
+            return (
+              <td key={key} className={pad}>
+                <input
+                  list="plan-client-roster"
+                  defaultValue={node.clientName ?? ""}
+                  key={`${node.id}:c:${node.clientName ?? ""}`}
+                  onBlur={(e) => {
+                    const v = e.target.value.trim();
+                    if (v === (node.clientName ?? "")) return;
+                    patch({ clientName: v || null });
+                  }}
+                  placeholder="Client…"
+                  className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-[13px] font-medium text-ink-strong outline-none transition-colors hover:border-hairline-strong focus:border-[#E10600] focus:bg-white"
+                  aria-label="Client"
+                />
+              </td>
+            );
+          }
 
           case "target":
             return (
@@ -2680,7 +2845,7 @@ function DetailDialog({
   onClose: () => void;
   onEdit: () => void;
 }) {
-  const { node, ref: rowRef, fullRef, path } = target;
+  const { node, ref: rowRef, fullRef, path, ancestry } = target;
   const executable = isExecutable(node.kind);
   const below = countBelow(node);
   // The two statuses, shown apart as the table shows them.
@@ -2727,6 +2892,20 @@ function DetailDialog({
           </button>
         </div>
 
+        {/* WHERE THIS ROW SITS — first, above its own fields (Manan,
+            2026-09-15). Opening an Action from a task list or a kanban card
+            tells you what the row is and nothing about which project,
+            milestone and result it belongs to, and that is the first thing
+            anyone asks. The long `fullRef` moves up here with it, since this
+            panel is now the plan-address block. */}
+        <PlanPlacePanel
+          className="mb-4"
+          project={ancestry.project}
+          milestone={ancestry.milestone}
+          result={ancestry.result}
+          fullRef={fullRef}
+        />
+
         {/* The fields, inside one bordered panel. */}
         <div className="rounded-xl border border-hairline-strong p-4 max-md:p-3">
           <ReadField label={KIND_LABEL[node.kind]} value={node.name} wide />
@@ -2747,10 +2926,6 @@ function DetailDialog({
 
           <div className="mt-3.5 grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
             <ReadField label="Doer Status" value={PLAN_STATUS_LABEL[status]} />
-            <ReadField
-              label="Initiator Status"
-              value={APPROVER_LABEL[approverDisplay(node.approvalStatus, isSelfRaisedNode(node))]}
-            />
             <ReadField
               label={progress ? "Progress" : "Completion"}
               value={

@@ -3,7 +3,19 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, Upload, FileText, Download, Trash2, X, ScrollText, ArrowRight, Check } from "lucide-react";
+import type { Route } from "next";
+import {
+  Loader2,
+  Upload,
+  FileText,
+  Download,
+  Trash2,
+  X,
+  ScrollText,
+  ShieldCheck,
+  Check,
+  ArrowUpRight,
+} from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { POLICY_CATEGORIES } from "@/lib/hr/policy-types";
 import { uploadPolicy, deletePolicy } from "@/app/(app)/policies/actions";
@@ -22,26 +34,26 @@ interface Policy {
   signedUrl: string | null;
   uploadedAt: string;
 }
-/** An authored firm policy (POSH, Exit, …) — a page in the app, not an upload.
- *  Passed from the server so the registry's full policy TEXT never reaches the
- *  client bundle. */
-interface PolicyCard {
-  key: string;
-  title: string;
-  blurb: string;
-  badge: string;
-  status: "ready" | "coming-soon";
-  /** ISO signed-at for the VIEWER, or null/absent when they haven't signed it. */
-  signedAt?: string | null;
-  /** Signed, but an older version — a newer one has since been published. */
-  outdated?: boolean;
-}
 interface Group {
   category: string;
   label: string;
   accent: string;
   hint: string;
   policies: Policy[];
+}
+
+/** An AUTHORED firm policy (POSH / Exit / …), as the section shows it — with the
+ *  viewer's own signed status so the page can badge "Signed" vs "Read & sign"
+ *  without opening the policy. Built server-side in app/(app)/policies/page.tsx. */
+export interface SignablePolicy {
+  key: string;
+  title: string;
+  blurb: string;
+  badge: string;
+  /** ISO signed-at, or null when the viewer hasn't signed this policy. */
+  signedAt: string | null;
+  /** Signed, but an OLDER version — a newer one has since been published. */
+  outdated: boolean;
 }
 
 function fmtSize(n: number | null): string {
@@ -56,24 +68,106 @@ function fmtDate(iso: string): string {
 
 export function PoliciesWorkspace({
   groups,
+  signable,
   isAdmin,
-  cards = [],
 }: {
   groups: Group[];
+  signable: SignablePolicy[];
   isAdmin: boolean;
-  /** The firm's authored policies. Everyone sees these — they bind everyone. */
-  cards?: PolicyCard[];
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const total = groups.reduce((n, g) => n + g.policies.length, 0);
 
-  const ready = cards.filter((c) => c.status === "ready");
-  const soon = cards.filter((c) => c.status !== "ready");
-  const signedCount = ready.filter((c) => c.signedAt && !c.outdated).length;
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* ── THE FIRM POLICIES — authored, versioned, signable ───────────────
+          These are the policies people actually sign (POSH, Exit, …). They are
+          ALWAYS present (the registry is code, not uploaded files), which is why
+          the empty-state below only concerns the uploaded-documents section —
+          a reader who has signed every firm policy must still see them here,
+          badged "Signed", never an empty page. */}
+      <section>
+        <div className="mb-3 flex items-center gap-2">
+          <ShieldCheck size={16} strokeWidth={2.4} style={{ color: RED }} aria-hidden />
+          <h2 className="text-[15px] font-bold text-ink-strong">Firm policies</h2>
+          <span className="text-[12px] font-semibold text-ink-soft">
+            {signable.filter((p) => p.signedAt && !p.outdated).length}/{signable.length} signed
+          </span>
+          {signable.some((p) => p.signedAt) && (
+            <a
+              href="/api/hr/policies/download-all"
+              title="Every signed policy — full text, then your acknowledgement"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:border-[var(--color-altus-red)]"
+            >
+              <Download size={13} strokeWidth={2.4} aria-hidden /> Download all
+            </a>
+          )}
+        </div>
+        <ul className="grid gap-2.5 sm:grid-cols-2">
+          {signable.map((p) => {
+            const signed = Boolean(p.signedAt) && !p.outdated;
+            return (
+              <li key={p.key}>
+                <div className="flex h-full items-start gap-3 rounded-2xl border border-hairline bg-surface-card px-4 py-3.5 transition-colors hover:border-[var(--color-altus-red)]">
+                  <Link
+                    href={`/hr/policies/${p.key}` as Route}
+                    className="flex min-w-0 flex-1 items-start gap-3"
+                  >
+                    <span
+                      className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg text-[12px] font-extrabold text-white"
+                      style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
+                      aria-hidden
+                    >
+                      {p.badge}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] font-semibold text-ink-strong">
+                        {p.title}
+                      </span>
+                      <span className="mt-0.5 line-clamp-2 block text-[12px] leading-snug text-ink-muted">
+                        {p.blurb}
+                      </span>
+                    </span>
+                  </Link>
+                  <span className="flex shrink-0 flex-col items-end gap-1.5">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11.5px] font-bold ${
+                        signed
+                          ? "bg-[color-mix(in_srgb,#16a34a_10%,white)] text-[#15803d]"
+                          : "bg-surface-soft text-ink-soft"
+                      }`}
+                    >
+                      {signed ? (
+                        <>
+                          <Check size={12} strokeWidth={3} aria-hidden /> Signed ·{" "}
+                          {formatDateHr(p.signedAt!)}
+                        </>
+                      ) : (
+                        <>
+                          {p.outdated ? "New version · sign again" : "Read & sign"}
+                          <ArrowUpRight size={12} strokeWidth={2.6} aria-hidden />
+                        </>
+                      )}
+                    </span>
+                    {p.signedAt && (
+                      <a
+                        href={`/api/hr/policies/download?key=${encodeURIComponent(p.key)}`}
+                        className="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-[var(--color-altus-red)]"
+                        title="Download the whole policy, with your signed acknowledgement at the end"
+                      >
+                        <Download size={12} strokeWidth={2.4} aria-hidden /> Download
+                      </a>
+                    )}
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      {/* ── UPLOADED POLICY DOCUMENTS (legacy file list) ──────────────────── */}
       {isAdmin && (
         <div className="flex justify-end">
           <button
@@ -85,109 +179,6 @@ export function PoliciesWorkspace({
           </button>
         </div>
       )}
-
-      {cards.length > 0 && (
-        <section>
-          <div className="mb-2.5 flex items-center gap-2">
-            <ScrollText size={15} className="text-[var(--color-altus-red)]" />
-            <h2 className="text-[15px] font-bold text-ink-strong">Firm policies</h2>
-            <span className="text-[12px] font-semibold text-ink-soft">
-              {signedCount}/{ready.length} signed
-            </span>
-            {/* Every signed policy as ONE pdf. The route archives the exact
-                copy each person signed, so this is their own file, not a
-                freshly rendered template. */}
-            {ready.some((c) => c.signedAt) && (
-              <a
-                href="/api/hr/policies/download-all"
-                className="ml-auto inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:border-[var(--color-altus-red)]"
-              >
-                <Download size={13} strokeWidth={2.4} aria-hidden /> Download all
-              </a>
-            )}
-          </div>
-          <p className="mb-3 text-[12.5px] text-ink-muted">
-            Every policy the firm publishes. Open to everyone — these bind everyone.
-          </p>
-          <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
-            {/* THE CARD IS NOT ONE LINK. The Download below is an anchor of its
-                own, and an anchor cannot sit inside another anchor — so the
-                card is a div, the Link covers the badge/title/blurb, and the
-                status column sits beside it. Hovering either still lights the
-                whole card (group/card). */}
-            {ready.map((c) => {
-              const signed = Boolean(c.signedAt) && !c.outdated;
-              return (
-                <div
-                  key={c.key}
-                  className="group/card flex items-start gap-3 rounded-2xl border border-hairline bg-surface-card px-4 py-3.5 transition hover:border-[var(--color-altus-red)]"
-                >
-                  <Link
-                    href={`/hr/policies/${c.key}` as never}
-                    className="flex min-w-0 flex-1 items-start gap-3"
-                  >
-                    <span
-                      className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[11.5px] font-bold text-white"
-                      style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
-                    >
-                      {c.badge}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[14px] font-semibold text-ink-strong">{c.title}</span>
-                      <span className="mt-0.5 block text-[12px] leading-snug text-ink-muted">{c.blurb}</span>
-                      {signed && (
-                        <span className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] font-bold text-[#15803d]">
-                          <Check size={12} strokeWidth={3} aria-hidden /> Signed · {formatDateHr(c.signedAt!)}
-                        </span>
-                      )}
-                      {c.signedAt && c.outdated && (
-                        <span className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] font-bold text-[var(--color-altus-red)]">
-                          New version · sign again
-                        </span>
-                      )}
-                    </span>
-                  </Link>
-                  <span className="flex shrink-0 flex-col items-end gap-1.5">
-                    <ArrowRight
-                      size={15}
-                      className="mt-1 text-ink-subtle transition group-hover/card:text-[var(--color-altus-red)]"
-                    />
-                    {c.signedAt && (
-                      <a
-                        href={`/api/hr/policies/download?key=${encodeURIComponent(c.key)}`}
-                        title="Download your signed copy"
-                        className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-0.5 text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-[var(--color-altus-red)]"
-                      >
-                        <Download size={12} strokeWidth={2.4} aria-hidden /> Download
-                      </a>
-                    )}
-                  </span>
-                </div>
-              );
-            })}
-            {soon.map((c) => (
-              <div
-                key={c.key}
-                className="flex items-start gap-3 rounded-2xl border border-dashed border-hairline bg-surface-soft px-4 py-3.5 opacity-70"
-              >
-                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-track text-[11.5px] font-bold text-ink-muted">
-                  {c.badge}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[14px] font-semibold text-ink-muted">{c.title}</span>
-                  <span className="mt-0.5 block text-[12px] leading-snug text-ink-subtle">Coming soon</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <div className="mb-2.5 flex items-center gap-2">
-        <FileText size={15} className="text-ink-muted" />
-        <h2 className="text-[15px] font-bold text-ink-strong">Published documents</h2>
-        <span className="text-[12px] font-semibold text-ink-soft">{total}</span>
-      </div>
 
       {total === 0 ? (
         <div className="rounded-2xl border border-hairline bg-surface-card px-4 py-14 text-center">

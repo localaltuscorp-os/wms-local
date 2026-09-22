@@ -1,0 +1,46 @@
+-- 0223 — CLEAR EVERY REGISTERED DEVICE, so the roster re-registers cleanly.
+--
+-- ⚠️  DESTRUCTIVE. This DELETEs rows. `apply-all-migrations.ts` will refuse to
+--     run it unattended and must be told this file by name:
+--
+--       pnpm db:migrate -- --allow-destructive=0223_clear_registered_devices.sql
+--
+--     That is deliberate — see the guard's own header in the script. Read this
+--     file before you type that.
+--
+-- ── WHY WIPE RATHER THAN MIGRATE FORWARD ───────────────────────────────────
+-- The table is full of rows nobody consciously created. `enroll()` has written
+-- a row on FIRST SIGHT of any browser since the device gate shipped, and with
+-- DEVICE_AUTO_ADOPT on it marked them `approved` with no human involved. On top
+-- of that sit the duplicates documented in the device audit: a shared browser
+-- profile minted a fresh UUID on every swap, and an Android browser competed
+-- with the Android app for one phone slot.
+--
+-- The result is that "approved" currently means "this browser turned up once",
+-- not "this person registered this machine". Migrating those rows forward would
+-- carry that meaning into the new scheme and every one of them would count as
+-- already-registered — which is exactly the thing first-login registration
+-- exists to replace. Two slots per person, filled by accident, also means the
+-- real laptop cannot be registered until somebody revokes the accidental one.
+--
+-- ── WHAT IS LOST, HONESTLY ─────────────────────────────────────────────────
+-- Device HISTORY. Revoked rows were kept forever so an administrator could read
+-- who revoked what and why; this deletes that. It is the actual cost of the
+-- wipe and it is not recoverable afterwards. Take a backup of `mobile_devices`
+-- first if that history may be wanted:
+--
+--   CREATE TABLE mobile_devices_pre_0223 AS SELECT * FROM mobile_devices;
+--
+-- ── WHAT IS NOT LOST ───────────────────────────────────────────────────────
+-- Consent records. `device_consent_events.device_row_id` is ON DELETE SET NULL
+-- and each row also carries the device id as text, so the audit of who
+-- consented to what, and when, survives this intact.
+--
+-- ── WHAT HAPPENS NEXT ──────────────────────────────────────────────────────
+-- Nobody is locked out. Sign-in stopped refusing on device status in 0222, and
+-- `adoptDeviceOnLogin` enrols a fresh row on the next login — approved, because
+-- both slots are now free. The registration modal then collects the serial and
+-- the consent. A cookie naming a row deleted here is handled: `adoptDeviceOnLogin`
+-- already falls through to enrolment when the id resolves to nothing.
+
+DELETE FROM mobile_devices;

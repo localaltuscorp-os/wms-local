@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import {
+  Archive,
   ChevronDown,
   Search,
   X,
@@ -16,6 +17,8 @@ import {
   LogOut,
   Users,
 } from "lucide-react";
+import { archiveFromTeamPerformance } from "@/app/(app)/productivity/team/actions";
+import { fireToast } from "@/lib/toast";
 import { Select } from "@/components/ui/select";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { Donut, type DonutSlice } from "@/components/charts/donut";
@@ -263,9 +266,19 @@ export type TeamBoardVariant = "goals" | "productivity";
 export function TeamPerformanceBoard({
   rows,
   variant = "goals",
+  canArchive = false,
 }: {
   rows: TeamRow[];
   variant?: TeamBoardVariant;
+  /**
+   * Show the per-row Archive button (Productivity only, admins only).
+   *
+   * Passed in rather than derived here because this is a client component and
+   * the answer is the server's: the page already knows whether the viewer is an
+   * admin, and the server action re-checks it regardless — this flag only
+   * decides whether a button that would be refused is drawn at all.
+   */
+  canArchive?: boolean;
 }) {
   const [dept, setDept] = React.useState<string>(ALL);
   const [team, setTeam] = React.useState<string>(ALL);
@@ -274,6 +287,13 @@ export function TeamPerformanceBoard({
   const [sort, setSort] = React.useState<SortKey>("attention");
   const [query, setQuery] = React.useState("");
   const [expanded, setExpanded] = React.useState<ReadonlySet<string>>(() => new Set());
+  /**
+   * Rows archived in this session, dropped from the table the moment the server
+   * says yes instead of waiting for `router.refresh()` to come back. Without
+   * this the row someone just filed sits there until the re-render lands, which
+   * reads as "the button did nothing".
+   */
+  const [archived, setArchived] = React.useState<ReadonlySet<string>>(() => new Set());
 
   // Grades are a Productivity-module surface. The Goals Team Dashboard renders
   // the same board and is deliberately left exactly as it was, so every grade
@@ -294,6 +314,7 @@ export function TeamPerformanceBoard({
   const visible = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = rows.filter((r) => {
+      if (archived.has(r.id)) return false;
       if (dept !== ALL && r.department !== dept) return false;
       if (team !== ALL && r.managerName !== team) return false;
       if (!matchesStatus(r, status)) return false;
@@ -315,7 +336,7 @@ export function TeamPerformanceBoard({
       return true;
     });
     return filtered.sort(comparatorFor(sort));
-  }, [rows, dept, team, status, grade, showGrades, query, sort]);
+  }, [rows, archived, dept, team, status, grade, showGrades, query, sort]);
 
   /**
    * Grade distribution across the WHOLE roster, not the filtered subset — the
@@ -467,13 +488,13 @@ export function TeamPerformanceBoard({
         <Select
           value={dept}
           onValueChange={setDept}
-          ariaLabel="Filter by department"
+          ariaLabel="Filter by Function"
           searchable={departments.length > 8}
-          searchPlaceholder="Search departments…"
+          searchPlaceholder="Search Functions…"
           unstyled
           className={FIELD}
           options={[
-            { value: ALL, label: "All departments" },
+            { value: ALL, label: "All Functions" },
             ...departments.map((d) => ({ value: d, label: d })),
           ]}
         />
@@ -583,7 +604,7 @@ export function TeamPerformanceBoard({
           body={
             query.trim()
               ? "Check the spelling, or clear the search to see the whole team."
-              : "Try a different department, team or status - or reset to see the whole team."
+              : "Try a different Function, team or status - or reset to see the whole team."
           }
           action={
             <button
@@ -601,14 +622,18 @@ export function TeamPerformanceBoard({
             <thead>
               <tr className="border-b border-hairline">
                 <Th className="pl-4">Employee</Th>
-                <Th className="max-lg:hidden">Department · Team</Th>
+                <Th className="max-lg:hidden">Function · Team</Th>
                 <Th align="right">Goal</Th>
                 {showGrades && <Th align="right">Grade</Th>}
                 <Th align="right" className="max-xl:hidden">Goals</Th>
                 <Th align="right" className="max-xl:hidden">Done</Th>
                 <Th align="right">Overdue</Th>
                 <Th>Status</Th>
-                <Th className="w-9 pr-3"><span className="sr-only">Expand</span></Th>
+                <Th className={(showGrades && canArchive ? "w-[72px]" : "w-9") + " pr-3"}>
+                  <span className="sr-only">
+                    {showGrades && canArchive ? "Archive and expand" : "Expand"}
+                  </span>
+                </Th>
               </tr>
             </thead>
             <tbody>
@@ -617,6 +642,8 @@ export function TeamPerformanceBoard({
                   key={r.id}
                   row={r}
                   variant={variant}
+                  canArchive={canArchive}
+                  onArchived={() => setArchived((a) => new Set(a).add(r.id))}
                   open={expanded.has(r.id)}
                   onToggle={() => toggle(r.id)}
                 />
@@ -641,19 +668,51 @@ export function TeamPerformanceBoard({
 function EmployeeRow({
   row,
   variant,
+  canArchive,
+  onArchived,
   open,
   onToggle,
 }: {
   row: TeamRow;
   variant: TeamBoardVariant;
+  canArchive: boolean;
+  onArchived: () => void;
   open: boolean;
   onToggle: () => void;
 }) {
   const st = STATUS_META[row.status];
   const panelId = `team-detail-${row.id}`;
   const router = useRouter();
+  const [archiving, startArchive] = React.useTransition();
   const dashboardHref = `/productivity?emp=${row.id}` as Route;
   const toProductivity = variant === "productivity";
+  const showArchive = toProductivity && canArchive;
+
+  /**
+   * ONE CLICK, NO CONFIRM — the opposite of the Archive page's two-step Delete,
+   * and for the reason that distinguishes them: this takes a row off a list and
+   * the toast carries the way back. A confirm step for something reversible
+   * costs every archive an extra click to protect against an outcome that is
+   * one click to undo.
+   */
+  function archiveRow() {
+    startArchive(async () => {
+      const res = await archiveFromTeamPerformance(row.id);
+      if (!res.ok) {
+        fireToast({ message: res.error, type: "error" });
+        return;
+      }
+      onArchived();
+      fireToast({
+        message: res.message,
+        actionLabel: "Open Archive",
+        action: () => router.push("/archive/team-performance?scope=present" as Route),
+        type: "success",
+        duration: 8000,
+      });
+      router.refresh();
+    });
+  }
 
   return (
     <>
@@ -711,6 +770,23 @@ function EmployeeRow({
           </span>
         </td>
         <td className="py-2.5 pr-3 text-right">
+          {showArchive && (
+            <button
+              type="button"
+              disabled={archiving}
+              onClick={(e) => {
+                // The row itself opens the dashboard — an Archive click must
+                // never navigate on its way to the server.
+                e.stopPropagation();
+                archiveRow();
+              }}
+              aria-label={`Archive ${row.name} from Team Performance`}
+              title={`Take ${row.name} off this board — restore from Archive`}
+              className="mr-1 inline-flex size-6 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-surface-card hover:text-ink-strong focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/40 outline-none disabled:opacity-40"
+            >
+              <Archive size={14} strokeWidth={2.4} />
+            </button>
+          )}
           <button
             type="button"
             onClick={(e) => {
@@ -757,7 +833,7 @@ function EmployeeDetail({ row, variant }: { row: TeamRow; variant: TeamBoardVari
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-ink-subtle">
         <span className="inline-flex items-center gap-1.5">
           <Users size={13} strokeWidth={2.2} />
-          {row.department || "No department"}
+          {row.department || "No Function"}
         </span>
         {row.managerName && <span>Reports to {row.managerName}</span>}
         <span className="inline-flex items-center gap-1.5">

@@ -7,8 +7,8 @@ import { isSuperAdmin } from "@/lib/auth/super-admin";
 import {
   canGrantAnyDelegatedAccess,
   hasCapability,
-  isMasterAdmin,
 } from "@/lib/security/capabilities";
+import { masterAdminEmployeeIds } from "@/lib/security/capability-grants";
 
 /**
  * WHO MAY GRANT TEMPORARY DELEGATED ACCESS, AND FOR WHOM.
@@ -78,15 +78,35 @@ export const DELEGATION_REFUSAL_MESSAGES: Record<DelegationRefusal, string> = {
  * it to impersonate the other master admin. Testing a privileged account means
  * signing into it, which is what a password is for.
  */
-function isPrivilegedAccount(e: Employee): boolean {
+/** The CODE-ONLY half of the privileged test — every clause that needs no
+ *  database read. Pure and synchronous, so it can run inside a `.filter()`.
+ *
+ *  `master_admin.manage` is in the code `GRANTS` table for the two BOOTSTRAP
+ *  master admins, and that clause is kept here rather than left to the database
+ *  lookup below. Two reasons: it is a pure fact, and it means the people who can
+ *  always get into the permission matrix are also always the people a delegated
+ *  session may never borrow — even if the grants table is unreadable. */
+function isPrivilegedByCode(email: string | null | undefined): boolean {
   return (
-    isMasterAdmin(e.email) ||
-    isSuperAdmin(e.email) ||
-    canGrantAnyDelegatedAccess(e.email) ||
-    hasCapability(e.email, "device.manage") ||
-    hasCapability(e.email, "attendance.manage_others") ||
-    hasCapability(e.email, "device.exempt_from_restriction")
+    isSuperAdmin(email) ||
+    hasCapability(email, "master_admin.manage") ||
+    canGrantAnyDelegatedAccess(email) ||
+    hasCapability(email, "device.manage") ||
+    hasCapability(email, "attendance.manage_others") ||
+    hasCapability(email, "device.exempt_from_restriction")
   );
+}
+
+/**
+ * `masterAdminIds` is injected rather than looked up here, deliberately. The full
+ * master-admin predicate is async (it reads `capability_grants`, migration 0226)
+ * and this function is called from inside a synchronous `.filter()` in
+ * `delegationCandidates`. Injecting the set keeps the predicate pure and makes
+ * the one database read an explicit, visible step at each call site. It carries
+ * the ADMINISTERED grants; the code bootstrap is covered by the clause above.
+ */
+function isPrivilegedAccount(e: Employee, masterAdminIds: ReadonlySet<string>): boolean {
+  return masterAdminIds.has(e.id) || isPrivilegedByCode(e.email);
 }
 
 export interface DelegationCheck {
@@ -127,7 +147,9 @@ export async function checkDelegationGrant(
   // Checked BEFORE the hierarchy, so the answer does not depend on who is
   // asking: a privileged account is off limits to everybody, including the
   // capability holders.
-  if (isPrivilegedAccount(target)) return { ok: false, refusal: "target_privileged" };
+  if (isPrivilegedAccount(target, await masterAdminEmployeeIds())) {
+    return { ok: false, refusal: "target_privileged" };
+  }
 
   // The capability bypasses the ORG CHART only — never the checks above.
   if (canGrantAnyDelegatedAccess(granter.email)) return { ok: true };
@@ -190,13 +212,16 @@ export async function delegationCandidates(me: Employee): Promise<{
   const staff = rows.filter((r) => r.accountType === "employee");
   const anywhere = canGrantAnyDelegatedAccess(me.email);
   const team = anywhere ? null : new Set(await getDownlineIds(me.id));
+  // Resolved ONCE, before the filter below — the predicate is synchronous and
+  // cannot await per row.
+  const masterAdminIds = await masterAdminEmployeeIds();
 
   const inScope = (id: string) => (team ? team.has(id) : true);
   const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
 
   return {
     targets: staff
-      .filter((r) => inScope(r.id) && !isPrivilegedAccount(r as unknown as Employee))
+      .filter((r) => inScope(r.id) && !isPrivilegedAccount(r as unknown as Employee, masterAdminIds))
       .map(({ id, name, email }) => ({ id, name, email }))
       .sort(byName),
     delegates: staff

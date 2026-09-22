@@ -27,7 +27,7 @@ interface Share {
 }
 
 function toNum(s: string): number {
-  const n = Number(s.replace(/[₹,\s]/g, ""));
+  const n = Number(s.replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
 const blank = (): Share => ({ empName: "", employeeId: null, booked: "", accrued: "", paid: "" });

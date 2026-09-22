@@ -7,6 +7,8 @@ import { employees } from "@/db/schema";
 import { getFirebaseAdminAuth } from "@/lib/firebase/admin";
 import { sendResetPasswordEmail } from "@/lib/email/resend";
 import { siteUrl, rehostActionLink } from "@/lib/site-url";
+import { isAccountLocked } from "@/lib/auth/account-lockout";
+import { RESET_BLOCKED_MESSAGE } from "@/lib/auth/lockout-copy";
 
 const RequestSchema = z.object({
   email: z.string().trim().toLowerCase().email("Invalid email"),
@@ -54,6 +56,19 @@ export async function requestPasswordReset(emailInput: string): Promise<ResetRes
     return { ok: true };
   }
   const email = parsed.data.email;
+
+  // A LOCKED ACCOUNT CANNOT RESET ITS WAY OUT — that is the point of the lock.
+  // Deliberately not the neutral "check your inbox" answer used for unknown
+  // addresses: this person needs to know why no email will arrive, and a locked
+  // address is one the four unlockers already know about. Fails OPEN on a
+  // database error, like every other lockout read.
+  try {
+    if (await isAccountLocked(email)) {
+      return { ok: false, error: RESET_BLOCKED_MESSAGE };
+    }
+  } catch (err) {
+    console.error("[requestPasswordReset] lockout check failed — continuing", err);
+  }
 
   let link: string;
   try {

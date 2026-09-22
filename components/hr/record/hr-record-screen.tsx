@@ -4,15 +4,19 @@ import * as React from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import {
+  IdCard,
   Loader2,
   Check,
   Save,
   ArrowUpRight,
   FolderLock,
+  FileSignature,
   Sparkles,
   Wrench,
   HeartHandshake,
+  Library,
   UserRound,
+  ScrollText,
   CircleCheck,
   Circle,
   FileDown,
@@ -26,6 +30,7 @@ import {
   Lock,
   AlertTriangle,
   ArrowRight,
+  ArrowLeft,
   Search,
   ChevronsUpDown,
   ChevronDown,
@@ -63,14 +68,13 @@ import { getPersonFiles } from "@/app/(app)/hr/record/person-files";
 import {
   EMPTY_PERSON_FILES,
   type FiledFormRow,
+  type LetterFileRow,
   type PersonFiles,
 } from "@/app/(app)/hr/record/person-files-types";
-import { getPersonLetters } from "@/app/(app)/hr/record/person-letters";
-import { EMPTY_PERSON_LETTERS, type PersonLetters } from "@/app/(app)/hr/record/person-letters-types";
-import { LettersTable } from "./letters-table";
 import { SkillMultiSelect, type SkillSelection } from "@/components/hr/candidate/skill-multiselect";
 import type { SkillLookupOptions } from "@/lib/hr/skills";
 import { formatDateHr } from "@/lib/format";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { downloadRecordsZip } from "@/components/hr/records-backup/download-records-zip";
 
 const EMPTY_SKILLS: SkillSelection = { technical: [], nonTechnical: [] };
@@ -93,6 +97,17 @@ const EMPTY_SKILLS: SkillSelection = { technical: [], nonTechnical: [] };
 
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
+
+/** Recruitment → appointment letters worth composing straight from a record.
+ *  Keys mirror the letters registry; titles are inlined so we don't pull the
+ *  (server-side) template graph into this client bundle. */
+const RECORD_LETTERS: { key: string; title: string; blurb: string }[] = [
+  { key: "selection", title: "Selection Letter", blurb: "Extend the role to the selected candidate." },
+  { key: "acceptance", title: "Acceptance Letter", blurb: "Their written acceptance of the offer." },
+  { key: "appointment", title: "Appointment Letter", blurb: "The formal appointment on the letterhead." },
+  { key: "confirmation", title: "Confirmation Letter", blurb: "Confirm the employee after probation." },
+  { key: "free-training", title: "Free Training Letter", blurb: "Pre-employment training & evaluation." },
+];
 
 const STATUS_TONE: Record<string, { bg: string; fg: string; label: string }> = {
   new: { bg: "var(--color-surface-soft)", fg: "var(--color-ink-subtle)", label: "New" },
@@ -156,10 +171,8 @@ export function HrRecordScreen({
   const [recordsLoading, setRecordsLoading] = React.useState(false);
   const [files, setFiles] = React.useState<PersonFiles>(EMPTY_PERSON_FILES);
   const [filesLoading, setFilesLoading] = React.useState(false);
-  const [letters, setLetters] = React.useState<PersonLetters>(EMPTY_PERSON_LETTERS);
-  const [lettersLoading, setLettersLoading] = React.useState(false);
-  /** Mirrors the picker's dropdown, so the centred card can glide up while it is open. */
-  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+
   const maRef = React.useRef<ManagementAssessmentState | null>(null);
   const skillsRef = React.useRef(skills); skillsRef.current = skills;
   const cidRef = React.useRef(candidateId); cidRef.current = candidateId;
@@ -202,7 +215,6 @@ export function HrRecordScreen({
     setWorkflow(null); setWorkflowLoading(false);
     setRecords(null); setRecordsLoading(false);
     setFiles(EMPTY_PERSON_FILES); setFilesLoading(false);
-    setLetters(EMPTY_PERSON_LETTERS); setLettersLoading(false);
     if (!id) return;
     setLoading(true);
     // Workflow status (onboarding gate + email/asset provisioning) loads in
@@ -238,13 +250,6 @@ export function HrRecordScreen({
       .then((res) => { if (cidRef.current === id) setFiles(res); })
       .catch(() => { if (cidRef.current === id) setFiles(EMPTY_PERSON_FILES); })
       .finally(() => { if (cidRef.current === id) setFilesLoading(false); });
-    // Letters & policies table — composed + uploaded letters and policy
-    // signatures. Same parallel, `cidRef`-guarded load as the rest.
-    setLettersLoading(true);
-    void getPersonLetters(id)
-      .then((res) => { if (cidRef.current === id) setLetters(res); })
-      .catch(() => { if (cidRef.current === id) setLetters(EMPTY_PERSON_LETTERS); })
-      .finally(() => { if (cidRef.current === id) setLettersLoading(false); });
     try {
       const state = await getManagementAssessment(id);
       maRef.current = state;
@@ -349,6 +354,8 @@ export function HrRecordScreen({
 
   React.useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
 
+  const tone = STATUS_TONE[selected?.status ?? "new"] ?? STATUS_TONE.new!;
+
   return (
     <>
       <style>{CSS}</style>
@@ -356,23 +363,14 @@ export function HrRecordScreen({
         {/* The "HR · Record" eyebrow + "HR Record" heading that used to open
             this page now live in the frozen HrTitleBar (see page.tsx). */}
 
-        {/* NOBODY OPEN → the picker alone, in the middle of the content screen.
-            The "All people" card grid that used to fill the page below it is
-            gone; the picker is the one way in. Once someone is open it sits at
-            the top, above their file. */}
-        <div className={candidateId ? undefined : "flex min-h-[calc(100dvh-220px)] flex-col justify-center"}>
-        {/* THE LIFT. At rest the card sits just below centre; opening the
-            dropdown glides it up so the list has room to unfold beneath it,
-            and closing glides it back. It is a transform on this WRAPPER, not
-            on the card: the card's `.rec-fade` entrance animation holds its own
-            transform (fill-mode both), and an animation's transform always
-            beats a transitioned one, so a transform on the card would never
-            move. `relative z-30` keeps the open panel above later siblings —
-            the transform makes this wrapper its own stacking context. */}
-        <div
-          className="rec-lift relative z-30"
-          style={candidateId ? undefined : { transform: pickerOpen ? "translateY(-8vh)" : "translateY(11vh)" }}
-        >
+        {/* Person picker + header.
+            `relative z-30`: the combobox dropdown panel lives inside this card.
+            Every `.rec-fade` section keeps a persistent transform (animation-
+            fill-mode:both → transform:translateY(0), which is NOT `none`), so it
+            forms its own stacking context. Without an explicit z-index here, the
+            LATER "All people" `.rec-fade` sibling paints ON TOP of this card —
+            burying the open dropdown behind the grid (the "completely broken"
+            picker). Lifting this card above later siblings fixes it. */}
         <div className="relative z-30 rec-fade rounded-2xl border border-hairline bg-white p-5 shadow-[0_10px_30px_-22px_rgba(24,24,27,0.5)]">
           <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.16em] text-ink-soft">
             Person
@@ -383,7 +381,6 @@ export function HrRecordScreen({
                 candidates={candidates}
                 selectedId={candidateId}
                 onSelect={(id) => void selectCandidate(id)}
-                onOpenChange={setPickerOpen}
               />
             </div>
 
@@ -410,15 +407,49 @@ export function HrRecordScreen({
               </div>
             )}
           </div>
-          {/* The person header bar (avatar · name · status · "All people") that
-              used to sit here was removed: the picker above already shows who
-              is open, and its × clears it. */}
-        </div>
-        </div>
+
+          {selected && (
+            <div className="mt-4 flex flex-wrap items-center gap-3 rec-fade">
+              <Avatar name={selected.fullName} avatarUrl={selected.avatarUrl} size={48} />
+              <div className="min-w-0">
+                <p className="truncate text-[17px] font-black leading-tight text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>
+                  {selected.fullName || "Unnamed"}
+                </p>
+                <p className="truncate text-[13px] font-medium text-ink-muted">
+                  {[selected.positionApplied || selected.position, selected.department].filter(Boolean).join(" · ") || "Position not set"}
+                </p>
+              </div>
+              <span
+                className="ml-auto inline-flex items-center rounded-pill px-3 py-1 text-[12px] font-bold"
+                style={{ background: tone.bg, color: tone.fg }}
+              >
+                {tone.label}
+              </span>
+              {selected.mobile && (
+                <span className="inline-flex items-center rounded-pill border border-hairline px-3 py-1 text-[12px] font-semibold text-ink-muted">
+                  {selected.mobile}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => void selectCandidate("")}
+                className="inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-white px-3 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+              >
+                <ArrowLeft size={13} /> All people
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Body — nothing until a person is picked. */}
-        {!candidateId ? null : loading ? (
+        {/* Body */}
+        {!candidateId ? (
+          <Roster
+            candidates={candidates}
+            query={query}
+            onQuery={setQuery}
+            onSelect={(id) => void selectCandidate(id)}
+          />
+        ) : loading ? (
           <div className="mt-6 grid place-items-center rounded-2xl border border-hairline bg-white py-24 text-ink-muted">
             <Loader2 className="animate-spin" style={{ color: RED }} />
             <p className="mt-2 text-[13.5px] font-medium">Loading this person&apos;s record…</p>
@@ -428,19 +459,6 @@ export function HrRecordScreen({
             {/* Pending / action-needed — the very TOP of the panel. */}
             <section className="col-span-12 rec-fade">
               <PendingSummary workflow={workflow} policy={policy} loading={workflowLoading || policyLoading} />
-            </section>
-
-            {/* Letters & Policies — every letter issued to this person and every
-                policy they sign, as one Tasks-style table. Replaces the old
-                Letters and Policy Signatures cards. */}
-            <section className="col-span-12 rec-fade">
-              <LettersTable
-                key={candidateId}
-                personId={candidateId}
-                rows={letters.rows}
-                matched={letters.matched}
-                loading={lettersLoading}
-              />
             </section>
 
             {/* Onboarding form — the HIGHEST-priority dependency: it gates email + assets. */}
@@ -489,10 +507,48 @@ export function HrRecordScreen({
               </RecordCard>
             </section>
 
+            {/* Letters */}
+            <section className="col-span-12 lg:col-span-7 rec-fade">
+              <RecordCard
+                n={4}
+                icon={<FileSignature size={18} />}
+                title="Letters"
+                sub="Open a letter already issued to this person, or compose a new one - their name & gender are pre-filled."
+              >
+                <IssuedLetters letters={files.letters} loading={filesLoading} />
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  {RECORD_LETTERS.map((l) => (
+                    <Link
+                      key={l.key}
+                      href={`/hr/letters/${l.key}?candidate=${candidateId}` as Route}
+                      className="group flex items-start gap-3 rounded-xl border border-hairline bg-surface-card px-3.5 py-3 text-left transition-all hover:border-hairline-strong hover:shadow-md"
+                    >
+                      <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white" style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}>
+                        <FileSignature size={15} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1 text-[14px] font-bold text-ink-strong">
+                          {l.title}
+                          <ArrowUpRight size={14} className="text-ink-subtle transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                        </span>
+                        <span className="mt-0.5 block text-[12px] font-medium leading-snug text-ink-muted">{l.blurb}</span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+                <Link
+                  href={"/hr/letters" as Route}
+                  className="mt-3 inline-flex items-center gap-2 rounded-pill border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+                >
+                  <Library size={15} /> Browse All Letters <ArrowUpRight size={14} />
+                </Link>
+              </RecordCard>
+            </section>
+
             {/* Documents */}
             <section className="col-span-12 lg:col-span-5 rec-fade">
               <RecordCard
-                n={4}
+                n={5}
                 icon={<FolderLock size={18} />}
                 title="Documents"
                 sub="Their secure document vault - appointment, CTC, IDs & more."
@@ -579,11 +635,30 @@ export function HrRecordScreen({
               </RecordCard>
             </section>
 
-            {/* Exit & Handover record — sits beside Documents now that the
-                Letters card is gone from that row. */}
-            <section className="col-span-12 lg:col-span-7 rec-fade">
+            {/* Policies signed record */}
+            <section className="col-span-12 rec-fade">
               <RecordCard
-                n={5}
+                n={6}
+                icon={<ScrollText size={18} />}
+                title="Policy Signatures"
+                sub="How many firm policies this person has signed - and what's still pending."
+                right={
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-bold"
+                    style={{ background: "color-mix(in srgb, var(--color-altus-red) 10%, white)", color: RED_DEEP }}
+                  >
+                    {policy ? policy.policies.filter((p) => p.signed).length : 0} / {policy ? policy.policies.length : 0} signed
+                  </span>
+                }
+              >
+                <PoliciesSigned status={policy} loading={policyLoading} />
+              </RecordCard>
+            </section>
+
+            {/* Exit & Handover record */}
+            <section className="col-span-12 rec-fade">
+              <RecordCard
+                n={7}
                 icon={<LogOut size={18} />}
                 title="Exit & Handover"
                 sub="This person's exit interview and handover clearance - populated once their separation begins."
@@ -603,7 +678,7 @@ export function HrRecordScreen({
             {/* Skills requirement checklist */}
             <section className="col-span-12 rec-fade">
               <RecordCard
-                n={6}
+                n={8}
                 icon={<Sparkles size={18} />}
                 title="Skills requirement checklist"
                 sub="The bare-minimum skills this role demands - tick what they can genuinely do. Add or remove options inline."
@@ -640,7 +715,7 @@ export function HrRecordScreen({
             {/* Records — the already-filled Onboarding + Candidate details. */}
             <section className="col-span-12 rec-fade">
               <RecordCard
-                n={7}
+                n={9}
                 icon={<Contact size={18} />}
                 title="Records"
                 sub="Everything this person has filled - open it, read the actual answers, and correct them against their record."
@@ -661,6 +736,115 @@ export function HrRecordScreen({
   );
 }
 
+/**
+ * The per-person policy-signing record: a progress RING (signed / total) beside a
+ * checklist of every published policy — a green tick when signed, a hollow ring
+ * when still pending. When the person isn't yet linked to an employee account, a
+ * gentle note explains why nothing is signed yet.
+ */
+function PoliciesSigned({ status, loading }: { status: PolicySignStatus | null; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="grid place-items-center py-8 text-ink-muted">
+        <Loader2 className="animate-spin" style={{ color: RED }} />
+      </div>
+    );
+  }
+  const policies = status?.policies ?? [];
+  const total = policies.length;
+  const signed = policies.filter((p) => p.signed).length;
+  const remaining = total - signed;
+  const pct = total > 0 ? signed / total : 0;
+  const allDone = total > 0 && signed === total;
+
+  // Ring geometry
+  const R = 46;
+  const C = 2 * Math.PI * R;
+  const dash = C * pct;
+
+  return (
+    <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+      {/* Progress ring */}
+      <div className="flex shrink-0 items-center gap-4">
+        <div className="relative grid place-items-center" style={{ width: 116, height: 116 }}>
+          <svg width={116} height={116} viewBox="0 0 116 116" className="rec-ring">
+            <circle cx={58} cy={58} r={R} fill="none" stroke="var(--color-hairline)" strokeWidth={10} />
+            <circle
+              cx={58} cy={58} r={R} fill="none"
+              stroke={allDone ? "#15803d" : RED}
+              strokeWidth={10} strokeLinecap="round"
+              strokeDasharray={`${dash} ${C - dash}`}
+              transform="rotate(-90 58 58)"
+              style={{ transition: "stroke-dasharray 0.6s cubic-bezier(0.22,1,0.36,1)" }}
+            />
+          </svg>
+          <div className="absolute grid place-items-center text-center">
+            <span className="text-[26px] font-black leading-none tabular-nums text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>
+              {signed}
+              <span className="text-[15px] font-bold text-ink-subtle">/{total}</span>
+            </span>
+            <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-ink-soft">Signed</span>
+          </div>
+        </div>
+        <div className="sm:hidden">
+          <p className="text-[13px] font-semibold text-ink-strong">{allDone ? "All policies signed 🎉" : `${remaining} remaining`}</p>
+        </div>
+      </div>
+
+      {/* Checklist */}
+      <div className="min-w-0 flex-1">
+        {total === 0 ? (
+          <p className="text-[13.5px] font-medium text-ink-muted">No policies are published yet.</p>
+        ) : (
+          <>
+            <div className="mb-3 hidden items-center gap-2 sm:flex">
+              {allDone ? (
+                <span className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-bold" style={{ background: "color-mix(in srgb, #16a34a 12%, white)", color: "#15803d" }}>
+                  <CircleCheck size={13} strokeWidth={2.6} /> All signed
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-bold" style={{ background: "color-mix(in srgb, var(--color-altus-red) 10%, white)", color: RED_DEEP }}>
+                  {remaining} remaining
+                </span>
+              )}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {policies.map((p) => (
+                <div
+                  key={p.key}
+                  className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5"
+                  style={{
+                    borderColor: p.signed ? "color-mix(in srgb, #16a34a 30%, white)" : "var(--color-hairline)",
+                    background: p.signed ? "color-mix(in srgb, #16a34a 6%, white)" : "var(--color-surface-soft)",
+                  }}
+                >
+                  {p.signed ? (
+                    <CircleCheck size={17} strokeWidth={2.4} style={{ color: "#15803d" }} className="shrink-0" />
+                  ) : (
+                    <Circle size={17} strokeWidth={2} className="shrink-0 text-ink-subtle" />
+                  )}
+                  <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink-strong">{p.title}</span>
+                  <span
+                    className="shrink-0 text-[11px] font-bold uppercase tracking-[0.08em]"
+                    style={{ color: p.signed ? "#15803d" : "var(--color-ink-subtle)" }}
+                  >
+                    {p.signed ? "Signed" : "Pending"}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {status && !status.matched && (
+              <p className="mt-3 flex items-start gap-2 text-[12px] leading-relaxed text-ink-subtle">
+                <UserRound size={13} className="mt-0.5 shrink-0" />
+                Not yet linked to an employee account - signatures will appear here once this person joins and signs on day one.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function SkillGroupSummary({
   icon, title, items, tone,
@@ -813,12 +997,12 @@ function PendingSummary({
   const border = allClear
     ? "color-mix(in srgb, #16a34a 34%, white)"
     : items.length > 0
-      ? `color-mix(in srgb, ${RED} 34%, white)`
+      ? "color-mix(in srgb, #f59e0b 40%, white)"
       : "var(--color-hairline)";
   const bg = allClear
     ? "color-mix(in srgb, #16a34a 7%, white)"
     : items.length > 0
-      ? `color-mix(in srgb, ${RED} 6%, white)`
+      ? "color-mix(in srgb, #f59e0b 8%, white)"
       : "var(--color-surface-soft)";
 
   return (
@@ -826,7 +1010,7 @@ function PendingSummary({
       <div className="flex items-center gap-3">
         <span
           className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white"
-          style={{ background: allClear ? "linear-gradient(135deg,#16a34a,#15803d)" : `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
+          style={{ background: allClear ? "linear-gradient(135deg,#16a34a,#15803d)" : "linear-gradient(135deg,#f59e0b,#b45309)" }}
         >
           {allClear ? <CircleCheck size={18} /> : <AlertTriangle size={18} />}
         </span>
@@ -849,7 +1033,7 @@ function PendingSummary({
         <ul className="mt-3.5 grid gap-2 sm:grid-cols-2">
           {items.map((it) => (
             <li key={it} className="flex items-center gap-2 rounded-xl border border-hairline bg-white px-3 py-2.5 text-[13px] font-semibold text-ink-strong">
-              <ArrowRight size={14} strokeWidth={2.6} style={{ color: RED_DEEP }} className="shrink-0" />
+              <ArrowRight size={14} strokeWidth={2.6} style={{ color: "#b45309" }} className="shrink-0" />
               {it}
             </li>
           ))}
@@ -1231,6 +1415,49 @@ function SavedFormsList({ forms, loading }: { forms: FiledFormRow[]; loading: bo
   );
 }
 
+/**
+ * Letters already ISSUED to this person, newest first, opened straight from
+ * their signed storage URL. Renders nothing when there are none, so the Letters
+ * card looks exactly as it does today for anyone with no letters yet.
+ */
+function IssuedLetters({ letters, loading }: { letters: LetterFileRow[]; loading: boolean }) {
+  if (loading || letters.length === 0) return null;
+  return (
+    <div className="mb-3 rounded-xl border border-hairline bg-surface-soft p-3">
+      <p className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-soft">
+        Issued to this person · {letters.length}
+      </p>
+      <ul className="flex flex-col gap-1.5">
+        {letters.map((l) => (
+          <li key={l.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-hairline bg-white px-3 py-2">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-bold text-ink-strong">{l.title}</span>
+              <span className="block text-[11.5px] font-semibold text-ink-subtle">
+                {l.label}
+                {l.dateIso ? ` · ${fmtDay(l.dateIso)}` : ""}
+              </span>
+            </span>
+            {l.signedUrl ? (
+              <a
+                href={l.signedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-white px-3 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+              >
+                <Eye size={13} /> Open
+              </a>
+            ) : (
+              // The row exists but its storage path would not sign. Saying so
+              // beats a dead button that reads as "the file is missing".
+              <span className="text-[11.5px] font-semibold text-ink-subtle">Link unavailable</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** Tone for an onboarding status ('submitted' | 'draft'); candidate statuses reuse
  *  the page-level STATUS_TONE map. */
 function recordStatusTone(status: string): { bg: string; fg: string; label: string } {
@@ -1409,6 +1636,86 @@ function RecordCard({
 }
 
 /**
+ * The roster — every person on file as a card grid (searchable). Opening any card
+ * loads their full A–Z record below (onboarding · email · assets · letters ·
+ * documents · policies · exit · skills), each with a jump-to-fill link. This is
+ * the "see everyone, then go fill whatever's missing" front door.
+ */
+function Roster({
+  candidates,
+  query,
+  onQuery,
+  onSelect,
+}: {
+  candidates: CandidateRow[];
+  query: string;
+  onQuery: (q: string) => void;
+  onSelect: (id: string) => void;
+}) {
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? candidates.filter((c) =>
+        `${c.fullName ?? ""} ${c.positionApplied ?? ""} ${c.position ?? ""} ${c.department ?? ""}`
+          .toLowerCase()
+          .includes(q),
+      )
+    : candidates;
+
+  return (
+    <div className="mt-6 rec-fade">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2
+            className="flex items-center gap-2 text-ink-strong"
+            style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 20, letterSpacing: "-0.01em" }}
+          >
+            All people
+            <span className="rounded-pill px-2.5 py-0.5 text-[12px] font-black" style={{ background: "color-mix(in srgb, var(--color-altus-red) 10%, white)", color: RED_DEEP }}>
+              {candidates.length}
+            </span>
+          </h2>
+          <p className="mt-0.5 text-[13px] font-medium text-ink-muted">
+            Open anyone to work their whole file A–Z - letters, email, assets, policies, documents and exit.
+          </p>
+        </div>
+        <CollapsibleSearch scope="name, role or Function">
+        <div className="relative w-full max-w-[320px]">
+          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => onQuery(e.target.value)}
+            placeholder="Local search - name, role or Function" title="Local search - filters only the list on this page" aria-label="Local search - name, role or Function - this page only"
+            className="w-full rounded-xl border border-hairline-strong bg-white py-2.5 pl-9 pr-3 text-[13.5px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
+          />
+        </div>
+        </CollapsibleSearch>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="grid place-items-center rounded-2xl border border-hairline-strong bg-white px-6 py-16 text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-2xl" style={{ background: "color-mix(in srgb, var(--color-altus-red) 10%, white)", color: RED_DEEP }}>
+            <IdCard size={26} strokeWidth={2.1} />
+          </span>
+          <p className="mt-3 text-[15px] font-bold text-ink-strong">
+            {candidates.length === 0 ? "No people on file yet" : "No one matches that search"}
+          </p>
+          <p className="mt-1 text-[13px] font-medium text-ink-muted">
+            {candidates.length === 0 ? "People appear here as candidates are entered." : "Try a different name, role or Function."}
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((c) => (
+            <RosterCard key={c.id} c={c} onSelect={onSelect} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * The centrepiece person picker — a premium, command-style searchable combobox
  * that replaces the raw native `<select>`. The trigger shows the selected
  * person's character Avatar + name + designation; clicking (or ArrowDown) opens
@@ -1421,13 +1728,10 @@ function PersonPicker({
   candidates,
   selectedId,
   onSelect,
-  onOpenChange,
 }: {
   candidates: CandidateRow[];
   selectedId: string;
   onSelect: (id: string) => void;
-  /** Told whenever the dropdown opens or closes (drives the page's lift animation). */
-  onOpenChange?: (open: boolean) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -1462,11 +1766,6 @@ function PersonPicker({
     setQuery("");
     return undefined;
   }, [open]);
-
-  // Tell the page. One effect rather than a call beside every setOpen — the
-  // panel opens and closes from six places (trigger, arrows, Esc, pick,
-  // outside click, clear) and a missed one would strand the card mid-air.
-  React.useEffect(() => { onOpenChange?.(open); }, [open, onOpenChange]);
 
   // Close on outside click.
   React.useEffect(() => {
@@ -1534,35 +1833,14 @@ function PersonPicker({
             <span className="flex-1 text-[14.5px] font-semibold text-ink-muted">Select a person…</span>
           </>
         )}
-        {/* Reserves the slot the clear button below is drawn over. */}
-        {selected && <span aria-hidden className="w-7 shrink-0" />}
         <ChevronsUpDown size={16} strokeWidth={2.2} className="shrink-0 text-ink-subtle" />
       </button>
-
-      {/* CLEAR — back to the roster. This was the "All people" button's job in
-          the header bar that was removed. A SIBLING of the trigger, not a child:
-          a button inside a button is invalid HTML, and the click would also
-          toggle the dropdown open. */}
-      {selected && (
-        <button
-          type="button"
-          onClick={() => { setOpen(false); onSelect(""); }}
-          aria-label="Clear - back to all people"
-          title="Back to all people"
-          className="absolute right-9 top-1/2 inline-grid size-7 -translate-y-1/2 place-items-center rounded-md text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong"
-        >
-          <X size={15} strokeWidth={2.4} />
-        </button>
-      )}
 
       {/* Panel */}
       {open && (
         <div className="rec-panel absolute left-0 right-0 top-[calc(100%+8px)] z-40 overflow-hidden rounded-2xl border border-hairline-strong bg-white shadow-[0_24px_60px_-24px_rgba(24,24,27,0.5)]">
           <div className="border-b border-hairline p-2.5">
-            {/* NOT wrapped in CollapsibleSearch any more. Collapsed, that wrapper
-                renders only a 36px magnifier button, so the rest of the bar did
-                nothing when clicked, the open effect had no input to focus, and
-                ↑/↓/Enter were dead. The input is always here now. */}
+            <CollapsibleSearch scope="name, role or Function">
             <div className="relative">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
               <input
@@ -1571,7 +1849,7 @@ function PersonPicker({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Local search - name, role or department" title="Local search - filters only the list on this page" aria-label="Local search - name, role or department - this page only"
+                placeholder="Local search - name, role or Function" title="Local search - filters only the list on this page" aria-label="Local search - name, role or Function - this page only"
                 className="w-full rounded-lg border border-hairline-strong bg-surface-soft py-2.5 pl-9 pr-8 text-[13.5px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red focus:bg-white"
               />
               {query && (
@@ -1585,13 +1863,14 @@ function PersonPicker({
                 </button>
               )}
             </div>
+            </CollapsibleSearch>
           </div>
           {filtered.length === 0 ? (
             <p className="px-4 py-10 text-center text-[13px] font-medium text-ink-muted">
               No one matches &ldquo;{query.trim()}&rdquo;.
             </p>
           ) : (
-            <ul ref={listRef} role="listbox" className="rec-scroll max-h-[360px] overflow-y-auto p-1.5">
+            <ul ref={listRef} role="listbox" className="rec-scroll max-h-[320px] overflow-y-auto p-1.5">
               {filtered.map((c, i) => {
                 const isSel = c.id === selectedId;
                 const isActive = i === active;
@@ -1608,27 +1887,25 @@ function PersonPicker({
                     >
                       <Avatar name={c.fullName} avatarUrl={c.avatarUrl} size={34} />
                       <span className="min-w-0 flex-1">
-                        {/* The chip sits BESIDE the name, not pinned to the far
-                            right edge where it read as belonging to no row. */}
                         <span className="flex items-center gap-1.5 text-[14px] font-bold text-ink-strong">
                           <span className="truncate">{c.fullName || "Unnamed"}</span>
                           {isSel && <Check size={13} strokeWidth={3} className="shrink-0" style={{ color: "var(--color-green-deep)" }} />}
-                          <span
-                            className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-pill px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em]"
-                            style={
-                              incomplete
-                                ? { background: "var(--color-amber-bg)", color: "var(--color-amber-deep)" }
-                                : { background: "var(--color-green-bg)", color: "var(--color-green-deep)" }
-                            }
-                          >
-                            {incomplete ? (
-                              <><AlertTriangle size={10} strokeWidth={2.6} /> Details missing</>
-                            ) : (
-                              <><CircleCheck size={10} strokeWidth={2.6} /> Complete</>
-                            )}
-                          </span>
                         </span>
                         <span className="block truncate text-[12px] font-medium text-ink-muted">{roleLine}</span>
+                      </span>
+                      <span
+                        className="inline-flex shrink-0 items-center gap-1 rounded-pill px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.04em]"
+                        style={
+                          incomplete
+                            ? { background: "var(--color-amber-bg)", color: "var(--color-amber-deep)" }
+                            : { background: "var(--color-green-bg)", color: "var(--color-green-deep)" }
+                        }
+                      >
+                        {incomplete ? (
+                          <><AlertTriangle size={10} strokeWidth={2.6} /> Details missing</>
+                        ) : (
+                          <><CircleCheck size={10} strokeWidth={2.6} /> Complete</>
+                        )}
                       </span>
                     </button>
                   </li>
@@ -1638,6 +1915,45 @@ function PersonPicker({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function RosterCard({ c, onSelect }: { c: CandidateRow; onSelect: (id: string) => void }) {
+  const tone = STATUS_TONE[c.status ?? "new"] ?? STATUS_TONE.new!;
+  const role = c.positionApplied || c.position;
+  const roleLine = [role, c.department].filter(Boolean).join(" · ") || "Position not set";
+  const incomplete = isIncomplete(c);
+  return (
+    <div className="wg-sheen group flex h-full flex-col rounded-2xl border border-hairline bg-white p-4 shadow-[0_10px_30px_-24px_rgba(24,24,27,0.5)] transition-all hover:-translate-y-0.5 hover:border-hairline-strong hover:shadow-md">
+      <button type="button" onClick={() => onSelect(c.id)} className="flex items-center gap-3 text-left">
+        <Avatar name={c.fullName} avatarUrl={c.avatarUrl} size={44} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-black leading-tight text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>
+            {c.fullName || "Unnamed"}
+          </span>
+          <span className="block truncate text-[12.5px] font-medium text-ink-muted">{roleLine}</span>
+        </span>
+        <span className="shrink-0 rounded-pill px-2.5 py-1 text-[11.5px] font-bold" style={{ background: tone.bg, color: tone.fg }}>
+          {tone.label}
+        </span>
+      </button>
+
+      <div className="mt-3 flex items-center gap-2 border-t border-hairline pt-3">
+        {incomplete && (
+          <span className="inline-flex items-center gap-1 rounded-pill px-2 py-1 text-[11px] font-bold" style={{ background: "color-mix(in srgb, #f59e0b 14%, white)", color: "#b45309" }}>
+            <AlertTriangle size={11} strokeWidth={2.6} /> Details missing
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => onSelect(c.id)}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12.5px] font-bold text-white transition-opacity hover:opacity-95"
+          style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
+        >
+          Open record <ArrowRight size={13} strokeWidth={2.6} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -1660,15 +1976,8 @@ const CSS = `
 
   /* Person picker */
   .rec-trigger:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-altus-red) 16%, transparent); }
-  /* The centred card's glide up/down while the dropdown is open (see .rec-lift in the JSX). */
-  .rec-lift { transition: transform 0.5s cubic-bezier(0.22,1,0.36,1); will-change: transform; }
-  /* The list UNFOLDS downward from the trigger — a clip-path reveal plus a small
-     settle — timed to run alongside the card's lift rather than popping in. */
-  .rec-panel { animation: recPop 0.42s cubic-bezier(0.22,1,0.36,1) both; transform-origin: top center; }
-  @keyframes recPop {
-    from { opacity: 0; transform: translateY(-10px) scaleY(0.97); clip-path: inset(0 0 100% 0 round 16px); }
-    to   { opacity: 1; transform: translateY(0) scaleY(1); clip-path: inset(0 0 0 0 round 16px); }
-  }
+  .rec-panel { animation: recPop 0.16s cubic-bezier(0.22,1,0.36,1) both; transform-origin: top center; }
+  @keyframes recPop { from { opacity: 0; transform: translateY(-6px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
   .rec-scroll { scrollbar-width: thin; scrollbar-color: var(--color-hairline-strong) transparent; }
   .rec-scroll::-webkit-scrollbar { width: 8px; }
   .rec-scroll::-webkit-scrollbar-thumb { background: var(--color-hairline-strong); border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
@@ -1680,6 +1989,5 @@ const CSS = `
 
   @media (prefers-reduced-motion: reduce) {
     .rec-fade, .rec-panel, .rec-grid > section { animation: none !important; }
-    .rec-lift { transition: none !important; }
   }
 `;

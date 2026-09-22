@@ -110,6 +110,12 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "25mb",
     },
+    // THE VERCEL BUILD RAN OUT OF MEMORY (19 Sep). On the 2-core / 8 GB build
+    // machine the webpack compile stalled after "Compiled with warnings" and
+    // was killed at Vercel's 45-minute limit, twice, on code that had built
+    // in 7 minutes an hour earlier. Trades a little build speed for a lower
+    // peak heap. Paired with the heap size in package.json's build script.
+    webpackMemoryOptimizations: true,
   },
   /**
    * TYPED ROUTES ARE OFF — the app outgrew them.
@@ -216,6 +222,10 @@ const nextConfig: NextConfig = {
   // to be on the function filesystem, so a bare readFile would 500 in prod).
   outputFileTracingIncludes: {
     "/goals/template.xlsx": ["./public/templates/Altus-Goals-Template.xlsx"],
+    // The Upload Master download route serves the same built-in Goals workbook
+    // (via lib/templates/goals.ts) without module access, so it needs the file
+    // traced into its own function too.
+    "/admin/upload-master/download/[key]": ["./public/templates/Altus-Goals-Template.xlsx"],
     // @sparticuz/chromium's binary lives in its `bin/` dir and is unpacked at
     // RUNTIME by executablePath() — nothing statically imports it, so Vercel's
     // file-tracing drops it from the function ("input directory …/bin does not
@@ -237,6 +247,14 @@ const nextConfig: NextConfig = {
     "/api/hr/letters/issue-rich": [CHROMIUM_BIN, "./public/letter-fonts/**", "./public/letterhead/**", "./public/logos/**"],
     "/api/hr/letters/pdf": [CHROMIUM_BIN, "./public/letter-fonts/**", "./public/letterhead/**", "./public/logos/**"],
     "/api/hr/letters/email-pdf": [CHROMIUM_BIN, "./public/letter-fonts/**", "./public/letterhead/**", "./public/logos/**"],
+    // BILLING — the invoice is the on-screen sheet printed by headless Chromium
+    // (lib/billing/invoice-sheet-render.ts). It reads its CSS out of
+    // app/globals.css and inlines the logo and signature from public/, none of
+    // which a function gets by default — trace them into every route that
+    // renders the sheet (PDF download, email picture, email send).
+    "/billing/documents/[id]/pdf": [CHROMIUM_BIN, "./app/globals.css", "./public/logos/**", "./public/signatures/**", "./public/billing/**"],
+    "/billing/documents/[id]/png": [CHROMIUM_BIN, "./app/globals.css", "./public/logos/**", "./public/signatures/**", "./public/billing/**"],
+    "/billing/documents/[id]/email": [CHROMIUM_BIN, "./app/globals.css", "./public/logos/**", "./public/signatures/**", "./public/billing/**"],
   },
   // Externalize heavy server packages so the bundler does NOT compile their huge
   // trees into every route (the Sentry + OpenTelemetry + Prisma-instrumentation
@@ -260,6 +278,10 @@ const nextConfig: NextConfig = {
     // client one). Imported lazily inside the server function that runs them.
     "puppeteer-core",
     "@sparticuz/chromium",
+    // Invoice PDF → PNG for the email body (lib/billing/pdf-to-png.ts): a
+    // native canvas binding and pdf.js, loaded lazily on the send path only.
+    "pdfjs-dist",
+    "@napi-rs/canvas",
     "@sentry/nextjs",
     "@sentry/node",
     "@opentelemetry/instrumentation",

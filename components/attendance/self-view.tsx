@@ -165,7 +165,7 @@ function PeriodCard({ seg, s, delay }: { seg: Segment; s: AttendanceSummary; del
           className="tabular-nums"
           style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 19, letterSpacing: "-0.02em", color: hasCut ? RED : OK_GREEN }}
         >
-          ₹{inr(reduced)}
+          Rs. {inr(reduced)}
         </span>
       </div>
     </div>

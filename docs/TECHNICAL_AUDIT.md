@@ -150,7 +150,6 @@ Route groups `(auth)`, `(app)`, `(admin)` are URL-transparent. **Protection mode
 | `/tasks/[id]` | (app) | task detail (dynamic); `loading.tsx`. |
 | `/tasks/[id]/focus` | (app) | focus workspace |
 | `/tasks/new`, `/tasks/import`, `/tasks/agenda`, `/tasks/kanban` (admin-only nav), `/tasks/duplicates` | (app) | kanban has `loading.tsx` |
-| `/projects`, `/projects/[id]` | (app) | |
 | `/weekly-goals`, `/weekly-goals/dashboard` (rendered as a `?view=dashboard` VIEW of the same route) | (app) | |
 | `/daily-checklist` | (app) | |
 | `/attendance`, `/attendance/dashboard` (admin), `/attendance/leave` | (app) | |

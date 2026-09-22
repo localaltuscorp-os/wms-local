@@ -112,7 +112,7 @@ const CATEGORY_LABELS: Record<BroadcastCategory, string> = {
   policy: "Policy Update",
   compliance: "Compliance",
   emergency: "Emergency",
-  department: "Department",
+  department: "Function",
   event: "Event",
   holiday: "Holiday",
   recognition: "Recognition",
@@ -1712,7 +1712,7 @@ export function BroadcastComposer({
                   onToggle={(id) => toggle(teamValues, setTeamValues, id)}
                 />
                 <ChipGroup
-                  title="Departments"
+                  title="Functions"
                   options={departments}
                   selected={departmentIds}
                   onToggle={(id) => toggle(departmentIds, setDepartmentIds, id)}

@@ -335,7 +335,7 @@ function AddAdhocRow({
         </div>
         <div>
           <label className="block text-[12px] font-semibold text-[#0F172A] mb-1">
-            Amount (₹)
+            Amount (Rs.)
           </label>
           <input
             type="number"

@@ -15,6 +15,7 @@ import { sendWebPushToUser } from "@/lib/web-push/client";
 import { getRecipientChannelPrefs } from "@/lib/notifications/channel-prefs";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
 import { nextRetryAt } from "@/lib/notifications/dispatch";
+import { isIncentiveNotificationKind, parseIncentiveMeta } from "@/lib/incentive/notifications/kinds";
 import type { TaskStatus } from "@/db/enums";
 
 const MAX_ATTEMPTS = 3;
@@ -244,12 +245,16 @@ async function runChannel(
       }
       case "web_push": {
         const ctx = await buildOutboundCtx(notif, helpers);
+        // Same rule as the first attempt (dispatch.ts): an incentive push shows
+        // its summary and opens the incentive page.
+        const incentiveMeta = isIncentiveNotificationKind(notif.kind) ? parseIncentiveMeta(notif.body) : null;
         const res = await sendWebPushToUser(notif.userId, notif.kind, {
           actorName: ctx.actorName,
           taskSubject: ctx.taskSubject,
-          body: ctx.body,
+          body: incentiveMeta ? incentiveMeta.summary : ctx.body,
           shortId: ctx.shortId,
           taskId: notif.taskId ?? "",
+          url: incentiveMeta?.href,
         });
         return outcomeFromChannelResult(res);
       }

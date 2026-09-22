@@ -82,46 +82,60 @@ export function JdFrequencyField({
 
   const customRule = value.kind === "rrule" ? value.rule : null;
 
+  /* TWO CELLS, not one (2026-09-18): the form lays Starts on, Frequency and
+     Estimated time out as three equal columns, so this returns its two as
+     siblings for the parent grid to place. The dialog renders into a portal and
+     takes no cell. The labels are spans, not <label>s: the form's own Label is
+     one, and a <label> with no `htmlFor` associates with nothing — each input
+     carries its accessible name itself. */
   return (
     <>
-      {/* A span, not a label: the JD form's own `Label` is one, and a <label>
-          with no `htmlFor` associates with nothing. The input carries the
-          accessible name itself. */}
-      <span className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-        Starts on
-      </span>
-      <input
-        type="date"
-        value={startDate}
-        onChange={(e) => changeStartDate(e.target.value)}
-        aria-label="The date this job starts"
-        className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-      />
+      <div className="min-w-0">
+        <span className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          Starts on
+        </span>
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => changeStartDate(e.target.value)}
+          aria-label="The date this job starts"
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
+        />
+        <p className="mt-1 text-[11px] text-slate-500">The frequency counts from this day.</p>
+      </div>
 
-      <select
-        value={preset}
-        onChange={(e) => selectPreset(e.target.value as PresetKey)}
-        aria-label="How often this job comes round"
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-      >
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-
-      {preset === "custom" && (
-        <button
-          type="button"
-          onClick={() => setCustomOpen(true)}
-          className="mt-2 text-[12px] font-semibold text-slate-600 underline underline-offset-2 hover:text-slate-900"
+      <div className="min-w-0">
+        <span className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          Frequency
+        </span>
+        <select
+          value={preset}
+          onChange={(e) => selectPreset(e.target.value as PresetKey)}
+          aria-label="How often this job comes round"
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
         >
-          Edit custom recurrence
-        </button>
-      )}
-
-      <p className="mt-1 text-[11px] text-slate-500">{describeRecurrence(value)}</p>
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-[11px] text-slate-500">
+          {describeRecurrence(value)}
+          {preset === "custom" && (
+            <>
+              {" · "}
+              <button
+                type="button"
+                onClick={() => setCustomOpen(true)}
+                className="font-semibold text-slate-600 underline underline-offset-2 hover:text-slate-900"
+              >
+                Edit custom
+              </button>
+            </>
+          )}
+        </p>
+      </div>
 
       <CustomRecurrenceDialog
         open={customOpen}
