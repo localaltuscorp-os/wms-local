@@ -8361,11 +8361,17 @@ export type CandidateIntake = typeof candidateIntake.$inferSelect;
 
 export const candidateIntakeMergeEvents = pgTable("candidate_intake_merge_events", {
   id: uuid("id").primaryKey().defaultRandom(),
-  survivorIntakeId: uuid("survivor_intake_id").notNull().references(() => candidateIntake.id, { onDelete: "cascade" }),
-  retiredIntakeId: uuid("retired_intake_id").notNull(),
-  mergedById: uuid("merged_by_id").references(() => employees.id, { onDelete: "set null" }),
-  snapshot: jsonb("snapshot"),
+  retiredIntakeId: uuid("retired_intake_id").references(() => candidateIntake.id, { onDelete: "set null" }),
+  survivorIntakeId: uuid("survivor_intake_id").references(() => candidateIntake.id, { onDelete: "set null" }),
+  retiredName: text("retired_name"), retiredMobile: text("retired_mobile"),
+  survivorName: text("survivor_name"), survivorMobile: text("survivor_mobile"),
+  transferred: jsonb("transferred").notNull().default([]),
+  skipped: jsonb("skipped").notNull().default([]),
+  restorePayload: jsonb("restore_payload"),
+  actorEmployeeId: uuid("actor_employee_id").references(() => employees.id, { onDelete: "set null" }),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  undoneAt: timestamp("undone_at", { withTimezone: true }),
+  undoneById: uuid("undone_by_id").references(() => employees.id, { onDelete: "set null" }),
 });
 export type CandidateIntakeMergeEvent = typeof candidateIntakeMergeEvents.$inferSelect;
 
