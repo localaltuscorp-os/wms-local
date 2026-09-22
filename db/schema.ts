@@ -8860,6 +8860,7 @@ export const paEntries = pgTable(
     callType: text("call_type"),
     /** That call's length in MINUTES. Shown as HH:MM; stored as a quantity. */
     durationMin: integer("duration_min"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
