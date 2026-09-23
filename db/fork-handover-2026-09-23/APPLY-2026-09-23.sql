@@ -1,25 +1,35 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- APPLY — the fork's 23 September delivery, all 32 migrations, in order.
+-- APPLY — the fork's 23 September delivery, 33 steps, in order.
 --
--- PROJECT: run this against mwaijzxuyicysvimzspx (ours).
+-- PROJECT: mwaijzxuyicysvimzspx (ours).
 --   https://supabase.com/dashboard/project/mwaijzxuyicysvimzspx/sql/new
 --   NOT fjopgyqytfvbudkwhdto — that is the fork team's database, and the
 --   handoff that came with this delivery names theirs and calls it production.
 --
--- Every file is wrapped in its own BEGIN/COMMIT, so a failure stops at that
--- one file and everything before it stays applied. Each PART is preceded by
--- the filename it came from — if something fails, that name is what to report.
+-- RUN PRE-APPLY-CLASH-CHECK.sql FIRST. An empty result means go. Any row means
+-- a table already exists here in an older shape and needs its patch first.
 --
--- All 32 are additive: new tables, new columns, new rows. None drops a table,
--- a column or a row, and none uses CONCURRENTLY. Verified by reading them.
+-- REVISION 2 (2026-09-23). The first run stopped at PART 8 with:
+--     ERROR: 42703: column "outstanding_entity_id" of relation
+--     "billing_customers" does not exist
+-- That is not a bug in 0229 — your database already carried a `billing_customers`
+-- from an earlier billing attempt, so its CREATE TABLE IF NOT EXISTS did nothing
+-- and the INSERT that follows named a column the old table lacks. The fork ships
+-- `PATCH-BILLING-LEGACY-TABLES.sql` for exactly this; it is now PART 8, ahead of
+-- the file that needs it. It is guarded and re-runnable, and it DROPS NOTHING —
+-- the five leftover columns are left in place.
+--
+-- Every step is wrapped in its own BEGIN/COMMIT, so a failure stops there and
+-- everything before it stays applied. Each PART names its source file: if
+-- something fails, that name is what to report.
+--
+-- Every step is additive and idempotent — re-running this file from the top
+-- after a partial run costs nothing.
 --
 -- Run VERIFY-2026-09-23.sql before and after.
---
--- IF YOU PREFER TO RUN THEM ONE AT A TIME: migrations/ holds all 32 as
--- individual files, in this same order.
 -- ════════════════════════════════════════════════════════════════════════════
 
--- ════════════════════════════ PART 1 of 32 · 0215_goal_archive.sql ════════════════════════════
+-- ════════════════════════════ PART 1 of 33 · 0215_goal_archive.sql ════════════════════════════
 
 BEGIN;
 -- 0215 — Goals: a real ARCHIVE, separate from the Recycle Bin.
@@ -68,7 +78,7 @@ CREATE INDEX IF NOT EXISTS weekly_goals_archived_at_idx
 
 COMMIT;
 
--- ════════════════════════════ PART 2 of 32 · 0225_doer_initiator_status.sql ════════════════════════════
+-- ════════════════════════════ PART 2 of 33 · 0225_doer_initiator_status.sql ════════════════════════════
 
 BEGIN;
 -- 0225 — THE TWO STATUS AXES: doer status and initiator status.
@@ -217,7 +227,7 @@ UPDATE project_nodes
 
 COMMIT;
 
--- ════════════════════════════ PART 3 of 32 · 0226_result_is_not_a_task.sql ════════════════════════════
+-- ════════════════════════════ PART 3 of 33 · 0226_result_is_not_a_task.sql ════════════════════════════
 
 BEGIN;
 -- 0226 — A RESULT IS NOT A TASK.
@@ -259,7 +269,7 @@ UPDATE tasks
 
 COMMIT;
 
--- ════════════════════════════ PART 4 of 32 · 0227_hr_address_book_asset_register.sql ════════════════════════════
+-- ════════════════════════════ PART 4 of 33 · 0227_hr_address_book_asset_register.sql ════════════════════════════
 
 BEGIN;
 -- 0227 — HR module · Address Book of Resources + Asset Register.
@@ -341,7 +351,7 @@ CREATE INDEX IF NOT EXISTS "hr_assets_issued_employee_idx" ON "hr_assets" ("issu
 
 COMMIT;
 
--- ════════════════════════════ PART 5 of 32 · 0227_plan_task_client_repair.sql ════════════════════════════
+-- ════════════════════════════ PART 5 of 33 · 0227_plan_task_client_repair.sql ════════════════════════════
 
 BEGIN;
 -- 0227 — REPAIR: a plan task's client is its PROJECT's client, never its own name.
@@ -418,7 +428,7 @@ UPDATE tasks t
 
 COMMIT;
 
--- ════════════════════════════ PART 6 of 32 · 0228_ops_vendor_directory.sql ════════════════════════════
+-- ════════════════════════════ PART 6 of 33 · 0228_ops_vendor_directory.sql ════════════════════════════
 
 BEGIN;
 -- 0228 — Operations · Vendor Directory.
@@ -463,7 +473,7 @@ CREATE INDEX IF NOT EXISTS "ops_vendors_category_idx" ON "ops_vendors" ("categor
 
 COMMIT;
 
--- ════════════════════════════ PART 7 of 32 · 0228_plan_task_client_repair_again.sql ════════════════════════════
+-- ════════════════════════════ PART 7 of 33 · 0228_plan_task_client_repair_again.sql ════════════════════════════
 
 BEGIN;
 -- 0228 — THE 0227 REPAIR, RUN AGAIN.
@@ -534,7 +544,122 @@ UPDATE tasks t
 
 COMMIT;
 
--- ════════════════════════════ PART 8 of 32 · 0229_billing_documents.sql ════════════════════════════
+-- ════════════════════════════ PART 8 of 33 · PATCH-BILLING-LEGACY-TABLES.sql (patch, runs before 0229) ════════════════════════════
+
+BEGIN;
+-- ============================================================================
+-- RUN THIS BEFORE SUPABASE-STEP-2-migrations.sql
+-- ============================================================================
+--
+-- THE ERROR THIS FIXES
+--
+--   ERROR: 42703: column "outstanding_entity_id" of relation
+--   "billing_customers" does not exist
+--   LINE 387: INSERT INTO billing_customers (name, outstanding_entity_id)
+--
+-- WHY IT HAPPENS
+--
+-- This database already carries a billing_customers table and a
+-- billing_sac_codes table from an earlier billing attempt, in an older shape.
+-- Every CREATE statement in the bundle is written CREATE TABLE IF NOT EXISTS,
+-- which is what makes the bundle safe to re-run -- but on a table that is
+-- already there it does nothing at all, old shape and all. The bundle then
+-- reaches a statement naming a column that the newer definition has and the
+-- older table does not, and stops.
+--
+-- Nothing was applied: the SQL editor runs a script as one transaction, so the
+-- failure rolled the whole thing back. Run this file, let it finish, then run
+-- SUPABASE-STEP-2-migrations.sql again from the top.
+--
+-- WHAT THIS DOES
+--
+--   1. Adds the ten columns billing_customers is missing and the one column
+--      billing_sac_codes is missing. Every add is guarded, so running this
+--      twice changes nothing the second time.
+--   2. Copies the two rows already in billing_customers onto the new columns:
+--      the old kind_attn becomes contact_name, contact_no becomes phone,
+--      address becomes address_line1, state becomes state_name. The old
+--      columns are LEFT ALONE -- nothing is dropped and nothing is lost, and
+--      the application simply does not read them.
+--   3. Prints what it did, so the result is visible rather than assumed.
+--
+-- WHAT THIS DOES NOT DO
+--
+-- It does not drop the five leftover columns (kind_attn, address, state,
+-- contact_person, contact_no). They are all nullable, so they cost nothing but
+-- a little clutter, and dropping columns that hold live values is not a thing
+-- to do in the same breath as a migration. Once the Billing screens have been
+-- used for a while and the values above are confirmed to have carried over,
+-- they can go in their own small change.
+-- ============================================================================
+
+
+-- ── 1. billing_sac_codes ──────────────────────────────────────────────────
+-- The default GST rate the invoice line picks up when a SAC code is chosen.
+ALTER TABLE billing_sac_codes
+  ADD COLUMN IF NOT EXISTS default_gst_rate numeric(5,2);
+
+
+-- ── 2. billing_customers ──────────────────────────────────────────────────
+-- Ten columns, in the order the newer definition declares them.
+ALTER TABLE billing_customers
+  ADD COLUMN IF NOT EXISTS legal_name    text,
+  -- "Kind Attn." on the printed document.
+  ADD COLUMN IF NOT EXISTS contact_name  text,
+  -- E.164, +919876543210
+  ADD COLUMN IF NOT EXISTS whatsapp      text,
+  ADD COLUMN IF NOT EXISTS phone         text,
+  ADD COLUMN IF NOT EXISTS address_line1 text,
+  ADD COLUMN IF NOT EXISTS address_line2 text,
+  -- state_code already exists and drives intra- vs inter-state GST; this is
+  -- the readable name printed beside it.
+  ADD COLUMN IF NOT EXISTS state_name    text,
+  ADD COLUMN IF NOT EXISTS country       text NOT NULL DEFAULT 'India',
+  ADD COLUMN IF NOT EXISTS outstanding_entity_id uuid REFERENCES outstanding_entities(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS updated_by_id uuid REFERENCES employees(id) ON DELETE SET NULL;
+
+
+-- ── 3. Carry the rows already there onto the new columns ──────────────────
+-- COALESCE on the left so this is safe to re-run: a value already written by
+-- the Billing screens is never overwritten by the older copy of itself.
+UPDATE billing_customers
+SET contact_name  = COALESCE(contact_name,  NULLIF(btrim(kind_attn), ''), NULLIF(btrim(contact_person), '')),
+    phone         = COALESCE(phone,         NULLIF(btrim(contact_no), '')),
+    address_line1 = COALESCE(address_line1, NULLIF(btrim(address), '')),
+    state_name    = COALESCE(state_name,    NULLIF(btrim(state), ''))
+WHERE kind_attn IS NOT NULL
+   OR contact_person IS NOT NULL
+   OR contact_no IS NOT NULL
+   OR address IS NOT NULL
+   OR state IS NOT NULL;
+
+
+-- ── 4. What it looks like now ─────────────────────────────────────────────
+SELECT
+  count(*)                                                           AS customers,
+  count(*) FILTER (WHERE contact_name  IS NOT NULL)                  AS with_contact_name,
+  count(*) FILTER (WHERE phone         IS NOT NULL)                  AS with_phone,
+  count(*) FILTER (WHERE address_line1 IS NOT NULL)                  AS with_address_line1,
+  count(*) FILTER (WHERE country = 'India')                          AS country_defaulted
+FROM billing_customers;
+
+-- Every column the bundle is about to use. Each row should read PRESENT.
+SELECT needed.column_name AS column_needed,
+       CASE WHEN c.column_name IS NULL THEN 'STILL MISSING' ELSE 'PRESENT' END AS status
+FROM (VALUES
+    ('legal_name'), ('contact_name'), ('whatsapp'), ('phone'),
+    ('address_line1'), ('address_line2'), ('state_name'), ('country'),
+    ('outstanding_entity_id'), ('updated_by_id')
+) AS needed(column_name)
+LEFT JOIN information_schema.columns c
+  ON c.table_schema = 'public'
+ AND c.table_name   = 'billing_customers'
+ AND c.column_name  = needed.column_name
+ORDER BY status DESC, column_needed;
+
+COMMIT;
+
+-- ════════════════════════════ PART 9 of 33 · 0229_billing_documents.sql ════════════════════════════
 
 BEGIN;
 -- 0229 — BILLING: the document engine (Quotation → Proforma Invoice → Tax Invoice).
@@ -900,7 +1025,7 @@ ON CONFLICT DO NOTHING;
 
 COMMIT;
 
--- ════════════════════════════ PART 9 of 32 · 0229_broadcast_recurrence_whatsapp.sql ════════════════════════════
+-- ════════════════════════════ PART 10 of 33 · 0229_broadcast_recurrence_whatsapp.sql ════════════════════════════
 
 BEGIN;
 -- 0229 — Broadcasts: annual + custom-date repeats, on-time publishing, automatic WhatsApp.
@@ -930,7 +1055,7 @@ CREATE INDEX IF NOT EXISTS broadcasts_due_idx ON broadcasts (scheduled_for) WHER
 
 COMMIT;
 
--- ════════════════════════════ PART 10 of 32 · 0230_client_engagement.sql ════════════════════════════
+-- ════════════════════════════ PART 11 of 33 · 0230_client_engagement.sql ════════════════════════════
 
 BEGIN;
 -- 0230 — Client Engagement, built on the Hand-holding tables.
@@ -1036,7 +1161,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ce_dropdown_options_key_code_uidx
 
 COMMIT;
 
--- ════════════════════════════ PART 11 of 32 · 0230_daily_checklist_initiator_status.sql ════════════════════════════
+-- ════════════════════════════ PART 12 of 33 · 0230_daily_checklist_initiator_status.sql ════════════════════════════
 
 BEGIN;
 -- 0230 — DAILY GOALS join the two status axes.
@@ -1116,7 +1241,7 @@ CREATE INDEX IF NOT EXISTS daily_checklist_archived_at_idx
 
 COMMIT;
 
--- ════════════════════════════ PART 12 of 32 · 0231_billing_pms_archive.sql ════════════════════════════
+-- ════════════════════════════ PART 13 of 33 · 0231_billing_pms_archive.sql ════════════════════════════
 
 BEGIN;
 -- 0231 — ARCHIVE for billing documents and monthly performance reviews.
@@ -1188,7 +1313,7 @@ CREATE INDEX IF NOT EXISTS pms_monthly_review_archived_idx
 
 COMMIT;
 
--- ════════════════════════════ PART 13 of 32 · 0231_exec_calendar.sql ════════════════════════════
+-- ════════════════════════════ PART 14 of 33 · 0231_exec_calendar.sql ════════════════════════════
 
 BEGIN;
 -- 0231 — Executive Master Calendar.
@@ -1337,7 +1462,7 @@ ALTER TABLE exec_calendar_prefs ADD CONSTRAINT exec_calendar_prefs_window_chk
 
 COMMIT;
 
--- ════════════════════════════ PART 14 of 32 · 0232_team_performance_archive.sql ════════════════════════════
+-- ════════════════════════════ PART 15 of 33 · 0232_team_performance_archive.sql ════════════════════════════
 
 BEGIN;
 -- 0232 — ARCHIVE a row on Productivity › Team Performance.
@@ -1391,7 +1516,7 @@ CREATE INDEX IF NOT EXISTS employees_performance_archived_idx
 
 COMMIT;
 
--- ════════════════════════════ PART 15 of 32 · 0233_customer_kyc.sql ════════════════════════════
+-- ════════════════════════════ PART 16 of 33 · 0233_customer_kyc.sql ════════════════════════════
 
 BEGIN;
 -- 0233 — CUSTOMER KYC, the address book, the dropdown master and the recycle bin.
@@ -1556,7 +1681,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS billing_lookups_kind_value_uq
 
 COMMIT;
 
--- ════════════════════════════ PART 16 of 32 · 0234_billing_contracts.sql ════════════════════════════
+-- ════════════════════════════ PART 17 of 33 · 0234_billing_contracts.sql ════════════════════════════
 
 BEGIN;
 -- 0234 — BILLING CONTRACTS: the agreement a run of invoices is raised under.
@@ -1671,7 +1796,7 @@ CREATE INDEX IF NOT EXISTS billing_contract_pdcs_contract_idx ON billing_contrac
 
 COMMIT;
 
--- ════════════════════════════ PART 17 of 32 · 0235_customer_kyc_business_whatsapp.sql ════════════════════════════
+-- ════════════════════════════ PART 18 of 33 · 0235_customer_kyc_business_whatsapp.sql ════════════════════════════
 
 BEGIN;
 -- 0235 — Customer KYC: Business Category, Nature of Business, contact WhatsApp.
@@ -1692,7 +1817,7 @@ ALTER TABLE billing_customer_contacts ADD COLUMN IF NOT EXISTS whatsapp text;
 
 COMMIT;
 
--- ════════════════════════════ PART 18 of 32 · 0236_customer_kyc_social_payment_options.sql ════════════════════════════
+-- ════════════════════════════ PART 19 of 33 · 0236_customer_kyc_social_payment_options.sql ════════════════════════════
 
 BEGIN;
 -- 0236 — Customer KYC: LinkedIn, Instagram, and the three payment options.
@@ -1713,7 +1838,7 @@ ALTER TABLE billing_customers ADD COLUMN IF NOT EXISTS module_wise_payment text;
 
 COMMIT;
 
--- ════════════════════════════ PART 19 of 32 · 0237_customer_kyc_introducer.sql ════════════════════════════
+-- ════════════════════════════ PART 20 of 33 · 0237_customer_kyc_introducer.sql ════════════════════════════
 
 BEGIN;
 -- 0237 — Customer KYC: the Introducer box.
@@ -1733,7 +1858,7 @@ ALTER TABLE billing_customers ADD COLUMN IF NOT EXISTS introducer jsonb;
 
 COMMIT;
 
--- ════════════════════════════ PART 20 of 32 · 0237_exec_calendar_categories_markers.sql ════════════════════════════
+-- ════════════════════════════ PART 21 of 33 · 0237_exec_calendar_categories_markers.sql ════════════════════════════
 
 BEGIN;
 -- 0237 — Executive calendar: the new category set, fixed clients, Day Markers.
@@ -1837,7 +1962,7 @@ CREATE INDEX IF NOT EXISTS exec_calendar_day_markers_dates_idx
 
 COMMIT;
 
--- ════════════════════════════ PART 21 of 32 · 0238_client_engagement_v2.sql ════════════════════════════
+-- ════════════════════════════ PART 22 of 33 · 0238_client_engagement_v2.sql ════════════════════════════
 
 BEGIN;
 -- 0238 — Client Engagement, rebuilt on its own tables (2026-09-18).
@@ -2029,7 +2154,7 @@ WHERE NOT EXISTS (
 
 COMMIT;
 
--- ════════════════════════════ PART 22 of 32 · 0239_wcc_mcc_completed_quantity.sql ════════════════════════════
+-- ════════════════════════════ PART 23 of 33 · 0239_wcc_mcc_completed_quantity.sql ════════════════════════════
 
 BEGIN;
 -- 0239 — WCC / MCC: how many were actually done (account holder, 2026-09-19).
@@ -2059,7 +2184,7 @@ alter table dcc_entries add constraint dcc_entries_completed_quantity_chk
 
 COMMIT;
 
--- ════════════════════════════ PART 23 of 32 · 0240_mcc_frequencies.sql ════════════════════════════
+-- ════════════════════════════ PART 24 of 33 · 0240_mcc_frequencies.sql ════════════════════════════
 
 BEGIN;
 -- 0240 — MCC frequencies (account holder, 2026-09-19).
@@ -2113,7 +2238,7 @@ alter table dcc_kpi_items add constraint dcc_kpi_items_mcc_start_month_chk
 
 COMMIT;
 
--- ════════════════════════════ PART 24 of 32 · 0241_wcc_mcc_abandoned.sql ════════════════════════════
+-- ════════════════════════════ PART 25 of 33 · 0241_wcc_mcc_abandoned.sql ════════════════════════════
 
 BEGIN;
 -- 0241 — WCC / MCC: the Doer Status "Abandoned" (account holder, 2026-09-19).
@@ -2135,7 +2260,7 @@ alter table dcc_entries add constraint dcc_entries_doer_status_chk
 
 COMMIT;
 
--- ════════════════════════════ PART 25 of 32 · 0242_visibility_grants.sql ════════════════════════════
+-- ════════════════════════════ PART 26 of 33 · 0242_visibility_grants.sql ════════════════════════════
 
 BEGIN;
 -- Access Control — grants of ELEVATED visibility, by domain.
@@ -2174,7 +2299,7 @@ CREATE INDEX IF NOT EXISTS visibility_grants_employee_idx
 
 COMMIT;
 
--- ════════════════════════════ PART 26 of 32 · 0242_wcc_minutes.sql ════════════════════════════
+-- ════════════════════════════ PART 27 of 33 · 0242_wcc_minutes.sql ════════════════════════════
 
 BEGIN;
 -- 0242 — WCC: Mins (account holder, 2026-09-19).
@@ -2203,7 +2328,7 @@ alter table dcc_kpi_items add constraint dcc_kpi_items_minutes_chk
 
 COMMIT;
 
--- ════════════════════════════ PART 27 of 32 · 0243_incentive_product_master_rows.sql ════════════════════════════
+-- ════════════════════════════ PART 28 of 33 · 0243_incentive_product_master_rows.sql ════════════════════════════
 
 BEGIN;
 -- PRODUCT MASTER — the three products the Sales Pitch form names that the
@@ -2237,7 +2362,7 @@ ON CONFLICT (name) DO NOTHING;
 
 COMMIT;
 
--- ════════════════════════════ PART 28 of 32 · 0244_incentive_applicability_and_intern_type.sql ════════════════════════════
+-- ════════════════════════════ PART 29 of 33 · 0244_incentive_applicability_and_intern_type.sql ════════════════════════════
 
 BEGIN;
 -- 0244 · Incentive applicability (All / Function / Selected employees),
@@ -2628,7 +2753,7 @@ update designations
 
 COMMIT;
 
--- ════════════════════════════ PART 29 of 32 · 0244_module_backup.sql ════════════════════════════
+-- ════════════════════════════ PART 30 of 33 · 0244_module_backup.sql ════════════════════════════
 
 BEGIN;
 -- 0244 — module-wise export to Google Drive
@@ -2738,7 +2863,7 @@ ON CONFLICT DO NOTHING;
 
 COMMIT;
 
--- ════════════════════════════ PART 30 of 32 · 0245_global_logs.sql ════════════════════════════
+-- ════════════════════════════ PART 31 of 33 · 0245_global_logs.sql ════════════════════════════
 
 BEGIN;
 -- ════════════════════════════════════════════════════════════════════════════
@@ -2872,7 +2997,7 @@ create trigger activity_logs_no_mutate
 
 COMMIT;
 
--- ════════════════════════════ PART 31 of 32 · 0246_control_panel.sql ════════════════════════════
+-- ════════════════════════════ PART 32 of 33 · 0246_control_panel.sql ════════════════════════════
 
 BEGIN;
 -- ════════════════════════════════════════════════════════════════════════════
@@ -2949,7 +3074,7 @@ where not exists (select 1 from roles where lower(name) = 'super admin');
 
 COMMIT;
 
--- ════════════════════════════ PART 32 of 32 · 0247_activity_logs_allow_fk_null.sql ════════════════════════════
+-- ════════════════════════════ PART 33 of 33 · 0247_activity_logs_allow_fk_null.sql ════════════════════════════
 
 BEGIN;
 -- ════════════════════════════════════════════════════════════════════════════

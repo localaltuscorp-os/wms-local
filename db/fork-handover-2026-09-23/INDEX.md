@@ -48,10 +48,39 @@ So: apply the SQL first, then deploy.
 migration on our side that the 21 September handover did not cover is one of
 these 32.
 
-- **`APPLY-2026-09-23.sql`** — all 32, in order, each in its own
-  `BEGIN`/`COMMIT`, preceded by a `PART n of 32 · <filename>` marker. If a
-  statement fails, that marker tells you exactly which file to report. Paste
-  the whole thing into the SQL editor and run it.
+### Revision 2 — the first run stopped at PART 8
+
+```
+ERROR: 42703: column "outstanding_entity_id" of relation
+"billing_customers" does not exist
+LINE 895: INSERT INTO billing_customers (name, outstanding_entity_id)
+```
+
+**Not a bug in the migration.** Your database already carried a
+`billing_customers` from an earlier billing attempt, in an older shape. Every
+CREATE in this delivery is `CREATE TABLE IF NOT EXISTS`, so on a table that is
+already there it does nothing at all — old shape and all — and the next
+statement named a column the old table lacks.
+
+The fork ships `db/PATCH-BILLING-LEGACY-TABLES.sql` for exactly this, and the
+first bundle left it out. It is now **PART 8**, ahead of the file that needs it.
+It adds the ten missing `billing_customers` columns and one on
+`billing_sac_codes`, copies the two existing rows onto the new names
+(`kind_attn` → `contact_name`, `contact_no` → `phone`, `address` →
+`address_line1`, `state` → `state_name`), and **drops nothing** — the five
+leftover columns stay. Guarded, so re-running changes nothing.
+
+**Added: `PRE-APPLY-CLASH-CHECK.sql`.** Read-only, and it answers this whole
+class of problem at once: it checks all 567 columns across the 44 tables the
+delivery creates against your database and prints only the ones that are
+missing. **An empty result means go. Any row names a table that needs patching
+first.** Run it before the apply.
+
+- **`APPLY-2026-09-23.sql`** — all 33 steps (the 32 plus the patch), in order,
+  each in its own `BEGIN`/`COMMIT`, preceded by a `PART n of 33 · <filename>`
+  marker. If a statement fails, that marker tells you exactly which file to
+  report. Paste the whole thing into the SQL editor and run it. Every step is
+  idempotent, so re-running from the top after a partial run costs nothing.
 - **`migrations/`** — the same 32 as individual files, in the same order, if you
   would rather go one at a time.
 - **`VERIFY-2026-09-23.sql`** — read-only. Run before and after: it checks every
@@ -72,31 +101,32 @@ column or a row, and none uses `CONCURRENTLY`. Verified by reading them.
 | 5 | `0227_plan_task_client_repair.sql` | A plan task's client is its project's client |
 | 6 | `0228_ops_vendor_directory.sql` | Operations · Vendor Directory |
 | 7 | `0228_plan_task_client_repair_again.sql` | The 0227 repair, run again |
-| 8 | `0229_billing_documents.sql` | Billing document engine (Quotation → Proforma → Tax Invoice) |
-| 9 | `0229_broadcast_recurrence_whatsapp.sql` | Broadcasts: repeats, on-time publishing, WhatsApp |
-| 10 | `0230_client_engagement.sql` | Client Engagement, on the Hand-holding tables |
-| 11 | `0230_daily_checklist_initiator_status.sql` | Daily goals join the two status axes |
-| 12 | `0231_billing_pms_archive.sql` | Archive for billing documents and monthly reviews |
-| 13 | `0231_exec_calendar.sql` | Executive Master Calendar |
-| 14 | `0232_team_performance_archive.sql` | Archive a row on Productivity › Team Performance |
-| 15 | `0233_customer_kyc.sql` | Customer KYC, address book, dropdown master, recycle bin |
-| 16 | `0234_billing_contracts.sql` | Billing contracts |
-| 17 | `0235_customer_kyc_business_whatsapp.sql` | Business category, nature of business, WhatsApp |
-| 18 | `0236_customer_kyc_social_payment_options.sql` | LinkedIn, Instagram, three payment options |
-| 19 | `0237_customer_kyc_introducer.sql` | The Introducer box |
-| 20 | `0237_exec_calendar_categories_markers.sql` | Calendar categories, fixed clients, Day Markers |
-| 21 | `0238_client_engagement_v2.sql` | Client Engagement rebuilt on its own tables |
-| 22 | `0239_wcc_mcc_completed_quantity.sql` | WCC / MCC: how many were actually done |
-| 23 | `0240_mcc_frequencies.sql` | MCC frequencies |
-| 24 | `0241_wcc_mcc_abandoned.sql` | WCC / MCC: the "Abandoned" doer status |
-| 25 | `0242_visibility_grants.sql` | Access Control — elevated visibility grants |
-| 26 | `0242_wcc_minutes.sql` | WCC: Mins, replacing Deadline |
-| 27 | `0243_incentive_product_master_rows.sql` | The three products the Sales Pitch form names |
-| 28 | `0244_incentive_applicability_and_intern_type.sql` | Applicability, intern type, **renames `incentive_eligibility.incentive_id`** |
-| 29 | `0244_module_backup.sql` | Nightly per-module export to Google Drive (4 tables) |
-| 30 | `0245_global_logs.sql` | `daily_sessions` + `activity_logs`, append-only |
-| 31 | `0246_control_panel.sql` | `roles`, `role_permissions`, `employee_roles` |
-| 32 | `0247_activity_logs_allow_fk_null.sql` | Lets the 0245 trigger pass FK `set null` |
+| 8 | `PATCH-BILLING-LEGACY-TABLES.sql` | **Patch** — the ten `billing_customers` columns + one on `billing_sac_codes` an older table is missing. Drops nothing |
+| 9 | `0229_billing_documents.sql` | Billing document engine (Quotation → Proforma → Tax Invoice) |
+| 10 | `0229_broadcast_recurrence_whatsapp.sql` | Broadcasts: repeats, on-time publishing, WhatsApp |
+| 11 | `0230_client_engagement.sql` | Client Engagement, on the Hand-holding tables |
+| 12 | `0230_daily_checklist_initiator_status.sql` | Daily goals join the two status axes |
+| 13 | `0231_billing_pms_archive.sql` | Archive for billing documents and monthly reviews |
+| 14 | `0231_exec_calendar.sql` | Executive Master Calendar |
+| 15 | `0232_team_performance_archive.sql` | Archive a row on Productivity › Team Performance |
+| 16 | `0233_customer_kyc.sql` | Customer KYC, address book, dropdown master, recycle bin |
+| 17 | `0234_billing_contracts.sql` | Billing contracts |
+| 18 | `0235_customer_kyc_business_whatsapp.sql` | Business category, nature of business, WhatsApp |
+| 19 | `0236_customer_kyc_social_payment_options.sql` | LinkedIn, Instagram, three payment options |
+| 20 | `0237_customer_kyc_introducer.sql` | The Introducer box |
+| 21 | `0237_exec_calendar_categories_markers.sql` | Calendar categories, fixed clients, Day Markers |
+| 22 | `0238_client_engagement_v2.sql` | Client Engagement rebuilt on its own tables |
+| 23 | `0239_wcc_mcc_completed_quantity.sql` | WCC / MCC: how many were actually done |
+| 24 | `0240_mcc_frequencies.sql` | MCC frequencies |
+| 25 | `0241_wcc_mcc_abandoned.sql` | WCC / MCC: the "Abandoned" doer status |
+| 26 | `0242_visibility_grants.sql` | Access Control — elevated visibility grants |
+| 27 | `0242_wcc_minutes.sql` | WCC: Mins, replacing Deadline |
+| 28 | `0243_incentive_product_master_rows.sql` | The three products the Sales Pitch form names |
+| 29 | `0244_incentive_applicability_and_intern_type.sql` | Applicability, intern type, **renames `incentive_eligibility.incentive_id`** |
+| 30 | `0244_module_backup.sql` | Nightly per-module export to Google Drive (4 tables) |
+| 31 | `0245_global_logs.sql` | `daily_sessions` + `activity_logs`, append-only |
+| 32 | `0246_control_panel.sql` | `roles`, `role_permissions`, `employee_roles` |
+| 33 | `0247_activity_logs_allow_fk_null.sql` | Lets the 0245 trigger pass FK `set null` |
 
 Order was checked, not assumed: no file references a table created later than
 itself. The only cross-file dependencies are `0237_exec_calendar_categories_markers`
