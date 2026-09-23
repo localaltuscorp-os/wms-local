@@ -1,6 +1,7 @@
 import "server-only";
 import { and, gte, lt, sql } from "drizzle-orm";
-import { db, employees, tasks, holidays } from "@/lib/db";
+import { listHolidayRowsBetween } from "@/lib/queries/holidays";
+import { db, employees, tasks } from "@/lib/db";
 import { isFounderEmail } from "@/lib/auth/founder";
 import { effectiveDueAtSql } from "@/lib/tasks/effective-due";
 import {
@@ -125,10 +126,8 @@ export async function loadTaskReportData(now: Date = new Date()): Promise<TaskRe
         .where(and(gte(tasks.createdAt, sevenAgo), sql`${tasks.archived} = false`))
         .catch(() => [] as InitiatorTaskRow[]),
 
-      db
-        .select({ holidayDate: holidays.holidayDate })
-        .from(holidays)
-        .where(gte(holidays.holidayDate, sevenAgo.toISOString().slice(0, 10)))
+      // The merged calendar (published + ad-hoc + Events Master, minus withdrawn).
+      listHolidayRowsBetween(sevenAgo.toISOString().slice(0, 10))
         .catch(() => [] as { holidayDate: string }[]),
     ]);
 

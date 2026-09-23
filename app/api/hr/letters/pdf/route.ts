@@ -30,6 +30,8 @@ interface LetterPdfBody {
   /** WHO signs, when HR picked explicitly in the editor. Omitted -> the
    *  template's own rule. Threaded so an exported PDF matches the preview. */
   signatory?: "director" | "hr";
+  /** Shrink the letter step by step until it fits one A4 page. */
+  fitOnePage?: boolean;
 }
 
 /**
@@ -76,6 +78,7 @@ export async function POST(req: Request): Promise<Response> {
       const pdf = await renderRichLetterPdf({
         entity: body.entity ?? "",
         bodyHtml: body.bodyHtml,
+        fitOnePage: body.fitOnePage === true,
       });
       const filename = safePdfName(body.key);
       return new Response(new Uint8Array(pdf), {
@@ -103,6 +106,7 @@ export async function POST(req: Request): Promise<Response> {
       gender: normalizeGender(body.gender),
       signatureImage: body.signatureImage,
       signatory: body.signatory,
+      fitOnePage: body.fitOnePage === true,
     });
     const filename = safePdfName(template.key);
     return new Response(new Uint8Array(pdf), {

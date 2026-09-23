@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 const GREEN = "#E10600";
 const GREEN_DEEP = "#A80400";
 const MONTH_RE = /^\d{4}-\d{2}$/;
-const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+const inr = (n: number) => `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

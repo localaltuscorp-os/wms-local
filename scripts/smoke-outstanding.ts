@@ -173,7 +173,7 @@ async function main() {
   // 5. Drive the real query layer.
   console.log("\n=== loadOutstandingDashboard ===");
   const { dashboard, entries, collectionEntries } = await loadOutstandingDashboard(
-    { employees: [], entities: [], months: [], years: [], cycles: [], modes: [], statuses: [], pdcOnly: false },
+    { employees: [], entities: [], clients: [], months: [], years: [], cycles: [], modes: [], statuses: [], pdcOnly: false },
     TODAY,
     HORIZON,
   );

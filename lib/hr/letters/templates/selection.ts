@@ -47,17 +47,17 @@ const template: LetterTemplate = {
 
     para(t("Please find below the key terms of your employment:")),
 
-    term("Joining Date", f("joiningDate", "Joining Date", { placeholder: "Select a date", date: true })),
+    term("Joining Date", f("joiningDate", "Joining Date", { placeholder: "DD-MMM-YYYY", date: true })),
     term("Department", f("department", "Department", { placeholder: "Select a department", optionsKey: "departments" })),
     term("Reporting Manager", f("reportingManager", "Reporting Manager", { placeholder: "Select a manager", optionsKey: "managers" })),
     term("Designation", f("designation", "Designation", { placeholder: "e.g. Business Development Manager" })),
     term("Probation Period", t("6 Months")),
     term("Salary during Probation", [
-      f("salaryProbation", "Salary (During Probation)", { placeholder: "e.g. ₹45,000", numeric: true }),
+      f("salaryProbation", "Salary (During Probation)", { placeholder: "e.g. Rs. 45,000", numeric: true }),
       t(" per month   (During Probation Period)"),
     ]),
     term("Salary after Probation", [
-      f("salaryConfirmed", "Salary (After Probation)", { placeholder: "e.g. ₹50,000", numeric: true }),
+      f("salaryConfirmed", "Salary (After Probation)", { placeholder: "e.g. Rs. 50,000", numeric: true }),
       t(" per month   (After Probation Period)"),
     ]),
 
@@ -79,7 +79,7 @@ const template: LetterTemplate = {
 
     para(
       t("During your Probation Period, your Monthly Business Target will be "),
-      f("monthlyTarget", "Monthly Business Target", { placeholder: "e.g. ₹9,00,000" }),
+      f("monthlyTarget", "Monthly Business Target", { placeholder: "e.g. Rs. 9,00,000" }),
       t("."),
     ),
 
@@ -149,7 +149,7 @@ const template: LetterTemplate = {
       esign: true,
       // The founder signs the offer off directly — a baked scanned signature under
       // "For <entity>", NOT the generic HR-desk sign-off.
-      imageSrc: "/signatures/manan-sign.png",
+      imageSrc: "/signatures/manan-vasa-sign.png",
       name: [t("CA Manan Vasa")],
       designation: [f("signatoryDesignation", "Designation", { defaultValue: "Founder" })],
       showDate: true,

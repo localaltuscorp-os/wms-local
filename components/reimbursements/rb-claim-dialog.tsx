@@ -10,8 +10,8 @@ import { Field, FieldInput } from "@/components/forms/form-fields";
 import { RbFilePicker, RbFilePickerLabel } from "./rb-file-picker";
 import { uploadClaimFiles } from "./upload-claim-files";
 
-const GREEN = "#16a34a";
-const GREEN_DEEP = "#15803d";
+const GREEN = "#E10600";
+const GREEN_DEEP = "#B91C1C";
 
 /** Field types that comfortably share a row in the claim form. */
 const HALF_WIDTH = new Set(["number", "date", "select", "email", "tel"]);
@@ -99,8 +99,18 @@ export function RbClaimDialog({
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/35 backdrop-blur-[2px]" />
+        {/* THE SHAPE, AND WHY IT SCROLLS WHERE IT DOES.
+            It was `max-w-xl` (576px) with `overflow-y-auto` on the whole card:
+            a narrow 576 x 810 ribbon in which the title AND the Submit button
+            both scrolled off, so you filled a long form and then had to scroll
+            back down past everything to find the button.
+
+            Now: 820px wide against a capped height, which is roughly square
+            rather than a column; and a flex COLUMN whose middle section is the
+            only thing that scrolls. The header and the Cancel/Submit row are
+            pinned, so the action you are heading for is always on screen. */}
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-[100] w-full max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[22px] bg-white p-0 max-h-[calc(100dvh-32px)]"
+          className="fixed left-1/2 top-1/2 z-[100] flex w-full max-w-[820px] max-h-[min(88dvh,760px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[22px] bg-white p-0"
           style={{
             boxShadow:
               "inset 0 0 0 1px var(--color-hairline), 0 32px 80px -24px rgba(15,23,42,0.35)",
@@ -108,9 +118,9 @@ export function RbClaimDialog({
         >
           {/* header wash */}
           <div
-            className="relative px-7 pt-6 pb-5 max-md:px-5"
+            className="relative shrink-0 px-7 pt-6 pb-5 max-md:px-5"
             style={{
-              background: `radial-gradient(130% 200% at 100% 0%, color-mix(in srgb, ${GREEN} 10%, transparent), transparent 55%)`,
+              background: `radial-gradient(130% 200% at 100% 0%, color-mix(in srgb, var(--module-accent) 10%, transparent), transparent 55%)`,
               borderBottom: "1px solid var(--color-hairline)",
             }}
           >
@@ -146,7 +156,10 @@ export function RbClaimDialog({
             </Dialog.Close>
           </div>
 
-          <form onSubmit={onSubmit} className="px-7 py-6 max-md:px-5">
+          <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+            {/* The ONLY scrolling region. `min-h-0` is what lets a flex child
+                actually shrink below its content and scroll. */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6 max-md:px-5">
             <div className="grid grid-cols-2 gap-x-4 gap-y-4 max-sm:grid-cols-1">
               {visible.map((f) => (
                 <div key={f.key} className={HALF_WIDTH.has(f.type) ? "col-span-1 max-sm:col-span-1" : "col-span-2 max-sm:col-span-1"}>
@@ -170,12 +183,26 @@ export function RbClaimDialog({
               <RbFilePicker files={files} onChange={setFiles} disabled={busy} />
             </div>
 
+            </div>
+
+            {/* The error sits OUTSIDE the scroll area too. Inside it, a
+                validation message could be scrolled out of view at the exact
+                moment it appeared — the submit that raised it is pinned here,
+                so its answer is pinned beside it. */}
             {error && (
-              <div role="alert" className="mt-4 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3.5 py-2.5 text-[14px] font-medium text-[#A80400]">
+              <div
+                role="alert"
+                className="shrink-0 border-t border-[#FECACA] bg-[#FEF2F2] px-7 py-2.5 text-[14px] font-medium text-[#A80400] max-md:px-5"
+              >
                 {error}
               </div>
             )}
-            <div className="mt-6 flex items-center justify-end gap-2 border-t pt-4" style={{ borderColor: "var(--color-hairline)" }}>
+
+            {/* PINNED FOOTER — outside the scroll area. */}
+            <div
+              className="flex shrink-0 items-center justify-end gap-2 border-t bg-white px-7 py-4 max-md:px-5"
+              style={{ borderColor: "var(--color-hairline)" }}
+            >
               <Dialog.Close asChild>
                 <button
                   type="button"

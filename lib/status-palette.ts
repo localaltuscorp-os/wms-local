@@ -60,6 +60,10 @@ export const STATUS_COLORS = {
    *  re-running the check. */
   notApproved: "#487BA6",
   onHold: "#d97706", // amber-600
+  /** Warm grey. Terminal like `done`, but a dead end rather than an
+   *  achievement — the one neutral among the terminals, so an abandoned chip
+   *  never reads as either progress or failure. White type at 5.35:1. */
+  abandoned: "#78716C",
   /** Muted slate blue / charcoal.
    *
    *  CONTRAST WARNING, as for `pending`: white type here is 4.41:1, just under
@@ -199,6 +203,7 @@ export const STATUS_INK: Record<StatusColorKey, StatusInk> = {
   // Steel blue -> white, at 4.51:1.
   notApproved: "light",
   onHold: "light",
+  abandoned: "light",
   notStarted: "light",
   notRead: "light",
   archived: "light",

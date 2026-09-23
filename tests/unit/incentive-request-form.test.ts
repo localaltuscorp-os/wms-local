@@ -36,7 +36,10 @@ import { defaultIncentiveAmount, incentiveLabel } from "@/lib/incentive-amount";
  */
 
 const code = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
-const ctx = { productNames: ["BSS", "PS", "OS", "Retainer", "Paid Key Note"] };
+const ctx = {
+  productNames: ["BSS", "PS", "OS", "Retainer", "Paid Key Note"],
+  shiftTypeNames: ["Morning", "Evening"],
+};
 
 const ME = "11111111-1111-4111-8111-111111111111";
 const P2 = "22222222-2222-4222-8222-222222222222";
@@ -70,6 +73,7 @@ const VALID: Record<IncentiveType, Record<string, string>> = {
     email: "meera@acme.co.in",
     products: "PS",
     opportunity_type: "PS Potential",
+    shift: "Morning",
   },
   client_happiness: {
     ...DATE,
@@ -103,6 +107,21 @@ const VALID: Record<IncentiveType, Record<string, string>> = {
     workshop: "Productivity Shastra",
     batch_no: "12",
   },
+  // 0244 — the two types added with the applicability work.
+  breakthrough_idea: {
+    ...DATE,
+    idea_title: "Cut the report by hand",
+    idea_category: "Process Improvement",
+    idea_description: "Weekly report is assembled by hand; pull it from the ledger instead.",
+  },
+  employment_referral: {
+    ...DATE,
+    participant_first_name: "Neha",
+    participant_last_name: "Joshi",
+    candidate_cell: "9812345670",
+    candidate_email: "neha@example.com",
+    position_applied_for: "Sales Executive",
+  },
 };
 
 const validate = (type: IncentiveType, patch: Record<string, string>) =>
@@ -135,7 +154,7 @@ const ORIGINAL: Record<string, { key: string; type: string; required: boolean; o
     { key: "organisation", type: "text", required: true },
     { key: "cell", type: "tel", required: true },
     { key: "email", type: "email", required: true },
-    { key: "products", type: "text", required: true },
+    { key: "products", type: "multiselect", required: true },
     {
       key: "opportunity_type",
       type: "select",
@@ -174,9 +193,22 @@ const ORIGINAL: Record<string, { key: string; type: string; required: boolean; o
 };
 
 describe("incentive types", () => {
-  it("keeps the four existing types and adds Leads / Referrals", () => {
-    expect(INCENTIVE_TYPES).toEqual(["bss_conversion", "sales_pitch", "client_happiness", "group_intro", "leads_referrals"]);
+  it("keeps the five existing types and appends the two 0244 ones", () => {
+    // APPEND-ONLY: the two new types go on the end (0244). The list is read by
+    // the form's type picker and by every stored filter, so an insertion in the
+    // middle would move what an existing choice points at.
+    expect(INCENTIVE_TYPES).toEqual([
+      "bss_conversion",
+      "sales_pitch",
+      "client_happiness",
+      "group_intro",
+      "leads_referrals",
+      "breakthrough_idea",
+      "employment_referral",
+    ]);
     expect(INCENTIVE_TYPE_LABELS.leads_referrals).toBe("Leads / Referrals");
+    expect(INCENTIVE_TYPE_LABELS.breakthrough_idea).toBe("Breakthrough Idea");
+    expect(INCENTIVE_TYPE_LABELS.employment_referral).toBe("Employment Referral");
   });
 
   it("BSS Conversion reads Conversion everywhere the form shows it", () => {
@@ -237,11 +269,15 @@ describe("existing forms lost nothing", () => {
 describe("mobile numbers — every tel field in every form", () => {
   const telFields = INCENTIVE_TYPES.flatMap((t) => INCENTIVE_FIELDS[t].filter((f) => f.type === "tel").map((f) => [t, f.key] as const));
 
-  it("finds the three existing mobile fields", () => {
+  it("finds every mobile field, the four that exist", () => {
+    // Three originally; Employment Referral added a fourth (0244). The point of
+    // this list is that NO form can add a tel field that is not run through
+    // isValidIndianMobile, so it must be exhaustive rather than a sample.
     expect(telFields).toEqual([
       ["bss_conversion", "prospect_cell"],
       ["sales_pitch", "cell"],
       ["group_intro", "cell"],
+      ["employment_referral", "candidate_cell"],
     ]);
   });
 
@@ -327,8 +363,19 @@ describe("Conversion → Product, from Admin → Products", () => {
     expect(res).toEqual({ ok: false, error: "No products are set up yet — add them in Admin → Products." });
   });
 
-  it("is not on the other forms", () => {
-    for (const t of INCENTIVE_TYPES.filter((x) => x !== "bss_conversion")) {
+  it("is the same master on Sales Pitch, where a pitch covers several products", () => {
+    // Sales Pitch picks from Admin → Products too, and it is the ONE form that
+    // takes more than one: a single pitch usually covers several products.
+    const pitch = INCENTIVE_FIELDS.sales_pitch.find((f) => f.key === "products")!;
+    expect(pitch.optionsFrom).toBe("products");
+    expect(pitch.options).toBeUndefined();
+    expect(pitch.type).toBe("multiselect");
+
+    // No OTHER form gained a product field, and none of them hardcodes a list.
+    const others = INCENTIVE_TYPES.filter(
+      (t) => t !== "bss_conversion" && t !== "sales_pitch",
+    );
+    for (const t of others) {
       expect(INCENTIVE_FIELDS[t].some((f) => f.optionsFrom === "products"), t).toBe(false);
     }
   });
@@ -425,10 +472,19 @@ describe("Incentive Date", () => {
 });
 
 describe("Notes — every form has one, and it is the dictation field", () => {
-  it("one optional Notes textarea per form", () => {
+  it("every form has exactly one optional Notes textarea", () => {
+    // The invariant is the NOTES field itself: its key, its label, and that it
+    // is optional (a form cannot require free text it never asked for). A form
+    // MAY have another textarea — Breakthrough Idea's `idea_description` is
+    // required, because "what the idea was" is the request, not an aside
+    // (0244) — so this asserts notes is present and correct rather than that it
+    // is the only one. Both textareas render through NotesInput below, so both
+    // get dictation.
     for (const t of INCENTIVE_TYPES) {
-      const areas = INCENTIVE_FIELDS[t].filter((f) => f.type === "textarea");
-      expect(areas.map((f) => [f.key, f.label, !!f.required]), t).toEqual([["notes", "Notes", false]]);
+      const notes = INCENTIVE_FIELDS[t].filter((f) => f.key === "notes");
+      expect(notes.map((f) => [f.type, f.label, !!f.required]), t).toEqual([
+        ["textarea", "Notes", false],
+      ]);
     }
   });
 
@@ -545,7 +601,8 @@ describe("server enforcement — both entry points use the one gate", () => {
     const src = code("lib/incentive/prepare-request.ts");
     expect(src).toContain('import "server-only"');
     expect(src).toMatch(/listActiveProductNames\(\)/);
-    expect(src).toMatch(/validateIncentiveDetails\(type, details, \{ productNames \}\)/);
+    // Both masters feed the one gate — products and shift types.
+    expect(src).toMatch(/validateIncentiveDetails\(type, details, \{ productNames, shiftTypeNames \}\)/);
     expect(src).toMatch(/checkSplit\(split, \{ requesterId \}\)/);
     expect(src).toMatch(/eq\(employees\.isActive, true\)/);
   });
@@ -553,6 +610,17 @@ describe("server enforcement — both entry points use the one gate", () => {
   it("the field errors the dialog shows are the ones the server returns", () => {
     const errors = incentiveFieldErrors("sales_pitch", { ...VALID.sales_pitch, cell: "123", email: "x" }, ctx);
     expect(errors).toEqual({ cell: MOBILE_ERROR, email: EMAIL_ERROR });
+
+    // An EMPTY shift master fails closed: a filled answer is refused as
+    // invalid (nothing is on the master to match it against) and a blank one
+    // says where to fix it.
+    const noShifts = { productNames: ctx.productNames };
+    expect(incentiveFieldErrors("sales_pitch", VALID.sales_pitch, noShifts)).toEqual({
+      shift: "Shift: invalid option.",
+    });
+    expect(
+      incentiveFieldErrors("sales_pitch", { ...VALID.sales_pitch, shift: "" }, noShifts),
+    ).toEqual({ shift: "No shifts are set up yet — add them in Admin → Shift Types." });
   });
 
   it("url and number keep the rules the browser used to apply", () => {

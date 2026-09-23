@@ -34,17 +34,10 @@ const row = (over: Partial<CatalogRow> = {}): CatalogRow => ({
   amount: 250,
   salesEligible: true,
   internsEligible: false,
+  applicability: "ALL_EMPLOYEES",
   notes: null,
   sortOrder: 100,
   active: true,
-  // Migration 0216's two fields. Defaulted to "open to everyone, nobody
-  // singled out" because that is what the migration leaves behind, and because
-  // the exports deliberately do not read them: the sheet's eligibility column
-  // is the Sales/Interns pair, which is a different question from who an admin
-  // narrowed the incentive to. If that ever changes, these two lines are where
-  // the fixture has to start varying.
-  appliesToAll: true,
-  eligibleIds: [],
   ...over,
 });
 
@@ -73,12 +66,15 @@ function manyRows(n: number): CatalogRow[] {
 /* ── The shared column contract ───────────────────────────────────────────── */
 
 describe("the export column contract", () => {
-  it("keeps every field the table shows, plus the two it folds away", () => {
+  it("keeps every field the table shows, plus the ones it folds away", () => {
+    // 0244: the two legacy flag columns were replaced by the ONE rule column.
+    // Printing both flags would now be WRONG, not just dated — a scheme scoped
+    // to a function or to named people has both flags false and would export as
+    // eligible for nobody.
     expect(INCENTIVE_EXPORT_HEADERS).toEqual([
       "Incentive",
       "Amount (INR)",
-      "Sales Eligible",
-      "Interns Eligible",
+      "Applies To",
       "Description",
       "Notes",
       "Status",
@@ -91,17 +87,22 @@ describe("the export column contract", () => {
     expect(typeof cells[1]).toBe("number");
   });
 
-  it("renders both eligibility flags, and says so plainly when neither is set", () => {
-    expect(eligibilityLabel(row({ salesEligible: true, internsEligible: true }))).toBe(
-      "Sales · Interns",
+  it("prints the rule that decides the audience, not the legacy flags", () => {
+    expect(eligibilityLabel(row({ applicability: "ALL_EMPLOYEES" }))).toBe("All Employees");
+    expect(eligibilityLabel(row({ applicability: "FUNCTION" }))).toBe("Function");
+    expect(eligibilityLabel(row({ applicability: "SELECTED_EMPLOYEES" }))).toBe(
+      "Selected Employees",
     );
-    expect(eligibilityLabel(row({ salesEligible: false, internsEligible: false }))).toBe("—");
+    // The legacy flags cannot change the answer: that is the point of the column.
+    expect(eligibilityLabel(row({ applicability: "FUNCTION", salesEligible: false }))).toBe(
+      "Function",
+    );
   });
 
   it("never emits null into a cell — an empty description is an empty string", () => {
     const cells = toIncentiveExportRow(row({ description: null, notes: null }));
+    expect(cells[3]).toBe("");
     expect(cells[4]).toBe("");
-    expect(cells[5]).toBe("");
     expect(cells.some((c) => c === null || c === undefined)).toBe(false);
   });
 
@@ -184,20 +185,21 @@ describe("Excel export", () => {
     const amount = ws.getRow(3).getCell(2);
     expect(typeof amount.value).toBe("number");
     expect(amount.value).toBe(137.5);
-    expect(amount.numFmt).toContain("₹");
+    expect(amount.numFmt).toContain("Rs.");
   });
 
   it("wraps the long prose columns and sets sensible column widths", async () => {
     const { ws } = await openXlsx(await renderIncentiveCatalogXlsx(manyRows(2)));
-    // Description is column 5 and carries the longest text in the table.
-    expect(ws.getRow(3).getCell(5).alignment?.wrapText).toBe(true);
+    // Description is column 4 (0244 removed one column) and carries the longest
+    // text in the table.
+    expect(ws.getRow(3).getCell(4).alignment?.wrapText).toBe(true);
     // Amount is a number column and must NOT wrap.
     expect(ws.getRow(3).getCell(2).alignment?.wrapText).not.toBe(true);
     for (let c = 1; c <= INCENTIVE_EXPORT_HEADERS.length; c++) {
       expect(ws.getColumn(c).width).toBeGreaterThan(0);
     }
-    // The prose columns are the wide ones.
-    expect(ws.getColumn(5).width!).toBeGreaterThan(ws.getColumn(2).width!);
+    // The prose columns are the wide ones — Description is column 4.
+    expect(ws.getColumn(4).width!).toBeGreaterThan(ws.getColumn(2).width!);
   });
 
   it("gives Excel its own filter dropdowns on the header row", async () => {
@@ -211,8 +213,10 @@ describe("Excel export", () => {
     ];
     const { ws } = await openXlsx(await renderIncentiveCatalogXlsx(rows));
     const r = ws.getRow(3);
-    expect(r.getCell(6).value).toBe("Withdrawn Apr 2026");
-    expect(r.getCell(7).value).toBe("Inactive");
+    // Positions after 0244 replaced the two eligibility-flag columns with one
+    // "Applies To" column: Notes is now the fifth header, Status the sixth.
+    expect(r.getCell(5).value).toBe("Withdrawn Apr 2026");
+    expect(r.getCell(6).value).toBe("Inactive");
   });
 
   it("survives an EMPTY table and says so in the sheet", async () => {
@@ -366,7 +370,9 @@ describe("PDF export", () => {
     for (const t of texts) {
       expect(t).toContain("INCENTIVE");
       expect(t).toContain("AMOUNT");
-      expect(t).toContain("ELIGIBLE");
+      // 0244: the column prints the RULE (All Employees / Function / Selected
+      // Employees), so its header is APPLIES TO rather than ELIGIBLE.
+      expect(t).toContain("APPLIES TO");
       expect(t).toContain("STATUS");
     }
     // And the continuation banner on the follow-on pages — every page but the
@@ -409,7 +415,7 @@ describe("PDF export", () => {
       row({ name: "Zero value", amount: 0, description: null, notes: null }),
       row({ name: "Neither eligible", salesEligible: false, internsEligible: false }),
       row({ name: "Retired", active: false }),
-      row({ name: "₹ in the name · dash — and “quotes”", notes: "Line one\nLine two" }),
+      row({ name: "Rs. in the name · dash — and “quotes”", notes: "Line one\nLine two" }),
       row({ name: "A".repeat(400), description: LONG_TEXT }),
     ];
     const pdf = await renderIncentiveCatalogPdf(awkward, META);

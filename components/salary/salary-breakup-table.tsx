@@ -34,6 +34,7 @@ import {
   type PaymentStatus,
 } from "@/lib/salary/payment";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 /* These two were called GREEN / GREEN_DEEP but held the brand RED (#E10600) —
  * and that misnaming is how the payout column, the payslip button and the Paid
@@ -98,10 +99,10 @@ export interface SalaryRow {
 // net-to-pay can never drift between the table, CSV, payroll PDF and mobile.
 
 const inr = (v: string | null) =>
-  v == null || v === "" ? "-" : `₹${Math.round(Number(v)).toLocaleString("en-IN")}`;
+  v == null || v === "" ? "-" : `Rs. ${Math.round(Number(v)).toLocaleString("en-IN")}`;
 /** Rupees from an already-computed number. The payment columns are derived, so
  *  they never have the "missing" case `inr` renders as an em dash. */
-const inrN = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+const inrN = (n: number) => `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
 /** The effective net to pay — base + wave-off add-back + adjustment. Aliased to
  *  the shared `totalPayable` so the table cannot drift from the server action. */
 const netToPay = (r: SalaryRow) => totalPayable(r);
@@ -178,7 +179,7 @@ function MoneyTotal({ rows, pick, tone }: { rows: SalaryRow[]; pick: (r: SalaryR
               "var(--color-ink-strong)",
       }}
     >
-      {tone === "deduction" && sum > 0 ? "− " : ""}₹{Math.round(sum).toLocaleString("en-IN")}
+      {tone === "deduction" && sum > 0 ? "− " : ""}Rs. {Math.round(sum).toLocaleString("en-IN")}
     </span>
   );
 }
@@ -200,7 +201,7 @@ function NetTotal({
       className="tabular-nums text-[13.5px] font-black"
       style={{ color: tone === "due" && sum > 0 ? "#b91c1c" : "var(--color-ink-strong)" }}
     >
-      ₹{Math.round(sum).toLocaleString("en-IN")}
+      Rs. {Math.round(sum).toLocaleString("en-IN")}
     </span>
   );
 }
@@ -300,7 +301,7 @@ const COLUMNS: Col[] = [
       if (sum === 0) return null;
       return (
         <span className="tabular-nums text-[13px] font-black" style={{ color: sum >= 0 ? "#166534" : "#b91c1c" }}>
-          {sum >= 0 ? "+" : "−"} ₹{Math.abs(Math.round(sum)).toLocaleString("en-IN")}
+          {sum >= 0 ? "+" : "−"} Rs. {Math.abs(Math.round(sum)).toLocaleString("en-IN")}
         </span>
       );
     },
@@ -532,7 +533,7 @@ function AmountToPayCell({ row, editable }: { row: SalaryRow; editable: boolean 
   async function clearPayment() {
     if (busy) return;
     const ok = window.confirm(
-      `Clear the recorded payment for ${row.employeeName}?\n\nAmount paid goes back to ₹0 and the row returns to Unpaid. No email is sent. Paying again afterwards WILL email the salary slip a second time.`,
+      `Clear the recorded payment for ${row.employeeName}?\n\nAmount paid goes back to Rs. 0 and the row returns to Unpaid. No email is sent. Paying again afterwards WILL email the salary slip a second time.`,
     );
     if (!ok) return;
     setBusy(true);
@@ -823,14 +824,14 @@ function WaiveOffCell({ row, editable }: { row: SalaryRow; editable: boolean }) 
     addBack > 0 ? (
       <div className="mt-1 leading-tight">
         <span className="tabular-nums text-[11.5px] font-bold" style={{ color: "#166534" }}>
-          + ₹{Math.round(addBack).toLocaleString("en-IN")} waived
+          + Rs. {Math.round(addBack).toLocaleString("en-IN")} waived
         </span>
         <span
           className="ml-1.5 tabular-nums text-[11.5px] font-black"
           style={{ color: BRAND_RED_DEEP }}
           title="Net after wave-off (final payment + condoned days)"
         >
-          → ₹{Math.round(newNet).toLocaleString("en-IN")}
+          → Rs. {Math.round(newNet).toLocaleString("en-IN")}
         </span>
       </div>
     ) : null;
@@ -915,7 +916,7 @@ function AdjustmentCell({ row, editable }: { row: SalaryRow; editable: boolean }
     amount !== 0 ? (
       <div className="mt-1 leading-tight">
         <span className="tabular-nums text-[11.5px] font-black" style={{ color: amount >= 0 ? "#166534" : "#b91c1c" }}>
-          {amount >= 0 ? "+" : "−"} ₹{Math.abs(Math.round(amount)).toLocaleString("en-IN")} {amount >= 0 ? "extra" : "deducted"}
+          {amount >= 0 ? "+" : "−"} Rs. {Math.abs(Math.round(amount)).toLocaleString("en-IN")} {amount >= 0 ? "extra" : "deducted"}
         </span>
       </div>
     ) : null;
@@ -946,7 +947,7 @@ function AdjustmentCell({ row, editable }: { row: SalaryRow; editable: boolean }
   return (
     <div>
       <div className="inline-flex items-center gap-1.5">
-        <span className="text-[11px] font-bold text-ink-subtle">₹</span>
+        <span className="text-[11px] font-bold text-ink-subtle">Rs.</span>
         <input
           type="number"
           step="100"
@@ -975,7 +976,7 @@ function AdjustmentCell({ row, editable }: { row: SalaryRow; editable: boolean }
 }
 
 /* Extreme-right per-row payslip — a downloadable PDF (salary + attendance +
- * incentives) via the combined-earnings route, for the currently-viewed month. */
+ * incentives) via the salary-slip route, for the currently-viewed month. */
 function PayslipLink({ row, month }: { row: SalaryRow; month?: string }) {
   if (!row.employeeId || !month) {
     return <span className="text-ink-subtle">-</span>;
@@ -1034,7 +1035,7 @@ export function SalaryBreakupTable({
   hideCompanyFilter?: boolean;
 }) {
   const [query, setQuery] = useState("");
-  const [company, setCompany] = useState("__all");
+  const [company, setCompany] = useState<string[]>([]);
   const [sort, setSort] = useState<SortState>(null);
 
   const companies = useMemo(
@@ -1047,7 +1048,7 @@ export function SalaryBreakupTable({
 
   const filtered = useMemo(() => {
     let out = rows;
-    if (company !== "__all") out = out.filter((r) => r.companyName === company);
+    if (company.length > 0) out = out.filter((r) => company.includes(r.companyName ?? ""));
     const q = query.trim().toLowerCase();
     if (q) {
       out = out.filter((r) =>
@@ -1157,19 +1158,14 @@ export function SalaryBreakupTable({
               Company
             </span>
             <div className="relative">
-              <select
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                aria-label="Filter by company"
+              <MultiFilter
                 className="admin-filter-select"
-              >
-                <option value="__all">All Companies</option>
-                {companies.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                values={company}
+                onChange={setCompany}
+                options={companies}
+                allLabel="All Companies"
+                aria-label="Filter by company"
+              />
               <ChevronsUpDown
                 size={14}
                 aria-hidden

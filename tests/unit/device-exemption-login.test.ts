@@ -59,6 +59,26 @@ vi.mock("@/db/schema", () => ({
 }));
 vi.mock("drizzle-orm", () => ({ eq: () => ({}), and: () => ({}) }));
 
+/**
+ * THE PENDING-DEVICE ALERT, MOCKED — without this the file times out.
+ *
+ * `enroll` finishes a non-approved registration by awaiting
+ * `alertDeviceManagersPendingDevice`, reached through a DYNAMIC import of
+ * `punch-notify` so the notification stack stays off `requireUser()`'s module
+ * graph. A dynamic import is invisible to the mocks above, so the two
+ * non-exempt cases — the only ones that ever land a `pending` row — were
+ * loading email, Slack and web-push for real, against this file's stub
+ * `@/db/schema` (no `employees`, no `attendanceLogs`) and its stub
+ * `drizzle-orm` (no `inArray`). They never asserted anything; they hit the
+ * 5000ms timeout.
+ *
+ * What this file is about is the device rule: who consumes a slot and who does
+ * not. Who gets emailed about a pending device is `punch-notify`'s own subject.
+ */
+vi.mock("@/lib/attendance/punch-notify", () => ({
+  alertDeviceManagersPendingDevice: async () => undefined,
+}));
+
 const { adoptDeviceOnLogin, resolveDeviceContext } = await import(
   "@/lib/security/device-access"
 );

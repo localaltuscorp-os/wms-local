@@ -100,7 +100,7 @@ function checkCycleRules(d: CycleFields, ctx: z.RefinementCtx, strict: boolean) 
         if (rowsPaise(rows) !== total) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: `Partial rows must sum to the total (₹${inrFromPaise(total)}).`,
+            message: `Partial rows must sum to the total (Rs. ${inrFromPaise(total)}).`,
             path: ["explicitInstallments"],
           });
         }

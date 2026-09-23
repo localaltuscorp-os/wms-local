@@ -29,6 +29,8 @@ import { EMPLOYEE_TYPE_OPTIONS, WORKER_TYPE_LABELS } from "@/lib/attendance/work
 import { EmployeeWorkspace } from "./workspace";
 import { BulkEditDialog } from "./bulk-edit-dialog";
 import { MasterRowActions } from "./row-actions";
+import { ProbationCell, istToday } from "./probation-cell";
+import { formatDate } from "@/lib/format";
 
 /**
  * THE EMPLOYEE MASTER TABLE.
@@ -85,6 +87,14 @@ interface ColumnDef {
   pay?: boolean;
   value: (r: EmployeeMasterRow) => string;
   sort?: (r: EmployeeMasterRow) => string | number;
+  /**
+   * Overrides what the cell PRINTS while `value` stays what the cell MEANS —
+   * the CSV export, the search haystack and the sort all keep reading `value`.
+   * Used by the Probation column, whose cell shows a date AND a derived state tag
+   * (components/admin/employee-master/probation-cell.tsx) where the export needs
+   * the bare date.
+   */
+  render?: (r: EmployeeMasterRow) => React.ReactNode;
 }
 
 const DASH = "—";
@@ -107,7 +117,7 @@ function ymd(v: string | Date | null): string {
   if (!v) return DASH;
   const d = typeof v === "string" ? new Date(`${v}T00:00:00`) : v;
   if (Number.isNaN(d.getTime())) return DASH;
-  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDate(d);
 }
 
 /**
@@ -145,7 +155,17 @@ const COLUMNS: ColumnDef[] = [
   { key: "designation", label: "Designation", default: true, value: (r) => t(r.designationName), sort: (r) => (r.designationName ?? "").toLowerCase() },
   { key: "ctc", label: "CTC", default: true, numeric: true, pay: true, value: (r) => (r.monthlyCtc == null ? DASH : `${inr(r.monthlyCtc)}/mo`), sort: (r) => r.monthlyCtc ?? -1 },
   { key: "doj", label: "DOJ", default: true, value: (r) => ymd(r.joinedAt), sort: (r) => (r.joinedAt ? new Date(r.joinedAt).getTime() : 0) },
-  { key: "probationEnds", label: "Probation Ends", default: true, value: (r) => ymd(r.probationEnd), sort: (r) => r.probationEnd ?? "" },
+  {
+    key: "probationEnds",
+    label: "Probation Ends",
+    default: true,
+    // The export keeps the bare date; the CELL prints the date plus whether it
+    // has passed (0244). The date is never replaced by the word "Completed" —
+    // it is historical HR data and it is what an audit asks for.
+    value: (r) => ymd(r.probationEnd),
+    sort: (r) => r.probationEnd ?? "",
+    render: (r) => <ProbationCell probationEnd={r.probationEnd} today={istToday()} />,
+  },
   /**
    * SHIFT TYPE — this is the WORKER TYPE record, relabelled.
    *
@@ -659,7 +679,7 @@ export function EmployeeMasterTable({
                       key={c.key}
                       className={`px-2.5 py-1.5 text-[12.5px] ${c.numeric ? "text-right tabular-nums" : ""} text-ink-soft`}
                     >
-                      {c.value(r)}
+                      {c.render ? c.render(r) : c.value(r)}
                     </td>
                   ),
                 )}

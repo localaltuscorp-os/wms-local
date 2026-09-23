@@ -25,12 +25,20 @@ function monthLabel(month: string): string {
   return `${MONTHS[mi]} '${y.slice(2)}`;
 }
 
-/** Compact ₹ axis tick: ₹1.2L / ₹3.4Cr / ₹45k. */
+/**
+ * Compact AXIS TICK: "Rs. 1.2L" / "Rs. 3.4Cr" / "Rs. 45k".
+ *
+ * THE ONE PLACE THAT STILL ABBREVIATES, and deliberately. Every figure a person
+ * reads shows all its digits now (2026-09-15) — but a Y axis is a SCALE, not a
+ * figure: five stacked "Rs. 10,12,11,999" labels do not fit the gutter, and
+ * widening the gutter to hold them takes the width off the bars the axis
+ * exists to measure. The values themselves are in the tooltip, in full.
+ */
 function compactInr(n: number): string {
-  if (n >= 1e7) return `₹${(n / 1e7).toFixed(1)}Cr`;
-  if (n >= 1e5) return `₹${(n / 1e5).toFixed(1)}L`;
-  if (n >= 1e3) return `₹${Math.round(n / 1e3)}k`;
-  return `₹${n}`;
+  if (n >= 1e7) return `Rs. ${(n / 1e7).toFixed(1)}Cr`;
+  if (n >= 1e5) return `Rs. ${(n / 1e5).toFixed(1)}L`;
+  if (n >= 1e3) return `Rs. ${Math.round(n / 1e3)}k`;
+  return `Rs. ${n}`;
 }
 
 /**

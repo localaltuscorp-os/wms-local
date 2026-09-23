@@ -256,7 +256,7 @@ async function main() {
       out = take();
       check("employee notified with the reversal reason",
         out[0]?.kind === "incentive_request_reversed" && parseIncentiveMeta(out[0]!.body)?.note === "Client cancelled the engagement"
-        && ((await emailOf(out[0]!)) ?? "").includes("Reversal reason"));
+        && ((await emailOf(out[0]!)) ?? "").includes("Adjustment reason"));
 
       console.log("\n10. Due / Not Due");
       const { id: reqB } = await file("sales_pitch", salesDetails);

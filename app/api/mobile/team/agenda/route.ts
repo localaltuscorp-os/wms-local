@@ -4,6 +4,7 @@ import { listTasks } from "@/lib/queries/tasks";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
 import { isDoneLate } from "@/lib/task-late";
 import type { TaskListFilters } from "@/lib/types";
+import { formatDate } from "@/lib/format";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,7 +77,7 @@ export async function GET(req: Request) {
         : i === 1
           ? "Tomorrow"
           : d.toLocaleDateString("en-US", { weekday: "short", timeZone: TZ });
-    const sub = d.toLocaleDateString("en-US", { day: "numeric", month: "short", timeZone: TZ });
+    const sub = formatDate(ymd);
     return { ymd, label, sub };
   });
 

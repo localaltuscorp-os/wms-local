@@ -70,7 +70,7 @@ export const KPI_DICTIONARY: KpiTarget[] = [
     name: "Rutvisha",
     lines: [
       line("rutvisha-bss", "BSS pitches / WMS demos via Manan Sir", 2, "week", 30),
-      line("rutvisha-bank", "Pravin Joshi collections in bank (₹ lakhs)", 9, "week", 20, "₹L"),
+      line("rutvisha-bank", "Pravin Joshi collections in bank (Rs. lakhs)", 9, "week", 20, "Rs. L"),
       line("rutvisha-references", "References collected", 30, "week", 20, "references"),
       line("rutvisha-keynote", "Keynote speech / speaking engagement booked", 1, "week", 10),
       line("rutvisha-ambassador", "Ambassador tie-ups", 1, "week", 10),

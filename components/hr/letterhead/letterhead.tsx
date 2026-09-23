@@ -48,9 +48,13 @@ export interface LetterheadProps {
   children: ReactNode;
   /** Extra classes on the outer A4 page frame. */
   className?: string;
+  /** "Fit to one page": CSS zoom on the letter body (header/footer unscaled). */
+  bodyZoom?: number;
+  /** "Fit to one page": tighter spacing on the letter body. */
+  bodyCompact?: boolean;
 }
 
-export function Letterhead({ entity, children, className }: LetterheadProps) {
+export function Letterhead({ entity, children, className, bodyZoom, bodyCompact }: LetterheadProps) {
   const e = getEntity(entity ?? null);
   // EVERY entity — Altus included — has its logo baked into its own header strip
   // (opaque JPEG, the SAME image the PDF renderer embeds), so the on-screen
@@ -99,7 +103,13 @@ export function Letterhead({ entity, children, className }: LetterheadProps) {
         <tbody>
           <tr>
             <td>
-              <main className="alh-body">{children}</main>
+              <main
+                className="alh-body"
+                style={bodyZoom !== undefined && bodyZoom !== 1 ? { zoom: bodyZoom } : undefined}
+                data-fit-compact={bodyCompact ? "1" : undefined}
+              >
+                {children}
+              </main>
             </td>
           </tr>
         </tbody>
@@ -176,6 +186,9 @@ const LETTERHEAD_CSS = `
  * carry their own alignment). Structured paragraphs set an inline text-align
  * that wins where an explicit override (centre/right) is needed. */
 .alh-body p{margin:0 0 14px;text-align:left;}
+/* Fit to one page: compact spacing (lib/hr/letters/fit). */
+.alh-body[data-fit-compact="1"]{line-height:1.5;}
+.alh-body[data-fit-compact="1"] p{margin:0 0 7px;}
 /* DELIBERATELY no ul/ol rule here. Every list that reaches this frame is either
  * a component's own bullet (.alw-ul in letter-editor.tsx, .apd-ul in
  * policy-document.tsx — both list-style:none plus a red ::before dot) or the
@@ -207,7 +220,19 @@ const LETTERHEAD_CSS = `
   body:has(.alh-page) aside.hr-rail,
   body:has(.alh-page) .app-topbar,
   body:has(.alh-page) header.header-light,
-  body:has(.alh-page) .module-footer{display:none !important;}
+  body:has(.alh-page) .module-footer,
+  /* The onboarding reminder is a fixed overlay: without this it printed across
+     the foot of EVERY page of every letter, over the footer contact line. */
+  body:has(.alh-page) .onb-nudge{display:none !important;}
+  /* No button belongs on paper. The date control's calendar icon sat on top of
+     the date it had just filled in ("13-Sep-20[icon]26"). */
+  .alh-page button{display:none !important;}
+  /* An input on paper is just its text: no field tint, no underline, no ring -
+     an empty date box printed as a pink bar with a red rule under it. */
+  .alh-page input,.alh-page textarea{
+    background:transparent !important;border:none !important;
+    box-shadow:none !important;outline:none !important;
+  }
   /* :has(.alh-page) matches every ANCESTOR of the sheet — html, body, the
      chrome columns, PageShell, .alw-wrap, .alw-stage — and nothing inside it,
      so one rule zeroes the whole chain without naming each anonymous wrapper. */
@@ -222,7 +247,14 @@ const LETTERHEAD_CSS = `
   }
   .alh-art-top{position:fixed;top:0;left:0;right:0;width:100%;}
   .alh-art-bottom{position:fixed;bottom:0;left:0;right:0;width:100%;}
-  .alh-footer-contact{position:fixed;bottom:78px;}
+  /* The contact line and the body's footer reserve both follow the footer
+     ART's real height, not a fixed 78px. The art is 995x92 and printed at the
+     full page width, so its height is 100vw * 92/995 — ~73px at 794px, more on
+     a wider page box. The fixed 78px let the art grow up over the
+     "HR: … · HR Manager: …" line (2026-09-18); now the line always sits 6px
+     above the art, and the reserve keeps body text clear of both. */
+  .alh-footer-contact{position:fixed;bottom:calc(100vw * 92 / 995 + 6px);}
+  .alh-foot-space{height:calc(100vw * 92 / 995 + 34px);}
   .alh-frame{width:100%;}
   .alh-art,.alh-logo-cover,.alh-logo,.alh-footer-contact{
     -webkit-print-color-adjust:exact;print-color-adjust:exact;
@@ -236,6 +268,15 @@ const LETTERHEAD_CSS = `
      each surface adds its own class-level rules on top. */
   /* Never strand one line of a paragraph on its own at a page edge. */
   .alh-body p{orphans:3;widows:3;}
+  /* A paragraph is ONE unit. orphans/widows only stopped a single stray line,
+     so a numbered clause ("4.1 Consent for Participation: ...") still tore
+     across the page edge with its second half on the next sheet - which is
+     what made a printed letter read as broken. A paragraph that fits on a page
+     now moves whole; one taller than a page still splits (browsers ignore
+     'avoid' for content that cannot fit), so nothing is ever lost. */
+  .alh-body p{break-inside:avoid;}
+  /* The line that introduces a list or table belongs with it. */
+  .alh-body p:has(+ ul),.alh-body p:has(+ ol),.alh-body p:has(+ table){break-after:avoid;}
   /* A heading is worthless at the foot of a page — keep it with what follows. */
   .alh-body h1,.alh-body h2,.alh-body h3{break-after:avoid;break-inside:avoid;}
   /* A bullet is a unit: split its lines and the marker is orphaned. */

@@ -2,6 +2,10 @@ import { Suspense, type ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireUser, getDelegation } from "@/lib/auth/current";
+import { exportableModules } from "@/lib/modules/backup/access";
+import { BACKUP_MODULE_IDS } from "@/lib/modules/backup/registry";
+import { ModuleExportBar } from "@/components/modules/module-export-bar";
+import { WORKSPACE_LABEL } from "@/lib/workspaces";
 import { DeviceRegistrationGate } from "@/components/security/device-registration-gate";
 import { isExemptFromDailyStart } from "@/lib/security/capabilities";
 import { DelegationBanner } from "@/components/auth/delegation-banner";
@@ -27,6 +31,7 @@ import { KeyboardShortcuts } from "@/components/layout/keyboard-shortcuts";
 import { FocusMode } from "@/components/layout/focus-mode";
 import { MODULE_ORDER } from "@/lib/module-theme";
 import { IdleTimerClient } from "@/components/auth/idle-timer-client";
+import { ActivityTracker } from "@/components/logs/activity-tracker";
 import { workspaceForPath, canAccessWorkspace } from "@/lib/workspaces";
 import { managerDailyTaskGate, isManagerWithReports } from "@/lib/manager-gates";
 import { ManagerDailyTaskGate } from "@/components/manager-gates/manager-daily-task-gate";
@@ -259,6 +264,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           screen anyway. Skipped alongside the rest of auth so the bypass is
           complete. See lib/auth/dev-bypass.ts. */}
       {devAuthBypassEnabled() ? null : <IdleTimerClient timeoutMinutes={15} />}
+      {/* Global Logs activity tracker — buffers page visits / record views /
+          searches in IndexedDB and flushes them in batches to /api/logs/ingest.
+          Renders nothing; keeps the single-session/tab behaviour unchanged. */}
+      <ActivityTracker />
       <OnboardingNudge />
       {/* Broadcasts (0215) — a published broadcast flashes as a centre-screen
           popup within ~5s of being sent, on whatever page the recipient is on.
@@ -273,6 +282,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           dispatching NEW_TASK_OPEN_EVENT. It previously lived inside the
           sidebar, gated to WMS, so those triggers were inert everywhere else. */}
       <NewTaskTrigger />
+      {/* The module Export button, in the top bar of whichever room you are in.
+          Rendered for the modules THIS person may export and no others; the
+          download route checks again. See components/modules/module-export-bar. */}
+      <ModuleExportBar
+        allowed={[...(await exportableModules(me, BACKUP_MODULE_IDS))]}
+        labels={WORKSPACE_LABEL}
+      />
       <ChromeShell
         sidebar={<DashboardSidebar />}
         footer={<ModuleFooter access={access} />}

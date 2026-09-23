@@ -10,6 +10,7 @@ import { type FyMonthCol } from "@/lib/accounts/cc";
 import { parseAmount, formatINR, sumAmounts } from "@/lib/accounts/amounts";
 import { createSipItem, updateSipItem, deleteSipItem, setSipMonth } from "@/app/(app)/accounts/sip-tracker/actions";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CELL = "w-full rounded-lg border border-hairline bg-white px-2 py-1.5 text-right text-[12.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-[color:var(--color-altus-red)]";
@@ -70,8 +71,8 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
   }, [months]);
 
   const [q, setQ] = React.useState("");
-  const [fEntity, setFEntity] = React.useState("");
-  const [fType, setFType] = React.useState("");
+  const [fEntity, setFEntity] = React.useState<string[]>([]);
+  const [fType, setFType] = React.useState<string[]>([]);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState<Draft>(emptyDraft);
@@ -85,8 +86,8 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     return items.filter((r) => {
-      if (fEntity && (r.entity ?? "") !== fEntity) return false;
-      if (fType && (r.type ?? "") !== fType) return false;
+      if (fEntity.length > 0 && !fEntity.includes((r.entity ?? ""))) return false;
+      if (fType.length > 0 && !fType.includes((r.type ?? ""))) return false;
       if (needle) {
         const hay = [r.code, r.entity, r.fundName, r.location, r.type].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(needle)) return false;
@@ -99,8 +100,8 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
   const monthTotal = (month: number) => sumAmounts(filtered.map((r) => parseAmount(grid[key(r.id, month)])));
   const grandTotal = sumAmounts(filtered.map((r) => ytd(r.id)));
 
-  const hasFilters = q || fEntity || fType;
-  function clearFilters() { setQ(""); setFEntity(""); setFType(""); }
+  const hasFilters = q || fEntity.length > 0 || fType.length > 0;
+  function clearFilters() { setQ(""); setFEntity([]); setFType([]); }
   function startAdd() { setEditingId(null); setDraft(emptyDraft()); setAdding(true); }
   function startEdit(r: SipItemRow) { setAdding(false); setDraft(toDraft(r)); setEditingId(r.id); }
   function cancel() { setAdding(false); setEditingId(null); }
@@ -157,14 +158,22 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - funds, entity" title="Local search - filters only the list on this page" aria-label="Local search - funds, entity - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
         </CollapsibleSearch>
-        <select className={CHIP} value={fEntity} onChange={(e) => setFEntity(e.target.value)} aria-label="Filter by entity">
-          <option value="">All Entities</option>
-          {entities.map((a) => (<option key={a} value={a}>{a}</option>))}
-        </select>
-        <select className={CHIP} value={fType} onChange={(e) => setFType(e.target.value)} aria-label="Filter by type">
-          <option value="">All Types</option>
-          {types.map((a) => (<option key={a} value={a}>{a}</option>))}
-        </select>
+        <MultiFilter
+          className={CHIP}
+          values={fEntity}
+          onChange={setFEntity}
+          options={entities}
+          allLabel="All Entities"
+          aria-label="Filter by entity"
+        />
+        <MultiFilter
+          className={CHIP}
+          values={fType}
+          onChange={setFType}
+          options={types}
+          allLabel="All Types"
+          aria-label="Filter by type"
+        />
         {hasFilters && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red"><X size={15} strokeWidth={2.4} /> Clear</button>}
         <button type="button" onClick={startAdd} className="ml-auto inline-flex items-center gap-2 rounded-xl py-2.5 px-4 text-[14.5px] font-bold text-white transition-transform active:scale-[0.99]" style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))", boxShadow: "0 10px 26px -12px rgba(225,6,0,0.6)" }}>
           <Plus size={16} strokeWidth={2.6} /> Add Fund
@@ -206,7 +215,7 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
                         <span className="font-bold text-ink-strong">{r.fundName}</span>
                       </div>
                       <div className="mt-0.5 text-[12px] font-semibold text-ink-subtle">
-                        {[r.entity, r.location, r.sipDate && `SIP ${r.sipDate}`, r.type, r.amount && `₹${formatINR(parseAmount(r.amount))}`].filter(Boolean).join(" · ")}
+                        {[r.entity, r.location, r.sipDate && `SIP ${r.sipDate}`, r.type, r.amount && `Rs. ${formatINR(parseAmount(r.amount))}`].filter(Boolean).join(" · ")}
                       </div>
                     </div>
                   </Td>
@@ -218,7 +227,7 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
                       </td>
                     );
                   })}
-                  <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{ytd(r.id) ? `₹${formatINR(ytd(r.id))}` : <Dim />}</Td>
+                  <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{ytd(r.id) ? `Rs. ${formatINR(ytd(r.id))}` : <Dim />}</Td>
                   <Td className="text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => remove(r.id)} busy={busy} /></Td>
                 </tr>
               ))
@@ -229,7 +238,7 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
                 {cols.map((c) => (
                   <td key={c.month} className="px-2 py-3 text-right text-[12.5px] font-bold text-ink-strong whitespace-nowrap">{monthTotal(c.month) ? formatINR(monthTotal(c.month)) : ""}</td>
                 ))}
-                <Td className="text-right font-extrabold text-altus-red whitespace-nowrap">₹{formatINR(grandTotal)}</Td>
+                <Td className="text-right font-extrabold text-altus-red whitespace-nowrap">Rs. {formatINR(grandTotal)}</Td>
                 <Td>{""}</Td>
               </tr>
             )}
@@ -276,7 +285,7 @@ function EditorRow({ colSpan, draft, setDraft, entityOptions, typeOptions, onSav
           <Field label="Location" className="col-span-4 max-lg:col-span-3 max-md:col-span-1"><input value={draft.location} onChange={(e) => set({ location: e.target.value })} className={INPUT} placeholder="Demat / account" aria-label="Location" /></Field>
           <Field label="SIP date" className="col-span-2 max-lg:col-span-1 max-md:col-span-1"><input value={draft.sipDate} onChange={(e) => set({ sipDate: e.target.value })} className={INPUT} placeholder="1st" aria-label="SIP date" /></Field>
           <Field label="Type" className="col-span-3 max-lg:col-span-2 max-md:col-span-1"><ValueSelect label="type" kind="sip_type" options={typeOptions} value={draft.type} onChange={(v) => set({ type: v })} placeholder="SIP…" /></Field>
-          <Field label="Installment amount (₹)" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><input value={draft.amount} onChange={(e) => set({ amount: e.target.value })} className={INPUT} inputMode="numeric" placeholder="125000" aria-label="Installment amount" /></Field>
+          <Field label="Installment amount (Rs.)" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><input value={draft.amount} onChange={(e) => set({ amount: e.target.value })} className={INPUT} inputMode="numeric" placeholder="125000" aria-label="Installment amount" /></Field>
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button type="button" onClick={onCancel} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-4 py-2 text-[14px] font-bold text-ink-muted hover:bg-surface-soft disabled:opacity-50"><X size={16} strokeWidth={2.4} /> Cancel</button>

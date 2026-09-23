@@ -49,7 +49,7 @@ export default async function LeavePage() {
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <PageShell width="narrow">
+      <PageShell width="full">
         <PageCommandBar
           title="Leave"
           hint={
@@ -85,13 +85,20 @@ export default async function LeavePage() {
 
         <LeaveSummaryCards balance={balance} />
 
-        <section className="mt-6" aria-labelledby="my-leave-heading">
-          <h2
-            id="my-leave-heading"
-            className="mb-2.5 text-[15px] font-bold text-ink-strong"
-          >
-            My Leave Requests
-          </h2>
+        <section className="mt-7" aria-labelledby="my-leave-heading">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 id="my-leave-heading" className="text-[17px] font-bold text-ink-strong">
+                My Leave Requests
+              </h2>
+              <p className="mt-0.5 text-[12.5px] text-ink-subtle">
+                Track the status of every request in one place.
+              </p>
+            </div>
+            <span className="text-[12.5px] font-medium text-ink-subtle">
+              {mine.length} {mine.length === 1 ? "request" : "requests"}
+            </span>
+          </div>
           <MyLeaveTable rows={mine} />
         </section>
       </PageShell>

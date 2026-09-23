@@ -16,6 +16,7 @@ import { formatMinutesLabel } from "@/lib/tasks/time/types";
 import { useTaskTimer } from "@/components/tasks/time/task-timer-store";
 import { TimerControls, phaseCaption } from "@/components/tasks/time/timer-controls";
 import { useNowMs } from "@/components/tasks/time/use-elapsed";
+import { formatDate } from "@/lib/format";
 
 function initials(name: string): string {
   const p = (name || "").trim().split(/\s+/).filter(Boolean);
@@ -243,8 +244,7 @@ export function TimeSpentCard({
  */
 function stampRange(startIso: string, endIso: string | null): string {
   const start = new Date(startIso);
-  const day = (d: Date) =>
-    d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const day = (d: Date) => formatDate(d);
   const time = (d: Date) =>
     d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
   if (!endIso) return `${day(start)}, ${time(start)}`;

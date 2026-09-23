@@ -31,7 +31,7 @@ const template: LetterTemplate = {
   signature: "esign",
   blurb: "Revise an employee's compensation in recognition of performance, effective a stated date.",
   blocks: [
-    para(t("Date: "), f("date", "Date", { placeholder: "DD/MM/YYYY", date: true })),
+    para(t("Date: "), f("date", "Date", { placeholder: "DD-MMM-YYYY", date: true })),
     para(t("To,")),
     para(f("employeeName", "Employee Name", { placeholder: "Full name" })),
     heading("Subject: Revision in Compensation — Salary Increment", 3),
@@ -40,12 +40,12 @@ const template: LetterTemplate = {
       t(
         "In recognition of your performance, dedication and valuable contribution to {firm}, the management is pleased to revise your compensation with effect from ",
       ),
-      f("effectiveDate", "Effective Date", { placeholder: "e.g. 1 April 2026", date: true }),
+      f("effectiveDate", "Effective Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t(". The revised details of your compensation are set out below."),
     ),
-    term("Present CTC (₹/annum)", f("presentCtc", "Present CTC", { placeholder: "e.g. 6,00,000" })),
-    term("Revised CTC (₹/annum)", f("revisedCtc", "Revised CTC", { placeholder: "e.g. 7,20,000" })),
-    term("Effective Date", f("effectiveDate", "Effective Date", { placeholder: "e.g. 1 April 2026", date: true })),
+    term("Present CTC (Rs./annum)", f("presentCtc", "Present CTC", { placeholder: "e.g. 6,00,000" })),
+    term("Revised CTC (Rs./annum)", f("revisedCtc", "Revised CTC", { placeholder: "e.g. 7,20,000" })),
+    term("Effective Date", f("effectiveDate", "Effective Date", { placeholder: "DD-MMM-YYYY", date: true })),
     term("Designation", f("designation", "Designation", { placeholder: "e.g. Accounts Executive" })),
     para(
       t(

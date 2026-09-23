@@ -98,6 +98,11 @@ function weeklyToGoalDTO(
     // Delegated columns read + edit these real weekly_goals fields.
     goalType: g.goalType ?? null,
     status: g.status ?? null,
+    // THE INITIATOR AXIS. The shared table's Initiator Status column was removed
+    // on 2026-09-15, so nothing on this board renders the verdict today — it is
+    // still passed because the row type carries it and the detail views read it.
+    approvalStatus: g.approvalStatus ?? null,
+    isPutAway: g.isPutAway ?? false,
     reviewedById: g.reviewedById ?? null,
     approverStatus: g.approverStatus ?? null,
     delegatedTo: g.delegatedTo ?? null,
@@ -735,7 +740,6 @@ export function WeeklyCascadeBoard({
             variant="weekly"
             actions={WEEKLY_TABLE_ACTIONS}
             detailKind="weekly"
-            meId={me.id}
             // Viewing someone else's week means managing them (the page scopes it).
             managesViewed={scopeEmp !== me.id}
             visibleCols={visibleCols}

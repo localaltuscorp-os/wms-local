@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { X, Loader2, Save, IndianRupee } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { LookupSelect } from "@/components/ui/lookup-select";
-import { createReferral, updateReferral } from "@/app/(app)/ambassadors/actions";
+import { createReferral, updateReferral } from "@/app/(app)/billing/ambassadors/actions";
 import { STAGE_LABELS, STAGES, type Stage } from "@/lib/ambassadors/stages";
 import type { ReferralRow } from "@/lib/queries/ambassadors";
 
@@ -270,7 +270,7 @@ export function ReferralDrawer({
             </div>
 
             <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
-              <Field label="Deal Amount (₹)" htmlFor="amb-amount">
+              <Field label="Deal Amount (Rs.)" htmlFor="amb-amount">
                 <div className="relative">
                   <IndianRupee
                     size={16}

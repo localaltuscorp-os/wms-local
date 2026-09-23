@@ -12,7 +12,12 @@ import {
   FolderOpen,
   Target,
   Files,
+  Receipt,
+  ClipboardList,
+  BookUser,
   FolderArchive,
+  Package,
+  LayoutDashboard,
 } from "lucide-react";
 
 import { HR_STAGES, hrItemHref } from "@/lib/hr/lifecycle";
@@ -100,6 +105,9 @@ const lifecycleModules: HrConsoleModule[] = HR_STAGES.map((stage) => ({
 
 /** The standalone HR surfaces — no inner steps, the rail row IS the link. */
 const standalone: Array<{ id: string; title: string; Icon: LucideIcon; href: string }> = [
+  // The console's real front door. Keep it in this rail's own source rather
+  // than the shared module nav: HR renders HrModuleRail, not MainNav.
+  { id: "dashboard", title: "Dashboard", Icon: LayoutDashboard, href: "/hr" },
   /* THREE SURFACES LEFT THIS RAIL ON 2026-09-12.
        Job Description → Operations  (/operations/job-description)
        Broadcasts      → Operations  (/communications)
@@ -120,6 +128,9 @@ const standalone: Array<{ id: string; title: string; Icon: LucideIcon; href: str
   // generic name is the one people raise IT tickets on.
   { id: "help-desk", title: "HR Help Desk", Icon: LifeBuoy, href: "/support" },
   { id: "hr-record", title: "HR Record", Icon: FolderOpen, href: "/hr/record" },
+  // Address Book + Asset Register (0227) — office registers, not lifecycle steps.
+  { id: "address-book", title: "Address Book", Icon: BookUser, href: "/hr/address-book" },
+  { id: "asset-register", title: "Asset Register", Icon: Package, href: "/hr/assets" },
   { id: "kpi-management", title: "KPI Management", Icon: Target, href: "/hr/kpi" },
   { id: "all-filled-forms", title: "All Filled Forms", Icon: Files, href: "/hr/all-forms" },
   // Per-person ZIP download + the scheduled Google Drive save (0225). HR admins only.
@@ -141,7 +152,9 @@ export const HR_CONSOLE_MODULES: HrConsoleModule[] = [
 /** Compare a pathname against an href, ignoring any query string on the href. */
 function matches(pathname: string, href: string): boolean {
   const path = href.split("?")[0] ?? href;
-  return pathname === path || pathname.startsWith(path + "/");
+  // `/hr` is the console dashboard, not a parent module: matching it as a
+  // prefix would make Dashboard swallow every lifecycle route under `/hr/*`.
+  return pathname === path || (path !== "/hr" && pathname.startsWith(path + "/"));
 }
 
 /**

@@ -16,6 +16,8 @@ import {
   bulkImportAccountsTasks,
   type BulkImportResult,
 } from "@/app/(app)/accounts/task-list/import-actions";
+import { TEMPLATE_KEYS, templateHref } from "@/lib/templates/keys";
+import { downloadTemplateFile } from "@/lib/templates/client-download";
 
 const TASK_COLUMNS = [
   "Sr. No.",
@@ -53,6 +55,7 @@ export function AccountsTaskImport() {
   const [dragging, setDragging] = React.useState(false);
   const [uploading, startUpload] = React.useTransition();
   const [result, setResult] = React.useState<BulkImportResult | null>(null);
+  const [downloading, setDownloading] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   function reset() {
@@ -145,14 +148,28 @@ export function AccountsTaskImport() {
           </div>
 
           <div className="px-6 py-5">
-            {/* Download template */}
-            <a
-              href="/accounts/task-list/template"
-              className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-surface-soft px-4 h-10 text-[13.5px] font-bold text-ink-strong hover:border-hairline-strong transition-colors mb-5"
+            {/* Download template — resolved through Upload Master, so an admin's
+                replacement is what this button serves. */}
+            <button
+              type="button"
+              disabled={downloading}
+              onClick={() => {
+                setDownloading(true);
+                void downloadTemplateFile(templateHref(TEMPLATE_KEYS.accountsTaskList))
+                  .then((res) => {
+                    if (!res.ok) fireToast({ message: res.error, type: "error" });
+                  })
+                  .finally(() => setDownloading(false));
+              }}
+              className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-surface-soft px-4 h-10 text-[13.5px] font-bold text-ink-strong hover:border-hairline-strong transition-colors mb-5 disabled:opacity-60"
             >
-              <Download size={15} strokeWidth={2.2} />
-              Download Template
-            </a>
+              {downloading ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Download size={15} strokeWidth={2.2} />
+              )}
+              {downloading ? "Preparing…" : "Download Template"}
+            </button>
 
             {/* Dropzone */}
             <label

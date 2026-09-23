@@ -19,6 +19,7 @@ import {
   setGoalPctDone,
   archiveGoal,
   bulkArchiveGoals,
+  bulkArchiveGoalsToArchive,
 } from "@/app/(app)/goals/cascade/actions";
 
 export const LEVEL_TABLE_ACTIONS: GoalTableActions = {
@@ -29,4 +30,8 @@ export const LEVEL_TABLE_ACTIONS: GoalTableActions = {
   setGoalPctDone: (input) => setGoalPctDone(input),
   archiveGoal: (input) => archiveGoal(input),
   bulkArchiveGoals: (input) => bulkArchiveGoals(input),
+  // ARCHIVE (migration 0215) — "put away", the button beside Delete. Distinct
+  // from bulkArchiveGoals above, which despite its name is this module's DELETE
+  // (it sets `archived` and the row lands in the Recycle Bin).
+  bulkPutInArchive: (input) => bulkArchiveGoalsToArchive(input),
 };

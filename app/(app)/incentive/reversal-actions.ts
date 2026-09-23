@@ -79,7 +79,9 @@ export async function reverseIncentiveEntry(
           amount: money2(plan.reversalAmount),
           paidDate,
           createdById: me.id,
-          note: ["reversal", v.note ?? null].filter(Boolean).join(" · ") || "reversal",
+          note:
+            ["negative payable adjustment", v.note ?? null].filter(Boolean).join(" · ") ||
+            "negative payable adjustment",
         });
 
         // The negative payable — offsets the original positive payment row.

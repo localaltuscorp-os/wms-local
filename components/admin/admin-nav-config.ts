@@ -23,8 +23,12 @@ import {
   Wallet,
   Network,
   KeyRound,
+  ShieldCheck,
   FileUp,
   Settings as SettingsIcon,
+  ScrollText,
+  Eye,
+  Clock,
 } from "lucide-react";
 
 export interface AdminNavItem {
@@ -66,7 +70,7 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
       { href: "/admin/functions" as Route, label: "Functions", Icon: Building2 },
       { href: "/admin/designations" as Route, label: "Designations", Icon: IdCard },
       { href: "/admin/holidays" as Route, label: "Holidays", Icon: CalendarDays },
-      { href: "/admin/salary-profiles" as Route, label: "Salary Profiles", Icon: BadgeIndianRupee },
+      { href: "/admin/salary-profiles" as Route, label: "Salary Breakup", Icon: BadgeIndianRupee },
     ],
   },
   {
@@ -108,6 +112,25 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
       { href: "/admin/outstanding-products" as Route, label: "Products (legacy view)", Icon: Package },
     ],
   },
+  // BILLING — back as a group with ONE entry, Billing Profiles (Manan,
+  // 2026-09-19: the Billing Admin Master's Edit links land here, so it has to
+  // be findable from the rail). The other four billing masters stay off it,
+  // per the note below.
+  {
+    label: "Billing",
+    Icon: ReceiptIndianRupee,
+    items: [
+      { href: "/admin/billing-profiles" as Route, label: "Billing Profiles", Icon: Building2 },
+    ],
+  },
+  // (Previously:) NO "Billing" GROUP. It held five masters — Billing Profiles, Customers,
+  // Product Billing Fields, Payment Terms, SAC Codes. Manan, 2026-09-16,
+  // against a screenshot of the group: "remove this also".
+  //
+  // The ROUTES are untouched: app/(admin)/admin/billing-* still exist and still
+  // render, and their permission nodes in lib/permissions/catalog.ts still
+  // govern them. Only the rail entry is gone, so the pages are reachable by URL
+  // but are no longer offered in the admin nav.
   {
     // The Incentive Master and its Incentive Chart. A group of its own rather
     // than another line under "Masters": it is not just a list the dropdowns
@@ -123,7 +146,22 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
     label: "Access",
     Icon: KeyRound,
     items: [
-      { href: "/admin/temporary-access" as Route, label: "Temporary Access", Icon: KeyRound },
+      // Task Visibility stays its own heading; Temporary Access moved under
+      // Control Panel (below), its one canonical location.
+      { href: "/admin/access-control" as Route, label: "Task Visibility", Icon: ShieldCheck },
+    ],
+  },
+  {
+    // THE CONTROL PANEL — the central surface for managing who has access to
+    // what. Temporary Access relocated here (reused, not rebuilt).
+    label: "Control Panel",
+    Icon: ShieldCheck,
+    items: [
+      { href: "/admin/control-panel/users" as Route, label: "Users", Icon: Users },
+      { href: "/admin/control-panel/roles" as Route, label: "Roles", Icon: UserCog },
+      { href: "/admin/control-panel/permissions" as Route, label: "Permissions", Icon: KeyRound },
+      { href: "/admin/control-panel/effective-access" as Route, label: "Effective Access", Icon: Eye },
+      { href: "/admin/control-panel/temporary-access" as Route, label: "Temporary Access", Icon: Clock },
     ],
   },
   {
@@ -132,6 +170,7 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
     items: [
       { href: "/admin/notifications" as Route, label: "Notifications", Icon: Bell },
       { href: "/admin/task-reminders" as Route, label: "Task Reminders", Icon: BellRing },
+      { href: "/admin/logs" as Route, label: "Logs", Icon: ScrollText },
       { href: "/admin/settings" as Route, label: "Settings", Icon: SettingsIcon },
     ],
   },

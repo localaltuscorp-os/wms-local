@@ -1,44 +1,54 @@
 import { formatInr } from "@/lib/format";
 import {
-  audienceGroupOf,
+  applicabilityOf,
+  eligibilityLabel,
+  incentiveApplicabilityLabel,
   incentiveDurationLabel,
   incentiveTypeLabel,
   isCurrentEmployee,
-  type IncentiveAudienceGroup,
+  modeOf,
+  resolveIncentiveEligibility,
+  type EligibilityWindow,
+  type IncentiveApplicant,
+  type IncentiveEligibilityShape,
 } from "@/lib/incentive/master";
 import type { IncentiveChangeLine } from "./kinds";
 
 /**
  * WHO an Incentive Master change is about. Pure and client-safe.
  *
- * ── ELIGIBILITY: TWO MECHANISMS, ONE RULE ───────────────────────────────────
- * `eligibleEmployeeIds` — the named eligibility of the Incentive Chart
- * (`incentive_eligibility`, migration 0232) — GOVERNS WHEN IT IS PRESENT.
- * When it is absent the original group flags apply: "Sales Eligible" and
- * "Interns Eligible", resolved off the employee's designation, because the WMS
- * has no "sales" flag on a person.
+ * ── ELIGIBILITY: ONE RULE, IMPORTED ─────────────────────────────────────────
+ * Whether somebody is eligible is decided by `resolveIncentiveEligibility` in
+ * lib/incentive/master.ts — the same function the admin screen, the My
+ * Incentives list and the request gate call. This module does NOT restate it; it
+ * only decides who HEARS about a change.
  *
- * That rule is not restated here — `audienceGroupOf` and `isCurrentEmployee`
- * are imported from lib/incentive/master.ts, which is where the Incentive
- * Master's rules live and what the admin screen and the queries also read. This
- * module only decides who HEARS about a change.
+ * That matters most for the two facts a snapshot cannot carry on its own: an
+ * intern is never eligible (their type lives on the employee row, which the
+ * audience query now selects), and a FUNCTION-scoped scheme needs the function
+ * ids, which ARE in the snapshot because they are configuration rather than
+ * per-person data.
  *
  * Only CURRENT employees are ever an audience: `is_active` (can sign in) AND
  * `employment_status = 'active'` (still works here).
  *
- * ── WHY EVERY 0232 FIELD IS OPTIONAL ───────────────────────────────────────
+ * ── WHY EVERY 0232/0244 FIELD IS OPTIONAL ──────────────────────────────────
  * A snapshot is read back out of `incentive_catalog_events.before/after`, and
- * every event written before 0232 has none of these keys. Optional means such
- * an event still parses, still diffs, and still renders — rather than the whole
- * notification failing because a row from last month is missing a column that
- * did not exist when it was written.
+ * every event written before the migration that added a key has none of them.
+ * Optional means such an event still parses, still diffs, and still renders —
+ * rather than the whole notification failing because a row from last month is
+ * missing a column that did not exist when it was written. `applicabilityOf`
+ * reconstructs the audience of a pre-0244 snapshot from the legacy group flags.
  */
 
 export interface CatalogSnapshot {
   name: string;
   description: string | null;
   amount: number;
+  /** LEGACY group flag (pre-0244). Read only by `applicabilityOf`, for events
+   *  written before `applicability` existed. */
   salesEligible: boolean;
+  /** LEGACY group flag (pre-0244). See `salesEligible`. */
   internsEligible: boolean;
   notes: string | null;
   active: boolean;
@@ -54,20 +64,26 @@ export interface CatalogSnapshot {
   validUntil?: string | null;
   /**
    * Named eligibility — the employee ids eligible at the moment of the
-   * snapshot. `null`/absent means this incentive has no named eligibility and
-   * the group flags govern.
+   * snapshot. Absent on a pre-0232 event, and on a scheme whose audience is not
+   * decided by name.
    */
   eligibleEmployeeIds?: string[] | null;
-}
 
-export type { IncentiveAudienceGroup };
-export { audienceGroupOf };
+  // ── migration 0244 ──
+  /** ALL_EMPLOYEES | FUNCTION | SELECTED_EMPLOYEES. Absent on a pre-0244 event. */
+  applicability?: string | null;
+  /** The function ids a FUNCTION-scoped scheme covers. Absent when not scoped. */
+  functionIds?: string[] | null;
+}
 
 export interface AudienceEmployee {
   id: string;
   isActive: boolean;
   employmentStatus: string;
-  designation?: string | null;
+  /** The EFFECTIVE employee type (see `resolveEmployeeType`). An intern is
+   *  never in an incentive audience. */
+  employeeType?: string | null;
+  functionId?: string | null;
 }
 
 /** A person who can receive an incentive notification. */
@@ -75,33 +91,73 @@ export function isActiveEmployee(e: { isActive: boolean; employmentStatus: strin
   return isCurrentEmployee({ id: "", isActive: e.isActive, employmentStatus: e.employmentStatus });
 }
 
-/** Does this incentive decide eligibility by name rather than by group? */
+/** Does this incentive decide eligibility by naming people? */
 export function isNamedEligibility(s: CatalogSnapshot | null | undefined): boolean {
-  return Array.isArray(s?.eligibleEmployeeIds);
+  if (!s) return false;
+  // A pre-0244 snapshot has no `applicability`, so the presence of an
+  // eligibility list is what identifies it — and an EMPTY list is still a
+  // statement ("nobody"), not an absence.
+  if (s.applicability == null) return Array.isArray(s.eligibleEmployeeIds);
+  return s.applicability === "SELECTED_EMPLOYEES";
+}
+
+/**
+ * A snapshot as the shared rule reads it, including its legacy form.
+ *
+ * `validUntil` is deliberately NOT passed: a change notice is about what
+ * happened to a scheme, and the audience of a change has always been decided by
+ * `active` alone. Passing the date would silently drop the audience of every
+ * scheme that expired, so the people who were eligible when it was withdrawn
+ * would never hear that it was. The offer gate still applies to REQUESTS
+ * (`isIncentiveOnOffer` in the request path), which is where a date matters.
+ */
+function snapshotAsIncentive(s: CatalogSnapshot): IncentiveEligibilityShape {
+  return {
+    active: s.active,
+    validUntil: null,
+    applicability: s.applicability ?? null,
+    functionIds: s.functionIds ?? null,
+    salesEligible: s.salesEligible,
+    internsEligible: s.internsEligible,
+  };
+}
+
+/** The named grants a snapshot carries, as the window shape the rule wants. */
+function snapshotWindows(s: CatalogSnapshot): EligibilityWindow[] {
+  if (!Array.isArray(s.eligibleEmployeeIds)) return [];
+  // The snapshot records the people eligible AT THAT MOMENT, so each grant is
+  // treated as open-ended from the beginning of time: the question being asked
+  // of a snapshot is "who was in this list", not "who is eligible today".
+  return s.eligibleEmployeeIds.map((employeeId) => ({
+    employeeId,
+    effectiveFrom: "0001-01-01",
+    removedEffectiveFrom: null,
+  }));
 }
 
 export function isEligibleFor(snapshot: CatalogSnapshot | null, e: AudienceEmployee): boolean {
-  if (!snapshot || !snapshot.active || !isActiveEmployee(e)) return false;
-  // Named eligibility wins. An empty named list means nobody — NOT "fall back
-  // to the groups", which would hand the incentive to everyone the moment the
-  // last named person was removed.
-  if (Array.isArray(snapshot.eligibleEmployeeIds)) {
-    return snapshot.eligibleEmployeeIds.includes(e.id);
-  }
-  return audienceGroupOf(e.designation) === "interns"
-    ? snapshot.internsEligible
-    : snapshot.salesEligible;
+  if (!snapshot) return false;
+  const applicant: IncentiveApplicant = {
+    id: e.id,
+    isActive: e.isActive,
+    employmentStatus: e.employmentStatus,
+    employeeType: e.employeeType ?? null,
+    functionId: e.functionId ?? null,
+  };
+  return resolveIncentiveEligibility({
+    incentive: snapshotAsIncentive(snapshot),
+    windows: snapshotWindows(snapshot),
+    employee: applicant,
+  }).eligible;
 }
 
 export function eligibleGroupsLabel(s: CatalogSnapshot): string {
-  if (Array.isArray(s.eligibleEmployeeIds)) {
-    const n = s.eligibleEmployeeIds.length;
-    return n === 0 ? "No one" : `${n} named employee${n === 1 ? "" : "s"}`;
-  }
-  if (s.salesEligible && s.internsEligible) return "Sales and Interns";
-  if (s.salesEligible) return "Sales";
-  if (s.internsEligible) return "Interns";
-  return "No one";
+  const applicability = applicabilityOf(snapshotAsIncentive(s), snapshotWindows(s));
+  return eligibilityLabel({
+    mode: modeOf(applicability),
+    count: s.eligibleEmployeeIds?.length ?? 0,
+    functionNames: null,
+  });
 }
 
 /** Read a snapshot back from jsonb, defensively. */
@@ -112,6 +168,8 @@ export function normalizeSnapshot(raw: unknown): CatalogSnapshot | null {
   const amount = Number(o.amount);
   const text = (v: unknown): string | null =>
     typeof v === "string" && v.trim() ? v.trim() : null;
+  const strings = (v: unknown): string[] | undefined =>
+    Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === "string") : undefined;
   return {
     name: o.name,
     description: text(o.description),
@@ -124,11 +182,13 @@ export function normalizeSnapshot(raw: unknown): CatalogSnapshot | null {
     productName: text(o.productName),
     duration: text(o.duration),
     validUntil: text(o.validUntil),
-    // Absent stays absent — `undefined` means "the group flags govern", which
+    // Absent stays absent — `undefined` means "the group flags governed", which
     // is a different statement from an empty list ("nobody is eligible").
-    eligibleEmployeeIds: Array.isArray(o.eligibleEmployeeIds)
-      ? (o.eligibleEmployeeIds as unknown[]).filter((x): x is string => typeof x === "string")
-      : undefined,
+    eligibleEmployeeIds: strings(o.eligibleEmployeeIds),
+    // Same rule for 0244: absent means "written before applicability existed",
+    // which `applicabilityOf` reconstructs rather than assuming a default.
+    applicability: text(o.applicability),
+    functionIds: strings(o.functionIds),
   };
 }
 
@@ -150,6 +210,8 @@ const FIELD_LABELS: Record<CatalogField, string> = {
   salesEligible: "Sales eligible",
   internsEligible: "Interns eligible",
   eligibleEmployeeIds: "Eligible employees",
+  applicability: "Applies to",
+  functionIds: "Functions",
   active: "Available",
   description: "Description",
   notes: "Notes",
@@ -165,8 +227,8 @@ const MATERIAL_FIELDS: CatalogField[] = [
   "productName",
   "duration",
   "validUntil",
-  "salesEligible",
-  "internsEligible",
+  "applicability",
+  "functionIds",
   "eligibleEmployeeIds",
   "active",
   "description",
@@ -174,21 +236,44 @@ const MATERIAL_FIELDS: CatalogField[] = [
 ];
 
 /** Fields that change WHO is eligible — reported through removed / newly
- *  eligible notices, not as an "updated" notice to people it did not affect. */
+ *  eligible notices, not as an "updated" notice to people it did not affect.
+ *
+ *  `applicability` and `functionIds` belong here: switching a scheme from All
+ *  Employees to Function: Sales takes it away from everybody else, which is an
+ *  audience change even though the amount never moved. */
 const AUDIENCE_FIELDS = new Set<CatalogField>([
-  "salesEligible",
-  "internsEligible",
+  "applicability",
+  "functionIds",
   "eligibleEmployeeIds",
   "active",
 ]);
+
+/** Two lists of ids, same members regardless of order — `undefined` and `[]` are
+ *  NOT the same for `eligibleEmployeeIds` (absent = no named eligibility, empty
+ *  = nobody), which is what `absentMatches` decides. */
+function sameIds(x: unknown, y: unknown, absentMatches: boolean): boolean {
+  const ax = Array.isArray(x);
+  const ay = Array.isArray(y);
+  if (!ax || !ay) return absentMatches ? ax === ay : false;
+  const sx = [...(x as string[])].sort();
+  const sy = [...(y as string[])].sort();
+  return sx.length === sy.length && sx.every((v, i) => v === sy[i]);
+}
 
 function display(field: CatalogField, v: CatalogSnapshot[CatalogField]): string {
   if (field === "amount") return formatInr(Number(v));
   if (field === "incentiveType") return incentiveTypeLabel(v as string | null) ?? "—";
   if (field === "duration") return incentiveDurationLabel(v as string | null);
+  if (field === "applicability") return incentiveApplicabilityLabel(v as string | null);
+  if (field === "functionIds") {
+    const n = Array.isArray(v) ? v.length : 0;
+    return n === 0 ? "None" : `${n} function${n === 1 ? "" : "s"}`;
+  }
   if (Array.isArray(v)) {
     // Never a list of uuids: a notification reads as words, and the people who
-    // gained or lost eligibility are told individually anyway.
+    // gained or lost eligibility are told individually anyway. A function list
+    // reads as its count here for the same reason — the notice says "Functions:
+    // 2", and the admin screen is where the names live.
     return v.length === 0 ? "No one" : `${v.length} employee${v.length === 1 ? "" : "s"}`;
   }
   if (typeof v === "boolean") return v ? "Yes" : "No";
@@ -203,18 +288,26 @@ function same(field: CatalogField, a: CatalogSnapshot, b: CatalogSnapshot): bool
     return (a[field] ?? "").trim() === (b[field] ?? "").trim();
   }
   if (field === "eligibleEmployeeIds") {
-    const x = a.eligibleEmployeeIds;
-    const y = b.eligibleEmployeeIds;
-    // Absent vs absent is the same; absent vs a list is a real change (the
-    // incentive moved from group eligibility to named eligibility).
-    if (!Array.isArray(x) || !Array.isArray(y)) return Array.isArray(x) === Array.isArray(y);
-    if (x.length !== y.length) return false;
-    // Order is not meaning — the same people in a different order is no change.
-    const sx = [...x].sort();
-    const sy = [...y].sort();
-    return sx.every((v, i) => v === sy[i]);
+    // Absent vs a list IS a real change (the scheme moved from group
+    // eligibility to named eligibility); the two lists are compared as sets,
+    // because the same people in a different order is no change.
+    return sameIds(a.eligibleEmployeeIds, b.eligibleEmployeeIds, true);
   }
-  if (field === "incentiveType" || field === "productName" || field === "duration" || field === "validUntil") {
+  if (field === "functionIds") {
+    // Both absent (an unscoped scheme, or a pre-0244 snapshot) is the same; a
+    // change of membership is not, whatever the order.
+    const x = a.functionIds;
+    const y = b.functionIds;
+    if (!Array.isArray(x) && !Array.isArray(y)) return true;
+    return sameIds(x, y, false);
+  }
+  if (
+    field === "incentiveType" ||
+    field === "productName" ||
+    field === "duration" ||
+    field === "validUntil" ||
+    field === "applicability"
+  ) {
     return (a[field] ?? null) === (b[field] ?? null);
   }
   return a[field] === b[field];
@@ -317,25 +410,31 @@ export function catalogSnapshot(
     name: string;
     description: string | null;
     amount: string | number;
-    salesEligible: boolean | null;
-    internsEligible: boolean | null;
+    salesEligible?: boolean | null;
+    internsEligible?: boolean | null;
     notes: string | null;
     active: boolean;
     incentiveType?: string | null;
     duration?: string | null;
     validUntil?: string | Date | null;
+    applicability?: string | null;
   },
   extra: {
     productName?: string | null;
     /** Omit entirely when the incentive has no named eligibility — `undefined`
-     *  means "the group flags govern", which an empty array does not. */
+     *  means "eligibility is not decided by name", which an empty array does
+     *  not (an empty list means NOBODY). */
     eligibleEmployeeIds?: string[];
+    /** The functions a FUNCTION-scoped scheme covers. Omit when not scoped. */
+    functionIds?: string[];
   } = {},
 ): CatalogSnapshot {
   return {
     name: row.name,
     description: row.description?.trim() || null,
     amount: Number(row.amount) || 0,
+    // Kept so the snapshot stays readable, and so `applicabilityOf` can rebuild
+    // the audience of the pre-0244 events that carry nothing else.
     salesEligible: row.salesEligible === true,
     internsEligible: row.internsEligible === true,
     notes: row.notes?.trim() || null,
@@ -347,5 +446,7 @@ export function catalogSnapshot(
     eligibleEmployeeIds: extra.eligibleEmployeeIds
       ? [...extra.eligibleEmployeeIds].sort()
       : undefined,
+    applicability: row.applicability ?? null,
+    functionIds: extra.functionIds ? [...extra.functionIds].sort() : undefined,
   };
 }

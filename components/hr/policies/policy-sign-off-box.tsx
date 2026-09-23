@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, PenLine, Upload, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Loader2, PenLine, Upload, Trash2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { formatDateHr } from "@/lib/format";
 import { getSupabaseClient } from "@/lib/supabase/browser";
@@ -135,10 +137,20 @@ export function PolicySignOffBox({
       </p>
 
       {signedName && signedAt ? (
-        <p className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-[13px] font-bold text-emerald-800">
-          <Check size={16} />
-          Signed as {signedName} on {formatDateHr(signedAt)}.
-        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-emerald-50 px-3 py-2">
+          <p className="flex flex-1 items-center gap-2 text-[13px] font-bold text-emerald-800">
+            <Check size={16} />
+            Signed as {signedName} on {formatDateHr(signedAt)}.
+          </p>
+          {/* Straight on to the next policy - no trip back through WMS → HR → Policies. */}
+          <Link
+            href={"/policies" as Route}
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-[12.5px] font-bold text-emerald-900 hover:border-emerald-500"
+          >
+            <ArrowLeft size={14} strokeWidth={2.4} />
+            Back to policies
+          </Link>
+        </div>
       ) : null}
 
       <label htmlFor={`pso-${policyKey}`} className="mt-4 block text-[13px] font-bold text-ink-strong">

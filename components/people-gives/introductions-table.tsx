@@ -6,6 +6,7 @@ import type { Route } from "next";
 import { ArrowUpDown, ArrowUp, ArrowDown, Plus, Search, X } from "lucide-react";
 import type { PgIntroductionRow } from "@/lib/queries/people-gives";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 type SortKey =
   | "receivedOn"
@@ -36,9 +37,9 @@ function fmtDate(iso: string | null): string {
 
 export function IntroductionsTable({ rows }: { rows: PgIntroductionRow[] }) {
   const [q, setQ] = React.useState("");
-  const [category, setCategory] = React.useState("");
-  const [salesPerson, setSalesPerson] = React.useState("");
-  const [source, setSource] = React.useState("");
+  const [category, setCategory] = React.useState<string[]>([]);
+  const [salesPerson, setSalesPerson] = React.useState<string[]>([]);
+  const [source, setSource] = React.useState<string[]>([]);
   const [from, setFrom] = React.useState("");
   const [to, setTo] = React.useState("");
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({
@@ -53,9 +54,9 @@ export function IntroductionsTable({ rows }: { rows: PgIntroductionRow[] }) {
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     let out = rows.filter((r) => {
-      if (category && r.businessCategory !== category) return false;
-      if (salesPerson && r.salesPerson !== salesPerson) return false;
-      if (source && r.referenceSource !== source) return false;
+      if (category.length > 0 && !category.includes(r.businessCategory ?? "")) return false;
+      if (salesPerson.length > 0 && !salesPerson.includes(r.salesPerson ?? "")) return false;
+      if (source.length > 0 && !source.includes(r.referenceSource ?? "")) return false;
       if (from && r.receivedOn < from) return false;
       if (to && r.receivedOn > to) return false;
       if (needle) {
@@ -102,12 +103,12 @@ export function IntroductionsTable({ rows }: { rows: PgIntroductionRow[] }) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
   }
 
-  const hasFilters = q || category || salesPerson || source || from || to;
+  const hasFilters = q || category.length > 0 || salesPerson.length > 0 || source.length > 0 || from || to;
   function clearFilters() {
     setQ("");
-    setCategory("");
-    setSalesPerson("");
-    setSource("");
+    setCategory([]);
+    setSalesPerson([]);
+    setSource([]);
     setFrom("");
     setTo("");
   }
@@ -129,18 +130,30 @@ export function IntroductionsTable({ rows }: { rows: PgIntroductionRow[] }) {
           />
         </div>
         </CollapsibleSearch>
-        <select className={CHIP} value={source} onChange={(e) => setSource(e.target.value)} aria-label="Filter by reference source">
-          <option value="">All Sources</option>
-          {sources.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select className={CHIP} value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filter by business category">
-          <option value="">All Categories</option>
-          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select className={CHIP} value={salesPerson} onChange={(e) => setSalesPerson(e.target.value)} aria-label="Filter by salesperson">
-          <option value="">All Salespeople</option>
-          {salesPeople.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
+        <MultiFilter
+          className={CHIP}
+          values={source}
+          onChange={setSource}
+          options={sources}
+          allLabel="All Sources"
+          aria-label="Filter by reference source"
+        />
+        <MultiFilter
+          className={CHIP}
+          values={category}
+          onChange={setCategory}
+          options={categories}
+          allLabel="All Categories"
+          aria-label="Filter by business category"
+        />
+        <MultiFilter
+          className={CHIP}
+          values={salesPerson}
+          onChange={setSalesPerson}
+          options={salesPeople}
+          allLabel="All Salespeople"
+          aria-label="Filter by salesperson"
+        />
         <input type="date" className={CHIP} value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Received from" title="Received on - from" />
         <input type="date" className={CHIP} value={to} onChange={(e) => setTo(e.target.value)} aria-label="Received to" title="Received on - to" />
         {hasFilters && (

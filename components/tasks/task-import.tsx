@@ -19,6 +19,8 @@ import {
 import { previewTaskImport, commitTaskImport } from "@/app/(app)/tasks/import-actions";
 import type { ImportPreview } from "@/lib/import/task-import";
 import { TASK_TEMPLATE_COLUMNS } from "@/lib/tasks/template-columns";
+import { TEMPLATE_KEYS, templateHref } from "@/lib/templates/keys";
+import { downloadTemplateFile } from "@/lib/templates/client-download";
 import { fireToast } from "@/lib/toast";
 
 /** Columns REQUIRED for a valid row (mirrors the parser's validation). */
@@ -51,6 +53,7 @@ export function TaskImport({
   const [dragging, setDragging] = React.useState(false);
   const [previewing, startPreview] = React.useTransition();
   const [committing, startCommit] = React.useTransition();
+  const [downloading, setDownloading] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   function onPick(f: File | null) {
@@ -98,11 +101,16 @@ export function TaskImport({
 
   function downloadTemplate() {
     // The enterprise exceljs workbook (branded, validated dropdowns, no frozen
-    // panes, Examples + How-to sheets) — every task column, generated server-side.
-    const a = document.createElement("a");
-    a.href = "/tasks/template.xlsx";
-    a.download = "Altus-Tasks-Template.xlsx";
-    a.click();
+    // panes, Examples + How-to sheets) — every task column, generated server-side
+    // and resolved through Upload Master, so an admin's replacement is what this
+    // button hands over. Fetched rather than linked: a refused request used to
+    // save a page of HTML as .xlsx and look like a successful download.
+    setDownloading(true);
+    void downloadTemplateFile(templateHref(TEMPLATE_KEYS.tasks), "Altus-Tasks-Template.xlsx")
+      .then((res) => {
+        if (!res.ok) fireToast({ message: res.error, type: "error" });
+      })
+      .finally(() => setDownloading(false));
   }
 
   const hasPreview = preview && !preview.fatal;
@@ -154,10 +162,15 @@ export function TaskImport({
         <button
           type="button"
           onClick={downloadTemplate}
-          className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-surface-card px-4 h-11 text-[14px] font-semibold text-ink-strong hover:bg-surface-soft hover:border-hairline-strong transition-colors shrink-0"
+          disabled={downloading}
+          className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-surface-card px-4 h-11 text-[14px] font-semibold text-ink-strong hover:bg-surface-soft hover:border-hairline-strong transition-colors shrink-0 disabled:opacity-60"
         >
-          <Download size={16} strokeWidth={2.2} />
-          Download Template
+          {downloading ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Download size={16} strokeWidth={2.2} />
+          )}
+          {downloading ? "Preparing…" : "Download Template"}
         </button>
       </div>
 

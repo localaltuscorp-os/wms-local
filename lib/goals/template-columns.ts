@@ -280,11 +280,11 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     help: "Numeric target (quantity). % Done is auto-computed from Actual ÷ Target.",
   },
   {
-    field: "targetAmount", header: "Target Amount (₹)", schemaField: "targetAmount",
+    field: "targetAmount", header: "Target Amount (Rs.)", schemaField: "targetAmount",
     writable: true, persisted: true, locked: false, source: null, width: 14,
     aliases: ["targetamount", "tgtamt", "amount", "targetamt"],
     examples: ["", ""],
-    help: "Money target in ₹ (numeric). Use for revenue/value goals.",
+    help: "Money target in Rs. (numeric). Use for revenue/value goals.",
   },
   {
     field: "actualQty", header: "Actual", schemaField: "actualQty",
@@ -294,11 +294,11 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     help: "Numeric actual achieved so far.",
   },
   {
-    field: "actualAmount", header: "Actual Amount (₹)", schemaField: "actualAmount",
+    field: "actualAmount", header: "Actual Amount (Rs.)", schemaField: "actualAmount",
     writable: true, persisted: true, locked: false, source: null, width: 14,
     aliases: ["actualamount", "actualamt"],
     examples: ["", ""],
-    help: "Money actual in ₹ (numeric).",
+    help: "Money actual in Rs. (numeric).",
   },
   {
     field: "progress", header: "Progress %", schemaField: "pctDone",
@@ -313,6 +313,13 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     aliases: ["targetdate", "deadline", "duedate", "due"],
     examples: ["", "2026-07-31"],
     help: "Deadline (YYYY-MM-DD) - MONTH goals only (year/quarter roll up from children).",
+  },
+  {
+    field: "weight", header: "Weight", schemaField: "weight",
+    writable: true, persisted: true, locked: false, source: null, width: 9,
+    aliases: ["weight", "goaweight", "weightage"],
+    examples: ["100", "100"],
+    help: "The goal's share of the score (default 100). Blank keeps the default.",
   },
   // ── People ─────────────────────────────────────────────────────────
   {
@@ -331,7 +338,16 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
   {
     field: "team", header: "Team Member(s)", schemaField: "teamInvolved",
     writable: true, persisted: true, locked: false, source: null, width: 24,
-    aliases: ["team", "teammembers", "teaminvolved", "involved", "members", "collaborators"],
+    // "Delegated" is the name the HAND-CRAFTED workbook shipped with (the
+    // downloadable Goals template's own header), and the importer ignored the
+    // column because the manifest did not know the word. It means the same
+    // thing — the people the goal is delegated to — so it is an alias rather
+    // than a second field: a template column the parser cannot place is a
+    // column somebody fills in and the upload silently drops.
+    aliases: [
+      "team", "teammembers", "teaminvolved", "involved", "members", "collaborators",
+      "delegated", "delegateto", "delegatedto",
+    ],
     examples: ["Rahul; Priya", ""],
     help: "Semicolon-separated collaborator names.",
   },
@@ -389,10 +405,10 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     help: "Yes/No - attach an incentive to the goal.",
   },
   {
-    field: "incentiveAmount", header: "Incentive Amount (₹)", schemaField: "incentiveAmount",
+    field: "incentiveAmount", header: "Incentive Amount (Rs.)", schemaField: "incentiveAmount",
     writable: true, persisted: true, locked: false, source: null, width: 15,
     aliases: ["incentiveamount", "incentiveamt"],
-    help: "Incentive value in ₹ (numeric).",
+    help: "Incentive value in Rs. (numeric).",
   },
   {
     field: "incentiveKind", header: "Incentive Kind", schemaField: "incentiveKind",

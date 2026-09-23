@@ -14,7 +14,7 @@ import { HR_CONTACT } from "@/lib/hr/firm";
 type SendResult = { id: string | null; error: string | null };
 
 const BRAND = "#E10600";
-const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+const inr = (n: number) => `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
 
 /** Per-day attendance line for the report tables. */
 export interface DayLine {
@@ -66,7 +66,7 @@ function totalsGrid(t: AttnTotals): string {
   </tr><tr>
     ${cell("Absent", String(t.absentDays), t.absentDays ? BRAND : undefined)}
     ${cell("Hours worked", `${t.workedHours.toFixed(1)}h`)}
-    ${cell("₹ impact", inr(t.salaryReduced), t.salaryReduced ? BRAND : "#059669")}
+    ${cell("Rs. impact", inr(t.salaryReduced), t.salaryReduced ? BRAND : "#059669")}
     ${cell("", "")}
   </tr></table>`;
 }
@@ -167,7 +167,7 @@ function rosterTable(rows: RosterRow[], totalLost: number, emptyNote: string): s
             ${th("Absent")}
             ${th("Late")}
             ${th("Early leave")}
-            ${th("₹ Money lost")}
+            ${th("Rs. Money lost")}
           </tr></thead>
           <tbody>${bodyRows}</tbody>
           <tfoot><tr>
@@ -188,7 +188,7 @@ export async function sendWeeklyAttendanceRosterEmail(args: {
   try {
     const resend = getResend();
     if (!resend) return { id: null, error: null };
-    const inner = `<p style="font-size:14px;margin:0 0 14px">Weekly attendance roster for <b>${args.weekLabel}</b> — every processed employee with a working day this week, their present/absent/late/early-leave counts, and the ₹ money impact of their attendance.</p>
+    const inner = `<p style="font-size:14px;margin:0 0 14px">Weekly attendance roster for <b>${args.weekLabel}</b> — every processed employee with a working day this week, their present/absent/late/early-leave counts, and the Rs. money impact of their attendance.</p>
       ${rosterTable(args.rows, args.totalLost, "No employees had a working day in this period.")}`;
     const { data, error } = await resend.emails.send({
       from: FROM,
@@ -229,7 +229,7 @@ export async function sendWeeklyAttendanceTeamEmail(args: {
     const resend = getResend();
     if (!resend) return { id: null, error: null };
     const headcount = args.rows.length;
-    const intro = `<p style="font-size:14px;margin:0 0 14px">Hi ${args.recipient.name.split(" ")[0]}, here is the attendance and money-lost summary for <b>${args.scopeLabel}</b> — week of <b>${args.weekLabel}</b>. ${headcount} ${headcount === 1 ? "person" : "people"} listed, with their late marks, early leaves, absences, and the ₹ impact on pay.</p>`;
+    const intro = `<p style="font-size:14px;margin:0 0 14px">Hi ${args.recipient.name.split(" ")[0]}, here is the attendance and money-lost summary for <b>${args.scopeLabel}</b> — week of <b>${args.weekLabel}</b>. ${headcount} ${headcount === 1 ? "person" : "people"} listed, with their late marks, early leaves, absences, and the Rs. impact on pay.</p>`;
     const inner = `${intro}${rosterTable(args.rows, args.totalLost, "Nobody in this list had a working day in this period.")}`;
     const { data, error } = await resend.emails.send({
       from: FROM,
@@ -387,7 +387,7 @@ export async function sendIncentiveBreakupEmail(args: {
     const reversalRow =
       args.reversal < 0
         ? `<tr><td style="padding:12px 14px;border:1px solid #eee;border-radius:8px">
-          <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px">Reversal adjustment</div>
+          <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px">Negative payable adjustment</div>
           <div style="font-size:24px;font-weight:800;color:#B91C1C">${inr(args.reversal)}</div>
         </td></tr>`
         : "";

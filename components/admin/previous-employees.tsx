@@ -11,6 +11,8 @@ import {
 } from "@/db/enums";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { getFormerActivity } from "@/app/(admin)/admin/employees/offboarding-actions";
+import { formatDate } from "@/lib/format";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 /**
  * PREVIOUS EMPLOYEES — the record that used to be a delete.
@@ -53,7 +55,7 @@ function fmtDate(v: string | null): string {
   if (!v) return "—";
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return v;
-  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDate(d);
 }
 
 /** Whole months between two dates, rendered as "2y 4m". */
@@ -93,12 +95,12 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export function PreviousEmployees({ rows }: { rows: FormerEmployeeView[] }) {
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
-  const [reasonFilter, setReasonFilter] = React.useState<string>("all");
+  const [reasonFilter, setReasonFilter] = React.useState<string[]>([]);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
-      if (reasonFilter !== "all" && r.exitReason !== reasonFilter) return false;
+      if (reasonFilter.length > 0 && !reasonFilter.includes(r.exitReason ?? "")) return false;
       if (!q) return true;
       return (
         r.name.toLowerCase().includes(q) ||
@@ -165,18 +167,13 @@ export function PreviousEmployees({ rows }: { rows: FormerEmployeeView[] }) {
           placeholder="Search previous employees"
           className="flex-1 min-w-[200px] rounded-md border border-[#CBD5E1] px-3 py-2 text-[14px] outline-none focus:border-[#0F172A]"
         />
-        <select
-          value={reasonFilter}
-          onChange={(e) => setReasonFilter(e.target.value)}
+        <MultiFilter
           className="rounded-md border border-[#CBD5E1] px-3 py-2 text-[14px] outline-none focus:border-[#0F172A]"
-        >
-          <option value="all">All reasons</option>
-          {presentReasons.map((r) => (
-            <option key={r} value={r}>
-              {EXIT_REASON_LABELS[r]}
-            </option>
-          ))}
-        </select>
+          values={reasonFilter}
+          onChange={setReasonFilter}
+          options={presentReasons}
+          allLabel="All reasons"
+        />
         <a
           href="/api/admin/exit-register"
           className="brand-btn inline-flex items-center gap-1.5 px-3 py-2 text-[13.5px] font-medium text-[#334155]"

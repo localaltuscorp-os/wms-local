@@ -115,8 +115,11 @@ export function PunchCard({
   React.useEffect(() => {
     let cancelled = false;
     if (!("geolocation" in navigator)) {
-      setLoc({ phase: "error", message: "This browser has no location support." });
-      return;
+      const timer = window.setTimeout(
+        () => setLoc({ phase: "error", message: "This browser has no location support." }),
+        0,
+      );
+      return () => window.clearTimeout(timer);
     }
     if (!("permissions" in navigator) || !navigator.permissions?.query) {
       return; // No Permissions API (older Safari) — leave on "idle", user taps Enable.
@@ -142,7 +145,6 @@ export function PunchCard({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** Ask the browser for a high-accuracy fix. Re-prompts in browsers that allow
@@ -255,10 +257,9 @@ export function PunchCard({
     <section
       className="wg-rise relative overflow-hidden rounded-[28px]"
       style={{
-        background:
-          "linear-gradient(168deg, #ffffff 0%, var(--color-surface-card) 42%, #fdf3f3 78%, #fce9e9 100%)",
+        background: "var(--color-surface-card)",
         boxShadow:
-          "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.9), 0 30px 70px -34px rgba(168,4,0,0.30), 0 8px 28px -20px rgba(15,23,42,0.18)",
+          "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.9), 0 12px 30px -22px rgba(15,23,42,0.22)",
       }}
     >
       {/* ambient washes — green module identity; a warm leaving-tint once on the clock */}
@@ -268,20 +269,20 @@ export function PunchCard({
         style={{
           background:
             mode === "out"
-              ? "radial-gradient(circle, rgba(225,6,0,0.09), transparent 70%)"
-              : "radial-gradient(circle, rgba(225,6,0,0.16), transparent 70%)",
+              ? "transparent"
+              : "transparent",
           filter: "blur(10px)",
         }}
       />
       <div
         aria-hidden
         className="pointer-events-none absolute -bottom-32 -left-24 h-72 w-72 rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(225,6,0,0.10), transparent 70%)", filter: "blur(12px)" }}
+        style={{ background: "transparent", filter: "blur(12px)" }}
       />
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 h-px"
-        style={{ background: `linear-gradient(90deg, transparent, color-mix(in srgb, ${GREEN} 40%, transparent), transparent)` }}
+        style={{ background: "var(--color-hairline)" }}
       />
 
       {/* ── Hero: compact clock · punch button (left) + status (right) ── */}
@@ -319,8 +320,8 @@ export function PunchCard({
                 className="flex flex-1 items-center justify-center gap-2 rounded-[22px] px-4 py-4 text-[14.5px] font-black transition-transform active:scale-[0.98] max-sm:py-3.5"
                 style={{
                   color: GREEN_DEEP,
-                  background: "color-mix(in srgb, #E10600 7%, #fff)",
-                  boxShadow: "inset 0 0 0 1.5px color-mix(in srgb, #E10600 34%, transparent), 0 12px 26px -16px rgba(225,6,0,0.45)",
+                  background: "var(--color-surface-card)",
+                  boxShadow: "inset 0 0 0 1.5px var(--color-hairline-strong)",
                 }}
               >
                 <Plus size={19} strokeWidth={2.8} /> Add a Note or Reason{note.trim() ? " · added" : ""}
@@ -737,9 +738,12 @@ function LocationPanel({
 function LiveClock({ tz }: { tz: string }) {
   const [now, setNow] = React.useState<Date | null>(null);
   React.useEffect(() => {
-    setNow(new Date());
+    const initial = window.setTimeout(() => setNow(new Date()), 0);
     const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
+    return () => {
+      window.clearTimeout(initial);
+      clearInterval(t);
+    };
   }, []);
   const fmt = now
     ? new Intl.DateTimeFormat("en-IN", { timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(now)
@@ -770,8 +774,8 @@ function LiveClock({ tz }: { tz: string }) {
     <div
       className="wg-rise inline-flex items-center gap-2.5 rounded-[16px] px-3.5 py-2"
       style={{
-        background: "linear-gradient(135deg, color-mix(in srgb,#E10600 6%,#fff), var(--color-surface-card))",
-        boxShadow: "inset 0 0 0 1px color-mix(in srgb,#E10600 16%,transparent), 0 12px 30px -22px rgba(225,6,0,0.5)",
+        background: "var(--color-surface-card)",
+        boxShadow: "inset 0 0 0 1px var(--color-hairline-strong), 0 12px 30px -24px rgba(15,23,42,0.18)",
       }}
       aria-label={`Current time ${fmt}`}
     >

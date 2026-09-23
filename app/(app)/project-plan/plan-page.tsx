@@ -7,6 +7,7 @@ import { TaskDetailLoader } from "@/components/tasks/task-detail-loader";
 import { requireUser } from "@/lib/auth/current";
 import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 import { listEmployeeOptions } from "@/lib/queries/employees";
+import { listActiveClientNames } from "@/lib/queries/clients";
 import { listPlanTree, type PlanNode } from "@/lib/queries/project-plan";
 import { STATUS_LABELS_FALLBACK } from "@/lib/format";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
@@ -45,14 +46,19 @@ export async function PlanPage({
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
   const me = await requireUser();
-  const [tree, employees, downline, statusDisplay] = await Promise.all([
+  const [tree, employees, downline, statusDisplay, clients] = await Promise.all([
     listPlanTree(),
     listEmployeeOptions(),
     getDownlineIds(me.id),
     getStatusDisplayMap(),
-    // NOT loaded: the Subject and Client rosters. The bulk bar draws those two
-    // menus only when handed a roster, and the plan does not offer them — see
-    // the note where <BulkActionBar> is mounted in plan-board.tsx.
+    // The CLIENT roster — for the plan's own Client column, which is where a
+    // project's client is set. NOT for the bulk bar: that still draws no
+    // Subject or Client menu, because those two write to `tasks` and would
+    // reach only the scheduled rows in a selection (see the note where
+    // <BulkActionBar> is mounted in plan-board.tsx). A project's client is a
+    // PLAN field, set one project at a time and inherited by everything under
+    // it — a different thing that happens to share a word.
+    listActiveClientNames(),
   ]);
 
   // The bulk bar's status dropdown writes WMS task statuses, so it needs the
@@ -88,6 +94,7 @@ export async function PlanPage({
           isAdmin={me.isAdmin}
           me={{ id: me.id, isAdmin: me.isAdmin }}
           downline={downline}
+          clients={clients}
           initialView={view}
         />
       </main>
@@ -142,6 +149,7 @@ export function toRow(node: PlanNode): PlanRow {
     name: node.name,
     description: node.description,
     notes: node.notes,
+    clientName: node.clientName,
     kind: node.kind,
     parentId: node.parentId,
     // The three columns migration 0204 adds. They arrive null when 0204 is

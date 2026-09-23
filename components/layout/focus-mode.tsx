@@ -51,6 +51,11 @@ export function FocusMode() {
 
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // `key` is not always there. Browser autofill and password managers
+      // dispatch keydown events with no `key` at all, and reading `.toLowerCase()`
+      // off that took the whole page down with a TypeError — from a listener on
+      // `document`, so it happened wherever the person happened to be typing.
+      if (typeof e.key !== "string") return;
       // Ctrl/⌘ + Q — enter. Not browser-reserved on Windows Chrome/Edge; on
       // macOS ⌘Q quits the browser, so we accept Ctrl+Q there rather than ⌘Q.
       if (e.key.toLowerCase() === "q" && (e.ctrlKey || e.metaKey)) {

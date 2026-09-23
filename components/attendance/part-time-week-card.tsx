@@ -71,7 +71,7 @@ export function PartTimeWeekCard({
 
       {payAtTarget != null && payAtTarget > 0 && (
         <p className="mt-2 text-[11.5px] font-medium text-ink-subtle">
-          Full week earns ₹{payAtTarget.toLocaleString("en-IN")} — pay is prorated to the hours actually worked.
+          Full week earns Rs. {payAtTarget.toLocaleString("en-IN")} — pay is prorated to the hours actually worked.
         </p>
       )}
     </div>

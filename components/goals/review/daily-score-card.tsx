@@ -18,35 +18,23 @@ export function DailyScoreCard({ score }: { score: DailyScore }) {
   const early = score.avgDelayDays != null && score.avgDelayDays < 0;
 
   return (
-    <section className="mb-4 rounded-2xl border border-hairline bg-surface-card p-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h3 className="text-[11px] font-black uppercase tracking-[0.12em] text-altus-red-deep">
-            Daily score
-          </h3>
-          <p className="text-[12px] font-medium text-ink-subtle">
-            What you planned versus what you actually closed.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-baseline gap-4">
-          <span className="text-[13px] font-bold text-ink-muted">
-            Today{" "}
-            <span className="text-[20px] font-black tabular-nums text-ink-strong">
-              {score.today.done}/{score.today.total}
-            </span>{" "}
-            <span className="tabular-nums text-ink-subtle">({pct(score.today.done, score.today.total)}%)</span>
-          </span>
-          <span className="text-[13px] font-bold text-ink-muted">
-            Last {score.window.days}d{" "}
-            <span className="text-[20px] font-black tabular-nums text-ink-strong">
-              {score.window.done}/{score.window.total}
-            </span>{" "}
-            <span className="tabular-nums text-ink-subtle">({pct(score.window.done, score.window.total)}%)</span>
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+    <section aria-label="Daily score" className="mb-1 flex flex-wrap items-center gap-2">
+      <span className="mr-1 text-[12px] font-black uppercase tracking-[0.08em] text-ink-strong">Daily score</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <Tile
+          icon={<CheckCircle2 size={13} strokeWidth={2.6} />}
+          label="Today"
+          value={`${score.today.done}/${score.today.total} (${pct(score.today.done, score.today.total)}%)`}
+          hint="today's plan"
+          tone="var(--color-altus-red-deep)"
+        />
+        <Tile
+          icon={<History size={13} strokeWidth={2.6} />}
+          label={`Last ${score.window.days}d`}
+          value={`${score.window.done}/${score.window.total} (${pct(score.window.done, score.window.total)}%)`}
+          hint="trailing period"
+          tone="var(--color-ink-soft)"
+        />
         <Tile
           icon={<Sparkles size={13} strokeWidth={2.6} />}
           label="Fresh done"
@@ -102,13 +90,13 @@ function Tile({
   tone: string;
 }) {
   return (
-    <div className="rounded-xl border border-hairline bg-surface-soft px-3 py-2.5">
-      <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em]" style={{ color: tone }}>
+    <div className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-hairline bg-surface-card px-3">
+      <span className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: tone }}>
         {icon}
         {label}
       </span>
-      <p className="mt-1 text-[19px] font-black leading-none tabular-nums text-ink-strong">{value}</p>
-      <p className="mt-1 text-[10.5px] font-medium text-ink-subtle">{hint}</p>
+      <p className="font-black leading-none tabular-nums text-ink-strong">{value}</p>
+      <span className="sr-only">{hint}</span>
     </div>
   );
 }

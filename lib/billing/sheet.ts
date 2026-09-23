@@ -47,9 +47,9 @@ export function parseBillingMonth(raw: string): string | null {
   return null;
 }
 
-/** "₹5,84,100" / "584100" → number. Blank/non-numeric → 0. */
+/** "Rs. 5,84,100" / "584100" → number. Blank/non-numeric → 0. */
 export function parseRupees(raw: string): number {
-  const s = String(raw ?? "").replace(/[₹,\s]/g, "").trim();
+  const s = String(raw ?? "").replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, "").trim();
   if (s === "") return 0;
   const n = Number(s);
   return Number.isFinite(n) ? n : 0;

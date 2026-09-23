@@ -23,7 +23,7 @@ const ACCENT = "#E10600";
 const ACCENT_DEEP = "#A80400";
 
 function inr(n: number): string {
-  return `₹${Math.round(n).toLocaleString("en-IN")}`;
+  return `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
 }
 
 /**

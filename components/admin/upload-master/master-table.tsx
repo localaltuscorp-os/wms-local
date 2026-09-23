@@ -7,23 +7,28 @@ import { DataTable } from "@/components/admin/ui/data-table";
 import { fireToast } from "@/lib/toast";
 import type { TemplateMasterRow } from "@/lib/queries/template-files";
 import { deleteTemplates, uploadTemplate } from "@/app/(admin)/admin/upload-master/actions";
+import { formatDate } from "@/lib/format";
 
 /**
  * THE UPLOAD MASTER LIST.
  *
- * One row per bulk-import template (Tasks, Goals, Accounts). The five columns
- * the brief names — Template, Last edited, Download, Delete, Edit — with inline
- * buttons and no kebab menu. Multi-select (the shared <DataTable> checkbox
- * column) powers "Download selected" and "Delete selected".
+ * One row per bulk-import template, and one row per FEATURE — every bulk upload
+ * in the application is on this list, because the list IS the registry
+ * (lib/templates/registry.ts). Columns: Template, Module, Current file, Last
+ * edited, Download, Delete, Replace — inline buttons, no kebab menu.
+ * Multi-select (the shared <DataTable> checkbox column) powers "Download
+ * selected" and "Delete selected".
  *
  * "Delete" reverts a template to its built-in; it is disabled for a template
- * nobody has replaced.
+ * nobody has replaced, because there is always a built-in behind every row — a
+ * template cannot be truly deleted, and pretending otherwise would break the
+ * module that depends on it.
  */
 
 function formatEdited(r: TemplateMasterRow): string {
   if (!r.lastEdited) return "Built-in — never edited";
   const d = typeof r.lastEdited === "string" ? new Date(r.lastEdited) : r.lastEdited;
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return formatDate(d);
 }
 
 const actionBtn =
@@ -59,7 +64,7 @@ export function UploadMasterTable({
       <DataTable<TemplateMasterRow>
         rows={rows}
         getRowKey={(r) => r.key}
-        initialSort={{ key: "name", dir: "asc" }}
+        initialSort={{ key: "module", dir: "asc" }}
         bulkActions={
           canEdit
             ? (selected, clearSelection) => (
@@ -74,6 +79,30 @@ export function UploadMasterTable({
             sortValue: (r) => r.name,
             render: (r) => (
               <span className="font-semibold text-ink-strong">{r.name}</span>
+            ),
+          },
+          {
+            key: "module",
+            label: "Module",
+            sortValue: (r) => r.module,
+            render: (r) => (
+              <span className="text-ink-soft">
+                {r.module}
+                <span className="block text-[12px] text-ink-subtle">{r.feature}</span>
+              </span>
+            ),
+          },
+          {
+            key: "fileName",
+            label: "Current file",
+            sortValue: (r) => r.fileName,
+            render: (r) => (
+              <span className={r.overridden ? "text-ink-soft" : "text-ink-subtle"}>
+                {r.fileName}
+                <span className="block text-[12px] text-ink-subtle">
+                  {r.overridden ? "Replaced by an admin" : "Built-in"}
+                </span>
+              </span>
             ),
           },
           {
@@ -158,7 +187,9 @@ function BulkActions({
   const [busy, setBusy] = React.useState(false);
 
   function downloadAll() {
-    // At most three files — trigger each download in sequence.
+    // One file per selected row, triggered in sequence. The anchors are attached
+    // to the document before the click — a detached anchor is ignored by some
+    // browsers, which is how a "download" button silently does nothing.
     for (const r of rows) {
       const a = document.createElement("a");
       a.href = `/admin/upload-master/download/${r.key}`;

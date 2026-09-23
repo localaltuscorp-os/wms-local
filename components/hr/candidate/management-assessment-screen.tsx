@@ -60,6 +60,7 @@ import type { SkillLookupOptions } from "@/lib/hr/skills";
 import { type Ratings } from "@/lib/hr/candidate/evaluation-checklist";
 import { weightedOverall, type EvaluationWeights } from "@/lib/hr/candidate/evaluation-weights";
 import { DateField } from "@/components/ui/date-field";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const UPLOAD_URL = "/api/hr/management-assessment/upload";
 
@@ -71,8 +72,10 @@ const OUTCOME_MAP: Record<
   selected: { status: "hired", letterKey: "selection", letterLabel: "Selection letter", label: "Selected" },
   shortlisted: { status: "shortlisted", letterKey: "next-round", letterLabel: "Next-round letter", label: "Shortlisted" },
   rejected: { status: "rejected", letterKey: "rejection", letterLabel: "Regret letter", label: "Rejected" },
+  free_training: { status: "free_training", letterKey: "free-training", letterLabel: "Free training letter", label: "Free training" },
+  assignment_needed: { status: "assignment_needed", letterKey: "assignment-needed", letterLabel: "Assignment letter", label: "Assignment needed" },
 };
-const OUTCOME_ORDER: Exclude<MgmtOutcome, null>[] = ["selected", "shortlisted", "rejected"];
+const OUTCOME_ORDER: Exclude<MgmtOutcome, null>[] = ["selected", "shortlisted", "rejected", "free_training", "assignment_needed"];
 
 const EMPTY_SKILLS: SkillSelection = { technical: [], nonTechnical: [] };
 const BAR_COUNT = 32;
@@ -329,7 +332,7 @@ export function ManagementAssessmentScreen({
   async function emailRecruiter() {
     const email = recruiterEmailRef.current.trim();
     const oc = outcomeRef.current;
-    if (!oc || oc === "shortlisted" || !email) return;
+    if (!oc || (oc !== "selected" && oc !== "rejected") || !email) return;
     setEmailingRecruiter(true);
     try {
       const res = await sendRecruiterOutcome(cidRef.current, {
@@ -419,20 +422,18 @@ export function ManagementAssessmentScreen({
               Candidate
             </label>
             <div className="ma-select-wrap w-[260px] max-w-full shrink-0">
-              <select
-                id="ma-candidate"
-                data-autofocus
+              <CompactSelect
                 value={candidateId}
-                onChange={(e) => selectCandidate(e.target.value)}
-                className="w-full appearance-none rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 pr-9 text-[13.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-altus-red"
-              >
-                <option value="">- Select candidate -</option>
-                {candidates.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.fullName || "Unnamed"}{c.positionApplied ? ` · ${c.positionApplied}` : ""}
-                  </option>
-                ))}
-              </select>
+                onChange={selectCandidate}
+                className="w-full rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[13.5px] font-semibold text-ink-strong transition-colors"
+                placeholder="- Select candidate -"
+                aria-label="Candidate"
+                matchTriggerWidth
+                options={candidates.map((c) => ({
+                  value: c.id,
+                  label: `${c.fullName || "Unnamed"}${c.positionApplied ? ` · ${c.positionApplied}` : ""}`,
+                }))}
+              />
             </div>
 
             {selected ? (
@@ -1182,7 +1183,7 @@ function OutcomeCard({
         <div className="mt-4">
           <FieldLabel label="Proposed Salary" icon={<IndianRupee size={13} />}>
             <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-bold text-ink-subtle">₹</span>
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-bold text-ink-subtle">Rs.</span>
               <input
                 type="text"
                 value={proposedSalary}

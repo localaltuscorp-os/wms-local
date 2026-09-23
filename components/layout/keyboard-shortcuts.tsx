@@ -11,7 +11,6 @@ const GO_TO: Record<string, string> = {
   d: "/",
   t: "/tasks",
   m: "/my-day",
-  p: "/projects",
   i: "/inbox",
   w: "/goals/weekly",
   c: "/my-day",
@@ -36,8 +35,9 @@ function isTypingTarget(el: EventTarget | null): boolean {
 /**
  * App-wide keyboard shortcuts. Mounted once in the (app) layout.
  *   ?            → toggle this help overlay
- *   G then D/T/M/P/I/W/C/K/A → navigate (Dashboard / Tasks / My Day /
- *     Projects / Inbox / Weekly Goals / Daily Checklist / Kanban / Attendance)
+ *   G then D/T/M/I/W/C/K/A → navigate (Dashboard / Tasks / My Day / Inbox /
+ *     Weekly Goals / Daily Checklist / Kanban / Attendance)
+ *   G-P is GONE with the /projects board it pointed at.
  * Coexists with the other context-owned shortcuts (⌘K palette, N new task,
  * J/K/Enter/F task-list nav) — those live with their components.
  */
@@ -57,6 +57,10 @@ export function KeyboardShortcuts() {
         return;
       }
       if (isTypingTarget(e.target)) return;
+      // Same guard as FocusMode: a keydown can arrive with no `key` (autofill,
+      // password managers, some IMEs), and `GO_TO[e.key.toLowerCase()]` below
+      // would throw on it.
+      if (typeof e.key !== "string") return;
 
       // Second key of a `g …` sequence.
       if (gAt.current && Date.now() - gAt.current < SEQUENCE_WINDOW_MS) {

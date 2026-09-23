@@ -1,5 +1,5 @@
 import type { FineBucketKey } from "@/lib/transforms/aging-buckets-fine";
-import type { TaskStatus, AgeBucketId, Department } from "@/db/enums";
+import type { TaskStatus, ApprovalStatus, AgeBucketId, Department } from "@/db/enums";
 
 export type ViewMode = "doer" | "initiator";
 
@@ -112,6 +112,7 @@ export type StatusCellBucket =
   | "notStarted"
   | "dontKnow"
   | "onHold"
+  | "abandoned"
   | "pendingTotal"
   | "total";
 
@@ -152,8 +153,16 @@ export interface EmployeeStatusRow {
   dontKnow: number;
   /** Paused work. It had no sub-bucket and lived only inside pendingTotal, so
    *  once the Pending aggregate stopped being rendered it would have counted
-   *  toward Total while appearing in no column at all. */
+   *  toward Total while appearing in no column at all.
+   *
+   *  SINCE 0225 this counts only pre-split stragglers: On Hold is an INITIATOR
+   *  verdict now (`approval_status`), not a doer status, so a healthy database
+   *  reads 0 here. The bucket stays because a row the migration could not reach
+   *  must still land in a column rather than vanish from the table. */
   onHold: number;
+  /** "I am not going to do this" — the doer axis's second terminal, beside
+   *  `done`. Never part of pendingTotal: nothing further is owed. */
+  abandoned: number;
   total: number;
   /** tasks with priority = imp_urgent */
   criticalCount: number;
@@ -481,6 +490,23 @@ export interface TaskListFilters {
    *                explicitly set. `doerIds` is `[]`.
    *  - "specific": `emp=<one-or-more-ids>` was explicitly set. */
   assigneeMode: "default" | "all" | "specific";
+  /**
+   * THE VISIBILITY CEILING — the ids whose tasks this request may read at all,
+   * applied IN ADDITION to every filter above (lib/tasks/scope.ts). Set by the
+   * query layer from the signed-in person's org position and their Access
+   * Control grants; OPTIONAL because a query with no session (a cron report, a
+   * seed) has no viewer to scope to.
+   *
+   * `undefined` = not scoped (system read) · `null` = organisation-wide (a
+   * master admin, a super admin, or an org-wide grant) · array = the ceiling.
+   *
+   * It is part of the cached key on purpose: two people asking for "all tasks"
+   * must not share a cache entry, or one would be served the other's rows.
+   */
+  visibleDoerIds?: string[] | null;
+  /** True when an explicit `?emp=` selection lies entirely outside the ceiling,
+   *  which must match nothing rather than fall back to the permitted set. */
+  assigneeOutsideScope?: boolean;
 }
 
 export interface TaskListRow {

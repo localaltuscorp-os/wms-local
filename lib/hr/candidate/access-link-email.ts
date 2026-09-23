@@ -5,6 +5,7 @@ import { candidateIntake, type CandidateLinkPurpose } from "@/db/schema";
 import { siteUrl } from "@/lib/site-url";
 import { sendPlainEmail } from "@/lib/email/resend";
 import { ACCESS_LINK_TTL_DAYS } from "@/lib/hr/candidate/access-link";
+import { formatDateHr } from "@/lib/format";
 
 /**
  * Mail a candidate their access link.
@@ -25,6 +26,12 @@ export async function sendCandidateAccessLink(
   token: string,
   expiresAt: Date,
   purpose: CandidateLinkPurpose = "form",
+  /**
+   * Extra recipients HR typed in the send dialog. The candidate's OWN address is
+   * still read from their record and always receives it; these are added on top
+   * (HR's choice, in HR's gated dialog — never reachable from a public page).
+   */
+  extra: { to?: string[]; cc?: string[]; bcc?: string[] } = {},
 ): Promise<boolean> {
   try {
     const [row] = await db
@@ -38,20 +45,25 @@ export async function sendCandidateAccessLink(
     // an HttpOnly cookie on first open — see access-link-cookie.ts.
     const link = `${siteUrl()}/c/${encodeURIComponent(token)}`;
     const name = (row.fullName ?? "").trim().split(/\s+/)[0] || "there";
-    const expires = expiresAt.toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+    // DD-MMM-YYYY, the one date form the HR module uses - including in mail.
+    const expires = formatDateHr(expiresAt);
 
     // The two errands read differently to the person receiving them: one asks
     // for their details, the other asks them to read and sign. A single generic
     // mail would make the policies look optional.
     const policies = purpose === "policies";
+    const onboarding = purpose === "onboarding";
 
+    const ownEmail = row.email.toLowerCase();
     const res = await sendPlainEmail({
-      to: row.email,
-      subject: policies ? "Policies to read and sign — Altus Corp" : "Your Altus Corp candidate form",
+      to: [row.email, ...(extra.to ?? []).filter((e) => e.toLowerCase() !== ownEmail)],
+      cc: extra.cc,
+      bcc: extra.bcc,
+      subject: policies
+        ? "Policies to read and sign — Altus Corp"
+        : onboarding
+          ? "Your Altus Corp onboarding form"
+          : "Your Altus Corp candidate form",
       // Plain text on purpose: this goes to a personal address, often read on a
       // phone, and it needs to survive every mail client without a template.
       text: [
@@ -61,6 +73,11 @@ export async function sendCandidateAccessLink(
           ? [
               `Please read and sign our company policies here — no account or`,
               `password needed:`,
+            ]
+          : onboarding
+          ? [
+              `Please fill in your joining (onboarding) details and attach your`,
+              `documents here — no account or password needed:`,
             ]
           : [
               `You can fill in your details here — no account or password needed:`,

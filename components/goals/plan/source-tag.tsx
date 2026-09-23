@@ -147,8 +147,11 @@ const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep
  *  can never shift the IST day the server already resolved. */
 export function fmtYmd(ymd: string | null | undefined): string | null {
   if (!ymd) return null;
-  const [, m, d] = ymd.split("-");
+  const [y, m, d] = ymd.split("-");
   const mi = Number(m) - 1;
   if (mi < 0 || mi > 11) return null;
-  return `${Number(d)} ${MONTH_ABBR[mi]}`;
+  // DD-MMM-YYYY, the one app-wide date format (2026-09-15). It used to drop the
+  // year and read "3 Jun" — fine on a card about this week, wrong on a due date
+  // a planner carries forward across a year boundary.
+  return `${String(Number(d)).padStart(2, "0")}-${MONTH_ABBR[mi]}-${y}`;
 }

@@ -7,6 +7,14 @@ import { GoalAttachmentsPanel } from "@/components/goals/shared/goal-attachments
 import { autoPctDone } from "@/lib/goals/auto-pct";
 import type { GoalDTO } from "@/components/goals/cascade/util";
 import { cn } from "@/lib/utils";
+import {
+  DOER_STATUS_LABEL,
+  DOER_STATUS_TONE,
+  INITIATOR_STATUS_LABEL,
+  INITIATOR_STATUS_TONE,
+  effectiveDoerStatus,
+  effectiveInitiatorStatus,
+} from "@/lib/status/axes";
 
 /**
  * GoalDetailPopup — the popup selecting a row opens. VIEW ONLY, by request:
@@ -38,6 +46,19 @@ function FieldBox({ label, wide, children }: { label: string; wide?: boolean; ch
   );
 }
 
+/**
+ * A status, in its own colour, inside the popup's ordinary value box.
+ *
+ * READ-ONLY, like every other field here — this popup is view-only by request
+ * (see the header) and editing happens in the table's inline cells, which now
+ * carry both axes as real dropdowns. A second, editable copy in here would be a
+ * second place the same value can be changed from, which is the thing the
+ * view-only rule was for.
+ */
+function StatusValue({ label, tone }: { label: string; tone: string | null }) {
+  return <span style={tone ? { color: tone } : undefined}>{label}</span>;
+}
+
 export interface GoalDetailPopupProps {
   goal: GoalDTO;
   onClose: () => void;
@@ -53,6 +74,8 @@ export function GoalDetailPopup({ goal, onClose }: GoalDetailPopupProps) {
   }, [onClose]);
 
   const pct = autoPctDone(goal.targetQty, goal.actualQty) ?? goal.pctDone;
+  const doerStatus = effectiveDoerStatus(goal.status);
+  const verdict = effectiveInitiatorStatus(goal.approvalStatus ?? null, goal.isPutAway ?? false);
   const delegated = (goal.delegatedTo ?? [])
     .map((d) => `${d.name ?? ""}${d.pct != null ? ` (${d.pct}%)` : ""}`)
     .filter(Boolean)
@@ -116,6 +139,26 @@ export function GoalDetailPopup({ goal, onClose }: GoalDetailPopupProps) {
             <div className="grid grid-cols-2 gap-3">
               <FieldBox label="Type">{goal.goalType}</FieldBox>
               <FieldBox label="Delegated to">{delegated}</FieldBox>
+            </div>
+
+            {/* THE TWO STATUS AXES (Manan, 2026-09-15). The popup showed neither,
+                so the one screen that lays a goal out in full was the one place
+                you could not see where it stood or what had been ruled on it. */}
+            <div className="grid grid-cols-2 gap-3">
+              <FieldBox label="Doer Status">
+                <StatusValue
+                  label={DOER_STATUS_LABEL[doerStatus]}
+                  tone={DOER_STATUS_TONE[doerStatus]}
+                />
+              </FieldBox>
+              <FieldBox label="Initiator Status">
+                {/* "No Verdict" is a real answer — nobody has ruled yet — and it
+                    is deliberately not the same as Not Approved. */}
+                <StatusValue
+                  label={verdict ? INITIATOR_STATUS_LABEL[verdict] : "No Verdict"}
+                  tone={verdict ? INITIATOR_STATUS_TONE[verdict] : null}
+                />
+              </FieldBox>
             </div>
 
             <div>

@@ -17,7 +17,7 @@ interface PageProps {
 const GREEN = "#E10600";
 const GREEN_DEEP = "#A80400";
 const MONTH_RE = /^\d{4}-\d{2}$/;
-const inr = (v: number) => `₹${Math.round(v).toLocaleString("en-IN")}`;
+const inr = (v: number) => `Rs. ${Math.round(v).toLocaleString("en-IN")}`;
 
 function monthLabel(ym: string, style: "long" | "short" = "long"): string {
   const [y, m] = ym.split("-").map(Number);
@@ -176,7 +176,8 @@ function PaymentLedgerSection({
 
       {!hasLines ? (
         <p className="rounded-2xl border border-hairline bg-surface-card px-4 py-6 text-[13px] text-ink-subtle">
-          No incentive payments recorded for this month yet. Reversed entries appear here as negative adjustments.
+          No incentive payments recorded for this month yet. Negative payable adjustments appear here as
+          negative lines.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-hairline bg-surface-card">
@@ -187,7 +188,7 @@ function PaymentLedgerSection({
                 <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.1em]">Incentive</th>
                 <th className="px-4 py-2.5 text-right text-[11px] font-bold uppercase tracking-[0.1em]">Date</th>
                 <th className="px-4 py-2.5 text-right text-[11px] font-bold uppercase tracking-[0.1em]">Gross paid</th>
-                <th className="px-4 py-2.5 text-right text-[11px] font-bold uppercase tracking-[0.1em]">Reversal</th>
+                <th className="px-4 py-2.5 text-right text-[11px] font-bold uppercase tracking-[0.1em]">Negative payable adj.</th>
                 <th className="px-4 py-2.5 text-right text-[11px] font-bold uppercase tracking-[0.1em]">Net paid</th>
               </tr>
             </thead>
@@ -221,7 +222,7 @@ function PaymentLedgerSection({
 
           <details className="border-t border-hairline">
             <summary className="cursor-pointer select-none px-4 py-2.5 text-[12px] font-bold text-ink-muted hover:text-ink-strong">
-              Show individual payment &amp; reversal lines
+              Show individual payment &amp; adjustment lines
             </summary>
             <table className="w-full border-collapse text-[12.5px]">
               <tbody>

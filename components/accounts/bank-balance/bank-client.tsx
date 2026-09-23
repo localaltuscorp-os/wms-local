@@ -370,7 +370,7 @@ export function BankBalance({ fyStartYear, items, weeks, balances, entityOptions
                         <span className="font-bold text-ink-strong">{r.entity}</span>
                       </div>
                     </Td>
-                    <Td className="text-right font-semibold text-ink-soft whitespace-nowrap">{target !== null ? `₹${formatINR(target)}` : <Dim />}</Td>
+                    <Td className="text-right font-semibold text-ink-soft whitespace-nowrap">{target !== null ? `Rs. ${formatINR(target)}` : <Dim />}</Td>
                     {weeks.map((w) => {
                       const k = key(r.id, w.id);
                       return (
@@ -385,11 +385,11 @@ export function BankBalance({ fyStartYear, items, weeks, balances, entityOptions
                         </td>
                       );
                     })}
-                    <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{last !== null ? `₹${formatINR(last)}` : <Dim />}</Td>
+                    <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{last !== null ? `Rs. ${formatINR(last)}` : <Dim />}</Td>
                     <Td className="text-right whitespace-nowrap">
                       {diff !== null ? (
                         <span className="font-bold" style={{ color: diff < 0 ? "var(--color-altus-red-deep)" : "var(--color-green-deep)" }}>
-                          {diff < 0 ? `−₹${formatINR(Math.abs(diff))}` : `+₹${formatINR(diff)}`}
+                          {diff < 0 ? `−Rs. ${formatINR(Math.abs(diff))}` : `+Rs. ${formatINR(diff)}`}
                         </span>
                       ) : <Dim />}
                     </Td>
@@ -491,7 +491,7 @@ function EditorRow({ colSpan, draft, setDraft, entityOptions, onSave, onCancel, 
         <div className="grid grid-cols-12 gap-4 max-md:grid-cols-2">
           <Field label="S. No" className="col-span-2 max-md:col-span-1"><input value={draft.code} onChange={(e) => set({ code: e.target.value })} className={INPUT} placeholder="1" aria-label="S. No" autoFocus /></Field>
           <Field label="Account / entity" className="col-span-6 max-md:col-span-1"><ValueSelect label="account" kind="bank_entity" options={entityOptions} value={draft.entity} onChange={(v) => set({ entity: v })} placeholder="Account…" /></Field>
-          <Field label="Target balance (₹)" className="col-span-4 max-md:col-span-2"><input value={draft.targetBalance} onChange={(e) => set({ targetBalance: e.target.value })} className={INPUT} inputMode="numeric" placeholder="400000" aria-label="Target balance" /></Field>
+          <Field label="Target balance (Rs.)" className="col-span-4 max-md:col-span-2"><input value={draft.targetBalance} onChange={(e) => set({ targetBalance: e.target.value })} className={INPUT} inputMode="numeric" placeholder="400000" aria-label="Target balance" /></Field>
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button type="button" onClick={onCancel} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-4 py-2 text-[14px] font-bold text-ink-muted hover:bg-surface-soft disabled:opacity-50"><X size={16} strokeWidth={2.4} /> Cancel</button>

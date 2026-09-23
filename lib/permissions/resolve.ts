@@ -14,7 +14,14 @@ import {
   type OverrideMap,
   type PermissionOverride,
 } from "./effective";
-import { isPermissionNodeKey, nodeKeyForPath, type PermissionAction } from "./catalog";
+import {
+  isPermissionNodeKey,
+  nodeChain,
+  nodeKeyForPath,
+  permissionNode,
+  type PermissionAction,
+} from "./catalog";
+import { auditAccessDenied } from "@/lib/logs/audit";
 
 /**
  * THE SERVER SIDE OF THE PERMISSION MATRIX.
@@ -162,8 +169,10 @@ export async function requireModuleView(nodeKey: string): Promise<void> {
   // Asked about the FALLBACK, not about the node we just refused — the question
   // is "is there anywhere to send them", and it must not recurse.
   if (nodeKey === FALLBACK_NODE || !(await canViewModule(FALLBACK_NODE))) {
+    await logAccessDenied(nodeKey, "view");
     throw forbiddenError();
   }
+  await logAccessDenied(nodeKey, "view");
   redirect(FALLBACK_ROUTE as Route);
 }
 
@@ -182,7 +191,35 @@ export async function requireModuleView(nodeKey: string): Promise<void> {
  * this guard is in its write path.
  */
 export async function requireModuleEdit(nodeKey: string): Promise<void> {
-  if (!(await canEditModule(nodeKey))) throw forbiddenError();
+  if (!(await canEditModule(nodeKey))) {
+    await logAccessDenied(nodeKey, "edit");
+    throw forbiddenError();
+  }
+}
+
+/**
+ * Record an ACCESS_DENIED in the global log from the single choke point every
+ * module permission refusal flows through. Best-effort: a denial must still
+ * throw, even if its own log cannot be written.
+ */
+async function logAccessDenied(nodeKey: string, action: string): Promise<void> {
+  try {
+    const me = await getCurrentEmployee();
+    if (!me) return;
+    const node = permissionNode(nodeKey);
+    const chain = nodeKey ? nodeChain(nodeKey) : [];
+    const moduleLabel = chain[0] ? (permissionNode(chain[0])?.label ?? "") : "";
+    await auditAccessDenied({
+      employeeId: me.id,
+      route: node?.routes?.[0] ?? "",
+      module: moduleLabel || null,
+      page: node && node.key !== moduleLabel ? node.label : null,
+      action,
+      reason: `permission denied on ${nodeKey}`,
+    });
+  } catch {
+    // never block the refusal on its own audit
+  }
 }
 
 /**

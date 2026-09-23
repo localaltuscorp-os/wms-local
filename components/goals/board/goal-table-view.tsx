@@ -20,6 +20,7 @@ import type { Route } from "next";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import {
+  Archive,
   ArrowRightLeft,
   CalendarDays,
   Check,
@@ -41,6 +42,7 @@ import { GoalDetailRow } from "@/components/goals/board/goal-detail-row";
 import { NotesCell, AttachmentsCell } from "@/components/goals/board/notes-files-cell";
 import { GoalEditDialog } from "@/components/goals/cascade/goal-edit-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 import {
   setGoalPctDone,
   editGoal,
@@ -48,6 +50,7 @@ import {
   divideYearlyGoal,
   moveGoalToPeriod,
   bulkArchiveGoals,
+  bulkArchiveGoalsToArchive,
   bulkCopyGoalsToPeriod,
   detectCopyCollisions,
 } from "@/app/(app)/goals/cascade/actions";
@@ -61,6 +64,7 @@ import { ADMIN_TASK_STATUSES, USER_TASK_STATUSES, DOER_TASK_STATUSES, GOAL_TYPES
 import { ApproverChip } from "@/components/status/approver-chip";
 import { approverDisplay, approverStored, selectableApproverChoices } from "@/lib/status/approver-status";
 import { setGoalApproverStatus } from "@/app/(app)/goals/approver-actions";
+import { setGoalInitiatorStatus } from "@/app/(app)/goals/initiator-actions";
 import { pctTone, fmtNum, num, periodKeyLabel, periodKeyShort, goalCode, trimDecimal, targetDateStatus, fmtTargetDate, assignmentInfo } from "@/components/goals/cascade/util";
 import { CalendarClock } from "lucide-react";
 import { AssignmentChip } from "@/components/goals/board/assignment-chip";
@@ -92,6 +96,39 @@ export interface GoalTableActions {
   setGoalPctDone: (input: { id: string; pctDone: number }) => Promise<GoalTableActionRes>;
   archiveGoal: (input: { id: string }) => Promise<GoalTableActionRes>;
   bulkArchiveGoals: (input: { ids: string[] }) => Promise<GoalTableActionRes>;
+  /**
+   * ARCHIVE — "put away", the gesture beside Delete on the selection bar.
+   * OPTIONAL: an engine that has no archive of its own simply omits it and the
+   * button does not render, which is how the weekly board stays as it was
+   * until it gets one.
+   */
+  bulkPutInArchive?: (input: { ids: string[] }) => Promise<GoalTableActionRes>;
+  /**
+   * THE INITIATOR VERDICT — its own writer, because it is its own column set.
+   *
+   * It is NOT part of `editGoal`. The verdict lands in three columns
+   * (approval_status + approval_by_id + approval_at) or, for Archived, in the
+   * archive stamp instead, and which of those it is depends on a rule that
+   * lives in `initiatorWrite` on the server. Folding it into the generic field
+   * patch would put that rule in the browser.
+   *
+   * OPTIONAL. An engine whose table has no initiator axis omits it and the cell
+   * renders read-only rather than offering a write that goes nowhere.
+   *
+   * IT USED TO BE HARD-WIRED. The cell called `setGoalInitiatorStatus` directly
+   * — the CASCADE engine's action — no matter which engine was driving the
+   * table. On the Weekly board that meant looking a `weekly_goals` id up in
+   * `goals`, so every verdict set there failed with "Goal not found."
+   *
+   * NO LONGER CALLED BY THIS TABLE. The Initiator Status column was removed on
+   * request (Manan, 2026-09-15) and this hook was its only caller here. It is
+   * kept because both engines still supply it (CASCADE_ACTIONS below and
+   * components/goals/board/weekly-table-actions.ts) and the verdict is still
+   * set from the goal detail views — so the wiring is one edit away from
+   * working again if the column ever comes back, and deleting it would mean
+   * unpicking two engines for no gain.
+   */
+  setInitiatorStatus?: (input: { id: string; next: string }) => Promise<GoalTableActionRes>;
 }
 
 const CASCADE_ACTIONS: GoalTableActions = {
@@ -99,6 +136,8 @@ const CASCADE_ACTIONS: GoalTableActions = {
   setGoalPctDone: (input) => setGoalPctDone(input),
   archiveGoal: (input) => archiveGoal(input),
   bulkArchiveGoals: (input) => bulkArchiveGoals(input),
+  bulkPutInArchive: (input) => bulkArchiveGoalsToArchive(input),
+  setInitiatorStatus: (input) => setGoalInitiatorStatus(input.id, input.next),
 };
 
 export interface GoalTableViewProps {
@@ -743,6 +782,26 @@ function TeamMembersCell({
               />
             </div>
           </div>
+          {/* Everyone at weight 100 in one click, then drop the one or two who
+              don't belong. Takes the WHOLE roster, not what the search box has
+              narrowed it to — the count in the label says what the click does.
+              Names already on the goal keep the weight they were given. */}
+          <SelectAllBar
+            compact
+            className="mb-1 rounded-md"
+            count={roster.filter(isPicked).length}
+            total={roster.length}
+            emptyLabel="No members"
+            onSelectAll={() =>
+              onCommit(
+                roster.map(
+                  (r) =>
+                    list.find((m) => m.employeeId === r.id) ?? { employeeId: r.id, name: r.name, weight: 100 },
+                ),
+              )
+            }
+            onClear={() => onCommit(null)}
+          />
           <div ref={listRef} className="slim-scroll max-h-64 overflow-auto" role="listbox">
             {filtered.map((r, i) => {
               const isSel = isPicked(r);
@@ -865,6 +924,20 @@ function BulkMembers({
         <p className="flex items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
           <Users size={12} /> Members &amp; weights · {count} selected
         </p>
+        {/* Stage the whole roster, then untick the exceptions before Apply. */}
+        <SelectAllBar
+          compact
+          className="mb-1 rounded-md"
+          count={list.length}
+          total={roster.length}
+          emptyLabel="No members staged"
+          onSelectAll={() =>
+            setList(
+              roster.map((r) => list.find((m) => matches(m, r)) ?? { employeeId: r.id, name: r.name, weight: 100 }),
+            )
+          }
+          onClear={() => setList([])}
+        />
         <div className="slim-scroll max-h-64 overflow-auto">
           {roster.map((r) => {
             const sel = isPicked(r);
@@ -1084,6 +1157,20 @@ function DelegatesCell({
               />
             </div>
           </div>
+          {/* Delegate to the whole roster at 100%, then drop the exceptions. */}
+          <SelectAllBar
+            compact
+            className="mb-1 rounded-md"
+            count={roster.filter((r) => picked.has(r.id)).length}
+            total={roster.length}
+            emptyLabel="No delegates"
+            onSelectAll={() =>
+              onCommit(
+                roster.map((r) => list.find((d) => d.employeeId === r.id) ?? { employeeId: r.id, name: r.name, pct: 100 }),
+              )
+            }
+            onClear={() => onCommit(null)}
+          />
           <div ref={listRef} className="slim-scroll max-h-64 overflow-auto" role="listbox">
             {filtered.map((r, i) => {
               const isSel = picked.has(r.id);
@@ -1270,6 +1357,20 @@ function BulkDelegate({
         <p className="flex items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
           <UserPlus size={12} /> Delegate to · {count} selected
         </p>
+        {/* Stage the whole roster, then untick the exceptions before Apply. */}
+        <SelectAllBar
+          compact
+          className="mb-1 rounded-md"
+          count={list.length}
+          total={roster.length}
+          emptyLabel="No delegates staged"
+          onSelectAll={() =>
+            setList(
+              roster.map((r) => list.find((d) => d.employeeId === r.id) ?? { employeeId: r.id, name: r.name, pct: 100 }),
+            )
+          }
+          onClear={() => setList([])}
+        />
         <div className="slim-scroll max-h-64 overflow-auto">
           {roster.map((r) => {
             const sel = isPicked(r);
@@ -1548,6 +1649,16 @@ function CopyToMenu({
         <p className="flex items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
           <Copy size={12} /> Copy {count} goal{count === 1 ? "" : "s"} to…
         </p>
+        {/* Every child period at once, then untick the one or two to skip. */}
+        <SelectAllBar
+          compact
+          className="mb-1 rounded-md"
+          count={picked.size}
+          total={childMap.targets.length}
+          emptyLabel={`No ${childMap.childNoun} picked`}
+          onSelectAll={() => setPicked(new Set(childMap.targets.map((t) => t.key)))}
+          onClear={() => setPicked(new Set())}
+        />
         <div className="slim-scroll max-h-64 overflow-auto">
           {childMap.targets.map((t) => {
             const on = picked.has(t.key);
@@ -2052,6 +2163,7 @@ export function GoalTableView(props: GoalTableViewProps) {
     goals,
     canWrite,
     isAdmin,
+    meId,
     roster,
     areaOptions,
     measureOptions,
@@ -2326,7 +2438,6 @@ export function GoalTableView(props: GoalTableViewProps) {
     const projectByName = new Map(projectList.map((p) => [p.name.trim().toLowerCase(), p.id]));
     const vendorById = new Map(vendorList.map((v) => [v.id, v.name]));
     const vendorByName = new Map(vendorList.map((v) => [v.name.trim().toLowerCase(), v.id]));
-    const statusBase = (isAdmin ? ADMIN_TASK_STATUSES : USER_TASK_STATUSES) as readonly TaskStatus[];
 
     const cols: GridColumn[] = [
       {
@@ -2515,6 +2626,7 @@ export function GoalTableView(props: GoalTableViewProps) {
     enabled: !locked,
     applyEdit: editField,
   });
+
 
   /** Body <td>(s) for one REORDERABLE_COLUMNS key, for row `g` at index `i` —
    *  the counterpart to headerCellsFor() above. `t`/`a` are that row's
@@ -2834,6 +2946,18 @@ export function GoalTableView(props: GoalTableViewProps) {
       clearSelection,
     );
   }
+  /** Put the selected goals away. They leave the board and are read back under
+   *  Archive > Goals, where they can be restored or deleted for good. */
+  function bulkArchiveAway() {
+    const put = A.bulkPutInArchive;
+    if (!put) return;
+    removeRows(
+      ids,
+      () => put({ ids }),
+      `${ids.length} goal${ids.length === 1 ? "" : "s"} archived — find them in Archive › Goals`,
+      clearSelection,
+    );
+  }
   function bulkSetMembers(team: TeamRef[]) {
     const sel = new Set(ids);
     const value = team.length ? team : null;
@@ -3106,8 +3230,11 @@ export function GoalTableView(props: GoalTableViewProps) {
 
           <span className="mx-1 h-5 w-px bg-hairline" aria-hidden />
 
-          {/* Edit — only when EXACTLY one row is selected (single-goal edit). */}
-          {!weekly && selected.size === 1 && (
+          {/* Edit — only when EXACTLY one row is selected (single-goal edit).
+              Weekly gets it too: the dialog's save is routed to the weekly
+              engine below (`saveEdit`), which is what used to be missing and
+              the reason this was gated to the cascade boards. */}
+          {selected.size === 1 && (
             <button
               type="button"
               onClick={() => {
@@ -3117,6 +3244,17 @@ export function GoalTableView(props: GoalTableViewProps) {
               className={cn(MENU_BTN, FOCUS_RING)}
             >
               <Pencil size={14} strokeWidth={2.2} /> Edit
+            </button>
+          )}
+
+          {A.bulkPutInArchive && (
+            <button
+              type="button"
+              onClick={bulkArchiveAway}
+              title="Archive the selected goals — they leave the board and are kept in Archive › Goals"
+              className={cn(MENU_BTN, FOCUS_RING)}
+            >
+              <Archive size={14} strokeWidth={2.2} /> Archive
             </button>
           )}
 
@@ -3340,6 +3478,11 @@ export function GoalTableView(props: GoalTableViewProps) {
           mode={{ kind: "edit", goal: editingGoal }}
           roster={roster}
           open={!!editingGoal}
+          // A weekly row is not a `goals` row: send the save through this
+          // board's own adapter (weekly_goals) instead of the dialog's default
+          // cascade writer. The cascade boards keep the default, which returns
+          // the updated row.
+          saveEdit={weekly ? A.editGoal : undefined}
           onOpenChange={(o) => {
             if (!o) setEditingGoal(null);
           }}

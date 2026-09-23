@@ -113,7 +113,7 @@ export function SalaryProfileDialog({
         setError(res.error);
         return;
       }
-      fireToast({ message: `${row.name}'s salary profile saved.` });
+      fireToast({ message: `${row.name}'s salary breakup saved.` });
       onClose();
       router.refresh();
     });
@@ -139,7 +139,7 @@ export function SalaryProfileDialog({
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
-            Salary Profile
+            Salary Breakup
           </Dialog.Title>
           <Dialog.Description className="text-[15px] text-[#64748B] mb-4" style={{ lineHeight: 1.5 }}>
             {row?.name ?? ""}
@@ -157,7 +157,7 @@ export function SalaryProfileDialog({
 
             {basis === "monthly_ctc" && (
               <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                <Field label="Annual CTC (₹)">
+                <Field label="Annual CTC (Rs.)">
                   <input
                     type="number"
                     inputMode="decimal"
@@ -169,7 +169,7 @@ export function SalaryProfileDialog({
                     className={INPUT_CLASS}
                   />
                 </Field>
-                <Field label="Monthly TDS (₹)">
+                <Field label="Monthly TDS (Rs.)">
                   <input
                     type="number"
                     inputMode="decimal"
@@ -187,7 +187,7 @@ export function SalaryProfileDialog({
             {basis === "hourly" && (
               <>
                 <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                  <Field label="Monthly pay at target (₹)" hint="The pay CAP at full hours (e.g. 3500).">
+                  <Field label="Monthly pay at target (Rs.)" hint="The pay CAP at full hours (e.g. 3500).">
                     <input
                       type="number"
                       inputMode="decimal"
@@ -212,7 +212,7 @@ export function SalaryProfileDialog({
                     />
                   </Field>
                 </div>
-                <Field label="Monthly TDS (₹)">
+                <Field label="Monthly TDS (Rs.)">
                   <input
                     type="number"
                     inputMode="decimal"
@@ -226,8 +226,8 @@ export function SalaryProfileDialog({
                 </Field>
                 {previewRate > 0 && (
                   <p className="rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[13px] text-[#475569]" style={{ lineHeight: 1.5 }}>
-                    ≈ <b className="tabular-nums text-[#0F172A]">₹{inr(previewRate)}/hr</b> (30-day month) · pay is capped at{" "}
-                    <b className="tabular-nums text-[#0F172A]">₹{inr(Number(monthlyPayAtTarget) || 0)}/mo</b>. Hours come from attendance.
+                    ≈ <b className="tabular-nums text-[#0F172A]">Rs. {inr(previewRate)}/hr</b> (30-day month) · pay is capped at{" "}
+                    <b className="tabular-nums text-[#0F172A]">Rs. {inr(Number(monthlyPayAtTarget) || 0)}/mo</b>. Hours come from attendance.
                   </p>
                 )}
               </>
@@ -236,7 +236,7 @@ export function SalaryProfileDialog({
             {basis === "fixed_fee" && (
               <>
                 <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                  <Field label="Monthly fee (₹)" hint="Flat retainer, unaffected by attendance.">
+                  <Field label="Monthly fee (Rs.)" hint="Flat retainer, unaffected by attendance.">
                     <input
                       type="number"
                       inputMode="decimal"
@@ -248,7 +248,7 @@ export function SalaryProfileDialog({
                       className={INPUT_CLASS}
                     />
                   </Field>
-                  <Field label="Monthly TDS (₹)">
+                  <Field label="Monthly TDS (Rs.)">
                     <input
                       type="number"
                       inputMode="decimal"
@@ -271,7 +271,7 @@ export function SalaryProfileDialog({
               <label className="flex items-center gap-2.5 cursor-pointer select-none">
                 <Checkbox checked={ptExempt} onChange={setPtExempt} ariaLabel="PT exempt" />
                 <span className="text-[14px] font-medium text-[#0F172A]">
-                  Professional-tax exempt (skip the ₹200/mo PT)
+                  Professional-tax exempt (skip the Rs. 200/mo PT)
                 </span>
               </label>
             )}

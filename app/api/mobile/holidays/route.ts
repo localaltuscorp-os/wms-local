@@ -4,7 +4,9 @@ import { authenticateMobileRequest, MOBILE_CORS } from "@/lib/auth/mobile";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { canAccessWorkspace } from "@/lib/workspaces";
 import { hrSupportEnabled } from "@/lib/hr/flag";
-import { listHolidays } from "@/lib/queries/monthly-events";
+import { listCompanyHolidaysForFy } from "@/lib/queries/company-holidays";
+import { fyStartYearForYmd } from "@/lib/hr/company-holidays";
+import { localDateString } from "@/lib/format";
 import { personalisedHolidays } from "@/components/events/holidays/personalise";
 import type { ReligionCode } from "@/lib/monthly-events/types";
 
@@ -18,11 +20,9 @@ export function OPTIONS() {
 /** The financial years the web Holiday List exposes (matches page.tsx). */
 const VALID_FY = new Set([2026, 2027]);
 
-/** Current FY start-year (Indian FY starts in April = month index 3). */
+/** Current FY start-year, by the IST calendar day (Indian FY starts in April). */
 function currentFyStart(): number {
-  const now = new Date();
-  const y = now.getFullYear();
-  return now.getMonth() >= 3 ? y : y - 1;
+  return fyStartYearForYmd(localDateString("Asia/Kolkata"));
 }
 
 async function inHrRoom(me: Employee): Promise<boolean> {
@@ -32,7 +32,8 @@ async function inHrRoom(me: Employee): Promise<boolean> {
 /**
  * GET /api/mobile/holidays[?fy=2026|2027] — the read-only, religion-personalised
  * company holiday list, the mobile twin of the web `/holidays` page. Reuses the
- * SAME data the Monthly Events Master owns (`listHolidays`) and the exact web
+ * SAME merged list (`listCompanyHolidaysForFy`: Events Master + published
+ * calendar + ad-hoc days; each row carries a `source`) and the exact web
  * personalisation (`personalisedHolidays` against the signed-in user's religion)
  * so the two never diverge. Open to every HR-room user. `fy` defaults to the
  * current financial year (clamped to the exposed FY window).
@@ -51,7 +52,7 @@ export async function GET(req: Request) {
   const fallback = VALID_FY.has(currentFyStart()) ? currentFyStart() : 2026;
   const fy = VALID_FY.has(requested) ? requested : fallback;
 
-  const all = await listHolidays(fy);
+  const all = await listCompanyHolidaysForFy(fy);
   const religion = (me.religion as ReligionCode | null) ?? null;
   const holidays = personalisedHolidays(all, religion);
 

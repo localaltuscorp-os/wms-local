@@ -6,6 +6,7 @@ broken, what changed and why.
 - Setup instructions → [`SETUP.md`](./SETUP.md)
 - Replicating this system for a new client → [`docs/WMS_BLUEPRINT.md`](./docs/WMS_BLUEPRINT.md)
 - **`Om` branch handoff + unrun SQL migrations** → [`HANDOFF-Om.md`](./HANDOFF-Om.md)
+- **`Shreya` branch handoff + its Supabase file** → [`handoff-shreya.md`](./handoff-shreya.md)
 
 > **Every developer and intern must append to the changelog below before their
 > work is considered done.** A PR without a changelog entry is incomplete. See
@@ -48,6 +49,9 @@ watch for after any migration that adds a column to a filtered query.
 > billing masters and Rudra's candidate signatures, not the three above.
 > What has been applied where is tracked in
 > `db/fork-handover-2026-09-21/INDEX.md`, with the combined bundle beside it.
+
+> **Still outstanding: `0216`, and the `Rudra` branch's `0229` and `0230`**
+> (see the bundle below and the 16–17 September entries).
 
 > **This section is now a record, not a to-do.** All 15 migrations ran against
 > production and verified clean (74/74). See the 15 September (night) changelog
@@ -138,6 +142,18 @@ additive half at runtime. Apply the migration properly regardless.
 **Two 0216 files now exist**, ours and theirs. Harmless — the runner orders by
 full filename — and it joins the 28 collisions already there back to `0019`.
 
+**Then the `Rudra` branch's own two**, `0229` (broadcast repeats and WhatsApp
+outcomes) and `0230` (Client Engagement), in a second bundle:
+
+```bash
+psql "$DATABASE_URL" -f db/RUN-IN-SUPABASE-0229-0230.sql
+```
+
+That one is additive and re-runnable throughout — every statement is
+`IF NOT EXISTS` or a guarded `DO` block, and the only `DROP`s are CHECK
+constraints being replaced in place. Unlike the 0216–0224 set, the app keeps
+working without it: the new screens simply have nothing to show.
+
 Do **not** reach for `npm run db:migrate`: the drizzle journal is stale at
 `0019`, so it would also apply two dozen unrelated pending migrations. Full
 detail and per-file notes are in [`HANDOFF-Om.md`](./HANDOFF-Om.md).
@@ -163,6 +179,10 @@ climbs it, so the numbers decide who covers a vacant seat. It renumbers in two
 passes (one pass collides with the unique index) and leaves `DGM` alone
 deliberately, raising a notice naming how many positions are stranded on it.
 All four are additive and idempotent — no `DROP`, no `DELETE`.
+
+**When reading that script's output:** the DRY RUN reports every file as
+`pending`, because it short-circuits the "already applied?" lookup when it is not
+going to write. `--apply` is what tells you the truth — it skips and says so.
 
 ---
 
@@ -614,6 +634,255 @@ throughout; her Firebase UID is new.
 
 ## Changelog
 
+### 2026-09-22 — Admin Panel → Control Panel + Salary Breakup
+
+**Migration `0246` applied.** Full write-up:
+[`Change-made/15-control-panel.md`](./Change-made/15-control-panel.md).
+
+**What changed**
+
+- **Admin Panel → Control Panel** — a new nav group with five surfaces: Users,
+  Roles, Permissions, Effective Access, Temporary Access.
+- **Temporary Access relocated** under Control Panel — the existing delegated
+  access is reused verbatim (tables, expiry, revoke, hierarchy gate all
+  unchanged); only its route moved, and `/admin/temporary-access` now redirects.
+  The permission-catalogue key is unchanged so existing grants keep working.
+- **Roles / Permissions / Effective Access** built on the existing permission
+  architecture — no second system. Roles are reusable templates
+  (`roles` / `role_permissions` / `employee_roles`) with a 15-action + 7-scope
+  vocabulary stored as data; enforcement stays the existing `module_permissions`
+  matrix (show/view/edit). Permissions edits that matrix directly (reusing
+  `setModulePermission`); Effective Access composes roles + direct overrides +
+  temporary access.
+- **Every access change writes the immutable Logs** (role create/update/delete,
+  assign/remove, permission grant/revoke, scope change, temporary access
+  grant/revoke) via the existing `auditLog`.
+- **Salary Profile → Salary Breakup** — navigation/UI rename only; the route and
+  all salary logic are unchanged.
+
+**Gating:** writes are master-admin gated (`master_admin.manage`, the existing
+capability); the Control Panel screens are admin-only via the admin layout.
+Temporary Access keeps its existing hierarchy gate.
+
+**Verified:** `tsc`/`eslint`/`vitest` clean (49 tests green incl. the permission
+catalogue walk of the new nodes); all five Control Panel pages return 200 on a
+fresh dev server; the seeded "Super Admin" role renders; the nav shows "Salary
+Breakup" and Temporary Access under Control Panel only.
+
+### 2026-09-22 — Global WMS Logs System (Admin Panel → Logs)
+
+**Migration `0245` applied.** Full write-up:
+[`Change-made/14-global-logs-system.md`](./Change-made/14-global-logs-system.md).
+
+**What changed**
+
+- **Admin Panel → Logs** — a new first-class module (`/admin/logs`): an
+  immutable, filterable, server-paginated investigation table over every login,
+  visit, change, export and denial in the WMS.
+- **Two new tables**: `daily_sessions` (one per employee per IST date, with
+  first login, logout, counters and estimated minutes) and `activity_logs` (the
+  append-only log, with `changes`/`metadata` jsonb and a `client_event_id`
+  dedupe key).
+- **Immutability is enforced in the DB** — a trigger refuses `UPDATE`/`DELETE`
+  on `activity_logs`; no screen or route exposes edit/delete/clear.
+- **Client activity tracker** — page visits, record views, searches and filters
+  buffered in IndexedDB and flushed in batches over normal HTTP, with a
+  `keepalive` flush on page hide and on sign-out/idle. Original timestamps are
+  preserved; failed flushes retry and never drop events.
+- **Server-authoritative audit** — login / failed login / logout / inactivity
+  timeout (via `?reason=idle`), access-denied, export, employee edit
+  (field-level before/after), incentive decisions and access-control grants all
+  write `activity_logs` from the server, never trusted to the client.
+- **Midnight finalization cron** (`/api/cron/logs-finalize`) — closes past IST
+  days' sessions idempotently without logging anyone out.
+- **Excel export** (`/admin/logs/export`, also `?month=YYYY-MM`) — server-side,
+  filter-aware, itself audited.
+
+**Scope:** mutation audit is the full mechanism wired into key paths (session,
+access-denied, export, employee edit, incentive decisions, access-control); it
+was not retro-instrumented across every unrelated module. `/admin/activity`
+remains separate.
+
+**Verified:** `tsc`/`eslint`/`vitest` clean (26 new unit tests); live smoke —
+`/admin/logs` renders, ingest accepts and classifies events, the daily session
+rolls up, the finalize cron 401s without the secret, and a direct
+`UPDATE activity_logs` is rejected by the trigger.
+
+### 2026-09-22 — Every pending migration applied; an Incentive Master outage repaired
+
+**Applied to the Supabase database this branch points at, through
+`pnpm db:migrate`.** Six files were genuinely outstanding; all six applied, and
+the migration ledger now holds 286 rows.
+
+**What was outstanding**
+
+| File | What it adds |
+|---|---|
+| `0222_candidate_policy_signing.sql` | Candidates acknowledge policies from an emailed link, no login |
+| `0226_billing_master.sql` | Legal-entity billing facts on `paying_entities` (address, GST, PAN, bank) |
+| `0227_entity_code_prefixes.sql` | The entity code prefixes employee codes are built from (`A-`, `U-`, `K-`, `M-`, `J-`) |
+| `0228_employee_schedule_settings.sql` | Per-employee attendance / Saturday / timings / WFH settings |
+| `0241_template_files.sql` | Upload Master — an uploaded override per bulk-import template |
+| `0244_incentive_applicability_and_intern_type.sql` | The incentive audience, intern type and internship-date change (see below) |
+
+**The finding worth reading: `0244` could not apply until a year-old drift was
+repaired, and that drift was a live outage.**
+
+`0232_incentive_master.sql` creates `incentive_eligibility` with
+`create table if not exists`. A **different** table of the same name — from
+`0216_incentive_eligibility.sql`, since deleted from the tree — already existed
+around a column called `incentive_id`. The `if not exists` did nothing, so the
+table kept the old shape: wrong column name, no foreign key, a bare unique index.
+`db/schema.ts` and the application both name the column `catalog_id`, so every
+read of that table failed:
+
+```
+Error [PostgresError]: column "catalog_id" does not exist
+  severity_local: 'ERROR', code: '42703'
+```
+
+That is the **Incentive Master screen and incentive request submission**, down.
+Same failure class as the `0240` incident, same cause: a migration recorded as
+applied whose objects were never created. SECTION 0 of `0244` repairs it —
+rename, foreign key, partial unique index, `NOT NULL`. The table held 0 rows, so
+only a name moved.
+
+**Result on the live database:** 323 tables; 29 employees, 1026 tasks and 119
+salary runs untouched; audiences 6 ALL_EMPLOYEES / 14 SELECTED_EMPLOYEES (no
+scheme changed audience); one designation (`Intern`) flagged intern, 10 people on
+it, 6 active; request types now include Breakthrough Idea and Employment
+Referral.
+
+**One list needs a person, not a migration.** 13 active non-intern employees have
+no Probation End Date and will be blocked from their next save until HR sets one
+— the intended "flag the legacy blanks" behaviour from change 12. They are named
+in `Change-made/SQL/10-verify-incentive-applicability.sql`, query 9: Dattaram Kap,
+Jeevan Bharambe, Manan Vasa, Mansi Medhekar, Namrata Nevgi, Om Jadhav, Parvez
+Khan, Prakash Kumawat, Raj Ragpasare, Rashmi Tripathi, Rohan Choudhary, Ruchita
+Ambre, Rudra Thukarul.
+
+**Also fixed, found by verifying against real data:** page 1 of the salary PDF
+printed a stray double-quote where a minus sign belonged
+(`additions " Rs 0 deductions`) — U+2212 has no glyph in WinAnsi and pdfkit wrote
+byte `0x22`. Now ASCII `-`, with a test.
+
+**SQL for other databases:** `Change-made/SQL/09-apply-incentive-applicability.sql`
+(verbatim `0244`, including the repair) and `10-verify-incentive-applicability.sql`.
+
+**Note when reading the applier's output:** `pnpm db:migrate:dry` reports **every**
+file as `pending`. That is by design — it short-circuits the "already applied?"
+lookup when it is not going to write. To see what is genuinely outstanding, run
+`--apply` (it skips and says so) or diff `db/migrations/*.sql` against
+`select filename from __schema_applied`.
+
+### 2026-09-22 — Salary Statement on the web; the PDF back to three plain pages
+
+**No migration.** This change is presentation only — no new columns, no backfill.
+Full write-up: [`Change-made/13-salary-statement-and-pdf-redesign.md`](./Change-made/13-salary-statement-and-pdf-redesign.md).
+
+**What changed**
+
+- **The salary statement is a web page now**: `Employee → My Salary → Salary
+  Statement` (`/my-salary/statement`). Three cards — Salary Slip, Attendance &
+  Salary Calculation, Incentive Statement — in the existing WMS cards, tables,
+  tiles and badges.
+- **The week dropdown is generated from the data**, not hardcoded at Week 1–5.
+  The options come from `ledger.weeks`, the attendance engine's own buckets, and
+  the label is `LedgerWeek.index` — the same number the Daily Salary Report
+  shows. A six-week month gets six options.
+- **Weekly Summary is the default** and prints one row per week; choosing a week
+  replaces it with that week's days and its own calculation block. Only one week
+  is ever on the page.
+- **The month total is the engine's**: `viewTotals(weeks, hasMoney)`, the same
+  function the Daily Salary Report totals with.
+- **One empty state.** A month with no incentives prints
+  `No incentive records for this period.` once, with no empty tables around it.
+- **The PDF is a document again, and always exactly three pages.** The dropdowns,
+  the optional-content layers and the JavaScript actions are gone;
+  `lib/pdf/layered-form.ts` is deleted. A table that cannot fit its page now
+  measures its rows and prints how many it left out (`fitRows`) instead of
+  overflowing onto a fourth page.
+- **One source of truth, both ways.** `loadSalarySlipData` builds `SalarySlipData`
+  once; the web statement and the PDF both render that object and neither does
+  any arithmetic. Both facts are pinned by tests.
+
+**Deliberately not changed**
+
+No attendance, salary, weekly-target, holiday, weekly-off, overtime, deduction,
+incentive, payment, approval or eligibility rule was touched. No backend
+calculation bug was found.
+
+**Known divergence:** the web formats money as `₹`; the PDF prints `Rs ` because
+pdfkit's built-in Helvetica has no rupee glyph in WinAnsi. The values are
+identical — see the linked document.
+
+**Tests:** `tests/unit/salary-slip-pdf.test.ts` (35, rewritten) and
+`tests/unit/salary-statement-render.test.tsx` (21, new). `tsc --noEmit` and
+`eslint` clean. The full suite's 14 failures across 8 files all pass in isolation
+and the first five fail on a clean tree too — pre-existing and load-flaky.
+
+### 2026-09-22 — Incentive applicability (All / Function / Selected), Employee vs Intern, internship and probation dates
+
+**What changed**
+
+- **An incentive's audience is now an explicit choice** on the Incentive
+  Master: **All Employees** (the default for every new one), **Function**
+  (multi-select from the Function master) or **Selected Employees** (the
+  existing dated grant list). It replaces the old pair of "Sales eligible /
+  Interns eligible" tick boxes, which decided the audience in a way nobody
+  could see on the screen.
+- **Interns cannot earn incentives at all.** Intern status comes from a flag on
+  the **Designation master** (`designations.employee_type`), overridable per
+  person on their own record — not from matching the word "intern" in a
+  designation's name, which is what the app used to do and what a rename would
+  have silently changed.
+- **Two new incentive types**: Breakthrough Idea and Employment Referral, with
+  their own request forms, configured in the Incentive Master like the rest.
+- **A new "My Incentives" tab** (second on the incentive rail) shows each
+  employee which incentives they can earn, what each pays — read live from the
+  Incentive Master — and why, with the ones they cannot earn in a collapsed
+  group below, each carrying its reason.
+- **Probation End Date is required** for anybody who is not an intern, on
+  invite, edit and bulk edit. The date is never replaced by the word
+  "Completed": completed probation shows the date with a green Completed tag,
+  running probation the date with an amber On Probation tag.
+- **Internship Start / End dates** on the employee record. The end date is
+  generated by the database as start + 6 months, so no screen can set a pair
+  that disagrees.
+- **Eligibility is enforced on the server.** A request from somebody the scheme
+  does not cover, or from an intern, is refused by the same shared gate the web
+  form and the mobile API both pass through — hiding a button is not the
+  enforcement.
+
+**⚠️ REQUIRES MIGRATION 0244 BEFORE THE UI WILL LOAD**
+
+`db/migrations/0244_incentive_applicability_and_intern_type.sql` has **not been
+applied** to any database. Until it is, `/incentive` and the Employee Master
+will fail: the code reads `incentive_catalog.applicability`,
+`designations.employee_type`, `employees.employee_type` and
+`employees.internship_start`, none of which exist yet.
+
+**The migration contains one statement that can change who earns money** —
+it translates each existing scheme's old audience into the new column. Run the
+pre-flight queries in its header **first** and read the two lists before
+applying. Then:
+
+```bash
+pnpm db:migrate:dry     # shows what would run
+pnpm db:migrate         # applies it
+```
+
+**Two decisions worth knowing about**
+
+- **An interns-only scheme now reaches nobody.** Interns cannot earn, so a
+  scheme whose only audience was interns translates to "Selected Employees"
+  with no one on the list, rather than silently becoming company-wide.
+- **The old tick boxes are kept as columns but no longer decide anything.** The
+  Admin Panel stopped offering them and the in-app table dialog stopped showing
+  them; they stay in the database because every historical change record
+  carries them, and nothing was deleted.
+
+Full detail, file by file: [`Change-made/12-incentive-applicability-intern-employee-type.md`](./Change-made/12-incentive-applicability-intern-employee-type.md).
 ### 2026-09-21 (later) — The permission matrix now covers every route handler
 
 **What changed**
@@ -1182,6 +1451,587 @@ suites pass (80 tests), including 12 new cases for the rrule shape —
 interval-counted-in-weeks, UNTIL, COUNT across a partial first week, the
 200-occurrence cap, and an unreadable rule firing never.
 
+### 2026-09-19 — Client Engagement: review fixes, full UI test pass, and why :3000 kept hanging
+
+**Asked for, and done.** Every change below was checked on :3000 with scripted
+browser runs (25/25 checks as Manan, 9/9 permission checks signed in as Jeevan).
+The screenshots are in the account holder's `Desktop\Client Engagement` folder.
+- No title bands (`PageCommandBar`) on any Client Engagement tab.
+- Calendar: only booked calls get a box. Free time is no longer drawn; clicking
+  empty space still schedules there. Call names may use two lines.
+- Emp Grid: one card per person, stacked, with a shared `<colgroup>` so columns
+  line up down to the G-Total. Unassigned is shown in red.
+- PCA Grid: the matrix is P | C | Total (P + C) | A. Ambassadors are never added
+  into a total, and the board's "All" footer follows the same rule. The board is
+  now one card per person in a wrapping grid, because 9 table columns could not
+  fit with the sidebar open.
+- References: Status sits under the progress bar so the table fits; +1/−1
+  update instantly (optimistic) and roll back on failure.
+
+**Bugs found by testing, and fixed.**
+- *Page would not scroll with the cursor over a table.* The unlayered global
+  `:where(.overflow-x-auto…) { overscroll-behavior: contain }` beats any
+  Tailwind utility, so `overscroll-y-auto` silently lost. The fix is the new
+  unlayered `.scroll-x-only` class in `globals.css`; use it for any sideways-only
+  table wrapper.
+- *A newly scheduled call "vanished".* The start date defaulted to today, so a
+  Thursday call made on a Saturday started next week. It now defaults to the
+  Monday of the week on screen, and the toast says when the first call is after
+  that week.
+- *A clash message pointed at an invisible call.* It now names the clashing
+  call's start date when that is later.
+- Removed a `router.refresh()` after every save. `revalidatePath` in the action
+  already returns fresh data, and the second fetch could race it.
+
+**Why :3000 kept hanging (not Client Engagement).** The hangs were header
+queries (unread-notification count, task count) left "active / ClientRead" on
+Supabase. The dev-only slow-query logger (`lib/db/slow-query.ts`) forces each
+lazy postgres-js query to start itself. With `SLOW_QUERY_MS="off"` in
+`.env.local` (local only), three full-speed test runs caused **no** hang, where
+before every run did. The file is untouched; production never enables the
+logger unless `SLOW_QUERY_MS` is set. **Worth fixing properly** before anyone
+sets that variable anywhere real.
+
+**Also:** a stale 8.4 GB Turbopack cache (`.next/dev/cache/turbopack`) kept
+bringing back an old route table, so every page under `/operations/*` returned
+404 after a restart. Deleting the cache folder fixed it; it is safe to delete.
+
+Test data is still in (`scripts/ce-test-data.mjs --remove` clears it) and is
+back in its seeded state. The Activity log keeps the test runs' entries.
+
+### 2026-09-18 — Client Engagement rebuilt from scratch (0238)
+
+The first version (2026-09-16 entry below) was not approved. It is quarantined
+in `_archive/client-engagement-2026-09-18/`. **Those files were never committed,
+so that folder is their only copy**; see its README.
+
+**Decisions (account holder, 2026-09-18):** own `ce_*` tables rather than
+Hand-holding's `pa_*`; call types are exactly HH, Tool, Check-in and Reference;
+only **Manan and Ruchita** assign out of Unassigned or transfer. Rashmi is out,
+and so is every other admin.
+
+**Tabs** (`/operations/client-engagement/…`):
+- **Overview**: capacity bar (active accounts per person against their cap,
+  green / amber / red, plus the Unassigned pool); numbered category tabs
+  (Retainer, Ambassadors, PS with a cohort filter, BSS, Corporate, Reference
+  Pipeline); Active | Inactive-and-on-hold split with a swimlane per person.
+  Business status colours use the brief's exact hexes.
+- **Calendar**: one person's week, 10 AM–8 PM only. Admins, super-admins,
+  Manan and Ruchita pick anyone; everyone else sees their own. Free gaps are
+  drawn and clickable. Inactive clients' calls are hatched and don't count as
+  busy. The person's Hand-holding calls are overlaid read-only via
+  `pa_people.employee_id`. Team bandwidth table below for admins. Batch field
+  appears only for PS/BSS.
+- **Emp Grid**: `Sr | Name | (Batch) | mins | (calls)`. Total row leaves the
+  name empty and puts the participant count under Batch, where the sketch puts
+  it. G-Total at the bottom.
+- **PCA Grid**: matrix (people + Unassigned × P / C / A / All: count, weekly
+  time, calls), plus the sketch's board with P / C / A / All buttons.
+- **References**: quota per client, collector filter, One Time / Every Week,
+  +1 / −1. Weekly reminder cron `/api/cron/ce-reference-reminders` runs
+  Mondays 04:00 UTC, idempotent via `last_reminded_on`. New notification kind
+  `ce_reference_reminder`.
+- **Team & Log**: roster (login link, role, cap) and the audit log.
+
+**Rules live in pure `lib/client-engagement/*`**, re-checked in the actions.
+Going On Hold moves an account to Inactive without writing anything (derived),
+so its coach is kept. A transfer moves the account's calls and reports any new
+overlaps. Returning an account to Unassigned is refused while it has calls.
+
+**Migration:** `db/RUN-IN-SUPABASE-0238.sql`, additive, one transaction,
+re-runnable. It seeds the 8 named people. **Not yet applied**; until then every
+tab shows a "needs its tables" notice. Validated on in-memory PGlite: runs
+twice cleanly, and every CHECK refuses what it should.
+
+**Verified:** `tsc --noEmit` clean; ESLint clean on all new files;
+`tests/unit/ce-v2.test.ts` 24 new tests; full unit suite 3422 pass. The two
+`device-exemption-login` timeouts pass when that file is run alone.
+**Not verified:** anything in a browser. localhost:3000 was hanging on every
+authenticated page all session (before any of this was written), and the
+tables are not on Supabase yet.
+
+### 2026-09-17 (night) — Exec Calendar: hover cards, the window editor, drag, and the sheet importer
+
+The last four items of §6/§2A/§1.
+
+- **Hover quick-card.** At week density a one-hour block shows a title and, if
+  lucky, its times. The card gives category, duration, client, batch, location
+  and notes on hover — the READ; the drawer stays the write. It flips to the
+  left of the cursor near the right edge, because Sunday 20:00 is exactly where
+  it would otherwise fall off the screen.
+- **The window editor** (`exec_calendar_prefs`). Per PERSON, not per browser: a
+  window in localStorage is a different calendar on the laptop and the phone,
+  and the one you are not looking at is the one hiding an early block. Presets
+  for the working day, office hours and a full 24h.
+- **Drag to move and resize.** Pointer handlers bind to the WINDOW once a drag
+  starts, not to the block — the cursor leaves the block it is dragging, which
+  is the point of dragging, and a handler on the block drops the gesture there.
+  A dashed ghost follows the pointer; on release the move goes through
+  `saveExecEvent`, the SAME action the drawer uses, so a dragged block is
+  validated exactly like a typed one. Dragging onto protected time is refused,
+  toasted and the block snaps back.
+- **The sheet importer** (`lib/exec-calendar/import.ts`). Paste a copied block
+  of the master sheet — tab-separated, times down the first column, dates across
+  the top.
+
+**The importer's one important behaviour:** in the sheet a long block is not one
+cell, it is the SAME TEXT REPEATED down every row it covers ("Manan Sir Break"
+in fifteen consecutive cells). The parser collapses runs of identical text in a
+column into ONE block spanning first row → end of last. Without that, importing
+one week yields hundreds of one-hour fragments. 17 tests cover it, including the
+collapse, the gap that must NOT merge, and the year the sheet leaves out.
+
+`importExecBlocks` deliberately does **no conflict check**: the sheet is the
+record of what happened, a decade of it contains overlaps, and refusing them
+would import a version of history that never occurred. The protected-time
+refusal exists to stop somebody booking over it in FUTURE; an import is a
+transcription. Re-pasting is idempotent by (day, start, title).
+
+**UI rule adopted:** every layout is now checked with the global sidebar BOTH
+collapsed and open. The toolbar squeezed at ~1120px and wrapped "New block" onto
+two lines; controls now carry `shrink-0 whitespace-nowrap` and the prose takes
+the slack, so rows wrap between groups and never inside a button.
+
+**Verified:** typecheck clean · 3,090 passing (same five pre-existing failures) ·
+importer, window editor and toolbar shot at 1500px and 1120px with a clean
+console.
+
+**Still unpressed:** Stamp it, Import, and a drag — all three write through
+actions that cannot be invoked from a script, and `look.mjs --live` refuses to
+click against the real database. Their inputs are unit-tested; the writes are not.
+
+### 2026-09-17 (evening) — Exec Calendar: the team view, masking proven, routines
+
+**§5 is now real, and testing it found a bug.** The page only ever showed your
+own week, so masking had nothing to prove itself against. `?owner=` opens
+somebody else's calendar (picker in the toolbar), read-only, with every row put
+through `maskAll` ON THE SERVER before it is serialised.
+
+Checked by signing in as **Rudra Thukarul** and opening **Mansi Medhekar's**
+week: the five Exercise blocks and the executive break read `Busy · Reserved` in
+neutral grey — title AND colour gone — the private appointment is absent
+entirely, the public client work keeps its full detail, and there is no New
+block button. (Rutvisha could not be used: she has no `employees` row at all,
+only `pa_people`, which is the same reason the HR letters fix needed Mansi.)
+
+**The bug that only shows up from the other chair:** the variance alerts are
+computed from what the VIEWER can see, so a masked calendar always looks like it
+has no personal time — the panel told a colleague *"Personal & recovery is 0%,
+under the 15% floor"* about somebody who exercises every morning. Alerts are now
+suppressed when reading someone else's calendar, and the totals are labelled
+*"Partial: blocks you cannot see are counted as reserved time"*. The mix is the
+owner's to judge, on their own complete data.
+
+**Routines (§4B) have a UI.** `components/exec-calendar/routine-dialog.tsx` —
+weekday toggles, a time range, a date range, visibility, and four presets the
+brief names (morning habit, weekend cohort, consulting day, executive break).
+`?routine=1` opens it.
+
+`stampExecRoutine` writes REAL BLOCKS rather than a rule re-evaluated on every
+read, which is what lets a single Tuesday be moved or deleted and stay that way.
+Its day-selection came out of the action into `routineDays()` in grid.ts — a
+loop over dates with an inline weekday filter is exactly the arithmetic that is
+wrong at a month boundary and is noticed only after a quarter is stamped one day
+short. Now 7 tests cover it, including the year boundary.
+
+**Verified:** typecheck clean · 3,073 passing (the same five pre-existing
+failures) · owner view, masked view, editor drawer and routine dialog all shot
+with a clean console.
+
+**Not verified:** the stamp WRITE itself. `look.mjs --live` refuses to click
+against the real database, and a server action cannot be invoked from a script,
+so the button has not been pressed. Its inputs (`routineDays`, `checkConflicts`)
+are unit-tested; the insert is not.
+
+### 2026-09-17 (later) — Executive Master Calendar: 0231 applied, and it writes
+
+`0231` ran against `ifcdpjbdinvmtewmgceg`; all three tables are present. The
+NOTICEs it printed are `DROP CONSTRAINT IF EXISTS` on tables being created in
+the same transaction — nothing was wrong.
+
+**Now interactive.** `app/(app)/events/actions.ts` adds `saveExecEvent`,
+`deleteExecEvent`, `saveExecGridPrefs` and `stampExecRoutine`. Two things are
+re-checked on the SERVER rather than trusted from the form:
+
+- **Ownership is in the WHERE clause** (`id = ? AND owner_id = me.id`), not a
+  separate `if`. A crafted id matches no row instead of relying on a guard that
+  a later refactor can drop.
+- **Protected time** goes through `checkConflicts` again with the real diary.
+  The drawer warns; the action refuses.
+
+`stampExecRoutine` GENERATES rows rather than expanding a rule at read time —
+one deleted Tuesday has to stay deleted, and a rule evaluated on every read
+cannot remember that. It skips days that already carry the routine and days
+where the slot would land on protected time, and reports both counts instead of
+aborting the whole quarter over one Tuesday.
+
+**The drawer** (`components/exec-calendar/event-editor.tsx`) puts the CATEGORY
+first, because in this module the category decides behaviour — protected or not,
+client picker or not, banner or block. Duration is derived from the clock and
+shown live, never typed. `guessCategory` suggests a category from the title
+while it is still a new block, which is the import path for sheet cells.
+
+**It has a URL.** `?new=YYYY-MM-DD` opens the drawer on a fresh block, so another
+screen can link straight to "book this", and the drawer is reachable without a
+click — which is also how it was verified, since `look.mjs --live` refuses to
+click against the real database.
+
+**Keyboard** (§6): ← → step the period, `t` today, `n` new, and `e/b/c/w/s/o/m`
+retag the open block. All ignored while a field has focus, so typing "b" in a
+title does not silently retag it.
+
+**Demo data.** 17 blocks were inserted into `exec_calendar_events` for Mansi
+Medhekar (week of 2026-09-14) to prove the read → mask → layout → render path
+with something real: a 07:00 habit, client accounts, a 15:00–20:00 cohort, BNI,
+TDS Returns and an all-day marker. They show the analytics working — 33h 30m
+booked, 31.9% of the open day, client delivery 31.3% / cohorts 25.4% / personal
+20.9%, and no variance alert because both floors are met. **Undo:**
+
+```sql
+delete from exec_calendar_events where owner_id = '733b3a89-0f38-41d9-8bbd-2a097b74d325';
+```
+
+**Still to build:** the routine UI (the action and table exist, nothing calls it
+yet), hover quick-cards, the window editor (`saveExecGridPrefs` exists, no UI),
+drag to move/resize, and the sheet importer that `guessCategory` was written for.
+
+### 2026-09-17 — Executive Master Calendar: the old module archived, the new core built
+
+**The Monthly Events Master was quarantined, not deleted.** Its whole surface —
+the `/events` routes, the 16 grid components, two module-only helpers — moved to
+`_archive/monthly-events-2026-09-17/`, which is git-ignored and excluded from
+`tsconfig`, so nothing there compiles and nothing reaches main. Git history is
+the real archive; the folder is the convenience copy. The nav area and the
+permission node were lifted out into `REMOVED-*.txt` beside it.
+
+**What deliberately stayed, and why it would have broken.** `event_holidays` and
+`components/events/holidays/` are the company HOLIDAY MASTER, read by
+`lib/queries/holidays.ts` → HR Holiday List, `/holidays`, the mobile holidays
+API, five task/manager reports and attendance's working-day counts.
+`lib/monthly-events/types.ts` has 8 importers outside the module and `access.ts`
+has 6. The four `/api/mobile/events/*` endpoints serve the shipped Android app.
+**No table was dropped** — all 30 `calendar_events`, 28 `event_holidays`, 11
+categories and 4 batch types are untouched, so the archived screens would work
+again the moment the files move back.
+
+**The new module took over `/events`**, so every old link lands on its
+replacement instead of a 404.
+
+**Built so far — the core the rest of the spec sits on** (`lib/exec-calendar/`):
+
+- `taxonomy.ts` — the SEVEN fixed categories, in code rather than a table
+  anyone can extend. Behaviour hangs off the category: protected time is
+  protected because it is Personal & Wellness. Colours are palette TOKENS, never
+  hex. `guessCategory` classifies free text ("BSS 90 S21" → cohort, "TDS
+  Returns" → ops) so a decade of sheet cells can be imported without re-tagging.
+- `grid.ts` — the CONFIGURABLE window, defaulting to the brief's 07:00–22:00
+  instead of the old hard-coded 24 hours; ISO week numbering that gets the
+  year boundary right (1 Jan 2027 is week 53 of 2026); month-as-whole-weeks for
+  the dual view; and `layoutDay`, which renders 15:00–20:00 as ONE five-hour
+  card with overlap columns rather than ten stacked cells.
+- `analytics.ts` — §4D. Percentages are of COMMITTED time, not of the window,
+  with `windowShare` reported separately; all-day markers excluded so a festival
+  month does not swamp the mix; variance alerts are FLOORS only and stay silent
+  on an empty range.
+- `privacy.ts` — §5. `public | busy | private`, masked ON THE SERVER before the
+  row is sent. A `busy` block keeps its day and hours and loses everything else
+  INCLUDING its colour, because a green 07:00 block every weekday tells anyone
+  watching that the executive exercises before work. Booking over protected time
+  is REFUSED for anyone but the owner; every other overlap only warns.
+
+**Screens:** `/events` with three horizons — Week (the grid), Two months (the
+signature-sheet view, two months either side of a separator with ISO numbers
+down the gutter) and Year — plus the allocation panel and the legend, which is
+rendered FROM the taxonomy so it cannot drift from the rules.
+
+**Migration `0231_exec_calendar.sql` — NOT RUN.** Three new tables
+(`exec_calendar_events`, `exec_calendar_routines`, `exec_calendar_prefs`),
+entirely additive, nothing altered. Separate tables rather than columns on
+`calendar_events` on purpose: that is a shared company calendar, and bolting an
+owner and a visibility onto it would make every existing consumer responsible
+for filtering private rows it never had to think about.
+
+```bash
+node --env-file=.env.local scripts/apply-pending-migrations.mjs db/RUN-IN-SUPABASE-0231.sql --apply
+```
+
+Until it runs the page works: `lib/queries/exec-calendar.ts` catches the missing
+table, renders an empty grid and says so in a banner rather than erroring.
+
+**Tests:** `exec-calendar-grid` (33) and `exec-calendar-rules` (27) — 60 new,
+all passing. Suite: 3,065 passing, the same five pre-existing failures.
+
+**Still to build:** the editor drawer and hover cards, the routine engine's UI
+(§4B — the table and generator are in the migration), client/CRM picker wiring
+(§4A — the column and the query exist), keyboard navigation and tagging hotkeys
+(§6), and the per-person window editor (§2A — `exec_calendar_prefs` is there).
+
+### 2026-09-17 — Policies are readable by everyone; letters open again
+
+**Every employee can now find the firm's policies.** The individual policy pages
+(`/hr/policies/<key>`) were ALREADY open to all — `requireWorkspace("hr")`, which
+every employee passes. What was staff-only was the LIST: the all-policies grid
+opened from `/hr?policies=1` was gated behind `isHrStaff`, and that link only
+appears on a staff lifecycle step. So the policies were published in the sense
+that a page existed, and unfindable in the sense that mattered.
+
+Two changes:
+
+- `hr-console-home.tsx` no longer gates the grid on `isHrStaff`.
+- **`/policies` now lists the authored policies too** — a "Firm policies" grid
+  above the uploaded documents, one card per POLICY_CARD, linking to the policy
+  page. That is the route every employee can already reach from the HR rail, so
+  the policies are now discoverable without knowing a query string. The cards are
+  passed from the SERVER: `lib/hr/policies/registry` also holds every policy's
+  full text, which has no business in the client bundle.
+
+**Editing did not open up.** `/hr/policies/<key>/edit` still calls
+`requireHrStaff`. The Edit Policy button on the policy page was showing on
+`isAdmin || isSuperAdmin` — a WIDER set than the route allows, so an admin
+outside the HR department saw a button that bounced them straight back. It now
+matches the route (`isHrStaff`).
+
+**Letters were not broken.** Reported as "none of the letters are opening";
+the cause was identity, not code: `/hr/letters/<key>` calls `requireHrStaff`, and
+`DEV_USER_EMAIL` resolved to Vinal Patil — department "Apps" / Operations,
+`is_admin=true`, which does NOT satisfy `isHrStaff` (department "HR" or
+super-admin). On port 3002 the dummy admin passed that check, which is why it
+worked until the switch. `.env.local` now points at the only HR-department
+employee in the database (Mansi Medhekar); the previous value is in
+`.env.local.bak-devuser`. **Local only — no permission was granted to anybody.**
+
+**Verified in the browser, both sides of the rule:** as a NON-HR employee
+(Vinal) all six firm policies are listed on `/policies`, POSH opens and can be
+printed, exported and signed, and neither Upload nor Edit is offered; as HR
+(Mansi) Edit Policy returns. Letters open and both new signatures render — see
+the 2026-09-17 signature entry.
+
+### 2026-09-17 — The real signatures, and why they had to be cropped first
+
+Rutvisha's and Manan's scans replace the placeholders on every HR letter.
+
+- **`hr-signature.png` is now Rutvisha's mark** — the HR desk standing signature,
+  so it lands on every HR-signed letter (everything except ctc-breakup and
+  appointment; see `signatoryOf`). Same filename, so no code changed.
+- **`manan-vasa-sign.png` (new) is Manan's**, and backs BOTH Director letters
+  (`PROPRIETOR_SIGNATURE_IMAGE`) and the Selection letter's founder block. The
+  old `proprietor-signature.jpg` / `manan-sign.jpeg` are superseded and now
+  referenced by nothing; they are kept so an already-issued PDF can be traced to
+  the mark it carries. PNG rather than JPEG because the new scans have real
+  transparency, which a JPEG cannot hold.
+- **Two hardcoded paths became the constant.** `letter-editor.tsx` imported
+  `PROPRIETOR_SIGNATURE_IMAGE` and then hardcoded the jpg path anyway, and
+  `pdf.ts` did the same. Exactly the drift `firm.ts` warns about, and it would
+  have left the Director's OLD signature on screen and in the PDF while every
+  other path moved. Both now read the constant.
+
+**The crop is the part worth remembering.** The sign-off renders in a FIXED box
+— 66px on screen, 52pt in the PDF — with `object-fit: contain`, so it scales the
+whole CANVAS, not the ink. Manan's scan was a 497x502 square holding a 369x151
+signature: 30% of the height was ink, so it would have printed at about **20px
+tall**, a third the size of the mark it replaced. Measured, not eyeballed.
+
+`scripts/trim-signature.mjs` (new) crops a PNG to its ink plus 4%:
+
+```
+manan-vasa-sign.png   497x502 -> 399x163    ink 30% of height -> 93%
+hr-signature.png      422x332 -> 417x238    ink 66% -> 92%
+```
+
+Run it on the next scan too; a signature that arrives centred in a big
+transparent square is the normal output of a phone scanner app.
+
+**Verified:** both files served by the app (200, `image/png`), byte-identical to
+the scans before trimming, and **pdfkit embeds both re-encoded PNGs without
+error** — the real risk, since the trimmer writes the PNG itself.
+
+**Not verified:** how they look on a rendered letter. `/hr/letters/<key>` calls
+`requireHrStaff`, and the local dev user (`DEV_USER_EMAIL=vinalpatil…`) is not in
+the HR department, so the page redirects to `/hr`. Point `DEV_USER_EMAIL` at an
+HR-department account to see one.
+
+### 2026-09-17 — Policies: a named set of authors, and why the list is empty
+
+**Who may publish.** `lib/hr/policies/access.ts` (new, pure) names Manan,
+Ruchita and Rutvisha, and nobody else may upload or remove a policy. **Being an
+admin is no longer enough** — `app/(app)/policies/actions.ts` used to allow
+`isAdmin || isSuperAdmin`, and both flags are held by more people than should
+hold the pen. Enforced in the server actions AND in the two mobile twins
+(`app/api/mobile/policies/route.ts` and `[id]/route.ts`), which had their own
+copy of the old rule; all four now import the one module, so the phone and the
+browser cannot drift apart. Hiding the Upload button is the convenience; the
+action is the control. Rutvisha matches by NAME only: on 17 September she had no
+`employees` row at all (she exists in `pa_people`), so there is no address to
+list — add it to `PUBLISHERS_BY_EMAIL` when she gets an account. The dummy admin
+is admitted only while `DUMMY_MODE` is on, so port 3002 stays usable.
+
+**The empty Policies page is not a regression.** Asked why the policies had
+disappeared and when. They were never on this database:
+
+| checked | result |
+|---|---|
+| `documents` rows under `hr-policies/` | **0** (1 document row in total) |
+| objects in `documents/hr-policies` in Supabase storage | **0** |
+| dummy seed | has never seeded a policy |
+| `POLICY_STORAGE_PREFIX` | unchanged since the initial commit |
+| the page, the loader, the workspace component | untouched since `bb1a178` |
+
+So nothing deleted them. On port 3002 the list has always been empty unless
+somebody uploaded one by hand, and `dummy:setup --reset` clears that. If real
+policies exist they are in a different Supabase project — which fits the
+dashboard refusing access to `ifcdpjbdinvmtewmgceg` on the same day.
+
+**Tests:** `tests/unit/policy-access.test.ts` — 7, including the one that
+matters, an admin being turned away.
+
+### 2026-09-16 — Client Engagement: the call scheduler, the commitment calendar, per-lead books and DD Master
+
+**What changed**
+
+- **The Engagement Call Scheduler.** Every row in the Active / Inactive tables
+  has a Calls button showing what it takes a week; the dialog is a row per call
+  — day, from, to, type — with the length derived from the clock rather than
+  typed, and the lead's week shown as it stands and as it would be after saving.
+  The action (`ceScheduleCalls`) re-checks everything the form checks and
+  refuses three things: a call outside 10:00–20:00 or ending before it starts, a
+  call landing on another call the same lead already has, and anything that
+  would take that lead past **30 hours** in the week the engagement is actually
+  charged to. Scheduling needs an owner — an unassigned record says so.
+- **The Commitment Calendar** (`/operations/client-engagement/calendar`).
+  Monday–Sunday, 10:00–20:00 and nothing outside it, a block per call placed by
+  its own clock, daily totals beneath and the week's total above, in bold red
+  past 27 hours with the banner from the brief. `?lead=` and `?week=` are in the
+  URL, so a particular week for a particular lead is a link. In the All-leads
+  view a block is tinted by whose call it is (Manan black, Rohan/Mitul red,
+  Ruchita/Rutvisha grey, Jeevan/Mohit dark grey). Calls with no times are listed
+  in a "Not fixed" strip rather than dropped.
+- **A lead's own book.** Clicking a name in the Emp Grid opens
+  `?lead=…` underneath: their engagements per product, with the weekly duration,
+  the number of calls, the commitment hours across the whole engagement, and a
+  totals row saying how many engagements that is. The P / C / A headers carry the
+  "+" from the notes, which opens the matching add form on Overview via `?add=`.
+- **DD Master** (`/operations/client-engagement/dd-master`). The products, call
+  types and batch numbers behind every dropdown, editable by the three people
+  who may assign and readable by everyone. The lists START from the code
+  constants, so a fresh database has full dropdowns and no row here can empty
+  one; `ce_dropdown_options` then renames, retires, reorders or extends them.
+  Retiring hides an option from the forms and leaves records that already use it
+  alone — a batch that is over should stop being offered, not stop having
+  existed. Built-ins can be renamed and retired but never deleted, because
+  records point at codes. The scheduler's call types and the add forms' products
+  and batches all read this list, and `ceScheduleCalls` validates against the
+  same one, so the form and the server cannot disagree.
+
+**Migration**
+
+None new. This all runs on `0230_client_engagement.sql`, still **not run against
+Supabase** — `db/RUN-IN-SUPABASE-0229-0230.sql` is the bundle to paste when you
+are ready, additive and re-runnable. Until then these screens simply have
+nothing to show; nothing breaks.
+
+**Seed data**
+
+`scripts/dummy-db-seed.ts` gained `seedClientEngagement`: three leads with
+roster rows, eleven participants and clients (three unassigned, one on hold, one
+on barter, one not started), two ambassadors, and calls that put Jeevan near the
+27-hour line plus one legacy call with no times. **Untested — it needs
+`pnpm dummy:setup --reset`, which needs the port-3002 server stopped first.**
+
+**How to verify**
+
+```bash
+pnpm typecheck
+pnpm vitest run tests/unit/ce-schedule.test.ts tests/unit/ce-dropdowns.test.ts \
+  tests/unit/ce-workload.test.ts tests/unit/ce-metrics.test.ts
+```
+
+Verified in the browser on dummy mode (port 3002): the Calls button opens the
+scheduler, Handholding is offered to a PS participant, saving reports "1 call
+scheduled", the Calls cell reads 1h and the Calls-not-fixed badge drops to 0;
+the calendar draws that call on Monday 10:00–11:00 in Jeevan's colour with the
+day and week totals agreeing; the Emp Grid's "+" headers and lead links work and
+the drill-down adds up; DD Master retires 110 and adds 111, and the add-participant
+batch dropdown immediately shows 111 and not 110 (both then put back).
+
+**Not verified**
+
+- The 30-hour refusal and the clash refusal have unit tests but were not
+  exercised through the UI — the dummy database has only one entity with calls
+  on it. Seeding (above) is what makes that reachable.
+- `seedClientEngagement` has never been run.
+
+### 2026-09-16 — Broadcasts: annual + custom repeats, Teams audience, automatic WhatsApp, on-time publishing
+
+**What changed**
+
+- **Repeats gained Annually and Custom dates.** Monthly and annual repeats now
+  keep the day of the month of their FIRST send (31 Jan → 28 Feb → 31 Mar, no
+  drift), computed on the India wall clock. Custom repeats walk an explicit list
+  of datetimes. All of it is pure and unit-tested (`lib/ecos/recurrence.ts`).
+- **Teams are an audience.** The six standing teams (`lib/teams/roster.ts`) can
+  be targeted; each resolves to that manager's whole branch through the existing
+  `resolveTeamScopes`.
+- **WhatsApp is automatic.** The channel sends the approved Meta template
+  (`META_WHATSAPP_BROADCAST_TEMPLATE`, four variables — from, subject, summary,
+  link) to everyone opted in, and records per person what happened in
+  `broadcast_recipients.channel_outcomes`: sent, or skipped with the reason
+  (not opted in / no number / template not configured), or failed with Meta's
+  message. The broadcast page shows the counts and the reasons. The old
+  `whatsapp_manual` panel still renders for broadcasts that were sent with it.
+- **Scheduled broadcasts are meant to go out within about a minute**, not at the
+  next daily run: the popup poll fires a throttled sweep after its response
+  (`lib/ecos/publish-due-trigger.ts`), sharing one claim-based publisher with the
+  cron (`lib/ecos/publish-due.ts`). **See the caveat below — this is unverified.**
+- **Publishing is now race-safe.** `publishBroadcastCore` flips the status first,
+  and only from an unpublished state, so a manual Publish and a sweep cannot both
+  snapshot recipients and deliver.
+- Composer dropdowns wear the app's chevron (`components/ui/chevroned-select.tsx`).
+
+**Migration**
+
+`0229_broadcast_recurrence_whatsapp.sql` — additive: `broadcasts.recurrence_dates`,
+`recurrence_anchor`, `publish_claimed_at`; `broadcast_recipients.channel_outcomes`;
+a partial index on due scheduled broadcasts. **Not run against Supabase.**
+
+**How to verify**
+
+```bash
+pnpm typecheck
+pnpm vitest run tests/unit/ecos-recurrence.test.ts tests/unit/ecos-whatsapp-params.test.ts
+```
+
+Verified on dummy mode: the composer offers One-time / Daily / Weekly / Monthly /
+Annually / Custom dates with an Add-date list, the Teams chips appear under a
+custom audience, the channel reads "WhatsApp" (not "manual"), and a broadcast
+scheduled through the UI did publish by itself, snapshot its recipients, pop up
+centre-screen, and record "not opted in to WhatsApp" for all 26 dummy employees.
+
+**🔴 Unverified — on-time publishing**
+
+How SOON a scheduled broadcast publishes was never measured. Two later attempts
+sat unpublished for five minutes while the popup poll was demonstrably running
+(36 polls, no popup on screen), and `/api/cron/ecos-publish` reported `due: 0`
+for a broadcast that was overdue — so either those rows never left `draft`, or
+they were claimed by a sweep whose publish failed and left the 10-minute claim.
+The dev-server log would say which; the dummy database corrupted before it could
+be read. **Anyone picking this up: schedule one broadcast a couple of minutes
+out, watch the `pnpm dev:dummy` terminal for `[ecos]` lines, and check
+`broadcasts.status` / `publish_claimed_at` / `published_at` directly.** The daily
+cron remains the backstop either way.
+
+**Also worth knowing**
+
+- **`.pglite` corrupted twice in one session**, both times after the dev server
+  stopped — the second time within an hour of a clean rebuild, and a stale
+  `postmaster.pid` was not the cause (removing it did not help). Only
+  `pnpm dummy:setup --reset` recovers it. The first corrupt copy is kept outside
+  the repo at `CloneWMS_localRepo/.pglite-corrupt-2026-09-16`.
+- Dummy-mode WhatsApp always records "template not set up" / "not opted in":
+  no Meta credentials, and no dummy employee has opted in.
+
+**Author:** Rudra (with Claude)
+
+
 ### 2026-09-15 (night) — Migrations 0215–0224 APPLIED; the team's merge deployed
 
 **The pending-migration section above is now history.** `0215`–`0224` ran
@@ -1609,6 +2459,79 @@ month) plus move-to-top/bottom, a compact density and a greeting switch.
 
 Tests: `tests/unit/incentive-eligibility.test.ts` (8) and
 `tests/unit/dashboard-layout.test.ts` (15).
+
+### 2026-09-15 — Holiday carousel, merged holiday lists, letter order, Fit to one page, Management Verdict
+
+**What changed**
+
+- **HR > Holidays is a carousel of what is still ahead.** Past holidays are
+  hidden; prev / next jump straight to the previous / next month that has a
+  holiday, across year boundaries (`lib/hr/holiday-calendar.ts`,
+  `app/(app)/hr/holidays/holiday-carousel.tsx`). "All upcoming" lists every
+  remaining holiday by month. The Year / Month dropdowns are gone.
+- **Print Calendar always prints the whole current calendar year**, Jan–Dec,
+  past and ad-hoc days included, from a print-only section — whatever month is
+  on screen.
+- **`/holidays` and `GET /api/mobile/holidays` show ad-hoc and published
+  holidays**, not only the Events Master (`lib/queries/company-holidays.ts`).
+  Each mobile row now carries a `source` (`events` / `published` / `adhoc`).
+- **The five task / manager reports use the merged holiday calendar**
+  (`listHolidayRowsBetween` in `lib/queries/holidays.ts`) instead of the raw
+  `holidays` table: dashboard, task report, manager drill-down, manager
+  activity board, creator workload board.
+- **Letter order.** Appraisal: End of Probation → Appraisal → Promotion →
+  Increment → New CTC Appraisal → New CTC Promotion. Exit: Experience Letter
+  before Letter of Recommendation. Same order on the letters index.
+- **Fit to one page** (`lib/hr/letters/fit.ts`). A toolbar switch on every
+  letter; ON by default for New CTC – Appraisal and New CTC – Promotion. It
+  tries the normal layout, then compact spacing, then text scaled down to a 78%
+  floor — in the browser (so Print prints it), in the pdfkit PDF and in the
+  free-edit (Chromium) PDF. Every issue / export / send request carries it.
+- **Management Verdict** replaces the Outcome card on Management Assessment:
+  Selected / Rejected / One More Round / Free Training / Assignment Needed, each
+  linking to its letter. One More Round keeps the stored value `shortlisted`.
+- **Training Verdict** on the After Free Training letter: Accept / Extend /
+  Regret fills the Outcome line and links to the Appointment or Regret letter.
+- **HR lifecycle:** Candidate Records moved to Pre-Joining; the dead
+  Acceptance Letter item removed (the letter itself was already unregistered).
+
+**Why**
+
+The holiday list opened on months with nothing in them and on days already
+gone; the print was a snapshot of the screen. Ad-hoc holidays already reached
+attendance and payroll but not the lists employees read. Appraisal letters
+spilled onto a second page.
+
+**How to verify**
+
+```bash
+pnpm typecheck
+pnpm vitest run tests/unit/holiday-calendar.test.ts tests/unit/company-holidays-merge.test.ts \
+  tests/unit/letter-order.test.ts tests/unit/letter-fit.test.ts tests/unit/format-date-hr.test.ts
+```
+
+On dummy mode (port 3002), measured 15-Sep-2026:
+
+- `/hr/holidays` opens on September 2026 with only 23-Sep (4-Sep and 14-Sep have
+  passed); the print-only section holds all of 2026.
+- New CTC – Appraisal: 2 pages → 1 page in browser print (82%, compact) and in
+  the PDF. New CTC – Promotion: 2 → 1 page in the PDF.
+
+**Breaking / migration notes**
+
+- **No migrations.**
+- **Working-day counts in the five reports drop slightly**: they now subtract
+  published and Events Master holidays too, and no longer count withdrawn ones.
+- **The Offer (Selection) letter stays two pages.** It does not fit one page even
+  at the 78% floor, so its switch starts OFF; turned on it says "Still 2 pages".
+- **Not verified:** the mobile holiday API (needs a mobile session) and the
+  Management Verdict screen with a real candidate.
+- **Already failing before this work, untouched:** unit tests in
+  `delegated-access-authorization`, `device-exemption-login`, `done-on-time`,
+  `global-search-provider`, `task-actions`, `task-stat-counts`; two lint errors
+  in the voice-recorder code of `management-assessment-screen.tsx`.
+
+**Author:** Rudra (with Claude)
 
 ### 2026-09-12 (night) — The home screen is a dashboard you arrange yourself
 

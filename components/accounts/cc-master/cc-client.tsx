@@ -10,6 +10,7 @@ import type { CcCardRow, CcMonthRow } from "@/lib/queries/accounts-cc";
 import { CC_YESNO, CC_TALLY, CC_BALANCE, ccMonthKey, ccTone, MONTH_LABELS, fyMonthCols, fyLabel } from "@/lib/accounts/cc";
 import { createCcCard, updateCcCard, deleteCcCard, saveCcMonth, carryForwardCcCards, restoreCcCard, moveCcCard } from "@/app/(app)/accounts/cc-tracker/actions";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 const INPUT =
   "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
@@ -109,7 +110,7 @@ export function CcMaster({
   }, [months, month]);
 
   const [q, setQ] = React.useState("");
-  const [fEntity, setFEntity] = React.useState("");
+  const [fEntity, setFEntity] = React.useState<string[]>([]);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState<CardDraft>(emptyCard);
@@ -165,7 +166,7 @@ export function CcMaster({
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     return cards.filter((c) => {
-      if (fEntity && (c.entityName ?? "") !== fEntity) return false;
+      if (fEntity.length > 0 && !fEntity.includes((c.entityName ?? ""))) return false;
       if (needle) {
         const hay = [c.code, c.entityName, c.cardName, c.ecsFrom, c.stmtPeriod].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(needle)) return false;
@@ -174,8 +175,8 @@ export function CcMaster({
     });
   }, [cards, q, fEntity]);
 
-  const hasFilters = q || fEntity;
-  function clearFilters() { setQ(""); setFEntity(""); }
+  const hasFilters = q || fEntity.length > 0;
+  function clearFilters() { setQ(""); setFEntity([]); }
   function startAdd() { setEditingId(null); setDraft(emptyCard()); setAdding(true); }
   function startEdit(c: CcCardRow) { setAdding(false); setDraft(toCardDraft(c)); setEditingId(c.id); }
   function cancel() { setAdding(false); setEditingId(null); }
@@ -236,10 +237,14 @@ export function CcMaster({
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - cards, entity" title="Local search - filters only the list on this page" aria-label="Local search - cards, entity - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
         </CollapsibleSearch>
-        <select className="rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]" value={fEntity} onChange={(e) => setFEntity(e.target.value)} aria-label="Filter by entity">
-          <option value="">All Entities</option>
-          {entities.map((a) => (<option key={a} value={a}>{a}</option>))}
-        </select>
+        <MultiFilter
+          className="rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]"
+          values={fEntity}
+          onChange={setFEntity}
+          options={entities}
+          allLabel="All Entities"
+          aria-label="Filter by entity"
+        />
         {hasFilters && (
           <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red">
             <X size={15} strokeWidth={2.4} /> Clear
@@ -314,7 +319,7 @@ export function CcMaster({
                     <CellTd><CellSelect value={rec.tallyEntry} options={CC_TALLY} busy={rb} onChange={(v) => setField(c.id, "tallyEntry", v, true)} /></CellTd>
                     <CellTd><CellSelect value={rec.balanceTally} options={CC_BALANCE} busy={rb} onChange={(v) => setField(c.id, "balanceTally", v, true)} /></CellTd>
                     <CellTd><CellText value={rec.ccPaidDate} busy={rb} placeholder="date" onChange={(v) => setField(c.id, "ccPaidDate", v, false)} onCommit={(v) => setField(c.id, "ccPaidDate", v, true)} /></CellTd>
-                    <CellTd><CellText value={rec.ccPaidAmt} busy={rb} placeholder="₹" onChange={(v) => setField(c.id, "ccPaidAmt", v, false)} onCommit={(v) => setField(c.id, "ccPaidAmt", v, true)} /></CellTd>
+                    <CellTd><CellText value={rec.ccPaidAmt} busy={rb} placeholder="Rs." onChange={(v) => setField(c.id, "ccPaidAmt", v, false)} onCommit={(v) => setField(c.id, "ccPaidAmt", v, true)} /></CellTd>
                     <CellTd><CellText value={rec.intFinChgs} busy={rb} placeholder="0" onChange={(v) => setField(c.id, "intFinChgs", v, false)} onCommit={(v) => setField(c.id, "intFinChgs", v, true)} /></CellTd>
                     <CellTd><CellSelect value={rec.chgReversed} options={CC_YESNO} busy={rb} onChange={(v) => setField(c.id, "chgReversed", v, true)} /></CellTd>
                     <CellTd><CellText value={rec.notes} busy={rb} placeholder="notes" wide onChange={(v) => setField(c.id, "notes", v, false)} onCommit={(v) => setField(c.id, "notes", v, true)} /></CellTd>
@@ -445,7 +450,7 @@ function CardYearDrawer({ card, fyStartYear, monthRows, onClose }: {
                     <CellTd><CellSelect value={rec.tallyEntry} options={CC_TALLY} busy={rb} onChange={(v) => setField(col.month, "tallyEntry", v, true)} /></CellTd>
                     <CellTd><CellSelect value={rec.balanceTally} options={CC_BALANCE} busy={rb} onChange={(v) => setField(col.month, "balanceTally", v, true)} /></CellTd>
                     <CellTd><CellText value={rec.ccPaidDate} busy={rb} placeholder="date" onChange={(v) => setField(col.month, "ccPaidDate", v, false)} onCommit={(v) => setField(col.month, "ccPaidDate", v, true)} /></CellTd>
-                    <CellTd><CellText value={rec.ccPaidAmt} busy={rb} placeholder="₹" onChange={(v) => setField(col.month, "ccPaidAmt", v, false)} onCommit={(v) => setField(col.month, "ccPaidAmt", v, true)} /></CellTd>
+                    <CellTd><CellText value={rec.ccPaidAmt} busy={rb} placeholder="Rs." onChange={(v) => setField(col.month, "ccPaidAmt", v, false)} onCommit={(v) => setField(col.month, "ccPaidAmt", v, true)} /></CellTd>
                     <CellTd><CellText value={rec.intFinChgs} busy={rb} placeholder="0" onChange={(v) => setField(col.month, "intFinChgs", v, false)} onCommit={(v) => setField(col.month, "intFinChgs", v, true)} /></CellTd>
                     <CellTd><CellSelect value={rec.chgReversed} options={CC_YESNO} busy={rb} onChange={(v) => setField(col.month, "chgReversed", v, true)} /></CellTd>
                     <CellTd><CellText value={rec.notes} busy={rb} placeholder="notes" wide onChange={(v) => setField(col.month, "notes", v, false)} onCommit={(v) => setField(col.month, "notes", v, true)} /></CellTd>

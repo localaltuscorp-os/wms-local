@@ -22,7 +22,6 @@ import {
   MessagesSquare,
   Banknote,
   Users,
-  Handshake,
   Trophy,
   Cake,
   TrendingUp,
@@ -105,12 +104,13 @@ export const HR_STAGES: HrStage[] = [
     blurb: "After the conversation - the decision and the letter that follows.",
     Icon: ClipboardCheck,
     items: [
-      { slug: "candidate-records", label: "Candidate Records", Icon: Users, kind: "link", href: "/hr/candidates", blurb: "Every candidate whose interview form was filled." },
       { slug: "offer-letter", label: "Selection Letter", Icon: FileCheck2, kind: "doc", typeKey: "selection", blurb: "Extend the role to the selected candidate." },
       { slug: "reject-letter", label: "Regret Letter", Icon: FileX2, kind: "doc", typeKey: "rejection", blurb: "A considerate decline." },
       { slug: "assignment-letter", label: "Assignment Needed Letter", Icon: FileText, kind: "doc", typeKey: "assignment", blurb: "Send a pre-hire assignment." },
       { slug: "next-round", label: "One More Interview Needed Letter", Icon: Repeat, kind: "doc", typeKey: "next-round", blurb: "Invite the candidate to another round." },
-      { slug: "acceptance-letter", label: "Acceptance Letter", Icon: Handshake, kind: "doc", typeKey: "acceptance", blurb: "The candidate's written acceptance of the offer." },
+      // No Acceptance Letter here: it is unregistered (it duplicated the
+      // Selection Letter). What follows the training is its OUTCOME - Accept /
+      // Extend / Regret - recorded on the After Free Training letter.
       { slug: "free-training", label: "Free Training Letter", Icon: Award, kind: "doc", typeKey: "free-training", blurb: "Pre-employment training & evaluation letter." },
     ],
   },
@@ -121,6 +121,9 @@ export const HR_STAGES: HrStage[] = [
     blurb: "Between offer and day one - appointment, CTC, policies and forms.",
     Icon: DoorOpen,
     items: [
+      // Candidate Records sits with Pre-Joining: it is where a decided candidate
+      // is picked up and carried into their appointment paperwork.
+      { slug: "candidate-records", label: "Candidate Records", Icon: Users, kind: "link", href: "/hr/candidates", blurb: "Every candidate whose interview form was filled." },
       { slug: "appointment-letter", label: "Appointment Letter", Icon: FileSignature, kind: "doc", typeKey: "appointment", blurb: "The formal appointment letter." },
       { slug: "intern-appointment", label: "Intern Appointment Letter", Icon: UserPlus, kind: "doc", typeKey: "intern-appointment", blurb: "The internship offer & appointment letter." },
       { slug: "minor-intern-undertaking", label: "Undertaking - Minor Intern", Icon: ShieldCheck, kind: "doc", typeKey: "minor-internship-undertaking", blurb: "Parental-consent undertaking for a minor intern." },
@@ -158,12 +161,14 @@ export const HR_STAGES: HrStage[] = [
     items: [
       { slug: "end-of-probation", label: "End of Probation", Icon: BadgeCheck, kind: "doc", typeKey: "confirmation", blurb: "Confirm the employee on successful completion of probation." },
       { slug: "appraisal", label: "Appraisal Letter", Icon: Target, kind: "link", href: "/appraisal", blurb: "The live rolling scorecard & appraisal outcome." },
+      // ORDER IS THE WORKFLOW: probation → appraisal → promotion → increment,
+      // then the two revised-CTC letters that follow an appraisal / promotion.
+      { slug: "promotion", label: "Promotion Letter", Icon: Rocket, kind: "doc", typeKey: "promotion", blurb: "Elevate the employee to a new role." },
       { slug: "increment", label: "Increment Letter", Icon: TrendingUp, kind: "doc", typeKey: "increment", blurb: "Revise compensation with a salary increment." },
       // Both revised-CTC templates existed in the registry but were reachable
       // from nowhere in the nav until this section gave them a home.
       { slug: "appraisal-revised-ctc", label: "New CTC - Appraisal", Icon: IndianRupee, kind: "doc", typeKey: "appraisal-revised-ctc", blurb: "The revised CTC that follows an appraisal." },
       { slug: "promotion-revised-ctc", label: "New CTC - Promotion", Icon: IndianRupee, kind: "doc", typeKey: "promotion-revised-ctc", blurb: "The revised CTC that follows a promotion." },
-      { slug: "promotion", label: "Promotion Letter", Icon: Rocket, kind: "doc", typeKey: "promotion", blurb: "Elevate the employee to a new role." },
     ],
   },
   {
@@ -184,8 +189,10 @@ export const HR_STAGES: HrStage[] = [
       // acceptance + Last Working Day confirmation that exit-policy §4.4
       // describes. No separate "Resignation Acceptance" letter exists, by design.
       { slug: "relieving-letter", label: "Relieving Letter", Icon: FileText, kind: "doc", typeKey: "relieving", blurb: "Accept the resignation and relieve the employee on their last day." },
-      { slug: "letter-of-recommendation", label: "Letter of Recommendation", Icon: Star, kind: "doc", typeKey: "letter-of-recommendation", blurb: "A strong recommendation for the employee." },
+      // The Experience Letter comes before the Letter of Recommendation: it
+      // certifies the tenure, and the recommendation builds on it.
       { slug: "experience-letter", label: "Experience Letter", Icon: Award, kind: "doc", typeKey: "experience-letter", blurb: "Certify the employee's tenure & contribution." },
+      { slug: "letter-of-recommendation", label: "Letter of Recommendation", Icon: Star, kind: "doc", typeKey: "letter-of-recommendation", blurb: "A strong recommendation for the employee." },
       // ⚠ Employee Certificate: the artwork/content is coming from Shreya Randhe
       // (already built for the PS App, Consultant module). Until it lands this
       // stays the placeholder screen it has always been - it is NOT authored.

@@ -55,6 +55,7 @@ import { rollupPct } from "@/lib/goals/derive";
 // bug #23 — canonical FY (Apr–Mar) week number, matching the weekNo the page
 // now stamps on WeeklyDTOs (the local Jan-1 copy is deleted).
 import { weekNoOf } from "@/lib/goals/fy-calendar";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 export interface WeeklyDTO {
   id: string;
@@ -375,16 +376,16 @@ export function CascadeWorkspace(props: Props) {
                 <span className="mt-0.5 text-[14.5px] font-black text-ink-strong">{viewedName}</span>
               </span>
               <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft" />
-              <select
+              <CompactSelect
                 value={viewedEmployeeId}
-                onChange={(e) => router.push(`/goals/cascade?emp=${e.target.value}&fy=${fyStartYear}`)}
+                onChange={(v) => router.push(`/goals/cascade?emp=${v}&fy=${fyStartYear}`)}
                 aria-label="Select employee"
+                required
+                // Still invisible, still covering the pill behind it - the pill
+                // IS the trigger's face; this only supplies the behaviour.
                 className="absolute inset-0 cursor-pointer opacity-0"
-              >
-                {roster.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
-                ))}
-              </select>
+                options={roster.map((r) => ({ value: r.id, label: r.name }))}
+              />
             </label>
           )}
           <div className="flex h-12 items-center gap-1 rounded-2xl border-[1.5px] bg-surface-card px-1.5" style={{ borderColor: "var(--color-hairline-strong)", boxShadow: "0 4px 12px -10px rgba(15,23,42,0.35)" }}>
@@ -877,7 +878,7 @@ function GoalCard(props: {
         <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[12.5px] text-ink-muted">
           {g.area && <span>{g.area}</span>}
           {g.targetQty != null && <span className="tabular-nums">{fmtNum(g.targetQty)} {g.uom ?? ""}</span>}
-          {g.targetAmount != null && <span className="tabular-nums">₹{fmtNum(g.targetAmount)}</span>}
+          {g.targetAmount != null && <span className="tabular-nums">Rs. {fmtNum(g.targetAmount)}</span>}
         </div>
       )}
 
@@ -1040,7 +1041,7 @@ function CockpitGoalCard({
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-ink-muted">
               {g.area && <span>{g.area}</span>}
               {g.targetQty != null && <span className="tabular-nums">{fmtNum(g.targetQty)} {g.uom ?? ""}</span>}
-              {g.targetAmount != null && <span className="tabular-nums">₹{fmtNum(g.targetAmount)}</span>}
+              {g.targetAmount != null && <span className="tabular-nums">Rs. {fmtNum(g.targetAmount)}</span>}
             </div>
           )}
         </div>

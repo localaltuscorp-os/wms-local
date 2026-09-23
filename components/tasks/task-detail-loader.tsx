@@ -9,6 +9,7 @@ import { listEmployees } from "@/lib/queries/employees";
 import { listActiveClientNames } from "@/lib/queries/clients";
 import { listActiveSubjectNames } from "@/lib/queries/subjects";
 import { listProjectNodeOptions } from "@/lib/queries/projects";
+import { planBreadcrumbForNode } from "@/lib/queries/project-plan";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 import { canManagerApprove, canAdminApprove } from "@/lib/tasks/approval-permissions";
@@ -72,6 +73,13 @@ export async function TaskDetailLoader({ taskId, me }: Props) {
       getTaskChecklist(taskId),
       getTaskAttachments(taskId),
     ]);
+
+  // WHERE THIS TASK SITS IN THE PLAN. Only for a task that is filed into one —
+  // most are not, and asking for the ancestry of a null node is a query with a
+  // known answer.
+  const planCrumb = task.projectNodeId
+    ? await planBreadcrumbForNode(task.projectNodeId)
+    : null;
   const employeeOptions = all.map((e) => ({ id: e.id, name: e.name }));
   const statusLabels = Object.fromEntries(
     Object.entries(statusDisplay).map(([k, v]) => [k, v.label]),
@@ -163,6 +171,7 @@ export async function TaskDetailLoader({ taskId, me }: Props) {
       clients={clients}
       subjects={subjects}
       projectNodes={projectNodes}
+      planCrumb={planCrumb}
       statusLabels={statusLabels}
       timePanel={timePanel}
       checklist={checklist}

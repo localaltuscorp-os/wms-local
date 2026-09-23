@@ -104,12 +104,12 @@ const DECISION_TITLE: Record<DecisionAction, string> = {
   revise: "Revision required",
   due: "Incentive marked Due",
   not_due: "Incentive marked Not Due",
-  reverse: "Incentive reversed",
+  reverse: "Incentive adjusted — negative payable adjustment",
 };
 
 /**
  * The notification for one recorded decision, or null when the decision needs
- * a note and has none — a Not Approved, Revise or Reversed notice is never sent
+ * a note and has none — a Not Approved, Revise or adjustment notice is never sent
  * without the reason (the workflow refuses such decisions anyway; this is the
  * second lock).
  */
@@ -137,7 +137,7 @@ export function buildDecisionNotification(input: {
     revise: `Revision note: ${clip(note, 160)} — open the request to revise and resubmit.`,
     due: `${f.typeLabel}${amount} is now due for payment.`,
     not_due: `${f.typeLabel} was marked Not Due on ${when}.`,
-    reverse: `Reversal reason: ${clip(note, 160)}`,
+    reverse: `Adjustment reason: ${clip(note, 160)}`,
   };
 
   return {
@@ -483,11 +483,11 @@ export const INCENTIVE_EMAIL_TEMPLATES: Record<
     m.note
       ? {
           preview: m.summary,
-          chip: { label: "Reversed", tone: "rose" },
-          headline: "An incentive of yours has been reversed.",
-          lead: `${reviewer(m)} reversed your ${m.typeLabel} incentive. The reason is below.`,
-          details: requestRows(m, { amountLabel: "Amount", dateLabel: "Reversed on" }),
-          quote: { label: "Reversal reason", text: m.note },
+          chip: { label: "Negative payable adjustment", tone: "rose" },
+          headline: "A negative payable adjustment has been recorded against an incentive of yours.",
+          lead: `${reviewer(m)} recorded a negative payable adjustment against your ${m.typeLabel} incentive. The reason is below.`,
+          details: requestRows(m, { amountLabel: "Amount", dateLabel: "Adjusted on" }),
+          quote: { label: "Adjustment reason", text: m.note },
           cta: requestCta(m, "View the request"),
         }
       : null,

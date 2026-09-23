@@ -317,6 +317,137 @@ async function seedCandidates(pg: PGlite): Promise<void> {
   }
 }
 
+/**
+ * CLIENT ENGAGEMENT — enough rows to see every rule work.
+ *
+ * Deliberately includes the awkward cases, because a module that only ever sees
+ * tidy data is a module whose edges nobody has looked at: an entity in the
+ * unassigned pool, one on hold, one on barter, one that has not started yet, a
+ * lead sitting near the 27-hour line, and a call with no times on it at all.
+ *
+ * Fixed ids with `on conflict do nothing`, like the rest of this file: re-seed
+ * as often as you like, and anything edited in the app stays edited.
+ */
+async function seedClientEngagement(
+  pg: PGlite,
+  /** The roster id for a name, or NULL when that person is not in the org tree.
+   *
+   *  It used to be `(name) => string`, and the three Client Engagement leads —
+   *  Jeevan, Ruchita, Mitul — are named ONLY here; they were never added to
+   *  TREE. `treeId` builds its uuid from `treeNames.indexOf(name)`, so an
+   *  unknown name produced `…-8003-000000000000`, an id no employee has, and
+   *  the first insert died on `pa_people_employee_id_fkey`. That made a fresh
+   *  dummy database impossible to build (upstream carries the same bug).
+   *
+   *  `pa_people.employee_id` is nullable on purpose — migration 0191 says "one
+   *  row per roster employee; free-typed people are unconstrained" — so a lead
+   *  who is not on the roster is a legitimate row with no employee behind it,
+   *  which is a truer statement than pointing at an id that does not exist. */
+  employeeIdOf: (name: string) => string | null,
+  today: Date,
+): Promise<void> {
+  const ce = (n: number) => `00000000-0000-4000-8005-${String(n).padStart(12, "0")}`;
+  const ymd = (offsetDays: number) =>
+    new Date(today.getTime() + offsetDays * 86_400_000).toISOString().slice(0, 10);
+
+  // ── The leads, with a roster row of their own ──
+  const LEADS: [number, string][] = [
+    [1, "Jeevan"],
+    [2, "Ruchita"],
+    [3, "Mitul"],
+  ];
+  for (const [n, name] of LEADS) {
+    await pg.query(
+      `insert into pa_people (id, kind, name, employee_id, is_ce_lead)
+       values ($1,'employee',$2,$3,true)
+       on conflict (id) do nothing`,
+      [ce(n), name, employeeIdOf(name)],
+    );
+  }
+  const lead = (name: string) => ce(LEADS.find((l) => l[1] === name)![0]);
+
+  // ── Participants and clients ──
+  // id, name, product, batch, owner, on hold, colour band, starts, ends
+  const ENTRIES: [number, string, string, string | null, string | null, boolean, string | null, string, string][] = [
+    [10, "Mihir Vira", "ps", "91", lead("Jeevan"), false, "active", ymd(-30), ymd(60)],
+    [11, "Sneha Kulkarni", "ps", "91", lead("Jeevan"), false, "active", ymd(-30), ymd(60)],
+    [12, "Farhan Qureshi", "bss", "88", lead("Jeevan"), false, "active", ymd(-45), ymd(45)],
+    [13, "Tanvi Deshpande", "bss", "88", lead("Ruchita"), false, "active", ymd(-20), ymd(70)],
+    [14, "Lakshmi Iyer", "os", null, lead("Ruchita"), false, "barter", ymd(-60), ymd(120)],
+    [15, "Nikhil Rao", "retainer", null, lead("Mitul"), false, "active", ymd(-10), ymd(170)],
+    // On hold: theirs, but costing the week nothing.
+    [16, "Aarti Menon", "ps", "90", lead("Mitul"), true, "active", ymd(-90), ymd(10)],
+    // Not started: the status derives itself when the day comes.
+    [17, "Pranav Shetty", "bss", "92", lead("Ruchita"), false, "active", ymd(21), ymd(140)],
+    // The unassigned pool.
+    [18, "Devika Nair", "ps", "92", null, false, "active", ymd(7), ymd(120)],
+    [19, "Rohit Bhatia", "os", null, null, false, "active", ymd(-5), ymd(180)],
+    [20, "Kiran Joshi", "retainer", null, null, false, "active", ymd(-2), ymd(200)],
+  ];
+  for (const [n, name, section, batch, owner, hold, highlight, start, end] of ENTRIES) {
+    await pg.query(
+      `insert into pa_entries (id, person_id, section, name, batch_no, on_hold, highlight, start_date, end_date)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       on conflict (id) do nothing`,
+      [ce(n), owner, section, name, batch, hold, highlight, start, end],
+    );
+  }
+
+  // ── Ambassadors: on a revenue share by definition, one still unclaimed ──
+  const AMBASSADORS: [number, string, string | null][] = [
+    [30, "Vikram Sethi", lead("Mitul")],
+    [31, "Ananya Ghosh", null],
+  ];
+  for (const [n, name, owner] of AMBASSADORS) {
+    await pg.query(
+      `insert into pa_ambassadors (id, name, email, products, owner_person_id, status, start_date)
+       values ($1,$2,$3,'{"ps"}',$4,'revenue_share',$5)
+       on conflict (id) do nothing`,
+      [ce(n), name, `${name.toLowerCase().replace(/[^a-z]+/g, ".")}@example.invalid`, owner, ymd(-120)],
+    );
+  }
+
+  // ── The weekly calls ──
+  // Jeevan is deliberately taken close to the 27-hour line, so the red flag on
+  // the grid and the calendar's banner can be seen without arranging anything.
+  // entity, seq, type, day, from, to
+  const CALLS: [number, number, string, string, string, string][] = [
+    [10, 1, "hh", "mon", "10:00", "13:00"],
+    [10, 2, "tool", "wed", "10:00", "13:00"],
+    [11, 1, "hh", "mon", "13:00", "16:00"],
+    [11, 2, "checkin", "thu", "10:00", "14:00"],
+    [12, 1, "hh", "tue", "10:00", "14:00"],
+    [12, 2, "tool", "fri", "10:00", "14:00"],
+    [12, 3, "courtesy", "sat", "10:00", "13:30"],
+    [13, 1, "hh", "tue", "15:00", "17:00"],
+    [14, 1, "checkin", "wed", "11:00", "12:00"],
+    [15, 1, "reference", "thu", "16:00", "17:30"],
+    [16, 1, "hh", "fri", "15:00", "16:00"],
+    [30, 1, "courtesy", "mon", "17:00", "18:00"],
+  ];
+  for (const [entity, seq, type, day, from, to] of CALLS) {
+    const minutes =
+      (Number(to.slice(0, 2)) * 60 + Number(to.slice(3))) - (Number(from.slice(0, 2)) * 60 + Number(from.slice(3)));
+    const column = entity >= 30 ? "ambassador_id" : "entry_id";
+    await pg.query(
+      `insert into pa_calls (id, ${column}, seq, call_type, day, duration_min, start_time, end_time)
+       values ($1,$2,$3,$4,$5,$6,$7,$8)
+       on conflict (id) do nothing`,
+      [ce(100 + entity * 10 + seq), ce(entity), seq, type, day, minutes, from, to],
+    );
+  }
+
+  // A call from before the scheduler existed: a length, but no clock. It shows
+  // in the calendar's "Not fixed" strip and on the Calls-not-fixed badge until
+  // somebody gives it a time.
+  await pg.query(
+    `insert into pa_calls (id, entry_id, seq, call_type, day, duration_min)
+     values ($1,$2,1,'checkin','wed',60)
+     on conflict (id) do nothing`,
+    [ce(999), ce(19)],
+  );
+}
+
 export async function seedDummyData(pg: PGlite): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
 
@@ -325,12 +456,33 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
     counts[table] = r.rows[0]?.n ?? 0;
   };
 
+  /*
+   * FUNCTIONS IS THE LIVE MASTER — `departments` HAS NOT BEEN SINCE 0234.
+   *
+   * Migration 0234 ("functions replace departments") copied the rows into
+   * `functions` keeping their ids, and re-pointed `employees.department_id`,
+   * `employee_departments.department_id` and `jd_positions.department_id` at
+   * `functions`. The column names stayed `department_id` — the CONSTRAINT is
+   * what decides which table a value must exist in.
+   *
+   * This seed only ever filled `departments`, so on a FRESH database every
+   * employee insert died on `employees_department_id_fkey`. It went unnoticed
+   * for the obvious reason: nobody rebuilds the fixture. An existing `.pglite`
+   * predated 0234, and the migration itself copied the rows across — so the
+   * only way to meet this bug was to delete the directory, which is exactly
+   * what a corrupted PGlite forces you to do.
+   *
+   * Both tables are filled and kept in step: `functions` because the foreign
+   * keys demand it, `departments` because 0234 keeps it as the backup record
+   * and a fixture that leaves it empty tells a different story from production.
+   */
   for (const [id, name] of [
     [DEPT.ops, "Operations"],
     [DEPT.finance, "Finance"],
     [DEPT.tech, "Technology"],
     [DEPT.hr, "HR"],
   ] as const) {
+    await pg.query(`insert into functions (id, name) values ($1,$2) on conflict do nothing`, [id, name]);
     await pg.query(`insert into departments (id, name) values ($1,$2) on conflict do nothing`, [id, name]);
   }
 
@@ -373,8 +525,12 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
   // case the seed's `on conflict do nothing` insert above is skipped and
   // DEPT.hr never exists — pointing employees.department_id at it then fails
   // the employees_department_id_fkey constraint.
+  // FROM `functions`, not `departments`: the id resolved here is written into
+  // employees.department_id and employee_departments.department_id, and both
+  // of those foreign-key into `functions` since 0234. Reading the backup table
+  // could hand back an id that the live master does not have.
   const hrDept = await pg.query<{ id: string }>(
-    `select id from departments where lower(name) = 'hr' limit 1`,
+    `select id from functions where lower(name) = 'hr' limit 1`,
   );
   const hrDeptId = hrDept.rows[0]?.id ?? null;
 
@@ -529,8 +685,211 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
     }
   }
 
+  // ── OPERATIONS › DIRECTORY — a few fictional vendors so the page is not empty.
+  // Fixed ids + `on conflict do nothing`: re-runnable, and a vendor edited or
+  // deleted in the UI is never put back by re-seeding.
+  const VENDORS: [number, string, string, string | null, string, string, string, string, string, boolean][] = [
+    [1, "AC", "Suresh", "Patil", "9800000101", "cool.air@example.invalid", "Shop 4, Link Road", "Mumbai", "400064", true],
+    [2, "Electrician", "Ramesh", "Yadav", "9800000102", "ramesh.electric@example.invalid", "12 Station Lane", "Thane", "400601", false],
+    [3, "Stationery", "Kavita", "Shah", "9800000103", "paperhouse@example.invalid", "Gala 7, Market Yard", "Pune", "411037", false],
+    [4, "Computer Repairs", "Anil", null, "9800000104", "fixit@example.invalid", "2nd Floor, Tech Plaza", "Mumbai", "400093", true],
+  ];
+  for (const [n, category, first, last, cell, email, line1, city, pin, amc] of VENDORS) {
+    await pg.query(
+      `insert into ops_vendors (id, category, first_name, last_name, cell_no, email, address_line1, city, state, pincode, amc)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,'Maharashtra',$9,$10)
+       on conflict (id) do nothing`,
+      [`00000000-0000-4000-8004-${String(n).padStart(12, "0")}`, category, first, last, cell, email, line1, city, pin, amc],
+    );
+  }
+  await bump("ops_vendors");
+
+  await seedClientEngagement(
+    pg,
+    (name) => (treeNames.includes(name) ? treeId(name) : null),
+    new Date(),
+  );
+  await bump("pa_entries");
+  await bump("pa_calls");
+
   await seedCandidates(pg);
   await bump("candidate_intake");
 
+  // ── FILE TWO TASKS INTO THE PLAN ─────────────────────────────────────────
+  //
+  // An executable plan row IS a WMS task (tasks.project_node_id), and until now
+  // the fixture had plan rows and tasks but nothing joining them — so every
+  // surface that reads the join rendered its empty state in dummy mode. The
+  // task drawer's "Plan location" panel is the one that made this visible: with
+  // no filed task there is no way to see it at all.
+  //
+  // Done here rather than in the TASKS loop because that runs BEFORE the nodes
+  // exist, and project_node_id is a foreign key.
+  const FILED: Array<[task: string, node: string]> = [
+    // A full Project · Milestone · Result chain above an Action.
+    ["00000000-0000-4000-8004-000000000001", "00000000-0000-4000-8003-000000000005"],
+    // One level deeper, so the panel is exercised on a Sub-Action too.
+    ["00000000-0000-4000-8004-000000000002", "00000000-0000-4000-8003-000000000006"],
+  ];
+  for (const [taskId, nodeId] of FILED) {
+    await pg.query(`update tasks set project_node_id = $2 where id = $1`, [taskId, nodeId]);
+  }
+
+  // ── BILLING ──────────────────────────────────────────────────────────────
+  //
+  // The document engine is useless until an issuing entity has a GSTIN, a bank
+  // and a signatory, so dummy mode seeds one — otherwise the first thing a
+  // developer meets is "this entity cannot issue a tax invoice" and an empty
+  // product picker. Everything below is INVENTED: a fake PAN, a fake GSTIN, a
+  // fake account number. It exists so the screens have something to render.
+  await pg.query(
+    `insert into billing_entity_profiles
+       (entity_id, legal_name, pan, gstin, state_name, state_code, address_line,
+        email, phone, website, bank_name, bank_account_name, bank_account_no,
+        bank_ifsc, bank_branch, default_sac_code, signatory_name,
+        signatory_designation, interest_clause)
+     values ('altus-corp', 'Altus Corp', 'AAAPA1111A', '27AAAPA1111A1Z5',
+             'Maharashtra', '27',
+             'Sacred Space, C-6, Gambhir Estates, Kotkar Road, Goregaon (E), Mumbai 63',
+             'billing@example.invalid', '+91 80970 10410', 'www.example.invalid',
+             'Dummy Bank', 'Altus Corp (Current Account)', '0000000000',
+             'DUMM0000001', 'Goregaon East', '998311', 'The Proprietor', 'Proprietor',
+             'Interest will be charged at 24% p.a. at actuals for delay in payment after due date.')
+     on conflict (entity_id) do nothing`,
+  );
+  await bump("billing_entity_profiles");
+
+  for (const [code, description, rate] of [
+    ["998311", "Management consulting and management services", "18"],
+    ["998313", "Information technology consulting and support services", "18"],
+    ["998365", "Sale of advertising space or time", "18"],
+  ] as const) {
+    await pg.query(
+      `insert into billing_sac_codes (code, description, default_gst_rate)
+       values ($1,$2,$3) on conflict (code) do nothing`,
+      [code, description, rate],
+    );
+  }
+  await bump("billing_sac_codes");
+
+  // Fill in the BILLING columns of products migration 0217 already created, so
+  // picking one on a line really does bring its SAC, rate and GST rate with it.
+  // UPDATE, never insert: the product master is real data with real codes, and
+  // the dummy fixture has no business inventing rows in it.
+  for (const [name, sac, rate] of [
+    ["Graduate Programs", "998311", "75000.00"],
+    ["BSS", "998313", "45000.00"],
+    ["Retainer", "998365", "25000.00"],
+  ] as const) {
+    await pg.query(
+      `update outstanding_products
+          set sac_code = $2, default_rate = $3, default_gst_rate = '18', is_billable = true
+        where name = $1`,
+      [name, sac, rate],
+    );
+  }
+  await bump("outstanding_products");
+
+  // Two customers, deliberately one of each kind: GST-registered in the
+  // seller's own state (so CGST+SGST is exercised) and unregistered (so the
+  // no-tax-rows document is one click away).
+  await pg.query(
+    `insert into billing_customers
+       (id, name, contact_name, email, whatsapp, gstin, address_line1, city, state_name, state_code, pincode)
+     values ('00000000-0000-4000-8009-000000000001', 'Northwind Systems LLP', 'The Director',
+             'accounts@northwind.invalid', '+919000000001', '27AAACN1111N1Z5',
+             '4th Floor, Prabhadevi', 'Mumbai', 'Maharashtra', '27', '400025')
+     on conflict do nothing`,
+  );
+  await pg.query(
+    `insert into billing_customers
+       (id, name, contact_name, email, address_line1, city, state_name, state_code)
+     values ('00000000-0000-4000-8009-000000000002', 'Sunil Raut', 'Sunil Raut',
+             'sunil.raut@example.invalid', 'Shivaji Park', 'Mumbai', 'Maharashtra', '27')
+     on conflict do nothing`,
+  );
+  await bump("billing_customers");
+
+  // ── GOALS ───────────────────────────────────────────────────────
+  //
+  // The Goals workspace had NO fixture at all, so every one of its boards
+  // rendered its empty state in dummy mode and none of them could be looked at
+  // — which is the whole point of dummy mode (see scripts/dummy-db-setup.ts).
+  //
+  // Deliberately small and deliberately VARIED on the two status axes: some
+  // rows carry an initiator verdict and the rest are unruled, because "No
+  // Verdict" beside "Approved" is what those two columns are for, and a fixture
+  // where every row looks the same tests nothing.
+  const fyNow = new Date();
+  const fy = fyNow.getFullYear();
+  const mk = `${fy}-${String(fyNow.getMonth() + 1).padStart(2, "0")}`;
+  const qk = `${fy}-Q${Math.floor(fyNow.getMonth() / 3) + 1}`;
+
+  const GOALS: Array<[id: string, period: string, key: string, title: string, area: string, status: string, approval: string | null, pct: number]> = [
+    ["00000000-0000-4000-8005-000000000001", "year",    String(fy), "Attendance live on every site", "Operations", "initiated",   null,        35],
+    ["00000000-0000-4000-8005-000000000002", "quarter", qk,         "Biometric readers at 4 plants", "Operations", "follow_up",   "approved",  50],
+    ["00000000-0000-4000-8005-000000000003", "month",   mk,         "Plant 2 reader install",        "Operations", "not_started", null,         0],
+    ["00000000-0000-4000-8005-000000000004", "month",   mk,         "Retire the muster register",    "Compliance", "need_info",   "on_hold",   20],
+  ];
+  for (const [id, period, key, title, area, status, approval, pct] of GOALS) {
+    await pg.query(
+      `insert into goals
+         (id, employee_id, period, period_key, title, area, status, approval_status, pct_done,
+          created_by_id, scope)
+       values ($1,$2,$3,$4,$5,$6,$7::task_status,$8::approval_status,$9,$10,'professional')
+       on conflict (id) do nothing`,
+      [id, EMP.me, period, key, title, area, status, approval, pct, EMP.asha],
+    );
+  }
+  await bump("goals");
+
+  // ── WEEKLY GOALS ─────────────────────────────────────────────
+  // Anchored to the CURRENT Monday so the week board opens on them whenever the
+  // fixture is built, rather than on a week that has already gone by.
+  const monday = (() => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const WEEKLY: Array<[id: string, subject: string, area: string, status: string, approval: string | null, pct: number]> = [
+    ["00000000-0000-4000-8006-000000000001", "Site survey at Plant 2", "Operations", "initiated",   null,        60],
+    ["00000000-0000-4000-8006-000000000002", "Raise the cabling PO",   "Operations", "not_started", null,         0],
+    ["00000000-0000-4000-8006-000000000003", "Vendor demo write-up",   "Operations", "done",        "approved", 100],
+  ];
+  for (const [id, subject, area, status, approval, pct] of WEEKLY) {
+    await pg.query(
+      `insert into weekly_goals
+         (id, employee_id, week_start, subject, target_done, area, status, approval_status,
+          pct_done, created_by_id)
+       values ($1,$2,$3,$4,$4,$5,$6::task_status,$7::approval_status,$8,$9)
+       on conflict (id) do nothing`,
+      [id, EMP.me, monday, subject, area, status, approval, pct, EMP.me],
+    );
+  }
+  await bump("weekly_goals");
+
+  // ── DAILY GOALS ──────────────────────────────────────────────
+  // Today's plan. Two rows carry a verdict so the Initiator Status control in a
+  // card's detail view has something to show besides "No Verdict".
+  const planYmd = new Date().toISOString().slice(0, 10);
+  const DAILY: Array<[id: string, title: string, status: string, approval: string | null, done: boolean, pos: number]> = [
+    ["00000000-0000-4000-8007-000000000001", "Walk the Plant 2 cable route", "initiated", null,       false, 1],
+    ["00000000-0000-4000-8007-000000000002", "Send the vendor comparison",   "done",      "approved", true,  2],
+    ["00000000-0000-4000-8007-000000000003", "Chase the cabling quote",      "follow_up", "on_hold",  false, 3],
+  ];
+  for (const [id, title, status, approval, done, pos] of DAILY) {
+    await pg.query(
+      `insert into daily_checklist
+         (id, employee_id, plan_date, title, origin, position, status, approval_status, done)
+       values ($1,$2,$3,$4,'standalone',$5,$6::task_status,$7::approval_status,$8)
+       on conflict (id) do nothing`,
+      [id, EMP.me, planYmd, title, pos, status, approval, done],
+    );
+  }
+  await bump("daily_checklist");
+
   return counts;
 }
+

@@ -31,7 +31,7 @@ const template: LetterTemplate = {
       t(" to "),
       f("newDesignation", "New Designation", { placeholder: "e.g. Senior Business Development Manager" }),
       t(", effective "),
-      f("effectiveDate", "Effective Date", { placeholder: "e.g. 1 August 2026", date: true }),
+      f("effectiveDate", "Effective Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t("."),
     ),
 
@@ -41,8 +41,8 @@ const template: LetterTemplate = {
     term("Reporting Manager", f("reportingManager", "Reporting Manager", { placeholder: "e.g. CA Manan Vasa" })),
 
     heading("Revised Compensation", 2),
-    term("Previous Cost to Firm (per annum)", f("previousCtc", "Previous CTC (per year)", { placeholder: "₹0" })),
-    term("Revised Cost to Firm (per annum)", f("revisedCtc", "Revised CTC (per year)", { placeholder: "₹0" })),
+    term("Previous Cost to Firm (per annum)", f("previousCtc", "Previous CTC (per year)", { placeholder: "Rs. 0" })),
+    term("Revised Cost to Firm (per annum)", f("revisedCtc", "Revised CTC (per year)", { placeholder: "Rs. 0" })),
 
     heading("Revised CTC Structure with Break-up", 2),
     table(["COMPONENTS", "PER MONTH", "PER ANNUM"], ctcRows()),

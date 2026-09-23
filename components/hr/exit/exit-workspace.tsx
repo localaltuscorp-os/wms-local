@@ -12,6 +12,7 @@ import { ExitStyle } from "./exit-fields";
 import { ExitInterviewForm } from "./exit-interview-form";
 import { ExitHandoverForm } from "./exit-handover-form";
 import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 type EmployeeOpt = ExitRosterEmployee;
 
@@ -150,20 +151,15 @@ function PickScreen({
 
       {/* employee picker */}
       <div className="mb-8 iwf is-float">
-        <select
+        <CompactSelect
           className="iwf-control"
           value={empId}
-          onChange={(e) => setEmpId(e.target.value)}
-          data-autofocus
+          onChange={setEmpId}
           aria-label="Select departing employee"
-        >
-          <option value="">- Select employee -</option>
-          {employees.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
-        </select>
+          placeholder="- Select employee -"
+          matchTriggerWidth
+          options={employees.map((e) => ({ value: e.id, label: e.name }))}
+        />
         <label className="iwf-label">Departing Employee</label>
         <ChevronDown size={18} className="iwf-caret" aria-hidden />
       </div>

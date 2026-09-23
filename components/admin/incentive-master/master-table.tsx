@@ -129,14 +129,24 @@ export function IncentiveMasterTable({
             match: (r, v) => r.duration === v,
           },
           {
+            label: "Applies to",
+            options: [
+              { value: "all", label: "All employees" },
+              { value: "functions", label: "By function" },
+              { value: "selected", label: "Selected employees" },
+            ],
+            match: (r, v) => r.eligibilityMode === v,
+          },
+          {
             label: "Eligibility",
             options: [
-              { value: "named", label: "Named employees" },
-              { value: "groups", label: "By group" },
+              { value: "someone", label: "Someone eligible" },
               { value: "nobody", label: "Nobody eligible" },
             ],
-            match: (r, v) =>
-              v === "nobody" ? r.eligibleCount === 0 : r.eligibilityMode === v,
+            // "Nobody" is a real state and not a bug: a scheme scoped to
+            // functions nobody is in, or to people who have all been removed,
+            // legitimately reaches no one — and the page's own stat counts it.
+            match: (r, v) => (v === "nobody" ? r.eligibleCount === 0 : r.eligibleCount > 0),
           },
         ]}
         columns={[
@@ -193,6 +203,23 @@ export function IncentiveMasterTable({
             ),
           },
           {
+            key: "appliesTo",
+            label: "Applies to",
+            sortValue: (r) => r.applicabilityLabel,
+            render: (r) => (
+              <span className="text-ink-soft">
+                {r.applicabilityLabel}
+                {/* Which people, under that rule: the function names, or the
+                    count. The rule alone makes two schemes look identical. */}
+                {r.eligibilityMode === "selected" && r.eligibleCount > 0 && (
+                  <span className="block text-[11.5px] text-ink-subtle">
+                    {r.eligibleLabel}
+                  </span>
+                )}
+              </span>
+            ),
+          },
+          {
             key: "eligible",
             label: "Eligible",
             sortValue: (r) => r.eligibleCount,
@@ -202,9 +229,11 @@ export function IncentiveMasterTable({
                 onClick={() => setOpenId(r.id)}
                 className="text-left text-ink-soft hover:text-altus-red hover:underline"
                 title={
-                  r.eligibilityMode === "named"
-                    ? "Named employees — open to change who is eligible"
-                    : "Eligibility by group — open to name individual employees"
+                  r.eligibilityMode === "selected"
+                    ? "Selected employees — open to change who is eligible"
+                    : r.eligibilityMode === "functions"
+                      ? "By function — open to name individual employees instead"
+                      : "All employees — open to scope it to functions or people"
                 }
               >
                 {r.eligibleLabel}

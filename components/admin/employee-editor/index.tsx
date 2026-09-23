@@ -987,7 +987,7 @@ function SingleModeExtras(p: {
         <Field label="Weekly target hours">
           <NumberInput value={p.weeklyHours} onChange={p.setWeeklyHours} placeholder="27" step="0.5" />
         </Field>
-        <Field label="Monthly pay at target ₹">
+        <Field label="Monthly pay at target Rs.">
           <NumberInput value={p.payAtTarget} onChange={p.setPayAtTarget} placeholder="3500" step="1" />
         </Field>
       </div>
@@ -995,7 +995,7 @@ function SingleModeExtras(p: {
   }
   if (p.workerType === "project_remote") {
     return (
-      <Field label="Monthly fee ₹">
+      <Field label="Monthly fee Rs.">
         <NumberInput value={p.monthlyFee} onChange={p.setMonthlyFee} placeholder="e.g. 15000" step="1" />
       </Field>
     );

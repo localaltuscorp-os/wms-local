@@ -15,7 +15,7 @@ const GREEN_DEEP = "#15803d";
 const AMBER = "#d97706";
 
 function toNum(s: string): number {
-  const n = Number(s.replace(/[₹,\s]/g, ""));
+  const n = Number(s.replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -180,7 +180,7 @@ function MoneyField({
       </label>
       <div className="relative">
         <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-subtle" style={{ fontSize: 14.5 }}>
-          ₹
+          Rs.
         </span>
         <input
           autoFocus={autoFocus}

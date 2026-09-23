@@ -20,6 +20,7 @@ import {
   type EvaluationWeights,
 } from "@/lib/hr/candidate/evaluation-weights";
 import { EvaluationChecklistBody } from "@/components/hr/candidate/evaluation-checklist-body";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const RED = "var(--color-altus-red)";
 
@@ -109,18 +110,18 @@ export function CandidateEvaluationScreen({
 
       {/* Control bar: candidate picker + live progress + overall score + save */}
       <div className="sticky top-[64px] z-10 mb-6 flex flex-wrap items-center gap-4 rounded-2xl border border-hairline bg-white/95 p-4 backdrop-blur">
-        <select
+        <CompactSelect
           value={candidateId}
-          onChange={(e) => selectCandidate(e.target.value)}
-          className="min-w-[220px] flex-1 rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14px] font-medium text-ink-strong outline-none focus:border-altus-red"
-        >
-          <option value="">— Select candidate —</option>
-          {candidates.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.fullName || "Unnamed"}{c.positionApplied ? ` · ${c.positionApplied}` : ""}
-            </option>
-          ))}
-        </select>
+          onChange={selectCandidate}
+          className="min-w-[220px] flex-1 rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14px] font-medium text-ink-strong"
+          placeholder="— Select candidate —"
+          aria-label="Candidate"
+          panelWidth={280}
+          options={candidates.map((c) => ({
+            value: c.id,
+            label: `${c.fullName || "Unnamed"}${c.positionApplied ? ` · ${c.positionApplied}` : ""}`,
+          }))}
+        />
 
         <div className="min-w-[200px] flex-1">
           <div className="flex items-center justify-between text-[13px] font-semibold text-ink-strong">

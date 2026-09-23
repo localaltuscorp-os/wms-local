@@ -126,7 +126,10 @@ function blockToHtml(
       const inner = spansToHtml(block.spans, values);
       const align =
         block.align === "center" ? "center" : block.align === "right" ? "right" : "justify";
-      return `<p style="text-align:${align}">${inner || "<br>"}</p>`;
+      // keepWithNext survives into the free-edit HTML as an inline style, so the
+      // browser print and the PDF renderer honour it without knowing the block.
+      const keep = block.keepWithNext ? ";break-after:avoid" : "";
+      return `<p style="text-align:${align}${keep}">${inner || "<br>"}</p>`;
     }
     case "term": {
       const value = spansToHtml(block.value, values);
@@ -139,7 +142,21 @@ function blockToHtml(
       return `<ul>${items}</ul>`;
     }
     case "spacer": {
-      return "<p><br></p>";
+      /**
+       * ONLY A LARGE SPACER BECOMES AN EMPTY LINE.
+       *
+       * Every spacer used to become `<p><br></p>` - a whole blank line plus a
+       * paragraph margin, about 35px - while the same spacer is 6px ("sm") or
+       * 12px ("md") in the field view and the PDF. So a letter that looked
+       * tight everywhere else opened in "Edit freely" with gaps between the
+       * date, the subject and the greeting, and printed that way.
+       *
+       * Paragraphs already carry their own margin, which is exactly the
+       * separation a small or medium spacer asks for. A LARGE spacer is kept:
+       * it is where a letter reserves real room - above a sign-off, and the
+       * blank a signature is written or attached into.
+       */
+      return block.size === "lg" ? "<p><br></p>" : "";
     }
     case "table": {
       const cols = block.columns.length;

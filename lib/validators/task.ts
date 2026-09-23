@@ -30,6 +30,25 @@ export const CreateTaskSchema = z
       .optional()
       .default(null),
     subject: z.string().trim().max(120).nullable().optional().default(null),
+    /**
+     * WHO THE WORK IS FOR, when that is not the same thing as the title.
+     *
+     * In the WMS New Task form the first field IS the client — it writes to
+     * `title`, and `client` has always been a copy of it. That stays the
+     * default (see create-task.ts) so nothing about that form changes.
+     *
+     * A task created from a PLAN row is the case that needed this: its title is
+     * the action's own name ("Draft the handover note"), and its client comes
+     * from the Project above it. Copying the title into `client` there filed
+     * every plan task under a client called "Draft the handover note".
+     */
+    // NO `.default(null)` ON PURPOSE. `undefined` and `null` mean different
+    // things here and the fallback in create-task.ts depends on telling them
+    // apart: undefined is "the caller never mentioned a client, use the title
+    // as WMS always has", null is "this task has no client, leave it empty".
+    // Defaulting to null made those identical, so a plan task whose project had
+    // no client silently took the ACTION'S OWN NAME as its client.
+    client: z.string().trim().max(240).nullable().optional(),
     notes: z.string().trim().max(8000).nullable().optional().default(null),
     tags: z
       .array(z.string().trim().min(1).max(40))

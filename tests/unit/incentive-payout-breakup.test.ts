@@ -103,10 +103,19 @@ describe("dashboard — final layout rules", () => {
     expect(dashboard).toMatch(/count === 1 \? "entry" : "entries"/);
   });
 
-  it("sets the team summary at scanning size with the grade spread on its own", () => {
-    expect(dashboard).toMatch(/<Metric size="lg" label="Employees">/);
-    expect(dashboard).toMatch(/<Metric size="lg" label="Grades">/);
-    expect(dashboard).toMatch(/size="lg"[\s\S]{0,120}tone=\{k === "A"/);
+  it("sets the team summary as KPI cards, one per figure, grades included", () => {
+    // Headcount, earnings and target are cards, and each grade gets its OWN
+    // card (A/B/C/D) rather than sharing one badge row — so the four grades are
+    // comparable across the same card edge.
+    expect(dashboard).toMatch(/label="All Employees"/);
+    expect(dashboard).toMatch(/label="Incentive Amount"/);
+    expect(dashboard).toMatch(/label="Target"/);
+    expect(dashboard).toMatch(/label=\{`Grade \$\{k\}`\}/);
+    expect(dashboard).toMatch(/\["A", "B", "C", "D"\] as const/);
+    // The grade caption is the band's own sentence, taken from the one band
+    // table rather than retyped here.
+    expect(dashboard).toMatch(/GRADE_BAND_LABEL\[k\]/);
+    expect(dashboard).toMatch(/INCENTIVE_GRADE_BANDS\.map/);
   });
 
   it("leaves the grading and target logic untouched", () => {

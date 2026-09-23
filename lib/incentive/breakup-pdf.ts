@@ -113,7 +113,7 @@ export async function renderIncentiveBreakupPdf(
           .font("Helvetica-Oblique")
           .fontSize(7.5)
           .fillColor(COLORS.inkFaint)
-          .text(`includes reversal adjustment −${inr(-l.reversal)}`, c2, doc.y - 7, {
+          .text(`includes negative payable adjustment −${inr(-l.reversal)}`, c2, doc.y - 7, {
             lineBreak: false,
           });
       }
@@ -143,7 +143,7 @@ export async function renderIncentiveBreakupPdf(
     .font("Helvetica")
     .fontSize(7.5)
     .fillColor(COLORS.inkSoft)
-    .text("approved · paid · reversal adjustment", left + 12, totY + 24, { lineBreak: false });
+    .text("approved · paid · negative payable adjustment", left + 12, totY + 24, { lineBreak: false });
   doc
     .font("Helvetica-Bold")
     .fontSize(17)

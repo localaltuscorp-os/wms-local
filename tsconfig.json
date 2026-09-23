@@ -43,6 +43,7 @@
   ],
   "exclude": [
     "node_modules",
+    "_archive",
     "functions",
     "mobile",
     "mobile_LEGACY_DROP_2026-07-02",

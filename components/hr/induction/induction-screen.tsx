@@ -11,6 +11,7 @@ import {
 } from "@/app/(app)/hr/induction/actions";
 import { fireToast } from "@/lib/toast";
 import { formatDateHr } from "@/lib/format";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
@@ -63,18 +64,15 @@ export function InductionScreen({ people }: { people: InductionPerson[] }) {
             Employee
           </label>
           <div className="ind-select-wrap">
-            <select
-              id="ind-emp"
-              data-autofocus
+            <CompactSelect
               value={employeeId}
-              onChange={(e) => void select(e.target.value)}
-              className="w-full appearance-none rounded-xl border border-hairline-strong bg-white px-3.5 py-3 pr-9 text-[14.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-altus-red"
-            >
-              <option value="">- Select an employee -</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+              onChange={(v) => void select(v)}
+              className="w-full rounded-xl border border-hairline-strong bg-white px-3.5 py-3 text-[14.5px] font-semibold text-ink-strong transition-colors"
+              placeholder="- Select an employee -"
+              aria-label="Employee"
+              matchTriggerWidth
+              options={people.map((p) => ({ value: p.id, label: p.name }))}
+            />
           </div>
           {people.length === 0 && (
             <p className="mt-2 text-[13px] font-medium text-ink-muted">

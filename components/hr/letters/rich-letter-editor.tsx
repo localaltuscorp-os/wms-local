@@ -615,9 +615,38 @@ export function RichLetterEditor({
   useEffect(() => {
     if (!editor) return;
     const el = editor.view.dom as HTMLElement;
+    /**
+     * WHERE THE PRINTED PAGE WILL BREAK - not every 827px.
+     *
+     * The guides used to be drawn at fixed multiples of one page height, so
+     * they sliced straight through a paragraph or a heading. Print never does
+     * that now: a paragraph that fits on a page moves to the next one whole,
+     * and a heading travels with what follows it (letterhead.tsx print rules).
+     * So walk the top-level blocks the way the printer will and put each guide
+     * above the block that gets pushed over.
+     */
     const recompute = () => {
-      const pages = Math.max(1, Math.ceil(el.scrollHeight / PAGE_CONTENT_H));
-      const ys = Array.from({ length: pages - 1 }, (_, i) => (i + 1) * PAGE_CONTENT_H);
+      const originTop = el.getBoundingClientRect().top;
+      const blocks = Array.from(el.children) as HTMLElement[];
+      const ys: number[] = [];
+      let pageEnd = PAGE_CONTENT_H;
+      blocks.forEach((block, i) => {
+        const rect = block.getBoundingClientRect();
+        const top = rect.top - originTop;
+        const bottom = rect.bottom - originTop;
+        while (bottom > pageEnd) {
+          const fitsOnAPage = rect.height <= PAGE_CONTENT_H && top > pageEnd - PAGE_CONTENT_H;
+          let at = fitsOnAPage ? top : pageEnd;
+          // A heading is never left at the foot of a page: take it along.
+          const prev = blocks[i - 1];
+          if (fitsOnAPage && prev && /^H[1-3]$/.test(prev.tagName)) {
+            const prevTop = prev.getBoundingClientRect().top - originTop;
+            if (prevTop > pageEnd - PAGE_CONTENT_H) at = prevTop;
+          }
+          ys.push(at);
+          pageEnd = at + PAGE_CONTENT_H;
+        }
+      });
       setBreakYs((prev) =>
         prev.length === ys.length && prev.every((v, i) => v === ys[i]) ? prev : ys,
       );
@@ -1441,7 +1470,7 @@ const RLE_CSS = `
 .rle-stage{display:block;}
 .rle-stage .alh-page{max-width:none;}
 .rle-pagecount{
-  position:sticky;top:8px;z-index:6;width:max-content;margin:0 16px 2px auto;
+  position:sticky;top:calc(var(--alw-bar-h, 0px) + 8px);z-index:6;width:max-content;margin:0 16px 2px auto;
   padding:3px 11px;border-radius:999px;background:rgba(15,23,42,.74);color:#fff;
   font-size:11.5px;font-weight:600;letter-spacing:.01em;
   box-shadow:0 8px 20px -10px rgba(15,23,42,.7);

@@ -42,6 +42,10 @@ type Viewer = {
   email: string | null;
   avatarUrl: string | null;
   isAdmin: boolean;
+  /** Optional because the access checks do not need it; only `resolveSalaryTarget`
+   *  does, and it reads the signed-in employee's own row when the viewer IS the
+   *  target. */
+  workerType?: string | null;
 };
 
 function viewerIsAdmin(me: Pick<Viewer, "isAdmin" | "email">): boolean {
@@ -88,4 +92,33 @@ export async function canViewSalaryOf(
   if (viewerIsAdmin(me)) return true;
   const downline = await getDownlineIds(me.id);
   return downline.includes(targetId);
+}
+
+/**
+ * WHO A PAY PAGE IS ABOUT — the `?emp=` in the URL, resolved against the gate
+ * above, plus the two facts the pay engine needs about that person.
+ *
+ * Both salary surfaces (My Salary and its Salary Statement) have to answer this
+ * identically: a hand-typed id they disagree about would be a page somebody can
+ * see and its statement somebody cannot. One function, so they cannot.
+ *
+ * An id the viewer may not open falls back to THEMSELVES rather than erroring —
+ * the same behaviour My Salary has always had, and the safer direction to fail.
+ */
+export async function resolveSalaryTarget(
+  me: Pick<Viewer, "id" | "name" | "isAdmin" | "email" | "workerType">,
+  empParam: string | null | undefined,
+): Promise<{ targetId: string; name: string; workerType: string | null }> {
+  if (!empParam || empParam === me.id) {
+    return { targetId: me.id, name: me.name, workerType: me.workerType ?? null };
+  }
+  if (!(await canViewSalaryOf(me, empParam))) {
+    return { targetId: me.id, name: me.name, workerType: me.workerType ?? null };
+  }
+  const row = await db.query.employees.findFirst({
+    where: eq(employees.id, empParam),
+    columns: { workerType: true, name: true },
+  });
+  if (!row) return { targetId: me.id, name: me.name, workerType: me.workerType ?? null };
+  return { targetId: empParam, name: row.name, workerType: row.workerType ?? null };
 }

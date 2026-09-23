@@ -9,6 +9,11 @@ import type { NotificationKind } from "@/db/schema";
 import { InviteEmail } from "@/emails/invite";
 import { ResetPasswordEmail } from "@/emails/reset-password";
 import { TwoStepCodeEmail } from "@/emails/two-step-code";
+import {
+  isUnverifiedDomainError,
+  signInFrom,
+  signInFromCandidates,
+} from "@/lib/email/sign-in-sender";
 import { CredentialsInviteEmail } from "@/emails/credentials-invite";
 import { WelcomeOfficialEmail } from "@/emails/welcome-official";
 import { AdminResetPasswordEmail } from "@/emails/admin-reset-password";
@@ -130,8 +135,7 @@ export const FROM = process.env.RESEND_FROM_EMAIL?.trim() || "Altus Corp <norepl
  * mananvasa.com is verified. So anywhere altuscorp.in is not verified, set
  * `RESEND_SIGNIN_FROM` to a sender that is, and this yields to it.
  */
-export const SIGN_IN_FROM =
-  process.env.RESEND_SIGNIN_FROM?.trim() || "Altus Corp <noreply@altuscorp.in>";
+export const SIGN_IN_FROM = signInFrom();
 
 /**
  * D12 (WMS overhaul Phase 6) — company-record BCC. When `EMAIL_BCC_ADDRESS` is
@@ -215,7 +219,10 @@ function parseMeta(body: string | null): NotificationMeta {
  * usually read on a phone, and must survive every mail client unstyled.
  */
 export async function sendPlainEmail(args: {
-  to: string;
+  /** One address or several — every address in the list receives it. */
+  to: string | string[];
+  cc?: string[];
+  bcc?: string[];
   subject: string;
   text: string;
 }): Promise<{ id: string | null; error: string | null }> {
@@ -225,6 +232,8 @@ export async function sendPlainEmail(args: {
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.to,
+      ...(args.cc?.length ? { cc: args.cc } : null),
+      ...(args.bcc?.length ? { bcc: args.bcc } : null),
       subject: clampSubject(args.subject),
       text: args.text,
     });
@@ -299,19 +308,27 @@ export async function sendTwoStepCodeEmail(args: {
   try {
     const resend = getResend();
     if (!resend) return { id: null, error: "RESEND_API_KEY not set" };
-    const { data, error } = await resend.emails.send({
-      // SIGN_IN_FROM, not FROM: the sign-in code comes from the company address.
-      from: SIGN_IN_FROM,
-      to: args.email,
-      subject: `${args.code} is your Altus Corp sign-in code`,
-      react: TwoStepCodeEmail({
-        code: args.code,
-        minutes: args.minutes,
-        recipientName: args.recipientName,
-      }),
-    });
-    if (error) return { id: null, error: error.message };
-    return { id: data?.id ?? null, error: null };
+    // SIGN_IN_FROM first (the company address), then the fallbacks — see
+    // signInFromCandidates(). Sign-in must not hinge on which domain an
+    // environment happens to have verified.
+    let lastError: string | null = null;
+    for (const from of signInFromCandidates()) {
+      const { data, error } = await resend.emails.send({
+        from,
+        to: args.email,
+        subject: `${args.code} is your Altus Corp sign-in code`,
+        react: TwoStepCodeEmail({
+          code: args.code,
+          minutes: args.minutes,
+          recipientName: args.recipientName,
+        }),
+      });
+      if (!error) return { id: data?.id ?? null, error: null };
+      lastError = error.message;
+      if (!isUnverifiedDomainError(error.message)) break;
+      console.warn(`[two-step] ${from} is not a verified sender here — trying the next one`);
+    }
+    return { id: null, error: lastError };
   } catch (err) {
     return { id: null, error: errorMessage(err) };
   }

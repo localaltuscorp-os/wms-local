@@ -6,9 +6,10 @@ import { authenticateMobileRequest, MOBILE_CORS } from "@/lib/auth/mobile";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { canAccessWorkspace } from "@/lib/workspaces";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { hrSupportEnabled } from "@/lib/hr/flag";
+import { canPublishPolicies } from "@/lib/hr/policies/access";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { isPolicyCategory, type PolicyCategory } from "@/lib/hr/policy-types";
 import { listPolicies, groupPolicies, policyStoragePath } from "@/lib/hr/sections";
 import { safeFileName, validateUpload, HR_UPLOAD_MAX_BYTES } from "@/lib/hr/upload";
@@ -22,10 +23,11 @@ export function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: MOBILE_CORS });
 }
 
-/** Policies are company-wide; admins/super-admins upload or remove them
- *  (mirrors the web `isAdmin` in policies/actions.ts). */
-function isAdmin(me: Employee): boolean {
-  return me.isAdmin || isSuperAdmin(me.email);
+/** Policies are company-wide to read and narrow to write: HR staff and
+ *  super-admins publish or remove one. The exact web rule, from the one module
+ *  both sides import, so the phone and the browser cannot drift apart. */
+async function isAdmin(me: Employee): Promise<boolean> {
+  return await canPublishPolicies(me, DUMMY_MODE);
 }
 
 /** HR is an open room — replicate the web `requireWorkspace("hr")` gate exactly
@@ -70,7 +72,7 @@ export async function GET(req: Request) {
   }));
 
   return NextResponse.json(
-    { isAdmin: isAdmin(me), groups, signable },
+    { isAdmin: await isAdmin(me), groups, signable },
     { headers: MOBILE_CORS },
   );
 }
@@ -108,7 +110,7 @@ export async function POST(req: Request) {
   if (!hrSupportEnabled() || !(await inHrRoom(me))) {
     return NextResponse.json({ error: "forbidden" }, { status: 403, headers: MOBILE_CORS });
   }
-  if (!isAdmin(me)) return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: MOBILE_CORS });
+  if (!(await isAdmin(me))) return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: MOBILE_CORS });
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return NextResponse.json({ error: limited.error }, { status: 429, headers: MOBILE_CORS });
 

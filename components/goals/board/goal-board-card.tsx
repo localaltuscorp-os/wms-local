@@ -183,16 +183,10 @@ function GoalBoardCardImpl({
   const childCount = childGoals?.length ?? 0;
   const childLabel = goal.period === "year" ? "quarters" : goal.period === "quarter" ? "months" : "weeks";
   // At-risk = behind the fixed pace cut (or a spillover), and not done/dropped.
-  const atRisk = React.useMemo(
-    () => !crossed && eff < 100 && deriveHealth(eff, goal.periodKey, new Date(), { spillover: spill }).atRisk,
-    [crossed, eff, goal.periodKey, spill],
-  );
   /** Full pace-aware health (band label + colour + expected-by-now) — powers the
    *  kanban card's progress bar + status chip so the card reads at a glance. */
-  const health = React.useMemo(
-    () => deriveHealth(eff, goal.periodKey, new Date(), { spillover: spill }),
-    [eff, goal.periodKey, spill],
-  );
+  const health = deriveHealth(eff, goal.periodKey, new Date(), { spillover: spill });
+  const atRisk = !crossed && eff < 100 && health.atRisk;
   /** View-only surface (policy) — the drawer still OPENS (read-only affordance)
    *  but every control disables and no save can fire. */
   const ro = !canWrite;
@@ -691,7 +685,7 @@ function GoalBoardCardImpl({
                 {goal.targetQty != null
                   ? `Qty ${fmtNum(goal.actualQty ?? 0)} / ${fmtNum(goal.targetQty)}${goal.uom ? ` ${goal.uom}` : ""}`
                   : goal.targetAmount != null
-                    ? `₹ ${fmtNum(goal.actualAmount ?? 0)} / ${fmtNum(goal.targetAmount)}`
+                    ? `Rs. ${fmtNum(goal.actualAmount ?? 0)} / ${fmtNum(goal.targetAmount)}`
                     : ""}
               </span>
               {goal.delegatedTo && goal.delegatedTo.length > 0 && (
@@ -1281,7 +1275,7 @@ export function IncentiveField({
 
       {enabled && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="How Much (₹)">
+          <Field label="How Much (Rs.)">
             <MoneyInput
               value={amount}
               disabled={disabled}

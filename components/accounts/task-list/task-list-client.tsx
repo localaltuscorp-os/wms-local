@@ -32,6 +32,7 @@ import {
   deleteShot,
 } from "@/app/(app)/accounts/task-list/actions";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 // ── Shared bits ──────────────────────────────────────────────────────────────
 
@@ -370,8 +371,8 @@ export function TaskListTable({
   React.useEffect(() => setRows(rowsProp), [rowsProp]);
 
   const [q, setQ] = React.useState("");
-  const [fStatus, setFStatus] = React.useState("");
-  const [fGear, setFGear] = React.useState("");
+  const [fStatus, setFStatus] = React.useState<string[]>([]);
+  const [fGear, setFGear] = React.useState<string[]>([]);
   const [from, setFrom] = React.useState("");
   const [to, setTo] = React.useState("");
   const [sort, setSort] = React.useState<{ key: string; dir: SortDir }>({ key: "srNo", dir: "asc" });
@@ -416,8 +417,8 @@ export function TaskListTable({
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     let out = rows.filter((r) => {
-      if (fStatus && r.status !== fStatus) return false;
-      if (fGear && (r.gear ?? "") !== fGear) return false;
+      if (fStatus.length > 0 && !fStatus.includes(r.status)) return false;
+      if (fGear.length > 0 && !fGear.includes((r.gear ?? ""))) return false;
       const d = r.targetDate ?? "";
       if (from && (!d || d < from)) return false;
       if (to && (!d || d > to)) return false;
@@ -445,11 +446,11 @@ export function TaskListTable({
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
   }
 
-  const hasFilters = q || fStatus || fGear || from || to;
+  const hasFilters = q || fStatus.length > 0 || fGear.length > 0 || from || to;
   function clearFilters() {
     setQ("");
-    setFStatus("");
-    setFGear("");
+    setFStatus([]);
+    setFGear([]);
     setFrom("");
     setTo("");
   }
@@ -528,18 +529,22 @@ export function TaskListTable({
           />
         </div>
         </CollapsibleSearch>
-        <select className={CHIP} value={fStatus} onChange={(e) => setFStatus(e.target.value)} aria-label="Filter by status">
-          <option value="">All Statuses</option>
-          {statusValues.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-        <select className={CHIP} value={fGear} onChange={(e) => setFGear(e.target.value)} aria-label="Filter by gear">
-          <option value="">All Gear</option>
-          {gearValues.map((g) => (
-            <option key={g} value={g}>{g}</option>
-          ))}
-        </select>
+        <MultiFilter
+          className={CHIP}
+          values={fStatus}
+          onChange={setFStatus}
+          options={statusValues}
+          allLabel="All Statuses"
+          aria-label="Filter by status"
+        />
+        <MultiFilter
+          className={CHIP}
+          values={fGear}
+          onChange={setFGear}
+          options={gearValues}
+          allLabel="All Gear"
+          aria-label="Filter by gear"
+        />
         <input type="date" className={CHIP} value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Target date from" title="Target date - from" />
         <input type="date" className={CHIP} value={to} onChange={(e) => setTo(e.target.value)} aria-label="Target date to" title="Target date - to" />
         {hasFilters && (

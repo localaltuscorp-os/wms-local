@@ -168,6 +168,28 @@ export const ArchiveWeeklyGoalSchema = z.object({
 export type ArchiveWeeklyGoalInput = z.input<typeof ArchiveWeeklyGoalSchema>;
 
 /**
+ * ARCHIVE (migration 0215) — "put away", and NOT the `archived` flag above.
+ *
+ * The two words collide in this module and mean opposite things: `archived` is
+ * the soft-DELETE that drops a goal into the Recycle Bin, while `archived_at`
+ * takes a finished goal off the board and files it under Archive › Goals, in
+ * its own "Archived weekly goals" table. Only an id is needed — putting a goal
+ * away is not a toggle, and taking it back out is the Archive's own Unarchive
+ * button (app/(app)/archive/actions.ts clears the stamp).
+ *
+ * Mirrors the yearly/quarterly/monthly side, whose schema is IdSchema/IdsSchema
+ * in app/(app)/goals/cascade/actions.ts.
+ */
+export const PutWeeklyGoalInArchiveSchema = z.object({ id: uuid });
+export type PutWeeklyGoalInArchiveInput = z.input<typeof PutWeeklyGoalInArchiveSchema>;
+
+/** The weekly selection bar's Archive button — one call, many goals. */
+export const BulkPutWeeklyGoalsInArchiveSchema = z.object({
+  ids: z.array(uuid).min(1).max(500),
+});
+export type BulkPutWeeklyGoalsInArchiveInput = z.input<typeof BulkPutWeeklyGoalsInArchiveSchema>;
+
+/**
  * Duplicate a goal into the SAME week (owner or admin). Distinct from
  * carry-over (which targets the next week + sets carriedFromId): a duplicate
  * copies the planning fields into a fresh row with reset progress + review.

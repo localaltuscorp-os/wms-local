@@ -3,7 +3,7 @@ import { formatDate, formatDateHr } from "@/lib/format";
 import { HR_STAGES, type HrStageKey } from "@/lib/hr/lifecycle";
 import { HR_SECTIONS, HR_SECTION_LABEL } from "@/lib/hr/forms/registry";
 
-describe("formatDateHr (HR module date format)", () => {
+describe("formatDateHr / formatDate (the ONE app-wide date format)", () => {
   it("renders DD-MMM-YYYY", () => {
     expect(formatDateHr("1984-01-21")).toBe("21-Jan-1984");
     expect(formatDateHr(new Date(2026, 8, 7))).toBe("07-Sep-2026");
@@ -12,8 +12,8 @@ describe("formatDateHr (HR module date format)", () => {
 
   it("pads single-digit days, matching the app-wide format", () => {
     expect(formatDateHr("2026-03-05")).toBe("05-Mar-2026");
-    // Same instant, same components - only the separator differs.
-    expect(formatDateHr("2026-03-05")).toBe(formatDate("2026-03-05").replace(/ /g, "-"));
+    // formatDateHr IS formatDate now (2026-09-15: one format, everywhere).
+    expect(formatDateHr("2026-03-05")).toBe(formatDate("2026-03-05"));
   });
 
   it("treats YYYY-MM-DD as a local calendar day (no UTC day-shift)", () => {
@@ -33,8 +33,12 @@ describe("formatDateHr (HR module date format)", () => {
     expect(formatDateHr("Immediately on joining")).toBe("Immediately on joining");
   });
 
-  it("leaves the app-wide formatDate alone", () => {
-    expect(formatDate("1984-01-21")).toBe("21 Jan 1984");
+  it("makes the app-wide formatDate hyphenated too", () => {
+    // The 2026-09-15 rule: "date everywhere should be DD-MMM-YYYY ie
+    // 16-Jan-2026". The spaced `21 Jan 1984` this file used to assert is gone.
+    expect(formatDate("1984-01-21")).toBe("21-Jan-1984");
+    expect(formatDate("2026-01-16")).toBe("16-Jan-2026");
+    expect(formatDate(new Date(2026, 0, 16))).toBe("16-Jan-2026");
   });
 });
 
@@ -62,8 +66,11 @@ describe("HR lifecycle sections", () => {
     const where = (slug: string) =>
       HR_STAGES.find((s) => s.items.some((i) => i.slug === slug))?.key;
 
-    expect(where("acceptance-letter")).toBe("post-interview");
+    // The Acceptance Letter is unregistered; the training's outcome (Accept /
+    // Extend / Regret) lives on the After Free Training letter instead.
+    expect(where("acceptance-letter")).toBeUndefined();
     expect(where("free-training")).toBe("post-interview");
+    expect(where("candidate-records")).toBe("pre-joining");
 
     expect(where("induction")).toBe("during");
     expect(where("employee-of-the-month")).toBe("during");

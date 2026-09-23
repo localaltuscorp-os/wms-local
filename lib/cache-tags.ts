@@ -34,6 +34,12 @@ export const CACHE_TAGS = {
   products: "products",
   /** Payment-mode master (`outstanding_payment_modes`). */
   paymentModes: "payment-modes",
+  /**
+   * SHIFT TYPES master (`shift_types`) — when people work, which is what the
+   * Sales Pitch form's Shift field offers. Busted by the shift-type writes so a
+   * renamed or retired shift reaches the form rather than lingering in it.
+   */
+  shifts: "shifts",
   /** Project tree nodes (Project / Milestone / Result / Action / Sub-Action). */
   projectNodes: "project-nodes",
   /** Weekly Goals planner rows (board + dashboard reads). */

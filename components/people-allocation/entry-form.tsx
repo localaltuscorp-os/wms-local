@@ -9,9 +9,9 @@ import {
   HH_DAYS,
   HH_BATCHED_SECTIONS,
   HH_PERSON_KINDS,
-  hhNamesFor,
 } from "@/db/enums";
 import { DateField } from "@/components/ui/date-field";
+import { CE_DAY_END, CE_DAY_START } from "@/lib/client-engagement/constants";
 
 /**
  * The Hand-holding Add form — "Add Employee / Intern".
@@ -20,10 +20,10 @@ import { DateField } from "@/components/ui/date-field";
  * card's Add, and the "A" shortcut all raise the same dialog, so there is a
  * single layout to learn and a single one to maintain.
  *
- * The kind is chosen FIRST, on a two-button toggle, and the name field then
- * offers that roster alone. The older layout put an Employee field and an Intern
- * field side by side with an OR between them, which asked the reader to resolve
- * an ambiguity the form itself should have settled.
+ * The kind is chosen FIRST, on a two-button toggle. There is no name field: the
+ * entry is filed under whoever is signed in (2026-09-18) — asking the logged-in
+ * person to pick themselves from a list was a step with only one right answer.
+ * Weekly calls take a START and END time; the length is derived, never typed.
  */
 
 const ACCENT = "#E10600";
@@ -43,16 +43,38 @@ export interface EntryDraft {
   batchNo: string | null;
   startDate: string | null;
   endDate: string | null;
-  calls: { callType: string; day: string; durationMin: number }[];
+  calls: { callType: string; day: string; durationMin: number; startTime: string; endTime: string }[];
 }
 
 interface CallDraft {
   callType: string;
   day: string;
-  durationMin: string;
+  /** "HH:MM" — the length is derived from these two, never typed. */
+  startTime: string;
+  endTime: string;
 }
 
-const blankCall = (): CallDraft => ({ callType: "", day: "", durationMin: "" });
+const blankCall = (): CallDraft => ({ callType: "", day: "", startTime: "", endTime: "" });
+
+/**
+ * Start/end choices, 15 minutes apart, inside 10:00–20:00. Not a style choice:
+ * migration 0230 put a CHECK on pa_calls that refuses any call outside that
+ * window, so offering 21:00 here would only produce a failed save.
+ */
+const toMin = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
+const toHm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const toLabel = (hm: string) => {
+  const m = toMin(hm);
+  const h = Math.floor(m / 60);
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m % 60).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+};
+const TIME_OPTIONS = Array.from({ length: (toMin(CE_DAY_END) - toMin(CE_DAY_START)) / 15 + 1 }, (_, i) => {
+  const hm = toHm(toMin(CE_DAY_START) + i * 15);
+  return { code: hm, label: toLabel(hm) };
+});
+const callMinutes = (c: CallDraft) =>
+  c.startTime && c.endTime ? toMin(c.endTime) - toMin(c.startTime) : null;
+const lengthLabel = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}` : `${m}m`);
 
 /** Label + required marker, above a control. */
 function Field({
@@ -137,7 +159,6 @@ export function EntryForm({
   // shorter, and switching clears the name — a name from the other list would
   // no longer be selectable.
   const [kind, setKind] = React.useState(personKind === "intern" ? "intern" : "employee");
-  const [name, setName] = React.useState("");
   const [product, setProduct] = React.useState(defaultSection);
   const [batchNo, setBatchNo] = React.useState("");
   const [start, setStart] = React.useState("");
@@ -153,8 +174,6 @@ export function EntryForm({
     label: c.short,
   }));
 
-  /** The chosen kind's roster — the only names the name field offers. */
-  const nameOptions = hhNamesFor(kind).map((n) => ({ code: n, label: n }));
 
   /**
    * Batch No. belongs to PS and BSS; for Retainer and Eco System it is absent.
@@ -163,8 +182,12 @@ export function EntryForm({
    */
   const showBatch = !product || HH_BATCHED_SECTIONS.includes(product);
 
-  const callsComplete = weekly.every((c) => c.callType && c.day && c.durationMin !== "");
-  const complete = Boolean(name) && Boolean(product) && Boolean(start) && Boolean(end) && callsComplete;
+  const callsComplete = weekly.every((c) => {
+    const m = callMinutes(c);
+    return c.callType && c.day && m !== null && m > 0;
+  });
+  // No name field: the entry is filed under whoever is signed in (2026-09-18).
+  const complete = Boolean(product) && Boolean(start) && Boolean(end) && callsComplete;
 
   function patchCall(i: number, patch: Partial<CallDraft>) {
     setWeekly((w) => w.map((c, k) => (k === i ? { ...c, ...patch } : c)));
@@ -174,12 +197,18 @@ export function EntryForm({
     if (!complete) return;
     onSave({
       kind,
-      name,
+      name: "",
       section: product,
       batchNo: showBatch ? batchNo.trim() || null : null,
       startDate: start || null,
       endDate: end || null,
-      calls: weekly.map((c) => ({ callType: c.callType, day: c.day, durationMin: Number(c.durationMin || 0) })),
+      calls: weekly.map((c) => ({
+        callType: c.callType,
+        day: c.day,
+        startTime: c.startTime,
+        endTime: c.endTime,
+        durationMin: callMinutes(c) ?? 0,
+      })),
     });
   }
 
@@ -209,9 +238,6 @@ export function EntryForm({
               onClick={() => {
                 if (on) return;
                 setKind(k.code);
-                // The other roster's names are not on this list, so a carried
-                // name would sit behind a field that no longer offers it.
-                setName("");
               }}
               className="inline-flex items-center gap-2 rounded-lg px-7 py-2.5 text-[14.5px] font-extrabold tracking-tight transition-colors"
               style={
@@ -232,17 +258,7 @@ export function EntryForm({
       </div>
 
       <div className="grid grid-cols-3 gap-x-5 gap-y-4 max-md:grid-cols-1">
-        {/* One name field, holding only the selected kind's roster. */}
-        <Field label={kind === "intern" ? "Intern Name" : "Employee Name"} required>
-          <Select
-            value={name}
-            onChange={setName}
-            ariaLabel={kind === "intern" ? "Intern Name" : "Employee Name"}
-            placeholder={kind === "intern" ? "Select intern" : "Select employee"}
-            options={nameOptions}
-          />
-        </Field>
-
+        {/* No "Employee Name" — you are signed in, so the entry is yours. */}
         <Field label="Product Name" required>
           <Select
             value={product}
@@ -314,7 +330,7 @@ export function EntryForm({
             >
               Weekly Call {i + 1}
             </div>
-            <div className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-3 p-4 max-md:grid-cols-1">
+            <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr_auto_auto] items-end gap-3 p-4 max-lg:grid-cols-2 max-md:grid-cols-1">
               <Field label="Type" required>
                 <Select
                   value={c.callType}
@@ -333,22 +349,43 @@ export function EntryForm({
                   options={HH_DAYS}
                 />
               </Field>
-              <Field label="Duration in mins" required>
-                <span className="relative block">
-                  <input
-                    type="number"
-                    min="0"
-                    className={`${inputCls} pr-12 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none`}
-                    value={c.durationMin}
-                    placeholder="Enter duration"
-                    aria-label={`Weekly Call ${i + 1} Duration`}
-                    onChange={(e) => patchCall(i, { durationMin: e.target.value })}
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12.5px] text-ink-subtle">
-                    mins
-                  </span>
-                </span>
+              <Field label="Start time" required>
+                <Select
+                  value={c.startTime}
+                  onChange={(v) => patchCall(i, { startTime: v })}
+                  ariaLabel={`Weekly Call ${i + 1} Start time`}
+                  placeholder="Start"
+                  options={TIME_OPTIONS.slice(0, -1)}
+                />
               </Field>
+              <Field label="End time" required>
+                <Select
+                  value={c.endTime}
+                  onChange={(v) => patchCall(i, { endTime: v })}
+                  ariaLabel={`Weekly Call ${i + 1} End time`}
+                  placeholder="End"
+                  options={TIME_OPTIONS.slice(1)}
+                />
+              </Field>
+              {/* The length, worked out from the two times — never typed. */}
+              <div className="mb-0.5 flex h-[42px] min-w-[64px] items-center justify-center whitespace-nowrap rounded-xl border-2 px-3 text-[13px] font-bold tabular-nums"
+                style={(() => {
+                  const m = callMinutes(c);
+                  const bad = m !== null && m <= 0;
+                  return {
+                    borderColor: bad ? "var(--color-red)" : "var(--color-altus-red)",
+                    color: bad ? "var(--color-red-deep)" : "var(--color-altus-red-deep)",
+                    background: bad ? "var(--color-red-bg)" : undefined,
+                  };
+                })()}
+                title={(() => { const m = callMinutes(c); return m !== null && m <= 0 ? "Ends before it starts" : undefined; })()}
+              >
+                {(() => {
+                  const m = callMinutes(c);
+                  if (m === null) return "—";
+                  return m <= 0 ? "Check" : lengthLabel(m);
+                })()}
+              </div>
               {/* The first call stays; the extras can go. */}
               {i > 0 && (
                 <button

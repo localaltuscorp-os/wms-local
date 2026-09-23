@@ -10,6 +10,7 @@ import { deleteCandidateIntake } from "@/app/(app)/hr/candidate-actions";
 import { InviteCandidateDialog } from "@/components/hr/candidate/invite-candidate-dialog";
 import { fireToast } from "@/lib/toast";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 /** The candidate's intake photo, falling back to their initials. Kept small and
  *  local — this is the only table that shows it. */
@@ -114,8 +115,11 @@ export function BasicDetailsScreen({
 }) {
   const router = useRouter();
   const [q, setQ] = React.useState("");
-  const [status, setStatus] = React.useState(lockedStatus ?? "all");
-  const [position, setPosition] = React.useState("all");
+  // A pinned list starts ON its status and hides the control (see
+  // `lockedStatus` above) — dropping that seed would show the whole pipeline
+  // under a page titled "Rejected Candidates".
+  const [status, setStatus] = React.useState<string[]>(lockedStatus ? [lockedStatus] : []);
+  const [position, setPosition] = React.useState<string[]>([]);
   const [form, setForm] = React.useState("all");
   const [deleted, setDeleted] = React.useState<Set<string>>(() => new Set());
   const [busyId, setBusyId] = React.useState<string | null>(null);
@@ -128,8 +132,8 @@ export function BasicDetailsScreen({
 
   const rows = candidates.filter((c) => {
     if (deleted.has(c.id)) return false;
-    if (status !== "all" && c.status !== status) return false;
-    if (position !== "all" && c.positionApplied !== position) return false;
+    if (status.length > 0 && !status.includes(c.status)) return false;
+    if (position.length > 0 && !position.includes(c.positionApplied ?? "")) return false;
     if (form === "complete" && !c.submitted) return false;
     if (form === "draft" && c.submitted) return false;
     if (q.trim()) {
@@ -168,13 +172,19 @@ export function BasicDetailsScreen({
           the buttons stranded mid-row. */}
       <div className="mb-6 flex flex-wrap items-center gap-2">
         {lockedStatus ? null : (
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLS} aria-label="Filter by status">
-            <option value="all">All statuses</option>
-            <option value="new">New</option>
-            <option value="shortlisted">Shortlisted</option>
-            <option value="hired">Hired</option>
-            <option value="rejected">Rejected</option>
-          </select>
+          <MultiFilter
+            className={SELECT_CLS}
+            values={status}
+            onChange={setStatus}
+            allLabel="All statuses"
+            aria-label="Filter by status"
+            options={[
+              { value: "new", label: "New" },
+              { value: "shortlisted", label: "Shortlisted" },
+              { value: "hired", label: "Hired" },
+              { value: "rejected", label: "Rejected" },
+            ]}
+          />
         )}
         <select value={form} onChange={(e) => setForm(e.target.value)} className={SELECT_CLS} aria-label="Filter by form state">
           <option value="all">All forms</option>
@@ -182,12 +192,14 @@ export function BasicDetailsScreen({
           <option value="draft">Draft</option>
         </select>
         {positions.length > 0 && (
-          <select value={position} onChange={(e) => setPosition(e.target.value)} className={SELECT_CLS} aria-label="Filter by position">
-            <option value="all">All positions</option>
-            {positions.map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
+          <MultiFilter
+            className={SELECT_CLS}
+            values={position}
+            onChange={setPosition}
+            options={positions}
+            allLabel="All positions"
+            aria-label="Filter by position"
+          />
         )}
 
         {/* The child button is w-full, so the wrapper sets its width; the

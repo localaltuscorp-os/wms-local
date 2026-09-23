@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   departments,
@@ -7,18 +7,25 @@ import {
   employees,
   incentiveCatalog,
   incentiveEligibility,
+  incentiveFunctionScope,
   outstandingProducts,
 } from "@/db/schema";
 import {
+  applicabilityOf,
   eligibilityLabel,
   hasExpired,
+  incentiveApplicabilityLabel,
   isIncentiveOnOffer,
+  modeOf,
   resolveEligibility,
+  resolveEmployeeType,
   todayIst,
   windowCoversDate,
   type CandidateRow,
   type EligibilityWindow,
   type EligibleCandidate,
+  type IncentiveApplicant,
+  type IncentiveApplicability,
   type IncentiveDuration,
 } from "@/lib/incentive/master";
 import {
@@ -26,21 +33,6 @@ import {
   type CatalogSnapshot,
 } from "@/lib/incentive/notifications/eligibility";
 import type { IncentiveType } from "@/db/enums";
-
-/**
- * One row of `incentive_eligibility` as the eligibility rule's window.
- *
- * The table is Rohan's (migration 0216), kept over this module's own design
- * when the two met: it stores LIVE grants only — a removal deletes the row —
- * and no effective date. So a window opens on the IST day the person was added
- * and never closes; whether the incentive is restricted at all is
- * `incentive_catalog.applies_to_all`, passed to the rule separately. The
- * effective date an admin types on an add or remove is recorded in
- * `incentive_catalog_events`, the audit trail.
- */
-function windowOf(g: { employeeId: string; createdAt: Date }): EligibilityWindow {
-  return { employeeId: g.employeeId, effectiveFrom: todayIst(g.createdAt), removedEffectiveFrom: null };
-}
 
 /**
  * THE INCENTIVE MASTER — the database half.
@@ -87,11 +79,19 @@ export interface IncentiveMasterRow {
   notes: string | null;
   sortOrder: number;
   active: boolean;
+  /** How this scheme's audience is decided (0244). */
+  applicability: IncentiveApplicability;
+  /** The functions a FUNCTION-scoped scheme covers; empty otherwise. */
+  functionIds: string[];
+  /** Those functions' NAMES, for the Applies To column. */
+  functionNames: string[];
   /** How many CURRENT employees are eligible today, by whichever rule applies. */
   eligibleCount: number;
-  /** Which rule decided it — named rows, or the original group flags. */
-  eligibilityMode: "named" | "groups";
-  /** Ready-made text for the Eligible column. */
+  /** Which of the three rules decided it. */
+  eligibilityMode: "all" | "functions" | "selected";
+  /** Ready-made text for the Applies To column. */
+  applicabilityLabel: string;
+  /** Ready-made text for the Eligible column (a count, or the function names). */
   eligibleLabel: string;
   /** Past its Valid Until. Distinct from `active`. */
   expired: boolean;
@@ -99,24 +99,43 @@ export interface IncentiveMasterRow {
   onOffer: boolean;
 }
 
-/** Employees as the eligibility rule needs them, for folding in memory. */
+/**
+ * Employees as the eligibility rule needs them, for folding in memory.
+ *
+ * The EFFECTIVE employee type is resolved HERE rather than inside the rule,
+ * because it is a fact about the row (an override, or the designation's flag)
+ * and the rule is pure. `coalesce(employee_type, designation_type, 'employee')`
+ * is the SQL spelling of `resolveEmployeeType`, done in TypeScript so both
+ * levels of the fallback are visible and testable in one place.
+ */
 async function loadAudience() {
-  return db
+  const rows = await db
     .select({
       id: employees.id,
       isActive: employees.isActive,
       employmentStatus: employees.employmentStatus,
       accountType: employees.accountType,
-      designation: designations.name,
+      override: employees.employeeType,
+      designationType: designations.employeeType,
+      functionId: employees.departmentId,
     })
     .from(employees)
     .leftJoin(designations, eq(employees.designationId, designations.id));
+
+  return rows.map((r): IncentiveApplicant => ({
+    id: r.id,
+    isActive: r.isActive,
+    employmentStatus: r.employmentStatus,
+    accountType: r.accountType,
+    employeeType: resolveEmployeeType({ override: r.override, designationType: r.designationType }),
+    functionId: r.functionId,
+  }));
 }
 
 export async function listIncentiveMaster(opts: { now?: Date } = {}): Promise<IncentiveMasterRow[]> {
   const today = todayIst(opts.now ?? new Date());
 
-  const [rows, windows, audience] = await Promise.all([
+  const [rows, windows, scope, functions, audience] = await Promise.all([
     db
       .select({
         c: incentiveCatalog,
@@ -127,23 +146,57 @@ export async function listIncentiveMaster(opts: { now?: Date } = {}): Promise<In
       .orderBy(asc(incentiveCatalog.sortOrder), asc(incentiveCatalog.name)),
     db
       .select({
-        incentiveId: incentiveEligibility.incentiveId,
+        catalogId: incentiveEligibility.catalogId,
         employeeId: incentiveEligibility.employeeId,
-        createdAt: incentiveEligibility.createdAt,
+        effectiveFrom: incentiveEligibility.effectiveFrom,
+        removedEffectiveFrom: incentiveEligibility.removedEffectiveFrom,
       })
       .from(incentiveEligibility),
+    // The FUNCTION scope, and the function master for its names — both loaded
+    // whole, like the eligibility rows, so the list stays a fixed number of
+    // queries rather than one pair per row.
+    db
+      .select({
+        catalogId: incentiveFunctionScope.catalogId,
+        functionId: incentiveFunctionScope.functionId,
+      })
+      .from(incentiveFunctionScope),
+    db
+      .select({ id: departments.id, name: departments.name })
+      .from(departments),
     loadAudience(),
   ]);
 
   const byCatalog = new Map<string, EligibilityWindow[]>();
   for (const w of windows) {
-    const list = byCatalog.get(w.incentiveId) ?? [];
-    list.push(windowOf(w));
-    byCatalog.set(w.incentiveId, list);
+    const list = byCatalog.get(w.catalogId) ?? [];
+    list.push({
+      employeeId: w.employeeId,
+      effectiveFrom: String(w.effectiveFrom),
+      removedEffectiveFrom: w.removedEffectiveFrom == null ? null : String(w.removedEffectiveFrom),
+    });
+    byCatalog.set(w.catalogId, list);
   }
 
+  const scopeByCatalog = new Map<string, string[]>();
+  for (const s of scope) {
+    const list = scopeByCatalog.get(s.catalogId) ?? [];
+    list.push(s.functionId);
+    scopeByCatalog.set(s.catalogId, list);
+  }
+
+  const functionNames = new Map(functions.map((f) => [f.id, f.name] as const));
+
   return rows.map(({ c, productName }) =>
-    summarizeIncentive(c, productName ?? null, byCatalog.get(c.id) ?? [], audience, today),
+    summarizeIncentive(
+      c,
+      productName ?? null,
+      byCatalog.get(c.id) ?? [],
+      scopeByCatalog.get(c.id) ?? [],
+      functionNames,
+      audience,
+      today,
+    ),
   );
 }
 
@@ -158,23 +211,24 @@ function summarizeIncentive(
   c: typeof incentiveCatalog.$inferSelect,
   productName: string | null,
   windows: EligibilityWindow[],
+  functionIds: string[],
+  functionNamesById: Map<string, string>,
   audience: EligibleCandidate[],
   today: string,
 ): IncentiveMasterRow {
   const incentive = {
     active: c.active,
     validUntil: c.validUntil == null ? null : String(c.validUntil),
+    applicability: c.applicability,
+    functionIds,
     salesEligible: c.salesEligible === true,
     internsEligible: c.internsEligible === true,
   };
-  // `named` from the flag, not inferred from rows: see resolveEligibility.
-  const resolved = resolveEligibility({
-    incentive,
-    windows,
-    employees: audience,
-    today,
-    named: c.appliesToAll === false,
-  });
+  const resolved = resolveEligibility({ incentive, windows, employees: audience, today });
+  const applicability = applicabilityOf(incentive, windows);
+  const names = functionIds
+    .map((id) => functionNamesById.get(id))
+    .filter((n): n is string => typeof n === "string");
   return {
     id: c.id,
     name: c.name,
@@ -190,13 +244,21 @@ function summarizeIncentive(
     notes: c.notes,
     sortOrder: c.sortOrder ?? 100,
     active: c.active,
+    applicability,
+    functionIds,
+    functionNames: names,
     eligibleCount: resolved.employeeIds.length,
-    eligibilityMode: resolved.mode,
-    eligibleLabel: eligibilityLabel({
-      mode: resolved.mode,
+    eligibilityMode: modeOf(applicability),
+    applicabilityLabel: eligibilityLabel({
+      mode: modeOf(applicability),
       count: resolved.employeeIds.length,
-      salesEligible: incentive.salesEligible,
-      internsEligible: incentive.internsEligible,
+      functionNames: names,
+    }),
+    // Kept as the COUNT beside the eligibility screen, where "who exactly" is
+    // the next column over. The Applies To column above carries the rule.
+    eligibleLabel: eligibilityLabel({
+      mode: "selected",
+      count: resolved.employeeIds.length,
     }),
     expired: hasExpired(incentive, today),
     onOffer: isIncentiveOnOffer(incentive, today),
@@ -251,7 +313,7 @@ export async function loadIncentiveEligibility(
 ): Promise<IncentiveEligibilityView | null> {
   const today = todayIst(opts.now ?? new Date());
 
-  const [catalogRows, grants, people, functionRows] = await Promise.all([
+  const [catalogRows, grants, people, functionRows, scope] = await Promise.all([
     db
       .select({ c: incentiveCatalog, productName: outstandingProducts.name })
       .from(incentiveCatalog)
@@ -262,10 +324,14 @@ export async function loadIncentiveEligibility(
       .select({
         id: incentiveEligibility.id,
         employeeId: incentiveEligibility.employeeId,
+        effectiveFrom: incentiveEligibility.effectiveFrom,
+        removedEffectiveFrom: incentiveEligibility.removedEffectiveFrom,
+        addedById: incentiveEligibility.addedById,
+        removedById: incentiveEligibility.removedById,
         createdAt: incentiveEligibility.createdAt,
       })
       .from(incentiveEligibility)
-      .where(eq(incentiveEligibility.incentiveId, catalogId)),
+      .where(eq(incentiveEligibility.catalogId, catalogId)),
     db
       .select({
         id: employees.id,
@@ -278,6 +344,10 @@ export async function loadIncentiveEligibility(
         isActive: employees.isActive,
         employmentStatus: employees.employmentStatus,
         accountType: employees.accountType,
+        // The intern rule's two inputs (0244) — the override and the
+        // designation's own flag. `resolveEmployeeType` folds them below.
+        employeeTypeOverride: employees.employeeType,
+        designationEmployeeType: designations.employeeType,
       })
       .from(employees)
       .leftJoin(departments, eq(employees.departmentId, departments.id))
@@ -288,22 +358,53 @@ export async function loadIncentiveEligibility(
       .from(departments)
       .where(eq(departments.isActive, true))
       .orderBy(asc(departments.sortOrder), asc(departments.name)),
+    db
+      .select({ functionId: incentiveFunctionScope.functionId })
+      .from(incentiveFunctionScope)
+      .where(eq(incentiveFunctionScope.catalogId, catalogId)),
   ]);
 
   const found = catalogRows[0];
   if (!found) return null;
   const { c, productName } = found;
 
-  const windows: EligibilityWindow[] = grants.map(windowOf);
+  const windows: EligibilityWindow[] = grants.map((g) => ({
+    employeeId: g.employeeId,
+    effectiveFrom: String(g.effectiveFrom),
+    removedEffectiveFrom: g.removedEffectiveFrom == null ? null : String(g.removedEffectiveFrom),
+  }));
+
+  const functionIds = scope.map((s) => s.functionId);
+  const functionNamesById = new Map(functionRows.map((f) => [f.id, f.name] as const));
+  const applicants: IncentiveApplicant[] = people.map((p) => ({
+    id: p.id,
+    isActive: p.isActive,
+    employmentStatus: p.employmentStatus,
+    accountType: p.accountType,
+    employeeType: resolveEmployeeType({
+      override: p.employeeTypeOverride,
+      designationType: p.designationEmployeeType,
+    }),
+    functionId: p.departmentId,
+  }));
 
   // The SAME summary the list shows, folded by the SAME rule -- not a second
   // opinion computed differently on the detail screen.
-  const incentive = summarizeIncentive(c, productName ?? null, windows, people, today);
+  const incentive = summarizeIncentive(
+    c,
+    productName ?? null,
+    windows,
+    functionIds,
+    functionNamesById,
+    applicants,
+    today,
+  );
 
   const nameById = new Map(people.map((p) => [p.id, p.name]));
-  // Every row in Rohan's table is live — a removal deletes the row.
   const liveByEmployee = new Map<string, string>();
-  for (const w of windows) liveByEmployee.set(w.employeeId, w.effectiveFrom);
+  for (const g of grants) {
+    if (g.removedEffectiveFrom == null) liveByEmployee.set(g.employeeId, String(g.effectiveFrom));
+  }
 
   const candidates: CandidateRow[] = people
     .map((p) => ({
@@ -328,21 +429,16 @@ export async function loadIncentiveEligibility(
         (r.isActive && r.employmentStatus === "active" && r.accountType === "employee"),
     );
 
-  // CURRENT GRANTS ONLY. Rohan's table keeps no removed rows and no added-by, so
-  // this lists who holds the incentive now, from the day they were added. The
-  // full add/remove trail — with the effective date each change was made for,
-  // and who made it — is in `incentive_catalog_events`, which every change
-  // still writes.
   const history: EligibilityHistoryRow[] = [...grants]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .map((g) => ({
       id: g.id,
       employeeId: g.employeeId,
       employeeName: nameById.get(g.employeeId) ?? "Unknown employee",
-      effectiveFrom: todayIst(g.createdAt),
-      removedEffectiveFrom: null,
-      addedByName: null,
-      removedByName: null,
+      effectiveFrom: String(g.effectiveFrom),
+      removedEffectiveFrom: g.removedEffectiveFrom == null ? null : String(g.removedEffectiveFrom),
+      addedByName: g.addedById ? nameById.get(g.addedById) ?? null : null,
+      removedByName: g.removedById ? nameById.get(g.removedById) ?? null : null,
     }));
 
   return { incentive, candidates, history, functions: functionRows, today };
@@ -360,11 +456,16 @@ export async function eligibilityWindowsFor(
   const rows = await exec
     .select({
       employeeId: incentiveEligibility.employeeId,
-      createdAt: incentiveEligibility.createdAt,
+      effectiveFrom: incentiveEligibility.effectiveFrom,
+      removedEffectiveFrom: incentiveEligibility.removedEffectiveFrom,
     })
     .from(incentiveEligibility)
-    .where(eq(incentiveEligibility.incentiveId, catalogId));
-  return rows.map(windowOf);
+    .where(eq(incentiveEligibility.catalogId, catalogId));
+  return rows.map((r) => ({
+    employeeId: r.employeeId,
+    effectiveFrom: String(r.effectiveFrom),
+    removedEffectiveFrom: r.removedEffectiveFrom == null ? null : String(r.removedEffectiveFrom),
+  }));
 }
 
 /**
@@ -378,8 +479,13 @@ export async function currentEmployeeIds(
   exec: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0],
 ): Promise<Set<string>> {
   const rows = await exec
-    .select({ id: employees.id })
+    .select({
+      id: employees.id,
+      override: employees.employeeType,
+      designationType: designations.employeeType,
+    })
     .from(employees)
+    .leftJoin(designations, eq(employees.designationId, designations.id))
     .where(
       and(
         eq(employees.isActive, true),
@@ -387,7 +493,19 @@ export async function currentEmployeeIds(
         eq(employees.accountType, "employee"),
       ),
     );
-  return new Set(rows.map((r) => r.id));
+  // INTERNS ARE EXCLUDED (0244). This set is what the add-eligibility dialog
+  // offers and what the server re-checks a batch against, so excluding them here
+  // is what stops an intern being NAMED as eligible — the rule in
+  // `resolveIncentiveEligibility` then stops any extant grant from paying them.
+  return new Set(
+    rows
+      .filter(
+        (r) =>
+          resolveEmployeeType({ override: r.override, designationType: r.designationType }) !==
+          "intern",
+      )
+      .map((r) => r.id),
+  );
 }
 
 /** Does this incentive still have a live grant for this person? */
@@ -398,8 +516,12 @@ export async function liveGrantIds(
   const rows = await exec
     .select({ employeeId: incentiveEligibility.employeeId })
     .from(incentiveEligibility)
-    // Every row is live — Rohan's table deletes a removal rather than dating it.
-    .where(eq(incentiveEligibility.incentiveId, catalogId));
+    .where(
+      and(
+        eq(incentiveEligibility.catalogId, catalogId),
+        isNull(incentiveEligibility.removedEffectiveFrom),
+      ),
+    );
   return new Set(rows.map((r) => r.employeeId));
 }
 
@@ -434,7 +556,7 @@ export async function incentiveSnapshotFor(
   row: typeof incentiveCatalog.$inferSelect,
   asOf: string,
 ): Promise<CatalogSnapshot> {
-  const [productName, windows] = await Promise.all([
+  const [productName, windows, scope] = await Promise.all([
     row.productId
       ? exec
           .select({ name: outstandingProducts.name })
@@ -444,15 +566,31 @@ export async function incentiveSnapshotFor(
           .then((r) => r[0]?.name ?? null)
       : Promise.resolve(null),
     eligibilityWindowsFor(exec, row.id),
+    exec
+      .select({ functionId: incentiveFunctionScope.functionId })
+      .from(incentiveFunctionScope)
+      .where(eq(incentiveFunctionScope.catalogId, row.id)),
   ]);
 
-  // Only name the eligible employees when this incentive HAS named eligibility.
-  // Passing an empty array where there is none would claim "nobody is eligible"
-  // and silence the group-flag audience — see `isEligibleFor`.
+  // Only name the eligible employees when this incentive HAS named eligibility
+  // — that is, only in SELECTED_EMPLOYEES mode. Passing an empty array where
+  // there is none would claim "nobody is eligible" and silence the other two
+  // modes — see `isEligibleFor`.
+  //
+  // NOTE: this is the ONE case where the audience is resolved WITHOUT the roster
+  // — a snapshot records who was eligible, and the roster that answered that
+  // question is not reachable from a write path that only has the catalog row.
+  // For FUNCTION and ALL_EMPLOYEES the snapshot therefore stores the RULE plus
+  // its inputs (applicability, functionIds), and the audience is recomputed from
+  // those when the notice is built (see planCatalogNotifications).
   const eligibleEmployeeIds =
-    windows.length > 0
+    row.applicability === "SELECTED_EMPLOYEES" && windows.length > 0
       ? windows.filter((w) => windowCoversDate(w, asOf)).map((w) => w.employeeId)
       : undefined;
 
-  return catalogSnapshot(row, { productName, eligibleEmployeeIds });
+  return catalogSnapshot(row, {
+    productName,
+    eligibleEmployeeIds,
+    functionIds: scope.map((s) => s.functionId),
+  });
 }

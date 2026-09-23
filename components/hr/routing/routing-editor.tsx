@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { fireToast } from "@/lib/toast";
-import { CATEGORY_GLYPH } from "@/lib/hr/ticket-ui";
+import { CATEGORY_ICON } from "@/lib/hr/ticket-ui";
 import type { HrTicketCategory } from "@/db/enums";
 import { updateRoute } from "@/app/(app)/hr/routing/actions";
 
@@ -49,10 +49,12 @@ export function RoutingEditor({
   return (
     <div className="overflow-hidden rounded-2xl border border-hairline bg-surface-card">
       <ul className="divide-y divide-hairline">
-        {local.map((r) => (
+        {local.map((r) => {
+          const Icon = CATEGORY_ICON[r.category];
+          return (
           <li key={r.category} className="flex flex-wrap items-center gap-3 px-4 py-3.5">
-            <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[16px]" style={{ background: "#E1060014" }}>
-              {CATEGORY_GLYPH[r.category]}
+            <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: "#E1060014", color: RED }}>
+              <Icon size={16} strokeWidth={2.2} />
             </span>
             <div className="min-w-[140px] flex-1">
               <div className="flex items-center gap-1.5 text-[14px] font-bold text-ink-strong">
@@ -89,7 +91,8 @@ export function RoutingEditor({
             </label>
             {busy === r.category && <Loader2 size={15} className="animate-spin text-ink-muted" />}
           </li>
-        ))}
+          );
+        })}
       </ul>
     </div>
   );

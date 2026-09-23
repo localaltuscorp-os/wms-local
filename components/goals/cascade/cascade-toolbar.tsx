@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { Route } from "next";
 import { ChevronLeft, ChevronRight, User } from "lucide-react";
 import { fyLabel, type RosterMember } from "./util";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /** Year-board toolbar: pick whose cascade to view + step the financial year. */
 export function CascadeToolbar({
@@ -33,17 +34,14 @@ export function CascadeToolbar({
       {canPickEmployee && roster.length > 1 && (
         <div className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-surface-card px-3 py-1.5">
           <User size={15} className="text-ink-soft" />
-          <select
+          <CompactSelect
             value={viewedEmployeeId}
-            onChange={(e) => go({ emp: e.target.value })}
-            className="bg-transparent text-[13.5px] font-bold text-ink-strong outline-none"
-          >
-            {roster.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => go({ emp: v })}
+            className="bg-transparent text-[13.5px] font-bold text-ink-strong"
+            aria-label="Whose cascade to view"
+            required
+            options={roster.map((r) => ({ value: r.id, label: r.name }))}
+          />
         </div>
       )}
 

@@ -12,6 +12,8 @@ import { DuplicateDateDialog } from "./duplicate-date-dialog";
 import { SourceTag, fmtYmd } from "./source-tag";
 import { PlanItemDetailModal, PlanItemHoverCard } from "./item-detail";
 import { HoverTip } from "@/components/ui/hover-tip";
+import { DoerStatusSelect, InitiatorStatusSelect } from "@/components/status/status-select";
+import { setPlanItemDoerStatus, setPlanItemInitiatorStatus } from "@/app/(app)/goals/plan/actions";
 
 const GOALS_ACCENT = "#E10600";
 const RISK = "var(--color-red-deep)";
@@ -29,6 +31,9 @@ interface Props {
   onDuplicate: (item: PlanItem, ymd?: string) => void;
   /** The × — off the plan, and into the Recycle Bin when a task backs it. */
   onRemove: (item: PlanItem) => void;
+  /** The viewer — see PlanBoard's own `me` prop. Read only by the status
+   *  controls in a card's detail view. */
+  me?: { id: string; isAdmin: boolean };
   /** Save an edited title (fix a typo). Absent ⇒ the card is read-only text. */
   onRename?: (id: string, title: string) => void;
   /** Re-date this commitment onto planner day `off`. */
@@ -59,6 +64,7 @@ interface Props {
  */
 export function PlanItemCard({
   item,
+  me,
   busy,
   onToggleDone,
   onPending,
@@ -78,6 +84,25 @@ export function PlanItemCard({
   // Single click opens the full view; renaming happens in there (a card can't
   // have single-click-to-open AND double-click-to-rename on the same text).
   const [detail, setDetail] = React.useState(false);
+
+  /**
+   * WHO THE VIEWER IS relative to this commitment — read by the two status
+   * controls, and the mirror of `dailyStatusActor` on the server.
+   *
+   * A daily row's DOER is whoever's plan it is on; its INITIATOR is anyone else
+   * allowed to be looking at that plan. You are never your own initiator, which
+   * is the rule that stops a person approving their own day.
+   */
+  const statusActor = React.useMemo(
+    () => ({
+      id: me?.id ?? "",
+      isAdmin: me?.isAdmin ?? false,
+      isInitiator: !!me && !!item.ownerId && item.ownerId !== me.id,
+      isDoer: !!me && !!item.ownerId && item.ownerId === me.id,
+      isSupervisor: false,
+    }),
+    [me, item.ownerId],
+  );
 
   // The duplicate picker. `copyTo` is a draft date and nothing happens until
   // Copy is pressed, so opening it and changing your mind costs nothing —
@@ -301,6 +326,45 @@ export function PlanItemCard({
           </button>
         </div>
 
+        {/* THE TWO STATUS AXES, on the card (Manan, 2026-09-15: "add in daily
+            goal section").
+
+            ALWAYS VISIBLE, unlike the review row below it: a status is
+            something you READ off a card at a glance, and a control you have to
+            hover to discover is one nobody uses. They are `compact` because two
+            dropdowns have to fit a 210px column in the 7-day view.
+
+            NOT inside the grip's drag listeners — those sit on the grip button
+            alone (see above), so opening a dropdown cannot start a drag.
+
+            A verdict is the INITIATOR's, so on your own day both boxes read
+            locked for the second one; a manager looking at your board gets the
+            dropdown. `statusActor` mirrors `dailyStatusActor` on the server,
+            which re-derives it before any write. */}
+        {item.ownerId ? (
+          <div className="mt-1 flex items-center gap-1">
+            <DoerStatusSelect
+              status={item.status ?? null}
+              actor={statusActor}
+              compact
+              onCommit={async (next) => {
+                const res = await setPlanItemDoerStatus(item.id, next);
+                return res.ok ? { ok: true } : { ok: false, error: res.error };
+              }}
+            />
+            <InitiatorStatusSelect
+              approvalStatus={item.approvalStatus ?? null}
+              archived={item.isPutAway ?? false}
+              actor={statusActor}
+              compact
+              onCommit={async (next) => {
+                const res = await setPlanItemInitiatorStatus(item.id, next);
+                return res.ok ? { ok: true } : { ok: false, error: res.error };
+              }}
+            />
+          </div>
+        ) : null}
+
         {/* REVIEW ROW — the four decisions, spelled out. Nothing here fires on
             a drag, a click on the card body, or a keyboard stray.
 
@@ -384,6 +448,7 @@ export function PlanItemCard({
       {detail ? (
         <PlanItemDetailModal
           item={item}
+          me={me}
           onClose={() => setDetail(false)}
           onRename={onRename}
           onSetTime={onSetTime}

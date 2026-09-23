@@ -11,6 +11,7 @@ import type { AgreementEmployee, AgreementRow } from "@/lib/agreements/types";
 import { TemplatePicker } from "@/components/agreements/template-picker";
 import { StatusTracker, type AgreementSignatures } from "@/components/agreements/status-tracker";
 import { saveAgreement, sendAgreement } from "@/app/(app)/agreements/actions";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const GREEN = "#E10600";
 const GREEN_DEEP = "#A80400";
@@ -32,8 +33,8 @@ const FIELDS: Record<AgreementType, FieldDef[]> = {
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
     { key: "department", label: "Function", kind: "text", placeholder: "e.g. Operations" },
     { key: "joiningDate", label: "Joining date", kind: "date" },
-    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. ₹6,00,000" },
-    { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: ₹3,00,000\nHRA: ₹1,20,000\nSpecial allowance: ₹1,80,000" },
+    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. Rs. 6,00,000" },
+    { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: Rs. 3,00,000\nHRA: Rs. 1,20,000\nSpecial allowance: Rs. 1,80,000" },
     { key: "probationMonths", label: "Probation (months)", kind: "text", placeholder: "e.g. 6" },
     { key: "reportingTo", label: "Reporting to", kind: "text", placeholder: "e.g. Manan Vasa" },
     { key: "workLocation", label: "Work location", kind: "text", placeholder: "e.g. Ahmedabad" },
@@ -44,8 +45,8 @@ const FIELDS: Record<AgreementType, FieldDef[]> = {
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
     { key: "department", label: "Function", kind: "text", placeholder: "e.g. Operations" },
     { key: "joiningDate", label: "Effective date", kind: "date" },
-    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. ₹6,00,000" },
-    { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: ₹3,00,000\nHRA: ₹1,20,000" },
+    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. Rs. 6,00,000" },
+    { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: Rs. 3,00,000\nHRA: Rs. 1,20,000" },
     { key: "noticePeriod", label: "Notice period", kind: "text", placeholder: "e.g. 60 days" },
     { key: "extraClauses", label: "Extra clauses (one per line)", kind: "textarea", placeholder: "Optional additional terms" },
   ],
@@ -57,8 +58,8 @@ const FIELDS: Record<AgreementType, FieldDef[]> = {
   ctc: [
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
     { key: "joiningDate", label: "Effective date", kind: "date" },
-    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. ₹6,00,000" },
-    { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: ₹3,00,000\nHRA: ₹1,20,000\nSpecial allowance: ₹1,80,000" },
+    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. Rs. 6,00,000" },
+    { key: "ctcBreakup", label: "CTC breakup (one 'Label: Value' per line)", kind: "textarea", placeholder: "Basic: Rs. 3,00,000\nHRA: Rs. 1,20,000\nSpecial allowance: Rs. 1,80,000" },
     { key: "extraClauses", label: "Extra clauses (one per line)", kind: "textarea", placeholder: "Optional additional terms" },
   ],
   probation_confirmation: [
@@ -73,7 +74,7 @@ const FIELDS: Record<AgreementType, FieldDef[]> = {
     { key: "designation", label: "Designation", kind: "text", placeholder: "e.g. Senior Associate" },
     { key: "trainingEndDate", label: "Training ended on", kind: "date" },
     { key: "effectiveDate", label: "Salary payable from", kind: "date" },
-    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. ₹6,00,000" },
+    { key: "ctcAmount", label: "Annual CTC", kind: "text", placeholder: "e.g. Rs. 6,00,000" },
     { key: "extraClauses", label: "Extra clauses (one per line)", kind: "textarea", placeholder: "Optional additional terms" },
   ],
 };
@@ -84,7 +85,7 @@ function fmtCtc(annual: string | null): string {
   if (!annual) return "";
   const n = Number(annual);
   if (!Number.isFinite(n) || n <= 0) return annual;
-  return `₹${n.toLocaleString("en-IN")}`;
+  return `Rs. ${n.toLocaleString("en-IN")}`;
 }
 
 /**
@@ -250,15 +251,18 @@ export function Workbench({
 
           <div className="mt-4 grid grid-cols-1 gap-3.5">
             <Field label="Employee">
-              <select className="ui-input" value={employeeId} onChange={(e) => onPickEmployee(e.target.value)}>
-                <option value="">— select an employee —</option>
-                {roster.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                    {e.designation ? ` · ${e.designation}` : ""}
-                  </option>
-                ))}
-              </select>
+              <CompactSelect
+                className="ui-input"
+                value={employeeId}
+                onChange={onPickEmployee}
+                placeholder="— select an employee —"
+                aria-label="Employee"
+                matchTriggerWidth
+                options={roster.map((e) => ({
+                  value: e.id,
+                  label: e.designation ? `${e.name} · ${e.designation}` : e.name,
+                }))}
+              />
             </Field>
 
             <Field label="Paying entity (sets the signatory)">

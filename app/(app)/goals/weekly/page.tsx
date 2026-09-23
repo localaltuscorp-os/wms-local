@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { DashboardHeader } from "@/components/layout/header";
 import { requireGoalsAccess } from "@/lib/goals/access";
@@ -110,6 +110,8 @@ export default async function GoalsWeeklyPage({ searchParams }: PageProps) {
         teamDependencyPct: weeklyGoals.teamDependencyPct,
         goalType: weeklyGoals.goalType,
         status: weeklyGoals.status,
+        approvalStatus: weeklyGoals.approvalStatus,
+        archivedAt: weeklyGoals.archivedAt,
         reviewedById: weeklyGoals.reviewedById,
         shareWithTeam: weeklyGoals.shareWithTeam,
         delegatedTo: weeklyGoals.delegatedTo,
@@ -135,6 +137,13 @@ export default async function GoalsWeeklyPage({ searchParams }: PageProps) {
         and(
           eq(weeklyGoals.weekStart, weekStart),
           eq(weeklyGoals.archived, false),
+          // ARCHIVED (migration 0215) — put away, so off the board. The two
+          // columns are different things: `archived` above is the soft-DELETE
+          // behind the Recycle Bin, `archived_at` is the Archive button on the
+          // selection bar. This is the same pair getYearBoard() filters on for
+          // the yearly/quarterly/monthly board (lib/goals/queries.ts), which is
+          // what makes Archive feel identical on both boards.
+          isNull(weeklyGoals.archivedAt),
           // A weekly goal reaches this person's board when they OWN it, when it's
           // shared with them as a team member (share_with_team + team_involved),
           // OR when it's delegated to them (delegated_to — accountability hand-off,
@@ -247,6 +256,11 @@ export default async function GoalsWeeklyPage({ searchParams }: PageProps) {
     teamDependencyPct: r.teamDependencyPct,
     goalType: r.goalType ?? null,
     status: r.status ?? null,
+    approvalStatus: r.approvalStatus ?? null,
+    // The board already filters `archivedAt IS NULL`, so this is false for every
+    // row it renders. Carried anyway rather than hard-coded: the cell's job is
+    // to report the row's state, and a filter is not a reason to lie about it.
+    isPutAway: r.archivedAt != null,
     reviewedById: r.reviewedById ?? null,
     shareWithTeam: r.shareWithTeam ?? false,
     delegatedTo: r.delegatedTo ?? null,

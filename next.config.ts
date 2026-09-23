@@ -61,6 +61,28 @@ const nextConfig: NextConfig = {
    * Defaults to `.next`, so every existing build and deploy is unchanged.
    */
   distDir: process.env.NEXT_DIST_DIR || ".next",
+
+  // LAN ACCESS IN DEV — let a phone (or a second machine) open the dev server.
+  //
+  // `next dev` already listens on 0.0.0.0, so http://<lan-ip>:3002 CONNECTS and
+  // the server-rendered HTML arrives intact. But Next blocks cross-origin
+  // requests to its dev-only assets: anything under `/_next/*` or `/__nextjs*`
+  // whose Origin/Referer host isn't on the allowlist gets a bare 403
+  // "Unauthorized" (server/lib/router-utils/block-cross-site-dev.ts). The
+  // allowlist defaults to `localhost` alone, so over a LAN IP every JS chunk
+  // 403s while the HTML still renders — the page loads as a BLANK gradient with
+  // no error on screen, because nothing ever hydrates.
+  //
+  // The patterns are wildcards over the private IPv4 ranges rather than one
+  // pinned address, because the address is not stable: this machine alone
+  // exposes Wi-Fi (192.168.1.x) alongside two VMware adapters (192.168.17.1,
+  // 192.168.247.1), and DHCP moves the Wi-Fi one. Next matches a host by
+  // splitting on "." and allowing `*` per segment (app-render/csrf-protection.ts),
+  // which is why an IP wildcard works here at all.
+  //
+  // DEV ONLY by construction — `next build` / `next start` never consult this,
+  // so it cannot widen anything in production.
+  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.*.*.*"],
   // THIS DIRECTORY IS THE WORKSPACE, full stop.
   //
   // Turbopack infers the root by walking UP for a lockfile, and there is a stray
@@ -136,6 +158,37 @@ const nextConfig: NextConfig = {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
   /**
+   * ROUTE-LEVEL FORWARDS, not `redirect()` in a page.
+   *
+   * `/billing` used to be a server component whose whole body was
+   * `redirect("/billing/documents")`. A redirect raised while the app router
+   * is rendering becomes an MPA navigation, and Next 16.2.6 has a rules-of-
+   * hooks bug on that path: `Router` throws `unresolvedThenable` when
+   * `pushRef.mpaNavigation` is set — BEFORE its last five hooks — so the next
+   * render runs more hooks than the previous one and React tears the tree
+   * down with "Rendered more hooks than during the previous render." That
+   * escapes app/(app)/error.tsx (it is thrown inside the router itself, above
+   * the boundary), so the viewer gets the bare "This page couldn't load"
+   * screen instead of the Billing module.
+   *
+   * Answering here instead sends a 308 from the routing layer: the browser
+   * follows it before React ever mounts, so the buggy path is never entered.
+   * Only forwards with NO auth or data behind them belong here — `/operations`
+   * must stay a page because it calls `requireWorkspace` first.
+   */
+  async redirects() {
+    return [
+      { source: "/billing", destination: "/billing/documents", permanent: false },
+      { source: "/daily-checklist", destination: "/my-day", permanent: false },
+      { source: "/dcc", destination: "/dcc/wcc", permanent: false },
+      { source: "/dcc/call-log", destination: "/dcc/dashboard", permanent: false },
+      { source: "/dcc/sp1", destination: "/dcc/dashboard", permanent: false },
+      // `?emp=` rides along: Next forwards a source query string the
+      // destination does not itself set.
+      { source: "/appraisal", destination: "/productivity/appraisal", permanent: false },
+    ];
+  },
+  /**
    * KEEP THE DUMMY-MODE DATABASE OUT OF PRODUCTION FUNCTIONS.
    *
    * ── THE MEASUREMENT ──────────────────────────────────────────────────────
@@ -200,6 +253,10 @@ const nextConfig: NextConfig = {
   // to be on the function filesystem, so a bare readFile would 500 in prod).
   outputFileTracingIncludes: {
     "/goals/template.xlsx": ["./public/templates/Altus-Goals-Template.xlsx"],
+    // The generic download door — every module's "Download Template" button —
+    // builds the Goals workbooks from the same static file (lib/templates/
+    // goals.ts), so it needs tracing into its own function too.
+    "/api/templates/[key]": ["./public/templates/Altus-Goals-Template.xlsx"],
     // The Upload Master download route serves the same built-in Goals workbook
     // (via lib/templates/goals.ts) without module access, so it needs the file
     // traced into its own function too.
@@ -225,6 +282,14 @@ const nextConfig: NextConfig = {
     "/api/hr/letters/issue-rich": [CHROMIUM_BIN, "./public/letter-fonts/**", "./public/letterhead/**", "./public/logos/**"],
     "/api/hr/letters/pdf": [CHROMIUM_BIN, "./public/letter-fonts/**", "./public/letterhead/**", "./public/logos/**"],
     "/api/hr/letters/email-pdf": [CHROMIUM_BIN, "./public/letter-fonts/**", "./public/letterhead/**", "./public/logos/**"],
+    // BILLING — the invoice is the on-screen sheet printed by headless Chromium
+    // (lib/billing/invoice-sheet-render.ts). It reads its CSS out of
+    // app/globals.css and inlines the logo and signature from public/, none of
+    // which a function gets by default — trace them into every route that
+    // renders the sheet (PDF download, email picture, email send).
+    "/billing/documents/[id]/pdf": [CHROMIUM_BIN, "./app/globals.css", "./public/logos/**", "./public/signatures/**", "./public/billing/**"],
+    "/billing/documents/[id]/png": [CHROMIUM_BIN, "./app/globals.css", "./public/logos/**", "./public/signatures/**", "./public/billing/**"],
+    "/billing/documents/[id]/email": [CHROMIUM_BIN, "./app/globals.css", "./public/logos/**", "./public/signatures/**", "./public/billing/**"],
   },
   // Externalize heavy server packages so the bundler does NOT compile their huge
   // trees into every route (the Sentry + OpenTelemetry + Prisma-instrumentation
@@ -248,6 +313,10 @@ const nextConfig: NextConfig = {
     // client one). Imported lazily inside the server function that runs them.
     "puppeteer-core",
     "@sparticuz/chromium",
+    // Invoice PDF → PNG for the email body (lib/billing/pdf-to-png.ts): a
+    // native canvas binding and pdf.js, loaded lazily on the send path only.
+    "pdfjs-dist",
+    "@napi-rs/canvas",
     "@sentry/nextjs",
     "@sentry/node",
     "@opentelemetry/instrumentation",

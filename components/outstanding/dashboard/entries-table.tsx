@@ -161,7 +161,7 @@ export function OutstandingEntriesTable({
                   <Th>Product</Th>
                   <Th>Cycle</Th>
                   <Th>Due Date</Th>
-                  <Th align="right">Balance (₹)</Th>
+                  <Th align="right">Balance (Rs.)</Th>
                   <Th align="right">Days Overdue</Th>
                   <Th>Entity</Th>
                   <Th>Responsible</Th>

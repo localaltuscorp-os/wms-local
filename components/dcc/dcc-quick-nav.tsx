@@ -45,7 +45,7 @@ export function DccQuickNav() {
   return (
     <nav
       aria-label="Daily Compliance sections"
-      className="border-b border-hairline bg-white/90 px-6 py-2 backdrop-blur print:hidden max-md:px-4"
+      className="sticky sticky-below-topbar z-30 border-b border-hairline bg-white/95 px-6 py-2 shadow-[0_8px_18px_-18px_rgba(15,23,42,0.45)] backdrop-blur print:hidden max-md:top-14 max-md:px-4"
     >
       <div className="no-scrollbar flex flex-row items-center gap-2 overflow-x-auto whitespace-nowrap">
         {DCC_DOORS.map((d) => {

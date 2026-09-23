@@ -141,6 +141,16 @@ const EXEMPT: readonly Exemption[] = [
     reason:
       "Serves the PUBLIC VAPID key that a browser needs BEFORE it can subscribe. Public by definition.",
   },
+  {
+    prefix: "app/api/logs/ingest/",
+    reason:
+      "Module-agnostic telemetry: the client activity tracker posts the signed-in person's own browsing events from every module, so no single catalogue node owns it. Identity is the session (requireUser), and only whitelisted event types are accepted.",
+  },
+  {
+    prefix: "app/api/templates/",
+    reason:
+      "The shared template-download door. Access is enforced per-key inside the handler by requireTemplateAccess, which resolves the template's owning module (Accounts, Goals, else a signed-in employee) — there is no single catalogue node for a door shared across modules.",
+  },
 ];
 
 /**

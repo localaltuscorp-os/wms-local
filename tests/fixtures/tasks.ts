@@ -44,6 +44,13 @@ function profileV2Defaults() {
     attEarlyBefore: null as string | null,
     // Attendance Phase B (migration 0060).
     probationEnd: null as string | null,
+    // Employee type + internship (migration 0244). `employeeType` null means
+    // "follow the designation"; `internshipEnd` is a DB-generated column, so it
+    // is present because the fixture is typed `Employee[]` (a SELECT row), but
+    // nothing may ever write it.
+    employeeType: null as "employee" | "intern" | null,
+    internshipStart: null as string | null,
+    internshipEnd: null as string | null,
     // Worker types (migration 0177).
     // Mirrors WORKER_TYPES in db/enums.ts (see migration 0204).
     workerType: "full_time" as "full_time" | "first_half" | "second_half" | "hybrid" | "project_remote",
@@ -226,6 +233,10 @@ export function task(partial: Partial<Task>): Task {
     // fixtures keep working without per-task overrides.
     tags: partial.tags ?? null,
     approvalStatus: partial.approvalStatus ?? null,
+    // Who ruled, and when (mig 0225). Null by default so every existing
+    // fixture keeps meaning "nobody has ruled on this".
+    approvalById: partial.approvalById ?? null,
+    approvalAt: partial.approvalAt ?? null,
     // Two-stage approval (mig 0185) — defaults keep every existing fixture on
     // the un-approved path, so no test changes meaning.
     approvalLevel: partial.approvalLevel ?? "none",

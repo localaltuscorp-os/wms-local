@@ -10,6 +10,7 @@
  * This module is intentionally PURE — no icons, no `server-only` — so both the
  * `/ws` route handler (server) and the client nav can import it.
  */
+import { archiveWorkspaceForPath } from "@/lib/archive/map";
 export const WORKSPACE_IDS = [
   "wms",
   "admin",
@@ -61,8 +62,9 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   admin: "/accounts",
   employees: "/attendance",
   hr: "/hr",
-  sales: "/outstanding",
-  training: "/training",
+  // The room opens on People Gives now that Outstanding has gone to Billing.
+  sales: "/people-gives",
+  training: "/training/dashboard",
   accounts: "/accounts",
   events: "/events",
   // The module entry = the GOALS DASHBOARD — the read-only overview across all
@@ -86,7 +88,7 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   // Project — the Project → Milestone → Result → Action hierarchy. Its own room
   // beside Hand-holding. The older /projects board stays where it is, on the
   // WMS rail; this room is the planning table, not a replacement for it.
-  "project-plan": "/project-plan",
+  "project-plan": "/project-plan/views",
   // Operations — the two-tier room (2026-09-11). `/operations` is a FORWARDER,
   // not a page: it redirects to the room's first area (see
   // app/(app)/operations/page.tsx). Kept as the landing so there is exactly one
@@ -188,6 +190,13 @@ export const WORKSPACE_COMING_SOON: Partial<Record<WorkspaceId, boolean>> = {};
 export function workspaceForPath(pathname: string): WorkspaceId | null {
   // "/" is the hub launcher (redirects to /hub) — it belongs to no workspace.
   const p = pathname;
+
+  // THE ARCHIVE — `/archive/<section>` belongs to the room whose records it
+  // holds, so reading Archive DCC keeps the Employees rail and Archive Goals
+  // keeps the Goals rail instead of falling back to the `aw` cookie. Matched
+  // FIRST and segment-exactly: `/archived` is the older, unrelated WMS page
+  // (admin archived tasks) and a `startsWith("/archive")` would swallow it.
+  if (p === "/archive" || p.startsWith("/archive/")) return archiveWorkspaceForPath(p);
 
   // Goals — the Y→Q→M→W cascade + commit/approve/plan/review surfaces, plus the
   // Weekly Goals + Daily Checklist modules (re-parented here from WMS).
@@ -299,13 +308,18 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
     return "hr";
   }
 
-  // Sales — collections & relationships
+  // Sales — relationships.
+  //
+  // `/outstanding` and `/ambassadors` USED TO BE HERE and are not any more
+  // (2026-09-21): both moved into Billing and live at `/billing/outstanding`
+  // and `/billing/ambassadors`, which the Billing branch below already
+  // claims by its `/billing` prefix. Recorded rather than deleted silently —
+  // the next person looking for where `/outstanding` resolves should find
+  // the answer here instead of concluding it fell through to the hub.
   if (
-    p.startsWith("/outstanding") ||
     p.startsWith("/participant-breakthrough") ||
     p.startsWith("/record-reference") ||
-    p.startsWith("/people-gives") ||
-    p.startsWith("/ambassadors")
+    p.startsWith("/people-gives")
   ) {
     return "sales";
   }

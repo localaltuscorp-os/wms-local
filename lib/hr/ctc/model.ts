@@ -18,6 +18,7 @@
  */
 
 import type { EntityId } from "@/lib/hr/entities";
+import { formatRs, formatRsCompact, parseRs } from "@/lib/format";
 
 /* ------------------------------------------------------------------ */
 /* Component catalogue                                                  */
@@ -95,8 +96,8 @@ export type CtcComponents = Record<string, number>;
 
 /** Sanitise a loose value to a non-negative finite number. */
 export function num(v: unknown): number {
-  const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/[^0-9.]/g, ""));
-  return Number.isFinite(n) && n > 0 ? n : 0;
+  const n = parseRs(v);
+  return n > 0 ? n : 0;
 }
 
 /** The monthly equivalent of a component's stored amount. */
@@ -166,9 +167,9 @@ export function computeTotals(components: CtcComponents): CtcTotals {
 
 const INR = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 
-/** "₹1,23,456" — Indian grouping, rupee sign, no paise. */
+/** "Rs. 1,23,456" — exact figure, Indian grouping, no paise (letters + hover). */
 export function formatINR(n: number): string {
-  return `₹${INR.format(Math.round(n || 0))}`;
+  return formatRs(n);
 }
 
 /** Plain grouped number (no sign) — for letter fields. */
@@ -176,12 +177,16 @@ export function formatAmount(n: number): string {
   return INR.format(Math.round(n || 0));
 }
 
-/** "₹12.5 L" / "₹1.2 Cr" — compact headline figure. */
+/**
+ * ALIAS of {@link formatINR} — the CTC tree prints the whole figure now.
+ *
+ * It abbreviated to "Rs. 12.5 L" / "Rs. 1.2 Cr" on the org-chart nodes. Dropped
+ * with the rest of the abbreviations (Manan, 2026-09-15): a CTC node that reads
+ * "Rs. 12.5 L" hides the very digits a salary conversation is about. Kept as a
+ * name so ctc-workbench.tsx keeps compiling.
+ */
 export function formatINRCompact(n: number): string {
-  const v = Math.round(n || 0);
-  if (v >= 1_00_00_000) return `₹${(v / 1_00_00_000).toFixed(2).replace(/\.00$/, "")} Cr`;
-  if (v >= 1_00_000) return `₹${(v / 1_00_000).toFixed(2).replace(/\.00$/, "")} L`;
-  return formatINR(v);
+  return formatINR(n);
 }
 
 /* ------------------------------------------------------------------ */

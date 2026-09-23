@@ -25,6 +25,7 @@ import {
   type AnalyticsView,
   type IncentiveAnalytics,
 } from "@/lib/incentive/analytics/model";
+import type { IncentiveGrade } from "@/lib/incentive/analytics/grading";
 import {
   addMonths,
   currentMonthKey,
@@ -216,6 +217,55 @@ export async function loadIncentiveAnalytics(
     scope,
     viewer: { id: viewer.id, name: viewer.name },
   });
+}
+
+/** One row of the Trends leaderboard. */
+export interface IncentiveLeaderRow {
+  employeeId: string;
+  name: string;
+  /** Competition rank (1, 2, 2, 4) on the percentage — the ordering figure. */
+  rank: number;
+  /** Incentive as a percentage of CTC. This is what the ranking uses. */
+  pctOfCtc: number;
+  /** The amount the percentage came from — shown second, never sorted on. */
+  earned: number;
+  grade: IncentiveGrade | null;
+  target: number | null;
+}
+
+/**
+ * THE LEADERBOARD, TAKEN FROM THE ONE RANKING THE APP ALREADY HAS.
+ *
+ * A second leaderboard used to live in `getIncentiveDashboard`, which sorted
+ * people by RAW YTD AMOUNT. That is not the rule this app ranks by: the
+ * Incentive Dashboard ranks on the PERCENTAGE of CTC (`competitionRanks`, the
+ * same figure the grade comes from), so the two lists could — and did — put the
+ * same person in different places on the same screen. A big earner with a big
+ * CTC can sit under a smaller earner with a smaller one, and only the
+ * percentage says which of them is actually performing.
+ *
+ * So the Trends leaderboard is no longer derived at all. It is a SLICE of the
+ * analytics model's own `employees`, which arrive already ranked, already
+ * filtered to the viewer's scope, and already carrying grade, target and
+ * movement. Nothing is re-sorted here and nothing is recomputed — reordering by
+ * percentage a second time is exactly what produced the disagreement.
+ */
+export function incentiveLeaders(
+  analytics: IncentiveAnalytics,
+  limit = 10,
+): IncentiveLeaderRow[] {
+  return analytics.employees
+    .filter((e) => e.rank !== null && e.pctOfCtc !== null)
+    .slice(0, limit)
+    .map((e) => ({
+      employeeId: e.employeeId,
+      name: e.name,
+      rank: e.rank as number,
+      pctOfCtc: e.pctOfCtc as number,
+      earned: e.earned,
+      grade: e.grade,
+      target: e.target,
+    }));
 }
 
 /**

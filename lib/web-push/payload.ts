@@ -39,6 +39,7 @@ const TITLES: Record<NotificationKind, (actor: string) => string> = {
   training_test_failed: () => `Training test not passed`,
   dcc_fill_reminder: () => `Fill today's DCC KPIs`,
   ambassador_reminder: () => `You have an ambassador to follow up`,
+  ce_reference_reminder: () => `References to collect this week`,
   // Goals Cascade — delivered by their own cron (email + in-app); placeholder
   // titles to satisfy the exhaustive map.
   goals_commit_reminder: () => `Commit your week's goals`,
@@ -75,7 +76,9 @@ const TITLES: Record<NotificationKind, (actor: string) => string> = {
   incentive_request_revision: () => `Incentive revision required`,
   incentive_request_due: () => `Incentive marked Due`,
   incentive_request_not_due: () => `Incentive marked Not Due`,
-  incentive_request_reversed: () => `Incentive reversed`,
+  // The kind key stays `…_reversed` (it is a stored value); the banner the
+  // employee reads names what actually happened to their money.
+  incentive_request_reversed: () => `Incentive adjusted — negative payable adjustment`,
   incentive_request_resubmitted: () => `Incentive request resubmitted`,
   incentive_paid: () => `Incentive paid`,
 };

@@ -1405,7 +1405,7 @@ function measureLine(card: BoardCard): string | null {
     return `Tgt ${tq != null ? fmtNum(tq) : "—"}${uom} · Act ${aq != null ? fmtNum(aq) : "—"}${uom}`;
   }
   if (ta != null || aa != null)
-    return `Tgt ₹${ta != null ? fmtNum(ta) : "—"} · Act ₹${aa != null ? fmtNum(aa) : "—"}`;
+    return `Tgt Rs. ${ta != null ? fmtNum(ta) : "—"} · Act Rs. ${aa != null ? fmtNum(aa) : "—"}`;
   return null;
 }
 

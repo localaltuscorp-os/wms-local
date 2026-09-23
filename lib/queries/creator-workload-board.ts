@@ -1,6 +1,5 @@
 import "server-only";
-import { and, gte, lte } from "drizzle-orm";
-import { db, holidays } from "@/lib/db";
+import { listHolidayRowsBetween } from "@/lib/queries/holidays";
 import { istYmd } from "@/lib/weekly-goals/week";
 import { countWorkingDays } from "@/lib/transforms/working-days";
 import {
@@ -48,10 +47,8 @@ export async function creatorWorkloadBoard(
 
   // Working days need the holiday calendar (a DB read), which is why the
   // targets are computed here rather than in the client-safe contract.
-  const holidayRows = await db
-    .select({ holidayDate: holidays.holidayDate })
-    .from(holidays)
-    .where(and(gte(holidays.holidayDate, from), lte(holidays.holidayDate, to)))
+  // The merged calendar (published + ad-hoc + Events Master, minus withdrawn).
+  const holidayRows = await listHolidayRowsBetween(from, to)
     .catch(() => [] as { holidayDate: string }[]);
   const targets = computeActivityTargets(
     calendarDaysBetween(from, to),

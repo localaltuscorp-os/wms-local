@@ -10,7 +10,6 @@ import {
 } from "@/lib/queries/people-allocation";
 import { canAddPerson, canEditPerson, canDeleteSectionEntry } from "@/lib/hh/access";
 import { AllocationScreen } from "@/components/people-allocation/allocation-screen";
-import { AllocationHero } from "./hero";
 import { sweepExpiredEntries } from "./actions";
 import { withRetry, withTimeoutOr } from "@/lib/db/with-timeout";
 import { localDateString } from "@/lib/format";
@@ -21,8 +20,13 @@ import { loadHhCalendarWeek, listHhEmployeeOptions } from "@/lib/queries/hh-cale
 /** HAND-HOLDING — employees and interns, and the sections each carries. */
 export const dynamic = "force-dynamic";
 
-export default async function HandHoldingPage() {
+export default async function HandHoldingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ add?: string }>;
+}) {
   const me = await requireUser();
+  const sp = await searchParams;
 
   // A batch that is over should not still be on the board. Sweeping before the
   // read means the page never paints a row it is about to delete.
@@ -72,7 +76,9 @@ export default async function HandHoldingPage() {
 
   return (
     <PageShell width="wide">
-      <AllocationHero title="Hand-holding" blurb="Select a name to open their sections." />
+      {/* The "Hand-holding · Select a name…" hero band was removed (2026-09-18):
+          the top bar already names the room, and the band pushed the dashboard
+          below the fold for no new information. */}
       <AllocationScreen
         people={people}
         entries={entries}
@@ -86,6 +92,7 @@ export default async function HandHoldingPage() {
         calendarWeek={calendarWeek}
         today={today}
         employeeOptions={employeeOptions}
+        openAdd={canAdd && sp.add === "1"}
       />
     </PageShell>
   );

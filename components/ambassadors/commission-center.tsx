@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Wallet, Check, X, Receipt, History, AlertCircle } from "lucide-react";
 import type { ReferralRow } from "@/lib/queries/ambassadors";
-import { recordPayout } from "@/app/(app)/ambassadors/actions";
+import { recordPayout } from "@/app/(app)/billing/ambassadors/actions";
 import { inr, inrCompact } from "@/lib/ambassadors/format";
 import { fireToast } from "@/lib/toast";
 import { Avatar } from "@/components/ui/avatar";
@@ -453,7 +453,7 @@ function PayoutModal({
 
         {/* body */}
         <div className="space-y-4 px-5 py-5">
-          <Field label="Amount (₹)">
+          <Field label="Amount (Rs.)">
             <input
               ref={amountRef}
               type="number"

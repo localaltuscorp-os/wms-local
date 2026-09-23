@@ -103,6 +103,7 @@ const CATEGORY_OF: Record<NotificationKind, NotificationCategory> = {
   // ── Admin Panel — HR, appraisal, training, broadcasts, partner nudges ──
   training_test_failed: "admin",
   ambassador_reminder: "admin",
+  ce_reference_reminder: "admin",
   hr_confirmation_due: "admin",
   hr_ticket_created: "admin",
   hr_ticket_assigned: "admin",

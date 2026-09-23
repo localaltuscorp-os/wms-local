@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { getCurrentEmployee } from "@/lib/auth/current";
 import { nextPopupBroadcastForEmployee } from "@/lib/ecos/queries";
+import { maybePublishDue } from "@/lib/ecos/publish-due-trigger";
 import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 /**
@@ -9,6 +10,12 @@ import { apiViewDenial } from "@/lib/permissions/api-guard";
  * Polled every few seconds by <BroadcastPopup> on every authed page, which is
  * what makes a broadcast land in front of people within ~5 seconds of the
  * sender pressing Send rather than whenever they next navigate.
+ *
+ * The same poll is what publishes SCHEDULED broadcasts on time: after the
+ * response is sent, `maybePublishDue` checks (at most every 30s per server
+ * instance) whether anything scheduled is due and publishes it. So a broadcast
+ * scheduled for 3pm goes out within about a minute of 3pm while anyone has the
+ * app open, and reaches people through this very poll a few seconds later.
  *
  * `?s=` is the caller's browser-session id (see the component) — the snooze
  * key. It is opaque and client-minted: it identifies nothing but "this browser
@@ -33,6 +40,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   try {
     const me = await getCurrentEmployee();
     if (!me) return NextResponse.json({ broadcast: null });
+
+    // After the response: never slows the poll, never fails it.
+    after(() => maybePublishDue());
 
     const sessionId = new URL(request.url).searchParams.get("s");
     const broadcast = await nextPopupBroadcastForEmployee(me.id, sessionId);

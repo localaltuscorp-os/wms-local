@@ -10,6 +10,7 @@ import { type FyMonthCol } from "@/lib/accounts/cc";
 import { parseAmount, formatINR, sumAmounts, pctOf } from "@/lib/accounts/amounts";
 import { createFnoItem, updateFnoItem, deleteFnoItem, setFnoMonth } from "@/app/(app)/accounts/fno-income/actions";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CELL = "w-full rounded-lg border border-hairline bg-white px-2 py-1.5 text-right text-[12.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-[color:var(--color-altus-red)]";
@@ -52,7 +53,7 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
   }, [months]);
 
   const [q, setQ] = React.useState("");
-  const [fEntity, setFEntity] = React.useState("");
+  const [fEntity, setFEntity] = React.useState<string[]>([]);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState<Draft>(emptyDraft);
@@ -65,7 +66,7 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     return items.filter((r) => {
-      if (fEntity && (r.entity ?? "") !== fEntity) return false;
+      if (fEntity.length > 0 && !fEntity.includes((r.entity ?? ""))) return false;
       if (needle) {
         const hay = [r.code, r.entity, r.agency].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(needle)) return false;
@@ -79,8 +80,8 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
   const grandTotal = sumAmounts(filtered.map((r) => ytd(r.id)));
   const totalCapital = sumAmounts(filtered.map((r) => parseAmount(r.capital)));
 
-  const hasFilters = q || fEntity;
-  function clearFilters() { setQ(""); setFEntity(""); }
+  const hasFilters = q || fEntity.length > 0;
+  function clearFilters() { setQ(""); setFEntity([]); }
   function startAdd() { setEditingId(null); setDraft(emptyDraft()); setAdding(true); }
   function startEdit(r: FnoItemRow) { setAdding(false); setDraft(toDraft(r)); setEditingId(r.id); }
   function cancel() { setAdding(false); setEditingId(null); }
@@ -136,17 +137,21 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - agencies, entity" title="Local search - filters only the list on this page" aria-label="Local search - agencies, entity - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
         </CollapsibleSearch>
-        <select className={CHIP} value={fEntity} onChange={(e) => setFEntity(e.target.value)} aria-label="Filter by entity">
-          <option value="">All Entities</option>
-          {entities.map((a) => (<option key={a} value={a}>{a}</option>))}
-        </select>
+        <MultiFilter
+          className={CHIP}
+          values={fEntity}
+          onChange={setFEntity}
+          options={entities}
+          allLabel="All Entities"
+          aria-label="Filter by entity"
+        />
         {hasFilters && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red"><X size={15} strokeWidth={2.4} /> Clear</button>}
         <button type="button" onClick={startAdd} className="ml-auto inline-flex items-center gap-2 rounded-xl py-2.5 px-4 text-[14.5px] font-bold text-white transition-transform active:scale-[0.99]" style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))", boxShadow: "0 10px 26px -12px rgba(225,6,0,0.6)" }}>
           <Plus size={16} strokeWidth={2.6} /> Add Agency
         </button>
       </div>
 
-      <div className="text-[13px] font-semibold text-ink-subtle">{filtered.length} {filtered.length === 1 ? "agency" : "agencies"}{hasFilters ? ` · filtered from ${items.length}` : ""}{totalCapital ? ` · ₹${formatINR(totalCapital)} capital` : ""}</div>
+      <div className="text-[13px] font-semibold text-ink-subtle">{filtered.length} {filtered.length === 1 ? "agency" : "agencies"}{hasFilters ? ` · filtered from ${items.length}` : ""}{totalCapital ? ` · Rs. ${formatINR(totalCapital)} capital` : ""}</div>
 
       <div className="overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
         <table className="w-full border-collapse text-left" style={{ minWidth: 1080 + cols.length * 96 }}>
@@ -183,7 +188,7 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
                           <span className="font-bold text-ink-strong">{r.agency}</span>
                         </div>
                         <div className="mt-0.5 text-[12px] font-semibold text-ink-subtle">
-                          {[r.entity, capital != null && `₹${formatINR(capital)} capital`].filter(Boolean).join(" · ")}
+                          {[r.entity, capital != null && `Rs. ${formatINR(capital)} capital`].filter(Boolean).join(" · ")}
                         </div>
                       </div>
                     </Td>
@@ -211,7 +216,7 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
                     <Td className="text-right whitespace-nowrap">
                       {ytd(r.id) ? (
                         <div>
-                          <div className="font-bold text-ink-strong">₹{formatINR(ytd(r.id))}</div>
+                          <div className="font-bold text-ink-strong">Rs. {formatINR(ytd(r.id))}</div>
                           {pctOf(ytd(r.id), capital) && <div className="text-[11px] font-bold" style={{ color: "var(--color-green-deep)" }}>{pctOf(ytd(r.id), capital)}</div>}
                         </div>
                       ) : <Dim />}
@@ -227,7 +232,7 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
                 {cols.map((c) => (
                   <td key={c.month} className="px-2 py-3 text-right text-[12.5px] font-bold text-ink-strong whitespace-nowrap">{monthTotal(c.month) ? formatINR(monthTotal(c.month)) : ""}</td>
                 ))}
-                <Td className="text-right font-extrabold text-altus-red whitespace-nowrap">₹{formatINR(grandTotal)}{pctOf(grandTotal, totalCapital) ? ` · ${pctOf(grandTotal, totalCapital)}` : ""}</Td>
+                <Td className="text-right font-extrabold text-altus-red whitespace-nowrap">Rs. {formatINR(grandTotal)}{pctOf(grandTotal, totalCapital) ? ` · ${pctOf(grandTotal, totalCapital)}` : ""}</Td>
                 <Td>{""}</Td>
               </tr>
             )}
@@ -271,7 +276,7 @@ function EditorRow({ colSpan, draft, setDraft, entityOptions, agencyOptions, onS
           <Field label="S. No" className="col-span-2 max-md:col-span-1"><input value={draft.code} onChange={(e) => set({ code: e.target.value })} className={INPUT} placeholder="1" aria-label="S. No" autoFocus /></Field>
           <Field label="Entity" className="col-span-4 max-lg:col-span-2 max-md:col-span-1"><ValueSelect label="entity" kind="fno_entity" options={entityOptions} value={draft.entity} onChange={(v) => set({ entity: v })} placeholder="Entity…" /></Field>
           <Field label="Agency" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><ValueSelect label="agency" kind="fno_agency" options={agencyOptions} value={draft.agency || null} onChange={(v) => set({ agency: v ?? "" })} placeholder="Agency…" /></Field>
-          <Field label="Capital (₹)" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><input value={draft.capital} onChange={(e) => set({ capital: e.target.value })} className={INPUT} inputMode="numeric" placeholder="23000000" aria-label="Capital" /></Field>
+          <Field label="Capital (Rs.)" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><input value={draft.capital} onChange={(e) => set({ capital: e.target.value })} className={INPUT} inputMode="numeric" placeholder="23000000" aria-label="Capital" /></Field>
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button type="button" onClick={onCancel} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-4 py-2 text-[14px] font-bold text-ink-muted hover:bg-surface-soft disabled:opacity-50"><X size={16} strokeWidth={2.4} /> Cancel</button>

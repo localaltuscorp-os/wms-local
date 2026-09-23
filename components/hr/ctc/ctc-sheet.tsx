@@ -7,12 +7,13 @@ import {
   annualOf,
   monthlyOf,
   computeTotals,
-  formatINR,
+
   num,
   type CtcComponentDef,
   type CtcComponents,
   type CtcGroup,
 } from "@/lib/hr/ctc/model";
+import { RsAmount } from "@/components/ui/rs-amount";
 
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
@@ -86,8 +87,8 @@ export function CtcSheet({
       <div className="ctc-top">
         <span className="ctc-top-label">Cost to Company (CTC)</span>
         <span className="ctc-top-figs">
-          <span className="ctc-top-annual">{formatINR(totals.ctcAnnual)}<span className="ctc-top-unit">/yr</span></span>
-          <span className="ctc-top-monthly">{formatINR(totals.ctcMonthly)}<span className="ctc-top-unit">/mo</span></span>
+          <span className="ctc-top-annual"><RsAmount value={totals.ctcAnnual} /><span className="ctc-top-unit">/yr</span></span>
+          <span className="ctc-top-monthly"><RsAmount value={totals.ctcMonthly} /><span className="ctc-top-unit">/mo</span></span>
         </span>
       </div>
 
@@ -128,8 +129,8 @@ export function CtcSheet({
 
             <div className="ctc-subtotal">
               <span>Total {GROUP_LABELS[group]}</span>
-              <span className="ctc-num">{formatINR(sub.monthly)}</span>
-              <span className="ctc-num">{formatINR(sub.annual)}</span>
+              <span className="ctc-num"><RsAmount value={sub.monthly} /></span>
+              <span className="ctc-num"><RsAmount value={sub.annual} /></span>
               <span className="ctc-num">{subPct ? `${subPct.toFixed(1)}%` : "—"}</span>
             </div>
           </section>
@@ -198,10 +199,10 @@ function Row({
         <span className="ctc-row-native">{nativeMonthly ? "/mo" : "/yr"}</span>
       </span>
       <span className="ctc-num ctc-cell">
-        {nativeMonthly ? input : <span className="ctc-derived">{monthly ? formatINR(monthly) : "—"}</span>}
+        {nativeMonthly ? input : <span className="ctc-derived">{monthly ? <RsAmount value={monthly} /> : "—"}</span>}
       </span>
       <span className="ctc-num ctc-cell">
-        {nativeMonthly ? <span className="ctc-derived">{annual ? formatINR(annual) : "—"}</span> : input}
+        {nativeMonthly ? <span className="ctc-derived">{annual ? <RsAmount value={annual} /> : "—"}</span> : input}
       </span>
       <span className="ctc-num ctc-cell">
         <PctInput pct={pct} onCommitPct={onPctChange} onCommit={onCommit} disabled={disabled} label={def.label} />
@@ -277,8 +278,8 @@ function LadderRow({
   return (
     <div className={cls}>
       <span>{label}</span>
-      <span className="ctc-num">{formatINR(monthly)}</span>
-      <span className="ctc-num">{formatINR(annual)}</span>
+      <span className="ctc-num"><RsAmount value={monthly} /></span>
+      <span className="ctc-num"><RsAmount value={annual} /></span>
       <span className="ctc-num" aria-hidden />
     </div>
   );

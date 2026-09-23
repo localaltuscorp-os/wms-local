@@ -12,6 +12,7 @@ import { sendAttendanceConfirmRequestEmail } from "@/lib/dispatch/email";
 import { sendAttendanceConfirmWhatsApp } from "@/lib/whatsapp/approval";
 import { isDispatchV2On, isDispatchV2DryRun } from "@/lib/dispatch/flag";
 import { siteUrl } from "@/lib/site-url";
+import { formatDate } from "@/lib/format";
 
 /**
  * WS-5/WS-7 · Monday attendance-confirmation reminders.
@@ -39,17 +40,13 @@ import { siteUrl } from "@/lib/site-url";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const WEEK_FMT = new Intl.DateTimeFormat("en-IN", {
-  timeZone: "UTC",
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
+const WEEKDAY_FMT = new Intl.DateTimeFormat("en-IN", { timeZone: "UTC", weekday: "short" });
 function weekLabel(weekStartIso: string): string {
   const d = new Date(`${weekStartIso}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return `week of ${weekStartIso}`;
-  return `week of ${WEEK_FMT.format(d)}`;
+  // The weekday still comes from Intl; the DATE is the app-wide DD-MMM-YYYY,
+  // formatted from the ymd string so the UTC-midnight instant cannot shift it.
+  return `week of ${WEEKDAY_FMT.format(d)}, ${formatDate(weekStartIso)}`;
 }
 
 function isAccounts(dept: string | null): boolean {

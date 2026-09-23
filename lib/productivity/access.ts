@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { archivedPerformanceIds } from "./archive";
 
 /**
  * The Productivity Dashboard's access layer (§19, §23).
@@ -89,26 +90,42 @@ export async function canViewProductivityOf(
  * Admin gets every active employee; a manager gets their direct reports; an
  * employee gets an empty list, which is what makes Team Performance
  * inaccessible to them rather than merely hidden.
+ *
+ * ARCHIVED ROWS ARE OUT (migration 0232). Archiving a row on that board means
+ * "stop listing this person here", so the list this returns is the one place it
+ * can be honoured. It is NOT a permission: `canViewProductivityOf` above is
+ * untouched, so an archived person's dashboard still opens from a link, from
+ * `?emp=`, and from every other surface that points at it. Hiding a row and
+ * refusing access are different questions and this module answers them in
+ * different functions.
+ *
+ * The flag is read separately (lib/productivity/archive.ts) rather than joined
+ * into the query, because it is not a column on the drizzle table — see that
+ * file for why naming it in db/schema.ts would break the sign-in on a database
+ * without 0232. On such a database `archivedPerformanceIds` answers `null` and
+ * this returns the roster exactly as it did before the feature existed.
  */
 export async function productivityScopeFor(
   viewer: ProductivityViewer,
 ): Promise<{ id: string; name: string }[]> {
+  let rows: { id: string; name: string }[];
   if (viewer.isAdmin) {
-    const rows = await db
+    rows = await db
       .select({ id: employees.id, name: employees.name })
       .from(employees)
       .where(eq(employees.isActive, true))
       .orderBy(employees.name);
-    return rows;
+  } else {
+    if (!viewer.isManager) return [];
+    const ids = await directReportIds(viewer.id);
+    if (ids.length === 0) return [];
+    rows = await db
+      .select({ id: employees.id, name: employees.name })
+      .from(employees)
+      .where(inArray(employees.id, ids))
+      .orderBy(employees.name);
   }
-  if (!viewer.isManager) return [];
 
-  const ids = await directReportIds(viewer.id);
-  if (ids.length === 0) return [];
-  const rows = await db
-    .select({ id: employees.id, name: employees.name })
-    .from(employees)
-    .where(inArray(employees.id, ids))
-    .orderBy(employees.name);
-  return rows;
+  const away = await archivedPerformanceIds();
+  return away ? rows.filter((r) => !away.has(r.id)) : rows;
 }

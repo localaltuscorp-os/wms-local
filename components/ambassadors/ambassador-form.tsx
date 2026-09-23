@@ -11,7 +11,7 @@ import {
   updateAmbassador,
   addProduct,
   softDeleteProduct,
-} from "@/app/(app)/ambassadors/actions";
+} from "@/app/(app)/billing/ambassadors/actions";
 
 const FIELD =
   "w-full rounded-lg border border-hairline-strong bg-white px-3.5 py-3 text-[15px] font-medium text-ink-strong outline-none transition-colors placeholder:font-normal placeholder:text-ink-subtle focus:border-[color:var(--color-altus-red)] focus-visible:border-[color:var(--color-altus-red)]";
@@ -264,10 +264,10 @@ export function AmbassadorForm({ mode, initial, products, employees }: Props) {
 
   function onCancel() {
     if (mode === "edit" && initial?.id) router.push(`/ambassadors/${initial.id}` as Route);
-    else router.push("/ambassadors/directory" as Route);
+    else router.push("/billing/ambassadors/directory" as Route);
   }
 
-  const valueAdorn = payoutType === "percent" ? "%" : "₹";
+  const valueAdorn = payoutType === "percent" ? "%" : "Rs.";
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
@@ -375,12 +375,12 @@ export function AmbassadorForm({ mode, initial, products, employees }: Props) {
               onChange={setPayoutType}
               options={[
                 { value: "percent", label: "Percent" },
-                { value: "flat", label: "Flat ₹" },
+                { value: "flat", label: "Flat Rs." },
               ]}
             />
           </Field>
           <Field
-            label={payoutType === "percent" ? "Payout Value (%)" : "Payout Value (₹)"}
+            label={payoutType === "percent" ? "Payout Value (%)" : "Payout Value (Rs.)"}
             htmlFor="payoutValue"
           >
             <div className="relative">
@@ -415,13 +415,13 @@ export function AmbassadorForm({ mode, initial, products, employees }: Props) {
 
       <Section title="Monthly Target" hint="What you expect from this partner each month.">
         <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
-          <Field label="Revenue Target (₹)" htmlFor="monthlyTarget">
+          <Field label="Revenue Target (Rs.)" htmlFor="monthlyTarget">
             <div className="relative">
               <span
                 className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[15px] font-bold text-ink-subtle"
                 aria-hidden
               >
-                ₹
+                Rs.
               </span>
               <input
                 id="monthlyTarget"

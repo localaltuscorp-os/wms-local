@@ -7,6 +7,7 @@ import { isRosterOnlyPath } from "@/components/admin/roster-nav";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { DelegationBanner } from "@/components/auth/delegation-banner";
+import { ActivityTracker } from "@/components/logs/activity-tracker";
 
 // Never cache the admin shell — it is per-user (name/email/avatar) and must be
 // resolved fresh on every request so one user's render can never be served to
@@ -58,6 +59,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       >
         {children}
       </AdminShell>
+      {/* The admin panel is a separate layout tree, so it carries its own
+          activity tracker — admin page visits land in the same log as the rest
+          of the WMS, not a separate one. */}
+      <ActivityTracker />
     </>
   );
 }

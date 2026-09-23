@@ -14,6 +14,13 @@ import {
   type TaskRecurrence,
 } from "@/db/enums";
 import { createTask } from "@/app/(app)/tasks/actions";
+import { resolvePlanTargetForTask } from "@/app/(app)/project-plan/actions";
+import {
+  PlanTargetPicker,
+  EMPTY_PLAN_TARGET,
+  type PlanTarget,
+} from "./plan-target-picker";
+import type { PlanPickerNode } from "@/lib/queries/project-plan";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { ScheduleSection, type ScheduleValue } from "./schedule-section";
 import { ClientSelect } from "./client-select";
@@ -21,6 +28,7 @@ import { SubjectSelect } from "./subject-select";
 import { Select } from "@/components/ui/select";
 import { VoiceNoteButton } from "@/components/ui/voice-note-button";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 
 type EmployeeOption = { id: string; name: string };
 
@@ -31,7 +39,13 @@ interface Props {
   /** Subject roster for the "Subject" picker, alphabetical. */
   subjects: string[];
   /** Project tree nodes (path-labelled) for the optional Project link. */
+  /** DEPRECATED shape, kept for callers that still pass it: a flat list of
+   *  every plan row. Superseded by `planNodes`, which drives the cascading
+   *  Project → Milestone → Result → Action picker. */
   projectNodes?: { id: string; label: string }[];
+  /** The plan rows the cascade filters. When supplied it REPLACES the flat
+   *  project select — the two would be two ways to answer one question. */
+  planNodes?: PlanPickerNode[];
   /**
    * May this user add a NEW client / subject from the pickers? Admin only
    * (Sir). Defaults to false, so a caller that forgets it hides the affordance
@@ -57,6 +71,12 @@ interface Props {
     dueAt: string;
     startsAt: string | null;
     endsAt: string | null;
+    /** What the row IS. Handed over because the plan row and the task are one
+     *  record: the host writing only half of it is how the hierarchy's
+     *  Description column ended up empty for every row added from the dialog. */
+    description: string | null;
+    subject: string | null;
+    priority: TaskPriority;
     /** The Links section's URLs, so the host can store them as a list. */
     links: string[];
     /** The Media section's files, for a host that has somewhere to put them. */
@@ -127,6 +147,16 @@ interface Props {
   hideSubject?: boolean;
   /** Drop the Tags field. */
   hideTags?: boolean;
+  /**
+   * An extra control for the BASICS row, owned by the caller.
+   *
+   * The Project module's Client Name lives here. It is not a prop on this form
+   * because it is not a task field: a plan row's client comes from the Project
+   * above it, which is a rule this form has no business knowing. The plan
+   * dialog renders the control and keeps the value; this form only gives it a
+   * place to sit, in the grid beside the name.
+   */
+  extraBasics?: React.ReactNode;
   /** Optional defaults for the form (used by the canonical route + the
    *  Duplicate action, which prefills from an existing task). */
   defaults?: {
@@ -194,12 +224,12 @@ interface PreviewFile {
 }
 
 export function NewTaskForm({
-  employees, clients, subjects, projectNodes = [], canAddRoster = false,
+  employees, clients, subjects, projectNodes = [], planNodes = [], canAddRoster = false,
   onSuccess, defaults, beforeSubmit, createOverride, hideSchedule = false,
   submitLabel = "Create Task",
   titleLabel = "Client Name", titleFreeText = false,
   descriptionLabel = "Task Description",
-  hideSubject = false, hideTags = false,
+  hideSubject = false, hideTags = false, extraBasics,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -211,10 +241,15 @@ export function NewTaskForm({
   );
 
   /** What section 04 still contains, and therefore whether it is drawn at all. */
-  const projectLinkShown = projectNodes.length > 0 && !beforeSubmit && !createOverride;
+  const cascadeShown = planNodes.length > 0 && !beforeSubmit && !createOverride;
+  const projectLinkShown =
+    !cascadeShown && projectNodes.length > 0 && !beforeSubmit && !createOverride;
+  /** The chain the cascade has been filled in with, resolved into a real plan
+   *  row at submit. Empty `projectId` = not filing this task into a plan. */
+  const [planTarget, setPlanTarget] = React.useState<PlanTarget>(EMPTY_PLAN_TARGET);
   const organizeHint = [
     !hideTags && "tags",
-    projectLinkShown && "project",
+    (projectLinkShown || cascadeShown) && "project",
     !hideSchedule && "schedule",
   ]
     .filter(Boolean)
@@ -377,6 +412,36 @@ export function NewTaskForm({
       // Host-supplied row create (Project Plan). Runs first so its id can be
       // stamped onto the task below; an error here stops before any write.
       let linkedNodeId = values.projectNodeId || null;
+
+      // THE CASCADE. Resolved into a real plan row before the task exists, so
+      // the two are one record from the moment both do — and so a refusal (a
+      // stale milestone, an unnamed row) stops here rather than leaving a task
+      // created and unfiled.
+      if (cascadeShown && planTarget.projectId) {
+        if (!planTarget.name.trim()) {
+          setError(
+            `Give the new ${planTarget.actionId ? "sub-action" : "action"} a name — it is the row the Project Plan will show.`,
+          );
+          return;
+        }
+        const target = await resolvePlanTargetForTask({
+          projectId: planTarget.projectId,
+          milestoneId: planTarget.milestoneId,
+          resultId: planTarget.resultId,
+          actionId: planTarget.actionId,
+          name: planTarget.name.trim(),
+          description: values.description || null,
+          // The row is scheduled by the task it is being created with, so the
+          // plan shows it as real work rather than as a row awaiting an owner.
+          ownerId: values.doerIds[0] ?? null,
+          targetDate: dueIso.slice(0, 10),
+        });
+        if (!target.ok) {
+          setError(target.error);
+          return;
+        }
+        linkedNodeId = target.id;
+      }
       if (beforeSubmit) {
         const pre = await beforeSubmit({
           title: values.title,
@@ -384,6 +449,9 @@ export function NewTaskForm({
           dueAt: dueIso,
           startsAt: startsAtIso,
           endsAt: endsAtIso,
+          description: values.description || null,
+          subject: values.subject || null,
+          priority: values.priority,
           links,
           media: media.map((m) => m.file),
         });
@@ -412,6 +480,23 @@ export function NewTaskForm({
         recurrence: schedule.recurrence,
         recurrenceRule: schedule.recurrenceRule,
         projectNodeId: linkedNodeId,
+        // THE CLIENT THE USER ACTUALLY PICKED.
+        //
+        // In this form the first field IS the client — it writes to `title`,
+        // which is why `createTasksCore` has always copied the title into
+        // `client`. That copy became conditional when plan tasks arrived: a
+        // task with a `projectNodeId` takes its client from its PROJECT, so an
+        // action filed through the cascade ignored the client on screen and
+        // showed "—" whenever the project had none.
+        //
+        // Both rules are right; they just needed an order. An explicit choice
+        // wins, and this is where the choice is made — so a client picked here
+        // is the client, and the project's is the fallback for the rows created
+        // from the plan side, where there is no such field to pick from.
+        //
+        // `titleFreeText` is the test: it is TRUE on the plan's own dialog,
+        // where the first field is the row's NAME and there is no client in it.
+        client: titleFreeText ? undefined : values.title,
       });
       if (!result.ok) {
         setError(result.error);
@@ -498,7 +583,7 @@ export function NewTaskForm({
           first field takes the whole row rather than sitting next to a gap. */}
       <div
         className={`grid gap-x-4 gap-y-3 items-start max-md:grid-cols-1 max-md:gap-3 ${
-          hideSubject ? "grid-cols-1" : "grid-cols-2"
+          hideSubject && !extraBasics ? "grid-cols-1" : "grid-cols-2"
         }`}
       >
         <Field id="nt-title" label={titleLabel} required>
@@ -547,6 +632,10 @@ export function NewTaskForm({
             />
           </Field>
         )}
+        {/* Caller-owned. With Subject hidden it takes the second column beside
+            the name — the Project dialog's [ Project Name | Client Name ] row.
+            With Subject shown the grid simply wraps it onto the next line. */}
+        {extraBasics}
       </div>
 
       <SectionHeading step="02" title="Assignment" hint="Owners, priority & deadline" />
@@ -599,6 +688,7 @@ export function NewTaskForm({
                       : [...field.value, id],
                   )
                 }
+                onReplace={(ids) => field.onChange(ids)}
               />
             )}
           />
@@ -696,7 +786,15 @@ export function NewTaskForm({
         </Field>
       )}
 
-      {/* Project link — optional connection to a Project / Milestone / Result. */}
+      {/* Filing into the plan — Project → Milestone → Result → Action. A blank
+          level means "Unclassified", which the server materialises as a real
+          row; see components/tasks/plan-target-picker.tsx. */}
+      {cascadeShown && (
+        <PlanTargetPicker nodes={planNodes} value={planTarget} onChange={setPlanTarget} />
+      )}
+
+      {/* Project link — the older flat select, for callers that still pass
+          `projectNodes` and no `planNodes`. */}
       {projectLinkShown && (
         <Field id="nt-project" label="Project">
           <Controller
@@ -862,10 +960,16 @@ function DoerMultiSelect({
   employees,
   selected,
   onToggle,
+  onReplace,
 }: {
   employees: EmployeeOption[];
   selected: string[];
   onToggle: (id: string) => void;
+  /** Sets the whole selection at once — what Select all / Clear need. A loop
+   *  over `onToggle` cannot do it: the caller's handler closes over the
+   *  current `field.value`, so every call in the same tick would start from
+   *  the same stale list and only the last would survive. */
+  onReplace: (ids: string[]) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -1045,6 +1149,16 @@ function DoerMultiSelect({
         }}
         className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[14rem] overflow-hidden"
       >
+          {/* Everyone in one click, then untick the one or two who aren't on
+              this task — the usual shape of a task with many doers. */}
+          <SelectAllBar
+            compact
+            count={selected.length}
+            total={employees.length}
+            emptyLabel="No doers yet"
+            onSelectAll={() => onReplace(employees.map((e) => e.id))}
+            onClear={() => onReplace([])}
+          />
           <ul
             ref={listRef}
             role="listbox"
@@ -1217,7 +1331,7 @@ function DoerCountLabel({ control }: { control: Control<NewTaskFormValues> }) {
   return <>{`Doer${n > 1 ? ` · ${n} selected` : ""}`}</>;
 }
 
-function Field({
+export function Field({
   id,
   label,
   required,

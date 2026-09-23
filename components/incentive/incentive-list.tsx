@@ -4,6 +4,11 @@ import * as React from "react";
 import { Inbox } from "lucide-react";
 import { INCENTIVE_STATUS_LABELS, INCENTIVE_TYPE_LABELS, INCENTIVE_TYPES } from "@/db/enums";
 import { INCENTIVE_DATE_KEY, incentiveDetailPairs } from "@/lib/incentive-fields";
+import {
+  requestIntroducerName,
+  requestProductCodes,
+  requestProspectName,
+} from "@/lib/incentive/request-display";
 import { defaultIncentiveAmount } from "@/lib/incentive-amount";
 import { formatPct } from "@/lib/incentive/split";
 import {
@@ -57,6 +62,10 @@ export function IncentiveList({
   me,
   employees,
   products,
+  productCodes = {},
+  shiftTypes = [],
+  monthlyCtc,
+  defaultShift,
   focusRequestId = null,
 }: {
   rows: IncentiveRequestRow[];
@@ -67,6 +76,14 @@ export function IncentiveList({
   me: { id: string; name: string };
   employees: EmployeeOption[];
   products: string[];
+  /** NAME → short code from Admin → Products, for the Product Code column. */
+  productCodes?: Record<string, string>;
+  /** Active shift names (Admin → Shift Types) — the Sales Pitch Shift field. */
+  shiftTypes?: string[];
+  /** The viewer's own CTC ÷ 12, formatted — shown read-only on the form. */
+  monthlyCtc?: string;
+  /** The viewer's own shift name, offered as the Shift default. */
+  defaultShift?: string | null;
   /** Opened from a notification: this request starts expanded and in view. */
   focusRequestId?: string | null;
 }) {
@@ -98,6 +115,22 @@ export function IncentiveList({
       return qa - qb || b.createdAt.getTime() - a.createdAt.getTime();
     });
   }, [rows, canReview]);
+
+  /**
+   * PROSPECT · INTRODUCER · PRODUCT CODE, read from the request's own details.
+   *
+   * These three used to exist only inside the expanded row, which meant the
+   * question a reader actually opens the list with — "who was this for, who
+   * brought it in, and what did we sell" — cost a click per row. They are in
+   * the table now, and the detail panel keeps the whole submission.
+   *
+   * Product Code is the SHORT form from the Product Master (PS, BSS, 2-Day);
+   * a product the admin has not coded prints its name rather than a blank.
+   */
+  // The three lookups are shared with the salary slip's incentive statement
+  // (lib/incentive/request-display.ts), so the table and the PDF read one
+  // request the same way.
+  const productCodesFor = (r: IncentiveRequestRow) => requestProductCodes(r, productCodes);
 
   const columns: DataTableColumn<IncentiveRequestRow>[] = [
     ...(showEmployee
@@ -162,6 +195,62 @@ export function IncentiveList({
       },
     },
     {
+      key: "prospect",
+      label: "Prospect",
+      sortValue: (r) => requestProspectName(r),
+      render: (r) => {
+        const name = requestProspectName(r);
+        const org = (r.details?.organisation ?? "").trim();
+        return name ? (
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-[13px] font-semibold text-ink-strong">{name}</span>
+            {org && <span className="truncate text-[12px] text-ink-subtle">{org}</span>}
+          </span>
+        ) : (
+          <span className="text-[12.5px] text-ink-subtle">—</span>
+        );
+      },
+    },
+    {
+      key: "introducer",
+      label: "Introducer",
+      sortValue: (r) => requestIntroducerName(r),
+      render: (r) => {
+        const name = requestIntroducerName(r);
+        return name ? (
+          <span className="text-[13px] font-semibold text-ink-strong">{name}</span>
+        ) : (
+          <span className="text-[12.5px] text-ink-subtle">—</span>
+        );
+      },
+    },
+    {
+      key: "productCode",
+      label: "Product Code",
+      sortValue: (r) => productCodesFor(r).join(", "),
+      render: (r) => {
+        const codes = productCodesFor(r);
+        if (codes.length === 0) return <span className="text-[12.5px] text-ink-subtle">—</span>;
+        return (
+          <span className="flex flex-wrap gap-1">
+            {codes.map((c) => (
+              <span
+                key={c}
+                className="inline-flex items-center rounded-md border px-1.5 py-0.5 text-[12px] font-bold tabular-nums"
+                style={{
+                  borderColor: "var(--color-hairline-strong)",
+                  color: "var(--color-ink-strong)",
+                }}
+                title={c}
+              >
+                {c}
+              </span>
+            ))}
+          </span>
+        );
+      },
+    },
+    {
       key: "status",
       label: "Status",
       sortValue: (r) => INCENTIVE_STATUS_LABELS[r.status] ?? r.status,
@@ -201,6 +290,9 @@ export function IncentiveList({
           me={me}
           employees={employees}
           products={products}
+          shiftTypes={shiftTypes}
+          monthlyCtc={monthlyCtc}
+          defaultShift={defaultShift}
         />
       ))}
 
@@ -310,7 +402,9 @@ function RequestDetail({
       {row.decisionNote && !canResubmit(row.status) && (isOwner || canReview) && (
         <div className="rounded-xl border border-hairline bg-surface-card px-3.5 py-2.5">
           <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">
-            {row.status === "reversed" ? "Reversal reason" : "Decision note"}
+            {row.status === "reversed"
+              ? "Negative payable adjustment — reason"
+              : "Decision note"}
           </span>
           <p className="whitespace-pre-wrap break-words text-[13.5px] text-ink-strong">
             {row.decisionNote}
@@ -373,12 +467,18 @@ function ResubmitCallout({
   row,
   me,
   employees,
+  shiftTypes = [],
+  monthlyCtc,
+  defaultShift,
   products,
 }: {
   row: IncentiveRequestRow;
   me: { id: string; name: string };
   employees: EmployeeOption[];
   products: string[];
+  shiftTypes?: string[];
+  monthlyCtc?: string;
+  defaultShift?: string | null;
 }) {
   const rejected = row.status === "rejected";
   return (
@@ -413,6 +513,9 @@ function ResubmitCallout({
         <IncentiveFormDialog
           products={products}
           employees={employees}
+          shiftTypes={shiftTypes}
+          monthlyCtc={monthlyCtc}
+          defaultShift={defaultShift}
           me={me}
           resubmit={{
             id: row.id,

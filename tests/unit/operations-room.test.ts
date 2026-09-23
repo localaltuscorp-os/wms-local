@@ -58,10 +58,12 @@ describe("the Operations room", () => {
   });
 
   it("does not swallow a prefix that merely starts the same way", () => {
-    // /projects and /project-plan are WMS and Project respectively; neither is
-    // an Operations path, and none of Operations' prefixes may claim them.
-    expect(workspaceForPath("/projects")).toBe("wms");
+    // `/project-plan` is the Project room and is not an Operations path, so
+    // none of Operations' prefixes may claim it. The older `/projects` board
+    // that used to sit beside it on the WMS rail was removed — /project-plan
+    // is the only project surface now — so nothing maps it any more.
     expect(workspaceForPath("/project-plan")).toBe("project-plan");
+    expect(workspaceForPath("/projects")).toBeNull();
   });
 
   it("has a hub card, and the two absorbed rooms no longer do", () => {

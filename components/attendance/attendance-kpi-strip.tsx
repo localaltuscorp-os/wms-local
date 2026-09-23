@@ -91,7 +91,7 @@ export function AttendanceKpiStrip({
 }) {
   const [period, setPeriod] = React.useState<SelfPeriodKey>("thisWeek");
   const s: SelfPeriod = data[period];
-  const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+  const inr = (n: number) => `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
 
   const workedAhead = s.requiredElapsedHours <= 0 || s.workedHours >= s.requiredElapsedHours;
   const graceCondoned = s.graceDays + s.condonedDays;
@@ -216,53 +216,43 @@ export function AttendanceKpiStrip({
   ];
 
   const kpis = all.filter((k) => k.show);
-  const n = kpis.length;
+  const cardCount = kpis.length;
 
-  // ── DYNAMIC SIZING ─────────────────────────────────────────────────────────
-  // ≤6 tiles → one comfortable row (cols = n). 7+ → two balanced rows, the
-  // column count derived from the survivor count so the rows are even and the
-  // second never strands a single card. Tiles shrink in the two-row case so the
-  // pair is no taller than the single row it replaced.
-  const twoRows = n > 6;
-  const cols = twoRows ? Math.ceil(n / 2) : n;
-  const gap = twoRows ? 9 : 10;
-
-  const cardBase: React.CSSProperties = {
-    flex: `1 1 calc(100% / ${cols} - ${gap}px)`,
-    minWidth: 150,
-    minHeight: twoRows ? 82 : 104,
-    padding: twoRows ? 11 : 14,
-  };
-  const valueSize = twoRows ? 21 : 23;
-
+  // The overview is intentionally capped at four readable cards per desktop
+  // row. Additional, meaningful status cards continue on a balanced second
+  // row instead of becoming tiny or forcing a horizontal scroll.
   return (
     <section
-      className="wg-rise w-full rounded-[20px] bg-surface-card p-3.5 max-md:p-3"
+      className="wg-rise w-full rounded-[22px] bg-surface-card p-4 max-md:p-3"
       style={{
         boxShadow:
           "inset 0 0 0 1px var(--color-hairline), 0 6px 24px -18px rgba(15,23,42,0.25)",
       }}
     >
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2
-          className="text-ink-strong"
-          style={{
-            fontFamily: "var(--font-display), system-ui, sans-serif",
-            fontWeight: 900,
-            fontSize: 16,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          {title}
-        </h2>
-        <div className="inline-flex rounded-chip border border-hairline bg-surface-soft p-0.5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-ink-subtle">Attendance overview</p>
+          <h2
+            className="mt-0.5 text-ink-strong"
+            style={{
+              fontFamily: "var(--font-display), system-ui, sans-serif",
+              fontWeight: 900,
+              fontSize: 18,
+              letterSpacing: "-0.025em",
+            }}
+          >
+            {title}
+          </h2>
+        </div>
+        <div className="inline-flex max-w-full overflow-x-auto rounded-xl border border-hairline bg-surface-soft p-1">
+          {/* The chosen range is kept adjacent to the summary title. */}
           {PERIODS.map((p) => (
             <button
               key={p.key}
               type="button"
               onClick={() => setPeriod(p.key)}
               aria-pressed={period === p.key}
-              className="rounded-[9px] px-2.5 py-1 text-[11.5px] font-bold transition-colors"
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-[11.5px] font-bold transition-colors"
               style={
                 period === p.key
                   ? { background: "linear-gradient(135deg,#E10600,#A80400)", color: "#fff" }
@@ -274,19 +264,21 @@ export function AttendanceKpiStrip({
           ))}
         </div>
       </div>
-
-      {/* Balanced flex layout: exactly `cols` tiles per row on a wide screen
-          (flex-grow fills the row), wrapping to fewer as the width drops so it
-          never overflows or strands an uneven remainder. */}
-      <div className="flex flex-wrap" style={{ gap }}>
+      <div
+        className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5"
+        style={{ gridTemplateColumns: cardCount === 1 ? "minmax(0, 1fr)" : undefined }}
+      >
         {kpis.map((k) => (
           <div
             key={k.key}
-            className="min-w-0 rounded-xl border"
+            title={`${k.label}: ${k.value}${k.sub ? ` ${k.sub}` : ""}`}
+            className="min-w-0 rounded-2xl border px-3.5 py-3 transition-transform duration-150 hover:-translate-y-0.5"
             style={{
-              ...cardBase,
               ...(k.solid
-                ? { borderColor: RED, background: RED, color: "#fff" }
+                ? {
+                    borderColor: "color-mix(in srgb, #E10600 25%, transparent)",
+                    background: "color-mix(in srgb, #E10600 6%, var(--color-surface-card))",
+                  }
                 : {
                     borderColor: k.warn
                       ? `color-mix(in srgb, ${k.tone} 30%, transparent)`
@@ -297,31 +289,33 @@ export function AttendanceKpiStrip({
                   }),
             }}
           >
-            <div
-              className="flex items-start gap-1 text-[9.5px] font-bold uppercase leading-tight tracking-wide"
-              style={{ color: k.solid ? "#fff" : k.tone }}
-            >
-              <span className="mt-px shrink-0">{k.icon}</span>
-              <span className="min-w-0">{k.label}</span>
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-grid size-7 shrink-0 place-items-center rounded-lg"
+                style={{
+                  background: `color-mix(in srgb, ${k.tone} 10%, transparent)`,
+                  color: k.tone,
+                }}
+              >
+                {k.icon}
+              </span>
+              <span className="min-w-0 text-[10px] font-black uppercase leading-tight tracking-[0.08em]" style={{ color: k.tone }}>
+                {k.label}
+              </span>
             </div>
-            <div className="mt-1.5 flex items-baseline gap-1">
+            <div className="mt-2 flex items-baseline gap-1">
               <span
                 className="font-black tabular-nums"
                 style={{
-                  fontSize: valueSize,
+                  fontSize: 24,
                   letterSpacing: "-0.02em",
-                  color: k.solid ? "#fff" : "var(--color-ink-strong)",
+                  color: "var(--color-ink-strong)",
                 }}
               >
                 {k.value}
               </span>
               {k.sub && (
-                <span
-                  className="text-[11.5px] font-semibold"
-                  style={{
-                    color: k.solid ? "rgba(255,255,255,0.85)" : "var(--color-ink-subtle)",
-                  }}
-                >
+                <span className="text-[11.5px] font-semibold text-ink-subtle">
                   {k.sub}
                 </span>
               )}

@@ -353,7 +353,17 @@ export interface IncentiveEntryStatusRow {
  * editor + team-split launcher. Project-based incentives keep their split on the
  * two legs (supervisor/intern) and are handled by the existing Entries surface.
  */
-export async function listIncentiveEntriesStatus(year: number): Promise<IncentiveEntryStatusRow[]> {
+export async function listIncentiveEntriesStatus(
+  year: number,
+  /**
+   * THE VISIBILITY CEILING, by NAME — same contract as
+   * `listIncentiveEntriesAdmin` (null = no narrowing, empty = nobody).
+   */
+  opts: { visibleNames?: ReadonlySet<string> | null } = {},
+): Promise<IncentiveEntryStatusRow[]> {
+  const visible = opts.visibleNames ?? null;
+  if (visible && visible.size === 0) return [];
+
   const start = `${year}-01-01`;
   const end = `${year + 1}-01-01`;
   const [entries, participants, removed] = await Promise.all([
@@ -371,6 +381,7 @@ export async function listIncentiveEntriesStatus(year: number): Promise<Incentiv
   }
   return entries
     .filter((e) => !removed.has(nameKey(e.empName)))
+    .filter((e) => !visible || visible.has(nameKey(e.empName)))
     .map((e) => ({
     id: e.id,
     incentiveName: e.incentiveName,

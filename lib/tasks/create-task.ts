@@ -9,6 +9,7 @@ import { taskLabel } from "@/lib/tasks/set-status";
 import { emit } from "@/lib/events/emit";
 import { taskCreated } from "@/lib/events/task-events";
 import { nudgeRelay } from "@/lib/relay/nudge";
+import { clientForNode } from "@/lib/queries/project-plan";
 
 /**
  * Transport-agnostic core for creating one or more tasks (multi-doer fan-out).
@@ -31,6 +32,33 @@ export async function createTasksCore(
   const doerIds = parsed.doerIds ?? (parsed.doerId ? [parsed.doerId] : []);
   if (doerIds.length === 0) return { ok: false, error: "At least one doer is required" };
 
+  /**
+   * THE CLIENT, RESOLVED ONCE FOR EVERY PATH THAT REACHES THIS FUNCTION.
+   *
+   *   plan row, no explicit client  →  the client on the PROJECT above it
+   *   explicit client               →  that, null included
+   *   neither                       →  the title, which is what the WMS New
+   *                                    Task form has always meant by it
+   *
+   * IT IS RESOLVED HERE rather than at each call site because there are four of
+   * them — the New Item dialog, the inline "+", the bulk upload and the lazy
+   * `syncNodeTask` — and three of them had no idea a project had a client. The
+   * dialog was the one still filing every action it created under the action's
+   * OWN NAME, because it creates its task through the ordinary WMS path and
+   * that path falls back to the title.
+   *
+   * One rule, one place: a task that belongs to a plan row is filed under that
+   * plan's client, however it came to exist.
+   */
+  let client: string | null;
+  if (parsed.client !== undefined) {
+    client = parsed.client;
+  } else if (parsed.projectNodeId) {
+    client = await clientForNode(parsed.projectNodeId);
+  } else {
+    client = parsed.title;
+  }
+
   const createdIds: string[] = [];
   const notifyIntents: Array<Parameters<typeof notify>[0]> = [];
   const label = taskLabel({ subject: parsed.subject ?? null, title: parsed.title });
@@ -49,7 +77,7 @@ export async function createTasksCore(
           .values({
             id: taskId,
             title: parsed.title,
-            client: parsed.title,
+            client,
             description: parsed.description,
             subject: parsed.subject,
             notes: parsed.notes,

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Paperclip, X, ShieldAlert, Send, Inbox } from "lucide-react";
+import { Loader2, Mic, Paperclip, X, ShieldAlert, Send, Inbox } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import {
   HR_TICKET_CATEGORIES,
@@ -11,11 +11,68 @@ import {
   HR_TICKET_PRIORITY_LABELS,
   type HrTicketCategory,
 } from "@/db/enums";
-import { CATEGORY_GLYPH } from "@/lib/hr/ticket-ui";
+import { CATEGORY_ICON } from "@/lib/hr/ticket-ui";
+import { Select } from "@/components/ui/select";
+import { useDictation, type Dictation } from "@/components/ui/use-dictation";
 import { raiseTicket } from "@/app/(app)/support/actions";
+
+/** The topic dropdown's options. Labels only — a <Select> option is text, which
+ *  is the point: there is no way for an emoji to get back in here. */
+const TOPIC_OPTIONS = HR_TICKET_CATEGORIES.map((c) => ({
+  value: c,
+  label: HR_TICKET_CATEGORY_LABELS[c],
+}));
 
 const RED = "var(--color-altus-red)";
 const RED_DEEP = "var(--color-altus-red-deep)";
+
+function DictationButton({
+  dictation,
+  label,
+  onToggle,
+  position = "center",
+}: {
+  dictation: Dictation;
+  label: string;
+  onToggle: () => void;
+  position?: "center" | "top";
+}) {
+  const hint = !dictation.supported
+    ? "Voice dictation isn't available in this browser — use Chrome or Edge."
+    : dictation.recording
+      ? `Stop dictating ${label}`
+      : `Dictate ${label}`;
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={!dictation.supported}
+      aria-pressed={dictation.recording}
+      aria-label={hint}
+      title={hint}
+      className={`absolute right-2.5 z-10 inline-flex size-8 items-center justify-center rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        position === "top" ? "top-3" : "top-1/2 -translate-y-1/2"
+      } ${
+        dictation.recording
+          ? "animate-pulse border-transparent bg-altus-red text-white"
+          : "border-hairline bg-white text-ink-muted hover:border-altus-red hover:text-altus-red"
+      }`}
+    >
+      <Mic size={15} strokeWidth={2.5} aria-hidden />
+    </button>
+  );
+}
+
+function DictationPreview({ dictation }: { dictation: Dictation }) {
+  if (!dictation.recording) return null;
+  return (
+    <p className="mt-1.5 text-[12px] font-semibold text-altus-red" aria-live="polite">
+      Listening — tap the mic to stop.
+      {dictation.interim && <span className="ml-1 font-normal italic text-ink-muted">“{dictation.interim}”</span>}
+    </p>
+  );
+}
 
 /**
  * Raise a ticket. `mode="support"` shows the full form (category cards +
@@ -52,7 +109,27 @@ export function TicketComposer({
   const [priority, setPriority] = React.useState("normal");
   const [files, setFiles] = React.useState<File[]>([]);
   const [dragOver, setDragOver] = React.useState(false);
+  const [subject, setSubject] = React.useState(initialSubject ?? "");
+  const [description, setDescription] = React.useState(initialDescription ?? "");
   const subjectRef = React.useRef<HTMLInputElement>(null);
+  const subjectDictation = useDictation({
+    value: subject,
+    onChange: (next) => setSubject(next.slice(0, 200)),
+  });
+  const descriptionDictation = useDictation({
+    value: description,
+    onChange: (next) => setDescription(next.slice(0, 8000)),
+  });
+
+  function toggleSubjectDictation() {
+    descriptionDictation.stop();
+    subjectDictation.toggle();
+  }
+
+  function toggleDescriptionDictation() {
+    subjectDictation.stop();
+    descriptionDictation.toggle();
+  }
 
   React.useEffect(() => {
     // A prefilled subject is already the right words — put the cursor in the
@@ -72,6 +149,8 @@ export function TicketComposer({
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busy) return;
+    subjectDictation.stop();
+    descriptionDictation.stop();
     const form = new FormData(e.currentTarget);
     form.set("category", category);
     form.set("source", mode);
@@ -95,7 +174,7 @@ export function TicketComposer({
   }
 
   return (
-    <form onSubmit={submit} className="wg-rise space-y-6">
+    <form onSubmit={submit} className={`wg-rise ${isQuery ? "space-y-4" : "space-y-6"}`}>
       {contextNote && (
         <div
           className="flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-[13px] font-medium"
@@ -114,6 +193,7 @@ export function TicketComposer({
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             {HR_TICKET_CATEGORIES.map((c) => {
               const active = category === c;
+              const CatIcon = CATEGORY_ICON[c];
               return (
                 <button
                   type="button"
@@ -126,7 +206,7 @@ export function TicketComposer({
                     boxShadow: active ? `0 0 0 1px ${RED} inset` : "none",
                   }}
                 >
-                  <span className="text-[18px] leading-none">{CATEGORY_GLYPH[c]}</span>
+                  <CatIcon size={16} strokeWidth={2.2} className="shrink-0" style={{ color: active ? RED : "var(--color-ink-subtle)" }} />
                   <span className="text-[13px] font-semibold text-ink-strong">
                     {HR_TICKET_CATEGORY_LABELS[c]}
                   </span>
@@ -134,26 +214,6 @@ export function TicketComposer({
               );
             })}
           </div>
-        </div>
-      )}
-
-      {isQuery && (
-        <div>
-          <label htmlFor="cat" className="mb-2 block text-[12px] font-bold uppercase tracking-[0.14em] text-ink-muted">
-            Topic
-          </label>
-          <select
-            id="cat"
-            value={category}
-            onChange={(e) => setCategory(e.target.value as HrTicketCategory)}
-            className="w-full rounded-xl border border-hairline bg-surface-card px-3.5 py-2.5 text-[14px] font-medium text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
-          >
-            {HR_TICKET_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {HR_TICKET_CATEGORY_LABELS[c]}
-              </option>
-            ))}
-          </select>
         </div>
       )}
 
@@ -170,36 +230,91 @@ export function TicketComposer({
         </div>
       )}
 
-      <div>
-        <label htmlFor="subject" className="mb-2 block text-[12px] font-bold uppercase tracking-[0.14em] text-ink-muted">
-          {isQuery ? "Your question, in one line" : "Subject"}
-        </label>
-        <input
-          id="subject"
-          name="subject"
-          ref={subjectRef}
-          required
-          maxLength={200}
-          defaultValue={initialSubject}
-          placeholder={isQuery ? "e.g. How many casual leaves do I have left?" : "Short summary of your request"}
-          className="w-full rounded-xl border border-hairline bg-surface-card px-3.5 py-2.5 text-[15px] font-medium text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
-        />
-      </div>
+      {/* ONE ROW IN QUERY MODE: topic, then the question.
+          Topic is a DROPDOWN, not the chip row it briefly was. Nine chips took
+          two full rows at the top of the form and pushed everything the page is
+          actually about below the fold; a topic is picked once and then never
+          looked at again, so it does not deserve the most prominent real estate
+          on the page. The context box spans both columns underneath.
 
-      <div>
-        <label htmlFor="description" className="mb-2 block text-[12px] font-bold uppercase tracking-[0.14em] text-ink-muted">
-          {isQuery ? "Anything else? (optional context)" : "Details"}
-        </label>
-        <textarea
-          id="description"
-          name="description"
-          required={!isQuery}
-          rows={isQuery ? 3 : 6}
-          maxLength={8000}
-          defaultValue={initialDescription}
-          placeholder={isQuery ? "Add any details that help HR answer you faster." : "Describe your request — dates, amounts, people, anything relevant."}
-          className="w-full resize-y rounded-xl border border-hairline bg-surface-card px-3.5 py-3 text-[14.5px] leading-relaxed text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
-        />
+          In support mode the wrapper is just the form's own `space-y-6` rhythm,
+          so that layout is unchanged. */}
+      <div
+        className={
+          isQuery
+            ? "grid items-start gap-x-4 gap-y-4 lg:grid-cols-[minmax(190px,230px)_minmax(0,1fr)]"
+            : "space-y-6"
+        }
+      >
+        {isQuery && (
+          <div>
+            <label
+              htmlFor="topic"
+              className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted"
+            >
+              Topic
+            </label>
+            <Select
+              id="topic"
+              options={TOPIC_OPTIONS}
+              value={category}
+              onValueChange={(v) => setCategory(v as HrTicketCategory)}
+              ariaLabel="Topic"
+              searchable={false}
+              className="h-[42px] w-full"
+            />
+          </div>
+        )}
+        <div>
+          <label htmlFor="subject" className={`block font-bold uppercase text-ink-muted ${
+              isQuery ? "mb-1.5 text-[11px] tracking-[0.1em]" : "mb-2 text-[12px] tracking-[0.14em]"
+            }`}>
+            {isQuery ? "Your question, in one line" : "Subject"}
+          </label>
+          <div className="relative">
+            <input
+              id="subject"
+              name="subject"
+              ref={subjectRef}
+              required
+              maxLength={200}
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder={isQuery ? "e.g. How many casual leaves do I have left?" : "Short summary of your request"}
+              className="w-full rounded-xl border border-hairline bg-surface-card py-2.5 pl-3.5 pr-11 text-[15px] font-medium text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
+            />
+            <DictationButton dictation={subjectDictation} label="your question" onToggle={toggleSubjectDictation} />
+          </div>
+          <DictationPreview dictation={subjectDictation} />
+        </div>
+
+        <div className={isQuery ? "lg:col-span-2" : undefined}>
+          <label htmlFor="description" className={`block font-bold uppercase text-ink-muted ${
+              isQuery ? "mb-1.5 text-[11px] tracking-[0.1em]" : "mb-2 text-[12px] tracking-[0.14em]"
+            }`}>
+            {isQuery ? "Anything else? (optional context)" : "Details"}
+          </label>
+          <div className="relative">
+          <textarea
+            id="description"
+            name="description"
+            required={!isQuery}
+            rows={isQuery ? 2 : 6}
+            maxLength={8000}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={isQuery ? "Add any details that help HR answer you faster." : "Describe your request — dates, amounts, people, anything relevant."}
+            className="w-full resize-y rounded-xl border border-hairline bg-surface-card px-3.5 py-3 pr-11 text-[14.5px] leading-relaxed text-ink-strong outline-none focus:border-[var(--color-altus-red)]"
+          />
+          <DictationButton
+            dictation={descriptionDictation}
+            label="the context"
+            onToggle={toggleDescriptionDictation}
+            position="top"
+          />
+          </div>
+          <DictationPreview dictation={descriptionDictation} />
+        </div>
       </div>
 
       {!isQuery && (
@@ -287,6 +402,14 @@ export function TicketComposer({
           {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} />}
           {isQuery ? "Send to HR" : "Raise ticket"}
         </button>
+        {isQuery && (
+          /* The question every first-time asker has, answered where they are
+             about to act rather than in a paragraph at the top they have
+             already scrolled past. */
+          <span className="text-[12.5px] text-ink-muted">
+            It appears below as a question you can track, and HR is notified.
+          </span>
+        )}
       </div>
     </form>
   );

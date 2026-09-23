@@ -28,7 +28,7 @@ const template: LetterTemplate = {
   blocks: [
     para(
       t("Date: "),
-      f("letterDate", "Date", { placeholder: "e.g. 25 July 2026", date: true }),
+      f("letterDate", "Date", { placeholder: "DD-MMM-YYYY", date: true }),
       t("     Place: Mumbai"),
     ),
     spacer("sm"),
@@ -59,12 +59,12 @@ const template: LetterTemplate = {
     term("Designation", f("designation", "Designation", { placeholder: "e.g. Executive" })),
     term("Probation Period", t("6 Months")),
     term("Salary During Probation", [
-      t("₹"),
+      t("Rs. "),
       f("salaryProbation", "Monthly Salary (Probation)", { placeholder: "e.g. 25,000" }),
       t(" per month"),
     ]),
     term("Salary After Probation", [
-      t("₹"),
+      t("Rs. "),
       f("salaryConfirmed", "Monthly Salary (Confirmed)", { placeholder: "e.g. 30,000" }),
       t(" per month"),
     ]),
@@ -87,7 +87,7 @@ const template: LetterTemplate = {
       ),
     ),
     para(
-      t("During your probation period, your Monthly Business Target will be ₹"),
+      t("During your probation period, your Monthly Business Target will be Rs. "),
       f("monthlyTarget", "Monthly Business Target", { placeholder: "e.g. 2,00,000" }),
       t("."),
     ),
@@ -185,12 +185,12 @@ const template: LetterTemplate = {
       ),
     ),
     term("Proposed Date of Joining", f("proposedJoiningDate", "Proposed Date of Joining", {
-      placeholder: "e.g. 5 August 2026",
+      placeholder: "DD-MMM-YYYY",
       date: true,
     })),
     term("Candidate Name", f("candidateName", "Candidate Name", { placeholder: "Full name" })),
     term("Candidate Signature", t("____")),
-    term("Date", f("candidateSignDate", "Date", { placeholder: "Signed on", date: true })),
+    term("Date", f("candidateSignDate", "Date", { placeholder: "DD-MMM-YYYY", date: true })),
   ],
 };
 

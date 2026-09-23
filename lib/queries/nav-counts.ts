@@ -1,19 +1,25 @@
-import { and, count, eq, inArray } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { db, tasks } from "@/lib/db";
-import { PENDING_STATUSES } from "@/db/enums";
 import { getUnreadCount } from "@/lib/queries/notifications";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 
 /**
  * Nav-badge task counters.
  *
- * `activeTasks` is the count of OPEN work — unarchived tasks still in a
- * pending status (Not Read, Not Started, Initiated, Follow-ups, Need
- * Help/Info). Terminal states (done / approved / not_approved / cancelled /
- * transferred) are deliberately excluded so the badge reflects "work to do"
- * and drops as tasks are completed, rather than ballooning with every
- * approved-but-never-archived row. `archivedTasks` is the soft-deleted total.
+ * `activeTasks` is the count of tasks ON THE LIST — every unarchived task,
+ * whatever its status. `archivedTasks` is the soft-deleted total.
+ *
+ * IT USED TO COUNT ONLY PENDING STATUSES ("work to do"), which made the badge
+ * and the list disagree: the Tasks screen showed thirteen rows while the badge
+ * said eight, and archiving a task that was already Done moved the list but not
+ * the number. Sir, 2026-09: "I have 9 tasks, and if I archive whatever task
+ * then reduce the number." So the badge now counts what the list holds — one
+ * number, one meaning — and archiving ANY task takes one off it.
+ *
+ * The cost of that choice, kept here on purpose: a task that is finished but
+ * never archived still counts. The badge is "what is in your list", not "what
+ * is left to do"; closing a task no longer moves it, archiving it does.
  *
  * Both invalidate via `revalidateTag(CACHE_TAGS.tasks)` — fired by every
  * create / status-change / archive / restore path — so the badge stays live;
@@ -22,12 +28,7 @@ import { CACHE_TAGS } from "@/lib/cache-tags";
 const fetchTaskTotals = unstable_cache(
   async (): Promise<{ activeTasks: number; archivedTasks: number }> => {
     const [openRows, archivedRows] = await Promise.all([
-      db
-        .select({ n: count() })
-        .from(tasks)
-        .where(
-          and(eq(tasks.archived, false), inArray(tasks.status, [...PENDING_STATUSES])),
-        ),
+      db.select({ n: count() }).from(tasks).where(eq(tasks.archived, false)),
       db.select({ n: count() }).from(tasks).where(eq(tasks.archived, true)),
     ]);
     return {

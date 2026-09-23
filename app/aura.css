@@ -232,12 +232,17 @@
 }
 
 /* ── MODULE TABS ──────────────────────────────────────────────────────────
-   Quick access to the first few rooms. They drop out one at a time as the bar
-   narrows — which is safe ONLY because the "More" menu beside them lists EVERY
-   room, not just the ones that overflowed. An overflow-only menu computed from
-   a width measurement would leave a module unreachable at any width the
-   measurement got wrong; this cannot. */
-.aura-tabs { display: flex; align-items: center; gap: 4px; min-width: 0; }
+   WMS, Goals and Project, then "More" for every other room (account holder,
+   2026-09-19). On a window too narrow for the three, the last ones move into
+   More one at a time — tabs and More are exact complements, measured together
+   (components/layout/aura-top-bar.tsx), so no room is ever unreachable. When
+   the room you are in is under More, More wears the current tab's look. */
+/* It takes the bar's leftover — what the brand and the right-hand cluster do
+   not use — so the width `useTabCount` measures is the room there really is,
+   not the width of the tabs already shown (which could only ever shrink).
+   Never narrower than the More button (≈79px), which must always be whole:
+   on a tight bar the search box gives way instead of sliding under it. */
+.aura-tabs { display: flex; flex: 1 1 0%; align-items: center; gap: 4px; min-width: 80px; }
 .aura-tab {
   display: inline-flex;
   align-items: center;
@@ -259,7 +264,8 @@
   transition: background 0.16s, color 0.16s;
 }
 .aura-tab:hover { background: rgba(255, 255, 255, 0.4); color: var(--aura-ink); }
-.aura-tab[aria-current] {
+.aura-tab[aria-current],
+.aura-tab[data-active="true"] {
   background: rgba(255, 255, 255, 0.66);
   color: var(--aura-ink);
   box-shadow: 0 6px 16px -10px rgba(22, 32, 68, 0.5);
@@ -394,9 +400,20 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 0;
+  /* NEVER SHRINKS (2026-09-18). At min-width:0 this cluster was the first thing
+     flex squeezed, and with the global sidebar open (~1120px) the avatar was
+     pushed off the bar's right edge. Its contents are fixed-size icons; the
+     page title and the tabs are the parts built to give way. */
+  flex: none;
 }
-.aura-search-slot { flex: 0 1 360px; width: 360px; min-width: 0; }
+/* With a page title portaled in, the logo alone says "Altus" — the wordmark's
+   width goes to the title instead, which otherwise truncated at open-sidebar
+   widths ("Onboarding…"). */
+.aura-topbar:has(.aura-title-slot:not(:empty)) .aura-brand { display: none; }
+/* The search is an ICON now (2026-09-18), so its slot sizes to it. Reserving
+   360px for a 36px button is what pushed the tab strip — which may shrink,
+   min-width:0 — underneath it, and drew the icon on top of "HR" and "More". */
+.aura-search-slot { flex: 0 0 auto; width: auto; }
 
 .aura-bell { position: relative; }
 .aura-bell-dot {
@@ -415,8 +432,8 @@
    that did NOT get a tab, so the two have to be computed from the same number.
    A CSS rule that hid a tab would drop it out of the bar without putting it in
    the menu, and that room would be unreachable. */
-@media (max-width: 860px) { .aura-search-slot { flex-basis: 190px; width: 190px; } }
-@media (max-width: 560px) { .aura-search-slot { display: none; } }
+/* No width steps any more: an icon fits at every width, so search stays
+   reachable on the narrowest screens instead of disappearing below 560px. */
 
 .aura-rail {
   /* Sticky under the 57px bar (56px + its hairline) and scrollable on its own,

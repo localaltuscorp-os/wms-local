@@ -22,14 +22,14 @@ import {
   confirmImport,
   undoImport,
   type ImportPreview,
-} from "@/app/(app)/outstanding/actions";
+} from "@/app/(app)/billing/outstanding/actions";
 
 type Payload =
   | { kind: "file"; outstandingCsv?: string; collectionCsv?: string }
   | { kind: "gsheet"; sheetUrl?: string; sheetCollectionUrl?: string };
 
 const inr = (n: number) =>
-  "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  "Rs. " + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
 // Pull the Outstanding + Collection tabs out of a workbook as CSV text. For a
 // single-sheet file the lone sheet is treated as the Outstanding tab.

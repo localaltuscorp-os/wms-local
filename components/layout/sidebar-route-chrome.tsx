@@ -3,6 +3,10 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { workspaceForPath } from "@/lib/workspaces";
+import { archiveRailFor } from "@/lib/archive/sections";
+import { MainNavPill } from "./main-nav-pill";
+import { FolderArchive } from "lucide-react";
+import type { Route } from "next";
 import { MODULE_THEME } from "@/lib/module-theme";
 import { GlobalSearch } from "@/components/header/global-search";
 import { GoalsSpaceToggle } from "@/components/goals/board/goals-space-toggle";
@@ -51,6 +55,40 @@ export function SidebarGoalsSpace({ isAdmin }: { isAdmin: boolean }): React.JSX.
   const ws = workspaceForPath(usePathname() ?? "/");
   if (ws !== "goals" || !isAdmin) return null;
   return <GoalsSpaceToggle />;
+}
+
+/**
+ * ARCHIVE — pinned at the bottom of every room's rail, above the profile /
+ * logout bar (Sir, 2026-09). It is the door to that room's past-employee
+ * records: "Archive Tasks" in WMS, "Archive Goals" in Goals, and a plain
+ * "Archive" where the room owns several sections (Employees has five).
+ *
+ * NOT a WORKSPACE_NAV item. Those pills render inside the scrolling nav list,
+ * where a rail with fifteen entries would push the Archive off the bottom of
+ * the viewport — the one place Sir asked for it to always be. It lives in the
+ * pinned foot instead and derives its destination the same route-reactive way
+ * the rest of this file does (bug #24), so switching rooms re-aims it.
+ *
+ * ADMINS ONLY, matching the pages themselves (they redirect anyone else). The
+ * flag is passed in from the server; the guard on each page is the boundary.
+ */
+export function SidebarArchive({ isAdmin }: { isAdmin: boolean }): React.JSX.Element | null {
+  const pathname = usePathname() ?? "/";
+  const ws = workspaceForPath(pathname);
+  if (!isAdmin) return null;
+  const { href, label } = archiveRailFor(ws);
+  const active = pathname === "/archive" || pathname.startsWith("/archive/");
+  return (
+    <div className="mb-2 flex flex-col">
+      <MainNavPill
+        href={href as Route}
+        label={label}
+        Icon={FolderArchive}
+        active={active}
+        variant="drawer"
+      />
+    </div>
+  );
 }
 
 /** The mobile top-bar module label (module colour = identity only). */

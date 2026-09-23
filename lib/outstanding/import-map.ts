@@ -6,7 +6,7 @@
  * Each legacy "Outstanding" sheet row is effectively a dated installment.
  * Rows that share (clientName, product, cycle, entity, responsible) belong
  * to the same contract; their amounts are taken VERBATIM (preserving
- * non-uniform real data — e.g. a ₹5,000 first month then ₹25,000) instead
+ * non-uniform real data — e.g. a Rs. 5,000 first month then Rs. 25,000) instead
  * of being re-generated from baseAmount.  "Collection" rows are payments.
  */
 import type { OutstandingCycle } from "@/db/enums";
@@ -72,7 +72,7 @@ function str(v: unknown): string {
 
 /**
  * Parse a sheet money cell to a number of rupees.
- *   "₹25,000" / "25000" / "25,000.00" / "Rs. 1,00,000" → 25000
+ *   "Rs. 25,000" / "25000" / "25,000.00" / "Rs. 1,00,000" → 25000
  * Strips currency symbols, the word "Rs", and ALL commas (handles the
  * Indian 1,00,000 grouping too).  Blank / non-numeric → 0.
  */
@@ -82,7 +82,7 @@ export function parseAmount(v: string | number | null | undefined): number {
   if (!raw) return 0;
   // Strip a leading currency word ("Rs"/"INR") incl. its trailing dot so the
   // "Rs. 1,00,000" form doesn't leave an orphan "." → bogus decimal.
-  raw = raw.replace(/^(rs\.?|inr|₹)\s*/i, "");
+  raw = raw.replace(/^(rs\.?|inr|Rs.)\s*/i, "");
   // Drop everything that isn't a digit, dot or minus (commas, ₹, spaces).
   const cleaned = raw.replace(/[^0-9.\-]/g, "");
   if (cleaned === "" || cleaned === "-" || cleaned === ".") return 0;

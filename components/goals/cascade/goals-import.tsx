@@ -4,10 +4,15 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Loader2, FileSpreadsheet, Download } from "lucide-react";
 import { importGoals } from "@/app/(app)/goals/import/actions";
+import { TEMPLATE_KEYS, templateHref } from "@/lib/templates/keys";
+import { downloadTemplateFile } from "@/lib/templates/client-download";
+import { fireToast } from "@/lib/toast";
 import { GOALS_ACCENT, GOALS_ACCENT_DEEP, type RosterMember } from "./util";
+import { CompactSelect } from "@/components/ui/compact-select";
 
-/** The enterprise exceljs template (branded, validated dropdowns, no frozen panes). */
-const TEMPLATE_URL = "/goals/template.xlsx";
+/** The enterprise exceljs template (branded, validated dropdowns, no frozen panes),
+ *  resolved through Upload Master — see lib/templates/registry.ts. */
+const TEMPLATE_URL = templateHref(TEMPLATE_KEYS.goals);
 
 type Result = { imported: number; skipped: number; warnings: string[] } | null;
 
@@ -18,6 +23,7 @@ export function GoalsImport({ roster }: { roster: RosterMember[] }) {
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<Result>(null);
   const [ownerId, setOwnerId] = React.useState<string>("all");
+  const [downloading, setDownloading] = React.useState(false);
 
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -66,30 +72,41 @@ export function GoalsImport({ roster }: { roster: RosterMember[] }) {
           Level · Title · Year/Quarter/Month · Type · Category · Area · UoM · Target/Actual · Owner ·
           Reviewer · Team · Status · Weight - with dropdowns, frozen panes and locked read-only columns.
         </p>
-        <a
-          href={TEMPLATE_URL}
-          className="wg-btn mt-2.5 inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:brightness-95"
+        <button
+          type="button"
+          disabled={downloading}
+          onClick={() => {
+            setDownloading(true);
+            void downloadTemplateFile(TEMPLATE_URL)
+              .then((res) => {
+                if (!res.ok) fireToast({ message: res.error, type: "error" });
+              })
+              .finally(() => setDownloading(false));
+          }}
+          className="wg-btn mt-2.5 inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:brightness-95 disabled:opacity-60"
         >
-          <Download size={14} strokeWidth={2.4} /> Download template (.xlsx)
-        </a>
+          <Download size={14} strokeWidth={2.4} />
+          {downloading ? "Preparing…" : "Download template (.xlsx)"}
+        </button>
       </div>
 
       <div className="mt-4">
         <label className="text-[11.5px] font-black uppercase tracking-[0.06em] text-ink-muted">
           Default owner (rows without an Employee column)
         </label>
-        <select
+        <CompactSelect
           value={ownerId}
-          onChange={(e) => setOwnerId(e.target.value)}
-          className="mt-1 w-full rounded-xl border border-hairline bg-surface-card px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-hairline-strong"
-        >
-          <option value="all">Use the file&apos;s Employee column</option>
-          {roster.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
+          onChange={setOwnerId}
+          className="mt-1 w-full rounded-xl border border-hairline bg-surface-card px-3 py-2 text-[14px] font-semibold text-ink-strong"
+          aria-label="Owner for every imported goal"
+          // "all" IS the default here, not an empty field - so no empty row.
+          required
+          matchTriggerWidth
+          options={[
+            { value: "all", label: "Use the file's Employee column" },
+            ...roster.map((r) => ({ value: r.id, label: r.name })),
+          ]}
+        />
       </div>
 
       {error && (

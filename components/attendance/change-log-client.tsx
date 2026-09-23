@@ -3,8 +3,9 @@
 import * as React from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { ScrollText, ArrowRight, Laptop, Smartphone, Cpu, X } from "lucide-react";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateInTz } from "@/lib/format";
 import { ATTENDANCE_AUDIT_ACTION_LABELS, type AttendanceAuditAction } from "@/db/enums";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 interface Row {
   id: string;
@@ -30,6 +31,18 @@ interface Row {
     systemJob?: string;
   } | null;
   createdAt: string;
+}
+
+function formatAuditTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "â€”";
+  const time = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+  return `${formatDateInTz(date)} ${time}`;
 }
 
 interface Person {
@@ -91,14 +104,15 @@ export function ChangeLogClient({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-2.5 rounded-2xl border border-hairline-strong bg-white p-4">
         <Filter label="Employee">
-          <select value={get("employee")} onChange={(e) => set("employee", e.target.value)} className={field}>
-            <option value="">Anyone</option>
-            {subjects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <CompactSelect
+            value={get("employee")}
+            onChange={(v) => set("employee", v)}
+            className={field}
+            placeholder="Anyone"
+            aria-label="Employee"
+            matchTriggerWidth
+            options={subjects.map((p) => ({ value: p.id, label: p.name }))}
+          />
         </Filter>
 
         <Filter label="Changed by">
@@ -244,14 +258,7 @@ export function ChangeLogClient({
                   </Td>
                   <Td>
                     <span className="whitespace-nowrap text-ink-muted">
-                      {new Date(r.createdAt).toLocaleString("en-GB", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      })}
+                      {formatAuditTimestamp(r.createdAt)}
                     </span>
                   </Td>
                 </tr>
