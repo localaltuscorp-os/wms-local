@@ -223,6 +223,26 @@ export interface TermRowBlock {
 export interface BulletsBlock {
   kind: "bullets";
   items: Span[][];
+  /**
+   * Per-item live behaviour keyed to another field's current value, aligned by
+   * index to `items` (sparse — an entry only for an item that varies). When set
+   * for item i:
+   *   - the named field is EMPTY → item i's authored spans show as-is (the
+   *     "no decision yet" default);
+   *   - the field's current value is a key of `showWhen` → that key's spans
+   *     REPLACE item i's authored spans;
+   *   - any OTHER non-empty value → item i is hidden entirely.
+   * Lets one static "what happens next" list read as a general overview before
+   * a decision is made and narrow to just the one relevant line once it is —
+   * see the After Free Training letter's Extend/Accept/Reject verdict.
+   */
+  itemShowWhen?: (BulletShowWhen | undefined)[];
+}
+
+/** See {@link BulletsBlock.itemShowWhen}. */
+export interface BulletShowWhen {
+  fieldId: string;
+  showWhen: Record<string, Span[]>;
 }
 
 /** Vertical whitespace between blocks. */
@@ -402,6 +422,12 @@ export const term = (label: string, value: Span | Span[]): TermRowBlock => ({
 /** A bullet list from item span-arrays. */
 export const bullets = (...items: Span[][]): BulletsBlock => ({ kind: "bullets", items });
 
+/** A bullet list whose items also carry {@link BulletsBlock.itemShowWhen} rules. */
+export const bulletsConditional = (
+  items: Span[][],
+  itemShowWhen: (BulletShowWhen | undefined)[],
+): BulletsBlock => ({ kind: "bullets", items, itemShowWhen });
+
 /** Vertical space. */
 export const spacer = (size: "sm" | "md" | "lg" = "md"): SpacerBlock => ({ kind: "spacer", size });
 
@@ -467,7 +493,10 @@ function spansOf(block: Block): Span[] {
     case "term":
       return block.value;
     case "bullets":
-      return block.items.flat();
+      return [
+        ...block.items.flat(),
+        ...(block.itemShowWhen ?? []).flatMap((r) => (r ? Object.values(r.showWhen).flat() : [])),
+      ];
     case "table":
       return block.rows.flatMap((r) => r.cells.flat());
     case "signature":
@@ -537,6 +566,25 @@ export function isBlankAmount(raw: string | undefined | null): boolean {
 }
 
 /**
+ * Resolve one "bullets" item's spans against the live field values: its
+ * authored spans by default, a `itemShowWhen` variant when the named field's
+ * current value matches, or `null` when it holds some OTHER value (the item
+ * is hidden). See {@link BulletsBlock.itemShowWhen}.
+ */
+export function bulletItemSpans(
+  block: BulletsBlock,
+  index: number,
+  values: Record<string, string>,
+): Span[] | null {
+  const authored = block.items[index] ?? [];
+  const rule = block.itemShowWhen?.[index];
+  if (!rule) return authored;
+  const current = (values[rule.fieldId] ?? "").trim();
+  if (!current) return authored;
+  return rule.showWhen[current] ?? null;
+}
+
+/**
  * Should a table row be shown in the FINAL rendered document? A component row
  * (one carrying `amountFieldId`) is dropped when that field is blank/zero;
  * every other row is always kept.
@@ -555,17 +603,4 @@ export function signatoryOf(template: LetterTemplate): LetterSignatory {
   if (template.signatory) return template.signatory;
   if (template.key === "ctc-breakup" || template.key === "appointment") return "director";
   return "hr";
-}
-
-/**
- * True when the template prints its OWN date inside the body (an editable
- * `date` field, e.g. the Intern Appointment Letter's `Date: [ … ]` row).
- *
- * The letter chrome stamps a formatted date at the top-right of every letter;
- * for these templates that duplicated the body's date on screen and in the PDF,
- * so both the editor and the PDF renderer suppress the top-right stamp here and
- * let the editable field be the single source of the letter's date.
- */
-export function hasBodyDateField(template: LetterTemplate): boolean {
-  return collectFields(template).some((spec) => spec.id === "date");
 }

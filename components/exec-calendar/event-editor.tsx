@@ -157,7 +157,15 @@ export function ExecEventEditor({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-label="Edit block">
+    /* z-[70], ABOVE the global top bar. The top bar is `position: sticky;
+       z-index: 60` (.aura-topbar, app/aura.css), so at the old z-50 this
+       drawer's own header — the "NEW BLOCK" eyebrow and the date — was painted
+       underneath it, and what showed between the bar and the Block|Day Marker
+       toggle was a tinted sliver of half-covered header that read as unexplained
+       empty space. The backdrop was under the top bar too, leaving the bar live
+       and clickable while a modal was open. Raising the whole drawer fixes both:
+       the header is visible and the backdrop covers what it is supposed to. */
+    <div className="fixed inset-0 z-[70] flex justify-end" role="dialog" aria-label="Edit block">
       <button className="flex-1 bg-black/25" aria-label="Close" onClick={onClose} />
       <div className="flex h-full w-[380px] max-w-full flex-col overflow-y-auto bg-surface-card shadow-2xl">
         <header

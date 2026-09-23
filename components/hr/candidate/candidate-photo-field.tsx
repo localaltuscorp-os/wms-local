@@ -121,7 +121,7 @@ export function CandidatePhotoField({
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-4">
+      <div className="mt-4 flex flex-wrap items-start gap-4">
         {/* The tile: the local preview, or a plain "saved" state for a resumed
             draft whose photo lives in a private bucket. */}
         <div
@@ -140,7 +140,11 @@ export function CandidatePhotoField({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* A COLUMN, not a row: Upload photo sits directly above Take selfie.
+            items-stretch + min-w keeps the two the same width so they read as one
+            stack; the group still sizes to its widest child, which is how the
+            open camera preview (320px) is allowed to widen it. */}
+        <div className="flex min-w-[190px] flex-col items-stretch gap-2">
           <input
             ref={fileRef}
             type="file"
@@ -155,7 +159,7 @@ export function CandidatePhotoField({
             type="button"
             disabled={busy}
             onClick={() => fileRef.current?.click()}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-ink-strong disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-ink-strong disabled:opacity-60"
           >
             <Upload size={15} strokeWidth={2.3} /> {has ? "Replace photo" : "Upload photo"}
           </button>
@@ -167,7 +171,7 @@ export function CandidatePhotoField({
               type="button"
               disabled={busy}
               onClick={clear}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-altus-red disabled:opacity-60"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-altus-red disabled:opacity-60"
             >
               <Trash2 size={15} strokeWidth={2.3} /> Remove
             </button>

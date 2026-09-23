@@ -61,6 +61,18 @@ const IssueSchema = z.object({
   signatory: z.enum(["director", "hr"]).optional(),
   /** Shrink the letter step by step until it fits one A4 page (lib/hr/letters/fit). */
   fitOnePage: z.boolean().optional(),
+  /**
+   * The letter's DATE, as the editor showed it ("21-Sep-2026").
+   *
+   * Optional, and falls back to today — but when it is sent it wins, because
+   * the date HR saw on screen is the date they meant to issue. Before this
+   * existed the issue path always stamped `letterDate()` at the moment the
+   * request landed, so an edited date was silently discarded on the one copy
+   * that gets archived. Feeds only a signature block's `showDate` line now —
+   * the top-right chrome stamp it used to also feed was removed app-wide
+   * (2026-09-22).
+   */
+  date: z.string().trim().max(40).optional(),
 });
 
 export type IssueLetterInput = z.infer<typeof IssueSchema>;
@@ -96,6 +108,7 @@ export async function issueLetter(
     signatureImage,
     signatory,
     fitOnePage,
+    date: requestedDate,
   } = parsed.data;
 
   const template = getLetter(key);
@@ -113,7 +126,8 @@ export async function issueLetter(
   }
 
   const resolvedEntity = getEntity(entity ?? template.entityDefault ?? null);
-  const date = letterDate();
+  // The screen's date when one was sent, today otherwise — see the schema.
+  const date = requestedDate?.trim() || letterDate();
 
   // ── Render ──
   let pdfBuffer: Buffer;

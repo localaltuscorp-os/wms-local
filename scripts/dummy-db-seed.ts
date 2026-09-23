@@ -236,7 +236,7 @@ async function seedCandidates(pg: PGlite): Promise<void> {
       "personal.fullName": name,
       "personal.mobile": mobile,
       "personal.email": email,
-      "personal.position": position,
+      "jobDetails.position": position,
     };
     // The part-filled one carries extra answers so its progress badge lands
     // between the two extremes instead of at one of them.

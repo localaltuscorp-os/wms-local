@@ -54,13 +54,6 @@ function CandidatePhoto({ name, src }: { name: string; src: string | null }) {
  */
 const RED = "var(--color-altus-red)";
 
-const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
-  new: { bg: "color-mix(in srgb, var(--color-altus-red) 12%, white)", fg: "var(--color-altus-red-deep)" },
-  shortlisted: { bg: "color-mix(in srgb, var(--color-green) 16%, white)", fg: "#15803d" },
-  rejected: { bg: "var(--color-surface-soft)", fg: "#64748b" },
-  hired: { bg: "color-mix(in srgb, var(--color-green) 22%, white)", fg: "#166534" },
-};
-
 /* ONE SHAPE FOR THE WHOLE STRIP. The three controls used to disagree: the
  * selects were h-10/rounded-lg, "New candidate" was rounded-xl px-4 py-2.5 and
  * "Candidate login" rounded-xl px-4 py-2 - three heights and two radii in a row
@@ -285,11 +278,17 @@ export function BasicDetailsScreen({
            THE OLD WARNING STILL APPLIES, AND IS HANDLED. Stretching the table
            means the leftover width has to land somewhere: it used to open as a
            gap mid-row in Contact, and before that pushed the row menu away from
-           Status. The fix is to name ONE column as the one that absorbs slack -
-           Contact carries `w-full` below, every other cell is nowrap - so the
-           surplus goes somewhere chosen rather than wherever the layout
-           algorithm felt like. The wrapper still scrolls on narrow screens
-           rather than forcing the page to. */
+           Status. The fix is to name ONE column as the one that absorbs slack,
+           every other cell being nowrap, so the surplus goes somewhere chosen
+           rather than wherever the layout algorithm felt like. The wrapper still
+           scrolls on narrow screens rather than forcing the page to.
+
+           THE SLACK COLUMN IS EMAIL (2026-09-21). It was Actions, which made the
+           actions cell the widest on the row and left the buttons stranded at
+           the start of it with a band of empty table to their right. Email is
+           the one column whose content genuinely varies in length, so it is the
+           one that should breathe; Actions now hugs its three buttons and sits
+           directly after it. */
         <div className="w-full overflow-x-auto rounded-2xl border border-hairline bg-surface-card">
           <table className="w-full text-left">
             <thead>
@@ -301,21 +300,23 @@ export function BasicDetailsScreen({
                     unlabelled: a header there would only name the obvious. */}
                 <th className="whitespace-nowrap py-3 pl-4 pr-5">Candidate</th>
                 <th className="whitespace-nowrap px-5 py-3 max-md:hidden">Position</th>
+                {/* Phone and Email are TWO columns as of 2026-09-21. They were
+                    one "Contact" cell stacking both, which made every row two
+                    lines tall to show two short values, and left neither
+                    scannable down the column. */}
+                <th className="whitespace-nowrap py-3 pl-5 pr-4 max-md:hidden">Phone</th>
                 {/* THE SLACK COLUMN - see the note above the table. */}
-                <th className="whitespace-nowrap py-3 pl-5 pr-4 max-md:hidden">Contact</th>
+                <th className="w-full py-3 pl-5 pr-4 max-md:hidden">Email</th>
                 <th className="whitespace-nowrap py-3 pl-4 pr-5">Form</th>
-                <th className="whitespace-nowrap py-3 pl-5 pr-2 max-md:hidden">Status</th>
-                {/* THE SLACK COLUMN. It used to be Contact, which pushed
-                    Form, Status and the actions hard against the right
-                    edge. Naming the actions cell instead pulls all three
-                    back to the left and leaves the surplus width after
-                    them, where nothing has to line up against it. */}
-                <th className="w-full py-3 pl-2 pr-4">Actions</th>
+                {/* Status column removed (2026-09-21). The VALUE is untouched —
+                    it still drives the toolbar filter, /hr/selected-candidates
+                    and /hr/rejected-candidates, and is still set from the
+                    Management Assessment. Only the column is gone. */}
+                <th className="whitespace-nowrap py-3 pl-2 pr-4">Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((c) => {
-                const tone = STATUS_TONE[c.status] ?? { bg: "var(--color-surface-soft)", fg: "#64748b" };
                 return (
                   <tr key={c.id} className="border-b border-hairline last:border-0 hover:bg-surface-muted/50">
                     <td className="whitespace-nowrap py-3 pl-4 pr-5">
@@ -326,10 +327,18 @@ export function BasicDetailsScreen({
                     </td>
                     <td className="whitespace-nowrap px-5 py-3 text-[13.5px] text-ink-muted max-md:hidden">{c.positionApplied || "-"}</td>
                     <td className="whitespace-nowrap py-3 pl-5 pr-4 text-[12.5px] text-ink-muted max-md:hidden">
-                      <div className="flex flex-col gap-0.5">
-                        {c.mobile && <span className="inline-flex items-center gap-1"><Phone size={11} /> {c.mobile}</span>}
-                        {c.email && <span className="inline-flex items-center gap-1 truncate"><Mail size={11} /> {c.email}</span>}
-                      </div>
+                      {c.mobile ? (
+                        <span className="inline-flex items-center gap-1"><Phone size={11} /> {c.mobile}</span>
+                      ) : (
+                        <span className="text-ink-subtle">-</span>
+                      )}
+                    </td>
+                    <td className="w-full py-3 pl-5 pr-4 text-[12.5px] text-ink-muted max-md:hidden">
+                      {c.email ? (
+                        <span className="inline-flex items-center gap-1"><Mail size={11} /> {c.email}</span>
+                      ) : (
+                        <span className="text-ink-subtle">-</span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap py-3 pl-4 pr-5">
                       {c.submitted ? (
@@ -338,16 +347,13 @@ export function BasicDetailsScreen({
                         <span className="rounded-pill px-2.5 py-0.5 text-[11px] font-bold" style={{ background: "color-mix(in srgb, #f59e0b 18%, white)", color: "#b45309" }}>Draft · {c.pct}%</span>
                       )}
                     </td>
-                    <td className="whitespace-nowrap py-3 pl-5 pr-2 max-md:hidden">
-                      <span className="rounded-pill px-2.5 py-0.5 text-[11px] font-bold capitalize" style={{ background: tone.bg, color: tone.fg }}>{c.status}</span>
-                    </td>
                     {/* THE ACTIONS, OUT IN THE OPEN. A kebab hid five things
                         behind a click and gave no clue which of them existed
                         for this candidate; inline, the row shows what can be
                         done to it. Icon-only with tooltips, because five
                         labelled buttons per row would not fit and would make
                         the table scroll sideways on a laptop. */}
-                    <td className="w-full py-3 pl-2 pr-4">
+                    <td className="whitespace-nowrap py-3 pl-2 pr-4">
                       <span className="inline-flex items-center gap-1.5">
                         <Link
                           href={`/hr/candidates/${c.id}/evaluation` as Route}

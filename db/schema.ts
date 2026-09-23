@@ -8741,6 +8741,70 @@ export const policyCompliance = pgTable(
   (t) => [uniqueIndex("policy_compliance_key_emp_uk").on(t.policyKey, t.employeeId)],
 );
 export type PolicyComplianceRow = typeof policyCompliance.$inferSelect;
+
+// ─── Declaration Letter compliance (migration 0239) ──────────────────────────
+/**
+ * THE SIGNED DECLARATION — one row per (employee, wording version).
+ *
+ * Every person working at the firm signs one declaration by hand confirming they
+ * have read the joining documents and the six policies, that the information
+ * they gave is true, and that they agree to abide by them. The paper original is
+ * filed in a hard copy; this table is the record that it happened.
+ *
+ * ── TWO KINDS OF EVIDENCE, TWO COLUMNS ────────────────────────────────────
+ * `acknowledged_at` is the employee ticking a box in the WMS. `scan_path` is the
+ * wet-signed sheet, scanned and uploaded by whoever holds the file. They arrive
+ * at different times, from different people, and only the second one is worth
+ * anything in a dispute — so they are NOT collapsed into a single `status`
+ * column, which would let a tick stand in for the paper. "Done" means both.
+ *
+ * ── WHY NOT `employee_documents` FOR THE SCAN ─────────────────────────────
+ * That table is read by the Dossier, the Letters workspace, the mobile route and
+ * the Records ZIP, all of which are open to any admin. This scan is readable by
+ * the employee and two named people only (lib/hr/declaration/access.ts), so it
+ * is kept where those readers never look rather than filtered out of four of
+ * them — a subtraction the fifth reader would forget.
+ *
+ * ── KEYED ON (employee, version), NOT employee ALONE ──────────────────────
+ * Re-wording the declaration bumps DECLARATION_VERSION
+ * (lib/hr/letters/templates/declaration.ts). The old rows stay, at the old
+ * version, so the firm can still show what someone signed in 2026 after the
+ * wording changes in 2027 — and the tracker, which joins on the current
+ * version, correctly shows everybody as outstanding again.
+ *
+ * NOT a substitute for `policy_compliance`: that remains the per-policy,
+ * per-version ledger. This records one signature over the set as a whole.
+ */
+export const declarationCompliance = pgTable(
+  "declaration_compliance",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** The wording version signed, e.g. "1.0" — text, matching the template. */
+    version: text("version").notNull(),
+    /** The in-app acknowledgement. Null until the employee confirms. */
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    /** The scanned wet-signed sheet, in the private `documents` bucket under
+     *  `hr-declaration/<employeeId>/…`. Null until somebody uploads it. */
+    scanPath: text("scan_path"),
+    scanFileName: text("scan_file_name"),
+    scanMime: text("scan_mime"),
+    scanSizeBytes: bigint("scan_size_bytes", { mode: "number" }),
+    /** Who uploaded the scan — `set null` so an uploader leaving the firm does
+     *  not delete the evidence that the declaration was signed. */
+    uploadedById: uuid("uploaded_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("declaration_compliance_emp_version_uk").on(t.employeeId, t.version)],
+);
+export type DeclarationComplianceRow = typeof declarationCompliance.$inferSelect;
+
 export type NewCandidateIntake = typeof candidateIntake.$inferInsert;
 
 // ─── KPI Management (migration 0170) — HR-staff-only ─────────────────────────
@@ -9070,6 +9134,83 @@ export const paCalls = pgTable(
   },
   (t) => [index("pa_calls_entry_idx").on(t.entryId)],
 );
+
+/**
+ * CLIENT ENGAGEMENT — who moved a participant / client / ambassador, and when
+ * (0230). Assigning from the unassigned pool is a transfer from nobody.
+ */
+export const paAssignmentEvents = pgTable(
+  "pa_assignment_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** entry | ambassador */
+    entityType: text("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    fromPersonId: uuid("from_person_id").references(() => paPeople.id, { onDelete: "set null" }),
+    toPersonId: uuid("to_person_id").references(() => paPeople.id, { onDelete: "set null" }),
+    actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("pa_assignment_events_entity_idx").on(t.entityType, t.entityId, t.createdAt)],
+);
+
+/**
+ * DD MASTER (0230) — the dropdown lists the Client Engagement forms offer:
+ * products, call types and batch numbers. The code constants
+ * (lib/client-engagement/constants) stay the fallback, so an empty table changes
+ * nothing.
+ */
+export const ceDropdownOptions = pgTable(
+  "ce_dropdown_options",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** product | call_type | batch */
+    listKey: text("list_key").notNull(),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdBy: uuid("created_by").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("ce_dropdown_options_key_code_uidx").on(t.listKey, t.code)],
+);
+
+/**
+ * DD MASTER (0245) — the APP-WIDE dropdown-options table, not to be confused
+ * with `ceDropdownOptions` above (same shape, but hard-scoped to Client
+ * Engagement's own product/call_type/batch lists and never wired to a UI).
+ * This one backs the general "DD Master" screen at
+ * `/operations/masters/dd`: any WMS field that picks from a managed list can
+ * read `list_key` here. A category is simply every row sharing one `list_key`
+ * — adding a new category needs no migration, just new rows.
+ *
+ * Retire, never delete: `is_active` hides an option from new selections while
+ * `code` — the value already-saved records hold — is never touched by a
+ * retire, so history cannot corrupt (see `lib/queries/dd-options.ts`).
+ */
+export const ddOptions = pgTable(
+  "dd_options",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** e.g. "batch_number" | "handholding_calls" | "product_names" — see lib/dd-options/constants.ts */
+    listKey: text("list_key").notNull(),
+    /** Stable identifier records point to. Never reused after a retire. */
+    code: text("code").notNull(),
+    /** What the dropdown displays. Renameable without breaking `code`. */
+    label: text("label").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdBy: uuid("created_by").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("dd_options_key_code_uidx").on(t.listKey, t.code)],
+);
+
+export type DdOption = typeof ddOptions.$inferSelect;
+
 /**
  * EXIT RECORD (migration 0212) — one row per departure.
  *

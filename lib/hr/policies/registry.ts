@@ -143,6 +143,27 @@ export function getPolicyCard(key: string): PolicyCard | undefined {
 }
 
 /**
+ * EVERY POLICY A PERSON IS ACTUALLY REQUIRED TO READ — advertised as "ready"
+ * AND authored, in card order.
+ *
+ * "Ready" alone is not enough: a card can be flipped to ready a moment before
+ * its PolicyDoc lands, and a list built from cards alone would name a policy
+ * that has no document behind it.
+ *
+ * PURE + CLIENT-SAFE, which is the point. The Declaration Letter names these
+ * policies in its body and is a pure template module, so it cannot reach the
+ * server-only `requiredPolicyKeys()` in ./signed-notify. Both now read this, so
+ * "the policies you must sign" and "the policies the declaration lists" cannot
+ * drift apart — which they would the first time somebody added a seventh policy
+ * and updated only one of the two lists.
+ */
+export function readyPolicies(): PolicyDoc[] {
+  return POLICY_CARDS.filter((c) => c.status === "ready" && isPolicyKey(c.key))
+    .map((c) => POLICIES[c.key]!)
+    .filter(Boolean);
+}
+
+/**
  * True when `key` is advertised as coming-soon (or is a "ready" card whose
  * PolicyDoc hasn't been registered yet) — i.e. the page should show the tasteful
  * greyed placeholder rather than a rendered document.

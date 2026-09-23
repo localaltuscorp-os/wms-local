@@ -6,6 +6,7 @@ import {
   Send,
   Loader2,
   Printer,
+  Download,
   Check,
   Building2,
   UserRound,
@@ -23,6 +24,7 @@ import {
   Calculator,
 } from "lucide-react";
 import { Letterhead } from "@/components/hr/letterhead/letterhead";
+import { TrainingVerdictBar } from "@/components/hr/letters/training-verdict-bar";
 import { ENTITY_LIST, getEntity, type EntityId } from "@/lib/hr/entities";
 import {
   type LetterTemplate,
@@ -31,13 +33,14 @@ import {
   type LetterSignature,
   type LetterSignatory,
   collectFields,
-  hasBodyDateField,
   initialValues,
   resolveSpans,
   signatoryOf,
   tableRowVisible,
+  bulletItemSpans,
 } from "@/lib/hr/letters/types";
 import { templateToRichHtml } from "@/lib/hr/letters/rich";
+import { fitOnePageDefault } from "@/lib/hr/letters/fit";
 import { applyPronouns, normalizeGender, type Gender } from "@/lib/hr/pronouns";
 import {
   applyFirm,
@@ -272,6 +275,8 @@ export function LetterEditor({
   const [issuing, setIssuing] = useState(false);
   const [issued, setIssued] = useState(false);
   const [emailing, setEmailing] = useState(false);
+  /** The Download-PDF button's in-flight flag — the pdfkit render takes a beat. */
+  const [downloading, setDownloading] = useState(false);
   // The "Send Email" composer (toolbar → modal). `null` = closed; otherwise the
   // editable To / Subject / Message the sender is about to dispatch.
   const [compose, setCompose] = useState<null | { to: string; subject: string; message: string }>(null);
@@ -577,13 +582,19 @@ export function LetterEditor({
     richGetHtmlRef.current = getHtml;
   }, []);
 
-  const today = useMemo(() => formatDateHr(new Date()), []);
-
-  // Letters that carry their own editable `Date:` row in the body (Intern
-  // Appointment, Confirmation, F&F…) must NOT also get the chrome's top-right
-  // date stamp — it rendered the date twice. The body field stays the single,
-  // editable source of the letter's date.
-  const showHeaderDate = useMemo(() => !hasBodyDateField(template), [template]);
+  /**
+   * THE LETTER'S DATE.
+   *
+   * The top-right chrome stamp this used to feed was removed app-wide
+   * (2026-09-22) — every letter now dates itself only where a template says so
+   * (its own body `date` field, or a signature block's `showDate`). `headerDate`
+   * stays as the value those still read (`ctx.today`, the signature's
+   * `Date:` line), and as the `date` sent with every render/archive request —
+   * kept out of `values` for the same reason as before: `values` is posted
+   * verbatim as the template's declared fields, and this is chrome, not one.
+   */
+  const headerDate = formatDateHr(new Date());
+  const today = headerDate;
 
   const recipientName = (values.candidateName ?? values.name ?? "").trim();
   const recipientEmail = (values.candidateEmail ?? values.email ?? "").trim();
@@ -612,6 +623,11 @@ export function LetterEditor({
             bodyHtml: currentRichHtml(),
             signingModel,
             signatory,
+            // NO `date` here, deliberately. The free-edit path renders whatever
+            // HTML is in the editor, and `templateToRichHtml` never seeds the
+            // top-right stamp — so a rich letter has no header date to set, and
+            // lib/hr/letters/issue-rich.ts takes none. Sending one would be a
+            // key that looks threaded and is dropped on arrival.
             employeeId: employeeId || undefined,
             candidateName: employeeId ? undefined : recipientName || undefined,
             candidateEmail: employeeId ? undefined : recipientEmail || undefined,
@@ -621,6 +637,7 @@ export function LetterEditor({
             entity,
             gender,
             values,
+            date: headerDate,
             employeeId: employeeId || undefined,
             candidateName: employeeId ? undefined : recipientName || undefined,
             candidateEmail: employeeId ? undefined : recipientEmail || undefined,
@@ -654,6 +671,76 @@ export function LetterEditor({
       fireToast({ message: "Could not issue the letter.", type: "error" });
     } finally {
       setIssuing(false);
+    }
+  }
+
+  /**
+   * DOWNLOAD THE PDF — the same server-rendered document that Issue and Email
+   * send, saved to disk instead.
+   *
+   * WHY NOT `window.print()` (the Print button beside it): that prints the
+   * BROWSER's rendering of the page, so the result depends on the machine's
+   * fonts, the print dialog's margins and whether the user remembers to turn
+   * headers off. This fetches the pdfkit render from
+   * /api/hr/letters/pdf - byte-identical to what gets archived on Issue and
+   * emailed to the recipient. For a document that is printed, signed by hand and
+   * filed, those must be the same sheet of paper.
+   *
+   * The endpoint has existed and been correct since the letters module was
+   * written; nothing in the UI had ever called it.
+   */
+  async function runDownloadPdf() {
+    setDownloading(true);
+    try {
+      const payload = usingRich
+        ? {
+            key: template.key,
+            entity,
+            gender,
+            contentKind: "rich" as const,
+            bodyHtml: currentRichHtml(),
+            fitOnePage: fitOnePageDefault(template.key),
+          }
+        : {
+            key: template.key,
+            entity,
+            gender,
+            values,
+            date: headerDate,
+            signatureImage: sigImage ?? undefined,
+            signatory,
+            fitOnePage: fitOnePageDefault(template.key),
+          };
+      const r = await fetch("/api/hr/letters/pdf", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        // The route answers 401/429/403/404 as JSON; anything else is a render
+        // failure. Either way say so rather than silently saving a broken file.
+        const msg = await r.json().then((j) => j?.error).catch(() => null);
+        fireToast({ message: msg || `Could not build the PDF (${r.status}).`, type: "error" });
+        return;
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      // Name it after the RECIPIENT, not the template key: a folder of files all
+      // called declaration.pdf is unusable, and these get filed per person.
+      const who = (recipientName || values.employeeName || values.recipientName || "").trim();
+      a.download = `${who ? `${who} - ` : ""}${template.title}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Revoke on the next tick - revoking synchronously races the download in
+      // Safari and lands an empty file.
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (err) {
+      fireToast({ message: err instanceof Error ? err.message : "Could not build the PDF.", type: "error" });
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -870,6 +957,7 @@ export function LetterEditor({
               aria-label="Pick the candidate this letter is for"
               placeholder="- pick a candidate -"
               options={candidates.map((c) => ({ value: c.id, label: c.name }))}
+              className="min-w-[150px] max-w-[280px] w-full rounded-lg border border-hairline-strong bg-white px-2.5 py-1.5 text-[12px] font-semibold text-ink-strong"
             />
           </label>
         )}
@@ -893,6 +981,7 @@ export function LetterEditor({
                 value: r.id,
                 label: r.designation ? `${r.name} · ${r.designation}` : r.name,
               }))}
+              className="min-w-[150px] max-w-[280px] w-full rounded-lg border border-hairline-strong bg-white px-2.5 py-1.5 text-[12px] font-semibold text-ink-strong"
             />
           </label>
         )}
@@ -989,6 +1078,16 @@ export function LetterEditor({
           <button type="button" className="alw-btn alw-btn-ghost" onClick={() => window.print()}>
             <Printer size={15} strokeWidth={2.2} /> Print
           </button>
+          <button
+            type="button"
+            className="alw-btn alw-btn-ghost"
+            onClick={runDownloadPdf}
+            disabled={downloading}
+            title="Save the server-rendered PDF — the same file Issue archives"
+          >
+            {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} strokeWidth={2.2} />}
+            {downloading ? "Building…" : "Download PDF"}
+          </button>
           {isAdmin && (
             <button
               type="button"
@@ -1036,6 +1135,11 @@ export function LetterEditor({
         <CtcCalculator values={values} setManyValues={setManyValues} />
       )}
 
+      {/* ── Training verdict (After Free Training, structured mode) ── */}
+      {template.key === "after-free-training" && !usingRich && (
+        <TrainingVerdictBar outcome={values.outcome ?? ""} onChoose={(v) => setValue("outcome", v)} />
+      )}
+
       {/* ── The letter on its letterhead ─────────────────────────── */}
       {richMode ? (
         // "Edit freely" — the Google-Docs TipTap editor inside the frozen
@@ -1075,7 +1179,6 @@ export function LetterEditor({
           </div>
           <div className="alw-stage">
             <Letterhead entity={entity}>
-              {showHeaderDate && <div className="alw-date">{today}</div>}
               <div className="alw-rich-preview" dangerouslySetInnerHTML={{ __html: savedRichHtml }} />
             </Letterhead>
           </div>
@@ -1083,7 +1186,6 @@ export function LetterEditor({
       ) : (
         <div className="alw-stage">
           <Letterhead entity={entity}>
-            {showHeaderDate && <div className="alw-date">{today}</div>}
             {renderBlocks(template.blocks, ctx)}
           </Letterhead>
         </div>
@@ -1111,7 +1213,6 @@ export function LetterEditor({
           attachedEmployee={Boolean(employeeId)}
         >
           <Letterhead entity={entity}>
-            {showHeaderDate && <div className="alw-date">{today}</div>}
             {usingRich ? (
               <div
                 className="alw-rich-preview"
@@ -1630,11 +1731,15 @@ function BlockView({ block, ctx }: { block: Block; ctx: RenderCtx }) {
     case "bullets":
       return (
         <ul className="alw-ul">
-          {block.items.map((item, i) => (
-            <li key={i}>
-              <Spans spans={item} ctx={ctx} />
-            </li>
-          ))}
+          {block.items.map((_, i) => {
+            const spans = bulletItemSpans(block, i, ctx.values);
+            if (!spans) return null;
+            return (
+              <li key={i}>
+                <Spans spans={spans} ctx={ctx} />
+              </li>
+            );
+          })}
         </ul>
       );
     case "table":
@@ -2101,10 +2206,6 @@ const EDITOR_CSS = `
 .alw-stage .alh-page{max-width:none;}
 
 /* Body typography inside the letterhead */
-.alw-date{
-  text-align:right;font-size:13px;font-weight:600;
-  color:var(--color-ink-muted, #475569);margin-bottom:18px;
-}
 .alw-p{margin:0 0 14px;font-size:15px;line-height:1.95;color:var(--color-ink-strong, #0f172a);}
 .alw-heading{
   margin:16px 0 8px;font-weight:800;letter-spacing:-.01em;

@@ -189,7 +189,7 @@ export async function inviteCandidateByLink(input: {
     "personal.mobile": mobile,
     "personal.email": email,
   };
-  if (positionApplied) values["personal.position"] = positionApplied;
+  if (positionApplied) values["jobDetails.position"] = positionApplied;
 
   let intakeId: string;
   try {

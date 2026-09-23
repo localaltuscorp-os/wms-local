@@ -121,7 +121,7 @@ export function ExecWeekGrid({ days, events, cfg, today, onPickEvent, onPickSlot
   const untimed = events.filter((e) => !e.allDay && (e.startMin == null || e.endMin == null));
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-hairline bg-surface-card">
+    <div className="overflow-hidden border border-hairline bg-surface-card">
       {/* Day headers — the ISO week number sits in the gutter, as it does on the sheet. */}
       <div className="grid border-b border-hairline" style={{ gridTemplateColumns: `60px repeat(${days.length}, minmax(0, 1fr))` }}>
         <div className="flex items-end justify-center px-1 pb-1.5 pt-2 text-center text-[10px] font-bold uppercase leading-tight text-ink-subtle">

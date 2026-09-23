@@ -94,15 +94,26 @@ export function PoliciesWorkspace({
           <span className="text-[12px] font-semibold text-ink-soft">
             {signable.filter((p) => p.signedAt && !p.outdated).length}/{signable.length} signed
           </span>
-          {signable.some((p) => p.signedAt) && (
-            <a
-              href="/api/hr/policies/download-all"
-              title="Every signed policy — full text, then your acknowledgement"
-              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:border-[var(--color-altus-red)]"
-            >
-              <Download size={13} strokeWidth={2.4} aria-hidden /> Download all
-            </a>
-          )}
+          <span className="ml-auto flex items-center gap-2">
+            {signable.some((p) => p.signedAt) && (
+              <a
+                href="/api/hr/policies/download-all"
+                title="Every signed policy — full text, then your acknowledgement"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:border-[var(--color-altus-red)]"
+              >
+                <Download size={13} strokeWidth={2.4} aria-hidden /> Download all
+              </a>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13px] font-bold text-white"
+                style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
+              >
+                <Upload size={14} /> Upload policy
+              </button>
+            )}
+          </span>
         </div>
         <ul className="grid gap-2.5 sm:grid-cols-2">
           {signable.map((p) => {
@@ -168,18 +179,6 @@ export function PoliciesWorkspace({
       </section>
 
       {/* ── UPLOADED POLICY DOCUMENTS (legacy file list) ──────────────────── */}
-      {isAdmin && (
-        <div className="flex justify-end">
-          <button
-            onClick={() => setOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13px] font-bold text-white"
-            style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
-          >
-            <Upload size={14} /> Upload policy
-          </button>
-        </div>
-      )}
-
       {total === 0 ? (
         <div className="rounded-2xl border border-hairline bg-surface-card px-4 py-14 text-center">
           <ScrollText size={30} className="mx-auto text-ink-soft" />

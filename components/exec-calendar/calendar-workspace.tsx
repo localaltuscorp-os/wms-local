@@ -285,7 +285,7 @@ export function ExecCalendarWorkspace({
       )}
 
       {view === "month" && (
-        <div className="rounded-2xl border border-hairline bg-surface-card p-4">
+        <div className="border border-hairline bg-surface-card p-4">
           <ExecMonthGrid
             anchor={monthStart(day)}
             events={events}
@@ -300,10 +300,10 @@ export function ExecCalendarWorkspace({
       )}
 
       {view === "year" && (
-        // Columns fit the space, not the window: four across when there is room,
-        // two with the sidebar open. Fixed breakpoint columns clipped Sat/Sun off
-        // every month once the sidebar took its 250px.
-        <div className="grid gap-4 rounded-2xl border border-hairline bg-surface-card p-4 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
+        // Four across, always (2026-09-23: was 5, read as cramped) — two on a
+        // narrow viewport or with the sidebar open, so a month never clips its
+        // Sat/Sun column.
+        <div className="grid grid-cols-2 gap-4 border border-hairline bg-surface-card p-4 min-[1400px]:grid-cols-4">
           {Array.from({ length: 12 }, (_, m) => (
             <ExecMonthGrid
               key={m}

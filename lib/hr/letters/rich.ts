@@ -37,6 +37,7 @@ import {
   type Span,
   signatoryOf,
   tableRowVisible,
+  bulletItemSpans,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -137,7 +138,9 @@ function blockToHtml(
     }
     case "bullets": {
       const items = block.items
-        .map((item) => `<li>${spansToHtml(item, values) || "<br>"}</li>`)
+        .map((_, i) => bulletItemSpans(block, i, values))
+        .filter((spans): spans is Span[] => spans != null)
+        .map((spans) => `<li>${spansToHtml(spans, values) || "<br>"}</li>`)
         .join("");
       return `<ul>${items}</ul>`;
     }

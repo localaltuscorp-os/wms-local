@@ -39,6 +39,19 @@ import type { ExecEventRow } from "@/lib/queries/exec-calendar";
 
 const ROW_H = 22;
 const TIME_COL = 64;
+/**
+ * The column-header row's height, STATED rather than derived from its padding.
+ *
+ * The per-week bar below sticks at exactly this offset, so the two numbers have
+ * to agree or the bar either overlaps the header or floats below it. Measuring
+ * the header at runtime would agree by construction but costs a ResizeObserver
+ * and a layout read on a box that scrolls — and a measured offset that updates a
+ * frame late shows up as the sticky bar juddering. One constant, used by both,
+ * cannot drift and cannot judder.
+ *
+ * 30px = py-2 (8+8) + an 11.5px line at leading-tight (~14px).
+ */
+const HEAD_H = 30;
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const MON_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const HEADER_BG = "#1A1A1A";
@@ -137,15 +150,20 @@ export function ExecWeeklyGridView({
     // Scrolls both ways (a sheet is wider than the pane), but only the
     // sideways overscroll is contained - at the bottom the wheel hands the page
     // back, so the box never traps it.
-    <div className="max-h-[78vh] overflow-auto rounded-2xl border border-hairline bg-white" style={{ overscrollBehaviorX: "contain" }}>
+    <div className="max-h-[78vh] overflow-auto border border-hairline bg-white" style={{ overscrollBehaviorX: "contain" }}>
       <div style={{ minWidth: TIME_COL + 7 * 96 }}>
-        {/* Day names, pinned while the weeks scroll under them. */}
-        <div className="sticky top-0 z-30 grid text-white" style={{ gridTemplateColumns: cols, background: HEADER_BG }}>
-          <div className="sticky left-0 z-10 px-2 py-2 text-[10.5px] font-bold uppercase leading-tight" style={{ background: HEADER_BG }}>
+        {/* Day names, pinned while the weeks scroll under them. The height is
+            STATED (HEAD_H) because each week's bar sticks directly beneath it —
+            see the constant. */}
+        <div
+          className="sticky top-0 z-30 grid text-white"
+          style={{ gridTemplateColumns: cols, background: HEADER_BG, height: HEAD_H }}
+        >
+          <div className="sticky left-0 z-10 flex items-center px-2 text-[10.5px] font-bold uppercase leading-tight" style={{ background: HEADER_BG }}>
             Time
           </div>
           {DAY_NAMES.map((d) => (
-            <div key={d} className="border-l border-white/15 px-2 py-2 text-center text-[11.5px] font-bold">
+            <div key={d} className="flex items-center justify-center border-l border-white/15 px-2 text-[11.5px] font-bold">
               {d}
             </div>
           ))}
@@ -165,8 +183,23 @@ export function ExecWeeklyGridView({
                 </div>
               )}
 
-              {/* The week's own dark row: number, dates, and each day's markers. */}
-              <div className="grid border-t border-white/10 text-white" style={{ gridTemplateColumns: cols, background: HEADER_BG }}>
+              {/* The week's own dark row: number, dates, and each day's markers.
+                  STICKY, directly under the column header.
+
+                  It needs no scroll listener and no observer: a sticky element
+                  is clipped by its PARENT, and each week is already its own
+                  <section>. So week 36's bar pins at HEAD_H while week 36's body
+                  is on screen, and the moment week 37's section arrives its bar
+                  pushes week 36's out and takes the slot — the swap the browser
+                  does for free, which is also why it cannot get stuck.
+
+                  The month band above is deliberately NOT sticky: it renders on
+                  some weeks and not others, so pinning it too would mean a
+                  second offset that changes week to week. */}
+              <div
+                className="sticky z-20 grid border-t border-white/10 text-white"
+                style={{ top: HEAD_H, gridTemplateColumns: cols, background: HEADER_BG }}
+              >
                 <div className="sticky left-0 z-10 flex items-center px-2 py-1.5 text-[11px] font-bold" style={{ background: HEADER_BG }}>
                   Week {isoWeek(wk).week}
                 </div>
@@ -217,7 +250,11 @@ export function ExecWeeklyGridView({
 
               {/* Half-hour rows. */}
               <div className="grid" style={{ gridTemplateColumns: cols }}>
-                <div className="sticky left-0 z-20 bg-white" style={{ height }}>
+                {/* z-10, lowered from z-20 when the week bar above became sticky
+                    at z-20: this gutter is sticky horizontally and would
+                    otherwise paint OVER the pinned week bar as it scrolled past.
+                    Still above the event blocks, which sit at zIndex 1 + lane. */}
+                <div className="sticky left-0 z-10 bg-white" style={{ height }}>
                   {rows.map((m) => (
                     <div
                       key={m}

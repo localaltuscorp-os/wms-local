@@ -204,13 +204,13 @@ describe("grids", () => {
     expect(g.grandTotal).toEqual({ participants: 2, minutes: 420, engagements: 5 });
   });
 
-  it("builds the PCA transpose with an Unassigned column that is always there", () => {
+  it("builds the PCA transpose with an Unassigned column that is always there, leading the list", () => {
     const { columns, total } = buildPca(members, accounts, engagements, monday);
-    expect(columns.map((c) => c.memberName)).toEqual(["Ruchita", "Jeevan", "Unassigned"]);
-    const ruchita = columns[0]!.cells;
+    expect(columns.map((c) => c.memberName)).toEqual(["Unassigned", "Ruchita", "Jeevan"]);
+    const ruchita = columns[1]!.cells;
     expect([ruchita.P.count, ruchita.C.count, ruchita.A.count, ruchita.all.count]).toEqual([2, 0, 0, 2]);
     expect(ruchita.all.minutes).toBe(420);
-    expect(columns[2]!.cells.A.count).toBe(1);
+    expect(columns[0]!.cells.A.count).toBe(1);
     expect(total.all.count).toBe(4); // the on-hold account is not counted
   });
 

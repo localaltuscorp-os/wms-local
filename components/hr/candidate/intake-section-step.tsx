@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Plus, X, Search, Loader2, Mic } from "lucide-react";
+import { Plus, X, Mic } from "lucide-react";
 import { visibleFields, type FormFieldDef } from "@/lib/forms/field-types";
 import { vkey, ageFromDob, expFromRange, monthlyFromCtc, type IntakeSection } from "@/lib/hr/candidate/intake-schema";
-import { splitAddress } from "@/lib/hr/candidate/aadhaar-kyc";
 import { fireToast } from "@/lib/toast";
 import { IntakePositionSelect } from "@/components/hr/candidate/intake-position-select";
 import { IntakeField, IntakeReadonlyField } from "@/components/hr/candidate/intake-field";
@@ -15,6 +14,7 @@ import {
   type WorkUploadUrlFn,
 } from "@/components/hr/candidate/candidate-work-samples-field";
 import { WORK_SAMPLES_KEY } from "@/lib/hr/candidate/work-samples";
+import { RESUME_KEY } from "@/lib/hr/candidate/resume";
 
 /**
  * Resolve a `compute` field's value from its sibling inputs. `prefix` is the
@@ -92,33 +92,6 @@ export function IntakeSectionStep({
     }
     if (f.optionsFrom === "departments") {
       return <IntakeField field={f} options={departments} value={values[k] ?? ""} onChange={(_, v) => set(k, v)} autoFocus={autoFocus} error={err} />;
-    }
-    if (f.aadhaarLookup) {
-      return (
-        <AadhaarField
-          field={f}
-          value={values[k] ?? ""}
-          autoFocus={autoFocus}
-          error={err}
-          onChange={(v) => set(k, v)}
-          onFill={(filled) => {
-            if (filled.name) set(vkey(section.id, "fullName"), filled.name);
-            if (filled.dob) set(vkey(section.id, "dob"), filled.dob);
-            if (filled.gender) set(vkey(section.id, "gender"), filled.gender);
-            if (filled.mobile) set(vkey(section.id, "mobile"), filled.mobile);
-            // Aadhaar returns one flat address line — split it into the structured
-            // address fields (the full string always lands in Line 1 as a fallback).
-            if (filled.location) {
-              const a = splitAddress(filled.location);
-              if (a.addressLine1) set(vkey(section.id, "addressLine1"), a.addressLine1);
-              if (a.addressLine2) set(vkey(section.id, "addressLine2"), a.addressLine2);
-              if (a.city) set(vkey(section.id, "city"), a.city);
-              if (a.state) set(vkey(section.id, "state"), a.state);
-              if (a.pincode) set(vkey(section.id, "pincode"), a.pincode);
-            }
-          }}
-        />
-      );
     }
     return <IntakeField field={f} value={values[k] ?? ""} onChange={(_, v) => set(k, v)} autoFocus={autoFocus} error={err} />;
   }
@@ -277,6 +250,9 @@ export function IntakeSectionStep({
           onChange={(json) => set(WORK_SAMPLES_KEY, json)}
           uploadUrl={workUploadUrl}
           fileUrl={workFileUrl}
+          resumeValue={values[RESUME_KEY] ?? ""}
+          onResumeChange={(path) => set(RESUME_KEY, path)}
+          resumeInvalid={invalid.has(RESUME_KEY)}
         />
       )}
     </div>
@@ -300,7 +276,6 @@ function fieldSpan(f: FormFieldDef): string {
   // Even, aligned layout (Sir): full-width for long inputs, otherwise a clean
   // two-per-row grid. (Was a ragged mix of span-4/8 that left uneven trailing rows.)
   if (f.type === "textarea") return "md:col-span-12";
-  if (f.aadhaarLookup) return "md:col-span-12";
   if (f.type === "buttons" && (f.options?.length ?? 0) > 3) return "md:col-span-12";
   return "md:col-span-6";
 }
@@ -327,206 +302,6 @@ function DeclarationStatement() {
       correct to the best of my knowledge and belief. I understand that any information
       found false or incorrect may result in the rejection of my candidature or, if
       already engaged, termination of my services at any stage.
-    </div>
-  );
-}
-
-/** Fields the Aadhaar lookup can auto-fill back into the Personal section. */
-type AadhaarFill = {
-  name?: string;
-  dob?: string;
-  gender?: string;
-  mobile?: string;
-  location?: string;
-};
-
-/** Aadhaar number input + a "Fetch" button that auto-fills verified demographics. */
-function AadhaarField({
-  field,
-  value,
-  onChange,
-  onFill,
-  autoFocus,
-  error,
-}: {
-  field: FormFieldDef;
-  value: string;
-  onChange: (v: string) => void;
-  onFill: (fields: AadhaarFill) => void;
-  autoFocus?: boolean;
-  error?: boolean;
-}) {
-  const id = React.useId();
-  const [busy, setBusy] = React.useState(false);
-  const [focused, setFocused] = React.useState(false);
-  const float = focused || (value ?? "").trim() !== "";
-
-  // WHICH auto-fill route is live. Asked once, so the button can say what it
-  // will actually do instead of offering a "Fetch" that always fails:
-  //   provider   - the paid licensed KYC lookup (type a number, get an answer)
-  //   digilocker - the free consent flow (the candidate authorises the share)
-  // Null until the answer lands; the button stays disabled for that moment
-  // rather than guessing and doing the wrong thing on the first click.
-  const [methods, setMethods] = React.useState<{ provider: boolean; digilocker: boolean } | null>(null);
-  React.useEffect(() => {
-    let alive = true;
-    void (async () => {
-      try {
-        const r = await fetch("/api/hr/aadhaar/methods");
-        const d = (await r.json()) as { ok?: boolean; provider?: boolean; digilocker?: boolean };
-        if (alive && d.ok) setMethods({ provider: !!d.provider, digilocker: !!d.digilocker });
-        else if (alive) setMethods({ provider: false, digilocker: false });
-      } catch {
-        if (alive) setMethods({ provider: false, digilocker: false });
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  /** Drop kyc/kyc_error from the URL so a refresh doesn't re-announce them. */
-  function stripKycParams() {
-    const u = new URL(window.location.href);
-    u.searchParams.delete("kyc");
-    u.searchParams.delete("kyc_error");
-    window.history.replaceState(null, "", u.toString());
-  }
-
-  // Coming back from DigiLocker: `?kyc=1` means the callback parked this
-  // person's demographics in a one-shot cookie. Read them once and fill.
-  React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const failed = params.get("kyc_error");
-    if (failed) {
-      fireToast({ message: failed, type: "error" });
-      stripKycParams();
-      return;
-    }
-    if (params.get("kyc") !== "1") return;
-    void (async () => {
-      try {
-        const r = await fetch("/api/hr/aadhaar/digilocker/result");
-        const d = (await r.json()) as { ok?: boolean; found?: boolean; fields?: AadhaarFill };
-        if (d.ok && d.found && d.fields) {
-          onFill(d.fields);
-          const n = Object.values(d.fields).filter((v) => (v ?? "").trim() !== "").length;
-          fireToast({ message: `Auto-filled ${n} field${n === 1 ? "" : "s"} from DigiLocker.` });
-        } else {
-          fireToast({ message: "DigiLocker returned no details — enter them manually.", type: "error" });
-        }
-      } catch {
-        fireToast({ message: "Could not read the DigiLocker result.", type: "error" });
-      } finally {
-        stripKycParams();
-      }
-    })();
-    // Runs once on mount: the cookie is one-shot and the params are stripped
-    // immediately, so re-running on `onFill` identity would be a no-op at best.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /** Hand off to DigiLocker. A full-page redirect is safe: the form autosaves
-   *  its draft and `?draft=` brings us back to it. */
-  function startDigiLocker() {
-    const ret = window.location.pathname + window.location.search;
-    window.location.href = `/api/hr/aadhaar/digilocker/start?return=${encodeURIComponent(ret)}`;
-  }
-
-  async function fetchDetails() {
-    // No paid provider, but DigiLocker is live -> use the consent flow. The
-    // Aadhaar NUMBER is not needed for it; the candidate identifies themselves.
-    if (methods && !methods.provider && methods.digilocker) {
-      startDigiLocker();
-      return;
-    }
-    const a = value.replace(/\s+/g, "");
-    if (!/^\d{12}$/.test(a)) {
-      fireToast({ message: "Enter a valid 12-digit Aadhaar number.", type: "error" });
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await fetch("/api/hr/aadhaar-lookup", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ aadhaar: a }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        error?: string;
-        configured?: boolean;
-        found?: boolean;
-        message?: string;
-        fields?: AadhaarFill;
-      };
-      if (!data.ok) { fireToast({ message: data.error ?? "Lookup failed.", type: "error" }); return; }
-      // EXPLICIT type, not the heuristic. Every message that reaches here is a
-      // non-result - not configured, timed out, unexpected response, no match -
-      // and each was showing a green tick beside a statement that nothing had
-      // been filled in.
-      if (!data.configured || !data.found) {
-        fireToast({ message: data.message ?? "Enter the details manually.", type: "error" });
-        return;
-      }
-      onFill(data.fields ?? {});
-      const count = Object.values(data.fields ?? {}).filter((v) => (v ?? "").trim() !== "").length;
-      fireToast(
-        count > 0
-          ? { message: `Auto-filled ${count} field${count === 1 ? "" : "s"} from Aadhaar.` }
-          : { message: "No details found for this Aadhaar.", type: "error" },
-      );
-    } catch {
-      fireToast({ message: "Aadhaar lookup failed — enter details manually.", type: "error" });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="flex items-stretch gap-2.5">
-      <div className={`iwf min-w-0 flex-1${float ? " is-float" : ""}${error ? " is-error" : ""}`}>
-        <input
-          id={id}
-          name={id}
-          autoComplete="off"
-          inputMode="numeric"
-          value={value}
-          data-autofocus={autoFocus || undefined}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder ?? " "}
-          maxLength={14}
-          className="iwf-control"
-        />
-        <label htmlFor={id} className="iwf-label">
-          {field.label}
-          <span className="iwf-req" aria-hidden>*</span>
-        </label>
-      </div>
-      {/* The label names the ACTION, because the two routes behave differently:
-          "Fetch" reads a number you typed; "DigiLocker" hands the candidate to
-          their own login to consent. Being told which one is about to happen
-          matters more than a uniform button. */}
-      <button
-        type="button"
-        onClick={fetchDetails}
-        disabled={busy || methods === null || (!methods.provider && !methods.digilocker)}
-        title={
-          methods === null
-            ? "Checking which verification is available…"
-            : methods.provider
-              ? "Look up this Aadhaar number and auto-fill the details"
-              : methods.digilocker
-                ? "Open DigiLocker so the candidate can consent to share their details"
-                : "Aadhaar auto-fill isn't connected — enter the details manually"
-        }
-        className="inline-flex shrink-0 items-center gap-1.5 self-stretch rounded-[14px] border-2 border-hairline-strong bg-white px-4 text-[13.5px] font-bold text-ink-strong transition-colors hover:border-altus-red hover:text-altus-red disabled:opacity-50"
-      >
-        {busy ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} strokeWidth={2.4} />}{" "}
-        {methods && !methods.provider && methods.digilocker ? "DigiLocker" : "Fetch"}
-      </button>
     </div>
   );
 }

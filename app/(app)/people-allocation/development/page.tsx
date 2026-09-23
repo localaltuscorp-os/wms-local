@@ -1,6 +1,5 @@
 import { requireUser } from "@/lib/auth/current";
 import { PageShell } from "@/components/layout/page-shell";
-import { AllocationHero } from "../hero";
 
 /**
  * HANDHOLDING › DEVELOPMENT — its own rail entry and route.
@@ -16,7 +15,10 @@ export default async function DevelopmentPage() {
 
   return (
     <PageShell width="wide">
-      <AllocationHero title="Development" blurb="Kept separate from allocation and ambassadors." />
+      {/* The "Hand-holding · Development" hero band was removed (2026-09-21), for the
+          same reason it went from the Hand-holding page on 2026-09-18: the top
+          bar already names the room, and the band pushed the content below the
+          fold for no new information. */}
       <section
         className="rounded-[22px] bg-surface-card p-14 text-center"
         style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}

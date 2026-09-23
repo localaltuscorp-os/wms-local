@@ -201,13 +201,17 @@ export async function getHierarchy(
     unassigned = people.filter((p) => !p.managerId).sort(byName);
   }
 
-  // THE UNASSIGNED COLUMN, always present even when empty.
+  // THE UNASSIGNED COLUMN, always present even when empty, and LEADS the
+  // board (asked 2026-09-22): the gap that most needs to be seen — nobody
+  // above them in the chart — should not be the last column somebody scrolls
+  // to. Manan, its founder, then sorts first within it, so the board's very
+  // first two entries read "no manager assigned" then "Manan".
   //
   // People with no manager have to be somewhere, or the only way to give
   // somebody their first manager would be to already know they exist. It is
   // also where a genuine gap shows up: managers themselves currently have no
   // manager assigned, so this column legitimately holds them.
-  columns.push({
+  columns.unshift({
     managerId: null,
     managerName: "No manager assigned",
     managerEmail: null,

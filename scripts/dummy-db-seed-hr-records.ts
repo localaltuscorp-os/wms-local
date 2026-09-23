@@ -243,7 +243,7 @@ export async function seedDummyHrRecords(
      on conflict do nothing`,
     [
       id("8013", 1),
-      JSON.stringify({ "personal.fullName": "Ravi Deshpande", "personal.dob": "1996-03-14", "personal.position": "Dispatch Executive", "personal.department": "Operations" }),
+      JSON.stringify({ "personal.fullName": "Ravi Deshpande", "personal.dob": "1996-03-14", "jobDetails.position": "Dispatch Executive", "jobDetails.department": "Operations" }),
       daysAgo(230),
       files.ravPhoto!.path,
       files.ravSign!.path,

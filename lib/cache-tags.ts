@@ -46,6 +46,8 @@ export const CACHE_TAGS = {
   weeklyGoals: "weekly-goals",
   /** Index hub — admin-editable link sections + their hyperlink buttons. */
   indexHub: "index-hub",
+  /** DD Master (`dd_options`) — every dropdown category managed centrally. */
+  ddOptions: "dd-options",
 } as const;
 
 export type CacheTag = (typeof CACHE_TAGS)[keyof typeof CACHE_TAGS];

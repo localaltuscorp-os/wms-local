@@ -50,12 +50,10 @@ export interface FormFieldDef {
   compute?: "ageFromDob" | "expFromRange" | "monthlyFromCtc";
   /** Options come from a live app master (Candidate Intake wizard only). */
   optionsFrom?: "departments" | "positions";
-  /** Text field that seeds an Aadhaar-based lookup (auto-fills mobile/location). */
-  aadhaarLookup?: boolean;
   /**
    * Explicit grid width out of 12 columns (Candidate Intake layout). Lets fields
    * pack tightly onto one line — e.g. three span-4 fields fill a row. Omitted →
-   * a sensible default (4 for most, 12 for textareas/Aadhaar, 8 for big chip sets).
+   * a sensible default (4 for most, 12 for textareas, 8 for big chip sets).
    */
   span?: 3 | 4 | 5 | 6 | 7 | 8 | 12;
   /** Force this field's chip options onto ONE line (never wrap). */

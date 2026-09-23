@@ -81,7 +81,10 @@ export function HrModuleRail({
           rail (it has three columns) and had drifted into a look of its own -
           round buttons, a smaller logo, a "MODULES" caption and denser rows -
           so moving between HR and any other module read as two applications. */}
-      <div className="flex flex-col gap-3 px-4 pb-3 pt-4">
+      {/* px-2 when collapsed, the way the nav below already does it: at 74px the
+          brand block's px-4 left only 42px of content width, and /logo.png is a
+          wide wordmark. The nav had this right; the brand block did not. */}
+      <div className={cn("flex flex-col gap-3 pb-3 pt-4", collapsed ? "px-2" : "px-4")}>
         {/* History on the left, divider, collapse toggle pinned right - the
             WMS / Operations row. Collapsed, only the toggle remains, because it
             is the one control that must always be reachable. */}
@@ -122,9 +125,15 @@ export function HrModuleRail({
             className={cn("w-auto", collapsed ? "h-12" : "h-[68px]")}
             style={{ display: "block" }}
           />
-          {/* Hidden when collapsed: the 64px strip has room for the Altus mark
-              alone, and this lockup would wrap to nothing legible there. */}
-          {!collapsed && (
+          {/* Collapsed, the gradient TILE stays and only the WORDMARK TEXT goes —
+              exactly what the global rail does, where the hiding is done in CSS
+              (`.sidebar-rail[data-collapsed="true"] .module-wordmark-text`).
+              Until 2026-09-21 this hid the whole lockup, tile included, which is
+              why a collapsed /hr/* rail showed no module badge while every other
+              collapsed rail did. The text is dropped here rather than by that
+              CSS rule because this rail is not `.sidebar-rail` and never picks
+              the rule up. */}
+          {(
             /* The SAME lockup every other workspace rail renders, class for
                class, rather than a hand-rolled lookalike: `.module-wordmark`
                and friends come from components/layout/sidebar-brand.tsx, which
@@ -139,7 +148,7 @@ export function HrModuleRail({
                overflows this rail at that size, so it is stepped down a notch.
                Everything that carries the brand - face, weight, tracking,
                gradient, animation - is identical. */
-            <span className="module-wordmark inline-flex items-center gap-2.5 px-1">
+            <span className={cn("module-wordmark inline-flex items-center px-1", collapsed ? "gap-0" : "gap-2.5")}>
               <span
                 className="module-wordmark-icon inline-grid shrink-0 place-items-center rounded-2xl text-white"
                 style={{
@@ -152,6 +161,7 @@ export function HrModuleRail({
               >
                 <HrMark size={22} strokeWidth={2.1} />
               </span>
+              {!collapsed && (
               <span
                 className="module-wordmark-text whitespace-nowrap leading-none"
                 style={
@@ -164,6 +174,7 @@ export function HrModuleRail({
               >
                 Human Resources
               </span>
+              )}
             </span>
           )}
         </Link>

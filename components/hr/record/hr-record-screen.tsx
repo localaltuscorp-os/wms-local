@@ -52,6 +52,7 @@ import {
 import { getPolicySigningStatus } from "@/app/(app)/hr/record/policy-status";
 import type { PolicySignStatus } from "@/app/(app)/hr/record/policy-status-types";
 import { getExitStatus } from "@/app/(app)/hr/record/exit-status";
+import { BackgroundCheckCard } from "@/components/hr/record/background-check-card";
 import type { ExitSummary } from "@/app/(app)/hr/record/exit-status-types";
 import {
   getWorkflowStatus,
@@ -1325,6 +1326,7 @@ function RecordsPanel({
         />
       </div>
       <SavedFormsList forms={forms} loading={filesLoading} />
+      <BackgroundCheckCard employeeId={employeeId} />
     </div>
   );
 }

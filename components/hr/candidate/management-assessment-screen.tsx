@@ -494,12 +494,17 @@ export function ManagementAssessmentScreen({
           </div>
         </div>
 
-        {/* Two-pane: the section index, then the workspace. */}
-        <div className="grid grid-cols-[260px_1fr] gap-6 max-lg:grid-cols-1">
+        {/* Two-pane: the section index, then the workspace. The index only
+            makes sense once a candidate is picked (its ten sections are that
+            candidate's assessment) — hidden until then, so the empty-state
+            workspace gets the full width instead of sitting beside a dead rail. */}
+        <div className={noCandidate ? "grid grid-cols-1" : "grid grid-cols-[260px_1fr] gap-6 max-lg:grid-cols-1"}>
           {/* LEFT — the index of the ten sections */}
-          <aside className="max-lg:order-1">
-            <SectionIndex disabled={noCandidate || loading} />
-          </aside>
+          {!noCandidate && (
+            <aside className="max-lg:order-1">
+              <SectionIndex disabled={loading} />
+            </aside>
+          )}
 
           {/* RIGHT — workspace */}
           <section className="min-w-0 space-y-5 max-lg:order-2">
@@ -1244,7 +1249,7 @@ function EvaluationCard({ candidateId }: { candidateId: string }) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5 text-[15px] font-black text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>
-            Open the full Management Evaluation
+            Candidate Evaluation Assessment
             <ArrowUpRight size={16} className="text-[color:var(--color-altus-red-deep)] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </span>
           <span className="mt-1 block text-[12.5px] font-medium leading-snug text-ink-muted">
