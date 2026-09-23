@@ -74,6 +74,18 @@ const NAMES: Record<NotificationKind, string> = {
   incentive_request_reversed: "vp_incentive",
   incentive_request_resubmitted: "vp_incentive",
   incentive_paid: "vp_incentive",
+  // Training & Learning (LMS) — no registered WhatsApp templates; placeholders.
+  training_scheduled: "vp_incentive",
+  training_rescheduled: "vp_incentive",
+  training_cancelled: "vp_incentive",
+  training_recording_ready: "vp_incentive",
+  training_recording_incomplete: "vp_incentive",
+  training_test_pending: "vp_incentive",
+  training_feedback_pending: "vp_incentive",
+  learning_share_scheduled: "vp_incentive",
+  learning_share_reminder: "vp_incentive",
+  learning_target_approaching: "vp_incentive",
+  learning_target_incomplete: "vp_incentive",
 };
 
 export function templateNameForKind(kind: NotificationKind): string {
@@ -208,6 +220,18 @@ const VARS: Record<NotificationKind, (ctx: TemplateCtx) => Param[]> = {
   incentive_request_reversed: (c) => [t(c.taskSubject)],
   incentive_request_resubmitted: (c) => [t(c.taskSubject)],
   incentive_paid: (c) => [t(c.taskSubject)],
+  // Training & Learning (LMS) — placeholder single-body builders.
+  training_scheduled: (c) => [t(c.body ?? "")],
+  training_rescheduled: (c) => [t(c.body ?? "")],
+  training_cancelled: (c) => [t(c.body ?? "")],
+  training_recording_ready: (c) => [t(c.body ?? "")],
+  training_recording_incomplete: (c) => [t(c.body ?? "")],
+  training_test_pending: (c) => [t(c.body ?? "")],
+  training_feedback_pending: (c) => [t(c.body ?? "")],
+  learning_share_scheduled: (c) => [t(c.body ?? "")],
+  learning_share_reminder: (c) => [t(c.body ?? "")],
+  learning_target_approaching: (c) => [t(c.body ?? "")],
+  learning_target_incomplete: (c) => [t(c.body ?? "")],
 };
 
 /**

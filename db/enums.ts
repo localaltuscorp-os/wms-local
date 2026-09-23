@@ -1735,3 +1735,162 @@ export type ContractItemStatus = (typeof CONTRACT_ITEM_STATUSES)[number];
 
 export const CONTRACT_PDC_STATUSES = ["received", "deposited", "cleared", "bounced"] as const;
 export type ContractPdcStatus = (typeof CONTRACT_PDC_STATUSES)[number];
+
+// ── Training & Learning (LMS) — additive over the Training Centre ────────────
+// Text columns (no pgEnum) so a new lifecycle step never needs a non-
+// transactional ALTER TYPE. `done` is the legacy "completed" word; the newer
+// values split it into finer steps while keeping `done` readable for old rows.
+
+export const TRAINING_STATUSES = [
+  "draft",
+  "scheduled",
+  "live",
+  "done",
+  "completed",
+  "test_pending",
+  "feedback_pending",
+  "closed",
+  "cancelled",
+  "rescheduled",
+] as const;
+export type TrainingStatus = (typeof TRAINING_STATUSES)[number];
+
+export const TRAINING_STATUS_LABELS: Record<TrainingStatus, string> = {
+  draft: "Draft",
+  scheduled: "Scheduled",
+  live: "Live",
+  done: "Completed",
+  completed: "Completed",
+  test_pending: "Test Pending",
+  feedback_pending: "Feedback Pending",
+  closed: "Closed",
+  cancelled: "Cancelled",
+  rescheduled: "Rescheduled",
+};
+
+export const TRAINING_TYPES = [
+  "technical",
+  "soft_skills",
+  "product",
+  "process",
+  "compliance",
+  "induction",
+  "other",
+] as const;
+export type TrainingType = (typeof TRAINING_TYPES)[number];
+
+export const TRAINING_TYPE_LABELS: Record<TrainingType, string> = {
+  technical: "Technical",
+  soft_skills: "Soft Skills",
+  product: "Product",
+  process: "Process",
+  compliance: "Compliance",
+  induction: "Induction",
+  other: "Other",
+};
+
+/** Who a training is aimed at — the explicit audience selection. */
+export const AUDIENCE_SCOPES = [
+  "my_team",
+  "another_team",
+  "multiple_teams",
+  "function",
+  "selected_employees",
+  "everyone",
+] as const;
+export type AudienceScope = (typeof AUDIENCE_SCOPES)[number];
+
+export const AUDIENCE_SCOPE_LABELS: Record<AudienceScope, string> = {
+  my_team: "My Team",
+  another_team: "Another Team",
+  multiple_teams: "Multiple Teams",
+  function: "Function",
+  selected_employees: "Selected Employees",
+  everyone: "Everyone",
+};
+
+export const TRAINING_ATTENDANCE_STATUSES = [
+  "invited",
+  "present",
+  "late",
+  "absent",
+  "partial",
+  "completed_via_recording",
+  "excused",
+] as const;
+export type TrainingAttendanceStatus = (typeof TRAINING_ATTENDANCE_STATUSES)[number];
+
+export const TRAINING_ATTENDANCE_LABELS: Record<TrainingAttendanceStatus, string> = {
+  invited: "Invited",
+  present: "Present",
+  late: "Late",
+  absent: "Absent",
+  partial: "Partial",
+  completed_via_recording: "Completed via Recording",
+  excused: "Excused",
+};
+
+export const SELF_LEARNING_SOURCES = [
+  "youtube",
+  "course",
+  "book",
+  "article",
+  "documentation",
+  "podcast",
+  "ai",
+  "certification",
+  "workshop",
+  "internal_material",
+  "other",
+] as const;
+export type SelfLearningSource = (typeof SELF_LEARNING_SOURCES)[number];
+
+export const SELF_LEARNING_SOURCE_LABELS: Record<SelfLearningSource, string> = {
+  youtube: "YouTube",
+  course: "Course",
+  book: "Book",
+  article: "Article",
+  documentation: "Documentation",
+  podcast: "Podcast",
+  ai: "AI",
+  certification: "Certification",
+  workshop: "Workshop",
+  internal_material: "Internal Material",
+  other: "Other",
+};
+
+/** Learning cohort a target applies to — NOT the WMS task role. */
+export const LEARNING_ROLE_GROUPS = ["employee", "tl", "manager", "manan"] as const;
+export type LearningRoleGroup = (typeof LEARNING_ROLE_GROUPS)[number];
+
+export const LEARNING_ROLE_GROUP_LABELS: Record<LearningRoleGroup, string> = {
+  employee: "Employee",
+  tl: "Team Lead",
+  manager: "Manager",
+  manan: "Manan",
+};
+
+export const LEARNING_METRICS = [
+  "trainings_attend",
+  "trainings_conduct",
+  "trainings_attend_from_manan",
+  "self_learning_hours",
+  "learning_shares",
+] as const;
+export type LearningMetric = (typeof LEARNING_METRICS)[number];
+
+export const LEARNING_METRIC_LABELS: Record<LearningMetric, string> = {
+  trainings_attend: "Trainings to attend",
+  trainings_conduct: "Trainings to conduct",
+  trainings_attend_from_manan: "Trainings to attend (by Manan)",
+  self_learning_hours: "Self-learning hours",
+  learning_shares: "Learning shares",
+};
+
+export const SHARE_SLOTS = ["junior", "tl"] as const;
+export type ShareSlot = (typeof SHARE_SLOTS)[number];
+
+export const SHARE_SLOT_LABELS: Record<ShareSlot, string> = {
+  junior: "Juniors (1:30 PM)",
+  tl: "Team Leads (1:40 PM)",
+};

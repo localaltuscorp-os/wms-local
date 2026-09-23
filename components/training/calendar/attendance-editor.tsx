@@ -16,11 +16,16 @@ type AttStatus = SessionAttendeeRow["status"];
 const STATUS_META: Record<AttStatus, { label: string; color: string; bg: string }> = {
   invited: { label: "Invited", color: "var(--color-ink-soft)", bg: "var(--color-surface-track)" },
   attended: { label: "Attended", color: "var(--color-green-deep)", bg: "color-mix(in srgb, var(--color-green) 14%, transparent)" },
+  present: { label: "Present", color: "var(--color-green-deep)", bg: "color-mix(in srgb, var(--color-green) 14%, transparent)" },
+  late: { label: "Late", color: "#b45309", bg: "rgba(245,158,11,0.16)" },
   left_halfway: { label: "Left Halfway", color: "#b45309", bg: "rgba(245,158,11,0.16)" },
+  partial: { label: "Partial", color: "#b45309", bg: "rgba(245,158,11,0.16)" },
   absent: { label: "Absent", color: "var(--color-altus-red-deep)", bg: "color-mix(in srgb, var(--color-altus-red) 12%, transparent)" },
+  completed_via_recording: { label: "Via Recording", color: "var(--color-blue-deep)", bg: "color-mix(in srgb, var(--color-blue) 14%, transparent)" },
+  excused: { label: "Excused", color: "var(--color-ink-soft)", bg: "var(--color-surface-track)" },
 };
 
-const ORDER: AttStatus[] = ["invited", "attended", "left_halfway", "absent"];
+const ORDER: AttStatus[] = ["invited", "present", "attended", "late", "partial", "left_halfway", "completed_via_recording", "absent", "excused"];
 
 interface Row {
   employeeId: string;

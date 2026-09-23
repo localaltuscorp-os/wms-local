@@ -36,9 +36,12 @@ export function SelfLearningForm() {
   const [minutes, setMinutes] = React.useState("30");
   const [evidenceUrl, setEvidenceUrl] = React.useState("");
   const [learnDate, setLearnDate] = React.useState(todayIst());
+  const [startTime, setStartTime] = React.useState("");
+  const [endTime, setEndTime] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [overlap, setOverlap] = React.useState(0);
 
   React.useEffect(() => {
     firstRef.current?.focus();
@@ -47,8 +50,8 @@ export function SelfLearningForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setOverlap(0);
     if (!title.trim()) return setError("Add a title.");
-    if (!evidenceUrl.trim()) return setError("Evidence is required — paste a link.");
     setSubmitting(true);
     const res = await logSelfLearning({
       kind,
@@ -58,15 +61,24 @@ export function SelfLearningForm() {
       evidenceUrl,
       notes,
       learnDate,
+      startTime,
+      endTime,
     });
     setSubmitting(false);
     if (!res.ok) return setError(res.error);
-    fireToast({ message: "Self-learning logged.", type: "success" });
+    if (res.ok && "overlapMinutes" in res && res.overlapMinutes > 0) {
+      setOverlap(res.overlapMinutes);
+      fireToast({ message: `Logged, but ${res.overlapMinutes} min overlaps office hours.`, type: "info" });
+    } else {
+      fireToast({ message: "Self-learning logged.", type: "success" });
+    }
     setTitle("");
     setSourceUrl("");
     setMinutes("30");
     setEvidenceUrl("");
     setNotes("");
+    setStartTime("");
+    setEndTime("");
     firstRef.current?.focus();
     router.refresh();
   }
@@ -163,9 +175,31 @@ export function SelfLearningForm() {
             onBlur={(e) => (e.currentTarget.style.borderColor = "")}
           />
         </div>
+        <div>
+          <label className={LABEL}>Start time (outside office hours)</label>
+          <input
+            type="time"
+            className={FIELD}
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            onFocus={(e) => (e.currentTarget.style.borderColor = ACCENT)}
+            onBlur={(e) => (e.currentTarget.style.borderColor = "")}
+          />
+        </div>
+        <div>
+          <label className={LABEL}>End time</label>
+          <input
+            type="time"
+            className={FIELD}
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            onFocus={(e) => (e.currentTarget.style.borderColor = ACCENT)}
+            onBlur={(e) => (e.currentTarget.style.borderColor = "")}
+          />
+        </div>
         <div className="col-span-2 max-md:col-span-1">
           <label className={LABEL}>
-            Evidence Link <span style={{ color: ACCENT_DEEP }}>· required</span>
+            Evidence Link <span style={{ color: ACCENT_DEEP }}>· optional</span>
           </label>
           <input
             type="url"
@@ -203,6 +237,16 @@ export function SelfLearningForm() {
           style={{ background: "color-mix(in srgb, var(--color-altus-red) 8%, transparent)", color: "var(--color-altus-red-deep)" }}
         >
           {error}
+        </div>
+      )}
+
+      {overlap > 0 && (
+        <div
+          role="alert"
+          className="rounded-lg px-4 py-3 text-[14px] font-semibold"
+          style={{ background: "rgba(245,158,11,0.12)", color: "#92400e" }}
+        >
+          {overlap} minutes of this learning overlap your office hours — only the outside-hours portion counts toward your target. A manager can review it.
         </div>
       )}
 

@@ -4,7 +4,6 @@ import { useEffect, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import type {
   IncentiveDashboard as DashboardData,
-  IncentiveTargetVsActual,
   IncentiveEntryAdminRow,
 } from "@/lib/queries/incentives";
 import type { IncentiveRequestRow } from "@/lib/queries/incentive";
@@ -14,10 +13,15 @@ import type { IncentiveLeaderRow } from "@/lib/queries/incentive-analytics";
 import { IncentiveDashboard } from "./incentive-dashboard";
 import { IncentiveAnalyticsDashboard } from "./analytics/incentive-analytics-dashboard";
 import { IncentiveList } from "./incentive-list";
-import { IncentiveTargets } from "./incentive-targets";
+import { IncentiveTargetDashboard } from "./targets/incentive-target-dashboard";
 import { IncentiveEntries } from "./incentive-entries";
 import { MyIncentives } from "./my-incentives";
 import type { MyIncentiveRow } from "@/lib/queries/my-incentives";
+import type {
+  TargetBoard,
+  TargetProductOption,
+  TeamOption,
+} from "@/lib/queries/incentive-target-plans";
 
 type TabKey = "dashboard" | "my" | "requests" | "targets" | "entries" | "status" | "billing";
 
@@ -26,7 +30,10 @@ export function IncentiveTabs({
   leaders,
   analytics,
   analyticsMonths,
-  targetVsActual,
+  targetProducts,
+  targetTeams,
+  targetInitial,
+  canSeeTargetTeam,
   billingSlot,
   year,
   requests,
@@ -53,7 +60,14 @@ export function IncentiveTabs({
   analytics: IncentiveAnalytics;
   /** Months the dashboard's "Specific Month" picker offers. */
   analyticsMonths: string[];
-  targetVsActual: IncentiveTargetVsActual;
+  /** Granular target planning products (incentive catalog + live rate). */
+  targetProducts: TargetProductOption[];
+  /** Teams for the target picker — managers with at least one report. */
+  targetTeams: TeamOption[];
+  /** The board the Targets tab renders on first paint. */
+  targetInitial: TargetBoard;
+  /** Whether the viewer has a team to switch to on the Targets tab. */
+  canSeeTargetTeam: boolean;
   /** The Billing tab reads a LIVE Google Sheet — it's streamed in via a
    *  Suspense-wrapped server component so it never blocks the page's paint. */
   billingSlot: ReactNode;
@@ -172,14 +186,13 @@ export function IncentiveTabs({
       ) : active === "my" ? (
         <MyIncentives rows={myIncentives} />
       ) : active === "targets" ? (
-        <IncentiveTargets
-          data={targetVsActual}
-          year={year}
+        <IncentiveTargetDashboard
+          initial={targetInitial}
+          products={targetProducts}
+          teams={targetTeams}
+          users={employees}
           isAdmin={isAdmin}
-          me={me}
-          /* The SAME entitlement the dashboard's switch is built from, resolved
-             on the server — the toggle only narrows rows already sent. */
-          canSeeTeam={analytics.scope.canSeeTeam}
+          canSeeTeam={canSeeTargetTeam}
         />
       ) : active === "billing" ? (
         billingSlot

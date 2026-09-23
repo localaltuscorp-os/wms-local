@@ -25,6 +25,7 @@ const SaveShareSchema = z.object({
     .optional()
     .or(z.literal("")),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
+  selfLearningId: z.string().uuid().nullable().optional(),
 });
 
 /** Upsert the signed-in employee's Share for the CURRENT ISO week (Monday IST). */
@@ -45,6 +46,7 @@ export async function saveShare(input: unknown): Promise<Result<{ id: string }>>
         topic: d.topic,
         minutes: d.minutes,
         videoUrl: d.videoUrl ? d.videoUrl : null,
+        selfLearningId: d.selfLearningId ?? null,
         notes: d.notes ? d.notes : null,
       })
       .onConflictDoUpdate({
@@ -53,6 +55,7 @@ export async function saveShare(input: unknown): Promise<Result<{ id: string }>>
           topic: d.topic,
           minutes: d.minutes,
           videoUrl: d.videoUrl ? d.videoUrl : null,
+          selfLearningId: d.selfLearningId ?? null,
           notes: d.notes ? d.notes : null,
           updatedAt: new Date(),
         },
