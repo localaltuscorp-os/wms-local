@@ -4,7 +4,7 @@ import { Avatar as SharedAvatar } from "@/components/ui/avatar";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateTimeInTz } from "@/lib/format";
 import {
   ChevronLeft,
   Pencil,
@@ -663,13 +663,7 @@ function LiveClock({ startedAt }: { startedAt: string }) {
 }
 
 function stampOf(iso: string): string {
-  return new Date(iso).toLocaleString("en-IN", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
+  return formatDateTimeInTz(iso);
 }
 
 function SessionHistory({

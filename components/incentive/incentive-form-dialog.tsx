@@ -8,6 +8,7 @@ import { DateField } from "@/components/ui/date-field";
 import { useDictation } from "@/components/ui/use-dictation";
 import { cn } from "@/lib/utils";
 import { fireToast } from "@/lib/toast";
+import { formatDateTimeInTz } from "@/lib/format";
 import { createIncentiveRequest, resubmitIncentiveRequest } from "@/app/(app)/incentive/actions";
 import {
   INCENTIVE_STATUS_LABELS,
@@ -1084,14 +1085,7 @@ function ResubmitDecision({ request }: { request: IncentiveResubmitRequest }) {
   const when = request.decidedAt ? new Date(request.decidedAt) : null;
   const whenText =
     when && !Number.isNaN(when.getTime())
-      ? when.toLocaleString("en-IN", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-          timeZone: "Asia/Kolkata",
-        })
+      ? formatDateTimeInTz(when)
       : null;
   return (
     <div
