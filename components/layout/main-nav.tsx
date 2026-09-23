@@ -649,6 +649,8 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
          and before the masters. All Contracts stays lit on a contract's own
          pages, but not on Create Contract, which lights up on its own. */
       { href: "/billing/contracts" as Route, label: "All Contracts", Icon: ScrollText, exact: false, not: ["/billing/contracts/new"] },
+      { href: "/billing/ambassadors" as Route, label: "Ambassadors", Icon: Gem, exact: false },
+      { href: "/billing/customers/dropdowns" as Route, label: "Customer Master DD", Icon: ListChecks, exact: true },
       /* NO MASTERS RAIL IN THIS ROOM (2026-09-20). Admin Master and Customer
          Master DD both went: the only master data Billing owns is the customer
          itself, in Customer Master. Everything else an invoice is built from —
@@ -664,7 +666,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
        * destination as "Outstanding", which is the collections chase rather
        * than the master view — two doors to one ledger, deliberately, the same
        * way Overtime is reachable from both HR and Accounts. */
-      { href: "/outstanding" as Route, label: "Collection Master", Icon: IndianRupee },
+      { href: "/billing/outstanding" as Route, label: "Outstanding", Icon: IndianRupee, exact: false },
       { href: "/billing/recycle-bin" as Route, label: "Recycle Bin", Icon: Trash2, exact: true },
     ],
     groups: [],
