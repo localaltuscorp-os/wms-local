@@ -937,11 +937,11 @@ export function MainNav({
         ? HR_SECTION_NAV[hrSectionForPath(pathname)]
         : WORKSPACE_NAV[workspace];
 
-  // Important Links belongs to the shared workspace rails, except Billing:
-  // Billing keeps the curated rail from its redesign and must not grow a link
-  // that is not part of that module's navigation.
+  // Important Links belongs to the shared workspace rails, except Billing and
+  // Project Plan. Both use a deliberately curated module rail and must not
+  // grow a generic link that is absent from their designed navigation.
   const top: NavItem[] =
-    workspace === "billing" || roomTop.some((i) => i.href === IMPORTANT_LINKS_ITEM.href)
+    (workspace === "billing" || workspace === "project-plan") || roomTop.some((i) => i.href === IMPORTANT_LINKS_ITEM.href)
       ? roomTop
       : [...roomTop, IMPORTANT_LINKS_ITEM];
 
