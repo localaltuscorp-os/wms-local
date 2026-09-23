@@ -1,9 +1,30 @@
 import { z } from "zod";
-import { WORKER_TYPES } from "@/db/enums";
+import { EMPLOYEE_TYPES, WORKER_TYPES } from "@/db/enums";
 
 /** HH:mm, matching lib/validators/attendance.ts — the schedule columns are
  *  written by both this bulk patch and the single-employee schedule action. */
 const TIME_HHMM = z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:mm");
+
+/**
+ * yyyy-mm-dd, AND A REAL CALENDAR DAY. Declared here, above the schemas that
+ * use it, because the invite schema needs it too (0244 added Probation End Date
+ * and Internship Start Date to it).
+ *
+ * The regex alone accepts 31 Feb — it was the only check until 0244, and every
+ * `date` column was relying on Postgres to refuse the rest. That works, but it
+ * reports the failure as a driver error on save rather than as a message beside
+ * the field, so the day is verified here too. Same rule, and the same reasoning,
+ * as `isIsoDate` in lib/incentive/master.ts: round-tripping through Date is what
+ * rejects 2026-02-31 (which JS would otherwise roll forward to 3 March).
+ */
+const ISO_DATE = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "Use a date like 2026-04-01")
+  .refine((v) => {
+    const d = new Date(`${v}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+  }, "That date does not exist.");
 
 /**
  * Normalize a name string before validation/storage:
@@ -42,6 +63,23 @@ export const InviteEmployeeSchema = z.object({
   departmentIds:        departmentIdsField,
   primaryDepartmentId:  primaryDepartmentIdField,
   isAdmin:     z.boolean().default(false),
+  /**
+   * 0244 — WHICH DESIGNATION, AND THEREFORE WHICH EMPLOYEE TYPE.
+   *
+   * The invite form had neither. Without a designation there is no way to know
+   * whether the new person is an employee (who needs a Probation End Date) or an
+   * intern (who needs an internship instead), so the required-probation rule
+   * could not be expressed for a NEW hire at all. Adding the picker is what
+   * makes the rule applicable at creation, not only on a later edit.
+   */
+  designationId: z.union([z.string().uuid(), z.literal(""), z.null()]).optional(),
+  /** The per-person override. Absent/empty = follow the designation. */
+  employeeType: z.union([z.enum(EMPLOYEE_TYPES), z.literal(""), z.null()]).optional(),
+  /** Required for a non-intern — checked in `inviteEmployee`, which is where the
+   *  effective type is known (the schema cannot read the designation's flag). */
+  probationEnd: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
+  /** Interns: the start date. The END date is computed by the database. */
+  internshipStart: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
 });
 
 export type InviteEmployeeInput = z.infer<typeof InviteEmployeeSchema>;
@@ -69,12 +107,6 @@ export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>;
  * absent — those are immutable identity. Reject empty patches so callers
  * don't burn a round-trip on a no-op.
  */
-/** yyyy-mm-dd, the shape every `date` column in this schema stores. */
-const ISO_DATE = z
-  .string()
-  .trim()
-  .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "Use a date like 2026-04-01");
-
 export const EditEmployeeSchema = z
   .object({
     name:       z
@@ -157,6 +189,17 @@ export const EditEmployeeSchema = z
     /** Date of Joining. */
     joinedAt: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
     probationEnd: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
+    /**
+     * 0244. REQUIRED FOR A NON-INTERN, but "required" is a cross-field rule and
+     * cannot live here: this schema cannot read the designation's
+     * `employee_type`, which is what decides whether it applies. So the shape
+     * lives here and the requirement is enforced in `editEmployee` — the one
+     * function every create, edit and bulk path already funnels through.
+     */
+    internshipStart: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
+    /** The per-person override of the designation's employee type. Empty = follow
+     *  the designation, which is the common case and why it is `""`-able. */
+    employeeType: z.union([z.enum(EMPLOYEE_TYPES), z.literal(""), z.null()]).optional(),
     /** Date of Completion — the last working day. */
     lastWorkingDay: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
     /** Office mail. Distinct from `email`, which is the LOGIN address and is
@@ -281,6 +324,11 @@ export const BulkEditEmployeesSchema = z
     /** Date of Joining. */
     joinedAt: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
     probationEnd: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
+    /** 0244 — internship start (the end is generated) and the employee-type
+     *  override. Both are written through the same `editEmployee` the single
+     *  edit uses, so the required-probation rule covers bulk too. */
+    internshipStart: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
+    employeeType: z.union([z.enum(EMPLOYEE_TYPES), z.literal(""), z.null()]).optional(),
     /** Date of Completion — the last working day. */
     lastWorkingDay: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
   })

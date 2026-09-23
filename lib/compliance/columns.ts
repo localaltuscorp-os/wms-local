@@ -80,7 +80,7 @@ export const COLUMNS: Record<ColKey, ColumnDef> = {
   compliance: { key: "compliance", width: 330, sortable: true, movable: true, sortKind: "text" },
   // WCC's — "Mon, Tue, Wed, Thu & Fri" on one line. MCC's is narrower: columnDef.
   frequency: { key: "frequency", width: 215, sortable: true, movable: true, sortKind: "text" },
-  deadline: { key: "deadline", width: 150, sortable: true, movable: true, only: "mcc", sortKind: "date", hint: "The day it is due." },
+  deadline: { key: "deadline", width: 150, sortable: true, movable: true, sortKind: "date", hint: "The day it is due, shown as DD-MMM-YYYY." },
   mins: {
     key: "mins",
     width: 120,

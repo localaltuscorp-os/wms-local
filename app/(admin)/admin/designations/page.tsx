@@ -29,6 +29,8 @@ export default async function DesignationsPage() {
         createAction={createDesignation}
         updateAction={updateDesignation}
         usageLabel="employees"
+        // Opt-in: only this roster's table has an employee_type column.
+        showEmployeeType
       />
     </AdminSection>
   );

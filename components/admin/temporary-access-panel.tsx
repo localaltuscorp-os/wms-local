@@ -23,7 +23,7 @@ import {
   grantTemporaryAccess,
   revokeTemporaryAccess,
   activateTemporaryAccess,
-} from "@/app/(admin)/admin/temporary-access/actions";
+} from "@/app/(admin)/admin/control-panel/temporary-access/actions";
 
 /**
  * TEMPORARY ACCESS — the Admin Panel screen.

@@ -8,41 +8,37 @@ import { fireToast } from "@/lib/toast";
 import { formatInr } from "@/lib/format";
 import { upsertCatalogEntry, deleteCatalogEntry } from "@/app/(app)/incentive/catalog-actions";
 import type { CatalogRow } from "@/lib/queries/incentive-catalog";
-import type { EligibilityPerson } from "@/lib/queries/incentive-eligibility";
-import { IncentiveEligibilityDialog } from "./incentive-eligibility-dialog";
+import { INCENTIVE_APPLICABILITY_LABELS } from "@/db/enums";
 
 type Draft = {
   id?: string;
   name: string;
   amount: string;
-  salesEligible: boolean;
-  internsEligible: boolean;
   description: string;
   notes: string;
 };
 
-const blank = (): Draft => ({ name: "", amount: "", salesEligible: true, internsEligible: true, description: "", notes: "" });
+const blank = (): Draft => ({ name: "", amount: "", description: "", notes: "" });
 const toDraft = (r: CatalogRow): Draft => ({
   id: r.id,
   name: r.name,
   amount: String(r.amount),
-  salesEligible: r.salesEligible,
-  internsEligible: r.internsEligible,
   description: r.description ?? "",
   notes: r.notes ?? "",
 });
 
+/** The row's audience as a word (0244) — the rule, not the legacy flags. */
+function applicabilityLabelOf(r: CatalogRow): string {
+  return INCENTIVE_APPLICABILITY_LABELS[r.applicability] ?? "All Employees";
+}
+
 export function IncentiveCatalogDialog({
   rows,
   isAdmin,
-  people = [],
   defaultOpen = false,
 }: {
   rows: CatalogRow[];
   isAdmin: boolean;
-  /** Everyone an incentive can be assigned to. Admins only — the roster
-   *  has no business in a non-admin’s browser. */
-  people?: EligibilityPerson[];
   /** Opened from an Incentive Table notification (`/incentive?view=table`). */
   defaultOpen?: boolean;
 }) {
@@ -53,7 +49,7 @@ export function IncentiveCatalogDialog({
 
   function save() {
     if (!editing) return;
-    const amount = Number(editing.amount.replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, ""));
+    const amount = Number(editing.amount.replace(/[₹,\s]/g, ""));
     if (!editing.name.trim()) return fireToast({ message: "Name is required.", type: "error" });
     if (!Number.isFinite(amount) || amount < 0) return fireToast({ message: "Enter a valid amount.", type: "error" });
     setSaving(true);
@@ -61,8 +57,6 @@ export function IncentiveCatalogDialog({
       id: editing.id,
       name: editing.name,
       amount,
-      salesEligible: editing.salesEligible,
-      internsEligible: editing.internsEligible,
       description: editing.description || null,
       notes: editing.notes || null,
     })
@@ -187,24 +181,11 @@ export function IncentiveCatalogDialog({
                         {formatInr(r.amount)}
                       </td>
                       <td className="py-3 pr-3">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {/* WHO IT APPLIES TO comes first: since 0216 it is the
-                              thing that actually decides who sees this row, and
-                              the Sales/Interns tags beside it are the older,
-                              advisory labels nothing enforces. */}
-                          {isAdmin ? (
-                            <IncentiveEligibilityDialog
-                              incentiveId={r.id}
-                              incentiveName={r.name}
-                              appliesToAll={r.appliesToAll}
-                              eligibleIds={r.eligibleIds}
-                              people={people}
-                            />
-                          ) : null}
-                          {r.salesEligible && <Tag tone="red">Sales</Tag>}
-                          {r.internsEligible && <Tag tone="blue">Interns</Tag>}
-                          {!isAdmin && !r.salesEligible && !r.internsEligible && <span className="text-ink-subtle" style={{ fontSize: 12 }}>-</span>}
-                        </div>
+                        {/* WHO it applies to (0244). The two legacy group flags
+                            used to be shown here as tags; they no longer decide
+                            anything, so the tag says the rule that does. Exact
+                            scoping is set in Admin Panel → Incentive Master. */}
+                        <Tag tone="blue">{applicabilityLabelOf(r)}</Tag>
                       </td>
                       {isAdmin && (
                         <td className="py-3">
@@ -287,7 +268,7 @@ function CatalogEditor({
           <input autoFocus value={draft.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. PS Sold in 30 Days" className={field} />
         </label>
         <label className="block">
-          <span className="mb-1 block text-[12px] font-bold text-ink-soft">Amount (Rs.)</span>
+          <span className="mb-1 block text-[12px] font-bold text-ink-soft">Amount (₹)</span>
           <input value={draft.amount} onChange={(e) => set({ amount: e.target.value })} inputMode="numeric" placeholder="250" className={`${field} tabular-nums`} />
         </label>
       </div>
@@ -301,12 +282,15 @@ function CatalogEditor({
       </label>
       <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-4">
-          <label className="inline-flex items-center gap-1.5 text-[13.5px] font-bold text-ink-soft cursor-pointer">
-            <input type="checkbox" checked={draft.salesEligible} onChange={(e) => set({ salesEligible: e.target.checked })} /> Sales Eligible
-          </label>
-          <label className="inline-flex items-center gap-1.5 text-[13.5px] font-bold text-ink-soft cursor-pointer">
-            <input type="checkbox" checked={draft.internsEligible} onChange={(e) => set({ internsEligible: e.target.checked })} /> Interns Eligible
-          </label>
+          {/* The Sales / Interns checkboxes that used to sit here are gone
+              (0244). They wrote columns nothing reads for a decision any more,
+              and a live-looking control that changes nothing is worse than no
+              control. Who an incentive applies to is set in Admin Panel →
+              Incentive Master, where the choice is All Employees / Function /
+              Selected Employees. */}
+          <span className="text-[12.5px] font-medium text-ink-subtle">
+            Eligibility is set in Admin Panel → Incentive Master.
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={onCancel} disabled={saving} className="bg-surface-card cursor-pointer rounded-pill px-4 py-2 text-[13.5px] font-bold text-ink-soft hover:text-ink-strong">Cancel</button>

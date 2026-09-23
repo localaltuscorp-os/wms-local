@@ -222,7 +222,8 @@ export function IncentiveDecisionPanel({ row }: { row: IncentiveRequestRow }) {
                 {row.employeeName}&rsquo;s {typeLabel} will move from{" "}
                 <b>{INCENTIVE_STATUS_LABELS[row.status] ?? row.status}</b> to{" "}
                 <b>{INCENTIVE_STATUS_LABELS[DECISION_RESULT[action]]}</b>.
-                {action === "reverse" && " Reversed is final — it cannot be decided again."}
+                {action === "reverse" &&
+                  " A negative payable adjustment is final — it cannot be decided again."}
                 {(action === "not_approve" || action === "revise") &&
                   " They will see your note and can justify and resubmit."}
               </p>

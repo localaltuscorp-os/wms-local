@@ -180,6 +180,10 @@ passes (one pass collides with the unique index) and leaves `DGM` alone
 deliberately, raising a notice naming how many positions are stranded on it.
 All four are additive and idempotent — no `DROP`, no `DELETE`.
 
+**When reading that script's output:** the DRY RUN reports every file as
+`pending`, because it short-circuits the "already applied?" lookup when it is not
+going to write. `--apply` is what tells you the truth — it skips and says so.
+
 ---
 
 ## Current state — 2026-09-08
@@ -630,6 +634,255 @@ throughout; her Firebase UID is new.
 
 ## Changelog
 
+### 2026-09-22 — Admin Panel → Control Panel + Salary Breakup
+
+**Migration `0246` applied.** Full write-up:
+[`Change-made/15-control-panel.md`](./Change-made/15-control-panel.md).
+
+**What changed**
+
+- **Admin Panel → Control Panel** — a new nav group with five surfaces: Users,
+  Roles, Permissions, Effective Access, Temporary Access.
+- **Temporary Access relocated** under Control Panel — the existing delegated
+  access is reused verbatim (tables, expiry, revoke, hierarchy gate all
+  unchanged); only its route moved, and `/admin/temporary-access` now redirects.
+  The permission-catalogue key is unchanged so existing grants keep working.
+- **Roles / Permissions / Effective Access** built on the existing permission
+  architecture — no second system. Roles are reusable templates
+  (`roles` / `role_permissions` / `employee_roles`) with a 15-action + 7-scope
+  vocabulary stored as data; enforcement stays the existing `module_permissions`
+  matrix (show/view/edit). Permissions edits that matrix directly (reusing
+  `setModulePermission`); Effective Access composes roles + direct overrides +
+  temporary access.
+- **Every access change writes the immutable Logs** (role create/update/delete,
+  assign/remove, permission grant/revoke, scope change, temporary access
+  grant/revoke) via the existing `auditLog`.
+- **Salary Profile → Salary Breakup** — navigation/UI rename only; the route and
+  all salary logic are unchanged.
+
+**Gating:** writes are master-admin gated (`master_admin.manage`, the existing
+capability); the Control Panel screens are admin-only via the admin layout.
+Temporary Access keeps its existing hierarchy gate.
+
+**Verified:** `tsc`/`eslint`/`vitest` clean (49 tests green incl. the permission
+catalogue walk of the new nodes); all five Control Panel pages return 200 on a
+fresh dev server; the seeded "Super Admin" role renders; the nav shows "Salary
+Breakup" and Temporary Access under Control Panel only.
+
+### 2026-09-22 — Global WMS Logs System (Admin Panel → Logs)
+
+**Migration `0245` applied.** Full write-up:
+[`Change-made/14-global-logs-system.md`](./Change-made/14-global-logs-system.md).
+
+**What changed**
+
+- **Admin Panel → Logs** — a new first-class module (`/admin/logs`): an
+  immutable, filterable, server-paginated investigation table over every login,
+  visit, change, export and denial in the WMS.
+- **Two new tables**: `daily_sessions` (one per employee per IST date, with
+  first login, logout, counters and estimated minutes) and `activity_logs` (the
+  append-only log, with `changes`/`metadata` jsonb and a `client_event_id`
+  dedupe key).
+- **Immutability is enforced in the DB** — a trigger refuses `UPDATE`/`DELETE`
+  on `activity_logs`; no screen or route exposes edit/delete/clear.
+- **Client activity tracker** — page visits, record views, searches and filters
+  buffered in IndexedDB and flushed in batches over normal HTTP, with a
+  `keepalive` flush on page hide and on sign-out/idle. Original timestamps are
+  preserved; failed flushes retry and never drop events.
+- **Server-authoritative audit** — login / failed login / logout / inactivity
+  timeout (via `?reason=idle`), access-denied, export, employee edit
+  (field-level before/after), incentive decisions and access-control grants all
+  write `activity_logs` from the server, never trusted to the client.
+- **Midnight finalization cron** (`/api/cron/logs-finalize`) — closes past IST
+  days' sessions idempotently without logging anyone out.
+- **Excel export** (`/admin/logs/export`, also `?month=YYYY-MM`) — server-side,
+  filter-aware, itself audited.
+
+**Scope:** mutation audit is the full mechanism wired into key paths (session,
+access-denied, export, employee edit, incentive decisions, access-control); it
+was not retro-instrumented across every unrelated module. `/admin/activity`
+remains separate.
+
+**Verified:** `tsc`/`eslint`/`vitest` clean (26 new unit tests); live smoke —
+`/admin/logs` renders, ingest accepts and classifies events, the daily session
+rolls up, the finalize cron 401s without the secret, and a direct
+`UPDATE activity_logs` is rejected by the trigger.
+
+### 2026-09-22 — Every pending migration applied; an Incentive Master outage repaired
+
+**Applied to the Supabase database this branch points at, through
+`pnpm db:migrate`.** Six files were genuinely outstanding; all six applied, and
+the migration ledger now holds 286 rows.
+
+**What was outstanding**
+
+| File | What it adds |
+|---|---|
+| `0222_candidate_policy_signing.sql` | Candidates acknowledge policies from an emailed link, no login |
+| `0226_billing_master.sql` | Legal-entity billing facts on `paying_entities` (address, GST, PAN, bank) |
+| `0227_entity_code_prefixes.sql` | The entity code prefixes employee codes are built from (`A-`, `U-`, `K-`, `M-`, `J-`) |
+| `0228_employee_schedule_settings.sql` | Per-employee attendance / Saturday / timings / WFH settings |
+| `0241_template_files.sql` | Upload Master — an uploaded override per bulk-import template |
+| `0244_incentive_applicability_and_intern_type.sql` | The incentive audience, intern type and internship-date change (see below) |
+
+**The finding worth reading: `0244` could not apply until a year-old drift was
+repaired, and that drift was a live outage.**
+
+`0232_incentive_master.sql` creates `incentive_eligibility` with
+`create table if not exists`. A **different** table of the same name — from
+`0216_incentive_eligibility.sql`, since deleted from the tree — already existed
+around a column called `incentive_id`. The `if not exists` did nothing, so the
+table kept the old shape: wrong column name, no foreign key, a bare unique index.
+`db/schema.ts` and the application both name the column `catalog_id`, so every
+read of that table failed:
+
+```
+Error [PostgresError]: column "catalog_id" does not exist
+  severity_local: 'ERROR', code: '42703'
+```
+
+That is the **Incentive Master screen and incentive request submission**, down.
+Same failure class as the `0240` incident, same cause: a migration recorded as
+applied whose objects were never created. SECTION 0 of `0244` repairs it —
+rename, foreign key, partial unique index, `NOT NULL`. The table held 0 rows, so
+only a name moved.
+
+**Result on the live database:** 323 tables; 29 employees, 1026 tasks and 119
+salary runs untouched; audiences 6 ALL_EMPLOYEES / 14 SELECTED_EMPLOYEES (no
+scheme changed audience); one designation (`Intern`) flagged intern, 10 people on
+it, 6 active; request types now include Breakthrough Idea and Employment
+Referral.
+
+**One list needs a person, not a migration.** 13 active non-intern employees have
+no Probation End Date and will be blocked from their next save until HR sets one
+— the intended "flag the legacy blanks" behaviour from change 12. They are named
+in `Change-made/SQL/10-verify-incentive-applicability.sql`, query 9: Dattaram Kap,
+Jeevan Bharambe, Manan Vasa, Mansi Medhekar, Namrata Nevgi, Om Jadhav, Parvez
+Khan, Prakash Kumawat, Raj Ragpasare, Rashmi Tripathi, Rohan Choudhary, Ruchita
+Ambre, Rudra Thukarul.
+
+**Also fixed, found by verifying against real data:** page 1 of the salary PDF
+printed a stray double-quote where a minus sign belonged
+(`additions " Rs 0 deductions`) — U+2212 has no glyph in WinAnsi and pdfkit wrote
+byte `0x22`. Now ASCII `-`, with a test.
+
+**SQL for other databases:** `Change-made/SQL/09-apply-incentive-applicability.sql`
+(verbatim `0244`, including the repair) and `10-verify-incentive-applicability.sql`.
+
+**Note when reading the applier's output:** `pnpm db:migrate:dry` reports **every**
+file as `pending`. That is by design — it short-circuits the "already applied?"
+lookup when it is not going to write. To see what is genuinely outstanding, run
+`--apply` (it skips and says so) or diff `db/migrations/*.sql` against
+`select filename from __schema_applied`.
+
+### 2026-09-22 — Salary Statement on the web; the PDF back to three plain pages
+
+**No migration.** This change is presentation only — no new columns, no backfill.
+Full write-up: [`Change-made/13-salary-statement-and-pdf-redesign.md`](./Change-made/13-salary-statement-and-pdf-redesign.md).
+
+**What changed**
+
+- **The salary statement is a web page now**: `Employee → My Salary → Salary
+  Statement` (`/my-salary/statement`). Three cards — Salary Slip, Attendance &
+  Salary Calculation, Incentive Statement — in the existing WMS cards, tables,
+  tiles and badges.
+- **The week dropdown is generated from the data**, not hardcoded at Week 1–5.
+  The options come from `ledger.weeks`, the attendance engine's own buckets, and
+  the label is `LedgerWeek.index` — the same number the Daily Salary Report
+  shows. A six-week month gets six options.
+- **Weekly Summary is the default** and prints one row per week; choosing a week
+  replaces it with that week's days and its own calculation block. Only one week
+  is ever on the page.
+- **The month total is the engine's**: `viewTotals(weeks, hasMoney)`, the same
+  function the Daily Salary Report totals with.
+- **One empty state.** A month with no incentives prints
+  `No incentive records for this period.` once, with no empty tables around it.
+- **The PDF is a document again, and always exactly three pages.** The dropdowns,
+  the optional-content layers and the JavaScript actions are gone;
+  `lib/pdf/layered-form.ts` is deleted. A table that cannot fit its page now
+  measures its rows and prints how many it left out (`fitRows`) instead of
+  overflowing onto a fourth page.
+- **One source of truth, both ways.** `loadSalarySlipData` builds `SalarySlipData`
+  once; the web statement and the PDF both render that object and neither does
+  any arithmetic. Both facts are pinned by tests.
+
+**Deliberately not changed**
+
+No attendance, salary, weekly-target, holiday, weekly-off, overtime, deduction,
+incentive, payment, approval or eligibility rule was touched. No backend
+calculation bug was found.
+
+**Known divergence:** the web formats money as `₹`; the PDF prints `Rs ` because
+pdfkit's built-in Helvetica has no rupee glyph in WinAnsi. The values are
+identical — see the linked document.
+
+**Tests:** `tests/unit/salary-slip-pdf.test.ts` (35, rewritten) and
+`tests/unit/salary-statement-render.test.tsx` (21, new). `tsc --noEmit` and
+`eslint` clean. The full suite's 14 failures across 8 files all pass in isolation
+and the first five fail on a clean tree too — pre-existing and load-flaky.
+
+### 2026-09-22 — Incentive applicability (All / Function / Selected), Employee vs Intern, internship and probation dates
+
+**What changed**
+
+- **An incentive's audience is now an explicit choice** on the Incentive
+  Master: **All Employees** (the default for every new one), **Function**
+  (multi-select from the Function master) or **Selected Employees** (the
+  existing dated grant list). It replaces the old pair of "Sales eligible /
+  Interns eligible" tick boxes, which decided the audience in a way nobody
+  could see on the screen.
+- **Interns cannot earn incentives at all.** Intern status comes from a flag on
+  the **Designation master** (`designations.employee_type`), overridable per
+  person on their own record — not from matching the word "intern" in a
+  designation's name, which is what the app used to do and what a rename would
+  have silently changed.
+- **Two new incentive types**: Breakthrough Idea and Employment Referral, with
+  their own request forms, configured in the Incentive Master like the rest.
+- **A new "My Incentives" tab** (second on the incentive rail) shows each
+  employee which incentives they can earn, what each pays — read live from the
+  Incentive Master — and why, with the ones they cannot earn in a collapsed
+  group below, each carrying its reason.
+- **Probation End Date is required** for anybody who is not an intern, on
+  invite, edit and bulk edit. The date is never replaced by the word
+  "Completed": completed probation shows the date with a green Completed tag,
+  running probation the date with an amber On Probation tag.
+- **Internship Start / End dates** on the employee record. The end date is
+  generated by the database as start + 6 months, so no screen can set a pair
+  that disagrees.
+- **Eligibility is enforced on the server.** A request from somebody the scheme
+  does not cover, or from an intern, is refused by the same shared gate the web
+  form and the mobile API both pass through — hiding a button is not the
+  enforcement.
+
+**⚠️ REQUIRES MIGRATION 0244 BEFORE THE UI WILL LOAD**
+
+`db/migrations/0244_incentive_applicability_and_intern_type.sql` has **not been
+applied** to any database. Until it is, `/incentive` and the Employee Master
+will fail: the code reads `incentive_catalog.applicability`,
+`designations.employee_type`, `employees.employee_type` and
+`employees.internship_start`, none of which exist yet.
+
+**The migration contains one statement that can change who earns money** —
+it translates each existing scheme's old audience into the new column. Run the
+pre-flight queries in its header **first** and read the two lists before
+applying. Then:
+
+```bash
+pnpm db:migrate:dry     # shows what would run
+pnpm db:migrate         # applies it
+```
+
+**Two decisions worth knowing about**
+
+- **An interns-only scheme now reaches nobody.** Interns cannot earn, so a
+  scheme whose only audience was interns translates to "Selected Employees"
+  with no one on the list, rather than silently becoming company-wide.
+- **The old tick boxes are kept as columns but no longer decide anything.** The
+  Admin Panel stopped offering them and the in-app table dialog stopped showing
+  them; they stay in the database because every historical change record
+  carries them, and nothing was deleted.
+
+Full detail, file by file: [`Change-made/12-incentive-applicability-intern-employee-type.md`](./Change-made/12-incentive-applicability-intern-employee-type.md).
 ### 2026-09-21 (later) — The permission matrix now covers every route handler
 
 **What changed**

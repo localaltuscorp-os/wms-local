@@ -9,6 +9,8 @@ import {
   incentiveRequests,
 } from "@/db/schema";
 import type { IncentiveStatus, IncentiveType } from "@/db/enums";
+import { auditAction } from "@/lib/logs/audit";
+import type { LogEventType } from "@/lib/logs/events";
 import type { PreparedIncentiveRequest } from "@/lib/incentive/prepare-request";
 import type { IncentiveSplitShare } from "@/lib/incentive/split";
 import {
@@ -107,7 +109,7 @@ export async function recordIncentiveDecision(
   input: { requestId: string; action: unknown; note?: string | null; reviewerId: string },
   opts: { tx?: Tx } = {},
 ): Promise<({ ok: true } & DecisionOutcome) | { ok: false; error: string }> {
-  return inTx(opts.tx, async (t) => {
+  const result = await inTx(opts.tx, async (t) => {
     const [row] = await t
       .select({
         id: incentiveRequests.id,
@@ -183,6 +185,46 @@ export async function recordIncentiveDecision(
       note: check.note,
     };
   });
+
+  // The decision committed; mirror it into the global Logs feed. Fired after the
+  // transaction so a log failure can never roll a decision back.
+  if (result.ok) {
+    auditAction({
+      eventType: decisionEventType(result.action),
+      employeeId: result.reviewerId,
+      route: "/incentive",
+      module: "Incentive",
+      page: "Incentive Requests",
+      resourceType: "incentive_request",
+      resourceId: result.requestId,
+      resourceName: result.type,
+      action: result.action,
+      status: "SUCCESS",
+      reason: result.note,
+      changes: [{ field: "Status", before: result.previousStatus, after: result.newStatus }],
+      sessionCounters: { actions: 1 },
+    });
+  }
+
+  return result;
+}
+
+/** Map a workflow decision onto the log event vocabulary. */
+function decisionEventType(action: DecisionAction): LogEventType {
+  switch (action) {
+    case "approve":
+      return "APPROVE";
+    case "not_approve":
+      return "REJECT";
+    case "reverse":
+      return "REVERSE";
+    case "publish":
+      return "PUBLISH";
+    case "revise":
+      return "REJECT";
+    default:
+      return "UPDATE";
+  }
 }
 
 // ── Justify & Resubmit ───────────────────────────────────────────────────────

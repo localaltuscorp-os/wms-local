@@ -24,12 +24,26 @@
 | [`02-verify-production.sql`](./02-verify-production.sql) | Read-only checks. Run before and after. |
 | [`03-apply-upload-master.sql`](./03-apply-upload-master.sql) | The `template_files` table for the Upload Master. Additive, idempotent. |
 | [`04-verify-upload-master.sql`](./04-verify-upload-master.sql) | Read-only checks for `template_files`. |
+| [`05-apply-access-control.sql`](./05-apply-access-control.sql) | The `visibility_grants` table for Access Control — Task Visibility **and** Incentive Visibility. Renames the earlier `task_view_grants` in place if it exists. Additive, idempotent. |
+| [`06-verify-access-control.sql`](./06-verify-access-control.sql) | Read-only checks for `visibility_grants` and the grants in force. |
+| [`07-apply-incentive-product-master.sql`](./07-apply-incentive-product-master.sql) | Adds the three sold products the Product Master was missing (Key Note, 2-Day Workshop, Inhouse PS). Additive, idempotent. |
+| [`08-verify-incentive-product-master.sql`](./08-verify-incentive-product-master.sql) | Read-only checks for the seven products and the shift master. |
+| [`09-apply-incentive-applicability.sql`](./09-apply-incentive-applicability.sql) | **Applied to the branch's database on 2026-09-22.** Migration `0244`: repairs `incentive_eligibility` (the drift that was breaking the Incentive Master), adds the Incentive Master audience column and the two new request types, the `employee_type` flags, and the internship dates. Additive, idempotent. |
+| [`10-verify-incentive-applicability.sql`](./10-verify-incentive-applicability.sql) | Read-only checks for `0244`, with the numbers read off the live database on 2026-09-22 beside each query. Includes the list of employees who now need a Probation End Date. |
+| [`11-apply-global-logs.sql`](./11-apply-global-logs.sql) | **Applied to the branch's database on 2026-09-22.** Migration `0245`: the Global Logs tables (`daily_sessions`, `activity_logs`) plus the append-only trigger. Additive, idempotent. |
+| [`12-verify-global-logs.sql`](./12-verify-global-logs.sql) | Read-only checks for `0245`, including the immutability proof (a commented-out `UPDATE` that must fail). |
+| [`13-apply-control-panel.sql`](./13-apply-control-panel.sql) | **Applied to the branch's database on 2026-09-22.** Migration `0246`: the Roles template tables (`roles`, `role_permissions`, `employee_roles`) + the seeded "Super Admin" role. Additive, idempotent. |
+| [`14-verify-control-panel.sql`](./14-verify-control-panel.sql) | Read-only checks for `0246`. |
 
 ---
 
 ## The short version
 
-**On the database this branch points at, everything is already applied. Run only the verification.**
+**On the database this branch points at, everything is applied, and the migration
+ledger `__schema_applied` records 286 files.** Run
+[`10-verify-incentive-applicability.sql`](./10-verify-incentive-applicability.sql)
+to confirm that rather than take this document's word for it, then
+[`02-verify-production.sql`](./02-verify-production.sql).
 
 Checked live on 2026-09-17 against `aws-0-ap-south-1.pooler.supabase.com:6543` (the host in `.env.local`):
 
@@ -42,9 +56,49 @@ functions 18 rows; 26 employees with a department_id; 0 orphaned links
 claims    0 duplicate rows in incentive_notification_deliveries
 ```
 
-So if production **is** that Supabase project, the only useful thing to run is [`02-verify-production.sql`](./02-verify-production.sql) — to confirm it rather than take this document's word for it.
+Checked again on 2026-09-22, after the remaining `0244` set was applied through
+`pnpm db:migrate`:
 
-If production is a **different** database, run [`01-apply-production.sql`](./01-apply-production.sql) first, then the verification.
+```
+tables    323 in public; 29 employees, 1026 tasks, 119 salary_runs untouched
+pending   6 files were outstanding (0222, 0226, 0227, 0228, 0241, 0244); all applied
+ledger    286 rows in __schema_applied
+drift     incentive_eligibility had `incentive_id`, NOT `catalog_id` — see below
+```
+
+> Note on reading the ledger: the applier's DRY RUN reports every file as
+> `pending`, because it short-circuits the "already applied?" lookup when it is
+> not going to write (`isApplied = APPLY && await alreadyApplied(...)`). To see
+> what is genuinely outstanding, either run `--apply` (it skips and says so), or
+> diff `db/migrations/*.sql` against `select filename from __schema_applied`.
+
+### The drift that `0244` had to repair first
+
+`0232_incentive_master.sql` creates `incentive_eligibility` with
+`create table if not exists`. A **different** table of the same name, from the
+since-deleted `0216_incentive_eligibility.sql`, already existed around a column
+called `incentive_id` — so the `if not exists` did nothing, and the table kept
+the old shape for a year.
+
+`db/schema.ts` and the application (`lib/queries/incentive-master.ts`,
+`lib/incentive/prepare-request.ts`) both name the column `catalog_id`, so every
+read of that table failed at runtime:
+
+```
+Error [PostgresError]: column "catalog_id" does not exist
+  severity_local: 'ERROR', code: '42703'
+```
+
+That is the Incentive Master screen and incentive request submission, broken —
+the same failure class as the `0240` incident described below, and it had the
+same cause: a migration that was recorded as applied while its objects were
+never actually created. SECTION 0 of `0244` repairs it (rename, foreign key,
+partial unique index). The table held 0 rows, so nothing but a name moved.
+
+So if production **is** that Supabase project, the only useful thing to run is
+[`02-verify-production.sql`](./02-verify-production.sql) — to confirm it rather than take this document's word for it.
+
+If production is a **different** database, run [`01-apply-production.sql`](./01-apply-production.sql) first, then the verification, then `09`.
 
 ---
 

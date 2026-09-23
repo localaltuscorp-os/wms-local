@@ -2,6 +2,7 @@
 
 import { signOut } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase/client";
+import { flushActivityNow } from "@/lib/logs/client-tracker";
 import { LogOut } from "lucide-react";
 
 /**
@@ -20,6 +21,11 @@ export function HubSignOut() {
       await signOut(getFirebaseAuth());
     } catch {
       // Continue regardless — the server-side revoke below is what matters.
+    }
+    try {
+      await flushActivityNow();
+    } catch {
+      // Continue regardless.
     }
     await fetch("/api/auth/signout", { method: "POST" });
     // HARD nav so the next user on this browser can't be served cached pages.

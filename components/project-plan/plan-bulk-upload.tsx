@@ -19,6 +19,8 @@ import {
   ancestorLevels, planPathTo, seedAncestors, writeRecentChain,
 } from "@/lib/project-plan/recent";
 import { bulkCreatePlanNodes } from "@/app/(app)/project-plan/actions";
+import { TEMPLATE_KEYS, templateHref } from "@/lib/templates/keys";
+import { downloadTemplateFile } from "@/lib/templates/client-download";
 import {
   ParentPickers, findPlanNode, parentIdFor, parentMissing, type PickedAncestors,
 } from "./parent-pickers";
@@ -89,6 +91,7 @@ export function PlanBulkUpload({
   const [paste, setPaste] = React.useState("");
   const [fileName, setFileName] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  const [downloading, setDownloading] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
   const fileRef = React.useRef<HTMLInputElement>(null);
 
@@ -216,22 +219,23 @@ export function PlanBulkUpload({
     })();
   }
 
-  /** The empty sheet, built here rather than served — it is six header cells. */
+  /**
+   * The blank sheet — now SERVED rather than built here.
+   *
+   * It used to be assembled in the browser from `columnsFor(kind)`, which meant
+   * the file a person downloaded was whatever the bundled code said, with no way
+   * for anyone to correct a column short of a deploy. It is a registry template
+   * now (lib/templates/projects.ts), so Upload Master → Replace changes what
+   * this button hands over — for every plan kind, because it is one template
+   * key with one button.
+   */
   function downloadTemplate() {
-    const sample = cols.map((c) =>
-      c.field === "name"
-        ? `Example ${KIND_LABEL[kind].toLowerCase()}`
-        : c.field === "owner"
-          ? employees[0]?.name ?? "Person's name"
-          : c.field === "description"
-            ? "What this covers (optional)"
-            : "2026-06-12",
-    );
-    const ws = XLSX.utils.aoa_to_sheet([cols.map((c) => c.header), sample]);
-    ws["!cols"] = cols.map((c) => ({ wch: c.field === "description" ? 42 : c.field === "name" ? 38 : 16 }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `${KIND_LABEL[kind]}s`.slice(0, 31));
-    XLSX.writeFile(wb, `project-plan-${kind}-template.xlsx`);
+    setDownloading(true);
+    void downloadTemplateFile(templateHref(TEMPLATE_KEYS.projects, { kind }))
+      .then((res) => {
+        if (!res.ok) fireToast({ message: res.error, type: "error" });
+      })
+      .finally(() => setDownloading(false));
   }
 
   /**
@@ -462,9 +466,11 @@ export function PlanBulkUpload({
                 <button
                   type="button"
                   onClick={downloadTemplate}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-hairline-strong bg-white px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+                  disabled={downloading}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-hairline-strong bg-white px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft disabled:opacity-60"
                 >
-                  <Download size={14} strokeWidth={2.4} /> Download .xlsx
+                  <Download size={14} strokeWidth={2.4} />
+                  {downloading ? "Preparing…" : "Download .xlsx"}
                 </button>
                 <div className="ml-auto flex items-center gap-2">
                   {fileName && (

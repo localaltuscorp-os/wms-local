@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { ShieldAlert } from "lucide-react";
-import { endTemporaryAccess } from "@/app/(admin)/admin/temporary-access/actions";
+import { endTemporaryAccess } from "@/app/(admin)/admin/control-panel/temporary-access/actions";
 
 /**
  * "YOU ARE ACTING AS …" — the banner a delegated session always shows.

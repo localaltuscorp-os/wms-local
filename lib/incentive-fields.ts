@@ -25,12 +25,15 @@ import type { SplitShareInput } from "@/lib/incentive/split";
 export type IncentiveFieldType =
   | "text"
   | "select"
+  | "multiselect"
   | "date"
   | "number"
   | "textarea"
   | "email"
   | "tel"
-  | "url";
+  | "url"
+  /** Read-only figure shown on the form and NOT submitted (CTC per Month). */
+  | "static";
 
 export interface IncentiveField {
   key: string;
@@ -41,12 +44,22 @@ export interface IncentiveField {
   /**
    * Options come from a live master instead of `options`.
    *
-   * "products" = Admin → Products (`outstanding_products`, active rows, via
-   * `listActiveProductNames`). The dialog receives the list as a prop and the
-   * server re-reads it, so an option is valid exactly when an admin has it
-   * active — nothing is hardcoded here.
+   * "products"    = Admin → Products (`outstanding_products`, active rows, via
+   *                 `listActiveProductNames`). The dialog receives the list as a
+   *                 prop and the server re-reads it, so an option is valid
+   *                 exactly when an admin has it active — nothing is hardcoded.
+   * "shiftTypes"  = Admin → Shift Types (`shift_types`, active rows).
    */
-  optionsFrom?: "products";
+  optionsFrom?: "products" | "shiftTypes";
+  /**
+   * A READ-ONLY value the form displays and the server never accepts: it is not
+   * part of a submission, so it cannot be forged by one. `monthlyCtc` is the
+   * requester's own CTC ÷ 12 from their salary profile (the same figure the
+   * Incentive dashboard divides by to get "% of CTC").
+   */
+  displayFrom?: "monthlyCtc";
+  /** One line under a `multiselect` — how to pick more than one. */
+  hint?: string;
   /**
    * Render hint: show a Yes/No choice as radio buttons with NO default. The
    * field is still `type: "select"` with options, so the stored value and the
@@ -134,14 +147,28 @@ export const INCENTIVE_FIELDS: Record<IncentiveType, readonly IncentiveField[]> 
   sales_pitch: [
     { key: "introducer_first_name", label: "Introducer First Name", type: "text", required: true, half: true },
     { key: "introducer_last_name", label: "Introducer Last Name", type: "text", required: true, half: true },
-    { key: "workshop", label: "Workshop Name", type: "select", required: true, options: WORKSHOPS },
+    // "Introducer Workshop Name" — the workshop the INTRODUCER attended, which
+    // is what this field has always meant here. The other four forms keep the
+    // plain "Workshop Name": they name the workshop the participant came
+    // through, and renaming those would mislabel them.
+    { key: "workshop", label: "Introducer Workshop Name", type: "select", required: true, options: WORKSHOPS },
     { key: "batch_no", label: "Batch No", type: "text", required: true, placeholder: BATCH_PLACEHOLDER },
     { key: "prospect_first_name", label: "Prospect First Name", type: "text", required: true, half: true },
     { key: "prospect_last_name", label: "Prospect Last Name", type: "text", required: true, half: true },
     { key: "organisation", label: "Organisation Name", type: "text", required: true },
-    { key: "cell", label: "Cell No", type: "tel", required: true, placeholder: MOBILE_PLACEHOLDER, pane: "right" },
-    { key: "email", label: "Email", type: "email", required: true, pane: "right" },
-    { key: "products", label: "Product Name(s)", type: "text", required: true, pane: "right" },
+    // ── PRODUCT SOLD — from Admin → Products, MULTIPLE, never hardcoded ────
+    // One field, many products: a pitch usually covers more than one, and the
+    // stored value is the products' names joined with ", " so older free-text
+    // rows keep reading the same way. Each name is validated against the live
+    // master on the server, so a product the admin has retired cannot be filed.
+    {
+      key: "products",
+      label: "Product Sold",
+      type: "multiselect",
+      required: true,
+      optionsFrom: "products",
+      hint: "Pick every product this pitch covers",
+    },
     {
       key: "opportunity_type",
       label: "Opportunity Type",
@@ -152,6 +179,23 @@ export const INCENTIVE_FIELDS: Record<IncentiveType, readonly IncentiveField[]> 
     },
     NOTES,
     INCENTIVE_DATE,
+    // ── CONTACT DETAILS — bottom of the LEFT column ────────────────────────
+    // These three used to sit at the top of the right pane. They are the
+    // prospect's reach-me details, read once after the pitch is described, so
+    // they belong together at the foot of the form rather than beside the
+    // product picker.
+    {
+      key: "shift",
+      label: "Shift",
+      type: "select",
+      required: true,
+      optionsFrom: "shiftTypes",
+      placeholder: "The shift this pitch belongs to",
+    },
+    { key: "cell", label: "Cell No", type: "tel", required: true, placeholder: MOBILE_PLACEHOLDER },
+    { key: "email", label: "Email", type: "email", required: true },
+    // Read-only, not submitted: the figure the incentive is measured against.
+    { key: "ctc_per_month", label: "CTC per Month", type: "static", displayFrom: "monthlyCtc" },
   ],
   client_happiness: [
     {
@@ -230,6 +274,54 @@ export const INCENTIVE_FIELDS: Record<IncentiveType, readonly IncentiveField[]> 
     NOTES,
     INCENTIVE_DATE,
   ],
+
+  /* ── BREAKTHROUGH IDEA (0244) ─────────────────────────────────────────────
+     An idea an employee put forward that the company adopted. The categories
+     are the form's own vocabulary — a `select` with static options, like
+     WORKSHOPS above, NOT an `optionsFrom` master, because there is no
+     "Idea Category" screen and inventing one would be a second place to
+     maintain for no query anyone needs. */
+  breakthrough_idea: [
+    { key: "idea_title", label: "Idea Title", type: "text", required: true },
+    {
+      key: "idea_category",
+      label: "Idea Category",
+      type: "select",
+      required: true,
+      options: [
+        "Process Improvement",
+        "Product",
+        "Client Experience",
+        "Cost Saving",
+        "Technology",
+        "Other",
+      ],
+    },
+    { key: "idea_description", label: "What the idea was", type: "textarea", required: true },
+    { key: "link", label: "Link / Attachments", type: "url", placeholder: "https://…", pane: "right" },
+    NOTES,
+    INCENTIVE_DATE,
+  ],
+
+  /* ── EMPLOYMENT REFERRAL (0244) ───────────────────────────────────────────
+     Somebody the employee referred who was hired. The candidate's contact
+     details are collected on the request itself rather than looked up later,
+     because at filing time they are not an employee yet.
+
+     The name keys are `participant_first_name` / `participant_last_name` ON
+     PURPOSE: `requestPersonName` (lib/incentive/request-display.ts) already
+     reads that pair for the row's person column, so a referral lands on the
+     request list and in the emails with no new helper and no new column. */
+  employment_referral: [
+    { key: "participant_first_name", label: "Candidate First Name", type: "text", required: true, half: true },
+    { key: "participant_last_name", label: "Candidate Last Name", type: "text", required: true, half: true },
+    { key: "candidate_cell", label: "Candidate Mobile No", type: "tel", required: true, placeholder: MOBILE_PLACEHOLDER },
+    { key: "candidate_email", label: "Candidate Email", type: "email", required: true },
+    { key: "position_applied_for", label: "Position Applied For", type: "text", required: true },
+    { key: "referral_link", label: "Résumé / Profile Link", type: "url", placeholder: "https://…", pane: "right" },
+    NOTES,
+    INCENTIVE_DATE,
+  ],
 };
 
 /** What a New Incentive Request submits — the web action and the mobile POST
@@ -244,6 +336,22 @@ export interface IncentiveRequestInput {
 export interface IncentiveValidationContext {
   /** Active product names from Admin → Products. */
   productNames: readonly string[];
+  /** Active shift names from Admin → Shift Types. Optional so an older caller
+   *  that only knows about products still typechecks; a missing list makes the
+   *  Shift field reject anything but blank, which fails closed. */
+  shiftTypeNames?: readonly string[];
+}
+
+/** The separator a multiselect stores with — and the one the free-text rows
+ *  written before it used, so old and new read the same way. */
+export const MULTISELECT_SEPARATOR = ", ";
+
+/** Split a stored multiselect value into its chosen options. */
+export function splitMultiValue(value: string): string[] {
+  return value
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
 }
 
 function showIfMatches(showIf: NonNullable<IncentiveField["showIf"]>, details: Record<string, string>): boolean {
@@ -264,7 +372,9 @@ export function optionsFor(
   field: IncentiveField,
   ctx: IncentiveValidationContext,
 ): readonly string[] | undefined {
-  return field.optionsFrom === "products" ? ctx.productNames : field.options;
+  if (field.optionsFrom === "products") return ctx.productNames;
+  if (field.optionsFrom === "shiftTypes") return ctx.shiftTypeNames ?? [];
+  return field.options;
 }
 
 // ── Format rules ────────────────────────────────────────────────────────────
@@ -333,6 +443,10 @@ export function incentiveFieldError(
   value: string,
   ctx: IncentiveValidationContext,
 ): string | null {
+  // A `static` field is a display, not an answer: it is never validated, never
+  // submitted, and cannot be forged because the server ignores it entirely.
+  if (field.type === "static") return null;
+
   const v = value.trim();
   if (!v) {
     if (!field.required) return null;
@@ -340,8 +454,28 @@ export function incentiveFieldError(
     if (field.optionsFrom === "products" && ctx.productNames.length === 0) {
       return "No products are set up yet — add them in Admin → Products.";
     }
+    if (field.optionsFrom === "shiftTypes" && (ctx.shiftTypeNames ?? []).length === 0) {
+      return "No shifts are set up yet — add them in Admin → Shift Types.";
+    }
     return `${field.label} is required.`;
   }
+
+  // MULTIPLE values, each one checked against the master it came from. The
+  // stored value is the names joined with ", "; anything not on the master is
+  // refused, so "Product Sold" can only ever name a product the admin has
+  // active. A duplicate pick is collapsed rather than rejected — it is a
+  // double-click, not a mistake worth a message.
+  if (field.type === "multiselect") {
+    const options = optionsFor(field, ctx) ?? [];
+    const chosen = splitMultiValue(v);
+    if (chosen.length === 0) return `${field.label} is required.`;
+    const unknown = chosen.filter((c) => !options.includes(c));
+    if (unknown.length > 0) {
+      return `${field.label}: "${unknown[0]}" is not in the product master.`;
+    }
+    return null;
+  }
+
   const options = optionsFor(field, ctx);
   if (options && !options.includes(v)) return `${field.label}: invalid option.`;
   switch (field.type) {
@@ -391,10 +525,32 @@ export function validateIncentiveDetails(
   const fields = visibleIncentiveFields(type, trimmed);
   const clean: Record<string, string> = {};
   for (const f of fields) {
+    // A `static` field is a DISPLAY of something the server already knows (CTC
+    // per Month is the employee's own salary profile ÷ 12). It is dropped here
+    // rather than stored, so a browser that posts a figure for it changes
+    // nothing — the read-only rule is enforced where the value would be kept,
+    // not only in the input's `readOnly` attribute.
+    if (f.type === "static") continue;
+
     const v = trimmed[f.key] ?? "";
     const error = incentiveFieldError(f, v, ctx);
     if (error) return { ok: false, error };
-    if (v) clean[f.key] = v;
+    if (!v) continue;
+
+    if (f.type === "multiselect") {
+      // Stored in MASTER ORDER, one of each: the same picks in a different
+      // click order are the same answer, and two reports of the same pitch
+      // should not differ by a double-click.
+      const chosen = new Set(splitMultiValue(v));
+      const ordered = (optionsFor(f, ctx) ?? []).filter((o) => chosen.has(o));
+      // An option the master dropped between the render and the submit still
+      // counts as chosen, so nothing silently disappears from the record.
+      for (const c of chosen) if (!ordered.includes(c)) ordered.push(c);
+      clean[f.key] = ordered.join(MULTISELECT_SEPARATOR);
+      continue;
+    }
+
+    clean[f.key] = v;
   }
   return { ok: true, details: clean };
 }

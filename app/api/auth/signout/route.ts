@@ -7,6 +7,8 @@ import { getCurrentEmployee } from "@/lib/auth/current";
 import { getFirebaseAdminAuth } from "@/lib/firebase/admin";
 import { PROFILE_CACHE_TAGS } from "@/lib/cache-tags";
 import { ACTIVE_WORKSPACE_COOKIE } from "@/lib/workspaces";
+import { auditLog } from "@/lib/logs/audit";
+import { closeDailySession } from "@/lib/logs/sessions";
 
 export const runtime = "nodejs";
 
@@ -27,6 +29,10 @@ export const runtime = "nodejs";
  * signing out, so we always fall through to clearing the cookie.
  */
 export async function POST(req: Request) {
+  // `?reason=idle` marks an inactivity timeout (from IdleTimerClient); the
+  // default is a normal logout. Read from the URL so the route never has to
+  // depend on a body the various sign-out buttons may not send.
+  const idle = new URL(req.url).searchParams.get("reason") === "idle";
   try {
     const me = await getCurrentEmployee();
     if (me) {
@@ -48,6 +54,24 @@ export async function POST(req: Request) {
       } catch (err) {
         console.warn("[signout] auth_sessions revoke failed (non-fatal):", err);
       }
+
+      // Record the exit and close the daily activity session. Best-effort: a
+      // logout must never be blocked by its own audit trail.
+      void (async () => {
+        try {
+          await auditLog({
+            eventType: idle ? "INACTIVITY_TIMEOUT" : "LOGOUT",
+            employeeId: me.id,
+            route: "/login",
+            module: "Platform",
+            page: "Login",
+            status: "SUCCESS",
+          });
+          await closeDailySession(me.id, idle ? "INACTIVITY_TIMEOUT" : "NORMAL");
+        } catch (err) {
+          console.warn("[signout] logout audit failed (non-fatal):", err);
+        }
+      })();
     }
   } catch (err) {
     console.warn("[signout] session resolve failed (non-fatal):", err);

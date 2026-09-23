@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CalendarDays, LogIn, LogOut, Clock, AlertTriangle, MapPin } from "lucide-react";
+import { CalendarDays, LogIn, LogOut, Clock, AlertTriangle, MapPin, ChevronDown, ChevronUp } from "lucide-react";
 import { PunchEditControl } from "@/components/attendance/punch-edit-control";
 import { formatDate } from "@/lib/format";
 import { dayCodeStyle, UPCOMING_STYLE } from "@/lib/attendance/day-code-view";
@@ -105,6 +105,7 @@ function fmtFullDate(iso: string): string {
 
 export function MonthCalendar({ cells, monthLabel, compact, canEdit, employeeId, weekTargetMinutes }: { cells: MonthCell[]; monthLabel: string; compact?: boolean; canEdit?: boolean; employeeId?: string; /** This employee's own weekly target in minutes. */ weekTargetMinutes?: number }) {
   const weekTargetMin = weekTargetMinutes && weekTargetMinutes > 0 ? weekTargetMinutes : DEFAULT_WEEK_TARGET_MIN;
+  const [minimized, setMinimized] = React.useState(false);
   if (cells.length === 0) {
     return null;
   }
@@ -121,7 +122,7 @@ export function MonthCalendar({ cells, monthLabel, compact, canEdit, employeeId,
       style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline), 0 6px 24px -18px rgba(15,23,42,0.25)", animationDelay: "120ms" }}
     >
       <style>{POPOVER_CSS}</style>
-      <div className="mb-3 flex items-center gap-2">
+      <div className={`flex items-center gap-2 ${minimized ? "" : "mb-3"}`}>
         <span className="inline-grid size-7 place-items-center rounded-lg" style={{ background: "color-mix(in srgb, #E10600 10%, transparent)", color: "#A80400" }}>
           <CalendarDays size={15} strokeWidth={2.3} />
         </span>
@@ -137,8 +138,20 @@ export function MonthCalendar({ cells, monthLabel, compact, canEdit, employeeId,
             Each week totals toward {fmtHrs(weekTargetMin)}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setMinimized((value) => !value)}
+          aria-expanded={!minimized}
+          aria-controls="attendance-month-calendar-content"
+          title={minimized ? "Expand calendar" : "Minimize calendar"}
+          className="ml-auto inline-grid size-8 shrink-0 place-items-center rounded-lg border border-hairline bg-surface-soft text-ink-soft transition-colors hover:border-hairline-strong hover:bg-surface-card hover:text-[var(--color-altus-red-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/40"
+        >
+          {minimized ? <ChevronDown size={17} strokeWidth={2.5} /> : <ChevronUp size={17} strokeWidth={2.5} />}
+          <span className="sr-only">{minimized ? "Expand calendar" : "Minimize calendar"}</span>
+        </button>
       </div>
 
+      <div id="attendance-month-calendar-content" hidden={minimized}>
       {/* weekday header */}
       <div className="grid gap-1 pb-1" style={{ gridTemplateColumns: `repeat(7,minmax(0,1fr)) ${wkCol}` }}>
         {DOW.map((d) => (
@@ -193,6 +206,7 @@ export function MonthCalendar({ cells, monthLabel, compact, canEdit, employeeId,
         <LegendDot c="#15803d" label="Worked an off day" />
         <LegendDot c="#7c3aed" label="Leave" />
         <LegendDot c="#cbd5e1" label="W-off" />
+      </div>
       </div>
     </section>
   );

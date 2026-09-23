@@ -24,7 +24,7 @@ const NOT_ALLOWED = "Only a super-admin can change the module backups.";
  */
 async function manager() {
   const me = await requireUser();
-  if (!canManageModuleBackups(me)) return null;
+  if (!(await canManageModuleBackups(me))) return null;
   return me;
 }
 

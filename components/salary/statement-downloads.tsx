@@ -31,7 +31,7 @@ export function StatementDownloads({
   fyStartYear,
 }: {
   employees: StatementEmployee[];
-  /** "YYYY-MM" for the combined-earnings document. */
+  /** "YYYY-MM" for the salary-slip document. */
   month: string;
   /** "Apr 2026" style label for the button. */
   monthLabel: string;

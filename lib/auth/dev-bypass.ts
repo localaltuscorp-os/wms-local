@@ -120,6 +120,12 @@ export const DEV_BYPASS_EMPLOYEE: Employee = {
   wfhFullTimeAllowed: false,
   wfhPartTimeAllowed: false,
   probationEnd: null,
+  // Employee type + internship (0244) — see the note above: exhaustive against
+  // db/schema.ts. Null override = follow the designation; the generated
+  // `internshipEnd` is listed only because this is a SELECT-shaped row.
+  employeeType: null,
+  internshipStart: null,
+  internshipEnd: null,
   religion: null,
   // Added when this merged onto main beside Shreya's and Vinal's schema
   // work - `as Employee` is a cast, not a check, so a column missing here

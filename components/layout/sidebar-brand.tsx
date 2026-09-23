@@ -57,7 +57,7 @@ export function SidebarBrand() {
         <Link
           href={landing as Route}
           aria-label={`${theme.label} - module home`}
-          className="module-wordmark inline-flex w-full items-center justify-center gap-2.5 rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
+          className="module-wordmark inline-flex w-full min-w-0 items-center justify-center gap-2.5 overflow-hidden rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
         >
           <span
             className="module-wordmark-icon inline-grid shrink-0 place-items-center rounded-2xl text-white"
@@ -71,7 +71,7 @@ export function SidebarBrand() {
             <ModuleIcon size={20} strokeWidth={2.6} aria-hidden />
           </span>
           <span
-            className="module-wordmark-text leading-none"
+            className="module-wordmark-text min-w-0 max-w-full whitespace-nowrap leading-none"
             style={
               {
                 "--mw-a": "var(--color-altus-red, #E10600)",

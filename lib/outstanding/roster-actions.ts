@@ -13,6 +13,7 @@ import {
   designations,
   payingEntities,
 } from "@/db/schema";
+import { EMPLOYEE_TYPES } from "@/db/enums";
 import { requireAdmin } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 
@@ -34,6 +35,24 @@ type RosterTable =
   | typeof designations
   | typeof payingEntities;
 
+/**
+ * WHICH ROSTERS CARRY AN EMPLOYEE TYPE — opt-in per TABLE, the same shape as
+ * ROSTER_CACHE_TAGS below.
+ *
+ * Only `designations` has an `employee_type` column (migration 0244). It marks
+ * everybody holding that designation as an intern, and interns cannot earn
+ * incentives, so an administrator has to be able to set it from the UI. The
+ * other five rosters have no such column, so the writers only ever persist the
+ * field when the target table is listed here — a products/entities/payment
+ * modes/responsibles/paying-entities create or update stores exactly the
+ * columns it did before.
+ */
+const EMPLOYEE_TYPE_TABLES: readonly RosterTable[] = [designations];
+
+function writesEmployeeType(table: RosterTable): table is typeof designations {
+  return EMPLOYEE_TYPE_TABLES.includes(table);
+}
+
 const NameSchema = z
   .string()
   .trim()
@@ -44,6 +63,13 @@ const CreateSchema = z
   .object({
     name: NameSchema,
     sortOrder: z.number().int().min(0).max(9999).optional(),
+    /**
+     * Employee type (migration 0244). The schemas are shared by every roster
+     * because the dialogs share one action type, so the field is ACCEPTED for
+     * all of them — acceptance is not persistence: `writesEmployeeType` below
+     * gates which tables actually store it.
+     */
+    employeeType: z.enum(EMPLOYEE_TYPES).optional(),
   })
   .strict();
 
@@ -52,6 +78,7 @@ const UpdateSchema = z
     name: NameSchema.optional(),
     isActive: z.boolean().optional(),
     sortOrder: z.number().int().min(0).max(9999).optional(),
+    employeeType: z.enum(EMPLOYEE_TYPES).optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: "No changes to save." });
@@ -75,6 +102,14 @@ export type UpdateRosterInput = z.infer<typeof UpdateSchema>;
 const ROSTER_CACHE_TAGS: readonly { table: RosterTable; tag: CacheTag }[] = [
   { table: outstandingProducts, tag: CACHE_TAGS.products },
   { table: outstandingPaymentModes, tag: CACHE_TAGS.paymentModes },
+  /**
+   * DESIGNATIONS feed the `employees` tag. A designation's `employee_type`
+   * decides who is an intern, which the Employee Master shows and the incentive
+   * eligibility rule reads (through the cached employee payload) — so a write
+   * here that flips the flag has to bust it or the change lands on this admin
+   * screen and nowhere else for the cache's ten minutes.
+   */
+  { table: designations, tag: CACHE_TAGS.employees },
 ];
 
 function bustRoster(table: RosterTable, revalidatePaths: string[]): void {
@@ -115,13 +150,23 @@ export async function createRosterItem(
 
   let inserted;
   try {
-    [inserted] = await db
-      .insert(table)
-      .values({
-        name: parsed.data.name,
-        sortOrder: parsed.data.sortOrder ?? 100,
-      })
-      .returning({ id: table.id });
+    const base = {
+      name: parsed.data.name,
+      sortOrder: parsed.data.sortOrder ?? 100,
+    };
+    // Opt-in per table: only designations has employee_type (see above). The
+    // predicate narrows `table`, so the extra column type-checks.
+    if (writesEmployeeType(table)) {
+      [inserted] = await db
+        .insert(table)
+        .values({ ...base, employeeType: parsed.data.employeeType ?? "employee" })
+        .returning({ id: table.id });
+    } else {
+      [inserted] = await db
+        .insert(table)
+        .values(base)
+        .returning({ id: table.id });
+    }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `DB: ${msg}` };
@@ -178,6 +223,10 @@ export async function updateRosterItem(
   if (parsed.data.name !== undefined) patch.name = parsed.data.name;
   if (parsed.data.isActive !== undefined) patch.isActive = parsed.data.isActive;
   if (parsed.data.sortOrder !== undefined) patch.sortOrder = parsed.data.sortOrder;
+  // Opt-in per table: ignored for every roster without an employee_type column.
+  if (writesEmployeeType(table) && parsed.data.employeeType !== undefined) {
+    patch.employeeType = parsed.data.employeeType;
+  }
 
   try {
     await db.update(table).set(patch).where(eq(table.id, current.id));

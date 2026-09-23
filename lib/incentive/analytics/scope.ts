@@ -1,38 +1,63 @@
 import "server-only";
 import { canReviewIncentives } from "@/lib/auth/incentive-permissions";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
-import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
+import { grantedExtrasLabel, permittedPeopleFor } from "@/lib/access/visibility";
 import type { AnalyticsScope, AnalyticsView } from "./model";
 
 /**
  * WHO THE INCENTIVE DASHBOARD MAY SHOW TO WHOM — resolved on the server, every
  * time, from the signed-in identity. Nothing a browser sends widens it.
  *
- *  · Company-wide — admins, the super-admin and the incentive reviewer (Manan
- *    Vasa, who already sees every incentive request).
+ *  · Company-wide — the super-admins and the incentive reviewer (Manan Vasa,
+ *    whose job is deciding every request). NOT admins: see below.
  *  · Everyone else — themselves plus their downline: the people who report to
  *    them through `employees.manager_id`, transitively. That is the existing
  *    hierarchy rule the team boards use (`getDownlineIds`), so a team lead sees
  *    their reports and a manager sees their leads' reports too. Someone with no
  *    reports sees only themselves.
+ *  · Plus whatever Admin Panel → Access Control has granted them: a branch
+ *    ("Mansi and her team") or the whole organisation. The rule and the table
+ *    live in lib/access/visibility.ts — the same one the Tasks module uses.
  *
- * `getDownlineIds` returns [] on any database error, so a failure narrows the
- * view to self — it never widens it.
+ * ── BEING AN ADMIN IS NOT A REASON TO SEE EVERYBODY ────────────────────────
+ * `me.isAdmin` used to be a widener here, and that is the bug this replaces: an
+ * administrator whose job is configuring the system was handed every
+ * employee's earnings by default, including people they have no reporting line
+ * to. Two admins side by side with no relationship between them should see
+ * neither the other's earnings nor their teams'. So admin now buys nothing;
+ * visibility comes from the org chart and from an explicit grant, and the
+ * exemption list is the two accounts that administer the system itself.
+ *
+ * A database failure inside the shared resolver narrows to self and downline —
+ * it never widens.
  */
 export async function incentiveAnalyticsScopeFor(me: {
   id: string;
   email: string;
   isAdmin: boolean;
 }): Promise<AnalyticsScope> {
-  if (me.isAdmin || isSuperAdmin(me.email) || canReviewIncentives(me.email)) {
+  if (isSuperAdmin(me.email) || canReviewIncentives(me.email)) {
     return { all: true, employeeIds: new Set(), viewerId: me.id, label: "Everyone" };
   }
-  const downline = await getDownlineIds(me.id);
+
+  const { org, ids, grantedExtras } = await permittedPeopleFor(me.id, "incentive");
+  if (org) {
+    return {
+      all: true,
+      employeeIds: new Set(),
+      viewerId: me.id,
+      label: "Everyone (granted)",
+    };
+  }
+
+  // `ids` holds nothing but the viewer: a single-person set, so the label reads
+  // "You" and `applyAnalyticsView` offers no Team switch.
+  const soleViewer = ids.size <= 1;
   return {
     all: false,
-    employeeIds: new Set([me.id, ...downline]),
+    employeeIds: ids,
     viewerId: me.id,
-    label: downline.length > 0 ? "You and your team" : "You",
+    label: (soleViewer ? "You" : "You and your team") + grantedExtrasLabel(grantedExtras),
   };
 }
 

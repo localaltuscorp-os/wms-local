@@ -3,6 +3,9 @@ import { describe, it, expect, vi } from "vitest";
 // task-list-page imports task-table → server actions → server-only + @/lib/db
 // (which validates env at import). Mock those so the module loads in vitest.
 vi.mock("server-only", () => ({}));
+// The list page now reaches the visibility resolver, whose import chain builds
+// a drizzle predicate on the `employees` table at module scope — so the stub
+// has to carry the table, not only the two this suite used to name.
 vi.mock("@/lib/db", () => ({ db: {}, tasks: {}, employees: {} }));
 
 import { computeStatCounts } from "@/components/tasks/task-list-page";
