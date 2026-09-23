@@ -5,7 +5,6 @@ import {
   SECURITY_ROLE_DEFS,
   isSecurityRole,
 } from "@/lib/auth/security-roles-catalog";
-import { ACCOUNT_UNLOCKER_EMAILS } from "@/lib/auth/unlock-permission";
 
 /**
  * ASSIGNABLE ROLES: the list is code, the grants are data (migration 0238).
@@ -42,15 +41,12 @@ describe("the role catalogue", () => {
 describe("granting and holding", () => {
   const roles = readFileSync("lib/auth/security-roles.ts", "utf8");
 
-  it("keeps the four named addresses as a floor that no screen can revoke", () => {
-    // Otherwise revoking every grant would leave nobody able to release a lock,
-    // and a lockout feature whose release valve can be switched off in a UI can
-    // lock the whole company out.
-    expect(roles).toContain("canUnlockAccounts(employee.email)");
-    expect(ACCOUNT_UNLOCKER_EMAILS.length).toBe(4);
+  it("has no permanent unlockers and limits grant management to super-admins", () => {
+    expect(roles).not.toContain("ACCOUNT_UNLOCKER_EMAILS");
+    expect(roles).not.toContain("canUnlockAccounts(employee.email)");
+    expect(roles).toContain("return isSuperAdmin(employee.email)");
     const actions = readFileSync("app/(app)/account-locks/actions.ts", "utf8");
-    const revoke = actions.indexOf("revokeUnlockRoleAction");
-    expect(actions.slice(revoke, revoke + 600)).toContain("canUnlockAccounts(email)");
+    expect(actions).toContain("if (id === me.id) return { ok: false, error: CANNOT_EDIT_SELF }");
   });
 
   it("fails CLOSED when the grants table cannot be read", () => {
@@ -68,10 +64,9 @@ describe("granting and holding", () => {
     expect(roles).toContain('action: "revoked"');
   });
 
-  it("seeds the four in the migration, so a deploy changes nobody's access", () => {
-    const sql = readFileSync("db/migrations/0238_security_role_grants.sql", "utf8");
-    for (const email of ACCOUNT_UNLOCKER_EMAILS) expect(sql).toContain(email);
-    expect(sql).toContain("ON CONFLICT (employee_id, role) DO NOTHING");
+  it("lists only database grants, without synthesising permanent holders", () => {
+    expect(roles).not.toContain("builtInEmails");
+    expect(roles).not.toContain("builtIn:");
   });
 });
 

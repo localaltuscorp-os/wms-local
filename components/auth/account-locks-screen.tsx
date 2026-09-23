@@ -3,7 +3,6 @@
 import * as React from "react";
 import { LockKeyhole, ShieldCheck, Loader2, Search, KeyRound, UserPlus, X } from "lucide-react";
 import { fireToast } from "@/lib/toast";
-import { UNLOCKER_NAMES } from "@/lib/auth/lockout-copy";
 import { SECURITY_ROLE_DEFS } from "@/lib/auth/security-roles-catalog";
 import {
   grantUnlockRoleAction,
@@ -25,8 +24,6 @@ export interface Holder {
   employeeId: string;
   name: string;
   email: string;
-  /** Named in code: permanent, and not revocable from here. */
-  builtIn: boolean;
   grantedAt: string | null;
 }
 
@@ -56,11 +53,13 @@ const ROLE = SECURITY_ROLE_DEFS.account_unlock;
 
 export function AccountLocksScreen({
   rows,
+  currentEmployeeId,
   canGrant,
   holders,
   grantable,
 }: {
   rows: LockedRow[];
+  currentEmployeeId: string;
   canGrant: boolean;
   holders: Holder[];
   grantable: Grantable[];
@@ -126,8 +125,8 @@ export function AccountLocksScreen({
         return;
       }
       setPeople((prev) =>
-        [...prev, { employeeId: person.id, name: person.name, email: person.email, builtIn: false, grantedAt: new Date().toISOString() }].sort(
-          (a, b) => Number(b.builtIn) - Number(a.builtIn) || a.name.localeCompare(b.name),
+        [...prev, { employeeId: person.id, name: person.name, email: person.email, grantedAt: new Date().toISOString() }].sort(
+          (a, b) => a.name.localeCompare(b.name),
         ),
       );
       setCandidates((prev) => prev.filter((c) => c.id !== person.id));
@@ -142,7 +141,7 @@ export function AccountLocksScreen({
     if (busy) return;
     setBusy(holder.employeeId);
     try {
-      const res = await revokeUnlockRoleAction(holder.employeeId, holder.email);
+      const res = await revokeUnlockRoleAction(holder.employeeId);
       if (!res.ok) {
         fireToast({ message: res.error, type: "error" });
         return;
@@ -270,7 +269,7 @@ export function AccountLocksScreen({
         </section>
 
         {/* ── Who holds the role ───────────────────────────────────────── */}
-        <section className="rounded-2xl border border-hairline bg-white p-5">
+        {canGrant && <section className="rounded-2xl border border-hairline bg-white p-5">
           <div className="mb-4 flex items-start gap-3">
             <span
               className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white"
@@ -293,32 +292,25 @@ export function AccountLocksScreen({
                   <span className="block text-[13.5px] font-bold text-ink-strong">{h.name}</span>
                   <span className="block text-[12px] font-medium text-ink-muted">{h.email}</span>
                 </span>
-                {h.builtIn ? (
-                  <span className="inline-flex items-center rounded-pill px-2.5 py-1 text-[11.5px] font-bold" style={{ background: "#f4f4f5", color: "#52525b" }}>
-                    Permanent
-                  </span>
-                ) : (
-                  <>
-                    <span className="text-[12px] font-medium text-ink-subtle">since {istDateTime(h.grantedAt)}</span>
-                    {canGrant && (
-                      <button
-                        type="button"
-                        onClick={() => void take(h)}
-                        disabled={busy !== null}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-2.5 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:bg-surface-soft disabled:opacity-50"
-                      >
-                        {busy === h.employeeId ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />} Remove
-                      </button>
-                    )}
-                  </>
-                )}
+                <>
+                  <span className="text-[12px] font-medium text-ink-subtle">since {istDateTime(h.grantedAt)}</span>
+                  {h.employeeId !== currentEmployeeId && (
+                    <button
+                      type="button"
+                      onClick={() => void take(h)}
+                      disabled={busy !== null}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-2.5 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:bg-surface-soft disabled:opacity-50"
+                    >
+                      {busy === h.employeeId ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />} Remove
+                    </button>
+                  )}
+                </>
               </li>
             ))}
           </ul>
 
-          {canGrant ? (
-            <div className="mt-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.1em] text-ink-subtle">Give the role to</p>
+          <div className="mt-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.1em] text-ink-subtle">Give the role to</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <CompactSelect
                   value={pick}
@@ -339,14 +331,9 @@ export function AccountLocksScreen({
                   {granting ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />} Give role
                 </button>
               </div>
-              <p className="mt-2 text-[12px] leading-relaxed text-ink-subtle">{ROLE.caution}</p>
-            </div>
-          ) : (
-            <p className="mt-4 text-[12.5px] font-medium text-ink-muted">
-              You can unlock accounts. Changing who else can is limited to {UNLOCKER_NAMES} and super-admins.
-            </p>
-          )}
-        </section>
+            <p className="mt-2 text-[12px] leading-relaxed text-ink-subtle">{ROLE.caution}</p>
+          </div>
+        </section>}
       </div>
     </div>
   );
