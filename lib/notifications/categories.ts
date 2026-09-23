@@ -132,6 +132,19 @@ const CATEGORY_OF: Record<NotificationKind, NotificationCategory> = {
   incentive_request_reversed: "incentive",
   incentive_request_resubmitted: "incentive",
   incentive_paid: "incentive",
+
+  // ── Training & Learning (LMS) ─────────────────────────────────────────
+  training_scheduled: "admin",
+  training_rescheduled: "admin",
+  training_cancelled: "admin",
+  training_recording_ready: "admin",
+  training_recording_incomplete: "admin",
+  training_test_pending: "admin",
+  training_feedback_pending: "admin",
+  learning_share_scheduled: "admin",
+  learning_share_reminder: "admin",
+  learning_target_approaching: "admin",
+  learning_target_incomplete: "admin",
 };
 
 /** The category a kind belongs to. Unclassified kinds fall to Admin Panel. */

@@ -2,7 +2,7 @@
 
 **Branch:** `Om` · **Repo:** `https://github.com/localaltuscorp-os/wms-local`
 **Audience:** an engineer or a terminal Claude picking this up cold, and whoever runs the SQL against production.
-**Last updated:** 2026-09-22
+**Last updated:** 2026-09-23
 
 ---
 
@@ -36,6 +36,7 @@ applied to the branch's database, and `SQL/` exists for other databases.
 | 13 | [`13-salary-statement-and-pdf-redesign.md`](./13-salary-statement-and-pdf-redesign.md) | **No migration.** The salary statement as a web page (week options generated from the ledger, one empty state) and the PDF rebuilt as exactly three fixed pages with no layers, no form fields and no JavaScript |
 | 14 | [`14-global-logs-system.md`](./14-global-logs-system.md) | **Migration `0245`, applied 2026-09-22.** Admin Panel → Logs: an immutable append-only activity log + per-employee daily sessions, a client tracker (IndexedDB → batched HTTP), midnight finalization, a filterable admin UI and server-side Excel export |
 | 15 | [`15-control-panel.md`](./15-control-panel.md) | **Migration `0246`, applied 2026-09-22.** Admin Panel → Control Panel (Users / Roles / Permissions / Effective Access / Temporary Access), Temporary Access relocated (reused), a Roles template layer over the existing permission matrix, and Salary Profile renamed to Salary Breakup |
+| 16 | [`16-training-learning-module.md`](./16-training-learning-module.md) | **Migrations `0248` + `0249` + `0250`, applied 2026-09-23.** Training & Learning (LMS) built by extending the Training Centre: scheduling/audience/recurrence/lifecycle, self check-in + per-second recording progress, anonymous per-training surveys, per-role learning targets with history, daily learning-share rotation, role-aware dashboard, target-vs-actual, analytics, month/week/day calendar grids, and writable master data |
 | — | [`SQL/`](./SQL/README.md) | Production SQL: what to run, in what order, and how to verify it |
 
 Read `07-files-changed.md` last if you are reviewing; read it first if you are about to execute the SQL.

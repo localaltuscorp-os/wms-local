@@ -71,6 +71,18 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   incentive_request_reversed:     "Incentive request — reversed",
   incentive_request_resubmitted:  "Incentive request — resubmitted (reviewer)",
   incentive_paid:                 "Incentive — paid",
+  // Training & Learning (LMS)
+  training_scheduled:            "Training — scheduled",
+  training_rescheduled:          "Training — rescheduled",
+  training_cancelled:            "Training — cancelled",
+  training_recording_ready:      "Training — recording ready",
+  training_recording_incomplete: "Training — recording incomplete",
+  training_test_pending:         "Training — test pending",
+  training_feedback_pending:     "Training — feedback pending",
+  learning_share_scheduled:      "Learning share — scheduled",
+  learning_share_reminder:       "Learning share — reminder",
+  learning_target_approaching:   "Learning target — approaching",
+  learning_target_incomplete:    "Learning target — incomplete",
 };
 
 const CHANNEL_LABEL: Record<NotificationChannel, string> = {
