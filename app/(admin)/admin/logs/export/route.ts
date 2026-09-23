@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { requireAdmin } from "@/lib/auth/current";
+import { apiViewDenial } from "@/lib/permissions/api-guard";
 import { listActivityLogs } from "@/lib/queries/logs";
 import { parseLogFilters, type LogFilters } from "@/lib/logs/filters";
 import { auditLog } from "@/lib/logs/audit";
@@ -54,6 +55,11 @@ function estMin(metadata: unknown): string {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  // The MODULE gate — a route handler renders no layout, so `requirePathView`
+  // never runs for it. Refuse a denied admin before any work, matching the other
+  // admin export handlers.
+  const denial = await apiViewDenial(request);
+  if (denial) return denial;
   const me = await requireAdmin();
 
   const url = new URL(request.url);
@@ -68,6 +74,10 @@ export async function GET(request: Request): Promise<Response> {
   if (month && /^\d{4}-\d{2}$/.test(month)) {
     const start = new Date(`${month}-01T00:00:00+05:30`);
     const end = new Date(start);
+    // `start` is the PREVIOUS day in UTC (month start IST = prior-day 18:30Z), so
+    // stepping the UTC month alone keeps its day number and over/under-shoots the
+    // month end (Mar→Mar 28, Sep→Oct 1). Pin to the 1st first, then step.
+    end.setUTCDate(1);
     end.setUTCMonth(end.getUTCMonth() + 1);
     applied = { ...filters, from: start.toISOString(), to: end.toISOString() };
   }

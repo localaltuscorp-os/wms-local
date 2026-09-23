@@ -698,6 +698,17 @@ export async function addIncentiveEligibility(
             addedById: me.id,
           })),
         );
+        // Naming employees IS the SELECTED_EMPLOYEES mode. Without flipping the
+        // scheme's `applicability`, `applicabilityOf` keeps paying the previous
+        // audience (ALL_EMPLOYEES / FUNCTION) and these rows are ignored — the
+        // grant silently does nothing while the screen says otherwise.
+        if (incentive.applicability !== "SELECTED_EMPLOYEES") {
+          await tx
+            .update(incentiveCatalog)
+            .set({ applicability: "SELECTED_EMPLOYEES" })
+            .where(eq(incentiveCatalog.id, catalogId));
+          incentive.applicability = "SELECTED_EMPLOYEES";
+        }
       }
 
       const eventId =

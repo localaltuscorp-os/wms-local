@@ -317,10 +317,16 @@ export async function loadSalarySlipData(
 
   // ── INCENTIVE ─────────────────────────────────────────────────────────
   const [accounts, targetVsPaid, codes, requests] = await Promise.all([
-    getIncentiveAccountsLedger(
-      { all: false, employeeIds: new Set([employeeId]), viewerId: employeeId, label: "Slip" },
-      { year: Number(month.slice(0, 4)) },
-    ).catch(() => null),
+    // No `year` ceiling: the statement's YTD and last-3 windows span the prior
+    // financial year, so a Jan–Mar slip would silently drop Apr–Dec rows and
+    // contradict the attainment figures above it. Scoped to one person, so the
+    // full ledger is small.
+    getIncentiveAccountsLedger({
+      all: false,
+      employeeIds: new Set([employeeId]),
+      viewerId: employeeId,
+      label: "Slip",
+    }).catch(() => null),
     getIncentiveTargetVsPaidForPerson({ id: employeeId, name: identity.name }, month).catch(() => null),
     listActiveProductCodes().catch((): Record<string, string> => ({})),
     listIncentiveRequests({
