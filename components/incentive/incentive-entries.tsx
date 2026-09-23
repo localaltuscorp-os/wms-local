@@ -67,10 +67,10 @@ export function IncentiveEntries({
       fireToast({
         message:
           res.skipped
-            ? "Already reversed."
+            ? "Already adjusted — a negative payable adjustment is already recorded."
             : res.reversalAmount < 0
-              ? `Reversed — negative adjustment ${formatInr(res.reversalAmount)} recorded.`
-              : "Entry marked reversed (nothing was paid).",
+              ? `Negative payable adjustment of ${formatInr(res.reversalAmount)} recorded.`
+              : "Marked as adjusted — nothing was paid, so no adjustment was recorded.",
       });
       router.refresh();
     });
@@ -159,7 +159,7 @@ export function IncentiveEntries({
       sortValue: (r) => r.paidAmt,
       render: (r) => (
         <span className="inline-flex items-center justify-end gap-1.5">
-          {r.reversed && <IncentiveBadge tone="red">reversed</IncentiveBadge>}
+          {r.reversed && <IncentiveBadge tone="red">Negative payable adj.</IncentiveBadge>}
           {r.paid && !r.reversed && <IncentiveBadge tone="teal">✓</IncentiveBadge>}
           <span className="text-[13px] font-bold tabular-nums text-ink-strong">{formatInr(r.paidAmt)}</span>
         </span>
@@ -261,10 +261,10 @@ export function IncentiveEntries({
             {r.paidAmt > 0 && !r.reversed && (
               <button
                 type="button"
-                aria-label={`Reverse ${r.incentiveName} for ${r.empName}`}
+                aria-label={`Record a negative payable adjustment for ${r.incentiveName} (${r.empName})`}
                 onClick={() => setPendingReverse(r)}
                 className="grid size-9 place-items-center rounded-lg text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong"
-                title="Reverse this paid incentive"
+                title="Record a negative payable adjustment on this paid incentive"
               >
                 <Undo2 size={14} strokeWidth={2.3} />
               </button>
@@ -313,19 +313,19 @@ export function IncentiveEntries({
       <ConfirmDialog
         open={pendingReverse !== null}
         onOpenChange={(o) => !o && setPendingReverse(null)}
-        title="Reverse this paid incentive?"
+        title="Record a negative payable adjustment?"
         body={
           pendingReverse ? (
             <>
               <b className="text-ink-strong">{pendingReverse.incentiveName}</b> for{" "}
               <b className="text-ink-strong">{pendingReverse.empName}</b> ({formatInr(pendingReverse.paidAmt)} paid
-              {pendingReverse.periodMonth ? `, ${fmtMonth(pendingReverse.periodMonth)}` : ""}) will be reversed. A
-              negative adjustment of <b className="text-ink-strong">{formatInr(-pendingReverse.paidAmt)}</b> is
+              {pendingReverse.periodMonth ? `, ${fmtMonth(pendingReverse.periodMonth)}` : ""}) will be adjusted. A
+              negative payable adjustment of <b className="text-ink-strong">{formatInr(-pendingReverse.paidAmt)}</b> is
               recorded against the employee&apos;s payable. The original payment stays on record.
             </>
           ) : null
         }
-        confirmLabel="Reverse incentive"
+        confirmLabel="Record adjustment"
         pending={reversing}
         onConfirm={confirmReverse}
       />

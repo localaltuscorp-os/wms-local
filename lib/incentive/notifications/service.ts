@@ -8,6 +8,7 @@ import {
   incentiveNotificationDeliveries,
 } from "@/db/schema";
 import type { IncentiveStatus, IncentiveType } from "@/db/enums";
+import { resolveEmployeeType } from "@/lib/incentive/master";
 import { localDateString } from "@/lib/format";
 import { canReviewIncentives } from "@/lib/auth/incentive-permissions";
 import { notify, type NotifyOpts } from "@/lib/notifications/dispatch";
@@ -360,12 +361,18 @@ export async function processIncentiveCatalogEvent(
       .limit(1);
     if (!ev) return { ...tally([]), event: null };
 
+    // The audience is decided by the SAME rule as every other screen, so this
+    // query provides the same two facts it needs about a person: their
+    // effective employee type (an intern is never in an audience) and their
+    // Function (what a FUNCTION-scoped scheme matches on).
     const people = await exec
       .select({
         id: employees.id,
         isActive: employees.isActive,
         employmentStatus: employees.employmentStatus,
-        designation: designations.name,
+        employeeTypeOverride: employees.employeeType,
+        designationEmployeeType: designations.employeeType,
+        functionId: employees.departmentId,
       })
       .from(employees)
       .leftJoin(designations, eq(employees.designationId, designations.id));
@@ -376,7 +383,16 @@ export async function processIncentiveCatalogEvent(
       eventType: ev.eventType,
       before,
       after,
-      employees: people,
+      employees: people.map((p) => ({
+        id: p.id,
+        isActive: p.isActive,
+        employmentStatus: p.employmentStatus,
+        employeeType: resolveEmployeeType({
+          override: p.employeeTypeOverride,
+          designationType: p.designationEmployeeType,
+        }),
+        functionId: p.functionId,
+      })),
       actorId: ev.actorId,
     });
     // The date the change takes effect: the one chosen when the change was

@@ -33,6 +33,15 @@ export function defaultIncentiveAmount(
       // The chart pays these per batch ("10 Qualified Leads", "10 Referrals"),
       // not per request, so a single request has no default — an admin sets it.
       return 0;
+    case "breakthrough_idea":
+    case "employment_referral":
+      // 0244. Same reasoning as leads_referrals: these are priced by the
+      // Incentive Master scheme the admin configures (₹1,000 and ₹2,000 in the
+      // brief, but the rate is the MASTER's, not a constant here), and an idea
+      // or a referral can be worth more or less than the standing figure. A
+      // guess here would be a hardcoded rate, which is exactly what the brief
+      // forbids — so a request starts at "amount not set" for an admin to fill.
+      return 0;
   }
 }
 
@@ -44,6 +53,8 @@ export function incentiveLabel(type: IncentiveType, d: Record<string, string>): 
     case "group_intro": return d.event_type || "Group Introduction";
     case "client_happiness": return d.happiness_type || "Client Happiness";
     case "leads_referrals": return "Leads / Referrals";
+    case "breakthrough_idea": return d.idea_title || "Breakthrough Idea";
+    case "employment_referral": return "Employment Referral";
   }
 }
 
@@ -77,6 +88,14 @@ export const INCENTIVE_CONDITION_FIELDS: Record<IncentiveType, readonly Conditio
   // No gating columns defined for the new type yet — Approval/Accounts are out
   // of scope for the form change that introduced it.
   leads_referrals: [],
+  // 0244. Both new schemes pay once a fact the company can check is true, which
+  // is what these columns record for the accounts/approval side.
+  breakthrough_idea: [
+    { key: "implemented", label: "Idea Implemented?", options: ["Yes", "No"] },
+  ],
+  employment_referral: [
+    { key: "candidate_joined", label: "Candidate Joined?", options: ["Yes", "No"] },
+  ],
 };
 
 /** Unpaid only accrues once approved (matches the sheet's Approved-Amt − Paid). */

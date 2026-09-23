@@ -16,6 +16,7 @@ import {
 } from "@/db/schema";
 import { isCurrentStaff } from "@/lib/queries/employees";
 import { codeHistoryFor } from "./code-registry";
+import { resolveEmployeeType, type EmployeeTypeCode } from "./employee-type";
 
 /**
  * THE EMPLOYEE MASTER — one read across every existing source of truth.
@@ -305,6 +306,19 @@ export interface EmployeeMasterRow {
   /** True when probation_end is set and still in the future (§2's tag). */
   onProbation: boolean;
 
+  /* ── 0244 · EMPLOYEE TYPE AND INTERNSHIP ──────────────────────────────────
+     `employeeType` is the PERSON'S OVERRIDE (null = follow the designation);
+     `effectiveEmployeeType` is the answer the rest of the app acts on. Both are
+     carried because the workspace edits the first and must SHOW the second —
+     otherwise an admin would set an override and still not know what it did. */
+  employeeType: string | null;
+  effectiveEmployeeType: EmployeeTypeCode;
+  /** The designation's own flag, so the workspace can explain the inheritance. */
+  designationEmployeeType: string | null;
+  /** First day of the internship. `internshipEnd` is computed by Postgres. */
+  internshipStart: string | null;
+  internshipEnd: string | null;
+
   annualCtc: number | null;
   monthlyCtc: number | null;
   tdsMonthly: number | null;
@@ -376,6 +390,13 @@ export async function loadEmployeeMasterRows(
       probationEnd: employees.probationEnd,
       dateOfCompletion: employees.lastWorkingDay,
 
+      // 0244 — the override, the designation's flag, and the internship dates.
+      // `internshipEnd` is a generated column: read here, never written.
+      employeeType: employees.employeeType,
+      designationEmployeeType: designations.employeeType,
+      internshipStart: employees.internshipStart,
+      internshipEnd: employees.internshipEnd,
+
       annualCtc: salaryProfiles.annualCtc,
       tdsMonthly: salaryProfiles.tdsMonthly,
       ptExempt: salaryProfiles.ptExempt,
@@ -408,6 +429,13 @@ export async function loadEmployeeMasterRows(
     const annual = r.annualCtc == null ? null : Number(r.annualCtc);
     return {
       ...r,
+      // The EFFECTIVE type, resolved once here so no screen has to re-derive it
+      // (and so a screen cannot leave the override in charge and forget the
+      // designation behind it).
+      effectiveEmployeeType: resolveEmployeeType({
+        override: r.employeeType,
+        designationType: r.designationEmployeeType,
+      }),
       officeEmail: r.officialEmail ?? r.email,
       annualCtc: annual,
       monthlyCtc: annual == null ? null : Math.round((annual / 12) * 100) / 100,
@@ -559,7 +587,14 @@ export interface MasterOptions {
    */
   functions: { id: string; name: string }[];
   entities: { id: string; name: string; codePrefix: string | null }[];
-  designations: { id: string; name: string }[];
+  /**
+   * The designations, with the flag that decides whether somebody holding one is
+   * an intern (0244). The flag is carried here because the INVITE form needs it
+   * before there is an employee row to read it from: choosing a designation is
+   * what decides whether the form must ask for a Probation End Date or an
+   * Internship Start Date.
+   */
+  designations: { id: string; name: string; employeeType: string }[];
   departments: { id: string; name: string }[];
   shiftTypes: { id: string; name: string }[];
   managers: { id: string; name: string }[];
@@ -579,7 +614,7 @@ export async function loadMasterOptions(): Promise<MasterOptions> {
     db.select({ id: payingEntities.id, name: payingEntities.name, codePrefix: payingEntities.codePrefix })
       .from(payingEntities).where(eq(payingEntities.isActive, true))
       .orderBy(asc(payingEntities.sortOrder), asc(payingEntities.name)),
-    db.select({ id: designations.id, name: designations.name })
+    db.select({ id: designations.id, name: designations.name, employeeType: designations.employeeType })
       .from(designations).where(eq(designations.isActive, true))
       .orderBy(asc(designations.sortOrder), asc(designations.name)),
     db.select({ id: shiftTypes.id, name: shiftTypes.name })

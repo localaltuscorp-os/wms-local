@@ -2,11 +2,22 @@ import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 
 vi.mock("server-only", () => ({}));
-// scope.ts reaches the org chart through this; `applyAnalyticsView` never does,
-// but the module has to import cleanly to be tested at all.
-vi.mock("@/lib/weekly-goals/hierarchy", () => ({ getDownlineIds: async () => [] }));
+// scope.ts reaches the org chart through the SHARED visibility resolver
+// (lib/access/visibility.ts), which holds a database handle at import time.
+// `applyAnalyticsView` never touches it, but the module has to import cleanly
+// to be tested at all.
+vi.mock("@/lib/db", () => ({ db: {} }));
+// The resolver is mocked by name so the scope tests below can assert HOW it was
+// called — the grant table is the only thing that may widen a scope.
+vi.mock("@/lib/access/visibility", () => ({
+  permittedPeopleFor: vi.fn(async () => ({ org: false, ids: new Set(), grantedExtras: [] })),
+  grantedExtrasLabel: () => null,
+}));
 
-import { applyAnalyticsView } from "@/lib/incentive/analytics/scope";
+import {
+  applyAnalyticsView,
+  incentiveAnalyticsScopeFor,
+} from "@/lib/incentive/analytics/scope";
 import { buildIncentiveAnalytics, type AnalyticsScope } from "@/lib/incentive/analytics/model";
 import { resolvePeriod } from "@/lib/incentive/analytics/periods";
 
@@ -199,5 +210,48 @@ describe("the Dashboard's duplicate navigation", () => {
     expect(tabs).toContain('searchParams.get("tab")');
     // No local tab state left to drift out of step with the rail.
     expect(tabs).not.toMatch(/useState<TabKey>/);
+  });
+});
+
+/**
+ * WHO RESOLVES THE SCOPE (requirement: backend enforcement, admin ≠ everyone).
+ *
+ * The scope is resolved from the signed-in identity inside
+ * `incentiveAnalyticsScopeFor`, on the server, every time. The tests above pin
+ * what the resolved scope DOES; these pin that it cannot be widened by a flag
+ * the viewer happens to hold.
+ */
+describe("the scope resolver", () => {
+  it("gives an administrator only their own permitted people, not the company", async () => {
+    const scope = await incentiveAnalyticsScopeFor({
+      id: ME,
+      email: "an.admin@altuscorp.com",
+      isAdmin: true,
+    });
+    // The mocked resolver grants nothing, so an admin is left with the set the
+    // resolver handed back (the viewer plus their downline — here, just the
+    // viewer). Being an admin buys no extra reach.
+    expect(scope.all).toBe(false);
+    expect([...scope.employeeIds]).toEqual([]);
+  });
+
+  it("grants the company only through the resolver (an explicit Access Control grant)", async () => {
+    const { permittedPeopleFor } = await import("@/lib/access/visibility");
+    const spy = vi
+      .mocked(permittedPeopleFor)
+      .mockResolvedValueOnce({ org: true, ids: new Set(), grantedExtras: [] } as never);
+    const scope = await incentiveAnalyticsScopeFor({
+      id: ME,
+      email: "an.admin@altuscorp.com",
+      isAdmin: true,
+    });
+    expect(scope.all).toBe(true);
+    expect(spy).toHaveBeenCalledWith(ME, "incentive");
+  });
+
+  it("takes no viewer id, so a browser cannot ask for someone else's scope", () => {
+    const src = readFileSync("lib/incentive/analytics/scope.ts", "utf8");
+    expect(src).toMatch(/incentiveAnalyticsScopeFor\(me: \{/);
+    expect(src).not.toMatch(/incentiveAnalyticsScopeFor\([^)]*viewerId/);
   });
 });

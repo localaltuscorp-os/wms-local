@@ -87,7 +87,10 @@ export async function renderIncentiveCatalogPdf(
   const columns: ColumnSpec[] = [
     { key: "incentive", label: "INCENTIVE", width: 250 },
     { key: "amount", label: "AMOUNT", width: 86, align: "right" },
-    { key: "eligible", label: "ELIGIBLE", width: 96 },
+    // "APPLIES TO" rather than "ELIGIBLE": the column prints the RULE now
+    // (All Employees / Function / Selected Employees), which is what decides the
+    // audience. See lib/exports/incentive-catalog.ts.
+    { key: "eligible", label: "APPLIES TO", width: 110 },
     { key: "status", label: "STATUS", width: 62 },
   ];
   const scale = pageWidth / columns.reduce((a, c) => a + c.width, 0);
@@ -419,22 +422,21 @@ function drawCell(
     }
 
     case "eligible": {
-      if (!row.salesEligible && !row.internsEligible) {
+      // ONE tag, because there is now one rule (0244). The old two-tag form
+      // printed the legacy group flags; a scheme scoped to a function or to
+      // named people has both flags false and would have printed as eligible
+      // for nobody, which is the opposite of true.
+      const label = eligibilityLabel(row).toUpperCase();
+      if (row.applicability === "ALL_EMPLOYEES") {
+        drawTag(doc, cellX, cellY, cellW, label, COLORS.sales);
+      } else if (row.applicability === "FUNCTION") {
+        drawTag(doc, cellX, cellY, cellW, label, COLORS.interns);
+      } else {
         doc
           .font("Helvetica")
           .fontSize(9)
           .fillColor(COLORS.inkSoft)
           .text(eligibilityLabel(row), cellX, cellY, { width: cellW, lineBreak: false });
-        break;
-      }
-      // Two small tags, stacked when both apply — the on-screen chips, printed.
-      let ty = cellY;
-      if (row.salesEligible) {
-        drawTag(doc, cellX, ty, cellW, "SALES", COLORS.sales);
-        ty += 15;
-      }
-      if (row.internsEligible) {
-        drawTag(doc, cellX, ty, cellW, "INTERNS", COLORS.interns);
       }
       break;
     }

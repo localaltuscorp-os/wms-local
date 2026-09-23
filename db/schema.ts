@@ -41,6 +41,8 @@ import {
   type EmploymentStatus,
   type IncentiveType,
   type IncentiveDuration,
+  type IncentiveApplicability,
+  type EmployeeTypeCode,
   type ExitReason,
   type RehireEligibility,
   type ReligionCode,
@@ -99,10 +101,28 @@ export const designations = pgTable(
     name: text("name").notNull().unique(),
     isActive: boolean("is_active").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(100),
+    /**
+     * EMPLOYEE TYPE (migration 0244) — 'employee' | 'intern'. The designation
+     * master is where intern-ness lives, because a designation is a row an
+     * administrator maintains, not a substring of a name.
+     *
+     * 0244 marked the designations that already meant intern
+     * (`Intern (2nd Yr)`, `Intern (3rd Yr)`, `First-Year Intern`,
+     * `Second-Year Intern`) by matching their names ONCE, inside the migration.
+     * Nothing at runtime matches designation text any more —
+     * `resolveEmployeeType` in lib/incentive/master.ts reads this column.
+     */
+    employeeType: text("employee_type")
+      .notNull()
+      .default("employee")
+      .$type<EmployeeTypeCode>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("designations_active_name_idx").on(t.isActive, t.name)],
+  (t) => [
+    index("designations_active_name_idx").on(t.isActive, t.name),
+    check("designations_employee_type_chk", sql`${t.employeeType} in ('employee', 'intern')`),
+  ],
 );
 
 export const payingEntities = pgTable(
@@ -617,12 +637,51 @@ export const employees = pgTable("employees", {
   // Attendance Phase B (0060) — probation-end anchor for the paid-leave cycle.
   // Pulled forward from Phase C (salary): the leave allowance accrues from this
   // date and nothing accrues before it. Null => no anchor yet (0 paid leaves).
+  //
+  // REQUIRED-BY-VALIDATION, NULLABLE-BY-DESIGN (0244): every save of a
+  // non-intern employee must carry one, but the column stays nullable because
+  // two unrelated features treat NULL as a real state — the leave cycle
+  // (lib/attendance/leave-cycle.ts) reads "no anchor yet" and the HR
+  // confirmation cron (app/api/cron/hr-confirmations) reads "not scheduled".
+  // Making it NOT NULL would rewrite both. The requirement is enforced in
+  // `editEmployee`, which every create/edit/bulk path already funnels through.
   probationEnd: date("probation_end"),
+
+  /* ── EMPLOYEE TYPE + INTERNSHIP (0244) ───────────────────────────────────
+     Intern status decides incentive eligibility, so it needs one source of
+     truth: `designations.employee_type`, overridden per person here when the
+     company rule genuinely does not fit somebody. Null = follow the
+     designation. See `resolveEmployeeType` in lib/incentive/master.ts. */
+  employeeType: text("employee_type").$type<EmployeeTypeCode>(),
+  /** First day of the internship. Set by HR; the end date is computed. */
+  internshipStart: date("internship_start"),
+  /**
+   * Last day of the internship = start + 6 months, COMPUTED BY THE DATABASE.
+   *
+   * A stored generated column rather than a value the app writes, so the pair
+   * cannot disagree: no action, script or import can set an end date that does
+   * not match its start. Postgres clamps 31 Aug + 6 months to 28/29 Feb, which
+   * is the correct reading of "six months". NULL start gives NULL end.
+   *
+   * There is no HR override today. If one is ever needed it must be a SEPARATE
+   * nullable column that wins when set, never a write to this one.
+   */
+  internshipEnd: date("internship_end").generatedAlwaysAs(
+    sql`(internship_start + interval '6 months')::date`,
+  ),
   // Monthly Events Master (migration 0130) — drives the personalised holiday
   // list. Nullable text; one of RELIGIONS ('hindu'|'christian'|'muslim'|
   // 'other'|'unspecified'). Admin-set in the profile / holidays admin.
   religion: text("religion").$type<ReligionCode>(),
-});
+}, (t) => [
+  // Mirrors migration 0244. Null is the common case (follow the designation);
+  // the check only rejects a value neither the designation master nor
+  // `resolveEmployeeType` would ever produce.
+  check(
+    "employees_employee_type_chk",
+    sql`${t.employeeType} is null or ${t.employeeType} in ('employee', 'intern')`,
+  ),
+]);
 
 /**
  * Profile v2 — achievements_earned (migration 0040).
@@ -2109,6 +2168,8 @@ export const NOTIFICATION_KINDS = [
   "incentive_request_reversed",    // → the request's employee (with the reason)
   "incentive_request_resubmitted", // → the incentive reviewer
   "incentive_paid",                // → the paid employee
+  // Client Engagement — weekly "collect references" reminder (migration 0230).
+  "ce_reference_reminder",
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -2856,15 +2917,10 @@ export const incentiveRequests = pgTable(
     employeeId: uuid("employee_id")
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
-    type: text("type")
-      .$type<
-        | "bss_conversion"
-        | "sales_pitch"
-        | "client_happiness"
-        | "group_intro"
-        | "leads_referrals"
-      >()
-      .notNull(),
+    /** Which form this request was filed with. The vocabulary is
+     *  `INCENTIVE_TYPES` (db/enums.ts) — typed from there rather than spelled
+     *  out, so adding a request type is one edit and not four. */
+    type: text("type").$type<IncentiveType>().notNull(),
     /** Approval workflow state (0230). Values and labels: db/enums.ts
      *  INCENTIVE_STATUSES; allowed transitions: lib/incentive/workflow.ts.
      *  `rejected` is stored for Not Approved. */
@@ -3839,13 +3895,19 @@ export type NewSalaryPolicyConsent = typeof salaryPolicyConsents.$inferInsert;
  * `weekly_goals.incentive_catalog_id` — which is why migration 0232 added the
  * Master's extra fields here instead of creating a second incentive table.
  *
- * ── TWO WAYS TO BE ELIGIBLE, ONE OF THEM AUTHORITATIVE ─────────────────────
- * `salesEligible` / `internsEligible` are the original GROUP flags, resolved
- * against an employee's designation. `appliesToAll` = false (Rohan's 0216)
- * restricts an incentive to the people named in `incentiveEligibility`; while
- * it is true the named list is empty and the Incentive Master shows the group
- * flags. See `resolveEligibility` in lib/incentive/master.ts, which takes the
- * flag as its `named` input.
+ * ── APPLICABILITY IS THE RULE; THE FLAGS ARE LEGACY (0244) ─────────────────
+ * `applicability` says how the audience is decided: ALL_EMPLOYEES (the
+ * default), FUNCTION (`incentiveFunctionScope` names the functions) or
+ * SELECTED_EMPLOYEES (`incentiveEligibility` names people with effective
+ * dates). See `resolveIncentiveEligibility` in lib/incentive/master.ts — the
+ * one place that rule is written down.
+ *
+ * `salesEligible` / `internsEligible` are the ORIGINAL group flags. Migration
+ * 0244 kept every row's audience by translating them into `applicability`
+ * (any row with eligibility rows, or with neither flag set, became
+ * SELECTED_EMPLOYEES). Nothing reads them for decisions any more; they are
+ * retained because the columns are cheap and every pre-0244
+ * `incentive_catalog_events` snapshot carries them.
  */
 export const incentiveCatalog = pgTable("incentive_catalog", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -3854,6 +3916,11 @@ export const incentiveCatalog = pgTable("incentive_catalog", {
   amount: numeric("amount", { precision: 14, scale: 2 }).notNull().default("0"),
   salesEligible: boolean("sales_eligible"),
   internsEligible: boolean("interns_eligible"),
+  /** How the audience is decided. Never null; defaults company-wide. */
+  applicability: text("applicability")
+    .notNull()
+    .default("ALL_EMPLOYEES")
+    .$type<IncentiveApplicability>(),
   notes: text("notes"),
   sortOrder: integer("sort_order"),
   active: boolean("active").notNull().default(true),
@@ -3878,7 +3945,48 @@ export const incentiveCatalog = pgTable("incentive_catalog", {
   /** Last day the incentive applies. Independent of `active`. */
   validUntil: date("valid_until"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // Mirrors migration 0032's duration check and 0244's applicability check —
+  // the vocabulary is text + CHECK, not a pgEnum, so a new applicability does
+  // not need a non-transactional `ALTER TYPE … ADD VALUE`.
+  check(
+    "incentive_catalog_applicability_chk",
+    sql`${t.applicability} in ('ALL_EMPLOYEES', 'FUNCTION', 'SELECTED_EMPLOYEES')`,
+  ),
+]);
+
+/**
+ * WHICH FUNCTIONS AN INCENTIVE APPLIES TO (migration 0244) — read only when
+ * `incentiveCatalog.applicability = 'FUNCTION'`.
+ *
+ * ── A TABLE, NOT `uuid[]` ──────────────────────────────────────────────────
+ * `functions` is admin-editable (Admin → Functions). Array elements cannot
+ * carry a foreign key, so a deleted function would silently keep scoping an
+ * incentive; here the cascade removes the mapping instead. The reverse index
+ * answers "which incentives apply to Sales", which the function master needs
+ * before it lets somebody deactivate that function.
+ *
+ * CURRENT STATE, NOT HISTORY: replacing the set on save is the intended
+ * behaviour (the brief requires effective dates for per-employee grants only).
+ * Every change is still recorded, through the before/after snapshot on
+ * `incentive_catalog_events`.
+ */
+export const incentiveFunctionScope = pgTable(
+  "incentive_function_scope",
+  {
+    catalogId: uuid("catalog_id")
+      .notNull()
+      .references(() => incentiveCatalog.id, { onDelete: "cascade" }),
+    functionId: uuid("function_id")
+      .notNull()
+      .references(() => functions.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.catalogId, t.functionId] }),
+    index("incentive_function_scope_function_idx").on(t.functionId),
+  ],
+);
 
 /**
  * WHO A NARROWED INCENTIVE APPLIES TO (migration 0216).
@@ -3894,20 +4002,37 @@ export const incentiveEligibility = pgTable(
   "incentive_eligibility",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    incentiveId: uuid("incentive_id")
+    catalogId: uuid("catalog_id")
       .notNull()
       .references(() => incentiveCatalog.id, { onDelete: "cascade" }),
     employeeId: uuid("employee_id")
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
+    effectiveFrom: date("effective_from").notNull(),
+    /** Null = still eligible. */
+    removedEffectiveFrom: date("removed_effective_from"),
+    addedById: uuid("added_by_id").references(() => employees.id, { onDelete: "set null" }),
+    removedById: uuid("removed_by_id").references(() => employees.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
+  // Mirrors migration 0232.
   (t) => [
-    uniqueIndex("incentive_eligibility_pair_uq").on(t.incentiveId, t.employeeId),
-    index("incentive_eligibility_employee_idx").on(t.employeeId),
+    uniqueIndex("incentive_eligibility_current_uq")
+      .on(t.catalogId, t.employeeId)
+      .where(sql`${t.removedEffectiveFrom} is null`),
+    index("incentive_eligibility_catalog_idx").on(t.catalogId, t.removedEffectiveFrom),
+    index("incentive_eligibility_employee_idx").on(t.employeeId, t.removedEffectiveFrom),
+    check(
+      "incentive_eligibility_window_chk",
+      sql`${t.removedEffectiveFrom} is null or ${t.removedEffectiveFrom} >= ${t.effectiveFrom}`,
+    ),
+    check(
+      "incentive_eligibility_removed_chk",
+      sql`${t.removedEffectiveFrom} is not null or ${t.removedById} is null`,
+    ),
   ],
 );
-export type IncentiveEligibilityRow = typeof incentiveEligibility.$inferSelect;
 
 export const incentiveEntries = pgTable(
   "incentive_entries",
@@ -6985,6 +7110,8 @@ export const broadcasts = pgTable(
     // should only land in the inbox + email.
     popup: boolean("popup").notNull().default(true),
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    // Set while a sweep publishes a due broadcast (0229).
+    publishClaimedAt: timestamp("publish_claimed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -7025,6 +7152,8 @@ export const broadcastRecipients = pgTable(
     snoozeSession: text("snooze_session"),
     snoozeCount: integer("snooze_count").notNull().default(0),
     popupSeenAt: timestamp("popup_seen_at", { withTimezone: true }),
+    // Per recipient, per channel: what happened (0229).
+    channelOutcomes: jsonb("channel_outcomes").notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -10396,6 +10525,249 @@ export const templateFiles = pgTable(
 );
 export type TemplateFile = typeof templateFiles.$inferSelect;
 export type NewTemplateFile = typeof templateFiles.$inferInsert;
+
+/**
+ * Access Control — a grant of ELEVATED visibility, per domain.
+ *
+ * Two domains today, one rule and one table: `tasks` (whose work a person may
+ * read) and `incentive` (whose incentive earnings they may read). Both are
+ * scoped to the signed-in person plus their downline by default
+ * (lib/tasks/scope.ts, lib/incentive/analytics/scope.ts). Seeing further is not
+ * a side effect of being an admin, and it is not something a person can give
+ * themselves: it is a row here, written only from Admin Panel → Access Control
+ * by a master admin.
+ *
+ * `targetId` NULL means the whole organisation. A target means that person AND
+ * their downline — "Mansi and her team", not "Mansi alone", because a grant that
+ * stopped one level short of the team the grant was meant to cover would be read
+ * as broken.
+ */
+export const visibilityGrants = pgTable(
+  "visibility_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Which module's visibility this widens: tasks | incentive. */
+    domain: text("domain").$type<"tasks" | "incentive">().notNull(),
+    /** Who is being given the wider view. */
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    /** NULL = the whole organisation; otherwise the root of the granted branch. */
+    targetId: uuid("target_id").references(() => employees.id, { onDelete: "cascade" }),
+    note: text("note"),
+    grantedById: uuid("granted_by_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("visibility_grants_domain_employee_target_uq").on(
+      t.domain,
+      t.employeeId,
+      t.targetId,
+    ),
+    // The org-wide grant (target NULL) needs its own partial index: Postgres
+    // treats NULLs as distinct, so the pair index above would allow two.
+    uniqueIndex("visibility_grants_domain_employee_org_uq")
+      .on(t.domain, t.employeeId)
+      .where(sql`${t.targetId} IS NULL`),
+    index("visibility_grants_employee_idx").on(t.employeeId),
+  ],
+);
+export type VisibilityGrant = typeof visibilityGrants.$inferSelect;
+export type NewVisibilityGrant = typeof visibilityGrants.$inferInsert;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GLOBAL WMS LOGS (migration 0245) — the append-only activity log + the daily
+// activity session rollup behind Admin Panel → Logs. See the migration header
+// for the contract; `activity_logs` is immutable (enforced by a DB trigger).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const DAILY_SESSION_STATUS = ["active", "closed", "finalized"] as const;
+export type DailySessionStatus = (typeof DAILY_SESSION_STATUS)[number];
+
+export const LOGOUT_TYPES = [
+  "NORMAL",
+  "INACTIVITY_TIMEOUT",
+  "SESSION_EXPIRED",
+  "FORCED_LOGOUT",
+  "NOT_RECORDED",
+] as const;
+export type LogoutType = (typeof LOGOUT_TYPES)[number];
+
+/** One employee's activity, rolled up per IST calendar date. System-writable only. */
+export const dailySessions = pgTable(
+  "daily_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    dateIst: date("date_ist").notNull(),
+    firstLoginAt: timestamp("first_login_at", { withTimezone: true }),
+    lastActivityAt: timestamp("last_activity_at", { withTimezone: true }),
+    logoutAt: timestamp("logout_at", { withTimezone: true }),
+    logoutType: text("logout_type").$type<LogoutType>(),
+    totalEstimatedMinutes: integer("total_estimated_minutes").notNull().default(0),
+    totalEventCount: integer("total_event_count").notNull().default(0),
+    modulesVisitedCount: integer("modules_visited_count").notNull().default(0),
+    pagesVisitedCount: integer("pages_visited_count").notNull().default(0),
+    recordsViewedCount: integer("records_viewed_count").notNull().default(0),
+    actionsPerformedCount: integer("actions_performed_count").notNull().default(0),
+    status: text("status")
+      .$type<DailySessionStatus>()
+      .notNull()
+      .default("active"),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("daily_sessions_employee_date_uq").on(t.employeeId, t.dateIst),
+    index("daily_sessions_date_status_idx").on(t.dateIst, t.status),
+    check(
+      "daily_sessions_logout_type_chk",
+      sql`${t.logoutType} is null or ${t.logoutType} in ('NORMAL', 'INACTIVITY_TIMEOUT', 'SESSION_EXPIRED', 'FORCED_LOGOUT', 'NOT_RECORDED')`,
+    ),
+    check(
+      "daily_sessions_status_chk",
+      sql`${t.status} in ('active', 'closed', 'finalized')`,
+    ),
+  ],
+);
+
+export type DailySession = typeof dailySessions.$inferSelect;
+export type NewDailySession = typeof dailySessions.$inferInsert;
+
+/** The append-only global activity log. UPDATE/DELETE are blocked by a trigger. */
+export const activityLogs = pgTable(
+  "activity_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    dailySessionId: uuid("daily_session_id").references(() => dailySessions.id, {
+      onDelete: "set null",
+    }),
+    // Nullable: LOGIN_FAILED for an unknown email and SYSTEM events have no
+    // employee row to point at.
+    employeeId: uuid("employee_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    // The brief called this `timestamp`; stored as `event_at` because `timestamp`
+    // is an SQL reserved word. The UI labels the column "Time".
+    eventAt: timestamp("event_at", { withTimezone: true }).notNull().defaultNow(),
+    eventType: text("event_type").notNull(),
+    module: text("module"),
+    page: text("page"),
+    route: text("route"),
+    resourceType: text("resource_type"),
+    resourceId: text("resource_id"),
+    resourceName: text("resource_name"),
+    action: text("action"),
+    status: text("status"),
+    reason: text("reason"),
+    changes: jsonb("changes"),
+    metadata: jsonb("metadata"),
+    requestId: text("request_id"),
+    operationId: text("operation_id"),
+    clientEventId: text("client_event_id"),
+    actorType: text("actor_type"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("activity_logs_employee_event_idx").on(t.employeeId, t.eventAt),
+    index("activity_logs_session_idx").on(t.dailySessionId),
+    index("activity_logs_event_at_idx").on(t.eventAt),
+    index("activity_logs_module_event_idx").on(t.module, t.eventAt),
+    index("activity_logs_event_type_event_idx").on(t.eventType, t.eventAt),
+    index("activity_logs_status_event_idx").on(t.status, t.eventAt),
+    index("activity_logs_resource_idx").on(t.resourceType, t.resourceId),
+    index("activity_logs_request_id_idx").on(t.requestId),
+    index("activity_logs_operation_id_idx").on(t.operationId),
+    index("activity_logs_module_page_event_idx").on(t.module, t.page, t.eventAt),
+    uniqueIndex("activity_logs_client_event_id_uq")
+      .on(t.clientEventId)
+      .where(sql`${t.clientEventId} is not null`),
+  ],
+);
+
+export type ActivityLog = typeof activityLogs.$inferSelect;
+export type NewActivityLog = typeof activityLogs.$inferInsert;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTROL PANEL (migration 0246) — a Roles template layer over the existing
+// permission architecture. Enforcement stays in `module_permissions`; these are
+// the authoring tables behind Admin Panel → Control Panel's Roles/Permissions.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A named, reusable permission template (e.g. "HR Admin"). */
+export const roles = pgTable(
+  "roles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    description: text("description"),
+    isSystem: boolean("is_system").notNull().default(false),
+    createdById: uuid("created_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("roles_name_uq").on(sql`lower(${t.name})`)],
+);
+
+export type Role = typeof roles.$inferSelect;
+export type NewRole = typeof roles.$inferInsert;
+
+/** One (module node, action, scope) a role grants. */
+export const rolePermissions = pgTable(
+  "role_permissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+    nodeKey: text("node_key").notNull(),
+    action: text("action").notNull(),
+    scope: text("scope"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("role_permissions_uq").on(t.roleId, t.nodeKey, t.action, t.scope),
+    index("role_permissions_role_idx").on(t.roleId),
+    index("role_permissions_node_idx").on(t.nodeKey),
+  ],
+);
+
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type NewRolePermission = typeof rolePermissions.$inferInsert;
+
+/** User ↔ role assignment. */
+export const employeeRoles = pgTable(
+  "employee_roles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+    assignedById: uuid("assigned_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("employee_roles_uq").on(t.employeeId, t.roleId),
+    index("employee_roles_employee_idx").on(t.employeeId),
+    index("employee_roles_role_idx").on(t.roleId),
+  ],
+);
+
+export type EmployeeRole = typeof employeeRoles.$inferSelect;
+export type NewEmployeeRole = typeof employeeRoles.$inferInsert;
 
 /**
  * ACCOUNT LOCKOUT after consecutive failed sign-ins (migration 0236).

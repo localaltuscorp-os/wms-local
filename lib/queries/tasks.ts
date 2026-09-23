@@ -12,6 +12,7 @@ import { employeeIdsInDepartments } from "@/lib/queries/departments";
 import { resolveTeamScopes } from "@/lib/queries/team-scope";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { effectiveDueAtSql } from "@/lib/tasks/effective-due";
+import { applyTaskScope, currentTaskVisibility } from "@/lib/tasks/scope";
 import type { TaskListFilters, TaskListRow } from "@/lib/types";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -215,7 +216,31 @@ function statusFilterCondition(statuses: TaskStatus[]) {
   return or(byStatus, inArray(tasks.approvalStatus, verdicts as ApprovalStatus[]));
 }
 
+/**
+ * THE VISIBILITY CEILING, as a condition.
+ *
+ * `visibleDoerIds` is the set whose tasks this request may read AT ALL (set by
+ * applyTaskScope from the signed-in person's org position — see lib/tasks/
+ * scope.ts). It is an OR over doer and initiator, matching the Team filter's
+ * rule: work somebody raised is theirs to see even when another person carries
+ * it out, and a ceiling that dropped those would hide a manager's own
+ * delegations from them.
+ *
+ * Undefined means "not scoped" — a caller with no viewer, such as a scheduled
+ * report, which is not reading on anybody's behalf.
+ */
+function visibilityCondition(filters: TaskListFilters) {
+  if (!Array.isArray(filters.visibleDoerIds)) return undefined;
+  const ids = filters.visibleDoerIds;
+  if (ids.length === 0) return undefined;
+  return or(inArray(tasks.doerId, ids), inArray(tasks.initiatorId, ids));
+}
+
 async function listTasksUncached(filters: TaskListFilters): Promise<TaskListRow[]> {
+  // An assignee selection wholly outside the ceiling matches nothing — see
+  // applyTaskScope on why this is not simply ignored.
+  if (filters.assigneeOutsideScope) return [];
+
   const conditions = [eq(tasks.archived, filters.archived)];
 
   if (filters.startDate) conditions.push(gte(tasks.createdAt, filters.startDate));
@@ -233,6 +258,8 @@ async function listTasksUncached(filters: TaskListFilters): Promise<TaskListRow[
   if (filters.unread)                conditions.push(...unreadConditions());
   if (filters.ageRange)              conditions.push(...ageRangeConditions(filters.ageRange));
   if (filters.taskId)                conditions.push(eq(tasks.id, filters.taskId));
+  const visible = visibilityCondition(filters);
+  if (visible)                       conditions.push(visible);
 
   if (filters.departments.length > 0) {
     // Match tasks whose doer belongs to ANY selected department, via the
@@ -349,9 +376,15 @@ async function listTasksUncached(filters: TaskListFilters): Promise<TaskListRow[
  * `unstable_cache` serialises Date→string on a hit, so dates are rehydrated.
  */
 export async function listTasks(filters: TaskListFilters): Promise<TaskListRow[]> {
+  // THE VISIBILITY CEILING IS APPLIED HERE, before the cache key is built, so
+  // two people asking for "all tasks" can never share an entry — and so every
+  // caller (the list, the archive, the agenda, the mobile endpoints, the
+  // exports) inherits the rule without having to remember it. See
+  // lib/tasks/scope.ts for who may see whose work.
+  const scoped = applyTaskScope(filters, await currentTaskVisibility());
   const rows = await unstable_cache(
-    () => listTasksUncached(filters),
-    ["list-tasks", JSON.stringify(filters)],
+    () => listTasksUncached(scoped),
+    ["list-tasks", JSON.stringify(scoped)],
     { revalidate: 30, tags: [CACHE_TAGS.tasks] },
   )();
   return rows.map((r) => ({
@@ -427,13 +460,15 @@ export async function listTasksPage(
   filters: TaskListFilters,
   opts: TaskListPageOpts = {},
 ): Promise<TaskListPage> {
+  // Ceiling applied before the cache key, exactly as in listTasks above.
+  const scoped = applyTaskScope(filters, await currentTaskVisibility());
   const keyParts = [
     "tasks-page",
-    JSON.stringify(filters ?? {}),
+    JSON.stringify(scoped ?? {}),
     JSON.stringify(opts ?? {}),
   ];
   const page = await unstable_cache(
-    () => listTasksPageUncached(filters, opts),
+    () => listTasksPageUncached(scoped, opts),
     keyParts,
     { revalidate: 30, tags: [CACHE_TAGS.tasks] },
   )();
@@ -459,6 +494,10 @@ async function listTasksPageUncached(
   filters: TaskListFilters,
   opts: TaskListPageOpts = {},
 ): Promise<TaskListPage> {
+  // Same ceiling rule as the flat path, including the "outside the ceiling
+  // matches nothing" case.
+  if (filters.assigneeOutsideScope) return { rows: [], nextCursor: null };
+
   const pageSize = Math.max(1, Math.min(MAX_PAGE_SIZE, opts.pageSize ?? 50));
   const cursor = opts.cursor ? decodeCursor(opts.cursor) : null;
 
@@ -603,6 +642,8 @@ export interface BoardTask {
   priority: (typeof TASK_PRIORITIES)[number];
   doerId: string;
   doerName: string | null;
+  approvalStatus: string | null;
+  initiatorId: string;
   archived: boolean;
   dueAt: Date;
   updatedAt: Date;
@@ -618,9 +659,14 @@ export interface BoardTask {
  * narrows the board.
  */
 export async function listBoardTasks(filters?: TaskListFilters): Promise<BoardTask[]> {
-  const keyParts = ["board-tasks", JSON.stringify(filters ?? {})];
+  // The board answers to the same visibility ceiling as the list — an
+  // organisation-wide Kanban would be the same leak in a different shape.
+  const scoped = filters
+    ? applyTaskScope(filters, await currentTaskVisibility())
+    : filters;
+  const keyParts = ["board-tasks", JSON.stringify(scoped ?? {})];
   const rows = await unstable_cache(
-    () => listBoardTasksUncached(filters),
+    () => listBoardTasksUncached(scoped),
     keyParts,
     { revalidate: 30, tags: [CACHE_TAGS.tasks] },
   )();
@@ -658,6 +704,9 @@ async function listBoardTasksUncached(filters?: TaskListFilters): Promise<BoardT
       if (ids.length === 0) return [];
       conditions.push(inArray(tasks.doerId, ids));
     }
+    if (filters.assigneeOutsideScope) return [];
+    const visible = visibilityCondition(filters);
+    if (visible) conditions.push(visible);
   }
   const rows = await db
     .select({
@@ -672,6 +721,8 @@ async function listBoardTasksUncached(filters?: TaskListFilters): Promise<BoardT
       initiatorId: tasks.initiatorId,
       priority: tasks.priority,
       doerId: tasks.doerId,
+      approvalStatus: tasks.approvalStatus,
+      initiatorId: tasks.initiatorId,
       // Effective due (revised ?? original) so the board flags overdue from it.
       dueAt: effectiveDueAtSql(),
       updatedAt: tasks.updatedAt,
@@ -692,6 +743,17 @@ async function listBoardTasksUncached(filters?: TaskListFilters): Promise<BoardT
  * due first. Same light shape as the Kanban board.
  */
 export async function listAgendaTasks(employeeId: string): Promise<BoardTask[]> {
+  // One person's agenda is a task read like any other: asking for somebody
+  // outside your permitted scope answers with nothing rather than with their
+  // day. Same ceiling, same source (lib/tasks/scope.ts).
+  const visibility = await currentTaskVisibility();
+  if (
+    visibility &&
+    visibility.permittedIds !== null &&
+    !visibility.permittedIds.includes(employeeId)
+  ) {
+    return [];
+  }
   const keyParts = ["agenda-tasks", employeeId];
   const rows = await unstable_cache(
     () => listAgendaTasksUncached(employeeId),
@@ -724,6 +786,8 @@ async function listAgendaTasksUncached(employeeId: string): Promise<BoardTask[]>
       initiatorId: tasks.initiatorId,
       priority: tasks.priority,
       doerId: tasks.doerId,
+      approvalStatus: tasks.approvalStatus,
+      initiatorId: tasks.initiatorId,
       // Effective due (revised ?? original) so the agenda sorts + flags by it.
       dueAt: effectiveDueAtSql(),
       updatedAt: tasks.updatedAt,
@@ -779,10 +843,15 @@ export interface TaskExportRow {
  * 1k UI ceiling — to keep the response bounded.
  */
 export async function listTasksForExport(
-  filters: TaskListFilters,
+  rawFilters: TaskListFilters,
   opts: { limit?: number } = {},
 ): Promise<TaskExportRow[]> {
   const limit = opts.limit ?? 10_000;
+  // The export is a task read, so it carries the same ceiling: a spreadsheet
+  // must not be the way around the list's permissions. Applied here rather than
+  // at the route because this function has other callers too.
+  const filters = applyTaskScope(rawFilters, await currentTaskVisibility());
+  if (filters.assigneeOutsideScope) return [];
   const conditions = [eq(tasks.archived, filters.archived)];
 
   if (filters.startDate) conditions.push(gte(tasks.createdAt, filters.startDate));
@@ -800,6 +869,8 @@ export async function listTasksForExport(
   if (filters.unread)                conditions.push(...unreadConditions());
   if (filters.ageRange)              conditions.push(...ageRangeConditions(filters.ageRange));
   if (filters.taskId)                conditions.push(eq(tasks.id, filters.taskId));
+  const visible = visibilityCondition(filters);
+  if (visible)                       conditions.push(visible);
 
   if (filters.departments.length > 0) {
     // Match tasks whose doer belongs to ANY selected department, via the
@@ -1016,5 +1087,20 @@ export async function getTaskById(taskId: string): Promise<TaskDetail | null> {
     .limit(1);
 
   if (!row) return null;
+
+  // THE SAME CEILING AS THE LIST, at the single-record door — the OR rule the
+  // list uses, exactly: legible when the DOER is inside the permitted scope or
+  // the INITIATOR is. Requiring both would hide a person's own task whenever it
+  // was raised by somebody above them, which is most of them.
+  //
+  // Without this the drawer, the deep link and the read-receipt would each be a
+  // way to open work the list refuses to show.
+  const visibility = await currentTaskVisibility();
+  if (visibility && visibility.permittedIds !== null) {
+    const permitted = new Set(visibility.permittedIds);
+    const inside = permitted.has(row.doerId) || Boolean(row.initiatorId && permitted.has(row.initiatorId));
+    if (!inside) return null;
+  }
+
   return row as TaskDetail;
 }

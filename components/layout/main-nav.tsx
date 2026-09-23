@@ -526,6 +526,10 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
      */
     top: [
       { href: "/incentive" as Route, label: "Dashboard", Icon: LayoutDashboard, tab: "dashboard", tabDefault: true },
+      // MY INCENTIVES (0244) sits second, right after Dashboard: it answers the
+      // employee's own question ("what can I earn?") and needs no admin rights,
+      // which is not true of anything below it.
+      { href: "/incentive" as Route, label: "My Incentives", Icon: Award, tab: "my" },
       { href: "/incentive" as Route, label: "Requests", Icon: ListChecks, tab: "requests" },
       { href: "/incentive" as Route, label: "Targets", Icon: Target, tab: "targets" },
       { href: "/incentive" as Route, label: "Entries", Icon: Table2, tab: "entries", adminOnly: true },

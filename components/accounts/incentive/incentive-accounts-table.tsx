@@ -16,7 +16,7 @@ const STATUS: Record<IncentiveAccountsStatus, { label: string; tone: Tone }> = {
   paid: { label: "Paid", tone: "teal" },
   part_paid: { label: "Part paid", tone: "amber" },
   unpaid: { label: "Unpaid", tone: "slate" },
-  reversed: { label: "Reversed", tone: "red" },
+  reversed: { label: "Negative payable adj.", tone: "red" },
 };
 
 /** Negative money reads as money to recover, so it is never plain ink. */
@@ -67,7 +67,7 @@ const columns: DataTableColumn<IncentiveAccountsRow>[] = [
   },
   {
     key: "reversal",
-    label: "Reversal adj.",
+    label: "Negative payable adj.",
     align: "right",
     sortValue: (r) => r.reversal,
     render: (r) =>
@@ -128,10 +128,10 @@ export function IncentiveAccountsTable({ rows }: { rows: IncentiveAccountsRow[] 
           match: (r, v) => r.status === v,
         },
         {
-          label: "Reversal",
+          label: "Negative payable adj.",
           options: [
-            { value: "yes", label: "Has reversal" },
-            { value: "no", label: "No reversal" },
+            { value: "yes", label: "Has adjustment" },
+            { value: "no", label: "No adjustment" },
           ],
           match: (r, v) => (v === "yes" ? r.reversal < 0 : r.reversal === 0),
         },

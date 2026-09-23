@@ -2,7 +2,7 @@
 
 **Branch:** `Om` · **Repo:** `https://github.com/localaltuscorp-os/wms-local`
 **Audience:** an engineer or a terminal Claude picking this up cold, and whoever runs the SQL against production.
-**Last updated:** 2026-09-17
+**Last updated:** 2026-09-22
 
 ---
 
@@ -10,7 +10,12 @@
 
 A complete, self-contained record of the changes on the `Om` branch that are **not yet on `main`**. It exists so that a fresh session can understand every change in detail — what it does, which files carry it, how it was verified, and what could go wrong — without re-deriving any of it from the diff.
 
-It also carries the **SQL to run against the production database**, in [`SQL/`](./SQL/README.md).
+It also carries the **SQL to run against the production database**, in [`SQL/`](./SQL/README.md) — one `-apply` and one `-verify` file per change set that needed schema, both in plain `.sql` so they can be pasted into the Supabase SQL editor or run with `psql`.
+
+**Which changes carry SQL:** anything that adds a table, a column, an index or a
+constraint. Everything else is code only, and its document says so under
+`Migration: none`. As of 2026-09-22 every migration on this branch has been
+applied to the branch's database, and `SQL/` exists for other databases.
 
 ## How to read it
 
@@ -24,9 +29,18 @@ It also carries the **SQL to run against the production database**, in [`SQL/`](
 | 6 | [`06-prior-session-incentive-module.md`](./06-prior-session-incentive-module.md) | The Incentive module rework already in the working tree (reversal, weekly report, Incentive Master, Entries paid-notice, functions rename) |
 | 7 | [`07-files-changed.md`](./07-files-changed.md) | Full file inventory, tracked and untracked |
 | 8 | [`08-upload-master.md`](./08-upload-master.md) | Upload Master — admin management of the bulk-import template files (Tasks, Goals, Accounts) |
+| 9 | [`09-upload-master-registry-and-task-visibility.md`](./09-upload-master-registry-and-task-visibility.md) | Upload Master as the single template source (8 templates, one download door) + hierarchy-scoped WMS task visibility with Access Control grants |
+| 10 | [`10-incentive-module-complete.md`](./10-incentive-module-complete.md) | The Incentive module end to end: Sales Pitch (products, shifts, CTC), visibility without an admin bypass, the "Negative Payable Adjustment" rename, the slip's incentive and reimbursement lines, the ledger gap for hand-recorded payments, and ranking by percentage |
+| 11 | [`11-three-page-salary-slip.md`](./11-three-page-salary-slip.md) | The employee salary slip rebuilt as exactly three pages (slip · attendance · incentive statement), with VIEW dropdowns backed by PDF layers and no figure calculated in the PDF layer |
+| 12 | [`12-incentive-applicability-intern-employee-type.md`](./12-incentive-applicability-intern-employee-type.md) | **Migration `0244`, applied 2026-09-22.** Incentive applicability (All Employees / Function / Selected Employees), interns barred from incentives via a Designation flag, the two new request types, My Incentives, and required Probation End + computed Internship End dates. Its SECTION 0 also repairs a year-old `incentive_eligibility` drift that was breaking the Incentive Master at runtime |
+| 13 | [`13-salary-statement-and-pdf-redesign.md`](./13-salary-statement-and-pdf-redesign.md) | **No migration.** The salary statement as a web page (week options generated from the ledger, one empty state) and the PDF rebuilt as exactly three fixed pages with no layers, no form fields and no JavaScript |
+| 14 | [`14-global-logs-system.md`](./14-global-logs-system.md) | **Migration `0245`, applied 2026-09-22.** Admin Panel → Logs: an immutable append-only activity log + per-employee daily sessions, a client tracker (IndexedDB → batched HTTP), midnight finalization, a filterable admin UI and server-side Excel export |
+| 15 | [`15-control-panel.md`](./15-control-panel.md) | **Migration `0246`, applied 2026-09-22.** Admin Panel → Control Panel (Users / Roles / Permissions / Effective Access / Temporary Access), Temporary Access relocated (reused), a Roles template layer over the existing permission matrix, and Salary Profile renamed to Salary Breakup |
 | — | [`SQL/`](./SQL/README.md) | Production SQL: what to run, in what order, and how to verify it |
 
 Read `07-files-changed.md` last if you are reviewing; read it first if you are about to execute the SQL.
+
+**Read-only audits** (no code changed) live at the repo root beside this folder, not in it: `DROPDOWN_MASTER_AUDIT.md` (every dropdown/picker, 630 web + Android + backend enums), `Incentive-Implementation-Audit.md`, `Incentive-UI-UX-Audit.md`, `Incentive-UI-UX-Findings.md`.
 
 ## The one thing to know before anything else
 
@@ -44,8 +58,7 @@ See [`SQL/README.md`](./SQL/README.md) for the exact reasoning and the one genui
 
 ## State of the branch
 
-- Nothing is committed on top of `639e165` (`Merge branch 'main' … into Om`) — every change below is working-tree only, until the accompanying commit.
-- `origin/Om` is at the same commit, so the first push needs `git push -u origin Om`.
+- Everything on `Om` is committed and pushed to `origin/Om` (latest `82758dd`, pushed 2026-09-22) — the change sets below are no longer working-tree only.
 - Deploy is gated by `scripts/assert-main-branch.mjs`, which refuses unless `HEAD` is `main`. **Pushing `Om` does not deploy.** Shipping requires a merge into `main`.
 
 ## Verification performed

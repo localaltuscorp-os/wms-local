@@ -5,11 +5,14 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
+  BadgeIndianRupee,
   ChevronLeft,
   FileText,
   Loader2,
   Minus,
+  Target,
   Users,
+  UsersRound,
 } from "lucide-react";
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/data-table";
 import { formatDMonY, formatInr } from "@/lib/format";
@@ -36,7 +39,7 @@ import type {
 } from "@/lib/incentive/analytics/model";
 import { GradeBadge, IncentiveBadge } from "../ui/badges";
 import { IncentiveSection, Segmented } from "../ui/chrome";
-import { IncentiveKpiRow } from "../ui/kpi";
+import { IncentiveKpi, IncentiveKpiRow } from "../ui/kpi";
 import { IncentiveEmptyState } from "../ui/states";
 import { SUMMARY_TONE, toneBase, toneFill, toneInk, type Tone } from "../ui/tone";
 
@@ -620,42 +623,75 @@ function MyPerformance({
  * right half of the card empty. Same four figures, same components — only the
  * type scale, the spacing and the arrangement changed.
  */
+/** The band's own sentence ("Above 20% of CTC") — read from the one band table
+ *  so a threshold change cannot leave a caption lying. */
+const GRADE_BAND_LABEL: Record<string, string> = Object.fromEntries(
+  INCENTIVE_GRADE_BANDS.map((b) => [b.grade, b.label]),
+);
+
 function TeamSummary({ data }: { data: IncentiveAnalytics }) {
   const g = data.summary.grades;
-  const huge = "text-[clamp(26px,2vw,34px)] font-black leading-none tabular-nums text-ink-strong";
+  const totalGraded = g.A + g.B + g.C + g.D;
+  const share = (n: number) => (totalGraded > 0 ? n / totalGraded : null);
   return (
-    <section
-      aria-label="Team summary"
-      data-team-summary
-      className="rounded-2xl border border-hairline bg-surface-card px-5 py-5 max-md:px-4 max-md:py-4"
-    >
-      <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-[auto_auto_auto_minmax(0,1fr)] lg:items-center">
-        <Metric size="lg" label="Employees">
-          <span className={huge}>{data.summary.people}</span>
-          <span className="text-[13px] font-semibold text-ink-subtle">
-            {data.scope.all ? "All employees" : "Your team"}
+    <section aria-label="Team summary" data-team-summary className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-subtle">
+          {data.scope.all ? "All employees" : "Your team"}
+        </h3>
+        {g.none > 0 && (
+          <span className="text-[12.5px] font-medium text-ink-subtle">
+            {g.none} {g.none === 1 ? "person" : "people"} without CTC — no grade, no % of CTC
           </span>
-        </Metric>
-        <Metric size="lg" label="Incentive">
-          <span className={huge}>{formatInr(data.summary.earned)}</span>
-        </Metric>
-        <Metric size="lg" label="Target">
-          <span className={huge}>{data.summary.target === null ? "not set" : formatInr(data.summary.target)}</span>
-        </Metric>
-        <div className="lg:border-l lg:border-hairline lg:pl-8">
-          <Metric size="lg" label="Grades">
-            {(["A", "B", "C", "D"] as const).map((k) => (
-              <IncentiveBadge
-                key={k}
-                size="lg"
-                tone={k === "A" ? "green" : k === "B" ? "blue" : k === "C" ? "amber" : "red"}
-              >
-                {k} {g[k]}
-              </IncentiveBadge>
-            ))}
-            {g.none > 0 && <span className="text-[12.5px] font-medium text-ink-subtle">{g.none} without CTC</span>}
-          </Metric>
-        </div>
+        )}
+      </div>
+
+      {/*
+        SEVEN CARDS, ONE GRID, ONE SIZE. The figures that were a single wide
+        card — employees, incentive, target, then a row of grade badges — are
+        the dashboard's headline numbers, and a reader compares them across the
+        same edge. Every card is the module's own IncentiveKpi, so the band
+        cannot drift from the status band above it or the Accounts band below.
+        A/B/C/D each carry their share of the graded people as the bar, which is
+        the one thing the badges never showed: a grade count with nothing to
+        measure it against.
+
+        CTC is deliberately NOT one of them: it is not a company figure, it is
+        the denominator behind "% of CTC", and it already appears as that
+        percentage in Your performance and as a column in the grade report.
+      */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <IncentiveKpi
+          label="All Employees"
+          value={String(data.summary.people)}
+          caption={data.scope.all ? "Everyone in the company" : "You and your team"}
+          tone="slate"
+          icon={<UsersRound size={12} strokeWidth={2.6} />}
+        />
+        <IncentiveKpi
+          label="Incentive Amount"
+          value={formatInr(data.summary.earned)}
+          caption="Earned in this period"
+          tone="green"
+          icon={<BadgeIndianRupee size={12} strokeWidth={2.6} />}
+        />
+        <IncentiveKpi
+          label="Target"
+          value={data.summary.target === null ? "Not set" : formatInr(data.summary.target)}
+          caption={data.summary.target === null ? "No target for this period" : "Across the same people"}
+          tone="blue"
+          icon={<Target size={12} strokeWidth={2.6} />}
+        />
+        {(["A", "B", "C", "D"] as const).map((k) => (
+          <IncentiveKpi
+            key={k}
+            label={`Grade ${k}`}
+            value={String(g[k])}
+            caption={GRADE_BAND_LABEL[k] ?? ""}
+            tone={k === "A" ? "green" : k === "B" ? "blue" : k === "C" ? "amber" : "red"}
+            progress={share(g[k])}
+          />
+        ))}
       </div>
     </section>
   );

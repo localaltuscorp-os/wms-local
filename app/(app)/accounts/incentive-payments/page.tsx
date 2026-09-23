@@ -116,8 +116,8 @@ export default async function AccountsIncentivePaymentsPage({
               value={formatInr(recoverable ? -totals.reversal : totals.finalPayable)}
               caption={
                 recoverable
-                  ? "reversed after payment — claw back"
-                  : "unpaid less any reversal"
+                  ? "adjusted after payment — claw back"
+                  : "unpaid less any adjustment"
               }
               tone={recoverable ? "red" : totals.finalPayable > 0 ? "green" : "slate"}
             />

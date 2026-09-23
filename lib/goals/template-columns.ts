@@ -314,6 +314,13 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
     examples: ["", "2026-07-31"],
     help: "Deadline (YYYY-MM-DD) - MONTH goals only (year/quarter roll up from children).",
   },
+  {
+    field: "weight", header: "Weight", schemaField: "weight",
+    writable: true, persisted: true, locked: false, source: null, width: 9,
+    aliases: ["weight", "goaweight", "weightage"],
+    examples: ["100", "100"],
+    help: "The goal's share of the score (default 100). Blank keeps the default.",
+  },
   // ── People ─────────────────────────────────────────────────────────
   {
     field: "owner", header: "Goal Owner", schemaField: "employeeId",
@@ -331,7 +338,16 @@ export const GOAL_TEMPLATE_COLUMNS: readonly GoalTemplateColumn[] = [
   {
     field: "team", header: "Team Member(s)", schemaField: "teamInvolved",
     writable: true, persisted: true, locked: false, source: null, width: 24,
-    aliases: ["team", "teammembers", "teaminvolved", "involved", "members", "collaborators"],
+    // "Delegated" is the name the HAND-CRAFTED workbook shipped with (the
+    // downloadable Goals template's own header), and the importer ignored the
+    // column because the manifest did not know the word. It means the same
+    // thing — the people the goal is delegated to — so it is an alias rather
+    // than a second field: a template column the parser cannot place is a
+    // column somebody fills in and the upload silently drops.
+    aliases: [
+      "team", "teammembers", "teaminvolved", "involved", "members", "collaborators",
+      "delegated", "delegateto", "delegatedto",
+    ],
     examples: ["Rahul; Priya", ""],
     help: "Semicolon-separated collaborator names.",
   },

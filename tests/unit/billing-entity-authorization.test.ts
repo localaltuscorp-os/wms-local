@@ -1,13 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { codeOf } from "../fixtures/source-code";
 import {
   canDeleteBillingEntity,
   emailsWithCapability,
   hasCapability,
-  isMasterAdmin,
   canManageDevices,
 } from "@/lib/security/capabilities";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+
+vi.mock("@/lib/security/capability-grants", () => ({
+  isMasterAdmin: async (email: string | null | undefined) =>
+    email === "rohanchoudhary.altuscorp@gmail.com" || email === "manan@unleashed.in",
+}));
 import {
   allPermissionNodes,
   isPermissionNodeKey,
@@ -50,11 +55,11 @@ describe("deleting an entity is Manan's alone", () => {
     }
   });
 
-  it("being a master admin is not enough", () => {
+  it("being a master admin is not enough", async () => {
     // The brief: "Even if another user has Entity Edit, Admin access, File
     // Manage, or other Billing Master permissions, they must NOT be able to
     // delete an entity." Rohan is the most privileged person who is not Manan.
-    expect(isMasterAdmin(ROHAN)).toBe(true);
+    expect(await isMasterAdmin(ROHAN)).toBe(true);
     expect(canDeleteBillingEntity(ROHAN)).toBe(false);
   });
 

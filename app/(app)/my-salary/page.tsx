@@ -1,12 +1,9 @@
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { employees } from "@/db/schema";
 import { DashboardHeader } from "@/components/layout/header";
 import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { getCurrentEmployee, guardNotCandidate } from "@/lib/auth/current";
 import { loadMySalaryMonths } from "@/lib/salary/my-salary";
-import { loadSalaryViewAccess, canViewSalaryOf } from "@/lib/salary/salary-people";
+import { loadSalaryViewAccess, resolveSalaryTarget } from "@/lib/salary/salary-people";
 import { MySalaryView } from "@/components/salary/my-salary-view";
 import { SalaryPersonPicker } from "@/components/salary/salary-person-picker";
 
@@ -35,27 +32,14 @@ export default async function MySalaryPage({ searchParams }: PageProps) {
   // Who this viewer may open (drives the picker), and whether the requested
   // `?emp=` is one of them. Anything not allowed silently falls back to self.
   const access = await loadSalaryViewAccess(me);
-  let targetId = me.id;
-  if (empParam && empParam !== me.id && (await canViewSalaryOf(me, empParam))) {
-    targetId = empParam;
-  }
 
-  // For someone else's record we need THEIR worker type (the pay engine keys off
-  // it) and name; for our own the session already has both.
-  let targetWorkerType = me.workerType;
-  let targetName = me.name;
-  if (targetId !== me.id) {
-    const t = await db.query.employees.findFirst({
-      where: eq(employees.id, targetId),
-      columns: { workerType: true, name: true },
-    });
-    if (!t) {
-      targetId = me.id;
-    } else {
-      targetWorkerType = t.workerType;
-      targetName = t.name;
-    }
-  }
+  // The id, name and worker type the engine needs — resolved by the SHARED
+  // helper, so this page and its Salary Statement cannot disagree about whose
+  // record a URL names. (For our own row the session already has all three.)
+  const { targetId, name: targetName, workerType: targetWorkerType } = await resolveSalaryTarget(
+    me,
+    empParam,
+  );
 
   // The open month is computed live from the payroll engine; closed months come
   // from their stored run; anything older falls back to the legacy breakup rows.

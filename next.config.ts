@@ -253,6 +253,10 @@ const nextConfig: NextConfig = {
   // to be on the function filesystem, so a bare readFile would 500 in prod).
   outputFileTracingIncludes: {
     "/goals/template.xlsx": ["./public/templates/Altus-Goals-Template.xlsx"],
+    // The generic download door — every module's "Download Template" button —
+    // builds the Goals workbooks from the same static file (lib/templates/
+    // goals.ts), so it needs tracing into its own function too.
+    "/api/templates/[key]": ["./public/templates/Altus-Goals-Template.xlsx"],
     // The Upload Master download route serves the same built-in Goals workbook
     // (via lib/templates/goals.ts) without module access, so it needs the file
     // traced into its own function too.

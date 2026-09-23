@@ -124,15 +124,19 @@ describe("checkDecision — mandatory reasons", () => {
     expect(decide("not_approve", "   \n  ").ok).toBe(false);
   });
 
-  it("refuses Reversed with an empty reason", () => {
-    expect(decide("reverse", "")).toMatchObject({ ok: false, error: expect.stringContaining("Reversed") });
+  it("refuses a negative payable adjustment with an empty reason", () => {
+    // The reviewer's action is now named for what it produces.
+    expect(decide("reverse", "")).toMatchObject({
+      ok: false,
+      error: expect.stringContaining("negative payable adjustment"),
+    });
   });
 
   it("refuses Revise with an empty note", () => {
     expect(decide("revise", "", caseStudy())).toMatchObject({ ok: false, error: expect.stringContaining("revision note") });
   });
 
-  it("requires a note for exactly Not Approved, Reversed and Revise", () => {
+  it("requires a note for exactly Not Approved, the adjustment and Revise", () => {
     expect(DECISION_ACTIONS.filter(decisionRequiresNote).sort()).toEqual(["not_approve", "reverse", "revise"]);
     expect(decisionNoteLabel("revise")).toBe("Revision Note");
     expect(decisionNoteLabel("not_approve")).toBe("Reason / Notes");

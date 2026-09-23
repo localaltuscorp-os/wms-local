@@ -9,7 +9,15 @@ import {
   type UpdateRosterInput,
 } from "@/lib/outstanding/roster-actions";
 
-const PATHS = ["/admin/designations"];
+const PATHS = [
+  "/admin/designations",
+  // A designation's employee_type decides intern-ness: the Employee Master
+  // shows it and the incentive eligibility rule reads it, so a write here must
+  // refresh both surfaces. (The `employees` cache tag is bust in
+  // lib/outstanding/roster-actions.ts, keyed on the designations table.)
+  "/admin/employee-master",
+  "/incentive",
+];
 
 export async function createDesignation(
   input: CreateRosterInput,

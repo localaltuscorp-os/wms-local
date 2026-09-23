@@ -13,6 +13,8 @@ import {
   type ParticipantRow,
 } from "@/lib/queries/incentive-status";
 import { notifyIfPaidIncreased } from "@/lib/incentive/notifications/paid-increase";
+import { recordManualIncentivePayment } from "@/lib/incentive/record-manual-payment";
+import { round2 } from "@/lib/incentive/payout-math";
 
 type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -80,17 +82,35 @@ export async function setEntryStatusAmounts(
     .from(incentiveEntries)
     .where(eq(incentiveEntries.id, v.id));
 
-  await db
-    .update(incentiveEntries)
-    .set({
-      bookedAmt: money2(v.bookedAmt),
-      accruedAmt: money2(v.accruedAmt),
-      paidAmt: money2(v.paidAmt),
+  const increase = round2(v.paidAmt - Number(prev?.paidAmt ?? 0));
+
+  // Entry update + the ledger line, together: money recorded here must appear
+  // in the payout ledger and in Accounts, which read `salary_payments` (see
+  // lib/incentive/record-manual-payment.ts).
+  await db.transaction(async (tx) => {
+    await tx
+      .update(incentiveEntries)
+      .set({
+        bookedAmt: money2(v.bookedAmt),
+        accruedAmt: money2(v.accruedAmt),
+        paidAmt: money2(v.paidAmt),
+        paidDate: v.paidDate ?? null,
+        ...(v.syncFlags ? { paid: v.paidAmt > 0 } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(incentiveEntries.id, v.id));
+
+    await recordManualIncentivePayment(tx, {
+      entryId: v.id,
+      employeeId: prev?.employeeId ?? null,
+      empName: null,
+      periodMonth: prev?.periodMonth ?? null,
       paidDate: v.paidDate ?? null,
-      ...(v.syncFlags ? { paid: v.paidAmt > 0 } : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(incentiveEntries.id, v.id));
+      increase,
+      source: "status",
+      actorId: me.id,
+    });
+  });
 
   if (prev) {
     notifyIfPaidIncreased({
@@ -169,15 +189,36 @@ export async function setProjectLegStatusAmounts(
     .from(incentiveProjects)
     .where(eq(incentiveProjects.id, v.id));
 
-  await db
-    .update(incentiveProjects)
-    .set({
-      ...set,
+  const legEmployeeId = v.leg === "supervisor" ? prev?.supervisorId ?? null : prev?.internId ?? null;
+  const legBefore = Number(
+    v.leg === "supervisor" ? (prev?.empPaidAmt ?? 0) : (prev?.internPaidAmt ?? 0),
+  );
+  const increase = round2(v.paidAmt - legBefore);
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(incentiveProjects)
+      .set({
+        ...set,
+        paidDate: v.paidDate ?? null,
+        ...(v.syncFlags ? { paid: v.paidAmt > 0 } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(incentiveProjects.id, v.id));
+
+    await recordManualIncentivePayment(tx, {
+      entryId: null,
+      eventSource: "project",
+      employeeId: legEmployeeId,
+      empName: null,
+      periodMonth: prev?.periodMonth ?? null,
       paidDate: v.paidDate ?? null,
-      ...(v.syncFlags ? { paid: v.paidAmt > 0 } : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(incentiveProjects.id, v.id));
+      increase,
+      source: "status",
+      note: prev?.projectName ?? prev?.subject ?? null,
+      actorId: me.id,
+    });
+  });
 
   if (prev) {
     notifyIfPaidIncreased({
@@ -293,17 +334,6 @@ export async function saveIncentiveSplit(
       note: s.note ?? null,
     }));
 
-  await db.transaction(async (tx) => {
-    await tx
-      .delete(incentiveParticipants)
-      .where(
-        v.parentKind === "entry"
-          ? eq(incentiveParticipants.entryId, v.parentId)
-          : eq(incentiveParticipants.projectId, v.parentId),
-      );
-    if (rows.length) await tx.insert(incentiveParticipants).values(rows);
-  });
-
   const paidBefore = new Map<string, number>();
   for (const s of previousShares) {
     if (s.employeeId) paidBefore.set(s.employeeId, (paidBefore.get(s.employeeId) ?? 0) + Number(s.paidAmt));
@@ -317,6 +347,36 @@ export async function saveIncentiveSplit(
       paidDate: r.paidDate && (!cur.paidDate || r.paidDate > cur.paidDate) ? r.paidDate : cur.paidDate,
     });
   }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(incentiveParticipants)
+      .where(
+        v.parentKind === "entry"
+          ? eq(incentiveParticipants.entryId, v.parentId)
+          : eq(incentiveParticipants.projectId, v.parentId),
+      );
+    if (rows.length) await tx.insert(incentiveParticipants).values(rows);
+
+    // A split REPLACES its participants, so only the DELTA each person gained
+    // is money: recording the whole new amount here would double the ledger on
+    // every save. Same rule as the other two editors, per person.
+    for (const [employeeId, after] of paidAfter) {
+      await recordManualIncentivePayment(tx, {
+        entryId: v.parentKind === "entry" ? v.parentId : null,
+        eventSource: "participant",
+        employeeId,
+        empName: null,
+        periodMonth: period,
+        paidDate: after.paidDate,
+        increase: round2(after.paid - (paidBefore.get(employeeId) ?? 0)),
+        source: "split",
+        note: parentLabel,
+        actorId: me.id,
+      });
+    }
+  });
+
   for (const [employeeId, after] of paidAfter) {
     notifyIfPaidIncreased({
       employeeId,
