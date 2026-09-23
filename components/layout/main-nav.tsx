@@ -937,11 +937,13 @@ export function MainNav({
         ? HR_SECTION_NAV[hrSectionForPath(pathname)]
         : WORKSPACE_NAV[workspace];
 
-  // Important Links rides along with whichever rail was just resolved. Guarded
-  // so a room that ever lists it explicitly does not end up with it twice.
-  const top: NavItem[] = roomTop.some((i) => i.href === IMPORTANT_LINKS_ITEM.href)
-    ? roomTop
-    : [...roomTop, IMPORTANT_LINKS_ITEM];
+  // Important Links belongs to the shared workspace rails, except Billing:
+  // Billing keeps the curated rail from its redesign and must not grow a link
+  // that is not part of that module's navigation.
+  const top: NavItem[] =
+    workspace === "billing" || roomTop.some((i) => i.href === IMPORTANT_LINKS_ITEM.href)
+      ? roomTop
+      : [...roomTop, IMPORTANT_LINKS_ITEM];
 
   /** bug #11 — with GOALS_CANVAS_ON off the level pages server-redirect to
    *  /goals, so their pills read as dead: hide the canvas-only items and
