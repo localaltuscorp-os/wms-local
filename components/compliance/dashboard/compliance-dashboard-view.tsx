@@ -70,19 +70,26 @@ type SortKey = keyof Pick<
  */
 const STATUS_FILL: Record<string, string> = {
   unfilled: "var(--color-altus-red)",
-  done: "#64748B",
+  done: "#15803D",
   abandoned: "var(--color-altus-red)",
   need_info: "var(--color-altus-red)",
   need_help: "var(--color-altus-red)",
-  follow_up: "#94A3B8",
-  follow_up_1: "#94A3B8",
-  follow_up_2: "#94A3B8",
-  follow_up_3: "#94A3B8",
-  initiated: "#94A3B8",
-  on_hold: "#CBD5E1",
-  not_started: "#CBD5E1",
-  dont_know: "#CBD5E1",
+  follow_up: "#D97706",
+  follow_up_1: "#D97706",
+  follow_up_2: "#D97706",
+  follow_up_3: "#D97706",
+  initiated: "#2563EB",
+  on_hold: "#94A3B8",
+  not_started: "#94A3B8",
+  dont_know: "#94A3B8",
 };
+
+/** The WMS dashboard's green / amber / red health scale. */
+function rateFill(ratePct: number): string {
+  if (ratePct >= 90) return "#15803D";
+  if (ratePct >= 70) return "#D97706";
+  return "var(--color-altus-red)";
+}
 
 /** Minutes as "3h 35m" / "45m" — an hour count is what a workload reads as. */
 function hm(mins: number): string {
@@ -148,12 +155,12 @@ export function ComplianceDashboardView({
   const freqBars: HBarRow[] = data.byFrequency.map((f) => ({
     label: f.schedule,
     value: f.ratePct,
-    color: f.ratePct < 70 ? "var(--color-altus-red)" : "#64748B",
+    color: rateFill(f.ratePct),
   }));
   const loadBars: HBarRow[] = data.minutesLoad.slice(0, 10).map((l) => ({
     label: l.ownerName,
     value: l.minutes,
-    color: "#64748B",
+    color: "#2563EB",
   }));
 
   /** Every tile's destination, scope preserved. Null = no honest destination. */

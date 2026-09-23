@@ -106,9 +106,6 @@ export default async function OperationsChecklistPage({
           <h1 className="text-[22px] font-black tracking-tight text-slate-900">
             Event Checklist
           </h1>
-          <p className="text-[13px] text-slate-500">
-            Dates driven by an offset from the event — change the date, the whole plan moves.
-          </p>
         </div>
         {openRun && canEdit && <SaveAsMasterButton run={openRun} />}
       </header>

@@ -85,6 +85,26 @@ begin
   end if;
 end $$;
 
+-- 0216's original table predates the dated eligibility window. Bring that
+-- legacy shape forward before creating the partial indexes below. `created_at`
+-- is the only truthful historical anchor available for existing grants; new
+-- grants are always written by the application with an explicit effective date.
+alter table incentive_eligibility
+  add column if not exists effective_from date;
+
+update incentive_eligibility
+   set effective_from = coalesce(created_at::date, current_date)
+ where effective_from is null;
+
+alter table incentive_eligibility
+  alter column effective_from set not null;
+
+alter table incentive_eligibility
+  add column if not exists removed_effective_from date,
+  add column if not exists added_by_id uuid references employees(id) on delete set null,
+  add column if not exists removed_by_id uuid references employees(id) on delete set null,
+  add column if not exists updated_at timestamptz not null default now();
+
 -- The old table carried no foreign key on that column; 0232's definition does.
 do $$
 begin
