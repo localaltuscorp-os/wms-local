@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import {
   Search,
   ChevronDown,
@@ -46,7 +46,6 @@ import { formatDate, formatInr, formatCount } from "@/lib/format";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { Select } from "@/components/ui/select";
 import { Field, FieldInput } from "@/components/forms/form-fields";
-import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 // Status + amount rules live in lib/reimbursements/claim-status.ts, shared with
 // the KPI strip so a card's total and the list it filters to cannot disagree.
@@ -108,6 +107,7 @@ export function RbClaimsList({
   view,
   attachmentCounts,
   myEmployeeId,
+  headerActions,
 }: {
   rows: ModuleSubmissionRow[];
   isAdmin: boolean;
@@ -119,6 +119,8 @@ export function RbClaimsList({
   attachmentCounts: Record<string, number>;
   /** The viewer, so a card knows whether the claim is theirs to change. */
   myEmployeeId: string;
+  /** Server-rendered view controls that belong beside the list toolbar. */
+  headerActions?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("newest");
@@ -184,21 +186,24 @@ export function RbClaimsList({
           chips did that the cards cannot — SAY which filter is on, and clear
           it in one click — is the pill on the right. */}
       <div
-        className="wg-rise mb-4 flex flex-wrap items-center gap-3 rounded-2xl bg-surface-card px-4 py-3"
-        style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline), 0 10px 28px -22px rgba(15,23,42,0.35)" }}
+        className="mb-4 flex flex-wrap items-center gap-3 border-b border-slate-100 pb-3"
       >
-        <CollapsibleSearch scope="claims, person, head, amount">
-        <label className="relative flex-1 min-w-[220px]">
+        <div className="flex shrink-0 items-center gap-2.5">
+          <span className="inline-flex size-9 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--color-altus-red)_22%,transparent)] bg-[color-mix(in_srgb,var(--color-altus-red)_12%,transparent)] text-[var(--color-altus-red)]">
+            <Wallet size={18} strokeWidth={2.4} aria-hidden />
+          </span>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900">Claims</h2>
+        </div>
+        <label className="relative min-w-[220px] flex-1 max-w-[420px]">
           <span className="sr-only">Search claims</span>
           <Search size={15} strokeWidth={2.4} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Local search - claims, person, head, amount" title="Local search - filters only the list on this page" aria-label="Local search - claims - expense, person, head, amount - this page only"
-            className="w-full rounded-pill border border-hairline bg-white py-2 pl-9 pr-4 text-[13.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle focus:border-[color-mix(in_srgb,var(--module-accent)_60%,transparent)]"
+            className="w-full rounded-lg border border-hairline bg-surface-card py-2 pl-9 pr-4 text-[13px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle focus:border-[color-mix(in_srgb,var(--color-altus-red)_60%,transparent)]"
           />
         </label>
-        </CollapsibleSearch>
 
         {/* THE COUNT LINE LIVES IN THE BAR NOW. The search rests as a 36px
             magnifier (CollapsibleSearch — the same one 40 toolbars use), so
@@ -242,6 +247,7 @@ export function RbClaimsList({
               searchable={false}
             />
           </div>
+          {headerActions}
         </div>
       </div>
 
@@ -333,7 +339,7 @@ function ClaimCard({
       {/* status stripe */}
       <span aria-hidden className={`absolute inset-y-0 left-0 w-[4px] ${meta.stripe}`} />
 
-      <div className="flex flex-wrap items-start justify-between gap-3 py-4 pl-5 pr-4 max-md:pl-4">
+      <div className="grid gap-4 py-4 pl-5 pr-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center max-md:pl-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           {isAdmin && <EmployeeAvatar name={row.employeeName} size="md" className="mt-0.5" />}
           <div className="min-w-0">
@@ -427,7 +433,7 @@ function ClaimCard({
             a fixed column, so both edges hold still whatever buttons a row
             happens to show. Below `lg` the reserve is dropped: there the row
             wraps anyway and holding 320px open would only squeeze the title. */}
-        <div className="flex items-center gap-3 max-md:w-full max-md:justify-between">
+        <div className="flex items-center justify-end gap-3 max-md:w-full max-md:justify-between">
           <div className="w-[104px] shrink-0 text-right max-md:w-auto">
             <div
               className="tabular-nums text-ink-strong"
@@ -460,8 +466,8 @@ function ClaimCard({
                 title={`Approve this claim for ${formatInr(amount)}`}
                 className="wg-btn inline-flex items-center gap-1.5 rounded-pill px-3.5 py-2 text-[13px] font-bold text-white disabled:opacity-50"
                 style={{
-                  background: "linear-gradient(135deg, var(--module-accent), var(--module-accent-deep))",
-                  boxShadow: "0 8px 20px -12px color-mix(in srgb, var(--module-accent-deep) 75%, transparent)",
+                  background: "linear-gradient(135deg, #059669, #047857)",
+                  boxShadow: "0 8px 20px -12px rgba(4,120,87,0.6)",
                 }}
               >
                 <Check size={14} strokeWidth={3} aria-hidden />

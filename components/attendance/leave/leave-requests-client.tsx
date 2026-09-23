@@ -3,6 +3,7 @@
 import { useCallback, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Route } from "next";
+import { CheckCircle2, CircleX, ClipboardList, Clock3, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { LEAVE_KIND_LABELS, LEAVE_KINDS, type LeaveStatus } from "@/db/enums";
 import type { LeaveRow } from "@/lib/queries/leave";
 import {
@@ -14,16 +15,10 @@ import {
 import { ReviewLeavePanel, type ReviewBalance } from "./review-leave-panel";
 import { CompactSelect } from "@/components/ui/compact-select";
 
-/** The four states the segmented control offers, in queue order. */
-const STATUS_TABS: { value: string; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "pending", label: "Pending" },
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
-];
-
 export interface LeaveRequestsClientProps {
   rows: LeaveRow[];
+  /** Counts across the current non-status filters, for the review queue cards. */
+  statusCounts: Record<"all" | "pending" | "approved" | "rejected", number>;
   /** Paid-balance facts keyed by employee id, for the review panel. */
   balances: Record<string, ReviewBalance>;
   employeeOptions: { id: string; name: string }[];
@@ -58,6 +53,7 @@ export interface LeaveRequestsClientProps {
  */
 export function LeaveRequestsClient({
   rows,
+  statusCounts,
   balances,
   employeeOptions,
   departmentOptions,
@@ -88,53 +84,98 @@ export function LeaveRequestsClient({
   );
 
   const reviewRow = rows.find((r) => r.id === reviewId) ?? null;
+  const hasExtraFilters = Boolean(
+    filters.employeeId || filters.departmentId || filters.kind || filters.from || filters.to || filters.status !== "pending",
+  );
+
+  function resetFilters() {
+    startTransition(() => {
+      router.replace(pathname as Route, { scroll: false });
+    });
+  }
+
+  const statusCards = [
+    { value: "all", label: "All requests", count: statusCounts.all, Icon: ClipboardList },
+    { value: "pending", label: "Awaiting review", count: statusCounts.pending, Icon: Clock3 },
+    { value: "approved", label: "Approved", count: statusCounts.approved, Icon: CheckCircle2 },
+    { value: "rejected", label: "Rejected", count: statusCounts.rejected, Icon: CircleX },
+  ] as const;
 
   return (
     <>
       {/* ── Filters ── */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div
-          className="inline-flex rounded-lg p-0.5"
-          role="tablist"
-          aria-label="Filter by status"
-          style={{
-            background: "var(--color-surface-soft)",
-            border: "1px solid var(--color-hairline)",
-          }}
-        >
-          {STATUS_TABS.map((t) => {
-            const active = filters.status === t.value;
-            return (
-              <button
-                key={t.value}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setParam("status", t.value)}
-                className="rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors"
-                style={
-                  active
-                    ? {
-                        background: "var(--color-surface-card)",
-                        color: "var(--color-ink-strong)",
-                        boxShadow: "0 1px 3px rgba(15,23,42,0.12)",
-                      }
-                    : { background: "transparent", color: "var(--color-ink-subtle)" }
-                }
+      <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Leave request status summary">
+        {statusCards.map((card) => {
+          const active = filters.status === card.value;
+          return (
+            <button
+              key={card.value}
+              type="button"
+              onClick={() => setParam("status", card.value)}
+              aria-pressed={active}
+              className="group relative overflow-hidden rounded-[16px] bg-surface-card p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_25px_-24px_rgba(15,23,42,0.65)]"
+              style={{
+                border: active
+                  ? "1px solid var(--color-altus-red, #E10600)"
+                  : "1px solid var(--color-hairline)",
+                boxShadow: active ? "0 0 0 2px rgba(225,6,0,0.08)" : undefined,
+              }}
+            >
+              <span
+                className="absolute right-4 top-4 grid size-8 place-items-center rounded-lg"
+                style={{
+                  background: active ? "#FEE2E2" : "var(--color-surface-soft)",
+                  color: active ? "var(--color-altus-red-deep, #A80400)" : "var(--color-ink-soft)",
+                }}
               >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
+                <card.Icon size={16} aria-hidden />
+              </span>
+              <p className="pr-10 text-[12px] font-semibold text-ink-subtle">{card.label}</p>
+              <p className="mt-2 tabular-nums text-[28px] font-extrabold leading-none tracking-[-0.03em] text-ink-strong">
+                {card.count}
+              </p>
+              <p className="mt-2 text-[12px] font-medium text-ink-subtle">
+                {active ? "Current view" : "Open this queue"}
+              </p>
+            </button>
+          );
+        })}
+      </section>
 
+      <section
+        className="mb-4 rounded-[16px] bg-surface-card p-3"
+        style={{ border: "1px solid var(--color-hairline)" }}
+        aria-label="Leave request filters"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-[13px] font-semibold text-ink-soft">
+            <span className="grid size-7 place-items-center rounded-lg bg-surface-soft text-ink-strong">
+              <SlidersHorizontal size={15} aria-hidden />
+            </span>
+            Filters
+            <span className="font-medium text-ink-subtle">{rows.length} shown</span>
+          </div>
+          {hasExtraFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-semibold text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong"
+            >
+              <RotateCcw size={13} aria-hidden />
+              Reset filters
+            </button>
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
         <CompactSelect
           aria-label="Filter by employee"
           value={filters.employeeId}
-          onChange={(v) => setParam("employee", v)}
-          className={`${LEAVE_INPUT_CLASS} w-auto min-w-[150px] py-1.5`}
+          onChange={(value) => setParam("employee", value)}
+          className={`${LEAVE_INPUT_CLASS} min-w-[180px] flex-1 py-1.5`}
+          style={LEAVE_INPUT_RING}
           placeholder="All employees"
-          options={employeeOptions.map((e) => ({ value: e.id, label: e.name }))}
+          options={employeeOptions.map((employee) => ({ value: employee.id, label: employee.name }))}
+          matchTriggerWidth
         />
 
         {departmentOptions.length > 0 && (
@@ -142,7 +183,7 @@ export function LeaveRequestsClient({
             aria-label="Filter by Function"
             value={filters.departmentId}
             onChange={(e) => setParam("dept", e.target.value)}
-            className={`${LEAVE_INPUT_CLASS} w-auto min-w-[140px] py-1.5`}
+            className={`${LEAVE_INPUT_CLASS} min-w-[160px] flex-1 py-1.5`}
             style={LEAVE_INPUT_RING}
           >
             <option value="">All Functions</option>
@@ -158,7 +199,7 @@ export function LeaveRequestsClient({
           aria-label="Filter by leave type"
           value={filters.kind}
           onChange={(e) => setParam("kind", e.target.value)}
-          className={`${LEAVE_INPUT_CLASS} w-auto py-1.5`}
+          className={`${LEAVE_INPUT_CLASS} min-w-[150px] flex-1 py-1.5`}
           style={LEAVE_INPUT_RING}
         >
           <option value="">All types</option>
@@ -169,13 +210,13 @@ export function LeaveRequestsClient({
           ))}
         </select>
 
-        <div className="inline-flex items-center gap-1.5">
+        <div className="flex min-w-[270px] flex-1 items-center gap-1.5">
           <input
             type="date"
             aria-label="From date"
             value={filters.from}
             onChange={(e) => setParam("from", e.target.value)}
-            className={`${LEAVE_INPUT_CLASS} w-auto py-1.5 tabular-nums`}
+            className={`${LEAVE_INPUT_CLASS} min-w-0 py-1.5 tabular-nums`}
             style={LEAVE_INPUT_RING}
           />
           <span className="text-[12px] text-ink-subtle">to</span>
@@ -184,11 +225,12 @@ export function LeaveRequestsClient({
             aria-label="To date"
             value={filters.to}
             onChange={(e) => setParam("to", e.target.value)}
-            className={`${LEAVE_INPUT_CLASS} w-auto py-1.5 tabular-nums`}
+            className={`${LEAVE_INPUT_CLASS} min-w-0 py-1.5 tabular-nums`}
             style={LEAVE_INPUT_RING}
           />
         </div>
-      </div>
+        </div>
+      </section>
 
       {/* ── Queue ── */}
       {rows.length === 0 ? (

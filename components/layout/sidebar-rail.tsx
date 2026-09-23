@@ -44,9 +44,11 @@ export function SidebarRail({
       ? "w-[288px]"
       : ws === "operations"
         ? "w-[248px]"
+        : ws === "productivity"
+          ? "w-[248px]"
         : ws === "goals"
           ? "w-[228px]"
-          : "w-[212px]";
+          : "w-[228px]";
 
   // Once the user hits the toggle we stop auto-managing (never fight a manual choice).
   const userTouchedRef = React.useRef(false);
@@ -64,14 +66,13 @@ export function SidebarRail({
   // ONLY for HR, ONLY the first time this browser session (`hr-rail-autocollapsed`),
   // and we restore the prior width the moment you leave the HR module — so no
   // other room is affected and a manual toggle always wins.
-  const collapsedRef = React.useRef(collapsed);
-  collapsedRef.current = collapsed;
   const priorRef = React.useRef<boolean | null>(null);
   React.useEffect(() => {
     if (typeof window === "undefined") return;
     const inHr = workspaceForPath(pathname ?? "/") === "hr";
     const atFrontDoor = pathname === "/hr";
     const KEY = "hr-rail-autocollapsed";
+    let nextCollapsed: boolean | null = null;
     if (
       atFrontDoor &&
       priorRef.current === null &&
@@ -79,13 +80,16 @@ export function SidebarRail({
       !sessionStorage.getItem(KEY)
     ) {
       sessionStorage.setItem(KEY, "1");
-      priorRef.current = collapsedRef.current;
-      if (!collapsedRef.current) setCollapsed(true);
+      priorRef.current = collapsed;
+      if (!collapsed) nextCollapsed = true;
     } else if (!inHr && priorRef.current !== null && !userTouchedRef.current) {
-      setCollapsed(priorRef.current);
+      nextCollapsed = priorRef.current;
       priorRef.current = null;
     }
-  }, [pathname]);
+    if (nextCollapsed === null) return;
+    const timer = window.setTimeout(() => setCollapsed(nextCollapsed), 0);
+    return () => window.clearTimeout(timer);
+  }, [pathname, collapsed]);
 
   return (
     <CollapseCtx.Provider value={{ collapsed, toggle }}>

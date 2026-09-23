@@ -3,7 +3,9 @@ import type { Route } from "next";
 import { BellRing, MessageCircleQuestion, Send } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { DashboardHeader } from "@/components/layout/header";
-import { PageCommandBar } from "@/components/layout/page-command-bar";
+import { PageShell } from "@/components/layout/page-shell";
+import { DashboardSectionHeader } from "@/components/dashboard/section-header";
+import { SectionIcon } from "@/components/dashboard/section-icon";
 import { HrComingSoon } from "@/components/hr/coming-soon";
 import { hrSupportEnabled } from "@/lib/hr/flag";
 import {
@@ -12,16 +14,13 @@ import {
   listHrNotifications,
 } from "@/lib/queries/hr-support";
 import { TicketComposer } from "@/components/hr/ticket-composer/ticket-composer";
+import { NotificationInboxButton } from "@/components/hr/queries/notification-inbox-button";
 import { QueriesBoard } from "@/components/hr/queries/queries-board";
 import { relTime } from "@/lib/hr/ticket-ui";
 
-export const dynamic = "force-dynamic";
-
 const RED = "var(--color-altus-red)";
 
-/** One heading treatment for both columns, so they cannot drift out of line. */
-const SECTION_HEADING =
-  "mb-2.5 flex h-[22px] items-center gap-2 text-[13px] font-bold uppercase tracking-[0.14em] text-ink-muted";
+export const dynamic = "force-dynamic";
 
 /**
  * QUERIES & NOTIFICATIONS — ask HR, then track what you asked.
@@ -69,63 +68,60 @@ export default async function QueriesPage() {
   const unread = notes.filter((n) => !n.readAt).length;
 
   return (
-    <>
+    <div className="flex min-h-dvh flex-1 flex-col bg-white">
       <DashboardHeader generatedAt={new Date()} />
-      <main className="mx-auto w-full max-w-[1400px] px-8 pt-6 pb-8 max-lg:px-6 max-md:px-4 max-md:pt-5 max-md:pb-6">
-        <PageCommandBar
-          title="Queries & Notifications"
-          hint="Ask HR anything — you'll be notified when they reply."
-        />
+      <PageShell width="full" className="pb-12">
+        <header className="mb-8 flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">Queries &amp; Notifications</h1>
+          <NotificationInboxButton
+            items={notes.map((note) => ({
+              id: note.id,
+              title: note.title,
+              href: note.link,
+              unread: !note.readAt,
+              timeLabel: relTime(note.createdAt),
+            }))}
+          />
+        </header>
 
         {/* THE COMPOSER RUNS FULL WIDTH. It used to be the left column of a
             two-column grid, which is what put 600px of empty aside beside it. */}
-        <section className="overflow-hidden rounded-2xl border border-hairline bg-surface-card">
-          <header className="flex items-center gap-2.5 border-b border-hairline px-5 py-3 max-md:px-4">
-            <span
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg"
-              style={{ background: "#FEE2E2", color: "#A80400" }}
-            >
-              <Send size={15} />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-[14.5px] font-black tracking-tight text-ink-strong">
-                Ask HR a question
-              </h2>
-              <p className="text-[12px] text-ink-muted">
-                Pick a topic, ask in one line — details are optional.
-              </p>
-            </div>
-          </header>
+        <section>
+          <DashboardSectionHeader
+            icon={<SectionIcon icon={Send} tone="red" />}
+            title="Ask HR a question"
+            subtitle="Choose a topic, ask in one line, and add optional context."
+            inset="px-0"
+          />
+          <div className="overflow-hidden rounded-section border border-hairline bg-surface-card shadow-sm">
           <div className="px-5 py-4 max-md:px-4">
             <TicketComposer mode="query" />
+          </div>
           </div>
         </section>
 
         {/* The two lists, side by side, because they grow together. */}
-        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="mt-8">
           <section>
-            <h2 className={SECTION_HEADING}>
-              <MessageCircleQuestion size={15} aria-hidden />
-              Your questions
-            </h2>
+            <DashboardSectionHeader
+              icon={<SectionIcon icon={MessageCircleQuestion} tone="red" />}
+              title="Your questions"
+              subtitle="Filter by whether HR is handling it, needs something from you, or has resolved it."
+              inset="px-0"
+            />
             <QueriesBoard rows={myQueries} />
           </section>
 
-          <aside>
+          <aside className="hidden">
             {/* Same element, same classes, same margin as the heading on its
                 left — so the two columns start on one line. */}
-            <h2 className={SECTION_HEADING}>
-              <BellRing size={15} aria-hidden />
-              Notifications
-              {unread > 0 && (
-                <span
-                  className="rounded-pill px-1.5 py-0.5 text-[10.5px] font-black text-white"
-                  style={{ background: RED }}
-                >
-                  {unread}
-                </span>
-              )}
-            </h2>
+            <DashboardSectionHeader
+              icon={<SectionIcon icon={BellRing} tone="red" />}
+              title="Notifications"
+              subtitle="Replies and updates from HR appear here."
+              inset="px-0"
+              actions={unread > 0 ? <span className="rounded-pill px-2 py-1 text-[11px] font-black text-white" style={{ background: RED }}>{unread} unread</span> : undefined}
+            />
             {notes.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-hairline-strong bg-surface-card px-5 py-8 text-center">
                 <BellRing size={20} className="mx-auto text-ink-subtle" aria-hidden />
@@ -178,7 +174,7 @@ export default async function QueriesPage() {
             )}
           </aside>
         </div>
-      </main>
-    </>
+      </PageShell>
+    </div>
   );
 }

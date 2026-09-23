@@ -20,7 +20,7 @@ import { AttendanceKpiStrip } from "@/components/attendance/attendance-kpi-strip
 import { MonthCalendar } from "@/components/attendance/month-calendar";
 import { RemoteCheckInTrigger } from "@/components/attendance/remote-checkin-trigger";
 import { TeamDatePicker } from "@/components/attendance/team-date-picker";
-import { HolidaysDrawer } from "@/components/attendance/holidays-drawer";
+import { UpcomingHolidaysPanel } from "@/components/attendance/upcoming-holidays-panel";
 import { LeaveRequestsCallout } from "@/components/attendance/leave/leave-requests-callout";
 import {
   AttTeamRoster,
@@ -102,6 +102,14 @@ function fmtDur(ms: number): string {
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
+/** Calendar-safe offset from an ISO date; keeps the activity window anchored
+ * to the attendance timezone's current date rather than the server clock. */
+function daysBefore(iso: string, days: number): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(year ?? 2026, (month ?? 1) - 1, (day ?? 1) - days));
+  return date.toISOString().slice(0, 10);
+}
+
 export default async function AttendancePage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const me = await requireUser();
@@ -132,7 +140,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   // panel — an afternoon-shift employee needs it exactly as much as a part-timer.
 
   // My last 14 calendar days.
-  const since = localDateString(tz, new Date(Date.now() - 13 * 86_400_000));
+  const since = daysBefore(today, 13);
 
   const rawDate = typeof sp.date === "string" ? sp.date : today;
   const teamDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : today;
@@ -331,7 +339,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
       weekTargetMinutes={myConfig.weeklyTargetMinutes}
     />
   );
-  const holidays = <HolidaysDrawer holidays={upcomingHolidays} />;
+  const holidays = <UpcomingHolidaysPanel holidays={upcomingHolidays} />;
   const teamBox = rosterRows ? (
     <section
       className="wg-rise rounded-[22px] bg-surface-card p-5 max-md:p-4"
@@ -363,9 +371,12 @@ export default async function AttendancePage({ searchParams }: PageProps) {
         <WeekLossDialog loss={weekReport.loss} />
       ) : null}
       <DashboardHeader generatedAt={new Date()} />
-      <PageShell width="wide">
+      <PageShell width="full">
         {/* ── Page header ── */}
-        <header className="mb-4 wg-rise flex items-center justify-between gap-4 flex-wrap">
+        <header
+          className="mb-4 wg-rise flex items-center justify-between gap-5 rounded-[22px] bg-surface-card px-5 py-4 max-md:px-4 max-md:py-3.5"
+          style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline), 0 8px 28px -22px rgba(15,23,42,0.35)" }}
+        >
           <div className="min-w-0">
             {/* A greeting, not a headline. It was 900-weight at up to 32px,
                 which made hello the loudest thing on a page whose job is the
@@ -375,9 +386,9 @@ export default async function AttendancePage({ searchParams }: PageProps) {
               className="text-ink-strong"
               style={{
                 fontFamily: "var(--font-display), system-ui, sans-serif",
-                fontWeight: 600,
-                fontSize: "clamp(15px,1.4vw,18px)",
-                letterSpacing: "-0.01em",
+                fontWeight: 900,
+                fontSize: "clamp(21px,2vw,27px)",
+                letterSpacing: "-0.03em",
                 lineHeight: 1.2,
               }}
             >
@@ -385,7 +396,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
             </h1>
           </div>
           {(me.isAdmin || isSA || isManager) && (
-            <div className="flex shrink-0 items-center gap-2 flex-wrap">
+            <nav aria-label="Attendance tools" className="flex shrink-0 items-center gap-2 flex-wrap">
               {(isManager || me.isAdmin) && (
                 // Smaller and quieter than the admin report buttons beside
                 // it: it is a link into a secondary view, not the page's
@@ -393,7 +404,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
                 // gate, same behaviour.
                 <a
                   href="/attendance/insights/team"
-                  className="pastel-cta wg-btn inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1.5 text-[12px] font-semibold"
+                  className="pastel-cta wg-btn inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-semibold"
                 >
                   <Users size={13} strokeWidth={2.2} /> My Team
                 </a>
@@ -401,7 +412,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
               {(me.isAdmin || isSA) && (
                 <a
                   href="/attendance/work-session/review"
-                  className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
+                  className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-[12.5px] font-bold"
                 >
                   <MonitorPlay size={15} strokeWidth={2.4} /> Work Sessions
                 </a>
@@ -413,7 +424,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
               {canManageDevices(me.email) && (
                 <a
                   href="/attendance/devices"
-                  className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
+                  className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-[12.5px] font-bold"
                 >
                   <Smartphone size={15} strokeWidth={2.4} /> Devices
                 </a>
@@ -421,7 +432,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
               {canViewAttendanceAuditLog(me.email) && (
                 <a
                   href="/attendance/change-log"
-                  className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
+                  className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-[12.5px] font-bold"
                 >
                   <ScrollText size={15} strokeWidth={2.4} /> Change Log
                 </a>
@@ -430,20 +441,19 @@ export default async function AttendancePage({ searchParams }: PageProps) {
                 <>
                   <a
                     href="/attendance/insights"
-                    className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold"
+                    className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-[12.5px] font-bold"
                   >
                     <BarChart3 size={15} strokeWidth={2.4} /> Dashboard
                   </a>
                   <a
                     href="/attendance/dashboard"
-                    className="brand-btn wg-btn inline-flex items-center gap-2 rounded-pill px-4 py-2.5 text-[13.5px] font-bold text-white"
-                    style={{ background: "linear-gradient(135deg, #E10600, #A80400)", boxShadow: "0 8px 20px -10px color-mix(in srgb, #A80400 70%, transparent)" }}
+                    className="pastel-cta wg-btn inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-[12.5px] font-bold"
                   >
                     <ClipboardList size={15} strokeWidth={2.4} /> Att Report
                   </a>
                 </>
               )}
-            </div>
+            </nav>
           )}
         </header>
 
@@ -480,17 +490,16 @@ export default async function AttendancePage({ searchParams }: PageProps) {
           <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-4">
             <div className="flex flex-col gap-5">{teamBox}</div>
             <div className="flex flex-col gap-5">{wfhBox}{punchCard}</div>
-            <div className="flex flex-col gap-5 lg:col-span-2">{calendar}</div>
+            <div className="flex flex-col gap-5 lg:col-span-2">{calendar}{holidays}</div>
           </div>
         ) : (
           // Punch clock and calendar, side by side, with the calendar taking the
           // larger share — it is the thing being read, the clock is a button.
           <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
             <div className="flex flex-col gap-5">{wfhBox}{punchCard}</div>
-            <div className="flex flex-col gap-5">{calendar}</div>
+            <div className="flex flex-col gap-5">{calendar}{holidays}</div>
           </div>
         )}
-        {holidays}
       </PageShell>
     </>
   );

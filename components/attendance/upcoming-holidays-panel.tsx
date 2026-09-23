@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CalendarHeart, ArrowRight, PartyPopper } from "lucide-react";
+import { CalendarHeart, ArrowRight, PartyPopper, ChevronDown, ChevronUp } from "lucide-react";
 
 /**
  * Right-rail "what's next off" list on the attendance home. Rows are
@@ -65,6 +65,7 @@ function whenLabel(inDays: number): string {
  * and then wanted again next week. The state is deliberately not persisted.
  */
 export function UpcomingHolidaysPanel({ holidays }: { holidays: UpcomingHoliday[] }) {
+  const [minimized, setMinimized] = React.useState(false);
   // "This year" is derived from the data, not from a clock: the soonest holiday
   // minus its own distance IS today, which keeps this component pure (no
   // `new Date()` during render) and keeps server and client agreeing.
@@ -84,7 +85,7 @@ export function UpcomingHolidaysPanel({ holidays }: { holidays: UpcomingHoliday[
         animationDelay: "180ms",
       }}
     >
-      <div className="mb-4 flex w-full items-center gap-2.5">
+      <div className={`flex w-full items-center gap-2.5 ${minimized ? "" : "mb-4"}`}>
         <span
           className="inline-grid size-9 place-items-center rounded-xl"
           style={{ background: "color-mix(in srgb, #E10600 10%, transparent)", color: "#A80400" }}
@@ -106,8 +107,20 @@ export function UpcomingHolidaysPanel({ holidays }: { holidays: UpcomingHoliday[
           </h2>
           <p className="text-[12px] font-medium text-ink-subtle">Company calendar</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setMinimized((value) => !value)}
+          aria-expanded={!minimized}
+          aria-controls="upcoming-holidays-content"
+          title={minimized ? "Expand holidays" : "Minimize holidays"}
+          className="inline-grid size-8 shrink-0 place-items-center rounded-lg border border-hairline bg-surface-soft text-ink-soft transition-colors hover:border-hairline-strong hover:bg-surface-card hover:text-[var(--color-altus-red-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/40"
+        >
+          {minimized ? <ChevronDown size={17} strokeWidth={2.5} /> : <ChevronUp size={17} strokeWidth={2.5} />}
+          <span className="sr-only">{minimized ? "Expand holidays" : "Minimize holidays"}</span>
+        </button>
       </div>
 
+      <div id="upcoming-holidays-content" hidden={minimized}>
       {holidays.length === 0 ? (
         <div className="flex min-h-[96px] flex-col items-center justify-center gap-2 rounded-2xl border border-solid border-hairline-strong bg-surface-soft px-4 py-6 text-center">
           <PartyPopper size={20} strokeWidth={2} className="text-ink-soft" aria-hidden />
@@ -167,6 +180,7 @@ export function UpcomingHolidaysPanel({ holidays }: { holidays: UpcomingHoliday[
       >
         View All <ArrowRight size={14} strokeWidth={2.6} />
       </a>
+      </div>
     </section>
   );
 }

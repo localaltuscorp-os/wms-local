@@ -28,6 +28,9 @@ import {
   Gauge,
   AlertTriangle,
   ArrowLeftRight,
+  SquareArrowOutUpRight,
+  Search,
+  X,
 } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { DashboardSectionHeader } from "@/components/dashboard/section-header";
@@ -40,6 +43,7 @@ import {
   SECTION_CONTROL,
 } from "@/components/dashboard/section-chrome";
 import { DashboardSectionNav } from "@/components/dashboard/section-nav";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 /* THE SHARE PAIR, borrowed from the WMS dashboard rather than rebuilt.
    Every section there carries WhatsApp + Email; this page carried neither, so
    the only way to send anyone a goals read was a screenshot. The control is
@@ -89,7 +93,7 @@ const LEVELS = [
     href: "/goals/yearly",
     Icon: Trophy,
     tone: "red" as SectionIconTone,
-    color: "#8a3d06",
+    color: "var(--color-altus-red)",
     blurb: "The financial year's objectives — everything below cascades from these.",
   },
   {
@@ -109,7 +113,7 @@ const LEVELS = [
     href: "/goals/monthly",
     Icon: CalendarRange,
     tone: "red" as SectionIconTone,
-    color: "#5b21b6",
+    color: "var(--color-altus-red)",
     blurb: "The month-by-month breakdown that the weekly plan is drawn from.",
   },
   {
@@ -119,12 +123,12 @@ const LEVELS = [
     href: "/goals/weekly",
     Icon: CalendarCheck,
     tone: "red" as SectionIconTone,
-    color: "#174ea6",
+    color: "var(--color-altus-red)",
     blurb: "The committed week — the last level with a target before it becomes a day's work.",
   },
 ] as const;
 
-const DAILY_COLOR = "#0f766e";
+const DAILY_COLOR = "#64748B";
 /** How many rows a level section lists before it caps. */
 const LIST_MAX = 8;
 /** How many rows the attention list shows. */
@@ -351,7 +355,13 @@ export function GoalsOverviewDashboard({
       </div>
 
       <PageShell width="full" className="pt-6 pb-16 max-md:pt-4 max-md:pb-12">
-        <header className="mb-6 flex min-w-0 items-center gap-3">
+        <header
+          className="mb-6 flex min-w-0 items-center gap-3 rounded-[20px] bg-surface-card px-5 py-4 max-md:px-4"
+          style={{
+            border: "1px solid var(--color-hairline)",
+            boxShadow: "0 1px 2px rgba(15,23,42,0.05), 0 18px 44px -30px rgba(15,23,42,0.22)",
+          }}
+        >
           <SectionIcon icon={Gauge} tone="red" />
           <div className="min-w-0">
             {/* `page-heading` — the same class the Tasks list and the four
@@ -359,8 +369,8 @@ export function GoalsOverviewDashboard({
                 picked its own size (26px, stepping to 21px under md) while
                 every other module page ran the shared clamp. */}
             <h1 className="page-heading truncate">Goals Dashboard</h1>
-            <p className="mt-0.5 text-[12.5px] font-semibold text-ink-subtle">
-              {fyLabel(data.fyStartYear)} · {scopeLabel} · every level of the cascade in one read
+            <p className="mt-1 text-[12.5px] font-semibold text-ink-subtle">
+              {fyLabel(data.fyStartYear)} · {scopeLabel}
             </p>
           </div>
         </header>
@@ -374,12 +384,10 @@ export function GoalsOverviewDashboard({
           label="the overview"
           report={overviewReport}
         >
-          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <Kpi label="Total goals" value={totals.total} tone="#334155" />
-            <Kpi label="Done" value={totals.counts.done} tone={BAND_META.done.color} />
-            <Kpi label="On pace" value={totals.onPace} tone={BAND_META.ahead.color} />
-            <Kpi label="At risk" value={totals.atRisk} tone={BAND_META["at-risk"].color} />
-            <Kpi label="Overdue" value={totals.counts.overdue} tone={BAND_META.overdue.color} />
+          <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Kpi label="Total goals" value={totals.total} tone="#475569" />
+            <Kpi label="On pace" value={totals.onPace} tone="#64748B" />
+            <Kpi label="Needs attention" value={totals.needsAttention} tone="var(--color-altus-red)" />
             <Kpi
               label="Attainment"
               value={totals.weighted}
@@ -415,17 +423,10 @@ export function GoalsOverviewDashboard({
           href={"/my-day" as Route}
           report={dailyReport}
         >
-          <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Kpi label="Committed" value={daily.planned} tone="#334155" />
-            <Kpi label="Completed" value={daily.done} tone={BAND_META.done.color} />
+          <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <Kpi label="Committed" value={daily.planned} tone="#475569" />
+            <Kpi label="Completed" value={daily.done} tone="#64748B" />
             <Kpi label="Completion" value={daily.rate} suffix="%" tone={DAILY_COLOR} />
-            <Kpi
-              label="Days planned"
-              value={daily.activeDays}
-              suffix={`/${data.daily.length}`}
-              tone="#334155"
-              hint="days with at least one commitment"
-            />
           </div>
           <DailyStrip days={data.daily} />
         </Section>
@@ -493,7 +494,7 @@ function Section({
         title={title}
         subtitle={subtitle}
         /* THE ORDER IS THE WMS DASHBOARD'S: share pair, then the section's own
-           controls, then "Open board", then the fold toggle rightmost. It reads
+           controls, then the board shortcut, then the fold toggle rightmost. It reads
            as arbitrary until you scroll a page of eight sections — then the two
            round icons start every toolbar at the same x and the fold control
            ends every one of them, which is the only thing that stops the header
@@ -505,9 +506,11 @@ function Section({
             {href && (
               <Link
                 href={href}
-                className="inline-flex h-8 items-center rounded-pill border border-hairline-strong px-3 text-[12px] font-bold text-ink-soft transition-colors hover:border-altus-red hover:text-altus-red"
+                aria-label={`Open ${label} board`}
+                title={`Open ${label} board`}
+                className="inline-flex size-8 items-center justify-center rounded-lg border border-hairline-strong bg-white text-ink-soft shadow-sm transition-colors hover:border-altus-red hover:text-altus-red focus-visible:-outline-offset-2"
               >
-                Open board
+                <SquareArrowOutUpRight size={15} strokeWidth={2.2} aria-hidden />
               </Link>
             )}
             <CollapseToggle expanded={open} onToggle={() => setOpen((v) => !v)} label={label} />
@@ -557,6 +560,52 @@ function TransposeButton({
       <ArrowLeftRight className="size-3.5" strokeWidth={2.6} />
       Transpose
     </button>
+  );
+}
+
+function matchesGoalQuery(row: Row, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return [row.g.title, row.g.area, row.g.periodKey]
+    .some((value) => typeof value === "string" && value.toLowerCase().includes(needle));
+}
+
+/** Compact, section-owned search. Each icon filters only the list it labels. */
+function GoalSectionSearch({
+  query,
+  onQueryChange,
+  label,
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  label: string;
+}) {
+  return (
+    <CollapsibleSearch scope={label.toLowerCase()}>
+      <div
+        className="flex h-8 w-[220px] items-center gap-1.5 rounded-lg bg-surface-card px-2 shadow-[inset_0_0_0_1px_var(--color-hairline-strong)]"
+        role="search"
+      >
+        <Search className="size-3.5 shrink-0 text-ink-subtle" aria-hidden />
+        <input
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder={`Search ${label.toLowerCase()}`}
+          aria-label={`Search ${label.toLowerCase()}`}
+          className="min-w-0 flex-1 bg-transparent text-xs font-medium text-ink-strong outline-none placeholder:text-ink-subtle"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => onQueryChange("")}
+            aria-label={`Clear ${label.toLowerCase()} search`}
+            className="grid size-4 place-items-center rounded text-ink-subtle hover:text-ink-strong"
+          >
+            <X size={12} aria-hidden />
+          </button>
+        )}
+      </div>
+    </CollapsibleSearch>
   );
 }
 
@@ -676,16 +725,21 @@ function LevelSection({
   rows: Row[];
   fy: number;
 }) {
-  const s = summarise(rows);
   const [transposed, setTransposed] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const filteredRows = React.useMemo(
+    () => rows.filter((row) => matchesGoalQuery(row, query)),
+    [query, rows],
+  );
+  const s = React.useMemo(() => summarise(filteredRows), [filteredRows]);
   // Worst first, so the rows worth reading are the ones on screen when the
   // list caps.
   const sorted = React.useMemo(
     () =>
-      rows
+      filteredRows
         .slice()
         .sort((a, b) => BAND_ORDER.indexOf(b.band) - BAND_ORDER.indexOf(a.band) || a.h.delta - b.h.delta),
-    [rows],
+    [filteredRows],
   );
   const listed = React.useMemo(() => sorted.slice(0, LIST_MAX), [sorted]);
 
@@ -723,54 +777,25 @@ function LevelSection({
          two identical empty states is a dead button, and every level section
          is empty on a narrow date range. */
       controls={
-        rows.length > 0 ? (
-          <TransposeButton
-            on={transposed}
-            onToggle={() => setTransposed((v) => !v)}
-            noun="goals"
-          />
-        ) : null
+        <>
+          <GoalSectionSearch query={query} onQueryChange={setQuery} label={level.label} />
+          {filteredRows.length > 0 && (
+            <TransposeButton
+              on={transposed}
+              onToggle={() => setTransposed((v) => !v)}
+              noun="goals"
+            />
+          )}
+        </>
       }
     >
-      {rows.length === 0 ? (
-        <EmptyNote>No {level.label.toLowerCase()} in this window.</EmptyNote>
+      {filteredRows.length === 0 ? (
+        <EmptyNote>
+          {query ? `No ${level.label.toLowerCase()} match this search.` : `No ${level.label.toLowerCase()} in this window.`}
+        </EmptyNote>
       ) : (
         <>
-          <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-            <Kpi label="Goals" value={s.total} tone="#334155" />
-            <Kpi label="Done" value={s.counts.done} tone={BAND_META.done.color} />
-            <Kpi label="On pace" value={s.onPace} tone={BAND_META.ahead.color} />
-            <Kpi label="Needs attention" value={s.needsAttention} tone={BAND_META["at-risk"].color} />
-            <Kpi
-              label="Attainment"
-              value={s.weighted}
-              suffix="%"
-              tone={level.color}
-              hint={`pace expects ${s.expected}%`}
-            />
-          </div>
-
-          {/* Attainment against the pace marker. The bar says how far along the
-              work is; the notch says how far along it OUGHT to be, which is the
-              only thing that makes a percentage good or bad. */}
-          <div className="mb-5">
-            <span className="relative block h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-              <span
-                className="absolute inset-y-0 left-0 rounded-full"
-                style={{ width: `${s.weighted}%`, background: level.color }}
-              />
-              <span
-                aria-hidden
-                className="absolute inset-y-0 w-px bg-ink-strong/50"
-                style={{ left: `${s.expected}%` }}
-              />
-            </span>
-            <span className="mt-1.5 block text-[11.5px] font-semibold text-ink-subtle">
-              The line marks where pace expects this level to be today.
-            </span>
-          </div>
-
-          <BandBar rows={rows} />
+          <LevelDashboardVisual level={level} rows={sorted} summary={s} />
 
           {transposed ? (
             /* Transposed shows EVERY goal, not the capped eight. The cap exists
@@ -787,9 +812,9 @@ function LevelSection({
                   <AttentionRow key={r.g.id} row={r} fy={fy} />
                 ))}
               </ul>
-              {rows.length > LIST_MAX && (
+              {filteredRows.length > LIST_MAX && (
                 <p className="mt-3 text-[12px] font-semibold text-ink-subtle">
-                  Showing {LIST_MAX} of {rows.length} — transpose, or open the board, for the rest.
+                  Showing {LIST_MAX} of {filteredRows.length} — transpose, or open the board, for the rest.
                 </p>
               )}
             </>
@@ -808,6 +833,124 @@ function LevelSection({
  * thunk, and a cap it is honest about — and a section that owns state cannot
  * live inside the parent's render without lifting that state to the page.
  */
+/** Different reading surface for each planning level; shared data, different job. */
+function LevelDashboardVisual({
+  level,
+  rows,
+  summary,
+}: {
+  level: (typeof LEVELS)[number];
+  rows: Row[];
+  summary: Summary;
+}) {
+  switch (level.key) {
+    case "year": return <YearlyPulse rows={rows} summary={summary} />;
+    case "quarter": return <QuarterlyComparison rows={rows} />;
+    case "month": return <MonthlyMomentum rows={rows} />;
+    case "week": return <WeeklyFocusLanes rows={rows} />;
+  }
+}
+
+function YearlyPulse({ rows, summary }: { rows: Row[]; summary: Summary }) {
+  const progress = Math.min(100, Math.max(0, summary.weighted));
+  return (
+    <div className="mb-5 grid gap-5 rounded-[16px] border border-hairline bg-surface-card p-5 md:grid-cols-[minmax(0,1fr)_150px]">
+      <div className="min-w-0">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[12px] font-bold uppercase tracking-wider text-ink-subtle">Yearly pulse</span>
+          <span className="text-[12px] font-semibold text-ink-subtle">Pace {summary.expected}%</span>
+        </div>
+        <div className="mt-4" title={`Attainment ${summary.weighted}%; pace expects ${summary.expected}%.`}>
+          <span className="relative block h-3 overflow-hidden rounded-full bg-slate-100">
+            <span className="absolute inset-y-0 left-0 rounded-full bg-altus-red" style={{ width: `${progress}%` }} />
+            <span className="absolute inset-y-0 w-px bg-slate-900/60" style={{ left: `${summary.expected}%` }} />
+          </span>
+        </div>
+        <div className="mt-5"><BandBar rows={rows} /></div>
+      </div>
+      <div className="flex items-center justify-center">
+        <div className="grid size-28 place-items-center rounded-full" style={{ background: `conic-gradient(var(--color-altus-red) ${progress * 3.6}deg, #E2E8F0 0deg)` }} title={`${summary.weighted}% attained`}>
+          <div className="grid size-[88px] place-items-center rounded-full bg-surface-card text-center">
+            <span className="text-[28px] font-black leading-none tabular-nums text-ink-strong">{summary.weighted}%</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">attained</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuarterlyComparison({ rows }: { rows: Row[] }) {
+  return (
+    <div className="mb-5 grid gap-3 md:grid-cols-2">
+      {rows.slice(0, 4).map((row) => (
+        <div key={row.g.id} className="rounded-[14px] border border-hairline bg-surface-card p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-bold text-ink-strong" title={row.g.title}>{row.g.title}</p>
+              <p className="mt-1 text-[11px] font-semibold text-ink-subtle">{periodKeyLabel(row.g.periodKey)}</p>
+            </div>
+            <span className="shrink-0 text-[18px] font-black tabular-nums text-ink-strong">{row.eff}%</span>
+          </div>
+          <ProgressLine row={row} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MonthlyMomentum({ rows }: { rows: Row[] }) {
+  return (
+    <div className="mb-5 rounded-[16px] border border-hairline bg-surface-card p-4">
+      <div className="space-y-3">
+        {rows.slice(0, 6).map((row) => (
+          <div key={row.g.id} className="grid grid-cols-[minmax(120px,0.9fr)_minmax(0,2.1fr)_44px] items-center gap-3">
+            <span className="truncate text-[12.5px] font-semibold text-ink-strong" title={row.g.title}>{row.g.title}</span>
+            <ProgressLine row={row} compact />
+            <span className="text-right text-[12px] font-black tabular-nums text-ink-strong">{row.eff}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WeeklyFocusLanes({ rows }: { rows: Row[] }) {
+  const progressing = rows.filter((row) => row.band === "done" || row.band === "ahead" || row.band === "on-track");
+  const attention = rows.filter((row) => !progressing.includes(row));
+  return <div className="mb-5 grid gap-3 md:grid-cols-2"><WeeklyLane title="Moving" items={progressing} /><WeeklyLane title="Needs focus" items={attention} urgent /></div>;
+}
+
+function WeeklyLane({ title, items, urgent }: { title: string; items: Row[]; urgent?: boolean }) {
+  return (
+    <div className="rounded-[16px] border border-hairline bg-surface-card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[12px] font-bold uppercase tracking-wider text-ink-subtle">{title}</span>
+        <span className="text-[13px] font-black tabular-nums" style={{ color: urgent ? "var(--color-altus-red)" : "#475569" }}>{items.length}</span>
+      </div>
+      <div className="space-y-2">
+        {items.slice(0, 3).map((row) => (
+          <div key={row.g.id} className="flex items-center gap-2">
+            <span className="size-1.5 rounded-full" style={{ background: urgent ? "var(--color-altus-red)" : "#64748B" }} />
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-ink-strong" title={row.g.title}>{row.g.title}</span>
+            <span className="text-[12px] font-bold tabular-nums text-ink-subtle">{row.eff}%</span>
+          </div>
+        ))}
+        {items.length === 0 && <span className="text-[12px] font-medium text-ink-subtle">Nothing here</span>}
+      </div>
+    </div>
+  );
+}
+
+function ProgressLine({ row, compact = false }: { row: Row; compact?: boolean }) {
+  return (
+    <span className={`relative block overflow-hidden rounded-full bg-slate-100 ${compact ? "h-2" : "mt-4 h-2.5"}`} title={`Attainment ${row.eff}%; pace expects ${Math.round(row.h.expected)}%.`}>
+      <span className="absolute inset-y-0 left-0 rounded-full bg-altus-red" style={{ width: `${Math.min(100, row.eff)}%` }} />
+      <span className="absolute inset-y-0 w-px bg-slate-900/60" style={{ left: `${Math.min(100, row.h.expected)}%` }} />
+    </span>
+  );
+}
+
 function AttentionSection({
   rows,
   totalInWindow,
@@ -820,6 +963,11 @@ function AttentionSection({
   fy: number;
 }) {
   const [transposed, setTransposed] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const filteredRows = React.useMemo(
+    () => rows.filter((row) => matchesGoalQuery(row, query)),
+    [query, rows],
+  );
 
   const buildReport = React.useCallback(
     (): SectionReport => ({
@@ -827,18 +975,18 @@ function AttentionSection({
       subtitle: "Overdue, at risk, or carried over and still open — worst first",
       meta: [
         { label: "FY", value: fyLabel(fy) },
-        { label: "Flagged", value: `${rows.length} of ${totalInWindow}` },
+        { label: "Flagged", value: `${filteredRows.length} of ${totalInWindow}` },
       ],
       summary:
-        rows.length === 0
+        filteredRows.length === 0
           ? "Nothing behind pace in this window."
-          : `${rows.length} ${rows.length === 1 ? "goal" : "goals"} behind pace, worst first`,
+          : `${filteredRows.length} ${filteredRows.length === 1 ? "goal" : "goals"} behind pace, worst first`,
       columns: GOAL_REPORT_COLUMNS,
       // Every flagged goal, not the 15 on screen — see the note on the level
       // sections' report.
-      rows: goalReportRows(rows),
+      rows: goalReportRows(filteredRows),
     }),
-    [rows, totalInWindow, fy],
+    [filteredRows, totalInWindow, fy],
   );
 
   return (
@@ -850,35 +998,47 @@ function AttentionSection({
       label="the attention list"
       report={buildReport}
       controls={
-        rows.length > 0 ? (
-          <TransposeButton
-            on={transposed}
-            onToggle={() => setTransposed((v) => !v)}
-            noun="flagged goals"
-          />
-        ) : null
+        <>
+          <GoalSectionSearch query={query} onQueryChange={setQuery} label="flagged goals" />
+          {filteredRows.length > 0 && (
+            <TransposeButton
+              on={transposed}
+              onToggle={() => setTransposed((v) => !v)}
+              noun="flagged goals"
+            />
+          )}
+        </>
       }
     >
-      {rows.length === 0 ? (
+      {filteredRows.length === 0 ? (
         <EmptyNote>
-          {totalInWindow === 0
+          {query
+            ? "No flagged goals match this search."
+            : totalInWindow === 0
             ? "No goals in this window."
             : "Nothing behind pace. Every goal is on track or done."}
         </EmptyNote>
       ) : transposed ? (
-        <TransposedGoals rows={rows} fy={fy} />
+        <TransposedGoals rows={filteredRows} fy={fy} />
       ) : (
         <>
+          <div className="mb-4 grid gap-4 rounded-[16px] border border-hairline bg-surface-card p-4 md:grid-cols-[150px_minmax(0,1fr)]">
+            <div>
+              <p className="text-[12px] font-bold uppercase tracking-wider text-ink-subtle">Flagged</p>
+              <p className="mt-1 text-[30px] font-black leading-none tabular-nums text-altus-red">{filteredRows.length}</p>
+            </div>
+            <div className="min-w-0 self-center"><BandBar rows={filteredRows} /></div>
+          </div>
           <ul className="flex flex-col gap-1.5">
-            {rows.slice(0, ATTENTION_MAX).map((r) => (
+            {filteredRows.slice(0, ATTENTION_MAX).map((r) => (
               <AttentionRow key={r.g.id} row={r} fy={fy} />
             ))}
           </ul>
           {/* Says what was cut. A list silently capped reads as "these are
               all of them", which is the one thing it is not. */}
-          {rows.length > ATTENTION_MAX && (
+          {filteredRows.length > ATTENTION_MAX && (
             <p className="mt-3 text-[12px] font-semibold text-ink-subtle">
-              Showing the {ATTENTION_MAX} worst of {rows.length}.
+              Showing the {ATTENTION_MAX} worst of {filteredRows.length}.
             </p>
           )}
         </>
@@ -970,23 +1130,27 @@ function Kpi({
 }) {
   return (
     <div
-      className="rounded-xl border bg-surface-card px-4 py-3"
-      style={{ borderColor: "var(--color-hairline-strong)" }}
+      title={hint}
+      className="relative min-h-[104px] overflow-hidden rounded-[16px] border bg-surface-card p-4 shadow-[0_12px_24px_-24px_rgba(15,23,42,0.55)] transition-shadow hover:shadow-[0_16px_28px_-23px_rgba(15,23,42,0.72)]"
+      style={{ borderColor: "var(--color-hairline)" }}
     >
+      <span
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-1"
+        style={{ background: tone }}
+      />
       <span className="block text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
         {label}
       </span>
       <span
-        className="mt-0.5 block text-[24px] font-black leading-tight tabular-nums"
+        className="mt-3 block text-[30px] font-black leading-none tabular-nums"
         style={{ color: tone, fontFamily: DISPLAY }}
       >
         {value.toLocaleString("en-IN")}
         {suffix && <span className="text-[15px]">{suffix}</span>}
       </span>
       {hint && (
-        <span className="mt-0.5 block truncate text-[11px] font-semibold text-ink-subtle">
-          {hint}
-        </span>
+        <span className="sr-only">{hint}</span>
       )}
     </div>
   );
