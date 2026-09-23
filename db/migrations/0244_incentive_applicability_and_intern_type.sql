@@ -104,6 +104,72 @@ end $$;
 -- 0232's unique index is PARTIAL — one live row per (scheme, employee) while the
 -- person is eligible — so somebody removed can be added again later. The old
 -- table indexed the bare pair, which forbids exactly that.
+-- Bring the legacy 0216 table up to the dated-eligibility shape used by the
+-- application. Existing live grants become effective on the repair date; no
+-- employee loses eligibility.
+alter table incentive_eligibility
+  add column if not exists effective_from date,
+  add column if not exists removed_effective_from date,
+  add column if not exists added_by_id uuid,
+  add column if not exists removed_by_id uuid,
+  add column if not exists updated_at timestamptz default now();
+
+update incentive_eligibility
+   set effective_from = current_date
+ where effective_from is null;
+
+update incentive_eligibility
+   set updated_at = coalesce(updated_at, created_at, now())
+ where updated_at is null;
+
+alter table incentive_eligibility
+  alter column effective_from set not null,
+  alter column updated_at set default now(),
+  alter column updated_at set not null;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'incentive_eligibility_added_by_id_fkey'
+       and conrelid = 'incentive_eligibility'::regclass
+  ) then
+    alter table incentive_eligibility
+      add constraint incentive_eligibility_added_by_id_fkey
+      foreign key (added_by_id) references employees (id) on delete set null;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'incentive_eligibility_removed_by_id_fkey'
+       and conrelid = 'incentive_eligibility'::regclass
+  ) then
+    alter table incentive_eligibility
+      add constraint incentive_eligibility_removed_by_id_fkey
+      foreign key (removed_by_id) references employees (id) on delete set null;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'incentive_eligibility_window_chk'
+       and conrelid = 'incentive_eligibility'::regclass
+  ) then
+    alter table incentive_eligibility
+      add constraint incentive_eligibility_window_chk
+      check (removed_effective_from is null or removed_effective_from >= effective_from);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'incentive_eligibility_removed_chk'
+       and conrelid = 'incentive_eligibility'::regclass
+  ) then
+    alter table incentive_eligibility
+      add constraint incentive_eligibility_removed_chk
+      check (removed_effective_from is not null or removed_by_id is null);
+  end if;
+end $$;
+
 drop index if exists incentive_eligibility_pair_uq;
 create unique index if not exists incentive_eligibility_current_uq
   on incentive_eligibility (catalog_id, employee_id)
