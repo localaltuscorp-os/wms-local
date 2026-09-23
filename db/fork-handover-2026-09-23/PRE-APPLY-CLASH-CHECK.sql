@@ -600,6 +600,11 @@ left join information_schema.columns c
  and c.table_name   = n.table_name
  and c.column_name  = n.column_name
 where c.column_name is null
+  -- ONLY report a table that is ALREADY THERE. If the table does not exist,
+  -- CREATE TABLE IF NOT EXISTS will build it correctly and there is no clash —
+  -- without this line every column of every unbuilt table reports as missing,
+  -- which buries the two tables that genuinely need patching.
+  and to_regclass('public.' || n.table_name) is not null
 order by n.table_name, n.column_name;
 
 -- Nothing above = every column this delivery needs is already present (or its
