@@ -35,7 +35,7 @@ import {
  * nothing about the existing Employee Master has to change.
  */
 import "../employee-master/aura.css";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateInTz } from "@/lib/format";
 
 /**
  * THE BILLING ENTITY WORKSPACE.
@@ -459,11 +459,7 @@ function Body({
               </Field>
               <Field label="Last changed">
                 <Readout>
-                  {d.updatedAt.toLocaleDateString("en-IN", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                  })}
+                  {formatDateInTz(d.updatedAt)}
                   {d.updatedByName ? ` · ${d.updatedByName}` : ""}
                 </Readout>
               </Field>

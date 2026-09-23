@@ -284,7 +284,7 @@ function ModuleCard({
           <div>
             <p className="font-medium">Who may export this module</p>
             <p className="mt-0.5" style={{ color: "var(--color-ink-subtle, #64748B)" }}>
-              Manan and Rutvisha always can. Anyone added here can too — for this module only.
+              Super-admins manage this connection, schedule, and module-level export access.
             </p>
             <ul className="mt-2 space-y-1">
               {module.grants.length === 0 && <li style={{ color: "var(--color-ink-subtle, #64748B)" }}>Nobody else.</li>}

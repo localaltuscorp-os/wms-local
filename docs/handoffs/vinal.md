@@ -20,6 +20,7 @@ The standing list. Delete a row the moment it is applied and verified — a stal
 
 | Migration | Paste sheet | Creates | Status |
 |-----------|-------------|---------|--------|
+| `0239`–`0242` | [`db/RUN-IN-SUPABASE-0239-0242.sql`](../../db/RUN-IN-SUPABASE-0239-0242.sql), then [`db/VERIFY-0239-0242.sql`](../../db/VERIFY-0239-0242.sql) | WCC/MCC Quantity Done (`dcc_entries.completed_quantity`), MCC frequencies (`dcc_kpi_items.mcc_frequency`, `mcc_days`, `mcc_start_month`), Doer Status Abandoned, WCC Mins (`dcc_kpi_items.minutes`) | **Not run.** Needs `0238` first. Run before deploying 2026-09-19 changes — adding any compliance fails until `0240` and `0242` exist. ⚠️ Not the same files as `main`'s `0240`–`0242` |
 | `0237`–`0238` | [`db/RUN-IN-SUPABASE-0237-0238.sql`](../../db/RUN-IN-SUPABASE-0237-0238.sql) | WCC/MCC columns (`month_day`, WMS Doer & Approver statuses, `done_at`), Event Checklist WMS Task alignment, JD Client field & `jd_doer_notes` table | **Not run.** Run before deploying 2026-09-18 changes |
 | `0236` | [`db/migrations/0236_recruitment_jd_roles.sql`](../../db/migrations/0236_recruitment_jd_roles.sql) | Recruitment JDs keyed by their own `slug` instead of an interview grade, plus `recruitment_jd_sends` | **Not run.** Self-contained and idempotent |
 | `0228`–`0233` | [`db/RUN-IN-SUPABASE-0228-0233.sql`](../../db/RUN-IN-SUPABASE-0228-0233.sql) | JD Category, DCC Calendar Events, DCC Masters & Links, Approver Statuses, Recruitment JDs & Sends, Person-Specific JDs | **Not run.** |
@@ -38,6 +39,32 @@ The standing list. Delete a row the moment it is applied and verified — a stal
 2. Restoring a table from backup leaves its **id sequence behind the rows**. The
    next insert fails on a duplicate key in a column the app never sets. Re-sync
    the sequences after any restore.
+
+---
+
+## 2026-09-19 — WCC by day with Mins, MCC frequencies, Quantity Done, Abandoned, bulk upload, the three-tab top bar
+
+Full write-up, with every SQL statement: **[`vinal-2026-09-19-summary.md`](./vinal-2026-09-19-summary.md)**.
+
+**What changed**
+- **WCC** groups by day — all Dailys, then all Mondays, Tuesdays… (a Mon & Wed compliance under both). Headings carry only the day, date and *today* / *carried forward*, and stay pinned when the table scrolls sideways. **Mins** replaces Deadline: minutes per compliance, a total per group under the Mins column, and **Total Compliance Mins** at the foot. Frequency unchanged.
+- **MCC** takes seven frequencies (Monthly, 2 and 3 times/month, Alternate Month, Quarterly, Half Yearly, Annually). Its Frequency column shows only the day, as a red pill (`2nd`, `30th`), with the words on hover. A compact `‹ September 2026 ▾ ›` month/quarter switcher replaces the month strip.
+- **Both**: *Quantity Done* (18 of 25) for a compliance with a target above one · Doer Status *Abandoned* · Approver Status Approved / Not Approved / On Hold / Archive · carry forward then lapse · **bulk upload from Excel** with templates · a one-line toolbar with status filter chips · sortable, draggable columns · the Wed/Sat 10:02 pm email lists work Done short of target.
+- **Top bar, app-wide**: WMS · Goals · Project · More ▾ — every other room under More, which lights up when you are in one of them. Fixed tabs never returning after the window was widened, and More sliding under the search box at ~900px.
+- `obligation-bar.tsx` is no longer a client component (the server Obligations page passes it a function).
+
+**Why**
+- Account holder's requests of 2026-09-19. The WCC grouping and Mins make a day's compliance workload visible. The MCC frequencies match how compliance work actually recurs. The toolbar, headings, day pills and top bar were cleaned up because the old layout was crowded.
+
+**SQL to run before deploying**
+- `db/RUN-IN-SUPABASE-0239-0242.sql` (combines `0239_wcc_mcc_completed_quantity`, `0240_mcc_frequencies`, `0241_wcc_mcc_abandoned`, `0242_wcc_minutes`), then `db/VERIFY-0239-0242.sql` — all 12 rows `ok`. Needs `0238` first; additive, idempotent, one transaction. Tested on PGlite: twice-run is harmless, bad values refused, and without `0238` it fails leaving nothing changed.
+- ⚠️ `main` has different files numbered `0240`, `0241`, `0242` (incentive entry reversal, template files, two-step verification). Both sets are needed — name them by full filename.
+
+**How to verify**
+- `npx vitest run --no-file-parallelism tests/unit/compliance-*.test.ts tests/unit/aura-top-bar-tabs.test.ts`
+- `/dcc/wcc` (Today, 6 days, `?who=team`) and `/dcc/mcc` (month, quarter) on dummy data; the top bar on `/hub` and any module page, from 1920px down to 900px.
+
+**For whoever merges**: `Vinal` is 26 commits behind `main`; `db/schema.ts` changed on both sides (this branch adds five `dcc_*` columns). Local dummy DB: stop the dev server, `npm run dummy:setup`.
 
 ---
 

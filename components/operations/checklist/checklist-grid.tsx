@@ -92,6 +92,7 @@ import { ColumnGrip, headShadow, useColumnDrag, useSavedColumnOrder, type Column
 import { ChecklistTaskDialog } from "@/components/operations/checklist/checklist-task-dialog";
 import { ChecklistBulkUpload } from "@/components/operations/checklist/checklist-bulk-upload";
 import { CompactSelect } from "@/components/ui/compact-select";
+import { formatDateInTz } from "@/lib/format";
 
 const ACCENT_DEEP = "#A80400";
 
@@ -114,7 +115,7 @@ function formatActual(iso: string | null): string {
     hour12: false,
   }).formatToParts(d);
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  return `${get("day")}/${get("month")}/${get("year")} ${get("hour")}:${get("minute")}`;
+  return `${formatDateInTz(d, "Asia/Kolkata")} ${get("hour")}:${get("minute")}`;
 }
 
 /** The calendar date a row was marked Done, for variance. */

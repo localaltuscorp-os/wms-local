@@ -21,7 +21,7 @@ import { moduleBackupGrants } from "./schema";
  * (lib/hr/records-export/access.ts) and for the same reason.
  */
 
-/** Always allowed, whatever the grants table says. Lower-case. */
+/** Legacy export owners may still export assigned modules; management is role-only. */
 export const MODULE_BACKUP_OWNERS: readonly string[] = [
   "manan@unleashed.in",
   "rutvishamehta.altuscorp@gmail.com",
@@ -53,10 +53,10 @@ export async function exportableModules(me: Employee, all: readonly string[]): P
 }
 
 /**
- * May this person change who exports what, and the schedule? Super-admins and
- * the two owners — the same people who could grant themselves the right anyway,
- * so no new power is created by saying so out loud.
+ * May this person change who exports what, and the schedule? Super-admins only.
+ * Export grants and Drive credentials are administrative controls, so this is
+ * deliberately independent from ordinary module export access.
  */
 export function canManageModuleBackups(me: Employee): boolean {
-  return isOwner(me.email) || isSuperAdmin(me.email);
+  return isSuperAdmin(me.email);
 }

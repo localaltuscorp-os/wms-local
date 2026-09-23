@@ -57,3 +57,24 @@ export function roomsFor(allowed: WorkspaceId[]): AuraRoom[] {
     };
   });
 }
+
+/**
+ * THE THREE TABS (account holder, 2026-09-19: "3 options — WMS, Goals, Project
+ * — and a More dropdown, which will look clean; do this all over"). These
+ * rooms, in this order, are the only ones with a tab in the top bar, on every
+ * screen; every other room the person may enter is under More — the one they
+ * are in included.
+ */
+export const TAB_ROOMS: readonly WorkspaceId[] = ["wms", "goals", "project-plan"];
+
+/**
+ * The bar's tabs and its More menu. `fit` is how many tabs the bar has room
+ * for; a tab room that does not fit moves to the front of More. Every room is
+ * in exactly one of the two.
+ */
+export function tabsAndMore(rooms: readonly AuraRoom[], fit: number = TAB_ROOMS.length): { tabs: AuraRoom[]; more: AuraRoom[] } {
+  const pinned = TAB_ROOMS.flatMap((id) => rooms.filter((r) => r.id === id));
+  const rest = rooms.filter((r) => !TAB_ROOMS.includes(r.id));
+  const n = Math.max(0, Math.min(fit, pinned.length));
+  return { tabs: pinned.slice(0, n), more: [...pinned.slice(n), ...rest] };
+}

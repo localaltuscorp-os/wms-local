@@ -2091,6 +2091,7 @@ export const NOTIFICATION_KINDS = [
   // this kind, so it's inbox-only through the dispatcher). Deep-links to
   // /communications/<broadcastId>.
   "broadcast",
+  "ce_reference_reminder",
   // Incentive notifications & emails (migration 0231) — text column, no DB
   // change. Created only by lib/incentive/notifications/service.ts through
   // notify(); the body is the JSON meta in lib/incentive/notifications/kinds.ts
@@ -4707,6 +4708,16 @@ export const dccKpiItems = pgTable(
     /** MCC deadline — the day of the month a 'monthly' compliance is due
      *  (1–31; NULL = the month's last day). Migration 0238. */
     monthDay: smallint("month_day"),
+    /** MCC frequency (lib/compliance/mcc-frequency.ts) — NULL = Monthly.
+     *  Migration 0240, with the two below. */
+    mccFrequency: text("mcc_frequency"),
+    /** 2 / 3 times a month: each deadline day, in order (31 = month-end). */
+    mccDays: smallint("mcc_days").array(),
+    /** Alternate Month / Quarterly / Half Yearly / Annually: a month it is due in (1–12). */
+    mccStartMonth: smallint("mcc_start_month"),
+    /** WCC's Mins — how many minutes it takes each time it is due (1–1440;
+     *  NULL = not set). Migration 0242 (lib/compliance/minutes.ts). */
+    minutes: integer("minutes"),
     sortOrder: integer("sort_order"),
     archived: boolean("archived").notNull().default(false),
     createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
@@ -4742,6 +4753,10 @@ export const dccEntries = pgTable(
     approverNotes: text("approver_notes"),
     approverId: uuid("approver_id").references(() => employees.id, { onDelete: "set null" }),
     approverAt: timestamp("approver_at", { withTimezone: true }),
+    /** How many the doer completed of the compliance's target — asked when a
+     *  compliance with a target above one is marked Done. NULL otherwise.
+     *  Migration 0239 (lib/compliance/quantity.ts). */
+    completedQuantity: integer("completed_quantity"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -6955,6 +6970,10 @@ export const broadcasts = pgTable(
     // Scheduling / recurrence (0180). recurrence: none|daily|weekly|monthly.
     recurrence: text("recurrence").notNull().default("none").$type<BroadcastRecurrence>(),
     recurrenceUntil: date("recurrence_until"),
+    // Custom recurrence instants and the anchor used for monthly/annual repeats.
+    recurrenceDates: jsonb("recurrence_dates").notNull().default(sql`'[]'::jsonb`).$type<string[]>(),
+    recurrenceAnchor: timestamp("recurrence_anchor", { withTimezone: true }),
+    publishClaimedAt: timestamp("publish_claimed_at", { withTimezone: true }),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     // Reminder / escalation policy (0180). reminderAfterDays null = off.
     reminderAfterDays: integer("reminder_after_days"),
@@ -6994,6 +7013,7 @@ export const broadcastRecipients = pgTable(
     readAt: timestamp("read_at", { withTimezone: true }),
     acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
     deliveredChannels: jsonb("delivered_channels").notNull().default(sql`'[]'::jsonb`),
+    channelOutcomes: jsonb("channel_outcomes").notNull().default(sql`'{}'::jsonb`),
     // Reminder / escalation tracking (0180).
     lastRemindedAt: timestamp("last_reminded_at", { withTimezone: true }),
     reminderCount: integer("reminder_count").notNull().default(0),
@@ -7523,6 +7543,80 @@ export const calendarEvents = pgTable(
   ],
 );
 export type CalendarEventRow = typeof calendarEvents.$inferSelect;
+
+/* Executive master calendar (migrations 0231 and 0237). */
+export type ExecVisibilityCol = "public" | "busy" | "private";
+
+export const execCalendarRoutines = pgTable("exec_calendar_routines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: uuid("owner_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  categoryKey: text("category_key").notNull(),
+  daysOfWeek: integer("days_of_week").array().notNull().default([]),
+  startMin: integer("start_min").notNull(),
+  endMin: integer("end_min").notNull(),
+  fromDate: date("from_date").notNull(),
+  toDate: date("to_date").notNull(),
+  visibility: text("visibility").notNull().default("public").$type<ExecVisibilityCol>(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarRoutine = typeof execCalendarRoutines.$inferSelect;
+
+export const execCalendarEvents = pgTable("exec_calendar_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: uuid("owner_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  categoryKey: text("category_key").notNull(),
+  eventDate: date("event_date").notNull(),
+  startMin: integer("start_min"), endMin: integer("end_min"),
+  allDay: boolean("all_day").notNull().default(false),
+  visibility: text("visibility").notNull().default("public").$type<ExecVisibilityCol>(),
+  location: text("location"), notes: text("notes"),
+  clientEntryId: uuid("client_entry_id").references(() => paEntries.id, { onDelete: "set null" }),
+  clientKey: text("client_key"), batchLabel: text("batch_label"),
+  routineId: uuid("routine_id").references(() => execCalendarRoutines.id, { onDelete: "set null" }),
+  createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+  updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarEvent = typeof execCalendarEvents.$inferSelect;
+
+export const execCalendarDayMarkers = pgTable("exec_calendar_day_markers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: uuid("owner_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  mode: text("mode").notNull().default("day").$type<"day" | "range" | "dates">(),
+  dates: date("dates").array().notNull().default([]),
+  createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarDayMarker = typeof execCalendarDayMarkers.$inferSelect;
+
+export const execCalendarPrefs = pgTable("exec_calendar_prefs", {
+  employeeId: uuid("employee_id").primaryKey().references(() => employees.id, { onDelete: "cascade" }),
+  startMin: integer("start_min").notNull().default(420), endMin: integer("end_min").notNull().default(1320),
+  slotMin: integer("slot_min").notNull().default(30),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ExecCalendarPrefs = typeof execCalendarPrefs.$inferSelect;
+
+export const ceAuditLog = pgTable("ce_audit_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entityType: text("entity_type").notNull().$type<"account" | "engagement" | "reference" | "team_member">(),
+  entityId: uuid("entity_id").notNull(),
+  action: text("action").notNull(),
+  summary: text("summary").notNull(),
+  before: jsonb("before"),
+  after: jsonb("after"),
+  actorId: uuid("actor_id").references(() => employees.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type CeAuditLog = typeof ceAuditLog.$inferSelect;
 
 /** Per-month completion count for an obligation (manual override; the auto-count
  *  comes from calendar_events.obligation_id). */
@@ -8250,6 +8344,11 @@ export const candidateIntake = pgTable(
     // { interviewer?: EvaluationInstance, management?: EvaluationInstance }
     // (see lib/hr/candidate/evaluation-v2.ts). The old `evaluation` stays intact.
     evaluationV2: jsonb("evaluation_v2"),
+    managementAssessment: jsonb("management_assessment"),
+    // The self-reference is enforced by the database migration. Omitting the
+    // Drizzle callback here avoids a recursive table type during TypeScript's
+    // declaration inference.
+    mergedIntoId: uuid("merged_into_id"),
     photoPath: text("photo_path"),
     signaturePath: text("signature_path"),
     createdById: uuid("created_by_id").references(() => employees.id, {
@@ -8261,9 +8360,26 @@ export const candidateIntake = pgTable(
   (t) => [
     index("candidate_intake_created_at_idx").on(t.createdAt),
     index("candidate_intake_status_idx").on(t.status),
+    index("candidate_intake_merged_into_idx").on(t.mergedIntoId),
   ],
 );
 export type CandidateIntake = typeof candidateIntake.$inferSelect;
+
+export const candidateIntakeMergeEvents = pgTable("candidate_intake_merge_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  retiredIntakeId: uuid("retired_intake_id").references(() => candidateIntake.id, { onDelete: "set null" }),
+  survivorIntakeId: uuid("survivor_intake_id").references(() => candidateIntake.id, { onDelete: "set null" }),
+  retiredName: text("retired_name"), retiredMobile: text("retired_mobile"),
+  survivorName: text("survivor_name"), survivorMobile: text("survivor_mobile"),
+  transferred: jsonb("transferred").notNull().default([]),
+  skipped: jsonb("skipped").notNull().default([]),
+  restorePayload: jsonb("restore_payload"),
+  actorEmployeeId: uuid("actor_employee_id").references(() => employees.id, { onDelete: "set null" }),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  undoneAt: timestamp("undone_at", { withTimezone: true }),
+  undoneById: uuid("undone_by_id").references(() => employees.id, { onDelete: "set null" }),
+});
+export type CandidateIntakeMergeEvent = typeof candidateIntakeMergeEvents.$inferSelect;
 
 /**
  * Candidate ACCESS LINKS (migration 0221) — the HR forms without a login.
@@ -8308,7 +8424,7 @@ export const candidateAccessLinks = pgTable(
 export type CandidateAccessLink = typeof candidateAccessLinks.$inferSelect;
 
 /** Where `/c/<token>` puts the candidate down (0222). */
-export type CandidateLinkPurpose = "form" | "policies";
+export type CandidateLinkPurpose = "form" | "policies" | "onboarding";
 
 /**
  * A candidate's typed acceptance of one policy (0222).
@@ -8689,6 +8805,7 @@ export const paPeople = pgTable("pa_people", {
   /** Set when the person came from the employee roster; null when typed. */
   employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
   isActive: boolean("is_active").notNull().default(true),
+  isCeLead: boolean("is_ce_lead").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -8721,6 +8838,8 @@ export const paAmbassadors = pgTable("pa_ambassadors", {
   startDate: date("start_date"),
   endDate: date("end_date"),
   onHold: boolean("on_hold").notNull().default(false),
+  ownerPersonId: uuid("owner_person_id").references(() => paPeople.id, { onDelete: "set null" }),
+  status: text("status"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -8731,9 +8850,7 @@ export const paEntries = pgTable(
   "pa_entries",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    personId: uuid("person_id")
-      .notNull()
-      .references(() => paPeople.id, { onDelete: "cascade" }),
+    personId: uuid("person_id").references(() => paPeople.id, { onDelete: "cascade" }),
     /** ps | bss | retainer | ecosystem, or null until a Product is chosen. */
     section: text("section"),
     name: text("name").notNull(),
@@ -8749,6 +8866,8 @@ export const paEntries = pgTable(
     callType: text("call_type"),
     /** That call's length in MINUTES. Shown as HH:MM; stored as a quantity. */
     durationMin: integer("duration_min"),
+    highlight: text("highlight"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -8820,6 +8939,8 @@ export const paCalls = pgTable(
     /** mon..sun */
     day: text("day").notNull(),
     durationMin: integer("duration_min").notNull().default(0),
+    startTime: time("start_time"),
+    endTime: time("end_time"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("pa_calls_entry_idx").on(t.entryId)],

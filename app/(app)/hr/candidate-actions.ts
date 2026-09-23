@@ -187,6 +187,7 @@ export async function saveCandidateDraft(input: z.input<typeof DraftSchema>): Pr
       id = row.id;
     }
 
+    if (!id) return { ok: false, error: "Could not save the candidate." };
     await indexIntake(id, values, v.instances, me.id, "draft");
     revalidatePath("/hr/candidates");
     return { ok: true, id };

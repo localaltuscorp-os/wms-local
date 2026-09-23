@@ -97,7 +97,15 @@ function* walk(dir: string): Generator<string> {
     } catch {
       continue;
     }
-    if (st.isDirectory()) yield* walk(full);
+    if (st.isDirectory()) {
+      // Generated Next output is not just `.next`: `dev:dummy` writes
+      // `.next-dummy`, and an ad-hoc NEXT_DIST_DIR run leaves siblings like
+      // `.next-verify` behind. An exact-name skip caught only `.next`, so a
+      // stale sibling put hundreds of megabytes of generated JS in front of
+      // this walk and timed the test out instead of failing it honestly.
+      if (name.startsWith(".next")) continue;
+      yield* walk(full);
+    }
     else if (isChecked(name)) yield full;
   }
 }

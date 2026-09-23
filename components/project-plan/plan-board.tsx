@@ -36,6 +36,7 @@ import { InlineDoerCell, InlinePriorityCell, PriorityPill } from "@/components/t
 import { CriticalBadge } from "@/components/ui/critical-badge";
 import { BulkActionBar } from "@/components/tasks/bulk-action-bar";
 import { CompactSelect } from "@/components/ui/compact-select";
+import { DateInput } from "@/components/ui/date-input";
 import { sortPlanTree, type SortableColumn, type SortDir } from "@/lib/project-plan/sort";
 import { SelectAllBar } from "@/components/ui/select-all-bar";
 import { PlanKanban, kanbanCards } from "./plan-kanban";
@@ -2597,11 +2598,9 @@ function Row({
           case "target":
             return (
               <td key={key} className={pad}>
-                <input
-                  type="date"
-                  defaultValue={node.targetDate ?? ""}
-                  key={`${node.id}:d:${node.targetDate ?? ""}`}
-                  onChange={(e) => patch({ targetDate: e.target.value || null })}
+                <DateInput
+                  value={node.targetDate ?? ""}
+                  onChange={(value) => patch({ targetDate: value || null })}
                   className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-[13px] font-medium text-ink-strong outline-none transition-colors hover:border-hairline-strong focus:border-[#E10600] focus:bg-white"
                   aria-label="Target date"
                 />
@@ -2796,19 +2795,13 @@ function DateCell({
 
   return (
     <td className={`px-2 py-1.5 align-middle${last ? " pr-3" : ""}`}>
-      <input
-        type="date"
-        defaultValue={ymd}
-        key={`d:${iso ?? ""}`}
-        onChange={(e) => {
-          const next = e.target.value;
+      <DateInput
+        value={ymd}
+        onChange={(next) => {
           onChange(next ? (combineDateTime(next, hm)?.toISOString() ?? null) : null);
         }}
         className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-[12.5px] font-medium text-ink-strong outline-none transition-colors hover:border-hairline-strong focus:border-[#E10600] focus:bg-white"
-        aria-label={label}
-        // The stored value in the brief's own format, since a native date input
-        // renders in the browser's locale and cannot be told otherwise.
-        title={iso ? formatPlanDate(iso) : label}
+        ariaLabel={label}
       />
     </td>
   );

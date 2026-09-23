@@ -72,8 +72,10 @@ const OUTCOME_MAP: Record<
   selected: { status: "hired", letterKey: "selection", letterLabel: "Selection letter", label: "Selected" },
   shortlisted: { status: "shortlisted", letterKey: "next-round", letterLabel: "Next-round letter", label: "Shortlisted" },
   rejected: { status: "rejected", letterKey: "rejection", letterLabel: "Regret letter", label: "Rejected" },
+  free_training: { status: "free_training", letterKey: "free-training", letterLabel: "Free training letter", label: "Free training" },
+  assignment_needed: { status: "assignment_needed", letterKey: "assignment-needed", letterLabel: "Assignment letter", label: "Assignment needed" },
 };
-const OUTCOME_ORDER: Exclude<MgmtOutcome, null>[] = ["selected", "shortlisted", "rejected"];
+const OUTCOME_ORDER: Exclude<MgmtOutcome, null>[] = ["selected", "shortlisted", "rejected", "free_training", "assignment_needed"];
 
 const EMPTY_SKILLS: SkillSelection = { technical: [], nonTechnical: [] };
 const BAR_COUNT = 32;
@@ -330,7 +332,7 @@ export function ManagementAssessmentScreen({
   async function emailRecruiter() {
     const email = recruiterEmailRef.current.trim();
     const oc = outcomeRef.current;
-    if (!oc || oc === "shortlisted" || !email) return;
+    if (!oc || (oc !== "selected" && oc !== "rejected") || !email) return;
     setEmailingRecruiter(true);
     try {
       const res = await sendRecruiterOutcome(cidRef.current, {

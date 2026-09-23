@@ -13,15 +13,14 @@ import type {
   IncentiveRequestHistory,
 } from "@/lib/incentive/workflow-server";
 import { IncentiveStatusPill } from "./incentive-status-pill";
+import { formatDateInTz } from "@/lib/format";
 
 /** "15-Sep-2026, 4:05 pm" in IST — a decision's date AND time, as the brief asks. */
 export function formatIncentiveDateTime(value: Date | string | null | undefined): string {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return "—";
-  const date = d
-    .toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })
-    .replace(/ /g, "-");
+  const date = formatDateInTz(d, "Asia/Kolkata");
   const time = d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
   return `${date}, ${time}`;
 }

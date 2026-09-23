@@ -1,4 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
+import { mccColumns, mccDeadlinesIn, type MccFrequency } from "../lib/compliance/mcc-frequency";
 
 /**
  * WCC AND MCC, FILLED — dummy data for migration 0238 (account holder,
@@ -14,9 +15,17 @@ import type { PGlite } from "@electric-sql/pglite";
  *   · WCC — two once-a-week compliances with their weeks filled.
  *   · The actual date on every Done fill: the evening of its day, a few a day
  *     or two late (0238 could only copy the last-saved time).
- *   · Doer Statuses beyond Done — Initiated, Follow Up, Need Info — and the
- *     Team Leads' rulings: mostly Approved, a few Not Approved with a note,
- *     the odd one On Hold.
+ *   · Doer Statuses beyond Done — Initiated, Follow Up, Need Info, the odd one
+ *     Abandoned (0241) — and the Team Leads' rulings: mostly Approved, a few
+ *     Not Approved with a note, the odd one On Hold.
+ *   · Two compliances that COUNT by their title (migration 0239) — "Send 25
+ *     emails…", "Publish 4 case studies…" — with how many each Done fill
+ *     completed: mostly all, some short, the odd one over.
+ *   · One MCC compliance for each frequency past Monthly (migration 0240) —
+ *     2 and 3 times a month, Alternate Month, Quarterly, Half Yearly,
+ *     Annually — with their deadlines filled, most done, a few late or open.
+ *   · Mins on the WCC compliances (migration 0242) — 5 minutes to an hour
+ *     each, a few left without, as a checklist being timed would be.
  *
  * FILLS BLANKS ONLY, deterministically — re-running changes nothing, and it
  * never overwrites what somebody set in the app. Local PGlite only.
@@ -76,12 +85,31 @@ const MONTHLY: [number, string, string, string, number | null][] = [
   [10, P.rekha, "Office", "Stock audit of stationery and pantry", 28],
   [11, OLD.asha, "People", "Monthly attendance and leave report", 1],
   [12, OLD.meera, "Accounts", "Salary register sign-off", 26],
+  [13, P.rohan, "Marketing", "Publish 4 case studies on the website", 28],
 ];
 
 /** [n, owner, section, title, weekday mask (0 = any day)] */
 const WEEKLY: [number, string, string, string, number][] = [
   [1, P.mitul, "Reporting", "Weekly pipeline call with Manan Sir", 0],
   [2, P.rekha, "Office", "Deep-clean the pantry and fridge", 0b0100000], // Saturday
+  [3, P.priya, "Outreach", "Send 25 emails to dormant leads", 0],
+];
+
+/** [n, owner, section, title, frequency, deadline days (31 = month-end), due month] */
+const CYCLES: [number, string, string, string, MccFrequency, number[], number | null][] = [
+  [20, P.mitul, "Reporting", "Send the MIS report to Manan Sir", "twice_monthly", [15, 31], null],
+  [21, P.devang, "Accounts", "Reconcile the bank statements", "thrice_monthly", [10, 20, 31], null],
+  [22, P.rekha, "Office", "Service the air conditioners", "alternate_month", [31], 2],
+  [23, P.devang, "Statutory", "File the quarterly TDS return", "quarterly", [31], 7],
+  [24, OLD.me, "Board", "Circulate the board meeting minutes", "quarterly", [30], 9],
+  [25, OLD.asha, "People", "Review every employee's goals", "half_yearly", [15], 10],
+  [26, OLD.meera, "Statutory", "Renew the shop and establishment licence", "annually", [31], 3],
+];
+
+/** The compliances above that count by their title, and the count each asks for. */
+const COUNTED: [string, number][] = [
+  [id("8024", 3), 25],
+  [id("8023", 13), 4],
 ];
 
 const DOER_NOTES = [
@@ -154,6 +182,53 @@ export async function seedWccMcc(pg: PGlite): Promise<Record<string, number>> {
     }
   }
 
+  /* ── MCC frequencies past Monthly (0240) ─────────────────────────────── */
+  const hasCycles = (
+    await pg.query(`select 1 from information_schema.columns where table_name = 'dcc_kpi_items' and column_name = 'mcc_frequency'`)
+  ).rows.length;
+  if (hasCycles) {
+    for (const [n, owner, section, title, frequency, days, startMonth] of CYCLES) {
+      if (!(await alive(owner))) continue;
+      const itemId = id("8023", n);
+      const c = mccColumns({ frequency, days, startMonth });
+      await pg.query(
+        `insert into dcc_kpi_items
+           (id, owner_employee_id, section, code, title, frequency, weekdays, schedule_kind, month_day,
+            mcc_frequency, mcc_days, mcc_start_month, needs_review, sort_order, created_by_id, created_at)
+         values ($1,$2,$3,$4,$5,$6,0,'monthly',$7,$8,$9,$10,false,$11,$12, now() - interval '400 days')
+         on conflict (id) do nothing`,
+        [itemId, owner, section, `MC-${n}`, title, c.frequency, c.monthDay, c.mccFrequency, c.mccDays, c.mccStartMonth, 50 + n, (await managerOf(owner)) ?? OLD.me],
+      );
+      // A year of deadlines: most done around the day, some late, a few open.
+      for (let back = 12; back >= 0; back--) {
+        for (const d of mccDeadlinesIn({ frequency, days, startMonth }, shiftMonth(thisMonth, -back))) {
+          const key = `${itemId}|${d.deadline}`;
+          const x = rand(key);
+          const past = d.deadline < today;
+          let doer: string | null = null;
+          let doneOn: string | null = null;
+          if (past) {
+            if (x < 0.7) {
+              doer = "done";
+              doneOn = addDays(d.deadline, Math.floor(rand(`${key}|d`) * 4) - 2);
+            } else if (x < 0.85) {
+              doer = "done";
+              doneOn = addDays(d.deadline, 1 + Math.floor(rand(`${key}|l`) * 5));
+            } else if (x < 0.93) doer = "follow_up";
+          } else if (x < 0.3) doer = "initiated";
+          if (doneOn && doneOn > today) doneOn = today;
+          if (!doer) continue;
+          await pg.query(
+            `insert into dcc_entries (item_id, entry_date, status, doer_status, done_at, filled_by_id, updated_at)
+             values ($1,$2,$3,$4,$5,$6, coalesce($5::timestamptz + interval '10 minutes', now()))
+             on conflict do nothing`,
+            [itemId, d.deadline, doer === "done" ? "Done" : "Pending", doer, doneOn ? `${doneOn}T17:40:00+05:30` : null, owner],
+          );
+        }
+      }
+    }
+  }
+
   /* ── WCC once-a-week compliances ──────────────────────────────────────── */
   for (const [n, owner, section, title, mask] of WEEKLY) {
     if (!(await alive(owner))) continue;
@@ -195,13 +270,26 @@ export async function seedWccMcc(pg: PGlite): Promise<Record<string, number>> {
   }
 
   /* ── More Doer Statuses than Done, and the Team Leads' rulings ────────── */
+  // Abandoned needs 0241's wider check; without it, none are made.
+  const canAbandon = (
+    await pg.query(
+      `select 1 from pg_constraint where conname = 'dcc_entries_doer_status_chk' and pg_get_constraintdef(oid) like '%abandoned%'`,
+    )
+  ).rows.length;
   const open = (
     await pg.query<{ id: string }>(`select id from dcc_entries where doer_status = 'initiated' and approver_id is null and subject_id is null`)
   ).rows;
   for (const e of open) {
     const x = rand(`${e.id}|doer`);
-    const next = x < 0.3 ? "follow_up" : x < 0.5 ? "need_info" : null;
-    if (next) await pg.query(`update dcc_entries set doer_status = $2 where id = $1 and doer_status = 'initiated'`, [e.id, next]);
+    const next = x < 0.3 ? "follow_up" : x < 0.5 ? "need_info" : x < 0.58 && canAbandon ? "abandoned" : null;
+    // The old word moves with it: Abandoned is "Not done" to DCC's readers.
+    if (next) {
+      await pg.query(
+        `update dcc_entries set doer_status = $2, status = case when $2 = 'abandoned' then 'Not done' else status end
+          where id = $1 and doer_status = 'initiated'`,
+        [e.id, next],
+      );
+    }
   }
 
   const rulable = (
@@ -242,6 +330,54 @@ export async function seedWccMcc(pg: PGlite): Promise<Record<string, number>> {
       [e.id, ruling, note, e.manager_id],
     );
   }
+  /* ── How many, for the compliances that count ─────────────────────────── */
+  const hasCount = (
+    await pg.query(`select 1 from information_schema.columns where table_name = 'dcc_entries' and column_name = 'completed_quantity'`)
+  ).rows.length;
+  if (hasCount) {
+    for (const [itemId, target] of COUNTED) {
+      const done = (
+        await pg.query<{ id: string }>(
+          `select id from dcc_entries where item_id = $1 and doer_status = 'done' and completed_quantity is null and subject_id is null`,
+          [itemId],
+        )
+      ).rows;
+      for (const e of done) {
+        const x = rand(`${e.id}|qty`);
+        const n =
+          x < 0.55
+            ? target
+            : x < 0.9
+              ? Math.round(target * (0.55 + rand(`${e.id}|short`) * 0.4))
+              : target + 1 + Math.floor(rand(`${e.id}|over`) * 3);
+        await pg.query(
+          `update dcc_entries set completed_quantity = $2::int, value_number = $2::int where id = $1 and completed_quantity is null`,
+          [e.id, n],
+        );
+      }
+    }
+  }
+
+  /* ── Mins, for the WCC compliances ───────────────────────────────────── */
+  const hasMinutes = (
+    await pg.query(`select 1 from information_schema.columns where table_name = 'dcc_kpi_items' and column_name = 'minutes'`)
+  ).rows.length;
+  if (hasMinutes) {
+    const MINS = [5, 10, 10, 15, 15, 20, 30, 30, 45, 60];
+    const untimed = (
+      await pg.query<{ id: string }>(
+        `select id from dcc_kpi_items
+          where schedule_kind in ('scheduled', 'weekly') and not is_participant_list and not archived and minutes is null`,
+      )
+    ).rows;
+    for (const it of untimed) {
+      // About one in ten stays without — decided by the id, so a re-run agrees.
+      if (rand(`${it.id}|mins`) < 0.1) continue;
+      const m = MINS[Math.floor(rand(`${it.id}|mins-value`) * MINS.length)]!;
+      await pg.query(`update dcc_kpi_items set minutes = $2::int where id = $1 and minutes is null`, [it.id, m]);
+    }
+  }
+
   // A few doer notes on finished daily work.
   await pg.query(
     `update dcc_entries set note = $1
@@ -252,9 +388,18 @@ export async function seedWccMcc(pg: PGlite): Promise<Record<string, number>> {
 
   for (const [label, sql] of [
     ["mcc compliances", `select count(*)::int as n from dcc_kpi_items where schedule_kind = 'monthly' and not archived`],
+    ...(hasCycles
+      ? ([["mcc past Monthly", `select count(*)::int as n from dcc_kpi_items where mcc_frequency is not null and mcc_frequency <> 'monthly'`]] as const)
+      : []),
     ["wcc compliances", `select count(*)::int as n from dcc_kpi_items where schedule_kind in ('scheduled','weekly') and not archived`],
+    ...(hasMinutes
+      ? ([["wcc compliances with Mins", `select count(*)::int as n from dcc_kpi_items where minutes is not null and not archived`]] as const)
+      : []),
     ["fills with a Doer Status", `select count(*)::int as n from dcc_entries where doer_status is not null`],
     ["fills ruled on", `select count(*)::int as n from dcc_entries where approver_status is not null`],
+    ...(hasCount
+      ? ([["fills with a count", `select count(*)::int as n from dcc_entries where completed_quantity is not null`]] as const)
+      : []),
   ] as const) {
     counts[label] = (await pg.query<{ n: number }>(sql)).rows[0]?.n ?? 0;
   }

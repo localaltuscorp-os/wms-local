@@ -1,11 +1,13 @@
 import Link from "next/link";
 import type { Route } from "next";
+import type React from "react";
 import {
   BarChart3,
   Wallet,
   Hourglass,
   CheckCircle2,
-  Layers,
+  Banknote,
+  XCircle,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
 import { PageCommandBar } from "@/components/layout/page-command-bar";
@@ -26,13 +28,17 @@ import { RbClaimDialog } from "@/components/reimbursements/rb-claim-dialog";
 import { RbClaimsList } from "@/components/reimbursements/rb-claims-list";
 import { RbFilterProvider } from "@/components/reimbursements/rb-filter-context";
 import { RbKpiStrip, type RbKpi } from "@/components/reimbursements/rb-kpi-strip";
-import { isPaid, sumClaims } from "@/lib/reimbursements/claim-status";
+import {
+  CLAIM_ACCENT,
+  CLAIM_ACCENT_DEEP,
+  CLAIM_CARD_FILTER,
+  CLAIM_STATUS_CARD,
+  computeClaimKpis,
+  settledShare,
+} from "@/lib/reimbursements/claim-kpis";
 import { attachmentCountsBySubmission } from "@/lib/queries/reimbursement-attachments";
 
 export const dynamic = "force-dynamic";
-
-const GREEN = "#16a34a";
-const GREEN_DEEP = "#15803d";
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -62,86 +68,126 @@ export default async function ReimbursementsPage({ searchParams }: PageProps) {
     await attachmentCountsBySubmission(rows.map((r) => r.id)).catch(() => new Map<string, number>()),
   );
 
-  // ── KPIs folded over the already-loaded rows (zero extra queries) ──
-  // Computed over EVERY row, and they stay that way when a filter is active:
-  // a strip that recomputed itself against the selection would zero every card
-  // but the chosen one. The amount rule comes from the shared module the list
-  // filters with, so a card's total and its filtered list always agree.
-  const totalClaimed = sumClaims(rows);
-  const pendingRows = rows.filter((r) => r.status === "pending");
-  const approvedRows = rows.filter((r) => r.status === "approved");
-  const rejectedRows = rows.filter((r) => r.status === "rejected");
-  const pendingAmount = sumClaims(pendingRows);
-  const approvedAmount = sumClaims(approvedRows);
-  const paidCount = approvedRows.filter(isPaid).length;
-  const approvedShare = totalClaimed > 0 ? approvedAmount / totalClaimed : null;
+  /* ── KEY CARDS ────────────────────────────────────────────────────────────
+     Folded over the already-loaded rows in ONE pass (zero extra queries) by
+     `lib/reimbursements/claim-kpis.ts`, which also owns which filter each card
+     selects and which shared palette slot paints it.
 
-  /**
-   * The KPI cards, each paired with the filter it selects.
-   *
-   * `filter` is read off what the card TOTALS, never off its title — see
-   * components/reimbursements/rb-kpi-strip.tsx for why "Approved · paid" maps
-   * to `approvedAll` (approved, settled or not) rather than the narrower
-   * "approved but unpaid" the toolbar chip means.
-   */
+     Computed over EVERY row, and they stay that way when a filter is active: a
+     strip that recomputed itself against the selection would zero every card
+     but the chosen one.
+
+     The five cards PARTITION the book — pending + approved + paid + rejected
+     add up to total, in money and in count. The old four did not: "Total
+     claimed" and "Claims" both filtered to every row, so one card existed only
+     to restate the other's caption, while Rejected had no card at all. */
+  const f = computeClaimKpis(rows);
+  const claimWord = (n: number) => (n === 1 ? "claim" : "claims");
+  const archivedNote = view === "archived" ? " (archived)" : "";
+
   const kpis: RbKpi[] = [
     {
       key: "total",
-      filter: "all",
-      icon: <Wallet size={17} strokeWidth={2.4} />,
-      accent: GREEN,
+      filter: CLAIM_CARD_FILTER.total,
+      card: "total",
+      icon: <Wallet size={14} strokeWidth={2.5} />,
       label: "Total claimed",
-      value: formatInr(totalClaimed),
-      caption: `across ${formatCount(rows.length)} ${rows.length === 1 ? "claim" : "claims"}${view === "archived" ? " (archived)" : ""}`,
+      value: formatInr(f.total.amount),
+      caption: `across ${formatCount(f.total.count)} ${claimWord(f.total.count)}${archivedNote}`,
+      count: f.total.count,
     },
     {
       key: "pending",
-      filter: "pending",
-      icon: <Hourglass size={17} strokeWidth={2.4} />,
-      accent: pendingRows.length > 0 ? "#d97706" : "#334155",
+      filter: CLAIM_CARD_FILTER.pending,
+      card: CLAIM_STATUS_CARD.pending,
+      icon: <Hourglass size={14} strokeWidth={2.5} />,
       label: "Pending",
-      value: formatInr(pendingAmount),
+      value: formatInr(f.pending.amount),
       caption:
-        pendingRows.length > 0
-          ? `${formatCount(pendingRows.length)} awaiting review`
-          : "all reviewed",
+        f.pending.count > 0
+          ? `${formatCount(f.pending.count)} awaiting review`
+          : "nothing awaiting review",
+      count: f.pending.count,
     },
     {
       key: "approved",
-      filter: "approvedAll",
-      icon: <CheckCircle2 size={17} strokeWidth={2.4} />,
-      accent: GREEN_DEEP,
-      label: "Approved · paid",
-      value: formatInr(approvedAmount),
+      filter: CLAIM_CARD_FILTER.approved,
+      card: CLAIM_STATUS_CARD.approved,
+      icon: <CheckCircle2 size={14} strokeWidth={2.5} />,
+      label: "Approved",
+      // NARROW on purpose: approved money that has NOT been paid out yet, i.e.
+      // what the firm still owes. The settled money is the Paid card's.
+      value: formatInr(f.approved.amount),
       caption:
-        approvedRows.length > 0
-          ? `${formatCount(paidCount)} of ${formatCount(approvedRows.length)} settled`
-          : "nothing approved yet",
-      progress: approvedShare,
+        f.approved.count > 0
+          ? `${formatCount(f.approved.count)} ${claimWord(f.approved.count)} owed`
+          : "nothing owed",
+      count: f.approved.count,
     },
     {
-      key: "claims",
-      filter: "all",
-      icon: <Layers size={17} strokeWidth={2.4} />,
-      accent: "#334155",
-      label: "Claims",
-      value: formatCount(rows.length),
+      key: "paid",
+      filter: CLAIM_CARD_FILTER.paid,
+      card: CLAIM_STATUS_CARD.paid,
+      icon: <Banknote size={14} strokeWidth={2.5} />,
+      label: "Paid",
+      value: formatInr(f.paid.amount),
       caption:
-        rejectedRows.length > 0
-          ? `${formatCount(rejectedRows.length)} rejected`
-          : "none rejected",
+        f.paid.count > 0
+          ? `${formatCount(f.paid.count)} settled`
+          : "nothing settled yet",
+      count: f.paid.count,
+      // The share of approved money that has actually left. Null — no bar at
+      // all — when nothing has been approved, because an empty bar would say
+      // "none of it has been paid", which is a different statement.
+      progress: settledShare(f),
+    },
+    {
+      key: "rejected",
+      filter: CLAIM_CARD_FILTER.rejected,
+      card: CLAIM_STATUS_CARD.rejected,
+      icon: <XCircle size={14} strokeWidth={2.5} />,
+      label: "Rejected",
+      value: formatInr(f.rejected.amount),
+      caption:
+        f.rejected.count > 0
+          ? `${formatCount(f.rejected.count)} ${claimWord(f.rejected.count)} turned down`
+          : "none turned down",
+      count: f.rejected.count,
     },
   ];
 
+  /* Active / Archived is a VIEW SWITCH, not a brand moment. It used to be a
+     green gradient — the same green as "Request Reimbursement" directly above
+     it — so the loudest thing on the page was a segmented control pointing at
+     the view you were already looking at. Neutral ink now; the green is spent
+     on the one button that starts something. */
   const tabStyle = (active: boolean) =>
     active
-      ? { background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DEEP})`, color: "#fff" }
+      ? { background: "linear-gradient(135deg, #334155, #1e293b)", color: "#fff" }
       : { background: "transparent", color: "var(--color-ink-soft)" };
 
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <main className="mx-auto max-w-[1400px] px-8 pt-6 pb-8 max-lg:px-6 max-md:px-4 max-md:pt-5 max-md:pb-6">
+      {/* THE MODULE'S GREEN, DECLARED ONCE. Three files each carried their own
+          `const GREEN = "#16a34a"` — this page, the claims list and the claim
+          dialog. Everything inside now inherits it through the accent variables
+          the app already uses for per-module identity (see `.brand-btn` in
+          globals.css), so the colour is one declaration instead of three. */}
+      <main
+        /* `w-full` IS LOAD-BEARING. main is a flex item in a column flex
+           container, where `mx-auto` alone shrinks the box to its content
+           width and centres it — which is why this page sat at 1119px in a
+           1708px shell with ~295px of dead margin down each side, despite
+           saying max-w-[1400px]. With w-full, max-w is the real constraint. */
+        className="mx-auto w-full max-w-[1400px] px-8 pt-6 pb-8 max-lg:px-6 max-md:px-4 max-md:pt-5 max-md:pb-6"
+        style={
+          {
+            "--module-accent": CLAIM_ACCENT,
+            "--module-accent-deep": CLAIM_ACCENT_DEEP,
+          } as React.CSSProperties
+        }
+      >
         {/* The glass hero — a 26px-radius gradient-mesh card with its own
             backdrop-filter — was the single heaviest header in the app. It is
             the same flat command bar as everywhere else now; the state-dependent
@@ -153,22 +199,46 @@ export default async function ReimbursementsPage({ searchParams }: PageProps) {
             view === "archived"
               ? "Archived claims — restore or delete from the ⋯ menu."
               : me.isAdmin
-                ? `${formatCount(pendingRows.length)} ${pendingRows.length === 1 ? "claim" : "claims"} pending review.`
+                ? `${formatCount(f.pending.count)} ${claimWord(f.pending.count)} pending review.`
                 : def.subtitle
           }
           actions={
             <>
+              {/* Icon-only once the row gets tight. Four actions plus a long
+                  primary CTA overflow the command bar's fixed row below about
+                  1024px, and it clips rather than wraps — so the button that
+                  loses its word is this one, the only chart icon in the row and
+                  the only one that stays unambiguous without it. The two form
+                  editors keep their words, because THEY are the pair that was
+                  impossible to tell apart. */}
               <Link
                 href={"/reimbursements/dashboard" as Route}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+                aria-label="Reimbursement dashboard"
+                title="Reimbursement dashboard"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft max-lg:gap-0"
               >
                 <BarChart3 size={14} strokeWidth={2.6} />
-                Dashboard
+                <span className="max-lg:hidden">Dashboard</span>
               </Link>
               {me.isAdmin && (
                 <>
-                  <FormEditorDialog formKey={requestKey("reimbursement")} formName={`${def.title} — request`} fields={requestFieldsRaw} />
-                  <FormEditorDialog formKey={adminKey("reimbursement")} formName={`${def.title} — admin fields`} fields={adminFieldsRaw} />
+                  {/* These two edit DIFFERENT forms — the fields a claimant
+                      fills in, and the fields an admin fills in when deciding —
+                      and both used to render a button labelled "Edit Form".
+                      Two identical buttons side by side, one of which silently
+                      does something else. They are named now. */}
+                  <FormEditorDialog
+                    formKey={requestKey("reimbursement")}
+                    formName={`${def.title} — request`}
+                    triggerLabel="Claim form"
+                    fields={requestFieldsRaw}
+                  />
+                  <FormEditorDialog
+                    formKey={adminKey("reimbursement")}
+                    formName={`${def.title} — admin fields`}
+                    triggerLabel="Admin fields"
+                    fields={adminFieldsRaw}
+                  />
                 </>
               )}
               <RbClaimDialog fields={requestFields} productOptions={products} isAdmin={me.isAdmin} />

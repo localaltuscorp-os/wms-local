@@ -50,6 +50,48 @@ export function formatDate(input: Date | string | number | null | undefined): st
 }
 
 /**
+ * The canonical date rendered in a specific timezone. Use this for event
+ * timestamps so a server/browser timezone cannot change the visible calendar
+ * day away from the user's IST date.
+ */
+export function formatDateInTz(
+  input: Date | string | number | null | undefined,
+  timeZone = "Asia/Kolkata",
+): string {
+  if (input == null || input === "") return "";
+  if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input)) return formatDate(input);
+  const date = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(date.getTime())) return typeof input === "string" ? input : "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  const month = MONTHS_TITLE[Number(value("month")) - 1];
+  return month ? `${value("day")}-${month}-${value("year")}` : "";
+}
+
+/** Canonical date plus IST-style clock time for an event timestamp. */
+export function formatDateTimeInTz(
+  input: Date | string | number | null | undefined,
+  timeZone = "Asia/Kolkata",
+): string {
+  const dateLabel = formatDateInTz(input, timeZone);
+  if (!dateLabel) return dateLabel;
+  const date = input instanceof Date ? input : new Date(input as string | number);
+  if (Number.isNaN(date.getTime())) return dateLabel;
+  const time = new Intl.DateTimeFormat("en-IN", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+  return `${dateLabel}, ${time}`;
+}
+
+/**
  * ALIAS of {@link formatDate}, kept because ~40 HR call sites name it.
  *
  * It used to be the ONE hyphenated formatter in a codebase whose canonical

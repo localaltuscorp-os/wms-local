@@ -1,6 +1,6 @@
 # HANDOFF — `Vinal` branch
 
-**Updated:** 2026-09-18
+**Updated:** 2026-09-19
 **Repo:** `https://github.com/localaltuscorp-os/wms-local` · branch `Vinal`
 **Audience:** team, lead, and whoever runs the SQL in Supabase.
 
@@ -10,7 +10,9 @@
 
 | Commit | When | What |
 |---|---|---|
-| `HEAD` | 18 Sep | WCC / MCC compliance checklists, Event Checklist WMS Tasks column alignment, JD Client field & per-person Doer Notes (`0237`, `0238`) |
+| `HEAD` | 19 Sep | WCC by day with Mins, MCC frequencies & day pills, Quantity Done, Abandoned, bulk upload from Excel, the three-tab top bar (`0239`–`0242`) — see §3 |
+| `58f020ab` | 19 Sep | `main` as of the morning of 19 Sep, taken in by fast-forward (includes the production SQL bundle for `0237`/`0238`) |
+| `a416c839` | 18 Sep | WCC / MCC compliance checklists, Event Checklist WMS Tasks column alignment, JD Client field & per-person Doer Notes (`0237`, `0238`) |
 | `ffc8406a` | 17 Sep, 20:10 | feat: move Recruitment JDs to Operations Masters, update DCC spec implementation, and update handoff-vinal.md |
 | `35497680` | 17 Sep, 13:13 | Tailwind reads three directories, not the whole project |
 | `49fc490e` | 17 Sep, 12:41 | Stop Tailwind reading documentation as a source of classes |
@@ -18,6 +20,21 @@
 ---
 
 ## 2. Run this SQL in Supabase
+
+### New on 19 September — `0239`–`0242`
+
+Paste **`db/RUN-IN-SUPABASE-0239-0242.sql`** (Ctrl+A, Run), then **`db/VERIFY-0239-0242.sql`** — all 12 rows must read `ok`. **Run before deploying**: until `0240` and `0242` exist, adding a compliance on DCC, WCC or MCC fails. **Needs `0238` first**; without it the sheet stops and changes nothing. Additive, idempotent, one transaction. Every statement is written out in [`docs/handoffs/vinal-2026-09-19-summary.md`](./docs/handoffs/vinal-2026-09-19-summary.md) §2.
+
+| File | What it does | Needed before |
+|---|---|---|
+| `db/migrations/0239_wcc_mcc_completed_quantity.sql` | `dcc_entries.completed_quantity` — how many were done (18 of 25) | Recording a count when a compliance with a target is marked Done |
+| `db/migrations/0240_mcc_frequencies.sql` | `dcc_kpi_items.mcc_frequency`, `mcc_days`, `mcc_start_month` | **Deploy** (Drizzle inserts name them) |
+| `db/migrations/0241_wcc_mcc_abandoned.sql` | Doer Status rule accepts `abandoned` | Picking Abandoned |
+| `db/migrations/0242_wcc_minutes.sql` | `dcc_kpi_items.minutes` (1–1440) | **Deploy** (Drizzle inserts name it) |
+
+> ⚠️ `main` also has `0240_incentive_entry_reversal.sql`, `0241_template_files.sql` and `0242_two_step_verification.sql`. **Different files, same numbers** — both sets are needed; name them by full filename.
+
+### Earlier, if not yet run
 
 Five migrations on this branch (`0234`, `0235`, `0236`, `0237`, `0238`); consolidated in `db/RUN-IN-SUPABASE-0237-0238.sql`. **All are idempotent** (`if not exists` / `do $$` guards), so they are safe to run twice.
 
@@ -103,7 +120,21 @@ select unnest(enum_range(null::approval_status));
 
 ---
 
-## 3. Work delivered (16–17 September)
+## 3. Work delivered (19 September)
+
+Full write-up: **[`docs/handoffs/vinal-2026-09-19-summary.md`](./docs/handoffs/vinal-2026-09-19-summary.md)**.
+
+| Area | What |
+|---|---|
+| **WCC** | Grouped by day — all Dailys, then all Mondays, Tuesdays… (a Mon & Wed compliance under both). Headings: the day, date and *today* / *carried forward* only, pinned when the table scrolls sideways. **Mins** replaces Deadline — per compliance, totalled per group and at the foot (**Total Compliance Mins**). Frequency unchanged. |
+| **MCC** | Seven frequencies. Frequency column = the day alone as a red pill (`2nd`, `30th`), words on hover. Compact `[Month│Quarter] ‹ September 2026 ▾ ›` switcher with a financial-year picker; subtitle removed. |
+| **Both** | Quantity Done · Doer Status Abandoned · Approver Status Approved / Not Approved / On Hold / Archive · carried forward, then lapsed · bulk upload from Excel with templates · one-line toolbar with status filter chips · sortable, draggable columns · the Wed/Sat 10:02 pm email lists work Done short of target. |
+| **Top bar** | WMS · Goals · Project · More ▾ on every screen; More lights up inside any other room. Fixed: tabs never returning after the window was widened, and More sliding under the search box at ~900px. |
+| **Review** | An independent review of the toolbar, switcher and headings confirmed 29 findings; the 24 worth fixing were fixed and re-checked in the browser. |
+
+---
+
+## 4. Work delivered (16–17 September)
 
 Items 1–7 landed on 16 September in `f7c7bc42` and the merge before it; items 8 and 9 are from 17 September.
 
@@ -187,7 +218,7 @@ Items 1–7 landed on 16 September in `f7c7bc42` and the merge before it; items 
 
 ---
 
-## 4. Verification
+## 5. Verification
 
 | Check | Result |
 |---|---|
@@ -202,7 +233,7 @@ Items 1–7 landed on 16 September in `f7c7bc42` and the merge before it; items 
 
 ---
 
-## 5. Two things to decide
+## 6. Two things to decide
 
 1. 🟡 **Jeevan's reference sheet has drifted from the calendar.** It labels `13-Sep-2026` as "Monday"; that date is a **Sunday**. The whole Day row is one step off, so the sheet's six-day blocks are really Sun–Fri while claiming Mon–Sat. This app derives the weekday from the date, so its columns will not line up with the sheet's labels. The structure was copied (six working days, weekly total, Sunday omitted); the typo was not.
 

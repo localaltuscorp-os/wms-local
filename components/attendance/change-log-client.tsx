@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { ScrollText, ArrowRight, Laptop, Smartphone, Cpu, X } from "lucide-react";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateInTz } from "@/lib/format";
 import { ATTENDANCE_AUDIT_ACTION_LABELS, type AttendanceAuditAction } from "@/db/enums";
 import { CompactSelect } from "@/components/ui/compact-select";
 
@@ -31,6 +31,18 @@ interface Row {
     systemJob?: string;
   } | null;
   createdAt: string;
+}
+
+function formatAuditTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "â€”";
+  const time = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+  return `${formatDateInTz(date)} ${time}`;
 }
 
 interface Person {
@@ -246,14 +258,7 @@ export function ChangeLogClient({
                   </Td>
                   <Td>
                     <span className="whitespace-nowrap text-ink-muted">
-                      {new Date(r.createdAt).toLocaleString("en-GB", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      })}
+                      {formatAuditTimestamp(r.createdAt)}
                     </span>
                   </Td>
                 </tr>

@@ -12,7 +12,8 @@
  * "Updated" means a Doer Status has been picked; a note alone is not an update.
  *
  * ── 10:02 PM, WEDNESDAY AND SATURDAY ─────────────────────────────────────
- * Manan Sir gets who did not fill in the last 3 days, and the grids:
+ * Manan Sir gets who did not fill in the last 3 days, who marked a compliance
+ * Done short of its target in those days (18 of 25 emails), and the grids:
  *   WCC — this week, Mon to Sun across, people down, team-wise
  *   MCC — this month, 1 to 31 across, people down, team-wise
  * A cell reads ✓ (all filled), ✗ n (n not filled), or NA when that person had
@@ -36,6 +37,13 @@ export interface DueCompliance {
   title: string;
   deadline: string;
   filled: boolean;
+  /** Marked Done. */
+  done?: boolean;
+  /** For a compliance that counts (lib/compliance/quantity): the target, its
+   *  unit, and how many were completed — null when not recorded. */
+  target?: number | null;
+  unit?: string | null;
+  completed?: number | null;
 }
 
 export interface PlannedEmail {
@@ -259,6 +267,30 @@ export function buildFounderEmail(args: {
     ? `<h2>Not filled, ${esc(range)}</h2><table><tr><th>Team</th><th>Employee</th><th>Days not filled</th></tr>${missLines.join("")}</table>`
     : `<h2>Everybody filled WCC and MCC, ${esc(range)}</h2>`;
 
+  /* Marked Done with fewer completed than the target, in the same 3 days —
+     "Send 25 emails", 18 sent. Team-wise, as above. */
+  const place = new Map<string, { team: string; at: number }>();
+  args.groups.forEach((g) => g.memberIds.forEach((id) => place.set(id, { team: g.label, at: place.size })));
+  const short = args.due
+    .filter(
+      (d) =>
+        last3.has(d.deadline) &&
+        place.has(d.ownerId) &&
+        d.done &&
+        d.target != null &&
+        d.completed != null &&
+        d.completed < d.target,
+    )
+    .sort((a, b) => place.get(a.ownerId)!.at - place.get(b.ownerId)!.at || a.deadline.localeCompare(b.deadline));
+  const shortfall = short.length
+    ? `<h2>Done short of target, ${esc(range)}</h2><table><tr><th>Team</th><th>Employee</th><th>Checklist</th><th>Compliance</th><th>Deadline</th><th>Completed</th></tr>${short
+        .map(
+          (d) =>
+            `<tr><td>${esc(place.get(d.ownerId)!.team)}</td><td>${esc(nameOf(d.ownerId))}</td><td>${kindName(d.kind)}</td><td>${esc(d.title)}</td><td class="c">${formatDeadline(d.deadline)}</td><td class="c no">${d.completed} of ${d.target}${d.unit ? ` ${esc(d.unit)}` : ""}</td></tr>`,
+        )
+        .join("")}</table>`
+    : "";
+
   const wcc = grid({
     title: `WCC — this week (${shortDay(args.weekDates[0]!)} – ${shortDay(args.weekDates[args.weekDates.length - 1]!)})`,
     dates: args.weekDates,
@@ -287,6 +319,6 @@ export function buildFounderEmail(args: {
     recipientName: args.founder.name,
     to: args.founder.address,
     subject: `WCC & MCC — ${missLines.length ? `${missLines.length} ${missLines.length === 1 ? "person" : "people"} did not fill` : "all filled"}, ${range}`,
-    html: page(summary + key + wcc + mcc, args.previewFor),
+    html: page(summary + shortfall + key + wcc + mcc, args.previewFor),
   };
 }

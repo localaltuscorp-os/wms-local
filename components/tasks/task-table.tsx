@@ -141,6 +141,7 @@ const PRIORITY_RANK: Record<string, number> = Object.fromEntries(
   TASK_PRIORITIES.map((p, i) => [p, i]),
 );
 import type { TaskListRow } from "@/lib/types";
+import { isDifferentList } from "@/lib/tasks/list-pagination";
 import { TaskRowActions } from "./task-row-actions";
 import { TaskTimerCell } from "./task-timer-cell";
 import { BulkActionBar } from "./bulk-action-bar";
@@ -953,13 +954,44 @@ export function TaskTable({
      not see it at all. */
   const visibleCols = table.getVisibleLeafColumns().length;
 
+  /* Pre-slice total = every row that survived the global filters, the search
+     box and the filter bar's search. That is the number the pager divides.
+
+     PAGING IS CLIENT-SIDE, over rows already in memory, and that is a choice
+     rather than an oversight. The list query hands this component the whole
+     filtered set, so a page change costs an array slice — instant, no spinner,
+     no server round-trip. Putting `?page=` in the URL would trade that for a
+     server render per click over data the browser already holds. The cursor
+     API that does exist (`listTasksPage`) is forward-only by design, so it
+     cannot answer "jump to page 7" at all, which is half of what a pager is
+     for. If this list ever outgrows one payload, THAT is the change to make —
+     offset paging server-side — not a URL param over the current query.
+
+     DERIVED HERE, above the effects that push pagination into the table,
+     because `safePageIndex` is what gets pushed — see the note there. */
+  const totalFiltered = table.getPrePaginationRowModel().rows.length;
+  const pageCount = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  /* THE CLAMP, and why it is the whole safety net rather than a cosmetic fix.
+
+     A list can shrink under a page that is already showing: 38 rows over two
+     pages become 19 over one while you are standing on page 2. Clamping to the
+     last real page is the honest answer to that — it shows you rows. Slamming
+     back to page 1 is NOT: it throws away where you were to solve a problem
+     that clamping already solved. */
+  const safePageIndex = Math.min(pageIndex, pageCount - 1);
+
   // Push both halves of the local pagination state into the table.
   React.useEffect(() => {
     table.setPageSize(pageSize);
   }, [pageSize, table]);
+  /* `safePageIndex`, NOT `pageIndex`. The pager and the "Showing x–y" label
+     were already clamped, but the raw index was still what reached the table —
+     so a list that shrank under you rendered an EMPTY grid while the footer
+     confidently said "Showing 1–20 of 19". Pushing the clamped value keeps the
+     rows, the label and the pager describing the same page. */
   React.useEffect(() => {
-    table.setPageIndex(pageIndex);
-  }, [pageIndex, table]);
+    table.setPageIndex(safePageIndex);
+  }, [safePageIndex, table]);
 
   // Total rows per group across the full (unpaginated) set, for the count
   // shown in each group header. Keyed by the same label `groupValue` renders.
@@ -979,18 +1011,40 @@ export function TaskTable({
     setPageIndex(0);
   }, [groupBy]);
 
-  /* A DIFFERENT LIST STARTS AT PAGE ONE — and `rows` is in here, not just the
-     search box.
-
-     `rows` changes whenever a GLOBAL filter changes (status, priority, client,
-     doer, date range): the server re-queries and hands this component a new
-     array. Watching only `query` would leave someone on page 9 of a list that
-     now has two pages, staring at an empty grid with no obvious way back.
-     `sectionQuery` is the filter bar's own search box, which narrows the same
-     set through the same matcher. */
+  /* Typing in either search box starts again at page one: you are looking for
+     something, and page 7 of the old list is not where it is. `sectionQuery`
+     is the filter bar's own box, which narrows the same set through the same
+     matcher. */
   React.useEffect(() => {
     setPageIndex(0);
-  }, [query, sectionQuery, rows]);
+  }, [query, sectionQuery]);
+
+  /* A DIFFERENT LIST STARTS AT PAGE ONE. AN EDITED ONE DOES NOT.
+     ── THE BUG THIS REPLACES ────────────────────────────────────────────────
+     This effect used to list `rows` as a dependency. `rows` is a new array on
+     every `router.refresh()`, and EVERY inline edit in this table refreshes —
+     so setting one row's Doer Status on page 2 threw you back to page 1, with
+     the row you had just touched now off-screen. On a 38-row list that is two
+     clicks to get back, every single time.
+
+     Array IDENTITY was never the question being asked. "Is this a different
+     list?" is a question about CONTENT, so ask it of the ids: an edit returns
+     the same rows with one field changed, while a filter change returns a set
+     with nothing in common with what you were reading.
+
+     OVERLAP, rather than exact equality, is the test — because an edit can
+     legitimately remove its own row (mark something Done while filtered to
+     Pending) and that must not count as a new list either. Any row you were
+     already looking at surviving into the new set means you are still in the
+     same list, and `safePageIndex` keeps the page honest if it shrank. Only a
+     wholly disjoint set — a real filter change — goes back to page one. */
+  const prevRowIds = React.useRef<Set<string> | null>(null);
+  React.useEffect(() => {
+    const next = new Set(rows.map((r) => r.id));
+    const prev = prevRowIds.current;
+    prevRowIds.current = next;
+    if (isDifferentList(prev, next)) setPageIndex(0);
+  }, [rows]);
 
   // Scroll the table back into view when the page changes, so the new rows are
   // visible without a manual scroll up.
@@ -1049,24 +1103,6 @@ export function TaskTable({
       ?.scrollIntoView({ block: "nearest" });
   }, [focusedId]);
 
-  /* Pre-slice total = every row that survived the global filters, the search
-     box and the filter bar's search. That is the number the pager divides.
-
-     PAGING IS CLIENT-SIDE, over rows already in memory, and that is a choice
-     rather than an oversight. The list query hands this component the whole
-     filtered set, so a page change costs an array slice — instant, no spinner,
-     no server round-trip. Putting `?page=` in the URL would trade that for a
-     server render per click over data the browser already holds. The cursor
-     API that does exist (`listTasksPage`) is forward-only by design, so it
-     cannot answer "jump to page 7" at all, which is half of what a pager is
-     for. If this list ever outgrows one payload, THAT is the change to make —
-     offset paging server-side — not a URL param over the current query. */
-  const totalFiltered = table.getPrePaginationRowModel().rows.length;
-  const pageCount = Math.max(1, Math.ceil(totalFiltered / pageSize));
-  // Clamped for the render pass where `totalFiltered` has already shrunk but
-  // the reset effect above has not yet run — without this the label reads
-  // "Page 9 of 2" for one frame.
-  const safePageIndex = Math.min(pageIndex, pageCount - 1);
   const rangeStart = totalFiltered === 0 ? 0 : safePageIndex * pageSize + 1;
   const rangeEnd = Math.min((safePageIndex + 1) * pageSize, totalFiltered);
   const rendered = table.getRowModel().rows.length;

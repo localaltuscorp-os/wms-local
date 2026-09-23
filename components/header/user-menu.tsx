@@ -27,6 +27,7 @@ type Props = {
   name: string;
   email: string;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   /** Holds the `master_admin.manage` capability. Resolved server-side in
    *  UserMenuServer; this only decides whether the link is drawn. */
   isMasterAdmin: boolean;
@@ -46,6 +47,7 @@ export function UserMenu({
   name,
   email,
   isAdmin,
+  isSuperAdmin,
   isMasterAdmin,
   canUnlockAccounts,
   avatarUrl,
@@ -221,6 +223,22 @@ export function UserMenu({
                   strokeWidth={2.2}
                   style={{ color: "#64748B" }}
                 />
+              </Link>
+            </DropdownMenu.Item>
+          )}
+
+          {isSuperAdmin && (
+            <DropdownMenu.Item asChild>
+              <Link
+                href="/admin/module-backups"
+                className="mt-1 flex items-center justify-between gap-2.5 px-3.5 py-2.5 text-[15px] rounded-lg cursor-pointer outline-none"
+                style={{ background: "linear-gradient(135deg, rgba(220,38,38,0.06), rgba(245,158,11,0.04))", color: "#0F172A" }}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Archive size={14} strokeWidth={2.2} style={{ color: "#B91C1C" }} />
+                  <span className="font-medium">Module Backups</span>
+                </span>
+                <ChevronRight size={14} strokeWidth={2.2} style={{ color: "#64748B" }} />
               </Link>
             </DropdownMenu.Item>
           )}

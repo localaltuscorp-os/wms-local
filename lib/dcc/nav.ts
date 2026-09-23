@@ -30,15 +30,18 @@ export interface DccDoor {
 }
 
 export const DCC_DOORS: DccDoor[] = [
-  /* DASHBOARD FIRST, then WCC and MCC (account holder, 2026-09-18). NO "SP1
-     REPORT" AND NO "CALL LOG" DOOR (2026-09-17): the SP1 sheet IS the dashboard,
-     and the fifteen numbers are typed straight into it. `/dcc/sp1` and
-     `/dcc/call-log` redirect to the dashboard. */
+  /* DASHBOARD FIRST, then WCC and MCC (account holder, 2026-09-18).
+     THE DASHBOARD IS NO LONGER THE SP1 SHEET (2026-09-21). It reports on WCC
+     and MCC now — the checklists that replaced DCC's daily board — because the
+     module's Dashboard was still describing a sheet the work had moved off.
+     The 2026-09-17 instruction that "the SP1 sheet IS the dashboard" is
+     superseded, deliberately and on request; see the page's own note.
+     `/dcc/sp1` and `/dcc/call-log` still redirect here. */
   {
     href: "/dcc/dashboard",
     label: "Dashboard",
     Icon: LayoutDashboard,
-    blurb: "Jeevan's SP1 sheet — fill your calls, and read the whole org.",
+    blurb: "WCC and MCC at a glance — who is complying, and what is slipping.",
   },
   {
     href: "/dcc/wcc",

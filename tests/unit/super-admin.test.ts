@@ -58,6 +58,7 @@ describe("isSuperAdmin", () => {
   it("holds exactly the two current addresses", () => {
     expect([...SUPER_ADMIN_EMAILS]).toEqual([
       "rohanchoudhary.altuscorp@gmail.com",
+      "mohitgupta.altuscorp@gmail.com",
       "manan@unleashed.in",
     ]);
   });

@@ -17,12 +17,16 @@ import {
  * With no choices it is a read-only chip with a lock — the viewer is the doer,
  * has no say over this work, or the row is self-raised and reads "Not
  * Applicable" because nobody is approving it.
+ *
+ * `labels` renames a status for one module without touching the others — WCC
+ * and MCC say "Archive" where WMS Tasks say "Archived".
  */
 export function ApproverChip({
   shown,
   choices,
   onPick,
   lockedTitle = "Only the initiator, the doer's manager or an admin can change this.",
+  labels,
 }: {
   /** What the row currently reads. */
   shown: ApproverShown;
@@ -31,7 +35,10 @@ export function ApproverChip({
   /** Save a pick. Resolve to an error message, or null when saved. */
   onPick: (choice: ApproverChoice) => Promise<string | null>;
   lockedTitle?: string;
+  /** This module's own words for some statuses; the rest read as everywhere else. */
+  labels?: Partial<Record<ApproverShown, string>>;
 }) {
+  const labelOf = (s: ApproverShown) => labels?.[s] ?? APPROVER_LABEL[s];
   const [busy, setBusy] = React.useState(false);
   const [optimistic, setOptimistic] = React.useState<ApproverShown | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -45,10 +52,10 @@ export function ApproverChip({
         className="inline-flex min-w-[118px] items-center justify-center gap-1 whitespace-nowrap rounded-pill px-2.5 py-1 text-[12.5px] font-bold"
         style={style}
         title={lockedTitle}
-        aria-label={`Initiator Status: ${APPROVER_LABEL[current]}`}
+        aria-label={`Initiator Status: ${labelOf(current)}`}
       >
         <Lock size={10} strokeWidth={2.6} aria-hidden />
-        {APPROVER_LABEL[current]}
+        {labelOf(current)}
       </span>
     );
   }
@@ -81,10 +88,10 @@ export function ApproverChip({
           style={style}
         >
           {/* The row's own value always appears, even when this viewer may not re-pick it. */}
-          {!choices.includes(current as ApproverChoice) && <option value={current}>{APPROVER_LABEL[current]}</option>}
+          {!choices.includes(current as ApproverChoice) && <option value={current}>{labelOf(current)}</option>}
           {choices.map((c) => (
             <option key={c} value={c}>
-              {APPROVER_LABEL[c]}
+              {labelOf(c)}
             </option>
           ))}
         </select>

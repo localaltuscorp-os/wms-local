@@ -21,6 +21,7 @@ export const SUPER_ADMIN_EMAILS = [
   // Addresses are app logins from `employees.email`, lowercase — a
   // correspondence address grants nothing.
   "rohanchoudhary.altuscorp@gmail.com",
+  "mohitgupta.altuscorp@gmail.com",
   // 2026-09-04 (later same day) — Manan restored to super-admin at the account
   // holder's explicit instruction. NOTE: every unauthorized write during the
   // incident resolved to this identity, and HANDOFF.md asks that it not be
