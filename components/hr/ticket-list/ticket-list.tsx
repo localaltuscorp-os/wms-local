@@ -7,7 +7,7 @@ import {
   HR_TICKET_STATUS_EMPLOYEE_LABELS,
   type HrTicketStatus,
 } from "@/db/enums";
-import { STATUS_TONE, PRIORITY_TONE, CATEGORY_GLYPH, relTime } from "@/lib/hr/ticket-ui";
+import { STATUS_TONE, PRIORITY_TONE, CATEGORY_ICON, relTime } from "@/lib/hr/ticket-ui";
 import type { TicketListRow } from "@/lib/queries/hr-support";
 
 function StatusBadge({ status, employeeView }: { status: HrTicketStatus; employeeView: boolean }) {
@@ -55,11 +55,18 @@ export function TicketList({
               className="group flex items-center gap-3.5 rounded-2xl border border-hairline bg-surface-card px-4 py-3.5 transition hover:border-[var(--color-altus-red)] hover:shadow-sm"
             >
               <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[16px]"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-ink-soft"
                 style={{ background: "var(--color-surface-subtle, #f6f6f7)" }}
                 aria-hidden
               >
-                {t.confidential ? <Lock size={15} className="text-[var(--color-altus-red)]" /> : CATEGORY_GLYPH[t.category]}
+                {t.confidential ? (
+                  <Lock size={16} className="text-[var(--color-altus-red)]" />
+                ) : (
+                  (() => {
+                    const Icon = CATEGORY_ICON[t.category];
+                    return <Icon size={16} strokeWidth={2.2} />;
+                  })()
+                )}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

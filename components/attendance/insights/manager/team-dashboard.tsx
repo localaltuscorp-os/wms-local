@@ -19,6 +19,7 @@ import type {
 import type { WorkforceHealth } from "@/lib/attendance/analytics/health-score";
 import type { LeaveRow } from "@/lib/queries/leave";
 import { TeamMonthSelector } from "./team-month-selector";
+import { formatDate } from "@/lib/format";
 
 /* ------------------------------------------------------------------ */
 /* Root                                                                */
@@ -256,8 +257,8 @@ function PendingLeaveQueue({ rows }: { rows: LeaveRow[] }) {
             <div className="min-w-0 flex-1">
               <div className="truncate text-[13.5px] font-bold text-ink-strong">{lv.employeeName}</div>
               <div className="truncate text-[12px] font-medium text-ink-muted">
-                {lv.kind === "paid" ? "Paid" : "Unpaid"} · {lv.startDate}
-                {lv.endDate !== lv.startDate ? ` → ${lv.endDate}` : ""} · {lv.days} day{lv.days === 1 ? "" : "s"}
+                {lv.kind === "paid" ? "Paid" : "Unpaid"} · {formatDate(lv.startDate)}
+                {lv.endDate !== lv.startDate ? ` → ${formatDate(lv.endDate)}` : ""} · {lv.days} day{lv.days === 1 ? "" : "s"}
               </div>
             </div>
             <Link href={"/attendance/leave" as Route} className="shrink-0 inline-flex items-center gap-1 rounded-pill border border-hairline px-3 py-1.5 text-[12px] font-bold text-ink-strong hover:border-hairline-strong hover:text-[var(--color-altus-red-deep)] transition-colors">

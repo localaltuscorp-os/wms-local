@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Search, X } from "lucide-react";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 import {
   JD_TARGETS,
   JD_TARGET_LABELS,
@@ -9,6 +10,7 @@ import {
   type TargetPeople,
 } from "@/lib/jd/assignment-targets";
 import type { JdEventOption } from "@/lib/queries/job-description";
+import { formatDate } from "@/lib/format";
 
 /** One tickable line in a box: a person, or (Event Checklist) an event. */
 interface BoxOption {
@@ -56,8 +58,9 @@ const EVENT_WORDS: BoxWords = {
 
 const fmtEventDate = (ymd: string | null) => {
   if (!ymd) return null;
-  const [y, m, d] = ymd.slice(0, 10).split("-").map(Number);
-  return new Date(y!, (m ?? 1) - 1, d ?? 1).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  /* formatDate parses a YYYY-MM-DD string as a LOCAL calendar day itself, so
+     the hand-rolled split is no longer needed to dodge the UTC day-shift. */
+  return formatDate(ymd.slice(0, 10));
 };
 
 const ACCENT = "#B91C1C";
@@ -269,6 +272,19 @@ function AssignBox({
             )}
           </div>
 
+          {/* Assign the whole roster in one click, then untick the one or two
+              who don't belong — the shape most of these boxes are filled in.
+              Takes the WHOLE list, not the search results; the count says so. */}
+          {!readOnly && (
+            <SelectAllBar
+              compact
+              count={chosenCount}
+              total={options.length}
+              emptyLabel="None assigned"
+              onSelectAll={() => onChange(options.map((o) => o.id))}
+              onClear={() => onChange([])}
+            />
+          )}
           <div
             className={`table-scroll overflow-y-auto ${compact ? "max-h-[168px]" : "max-h-[228px]"}`}
           >

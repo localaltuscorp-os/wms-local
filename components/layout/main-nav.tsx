@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
@@ -59,6 +59,10 @@ import {
   BellRing,
   LifeBuoy,
   Home,
+  ChevronDown,
+  BookOpen,
+  IdCard,
+  BarChart3,
   CheckCircle2,
   Users2,
 } from "lucide-react";
@@ -155,6 +159,17 @@ interface NavItem {
   /** The tab the module opens on when the URL names none — exactly one item per
    *  rail carries this, and it is what keeps the first entry lit on arrival. */
   tabDefault?: boolean;
+  /**
+   * A DISCLOSURE, not a destination. An item carrying `children` renders as a
+   * collapsed parent in the rail and opens its children when clicked; it never
+   * navigates, so its own `href` is an identity for React keys and nothing
+   * else — do not point it at a real route.
+   *
+   * Accounts' MIS is the case this exists for: eight registers that belong
+   * together and were eight flat pills in a rail of twenty, which is a list
+   * nobody can scan. Folded away they cost one line until you want them.
+   */
+  children?: NavItem[];
 }
 
 /**
@@ -335,6 +350,30 @@ const TRAINING_ITEMS = areaItems("training");
  * avatar menu, reachable from every workspace, so they don't clutter any one
  * room's bar. Only LIVE routes are listed; new modules join as they ship.
  */
+/**
+ * IMPORTANT LINKS BELONGS TO EVERY ROOM, not to WMS.
+ *
+ * It was one line in the `wms` rail, which meant the curated directory simply
+ * did not exist once you stepped into Attendance, HR, Accounts or any of the
+ * other twelve workspaces — and it is a directory OF those places, so that is
+ * exactly backwards.
+ *
+ * Declared here and appended in MainNav rather than pasted into fifteen `top`
+ * arrays: three rooms (`training`, `people-allocation`, `events`) share their
+ * items through common `*_ITEMS` constants, so pasting would have put the entry
+ * in some rails twice and in others not at all. One append also means HR's
+ * per-stage rails and the personal Goals rail get it without being special
+ * cases.
+ *
+ * It still passes the permission matrix like any other item — a person who
+ * cannot open `/index-hub` does not see it.
+ */
+const IMPORTANT_LINKS_ITEM: NavItem = {
+  href: "/index-hub" as Route,
+  label: "Important Links",
+  Icon: Compass,
+};
+
 const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
   wms: {
     top: [
@@ -368,9 +407,12 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // entry is the live board. Admin/manager only, matching the page's own
       // gate — a doer following this link would be redirected straight back.
       { href: "/dashboard/done" as Route, label: "Done Dashboard", Icon: CheckCircle2, adminOnly: true },
-      // Important Links — the curated directory (was the Marketing room's only
-      // surface; Marketing retired as a workspace 2026-07).
-      { href: "/index-hub" as Route, label: "Important Links", Icon: Compass },
+      // Projects is GONE from this rail (2026-09-21). The Project Plan room
+      // still owns `/project-plan` and lists its own Projects entry there.
+      //
+      // Important Links is NOT listed here any more either — not because it
+      // left, but because it now belongs to every room. See
+      // IMPORTANT_LINKS_ITEM and the append in MainNav.
     ],
     // No "More" dropdown — Documents already lives in the profile/avatar menu.
     groups: [],
@@ -498,34 +540,80 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
   // at the same level instead of three of them hiding behind a disclosure.
   training: { top: TRAINING_ITEMS, groups: [] },
   accounts: {
-    // The Accounts module owns its own bar — never the WMS pills. "Index" is the
-    // full section directory; the live sections sit beside it. New sections join
-    // here as they ship.
+    /* THE ACCOUNTS RAIL, restructured to the brief of 2026-09-21.
+     *
+     * The shape of the change, not just the order: the room had twenty flat
+     * pills, eight of which were REGISTERS — bank balances, SIPs, shares, F&O,
+     * credit cards, the IT folder and so on. Eight siblings of equal visual
+     * weight in a list of twenty is a list nobody scans; you read it every time
+     * instead of recognising it. They are now folded into MIS (item 9), which
+     * costs one line until you open it, and the daily run of the room —
+     * checklists, due dates, payroll, reimbursements — is what the rail shows.
+     *
+     * Collection Master is NOT here any more. It moved to the Billing room,
+     * which is where revenue lives; see the note on `billing` below.
+     *
+     * Important Links is not listed either, and that is not an omission — it is
+     * appended to every rail in the app. See IMPORTANT_LINKS_ITEM.
+     */
     top: [
-      // "Back to Admin" removed — the Admin control-room is reached only via the
-      // profile menu. "Task List" removed — migrated into the WMS task list.
       { href: "/accounts" as Route, label: "Index", Icon: LayoutGrid, exact: true },
-      { href: "/accounts/weekly-checklist" as Route, label: "Weekly Checklist", Icon: CalendarCheck },
-      { href: "/accounts/monthly-quarterly-annual" as Route, label: "Monthly Checklist", Icon: CalendarRange },
-      { href: "/accounts/cc-tracker" as Route, label: "CC Master", Icon: CreditCard },
-      { href: "/accounts/due-dates" as Route, label: "Due Dates", Icon: CalendarClock },
-      { href: "/accounts/sip-tracker" as Route, label: "SIP", Icon: PiggyBank },
-      { href: "/accounts/fno-income" as Route, label: "FNO Income", Icon: LineChart },
-      { href: "/accounts/cash-withdrawal" as Route, label: "Cash Withdrawal", Icon: Banknote },
-      { href: "/accounts/bank-balance" as Route, label: "Bank Balance", Icon: Landmark },
-      { href: "/accounts/vasa-family-interpersonal" as Route, label: "Vasa Family", Icon: Users },
-      { href: "/accounts/shares-register" as Route, label: "Shares", Icon: CandlestickChart },
-      { href: "/accounts/income-tax-master-folder" as Route, label: "IT Folder", Icon: FolderArchive },
-      { href: "/accounts/ca-handover" as Route, label: "CA Handover", Icon: ShieldCheck },
+      { href: "/accounts/weekly-checklist" as Route, label: "Weekly CC", Icon: CalendarCheck },
+      { href: "/accounts/monthly-quarterly-annual" as Route, label: "Monthly CC", Icon: CalendarRange },
+      { href: "/accounts/due-dates" as Route, label: "Due Dates Master", Icon: CalendarClock },
       // Payroll — the admin Salary module + Overtime, re-parented from Employees
       // (2026-07). Gated by the Accounts room + each page's own finance guard.
       { href: "/salary" as Route, label: "Salary", Icon: IndianRupee },
+      { href: "/salary-slip" as Route, label: "Salary Slip", Icon: FileText },
       // Deliberately the SAME page the HR rail opens, not a copy. Slips are
       // self-scoped by construction (see that page's own note), so there is
       // nothing here for Accounts to see that HR doesn't - only a second door
       // to it, because payroll is run from this room. The HR workspace is open
       // to every employee, so this link can never dead-end.
       { href: "/overtime" as Route, label: "Overtime", Icon: Timer, not: ["/overtime/dashboard"] },
+      // A `link` in the Accounts Index too — /reimbursements is a built module
+      // of its own, and this is the door to it from this room, not a copy.
+      { href: "/reimbursements" as Route, label: "Reimbursement", Icon: Receipt },
+      /* MIS — the eight registers, folded. `/accounts/mis` is an IDENTITY, not
+       * a route: a parent carrying `children` never navigates. Do not create a
+       * page at that path expecting this to open it. */
+      {
+        href: "/accounts/mis" as Route,
+        label: "MIS",
+        Icon: BarChart3,
+        children: [
+          { href: "/accounts/bank-balance" as Route, label: "Bank Balance Master", Icon: Landmark },
+          {
+            href: "/accounts/vasa-family-interpersonal" as Route,
+            label: "Vasa Family Interpersonal Balances",
+            Icon: Users,
+          },
+          { href: "/accounts/cc-tracker" as Route, label: "Credit Cards Masters", Icon: CreditCard },
+          { href: "/accounts/sip-tracker" as Route, label: "SIP Trackers", Icon: PiggyBank },
+          { href: "/accounts/fno-income" as Route, label: "FNO Income Master", Icon: LineChart },
+          { href: "/accounts/shares-register" as Route, label: "Shares Master", Icon: CandlestickChart },
+          { href: "/accounts/ca-handover" as Route, label: "CA Handover", Icon: ShieldCheck },
+          {
+            href: "/accounts/income-tax-master-folder" as Route,
+            label: "Last 3–5 Years Income Tax Folder",
+            Icon: FolderArchive,
+          },
+        ],
+      },
+      // Registered as a `stub` section, so the route is real today and renders
+      // the standard scaffold rather than 404-ing while the module is built.
+      {
+        href: "/accounts/vasa-family-kyc" as Route,
+        label: "Vasa Family KYC Documents",
+        Icon: IdCard,
+      },
+      // The manual lives in the Induction module; this is the door to it from
+      // Accounts, the same arrangement as Reimbursement above.
+      { href: "/training/induction" as Route, label: "Accounts Manual", Icon: BookOpen },
+      /* NOT ON THE RAIL ANY MORE, DELIBERATELY, and still reachable.
+       * Cash Withdrawal, Incentive Payments and "CC Master — FY 2026-27" are
+       * built sections with live data; they keep their routes and their cards on
+       * the Index, they just no longer take a line in a rail of twelve. */
     ],
     groups: [],
   },
@@ -561,12 +649,24 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
          and before the masters. All Contracts stays lit on a contract's own
          pages, but not on Create Contract, which lights up on its own. */
       { href: "/billing/contracts" as Route, label: "All Contracts", Icon: ScrollText, exact: false, not: ["/billing/contracts/new"] },
+      { href: "/billing/ambassadors" as Route, label: "Ambassadors", Icon: Gem, exact: false },
+      { href: "/billing/customers/dropdowns" as Route, label: "Customer Master DD", Icon: ListChecks, exact: true },
       /* NO MASTERS RAIL IN THIS ROOM (2026-09-20). Admin Master and Customer
          Master DD both went: the only master data Billing owns is the customer
          itself, in Customer Master. Everything else an invoice is built from —
          the issuing company's PAN, GSTIN, bank, signatory and number series —
          is a BILLING PROFILE, and those are entered in the Admin Panel under
          Admin › Billing Profiles. One place to edit, one place to look. */
+      /* COLLECTION MASTER, moved out of Accounts on 2026-09-21.
+       *
+       * It was always a `link` to /outstanding rather than a page of its own,
+       * and what it points at is the receipts ledger — revenue, which is this
+       * room's subject and not Accounts'. The page did not move and did not
+       * change; only which rail lists it. The Sales room still lists the same
+       * destination as "Outstanding", which is the collections chase rather
+       * than the master view — two doors to one ledger, deliberately, the same
+       * way Overtime is reachable from both HR and Accounts. */
+      { href: "/billing/outstanding" as Route, label: "Outstanding", Icon: IndianRupee, exact: false },
       { href: "/billing/recycle-bin" as Route, label: "Recycle Bin", Icon: Trash2, exact: true },
     ],
     groups: [],
@@ -742,6 +842,10 @@ const NAV_TITLE_ENTRIES: Array<[string, string]> = (() => {
   for (const a of OPERATIONS_AREAS)
     for (const it of a.items) out.push([it.href, it.label]);
   push(GOALS_PERSONAL_NAV);
+  // Appended to every rail at render rather than living in any one nav object,
+  // so its page title has to be named here or `/index-hub` would resolve to no
+  // title at all.
+  out.push([IMPORTANT_LINKS_ITEM.href as string, IMPORTANT_LINKS_ITEM.label]);
   return out;
 })();
 
@@ -826,12 +930,20 @@ export function MainNav({
   // two-tier: its rail swaps per lifecycle stage. Operations is two-tier too,
   // but the other way round — its rail is FIXED (the four areas) and the second
   // tier is the quick-access row above the content, so nothing to swap here.
-  const { top, groups } =
+  const { top: roomTop, groups } =
     workspace === "goals" && goalsSpace === "personal"
       ? GOALS_PERSONAL_NAV
       : workspace === "hr"
         ? HR_SECTION_NAV[hrSectionForPath(pathname)]
         : WORKSPACE_NAV[workspace];
+
+  // Important Links belongs to the shared workspace rails, except Billing and
+  // Project Plan. Both use a deliberately curated module rail and must not
+  // grow a generic link that is absent from their designed navigation.
+  const top: NavItem[] =
+    (workspace === "billing" || workspace === "project-plan") || roomTop.some((i) => i.href === IMPORTANT_LINKS_ITEM.href)
+      ? roomTop
+      : [...roomTop, IMPORTANT_LINKS_ITEM];
 
   /** bug #11 — with GOALS_CANVAS_ON off the level pages server-redirect to
    *  /goals, so their pills read as dead: hide the canvas-only items and
@@ -844,6 +956,13 @@ export function MainNav({
       if (it.canvasOffHref) return [{ ...it, href: it.canvasOffHref, not: undefined }];
       return [it];
     });
+  }
+
+  /** True when this item, or anything folded inside it, is the current page. */
+  function isActiveDeep(item: NavItem): boolean {
+    return item.children
+      ? item.children.some((c) => isActiveDeep(c))
+      : isActive(item);
   }
 
   function isActive(item: NavItem): boolean {
@@ -887,6 +1006,20 @@ export function MainNav({
     );
   }
 
+  /**
+   * Which disclosures are open.
+   *
+   * A key is only present once the user has actually clicked that parent. Until
+   * then the fallback is `isActiveDeep`, so arriving on /accounts/shares-register
+   * from a link or a refresh shows MIS already open with the current page lit,
+   * rather than a collapsed rail that gives no clue where you are.
+   */
+  const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
+  const isExpanded = (item: NavItem): boolean =>
+    openKeys[navKey(item)] ?? isActiveDeep(item);
+  const toggleExpanded = (item: NavItem) =>
+    setOpenKeys((m) => ({ ...m, [navKey(item)]: !(m[navKey(item)] ?? isActiveDeep(item)) }));
+
   function renderPill(item: NavItem) {
     return (
       <MainNavPill
@@ -898,6 +1031,48 @@ export function MainNav({
         count={item.countKey === "activeTasks" ? activeTasks : undefined}
         variant={variant}
       />
+    );
+  }
+
+  /**
+   * A rail entry in the sidebar — either a plain pill, or a disclosure that
+   * folds its children away.
+   *
+   * The children are rendered but HIDDEN rather than dropped when collapsed, so
+   * they stay in the document: a rail is a navigation landmark, and a screen
+   * reader or an in-page find should still be able to reach "Shares Master"
+   * without knowing it is behind a toggle that has to be clicked first.
+   */
+  function renderDrawerItem(item: NavItem) {
+    if (!item.children) return renderPill(item);
+    const kids = visible(item.children);
+    if (kids.length === 0) return null;
+    const open = isExpanded(item);
+    return (
+      <div key={navKey(item)} className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => toggleExpanded(item)}
+          aria-expanded={open}
+          className={`nav-pill w-full justify-between ${
+            isActiveDeep(item) ? "nav-pill-active" : ""
+          }`}
+        >
+          <span className="flex min-w-0 items-center gap-2.5">
+            <item.Icon className="size-[18px] shrink-0" />
+            <span className="truncate">{item.label}</span>
+          </span>
+          <ChevronDown
+            aria-hidden
+            className={`size-4 shrink-0 transition-transform duration-200 ${
+              open ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+        <div className={`flex flex-col gap-1 pl-4 ${open ? "" : "hidden"}`}>
+          {kids.map(renderPill)}
+        </div>
+      </div>
     );
   }
 
@@ -919,14 +1094,14 @@ export function MainNav({
   if (variant === "drawer") {
     return (
       <nav aria-label="Primary" className="flex flex-col gap-1 w-full">
-        {topPills.map(renderPill)}
+        {topPills.map(renderDrawerItem)}
         {groups.map((group) => {
           const items = visible(group.items);
           if (items.length === 0) return null;
           return (
             <div key={group.label} className="mt-1.5 flex flex-col gap-1">
               <div className="nav-drawer-section">{group.label}</div>
-              {items.map(renderPill)}
+              {items.map(renderDrawerItem)}
             </div>
           );
         })}
@@ -940,7 +1115,27 @@ export function MainNav({
       aria-label="Primary"
       className="flex items-center gap-1 2xl:gap-1.5 max-md:gap-1"
     >
-      {topPills.map(renderPill)}
+      {topPills.map((item) =>
+        item.children ? (
+          // The horizontal bar has no room to expand in place, so the same
+          // children open as a dropdown here — the idiom this variant already
+          // uses for "More".
+          <MainNavGroup
+            key={navKey(item)}
+            label={item.label}
+            Icon={item.Icon}
+            items={visible(item.children).map((it) => ({
+              href: navHref(it),
+              label: it.label,
+              Icon: it.Icon,
+              active: isActive(it),
+            }))}
+            active={isActiveDeep(item)}
+          />
+        ) : (
+          renderPill(item)
+        ),
+      )}
       {moreSections.length > 0 && (
         <>
           <span aria-hidden className="nav-group-divider" />

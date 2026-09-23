@@ -51,7 +51,7 @@ export interface DateInputProps {
  *  native `<input type="date">`, whose displayed text is rendered by the
  *  browser/OS locale and can never show a month abbreviation or a fixed
  *  format. Themed via the same react-day-picker CSS vars as filter-bar.tsx. */
-export function DateInput({ value, onChange, disabled, className, style, placeholder = "dd-mmm-yyyy", ariaLabel }: DateInputProps) {
+export function DateInput({ value, onChange, disabled, className, style, placeholder = "DD-MMM-YYYY", ariaLabel }: DateInputProps) {
   const [open, setOpen] = React.useState(false);
   const selected = isoToDate(value);
 

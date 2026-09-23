@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
+import { formatDateTimeInTz } from "@/lib/format";
 import { MastersHeader } from "@/components/operations/masters/masters-header";
 import {
   JD_FIELDS,
@@ -64,7 +65,7 @@ type Tab = "recruiter" | "master" | "send" | "history";
 
 function fmtWhen(iso: string | null): string {
   if (!iso) return "";
-  return new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  return formatDateTimeInTz(iso);
 }
 
 function statusOf(r: RecruitmentJdRow): { label: string; tone: string } {

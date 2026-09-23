@@ -162,6 +162,7 @@ describe("the screens", () => {
   it("keeps the Module Backups page for managers only", () => {
     const page = read("app/(admin)/admin/module-backups/page.tsx");
     expect(page).toContain("canManageModuleBackups(me)");
+    expect(read("lib/modules/backup/access.ts")).toContain("return isSuperAdmin(me.email)");
     // notFound, not a redirect: a "forbidden" screen confirms the page exists.
     expect(page).toContain("notFound()");
   });

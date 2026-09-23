@@ -158,6 +158,37 @@ const nextConfig: NextConfig = {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
   /**
+   * ROUTE-LEVEL FORWARDS, not `redirect()` in a page.
+   *
+   * `/billing` used to be a server component whose whole body was
+   * `redirect("/billing/documents")`. A redirect raised while the app router
+   * is rendering becomes an MPA navigation, and Next 16.2.6 has a rules-of-
+   * hooks bug on that path: `Router` throws `unresolvedThenable` when
+   * `pushRef.mpaNavigation` is set — BEFORE its last five hooks — so the next
+   * render runs more hooks than the previous one and React tears the tree
+   * down with "Rendered more hooks than during the previous render." That
+   * escapes app/(app)/error.tsx (it is thrown inside the router itself, above
+   * the boundary), so the viewer gets the bare "This page couldn't load"
+   * screen instead of the Billing module.
+   *
+   * Answering here instead sends a 308 from the routing layer: the browser
+   * follows it before React ever mounts, so the buggy path is never entered.
+   * Only forwards with NO auth or data behind them belong here — `/operations`
+   * must stay a page because it calls `requireWorkspace` first.
+   */
+  async redirects() {
+    return [
+      { source: "/billing", destination: "/billing/documents", permanent: false },
+      { source: "/daily-checklist", destination: "/my-day", permanent: false },
+      { source: "/dcc", destination: "/dcc/wcc", permanent: false },
+      { source: "/dcc/call-log", destination: "/dcc/dashboard", permanent: false },
+      { source: "/dcc/sp1", destination: "/dcc/dashboard", permanent: false },
+      // `?emp=` rides along: Next forwards a source query string the
+      // destination does not itself set.
+      { source: "/appraisal", destination: "/productivity/appraisal", permanent: false },
+    ];
+  },
+  /**
    * KEEP THE DUMMY-MODE DATABASE OUT OF PRODUCTION FUNCTIONS.
    *
    * ── THE MEASUREMENT ──────────────────────────────────────────────────────

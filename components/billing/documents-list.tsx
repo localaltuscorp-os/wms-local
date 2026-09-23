@@ -32,7 +32,6 @@ import { Select } from "@/components/ui/select";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import {
   ColumnsMenu,
-  FilterPill,
   GroupByControl,
   Pager,
   TableToolbar,
@@ -40,6 +39,7 @@ import {
   useHiddenColumns,
 } from "@/components/billing/table-toolbar";
 import { fireToast } from "@/lib/toast";
+import { MultiFilter } from "@/components/ui/multi-filter";
 import {
   BILLING_DOC_STATUSES,
   BILLING_DOC_STATUS_LABELS,
@@ -165,6 +165,24 @@ export function BillingDocumentsList({
   const rangeStart = total === 0 ? 0 : pageIndex * pageSize + 1;
   const rangeEnd = Math.min(total, pageIndex * pageSize + rows.length);
 
+  /**
+   * The five list-valued filters, read off and written back to ONE comma-
+   * separated URL parameter each (?type=tax_invoice,proforma).
+   *
+   * One parameter rather than a repeated key, because the URL stays short
+   * enough to read and to paste to somebody — and because the schema on the
+   * server splits exactly this shape. An empty list deletes the parameter, so
+   * "no filter" is still an absent key rather than an empty one.
+   */
+  const listParam = React.useCallback(
+    (key: string): string[] => (params.get(key) ?? "").split(",").filter(Boolean),
+    [params],
+  );
+  const setListParam = React.useCallback(
+    (key: string, values: string[]) => setParam(key, values.length > 0 ? values.join(",") : null),
+    [setParam],
+  );
+
   const activeFilters = ["type", "status", "customerId", "entityId", "finYear"].filter((k) => params.get(k)).length;
   function clearFilters() {
     const next = new URLSearchParams(params.toString());
@@ -197,53 +215,45 @@ export function BillingDocumentsList({
                 />
               </div>
             </CollapsibleSearch>
-            <FilterPill
-              label="Type"
-              value={params.get("type") ?? ""}
-              onChange={(v) => setParam("type", v || null)}
-              options={[
-                { value: "", label: "Type" },
-                ...BILLING_DOC_TYPES.map((t) => ({ value: t, label: BILLING_DOC_TYPE_LABELS[t] })),
-              ]}
+            {/* Every pill takes SEVERAL values now — "Invoices and Proforma",
+                "everything except Cancelled" are one question, not three. */}
+            <MultiFilter
+              allLabel="Type"
+              className="h-8 max-w-[150px] rounded-pill border bg-surface-card pl-2.5 pr-1.5 text-[12px] font-bold text-ink-soft"
+              values={listParam("type")}
+              onChange={(v) => setListParam("type", v)}
+              options={BILLING_DOC_TYPES.map((t) => ({ value: t, label: BILLING_DOC_TYPE_LABELS[t] }))}
             />
-            <FilterPill
-              label="Status"
-              value={params.get("status") ?? ""}
-              onChange={(v) => setParam("status", v || null)}
-              options={[
-                { value: "", label: "Status" },
-                ...BILLING_DOC_STATUSES.map((st) => ({ value: st, label: BILLING_DOC_STATUS_LABELS[st] })),
-              ]}
+            <MultiFilter
+              allLabel="Status"
+              className="h-8 max-w-[150px] rounded-pill border bg-surface-card pl-2.5 pr-1.5 text-[12px] font-bold text-ink-soft"
+              values={listParam("status")}
+              onChange={(v) => setListParam("status", v)}
+              options={BILLING_DOC_STATUSES.map((st) => ({ value: st, label: BILLING_DOC_STATUS_LABELS[st] }))}
             />
-            {/* Customer keeps the searchable picker — there can be hundreds. */}
-            <div className="w-[150px] shrink-0">
-              <Select
-                options={[
-                  { value: "", label: "Customer" },
-                  ...customers.map((c) => ({ value: c.id, label: c.name })),
-                ]}
-                value={params.get("customerId") ?? ""}
-                onValueChange={(v) => setParam("customerId", v || null)}
-                searchable
-                ariaLabel="Customer"
-                className={
-                  params.get("customerId")
-                    ? "h-8 rounded-pill border-altus-red bg-altus-red/10 px-2.5 text-[12px] font-bold text-altus-red"
-                    : "h-8 rounded-pill border-hairline bg-surface-card px-2.5 text-[12px] font-bold text-ink-soft"
-                }
-              />
-            </div>
-            <FilterPill
-              label="Entity"
-              value={params.get("entityId") ?? ""}
-              onChange={(v) => setParam("entityId", v || null)}
-              options={[{ value: "", label: "Entity" }, ...entities.map((e) => ({ value: e.id, label: e.label }))]}
+            {/* Customer is the long one — hundreds of them — and MultiFilter's
+                panel is the searchable list, so it no longer needs a picker of
+                its own to stay usable. */}
+            <MultiFilter
+              allLabel="Customer"
+              className="h-8 max-w-[150px] rounded-pill border bg-surface-card pl-2.5 pr-1.5 text-[12px] font-bold text-ink-soft"
+              values={listParam("customerId")}
+              onChange={(v) => setListParam("customerId", v)}
+              options={customers.map((c) => ({ value: c.id, label: c.name }))}
             />
-            <FilterPill
-              label="Financial year"
-              value={params.get("finYear") ?? ""}
-              onChange={(v) => setParam("finYear", v || null)}
-              options={[{ value: "", label: "Year" }, ...finYears.map((y) => ({ value: y, label: `FY ${y}` }))]}
+            <MultiFilter
+              allLabel="Entity"
+              className="h-8 max-w-[150px] rounded-pill border bg-surface-card pl-2.5 pr-1.5 text-[12px] font-bold text-ink-soft"
+              values={listParam("entityId")}
+              onChange={(v) => setListParam("entityId", v)}
+              options={entities.map((e) => ({ value: e.id, label: e.label }))}
+            />
+            <MultiFilter
+              allLabel="Year"
+              className="h-8 max-w-[150px] rounded-pill border bg-surface-card pl-2.5 pr-1.5 text-[12px] font-bold text-ink-soft"
+              values={listParam("finYear")}
+              onChange={(v) => setListParam("finYear", v)}
+              options={finYears.map((y) => ({ value: y, label: `FY ${y}` }))}
             />
             {/* ARCHIVED — a SWAP, not another filter: pressed, the list shows
                 the filed documents INSTEAD of the live ones. */}

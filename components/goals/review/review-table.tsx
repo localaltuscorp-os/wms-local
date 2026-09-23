@@ -189,7 +189,6 @@ function ReviewRow({
         <p className="line-clamp-2 text-[14px] font-bold leading-snug text-ink-strong" title={item.title}>
           {item.title}
         </p>
-        <p className="mt-0.5 text-[11px] font-semibold text-ink-subtle">{item.periodLabel}</p>
       </td>
 
       {/* Category — reviewers change it (goal-kind only) */}
@@ -345,6 +344,22 @@ export function ReviewTable({
   typeOptions: string[];
   customTypes: string[];
 }) {
+  const [sort, setSort] = React.useState<{ key: "code" | "title" | "category" | "self" | "approved" | "notes"; dir: "asc" | "desc" }>({ key: "title", dir: "asc" });
+  const sortedItems = React.useMemo(() => [...items].sort((a, b) => {
+    const value = (item: ReviewItem) =>
+      sort.key === "code" ? item.code ?? "" :
+      sort.key === "title" ? item.title :
+      sort.key === "category" ? item.category ?? "" :
+      sort.key === "self" ? item.pctDone :
+      sort.key === "approved" ? item.acceptPct ?? -1 : item.reviewNotes ?? "";
+    const result = typeof value(a) === "string" ? String(value(a)).localeCompare(String(value(b))) : Number(value(a)) - Number(value(b));
+    return sort.dir === "asc" ? result : -result;
+  }), [items, sort]);
+  const sortButton = (key: "code" | "title" | "category" | "self" | "approved" | "notes", label: string) => (
+    <button type="button" onClick={() => setSort((current) => current.key === key ? { key, dir: current.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" })} className="inline-flex items-center gap-1 hover:text-altus-red">
+      {label}<span aria-hidden>{sort.key === key ? (sort.dir === "asc" ? "↑" : "↓") : "↕"}</span>
+    </button>
+  );
   return (
     <div
       className="table-scroll wg-rise max-h-[72vh] overflow-auto rounded-2xl border"
@@ -372,17 +387,17 @@ export function ReviewTable({
               borderBottom: "2px solid color-mix(in srgb, var(--color-altus-red) 34%, var(--color-hairline-strong))",
             }}
           >
-            <th className={cn(TH, "w-16")}>#</th>
-            <th className={cn(TH, "min-w-[220px]")}>Goal</th>
-            <th className={cn(TH, "min-w-[120px]")}>Category</th>
-            <th className={TH}>Self %</th>
-            <th className={TH}>Approved %</th>
-            <th className={cn(TH, "min-w-[200px]")}>Approver Notes</th>
+            <th className={cn(TH, "w-16")}>{sortButton("code", "#")}</th>
+            <th className={cn(TH, "min-w-[220px]")}>{sortButton("title", "Goal")}</th>
+            <th className={cn(TH, "min-w-[120px]")}>{sortButton("category", "Category")}</th>
+            <th className={TH}>{sortButton("self", "Self %")}</th>
+            <th className={TH}>{sortButton("approved", "Approved %")}</th>
+            <th className={cn(TH, "min-w-[200px]")}>{sortButton("notes", "Approver Notes")}</th>
             <th className={cn(TH, "text-right")} aria-label="Save" />
           </tr>
         </thead>
         <tbody>
-          {items.map((item, i) => (
+          {sortedItems.map((item, i) => (
             <ReviewRow
               key={item.id}
               item={item}

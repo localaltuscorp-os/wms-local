@@ -8,7 +8,7 @@ import { fireToast } from "@/lib/toast";
 import {
   createCollection,
   uploadOutstandingAttachment,
-} from "@/app/(app)/outstanding/actions";
+} from "@/app/(app)/billing/outstanding/actions";
 import { AttachmentField } from "./attachment-field";
 
 export function CollectionFormDialog({

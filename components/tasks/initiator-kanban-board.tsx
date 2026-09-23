@@ -63,7 +63,7 @@ export interface InitiatorCard {
   dueAt: Date | string | null;
   doerId: string;
   doerName: string;
-  initiatorId: string;
+  initiatorId: string | null;
   updatedAt: Date | string;
 }
 

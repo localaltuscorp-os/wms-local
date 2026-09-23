@@ -20,7 +20,7 @@ export function LiveIndicator() {
   // read "disconnected" and create false alarm. Set
   // NEXT_PUBLIC_DISABLE_REALTIME=true on the local Windows install.
   const realtimeDisabled =
-    process.env.NEXT_PUBLIC_DISABLE_REALTIME === "true";
+    process.env.NEXT_PUBLIC_DISABLE_REALTIME !== "false";
 
   useEffect(() => {
     if (realtimeDisabled) return;

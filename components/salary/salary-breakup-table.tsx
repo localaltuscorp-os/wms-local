@@ -34,6 +34,7 @@ import {
   type PaymentStatus,
 } from "@/lib/salary/payment";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 /* These two were called GREEN / GREEN_DEEP but held the brand RED (#E10600) —
  * and that misnaming is how the payout column, the payslip button and the Paid
@@ -1034,7 +1035,7 @@ export function SalaryBreakupTable({
   hideCompanyFilter?: boolean;
 }) {
   const [query, setQuery] = useState("");
-  const [company, setCompany] = useState("__all");
+  const [company, setCompany] = useState<string[]>([]);
   const [sort, setSort] = useState<SortState>(null);
 
   const companies = useMemo(
@@ -1047,7 +1048,7 @@ export function SalaryBreakupTable({
 
   const filtered = useMemo(() => {
     let out = rows;
-    if (company !== "__all") out = out.filter((r) => r.companyName === company);
+    if (company.length > 0) out = out.filter((r) => company.includes(r.companyName ?? ""));
     const q = query.trim().toLowerCase();
     if (q) {
       out = out.filter((r) =>
@@ -1157,19 +1158,14 @@ export function SalaryBreakupTable({
               Company
             </span>
             <div className="relative">
-              <select
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                aria-label="Filter by company"
+              <MultiFilter
                 className="admin-filter-select"
-              >
-                <option value="__all">All Companies</option>
-                {companies.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                values={company}
+                onChange={setCompany}
+                options={companies}
+                allLabel="All Companies"
+                aria-label="Filter by company"
+              />
               <ChevronsUpDown
                 size={14}
                 aria-hidden

@@ -92,6 +92,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { Route } from "next";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /** Sources that de-dupe against the plan (flip to "planned" once pulled). */
 const DEDUPE_KINDS: SourceKind[] = ["weekly", "task", "unfinished"];
@@ -1142,18 +1143,14 @@ function PlannerBar({
       {/* WHOSE day. The caption is gone — the selected name says it, and the
           "Reports to …" line beside it gives the org context (rule 9). */}
       {target.roster.length > 1 ? (
-        <select
+        <CompactSelect
           value={target.employeeId}
-          onChange={(e) => onPerson(e.target.value)}
+          onChange={onPerson}
           aria-label="Whose day to plan"
-          className="max-w-[190px] shrink-0 rounded-xl border border-hairline bg-surface-card px-2 py-1.5 text-[12.5px] font-bold text-ink-strong outline-none hover:border-hairline-strong focus:border-altus-red"
-        >
-          {target.roster.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
+          required
+          className="max-w-[190px] shrink-0 rounded-xl border border-hairline bg-surface-card px-2 py-1.5 text-[12.5px] font-bold text-ink-strong hover:border-hairline-strong"
+          options={target.roster.map((r) => ({ value: r.id, label: r.name }))}
+        />
       ) : null}
 
       {reportsTo.length > 0 ? (

@@ -35,6 +35,7 @@ import {
  * nothing about the existing Employee Master has to change.
  */
 import "../employee-master/aura.css";
+import { formatDate, formatDateInTz } from "@/lib/format";
 
 /**
  * THE BILLING ENTITY WORKSPACE.
@@ -458,11 +459,7 @@ function Body({
               </Field>
               <Field label="Last changed">
                 <Readout>
-                  {d.updatedAt.toLocaleDateString("en-IN", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                  })}
+                  {formatDateInTz(d.updatedAt)}
                   {d.updatedByName ? ` · ${d.updatedByName}` : ""}
                 </Readout>
               </Field>
@@ -1232,8 +1229,10 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 /* ── Formatting ───────────────────────────────────────────────────────────── */
 
+/* The app-wide DD-MMM-YYYY, not a second opinion. This used to emit
+   "28 Aug 2026" via toLocaleDateString. */
 function fmtDate(d: Date): string {
-  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDate(d);
 }
 
 /** A readable file type, from the MIME type the upload recorded. */

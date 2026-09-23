@@ -28,6 +28,7 @@ import {
   setWeeklyCheck,
 } from "@/app/(app)/accounts/weekly-checklist/actions";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 
 const INPUT =
   "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
@@ -238,9 +239,9 @@ export function WeeklyChecklist({
   }, [checks]);
 
   const [q, setQ] = React.useState("");
-  const [fCategory, setFCategory] = React.useState("");
-  const [fDeadline, setFDeadline] = React.useState("");
-  const [fResponsible, setFResponsible] = React.useState("");
+  const [fCategory, setFCategory] = React.useState<string[]>([]);
+  const [fDeadline, setFDeadline] = React.useState<string[]>([]);
+  const [fResponsible, setFResponsible] = React.useState<string[]>([]);
 
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
@@ -265,9 +266,9 @@ export function WeeklyChecklist({
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     return items.filter((r) => {
-      if (fCategory && (r.category ?? "") !== fCategory) return false;
-      if (fDeadline && (r.deadline ?? "") !== fDeadline) return false;
-      if (fResponsible && (r.responsiblePerson ?? "") !== fResponsible) return false;
+      if (fCategory.length > 0 && !fCategory.includes((r.category ?? ""))) return false;
+      if (fDeadline.length > 0 && !fDeadline.includes((r.deadline ?? ""))) return false;
+      if (fResponsible.length > 0 && !fResponsible.includes((r.responsiblePerson ?? ""))) return false;
       if (needle) {
         const hay = [r.code, r.title, r.category, r.deadline, r.responsiblePerson, r.accountsNotes, r.mananNotes]
           .filter(Boolean)
@@ -291,12 +292,12 @@ export function WeeklyChecklist({
     return counts;
   }, [checks, weeks]);
 
-  const hasFilters = q || fCategory || fDeadline || fResponsible;
+  const hasFilters = q || fCategory.length > 0 || fDeadline.length > 0 || fResponsible.length > 0;
   function clearFilters() {
     setQ("");
-    setFCategory("");
-    setFDeadline("");
-    setFResponsible("");
+    setFCategory([]);
+    setFDeadline([]);
+    setFResponsible([]);
   }
 
   function startAdd() {
@@ -403,18 +404,30 @@ export function WeeklyChecklist({
           />
         </div>
         </CollapsibleSearch>
-        <select className={CHIP} value={fDeadline} onChange={(e) => setFDeadline(e.target.value)} aria-label="Filter by deadline">
-          <option value="">All Deadlines</option>
-          {deadlines.map((d) => (<option key={d} value={d}>{d}</option>))}
-        </select>
-        <select className={CHIP} value={fCategory} onChange={(e) => setFCategory(e.target.value)} aria-label="Filter by category">
-          <option value="">All Categories</option>
-          {categories.map((c) => (<option key={c} value={c}>{c}</option>))}
-        </select>
-        <select className={CHIP} value={fResponsible} onChange={(e) => setFResponsible(e.target.value)} aria-label="Filter by responsible">
-          <option value="">All People</option>
-          {responsibles.map((p) => (<option key={p} value={p}>{p}</option>))}
-        </select>
+        <MultiFilter
+          className={CHIP}
+          values={fDeadline}
+          onChange={setFDeadline}
+          options={deadlines}
+          allLabel="All Deadlines"
+          aria-label="Filter by deadline"
+        />
+        <MultiFilter
+          className={CHIP}
+          values={fCategory}
+          onChange={setFCategory}
+          options={categories}
+          allLabel="All Categories"
+          aria-label="Filter by category"
+        />
+        <MultiFilter
+          className={CHIP}
+          values={fResponsible}
+          onChange={setFResponsible}
+          options={responsibles}
+          allLabel="All People"
+          aria-label="Filter by responsible"
+        />
         {hasFilters && (
           <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red">
             <X size={15} strokeWidth={2.4} /> Clear

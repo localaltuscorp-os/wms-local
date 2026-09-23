@@ -26,6 +26,7 @@ import { ClientSelect } from "@/components/tasks/client-select";
 import { SubjectSelect } from "@/components/tasks/subject-select";
 import { CustomRecurrenceDialog } from "@/components/recurrence/custom-recurrence-dialog";
 import { VoiceNoteButton } from "@/components/ui/voice-note-button";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /**
  * ADD A TASK — a pop-up, like WMS New Task (account holder, 2026-09-18: "the
@@ -392,26 +393,28 @@ function TaskForm({
         )}
 
         <Field id="ctd-doer" label="Doer">
-          <select id="ctd-doer" value={doerId} onChange={(e) => setDoerId(e.target.value)} className="nt-input">
-            <option value="">— Nobody yet —</option>
-            {people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <CompactSelect
+            value={doerId}
+            onChange={setDoerId}
+            className="nt-input"
+            placeholder="— Nobody yet —"
+            aria-label="Doer"
+            matchTriggerWidth
+            options={people.map((p) => ({ value: p.id, label: p.name }))}
+          />
         </Field>
 
         {isRun ? (
           <Field id="ctd-initiator" label="Initiator" hint={initiatorId === meId ? "You — the one adding it." : undefined}>
-            <select id="ctd-initiator" value={initiatorId} onChange={(e) => setInitiatorId(e.target.value)} className="nt-input">
-              <option value="">— You —</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            <CompactSelect
+              value={initiatorId}
+              onChange={setInitiatorId}
+              className="nt-input"
+              placeholder="— You —"
+              aria-label="Initiator"
+              matchTriggerWidth
+              options={people.map((p) => ({ value: p.id, label: p.name }))}
+            />
           </Field>
         ) : (
           <Field id="ctd-backup" label="Backup" hint={doerName ? `Covers for ${doerName}.` : "Someone other than the doer."}>

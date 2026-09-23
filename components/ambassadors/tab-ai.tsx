@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Wand2, Loader2, RefreshCw } from "lucide-react";
 import type { AmbassadorDetail } from "@/lib/queries/ambassadors";
-import { summarizeAmbassador } from "@/app/(app)/ambassadors/doc-ai-actions";
+import { summarizeAmbassador } from "@/app/(app)/billing/ambassadors/doc-ai-actions";
 import { fireToast } from "@/lib/toast";
 import { formatDate } from "@/lib/format";
 

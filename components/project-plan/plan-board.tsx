@@ -6,10 +6,11 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
 import {
-  Archive, ChevronDown, ChevronRight, Plus, Trash2, Copy, ArrowUp, ArrowDown,
+  ChevronDown, ChevronRight, Plus, Trash2, Archive, Copy, ArrowUp, ArrowDown,
   Loader2, CalendarCheck2, CircleDashed, FolderPlus, SlidersHorizontal,
   Maximize2, Minimize2, X, Layers, Search, Download, ArrowUpDown,
   Columns3, Check, GripVertical, Pencil, ChevronUp, Eye, List, LayoutGrid, Table2, Link2,
+  User, ShieldCheck,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import {
@@ -17,13 +18,16 @@ import {
   combineDateTime, toHm, toYmd,
   levelTextStyle, formatPlanDate, durationDays, type PlanKind,
 } from "@/lib/project-plan/levels";
+import { PlanPlacePanel } from "@/components/project-plan/plan-place-panel";
 import { describeProgress, toPercent, nodeFraction, formatCompletion, milestoneCompletion } from "@/lib/project-plan/progress";
 import { PLAN_STATUS_LABEL, effectivePlanStatus, isSelfRaisedNode } from "@/lib/project-plan/status";
 import { APPROVER_LABEL, approverDisplay } from "@/lib/status/approver-status";
 import {
   createPlanNode, updatePlanNode, deletePlanNode, purgePlanNode, duplicatePlanNode,
-  movePlanNode, planDeleteImpact,
+  movePlanNode, planDeleteImpact, planMoveImpact, reparentPlanNode,
 } from "@/app/(app)/project-plan/actions";
+import { MoveConfirmDialog } from "@/components/project-plan/move-confirm-dialog";
+import type { PlanMovePlan } from "@/lib/project-plan/move";
 import { PRIORITY_LABELS, TASK_PRIORITIES, type TaskStatus, type TaskPriority } from "@/db/enums";
 // The SAME three cells the WMS task table renders. Reused rather than restyled
 // so a status chip, a priority flag and a doer name look and behave identically
@@ -31,7 +35,16 @@ import { PRIORITY_LABELS, TASK_PRIORITIES, type TaskStatus, type TaskPriority } 
 import { InlineDoerCell, InlinePriorityCell, PriorityPill } from "@/components/tasks/inline-edit-cells";
 import { CriticalBadge } from "@/components/ui/critical-badge";
 import { BulkActionBar } from "@/components/tasks/bulk-action-bar";
+import { CompactSelect } from "@/components/ui/compact-select";
+import { DateInput } from "@/components/ui/date-input";
+import { sortPlanTree, type SortableColumn, type SortDir } from "@/lib/project-plan/sort";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 import { PlanKanban, kanbanCards } from "./plan-kanban";
+import {
+  STATUS_AXES,
+  STATUS_AXIS_LABEL,
+  type StatusAxis,
+} from "@/lib/status/axes";
 import { NewNodeDialog } from "./new-node-dialog";
 import { NewItemButtons, usePlanCreateShortcuts } from "./new-item-buttons";
 import { PlanBulkUpload } from "./plan-bulk-upload";
@@ -40,7 +53,6 @@ import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-ce
 import { PlanAttachmentPanel } from "./plan-attachment-cell";
 import { normaliseUrl } from "./plan-links-cell";
 import { PlanProgressCell } from "./plan-progress-cell";
-import { PlanPlacePanel } from "@/components/project-plan/plan-place-panel";
 
 /**
  * Project Plan — the hierarchy table.
@@ -174,15 +186,18 @@ const ALL_COLUMNS = [
   { key: "ref", label: "Ref", width: "w-[124px]", fixed: true },
   { key: "controls", label: "Controls", width: "w-[156px]", fixed: true },
   { key: "name", label: "Result / Action", width: "", fixed: true },
-  // DESCRIPTION, SECOND. It was the last column, on the reasoning that it is
-  // "a paragraph in a row of short cells". Two things changed: it is required
-  // before an executable row can be scheduled, and it is the text that becomes
-  // the task's own description — the line the WMS Task column actually renders.
-  // That makes it the second thing you read about a row, right after what the
-  // row is called, and a required field parked past ten other columns is one
-  // nobody finds.
+  // DESCRIPTION SITS BESIDE THE NAME, not at the far end of the row.
+  //
+  // It was the last column, on the reasoning that it is "a paragraph in a row
+  // of short cells". Two things changed: it is required before an executable
+  // row can be scheduled, and it is the text that becomes the task's own
+  // description — the line the WMS Task column actually renders. That makes it
+  // the second thing you read about a row, right after what the row is called,
+  // and a required field parked past ten other columns is one nobody finds.
   { key: "description", label: "Description", width: "w-[280px]", fixed: false },
-  { key: "owner", label: "Owner", width: "w-[176px]", fixed: false },
+  // 200px, not 176: a full name plus the picker's caret. The column exists to
+  // show WHO owns the row, and "Krish" is not that person's name.
+  { key: "owner", label: "Owner", width: "w-[200px]", fixed: false },
   // THE CLIENT. Held on the PROJECT and inherited by everything under it, so
   // the cell is editable on a project row and a read-only echo elsewhere. It is
   // here rather than only in the create dialog because a project made before
@@ -192,7 +207,10 @@ const ALL_COLUMNS = [
   // Status and Progress work on EVERY level — one vocabulary for the module,
   // per brief §6/§8. Where the value lands differs by level, but that is
   // `setPlanNodeStatus`'s business, not this table's.
+  // Two statuses, as in WMS Tasks and Goals (2026-09-15): the doer's progress
+  // and the Initiator Status ruling on it.
   { key: "status", label: "Doer Status", width: "w-[188px]", fixed: false },
+  { key: "approver", label: "Initiator Status", width: "w-[196px]", fixed: false },
   { key: "progress", label: "Progress", width: "w-[136px]", fixed: false },
   // The two task-side columns. They render only on executable rows, because a
   // Project or a Milestone has no task to carry a doer or a flag.
@@ -203,7 +221,7 @@ const ALL_COLUMNS = [
   // chip showed the same value twice with two different vocabularies — the
   // module's eleven statuses beside WMS's six. The WMS column below still says
   // whether a row is scheduled at all.
-  { key: "doer", label: "Doer", width: "w-[180px]", fixed: false },
+  { key: "doer", label: "Doer", width: "w-[200px]", fixed: false },
   { key: "priority", label: "Priority", width: "w-[148px]", fixed: false },
   // NO TIMER COLUMN. Start / Stop lived here and was removed — an executable
   // row IS a WMS task, so its timer is one click away in the task drawer (the
@@ -258,23 +276,90 @@ const HIDDEN_BY_DEFAULT: ReadonlySet<ColKey> = new Set<ColKey>([
   "from", "to", "wms",
 ]);
 
-// DESCRIPTION IS VISIBLE BY DEFAULT. Scheduling a row refuses while it is
-// empty, so hiding the only inline place to fill it left people stuck behind a
-// menu they had no reason to open.
+// DESCRIPTION IS VISIBLE BY DEFAULT (2026-09-14). It was hidden as "a paragraph
+// in a row of short cells", which was fair while it was optional. It is no
+// longer optional: an executable row cannot be scheduled without one (see
+// `updatePlanNode`), and it is the text that becomes the task's own description
+// and shows in the WMS Task column. A required field behind a menu is a dead
+// end — you would meet the refusal with no visible way to satisfy it.
 
 const DEFAULT_COLS = new Set<ColKey>(
   [...ALL_COLS].filter((k) => !HIDDEN_BY_DEFAULT.has(k)),
 );
 const DEFAULT_COL_ORDER: ColKey[] = ALL_COLUMNS.map((c) => c.key);
+
+/**
+ * Each column's declared width in PIXELS, read off the class it already
+ * carries so the two can never drift apart.
+ *
+ * The table needs this as a number, not a class: a `<table>` under
+ * `table-layout: auto` treats a cell width as a preference, and the moment the
+ * declared widths add up to more than the table's own min-width the browser
+ * squeezes every column to fit. That is what clipped "Krish Maheshwari" down
+ * to "Krish" — and it got worse, not better, when the Owner cell stopped being
+ * a native `<select>`: a select is at least as wide as its longest option and
+ * resisted the squeeze, where a truncating flex button collapses quietly.
+ */
+const COL_PX = new Map<ColKey, number>(
+  ALL_COLUMNS.map((c) => [c.key, Number(/w-\[(\d+)px\]/.exec(c.width)?.[1] ?? 0)]),
+);
+
+/** The tick + grip gutter, and the floor for the flexible Name column. */
+const GUTTER_PX = 64;
+const NAME_MIN_PX = 280;
+
+/**
+ * How wide the table has to be before nothing is clipped: the gutter, plus
+ * every visible column's declared width, plus room for Name to breathe.
+ *
+ * It used to be one hardcoded `min-w-[1960px]`, with a comment estimating the
+ * total at "≈1730px". Columns were added afterwards and the number was not, so
+ * the table promised less room than its own columns asked for and the browser
+ * made up the difference by shrinking all of them. Derived, it cannot fall
+ * behind again — and it shrinks back when the Columns menu hides something,
+ * instead of forcing a scrollbar that no longer has a reason to exist.
+ */
+function tableMinWidth(shown: ColKey[]): number {
+  const cols = shown.reduce((n, k) => n + (COL_PX.get(k) ?? 0), 0);
+  return GUTTER_PX + cols + (shown.includes("name") ? NAME_MIN_PX : 0);
+}
 const COL_META = new Map<ColKey, (typeof ALL_COLUMNS)[number]>(
   ALL_COLUMNS.map((c) => [c.key, c]),
 );
 
-type SortKey = "position" | "name" | "target" | "owner";
+/**
+ * What the table is sorted by: "position" is the stored plan order, and every
+ * other value is a COLUMN. The toolbar box and the column headers now set the
+ * same piece of state, so the two can never disagree about what you are
+ * looking at.
+ */
+type SortKey = "position" | ColKey;
 
+/**
+ * Which columns can be sorted, and what "sortable" means for each of them,
+ * lives in `lib/project-plan/sort` — arithmetic over rows, testable on its own.
+ * All this file adds is the set of COLUMN KEYS that map onto it.
+ *
+ * A column absent from here cannot be sorted, and its header says so by not
+ * offering an arrow: Ref IS the plan order (so "sort by Ref" is the order you
+ * get by turning sorting off — two names for one state), and Controls,
+ * Attachments and Links are things you open, not values you rank.
+ */
+const SORTABLE_COLUMNS = new Set<ColKey>([
+  "name", "description", "owner", "client", "status", "approver", "progress",
+  "doer", "priority", "target", "startDate", "endDate", "due", "days",
+  "from", "to", "wms",
+]);
+
+/** Whether a column can be sorted at all — the header reads this. */
+function sortableCol(key: ColKey): key is ColKey & SortableColumn {
+  return SORTABLE_COLUMNS.has(key);
+}
+
+/** The toolbar box keeps its four headline orders; the headers cover the rest. */
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "position", label: "Plan order" },
-  { value: "name", label: "Name A–Z" },
+  { value: "name", label: "Name" },
   { value: "target", label: "Target date" },
   { value: "owner", label: "Owner" },
 ];
@@ -370,23 +455,14 @@ function countTree(nodes: PlanRow[]): Record<ChipKey, number> {
   return out;
 }
 
-/** Sort every sibling run, all the way down. "position" is the stored plan
- *  order, so it short-circuits and leaves the server's ordering alone. */
-function sortTree(nodes: PlanRow[], key: SortKey): PlanRow[] {
-  if (key === "position") return nodes;
-  const cmp = (a: PlanRow, b: PlanRow): number => {
-    if (key === "name") return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-    if (key === "target") {
-      // Undated rows sort last — they are the ones without a commitment yet,
-      // and burying them under the dated work is the wrong way round.
-      if (!a.targetDate && !b.targetDate) return 0;
-      if (!a.targetDate) return 1;
-      if (!b.targetDate) return -1;
-      return a.targetDate.localeCompare(b.targetDate);
-    }
-    return (a.ownerName ?? "\uffff").localeCompare(b.ownerName ?? "\uffff", undefined, { sensitivity: "base" });
-  };
-  return [...nodes].sort(cmp).map((n) => ({ ...n, children: sortTree(n.children, key) }));
+/**
+ * The board's own entry point: "position" is the stored plan order, so it
+ * short-circuits and leaves the server's ordering alone; everything else is a
+ * column and goes to `sortPlanTree`, which orders each sibling run in place.
+ */
+function sortTree(nodes: PlanRow[], key: SortKey, dir: SortDir = "asc"): PlanRow[] {
+  if (key === "position" || !sortableCol(key)) return nodes;
+  return sortPlanTree(nodes, key, dir, TASK_PRIORITIES);
 }
 
 /** RFC-4180 cell: quote when the value carries a comma, quote or newline. */
@@ -394,6 +470,18 @@ function csvCell(v: string): string {
   return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
+/**
+ * The three NAMED levels above (or including) a row, each with the number the
+ * board gives it — what the detail dialog's "Plan location" panel reads.
+ *
+ * Derived in the flatten pass, beside `ref` and `fullRef`, from the same
+ * sibling positions. That is the whole reason it is computed HERE rather than
+ * queried: the dialog must name the same M3 the row above it is labelled M3,
+ * and two derivations of a derived number are two chances to disagree.
+ *
+ * A row is its OWN level — open a Milestone and `milestone` is that milestone,
+ * not a blank. Levels below the row are null, as are levels the row skipped.
+ */
 export interface PlanAncestry {
   project: { ref: string; name: string } | null;
   milestone: { ref: string; name: string } | null;
@@ -402,8 +490,8 @@ export interface PlanAncestry {
 
 const EMPTY_ANCESTRY: PlanAncestry = { project: null, milestone: null, result: null };
 
-/** What the detail dialog needs: the row plus the two things only the flatten
- *  pass knows — its derived REF and its ancestor names. */
+/** What the detail dialog needs: the row plus the things only the flatten
+ *  pass knows — its derived REF, its ancestor names and its plan address. */
 export interface DetailTarget {
   node: PlanRow;
   ref: string;
@@ -549,6 +637,32 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
   const [projectId, setProjectId] = React.useState<string>("all");
   const [search, setSearch] = React.useState("");
   const [sortKey, setSortKey] = React.useState<SortKey>("position");
+  const [sortDir, setSortDir] = React.useState<SortDir>("asc");
+
+  /**
+   * One click on a header, three states — ascending, descending, back to the
+   * plan order.
+   *
+   * The third state matters more here than on a flat table: the stored order IS
+   * the plan, the sequence somebody arranged by dragging rows about. A sorted
+   * view that could not be switched off would put that arrangement out of
+   * reach, so the cycle returns to it rather than flipping between two sorts
+   * forever.
+   */
+  const toggleSort = React.useCallback((key: ColKey) => {
+    if (!sortableCol(key)) return;
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir("asc");
+      return;
+    }
+    if (sortDir === "asc") {
+      setSortDir("desc");
+      return;
+    }
+    setSortKey("position");
+    setSortDir("asc");
+  }, [sortKey, sortDir]);
   const [cols, setCols] = React.useState<Set<ColKey>>(() => new Set(DEFAULT_COLS));
   const [colOrder, setColOrder] = React.useState<ColKey[]>(DEFAULT_COL_ORDER);
   const [chip, setChip] = React.useState<ChipKey | null>(null);
@@ -570,6 +684,8 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
   const colOrderRef = React.useRef(colOrder);
   React.useEffect(() => { colOrderRef.current = colOrder; }, [colOrder]);
   const dragColRef = React.useRef<ColKey | null>(null);
+  /** Where a header press began — how a click is told from a drag. */
+  const pressRef = React.useRef<{ key: ColKey; x: number; y: number } | null>(null);
 
   React.useEffect(() => {
     // End the drag wherever the pointer is released, so letting go outside the
@@ -617,6 +733,11 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
    */
   const [bulkEditing, setBulkEditing] = React.useState<DetailTarget[] | null>(null);
   const [view, setView] = React.useState<"list" | "kanban">(initialView);
+  // Which axis the KANBAN columns answer for. Local state, unlike the WMS
+  // board's URL param, because this board's view/level/filter state is all
+  // local here already — putting one of them in the URL and not the others
+  // would make Back behave differently depending on which control you touched.
+  const [axis, setAxis] = React.useState<StatusAxis>("doer");
   /**
    * Open the full WMS record for an executable row.
    *
@@ -653,14 +774,196 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
    */
   const remember = useRememberPlanNode(tree);
 
-  /** Open a row's detail panel, and remember the branch it sits in. */
-  const openDetail = React.useCallback(
-    (t: DetailTarget | null) => {
-      setDetail(t);
-      remember(t?.node.id);
-    },
-    [remember],
-  );
+  /**
+   * Open a row's detail panel, and remember the branch it sits in.
+   *
+   * NOT wrapped in `useCallback`. It used to be, with `[remember]` — correct by
+   * hand, but React Compiler infers `setDetail` for it and refuses to preserve
+   * a manual memo whose dependencies it cannot match, which makes it skip
+   * optimising this whole component. Left plain, the compiler memoises it
+   * itself and keeps the rest of the file optimised. (It only started
+   * complaining once the header below began reading `sortKey`/`sortDir`.)
+   */
+  function openDetail(t: DetailTarget | null) {
+    setDetail(t);
+    remember(t?.node.id);
+  }
+
+  /* ── DRAG A ROW TO ANOTHER PROJECT ──────────────────────────────────────
+   *
+   * Manan, 2026-09-15: drag a milestone / result / action / sub-action onto
+   * another project and the whole branch under it goes too, after a popup that
+   * says so.
+   *
+   * POINTER EVENTS, NOT HTML5 `draggable` — the same choice, for the same
+   * reason, as the column drag above: a `<tr>` full of inputs, selects and
+   * buttons inside a horizontally-scrolling container does not reliably start a
+   * native drag, because the focusable children swallow the gesture at
+   * pointerdown. The grip is the only handle, so dragging never fights an
+   * inline editor for the same press.
+   *
+   * The drop target is resolved from the DOM (`elementFromPoint` +
+   * `data-plan-row-id`) rather than from per-row enter/leave handlers: there
+   * are up to a few hundred rows, and hanging four listeners on each of them to
+   * answer one question about the pointer is a lot of bookkeeping for a fact
+   * the browser already knows.
+   */
+  const [dragId, setDragId] = React.useState<string | null>(null);
+  const [dropId, setDropId] = React.useState<string | null>(null);
+  /** The resolved move, waiting on the popup. Null when nothing is pending. */
+  const [movePlan, setMovePlan] = React.useState<PlanMovePlan | null>(null);
+  const [movePair, setMovePair] = React.useState<{ id: string; targetId: string } | null>(null);
+  const [moveBusy, setMoveBusy] = React.useState(false);
+  const [moveError, setMoveError] = React.useState<string | null>(null);
+  // Refs so the window-level handlers read the LIVE ids rather than the ones
+  // captured when the gesture began.
+  const dragIdRef = React.useRef<string | null>(null);
+  const dropIdRef = React.useRef<string | null>(null);
+  /** The table's own scroll box — the thing edge auto-scroll drives. */
+  const scrollBoxRef = React.useRef<HTMLDivElement | null>(null);
+
+  const startRowDrag = React.useCallback((id: string) => {
+    dragIdRef.current = id;
+    dropIdRef.current = null;
+    setDragId(id);
+    setDropId(null);
+  }, []);
+
+  React.useEffect(() => {
+    if (!dragId) return;
+
+    const rowUnder = (x: number, y: number): string | null => {
+      const el = document.elementFromPoint(x, y);
+      const tr = el?.closest<HTMLElement>("[data-plan-row-id]");
+      return tr?.dataset.planRowId ?? null;
+    };
+
+    /**
+     * EDGE AUTO-SCROLL. The table has its own scroll box, and the destination
+     * project is very often not on screen beside the row being dragged — which
+     * would make "drag it to another project" a gesture you can only perform
+     * when the plan happens to be short. Holding near the top or bottom edge
+     * scrolls the box, faster the closer to the edge.
+     *
+     * Driven by rAF rather than by pointermove: a pointer parked at the edge
+     * emits no events, and that is exactly when the scrolling has to continue.
+     */
+    const EDGE = 56; // px from an edge where auto-scroll kicks in
+    const MAX_STEP = 18; // px per frame at the very edge
+    let speed = 0;
+    let raf = 0;
+    const tick = () => {
+      raf = 0;
+      if (speed !== 0) {
+        scrollBoxRef.current?.scrollBy({ top: speed });
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    const setSpeed = (v: number) => {
+      speed = v;
+      if (speed !== 0 && !raf) raf = requestAnimationFrame(tick);
+    };
+
+    const onMove = (e: PointerEvent) => {
+      // Without this the browser starts a text selection across the table the
+      // moment the pointer moves, and the drop lands on a highlighted mess.
+      e.preventDefault();
+
+      const box = scrollBoxRef.current?.getBoundingClientRect();
+      if (box) {
+        const above = e.clientY - box.top;
+        const below = box.bottom - e.clientY;
+        if (above < EDGE && above > -EDGE) {
+          setSpeed(-Math.ceil(((EDGE - above) / EDGE) * MAX_STEP));
+        } else if (below < EDGE && below > -EDGE) {
+          setSpeed(Math.ceil(((EDGE - below) / EDGE) * MAX_STEP));
+        } else {
+          setSpeed(0);
+        }
+      }
+
+      const over = rowUnder(e.clientX, e.clientY);
+      const next = over && over !== dragIdRef.current ? over : null;
+      if (next !== dropIdRef.current) {
+        dropIdRef.current = next;
+        setDropId(next);
+      }
+    };
+
+    const onUp = (e: PointerEvent) => {
+      setSpeed(0);
+      const from = dragIdRef.current;
+      const to = rowUnder(e.clientX, e.clientY);
+      dragIdRef.current = null;
+      dropIdRef.current = null;
+      setDragId(null);
+      setDropId(null);
+      if (!from || !to || from === to) return;
+      // NOTHING IS WRITTEN HERE. The drop only asks the server what the move
+      // WOULD do; the popup then asks the person.
+      setMoveError(null);
+      startTransition(async () => {
+        const res = await planMoveImpact({ id: from, targetId: to });
+        if (!res.ok) {
+          fireToast({ message: res.error, type: "error" });
+          return;
+        }
+        setMovePair({ id: from, targetId: to });
+        setMovePlan(res.plan);
+      });
+    };
+
+    const onCancel = () => {
+      setSpeed(0);
+      dragIdRef.current = null;
+      dropIdRef.current = null;
+      setDragId(null);
+      setDropId(null);
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+    return () => {
+      speed = 0;
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+    };
+  }, [dragId, startTransition]);
+
+  const closeMove = React.useCallback(() => {
+    setMovePlan(null);
+    setMovePair(null);
+    setMoveError(null);
+  }, []);
+
+  /** The popup's "Yes, move it". The server re-resolves the move before it
+   *  writes, so a tree that changed while the popup was open is caught. */
+  const confirmMove = React.useCallback(() => {
+    if (!movePair) return;
+    setMoveBusy(true);
+    setMoveError(null);
+    startTransition(async () => {
+      const res = await reparentPlanNode(movePair);
+      setMoveBusy(false);
+      if (!res.ok) {
+        setMoveError(res.error);
+        return;
+      }
+      closeMove();
+      remember(movePair.id);
+      fireToast({
+        message:
+          res.moved === 1
+            ? "Moved."
+            : `Moved, with ${res.moved - 1} row${res.moved - 1 === 1 ? "" : "s"} beneath it.`,
+        type: "success",
+      });
+      router.refresh();
+    });
+  }, [movePair, closeMove, remember, router, startTransition]);
 
   /**
    * P · M · R · T · S open the matching create dialog. Held back while anything
@@ -682,8 +985,8 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
   const baseTree = React.useMemo(() => {
     let t = projectId === "all" ? tree : tree.filter((p) => p.id === projectId);
     if (query) t = pruneBy(t, (n) => n.name.toLowerCase().includes(query));
-    return sortTree(t, sortKey);
-  }, [tree, projectId, query, sortKey]);
+    return sortTree(t, sortKey, sortDir);
+  }, [tree, projectId, query, sortKey, sortDir]);
 
   const counts = React.useMemo(() => countTree(baseTree), [baseTree]);
 
@@ -813,13 +1116,16 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
     [selectedRows],
   );
 
+  /** The same archive as the row control, over a selection. */
   function bulkDelete() {
     const n = selectedRows.length;
     const kids = selectedRows.reduce((a, r) => a + countBelow(r.node), 0);
-    const lines = [`Delete ${n} selected row${n === 1 ? "" : "s"}?`];
-    if (kids > 0) lines.push(`This also removes ${kids} row${kids === 1 ? "" : "s"} beneath them, and archives any linked WMS tasks.`);
+    const lines = [`Archive ${n} selected row${n === 1 ? "" : "s"}?`];
+        if (kids > 0)
+      lines.push(`This also archives ${kids} row${kids === 1 ? "" : "s"} beneath them, and any linked WMS tasks.`);
+    lines.push("Nothing is deleted — archived rows can be brought back.");
     if (!window.confirm(lines.join("\n\n"))) return;
-    bulk("delete", (id) => deletePlanNode(id), "Deleted");
+    bulk("archive", (id) => deletePlanNode(id), "Archived");
   }
 
   /** Collapse every row at or below `depth` — backs the "show down to…" select. */
@@ -965,6 +1271,10 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
         controls: "",
         name: n.name,
         owner: n.ownerName ?? "",
+        // The EFFECTIVE client — what the row is actually filed under, project
+        // or inherited — because that is what the cell shows and what its task
+        // carries. Exporting only the project's own value would leave every
+        // other line blank.
         client: clientOf(n.id) ?? "",
         // Same fallback the Doer column draws: a container has no task, so the
         // person on it is its owner.
@@ -983,13 +1293,14 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
         from: hm(n.startsAt),
         to: hm(n.endsAt),
         wms: n.task ? n.task.statusLabel : isExecutable(n.kind) ? "Not scheduled" : "",
-        // The same derivations the screen shows, from the same functions
+        // The same three derivations the screen shows, from the same functions
         // — so an exported number can never disagree with the cell it came from.
         status: PLAN_STATUS_LABEL[effectivePlanStatus(
           isExecutable(n.kind) && n.task ? n.task.status : n.status,
           null,
           false,
         )],
+        approver: APPROVER_LABEL[approverDisplay(n.approvalStatus, isSelfRaisedNode(n))],
         progress: isExecutable(n.kind)
           ? ""
           : n.kind === "project"
@@ -1015,6 +1326,16 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
     URL.revokeObjectURL(url);
   }, [rows, shownCols, clientOf]);
 
+  /**
+   * ARCHIVE this row — at EVERY level: project, milestone, result, action,
+   * sub-action and sub-sub-action.
+   *
+   * IT WAS ALWAYS AN ARCHIVE, and it was always on every level; it was labelled
+   * "Delete" and asked "Delete …?", which is why there appeared to be no
+   * archive. `deletePlanNode` sets `is_archived` on the row and everything
+   * beneath it and archives their linked tasks — it removes nothing. The
+   * control now says what it does.
+   */
   async function remove(node: PlanRow) {
     // This call sits OUTSIDE run(), so it needs the same guard: on an expired
     // session it rejects, and an unhandled rejection here would take the board
@@ -1024,7 +1345,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
       impact = await planDeleteImpact(node.id);
     } catch {
       fireToast({
-        message: "Couldn't check what this delete affects — your session may have expired. Sign in again.",
+        message: "Couldn't check what this archive affects — your session may have expired. Sign in again.",
         type: "error",
       });
       router.refresh();
@@ -1162,7 +1483,19 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           the left, how much of it on the right. Filters narrow the tree, the
           level select drives the collapse set, and the count chip reports what
           is actually rendered — so the bar always describes the table below it. */}
-      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-hairline-strong bg-white px-3 py-2">
+      {/* ONE LINE (2026-09-19: "i want this in one line"; 2026-09-21: it was
+          still wrapping, and "decrease the size of the box").
+
+          Three things keep it on one line rather than one:
+            · every control is a size smaller — h-7, 11.5px type, gap-1;
+            · it stops wrapping at `md` (768px) rather than `lg` (1024px),
+              because the bar shares the page with the sidebar and never had
+              the full viewport to play with;
+            · the wide middle boxes may SHRINK (`min-w-0`), so when the row is
+              tight it is a project name that truncates — not the Rows /
+              Columns / Export group dropping to a second line.
+          No overflow-x scroll here: it would clip the Rows / Columns menus. */}
+      <div className="mb-4 flex flex-wrap items-center gap-1 rounded-2xl border border-hairline-strong bg-white px-2 py-1 md:flex-nowrap">
         {/* View toggle — the same List / Kanban pair the Goals board uses. */}
         <div role="group" aria-label="Board view" className="inline-flex shrink-0 overflow-hidden rounded-lg border border-hairline-strong">
           <ViewTab active={view === "list"} onClick={() => setView("list")} icon={<List size={13} strokeWidth={2.4} />}>
@@ -1173,15 +1506,42 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           </ViewTab>
         </div>
 
+        {/* The axis switch, shown only with the board it re-columns. Same two
+            questions, same wording, as the WMS kanban's toggle. */}
+        {view === "kanban" && (
+          <div
+            role="group"
+            aria-label="Status axis"
+            className="inline-flex shrink-0 overflow-hidden rounded-lg border border-hairline-strong"
+          >
+            {STATUS_AXES.map((a) => (
+              <ViewTab
+                key={a}
+                active={axis === a}
+                onClick={() => setAxis(a)}
+                icon={
+                  a === "doer" ? (
+                    <User size={13} strokeWidth={2.4} />
+                  ) : (
+                    <ShieldCheck size={13} strokeWidth={2.4} />
+                  )
+                }
+              >
+                {STATUS_AXIS_LABEL[a]}
+              </ViewTab>
+            ))}
+          </div>
+        )}
+
         {/* The way back to the REGISTER. The register has always linked here;
             without this the hierarchy was a one-way door — you could reach the
             tree but only the browser's Back button returned you to the table. */}
         <Link
           href={registerHref as Route}
           title={`See every ${LEVEL_KIND[level] ? KIND_LABEL[LEVEL_KIND[level]!].toLowerCase() : "row"} as a table`}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-hairline-strong px-2.5 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+          className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-hairline-strong px-2 text-[11.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
         >
-          <Table2 size={13} strokeWidth={2.4} aria-hidden />
+          <Table2 size={12} strokeWidth={2.4} aria-hidden />
           Table view
         </Link>
 
@@ -1196,19 +1556,19 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           onClick={addProject}
           disabled={pending}
           title="Add a project — or press P"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12.5px] font-bold transition-colors disabled:opacity-50"
+          className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border px-2 text-[11.5px] font-bold transition-colors disabled:opacity-50"
           style={{ borderColor: ACCENT_SOFT, color: ACCENT_DEEP, background: "#FDF0F0" }}
         >
           {busy === "add:project" ? (
-            <Loader2 size={13} className="animate-spin" aria-hidden />
+            <Loader2 size={12} className="animate-spin" aria-hidden />
           ) : (
-            <Plus size={13} strokeWidth={2.8} aria-hidden />
+            <Plus size={12} strokeWidth={2.8} aria-hidden />
           )}
           New project
         </button>
 
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg text-ink-subtle" aria-hidden>
-          <SlidersHorizontal size={16} strokeWidth={2.2} />
+        <span className="grid size-5 shrink-0 place-items-center text-ink-subtle" aria-hidden>
+          <SlidersHorizontal size={13} strokeWidth={2.2} />
         </span>
 
         <BarSelect
@@ -1225,7 +1585,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
 
         <BarSelect
           label="Show down to"
-          icon={<Layers size={14} strokeWidth={2.2} />}
+          icon={<Layers size={13} strokeWidth={2.2} />}
           value=""
           placeholder="Show down to…"
           onChange={(v) => {
@@ -1243,16 +1603,31 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
 
         <BarSelect
           label="Sort"
-          icon={<ArrowUpDown size={14} strokeWidth={2.2} />}
+          icon={<ArrowUpDown size={13} strokeWidth={2.2} />}
           value={sortKey}
-          onChange={(v) => setSortKey(v as SortKey)}
-          options={SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+          onChange={(v) => {
+            setSortKey(v as SortKey);
+            // Picking from the box always starts ascending; reversing is the
+            // header's own click.
+            setSortDir("asc");
+          }}
+          // The box lists the four headline orders. Sorting by any OTHER column
+          // happens from its header — and the box then NAMES that column rather
+          // than sitting on "Plan order" while the table is sorted by Client.
+          options={
+            SORT_OPTIONS.some((o) => o.value === sortKey)
+              ? SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))
+              : [
+                  ...SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+                  { value: sortKey, label: COL_META.get(sortKey as ColKey)?.label ?? sortKey },
+                ]
+          }
         />
 
 
 
         {/* Right-hand group. */}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           {view === "list" && <RowsPicker value={rowLimit} onChange={setRowLimit} total={rows.length} />}
 
           {/* Active-filter pill — tinted only when a filter is really on, and
@@ -1260,11 +1635,11 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           {projectId !== "all" && (
             <button
               onClick={() => setProjectId("all")}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold transition-opacity hover:opacity-80"
+              className="inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-lg px-2 text-[11.5px] font-bold transition-opacity hover:opacity-80"
               style={{ background: ACCENT_SOFT, color: ACCENT_DEEP }}
               title="Clear the project filter"
             >
-              Filtered — 1 <X size={13} strokeWidth={2.6} />
+              Filtered — 1 <X size={12} strokeWidth={2.6} />
             </button>
           )}
 
@@ -1272,7 +1647,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
             <ColumnsPicker visible={cols} onChange={setCols} order={colOrder} onReorder={setColOrder} />
           )}
 
-          <BarButton onClick={exportCsv} icon={<Download size={14} strokeWidth={2.2} />}>
+          <BarButton compact onClick={exportCsv} icon={<Download size={12} strokeWidth={2.2} />}>
             Export
           </BarButton>
 
@@ -1351,26 +1726,27 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
               {/* Bulk owner — the PLAN's owner, which is what turns a row into a
                   WMS task in the first place. Distinct from Reassign above,
                   which moves an existing task's doer. */}
-              <label className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-surface-card px-3 py-1.5 transition-colors focus-within:border-[#E10600]">
+              <span className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-surface-card px-3 py-1.5">
                 <span className="text-[13px] font-bold text-ink-soft">Owner</span>
-                <select
+                <CompactSelect
+                  // Reads "Assign…" always: this is a verb, not a field. Every
+                  // pick fires the bulk write, so it holds no value of its own
+                  // and `required` keeps the empty row out of the list.
                   value=""
+                  required
+                  placeholder="Assign…"
                   aria-label="Assign an owner to the selected rows"
-                  onChange={(e) => {
-                    const v = e.target.value;
+                  onChange={(v) => {
                     if (!v) return;
-                    e.target.value = "";
                     bulk("owner", (id) => updatePlanNode({ id, ownerId: v === "clear" ? null : v }), "Owner set");
                   }}
-                  className="cursor-pointer bg-transparent text-[13px] font-bold text-ink-strong outline-none"
-                >
-                  <option value="">Assign…</option>
-                  {employees.map((e) => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
-                  ))}
-                  <option value="clear">— Clear owner —</option>
-                </select>
-              </label>
+                  options={[
+                    ...employees.map((e) => ({ value: e.id, label: e.name })),
+                    { value: "clear", label: "— Clear owner —" },
+                  ]}
+                  className="cursor-pointer bg-transparent text-[13px] font-bold text-ink-strong"
+                />
+              </span>
 
               {busy?.startsWith("bulk:") && <Loader2 size={15} className="animate-spin text-ink-subtle" />}
             </>
@@ -1379,7 +1755,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
       )}
 
       {view === "kanban" ? (
-        <PlanKanban cards={cards} me={me} downlineSet={downlineSet} />
+        <PlanKanban cards={cards} me={me} downlineSet={downlineSet} axis={axis} />
       ) : (
       <>
       {/* ── Table ────────────────────────────────────────────────────────────
@@ -1389,20 +1765,29 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           plan. In full screen the box takes whatever height is left; otherwise
           it is capped against the viewport. */}
       <div
+        ref={scrollBoxRef}
         className={`overflow-auto rounded-xl border border-hairline-strong bg-white ${
           fullscreen ? "min-h-0 flex-1" : "max-h-[calc(100vh-300px)] min-h-[220px]"
         }`}
       >
-        {/* min-w is the sum of the fixed column widths (≈1730px with the
-            checkbox gutter) plus room for the flexible Name column. Set below
-            that, the browser squeezes the fixed widths instead of scrolling,
-            which is what clipped the wider columns. */}
-        <table className="w-full min-w-[1960px] border-collapse text-left">
+        {/* The min-width is COMPUTED from the columns actually on screen (see
+            `tableMinWidth`). Set below the sum of the declared widths, the
+            browser squeezes every column to fit instead of scrolling — which
+            is what was cutting names in half. */}
+        <table
+          className="w-full border-collapse text-left"
+          style={{ minWidth: tableMinWidth(shownCols) }}
+        >
           {/* Sticky header — it has to carry its own background, or rows would
               scroll visibly underneath a transparent one. */}
           <thead className="sticky top-0 z-[2]">
             <tr className="border-b border-hairline-strong bg-surface-soft [&>th]:bg-[color:var(--color-surface-soft,#eef2f7)]">
-              <Th className="w-[40px] pl-3">
+              {/* 64px, not 40: this gutter carries the tick box AND the drag
+                  grip, and at 40 the two were fighting over about 20px of space
+                  once the padding was paid for. A handle that small is one
+                  nobody finds, which is a fair explanation for "i want drag and
+                  drop" for a feature that was already here. */}
+              <Th className="w-[64px] pl-3">
                 <input
                   type="checkbox"
                   checked={shownRows.length > 0 && selected.size >= shownRows.length}
@@ -1420,28 +1805,77 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
               {shownCols.map((k, i) => {
                 const c = COL_META.get(k)!;
                 const dragging = dragCol === k;
+                const canSort = sortableCol(k);
+                const sortedBy = canSort && sortKey === k;
                 return (
                   <th
                     key={k}
+                    // ONE GESTURE, TWO MEANINGS, told apart by MOVEMENT.
+                    //
+                    // The header has always been drag-to-reorder. Adding
+                    // click-to-sort to the same element needs the two separated,
+                    // and the honest separator is whether the pointer actually
+                    // travelled: a press that ends within a few pixels of where
+                    // it began was a click, anything further was a drag. Hanging
+                    // the sort off a small icon button instead would have meant
+                    // aiming at a 14px target in every header.
                     onPointerDown={(e) => {
                       // Left button only — a right-click or a middle-click on a
                       // header should not start dragging it.
                       if (e.button !== 0) return;
                       e.preventDefault();
+                      pressRef.current = { key: k, x: e.clientX, y: e.clientY };
                       startColDrag(k);
                     }}
+                    onPointerUp={(e) => {
+                      const press = pressRef.current;
+                      pressRef.current = null;
+                      // Released over a DIFFERENT header: that was a reorder,
+                      // and crossCol has already done it.
+                      if (!press || press.key !== k) return;
+                      const moved = Math.abs(e.clientX - press.x) + Math.abs(e.clientY - press.y);
+                      if (moved <= 5) toggleSort(k);
+                    }}
                     onPointerEnter={() => crossCol(k)}
-                    title={`${c.label} — drag to move this column`}
-                    className={`${c.width}${i === shownCols.length - 1 ? " pr-3" : ""} cursor-grab touch-none select-none px-2.5 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.09em] text-ink-subtle transition-colors active:cursor-grabbing`}
+                    aria-sort={sortedBy ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
+                    title={
+                      canSort
+                        ? `${c.label} — click to sort ${
+                            sortedBy && sortDir === "asc"
+                              ? "the other way"
+                              : sortedBy
+                                ? "back to plan order"
+                                : "by this column"
+                          }, drag to move the column`
+                        : `${c.label} — drag to move this column`
+                    }
+                    className={`group/th ${c.width}${i === shownCols.length - 1 ? " pr-3" : ""} cursor-grab touch-none select-none px-2.5 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.09em] transition-colors active:cursor-grabbing ${sortedBy ? "" : "text-ink-subtle"}`}
                     style={{
                       background: dragging ? ACCENT_SOFT : undefined,
-                      color: dragging ? ACCENT_DEEP : undefined,
+                      color: dragging || sortedBy ? ACCENT_DEEP : undefined,
                       opacity: dragCol && !dragging ? 0.6 : 1,
                     }}
                   >
                     <span className="inline-flex items-center gap-1">
                       <GripVertical size={11} className="shrink-0 opacity-40" aria-hidden />
                       {c.label}
+                      {/* The arrow is solid on the sorted column and ghosted on
+                          hover over any other sortable one — so WHICH headers
+                          answer a click is discoverable without clicking. */}
+                      {sortedBy ? (
+                        sortDir === "asc" ? (
+                          <ArrowUp size={11} strokeWidth={3} className="shrink-0" aria-hidden />
+                        ) : (
+                          <ArrowDown size={11} strokeWidth={3} className="shrink-0" aria-hidden />
+                        )
+                      ) : canSort ? (
+                        <ArrowUpDown
+                          size={10}
+                          strokeWidth={2.6}
+                          aria-hidden
+                          className="shrink-0 opacity-0 transition-opacity group-hover/th:opacity-45"
+                        />
+                      ) : null}
                     </span>
                   </th>
                 );
@@ -1499,7 +1933,8 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
                 onRun={run}
                 onDelete={remove}
                 onPurge={purge}
-                canPurge={isAdmin}
+                canPurge={canManage}
+                clientOf={clientOf}
                 detailOpen={detail?.node.id === row.node.id}
                 onOpenDetail={openDetail}
                 shownCols={shownCols}
@@ -1510,7 +1945,9 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
                 canManage={canManage}
                 me={me}
                 downlineSet={downlineSet}
-                clientOf={clientOf}
+                onDragStart={startRowDrag}
+                dragging={dragId === row.node.id}
+                dropTarget={dropId === row.node.id}
               />
             ))}
 
@@ -1582,6 +2019,15 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           onEdit={() => { setEditing(detail); setDetail(null); }}
         />
       )}
+      {movePlan && (
+        <MoveConfirmDialog
+          plan={movePlan}
+          busy={moveBusy}
+          error={moveError}
+          onCancel={closeMove}
+          onConfirm={confirmMove}
+        />
+      )}
       {/* `key` remounts per level so the dialog's internal kind/parent state
           starts clean rather than carrying the previous level's half-filled
           chain of ancestor pickers. */}
@@ -1649,6 +2095,7 @@ function Row({
   row, collapsed, employees, busyKey, treeBusy, onToggle, onAddChild, onRun, onDelete, onPurge, canPurge,
   detailOpen, onOpenDetail, shownCols, selected, onToggleSelect, onOpenTask,
   isAdmin, canManage, me, downlineSet, clientOf,
+  onDragStart, dragging, dropTarget,
 }: {
   row: FlatRow;
   collapsed: boolean;
@@ -1665,8 +2112,13 @@ function Row({
   onToggle: (id: string) => void;
   onAddChild: (node: PlanRow) => void;
   onRun: (key: string, fn: () => Promise<{ ok: boolean; error?: string }>, okMessage?: string) => void;
+  /** The client this row inherits from its project — for the read-only echo in
+   *  the Client column on every level below Project. */
+  clientOf: (nodeId: string) => string | null;
+  /** Archive — the row and its tasks leave the board; every record survives. */
   onDelete: (node: PlanRow) => void;
-  /** Permanent delete — admin-only, and a different question from Archive. */
+  /** Permanent delete. Admin-only on the server; hidden here for everyone else
+   *  rather than shown and refused. */
   onPurge: (node: PlanRow) => void;
   canPurge: boolean;
   detailOpen: boolean;
@@ -1680,8 +2132,12 @@ function Row({
   canManage: boolean;
   me: { id: string; isAdmin: boolean };
   downlineSet: ReadonlySet<string>;
-  /** The client this row is filed under — its own, or the nearest ancestor's. */
-  clientOf: (nodeId: string) => string | null;
+  /** Begins a drag-to-move from this row's grip. */
+  onDragStart: (id: string) => void;
+  /** This row is the one being dragged. */
+  dragging: boolean;
+  /** The pointer is currently over this row and it is a candidate drop. */
+  dropTarget: boolean;
 }) {
   const { node, depth, ref: rowRef, fullRef, hasChildren, isFirst, isLast, path, ancestry } = row;
   const childKind = CHILD_KIND[node.kind];
@@ -1767,20 +2223,66 @@ function Row({
 
   return (
     <tr
-      className="border-b border-hairline transition-colors last:border-b-0 hover:bg-[color:var(--color-surface-soft,#f6f8fb)]"
-      style={depth === 0 ? { background: "color-mix(in srgb, #E10600 4%, transparent)" } : undefined}
+      // The drop resolver reads this off `elementFromPoint` — see the drag
+      // block in the board above.
+      data-plan-row-id={node.id}
+      className={`border-b border-hairline transition-colors last:border-b-0 hover:bg-[color:var(--color-surface-soft,#f6f8fb)] ${
+        dragging ? "opacity-45" : ""
+      }`}
+      style={{
+        ...(depth === 0
+          ? { background: "color-mix(in srgb, #E10600 4%, transparent)" }
+          : undefined),
+        // A drop candidate is marked with an inset rule rather than a border:
+        // a real border on a <tr> shifts every cell in the row by a pixel, and
+        // the whole table jitters as the pointer sweeps down it.
+        ...(dropTarget
+          ? {
+              background: ACCENT_SOFT,
+              boxShadow: `inset 0 0 0 2px ${ACCENT}`,
+            }
+          : undefined),
+      }}
     >
       {/* Tick to SELECT — the selection bar above then acts on the whole
           selection. The detail view moved to the REF badge (and to the bar's
           "View detail"), so one checkbox is not doing two different jobs. */}
-      <td className="px-2 py-1.5 pl-3 align-middle">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={() => onToggleSelect(node.id)}
-          className="size-[15px] cursor-pointer accent-[#E10600]"
-          aria-label={`Select ${node.name || KIND_LABEL[node.kind]}`}
-        />
+      <td className="w-[64px] px-2 py-1.5 pl-3 align-middle">
+        <div className="flex items-center gap-1.5">
+          {/* DRAG HANDLE. A project has nothing above it to be re-parented to,
+              so it gets a spacer instead of a grip rather than a grip that
+              refuses — see `reparentPlanNode`. */}
+          {node.kind === "project" ? (
+            <span className="inline-block size-5 shrink-0" aria-hidden />
+          ) : (
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                // Left button only, and never let the press reach the row (it
+                // would start a text selection across the table).
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                onDragStart(node.id);
+              }}
+              // `touch-none` is load-bearing on a trackpad or a touchscreen: without it
+              // the browser claims the gesture as a scroll and fires `pointercancel`,
+              // which tears the drag down before it has moved a pixel.
+              className="grid size-5 shrink-0 cursor-grab touch-none place-items-center rounded text-ink-muted transition-colors hover:bg-surface-soft hover:text-altus-red active:cursor-grabbing"
+              title={`Drag ${node.name || KIND_LABEL[node.kind]} onto another project, milestone or result to move it — everything underneath moves with it`}
+              aria-label={`Move ${node.name || KIND_LABEL[node.kind]} to another branch`}
+            >
+              <GripVertical size={15} strokeWidth={2.2} />
+            </button>
+          )}
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(node.id)}
+            className="size-[15px] cursor-pointer accent-[#E10600]"
+            aria-label={`Select ${node.name || KIND_LABEL[node.kind]}`}
+          />
+        </div>
       </td>
 
       {/* Every cell, rendered in the user's column order — the three structural
@@ -1917,7 +2419,15 @@ function Row({
           case "status":
             return (
               <td key={key} className={pad}>
-                <PlanStatusCell node={node} actor={actor} linkedToTask={!!node.task} />
+                <PlanStatusCell node={node} actor={actor} linkedToTask={!!node.task} axis="doer" />
+              </td>
+            );
+
+          // ── Initiator Status ──────────────────────────────────
+          case "approver":
+            return (
+              <td key={key} className={pad}>
+                <PlanApproverCell node={node} actor={actor} />
               </td>
             );
 
@@ -2030,17 +2540,18 @@ function Row({
           case "owner":
             return (
               <td key={key} className={pad}>
-                <select
+                {/* NOT a native <select>. Thirty-odd names made the browser
+                    draw a list from the top of the screen to the bottom, over
+                    the row you were reading (Manan, 2026-09-21). CompactSelect
+                    opens the same small box whatever the roster's length, and
+                    lets you type a name rather than hunt for it. */}
+                <CompactSelect
                   value={node.ownerId ?? ""}
-                  onChange={(e) => patch({ ownerId: e.target.value || null })}
-                  className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-[13px] font-medium text-ink-strong outline-none transition-colors hover:border-hairline-strong focus:border-[#E10600] focus:bg-white"
+                  onChange={(v) => patch({ ownerId: v || null })}
+                  options={employees.map((e) => ({ value: e.id, label: e.name }))}
                   aria-label="Owner"
-                >
-                  <option value="">—</option>
-                  {employees.map((e) => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
-                  ))}
-                </select>
+                  className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-[13px] font-medium text-ink-strong transition-colors hover:border-hairline-strong"
+                />
               </td>
             );
 
@@ -2087,11 +2598,9 @@ function Row({
           case "target":
             return (
               <td key={key} className={pad}>
-                <input
-                  type="date"
-                  defaultValue={node.targetDate ?? ""}
-                  key={`${node.id}:d:${node.targetDate ?? ""}`}
-                  onChange={(e) => patch({ targetDate: e.target.value || null })}
+                <DateInput
+                  value={node.targetDate ?? ""}
+                  onChange={(value) => patch({ targetDate: value || null })}
                   className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-[13px] font-medium text-ink-strong outline-none transition-colors hover:border-hairline-strong focus:border-[#E10600] focus:bg-white"
                   aria-label="Target date"
                 />
@@ -2286,19 +2795,13 @@ function DateCell({
 
   return (
     <td className={`px-2 py-1.5 align-middle${last ? " pr-3" : ""}`}>
-      <input
-        type="date"
-        defaultValue={ymd}
-        key={`d:${iso ?? ""}`}
-        onChange={(e) => {
-          const next = e.target.value;
+      <DateInput
+        value={ymd}
+        onChange={(next) => {
           onChange(next ? (combineDateTime(next, hm)?.toISOString() ?? null) : null);
         }}
         className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-[12.5px] font-medium text-ink-strong outline-none transition-colors hover:border-hairline-strong focus:border-[#E10600] focus:bg-white"
-        aria-label={label}
-        // The stored value in the brief's own format, since a native date input
-        // renders in the browser's locale and cannot be told otherwise.
-        title={iso ? formatPlanDate(iso) : label}
+        ariaLabel={label}
       />
     </td>
   );
@@ -2554,7 +3057,7 @@ function ViewTab({
     <button
       onClick={onClick}
       aria-pressed={active}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-bold transition-colors"
+      className="inline-flex h-7 items-center gap-1 whitespace-nowrap px-2 text-[11.5px] font-bold transition-colors"
       style={active
         ? { background: ACCENT, color: "white" }
         : { background: "white", color: "var(--color-ink-soft)" }}
@@ -2585,10 +3088,10 @@ function RowsPicker({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         title={`${total} row${total === 1 ? "" : "s"} match right now`}
-        className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong px-3 py-1.5 text-[13px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
+        className="shrink-0 whitespace-nowrap inline-flex h-7 items-center gap-1 rounded-lg border border-hairline-strong px-2 text-[11.5px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
       >
         Rows <strong className="font-bold tabular-nums text-ink-strong">{value === "all" ? "All" : value}</strong>
-        {open ? <ChevronUp size={13} strokeWidth={2.4} /> : <ChevronDown size={13} strokeWidth={2.4} />}
+        {open ? <ChevronUp size={12} strokeWidth={2.4} /> : <ChevronDown size={12} strokeWidth={2.4} />}
       </button>
       {open && (
         <>
@@ -2628,34 +3131,41 @@ function BarSelect({
   icon?: React.ReactNode;
 }) {
   return (
-    <label className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong px-2.5 py-1.5 transition-colors focus-within:border-[#E10600] hover:bg-surface-soft">
-      {icon && <span className="text-ink-subtle">{icon}</span>}
-      <select
+    <span className="inline-flex h-7 min-w-0 shrink items-center gap-1 rounded-lg border border-hairline-strong px-2 transition-colors hover:bg-surface-soft">
+      {icon && <span className="shrink-0 text-ink-subtle">{icon}</span>}
+      {/* A small box, not a native popup: "All projects (22)" listed all
+          twenty-two floor to ceiling. This opens about seven rows and scrolls,
+          with a search box once the list is long enough to need one. */}
+      <CompactSelect
         value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={placeholder ?? "—"}
+        required={!placeholder}
         aria-label={label}
-        onChange={(e) => onChange(e.target.value)}
-        className="max-w-[190px] cursor-pointer truncate bg-transparent text-[13px] font-semibold text-ink-strong outline-none"
-      >
-        {placeholder && <option value="">{placeholder}</option>}
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
-    </label>
+        // `min-w-0` is what lets a long project name give way when the row is
+        // tight, instead of shoving the right-hand group onto a second line.
+        className="min-w-0 max-w-[132px] cursor-pointer truncate bg-transparent text-[11.5px] font-semibold text-ink-strong"
+      />
+    </span>
   );
 }
 
 export function BarButton({
-  children, onClick, icon,
+  children, onClick, icon, compact,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   icon?: React.ReactNode;
+  /** The one-line control bar's smaller size; selection bars keep the default. */
+  compact?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong px-3 py-1.5 text-[13px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
+      className={`shrink-0 whitespace-nowrap inline-flex items-center rounded-lg border border-hairline-strong font-semibold text-ink-soft transition-colors hover:bg-surface-soft ${
+        compact ? "h-7 gap-1 px-2 text-[11.5px]" : "gap-1.5 px-3 py-1.5 text-[13px]"
+      }`}
     >
       {icon}
       {children}
@@ -2736,9 +3246,9 @@ function ColumnsPicker({
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong px-3 py-1.5 text-[13px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
+        className="shrink-0 whitespace-nowrap inline-flex h-7 items-center gap-1 rounded-lg border border-hairline-strong px-2 text-[11.5px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
       >
-        <Columns3 size={14} strokeWidth={2.2} />
+        <Columns3 size={12} strokeWidth={2.2} />
         Columns <span className="tabular-nums text-ink-strong">{visible.size}/{OPTIONAL_COLUMNS.length}</span>
       </button>
       {open && (
@@ -2746,6 +3256,22 @@ function ColumnsPicker({
           {/* Click-away layer, under the menu but over everything else. */}
           <div className="fixed inset-0 z-[115]" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-full z-[116] mt-2 w-[248px] rounded-xl border border-hairline-strong bg-white p-1.5 shadow-[0_12px_32px_-12px_rgba(15,23,42,0.35)]">
+            {/* Show all / Hide all, the same bar every other multi-select in
+                the app carries. Only the OPTIONAL columns are counted or
+                touched: Ref, Controls and the name column are structural — they
+                can be dragged but never hidden, so a "Show all" that claimed
+                them would report a total the buttons cannot reach. Hide all
+                stops at one, for the same reason the tick boxes do: a table
+                emptied to nothing is a dead end. */}
+            <SelectAllBar
+              compact
+              className="-mx-1.5 -mt-1.5 mb-1 rounded-t-[inherit]"
+              count={visible.size}
+              total={OPTIONAL_COLUMNS.length}
+              emptyLabel="No optional columns"
+              onSelectAll={() => onChange(new Set(OPTIONAL_COLUMNS.map((c) => c.key)))}
+              onClear={() => onChange(new Set([OPTIONAL_COLUMNS[0]!.key]))}
+            />
             <p className="px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.09em] text-ink-subtle">
               Drag to reorder
             </p>
@@ -2918,14 +3444,18 @@ function DetailDialog({
 
           <div className="mt-3.5 grid grid-cols-3 gap-3.5 max-md:grid-cols-1">
             <ReadField label="Ref" value={rowRef} />
-            {/* The ONLY place the long path is shown — brief §3 keeps it out of
-                the table, but a detail panel is exactly where it belongs. */}
-            <ReadField label="Full ref" value={fullRef} />
+            {/* `Full ref` used to sit here. It moved into the Plan location
+                panel above, which is the block about where this row lives —
+                printing it in both places is the same string twice. */}
             <ReadField label="Owner" value={node.ownerName} />
           </div>
 
           <div className="mt-3.5 grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
             <ReadField label="Doer Status" value={PLAN_STATUS_LABEL[status]} />
+            <ReadField
+              label="Initiator Status"
+              value={APPROVER_LABEL[approverDisplay(node.approvalStatus, isSelfRaisedNode(node))]}
+            />
             <ReadField
               label={progress ? "Progress" : "Completion"}
               value={
@@ -3261,16 +3791,15 @@ export function EditDialog({
 
           <div className="mt-3.5 grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
             <EditField label="Owner">
-              <select
+              <CompactSelect
                 value={form.ownerId}
-                onChange={(e) => set("ownerId", e.target.value)}
+                onChange={(v) => set("ownerId", v)}
+                options={employees.map((e) => ({ value: e.id, label: e.name }))}
+                placeholder="Unassigned"
+                aria-label="Owner"
+                matchTriggerWidth
                 className={EDIT_INPUT}
-              >
-                <option value="">Unassigned</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>{e.name}</option>
-                ))}
-              </select>
+              />
             </EditField>
             <EditField label="Target date">
               <input
@@ -3632,16 +4161,15 @@ export function BulkEditDialog({
         <div className="rounded-xl border border-hairline-strong p-4 max-md:p-3">
           <div className="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
             <BulkField label="Owner" on={on("ownerId")} onToggle={() => toggle("ownerId")}>
-              <select
+              <CompactSelect
                 value={form.ownerId}
-                onChange={(e) => set("ownerId", e.target.value)}
+                onChange={(v) => set("ownerId", v)}
+                options={employees.map((e) => ({ value: e.id, label: e.name }))}
+                placeholder="Unassigned (clears the owner)"
+                aria-label="Owner"
+                matchTriggerWidth
                 className={EDIT_INPUT}
-              >
-                <option value="">Unassigned (clears the owner)</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>{e.name}</option>
-                ))}
-              </select>
+              />
             </BulkField>
             <BulkField label="Target date" on={on("targetDate")} onToggle={() => toggle("targetDate")}>
               <input

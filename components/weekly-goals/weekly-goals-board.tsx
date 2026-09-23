@@ -28,6 +28,7 @@ import {
   deleteWeeklyGoal,
   setWeeklyGoalIncentive,
 } from "@/app/(app)/weekly-goals/actions";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const PRIORITY_TONE: Record<TaskPriority, string> = {
   imp_urgent: "red",
@@ -152,18 +153,18 @@ export function WeeklyGoalsBoard(props: Props) {
         )}
 
         {props.me.isAdmin && (
-          <select
+          <CompactSelect
             value={props.scopeEmp}
-            onChange={(e) => go({ week: props.weekStart, emp: e.target.value })}
+            onChange={(v) => go({ week: props.weekStart, emp: v })}
             className="ml-auto px-4 py-2 rounded-full border border-hairline bg-surface-card font-bold text-[14px] text-ink-strong"
-          >
-            <option value="all">All team members</option>
-            {props.employees.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name}
-              </option>
-            ))}
-          </select>
+            aria-label="Whose weekly goals"
+            // "all" IS the default, so there is no separate empty row.
+            required
+            options={[
+              { value: "all", label: "All team members" },
+              ...props.employees.map((e) => ({ value: e.id, label: e.name })),
+            ]}
+          />
         )}
       </div>
 

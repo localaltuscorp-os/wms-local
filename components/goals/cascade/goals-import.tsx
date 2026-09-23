@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Upload, Loader2, FileSpreadsheet, Download } from "lucide-react";
 import { importGoals } from "@/app/(app)/goals/import/actions";
 import { GOALS_ACCENT, GOALS_ACCENT_DEEP, type RosterMember } from "./util";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /** The enterprise exceljs template (branded, validated dropdowns, no frozen panes). */
 const TEMPLATE_URL = "/goals/template.xlsx";
@@ -78,18 +79,19 @@ export function GoalsImport({ roster }: { roster: RosterMember[] }) {
         <label className="text-[11.5px] font-black uppercase tracking-[0.06em] text-ink-muted">
           Default owner (rows without an Employee column)
         </label>
-        <select
+        <CompactSelect
           value={ownerId}
-          onChange={(e) => setOwnerId(e.target.value)}
-          className="mt-1 w-full rounded-xl border border-hairline bg-surface-card px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-hairline-strong"
-        >
-          <option value="all">Use the file&apos;s Employee column</option>
-          {roster.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
+          onChange={setOwnerId}
+          className="mt-1 w-full rounded-xl border border-hairline bg-surface-card px-3 py-2 text-[14px] font-semibold text-ink-strong"
+          aria-label="Owner for every imported goal"
+          // "all" IS the default here, not an empty field - so no empty row.
+          required
+          matchTriggerWidth
+          options={[
+            { value: "all", label: "Use the file's Employee column" },
+            ...roster.map((r) => ({ value: r.id, label: r.name })),
+          ]}
+        />
       </div>
 
       {error && (

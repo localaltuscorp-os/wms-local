@@ -9,14 +9,16 @@
  * Both are read from the compliances DCC already holds (dcc_kpi_items):
  *
  *   WCC — Weekly Compliance Checklist
- *     · 'scheduled' — due on each of its weekdays ("Daily" = Mon–Sat). One row
- *       per due day; the deadline is that day.
+ *     · 'scheduled' — due on each of its weekdays: Mon to Sat, Mon to Sun, or
+ *       the days picked (account holder, 2026-09-19). One row per due day;
+ *       the deadline is that day.
  *     · 'weekly'    — once a week, on any of its days. One row per week; the
  *       deadline is its last allowed day (Saturday when any day will do).
  *   MCC — Monthly Compliance Checklist
- *     · 'monthly'   — once a month. One row per month; the deadline is its
- *       `month_day`, or the month's last day when none is set, and a 31st in a
- *       30-day month falls on the 30th.
+ *     · 'monthly'   — Monthly, 2 times/month, 3 times/month, Alternate Month,
+ *       Quarterly, Half Yearly or Annually (lib/compliance/mcc-frequency.ts).
+ *       One row per deadline in each month it is due; a day past a short
+ *       month's end falls on its last day.
  *
  * Participant-list, ad-hoc and event compliances belong to neither — they
  * never had a deadline, and My Day never showed them either.
@@ -24,9 +26,39 @@
  * ── A ROW IS AN "OCCURRENCE" ─────────────────────────────────────────────
  * One compliance, one deadline. Its fill is the dcc_entries row inside the
  * occurrence's PERIOD — the day for a daily one, the Monday–Sunday week for a
- * weekly one, the calendar month for a monthly one — so a weekly compliance
- * ticked on Tuesday satisfies that week's row, exactly as DCC always counted it.
+ * weekly one, the month (or the stretch of it, or the cycle) for an MCC one —
+ * so a weekly compliance ticked on Tuesday satisfies that week's row, exactly
+ * as DCC always counted it.
+ *
+ * ── CARRY FORWARD, AND LAPSE (account holder, 2026-09-19) ────────────────
+ * A row may be filled from the day it OPENS (its period's start — never a day
+ * that has not come) until the last day it is OPEN; after that it has LAPSED
+ * and what was filled — Done, Need Info, or nothing — stays as it is.
+ *   WCC daily (Mon to Sat, Mon to Sun)  its own day only: the next day it is
+ *                                       due again, so nothing carries
+ *   WCC on chosen days                  carried forward while not Done, to the
+ *                                       day before the next chosen day — Tue &
+ *                                       Fri: Tue's carries Wed and Thu, lapsing
+ *                                       on Fri — and never past Saturday:
+ *                                       everything lapses on Sunday (a Sunday
+ *                                       row keeps its own day)
+ *   WCC once a week (older)             the whole week, lapsing on Sunday
+ *   MCC                                 carried to the day before its next
+ *                                       deadline, the last of the month to
+ *                                       month-end — 1st, 5th, 10th and 15th:
+ *                                       1st–4th, 5th–9th, 10th–14th, 15th–end
+ * Only the DCC past-entry editor (`dcc.edit_past_entries`) changes a row that
+ * has lapsed, exactly as on DCC. The Approver Status is never locked — a Team
+ * Lead rules on work after its day.
  */
+
+import {
+  MCC_FREQUENCY_LABEL,
+  mccDeadlinesIn,
+  mccDetail,
+  mccPeriodFor,
+  mccScheduleOf,
+} from "./mcc-frequency";
 
 export type ComplianceKind = "wcc" | "mcc";
 export type OccurrenceMode = "day" | "week" | "month";
@@ -47,6 +79,16 @@ export interface ComplianceItem {
   /** First day the compliance can be due — its creation, or its first fill if
    *  that is earlier (imported history). Null = always. */
   activeFrom: string | null;
+  /** Its own Target and unit (numeric as a string, the way Drizzle hands it
+   *  across) — what makes it ask how many were done (lib/compliance/quantity). */
+  targetNumber?: string | null;
+  unit?: string | null;
+  /** MCC's frequency (migration 0240; lib/compliance/mcc-frequency) — absent = Monthly. */
+  mccFrequency?: string | null;
+  mccDays?: number[] | null;
+  mccStartMonth?: number | null;
+  /** WCC's Mins — how many minutes it takes each time (migration 0242); absent = not set. */
+  minutes?: number | null;
 }
 
 export interface Occurrence {
@@ -58,9 +100,11 @@ export interface Occurrence {
   mode: OccurrenceMode;
   /** The deadline, `YYYY-MM-DD`. */
   deadline: string;
-  /** The span a fill counts in, inclusive. */
+  /** The span a fill counts in, inclusive. It also OPENS on periodStart. */
   periodStart: string;
   periodEnd: string;
+  /** The last day it may be filled or changed — carried forward to here; it lapses the day after. */
+  openUntil: string;
 }
 
 /** Which checklist a compliance is on, or null for neither. */
@@ -120,6 +164,29 @@ function bitsOf(mask: number): number[] {
   return out;
 }
 
+/** Mon to Sat, Mon to Sun (or no days set — every day): due again the very next day. */
+export function isDailyMask(mask: number | null | undefined): boolean {
+  const m = mask ?? 0;
+  return m === 0 || m === WORKING_WEEK || m === 0b1111111;
+}
+
+/**
+ * The last day a WCC row stays open (see CARRY FORWARD above): its own day
+ * when daily; else up to the day before its next chosen day, but no later than
+ * Saturday — it lapses on Sunday — unless it is itself due on Sunday.
+ */
+export function wccOpenUntil(scheduleKind: string | null | undefined, mask: number | null | undefined, deadline: string): string {
+  const saturday = addDays(mondayOf(deadline), 5);
+  if ((scheduleKind ?? "scheduled") === "weekly") return deadline > saturday ? deadline : saturday;
+  if (isDailyMask(mask)) return deadline;
+  let until = deadline;
+  for (let d = addDays(deadline, 1); d <= saturday; d = addDays(d, 1)) {
+    if ((mask ?? 0) & (1 << weekdayIndex(d))) break;
+    until = d;
+  }
+  return until;
+}
+
 /** The MCC deadline for a month: its day, clamped to the month's length. */
 export function mccDeadline(monthKey: string, monthDay: number | null): string {
   const last = daysInMonthOf(`${monthKey}-01`);
@@ -129,7 +196,15 @@ export function mccDeadline(monthKey: string, monthDay: number | null): string {
 
 /* ── Occurrences ─────────────────────────────────────────────────────────── */
 
-const occ = (item: ComplianceItem, kind: ComplianceKind, mode: OccurrenceMode, deadline: string, start: string, end: string): Occurrence => ({
+const occ = (
+  item: ComplianceItem,
+  kind: ComplianceKind,
+  mode: OccurrenceMode,
+  deadline: string,
+  start: string,
+  end: string,
+  openUntil: string,
+): Occurrence => ({
   key: `${item.id}|${deadline}`,
   itemId: item.id,
   ownerId: item.ownerEmployeeId,
@@ -138,6 +213,7 @@ const occ = (item: ComplianceItem, kind: ComplianceKind, mode: OccurrenceMode, d
   deadline,
   periodStart: start,
   periodEnd: end,
+  openUntil,
 });
 
 /**
@@ -159,7 +235,7 @@ export function wccOccurrences(items: readonly ComplianceItem[], from: string, t
         const open = addDays(m, first);
         const deadline = addDays(m, last);
         if (deadline < from || open > to || addDays(m, 6) < active) continue;
-        out.push(occ(it, "wcc", "week", deadline, m, addDays(m, 6)));
+        out.push(occ(it, "wcc", "week", deadline, m, addDays(m, 6), wccOpenUntil("weekly", it.weekdays, deadline)));
       }
       continue;
     }
@@ -167,21 +243,28 @@ export function wccOccurrences(items: readonly ComplianceItem[], from: string, t
     for (const d of datesBetween(from, to)) {
       if (d < active) continue;
       if (mask !== 0 && (mask & (1 << weekdayIndex(d))) === 0) continue;
-      out.push(occ(it, "wcc", "day", d, d, d));
+      out.push(occ(it, "wcc", "day", d, d, d, wccOpenUntil("scheduled", mask, d)));
     }
   }
   return out;
 }
 
-/** Every MCC row for the given months ('YYYY-MM'). */
+/**
+ * Every MCC row for the given months ('YYYY-MM'): each deadline of each month a
+ * compliance is due in — one for Monthly, two or three for 2 / 3 times a
+ * month, and none in the months a Quarterly or an Annual one skips.
+ */
 export function mccOccurrences(items: readonly ComplianceItem[], monthKeys: readonly string[]): Occurrence[] {
   const out: Occurrence[] = [];
   for (const it of items) {
     if (kindOf(it) !== "mcc") continue;
     const active = it.activeFrom ?? "0000-00-00";
+    const schedule = mccScheduleOf(it);
     for (const mk of monthKeys) {
-      if (monthEnd(mk) < active) continue;
-      out.push(occ(it, "mcc", "month", mccDeadline(mk, it.monthDay), monthStart(mk), monthEnd(mk)));
+      for (const d of mccDeadlinesIn(schedule, mk)) {
+        if (d.periodEnd < active) continue;
+        out.push(occ(it, "mcc", "month", d.deadline, d.periodStart, d.periodEnd, d.openUntil));
+      }
     }
   }
   return out;
@@ -221,23 +304,57 @@ export function matchFills<E extends FillRow>(occurrences: readonly Occurrence[]
 }
 
 /**
- * The period a fill for this compliance on this deadline counts in — worked out
- * on the SERVER from the compliance itself, never trusted from the browser.
+ * The period a fill for this compliance on this deadline counts in, and the
+ * last day it is open — worked out on the SERVER from the compliance itself,
+ * never trusted from the browser. Null when the date is not one of its
+ * deadlines: a day it is not due on, a weekly one's other days, a date an MCC
+ * compliance has no deadline on.
  */
 export function periodFor(
-  item: Pick<ComplianceItem, "scheduleKind">,
+  item: Pick<ComplianceItem, "scheduleKind"> &
+    Partial<Pick<ComplianceItem, "weekdays" | "monthDay" | "mccFrequency" | "mccDays" | "mccStartMonth">>,
   deadline: string,
-): { mode: OccurrenceMode; start: string; end: string } {
+): { mode: OccurrenceMode; start: string; end: string; openUntil: string } | null {
   const k = item.scheduleKind ?? "scheduled";
+  const mask = item.weekdays ?? 0;
   if (k === "weekly") {
     const m = mondayOf(deadline);
-    return { mode: "week", start: m, end: addDays(m, 6) };
+    const bits = bitsOf(mask);
+    if (deadline !== addDays(m, bits.length ? bits[bits.length - 1]! : 5)) return null;
+    return { mode: "week", start: m, end: addDays(m, 6), openUntil: wccOpenUntil("weekly", mask, deadline) };
   }
   if (k === "monthly") {
-    const mk = deadline.slice(0, 7);
-    return { mode: "month", start: monthStart(mk), end: monthEnd(mk) };
+    const d = mccPeriodFor(mccScheduleOf(item), deadline);
+    return d ? { mode: "month", start: d.periodStart, end: d.periodEnd, openUntil: d.openUntil } : null;
   }
-  return { mode: "day", start: deadline, end: deadline };
+  if (mask !== 0 && (mask & (1 << weekdayIndex(deadline))) === 0) return null;
+  return { mode: "day", start: deadline, end: deadline, openUntil: wccOpenUntil("scheduled", mask, deadline) };
+}
+
+/**
+ * May the doer's side of this row be written today? Never before it opens —
+ * not even by the past-entry editor, as on DCC — and not after it lapses,
+ * except by the past-entry editor.
+ */
+export function checkFillWindow(args: {
+  /** The day it opens — its period's start. */
+  opensOn: string;
+  openUntil: string;
+  /** Today in IST, YYYY-MM-DD. */
+  today: string;
+  /** Holds `dcc.edit_past_entries`. */
+  canEditPast: boolean;
+}): { ok: true } | { ok: false; error: string } {
+  if (args.today < args.opensOn) {
+    return { ok: false, error: `This one is not open yet — it can be filled from ${shortDay(args.opensOn)}.` };
+  }
+  if (args.today > args.openUntil && !args.canEditPast) {
+    return {
+      ok: false,
+      error: `This one lapsed on ${shortDay(addDays(args.openUntil, 1))} — what was filled can no longer be changed.`,
+    };
+  }
+  return { ok: true };
 }
 
 /* ── Words ───────────────────────────────────────────────────────────────── */
@@ -260,20 +377,26 @@ export function weekdayShort(ymd: string): string {
   return WD[weekdayIndex(ymd)]!;
 }
 
-function ordinal(n: number): string {
-  const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
-  return `${n}${s}`;
-}
+type ScheduleFields = Pick<ComplianceItem, "scheduleKind" | "weekdays" | "monthDay" | "mccFrequency" | "mccDays" | "mccStartMonth">;
 
-/** How often, in words: "Daily", "Mon & Thu", "Weekly (any day)", "Monthly by the 7th". */
-export function scheduleText(item: Pick<ComplianceItem, "scheduleKind" | "weekdays" | "monthDay">): string {
+/**
+ * How often, in words — WCC's "When": "Mon to Sat", "Mon to Sun", "Mon & Thu"
+ * ("Weekly (any day)" for an older once-a-week one) — and on MCC the
+ * frequency itself: "Monthly", "2 times/month", "Quarterly"…
+ */
+export function scheduleText(item: ScheduleFields): string {
   const k = item.scheduleKind ?? "scheduled";
-  if (k === "monthly") return item.monthDay ? `Monthly by the ${ordinal(item.monthDay)}` : "Monthly by month-end";
+  if (k === "monthly") return MCC_FREQUENCY_LABEL[mccScheduleOf(item).frequency];
   const mask = item.weekdays ?? 0;
   const days = bitsOf(mask).map((b) => WD[b]!);
   const list = days.length > 1 ? `${days.slice(0, -1).join(", ")} & ${days[days.length - 1]}` : (days[0] ?? "");
   if (k === "weekly") return mask ? `Weekly (${list})` : "Weekly (any day)";
-  if (mask === 0 || mask === 0b1111111) return "Every day";
-  if (mask === WORKING_WEEK) return "Daily";
+  if (mask === 0 || mask === 0b1111111) return "Mon to Sun";
+  if (mask === WORKING_WEEK) return "Mon to Sat";
   return list;
+}
+
+/** MCC: when, under the frequency — "by the 15th · Jun, Sep, Dec, Mar". Null on WCC. */
+export function scheduleDetail(item: ScheduleFields): string | null {
+  return (item.scheduleKind ?? "scheduled") === "monthly" ? mccDetail(mccScheduleOf(item)) : null;
 }

@@ -14,6 +14,7 @@ import {
   type ExitLetterInput,
   type ExitLetterType,
 } from "@/lib/salary/exit-letters";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const GREEN = "#E10600";
 const GREEN_DEEP = "#A80400";
@@ -203,19 +204,18 @@ export function ExitDocumentsWorkbench({
 
         <div className="grid grid-cols-1 gap-3.5">
           <Field label="Employee (from salary profiles)">
-            <select
+            <CompactSelect
               value={employeeId}
-              onChange={(e) => onPickEmployee(e.target.value)}
+              onChange={onPickEmployee}
               className="ui-input"
-            >
-              <option value="">— type manually below —</option>
-              {employees.map((e) => (
-                <option key={e.employeeId} value={e.employeeId}>
-                  {e.name}
-                  {e.entity ? ` · ${e.entity}` : ""}
-                </option>
-              ))}
-            </select>
+              placeholder="— type manually below —"
+              aria-label="Employee"
+              matchTriggerWidth
+              options={employees.map((e) => ({
+                value: e.employeeId,
+                label: e.entity ? `${e.name} · ${e.entity}` : e.name,
+              }))}
+            />
           </Field>
 
           <div className="grid grid-cols-2 gap-3.5">

@@ -598,6 +598,8 @@ export interface BoardTask {
   client: string | null;
   description: string | null;
   status: (typeof TASK_STATUSES)[number];
+  approvalStatus: "approved" | "not_approved" | "cancelled" | "transferred" | "on_hold" | "archived" | null;
+  initiatorId: string | null;
   priority: (typeof TASK_PRIORITIES)[number];
   doerId: string;
   doerName: string | null;
@@ -666,6 +668,8 @@ async function listBoardTasksUncached(filters?: TaskListFilters): Promise<BoardT
       client: tasks.client,
       description: tasks.description,
       status: tasks.status,
+      approvalStatus: tasks.approvalStatus,
+      initiatorId: tasks.initiatorId,
       priority: tasks.priority,
       doerId: tasks.doerId,
       // Effective due (revised ?? original) so the board flags overdue from it.
@@ -716,6 +720,8 @@ async function listAgendaTasksUncached(employeeId: string): Promise<BoardTask[]>
       client: tasks.client,
       description: tasks.description,
       status: tasks.status,
+      approvalStatus: tasks.approvalStatus,
+      initiatorId: tasks.initiatorId,
       priority: tasks.priority,
       doerId: tasks.doerId,
       // Effective due (revised ?? original) so the agenda sorts + flags by it.

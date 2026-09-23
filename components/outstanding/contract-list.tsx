@@ -11,7 +11,7 @@ import {
   updateOutstandingContract,
   writeOffContract,
   closeContract,
-} from "@/app/(app)/outstanding/actions";
+} from "@/app/(app)/billing/outstanding/actions";
 import {
   OUTSTANDING_CYCLES,
   OUTSTANDING_CYCLE_LABELS,

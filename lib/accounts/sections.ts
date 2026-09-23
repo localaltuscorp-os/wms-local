@@ -56,46 +56,42 @@ export const ACCOUNTS_SECTIONS: AccountsSection[] = [
   {
     slug: "weekly-checklist",
     order: 2,
-    title: "Weekly Checklist",
+    title: "Weekly CC",
     blurb: "Recurring weekly compliance items — tick each week of the month (Wk1–Wk5) as Done / Pending / Need Help.",
     status: "built",
   },
   {
     slug: "monthly-quarterly-annual",
     order: 3,
-    title: "Quarter / Month / Annual Checklist",
+    title: "Monthly CC",
     blurb: "Monthly, quarterly and annual things to get done — tick each month of the financial year (Apr–Mar) as Done / Pending / Need Help.",
     status: "built",
   },
   {
     slug: "cc-tracker",
     order: 4,
-    title: "Credit Cards Master",
+    title: "Credit Cards Masters",
     blurb: "Per-card statement, payment, tally & charges tracking — pick a month of the financial year (Apr–Mar). Covers all FYs via the year navigator.",
     status: "built",
   },
   {
     slug: "due-dates",
     order: 5,
-    title: "Due Dates Checklist",
+    title: "Due Dates Master",
     blurb: "Recurring bills & statutory items by area — frequency, statement period, due date, ECS and payment status.",
     status: "built",
   },
   {
     slug: "sip-tracker",
     order: 6,
-    title: "SIP Tracker",
+    title: "SIP Trackers",
     blurb: "Mutual-fund SIPs by entity — monthly contributions across the financial year (Apr–Mar) with a running YTD total.",
     status: "built",
   },
-  {
-    slug: "collection-master",
-    order: 7,
-    title: "Collection Master",
-    blurb: "Income & collections — this is the live Outstanding & Collections tracker (receipts by person, source, mode, entity, GST/TDS). Opens the full dashboard.",
-    status: "link",
-    href: "/outstanding",
-  },
+  // COLLECTION MASTER MOVED TO BILLING (2026-09-21). It was always a `link` to
+  // /outstanding — the revenue ledger — and revenue is Billing's subject, not
+  // Accounts'. The page itself did not move; only which room lists it. The
+  // Billing rail carries it now (components/layout/main-nav.tsx).
   {
     slug: "fno-income",
     order: 8,
@@ -106,7 +102,7 @@ export const ACCOUNTS_SECTIONS: AccountsSection[] = [
   {
     slug: "bank-balance",
     order: 9,
-    title: "Bank Balance Tracker",
+    title: "Bank Balance Master",
     blurb: "Weekly closing balances per account vs the target balance — the latest snapshot shows who's short and by how much.",
     status: "built",
   },
@@ -120,7 +116,7 @@ export const ACCOUNTS_SECTIONS: AccountsSection[] = [
   {
     slug: "vasa-family-interpersonal",
     order: 11,
-    title: "Vasa Family Interpersonal Balance",
+    title: "Vasa Family Interpersonal Balances",
     blurb: "Who owes / receives what between family entities, with the net position per party.",
     status: "built",
   },
@@ -135,7 +131,7 @@ export const ACCOUNTS_SECTIONS: AccountsSection[] = [
   {
     slug: "shares-register",
     order: 13,
-    title: "Shares Register",
+    title: "Shares Master",
     blurb: "Register of shareholdings & share transactions per entity — quantity, rate, value, folio/demat.",
     status: "built",
   },
@@ -150,9 +146,31 @@ export const ACCOUNTS_SECTIONS: AccountsSection[] = [
   {
     slug: "income-tax-master-folder",
     order: 15,
-    title: "Last 3–5 Years Income Tax Master Folder",
+    title: "Last 3–5 Years Income Tax Folder",
     blurb: "Links to the income-tax record folders for the last 3–5 years, per entity.",
     status: "built",
+  },
+  // TO BE MADE (2026-09-21). Registered as a `stub` so the rail entry and the
+  // /accounts/vasa-family-kyc route are real from today and render the standard
+  // scaffold — an entry that 404s is worse than one that says "not yet".
+  {
+    slug: "vasa-family-kyc",
+    order: 16,
+    title: "Vasa Family KYC Documents",
+    blurb: "KYC document set per family member — PAN, Aadhaar, passport and bank proofs, with issue and expiry dates. Not built yet.",
+    status: "stub",
+    sensitive: true,
+    columns: ["Person", "Document", "Number", "Issued", "Expires", "File"],
+  },
+  // A `link`, like Reimbursement above: the manual is part of the Induction
+  // module and this is Accounts' door to it, not a second copy.
+  {
+    slug: "accounts-manual",
+    order: 17,
+    title: "Accounts Manual",
+    blurb: "How this room is run — the Accounts section of the Induction module. Opens the induction handbook.",
+    status: "link",
+    href: "/training/induction",
   },
 ];
 

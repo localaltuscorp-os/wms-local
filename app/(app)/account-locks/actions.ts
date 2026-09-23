@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth/current";
-import { canUnlockAccounts } from "@/lib/auth/unlock-permission";
 import { getLockoutState, unlockAccount } from "@/lib/auth/account-lockout";
 import {
   grantSecurityRole,
@@ -18,7 +17,8 @@ export type LockStateResult =
   | { ok: false; error: string };
 
 const NOT_ALLOWED = `You need the “${SECURITY_ROLE_DEFS.account_unlock.label}” role to do that.`;
-const CANNOT_GRANT = "Only a permanent unlocker or a super-admin can hand out this role.";
+const CANNOT_GRANT = "Only a super-admin can change unlock access.";
+const CANNOT_EDIT_SELF = "You cannot change unlock access for your own account.";
 
 /**
  * Release a locked account.
@@ -65,6 +65,7 @@ export async function grantUnlockRoleAction(employeeId: string): Promise<ActionR
   if (!mayGrantSecurityRoles(me)) return { ok: false, error: CANNOT_GRANT };
   const id = String(employeeId ?? "").trim();
   if (!id) return { ok: false, error: "Pick somebody first." };
+  if (id === me.id) return { ok: false, error: CANNOT_EDIT_SELF };
   try {
     await grantSecurityRole(id, "account_unlock", me.id);
     console.info("[account-locks] granted account_unlock", { employeeId: id, by: me.email });
@@ -76,18 +77,15 @@ export async function grantUnlockRoleAction(employeeId: string): Promise<ActionR
   }
 }
 
-/** Take the role away. The four named in code cannot be revoked here. */
-export async function revokeUnlockRoleAction(employeeId: string, email: string): Promise<ActionResult> {
+/** Take the role away. A super-admin cannot change their own access. */
+export async function revokeUnlockRoleAction(employeeId: string): Promise<ActionResult> {
   const me = await requireUser();
   if (!mayGrantSecurityRoles(me)) return { ok: false, error: CANNOT_GRANT };
-  if (canUnlockAccounts(email)) {
-    return {
-      ok: false,
-      error: "This person is named in the code as a permanent unlocker, so the role cannot be taken away here.",
-    };
-  }
+  const id = String(employeeId ?? "").trim();
+  if (!id) return { ok: false, error: "That role holder could not be identified." };
+  if (id === me.id) return { ok: false, error: CANNOT_EDIT_SELF };
   try {
-    await revokeSecurityRole(String(employeeId ?? "").trim(), "account_unlock", me.id);
+    await revokeSecurityRole(id, "account_unlock", me.id);
     console.info("[account-locks] revoked account_unlock", { employeeId, by: me.email });
     revalidatePath("/account-locks");
     return { ok: true };

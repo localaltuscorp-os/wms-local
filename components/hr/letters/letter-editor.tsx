@@ -59,6 +59,7 @@ import {
 } from "@/lib/hr/letters/templates/ctc-breakup";
 import { formatINR, num } from "@/lib/hr/ctc/model";
 import { fireToast } from "@/lib/toast";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
@@ -857,10 +858,9 @@ export function LetterEditor({
           <label className="alw-pick">
             <ContactRound size={15} strokeWidth={2.2} aria-hidden />
             <span className="alw-pick-label">Candidate</span>
-            <select
+            <CompactSelect
               value={candidateId}
-              onChange={(e) => {
-                const id = e.target.value;
+              onChange={(id) => {
                 if (id) onPickCandidate(id);
                 else {
                   setCandidateId("");
@@ -868,24 +868,18 @@ export function LetterEditor({
                 }
               }}
               aria-label="Pick the candidate this letter is for"
-            >
-              <option value="">- pick a candidate -</option>
-              {candidates.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              placeholder="- pick a candidate -"
+              options={candidates.map((c) => ({ value: c.id, label: c.name }))}
+            />
           </label>
         )}
         {isAdmin && roster.length > 0 && (
           <label className="alw-pick">
             <UserRound size={15} strokeWidth={2.2} aria-hidden />
             <span className="alw-pick-label">Employee</span>
-            <select
+            <CompactSelect
               value={employeeId}
-              onChange={(e) => {
-                const id = e.target.value;
+              onChange={(id) => {
                 if (id) onSeedEmployee(id);
                 else {
                   setEmployeeId("");
@@ -893,15 +887,13 @@ export function LetterEditor({
                 }
               }}
               aria-label="Pick the employee this letter is for"
-            >
-              <option value="">- pick an employee -</option>
-              {roster.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                  {r.designation ? ` · ${r.designation}` : ""}
-                </option>
-              ))}
-            </select>
+              placeholder="- pick an employee -"
+              panelWidth={260}
+              options={roster.map((r) => ({
+                value: r.id,
+                label: r.designation ? `${r.name} · ${r.designation}` : r.name,
+              }))}
+            />
           </label>
         )}
 

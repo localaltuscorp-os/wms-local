@@ -29,6 +29,7 @@ import {
   saveContractAction,
   uploadContractAttachmentAction,
 } from "@/app/(app)/billing/contracts/actions";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /**
  * CREATE CONTRACT — Billing → Create Contract (and Edit, from a saved one).
@@ -471,15 +472,18 @@ export function ContractForm({
             error={shown("customerId")}
             hint={customers.length === 0 ? "No clients yet — onboard one in New Customer KYC." : undefined}
           >
-            <select value={f.customerId} onChange={(e) => set("customerId", e.target.value)} className={INPUT}>
-              <option value="">Select client</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.clientCode ? ` (${c.clientCode})` : ""}
-                </option>
-              ))}
-            </select>
+            <CompactSelect
+              value={f.customerId}
+              onChange={(v) => set("customerId", v)}
+              className={INPUT}
+              placeholder="Select client"
+              aria-label="Client"
+              matchTriggerWidth
+              options={customers.map((c) => ({
+                value: c.id,
+                label: c.clientCode ? `${c.name} (${c.clientCode})` : c.name,
+              }))}
+            />
           </Field>
           <Field
             label="Total Contract Value"

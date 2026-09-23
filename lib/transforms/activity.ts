@@ -128,7 +128,7 @@ export function groupByDay(events: ActivityRow[]): DayGroup[] {
 function dayLabel(d: Date): string {
   if (isToday(d)) return "Today";
   if (isYesterday(d)) return "Yesterday";
-  return format(d, "MMM d, yyyy");
+  return format(d, "dd-MMM-yyyy");
 }
 
 /**

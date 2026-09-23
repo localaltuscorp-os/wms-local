@@ -189,7 +189,15 @@ export function DashboardGrid({
 
   return (
     <>
-      {prefs.greeting && greeting}
+      {/* KEYED, and the key is the point. `greeting` is built in HubPage — a
+          SERVER component — and handed to this client component as a prop, so it
+          crosses the RSC boundary and arrives with React's internal "already
+          checked for a key" flag cleared. Sitting here it is the first entry of
+          this fragment's child ARRAY, so React re-checks it, finds no key, and
+          warns. A Fragment carries the key without adding a DOM node; wrapping
+          it in a <div> would also silence it but would put a stray box between
+          .aura-main and .aura-top and move the greeting. */}
+      {prefs.greeting && <React.Fragment key="greeting">{greeting}</React.Fragment>}
 
       <div className="aura-grid-head">
         <h2 className="aura-h2">Your dashboard</h2>

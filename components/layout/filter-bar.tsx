@@ -515,9 +515,9 @@ export function FilterBar({
                     screen confirming the first click registered. */}
                 <p className="mt-2 border-t border-hairline pt-2 text-center text-[12px] font-semibold text-ink-subtle">
                   {draftRange?.from && draftRange.to
-                    ? `${format(draftRange.from, "d MMM yyyy")} – ${format(draftRange.to, "d MMM yyyy")}`
+                    ? `${format(draftRange.from, "dd-MMM-yyyy")} – ${format(draftRange.to, "dd-MMM-yyyy")}`
                     : draftRange?.from
-                      ? `${format(draftRange.from, "d MMM yyyy")} — pick an end date`
+                      ? `${format(draftRange.from, "dd-MMM-yyyy")} — pick an end date`
                       : "Pick a start date"}
                 </p>
                 <Popover.Arrow className="fill-white" />

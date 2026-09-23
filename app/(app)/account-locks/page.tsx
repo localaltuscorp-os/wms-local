@@ -5,7 +5,6 @@ import { employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { listLockedAccounts } from "@/lib/auth/account-lockout";
 import { listRoleHolders, mayGrantSecurityRoles, mayUnlockAccounts } from "@/lib/auth/security-roles";
-import { DashboardHeader } from "@/components/layout/header";
 import { PageShell } from "@/components/layout/page-shell";
 import { AccountLocksScreen } from "@/components/auth/account-locks-screen";
 
@@ -42,24 +41,22 @@ export default async function AccountLocksPage() {
   const holderIds = new Set(holders.map((h) => h.employeeId));
 
   return (
-    <>
-      <DashboardHeader generatedAt={new Date()} />
-      <PageShell width="narrow" style={{ maxWidth: "900px" }}>
-        <AccountLocksScreen
-          canGrant={canGrant}
-          rows={locked.map((r) => ({
-            email: r.email,
-            employeeName: r.employeeName,
-            failedCount: r.failedCount,
-            lockedAt: r.lockedAt ? r.lockedAt.toISOString() : null,
-            lastFailedAt: r.lastFailedAt ? r.lastFailedAt.toISOString() : null,
-          }))}
-          holders={holders}
-          // Only people who do not already hold it — a picker offering somebody
-          // who is already listed above invites a click that does nothing.
-          grantable={roster.filter((p) => !holderIds.has(p.id))}
-        />
-      </PageShell>
-    </>
+    <PageShell width="narrow" style={{ maxWidth: "900px" }}>
+      <AccountLocksScreen
+        currentEmployeeId={me.id}
+        canGrant={canGrant}
+        rows={locked.map((r) => ({
+          email: r.email,
+          employeeName: r.employeeName,
+          failedCount: r.failedCount,
+          lockedAt: r.lockedAt ? r.lockedAt.toISOString() : null,
+          lastFailedAt: r.lastFailedAt ? r.lastFailedAt.toISOString() : null,
+        }))}
+        holders={holders}
+        // Only people who do not already hold it — a picker offering somebody
+        // who is already listed above invites a click that does nothing.
+        grantable={roster.filter((p) => p.id !== me.id && !holderIds.has(p.id))}
+      />
+    </PageShell>
   );
 }

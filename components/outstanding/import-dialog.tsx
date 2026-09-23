@@ -22,7 +22,7 @@ import {
   confirmImport,
   undoImport,
   type ImportPreview,
-} from "@/app/(app)/outstanding/actions";
+} from "@/app/(app)/billing/outstanding/actions";
 
 type Payload =
   | { kind: "file"; outstandingCsv?: string; collectionCsv?: string }

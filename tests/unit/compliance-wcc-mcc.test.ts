@@ -4,6 +4,7 @@ import {
   kindOf,
   matchFills,
   mccDeadline,
+  scheduleDetail,
   mccOccurrences,
   periodFor,
   scheduleText,
@@ -113,9 +114,15 @@ describe("matching a fill to its row", () => {
   });
 
   it("works the period out from the compliance, not from the browser", () => {
-    expect(periodFor({ scheduleKind: "weekly" }, "2026-09-16")).toEqual({ mode: "week", start: "2026-09-14", end: "2026-09-20" });
-    expect(periodFor({ scheduleKind: "monthly" }, "2026-09-07")).toEqual({ mode: "month", start: "2026-09-01", end: "2026-09-30" });
-    expect(periodFor({ scheduleKind: "scheduled" }, "2026-09-18")).toEqual({ mode: "day", start: "2026-09-18", end: "2026-09-18" });
+    // A weekly one's deadline is its last allowed day — any day: Saturday.
+    expect(periodFor({ scheduleKind: "weekly" }, "2026-09-19")).toEqual({ mode: "week", start: "2026-09-14", end: "2026-09-20", openUntil: "2026-09-19" });
+    expect(periodFor({ scheduleKind: "weekly" }, "2026-09-16")).toBeNull();
+    expect(periodFor({ scheduleKind: "monthly", monthDay: 7 }, "2026-09-07")).toEqual({ mode: "month", start: "2026-09-01", end: "2026-09-30", openUntil: "2026-09-30" });
+    // A date that is not one of its deadlines has no period — the action refuses it.
+    expect(periodFor({ scheduleKind: "monthly", monthDay: 7 }, "2026-09-08")).toBeNull();
+    expect(periodFor({ scheduleKind: "scheduled" }, "2026-09-18")).toEqual({ mode: "day", start: "2026-09-18", end: "2026-09-18", openUntil: "2026-09-18" });
+    // A day it is not due on is not one of its deadlines.
+    expect(periodFor({ scheduleKind: "scheduled", weekdays: 0b0010010 }, "2026-09-16")).toBeNull();
   });
 });
 
@@ -160,7 +167,7 @@ describe("rows and the report", () => {
     ["p1", "Priya"],
     ["tl", "Tara"],
   ]);
-  const rowsFor = (viewerId: string, visible: string[], f: FillLike | null) => {
+  const rowsFor = (viewerId: string, visible: string[], f: FillLike | null, today = "2026-09-18") => {
     const occ = wccOccurrences([item({ createdById: "tl" })], "2026-09-15", "2026-09-15");
     return buildComplianceRows({
       occurrences: occ,
@@ -168,7 +175,7 @@ describe("rows and the report", () => {
       items: new Map([["i1", item({ createdById: "tl" })]]),
       names: people,
       masters: new Map(),
-      today: "2026-09-18",
+      today,
       viewer: { id: viewerId, isAdmin: false, fillsForAnyone: false, visibleIds: new Set(visible), canManageFor: () => true },
     });
   };
@@ -181,7 +188,8 @@ describe("rows and the report", () => {
   });
 
   it("lets the doer fill but never rule; lets the Team Lead rule but not fill", () => {
-    const [own] = rowsFor("p1", ["p1"], fill({ entryDate: "2026-09-15", doerStatus: "done", status: "Done" }));
+    // On its own day — a daily one is open only then.
+    const [own] = rowsFor("p1", ["p1"], fill({ entryDate: "2026-09-15", doerStatus: "done", status: "Done" }), "2026-09-15");
     expect(own!.canFill).toBe(true);
     expect(own!.approverChoices).toEqual([]);
     const [lead] = rowsFor("tl", ["tl", "p1"], fill({ entryDate: "2026-09-15", doerStatus: "done", status: "Done" }));
@@ -310,10 +318,16 @@ describe("words", () => {
   });
 
   it("says how often in plain words", () => {
-    expect(scheduleText({ scheduleKind: "scheduled", weekdays: 0b0111111, monthDay: null })).toBe("Daily");
+    // WCC's "When" (account holder, 2026-09-19): Mon to Sat, Mon to Sun, or the days picked.
+    expect(scheduleText({ scheduleKind: "scheduled", weekdays: 0b0111111, monthDay: null })).toBe("Mon to Sat");
+    expect(scheduleText({ scheduleKind: "scheduled", weekdays: 0b1111111, monthDay: null })).toBe("Mon to Sun");
+    expect(scheduleText({ scheduleKind: "scheduled", weekdays: 0, monthDay: null })).toBe("Mon to Sun");
     expect(scheduleText({ scheduleKind: "scheduled", weekdays: 0b0001001, monthDay: null })).toBe("Mon & Thu");
     expect(scheduleText({ scheduleKind: "weekly", weekdays: 0, monthDay: null })).toBe("Weekly (any day)");
-    expect(scheduleText({ scheduleKind: "monthly", weekdays: 0, monthDay: 7 })).toBe("Monthly by the 7th");
-    expect(scheduleText({ scheduleKind: "monthly", weekdays: 0, monthDay: null })).toBe("Monthly by month-end");
+    // MCC: the frequency itself, and when under it.
+    expect(scheduleText({ scheduleKind: "monthly", weekdays: 0, monthDay: 7 })).toBe("Monthly");
+    expect(scheduleDetail({ scheduleKind: "monthly", weekdays: 0, monthDay: 7 })).toBe("by the 7th");
+    expect(scheduleDetail({ scheduleKind: "monthly", weekdays: 0, monthDay: null })).toBe("by month-end");
+    expect(scheduleDetail({ scheduleKind: "scheduled", weekdays: 0b0111111, monthDay: null })).toBeNull();
   });
 });

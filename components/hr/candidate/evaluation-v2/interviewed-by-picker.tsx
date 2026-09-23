@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, Loader2, Users2, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, Users2 } from "lucide-react";
 import { listInterviewerNames } from "@/app/(app)/hr/candidate-actions";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 
 /**
  * INTERVIEWED BY — who actually sat in the interview, on the Recommendation card.
@@ -67,13 +68,17 @@ export function InterviewedByPicker({
   const selected = new Set(value);
 
   /** Roster plus any stored name the roster no longer has. */
-  const options = React.useMemo(() => {
+  const everyone = React.useMemo(() => {
     const all = [...(roster ?? []), ...value.filter((n) => !(roster ?? []).includes(n))];
     const seen = new Set<string>();
-    const uniq = all.filter((n) => (seen.has(n) ? false : (seen.add(n), true)));
+    return all.filter((n) => (seen.has(n) ? false : (seen.add(n), true)));
+  }, [roster, value]);
+
+  /** …narrowed to what the search box matches. */
+  const options = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return needle ? uniq.filter((n) => n.toLowerCase().includes(needle)) : uniq;
-  }, [roster, value, q]);
+    return needle ? everyone.filter((n) => n.toLowerCase().includes(needle)) : everyone;
+  }, [everyone, q]);
 
   function toggle(name: string) {
     onChange(selected.has(name) ? value.filter((n) => n !== name) : [...value, name]);
@@ -100,24 +105,29 @@ export function InterviewedByPicker({
 
       {open && (
         <div className="absolute right-0 z-[60] mt-1.5 w-[280px] rounded-xl border border-hairline-strong bg-white p-2 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.45)]">
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-2">
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search people"
               aria-label="Search people"
-              className="h-8 min-w-0 flex-1 rounded-lg border border-hairline-strong px-2.5 text-[12.5px] text-ink-strong outline-none focus:border-altus-red"
+              className="h-8 w-full rounded-lg border border-hairline-strong px-2.5 text-[12.5px] text-ink-strong outline-none focus:border-altus-red"
             />
-            {value.length > 0 && (
-              <button
-                type="button"
-                onClick={() => onChange([])}
-                className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-[12px] font-bold text-altus-red"
-              >
-                <X size={12} strokeWidth={2.6} /> Clear
-              </button>
-            )}
           </div>
+          {/* Select all / Clear over the FULL roster, not the search results —
+              the count in the label says exactly what the click will do. A
+              panel still loading has nothing to offer, so the bar waits. */}
+          {!loading && (
+            <SelectAllBar
+              compact
+              className="mb-1.5 rounded-md"
+              count={value.length}
+              total={everyone.length}
+              emptyLabel="No one picked"
+              onSelectAll={() => onChange(everyone)}
+              onClear={() => onChange([])}
+            />
+          )}
 
           <div className="max-h-[260px] overflow-y-auto">
             {loading ? (

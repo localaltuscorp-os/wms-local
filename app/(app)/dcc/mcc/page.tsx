@@ -3,27 +3,28 @@ import { requireUser } from "@/lib/auth/current";
 import { PageShell } from "@/components/layout/page-shell";
 import { localDateString } from "@/lib/format";
 import { monthsOfQuarterKey, quarterKeyOfMonthKey } from "@/lib/goals/types";
-import { periodKeyLabel } from "@/components/goals/cascade/util";
 import { loadComplianceBoard } from "@/lib/queries/compliance-board";
 import { ComplianceBoard } from "@/components/compliance/compliance-board";
 import { MccPeriodBar, ScopePicker } from "@/components/compliance/compliance-controls";
 
 export const dynamic = "force-dynamic";
 
-const MONTH = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
 /**
  * EMPLOYEES → MCC — the Monthly Compliance Checklist (account holder, 2026-09-18).
  *
- * The same table as WCC, over months. The CURRENT MONTH by default, with the
- * Goals month strip to move to a past or future one (`?m=YYYY-MM`), and a
- * Quarter view that shows a quarter's three months together, Q1 to Q4 of a
- * financial year (`?view=quarter&q=2026-Q2`).
+ * The same table as WCC, over months — each compliance on its own frequency:
+ * Monthly, 2 times/month, 3 times/month, Alternate Month, Quarterly, Half
+ * Yearly or Annually (lib/compliance/mcc-frequency.ts). The CURRENT MONTH by default, with a
+ * compact switcher — ‹ September 2026 ▾ › — to step to a past or future one
+ * or pick it (`?m=YYYY-MM`), and a Quarter view that shows a quarter's three
+ * months together, Q1 to Q4 of a financial year (`?view=quarter&q=2026-Q2`).
+ * The period is named in the switcher, so the header carries no subtitle
+ * (account holder, 2026-09-19).
  */
 export default async function MccPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; m?: string; q?: string; who?: string }>;
+  searchParams: Promise<{ view?: string; m?: string; q?: string; who?: string; status?: string; find?: string }>;
 }) {
   const me = await requireUser();
   const sp = await searchParams;
@@ -43,23 +44,13 @@ export default async function MccPage({
     personalGroup: "month",
   });
 
-  const periodLabel =
-    view === "month"
-      ? `${MONTH[+monthKey.slice(5, 7) - 1]} ${monthKey.slice(0, 4)}`
-      : `${periodKeyLabel(quarterKey)} · FY ${quarterKey.slice(0, 4)}–${String((+quarterKey.slice(0, 4) + 1) % 100).padStart(2, "0")}`;
-
   return (
     <PageShell>
       <header className="mb-4 flex flex-wrap items-center gap-3">
         <span className="grid h-10 w-10 place-items-center rounded-xl" style={{ background: "#FEE2E2", color: "#A80400" }}>
           <CalendarRange className="h-5 w-5" />
         </span>
-        <div className="mr-auto min-w-0">
-          <h1 className="text-[22px] font-black tracking-tight text-ink-strong">MCC — Monthly Compliance Checklist</h1>
-          <p className="text-[13px] text-ink-muted">
-            {periodLabel} — each compliance once a month, against its deadline day.
-          </p>
-        </div>
+        <h1 className="mr-auto min-w-0 text-[22px] font-black tracking-tight text-ink-strong">MCC — Monthly Compliance Checklist</h1>
         <ScopePicker picker={board.picker} who={board.who} meId={me.id} />
       </header>
 
@@ -71,12 +62,15 @@ export default async function MccPage({
         kind="mcc"
         rows={board.rows}
         groups={board.groups}
-        summary={board.summary}
         multiPerson={board.multiPerson}
         manageable={board.manageable}
         defaultOwnerId={board.who === "me" || board.who === "team" ? me.id : board.who}
         today={today}
         viewerId={me.id}
+        /* Deep links from the Compliance Dashboard: a figure you click opens
+           this board already showing exactly the rows behind it. */
+        initialStatuses={sp.status ? sp.status.split(",") : undefined}
+        initialQuery={sp.find}
       />
     </PageShell>
   );

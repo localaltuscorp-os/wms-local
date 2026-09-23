@@ -330,7 +330,20 @@ async function seedCandidates(pg: PGlite): Promise<void> {
  */
 async function seedClientEngagement(
   pg: PGlite,
-  employeeIdOf: (name: string) => string,
+  /** The roster id for a name, or NULL when that person is not in the org tree.
+   *
+   *  It used to be `(name) => string`, and the three Client Engagement leads —
+   *  Jeevan, Ruchita, Mitul — are named ONLY here; they were never added to
+   *  TREE. `treeId` builds its uuid from `treeNames.indexOf(name)`, so an
+   *  unknown name produced `…-8003-000000000000`, an id no employee has, and
+   *  the first insert died on `pa_people_employee_id_fkey`. That made a fresh
+   *  dummy database impossible to build (upstream carries the same bug).
+   *
+   *  `pa_people.employee_id` is nullable on purpose — migration 0191 says "one
+   *  row per roster employee; free-typed people are unconstrained" — so a lead
+   *  who is not on the roster is a legitimate row with no employee behind it,
+   *  which is a truer statement than pointing at an id that does not exist. */
+  employeeIdOf: (name: string) => string | null,
   today: Date,
 ): Promise<void> {
   const ce = (n: number) => `00000000-0000-4000-8005-${String(n).padStart(12, "0")}`;
@@ -443,12 +456,33 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
     counts[table] = r.rows[0]?.n ?? 0;
   };
 
+  /*
+   * FUNCTIONS IS THE LIVE MASTER — `departments` HAS NOT BEEN SINCE 0234.
+   *
+   * Migration 0234 ("functions replace departments") copied the rows into
+   * `functions` keeping their ids, and re-pointed `employees.department_id`,
+   * `employee_departments.department_id` and `jd_positions.department_id` at
+   * `functions`. The column names stayed `department_id` — the CONSTRAINT is
+   * what decides which table a value must exist in.
+   *
+   * This seed only ever filled `departments`, so on a FRESH database every
+   * employee insert died on `employees_department_id_fkey`. It went unnoticed
+   * for the obvious reason: nobody rebuilds the fixture. An existing `.pglite`
+   * predated 0234, and the migration itself copied the rows across — so the
+   * only way to meet this bug was to delete the directory, which is exactly
+   * what a corrupted PGlite forces you to do.
+   *
+   * Both tables are filled and kept in step: `functions` because the foreign
+   * keys demand it, `departments` because 0234 keeps it as the backup record
+   * and a fixture that leaves it empty tells a different story from production.
+   */
   for (const [id, name] of [
     [DEPT.ops, "Operations"],
     [DEPT.finance, "Finance"],
     [DEPT.tech, "Technology"],
     [DEPT.hr, "HR"],
   ] as const) {
+    await pg.query(`insert into functions (id, name) values ($1,$2) on conflict do nothing`, [id, name]);
     await pg.query(`insert into departments (id, name) values ($1,$2) on conflict do nothing`, [id, name]);
   }
 
@@ -491,8 +525,12 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
   // case the seed's `on conflict do nothing` insert above is skipped and
   // DEPT.hr never exists — pointing employees.department_id at it then fails
   // the employees_department_id_fkey constraint.
+  // FROM `functions`, not `departments`: the id resolved here is written into
+  // employees.department_id and employee_departments.department_id, and both
+  // of those foreign-key into `functions` since 0234. Reading the backup table
+  // could hand back an id that the live master does not have.
   const hrDept = await pg.query<{ id: string }>(
-    `select id from departments where lower(name) = 'hr' limit 1`,
+    `select id from functions where lower(name) = 'hr' limit 1`,
   );
   const hrDeptId = hrDept.rows[0]?.id ?? null;
 
@@ -666,7 +704,11 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
   }
   await bump("ops_vendors");
 
-  await seedClientEngagement(pg, treeId, new Date());
+  await seedClientEngagement(
+    pg,
+    (name) => (treeNames.includes(name) ? treeId(name) : null),
+    new Date(),
+  );
   await bump("pa_entries");
   await bump("pa_calls");
 

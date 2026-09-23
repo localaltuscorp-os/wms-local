@@ -114,4 +114,16 @@ describe("only role holders can unlock", () => {
       expect(actions.slice(at, at + 400)).toContain("mayGrantSecurityRoles(me)");
     }
   });
+
+  it("shows role management only to super-admins and prevents self-editing", () => {
+    const page = read("app/(app)/account-locks/page.tsx");
+    const screen = read("components/auth/account-locks-screen.tsx");
+    const actions = read("app/(app)/account-locks/actions.ts");
+    expect(page).toContain("currentEmployeeId={me.id}");
+    expect(page).toContain("p.id !== me.id");
+    expect(screen).toContain("{canGrant && <section");
+    expect(screen).not.toContain("Permanent");
+    expect(screen).toContain("h.employeeId !== currentEmployeeId");
+    expect(actions).toContain("CANNOT_EDIT_SELF");
+  });
 });

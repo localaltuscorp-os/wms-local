@@ -141,15 +141,24 @@ const PRIORITY_RANK: Record<string, number> = Object.fromEntries(
   TASK_PRIORITIES.map((p, i) => [p, i]),
 );
 import type { TaskListRow } from "@/lib/types";
+import { isDifferentList } from "@/lib/tasks/list-pagination";
 import { TaskRowActions } from "./task-row-actions";
 import { TaskTimerCell } from "./task-timer-cell";
 import { BulkActionBar } from "./bulk-action-bar";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SelectAllBar } from "@/components/ui/select-all-bar";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { LateBadge } from "@/components/ui/late-badge";
 import { isDoneLate } from "@/lib/task-late";
 import { InlineStatusCell } from "./inline-status-cell";
-import { taskDoerShown } from "@/lib/status/approver-status";
+import { ApproverChip } from "@/components/status/approver-chip";
+import {
+  APPROVER_CHOICES,
+  selectableApproverChoices,
+  taskApproverShown,
+  taskDoerShown,
+} from "@/lib/status/approver-status";
+import { setTaskApproverStatus } from "@/app/(app)/tasks/actions";
 import { canEditTaskFields } from "@/lib/auth/task-permissions";
 // Shared with the dashboard's section pager so both agree on which page numbers
 // to show; see the footer pager below.
@@ -187,6 +196,7 @@ const COLUMN_LABELS: Record<string, string> = {
   initiatorName: "Initiator",
   priority: "Priority",
   status: "Doer Status",
+  approvalStatus: "Initiator Status",
   subject: "Subject",
   createdAt: "Created",
   dueAt: "Due",
@@ -510,6 +520,42 @@ function buildColumns(
         );
       },
     },
+    /* INITIATOR STATUS (2026-09-15) — back beside Doer Status, and
+     * editable where the viewer may rule: the initiator, the doer's manager or
+     * an admin, never the doer (lib/status/approver-status.ts). It reads the
+     * ruling from `approval_status`, falling back to an old verdict or hold
+     * still stored in `status`, so every existing row shows what it is. */
+    {
+      accessorKey: "approvalStatus",
+      header: "Initiator Status",
+      sortingFn: (a, b) =>
+        APPROVER_CHOICES.indexOf(taskApproverShown(a.original.approvalStatus, a.original.status) as never) -
+        APPROVER_CHOICES.indexOf(taskApproverShown(b.original.approvalStatus, b.original.status) as never),
+      cell: ({ row }) => {
+        const r = row.original;
+        const isDoer = r.doerId === me.id;
+        /* Raised by the person doing it — there is no approver, so the column
+           reads Not Applicable and only an admin may overrule. */
+        const isSelfRaised = !!r.initiatorId && r.initiatorId === r.doerId;
+        const actor = {
+          isAdmin: me.isAdmin,
+          isInitiator: r.initiatorId === me.id && !isSelfRaised,
+          isDoersManager: !isDoer && (me.managedIds ?? []).includes(r.doerId),
+          isDoer,
+          isSelfRaised,
+        };
+        return (
+          <ApproverChip
+            shown={taskApproverShown(r.approvalStatus, r.status, isSelfRaised)}
+            choices={selectableApproverChoices(actor, taskDoerShown(r.status))}
+            onPick={async (choice) => {
+              const res = await setTaskApproverStatus(r.id, choice);
+              return res.ok ? null : res.error;
+            }}
+          />
+        );
+      },
+    },
     {
       accessorKey: "createdAt",
       header: "Created",
@@ -581,8 +627,8 @@ export function TaskTable({
 }: {
   rows: TaskListRow[];
   employees: { id: string; name: string }[];
-  /** `managedIds` — everyone below the viewer. The table no longer shows the
-   *  Initiator Status column, but the board still rules with it. */
+  /** `managedIds` — everyone below the viewer, so the doer's manager can rule
+   *  on the Initiator Status. Omitted → only admin / initiator can. */
   me: { id: string; isAdmin: boolean; canChangeDoer?: boolean; managedIds?: string[] };
   statusLabels?: StatusLabels;
   statusTones?: StatusTones;
@@ -754,8 +800,34 @@ export function TaskTable({
       // had ever reordered, which is a silent data-loss bug.
       const known = new Set(defaultOrder);
       const kept = saved.filter((id) => known.has(id));
-      const added = defaultOrder.filter((id) => !kept.includes(id));
-      setColumnOrder([...kept, ...added]);
+
+      // A NEW COLUMN IS SPLICED IN AT ITS DEFAULT POSITION, NOT APPENDED.
+      //
+      // Appending was the bug that put Initiator Status at the far right of the
+      // table for everyone who had ever dragged a header, instead of beside
+      // Doer Status where it belongs — the two axes are only worth splitting if
+      // they can be read together. Anyone who had never reordered saw it in the
+      // right place, which is exactly the kind of difference nobody reproduces.
+      //
+      // Each missing id lands directly after the nearest column that precedes
+      // it in the default order AND is actually present, so a column added
+      // between two others arrives between them. The user's own arrangement of
+      // every column they HAVE moved is untouched.
+      const merged = [...kept];
+      defaultOrder.forEach((id, i) => {
+        if (merged.includes(id)) return;
+        let at = 0;
+        for (let j = i - 1; j >= 0; j--) {
+          const before = defaultOrder[j];
+          const idx = before === undefined ? -1 : merged.indexOf(before);
+          if (idx !== -1) {
+            at = idx + 1;
+            break;
+          }
+        }
+        merged.splice(at, 0, id);
+      });
+      setColumnOrder(merged);
     } catch {
       /* ignore malformed storage */
     }
@@ -882,13 +954,44 @@ export function TaskTable({
      not see it at all. */
   const visibleCols = table.getVisibleLeafColumns().length;
 
+  /* Pre-slice total = every row that survived the global filters, the search
+     box and the filter bar's search. That is the number the pager divides.
+
+     PAGING IS CLIENT-SIDE, over rows already in memory, and that is a choice
+     rather than an oversight. The list query hands this component the whole
+     filtered set, so a page change costs an array slice — instant, no spinner,
+     no server round-trip. Putting `?page=` in the URL would trade that for a
+     server render per click over data the browser already holds. The cursor
+     API that does exist (`listTasksPage`) is forward-only by design, so it
+     cannot answer "jump to page 7" at all, which is half of what a pager is
+     for. If this list ever outgrows one payload, THAT is the change to make —
+     offset paging server-side — not a URL param over the current query.
+
+     DERIVED HERE, above the effects that push pagination into the table,
+     because `safePageIndex` is what gets pushed — see the note there. */
+  const totalFiltered = table.getPrePaginationRowModel().rows.length;
+  const pageCount = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  /* THE CLAMP, and why it is the whole safety net rather than a cosmetic fix.
+
+     A list can shrink under a page that is already showing: 38 rows over two
+     pages become 19 over one while you are standing on page 2. Clamping to the
+     last real page is the honest answer to that — it shows you rows. Slamming
+     back to page 1 is NOT: it throws away where you were to solve a problem
+     that clamping already solved. */
+  const safePageIndex = Math.min(pageIndex, pageCount - 1);
+
   // Push both halves of the local pagination state into the table.
   React.useEffect(() => {
     table.setPageSize(pageSize);
   }, [pageSize, table]);
+  /* `safePageIndex`, NOT `pageIndex`. The pager and the "Showing x–y" label
+     were already clamped, but the raw index was still what reached the table —
+     so a list that shrank under you rendered an EMPTY grid while the footer
+     confidently said "Showing 1–20 of 19". Pushing the clamped value keeps the
+     rows, the label and the pager describing the same page. */
   React.useEffect(() => {
-    table.setPageIndex(pageIndex);
-  }, [pageIndex, table]);
+    table.setPageIndex(safePageIndex);
+  }, [safePageIndex, table]);
 
   // Total rows per group across the full (unpaginated) set, for the count
   // shown in each group header. Keyed by the same label `groupValue` renders.
@@ -908,18 +1011,40 @@ export function TaskTable({
     setPageIndex(0);
   }, [groupBy]);
 
-  /* A DIFFERENT LIST STARTS AT PAGE ONE — and `rows` is in here, not just the
-     search box.
-
-     `rows` changes whenever a GLOBAL filter changes (status, priority, client,
-     doer, date range): the server re-queries and hands this component a new
-     array. Watching only `query` would leave someone on page 9 of a list that
-     now has two pages, staring at an empty grid with no obvious way back.
-     `sectionQuery` is the filter bar's own search box, which narrows the same
-     set through the same matcher. */
+  /* Typing in either search box starts again at page one: you are looking for
+     something, and page 7 of the old list is not where it is. `sectionQuery`
+     is the filter bar's own box, which narrows the same set through the same
+     matcher. */
   React.useEffect(() => {
     setPageIndex(0);
-  }, [query, sectionQuery, rows]);
+  }, [query, sectionQuery]);
+
+  /* A DIFFERENT LIST STARTS AT PAGE ONE. AN EDITED ONE DOES NOT.
+     ── THE BUG THIS REPLACES ────────────────────────────────────────────────
+     This effect used to list `rows` as a dependency. `rows` is a new array on
+     every `router.refresh()`, and EVERY inline edit in this table refreshes —
+     so setting one row's Doer Status on page 2 threw you back to page 1, with
+     the row you had just touched now off-screen. On a 38-row list that is two
+     clicks to get back, every single time.
+
+     Array IDENTITY was never the question being asked. "Is this a different
+     list?" is a question about CONTENT, so ask it of the ids: an edit returns
+     the same rows with one field changed, while a filter change returns a set
+     with nothing in common with what you were reading.
+
+     OVERLAP, rather than exact equality, is the test — because an edit can
+     legitimately remove its own row (mark something Done while filtered to
+     Pending) and that must not count as a new list either. Any row you were
+     already looking at surviving into the new set means you are still in the
+     same list, and `safePageIndex` keeps the page honest if it shrank. Only a
+     wholly disjoint set — a real filter change — goes back to page one. */
+  const prevRowIds = React.useRef<Set<string> | null>(null);
+  React.useEffect(() => {
+    const next = new Set(rows.map((r) => r.id));
+    const prev = prevRowIds.current;
+    prevRowIds.current = next;
+    if (isDifferentList(prev, next)) setPageIndex(0);
+  }, [rows]);
 
   // Scroll the table back into view when the page changes, so the new rows are
   // visible without a manual scroll up.
@@ -978,24 +1103,6 @@ export function TaskTable({
       ?.scrollIntoView({ block: "nearest" });
   }, [focusedId]);
 
-  /* Pre-slice total = every row that survived the global filters, the search
-     box and the filter bar's search. That is the number the pager divides.
-
-     PAGING IS CLIENT-SIDE, over rows already in memory, and that is a choice
-     rather than an oversight. The list query hands this component the whole
-     filtered set, so a page change costs an array slice — instant, no spinner,
-     no server round-trip. Putting `?page=` in the URL would trade that for a
-     server render per click over data the browser already holds. The cursor
-     API that does exist (`listTasksPage`) is forward-only by design, so it
-     cannot answer "jump to page 7" at all, which is half of what a pager is
-     for. If this list ever outgrows one payload, THAT is the change to make —
-     offset paging server-side — not a URL param over the current query. */
-  const totalFiltered = table.getPrePaginationRowModel().rows.length;
-  const pageCount = Math.max(1, Math.ceil(totalFiltered / pageSize));
-  // Clamped for the render pass where `totalFiltered` has already shrunk but
-  // the reset effect above has not yet run — without this the label reads
-  // "Page 9 of 2" for one frame.
-  const safePageIndex = Math.min(pageIndex, pageCount - 1);
   const rangeStart = totalFiltered === 0 ? 0 : safePageIndex * pageSize + 1;
   const rangeEnd = Math.min((safePageIndex + 1) * pageSize, totalFiltered);
   const rendered = table.getRowModel().rows.length;
@@ -1141,13 +1248,27 @@ export function TaskTable({
         //     one, and capping it there would put a scrollbar on a list that
         //     has nothing to scroll. At 20+ the cap is what keeps the page
         //     itself from growing and pushing the footer off-screen.
+        //
+        // THE CAP IS MEASURED, AND IT IS NOT SET HERE. It was `max-h-[600px]`,
+        // and 600 is a guess about the room left below the toolbar above —
+        // which moves with the window width, because the filter chips wrap.
+        // When the guess ran taller than the real gap, the last few rows and
+        // the footer under them sat below the fold, and `overscroll-behavior:
+        // contain` on this very element meant a wheel gesture would not chain
+        // out to the page to reach them (Manan, 2026-09-16: "last 3,4 rows I
+        // can't see … I scroll down but I can't").
+        // TableViewportSizer now measures this wrapper — and every other
+        // table's — against the window and subtracts the footer below, writing
+        // `--table-scroll-max-h` that globals.css reads. Nothing to set here,
+        // and nothing to keep in step when the toolbar above changes.
+        //
         // `max-h`, deliberately, NOT a fixed `h-`: a short list must shrink to
         // its rows rather than leave a tall empty box below the last one.
         // The header row is `sticky top-0 z-20` (see the <th> below), so it
         // stays put while rows move under it.
         // `overscroll-x-contain` stops a sideways fling from also triggering the
         // browser's back-navigation gesture.
-        className={`table-scroll overflow-x-auto overflow-y-auto overscroll-x-contain ${pageSize > 10 ? "max-h-[600px]" : ""}`}
+        className="table-scroll overflow-x-auto overflow-y-auto overscroll-x-contain"
       >
       <table className="min-w-full">
         <thead>
@@ -2322,6 +2443,18 @@ function ColumnsMenu({ table }: { table: TableInstance<TaskListRow> }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuLabel>Show Columns</DropdownMenuLabel>
+        {/* Show all / Hide all across the optional columns. `toggleVisibility`
+            sets through a functional update, so a loop over the list is safe —
+            each call sees the previous one's result. */}
+        <SelectAllBar
+          compact
+          className="mb-1"
+          count={cols.filter((c) => c.getIsVisible()).length}
+          total={cols.length}
+          emptyLabel="No columns shown"
+          onSelectAll={() => cols.forEach((c) => c.toggleVisibility(true))}
+          onClear={() => cols.forEach((c) => c.toggleVisibility(false))}
+        />
         {cols.map((c) => (
           <DropdownMenuItem
             key={c.id}
@@ -2354,8 +2487,8 @@ function TaskCard({
 }: {
   row: TaskListRow;
   employees: { id: string; name: string }[];
-  /** `managedIds` — everyone below the viewer. The table no longer shows the
-   *  Initiator Status column, but the board still rules with it. */
+  /** `managedIds` — everyone below the viewer, so the doer's manager can rule
+   *  on the Initiator Status. Omitted → only admin / initiator can. */
   me: { id: string; isAdmin: boolean; canChangeDoer?: boolean; managedIds?: string[] };
   statusLabels: StatusLabels;
   statusTones: StatusTones;

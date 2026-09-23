@@ -24,6 +24,7 @@ import {
 } from "./parent-pickers";
 import { useRecentPlan } from "./use-recent-plan";
 import type { PlanRow, EmployeeOption } from "./plan-board";
+import { CompactSelect } from "@/components/ui/compact-select";
 
 /**
  * Project Plan — BULK UPLOAD.
@@ -606,25 +607,19 @@ export function PlanBulkUpload({
                             )}
                           </Td>
                           <Td>
-                            <select
+                            <CompactSelect
                               value={r.ownerId ?? ""}
-                              onChange={(e) => {
-                                const id = e.target.value;
+                              onChange={(id) => {
                                 editRow(r.key, {
                                   ownerId: id || null,
                                   ownerName: employees.find((x) => x.id === id)?.name ?? "",
                                 });
                               }}
                               aria-label={`Owner, row ${r.sourceRow}`}
-                              className="w-full rounded-md border border-hairline-strong bg-white px-1.5 py-1 text-[12.5px] font-semibold text-ink-strong outline-none focus:border-[#E10600]"
-                            >
-                              <option value="">— none —</option>
-                              {employees.map((e) => (
-                                <option key={e.id} value={e.id}>
-                                  {e.name}
-                                </option>
-                              ))}
-                            </select>
+                              placeholder="— none —"
+                              className="w-full rounded-md border border-hairline-strong bg-white px-1.5 py-1 text-[12.5px] font-semibold text-ink-strong"
+                              options={employees.map((e) => ({ value: e.id, label: e.name }))}
+                            />
                           </Td>
                           <Td>
                             <input

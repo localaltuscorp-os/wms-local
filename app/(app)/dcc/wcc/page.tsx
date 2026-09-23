@@ -2,7 +2,7 @@ import { CalendarCheck2 } from "lucide-react";
 import { requireUser } from "@/lib/auth/current";
 import { PageShell } from "@/components/layout/page-shell";
 import { localDateString } from "@/lib/format";
-import { addDays, shortDay } from "@/lib/compliance/schedule";
+import { addDays } from "@/lib/compliance/schedule";
 import { loadComplianceBoard } from "@/lib/queries/compliance-board";
 import { ComplianceBoard } from "@/components/compliance/compliance-board";
 import { ScopePicker, WccViewBar } from "@/components/compliance/compliance-controls";
@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 export default async function WccPage({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string; end?: string; who?: string }>;
+  searchParams: Promise<{ days?: string; end?: string; who?: string; status?: string; find?: string }>;
 }) {
   const me = await requireUser();
   const sp = await searchParams;
@@ -51,13 +51,7 @@ export default async function WccPage({
         <span className="grid h-10 w-10 place-items-center rounded-xl" style={{ background: "#FEE2E2", color: "#A80400" }}>
           <CalendarCheck2 className="h-5 w-5" />
         </span>
-        <div className="mr-auto min-w-0">
-          <h1 className="text-[22px] font-black tracking-tight text-ink-strong">WCC — Weekly Compliance Checklist</h1>
-          <p className="text-[13px] text-ink-muted">
-            {days === 1 ? shortDay(end) : `${shortDay(from)} – ${shortDay(end)}`}
-            {end === today ? " · up to today" : ""} — mark each one as you do it; the actual date is recorded against its deadline.
-          </p>
-        </div>
+        <h1 className="mr-auto min-w-0 text-[22px] font-black tracking-tight text-ink-strong">WCC — Weekly Compliance Checklist</h1>
         <ScopePicker picker={board.picker} who={board.who} meId={me.id} />
       </header>
 
@@ -69,12 +63,15 @@ export default async function WccPage({
         kind="wcc"
         rows={board.rows}
         groups={board.groups}
-        summary={board.summary}
         multiPerson={board.multiPerson}
         manageable={board.manageable}
         defaultOwnerId={board.who === "me" || board.who === "team" ? me.id : board.who}
         today={today}
         viewerId={me.id}
+        /* Deep links from the Compliance Dashboard: a figure you click opens
+           this board already showing exactly the rows behind it. */
+        initialStatuses={sp.status ? sp.status.split(",") : undefined}
+        initialQuery={sp.find}
       />
     </PageShell>
   );

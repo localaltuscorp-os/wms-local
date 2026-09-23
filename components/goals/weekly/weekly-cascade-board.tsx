@@ -730,7 +730,6 @@ export function WeeklyCascadeBoard({
             goals={pagedGoals}
             canWrite
             isAdmin={me.isAdmin}
-            meId={me.id}
             roster={roster}
             areaOptions={areaOptions}
             measureOptions={measureOptions}

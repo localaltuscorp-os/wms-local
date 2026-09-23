@@ -62,7 +62,8 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   admin: "/accounts",
   employees: "/attendance",
   hr: "/hr",
-  sales: "/outstanding",
+  // The room opens on People Gives now that Outstanding has gone to Billing.
+  sales: "/people-gives",
   training: "/training",
   accounts: "/accounts",
   events: "/events",
@@ -307,13 +308,18 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
     return "hr";
   }
 
-  // Sales — collections & relationships
+  // Sales — relationships.
+  //
+  // `/outstanding` and `/ambassadors` USED TO BE HERE and are not any more
+  // (2026-09-21): both moved into Billing and live at `/billing/outstanding`
+  // and `/billing/ambassadors`, which the Billing branch below already
+  // claims by its `/billing` prefix. Recorded rather than deleted silently —
+  // the next person looking for where `/outstanding` resolves should find
+  // the answer here instead of concluding it fell through to the hub.
   if (
-    p.startsWith("/outstanding") ||
     p.startsWith("/participant-breakthrough") ||
     p.startsWith("/record-reference") ||
-    p.startsWith("/people-gives") ||
-    p.startsWith("/ambassadors")
+    p.startsWith("/people-gives")
   ) {
     return "sales";
   }

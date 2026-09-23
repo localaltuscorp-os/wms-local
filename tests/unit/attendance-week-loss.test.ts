@@ -226,7 +226,11 @@ describe("labels", () => {
     expect(hoursLabel(260)).toBe("4h 20m");
     expect(hoursLabel(120)).toBe("2h");
     expect(hoursLabel(45)).toBe("45m");
-    expect(weekLabel("2026-08-10", "2026-08-16")).toBe("10 Aug – 16 Aug 2026");
+    // DD-MMM-YYYY, the app-wide format, with BOTH ends carrying their own
+    // year — the old single trailing year came from the range END and dated
+    // the Monday a year late across a New Year boundary.
+    expect(weekLabel("2026-08-10", "2026-08-16")).toBe("10-Aug-2026 – 16-Aug-2026");
+    expect(weekLabel("2025-12-29", "2026-01-04")).toBe("29-Dec-2025 – 04-Jan-2026");
   });
 
   it("formats rupees in Indian grouping, whole", () => {

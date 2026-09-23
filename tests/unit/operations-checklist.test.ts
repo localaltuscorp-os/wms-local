@@ -254,7 +254,11 @@ describe("checklistProgress", () => {
 });
 
 describe("the Doer Status vocabulary", () => {
-  it("is the WMS Tasks doer list, and a fresh row is Not Started", () => {
+  it("is the WMS Tasks seven, and a fresh row is Not Started", () => {
+    // SEVEN since `abandoned` joined DOER_TASK_STATUSES — a doer's report
+    // that they are not going to do this, unrelated to the Recycle Bin
+    // marker of the same name. The checklist reads the shared list, so it
+    // gains the value with every other module.
     expect([...CHECK_STATUSES]).toEqual([
       "dont_know",
       "not_started",
@@ -262,8 +266,6 @@ describe("the Doer Status vocabulary", () => {
       "follow_up",
       "need_info",
       "done",
-      // Joined the doer axis with the two-axis split — "I am not going to do
-      // this" is a report, not a ruling. See lib/status/axes.ts.
       "abandoned",
     ]);
     expect(DEFAULT_STATUS).toBe("not_started");

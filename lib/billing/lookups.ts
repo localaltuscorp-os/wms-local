@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Employee } from "@/db/schema";
+import type { LookupCategory } from "@/lib/billing/lookup-categories";
 
 /**
  * THE DROPDOWN MASTER'S REGISTRY.
@@ -20,13 +21,12 @@ import type { Employee } from "@/db/schema";
  * ADDING A LIST is adding an entry here. No migration: `kind` is just text.
  */
 
-export type LookupCategory =
-  | "Customer"
-  | "People"
-  | "Commercial Terms"
-  | "Banking"
-  | "Location & Currency"
-  | "Descriptions";
+/* The category names live in a client-safe module so the master screen (a
+   client component) can read the order without pulling this server-only file
+   into the browser bundle. Re-exported here so every existing import of
+   `LookupCategory` / `LOOKUP_CATEGORIES` from this file keeps working. */
+export { LOOKUP_CATEGORIES } from "@/lib/billing/lookup-categories";
+export type { LookupCategory } from "@/lib/billing/lookup-categories";
 
 export interface LookupList {
   /** Stored in `billing_lookups.kind`. Never change one after it has options. */
@@ -298,14 +298,7 @@ export const LOOKUP_LISTS: LookupList[] = [
   },
 ];
 
-export const LOOKUP_CATEGORIES: LookupCategory[] = [
-  "Customer",
-  "People",
-  "Commercial Terms",
-  "Banking",
-  "Location & Currency",
-  "Descriptions",
-];
+
 
 export function lookupList(kind: string): LookupList | undefined {
   return LOOKUP_LISTS.find((l) => l.kind === kind);

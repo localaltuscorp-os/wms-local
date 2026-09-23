@@ -398,10 +398,7 @@ export function CustomerKycForm({
               ))}
             </Select>
           </Field>
-          <Field
-            label="State"
-            hint={gstState ? "Taken from the GSTIN — the first two digits are the state code." : undefined}
-          >
+          <Field label="State">
             {gstState ? (
               <div className={READONLY_BOX}>{gstState.name}</div>
             ) : (

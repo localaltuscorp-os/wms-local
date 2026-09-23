@@ -31,11 +31,16 @@ const BUCKETS = [
   { key: "latePenalty", label: "Late Penalty", color: "var(--color-slate)", deep: "var(--color-slate-deep)" },
 ] as const;
 
-/** Compact ₹ for hero tiles: crore / lakh / grouped. */
+/**
+ * The hero tiles print the WHOLE figure — "Rs. 10,12,11,999", not "Rs. 10.12 Cr"
+ * (Manan, 2026-09-15).
+ *
+ * A tile reading "Rs. 1.24 Cr" of salary lost is a number nobody can check
+ * against a payslip, which is the only thing that makes it worth showing.
+ * Retained as a named wrapper because six tiles call it and the name still says
+ * what it is for.
+ */
 function compactInr(n: number): string {
-  const abs = Math.abs(n);
-  if (abs >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(2)} Cr`;
-  if (abs >= 1_00_000) return `₹${(n / 1_00_000).toFixed(2)} L`;
   return formatInr(n);
 }
 
@@ -215,7 +220,7 @@ export function FinanceDashboard({ data }: { data: FinanceAttendanceAnalytics })
         />
         <KpiTile
           index={1}
-          label="Absence ₹"
+          label="Absence Rs."
           value={compactInr(bucketTotals.absence)}
           accent="var(--color-altus-red)"
           accentDeep="var(--color-altus-red-deep)"
@@ -223,7 +228,7 @@ export function FinanceDashboard({ data }: { data: FinanceAttendanceAnalytics })
         />
         <KpiTile
           index={2}
-          label="Unpaid leave ₹"
+          label="Unpaid leave Rs."
           value={compactInr(bucketTotals.unpaidLeave)}
           accent="var(--color-orange)"
           accentDeep="var(--color-orange-deep)"
@@ -231,7 +236,7 @@ export function FinanceDashboard({ data }: { data: FinanceAttendanceAnalytics })
         />
         <KpiTile
           index={3}
-          label="Half-day ₹"
+          label="Half-day Rs."
           value={compactInr(bucketTotals.halfDay)}
           accent="var(--color-amber)"
           accentDeep="var(--color-amber-deep)"
@@ -239,7 +244,7 @@ export function FinanceDashboard({ data }: { data: FinanceAttendanceAnalytics })
         />
         <KpiTile
           index={4}
-          label="Late penalty ₹"
+          label="Late penalty Rs."
           value={compactInr(bucketTotals.latePenalty)}
           accent="var(--color-slate)"
           accentDeep="var(--color-slate-deep)"
@@ -302,7 +307,7 @@ export function FinanceDashboard({ data }: { data: FinanceAttendanceAnalytics })
 
         <Card
           title="Payroll Loss by Function"
-          subtitle="Total ₹ lost per Function (top 12)"
+          subtitle="Total Rs. lost per Function (top 12)"
           icon={<BadgeIndianRupee size={18} strokeWidth={2.4} />}
         >
           {deptBars.length > 0 ? (
@@ -355,7 +360,7 @@ export function FinanceDashboard({ data }: { data: FinanceAttendanceAnalytics })
         </div>
       </Card>
 
-      {/* ── Per-employee ₹ table ────────────────────────────────────── */}
+      {/* ── Per-employee Rs. table ────────────────────────────────────── */}
       <Card
         title="Salary Lost by Person"
         subtitle="Highest loss first · click a row for the daily log"
@@ -370,7 +375,7 @@ export function FinanceDashboard({ data }: { data: FinanceAttendanceAnalytics })
                 <Th align="right">Half</Th>
                 <Th align="right">LWP</Th>
                 <Th align="right">Late → cut</Th>
-                <Th align="right">Per-day ₹</Th>
+                <Th align="right">Per-day Rs.</Th>
                 <Th align="right">Salary lost</Th>
                 <Th align="right">Projected pay</Th>
               </tr>
