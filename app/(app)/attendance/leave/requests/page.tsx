@@ -79,6 +79,18 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
       : Promise.resolve([]),
   ]);
 
+  // The status cards describe the same filtered population as the table, but
+  // deliberately ignore the current status tab so they remain useful ways to
+  // move between the reviewer queues.
+  const allRows = await listLeaveRequestsForReview(scope, {
+    status: "all",
+    employeeId,
+    departmentId,
+    kind,
+    from,
+    to,
+  });
+
   const today = localDateString(me.timezone || "Asia/Kolkata");
   const paidRequesterIds = [
     ...new Set(rows.filter((r) => r.kind === "paid").map((r) => r.employeeId)),
@@ -100,12 +112,18 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
   );
   const balances: Record<string, ReviewBalance> = Object.fromEntries(balanceEntries);
 
-  const pendingCount = rows.filter((r) => r.status === "pending").length;
+  const pendingCount = allRows.filter((r) => r.status === "pending").length;
+  const statusCounts = {
+    all: allRows.length,
+    pending: pendingCount,
+    approved: allRows.filter((r) => r.status === "approved").length,
+    rejected: allRows.filter((r) => r.status === "rejected").length,
+  };
 
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <PageShell>
+      <PageShell width="full">
         <PageCommandBar
           title="Leave Requests"
           hint={
@@ -124,6 +142,7 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
 
         <LeaveRequestsClient
           rows={rows}
+          statusCounts={statusCounts}
           balances={balances}
           employeeOptions={employeeOptions}
           departmentOptions={departmentOptions}

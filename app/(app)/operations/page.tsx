@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
-import { OPERATIONS_AREAS, OPERATIONS_LANDING_AREA } from "@/lib/operations/nav";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +32,5 @@ export const dynamic = "force-dynamic";
  */
 export default async function OperationsPage() {
   await requireWorkspace("operations");
-  const landing =
-    OPERATIONS_AREAS.find((a) => a.id === OPERATIONS_LANDING_AREA) ?? OPERATIONS_AREAS[0]!;
-  redirect(landing.href);
+  redirect("/operations/dashboard");
 }

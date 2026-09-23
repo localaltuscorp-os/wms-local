@@ -30,7 +30,7 @@ export default async function ModuleBackupsPage({
   searchParams: Promise<{ drive?: string; as?: string }>;
 }) {
   const me = await requireUser();
-  if (!canManageModuleBackups(me)) notFound();
+  if (!(await canManageModuleBackups(me))) notFound();
 
   const sp = await searchParams;
   const [settings, states, grants, recentRuns, roster] = await Promise.all([

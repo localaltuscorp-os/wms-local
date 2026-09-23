@@ -37,7 +37,7 @@ export default async function SalaryProfilesPage() {
   return (
     <AdminSection
       eyebrow="Admin · Salary"
-      title="Salary Profiles"
+      title="Salary Breakup"
       subtitle={`${rows.length} active employees · ${withPay} with pay set · Set each person's employee type & pay (CTC, hourly or fixed-fee), TDS, PT-exemption, designation, paying entity and probation, and record monthly advances.`}
       icon={Wallet}
       stats={[

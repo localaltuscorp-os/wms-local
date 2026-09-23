@@ -62,13 +62,13 @@ import {
   type IncentiveNotificationMeta,
 } from "@/lib/incentive/notifications/kinds";
 import {
-  audienceGroupOf,
   diffCatalog,
   isEligibleFor,
   planCatalogNotifications,
   type AudienceEmployee,
   type CatalogSnapshot,
 } from "@/lib/incentive/notifications/eligibility";
+import { isIntern, resolveEmployeeType } from "@/lib/incentive/master";
 import {
   INCENTIVE_EMAIL_TEMPLATES,
   buildCatalogNotification,
@@ -98,18 +98,22 @@ const salesDetails = {
   incentive_date: "2026-09-10",
 };
 
+// The default is a SELECTED_EMPLOYEES scheme with nobody named yet — the
+// post-0244 shape. A snapshot with no `applicability` is a LEGACY one, and the
+// tests that exercise that path set it to null explicitly.
 const snap = (over: Partial<CatalogSnapshot> = {}): CatalogSnapshot => ({
   name: "Key Note", description: "Deliver a keynote", amount: 500,
-  salesEligible: false, internsEligible: true, notes: null, active: true, ...over,
+  salesEligible: false, internsEligible: true, notes: null, active: true,
+  applicability: "SELECTED_EMPLOYEES", ...over,
 });
 
 const people: AudienceEmployee[] = [
-  { id: "intern-1", isActive: true, employmentStatus: "active", designation: "Intern" },
-  { id: "intern-off", isActive: false, employmentStatus: "active", designation: "Intern" },
-  { id: "intern-former", isActive: true, employmentStatus: "former", designation: "Intern" },
-  { id: "sales-1", isActive: true, employmentStatus: "active", designation: "Business Development Manager" },
-  { id: "sales-2", isActive: true, employmentStatus: "active", designation: null },
-  { id: "admin-actor", isActive: true, employmentStatus: "active", designation: "Operations Consultant" },
+  { id: "intern-1", isActive: true, employmentStatus: "active", employeeType: "intern", functionId: "dept-sales" },
+  { id: "intern-off", isActive: false, employmentStatus: "active", employeeType: "intern", functionId: "dept-sales" },
+  { id: "intern-former", isActive: true, employmentStatus: "former", employeeType: "intern", functionId: "dept-sales" },
+  { id: "sales-1", isActive: true, employmentStatus: "active", employeeType: "employee", functionId: "dept-sales" },
+  { id: "sales-2", isActive: true, employmentStatus: "active", employeeType: "employee", functionId: "dept-marketing" },
+  { id: "admin-actor", isActive: true, employmentStatus: "active", employeeType: "employee", functionId: "dept-ops" },
 ];
 
 // ── Vocabulary ────────────────────────────────────────────────────────────────
@@ -185,47 +189,64 @@ describe("notification links", () => {
 // ── Eligibility ───────────────────────────────────────────────────────────────
 
 describe("who an Incentive Master change reaches", () => {
-  it("classifies interns by designation and everyone else as sales", () => {
-    expect(audienceGroupOf("Intern")).toBe("interns");
-    expect(audienceGroupOf("Management Trainee")).toBe("interns");
-    expect(audienceGroupOf("Assistant Vice President - Sales")).toBe("sales");
-    expect(audienceGroupOf(null)).toBe("sales");
+  it("resolves an intern from the designation master's flag, overridable per person", () => {
+    // `audienceGroupOf` matched a designation's TEXT; 0244 materialised that into
+    // `designations.employee_type`, so the same cases are now about the two
+    // functions that replaced it.
+    expect(isIntern({ employeeType: resolveEmployeeType({ designationType: "intern" }) })).toBe(true);
+    expect(isIntern({ employeeType: resolveEmployeeType({ override: "intern", designationType: "employee" }) })).toBe(true);
+    expect(isIntern({ employeeType: resolveEmployeeType({ override: "employee", designationType: "intern" }) })).toBe(false);
+    expect(isIntern({ employeeType: resolveEmployeeType({ designationType: null }) })).toBe(false);
   });
 
-  it("never includes inactive or former employees", () => {
-    const s = snap({ salesEligible: true, internsEligible: true });
-    expect(isEligibleFor(s, people[1]!)).toBe(false);
-    expect(isEligibleFor(s, people[2]!)).toBe(false);
-    expect(isEligibleFor(snap({ active: false }), people[0]!)).toBe(false);
+  it("never includes inactive or former employees — nor an intern, even company-wide", () => {
+    // A LEGACY snapshot: no applicability, so `applicabilityOf` reconstructs
+    // ALL_EMPLOYEES from the flag — the widest audience there is.
+    const s = snap({ applicability: null, salesEligible: true, internsEligible: true });
+    expect(isEligibleFor(s, people[3]!)).toBe(true); // the one current, non-intern employee
+    expect(isEligibleFor(s, people[0]!)).toBe(false); // intern-1: an intern
+    expect(isEligibleFor(s, people[1]!)).toBe(false); // intern-off: inactive, and an intern
+    expect(isEligibleFor(s, people[2]!)).toBe(false); // intern-former: left
+    expect(isEligibleFor(snap({ active: false }), people[3]!)).toBe(false);
   });
 
   it("new incentive → only eligible active employees, not the admin who added it", () => {
-    const plan = planCatalogNotifications({ eventType: "created", before: null, after: snap(), employees: people, actorId: "admin-actor" });
-    expect(plan.created).toEqual(["intern-1"]);
-    const both = planCatalogNotifications({
-      eventType: "created", before: null, after: snap({ salesEligible: true }), employees: people, actorId: "admin-actor",
-    });
-    expect(both.created.sort()).toEqual(["intern-1", "sales-1", "sales-2"]);
-  });
-
-  it("eligibility removed → removed notices; newly eligible → new-incentive notices; nobody else", () => {
     const plan = planCatalogNotifications({
-      eventType: "updated", before: snap(), after: snap({ internsEligible: false, salesEligible: true }),
+      eventType: "created", before: null, after: snap({ eligibleEmployeeIds: ["sales-1"] }),
       employees: people, actorId: "admin-actor",
     });
-    expect(plan.removed).toEqual(["intern-1"]);
-    expect(plan.newlyEligible.sort()).toEqual(["sales-1", "sales-2"]);
+    expect(plan.created).toEqual(["sales-1"]);
+    const both = planCatalogNotifications({
+      eventType: "created", before: null, after: snap({ applicability: "ALL_EMPLOYEES" }),
+      employees: people, actorId: "admin-actor",
+    });
+    // Two, not three: company-wide now reaches every current employee, and
+    // `intern-1` is an intern, so the old intern audience is empty.
+    expect(both.created.sort()).toEqual(["sales-1", "sales-2"]);
+  });
+
+  it("a scope change → removed notices for the people it dropped, new-incentive notices for the ones it gained", () => {
+    const plan = planCatalogNotifications({
+      eventType: "updated",
+      before: snap({ applicability: "FUNCTION", functionIds: ["dept-sales"] }),
+      after: snap({ applicability: "FUNCTION", functionIds: ["dept-marketing"] }),
+      employees: people, actorId: "admin-actor",
+    });
+    expect(plan.removed).toEqual(["sales-1"]);
+    expect(plan.newlyEligible).toEqual(["sales-2"]);
     expect(plan.updated).toEqual([]);
   });
 
   it("material edit → the people still eligible; ineligible people hear nothing", () => {
+    const before = snap({ eligibleEmployeeIds: ["sales-1"] });
     const plan = planCatalogNotifications({
-      eventType: "updated", before: snap(), after: snap({ amount: 750 }), employees: people, actorId: null,
+      eventType: "updated", before, after: snap({ eligibleEmployeeIds: ["sales-1"], amount: 750 }),
+      employees: people, actorId: null,
     });
-    expect(plan.updated).toEqual(["intern-1"]);
+    expect(plan.updated).toEqual(["sales-1"]);
     expect(plan.removed).toEqual([]);
     expect(plan.newlyEligible).toEqual([]);
-    expect(diffCatalog(snap(), snap({ amount: 750 }))).toEqual([
+    expect(diffCatalog(before, snap({ eligibleEmployeeIds: ["sales-1"], amount: 750 }))).toEqual([
       { field: "amount", label: "Amount", from: "Rs. 500", to: "Rs. 750" },
     ]);
   });
@@ -237,8 +258,11 @@ describe("who an Incentive Master change reaches", () => {
   });
 
   it("deleted → everyone who was eligible", () => {
-    const plan = planCatalogNotifications({ eventType: "deleted", before: snap(), after: null, employees: people, actorId: null });
-    expect(plan.deleted).toEqual(["intern-1"]);
+    const plan = planCatalogNotifications({
+      eventType: "deleted", before: snap({ eligibleEmployeeIds: ["sales-1"] }), after: null,
+      employees: people, actorId: null,
+    });
+    expect(plan.deleted).toEqual(["sales-1"]);
   });
 });
 
@@ -291,7 +315,9 @@ describe("decision notifications", () => {
     expect(notDue.kind).toBe("incentive_request_not_due");
     expect(incentiveEmailContent(notDue.kind, notDue.meta)).toBeNull(); // in-app only
     const reversed = decision("reverse", "Client cancelled", { newStatus: "reversed" })!;
-    expect(incentiveEmailContent(reversed.kind, reversed.meta)!.quote).toEqual({ label: "Reversal reason", text: "Client cancelled" });
+    // The label is the accounting wording (a "negative payable adjustment");
+    // the note itself is verbatim.
+    expect(incentiveEmailContent(reversed.kind, reversed.meta)!.quote).toEqual({ label: "Adjustment reason", text: "Client cancelled" });
   });
 
   it("a stored Not Approved notice without its reason renders no email", () => {
@@ -329,7 +355,7 @@ describe("resubmission, catalog and payment notices", () => {
 
   it("new, updated and deleted incentives point at the Incentive Table", () => {
     const created = buildCatalogNotification({ kind: "incentive_created", snapshot: snap(), effectiveDate: "2026-09-15", changes: [] });
-    expect(created.meta).toMatchObject({ incentiveName: "Key Note", amount: 500, eligibleGroups: "Interns", effectiveDate: "2026-09-15", href: "/incentive?view=table" });
+    expect(created.meta).toMatchObject({ incentiveName: "Key Note", amount: 500, eligibleGroups: "No one", effectiveDate: "2026-09-15", href: "/incentive?view=table" });
     const updated = buildCatalogNotification({
       kind: "incentive_updated", snapshot: snap({ amount: 750 }), effectiveDate: "2026-09-15",
       changes: diffCatalog(snap(), snap({ amount: 750 })),

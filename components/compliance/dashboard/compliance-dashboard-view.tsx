@@ -6,15 +6,24 @@ import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import {
   ArrowUpDown,
+  BarChart3,
   CalendarCheck2,
   CalendarRange,
   CircleSlash,
   Clock,
+  Gauge,
   ListChecks,
+  Search,
+  Timer,
   TriangleAlert,
+  UsersRound,
 } from "lucide-react";
+import { DashboardSectionHeader } from "@/components/dashboard/section-header";
+import { SectionIcon } from "@/components/dashboard/section-icon";
+import { SectionDispatch } from "@/components/dashboard/section-dispatch";
 import { PageShell } from "@/components/layout/page-shell";
 import { HBars, type HBarRow } from "@/components/charts/h-bars";
+import type { SectionReport } from "@/lib/reports/section-report";
 import { statusCardTokens, type StatusCardKey } from "@/lib/status-palette";
 import { drillHref, type KpiDrill } from "@/lib/compliance/dashboard";
 import type {
@@ -60,19 +69,19 @@ type SortKey = keyof Pick<
  * which is the darkness that holds up as a fill.
  */
 const STATUS_FILL: Record<string, string> = {
-  unfilled: "#B91C1C", // red-700    — nobody has touched it
-  done: "#059669", // emerald-600
-  abandoned: "#881337", // rose-900  — given up, deliberately
-  need_info: "#DC2626", // red-600
-  need_help: "#DC2626",
-  follow_up: "#B45309", // amber-700
-  follow_up_1: "#B45309",
-  follow_up_2: "#B45309",
-  follow_up_3: "#B45309",
-  initiated: "#B45309",
-  on_hold: "#6B7280",
-  not_started: "#4B5563", // gray-600
-  dont_know: "#6B7280", // gray-500 — "Not Read"
+  unfilled: "var(--color-altus-red)",
+  done: "#64748B",
+  abandoned: "var(--color-altus-red)",
+  need_info: "var(--color-altus-red)",
+  need_help: "var(--color-altus-red)",
+  follow_up: "#94A3B8",
+  follow_up_1: "#94A3B8",
+  follow_up_2: "#94A3B8",
+  follow_up_3: "#94A3B8",
+  initiated: "#94A3B8",
+  on_hold: "#CBD5E1",
+  not_started: "#CBD5E1",
+  dont_know: "#CBD5E1",
 };
 
 /** Minutes as "3h 35m" / "45m" — an hour count is what a workload reads as. */
@@ -129,24 +138,22 @@ export function ComplianceDashboardView({
   const statusBars: HBarRow[] = data.status.map((s) => ({
     label: s.label,
     value: s.count,
-    color: STATUS_FILL[s.status] ?? "#6B7280",
+    color: STATUS_FILL[s.status] ?? "#94A3B8",
   }));
   const missedBars: HBarRow[] = data.mostMissed.map((m) => ({
     label: m.title,
     value: m.missed,
-    color: "#B91C1C",
+    color: "var(--color-altus-red)",
   }));
   const freqBars: HBarRow[] = data.byFrequency.map((f) => ({
     label: f.schedule,
     value: f.ratePct,
-    // Banded, not a ramp: the reader wants "fine / slipping / in trouble",
-    // and a continuous scale makes 71% and 69% look identical.
-    color: f.ratePct >= 90 ? "#059669" : f.ratePct >= 70 ? "#B45309" : "#B91C1C",
+    color: f.ratePct < 70 ? "var(--color-altus-red)" : "#64748B",
   }));
   const loadBars: HBarRow[] = data.minutesLoad.slice(0, 10).map((l) => ({
     label: l.ownerName,
     value: l.minutes,
-    color: "#1d4ed8",
+    color: "#64748B",
   }));
 
   /** Every tile's destination, scope preserved. Null = no honest destination. */
@@ -155,9 +162,37 @@ export function ComplianceDashboardView({
   /** Bars need room per row, but a two-row chart should not reserve 320px. */
   const barsHeight = (n: number) => Math.max(140, Math.min(360, n * 34 + 40));
 
+  const buildReport = React.useCallback((): SectionReport => ({
+    title: "Compliance Dashboard",
+    subtitle: "WCC and MCC compliance snapshot",
+    meta: [
+      { label: "Window", value: windowLabel },
+      { label: "Scope", value: who && who !== "me" ? "Selected employee" : "Current view" },
+    ],
+    summary: `${k.done} of ${k.due} completed · ${k.ratePct}% overall · ${k.onTime} on time`,
+    columns: [
+      { label: "Employee", weight: 2.2 },
+      { label: "Due", align: "right" },
+      { label: "Done", align: "right" },
+      { label: "On time", align: "right" },
+      { label: "Not filled", align: "right", tone: "count" },
+      { label: "Lapsed", align: "right", tone: "count" },
+      { label: "Rate", align: "right" },
+    ],
+    rows: people.map((person) => [
+      person.ownerName,
+      String(person.due),
+      String(person.done),
+      String(person.onTime),
+      String(person.notFilled),
+      String(person.lapsed),
+      `${person.ratePct}%`,
+    ]),
+  }), [k.done, k.due, k.onTime, k.ratePct, people, who, windowLabel]);
+
   return (
-    <PageShell as="div" width="full" py={false} className="pb-20">
-      <header className="mb-5 flex flex-wrap items-center gap-3">
+    <PageShell as="div" width="full" py={false} className="bg-white pb-20 pt-7 max-md:pt-5">
+      <header className="mb-7 flex flex-wrap items-center gap-3 border-b border-slate-100 pb-5">
         <span
           className="grid h-10 w-10 place-items-center rounded-xl"
           style={{ background: "#FEE2E2", color: "#A80400" }}
@@ -165,14 +200,14 @@ export function ComplianceDashboardView({
           <ListChecks className="h-5 w-5" />
         </span>
         <div className="mr-auto min-w-0">
-          <h1 className="text-[22px] font-black tracking-tight text-ink-strong">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Compliance Dashboard
           </h1>
-          <p className="text-[13px] text-ink-muted">
-            {windowLabel} — every figure is the WCC and MCC rows themselves, counted.
-          </p>
         </div>
-        {scopePicker}
+        <div className="flex shrink-0 items-center gap-2">
+          <SectionDispatch report={buildReport} />
+          {scopePicker}
+        </div>
       </header>
 
       {/* ONE LINE. Six fixed columns from `lg` up, so the strip never wraps onto
@@ -231,8 +266,8 @@ export function ComplianceDashboardView({
 
       {/* WCC vs MCC is a COMPARISON OF TWO THINGS, which is not a chart. Two
           stat rows say it in less space and with no scale to misread. */}
-      <div className="mt-5 grid gap-3 lg:grid-cols-2">
-        <Section title="Weekly vs Monthly" hint="The two checklists, side by side">
+      <div className="mt-8 flex flex-col gap-8">
+        <Section title="Weekly vs Monthly" hint="The two checklists, side by side" icon={BarChart3}>
           <div className="grid grid-cols-2 gap-3">
             <KindPanel name="WCC — Weekly" kpis={data.wcc} href="/dcc/wcc" />
             <KindPanel name="MCC — Monthly" kpis={data.mcc} href="/dcc/mcc" />
@@ -242,6 +277,7 @@ export function ComplianceDashboardView({
         <Section
           title="Where everything stands"
           hint="Every row in the window, by its Doer Status"
+          icon={Gauge}
         >
           {statusBars.length === 0 ? (
             <Empty>Nothing was due in this window.</Empty>
@@ -263,12 +299,10 @@ export function ComplianceDashboardView({
             />
           )}
         </Section>
-      </div>
-
-      <div className="mt-3 grid gap-3 lg:grid-cols-2">
         <Section
           title="What keeps breaking"
           hint="Compliances missed most often, counted across everyone"
+          icon={TriangleAlert}
         >
           {missedBars.length === 0 ? (
             <Empty>Nothing was missed. Every compliance due was done.</Empty>
@@ -293,6 +327,7 @@ export function ComplianceDashboardView({
 
         <Section
           title="Compliance rate by frequency"
+          icon={CalendarRange}
           hint="Which cadence people keep up with — worst first"
         >
           {freqBars.length === 0 ? (
@@ -309,12 +344,11 @@ export function ComplianceDashboardView({
             />
           )}
         </Section>
-      </div>
 
       {data.minutesLoad.length > 0 && (
-        <div className="mt-3">
           <Section
             title="Compliance time load"
+            icon={Timer}
             hint="Minutes of compliance carried per person — workload, not performance"
           >
             <HBars
@@ -323,11 +357,32 @@ export function ComplianceDashboardView({
               rightLabel={(r) => hm(r.value)}
             />
           </Section>
-        </div>
       )}
 
-      <section className="mt-5" aria-label="Compliance by person">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <section aria-label="Compliance by person">
+        <DashboardSectionHeader
+          icon={<SectionIcon icon={UsersRound} tone="red" />}
+          title="Compliance by person"
+          subtitle="Both checklists together"
+          className="mb-4"
+          inset="px-0"
+          actions={
+            <div className="relative flex h-9 w-[240px] items-center rounded-lg border border-hairline bg-surface-card px-2.5 max-md:w-full">
+              <Search className="pointer-events-none ml-0.5 mr-2 size-4 shrink-0 text-ink-subtle" aria-hidden />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setQuery("");
+                }}
+                placeholder="Search name"
+                aria-label="Filter by name"
+                className="min-w-0 flex-1 border-0 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-subtle"
+              />
+            </div>
+          }
+        />
+        <div className="hidden">
           <div className="min-w-0">
             <h2 className="text-[15px] font-black uppercase tracking-[0.08em] text-ink-strong">
               Compliance by person
@@ -422,6 +477,7 @@ export function ComplianceDashboardView({
           </table>
         </div>
       </section>
+      </div>
     </PageShell>
   );
 }
@@ -430,19 +486,26 @@ export function ComplianceDashboardView({
 function Section({
   title,
   hint,
+  icon,
   children,
 }: {
   title: string;
   hint: string;
+  icon: typeof BarChart3;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-hairline bg-surface-card p-4 shadow-sm">
-      <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-ink-strong">
-        {title}
-      </h2>
-      <p className="mb-3 text-[12px] text-ink-muted">{hint}</p>
-      {children}
+    <section>
+      <DashboardSectionHeader
+        icon={<SectionIcon icon={icon} tone="red" />}
+        title={title}
+        subtitle={hint}
+        className="mb-4"
+        inset="px-0"
+      />
+      <div className="rounded-xl border border-hairline bg-surface-card p-5 shadow-sm md:p-6">
+        {children}
+      </div>
     </section>
   );
 }

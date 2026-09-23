@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { listSalaryProfiles } from "@/lib/queries/salary";
-import { getCombinedEarnings } from "@/lib/salary/combined-earnings";
-import { renderCombinedEarningsPdf } from "@/lib/salary/combined-earnings-pdf";
+import { loadSalarySlipData } from "@/lib/salary/salary-slip-data";
+import { renderSalarySlipPdf } from "@/lib/salary/salary-slip-pdf";
 import { sendMonthlySlipsEmail } from "@/lib/email/report-emails";
 import { employeeEmailTargets } from "@/lib/email/recipients";
 
 /**
  * 12th-of-month SLIPS email (Sir's rule 8) — each active employee gets their
  * salary + incentive + attendance slip for the just-paid month, as a single
- * combined-earnings PDF attachment (reuses `renderCombinedEarningsPdf`).
+ * three-page salary-slip PDF attachment (reuses `renderSalarySlipPdf`).
  *
  * Registered `0 5 12 * *` (12th, 10:30 IST). LIVE — the old
  * `MONTHLY_SLIPS_EMAIL_ON` kill-switch is gone (Sir: no switches), so the slips
@@ -48,9 +48,9 @@ async function run(request: Request): Promise<NextResponse> {
   for (const p of profiles) {
     processed++;
     try {
-      const data = await getCombinedEarnings(p.employeeId, month, p.name);
-      const pdf = await renderCombinedEarningsPdf(data, { generatedBy: "Altus Corp" });
-      const filename = `Altus-EarningsSlip-${(data.employeeName || p.name).replace(/\s+/g, "")}-${month}.pdf`;
+      const data = await loadSalarySlipData(p.employeeId, month);
+      const pdf = await renderSalarySlipPdf(data, { generatedBy: "Altus Corp" });
+      const filename = `Altus-SalarySlip-${(data.identity.name || p.name).replace(/\s+/g, "")}-${month}.pdf`;
       // Work + personal + login, deduped — one employee's slip to one
       // employee's own addresses.
       const to = employeeEmailTargets(p);
@@ -60,7 +60,7 @@ async function run(request: Request): Promise<NextResponse> {
       }
       const res = await sendMonthlySlipsEmail({
         recipient: { email: to, name: p.name },
-        monthLabel: data.monthLabel,
+        monthLabel: data.identity.monthLabel,
         totalEarnings: data.totalEarnings,
         pdf,
         filename,

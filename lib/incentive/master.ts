@@ -1,12 +1,23 @@
 import {
+  EMPLOYEE_TYPE_LABELS,
+  EMPLOYEE_TYPES,
+  INCENTIVE_APPLICABILITY_LABELS,
+  INCENTIVE_APPLICABILITIES,
   INCENTIVE_DURATION_LABELS,
   INCENTIVE_DURATIONS,
   INCENTIVE_TYPE_LABELS,
   INCENTIVE_TYPES,
+  type EmployeeTypeCode,
+  type IncentiveApplicability,
   type IncentiveDuration,
   type IncentiveType,
 } from "@/db/enums";
-import { looksLikeInternDesignation } from "@/lib/employees/employee-code";
+import {
+  isIntern,
+  isEmployeeTypeCode,
+  resolveEmployeeType,
+  EMPLOYEE_KIND_OPTIONS,
+} from "@/lib/employees/employee-type";
 
 /**
  * THE INCENTIVE MASTER — every rule about it, in one pure module.
@@ -18,26 +29,31 @@ import { looksLikeInternDesignation } from "@/lib/employees/employee-code";
  * write path re-applies the same predicates on the server.
  *
  * ── THE ELIGIBILITY RULE, WRITTEN DOWN ONCE ────────────────────────────────
- * There are two mechanisms, for a reason that is historical and deliberate:
+ * A scheme stores HOW its audience is decided — `applicability`:
  *
- *   · GROUP FLAGS (`salesEligible` / `internsEligible`) — the original model.
- *     Every employee falls in one group, read off their designation, because the
- *     WMS has no "sales" flag on a person.
- *   · NAMED EMPLOYEES (`incentive_eligibility`, migration 0232) — what the
- *     Incentive Chart brief asks for: add and remove specific people, each with
- *     an effective date.
+ *   · ALL_EMPLOYEES      — company-wide. What a new scheme defaults to.
+ *   · FUNCTION           — the functions in `incentive_function_scope`.
+ *   · SELECTED_EMPLOYEES — the people in `incentive_eligibility`, each with an
+ *                          effective date, so "who was eligible on 3 Jun" is
+ *                          answerable and a removal is recorded, not overwritten.
  *
- * `resolveEligibility` below is the whole rule: WHERE NAMED ROWS EXIST THEY
- * GOVERN; where an incentive has none, the group flags still apply exactly as
- * they did before. That is what lets per-employee eligibility be introduced
- * without a backfill that would have to guess which of eighteen people the
- * "Sales Eligible" tick meant, and without silently changing who is eligible
- * for anything on the day it ships.
+ * Three gates sit in front of that switch, in this order, and every caller gets
+ * them for free because they are inside this module:
  *
- * An incentive is only ever an offer to somebody if it is ALSO on offer at all
- * — active, and not past its Valid Until — and the person is a current
- * employee. Those gates are inside `resolveEligibility`, so no caller can apply
- * an eligibility list without them.
+ *   1. the scheme must be ON OFFER (active, and not past Valid Until);
+ *   2. the person must be a CURRENT EMPLOYEE (active, employed, real account);
+ *   3. the person must NOT BE AN INTERN. Interns cannot earn an incentive in any
+ *      mode — which is why `resolveEmployeeType` exists: intern status comes from
+ *      the DESIGNATION master (`designations.employee_type`), overridable per
+ *      person (`employees.employee_type`), and never from matching a designation's
+ *      text at runtime. The one place that text was ever matched is migration
+ *      0244, which materialised it into the column.
+ *
+ * `resolveEligibility` folds a roster through `resolveIncentiveEligibility`, so
+ * the count on the admin screen, the audience for a notification and the list an
+ * employee sees cannot disagree. The old `salesEligible` / `internsEligible`
+ * flags are LEGACY inputs to snapshots written before 0244 (`modeOf` still reads
+ * them for those) — nothing new should read them for a decision.
  */
 
 export { INCENTIVE_DURATIONS, INCENTIVE_DURATION_LABELS };
@@ -207,14 +223,26 @@ export function hasExpired(
    WHO IS ELIGIBLE
    ════════════════════════════════════════════════════════════════════════════ */
 
-/** The three facts that decide whether a person can be eligible at all. */
+/** The facts that decide whether a person can be eligible at all. */
 export interface EligibleCandidate {
   id: string;
   isActive: boolean;
   employmentStatus: string;
   accountType?: string | null;
-  designation?: string | null;
+  /**
+   * The EFFECTIVE employee type — already folded through `resolveEmployeeType`
+   * by whoever loaded the row (`employees.employee_type` ?? their designation's
+   * flag). Passing the raw override here would silently ignore the designation
+   * master, so the query layer resolves it, not this module.
+   */
+  employeeType?: string | null;
+  /** `employees.department_id` — the Function, for FUNCTION-scoped schemes. */
+  functionId?: string | null;
 }
+
+/** A candidate the per-person rule can decide (adds nothing today, but names
+ *  the contract so callers and tests read the same type). */
+export type IncentiveApplicant = EligibleCandidate;
 
 /**
  * A CURRENT employee — the only kind that may be given new eligibility.
@@ -234,11 +262,40 @@ export function isCurrentEmployee(e: EligibleCandidate): boolean {
   return e.accountType == null || e.accountType === "employee";
 }
 
-export type IncentiveAudienceGroup = "sales" | "interns";
+/* ── EMPLOYEE TYPE: THE INTERN RULE ────────────────────────────────────────
+   Interns cannot earn incentives. That single fact needs one source, or the
+   answer depends on which screen you ask: the designation master carries the
+   company rule, and an individual employee may override it. Both are ROWS, not
+   strings — no code here reads a designation's name, because a rename would
+   then silently change who is paid. */
 
-/** Which group flag applies to a person, read off their designation. */
-export function audienceGroupOf(designation: string | null | undefined): IncentiveAudienceGroup {
-  return looksLikeInternDesignation(designation) ? "interns" : "sales";
+export { EMPLOYEE_TYPES, EMPLOYEE_TYPE_LABELS };
+export type { EmployeeTypeCode };
+
+/**
+ * The effective employee type and the intern predicate are defined in
+ * `lib/employees/employee-type.ts` — it is a fact about an employee that this
+ * module happens to be the first consumer of — and RE-EXPORTED here so every
+ * caller of the eligibility rule still imports one module. See that file for
+ * why intern status is a master flag and never a designation's name.
+ */
+export { resolveEmployeeType, isIntern, isEmployeeTypeCode, EMPLOYEE_KIND_OPTIONS };
+
+/* ── APPLICABILITY ─────────────────────────────────────────────────────────
+   The stored vocabulary lives in db/enums.ts; re-exported here so every caller
+   of the rule imports its vocabulary from the same place as the rule. */
+
+export { INCENTIVE_APPLICABILITIES, INCENTIVE_APPLICABILITY_LABELS };
+export type { IncentiveApplicability };
+
+export function isIncentiveApplicability(v: unknown): v is IncentiveApplicability {
+  return typeof v === "string" && (INCENTIVE_APPLICABILITIES as readonly string[]).includes(v);
+}
+
+export function incentiveApplicabilityLabel(v: string | null | undefined): string {
+  return isIncentiveApplicability(v)
+    ? INCENTIVE_APPLICABILITY_LABELS[v]
+    : INCENTIVE_APPLICABILITY_LABELS.ALL_EMPLOYEES;
 }
 
 /** One row of `incentive_eligibility`, as the rules need it. */
@@ -267,80 +324,186 @@ export function isCurrentGrant(w: EligibilityWindow): boolean {
   return w.removedEffectiveFrom == null;
 }
 
-/**
- * WHO IS ELIGIBLE FOR THIS INCENTIVE ON THIS DATE. The rule, in one function.
- *
- * Returns the employee ids, and says which mechanism decided them so a caller
- * can explain itself in the UI without re-deriving the rule.
- */
-export function resolveEligibility(input: {
-  incentive: {
-    active: boolean;
-    validUntil: string | null;
-    salesEligible: boolean;
-    internsEligible: boolean;
-  };
-  /** Every eligibility row for this incentive, removed ones included. */
-  windows: EligibilityWindow[];
-  employees: EligibleCandidate[];
-  today?: string;
-  /**
-   * Is this incentive restricted to a named list? Pass `!appliesToAll` from
-   * the catalog row whenever you have it.
-   *
-   * WHY THIS EXISTS. The table this rule was written for kept removed people
-   * as history rows, so "has it ever had a row" answered the question. The
-   * table that shipped (Rohan's, migration 0216) DELETES removed people and
-   * records "restricted or not" in `incentive_catalog.applies_to_all` instead.
-   * Inferring from rows there would turn "removed the last person" into "has
-   * never been restricted" and hand the incentive to the whole group — the
-   * exact failure the comment below warns about. Omitted, the old inference
-   * applies, which is what the pure unit tests exercise.
-   */
-  named?: boolean;
-}): { employeeIds: string[]; mode: "named" | "groups"; onOffer: boolean } {
-  const today = input.today ?? todayIst();
-  const onOffer = isIncentiveOnOffer(input.incentive, today);
-  // NAMED ROWS GOVERN WHERE THEY EXIST — and "exist" means the incentive has
-  // ever had one, not that one is live today. Otherwise removing the last
-  // eligible person would fall back to the group flags and hand the incentive
-  // to everybody, which is the opposite of what the removal meant.
-  const named = input.named ?? input.windows.length > 0;
-  const mode: "named" | "groups" = named ? "named" : "groups";
-  if (!onOffer) return { employeeIds: [], mode, onOffer };
-
-  const current = input.employees.filter(isCurrentEmployee);
-  if (mode === "named") {
-    const live = new Set(
-      input.windows.filter((w) => windowCoversDate(w, today)).map((w) => w.employeeId),
-    );
-    return { employeeIds: current.filter((e) => live.has(e.id)).map((e) => e.id), mode, onOffer };
-  }
-
-  const ids = current
-    .filter((e) =>
-      audienceGroupOf(e.designation) === "interns"
-        ? input.incentive.internsEligible
-        : input.incentive.salesEligible,
-    )
-    .map((e) => e.id);
-  return { employeeIds: ids, mode, onOffer };
+/** The incentive facts the rule reads. `applicability` is optional ONLY so a
+ *  `incentive_catalog_events` snapshot written before 0244 still resolves — see
+ *  `applicabilityOf` for how those are read. */
+export interface IncentiveEligibilityShape {
+  active: boolean;
+  validUntil: string | null;
+  applicability?: string | null;
+  /** The functions a FUNCTION-scoped scheme covers. Read only in that mode. */
+  functionIds?: readonly string[] | null;
+  /** LEGACY (pre-0244 snapshots). See `applicabilityOf`. */
+  salesEligible?: boolean;
+  internsEligible?: boolean;
 }
 
-/** How the Eligible column describes an incentive's audience. */
-export function eligibilityLabel(input: {
-  mode: "named" | "groups";
-  count: number;
-  salesEligible: boolean;
-  internsEligible: boolean;
-}): string {
-  if (input.mode === "named") {
-    return input.count === 0 ? "No one" : `${input.count} employee${input.count === 1 ? "" : "s"}`;
+/**
+ * Which rule this scheme uses, INCLUDING for rows written before 0244.
+ *
+ * A legacy snapshot has no `applicability`, so its audience is reconstructed
+ * from the facts 0244 itself used to translate:
+ *
+ *   · any eligibility row ever  → SELECTED_EMPLOYEES (named rows governed, and
+ *     removing the last one did NOT fall back to the group flags);
+ *   · `salesEligible` true      → ALL_EMPLOYEES. The old groups are binary and
+ *     read off the designation, so that flag already meant "every non-intern";
+ *   · otherwise                 → SELECTED_EMPLOYEES, i.e. nobody. This is the
+ *     honest reading of an interns-only or no-flag scheme now that interns
+ *     cannot earn at all.
+ */
+export function applicabilityOf(
+  incentive: IncentiveEligibilityShape,
+  windows: EligibilityWindow[],
+): IncentiveApplicability {
+  if (isIncentiveApplicability(incentive.applicability)) return incentive.applicability;
+  if (windows.length > 0) return "SELECTED_EMPLOYEES";
+  return incentive.salesEligible === true ? "ALL_EMPLOYEES" : "SELECTED_EMPLOYEES";
+}
+
+/**
+ * WHY somebody is or is not eligible — the single answer every screen shows.
+ *
+ * The reason is part of the return value rather than something a caller derives
+ * from the mode, so "Not eligible" is never printed where the true reason is
+ * "you are an intern" or "the scheme has expired".
+ */
+export type EligibilityReason =
+  | "all"
+  | "function"
+  | "selected"
+  | "intern"
+  | "inactive"
+  | "not_on_offer"
+  | "not_your_function"
+  | "not_selected";
+
+/**
+ * IS THIS ONE PERSON ELIGIBLE FOR THIS ONE INCENTIVE TODAY? The rule.
+ *
+ * Order matters and is not arbitrary: the gates run most-general-first so the
+ * reason returned is the most specific TRUE one. An intern at a company whose
+ * scheme has expired is told the scheme expired, not that they are an intern —
+ * and an intern under a live scheme is told they are an intern, which is the
+ * fact an administrator can act on.
+ */
+export function resolveIncentiveEligibility(input: {
+  incentive: IncentiveEligibilityShape;
+  /** Every eligibility row for this incentive, removed ones included. */
+  windows: EligibilityWindow[];
+  employee: IncentiveApplicant;
+  today?: string;
+}): { eligible: boolean; reason: EligibilityReason } {
+  const today = input.today ?? todayIst();
+
+  if (!isIncentiveOnOffer(input.incentive, today)) {
+    return { eligible: false, reason: "not_on_offer" };
   }
-  if (input.salesEligible && input.internsEligible) return "Sales and Interns";
-  if (input.salesEligible) return "Sales";
-  if (input.internsEligible) return "Interns";
-  return "No one";
+  if (!isCurrentEmployee(input.employee)) {
+    return { eligible: false, reason: "inactive" };
+  }
+  // INTERNS CANNOT EARN AN INCENTIVE, IN ANY MODE — including a mode that names
+  // them. A grant row survives (history is never deleted), it just stops being
+  // an offer, which is why this check sits INSIDE the rule rather than in the
+  // picker that creates grants.
+  if (isIntern(input.employee)) {
+    return { eligible: false, reason: "intern" };
+  }
+
+  switch (applicabilityOf(input.incentive, input.windows)) {
+    case "ALL_EMPLOYEES":
+      return { eligible: true, reason: "all" };
+    case "FUNCTION": {
+      const fns = input.incentive.functionIds ?? [];
+      const mine = input.employee.functionId ?? null;
+      // No function on either side is NOT a match: a scheme scoped to Sales must
+      // not silently cover somebody whose Function is unset.
+      if (mine != null && fns.includes(mine)) return { eligible: true, reason: "function" };
+      return { eligible: false, reason: "not_your_function" };
+    }
+    case "SELECTED_EMPLOYEES": {
+      const live = input.windows.some(
+        (w) => w.employeeId === input.employee.id && windowCoversDate(w, today),
+      );
+      return live ? { eligible: true, reason: "selected" } : { eligible: false, reason: "not_selected" };
+    }
+  }
+}
+
+/**
+ * WHO IS ELIGIBLE FOR THIS INCENTIVE ON THIS DATE.
+ *
+ * Folds the roster through the per-person rule above, so this can never answer
+ * differently from the My Incentives list. Returns the employee ids and the mode
+ * that decided them, so the caller can label the row without re-deriving it.
+ */
+export function resolveEligibility(input: {
+  incentive: IncentiveEligibilityShape;
+  /** Every eligibility row for this incentive, removed ones included. */
+  windows: EligibilityWindow[];
+  employees: IncentiveApplicant[];
+  today?: string;
+}): { employeeIds: string[]; mode: "all" | "functions" | "selected"; onOffer: boolean } {
+  const today = input.today ?? todayIst();
+  const onOffer = isIncentiveOnOffer(input.incentive, today);
+  const applied = applicabilityOf(input.incentive, input.windows);
+  const mode = modeOf(applied);
+
+  if (!onOffer) return { employeeIds: [], mode, onOffer };
+
+  const employeeIds = input.employees
+    .filter(
+      (e) => resolveIncentiveEligibility({ incentive: input.incentive, windows: input.windows, employee: e, today }).eligible,
+    )
+    .map((e) => e.id);
+  return { employeeIds, mode, onOffer };
+}
+
+/** The applicability as the three UI modes. Named so the mapping lives here. */
+export function modeOf(a: IncentiveApplicability): "all" | "functions" | "selected" {
+  if (a === "ALL_EMPLOYEES") return "all";
+  if (a === "FUNCTION") return "functions";
+  return "selected";
+}
+
+/**
+ * WHY, in words, for the employee-facing table. `functionNames` is passed by the
+ * caller that has them (the query layer joins the function master); without them
+ * the label degrades to the generic form rather than printing an id.
+ */
+export function eligibilityReasonLabel(reason: EligibilityReason): string {
+  switch (reason) {
+    case "all":               return "Company-wide";
+    case "function":          return "In your function";
+    case "selected":          return "Selected employee";
+    case "intern":            return "Interns are not eligible";
+    case "inactive":          return "Not a current employee";
+    case "not_on_offer":      return "Not on offer";
+    case "not_your_function": return "Not your function";
+    case "not_selected":      return "Not selected";
+  }
+}
+
+/**
+ * How the Eligible column describes an incentive's audience.
+ *
+ * The FUNCTION form names the functions ("Function: Sales, Marketing") because
+ * "Function" alone would make two differently-scoped schemes look identical on
+ * the list. It falls back to the count when the caller has not joined the
+ * function master, rather than printing ids.
+ */
+export function eligibilityLabel(input: {
+  mode: "all" | "functions" | "selected";
+  count: number;
+  functionNames?: readonly string[] | null;
+}): string {
+  if (input.mode === "all") return "All employees";
+  if (input.mode === "functions") {
+    const names = (input.functionNames ?? []).filter(Boolean);
+    if (names.length === 0) return "Function: none selected";
+    return `Function: ${names.join(", ")}`;
+  }
+  return input.count === 0 ? "No one" : `${input.count} employee${input.count === 1 ? "" : "s"}`;
 }
 
 /* ════════════════════════════════════════════════════════════════════════════

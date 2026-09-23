@@ -150,5 +150,5 @@ export const CLAIM_CARD_FILTER: Record<keyof ClaimKpiFigures, ClaimFilter> = {
    `.brand-btn` in globals.css, and the Goals canvas that set the precedent).
    Everything inside the page — buttons, pills, focus rings — inherits them, so
    the module's colour is now one declaration instead of three. */
-export const CLAIM_ACCENT = "#16a34a";
-export const CLAIM_ACCENT_DEEP = "#15803d";
+export const CLAIM_ACCENT = "#E10600";
+export const CLAIM_ACCENT_DEEP = "#B91C1C";

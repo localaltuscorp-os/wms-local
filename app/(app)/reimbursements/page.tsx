@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
 import { PageCommandBar } from "@/components/layout/page-command-bar";
+import { PageShell } from "@/components/layout/page-shell";
+import { DashboardSectionHeader } from "@/components/dashboard/section-header";
+import { SectionIcon } from "@/components/dashboard/section-icon";
 import { requireUser } from "@/lib/auth/current";
 import { listModuleSubmissions, type ModuleSubmissionRow } from "@/lib/queries/modules";
 import { MODULES } from "@/lib/forms/modules";
@@ -163,24 +166,27 @@ export default async function ReimbursementsPage({ searchParams }: PageProps) {
      on the one button that starts something. */
   const tabStyle = (active: boolean) =>
     active
-      ? { background: "linear-gradient(135deg, #334155, #1e293b)", color: "#fff" }
+      ? { background: "var(--color-altus-red)", color: "#fff" }
       : { background: "transparent", color: "var(--color-ink-soft)" };
 
   return (
-    <>
+    <div className="flex min-h-dvh flex-1 flex-col bg-white">
       <DashboardHeader generatedAt={new Date()} />
       {/* THE MODULE'S GREEN, DECLARED ONCE. Three files each carried their own
           `const GREEN = "#16a34a"` — this page, the claims list and the claim
           dialog. Everything inside now inherits it through the accent variables
           the app already uses for per-module identity (see `.brand-btn` in
           globals.css), so the colour is one declaration instead of three. */}
-      <main
+      <PageShell
+        as="main"
+        width="full"
+        py={false}
         /* `w-full` IS LOAD-BEARING. main is a flex item in a column flex
            container, where `mx-auto` alone shrinks the box to its content
            width and centres it — which is why this page sat at 1119px in a
            1708px shell with ~295px of dead margin down each side, despite
            saying max-w-[1400px]. With w-full, max-w is the real constraint. */
-        className="mx-auto w-full max-w-[1400px] px-8 pt-6 pb-8 max-lg:px-6 max-md:px-4 max-md:pt-5 max-md:pb-6"
+        className="bg-white pb-12 pt-7 max-md:pt-5"
         style={
           {
             "--module-accent": CLAIM_ACCENT,
@@ -193,7 +199,46 @@ export default async function ReimbursementsPage({ searchParams }: PageProps) {
             the same flat command bar as everywhere else now; the state-dependent
             subtitle survives as the inline hint, and all four controls keep
             working unchanged in the action slot. */}
+        <header className="mb-7 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Reimbursements</h1>
+            <p className="text-[13px] font-medium text-ink-muted">
+              {view === "archived"
+                ? "Archived claims"
+                : me.isAdmin
+                  ? `${formatCount(f.pending.count)} ${claimWord(f.pending.count)} pending review.`
+                  : def.subtitle}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2 max-sm:w-full max-sm:justify-start">
+            <Link
+              href={"/reimbursements/dashboard" as Route}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-surface-card px-3 py-2 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+            >
+              <BarChart3 size={14} strokeWidth={2.6} /> Dashboard
+            </Link>
+            {me.isAdmin && (
+              <>
+                <FormEditorDialog
+                  formKey={requestKey("reimbursement")}
+                  formName={`${def.title} request`}
+                  triggerLabel="Claim form"
+                  fields={requestFieldsRaw}
+                />
+                <FormEditorDialog
+                  formKey={adminKey("reimbursement")}
+                  formName={`${def.title} admin fields`}
+                  triggerLabel="Admin fields"
+                  fields={adminFieldsRaw}
+                />
+              </>
+            )}
+            <RbClaimDialog fields={requestFields} productOptions={products} isAdmin={me.isAdmin} />
+          </div>
+        </header>
+
         <PageCommandBar
+          className="hidden"
           title="Reimbursements"
           hint={
             view === "archived"
@@ -258,9 +303,38 @@ export default async function ReimbursementsPage({ searchParams }: PageProps) {
         <RbFilterProvider>
           <RbKpiStrip kpis={kpis} />
 
+          <DashboardSectionHeader
+            icon={<SectionIcon icon={Wallet} tone="red" />}
+            title={view === "archived" ? "Archived claims" : "Claims"}
+            subtitle="Search, sort, and review reimbursement requests."
+            className="hidden"
+            inset="px-0"
+            actions={
+              <div
+                className="inline-flex overflow-hidden rounded-lg bg-surface-card"
+                style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}
+              >
+                <Link
+                  href={def.path as Route}
+                  className="px-3 py-1.5 text-[12px] font-bold transition-colors"
+                  style={tabStyle(view === "active")}
+                >
+                  Active
+                </Link>
+                <Link
+                  href={`${def.path}?view=archived` as Route}
+                  className="px-3 py-1.5 text-[12px] font-bold transition-colors"
+                  style={tabStyle(view === "archived")}
+                >
+                  Archived
+                </Link>
+              </div>
+            }
+          />
+
           {/* ── Active / Archived tabs ── */}
           <div
-            className="mb-5 inline-flex overflow-hidden rounded-pill bg-surface-card"
+            className="hidden"
             style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}
           >
             <Link
@@ -288,9 +362,30 @@ export default async function ReimbursementsPage({ searchParams }: PageProps) {
             view={view}
             attachmentCounts={attachmentCounts}
             myEmployeeId={me.id}
+            headerActions={
+              <div
+                className="inline-flex overflow-hidden rounded-lg bg-surface-card"
+                style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}
+              >
+                <Link
+                  href={def.path as Route}
+                  className="px-3 py-1.5 text-[12px] font-bold transition-colors"
+                  style={tabStyle(view === "active")}
+                >
+                  Active
+                </Link>
+                <Link
+                  href={`${def.path}?view=archived` as Route}
+                  className="px-3 py-1.5 text-[12px] font-bold transition-colors"
+                  style={tabStyle(view === "archived")}
+                >
+                  Archived
+                </Link>
+              </div>
+            }
           />
         </RbFilterProvider>
-      </main>
-    </>
+      </PageShell>
+    </div>
   );
 }

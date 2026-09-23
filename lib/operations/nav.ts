@@ -283,6 +283,7 @@ export const OPERATIONS_AREAS: OperationsArea[] = [
        is the same rule, stated once, and it cannot fall out of date when a
        ninth page is added.) */
     items: [
+      { href: "/training/dashboard", label: "Dashboard", Icon: LayoutDashboard },
       { href: "/training", label: "Library", Icon: GraduationCap, exact: true },
       { href: "/training/calendar", label: "Calendar", Icon: CalendarClock },
       { href: "/training/self-learning", label: "Self-Learning", Icon: BookMarked },
@@ -290,7 +291,6 @@ export const OPERATIONS_AREAS: OperationsArea[] = [
       { href: "/training/obligations", label: "Obligations", Icon: Gauge },
       { href: "/training/induction", label: "Induction", Icon: ListChecks },
       { href: "/training/feedback", label: "Feedback", Icon: MessageSquareHeart },
-      { href: "/training/dashboard", label: "Dashboard", Icon: LayoutDashboard },
     ],
   },
 ];

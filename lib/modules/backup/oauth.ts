@@ -30,7 +30,7 @@ const SCOPES = ["openid", "email", DRIVE_FILE_SCOPE].join(" ");
 async function mayManage(): Promise<"ok" | "login" | "forbidden"> {
   const me = await getCurrentEmployee();
   if (!me) return "login";
-  if (isCandidateAccount(me) || !canManageModuleBackups(me)) return "forbidden";
+  if (isCandidateAccount(me) || !(await canManageModuleBackups(me))) return "forbidden";
   return "ok";
 }
 

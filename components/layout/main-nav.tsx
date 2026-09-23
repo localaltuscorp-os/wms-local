@@ -208,7 +208,7 @@ interface WorkspaceNav {
  * the single lifecycle source (lib/hr/lifecycle.ts).                            */
 type HrSection = "hub" | HrStageKey | "holiday" | "helpdesk";
 
-const HR_HOME: NavItem = { href: "/hr" as Route, label: "HR Home", Icon: Home, exact: true };
+const HR_HOME: NavItem = { href: "/hr" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true };
 
 /** The front-door rail — the eight cards, so the rail is also the switcher. */
 const HR_HUB_NAV: WorkspaceNav = {
@@ -297,11 +297,14 @@ function hrSectionForPath(p: string): HrSection {
  * too — two copies of "what is in Operations" is two chances for them to
  * disagree.                                                                   */
 const OPERATIONS_NAV: WorkspaceNav = {
-  top: OPERATIONS_AREAS.map((a) => ({
-    href: a.href as Route,
-    label: a.label,
-    Icon: a.Icon,
-  })),
+  top: [
+    { href: "/operations/dashboard" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
+    ...OPERATIONS_AREAS.map((a) => ({
+      href: a.href as Route,
+      label: a.label,
+      Icon: a.Icon,
+    })),
+  ],
   /* MASTERS (2026-09-15) — the reference lists behind the areas, as a rail
      section of their own with each topic separate. The rail (drawer variant)
      renders a group as a headed section. See OPERATIONS_MASTERS. */
@@ -488,16 +491,14 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
   hr: HR_HUB_NAV,
   sales: {
     top: [
-      { href: "/ambassadors" as Route, label: "Ambassadors", Icon: Gem },
-      { href: "/people-gives" as Route, label: "People Gives", Icon: Handshake },
-      { href: "/outstanding" as Route, label: "Outstanding", Icon: IndianRupee },
+      { href: "/people-gives" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
       { href: "/participant-breakthrough" as Route, label: "Breakthrough", Icon: Sparkles },
       { href: "/record-reference" as Route, label: "References", Icon: BookMarked },
     ],
     groups: [],
   },
   admin: {
-    top: [{ href: "/admin" as Route, label: "Admin Panel", Icon: ShieldCheck }],
+    top: [{ href: "/admin" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true }],
     groups: [],
   },
   /**
@@ -526,6 +527,10 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
      */
     top: [
       { href: "/incentive" as Route, label: "Dashboard", Icon: LayoutDashboard, tab: "dashboard", tabDefault: true },
+      // MY INCENTIVES (0244) sits second, right after Dashboard: it answers the
+      // employee's own question ("what can I earn?") and needs no admin rights,
+      // which is not true of anything below it.
+      { href: "/incentive" as Route, label: "My Incentives", Icon: Award, tab: "my" },
       { href: "/incentive" as Route, label: "Requests", Icon: ListChecks, tab: "requests" },
       { href: "/incentive" as Route, label: "Targets", Icon: Target, tab: "targets" },
       { href: "/incentive" as Route, label: "Entries", Icon: Table2, tab: "entries", adminOnly: true },
@@ -557,7 +562,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
      * appended to every rail in the app. See IMPORTANT_LINKS_ITEM.
      */
     top: [
-      { href: "/accounts" as Route, label: "Index", Icon: LayoutGrid, exact: true },
+      { href: "/accounts" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
       { href: "/accounts/weekly-checklist" as Route, label: "Weekly CC", Icon: CalendarCheck },
       { href: "/accounts/monthly-quarterly-annual" as Route, label: "Monthly CC", Icon: CalendarRange },
       { href: "/accounts/due-dates" as Route, label: "Due Dates Master", Icon: CalendarClock },
@@ -696,7 +701,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // Projects because it is the only item that answers "what is in this
       // plan?" without a click. The five level items below it slice the same
       // rows by level once you know which branch you want.
-      { href: "/project-plan/views" as Route, label: "Project Views", Icon: Telescope },
+      { href: "/project-plan/views" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
       { href: "/project-plan" as Route, label: "Projects", Icon: FolderTree, exact: true },
       { href: "/project-plan/milestones" as Route, label: "Milestones", Icon: Flag },
       { href: "/project-plan/results" as Route, label: "Results", Icon: Target },
@@ -740,7 +745,14 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       { href: "/goals/monthly" as Route, label: "Monthly Goals", Icon: CalendarRange, canvasOnly: true },
       // Weekly = the REAL weekly board (WeeklyCascadeBoard over weekly_goals,
       // its own week nav). /goals/week is a permanent redirect alias to it.
-      { href: "/goals/weekly" as Route, label: "Weekly Goals", Icon: CalendarCheck },
+      // The team view is nested below this path but has its own rail item.
+      // Exclude it here so exactly one destination is highlighted at a time.
+      {
+        href: "/goals/weekly" as Route,
+        label: "Weekly Goals",
+        Icon: CalendarCheck,
+        not: ["/goals/weekly/team"],
+      },
       // DAILY GOALS — the same page as WMS › Daily Goals, on the same `/my-day`
       // href (Sir 2026-08-20: "keep it right below Weekly Goals"). Deliberately
       // NOT a second route: one planner, one URL, one set of daily_checklist
@@ -772,7 +784,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
   // the boundary (§23).
   productivity: {
     top: [
-      { href: "/productivity" as Route, label: "My Dashboard", Icon: Gauge, exact: true },
+      { href: "/productivity" as Route, label: "Dashboard", Icon: Gauge, exact: true },
       {
         href: "/productivity/team" as Route,
         label: "Team Performance",

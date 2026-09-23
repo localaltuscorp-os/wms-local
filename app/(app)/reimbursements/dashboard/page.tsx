@@ -2,14 +2,23 @@ import * as React from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import {
-  ArrowLeft,
+  ArrowUpRight,
+  BarChart3,
+  CircleDollarSign,
+  LayoutDashboard,
   Receipt,
   CheckCircle2,
   Hourglass,
+  Tags,
+  Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
+import { PageShell } from "@/components/layout/page-shell";
+import { CardGrid } from "@/components/layout/card-grid";
+import { DashboardSectionHeader } from "@/components/dashboard/section-header";
+import { SectionIcon } from "@/components/dashboard/section-icon";
 import { requireUser } from "@/lib/auth/current";
 import { formatInr, formatCount, formatDate } from "@/lib/format";
 import {
@@ -20,8 +29,6 @@ import {
 } from "@/lib/queries/reimbursement-dashboard";
 
 export const dynamic = "force-dynamic";
-
-import { CLAIM_ACCENT, CLAIM_ACCENT_DEEP } from "@/lib/reimbursements/claim-kpis";
 
 type Tone = "slate" | "red" | "green" | "blue" | "amber" | "purple";
 
@@ -41,12 +48,13 @@ function KpiCard({
   sub?: React.ReactNode;
 }) {
   return (
-    <div
-      className="relative block bg-surface-card rounded-section overflow-hidden wg-rise"
+    <Link
+      href={"/reimbursements" as Route}
+      aria-label={`View ${label.toLowerCase()} reimbursement requests`}
+      className="group relative flex min-h-[156px] flex-col overflow-hidden rounded-section bg-surface-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-hairline-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40 wg-rise"
       style={{
         border: "1px solid var(--color-hairline)",
-        boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
-        padding: "16px 18px 15px",
+        boxShadow: "0 14px 30px -26px rgba(15, 23, 42, 0.46)",
       }}
     >
       <span
@@ -56,7 +64,7 @@ function KpiCard({
       />
       <span
         aria-hidden
-        className="absolute right-3 top-3 inline-flex size-8 items-center justify-center rounded-xl"
+        className="absolute right-4 top-4 inline-flex size-9 items-center justify-center rounded-xl"
         style={{
           background: `color-mix(in srgb, var(--color-${tone}) 14%, transparent)`,
           color: `var(--color-${tone}-deep)`,
@@ -65,62 +73,84 @@ function KpiCard({
         <Icon size={16} strokeWidth={2.3} />
       </span>
       <span
-        className="uppercase font-black tracking-[0.08em] leading-none"
-        style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontSize: 12, color: `var(--color-${tone}-deep)` }}
+        className="uppercase font-black tracking-[0.11em] leading-none"
+        style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontSize: 11, color: `var(--color-${tone}-deep)` }}
       >
         {label}
       </span>
       <span
-        className="block mt-2 leading-[0.9] tracking-[-0.035em] tabular-nums text-ink-strong"
-        style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(24px, 1.9vw, 34px)" }}
+        className="mt-5 block leading-none tracking-[-0.04em] tabular-nums text-ink-strong"
+        style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(26px, 2.1vw, 36px)" }}
       >
         {formatInr(block.amount)}
       </span>
-      <span className="block mt-2 font-bold leading-tight" style={{ fontSize: 12, color: "var(--color-ink-subtle)" }}>
+      <span className="mt-auto block border-t border-hairline pt-3 font-bold leading-tight" style={{ fontSize: 12, color: "var(--color-ink-subtle)" }}>
         {formatCount(block.count)} {block.count === 1 ? "request" : "requests"}
         {sub ? <> · {sub}</> : null}
       </span>
-    </div>
+    </Link>
   );
 }
 
-function Panel({
-  title,
-  description,
-  tone = "slate",
-  children,
-}: {
-  title: string;
-  description?: string;
-  tone?: Tone;
-  children: React.ReactNode;
-}) {
+function Panel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <section
-      className="rounded-section bg-surface-card border border-hairline p-7 max-md:p-5 wg-rise"
+      className={`rounded-section border border-hairline bg-surface-card p-5 sm:p-6 wg-rise ${className}`}
       style={{ boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
     >
-      <header className="flex items-start gap-3 mb-5">
-        <span
-          aria-hidden
-          className="mt-1 h-7 w-[3px] shrink-0 rounded-full"
-          style={{ background: `linear-gradient(180deg, var(--color-${tone}), var(--color-${tone}-deep))` }}
-        />
-        <div className="min-w-0">
-          <h2 className="text-display-lg text-ink-strong">{title}</h2>
-          {description && <p className="text-body-lg text-ink-subtle mt-0.5">{description}</p>}
-        </div>
-      </header>
       {children}
     </section>
   );
 }
 
-function EmptyLine({ children }: { children: React.ReactNode }) {
+function BreakdownCard({
+  title,
+  description,
+  tone,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  tone: Tone;
+  icon: LucideIcon;
+  children: React.ReactNode;
+}) {
   return (
-    <p className="font-semibold" style={{ fontSize: 14, color: "var(--color-ink-subtle)" }}>
+    <Panel>
+      <header className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-3">
+        <span
+          aria-hidden
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border"
+          style={{ background: `color-mix(in srgb, var(--color-${tone}) 12%, transparent)`, color: `var(--color-${tone}-deep)`, borderColor: `color-mix(in srgb, var(--color-${tone}) 20%, transparent)` }}
+        >
+          <Icon size={18} strokeWidth={2.4} />
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-[17px] font-bold tracking-tight text-slate-900">{title}</h3>
+          <p className="mt-0.5 text-[12px] font-medium text-ink-subtle">{description}</p>
+        </div>
+      </header>
       {children}
-    </p>
+    </Panel>
+  );
+}
+
+function EmptyState({ children, tone = "slate" }: { children: React.ReactNode; tone?: Tone }) {
+  return (
+    <div
+      className="flex min-h-[132px] flex-col items-center justify-center rounded-xl border border-dashed px-5 text-center"
+      style={{ borderColor: `color-mix(in srgb, var(--color-${tone}) 27%, var(--color-hairline))`, background: `color-mix(in srgb, var(--color-${tone}) 4%, transparent)` }}
+    >
+      <span
+        aria-hidden
+        className="mb-3 inline-flex size-9 items-center justify-center rounded-xl"
+        style={{ background: `color-mix(in srgb, var(--color-${tone}) 13%, transparent)`, color: `var(--color-${tone}-deep)` }}
+      >
+        <Receipt size={17} strokeWidth={2.2} />
+      </span>
+      <p className="max-w-[260px] text-[13px] font-semibold leading-relaxed text-ink-subtle">{children}</p>
+    </div>
   );
 }
 
@@ -142,7 +172,7 @@ function BarList({
 }) {
   const shown = rows.slice(0, limit);
   const max = shown.reduce((m, r) => Math.max(m, r.amount), 0);
-  if (shown.length === 0) return <EmptyLine>Nothing here yet.</EmptyLine>;
+  if (shown.length === 0) return <EmptyState>Data will appear here as reimbursement requests are processed.</EmptyState>;
   return (
     <ol className="space-y-3">
       {shown.map((r) => {
@@ -180,7 +210,7 @@ function BarList({
 
 /** Month-over-month vertical bar chart (paid + submitted), pure divs. */
 function TrendChart({ rows }: { rows: MonthPoint[] }) {
-  if (rows.length === 0) return <EmptyLine>No monthly activity yet.</EmptyLine>;
+  if (rows.length === 0) return <EmptyState tone="red">No monthly activity yet. Your reimbursement trend will appear here.</EmptyState>;
   const max = rows.reduce((m, r) => Math.max(m, r.paid, r.submitted), 0) || 1;
   return (
     <div>
@@ -242,45 +272,47 @@ export default async function Page() {
     data.submitted.amount > 0 ? Math.round((data.approved.amount / data.submitted.amount) * 100) : 0;
 
   return (
-    <>
+    <div className="flex min-h-dvh flex-1 flex-col bg-white">
       <DashboardHeader generatedAt={new Date()} />
-      {/* Same two fixes as the list page: `w-full` so `max-w` is the real
-          constraint (main is a flex item in a column flex container, where
-          `mx-auto` alone shrink-wraps the box to its content and leaves dead
-          margin down both sides), and the SAME 1400 measure, so the page edges
-          do not jump when you click through from Reimbursements. The module's
-          green is declared here too, so the dashboard inherits the identity
-          rather than falling back to brand red. */}
-      <main
-        className="mx-auto w-full max-w-[1400px] px-8 max-md:px-4 pt-8 pb-16"
-        style={
-          {
-            "--module-accent": CLAIM_ACCENT,
-            "--module-accent-deep": CLAIM_ACCENT_DEEP,
-          } as React.CSSProperties
-        }
-      >
-        <header className="mb-6 flex items-end justify-between gap-3 flex-wrap">
+      <PageShell width="full">
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
-            <Link
-              href={"/reimbursements" as Route}
-              className="inline-flex items-center gap-1.5 text-[13px] font-bold text-ink-subtle transition-colors hover:text-[color:var(--color-altus-red)] mb-1.5"
-            >
-              <ArrowLeft size={14} strokeWidth={2.6} />
-              Reimbursements
-            </Link>
-            <h1 className="text-display-lg text-ink-strong">Reimbursement Dashboard</h1>
-            <p className="text-body-lg text-ink-subtle mt-1">
-              {data.scopeAll
-                ? "Org-wide expense reimbursements - submitted, approved, paid."
-                : "Your reimbursement requests at a glance."}
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">Reimbursement Dashboard</h1>
+            <p className="mt-1 text-[13px] font-medium text-ink-subtle">
+              {data.scopeAll ? "Company reimbursement activity and payouts." : "Your reimbursement activity and payouts."}
             </p>
           </div>
+          <Link
+            href={"/reimbursements" as Route}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
+          >
+            All requests
+            <ArrowUpRight size={15} strokeWidth={2.5} />
+          </Link>
         </header>
 
-        <div className="space-y-7">
-          {/* KPI cards */}
-          <div className="grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
+        <nav aria-label="Reimbursement dashboard sections" className="mb-8 flex gap-2 overflow-x-auto border-b border-slate-100 pb-3">
+          {[
+            ["Summary", "summary"],
+            ["Monthly flow", "flow"],
+            ["Breakdown", "breakdown"],
+            ["Recent", "recent"],
+          ].map(([label, id]) => (
+            <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700">
+              {label}
+            </a>
+          ))}
+        </nav>
+
+        <div className="flex flex-col gap-8 md:gap-10">
+          <section id="summary" className="scroll-mt-28">
+            <DashboardSectionHeader
+              icon={<SectionIcon icon={LayoutDashboard} tone="red" />}
+              title="Reimbursement summary"
+              subtitle="Submitted, approved, pending, and paid reimbursement value."
+              inset="px-0"
+            />
+            <CardGrid min={220} maxCols={4} gap="1rem">
             <KpiCard
               label="Submitted"
               block={data.submitted}
@@ -293,14 +325,14 @@ export default async function Page() {
               block={data.approved}
               tone="green"
               icon={CheckCircle2}
-              sub={<span style={{ color: "var(--color-green-deep)" }}>{approvalRate}% of Rs. submitted</span>}
+              sub={<span style={{ color: "var(--color-green-deep)" }}>{data.submitted.amount > 0 ? `${approvalRate}% of submitted value` : "No submitted value yet"}</span>}
             />
             <KpiCard
               label="Pending"
               block={data.pending}
               tone="amber"
               icon={Hourglass}
-              sub={<span style={{ color: "var(--color-ink-soft)" }}>awaiting review</span>}
+              sub={<span style={{ color: "var(--color-ink-soft)" }}>Awaiting review</span>}
             />
             <KpiCard
               label="Paid"
@@ -309,41 +341,57 @@ export default async function Page() {
               icon={Wallet}
               sub={<span style={{ color: "var(--color-blue-deep)" }}>{formatInr(data.monthPaid.amount)} this month</span>}
             />
-          </div>
+            </CardGrid>
+          </section>
 
-          {/* Trend */}
-          <Panel title="Month-over-Month" description="Reimbursed (paid) vs submitted Rs. per month - last 12 months" tone="red">
-            <TrendChart rows={data.trend} />
-          </Panel>
+          <section id="flow" className="scroll-mt-28">
+            <DashboardSectionHeader
+              icon={<SectionIcon icon={BarChart3} tone="red" />}
+              title="Monthly flow"
+              subtitle="Submitted and reimbursed value across the last 12 months."
+              inset="px-0"
+            />
+            <Panel><TrendChart rows={data.trend} /></Panel>
+          </section>
 
-          {/* By status + by payment method */}
-          <div className="grid grid-cols-2 gap-3 max-lg:grid-cols-1">
-            <Panel title="By Status" description="Where the money sits" tone="amber">
+          <section id="breakdown" className="scroll-mt-28">
+            <DashboardSectionHeader
+              icon={<SectionIcon icon={CircleDollarSign} tone="red" />}
+              title="Reimbursement breakdown"
+              subtitle="Status, payment method, people, and expense-head distribution."
+              inset="px-0"
+            />
+            <div className="grid grid-cols-2 gap-5 max-lg:grid-cols-1">
+            <BreakdownCard title="Status breakdown" description="Where each reimbursement sits today" tone="amber" icon={CircleDollarSign}>
               <BarList rows={data.byStatus} toneFor={(n) => TONE_BY_STATUS[n] ?? "slate"} />
-            </Panel>
-            <Panel title="By Payment Method" description="How approved expenses were paid" tone="blue">
+            </BreakdownCard>
+            <BreakdownCard title="Payment methods" description="How approved expenses were paid" tone="blue" icon={Wallet}>
               <BarList rows={data.byPaymentMethod} toneFor={() => "blue"} />
-            </Panel>
-          </div>
-
-          {/* By person + by expense head */}
-          <div className="grid grid-cols-2 gap-3 max-lg:grid-cols-1">
-            <Panel
-              title="By Person"
-              description={data.scopeAll ? "Who has reimbursed the most" : "Your totals"}
+            </BreakdownCard>
+            <BreakdownCard
+              title={data.scopeAll ? "People" : "Your reimbursements"}
+              description={data.scopeAll ? "Who has submitted the highest value" : "Your reimbursement totals by request"}
               tone="red"
+              icon={Users}
             >
               <BarList rows={data.byPerson} toneFor={() => "red"} limit={10} />
-            </Panel>
-            <Panel title="By Expense Head" description="Accounting category split" tone="purple">
+            </BreakdownCard>
+            <BreakdownCard title="Expense heads" description="Accounting category split" tone="purple" icon={Tags}>
               <BarList rows={data.byExpenseHead} toneFor={() => "purple"} limit={10} />
-            </Panel>
-          </div>
+            </BreakdownCard>
+            </div>
+          </section>
 
-          {/* Recent */}
-          <Panel title="Recent Submissions" description="Latest 12 requests" tone="slate">
+          <section id="recent" className="scroll-mt-28">
+            <DashboardSectionHeader
+              icon={<SectionIcon icon={Receipt} tone="red" />}
+              title="Recent submissions"
+              subtitle="The latest 12 reimbursement requests."
+              inset="px-0"
+            />
+            <Panel>
             {data.recent.length === 0 ? (
-              <EmptyLine>No reimbursement requests yet.</EmptyLine>
+              <EmptyState>No reimbursement requests yet. New claims will appear here as soon as they are submitted.</EmptyState>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
@@ -414,8 +462,9 @@ export default async function Page() {
               </div>
             )}
           </Panel>
+          </section>
         </div>
-      </main>
-    </>
+      </PageShell>
+    </div>
   );
 }

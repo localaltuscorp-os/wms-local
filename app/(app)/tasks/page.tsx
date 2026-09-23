@@ -13,11 +13,11 @@ import { listTasks, listDistinctSubjects } from "@/lib/queries/tasks";
 import type { TaskListFilters } from "@/lib/types";
 import { listActiveClientNames } from "@/lib/queries/clients";
 import { listWeekGoalsAsTasks } from "@/lib/weekly-goals/as-task-row";
-import { getDownlineIds, goalScopeFor } from "@/lib/weekly-goals/hierarchy";
+import { goalScopeFor } from "@/lib/weekly-goals/hierarchy";
 import { parseTaskFilters } from "@/lib/task-filters";
+import { currentTaskVisibility } from "@/lib/tasks/scope";
 import { requireUser } from "@/lib/auth/current";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
-import { defaultScopeId, opensOnEveryone } from "@/lib/auth/default-scope";
 import { TASK_STATUSES, isDeprecatedStatus } from "@/db/enums";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 
@@ -39,16 +39,16 @@ export default async function TasksPage({ searchParams }: PageProps) {
   // passed down as a boolean — the table is a client component and has no
   // business knowing emails or the org chart. The server actions re-check it.
   const mayChangeDoer = await canChangeDoerFor(me);
-  // Everyone below the viewer — the doer's manager may rule on a task's
-  // Initiator Status. The server action re-checks it.
-  const managedIds = await getDownlineIds(me.id).catch(() => [] as string[]);
   const rawTask = Array.isArray(sp.task) ? sp.task[0] : sp.task;
   const selectedTaskId = rawTask && TASK_ID.test(rawTask) ? rawTask : null;
-  // Everyone opens on their OWN tasks; only a super-admin opens on the
-  // company. See lib/auth/default-scope.ts — one rule, seven call sites.
-  const filters = parseTaskFilters(sp, /*archived*/ false, {
-    defaultDoerId: defaultScopeId(me),
-  });
+  // EVERYONE defaults to "assigned to me" when no explicit ?emp= is set —
+  // admins and team leaders included. Being an admin is not a reason to open
+  // on the whole organisation's work, and a list that starts as everybody's
+  // makes "My Tasks" something a person has to go and find. "All" widens to
+  // their permitted scope (the people below them, plus any grant); the ceiling
+  // itself is applied in the query layer, not here.
+  const visibility = await currentTaskVisibility();
+  const filters = parseTaskFilters(sp, /*archived*/ false, { defaultDoerId: me.id });
 
   // This week's goals for the view's scope, surfaced as a pinned group above
   // the task table (design §10). Honours the shared client/subject/priority
@@ -151,8 +151,11 @@ export default async function TasksPage({ searchParams }: PageProps) {
         subjects={subjects}
         statusOptions={statusOptions}
         clients={clients}
-        me={{ id: me.id, isAdmin: me.isAdmin, isSuperAdmin: opensOnEveryone(me) }}
-        offersScopeChoice
+        me={{ id: me.id, isAdmin: me.isAdmin }}
+        taskScope={{
+          expandable: Boolean(visibility?.canExpand),
+          label: visibility?.scopeLabel ?? "Only you",
+        }}
         assigneeMode={filters.assigneeMode}
         taskCount={rows.length}
         initial={{
@@ -176,7 +179,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
         rows={rows}
         filters={filters}
         employees={allEmployees}
-        me={{ id: me.id, isAdmin: me.isAdmin, canChangeDoer: mayChangeDoer, managedIds }}
+        me={{ id: me.id, isAdmin: me.isAdmin, canChangeDoer: mayChangeDoer }}
         statusLabels={statusLabels}
         statusTones={statusTones}
         subjects={subjects}

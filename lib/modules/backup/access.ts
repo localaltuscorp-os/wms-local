@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import type { Employee } from "@/db/schema";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 import { moduleBackupGrants } from "./schema";
 
 /**
@@ -33,7 +33,7 @@ function isOwner(email: string | null | undefined): boolean {
 
 /** May this person export THIS module? */
 export async function canExportModule(me: Employee, moduleId: string): Promise<boolean> {
-  if (isOwner(me.email) || isSuperAdmin(me.email)) return true;
+  if (isOwner(me.email) || (await isMasterAdmin(me.email))) return true;
   const [grant] = await db
     .select({ id: moduleBackupGrants.id })
     .from(moduleBackupGrants)
@@ -44,7 +44,7 @@ export async function canExportModule(me: Employee, moduleId: string): Promise<b
 
 /** The modules this person may export — for showing the button, and the page. */
 export async function exportableModules(me: Employee, all: readonly string[]): Promise<Set<string>> {
-  if (isOwner(me.email) || isSuperAdmin(me.email)) return new Set(all);
+  if (isOwner(me.email) || (await isMasterAdmin(me.email))) return new Set(all);
   const rows = await db
     .select({ moduleId: moduleBackupGrants.moduleId })
     .from(moduleBackupGrants)
@@ -57,6 +57,6 @@ export async function exportableModules(me: Employee, all: readonly string[]): P
  * Export grants and Drive credentials are administrative controls, so this is
  * deliberately independent from ordinary module export access.
  */
-export function canManageModuleBackups(me: Employee): boolean {
-  return isSuperAdmin(me.email);
+export async function canManageModuleBackups(me: Employee): Promise<boolean> {
+  return isMasterAdmin(me.email);
 }

@@ -37,6 +37,11 @@ export async function getTemplateOverride(key: string): Promise<TemplateOverride
 export interface TemplateMasterRow {
   key: string;
   name: string;
+  /** The workspace the feature lives in — Upload Master groups by this. */
+  module: string;
+  /** The path a person takes to reach the download button. */
+  feature: string;
+  /** What the module actually serves right now. */
   fileName: string;
   lastEdited: Date | null;
   overridden: boolean;
@@ -47,11 +52,15 @@ export interface TemplateMasterRow {
  * The Upload Master list: every template in the registry, with its override
  * metadata merged in. `lastEdited` is null (and `overridden` false) for a
  * template nobody has replaced.
+ *
+ * The registry is the list, NOT the table: a template with no row is built-in,
+ * which is why this maps the registry rather than selecting everything.
  */
 export async function listTemplateFiles(): Promise<TemplateMasterRow[]> {
   const overrides = await db
     .select({
       key: templateFiles.key,
+      fileName: templateFiles.fileName,
       updatedAt: templateFiles.updatedAt,
       fileSize: templateFiles.fileSize,
     })
@@ -64,7 +73,9 @@ export async function listTemplateFiles(): Promise<TemplateMasterRow[]> {
     return {
       key: t.key,
       name: t.name,
-      fileName: t.fileName,
+      module: t.module,
+      feature: t.feature,
+      fileName: ov ? ov.fileName : t.fileName,
       lastEdited: ov ? ov.updatedAt : null,
       overridden: Boolean(ov),
       fileSize: ov ? ov.fileSize : null,

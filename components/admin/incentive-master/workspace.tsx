@@ -17,6 +17,8 @@ import { formatInr } from "@/lib/format";
 import type { ProductOption } from "@/lib/queries/products";
 import type { IncentiveEligibilityView } from "@/lib/queries/incentive-master";
 import {
+  INCENTIVE_APPLICABILITIES,
+  INCENTIVE_APPLICABILITY_LABELS,
   INCENTIVE_DURATIONS,
   INCENTIVE_TYPE_OPTIONS,
   MAX_ELIGIBILITY_BATCH,
@@ -28,8 +30,11 @@ import {
   mayBecomeEligible,
   type CandidateRow,
   type CandidateScope,
+  type IncentiveApplicability,
   type IncentiveDuration,
 } from "@/lib/incentive/master";
+import { MultiSelect } from "@/components/ui/multi-select";
+import { Select } from "@/components/ui/select";
 import {
   addIncentiveEligibility,
   deleteIncentive,
@@ -81,8 +86,10 @@ interface Draft {
   productId: string;
   duration: IncentiveDuration;
   validUntil: string;
-  salesEligible: boolean;
-  internsEligible: boolean;
+  /** Who this applies to (0244) — the three-way choice. */
+  applicability: IncentiveApplicability;
+  /** The functions a FUNCTION-scoped scheme covers. */
+  functionIds: string[];
   notes: string;
   active: boolean;
 }
@@ -97,8 +104,8 @@ function draftOf(v: IncentiveEligibilityView): Draft {
     productId: r.productId ?? "",
     duration: r.duration,
     validUntil: r.validUntil ?? "",
-    salesEligible: r.salesEligible,
-    internsEligible: r.internsEligible,
+    applicability: r.applicability,
+    functionIds: [...r.functionIds],
     notes: r.notes ?? "",
     active: r.active,
   };
@@ -239,8 +246,8 @@ export function IncentiveWorkspace({
       productId: draft.productId === "" ? null : draft.productId,
       duration: draft.duration,
       validUntil: draft.validUntil === "" ? null : draft.validUntil,
-      salesEligible: draft.salesEligible,
-      internsEligible: draft.internsEligible,
+      applicability: draft.applicability,
+      functionIds: draft.applicability === "FUNCTION" ? draft.functionIds : [],
       notes: draft.notes.trim() || null,
       active: draft.active,
     });
@@ -408,6 +415,7 @@ export function IncentiveWorkspace({
                 set={set}
                 issues={issues}
                 products={products}
+                functions={view.functions}
                 readOnly={!canEdit}
               />
             ) : section === "eligibility" ? (
@@ -452,12 +460,16 @@ function DetailsBody({
   set,
   issues,
   products,
+  functions,
   readOnly,
 }: {
   draft: Draft;
   set: <K extends keyof Draft>(k: K, v: Draft[K]) => void;
   issues: Partial<Record<string, string>>;
   products: ProductOption[];
+  /** The Function master's active rows — the same list Employee Master shows
+   *  in its Function column, so a scheme is scoped to a real function. */
+  functions: { id: string; name: string }[];
   readOnly: boolean;
 }) {
   return (
@@ -566,35 +578,68 @@ function DetailsBody({
       </Panes>
 
       <Panes>
-        <Pane title="Group eligibility (legacy)">
-          <div className="flex flex-col gap-2">
-            <label className="check" style={readOnly ? { opacity: 0.6 } : undefined}>
-              <input
-                type="checkbox"
-                data-flag="sales"
-                checked={draft.salesEligible}
-                onChange={(e) => set("salesEligible", e.target.checked)}
-                disabled={readOnly}
+        <Pane title="Applies to">
+          <Field label="Who can earn this">
+            <Select
+              value={draft.applicability}
+              onValueChange={(v) => set("applicability", v as IncentiveApplicability)}
+              disabled={readOnly}
+              options={INCENTIVE_APPLICABILITIES.map((a) => ({
+                value: a,
+                label: INCENTIVE_APPLICABILITY_LABELS[a],
+              }))}
+            />
+          </Field>
+
+          {draft.applicability === "FUNCTION" && (
+            <div className="mt-3">
+              <span className="label mb-1.5 block">Functions</span>
+              <MultiSelect
+                options={functions.map((f) => ({ value: f.id, label: f.name }))}
+                selected={draft.functionIds}
+                onChange={(ids) => set("functionIds", ids)}
+                placeholder="Select functions…"
               />
-              Sales eligible
-            </label>
-            <label className="check" style={readOnly ? { opacity: 0.6 } : undefined}>
-              <input
-                type="checkbox"
-                data-flag="interns"
-                checked={draft.internsEligible}
-                onChange={(e) => set("internsEligible", e.target.checked)}
-                disabled={readOnly}
-              />
-              Interns eligible
-            </label>
-          </div>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  className="pastel-cta"
+                  disabled={readOnly}
+                  onClick={() => set("functionIds", functions.map((f) => f.id))}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  className="pastel-cta"
+                  disabled={readOnly}
+                  onClick={() => set("functionIds", [])}
+                >
+                  Deselect all
+                </button>
+              </div>
+              <Note>
+                Everyone in the selected functions is eligible. The list is the
+                Function master (Admin → Functions), so a function renamed or
+                retired there is never matched by a stale copy here.
+              </Note>
+            </div>
+          )}
+
+          {draft.applicability === "SELECTED_EMPLOYEES" && (
+            <Note>
+              Only the people listed on the <strong>Eligible employees</strong>{" "}
+              tab are eligible, each from their own effective date. Adding
+              somebody there is what fills this list — and removing them keeps
+              the record of when they were eligible.
+            </Note>
+          )}
+
           <Note>
-            These two flags are the original eligibility model: everyone counts
-            as Sales or Interns, read off their designation. They apply only
-            while this incentive has <strong>no named employees</strong> — as
-            soon as one is added on the Eligible employees tab, the named list
-            governs and these are ignored.
+            Interns are never eligible, whatever is chosen here — that comes from
+            the employee&apos;s type, set on the Designation master or overridden
+            on their own record. A new incentive applies to{" "}
+            <strong>All Employees</strong> until this is changed.
           </Note>
         </Pane>
 
@@ -736,13 +781,13 @@ function EligibilityBody({
         </div>
       )}
 
-      {view.incentive.eligibilityMode === "groups" && (
+      {view.incentive.eligibilityMode !== "selected" && (
         <div className="glass px-5 py-4">
           <p className="quiet text-[12.5px] leading-relaxed">
-            This incentive currently uses <strong>group eligibility</strong> —{" "}
-            {view.incentive.eligibleLabel.toLowerCase()} by designation. Naming
-            even one employee here switches it to a named list, and the group
-            ticks on the details tab stop applying.
+            This incentive currently applies to{" "}
+            <strong>{view.incentive.applicabilityLabel.toLowerCase()}</strong>. Adding
+            employees below switches it to <strong>Selected Employees</strong>, and
+            then only the people listed here are eligible.
           </p>
         </div>
       )}

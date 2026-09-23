@@ -10,25 +10,34 @@ import type {
 import type { IncentiveRequestRow } from "@/lib/queries/incentive";
 import type { EmployeeOption } from "@/lib/queries/employees";
 import type { IncentiveAnalytics } from "@/lib/incentive/analytics/model";
+import type { IncentiveLeaderRow } from "@/lib/queries/incentive-analytics";
 import { IncentiveDashboard } from "./incentive-dashboard";
 import { IncentiveAnalyticsDashboard } from "./analytics/incentive-analytics-dashboard";
 import { IncentiveList } from "./incentive-list";
 import { IncentiveTargets } from "./incentive-targets";
 import { IncentiveEntries } from "./incentive-entries";
+import { MyIncentives } from "./my-incentives";
+import type { MyIncentiveRow } from "@/lib/queries/my-incentives";
 
-type TabKey = "dashboard" | "requests" | "targets" | "entries" | "status" | "billing";
+type TabKey = "dashboard" | "my" | "requests" | "targets" | "entries" | "status" | "billing";
 
 export function IncentiveTabs({
   dashboard,
+  leaders,
   analytics,
   analyticsMonths,
   targetVsActual,
   billingSlot,
   year,
   requests,
+  myIncentives,
   entries,
   employees,
   products,
+  productCodes = {},
+  shiftTypes = [],
+  monthlyCtc,
+  defaultShift,
   me,
   isAdmin,
   canReview,
@@ -38,6 +47,8 @@ export function IncentiveTabs({
 }: {
   /** The company-wide year roll-up — null unless the viewer may see everyone. */
   dashboard: DashboardData | null;
+  /** The Trends leaderboard, already ranked on % of CTC by the analytics model. */
+  leaders?: IncentiveLeaderRow[];
   /** The Incentive Dashboard for the current month, already scoped to the viewer. */
   analytics: IncentiveAnalytics;
   /** Months the dashboard's "Specific Month" picker offers. */
@@ -48,11 +59,21 @@ export function IncentiveTabs({
   billingSlot: ReactNode;
   year: number;
   requests: IncentiveRequestRow[];
+  /** The viewer's OWN incentives — what they can earn and what it pays. */
+  myIncentives: MyIncentiveRow[];
   entries: IncentiveEntryAdminRow[];
   /** Active employees — the admin Entries tab and the request dialog's split picker. */
   employees: EmployeeOption[];
-  /** Active product names (Admin → Products) for the Conversion form. */
+  /** Active product names (Admin → Products) — the Product Sold picker. */
   products: string[];
+  /** NAME → short code (Admin → Products) for the Product Code column. */
+  productCodes?: Record<string, string>;
+  /** Active shift names (Admin → Shift Types) — the Sales Pitch Shift field. */
+  shiftTypes?: string[];
+  /** The viewer's own CTC ÷ 12, formatted — the form's read-only figure. */
+  monthlyCtc?: string;
+  /** The viewer's own shift, offered as the form's Shift default. */
+  defaultShift?: string | null;
   /** The signed-in requester. */
   me: { id: string; name: string };
   isAdmin: boolean;
@@ -74,6 +95,7 @@ export function IncentiveTabs({
    */
   const available: TabKey[] = [
     "dashboard",
+    "my",
     "requests",
     "targets",
     ...(isAdmin ? (["entries"] as const) : []),
@@ -141,8 +163,14 @@ export function IncentiveTabs({
              incentive-name totals) is kept, and only for viewers who may see
              everyone. It moved from a <details> ABOVE nothing to the bottom of
              the dashboard, under the table that answers the daily question. */
-          trends={dashboard ? <IncentiveDashboard data={dashboard} year={year} /> : null}
+          trends={
+            dashboard ? (
+              <IncentiveDashboard data={dashboard} leaders={leaders ?? []} year={year} />
+            ) : null
+          }
         />
+      ) : active === "my" ? (
+        <MyIncentives rows={myIncentives} />
       ) : active === "targets" ? (
         <IncentiveTargets
           data={targetVsActual}
@@ -167,6 +195,10 @@ export function IncentiveTabs({
           me={me}
           employees={employees}
           products={products}
+          productCodes={productCodes}
+          shiftTypes={shiftTypes}
+          monthlyCtc={monthlyCtc}
+          defaultShift={defaultShift}
           focusRequestId={focusRequestId}
         />
       )}

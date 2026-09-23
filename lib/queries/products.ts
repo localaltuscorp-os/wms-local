@@ -71,6 +71,33 @@ export const listActiveProducts = unstable_cache(
 );
 
 /**
+ * NAME → SHORT CODE for the active products, for the surfaces that PRINT a
+ * product's code beside a row rather than resolving an id — the incentive
+ * tables, whose rows store products by NAME.
+ *
+ * Derived from the Product Master here rather than kept as a table in the
+ * component: renaming a code in Admin → Products changes what the incentive
+ * list prints, with no deploy and no second list to drift. A product with no
+ * code is absent from the map, and the caller falls back to the name it
+ * already has.
+ */
+export const listActiveProductCodes = unstable_cache(
+  async (): Promise<Record<string, string>> => {
+    const rows = await db
+      .select({ name: outstandingProducts.name, code: outstandingProducts.code })
+      .from(outstandingProducts)
+      .where(eq(outstandingProducts.isActive, true));
+    const map: Record<string, string> = {};
+    for (const r of rows) {
+      if (r.code && r.code.trim()) map[r.name] = r.code.trim();
+    }
+    return map;
+  },
+  ["list-active-product-codes"],
+  { tags: [CACHE_TAGS.products], revalidate: 600 },
+);
+
+/**
  * Active product NAMES only — for the surfaces that still store a product as
  * text rather than as an FK (the `product` form-field MCQ, above all).
  *

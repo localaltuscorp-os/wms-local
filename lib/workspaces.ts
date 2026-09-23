@@ -64,7 +64,7 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   hr: "/hr",
   // The room opens on People Gives now that Outstanding has gone to Billing.
   sales: "/people-gives",
-  training: "/training",
+  training: "/training/dashboard",
   accounts: "/accounts",
   events: "/events",
   // The module entry = the GOALS DASHBOARD — the read-only overview across all
@@ -88,7 +88,7 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   // Project — the Project → Milestone → Result → Action hierarchy. Its own room
   // beside Hand-holding. The older /projects board stays where it is, on the
   // WMS rail; this room is the planning table, not a replacement for it.
-  "project-plan": "/project-plan",
+  "project-plan": "/project-plan/views",
   // Operations — the two-tier room (2026-09-11). `/operations` is a FORWARDER,
   // not a page: it redirects to the room's first area (see
   // app/(app)/operations/page.tsx). Kept as the landing so there is exactly one

@@ -1,7 +1,8 @@
 import "server-only";
-import { and, eq, isNull, isNotNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { tasks, employees } from "@/db/schema";
+import { currentTaskVisibility } from "@/lib/tasks/scope";
 import type { TaskStatus, TaskPriority } from "@/db/enums";
 
 export interface DuplicateTask {
@@ -39,6 +40,19 @@ const norm = (s: string | null): string =>
  * duplicate" — Manan).
  */
 export async function findDuplicateGroups(): Promise<DuplicateGroup[]> {
+  // A task read like any other, so it carries the same visibility ceiling
+  // (lib/tasks/scope.ts): the cleanup tool lists TITLES AND DESCRIPTIONS, and a
+  // page that listed the organisation's work while the list beside it refused
+  // to would be the same leak wearing a different URL.
+  const visibility = await currentTaskVisibility();
+  const ceiling =
+    visibility && visibility.permittedIds !== null && visibility.permittedIds.length > 0
+      ? or(
+          inArray(tasks.doerId, visibility.permittedIds),
+          inArray(tasks.initiatorId, visibility.permittedIds),
+        )
+      : undefined;
+
   const rows = await db
     .select({
       id: tasks.id,
@@ -65,6 +79,7 @@ export async function findDuplicateGroups(): Promise<DuplicateGroup[]> {
         or(isNull(tasks.recurrence), eq(tasks.recurrence, "none")),
         isNull(tasks.recurrenceParentId),
         sql`${tasks.recurrenceRule} is null or ${tasks.recurrenceRule} = ''`,
+        ...(ceiling ? [ceiling] : []),
       ),
     )
     .limit(5000);
