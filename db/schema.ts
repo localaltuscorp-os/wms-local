@@ -2091,6 +2091,7 @@ export const NOTIFICATION_KINDS = [
   // this kind, so it's inbox-only through the dispatcher). Deep-links to
   // /communications/<broadcastId>.
   "broadcast",
+  "ce_reference_reminder",
   // Incentive notifications & emails (migration 0231) — text column, no DB
   // change. Created only by lib/incentive/notifications/service.ts through
   // notify(); the body is the JSON meta in lib/incentive/notifications/kinds.ts
@@ -7012,6 +7013,7 @@ export const broadcastRecipients = pgTable(
     readAt: timestamp("read_at", { withTimezone: true }),
     acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
     deliveredChannels: jsonb("delivered_channels").notNull().default(sql`'[]'::jsonb`),
+    channelOutcomes: jsonb("channel_outcomes").notNull().default(sql`'{}'::jsonb`),
     // Reminder / escalation tracking (0180).
     lastRemindedAt: timestamp("last_reminded_at", { withTimezone: true }),
     reminderCount: integer("reminder_count").notNull().default(0),
@@ -8343,7 +8345,10 @@ export const candidateIntake = pgTable(
     // (see lib/hr/candidate/evaluation-v2.ts). The old `evaluation` stays intact.
     evaluationV2: jsonb("evaluation_v2"),
     managementAssessment: jsonb("management_assessment"),
-    mergedIntoId: uuid("merged_into_id").references(() => candidateIntake.id, { onDelete: "set null" }),
+    // The self-reference is enforced by the database migration. Omitting the
+    // Drizzle callback here avoids a recursive table type during TypeScript's
+    // declaration inference.
+    mergedIntoId: uuid("merged_into_id"),
     photoPath: text("photo_path"),
     signaturePath: text("signature_path"),
     createdById: uuid("created_by_id").references(() => employees.id, {
@@ -8800,6 +8805,7 @@ export const paPeople = pgTable("pa_people", {
   /** Set when the person came from the employee roster; null when typed. */
   employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
   isActive: boolean("is_active").notNull().default(true),
+  isCeLead: boolean("is_ce_lead").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -8832,6 +8838,8 @@ export const paAmbassadors = pgTable("pa_ambassadors", {
   startDate: date("start_date"),
   endDate: date("end_date"),
   onHold: boolean("on_hold").notNull().default(false),
+  ownerPersonId: uuid("owner_person_id").references(() => paPeople.id, { onDelete: "set null" }),
+  status: text("status"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -8842,9 +8850,7 @@ export const paEntries = pgTable(
   "pa_entries",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    personId: uuid("person_id")
-      .notNull()
-      .references(() => paPeople.id, { onDelete: "cascade" }),
+    personId: uuid("person_id").references(() => paPeople.id, { onDelete: "cascade" }),
     /** ps | bss | retainer | ecosystem, or null until a Product is chosen. */
     section: text("section"),
     name: text("name").notNull(),
@@ -8860,6 +8866,7 @@ export const paEntries = pgTable(
     callType: text("call_type"),
     /** That call's length in MINUTES. Shown as HH:MM; stored as a quantity. */
     durationMin: integer("duration_min"),
+    highlight: text("highlight"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -8932,6 +8939,8 @@ export const paCalls = pgTable(
     /** mon..sun */
     day: text("day").notNull(),
     durationMin: integer("duration_min").notNull().default(0),
+    startTime: time("start_time"),
+    endTime: time("end_time"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("pa_calls_entry_idx").on(t.entryId)],
