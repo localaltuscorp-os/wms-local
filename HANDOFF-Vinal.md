@@ -13,7 +13,7 @@
 - **Branch:** `Vinal`
 - **Current delivery commit:** `0f42bc9b` — `feat: refine operations, goals, and employee dashboards`
 - **Main baseline:** `5da93849` — current `origin/main` is already included; `git merge origin/main` reported *Already up to date*.
-- **Push target:** `origin/Vinal`
+- **Push target:** `origin/Vinal` — push attempted on 23 September and blocked with HTTP 403 for GitHub account `vinalpatil1901`; use an account with write access to complete the push.
 - **Management-ready summary:** [`docs/handoffs/vinal-2026-09-23-summary.md`](./docs/handoffs/vinal-2026-09-23-summary.md)
 - **Merged-main handoff:** [`HANDOFF-MAIN-2026-09-23.md`](./HANDOFF-MAIN-2026-09-23.md)
 
