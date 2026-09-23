@@ -11,6 +11,10 @@ vi.mock("@/lib/weekly-goals/hierarchy", () => ({
 const isMasterAdmin = vi.fn((_email: string | null | undefined): boolean => false);
 vi.mock("@/lib/security/capabilities", () => ({
   isMasterAdmin: (email: string | null | undefined) => isMasterAdmin(email),
+  emailsWithCapability: () => [],
+}));
+vi.mock("@/lib/security/capability-grants", () => ({
+  isMasterAdmin: (email: string | null | undefined) => isMasterAdmin(email),
 }));
 
 const isSuperAdmin = vi.fn((_email: string | null | undefined): boolean => false);
