@@ -510,6 +510,16 @@ function scheduleColumns(v: Omit<z.infer<typeof ItemInput>, "itemId">):
   return { ok: true, frequency, weekdays: mask, scheduleKind: "scheduled", monthDay: null, mcc: null };
 }
 
+/** Is that a live employee a WCC/MCC compliance may be assigned to? */
+async function isActiveEmployee(id: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: employees.id })
+    .from(employees)
+    .where(and(eq(employees.id, id), eq(employees.isActive, true)))
+    .limit(1);
+  return Boolean(row);
+}
+
 /** Add a compliance to someone's WCC or MCC, or change one. */
 export async function saveComplianceItem(raw: z.input<typeof ItemInput>): Promise<ActionResult> {
   const me = await requireUser();
@@ -554,9 +564,17 @@ export async function saveComplianceItem(raw: z.input<typeof ItemInput>): Promis
         .where(and(eq(dccKpiItems.id, v.itemId), eq(dccKpiItems.archived, false)));
       scheduleDccCalendarSync(guard.owner);
     } else {
-      const scope = await loadDccScope(me);
-      if (!canManageItemsFor(scope, v.ownerEmployeeId)) {
-        return fail("You can add compliances for yourself and your team only.");
+      /* ANY ACTIVE EMPLOYEE MAY BE GIVEN A WCC OR MCC COMPLIANCE (2026-09-23).
+         The two checklists are administrative: the person setting them up is
+         whoever is preparing the roster — an HR admin, a coordinator, an intern
+         handed the job — and not necessarily the person's manager. The
+         manager-downline rule (`canManageItemsFor`) belongs to the DAILY
+         checklist and is still applied there, in addDccItem.
+
+         Checked instead: that the target is a live employee, so a stale id
+         answers with a sentence rather than tripping the foreign key. */
+      if (!(await isActiveEmployee(v.ownerEmployeeId))) {
+        return fail("That employee is no longer active.");
       }
       await db.insert(dccKpiItems).values({
         ownerEmployeeId: v.ownerEmployeeId,
@@ -689,10 +707,12 @@ export async function bulkAddCompliances(raw: z.input<typeof BulkInput>): Promis
   const { kind, rows, dryRun } = parsed.data;
   const checklist = kind.toUpperCase();
 
-  const scope = await loadDccScope(me);
   const ownerIds = [...new Set(rows.map((r) => r.ownerEmployeeId))];
   const [people, existing] = await Promise.all([
-    db.select({ id: employees.id, name: employees.name }).from(employees).where(inArray(employees.id, ownerIds)),
+    db
+      .select({ id: employees.id, name: employees.name })
+      .from(employees)
+      .where(and(inArray(employees.id, ownerIds), eq(employees.isActive, true))),
     db
       .select({
         owner: dccKpiItems.ownerEmployeeId,
@@ -710,9 +730,12 @@ export async function bulkAddCompliances(raw: z.input<typeof BulkInput>): Promis
   const firstLine = new Map<string, number>();
   const values: (typeof dccKpiItems.$inferInsert)[] = [];
   for (const r of rows) {
+    /* The same rule as saveComplianceItem: any ACTIVE employee may be given a
+       compliance. `nameOf` is built from an is-active lookup over the sheet's
+       owner ids, so a miss means that id is not a live employee. */
     const who = nameOf.get(r.ownerEmployeeId);
-    if (!who || !canManageItemsFor(scope, r.ownerEmployeeId)) {
-      problems.push({ line: r.line, error: "You can add compliances for yourself and your team only." });
+    if (!who) {
+      problems.push({ line: r.line, error: "That employee is not on the active list." });
       continue;
     }
     const sched = scheduleColumns({ ...r, kind });

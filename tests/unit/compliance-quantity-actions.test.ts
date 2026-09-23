@@ -43,7 +43,7 @@ const DAY = "2026-09-15";
 
 /** DCC's two tables as they stood before 0238 — every column Drizzle writes. */
 const BEFORE_0238 = `
-  CREATE TABLE employees (id uuid PRIMARY KEY, name text NOT NULL);
+  CREATE TABLE employees (id uuid PRIMARY KEY, name text NOT NULL, is_active boolean NOT NULL DEFAULT true);
   CREATE TABLE dcc_kpi_items (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_employee_id uuid NOT NULL REFERENCES employees(id),

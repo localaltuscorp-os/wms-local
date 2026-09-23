@@ -8,7 +8,9 @@ import { readFileSync } from "node:fs";
  * 0238, 0239 and 0240 applied: what a bulk upload writes for each checklist,
  * what the check-only pass reports, that a sheet with a problem adds nothing,
  * that an MCC frequency is stored and obeyed, and that a database 0240 has not
- * reached still saves a Doer Status. Auth, scope and the calendar are stubbed.
+ * reached still saves a Doer Status. Auth and the calendar are stubbed; the
+ * assignment rule ("any active employee may be given a compliance") is the real
+ * one, so the employees table is seeded and an unknown id is what gets refused.
  */
 
 const h = vi.hoisted(() => ({
@@ -50,9 +52,11 @@ import {
 const LEAD = "11111111-1111-4111-8111-111111111111";
 const PRIYA = "22222222-2222-4222-8222-222222222222";
 const STRANGER = "33333333-3333-4333-8333-333333333333";
+/** Not an employees row at all — what "not on the active list" is for. */
+const GHOST = "99999999-9999-4999-8999-999999999999";
 
 const BEFORE_0238 = `
-  CREATE TABLE employees (id uuid PRIMARY KEY, name text NOT NULL);
+  CREATE TABLE employees (id uuid PRIMARY KEY, name text NOT NULL, is_active boolean NOT NULL DEFAULT true);
   CREATE TABLE dcc_kpi_items (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_employee_id uuid NOT NULL REFERENCES employees(id),
@@ -179,7 +183,7 @@ describe("bulk upload — MCC", () => {
         mccRow(4, "pay  GST"),
         mccRow(5, "Renew licence"),
         mccRow(6, "Renew Licence"),
-        mccRow(7, "Stranger's", { ownerEmployeeId: STRANGER }),
+        mccRow(7, "Not a person's", { ownerEmployeeId: GHOST }),
         mccRow(8, "No month", { mccFrequency: "annually", mccDays: [null] }),
         mccRow(9, "Days out of order", { mccFrequency: "twice_monthly", mccDays: [20, 10] }),
       ],
@@ -190,7 +194,7 @@ describe("bulk upload — MCC", () => {
       problems: [
         { line: 4, error: "Already on Priya Shah's MCC." },
         { line: 6, error: "The same compliance for Priya Shah as row 5." },
-        { line: 7, error: "You can add compliances for yourself and your team only." },
+        { line: 7, error: "That employee is not on the active list." },
         { line: 8, error: "Pick the month Annually is due in." },
         { line: 9, error: "The deadline days must be different and in order — e.g. the 15th, then month-end." },
       ],

@@ -74,7 +74,7 @@ export interface ComplianceBoard {
   multiPerson: boolean;
   /** People the scope picker offers, team-wise; empty for someone with no team. */
   picker: PickerOption[];
-  /** People this viewer may add a compliance for (the viewer first). */
+  /** Who the Add dialog and the bulk template offer: every active employee, the viewer first. */
   manageable: ManageablePerson[];
 }
 
@@ -84,20 +84,42 @@ export interface ManageablePerson {
   email: string | null;
 }
 
-/** Everyone this viewer may add compliances for — themself first, then A–Z. */
-function manageableOf(me: Employee, visible: readonly { id: string; name: string; email: string | null }[], scope: Awaited<ReturnType<typeof loadDccScope>>): ManageablePerson[] {
-  return visible
-    .filter((p) => canManageItemsFor(scope, p.id))
+/**
+ * Everyone who may be GIVEN a WCC or MCC compliance — the viewer first, then A–Z.
+ *
+ * The two checklists are administrative. A weekly or monthly compliance is set
+ * up by whoever is preparing the roster — an HR admin, a coordinator, an intern
+ * handed the job — and not necessarily by that person's manager.
+ *
+ * This used to filter on `canManageItemsFor`, the manager-downline rule. That
+ * rule is right for the DAILY checklist, where a KPI is authored by whoever
+ * owns the work, and wrong here: it left the Employee picker showing a single
+ * name to anyone with no reports, which reads as a broken screen rather than as
+ * a permission. Reported by Vinal on 2026-09-23 — "it is only showing my name",
+ * on both WCC and MCC.
+ *
+ * The server guards in `saveComplianceItem` and `bulkAddCompliances` were
+ * opened to match, so every person this offers is one the save accepts.
+ *
+ * TWO RULES ARE DELIBERATELY NOT CHANGED. Editing or archiving a compliance
+ * that already exists still follows the manager rule (`canManageFor`, below),
+ * and so does setting its Mins: assigning work to a colleague is a different
+ * act from changing work they now hold.
+ */
+function assignableOf(me: Employee, people: readonly { id: string; name: string; email: string | null }[]): ManageablePerson[] {
+  return people
     .map((p) => ({ id: p.id, name: p.name, email: p.email }))
     .sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : a.name.localeCompare(b.name)));
 }
 
 /** The people the bulk-upload template's Employee list offers this viewer. */
 export async function loadManageablePeople(me: Employee): Promise<ManageablePerson[]> {
-  const [scope, everyone] = await Promise.all([loadDccScope(me), loadCompliancePeople()]);
-  const visible = everyone.filter((p) => scope.visibleIds.has(p.id));
-  if (!visible.some((p) => p.id === me.id)) visible.unshift({ id: me.id, name: me.name, managerId: me.managerId, designation: null, address: null, email: me.email });
-  return manageableOf(me, visible, scope);
+  const everyone = await loadCompliancePeople();
+  const all = [...everyone];
+  if (!all.some((p) => p.id === me.id)) {
+    all.unshift({ id: me.id, name: me.name, managerId: me.managerId, designation: null, address: null, email: me.email });
+  }
+  return assignableOf(me, all);
 }
 
 export async function loadComplianceBoard(args: {
@@ -187,7 +209,15 @@ export async function loadComplianceBoard(args: {
     boardGroups = wccDayGroups(rows, { today, from: args.from ?? today, order: byItem });
   }
 
-  const manageable = manageableOf(me, visible, scope);
+  /* Whose rows the board SHOWS is still `visible` — the manager rule. Whose
+     name the Add dialog OFFERS is everyone active. The two are deliberately
+     different: reading a colleague's checklist is not the same as being able
+     to give them work, and the other way round. */
+  const assignable = [...everyone];
+  if (!assignable.some((p) => p.id === me.id)) {
+    assignable.unshift({ id: me.id, name: me.name, managerId: me.managerId, designation: null, address: null, email: me.email });
+  }
+  const manageable = assignableOf(me, assignable);
 
   return {
     rows,
