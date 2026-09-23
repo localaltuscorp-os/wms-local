@@ -44,9 +44,6 @@ export default async function JobDescriptionPage() {
           <h1 className="text-[22px] font-black tracking-tight text-slate-900">
             Job Description
           </h1>
-          <p className="text-[13px] text-slate-500">
-            The JD Bank — every recurring task, owned by a position rather than a person.
-          </p>
         </div>
       </header>
 

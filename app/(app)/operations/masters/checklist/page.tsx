@@ -63,7 +63,6 @@ export default async function ChecklistMastersPage({
         Icon={ListChecks}
         topic="Checklist"
         title="Checklist Masters"
-        description="Reusable checklists — activities, the day each falls relative to the event, doers and backups. New checklists in Operations → Checklist are built from these."
         beside={
           missing ? undefined : (
             <ChecklistMasterPicker templates={templates} selectedId={selected?.id ?? null} canEdit={canEdit} />
