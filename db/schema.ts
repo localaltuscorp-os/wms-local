@@ -7110,8 +7110,6 @@ export const broadcasts = pgTable(
     // should only land in the inbox + email.
     popup: boolean("popup").notNull().default(true),
     publishedAt: timestamp("published_at", { withTimezone: true }),
-    // Set while a sweep publishes a due broadcast (0229).
-    publishClaimedAt: timestamp("publish_claimed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -7152,8 +7150,6 @@ export const broadcastRecipients = pgTable(
     snoozeSession: text("snooze_session"),
     snoozeCount: integer("snooze_count").notNull().default(0),
     popupSeenAt: timestamp("popup_seen_at", { withTimezone: true }),
-    // Per recipient, per channel: what happened (0229).
-    channelOutcomes: jsonb("channel_outcomes").notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

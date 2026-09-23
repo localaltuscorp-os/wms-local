@@ -76,9 +76,10 @@ production migration process:
 5. `db/migrations/0246_control_panel.sql`
 6. `db/migrations/0247_activity_logs_allow_fk_null.sql`
 
-Supporting apply/verify scripts are under `Change-made/SQL/`. Confirm the
-database project/reference before running any SQL; do not infer migration state
-from filenames alone.
+Run the six files above directly and individually. Do not use the files under
+`Change-made/SQL/`; that folder's README marks them superseded and some of its
+database-project guidance is stale. Confirm the database project/reference
+before running any SQL; do not infer migration state from filenames alone.
 
 ## Merge decisions
 
@@ -106,14 +107,15 @@ was combined automatically by Git and should receive a navigation smoke test.
 - Eight targeted unit-test files passed: 131 tests covering employee types,
   incentive applicability/manual payments, logs, salary-slip PDFs, task
   visibility, templates, and reimbursement earnings.
-- The full TypeScript check did not complete locally: the first run exceeded
-  Node's default heap, and a 4 GB retry exceeded the two-minute command limit.
-  This is an incomplete check, not a reported TypeScript failure.
+- The full TypeScript check passed with zero errors using an 8 GB Node heap.
+- A later targeted run passed task visibility and task-stat tests, but the
+  broader route-handler coverage suite still reports 34 guarded routes without
+  permission-node ownership. That pre-existing permission-catalog gap remains
+  a release follow-up.
 
 ## Release checklist
 
-1. Run the full TypeScript and lint checks in CI or with sufficient local
-   memory/time.
+1. Repeat the passing TypeScript check in CI and run the complete lint suite.
 2. Run unit tests, with special attention to incentives, salary slips,
    permissions, logs, templates, tasks, and reimbursements.
 3. Apply and verify migrations `0242`-`0247` against the correct environment.
